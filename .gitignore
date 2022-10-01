@@ -1,0 +1,23 @@
+# dot folders
+.cache/
+.idea/
+.vs/
+.vscode/
+.xmake/
+.venv/
+__pycache__/
+
+# folders
+build/
+vs*/
+
+# files
+*.zip
+*.py[cod]
+compile_commands.json
+CMakeLists.txt
+
+!.gitkeep
+deploy_dirs/*
+
+latest.log
