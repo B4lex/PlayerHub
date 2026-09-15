@@ -1,0 +1,23 @@
+[project]
+name = "server"
+version = "0.1.0"
+description = "FastAPI and Socket.IO server for Skyrim Multiplayer"
+readme = "README.md"
+authors = [
+    { name = "Oleksandr Blakytnyi", email = "oblakytnyi@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]>=0.139.2,<1.0.0",
+    "python-socketio>=5.16.3,<6.0.0",
+    "uvicorn[standard]>=0.51.0,<1.0.0",
+    "websocket-client>=1.9.0",
+]
+
+[project.scripts]
+server = "server:main"
+replay = "server.replay:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
