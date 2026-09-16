@@ -62,7 +62,14 @@ namespace NPCSpawner
 				a_eventName == "WeapEquip" ||
 				a_eventName == "WeapUnequip" ||
 				a_eventName == "Equip" ||
-				a_eventName == "Unequip";
+				a_eventName == "Unequip" ||
+				// Equipping over a drawn weapon plays this quick equip, whose weaponDraw
+				// annotation moves the new weapon from its sheath node into the hand.
+				a_eventName == "WeapOutRightReplaceForceEquip" ||
+				a_eventName == "WeapOutLeftReplaceForceEquip" ||
+				// Raises and lowers the left arm for a carried torch.
+				a_eventName == "torchEquip" ||
+				a_eventName == "torchUnequip";
 		}
 
 		static_assert(IsClientManagedAnimationEvent("swimStop"));
@@ -3124,14 +3131,21 @@ namespace NPCSpawner
 					static_cast<std::uint32_t>(-1);
 		}
 
+		// The draw/sheathe clip itself is still running. The reassert flag alone
+		// stays armed long after the clip for a later locomotion replay.
+		bool IsWeaponTransitionClipPending(const AnimationState& a_state)
+		{
+			return a_state.weaponLocomotionReassertPending &&
+				!a_state.weaponTransitionCompletionObserved &&
+				a_state.weaponTransitionWaitElapsed < kWeaponTransitionFallbackSeconds;
+		}
+
 		bool IsWeaponTransitionUnsettled(const AnimationState& a_state)
 		{
 			if (!a_state.weaponLocomotionReassertPending) {
 				return false;
 			}
-			const bool completed = a_state.weaponTransitionCompletionObserved ||
-				a_state.weaponTransitionWaitElapsed >= kWeaponTransitionFallbackSeconds;
-			if (!completed) {
+			if (IsWeaponTransitionClipPending(a_state)) {
 				return true;
 			}
 			// The reassert flag stays armed across an idle interval so that later
@@ -4004,6 +4018,12 @@ namespace NPCSpawner
 	{
 		return a_npc.animationState &&
 			a_npc.animationState->attackPlaybackPending;
+	}
+
+	bool IsWeaponTransitionPlaying(const ControlledNPC& a_npc)
+	{
+		return a_npc.animationState &&
+			IsWeaponTransitionClipPending(*a_npc.animationState);
 	}
 
 	void RemoveControlledNPC(ControlledNPC& a_npc)

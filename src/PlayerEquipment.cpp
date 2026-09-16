@@ -334,7 +334,11 @@ namespace PlayerEquipment
 			a_remote.armor.clear();
 			a_remote.rightHand = {};
 			a_remote.leftHand = {};
+			// A newer revision does not make a swap that is already waiting less
+			// overdue. Fast consecutive changes must not extend the deferral forever.
+			const float handDeferralElapsed = a_remote.handDeferralElapsed;
 			ResetReconciliation(a_remote);
+			a_remote.handDeferralElapsed = handDeferralElapsed;
 			if (!a_remote.latest) {
 				return;
 			}
@@ -408,8 +412,7 @@ namespace PlayerEquipment
 		bool IsHandSwapDeferred(const RE::Actor& a_actor, const NPCSpawner::ControlledNPC& a_npc)
 		{
 			if (NPCSpawner::IsAnimationActionPlaying(a_npc) ||
-				(a_npc.animationState &&
-					a_npc.animationState->weaponLocomotionReassertPending)) {
+				NPCSpawner::IsWeaponTransitionPlaying(a_npc)) {
 				return true;
 			}
 			const auto* actorState = a_actor.AsActorState();
@@ -595,6 +598,16 @@ namespace PlayerEquipment
 		const float sinceLastCheck = a_remote.checkElapsed;
 		a_remote.checkElapsed = 0.0F;
 
+		// Measure the live state before mutating anything.
+		auto inventory = actor->GetInventory();
+		auto* equippedRight = GetEquippedHandObject(*actor, false);
+		auto* equippedLeft = GetEquippedHandObject(*actor, true);
+		const bool handsMatch = equippedRight == a_remote.rightHand.object &&
+			IsLeftHandMatched(a_remote, equippedLeft);
+		const bool handsDeferred = !handsMatch &&
+			IsHandSwapDeferred(*actor, a_npc) &&
+			a_remote.handDeferralElapsed < kMaximumHandDeferral;
+
 		std::map<RE::TESBoundObject*, std::int32_t> required;
 		for (auto* armor : a_remote.armor) {
 			required[armor] = 1;
@@ -605,9 +618,19 @@ namespace PlayerEquipment
 		if (a_remote.leftHand.object) {
 			++required[a_remote.leftHand.object];
 		}
+		if (handsDeferred) {
+			// Removing an equipped hand object forces an unequip, so a deferred swap
+			// would leave the puppet sheathing or drawing empty hands until it applies.
+			// Keep the stale objects until the swap replaces them.
+			for (auto* equipped : { equippedRight, equippedLeft }) {
+				const auto entry = inventory.find(equipped);
+				if (CanUnequipHandObject(equipped) && entry != inventory.end()) {
+					auto& count = required[equipped];
+					count = (std::max)(count, entry->second.first);
+				}
+			}
+		}
 
-		// Measure the live state before mutating anything.
-		auto inventory = actor->GetInventory();
 		bool inventoryMatches = true;
 		for (const auto& [object, data] : inventory) {
 			const auto requiredCount = required.contains(object) ? required[object] : 0;
@@ -628,10 +651,6 @@ namespace PlayerEquipment
 				entry->second.second && entry->second.second->IsWorn();
 		};
 		const bool armorWorn = std::ranges::all_of(a_remote.armor, isWorn);
-		auto* equippedRight = GetEquippedHandObject(*actor, false);
-		auto* equippedLeft = GetEquippedHandObject(*actor, true);
-		const bool handsMatch = equippedRight == a_remote.rightHand.object &&
-			IsLeftHandMatched(a_remote, equippedLeft);
 
 		// Hands only gate draws and attacks, so an unrelated inventory leftover must
 		// not hold them.
@@ -655,9 +674,6 @@ namespace PlayerEquipment
 			return;
 		}
 
-		const bool handsDeferred = !handsMatch &&
-			IsHandSwapDeferred(*actor, a_npc) &&
-			a_remote.handDeferralElapsed < kMaximumHandDeferral;
 		if (handsDeferred) {
 			a_remote.handDeferralElapsed += sinceLastCheck;
 			if (inventoryMatches && armorWorn) {
