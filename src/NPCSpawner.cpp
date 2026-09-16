@@ -1116,6 +1116,7 @@ namespace NPCSpawner
 			a_state.weaponLocomotionReassertPending = false;
 			a_state.weaponTransitionCompletionObserved = false;
 			a_state.weaponTransitionWaitFrames = 0;
+			a_state.weaponTransitionAnimationObserved = false;
 			a_state.weaponTransitionExitForced = false;
 			a_state.weaponDefaultStateDispatched = false;
 			a_state.weaponReplayBaseDispatched = false;
@@ -1857,6 +1858,7 @@ namespace NPCSpawner
 				animationState->weaponLocomotionReassertPending = false;
 				animationState->weaponTransitionCompletionObserved = false;
 				animationState->weaponTransitionWaitFrames = 0;
+				animationState->weaponTransitionAnimationObserved = false;
 				animationState->weaponTransitionExitForced = false;
 				animationState->weaponDefaultStateDispatched = false;
 				animationState->weaponReplayBaseDispatched = false;
@@ -1893,6 +1895,7 @@ namespace NPCSpawner
 				animationState->weaponLocomotionReassertPending = false;
 				animationState->weaponTransitionCompletionObserved = false;
 				animationState->weaponTransitionWaitFrames = 0;
+				animationState->weaponTransitionAnimationObserved = false;
 				animationState->weaponTransitionExitForced = false;
 				animationState->weaponReplayBaseDispatched = false;
 				animationState->weaponTransitionMoveStartDispatched = false;
@@ -1928,6 +1931,7 @@ namespace NPCSpawner
 				animationState->weaponLocomotionReassertPending = false;
 				animationState->weaponTransitionCompletionObserved = false;
 				animationState->weaponTransitionWaitFrames = 0;
+				animationState->weaponTransitionAnimationObserved = false;
 				animationState->weaponTransitionExitForced = false;
 				animationState->weaponDefaultStateDispatched = false;
 				animationState->weaponReplayBaseDispatched = false;
@@ -2098,6 +2102,7 @@ namespace NPCSpawner
 				animationState->weaponLocomotionReassertPending = true;
 				animationState->weaponTransitionCompletionObserved = false;
 				animationState->weaponTransitionWaitFrames = 0;
+				animationState->weaponTransitionAnimationObserved = false;
 				animationState->weaponTransitionExitForced = false;
 				animationState->weaponDefaultStateDispatched = false;
 				animationState->weaponReplayBaseDispatched = false;
@@ -2124,6 +2129,21 @@ namespace NPCSpawner
 					// drawn branch and only allow its worker-thread exit one update to settle.
 					return;
 				}
+			}
+			if (animationState->weaponLocomotionReassertPending &&
+				!animationState->weaponTransitionCompletionObserved &&
+				!animationState->weaponTransitionExitForced &&
+				!animationState->weaponTransitionAnimationObserved &&
+				IsWeaponTransitionAnimating(
+					weaponState,
+					authoritativeState.weaponDrawn)) {
+				// A request that flips during an opposite transition (for example a
+				// draw started just before a sheathe arrives) spends most of the budget
+				// on that clip. Timing out mid-sheathe resets the graph before its
+				// weaponSheathe annotation, leaving the weapon in hand. Restart the
+				// bounded wait once, when the requested clip actually starts.
+				animationState->weaponTransitionAnimationObserved = true;
+				animationState->weaponTransitionWaitFrames = 0;
 			}
 			if (animationState->weaponLocomotionReassertPending &&
 				animationState->weaponTransitionWaitFrames <
@@ -2538,6 +2558,7 @@ namespace NPCSpawner
 							animationState->weaponLocomotionReassertPending = false;
 							animationState->weaponTransitionCompletionObserved = false;
 							animationState->weaponTransitionWaitFrames = 0;
+							animationState->weaponTransitionAnimationObserved = false;
 							animationState->weaponTransitionExitForced = false;
 							animationState->weaponDefaultStateDispatched = false;
 							animationState->weaponReplayBaseDispatched = false;
@@ -2826,6 +2847,17 @@ namespace NPCSpawner
 						// Furniture graphs do not consistently return to the locomotion
 						// variables which preceded entry. Reconstruct the current checkpoint.
 						InvalidateAnimationDispatch(*a_npc.animationState);
+					}
+					const auto* actorState = a_actor.AsActorState();
+					if (a_npc.targetAnimationState.weaponDrawn && actorState &&
+						actorState->GetWeaponState() == RE::WEAPON_STATE::kSheathed) {
+						// Sitting sheathes the weapon, but checkpoints are not staged while
+						// furniture owns the graph, so the request still holds the pre-entry
+						// drawn state. Dispatching it now would draw on the reconstruction
+						// update and then sheathe once the fresh checkpoint is staged.
+						auto sheathedState = a_npc.targetAnimationState;
+						sheathedState.weaponDrawn = false;
+						SetAnimationState(a_npc, sheathedState);
 					}
 					logs::info(
 						"Animation sync completed furniture exit: actor={:08X} furniture={:08X} nextFurniture={:08X}",
