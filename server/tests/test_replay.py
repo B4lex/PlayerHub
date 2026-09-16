@@ -14,6 +14,7 @@ def valid_payload(sequence: int = 1) -> dict[str, bool | int | float | str]:
         "z": 3.0,
         "heading": 0.0,
         "speed": 100.0,
+        "direction": 0.0,
         "movementState": "idle",
         "jumping": False,
         "weaponDrawn": False,
@@ -164,6 +165,8 @@ class LoadRecordingTests(unittest.TestCase):
         second.pop("graphEpoch")
         first.pop("furnitureRefId")
         second.pop("furnitureRefId")
+        first.pop("direction")
+        second.pop("direction")
         second["x"] = 21.0
         path = self.write_recording(
             [
@@ -180,3 +183,4 @@ class LoadRecordingTests(unittest.TestCase):
         self.assertIs(updates[1].payload["weaponDrawn"], False)
         self.assertEqual(updates[1].payload["graphEpoch"], 1)
         self.assertEqual(updates[1].payload["furnitureRefId"], 0)
+        self.assertEqual(updates[1].payload["direction"], 0.0)

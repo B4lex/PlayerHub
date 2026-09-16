@@ -147,7 +147,7 @@ The demo refreshes the target to the player position every frame and uses a 512-
 - `deltaTime` is clamped to 0.1 seconds to avoid a large catch-up move after a stall.
 - The movement step is capped at `distance - stoppingDistance`, so it does not overshoot the follow radius.
 - `SetPosition(nextPosition, true)` updates both the reference transform and the actor character controller.
-- The actor heading is set from the horizontal movement vector using `atan2(x, y)`; Skyrim heading zero faces positive Y.
+- The actor heading comes from the remote body angle, not the movement vector; Skyrim heading zero faces positive Y. Backward and sideways travel is expressed through the graph `Direction` variable.
 
 The demo currently spawns the actor beside the player. It begins moving only after the player is farther than 512 units away.
 

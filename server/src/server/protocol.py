@@ -32,7 +32,7 @@ def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None
     if not isinstance(data, dict):
         return None
 
-    numeric_fields = ("x", "y", "z", "heading", "speed")
+    numeric_fields = ("x", "y", "z", "heading", "speed", "direction")
     values: dict[str, bool | int | float | str] = {}
     for field in numeric_fields:
         value = data.get(field)
@@ -41,6 +41,9 @@ def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None
         if not math.isfinite(value):
             return None
         if field == "speed" and value < 0:
+            return None
+        # Movement direction relative to heading, in behavior-graph units.
+        if field == "direction" and not 0 <= value <= 1:
             return None
         values[field] = value
 

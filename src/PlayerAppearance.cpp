@@ -625,23 +625,24 @@ namespace PlayerAppearance
 		static std::optional<AppearanceData> published;
 		static std::optional<AppearanceData> candidate;
 		static std::uint64_t revision = 0;
-		static bool wasConnected = false;
+		static std::uint64_t publishedConnectionGeneration = 0;
 
 		const float delta = std::isfinite(a_delta) ? (std::max)(a_delta, 0.0F) : 0.0F;
 		captureElapsed += delta;
 		publishElapsed += delta;
 
 		if (!Network::IsConnected()) {
-			wasConnected = false;
 			return;
 		}
-		if (!wasConnected) {
-			wasConnected = true;
+		if (const auto generation = Network::GetConnectionGeneration();
+			generation != publishedConnectionGeneration) {
+			publishedConnectionGeneration = generation;
 			// The server forgets a connection's appearance when it drops.
 			if (published) {
 				logs::info(
-					"Appearance sync republishing after connect: revision={}",
-					static_cast<unsigned long long>(published->revision));
+					"Appearance sync republishing after connect: revision={} connectionGeneration={}",
+					static_cast<unsigned long long>(published->revision),
+					static_cast<unsigned long long>(generation));
 				Network::PublishLocalAppearance(*published);
 				publishElapsed = 0.0F;
 			}

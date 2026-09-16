@@ -11,6 +11,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "z": -3.5,
             "heading": 0.25,
             "speed": 550.0,
+            "direction": 0.0,
             "movementState": "sprinting",
             "jumping": False,
             "weaponDrawn": True,
@@ -30,6 +31,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "z": 3.0,
             "heading": 0.25,
             "speed": 200.0,
+            "direction": 0.0,
             "movementState": "running",
             "jumping": True,
             "weaponDrawn": False,
@@ -49,6 +51,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "z": 3.0,
             "heading": 0.25,
             "speed": 200.0,
+            "direction": 0.0,
             "movementState": "running",
             "jumping": 1,
             "weaponDrawn": False,
@@ -68,6 +71,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "z": 3.0,
             "heading": 0.25,
             "speed": 0.0,
+            "direction": 0.0,
             "movementState": "idle",
             "jumping": False,
             "weaponDrawn": 1,
@@ -87,6 +91,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "z": 3.0,
             "heading": 0.0,
             "speed": 0.0,
+            "direction": 0.0,
             "movementState": "idle",
             "jumping": False,
             "weaponDrawn": False,
@@ -106,6 +111,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "z": 3.0,
             "heading": 0.0,
             "speed": 125.0,
+            "direction": 0.0,
             "movementState": "walking",
             "jumping": False,
             "weaponDrawn": False,
@@ -125,6 +131,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "z": 3.0,
             "heading": 0.0,
             "speed": 125.0,
+            "direction": 0.0,
             "movementState": "flying",
             "jumping": False,
             "weaponDrawn": False,
@@ -144,6 +151,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "z": 3.0,
             "heading": 0.0,
             "speed": 0.0,
+            "direction": 0.0,
             "movementState": "idle",
             "jumping": False,
             "weaponDrawn": False,
@@ -163,6 +171,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "z": 3.0,
             "heading": 0.0,
             "speed": 0.0,
+            "direction": 0.0,
             "movementState": "idle",
             "jumping": False,
             "weaponDrawn": False,
@@ -182,6 +191,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "z": 3.0,
             "heading": 0.0,
             "speed": 0.0,
+            "direction": 0.0,
             "movementState": "idle",
             "jumping": False,
             "weaponDrawn": False,
@@ -193,6 +203,48 @@ class ParsePlayerUpdateTests(unittest.TestCase):
 
         self.assertIsNone(parse_player_update(payload))
 
+    def test_accepts_backward_direction(self) -> None:
+        payload = {
+            "x": 1.0,
+            "y": 2.0,
+            "z": 3.0,
+            "heading": 0.0,
+            "speed": 150.0,
+            "direction": 0.5,
+            "movementState": "walking",
+            "jumping": False,
+            "weaponDrawn": True,
+            "cellId": 1,
+            "worldspaceId": 0,
+            "furnitureRefId": 0,
+            "graphEpoch": 1,
+            "sequence": 1,
+        }
+
+        self.assertEqual(parse_player_update(payload), payload)
+
+    def test_rejects_out_of_range_direction(self) -> None:
+        for direction in (-0.25, 1.5, float("nan")):
+            payload = {
+                "x": 1.0,
+                "y": 2.0,
+                "z": 3.0,
+                "heading": 0.0,
+                "speed": 150.0,
+                "direction": direction,
+                "movementState": "walking",
+                "jumping": False,
+                "weaponDrawn": False,
+                "cellId": 1,
+                "worldspaceId": 0,
+                "furnitureRefId": 0,
+                "graphEpoch": 1,
+                "sequence": 1,
+            }
+
+            with self.subTest(direction=direction):
+                self.assertIsNone(parse_player_update(payload))
+
     def test_rejects_negative_speed(self) -> None:
         payload = {
             "x": 1.0,
@@ -200,6 +252,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "z": 3.0,
             "heading": 0.0,
             "speed": -1.0,
+            "direction": 0.0,
             "movementState": "walking",
             "jumping": False,
             "weaponDrawn": False,

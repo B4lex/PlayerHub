@@ -18,6 +18,8 @@ namespace Network
 		float heading{ 0.0F };
 		// Measured translation speed in Skyrim world units per second.
 		float speed{ 0.0F };
+		// Travel direction relative to heading, in graph `Direction` units [0, 1).
+		float direction{ 0.0F };
 		// Locomotion, jump phase, and combat stance from the same snapshot.
 		Multiplayer::AnimationState animationState{};
 		std::uint32_t cellID{ 0 };
@@ -74,6 +76,11 @@ namespace Network
 	void Initialize();
 
 	[[nodiscard]] bool IsConnected();
+
+	// Advances every time the default namespace opens, including automatic
+	// reconnects. The server forgets per-connection state, so latest-wins
+	// publishers republish whenever this changes.
+	[[nodiscard]] std::uint64_t GetConnectionGeneration();
 
 	// Called from the game thread. socket.io-client-cpp queues the emit for its
 	// transport thread; no Skyrim objects cross the network boundary.
