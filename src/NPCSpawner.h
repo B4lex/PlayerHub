@@ -51,10 +51,14 @@ namespace NPCSpawner
 		float rejectedEventElapsed{ 0.0F };
 		// JumpLand only enters Skyrim's timed landing branch. Keep the compound
 		// transition open until that branch emits JumpLandEnd, then fully reassert
-		// grounded locomotion before accepting another animation edge.
+		// grounded locomotion before accepting another animation edge. Only a
+		// consecutive takeoff may interrupt it, as it does on the local player.
 		bool landingCompletionPending{ false };
 		std::uint32_t landingCompletionWaitFrames{ 0 };
 		float landingCompletionWaitElapsed{ 0.0F };
+		// JumpLandEnd selects the graph's exit branch. Reassert the active grounded
+		// locomotion events once, without forgetting the dispatched weapon stance.
+		bool landingLocomotionReassertPending{ false };
 		bool hasDispatched{ false };
 		bool hasAttempted{ false };
 		bool hasVariableUpdateResult{ false };
@@ -167,6 +171,10 @@ namespace NPCSpawner
 		const RE::BSFixedString& a_eventName);
 
 	[[nodiscard]] bool IsAnimationStateSettled(const ControlledNPC& a_npc);
+	// Every requested revision was processed, but the graph may still be playing
+	// a landing branch. A consecutive takeoff is allowed to interrupt that branch.
+	[[nodiscard]] bool IsAnimationStateSettledExceptLanding(
+		const ControlledNPC& a_npc);
 
 	// Semantic attacks may only enter a stable, grounded, fully drawn graph.
 	[[nodiscard]] bool CanDispatchNormalAttack(const ControlledNPC& a_npc);

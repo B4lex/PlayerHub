@@ -274,6 +274,13 @@ namespace FrameUpdate
 			} else if (waitForGraphJumpReset) {
 				if (!requestedJumping) {
 					waitForGraphJumpReset = false;
+				} else if (physicalMidair) {
+					// Skyrim accepts a new takeoff from its landing branch, so
+					// bInJumpState may never reset between consecutive jumps. Leaving
+					// the ground again after the published landing is that new jump.
+					waitForGraphJumpReset = false;
+					replicatedJumping = true;
+					observedMidair = true;
 				}
 			} else if (requestedJumping) {
 				replicatedJumping = true;
@@ -821,13 +828,20 @@ namespace FrameUpdate
 			if (!a_puppet.controlledNPC ||
 				NPCSpawner::IsFurnitureInteractionPlaying(
 					*a_puppet.controlledNPC) ||
-				!NPCSpawner::IsAnimationStateSettled(*a_puppet.controlledNPC)) {
+				!NPCSpawner::IsAnimationStateSettledExceptLanding(
+					*a_puppet.controlledNPC)) {
 				return;
 			}
 
 			const auto current = a_puppet.controlledNPC->targetAnimationState;
 			const auto target = GetPresentableAnimationState(a_puppet);
 			if (current == target) {
+				return;
+			}
+			if (!NPCSpawner::IsAnimationStateSettled(*a_puppet.controlledNPC) &&
+				!target.jumping) {
+				// Only a consecutive takeoff may interrupt a landing branch. Any other
+				// change waits for JumpLandEnd and the grounded locomotion reassertion.
 				return;
 			}
 
