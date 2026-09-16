@@ -12,6 +12,7 @@ from server.replay import load_recording
 def valid_appearance(revision: int = 1) -> dict[str, object]:
     return {
         "revision": revision,
+        "name": "Lydia Stormblade",
         "race": {"plugin": "Skyrim.esm", "formId": 0x13746},
         "female": True,
         "weight": 42.5,
@@ -40,6 +41,24 @@ class ParsePlayerAppearanceTests(unittest.TestCase):
 
         self.assertEqual(parse_player_appearance(payload), payload)
 
+    def test_accepts_empty_and_multibyte_names(self) -> None:
+        for name in ("", "Олександра", "é" * 64):
+            with self.subTest(name):
+                payload = valid_appearance()
+                payload["name"] = name
+                self.assertEqual(parse_player_appearance(payload), payload)
+
+    def test_missing_or_null_name_is_empty(self) -> None:
+        expected = valid_appearance()
+        expected["name"] = ""
+        missing = valid_appearance()
+        missing.pop("name")
+        null = valid_appearance()
+        null["name"] = None
+
+        self.assertEqual(parse_player_appearance(missing), expected)
+        self.assertEqual(parse_player_appearance(null), expected)
+
     def test_drops_unknown_fields(self) -> None:
         payload = valid_appearance()
         payload["extra"] = True
@@ -50,6 +69,10 @@ class ParsePlayerAppearanceTests(unittest.TestCase):
     def test_rejects_invalid_values(self) -> None:
         mutations = {
             "zero revision": lambda p: p.update(revision=0),
+            "non-string name": lambda p: p.update(name=7),
+            "name with control character": lambda p: p.update(name="Lydia\nStormblade"),
+            "name too long": lambda p: p.update(name="é" * 65),
+            "name with lone surrogate": lambda p: p.update(name="\ud800"),
             "boolean weight": lambda p: p.update(weight=True),
             "weight too large": lambda p: p.update(weight=101.0),
             "height too small": lambda p: p.update(height=0.1),

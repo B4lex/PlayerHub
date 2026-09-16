@@ -9,7 +9,8 @@ and shows that appearance. The remaining open items are listed under
 
 ## Goal
 
-A remote puppet looks like the source player's character: race, sex, body
+A remote puppet looks like the source player's character and carries its name:
+race, sex, body
 weight, height, head parts (face, eyes and eye color, hair, beard, brows,
 scars), hair color, face morph sliders and presets, face detail texture, skin
 tone, and face tint layers (war paint, dirt, lip and cheek color, and so on).
@@ -21,7 +22,7 @@ remote player looked like the viewer.
 
 - Equipment, armor, and weapons. Equipment is presentation state with its own
   lifecycle and is specified separately.
-- Character name, voice type, and actor values.
+- Voice type and actor values.
 - Transformation races (werewolf, vampire lord) and their graphs. Capture only
   publishes playable races; while the source is transformed, remote peers keep
   the last playable appearance.
@@ -41,6 +42,7 @@ The client emits `player:appearance`:
 ```json
 {
   "revision": 3,
+  "name": "Lydia Stormblade",
   "race": { "plugin": "Skyrim.esm", "formId": 79686 },
   "female": false,
   "weight": 50.0,
@@ -74,6 +76,7 @@ form is missing. Dynamic (`FF`) forms cannot be referenced and are omitted.
 | Field | Meaning | Validation |
 | --- | --- | --- |
 | `revision` | Source-local monotonic counter | integer `1..2^63-1`, strictly increasing per connection |
+| `name` | Character name (`TESFullName` of the actor base) | string of at most 128 UTF-8 bytes, no control characters; missing or `null` means empty |
 | `race` | `TESRace` | form reference |
 | `female` | Sex | boolean |
 | `weight` | `TESNPC::weight`, body morph | number `0..100` |
@@ -112,6 +115,8 @@ On the game thread, once per second, the client captures from the player:
 
 - `race`: the actor base race. If it is not playable, `originalRace` is used if
   that is playable; otherwise capture is skipped (transformation).
+- `name`: the actor base full name with control characters removed, cut at a
+  UTF-8 code point boundary to 128 bytes.
 - `female`, `weight`, `height`, `headParts[0..numHeadParts)`, the hair color
   form's RGB, `faceDetails`, `faceData` morphs/parts.
 - `bodyTint`: `TESNPC::bodyTintColor`; if it is black, the color of the skin
@@ -153,7 +158,9 @@ Every accepted appearance revision gets a new runtime `TESNPC`:
 2. Detach every appearance pointer the copy may share with the player base
    (`headParts`, `faceData`, `headRelatedData`, `tintLayers`, `faceNPC`) and
    allocate fresh ones, so the local player can never be changed.
-3. Apply the resolved appearance (below).
+3. Set the base full name to `name`, replacing the local player's name taken
+   by the copy. The crosshair and other name displays read it from the base.
+4. Apply the resolved appearance (below).
 
 Bases are never freed. A deleted puppet reference may still point at its base
 for a few frames, and the leak is bounded by the source's publish rate.
@@ -174,7 +181,8 @@ Each fallback is logged once per revision.
 ### Spawn and respawn
 
 - A puppet waits up to 3 seconds after its first checkpoint for an appearance.
-  After that it spawns from the local player base, as it did before.
+  After that it spawns from the local player base, as it did before, and so
+  also shows the local player's name.
 - A newer appearance revision than the one the puppet was spawned with retires
   the puppet at the next main-loop pass, as a coordinate-space change does.
   Respawn uses the new base and reconstructs locomotion, weapon stance, and
@@ -217,7 +225,7 @@ Not yet specifically checked:
 1. A remote puppet shows the source player's race, sex, weight, hair, eyes,
    hair color, face shape, and skin/face tints.
 2. Late joiners see the correct appearance without the source changing anything.
-3. Changing appearance (barber, RaceMenu) updates the remote puppet within a few
+3. Changing appearance or name (barber, RaceMenu) updates the remote puppet within a few
    seconds with a single respawn, and it then returns to its synchronized
    locomotion/furniture state.
 4. A peer missing the source's race or head part plugin sees a vanilla fallback

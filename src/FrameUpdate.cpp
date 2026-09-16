@@ -1136,9 +1136,10 @@ namespace FrameUpdate
 
 	void Install()
 	{
+		// Remote-replica entry detours use the trampoline too, so allocate first.
+		SKSE::AllocTrampoline(14 + NPCSpawner::kRemoteReplicaTrampolineSize);
 		NPCSpawner::InstallRemoteReplicaHooks();
 
-		SKSE::AllocTrampoline(14);
 		REL::Relocation<std::uintptr_t> mainLoopUpdateCall{
 			RELOCATION_ID(35565, 36564),
 			REL::VariantOffset(0x53, 0x6E, 0x68)

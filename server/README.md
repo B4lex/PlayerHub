@@ -32,8 +32,8 @@ to `http://127.0.0.1:3000` for local testing.
 - `player:action` relays that action to every other connected player after its
   graph epoch, drawn-weapon, and unoccupied-furniture checkpoint prerequisites
   are verified.
-- `player:appearance` carries the player's latest character appearance (race,
-  sex, weight, head parts, hair color, face morphs, and tints) with an
+- `player:appearance` carries the player's latest character name and appearance
+  (race, sex, weight, head parts, hair color, face morphs, and tints) with an
   increasing revision. It is relayed to other players with `playerId`. The
   server stores the latest appearance per connection and sends every stored
   appearance to a newly connected client. See

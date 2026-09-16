@@ -113,7 +113,8 @@ Future network code must not call `RE::Actor` APIs from its receiver thread. It 
    update still runs, preserving graph and controller processing.
 6. Reference, 3D, and character-controller collision remain enabled. Local
    combat reactions are suppressed at their decision/event paths rather than by
-   removing the actor from the physics world.
+   removing the actor from the physics world. Local actors never become hostile
+   to a puppet; see `008-remote-puppet-combat-isolation.md`.
 7. `InitiateDoNothingPackage()` removes autonomous package travel once the 3D
    and controller are ready.
 8. At spawn time, the puppet is registered with a hook on
