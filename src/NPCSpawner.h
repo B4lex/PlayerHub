@@ -188,9 +188,11 @@ namespace NPCSpawner
 
 	void RemoveControlledNPC(ControlledNPC& a_npc);
 
-	// Returns false when the actor handle is no longer valid.
+	// Returns false when the actor handle is no longer valid. a_translationState
+	// selects how the transform follows the network path; nullopt holds the
+	// transform while a compound transition converges.
 	[[nodiscard]] bool UpdateControlledNPC(
 		ControlledNPC& a_npc,
 		float a_deltaTime,
-		bool a_allowTranslation = true);
+		std::optional<Multiplayer::AnimationState> a_translationState);
 }
