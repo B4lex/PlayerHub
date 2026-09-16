@@ -1,0 +1,177 @@
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
+
+import server.app as server_app
+from server.protocol import parse_player_equipment
+from server.replay import load_recording
+
+
+def valid_equipment(revision: int = 1) -> dict[str, object]:
+    return {
+        "revision": revision,
+        "armor": [
+            {"plugin": "Skyrim.esm", "formId": 0x12E49, "slotMask": 4, "armorType": "heavy"},
+            {"plugin": "Dawnguard.esm", "formId": 0x13E7, "slotMask": 512, "armorType": "light"},
+            {"plugin": "Some Mod.esp", "formId": 0x812, "slotMask": 1, "armorType": "clothing"},
+        ],
+        "rightHand": {"plugin": "Skyrim.esm", "formId": 0x12EB7, "kind": "weapon", "weaponType": 1},
+        "leftHand": {"plugin": "Skyrim.esm", "formId": 0x1D4EC, "kind": "torch"},
+    }
+
+
+class ParsePlayerEquipmentTests(unittest.TestCase):
+    def test_accepts_valid_equipment(self) -> None:
+        self.assertEqual(parse_player_equipment(valid_equipment()), valid_equipment())
+
+    def test_accepts_empty_equipment(self) -> None:
+        payload = {"revision": 1, "armor": [], "rightHand": None, "leftHand": None}
+
+        self.assertEqual(parse_player_equipment(payload), payload)
+
+    def test_accepts_two_handed_weapon_with_empty_left_hand(self) -> None:
+        payload = valid_equipment()
+        payload["rightHand"] = {"plugin": "Skyrim.esm", "formId": 0x1397E, "kind": "weapon", "weaponType": 7}
+        payload["leftHand"] = None
+
+        self.assertEqual(parse_player_equipment(payload), payload)
+
+    def test_accepts_dual_wielded_same_weapon(self) -> None:
+        payload = valid_equipment()
+        payload["leftHand"] = dict(payload["rightHand"])
+
+        self.assertEqual(parse_player_equipment(payload), payload)
+
+    def test_drops_unknown_fields(self) -> None:
+        payload = valid_equipment()
+        payload["extra"] = True
+        payload["armor"][0]["extra"] = 1
+        payload["leftHand"]["weaponType"] = 3
+
+        self.assertEqual(parse_player_equipment(payload), valid_equipment())
+
+    def test_rejects_invalid_values(self) -> None:
+        mutations = {
+            "zero revision": lambda p: p.update(revision=0),
+            "armor not a list": lambda p: p.update(armor={}),
+            "too many armor entries": lambda p: p.update(
+                armor=[
+                    {"plugin": "Skyrim.esm", "formId": i, "slotMask": 1, "armorType": "light"}
+                    for i in range(33)
+                ]
+            ),
+            "duplicate armor": lambda p: p["armor"].append(dict(p["armor"][0])),
+            "zero slot mask": lambda p: p["armor"][0].update(slotMask=0),
+            "slot mask overflow": lambda p: p["armor"][0].update(slotMask=2**32),
+            "armor type": lambda p: p["armor"][0].update(armorType="robes"),
+            "empty plugin": lambda p: p["armor"][0].update(plugin=""),
+            "form id too large": lambda p: p["rightHand"].update(formId=0x1000000),
+            "missing right hand": lambda p: p.pop("rightHand"),
+            "missing left hand": lambda p: p.pop("leftHand"),
+            "hand kind": lambda p: p["rightHand"].update(kind="spell"),
+            "hand-to-hand weapon": lambda p: p["rightHand"].update(weaponType=0),
+            "weapon type too large": lambda p: p["rightHand"].update(weaponType=10),
+            "missing weapon type": lambda p: p["rightHand"].pop("weaponType"),
+            "torch in right hand": lambda p: p.update(rightHand=dict(p["leftHand"])),
+            "two-handed in left hand": lambda p: p.update(
+                leftHand={"plugin": "Skyrim.esm", "formId": 1, "kind": "weapon", "weaponType": 5}
+            ),
+            "two-handed with left hand": lambda p: p["rightHand"].update(weaponType=6),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name):
+                payload = valid_equipment()
+                mutate(payload)
+                self.assertIsNone(parse_player_equipment(payload))
+
+
+class PlayerEquipmentRelayTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        server_app.player_appearances.clear()
+        server_app.player_equipment.clear()
+
+    def tearDown(self) -> None:
+        server_app.player_appearances.clear()
+        server_app.player_equipment.clear()
+
+    async def test_relays_and_stores_equipment(self) -> None:
+        emit = AsyncMock()
+
+        with patch.object(server_app.sio, "emit", new=emit):
+            result = await server_app.player_equipment_update("player-1", valid_equipment())
+
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(server_app.player_equipment["player-1"], valid_equipment())
+        emit.assert_awaited_once_with(
+            "player:equipment",
+            {"playerId": "player-1", **valid_equipment()},
+            skip_sid="player-1",
+        )
+
+    async def test_rejects_stale_revision(self) -> None:
+        with patch.object(server_app.sio, "emit", new=AsyncMock()):
+            await server_app.player_equipment_update("player-1", valid_equipment(2))
+            result = await server_app.player_equipment_update("player-1", valid_equipment(2))
+
+        self.assertEqual(result, {"ok": False, "error": "stale equipment revision"})
+
+    async def test_rejects_malformed_equipment(self) -> None:
+        result = await server_app.player_equipment_update("player-1", {"revision": 1})
+
+        self.assertEqual(result, {"ok": False, "error": "invalid player equipment"})
+
+    async def test_sends_stored_equipment_to_late_joiner(self) -> None:
+        server_app.player_equipment["player-1"] = valid_equipment(3)
+        server_app.player_equipment["player-2"] = valid_equipment(4)
+        emit = AsyncMock()
+
+        with patch.object(server_app.sio, "emit", new=emit):
+            await server_app.connect("player-2", {})
+
+        emit.assert_awaited_once_with(
+            "player:equipment",
+            {"playerId": "player-1", **valid_equipment(3)},
+            to="player-2",
+        )
+
+    async def test_forgets_equipment_on_disconnect(self) -> None:
+        server_app.player_equipment["player-1"] = valid_equipment()
+
+        with patch.object(server_app.sio, "emit", new=AsyncMock()):
+            await server_app.disconnect("player-1", "client disconnect")
+
+        self.assertNotIn("player-1", server_app.player_equipment)
+
+
+class PlayerEquipmentRecordingTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addAsyncCleanup(self.temporary_directory.cleanup)
+        self.recordings_directory = Path(self.temporary_directory.name) / "recordings"
+        self.original_recordings_directory = server_app.RECORDINGS_DIRECTORY
+        self.original_recording_enabled = server_app.RECORDING_ENABLED
+        server_app.RECORDINGS_DIRECTORY = self.recordings_directory
+        server_app.RECORDING_ENABLED = True
+        server_app.player_equipment.clear()
+        server_app.player_recordings.clear()
+
+    async def asyncTearDown(self) -> None:
+        server_app.RECORDINGS_DIRECTORY = self.original_recordings_directory
+        server_app.RECORDING_ENABLED = self.original_recording_enabled
+        server_app.player_equipment.clear()
+        server_app.player_recordings.clear()
+
+    async def test_records_equipment_that_replay_can_load(self) -> None:
+        with patch.object(server_app.sio, "emit", new=AsyncMock()):
+            await server_app.player_equipment_update("player-1", valid_equipment())
+
+        path = self.recordings_directory / "player-1.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(document["messages"][0]["event"], "player:equipment")
+
+        updates = load_recording(path)
+        self.assertEqual(len(updates), 1)
+        self.assertEqual(updates[0].event, "player:equipment")
+        self.assertEqual(updates[0].payload, valid_equipment())

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AppearanceState.h"
+#include "EquipmentState.h"
 #include "MovementState.h"
 
 #include <cstdint>
@@ -52,11 +53,19 @@ namespace Network
 		Multiplayer::PlayerAppearance appearance;
 	};
 
+	struct RemotePlayerEquipment
+	{
+		std::string playerID;
+		Multiplayer::PlayerEquipment equipment;
+	};
+
 	struct RemotePlayerChanges
 	{
 		std::vector<RemotePlayerTransform> transforms;
 		// Only the newest pending appearance revision per player.
 		std::vector<RemotePlayerAppearance> appearances;
+		// Only the newest pending equipment revision per player.
+		std::vector<RemotePlayerEquipment> equipment;
 		std::vector<AnimationAction> animationActions;
 		std::vector<std::string> disconnectedPlayerIDs;
 	};
@@ -72,6 +81,9 @@ namespace Network
 
 	// Publishes the latest-wins appearance state. The caller owns revisions.
 	void PublishLocalAppearance(const Multiplayer::PlayerAppearance& a_appearance);
+
+	// Publishes the latest-wins equipped items. The caller owns revisions.
+	void PublishLocalEquipment(const Multiplayer::PlayerEquipment& a_equipment);
 
 	// Publishes one item in the ordered semantic action stream. Power attacks are
 	// intentionally normalized to this same normal-attack vocabulary by capture.

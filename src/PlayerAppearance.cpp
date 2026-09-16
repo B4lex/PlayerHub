@@ -1,14 +1,18 @@
 #include "PlayerAppearance.h"
+#include "FormLookup.h"
 #include "SocketIOClient.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <format>
 #include <limits>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace PlayerAppearance
 {
@@ -18,8 +22,6 @@ namespace PlayerAppearance
 		constexpr float kMinimumPublishInterval = 3.0F;
 		constexpr float kFirstAppearanceWaitSeconds = 3.0F;
 		constexpr float kMinimumRespawnInterval = 2.0F;
-		constexpr std::uint32_t kLightPluginLocalFormIDMask = 0x00000FFF;
-		constexpr std::uint32_t kPluginLocalFormIDMask = 0x00FFFFFF;
 		// Vanilla fallback when the source race is unavailable locally.
 		constexpr std::string_view kFallbackRacePlugin = "Skyrim.esm";
 		constexpr RE::FormID kFallbackRaceLocalFormID = 0x00013746;  // NordRace
@@ -29,6 +31,8 @@ namespace PlayerAppearance
 		using Multiplayer::AppearanceHeadPart;
 		using Multiplayer::AppearanceTint;
 		using AppearanceData = Multiplayer::PlayerAppearance;
+		using FormLookup::MakeFormReference;
+		using FormLookup::ResolveForm;
 		using HeadPartType = RE::BGSHeadPart::HeadPartType;
 		using FaceRelatedData = RE::TESRace::FaceRelatedData;
 		using TintAsset = FaceRelatedData::TintAsset;
@@ -60,44 +64,6 @@ namespace PlayerAppearance
 			return a_race ?
 				a_race->faceRelatedData[a_female ? RE::SEXES::kFemale : RE::SEXES::kMale] :
 				nullptr;
-		}
-
-		std::optional<AppearanceFormReference> MakeFormReference(const RE::TESForm* a_form)
-		{
-			if (!a_form || a_form->IsDynamicForm()) {
-				return std::nullopt;
-			}
-
-			const auto* file = a_form->GetFile(0);
-			if (!file) {
-				return std::nullopt;
-			}
-
-			const auto fileName = file->GetFilename();
-			if (fileName.empty() ||
-				fileName.size() > AppearanceData::kMaximumPluginNameLength) {
-				return std::nullopt;
-			}
-
-			return AppearanceFormReference{
-				.plugin = std::string{ fileName },
-				.localFormID = a_form->GetFormID() &
-					(file->IsLight() ? kLightPluginLocalFormIDMask : kPluginLocalFormIDMask)
-			};
-		}
-
-		template <class T>
-		T* ResolveForm(const AppearanceFormReference& a_reference)
-		{
-			if (a_reference.IsEmpty()) {
-				return nullptr;
-			}
-
-			auto* dataHandler = RE::TESDataHandler::GetSingleton();
-			auto* form = dataHandler ?
-				dataHandler->LookupForm(a_reference.localFormID, a_reference.plugin) :
-				nullptr;
-			return form ? form->As<T>() : nullptr;
 		}
 
 		const TintAsset* FindTintAsset(
@@ -142,6 +108,76 @@ namespace PlayerAppearance
 				}
 			}
 			return nullptr;
+		}
+
+		const TintAsset* FindTintAsset(const FaceRelatedData* a_faceData, std::uint16_t a_index)
+		{
+			if (!a_faceData || !a_faceData->tintMasks) {
+				return nullptr;
+			}
+
+			for (const auto* asset : *a_faceData->tintMasks) {
+				if (asset && asset->texture.index == a_index) {
+					return asset;
+				}
+			}
+			return nullptr;
+		}
+
+		// Returns the player's tint masks in blend order. CommonLibSSE-NG reads
+		// PlayerCharacter::tintMasks at 0xB18 on AE, but 1.7.104 keeps it at 0xB20
+		// (PlayerCharacter::GetNumTints, ID 40700). The array is used only when it
+		// agrees with the engine's own lookups; otherwise masks are listed by type.
+		std::vector<RE::TintMask*> GetPlayerTintMasks(RE::PlayerCharacter& a_player)
+		{
+			if (!REL::Module::IsAE()) {
+				const auto& tintMasks = a_player.GetPlayerRuntimeData().tintMasks;
+				return std::vector<RE::TintMask*>(tintMasks.begin(), tintMasks.end());
+			}
+
+			using GetNumTints = std::uint32_t(RE::PlayerCharacter*, std::uint32_t);
+			using GetTintMask = RE::TintMask*(RE::PlayerCharacter*, std::uint32_t, std::uint32_t);
+			static REL::Relocation<GetNumTints> getNumTints{ REL::ID(40700) };
+			static REL::Relocation<GetTintMask> getTintMask{ REL::ID(40698) };
+			constexpr auto kTypeCount = static_cast<std::uint32_t>(RE::TintMask::Type::kTotal);
+
+			std::array<std::uint32_t, kTypeCount> countByType{};
+			std::uint32_t total = 0;
+			for (std::uint32_t type = 0; type < kTypeCount; ++type) {
+				countByType[type] = getNumTints(std::addressof(a_player), type);
+				total += countByType[type];
+			}
+
+			std::vector<RE::TintMask*> masks;
+			const auto& tintMasks =
+				REL::RelocateMember<RE::BSTArray<RE::TintMask*>>(std::addressof(a_player), 0xB20);
+			bool consistent = tintMasks.size() == total;
+			std::array<std::uint32_t, kTypeCount> seenByType{};
+			for (std::uint32_t i = 0; consistent && i < tintMasks.size(); ++i) {
+				auto* mask = tintMasks[i];
+				const auto type = mask ? mask->type.underlying() : kTypeCount;
+				consistent = type < kTypeCount &&
+					getTintMask(std::addressof(a_player), type, seenByType[type]++) == mask;
+				masks.push_back(mask);
+			}
+			if (consistent) {
+				return masks;
+			}
+
+			static bool loggedFallback = false;
+			if (!loggedFallback) {
+				loggedFallback = true;
+				logs::warn(
+					"Appearance sync could not read the player tint mask array; listing {} masks by type",
+					total);
+			}
+			masks.clear();
+			for (std::uint32_t type = 0; type < kTypeCount; ++type) {
+				for (std::uint32_t i = 0; i < countByType[type]; ++i) {
+					masks.push_back(getTintMask(std::addressof(a_player), type, i));
+				}
+			}
+			return masks;
 		}
 
 		// Logs a capture failure only when its reason changes, so a persistent
@@ -238,8 +274,7 @@ namespace PlayerAppearance
 			// runtime-data layout is only known for flat Skyrim.
 			if (!REL::Module::IsVR()) {
 				const auto* faceData = GetFaceRelatedData(race, appearance.female);
-				const auto& tintMasks = a_player.GetPlayerRuntimeData().tintMasks;
-				for (const auto* mask : tintMasks) {
+				for (const auto* mask : GetPlayerTintMasks(a_player)) {
 					if (!mask) {
 						continue;
 					}
@@ -435,6 +470,13 @@ namespace PlayerAppearance
 			npc->headParts = nullptr;
 			npc->numHeadParts = 0;
 
+			// The puppet inventory holds only synchronized equipment. Drop the copied
+			// container and outfits without freeing storage shared with the player base.
+			npc->containerObjects = nullptr;
+			npc->numContainerObjects = 0;
+			npc->defaultOutfit = nullptr;
+			npc->sleepOutfit = nullptr;
+
 			npc->race = race;
 			npc->originalRace = race;
 			npc->actorData.actorBaseFlags.set(
@@ -504,6 +546,75 @@ namespace PlayerAppearance
 				a_appearance.tints.size(),
 				droppedTints);
 			return npc;
+		}
+
+		RE::NiSourceTexture* FindFaceTintTexture(RE::Actor& a_actor, const RE::TESNPC& a_base)
+		{
+			auto* faceNode = a_actor.GetFaceNodeSkinned();
+			if (!faceNode || !a_base.headParts) {
+				return nullptr;
+			}
+
+			const RE::BGSHeadPart* face = nullptr;
+			for (std::int8_t i = 0; i < a_base.numHeadParts && !face; ++i) {
+				const auto* headPart = a_base.headParts[i];
+				if (headPart && headPart->type == HeadPartType::kFace) {
+					face = headPart;
+				}
+			}
+
+			// PrepareHeadPartForShaders (ID 26838) names the face geometry after the
+			// face head part's editor ID.
+			auto* object = face ? faceNode->GetObjectByName(face->formEditorID) : nullptr;
+			auto* geometry = object ? object->AsGeometry() : nullptr;
+			auto* shader = geometry ?
+				netimmerse_cast<RE::BSLightingShaderProperty*>(
+					geometry->GetGeometryRuntimeData().shaderProperty.get()) :
+				nullptr;
+			auto* material = shader ? shader->material : nullptr;
+			if (!material || material->GetFeature() != RE::BSShaderMaterial::Feature::kFaceGen) {
+				return nullptr;
+			}
+			return static_cast<RE::BSLightingShaderMaterialFacegen*>(material)->tintTexture.get();
+		}
+
+		// PrepareHeadPartForShaders (ID 26838) gives a runtime-built face a blank tint
+		// texture and renders tint masks into it only for the player base, or for
+		// other NPCs when bUseFaceGenPreprocessedHeads is off. Puppet bases get
+		// neither, so the blank texture darkens the face. Queue the same render the
+		// engine uses (ID 27040) from the puppet base's tint layers.
+		std::size_t QueueFaceTintRender(const RE::TESNPC& a_base, RE::NiSourceTexture& a_texture)
+		{
+			// A render job has 16 layer slots and does not check the mask count.
+			constexpr std::size_t kMaximumRenderedTints = 16;
+			using RenderTintMasks = bool(RE::BSTArray<RE::TintMask*>*, RE::NiTexture*);
+			static REL::Relocation<RenderTintMasks> renderTintMasks{ REL::ID(27040) };
+
+			auto* race = a_base.race;
+			const auto* faceData = GetFaceRelatedData(race, a_base.IsFemale());
+			std::array<RE::TintMask, kMaximumRenderedTints> masks{};
+			RE::BSTArray<RE::TintMask*> maskList;
+			if (a_base.tintLayers) {
+				for (const auto* layer : *a_base.tintLayers) {
+					if (maskList.size() >= kMaximumRenderedTints) {
+						break;
+					}
+					const auto* asset = layer ? FindTintAsset(faceData, layer->tintIndex) : nullptr;
+					if (!asset || layer->interpolationValue == 0) {
+						continue;
+					}
+					auto& mask = masks[maskList.size()];
+					mask.texture = const_cast<RE::TESTexture*>(std::addressof(asset->texture.file));
+					mask.color = layer->tintColor;
+					mask.alpha = static_cast<float>(layer->interpolationValue) / 100.0F;
+					mask.type = static_cast<RE::TintMask::Type>(asset->texture.skinTone.underlying());
+					maskList.push_back(std::addressof(mask));
+				}
+			}
+
+			// The job copies the textures and colors, so the masks may go out of scope.
+			renderTintMasks(std::addressof(maskList), std::addressof(a_texture));
+			return maskList.size();
 		}
 	}
 
@@ -651,6 +762,7 @@ namespace PlayerAppearance
 		a_remote.spawnedBase = a_spawnedBase;
 		a_remote.respawnCooldown = kMinimumRespawnInterval;
 		a_remote.colorsApplied = false;
+		a_remote.faceTintTexture.reset();
 	}
 
 	bool RequiresRespawn(const RemoteAppearance& a_remote)
@@ -666,23 +778,43 @@ namespace PlayerAppearance
 		RE::Actor& a_actor,
 		bool a_actorReady)
 	{
-		if (a_remote.colorsApplied || !a_actorReady || !a_actor.Is3DLoaded()) {
-			return;
-		}
-		a_remote.colorsApplied = true;
-		if (!a_remote.spawnedBase || a_remote.spawnedBase != a_remote.base ||
+		if (!a_actorReady || !a_actor.Is3DLoaded() || !a_remote.spawnedBase ||
+			a_remote.spawnedBase != a_remote.base ||
 			a_actor.GetActorBase() != a_remote.spawnedBase) {
 			return;
 		}
 
-		a_actor.UpdateHairColor();
-		a_actor.UpdateSkinColor();
+		if (!a_remote.colorsApplied) {
+			a_remote.colorsApplied = true;
+			a_actor.UpdateHairColor();
+			a_actor.UpdateSkinColor();
+			logs::info(
+				"Appearance sync applied puppet colors: player={} actor={:08X} base={:08X} revision={} faceNode={}",
+				a_playerID,
+				a_actor.GetHandle().native_handle(),
+				a_remote.spawnedBase->GetFormID(),
+				static_cast<unsigned long long>(a_remote.spawnedRevision),
+				a_actor.GetFaceNodeSkinned() != nullptr);
+		}
+
+		// The face tint render is AE-only: its engine IDs are verified against 1.7.104.
+		// A head rebuilt by a 3D reset gets a new blank texture, so render again.
+		if (!REL::Module::IsAE()) {
+			return;
+		}
+		auto* tintTexture = FindFaceTintTexture(a_actor, *a_remote.spawnedBase);
+		if (!tintTexture || tintTexture == a_remote.faceTintTexture.get()) {
+			return;
+		}
+		a_remote.faceTintTexture.reset(tintTexture);
+		const auto renderedTints = QueueFaceTintRender(*a_remote.spawnedBase, *tintTexture);
 		logs::info(
-			"Appearance sync applied puppet colors: player={} actor={:08X} base={:08X} revision={} faceNode={}",
+			"Appearance sync queued puppet face tint: player={} actor={:08X} base={:08X} revision={} tints={}/{}",
 			a_playerID,
 			a_actor.GetHandle().native_handle(),
 			a_remote.spawnedBase->GetFormID(),
 			static_cast<unsigned long long>(a_remote.spawnedRevision),
-			a_actor.GetFaceNodeSkinned() != nullptr);
+			renderedTints,
+			a_remote.spawnedBase->tintLayers ? a_remote.spawnedBase->tintLayers->size() : 0);
 	}
 }

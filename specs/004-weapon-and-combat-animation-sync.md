@@ -157,7 +157,8 @@ accepted checkpoint/epoch boundary may be dispatched.
 
 ## Non-goals
 
-- Equipment inventory or visual loadout replication.
+- Equipment inventory or visual loadout replication. That is specified in
+  spec 007, which also gates draws and attacks on the synchronized weapon.
 - Combat simulation, hit validation, damage, targeting, blocking, casting, or
   perks.
 - Preserving power-attack presentation; it is deliberately rendered as a normal

@@ -1,0 +1,324 @@
+# Player Equipment Synchronization
+
+## Status
+
+Implemented, but not yet built or verified in game. The server side is covered
+by unit tests. The items under [Engine assumptions](#engine-assumptions) still
+need to be checked in game.
+
+## Goal
+
+A remote puppet wears and wields what the source player has equipped: armor,
+clothing, jewelry, shield, the weapons in either hand, and a torch. When the
+source changes equipment, the puppet follows within a fraction of a second.
+There is no respawn and no equip animation.
+
+The puppet's inventory holds **only** the synchronized equipped items. The rest
+of the source's inventory is never sent, and the puppet has nothing beyond that
+set, so it cannot equip anything else.
+
+Before this change puppets had no synchronized equipment. `weaponDrawn`
+(spec 004) always drew fists.
+
+## Non-goals
+
+- The unequipped inventory, gold, item counts beyond what equipping needs, and
+  carry weight.
+- Ammo (quiver), spells and scrolls in hands, and the equipped shout or power.
+  A hand holding a spell is sent as empty.
+- Enchantments, tempering, poison, charge, and player-given names. Enchanted
+  items are reduced to their unenchanted base item (see
+  [Enchanted and crafted items](#enchanted-and-crafted-items)).
+- Non-vanilla items on the receiver. They are dropped for now. A later spec adds
+  a fallback that maps a missing item to a vanilla equivalent, and the protocol
+  already carries the hints for it.
+- Equipment while transformed (werewolf, vampire lord). As in spec 006, peers
+  keep the last equipment captured in a playable race.
+- Equip and unequip sounds and animations on the puppet.
+- RaceMenu/NiOverride armor overlays, and skeleton-dependent physics (SMP/CBPC).
+
+## Protocol
+
+Equipment is reconstructable, latest-wins state. It changes more often than
+appearance but far less often than the 20 Hz checkpoint, so it gets its own
+event. The client emits `player:equipment`:
+
+```json
+{
+  "revision": 7,
+  "armor": [
+    { "plugin": "Skyrim.esm", "formId": 77385, "slotMask": 4, "armorType": "heavy" },
+    { "plugin": "Skyrim.esm", "formId": 77389, "slotMask": 512, "armorType": "heavy" },
+    { "plugin": "Dawnguard.esm", "formId": 5095, "slotMask": 1, "armorType": "light" }
+  ],
+  "rightHand": { "plugin": "Skyrim.esm", "formId": 77936, "kind": "weapon", "weaponType": 1 },
+  "leftHand": { "plugin": "Skyrim.esm", "formId": 110, "kind": "torch" }
+}
+```
+
+### Form references
+
+Forms use the load-order independent `{plugin, formId}` reference defined in
+spec 006: `plugin` is the file that defines the form, and `formId` is the
+file-local ID. Dynamic (`FF`) forms cannot be referenced. If an item cannot be
+reduced to a referenceable base item, the entry is omitted.
+
+The **sender publishes every referenceable equipped item, vanilla or not**. All
+filtering happens on the receiver. That keeps the wire format ready for the
+future fallback system and lets receivers with the same mods see those items
+later without a protocol change.
+
+### Fields
+
+| Field | Meaning | Validation |
+| --- | --- | --- |
+| `revision` | Source-local monotonic counter | integer `1..2^63-1`, strictly increasing per connection |
+| `armor` | Worn playable `TESObjectARMO`s, including shields | at most 32 entries; form references unique |
+| `armor[].slotMask` | `BGSBipedObjectForm` slot mask, bit 0 = slot 30 | non-zero 32-bit unsigned integer |
+| `armor[].armorType` | `light`, `heavy`, or `clothing` | enum |
+| `rightHand` | Right-hand object, or `null` | hand entry |
+| `leftHand` | Left-hand object, or `null` | hand entry |
+| `hand.kind` | `weapon` or `torch` | enum; `torch` only in `leftHand` |
+| `hand.weaponType` | `WEAPON_TYPE` `1..9`; present only for `weapon` | two-handed types (`5` 2H sword, `6` 2H axe, `7` bow, `9` crossbow) only in `rightHand`, and then `leftHand` must be `null` |
+
+Plugin names are 1..260 characters and `formId` is `0..0xFFFFFF`, as in
+spec 006. The hint fields `slotMask`, `armorType`, and `weaponType` do not
+affect vanilla resolution in this phase. They exist for the future fallback. A
+receiver still validates them, but the locally resolved form is authoritative
+for how an item is equipped.
+
+A hand holding nothing, bare fists (`WEAPON_TYPE` `0`), or a spell is `null`.
+Dual-wielding the same one-handed weapon sends the same reference in both hands.
+
+### Server
+
+Same lifecycle as `player:appearance`:
+
+- Validates `player:equipment`. Malformed payloads and non-increasing revisions
+  are rejected with an acknowledgement error.
+- Stores the latest equipment per connection and relays it to every other client
+  as `player:equipment` with `playerId`.
+- On `connect`, sends every stored equipment of the other connections to the new
+  client.
+- Forgets the equipment on disconnect.
+- When recording is enabled, appends `player:equipment` to the recording. Replay
+  accepts the event.
+
+## Source capture
+
+### Triggers
+
+- A `TESEquipEvent` sink marks equipment dirty when the actor is the player. The
+  sink runs on whichever thread fires the event, so it only sets an atomic flag.
+- The main-loop pass captures once the dirty flag has been quiet for 100 ms.
+  This coalesces multi-event changes: a favorites swap (unequip then equip), a
+  full outfit change, or a two-handed weapon clearing both hands.
+- A full capture also runs once per second without a dirty flag, as a safety net
+  for changes that fire no event (game load, script equips, race change).
+- On the frame a local attack is observed, equipment is captured and, if it
+  changed, published immediately, bypassing both the quiet window and the
+  minimum publish interval. The attack action is only emitted with a later
+  checkpoint, so the receiver can apply the new weapon before it plays the
+  attack.
+
+### Capture
+
+On the main-loop thread, from the player:
+
+- Skip capture if the actor's race is not playable (transformation), as in
+  spec 006.
+- `armor`: every worn inventory entry (`ExtraWorn` or `ExtraWornLeft`) whose
+  object is a `TESObjectARMO` without the non-playable flag. Skin armor never
+  appears in inventory. Deduplicate by reference after enchantment reduction.
+- `rightHand` and `leftHand`: `Actor::GetEquippedObject(false/true)`.
+  - `TESObjectWEAP` with a type other than hand-to-hand → `weapon` with its
+    `weaponType`.
+  - `TESObjectLIGH` that can be carried, in the left hand → `torch`.
+  - A shield is not a hand entry. It is worn armor and appears in `armor`.
+  - A two-handed weapon, bow, or crossbow is reported in `rightHand` only, even
+    if the engine also reports it for the left hand.
+  - Anything else (spell, scroll, nothing) → `null`.
+
+### Enchanted and crafted items
+
+A player-enchanted item keeps its original base form and carries the enchantment
+as extra data (`ExtraEnchantment`). Only the form is sent, so the enchantment is
+dropped without any special handling. Vanilla pre-enchanted records (for
+example *Iron Sword of Embers*) are separate forms that point at their
+unenchanted item through `templateWeapon` or `templateArmor`.
+
+The sender follows that template chain, bounded to 8 steps, to the first form
+with no template, and publishes that form. If it is dynamic, the item is
+skipped. The remote puppet therefore shows the unenchanted base model with no
+enchantment shader. Player-crafted, non-enchanted items are ordinary plugin
+forms and are sent as is.
+
+### Publishing policy
+
+- Publish when the capture differs from the last published equipment. The
+  revision is excluded from the comparison, and the armor list is compared as a
+  set.
+- Publishes are at least 250 ms apart. A capture that becomes publishable inside
+  that interval is sent when the interval ends, and only the newest capture is
+  sent.
+- Each publish increments `revision`.
+- On every transition to connected, the last equipment is re-published.
+
+## Receiver
+
+### Accepting updates
+
+The network thread keeps only the newest pending equipment per player (by
+revision) and discards it on `player:left`. The main-loop pass stores it on the
+remote player state, independent of whether a puppet reference currently
+exists. A rejected payload is logged with the name of the offending field.
+
+### Vanilla filter
+
+An entry is accepted only if both of these hold:
+
+1. Its `plugin` is one of `Skyrim.esm`, `Update.esm`, `Dawnguard.esm`,
+   `HearthFires.esm`, or `Dragonborn.esm`, compared case-insensitively.
+2. The form resolves locally through `TESDataHandler::LookupForm` and has the
+   expected type: `TESObjectARMO` for `armor`, `TESObjectWEAP` for `weapon`, or
+   a carriable `TESObjectLIGH` for `torch`.
+
+Everything else is dropped from the resolved set. Each drop is logged once per
+revision with player, plugin, form ID, and reason (`non-vanilla`, `missing`,
+`wrong-type`). A form defined by a vanilla plugin is accepted even when a local
+mod overrides its record, so the receiver sees its own local version of that
+item.
+
+The filter is a single policy function that takes an entry and returns a
+resolved form or a drop reason. The future fallback system replaces the drop
+branch without touching capture, protocol, or reconciliation.
+
+Consequences in this phase, all accepted:
+
+- A dropped body armor leaves the puppet in the race's naked skin.
+- A dropped weapon leaves the hand empty. The puppet draws fists and plays the
+  unarmed attack.
+
+### Puppet inventory ownership
+
+The puppet's inventory must always equal the resolved equipped set. To stop
+anything else from entering it:
+
+- The runtime actor base from spec 006 clears its copied `TESContainer` entries
+  and sets `defaultOutfit` and `sleepOutfit` to `nullptr`. The local player base
+  is never modified.
+- The fallback puppet built from the local player base, and the construction
+  template (`00013BBF`), may still put initial items into the reference. So
+  reconciliation, not the base, is the authority.
+
+### Reconciliation
+
+This runs in the main-loop pass for a puppet whose actor is ready and 3D-loaded.
+Each check measures the live inventory counts, worn armor, and equipped hand
+objects against the resolved set. Before equipment is received, the resolved
+set is empty, so construction-template items are still removed. When the live
+state differs, a mutation pass runs:
+
+1. Compute required counts: one per accepted armor entry, and for the hands one
+   per hand object, so dual-wielding the same weapon requires two.
+2. Remove from the puppet's inventory every object not required, and the excess
+   count of required ones. That includes gold and items added by leveled lists,
+   scripts, or death items. Removed items are deleted, never transferred to any
+   container or to the player.
+3. Unequip any currently equipped armor or hand object that is not in the
+   resolved set.
+4. Add missing required objects.
+5. Equip armor first, then the right hand, then the left hand, with
+   `ActorEquipManager::EquipObject` using the matching `BGSEquipSlot`
+   (right/left, or either for two-handed), `queueEquip=false`,
+   `forceEquip=true`, and `playSounds=false`.
+A mismatch is checked every frame until the first mutation pass, so a new
+revision applies immediately. After a pass, and while the state matches, the
+check runs every 0.25 s. At most 4 mutation passes run before the live state
+matches. After that the puppet keeps whatever it reached until the next
+revision or respawn. Periodic checks continue, and a later match resets the
+budget.
+
+The puppet must not change its own equipment. AI auto-equip of "best" armor or
+weapon, outfit re-application on cell load, and unequip-on-hit are either
+blocked for puppets or undone by the next reconciliation. Reconciliation
+compares against the live equipped state rather than only the last applied
+revision.
+
+### Interaction with weapon and attack sync (spec 004)
+
+- **Spawn and respawn.** Equipment is reconciled before the first weapon-stance
+  reconstruction. A puppet whose latest checkpoint is `weaponDrawn=true` waits
+  for hand reconciliation, bounded to 1 second, before its native draw request.
+  That way it does not draw fists and then pop a weapon in.
+- **Armor** changes apply immediately in every graph state.
+- **Hand** changes are instant swaps on the live actor, including while drawn.
+  They are deferred while a native draw/sheathe transition or a synchronized
+  attack owns the graph, and applied as soon as it releases. The deferral is
+  bounded to 2 seconds, after which the swap is applied anyway.
+- **Attacks.** An attack action becomes dispatchable only after the latest
+  received equipment revision has been reconciled for the hands. Combined with
+  the sender's pre-attack flush, this plays the attack with the correct weapon.
+
+### Respawns
+
+Retiring a puppet (coordinate-space change, appearance revision) keeps the
+remote equipment state. The new reference is reconciled from it after spawn.
+Equipment changes never trigger a respawn.
+
+## Implementation notes
+
+- `FormReference.h` holds the shared plain form reference and its validator.
+  `FormLookup.{h,cpp}` encodes and resolves it for both appearance and
+  equipment.
+- `EquipmentState.h` holds plain data plus `IsValidEquipment`, shared by capture
+  and the network parser. `PlayerEquipment.{h,cpp}` holds capture, the vanilla
+  filter, receive state, and reconciliation, mirroring the appearance split.
+- `FrameUpdate.cpp` calls reconciliation before animation state is advanced.
+  It holds a sheathed-to-drawn step in `GetPresentableAnimationState` and gates
+  attack dispatch on `AreHandsSettled`.
+- The server adds `parse_player_equipment` next to `parse_player_appearance` and
+  reuses its form-reference validation.
+
+## Engine assumptions
+
+To verify in game:
+
+1. `TESEquipEvent` fires for player favorites swaps, the inventory menu,
+   hotkeys, and script `EquipItem`/`UnequipItem`. Where it does not, the 1 s
+   poll must cover it.
+2. `GetEquippedObject(true)` reports two-handed weapons, bows, and crossbows in
+   the left hand as well. The capture rule above handles either answer.
+3. `EquipObject` with `forceEquip=true` on a puppet with a drawn weapon swaps the
+   weapon in place. It must update the graph weapon-type variables (for example
+   `iRightHandType`, `iLeftHandType`) so the next attack uses the new weapon's
+   animation, without events the puppet firewall blocks. If it does not, hand
+   swaps while drawn fall back to the existing instant sheathe/draw path.
+4. Puppets do not auto-equip or unequip on actor process updates once their
+   inventory holds only the synchronized set and their outfits are cleared.
+5. Removing items from a puppet reference with no destination deletes them and
+   fires no player-facing notification.
+6. The template chain of every vanilla enchanted weapon and armor ends at a
+   non-dynamic, non-enchanted form. Player enchanting keeps the base form and
+   only adds `ExtraEnchantment`.
+7. `ActorEquipManager::EquipObject` with `queueEquip=false` updates
+   `ExtraWorn` and the process's equipped hand objects before the next check,
+   0.25 s later.
+
+## Acceptance criteria
+
+1. A remote puppet shows the source's vanilla armor, clothing, jewelry, shield,
+   weapons in both hands, and torch.
+2. The puppet's inventory holds exactly those items and nothing else, including
+   after cell reload, respawn, and a hit reaction.
+3. Changing equipment on the source (menu, favorites, hotkey) updates the puppet
+   within 0.5 s with no respawn, equip animation, or sound.
+4. Late joiners see the current equipment without the source changing anything.
+5. Items from non-vanilla plugins are dropped on the receiver with a log entry.
+   A receiver with the same mods still drops them in this phase.
+6. Player-enchanted items appear as their unenchanted base item.
+7. Drawing a weapon right after spawn or a swap draws the synchronized weapon,
+   and the next attack uses its animation.
+8. The local player's inventory and equipment never change because of a puppet.
+9. Malformed or stale equipment payloads are rejected by the server and the
+   client.

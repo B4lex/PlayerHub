@@ -116,8 +116,11 @@ On the game thread, once per second, the client captures from the player:
   form's RGB, `faceDetails`, `faceData` morphs/parts.
 - `bodyTint`: `TESNPC::bodyTintColor`; if it is black, the color of the skin
   tone tint mask.
-- `tints`: `PlayerCharacter` runtime `tintMasks`. Each mask is mapped to the
-  race's `TintAsset` for the player's sex by texture (pointer, then
+- `tints`: `PlayerCharacter` runtime `tintMasks`, in blend order. On 1.7.104 the
+  array is at `0xB20` (CommonLibSSE-NG reads `0xB18`); it is used only when it
+  matches the engine's `GetNumTints`/`GetTintMask` (IDs 40700/40698), and
+  otherwise the masks are listed by type through those functions. Each mask is
+  mapped to the race's `TintAsset` for the player's sex by texture (pointer, then
   case-insensitive path) to get its stable `index`. Masks with zero alpha or no
   matching asset are skipped.
 
@@ -179,6 +182,16 @@ Each fallback is logged once per revision.
   apart per player.
 - After the respawned actor is ready and its 3D is loaded, the receiver calls
   `Actor::UpdateHairColor` and `Actor::UpdateSkinColor` once.
+- The receiver also renders the face tint (AE only). `PrepareHeadPartForShaders`
+  (ID 26838) gives a runtime-built face a blank tint texture and fills it only
+  for the player base, or for NPCs when `bUseFaceGenPreprocessedHeads` is off.
+  Left blank, the puppet shows the dark face bug. The receiver finds the face
+  geometry (named after the face head part's editor ID), takes its FaceGen
+  material's tint texture, and queues the engine's tint render (ID 27040) with
+  masks built from the base's tint layers: the race `TintAsset` texture, the
+  layer color, and `interpolationValue / 100` alpha, at most 16 non-zero layers.
+  It renders again whenever the head gets a new tint texture, such as after a 3D
+  reset.
 - Respawns caused by coordinate-space changes reuse the current base.
 
 ## Engine assumptions
