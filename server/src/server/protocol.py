@@ -25,6 +25,7 @@ MAXIMUM_TINTS = 64
 MAXIMUM_TINT_TYPE = 14
 FACE_MORPH_COUNT = 19
 FACE_PART_COUNT = 4
+MAXIMUM_NAME_BYTES = 128
 MAXIMUM_FLOAT32 = 3.4028234663852886e38
 
 
@@ -182,6 +183,19 @@ def _parse_color(data: Any, extra_fields: tuple[str, ...] = ()) -> dict[str, Any
     return color
 
 
+def _parse_name(data: Any) -> str | None:
+    # Recordings made before name synchronization have no name.
+    if data is None:
+        return ""
+    if not isinstance(data, str) or any(ord(c) < 0x20 or ord(c) == 0x7F for c in data):
+        return None
+    try:
+        encoded = data.encode("utf-8")
+    except UnicodeEncodeError:
+        return None
+    return data if len(encoded) <= MAXIMUM_NAME_BYTES else None
+
+
 def parse_player_appearance(data: Any) -> dict[str, Any] | None:
     """Validate latest-wins character appearance state."""
     if not isinstance(data, dict):
@@ -199,8 +213,9 @@ def parse_player_appearance(data: Any) -> dict[str, Any] | None:
     ):
         return None
 
+    name = _parse_name(data.get("name"))
     race = _parse_form_reference(data.get("race"))
-    if race is None:
+    if name is None or race is None:
         return None
 
     raw_head_parts = data.get("headParts")
@@ -263,6 +278,7 @@ def parse_player_appearance(data: Any) -> dict[str, Any] | None:
 
     return {
         "revision": revision,
+        "name": name,
         "race": race,
         "female": female,
         "weight": weight,

@@ -11,8 +11,13 @@
 
 namespace NPCSpawner
 {
+	// Trampoline bytes InstallRemoteReplicaHooks needs: three entry detours of
+	// a 5-byte gateway plus two 14-byte absolute jumps each.
+	inline constexpr std::size_t kRemoteReplicaTrampolineSize = 3 * (5 + 2 * 14);
+
 	// Installs target-side damage/magic immunity, the remote-ownership policy,
-	// and the local animation-event filter.
+	// combat isolation from local actors, and the local animation-event filter.
+	// Requires kRemoteReplicaTrampolineSize bytes of the SKSE trampoline.
 	void InstallRemoteReplicaHooks();
 	// Registers event sinks that require Skyrim's data-loaded state.
 	void RegisterRemoteReplicaEventSinks();

@@ -450,6 +450,17 @@ namespace Network
 			}
 			appearance.revision = revision;
 
+			// Recordings made before name synchronization have no name.
+			const auto name = FindValue(values, "name");
+			if (IsNullValue(name)) {
+				appearance.name.clear();
+			} else if (name->get_flag() != sio::message::flag_string ||
+					   !Multiplayer::IsValidAppearanceName(name->get_string())) {
+				return "name";
+			} else {
+				appearance.name = name->get_string();
+			}
+
 			const auto race = FindValue(values, "race");
 			if (!race || race->get_flag() != sio::message::flag_object ||
 				!ReadFormReference(race->get_map(), appearance.race)) {
@@ -1022,6 +1033,7 @@ namespace Network
 		auto& values = payload->get_map();
 		values["revision"] = sio::int_message::create(
 			static_cast<std::int64_t>(a_appearance.revision));
+		values["name"] = sio::string_message::create(a_appearance.name);
 		values["race"] = CreateFormReference(a_appearance.race);
 		values["female"] = sio::bool_message::create(a_appearance.female);
 		values["weight"] = sio::double_message::create(a_appearance.weight);

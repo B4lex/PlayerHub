@@ -180,6 +180,30 @@ namespace PlayerAppearance
 			return masks;
 		}
 
+		// Removes control characters and cuts an overlong name at a UTF-8 code point
+		// boundary, so an unusual name set by a mod still synchronizes.
+		std::string SanitizeName(std::string_view a_name)
+		{
+			std::string name;
+			for (const auto character : a_name) {
+				const auto byte = static_cast<unsigned char>(character);
+				if (byte >= 0x20 && byte != 0x7F) {
+					name.push_back(character);
+				}
+			}
+			if (name.size() > AppearanceData::kMaximumNameLength) {
+				auto length = AppearanceData::kMaximumNameLength;
+				// Back up over continuation bytes (10xxxxxx) to the start of the cut
+				// code point.
+				while (length > 0 &&
+					(static_cast<unsigned char>(name[length]) & 0xC0) == 0x80) {
+					--length;
+				}
+				name.resize(length);
+			}
+			return name;
+		}
+
 		// Logs a capture failure only when its reason changes, so a persistent
 		// failure does not flood the log once per second.
 		void LogCaptureFailure(std::string_view a_reason)
@@ -220,7 +244,9 @@ namespace PlayerAppearance
 				return std::nullopt;
 			}
 
+			const auto* fullName = base->GetFullName();
 			AppearanceData appearance{
+				.name = SanitizeName(fullName ? fullName : ""),
 				.race = *raceReference,
 				.female = base->IsFemale(),
 				.weight = std::clamp(base->weight, 0.0F, AppearanceData::kMaximumWeight),
@@ -477,6 +503,8 @@ namespace PlayerAppearance
 			npc->defaultOutfit = nullptr;
 			npc->sleepOutfit = nullptr;
 
+			// Copy took the local player's name; the puppet must show the source's.
+			npc->fullName = a_appearance.name;
 			npc->race = race;
 			npc->originalRace = race;
 			npc->actorData.actorBaseFlags.set(
@@ -530,10 +558,11 @@ namespace PlayerAppearance
 			}
 
 			logs::info(
-				"Appearance sync built actor base: player={} revision={} base={:08X} race={:08X} female={} weight={:.1f} height={:.2f} headParts={}/{} hairColor={:08X} faceDetails={:08X} tints={}/{} droppedTints={}",
+				"Appearance sync built actor base: player={} revision={} base={:08X} name=\"{}\" race={:08X} female={} weight={:.1f} height={:.2f} headParts={}/{} hairColor={:08X} faceDetails={:08X} tints={}/{} droppedTints={}",
 				a_playerID,
 				static_cast<unsigned long long>(a_appearance.revision),
 				npc->GetFormID(),
+				a_appearance.name,
 				race->GetFormID(),
 				a_appearance.female,
 				a_appearance.weight,
@@ -684,8 +713,9 @@ namespace PlayerAppearance
 		}
 
 		logs::info(
-			"Appearance sync publishing local appearance: revision={} race={}|{:06X} female={} headParts={} tints={}",
+			"Appearance sync publishing local appearance: revision={} name=\"{}\" race={}|{:06X} female={} headParts={} tints={}",
 			static_cast<unsigned long long>(candidate->revision),
+			candidate->name,
 			candidate->race.plugin,
 			candidate->race.localFormID,
 			candidate->female,
@@ -707,9 +737,10 @@ namespace PlayerAppearance
 		}
 
 		logs::info(
-			"Appearance sync accepted remote appearance: player={} revision={} race={}|{:06X} female={} headParts={} tints={}",
+			"Appearance sync accepted remote appearance: player={} revision={} name=\"{}\" race={}|{:06X} female={} headParts={} tints={}",
 			a_playerID,
 			static_cast<unsigned long long>(a_appearance.revision),
+			a_appearance.name,
 			a_appearance.race.plugin,
 			a_appearance.race.localFormID,
 			a_appearance.female,
