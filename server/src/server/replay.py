@@ -128,6 +128,8 @@ def load_recording(path: Path) -> list[RecordedUpdate]:
                 payload_with_speed["speed"] = _infer_legacy_speed(
                     previous_payload, payload_with_speed, delay_ms
                 )
+            # Recordings made before direction synchronization moved forward.
+            payload_with_speed.setdefault("direction", 0.0)
             # Recordings made before jump synchronization are grounded by definition.
             payload_with_speed.setdefault("jumping", False)
             # Recordings made before combat-stance synchronization are sheathed.

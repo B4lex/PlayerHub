@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 
 namespace Multiplayer
@@ -28,6 +29,18 @@ namespace Multiplayer
 
 		constexpr bool operator==(const AnimationState&) const noexcept = default;
 	};
+
+	// Movement direction relative to the body facing, in the behavior graph's
+	// `Direction` units: 0 forward, 0.25 right, 0.5 backward, 0.75 left.
+	[[nodiscard]] inline float NormalizeMovementDirection(float a_direction) noexcept
+	{
+		if (!std::isfinite(a_direction)) {
+			return 0.0F;
+		}
+		float direction = a_direction - std::floor(a_direction);
+		// Rounding can produce exactly 1.0 for a tiny negative input.
+		return direction >= 1.0F ? 0.0F : direction;
+	}
 
 	[[nodiscard]] constexpr const char* GetMovementStateName(
 		MovementState a_state) noexcept

@@ -460,7 +460,7 @@ namespace PlayerEquipment
 		static std::optional<EquipmentData> pending;
 		static std::uint64_t revision = 0;
 		static bool dirty = false;
-		static bool wasConnected = false;
+		static std::uint64_t publishedConnectionGeneration = 0;
 
 		const float delta = std::isfinite(a_delta) ? (std::max)(a_delta, 0.0F) : 0.0F;
 		if (localEquipmentDirty.exchange(false, std::memory_order_acq_rel)) {
@@ -474,16 +474,17 @@ namespace PlayerEquipment
 		publishElapsed += delta;
 
 		if (!Network::IsConnected()) {
-			wasConnected = false;
 			return;
 		}
-		if (!wasConnected) {
-			wasConnected = true;
+		if (const auto generation = Network::GetConnectionGeneration();
+			generation != publishedConnectionGeneration) {
+			publishedConnectionGeneration = generation;
 			// The server forgets a connection's equipment when it drops.
 			if (published) {
 				logs::info(
-					"Equipment sync republishing after connect: revision={}",
-					static_cast<unsigned long long>(published->revision));
+					"Equipment sync republishing after connect: revision={} connectionGeneration={}",
+					static_cast<unsigned long long>(published->revision),
+					static_cast<unsigned long long>(generation));
 				Network::PublishLocalEquipment(*published);
 				publishElapsed = 0.0F;
 			}

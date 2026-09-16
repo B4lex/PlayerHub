@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <mutex>
 #include <REX/W32/KERNEL32.h>
 #include <string>
@@ -18,15 +19,27 @@ namespace NPCSpawner
 		constexpr float kMaximumFrameTime = 0.1F;
 		constexpr float kAirborneTransformCatchUpTime = 0.2F;
 		constexpr std::uint32_t kMaximumEventDispatchAttempts = 4;
+		// Rejected graph events are also retried for at least this long, so a high
+		// frame rate cannot spend every attempt inside one short graph blend.
+		constexpr float kMinimumEventRetrySeconds = 0.1F;
 		constexpr std::uint32_t kInitialBlockedEventLogs = 8;
+		// Skyrim cross-blends directional locomotion (CyclicFreeze, then
+		// CyclicCrossBlend) instead of sweeping through intermediate directions.
+		// The source's Direction ramps over several samples, so only a change of
+		// at least 1/8 of a turn starts one, and never before the previous
+		// 0.2-second cross-blend has finished. Smaller changes follow Direction.
+		constexpr float kDirectionCrossBlendThreshold = 0.125F;
+		constexpr float kDirectionCrossBlendIntervalSeconds = 0.25F;
 		constexpr std::uint32_t kBlockedEventLogInterval = 120;
-		constexpr std::uint32_t kHitReactionObservationFrames = 4;
+		constexpr float kHitReactionObservationSeconds = 0.1F;
 		constexpr std::uint32_t kGraphRecoveryStableFrames = 2;
-		constexpr std::uint32_t kGraphRecoveryFallbackFrames = 120;
+		constexpr float kGraphRecoveryFallbackSeconds = 2.0F;
 		constexpr std::uint32_t kGraphRecoveryWaitLogInterval = 120;
 		constexpr std::uint32_t kActorInitializationLogInterval = 120;
-		constexpr std::uint32_t kLandingCompletionFallbackFrames = 120;
-		constexpr std::uint32_t kWeaponTransitionFallbackFrames = 120;
+		constexpr float kLandingCompletionFallbackSeconds = 2.0F;
+		// Measured in time, not frames: a one-handed sword draw takes about 1.4
+		// seconds, which a frame budget cuts short at high frame rates.
+		constexpr float kWeaponTransitionFallbackSeconds = 2.5F;
 		constexpr float kAttackStartFallbackSeconds = 1.25F;
 		constexpr float kAttackPlaybackFallbackSeconds = 4.0F;
 		constexpr float kFurnitureRetryInterval = 1.0F;
@@ -145,6 +158,12 @@ namespace NPCSpawner
 		// reference, then replace it with PlayerBase befor`e 3D is initialized.
 		constexpr RE::FormID kActorConstructionTemplateFormID = 0x00013BBF;
 
+		constexpr bool IsMovingState(Multiplayer::MovementState a_state)
+		{
+			return a_state != Multiplayer::MovementState::kIdle &&
+				a_state != Multiplayer::MovementState::kSneakingIdle;
+		}
+
 		struct PuppetGraphRegistration
 		{
 			const RE::Actor* actor{ nullptr };
@@ -164,6 +183,10 @@ namespace NPCSpawner
 			std::uint32_t jumpLandEndCount{ 0 };
 			std::uint32_t weaponTransitionEndCount{ 0 };
 			bool authoritativeJumping{ false };
+			// Network travel direction while moving, in graph Direction units. The
+			// actor's direction channel would otherwise feed the puppet's own (empty)
+			// movement into the graph on every animation update.
+			float authoritativeDirection{ 0.0F };
 			bool authoritativeWeaponDrawn{ false };
 			bool animationFirewallEnabled{ false };
 			bool furnitureAnimationOwned{ false };
@@ -345,6 +368,9 @@ namespace NPCSpawner
 					.actorHandle = a_npc.handle.native_handle(),
 					.authoritativeJumping =
 						a_npc.targetAnimationState.jumping,
+					.authoritativeDirection =
+						IsMovingState(a_npc.targetAnimationState.movementState) ?
+							a_npc.animationDirection : 0.0F,
 					.authoritativeWeaponDrawn =
 						a_npc.targetAnimationState.weaponDrawn,
 					.animationFirewallEnabled = false,
@@ -439,6 +465,35 @@ namespace NPCSpawner
 			if (puppet != s_puppetGraphs.end()) {
 				puppet->second.authoritativeJumping = a_jumping;
 			}
+		}
+
+		void SetAuthoritativeDirection(const ControlledNPC& a_npc)
+		{
+			const float direction =
+				IsMovingState(a_npc.targetAnimationState.movementState) ?
+					a_npc.animationDirection : 0.0F;
+			std::scoped_lock lock{ s_puppetGraphMutex };
+			const auto puppet = s_puppetGraphs.find(a_npc.animationGraphHolder);
+			if (puppet != s_puppetGraphs.end()) {
+				puppet->second.authoritativeDirection = direction;
+			}
+		}
+
+		std::optional<float> GetAuthoritativeDirection(const RE::Actor* a_actor)
+		{
+			if (!a_actor) {
+				return std::nullopt;
+			}
+
+			std::scoped_lock lock{ s_puppetGraphMutex };
+			const auto puppet = std::ranges::find_if(
+				s_puppetGraphs,
+				[a_actor](const auto& a_entry) {
+					return a_entry.second.actor == a_actor;
+				});
+			return puppet != s_puppetGraphs.end() ?
+				std::optional<float>{ puppet->second.authoritativeDirection } :
+				std::nullopt;
 		}
 
 		void SetAuthoritativeWeaponDrawnState(
@@ -1076,6 +1131,47 @@ namespace NPCSpawner
 		};
 
 
+		// Skyrim copies Actor-derived values into graph variables through channels
+		// polled during each animation update, after main-loop graph writes. The
+		// Direction channel reads the puppet's own movement request, which is always
+		// forward, so replace its polled value with the network direction.
+		struct PuppetDirectionChannelHook
+		{
+			// BSTAnimationGraphDataChannel<Actor, float, ActorDirectionChannel>:
+			// BSAnimationGraphChannel::value at 0x18, then the channel's cached value
+			// at 0x24 and its Actor at 0x28 (see RE::ActorSpeedChannel).
+			static constexpr std::ptrdiff_t kValueOffset = 0x18;
+			static constexpr std::ptrdiff_t kChannelValueOffset = 0x24;
+			static constexpr std::ptrdiff_t kActorOffset = 0x28;
+
+			static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
+			{
+				_original(a_channel, a_arg);
+				if (!a_channel) {
+					return;
+				}
+
+				const auto* bytes = reinterpret_cast<std::byte*>(a_channel);
+				const RE::Actor* actor = nullptr;
+				std::memcpy(&actor, bytes + kActorOffset, sizeof(actor));
+				// The pointer is only compared with registered puppets, never
+				// dereferenced, so non-puppet channels are left untouched.
+				const auto direction = GetAuthoritativeDirection(actor);
+				if (!direction) {
+					return;
+				}
+
+				auto* writableBytes = reinterpret_cast<std::byte*>(a_channel);
+				std::memcpy(writableBytes + kValueOffset, &*direction, sizeof(float));
+				std::memcpy(
+					writableBytes + kChannelValueOffset,
+					&*direction,
+					sizeof(float));
+			}
+
+			static inline REL::Relocation<decltype(Thunk)> _original;
+		};
+
 		bool NotifyNetworkAnimationGraph(
 			RE::Actor& a_actor,
 			const RE::BSFixedString& a_eventName)
@@ -1109,19 +1205,24 @@ namespace NPCSpawner
 			a_state.hasAttempted = false;
 			a_state.hasVariableUpdateResult = false;
 			a_state.lastVariableUpdateAccepted = false;
+			a_state.hasCrossBlendedDirection = false;
+			a_state.directionCrossBlendPending = false;
 			a_state.failedDispatchAttempts = 0;
 			a_state.rejectedEventAttempts = 0;
+			a_state.rejectedEventElapsed = 0.0F;
 			a_state.landingCompletionPending = false;
 			a_state.landingCompletionWaitFrames = 0;
+			a_state.landingCompletionWaitElapsed = 0.0F;
 			a_state.weaponLocomotionReassertPending = false;
 			a_state.weaponTransitionCompletionObserved = false;
-			a_state.weaponTransitionWaitFrames = 0;
+			a_state.weaponTransitionWaitElapsed = 0.0F;
 			a_state.weaponTransitionAnimationObserved = false;
 			a_state.weaponTransitionExitForced = false;
 			a_state.weaponDefaultStateDispatched = false;
 			a_state.weaponReplayBaseDispatched = false;
 			a_state.weaponTransitionMoveStartDispatched = false;
 			a_state.weaponReplayDiagnosticFramesRemaining = 0;
+			a_state.weaponRestoredWithoutCompletion = false;
 			a_state.attackPlaybackPending = false;
 			a_state.attackPlaybackObserved = false;
 			a_state.attackPlaybackElapsed = 0.0F;
@@ -1252,6 +1353,7 @@ namespace NPCSpawner
 			animationState->graphRecoveryInProgress = true;
 			animationState->graphBeforeRecovery = graphBeforeRecovery;
 			animationState->recoveryWaitFrames = 0;
+			animationState->recoveryWaitElapsed = 0.0F;
 			animationState->recoveryStableFrames = 0;
 			InvalidateAnimationDispatch(*animationState);
 			a_npc.ready = false;
@@ -1297,7 +1399,8 @@ namespace NPCSpawner
 
 		bool RecoverAuthoritativeAnimation(
 			RE::Actor& a_actor,
-			ControlledNPC& a_npc)
+			ControlledNPC& a_npc,
+			float a_deltaTime)
 		{
 			const auto animationState = a_npc.animationState;
 			if (!animationState) {
@@ -1310,8 +1413,8 @@ namespace NPCSpawner
 
 			if (pendingHitObservations != 0) {
 				animationState->observedHitEvents += pendingHitObservations;
-				animationState->hitReactionObservationFrames =
-					kHitReactionObservationFrames;
+				animationState->hitReactionObservationRemaining =
+					kHitReactionObservationSeconds;
 			}
 
 			// TESHitEvent is emitted even when the damage firewall successfully makes
@@ -1322,7 +1425,7 @@ namespace NPCSpawner
 				const auto observedHitEvents = std::exchange(
 					animationState->observedHitEvents,
 					0);
-				animationState->hitReactionObservationFrames = 0;
+				animationState->hitReactionObservationRemaining = 0.0F;
 				BeginAnimationGraphRecovery(
 					a_actor,
 					a_npc,
@@ -1331,9 +1434,13 @@ namespace NPCSpawner
 				return true;
 			}
 
-			if (animationState->hitReactionObservationFrames != 0 &&
-				--animationState->hitReactionObservationFrames == 0) {
-				animationState->observedHitEvents = 0;
+			const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+			if (animationState->hitReactionObservationRemaining > 0.0F) {
+				animationState->hitReactionObservationRemaining -= deltaTime;
+				if (animationState->hitReactionObservationRemaining <= 0.0F) {
+					animationState->hitReactionObservationRemaining = 0.0F;
+					animationState->observedHitEvents = 0;
+				}
 			}
 
 			if (!animationState->graphRecoveryInProgress) {
@@ -1344,6 +1451,7 @@ namespace NPCSpawner
 			}
 
 			++animationState->recoveryWaitFrames;
+			animationState->recoveryWaitElapsed += deltaTime;
 			RE::BSTSmartPointer<RE::BSAnimationGraphManager> graphManager;
 			const bool graphReady = a_actor.Is3DLoaded() &&
 				a_actor.GetCharController() &&
@@ -1351,10 +1459,11 @@ namespace NPCSpawner
 			if (!graphReady) {
 				animationState->recoveryStableFrames = 0;
 				if (!animationState->graphRecoveryUsed3DReset &&
-					animationState->recoveryWaitFrames >=
-						kGraphRecoveryFallbackFrames) {
+					animationState->recoveryWaitElapsed >=
+						kGraphRecoveryFallbackSeconds) {
 					animationState->graphRecoveryUsed3DReset = true;
 					animationState->recoveryWaitFrames = 0;
+					animationState->recoveryWaitElapsed = 0.0F;
 					a_actor.DoReset3D(false);
 					logs::warn(
 						"Puppet graph revert did not become ready; escalating to 3D reset: actor={:08X} recovery={}",
@@ -1389,6 +1498,7 @@ namespace NPCSpawner
 			animationState->graphRecoveryUsed3DReset = false;
 			animationState->graphBeforeRecovery = nullptr;
 			animationState->recoveryWaitFrames = 0;
+			animationState->recoveryWaitElapsed = 0.0F;
 			animationState->recoveryStableFrames = 0;
 			// A hit event can arrive just before a shout transitions the actor into
 			// ragdoll/paralysis. Allow the next frame to start physical recovery if
@@ -1763,7 +1873,8 @@ namespace NPCSpawner
 		void RequestAnimationUpdate(
 			const std::shared_ptr<AnimationState>& a_animationState,
 			Multiplayer::AnimationState a_state,
-			float a_speed)
+			float a_speed,
+			float a_direction)
 		{
 			if (!a_animationState) {
 				return;
@@ -1779,6 +1890,9 @@ namespace NPCSpawner
 				a_state.weaponDrawn,
 				std::memory_order_relaxed);
 			a_animationState->desiredSpeed.store(a_speed, std::memory_order_relaxed);
+			a_animationState->desiredDirection.store(
+				a_direction,
+				std::memory_order_relaxed);
 			a_animationState->desiredRevision.fetch_add(
 				1,
 				std::memory_order_release);
@@ -1786,7 +1900,8 @@ namespace NPCSpawner
 
 		void ApplyAnimationUpdate(
 			RE::Actor& a_actor,
-			ControlledNPC& a_npc)
+			ControlledNPC& a_npc,
+			float a_deltaTime)
 		{
 			const auto animationState = a_npc.animationState;
 			if (!animationState) {
@@ -1806,6 +1921,10 @@ namespace NPCSpawner
 				"JumpDirectionalStart"
 			};
 			static const RE::BSFixedString jumpLandEvent{ "JumpLand" };
+			static const RE::BSFixedString cyclicFreezeEvent{ "CyclicFreeze" };
+			static const RE::BSFixedString cyclicCrossBlendEvent{
+				"CyclicCrossBlend"
+			};
 			static const RE::BSFixedString jumpLandEndEvent{ "JumpLandEnd" };
 			static const RE::BSFixedString weaponEquipOutEvent{
 				"WeapEquip_Out"
@@ -1853,11 +1972,13 @@ namespace NPCSpawner
 				animationState->hasVariableUpdateResult = false;
 				animationState->failedDispatchAttempts = 0;
 				animationState->rejectedEventAttempts = 0;
+				animationState->rejectedEventElapsed = 0.0F;
 				animationState->landingCompletionPending = false;
 				animationState->landingCompletionWaitFrames = 0;
+				animationState->landingCompletionWaitElapsed = 0.0F;
 				animationState->weaponLocomotionReassertPending = false;
 				animationState->weaponTransitionCompletionObserved = false;
-				animationState->weaponTransitionWaitFrames = 0;
+				animationState->weaponTransitionWaitElapsed = 0.0F;
 				animationState->weaponTransitionAnimationObserved = false;
 				animationState->weaponTransitionExitForced = false;
 				animationState->weaponDefaultStateDispatched = false;
@@ -1890,11 +2011,13 @@ namespace NPCSpawner
 				animationState->hasVariableUpdateResult = false;
 				animationState->failedDispatchAttempts = 0;
 				animationState->rejectedEventAttempts = 0;
+				animationState->rejectedEventElapsed = 0.0F;
 				animationState->landingCompletionPending = false;
 				animationState->landingCompletionWaitFrames = 0;
+				animationState->landingCompletionWaitElapsed = 0.0F;
 				animationState->weaponLocomotionReassertPending = false;
 				animationState->weaponTransitionCompletionObserved = false;
-				animationState->weaponTransitionWaitFrames = 0;
+				animationState->weaponTransitionWaitElapsed = 0.0F;
 				animationState->weaponTransitionAnimationObserved = false;
 				animationState->weaponTransitionExitForced = false;
 				animationState->weaponReplayBaseDispatched = false;
@@ -1926,11 +2049,13 @@ namespace NPCSpawner
 					std::memory_order_release);
 				animationState->failedDispatchAttempts = 0;
 				animationState->rejectedEventAttempts = 0;
+				animationState->rejectedEventElapsed = 0.0F;
 				animationState->landingCompletionPending = false;
 				animationState->landingCompletionWaitFrames = 0;
+				animationState->landingCompletionWaitElapsed = 0.0F;
 				animationState->weaponLocomotionReassertPending = false;
 				animationState->weaponTransitionCompletionObserved = false;
-				animationState->weaponTransitionWaitFrames = 0;
+				animationState->weaponTransitionWaitElapsed = 0.0F;
 				animationState->weaponTransitionAnimationObserved = false;
 				animationState->weaponTransitionExitForced = false;
 				animationState->weaponDefaultStateDispatched = false;
@@ -2015,6 +2140,10 @@ namespace NPCSpawner
 				bool forcedEventAccepted = false;
 				const auto landingWaitFrames =
 					++animationState->landingCompletionWaitFrames;
+				animationState->landingCompletionWaitElapsed += std::clamp(
+					a_deltaTime,
+					0.0F,
+					kMaximumFrameTime);
 				if (!landingCompleted &&
 					(landingWaitFrames == 1 || landingWaitFrames % 15 == 0)) {
 					const auto currentPosition = actor->GetPosition();
@@ -2039,7 +2168,8 @@ namespace NPCSpawner
 						graphJumping);
 				}
 				if (!landingCompleted &&
-					landingWaitFrames >= kLandingCompletionFallbackFrames) {
+					animationState->landingCompletionWaitElapsed >=
+						kLandingCompletionFallbackSeconds) {
 					// A custom behavior graph may omit its normal annotation. Bound the
 					// wait and drive the same lifecycle edge explicitly so the puppet
 					// cannot remain in a landing branch indefinitely.
@@ -2054,6 +2184,7 @@ namespace NPCSpawner
 					const auto completedAfterFrames = landingWaitFrames;
 					animationState->landingCompletionPending = false;
 					animationState->landingCompletionWaitFrames = 0;
+					animationState->landingCompletionWaitElapsed = 0.0F;
 					SetLandingCompletionObservation(*actor, false);
 					// JumpLandEnd selects the graph's exit branch. Reassert every active
 					// grounded axis afterward—even if the network movement enum did not
@@ -2063,6 +2194,7 @@ namespace NPCSpawner
 					animationState->hasVariableUpdateResult = false;
 					animationState->failedDispatchAttempts = 0;
 					animationState->rejectedEventAttempts = 0;
+					animationState->rejectedEventElapsed = 0.0F;
 					logs::info(
 						"Animation sync completing landing branch and reasserting grounded locomotion: actor={:08X} observedMarkers={} waitedFrames={} forced={} forcedEventAccepted={}",
 						actorHandle.native_handle(),
@@ -2089,6 +2221,8 @@ namespace NPCSpawner
 			};
 			const auto sampleSpeed = animationState->desiredSpeed.load(
 				std::memory_order_acquire);
+			const auto sampleDirection = animationState->desiredDirection.load(
+				std::memory_order_acquire);
 			const bool authoritativeDispatchRequired =
 				!animationState->hasDispatched ||
 				animationState->lastDispatched != authoritativeState;
@@ -2101,13 +2235,14 @@ namespace NPCSpawner
 			if (weaponDrawnChanged) {
 				animationState->weaponLocomotionReassertPending = true;
 				animationState->weaponTransitionCompletionObserved = false;
-				animationState->weaponTransitionWaitFrames = 0;
+				animationState->weaponTransitionWaitElapsed = 0.0F;
 				animationState->weaponTransitionAnimationObserved = false;
 				animationState->weaponTransitionExitForced = false;
 				animationState->weaponDefaultStateDispatched = false;
 				animationState->weaponReplayBaseDispatched = false;
 				animationState->weaponTransitionMoveStartDispatched = false;
 				animationState->weaponReplayDiagnosticFramesRemaining = 0;
+				animationState->weaponRestoredWithoutCompletion = false;
 			}
 			const auto* actorState = actor->AsActorState();
 			const auto weaponState = actorState ? actorState->GetWeaponState() :
@@ -2116,13 +2251,30 @@ namespace NPCSpawner
 				ConsumeWeaponTransitionEnds(a_npc);
 			if (observedWeaponTransitionEnds != 0) {
 				animationState->weaponTransitionCompletionObserved = true;
+				const bool lateCompletion =
+					!animationState->weaponLocomotionReassertPending &&
+					animationState->weaponRestoredWithoutCompletion;
+				if (lateCompletion) {
+					// The bounded fallback restored locomotion while the clip was still
+					// playing, so the clip consumed that replay and its exit leaves the
+					// graph in a standing stance. Replay locomotion again from this exit.
+					animationState->weaponRestoredWithoutCompletion = false;
+					animationState->weaponLocomotionReassertPending = true;
+					animationState->weaponTransitionWaitElapsed = 0.0F;
+					animationState->weaponTransitionAnimationObserved = false;
+					animationState->weaponTransitionExitForced = false;
+					animationState->weaponDefaultStateDispatched = false;
+					animationState->weaponReplayBaseDispatched = false;
+					animationState->weaponTransitionMoveStartDispatched = false;
+				}
 				logs::info(
-					"Animation sync observed weapon transition exit: actor={:08X} weaponDrawn={} weaponState={} markers={}",
+					"Animation sync observed weapon transition exit: actor={:08X} weaponDrawn={} weaponState={} markers={} lateCompletion={}",
 					actorHandle.native_handle(),
 					authoritativeState.weaponDrawn,
 					static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(
 						weaponState),
-					observedWeaponTransitionEnds);
+					observedWeaponTransitionEnds,
+					lateCompletion);
 				if (authoritativeState.weaponDrawn) {
 					// Resetting a successfully drawn graph to its default state makes its
 					// behavior state sheathed while ActorState remains drawn. Preserve the
@@ -2143,16 +2295,19 @@ namespace NPCSpawner
 				// weaponSheathe annotation, leaving the weapon in hand. Restart the
 				// bounded wait once, when the requested clip actually starts.
 				animationState->weaponTransitionAnimationObserved = true;
-				animationState->weaponTransitionWaitFrames = 0;
+				animationState->weaponTransitionWaitElapsed = 0.0F;
 			}
 			if (animationState->weaponLocomotionReassertPending &&
-				animationState->weaponTransitionWaitFrames <
-					kWeaponTransitionFallbackFrames) {
-				++animationState->weaponTransitionWaitFrames;
+				animationState->weaponTransitionWaitElapsed <
+					kWeaponTransitionFallbackSeconds) {
+				animationState->weaponTransitionWaitElapsed += std::clamp(
+					a_deltaTime,
+					0.0F,
+					kMaximumFrameTime);
 			}
 			const bool weaponTransitionTimedOut =
-				animationState->weaponTransitionWaitFrames >=
-					kWeaponTransitionFallbackFrames;
+				animationState->weaponTransitionWaitElapsed >=
+					kWeaponTransitionFallbackSeconds;
 			const bool weaponTransitionCompleted =
 				animationState->weaponTransitionCompletionObserved ||
 				weaponTransitionTimedOut;
@@ -2172,12 +2327,12 @@ namespace NPCSpawner
 					transitionEndEvent);
 				animationState->weaponTransitionExitForced = true;
 				logs::warn(
-					"Animation sync weapon transition completion timed out; sent bounded exit: actor={:08X} weaponDrawn={} weaponState={} waitedFrames={} event={} accepted={}",
+					"Animation sync weapon transition completion timed out; sent bounded exit: actor={:08X} weaponDrawn={} weaponState={} waitedSeconds={:.3f} event={} accepted={}",
 					actorHandle.native_handle(),
 					authoritativeState.weaponDrawn,
 					static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(
 						weaponState),
-					animationState->weaponTransitionWaitFrames,
+					animationState->weaponTransitionWaitElapsed,
 					transitionEndEvent.c_str(),
 					forcedExitAccepted);
 				if (forcedExitAccepted) {
@@ -2311,6 +2466,7 @@ namespace NPCSpawner
 				animationState->hasAttempted = true;
 				animationState->failedDispatchAttempts = 0;
 				animationState->rejectedEventAttempts = 0;
+				animationState->rejectedEventElapsed = 0.0F;
 			}
 
 			auto* strings = RE::FixedStrings::GetSingleton();
@@ -2341,7 +2497,8 @@ namespace NPCSpawner
 			const auto stopEventAttempt =
 				animationState->rejectedEventAttempts + 1;
 			if (!stopEventsAccepted &&
-				stopEventAttempt < kMaximumEventDispatchAttempts) {
+				(stopEventAttempt < kMaximumEventDispatchAttempts ||
+					animationState->rejectedEventElapsed < kMinimumEventRetrySeconds)) {
 				logs::info(
 					"Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} result=retrying-stop-events strings={} moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} jumpEvent=deferred/{} eventAttempt={}/{}",
 					actorHandle.native_handle(),
@@ -2365,6 +2522,10 @@ namespace NPCSpawner
 					stopEventAttempt,
 					kMaximumEventDispatchAttempts);
 				++animationState->rejectedEventAttempts;
+				animationState->rejectedEventElapsed += std::clamp(
+					a_deltaTime,
+					0.0F,
+					kMaximumFrameTime);
 				return;
 			}
 			if (jumpLandRequired) {
@@ -2415,7 +2576,7 @@ namespace NPCSpawner
 					graphSpeed);
 				directionAccepted = actor->SetGraphVariableFloat(
 					strings->direction,
-					0.0F);
+					isMoving ? sampleDirection : 0.0F);
 				turnAccepted = actor->SetGraphVariableFloat(
 					strings->turnDelta,
 					0.0F);
@@ -2490,7 +2651,8 @@ namespace NPCSpawner
 				const auto eventAttempt =
 					animationState->rejectedEventAttempts + 1;
 				const bool eventAttemptsExhausted = !eventsAccepted &&
-					eventAttempt >= kMaximumEventDispatchAttempts;
+					eventAttempt >= kMaximumEventDispatchAttempts &&
+					animationState->rejectedEventElapsed >= kMinimumEventRetrySeconds;
 				const bool stateProcessed = variablesAccepted &&
 					(eventsAccepted || eventAttemptsExhausted);
 				if (variablesAccepted || variableAttempt == 1 ||
@@ -2553,21 +2715,23 @@ namespace NPCSpawner
 						} else {
 							const bool weaponCompletionWasObserved =
 								animationState->weaponTransitionCompletionObserved;
-							const auto weaponTransitionWaitFrames =
-								animationState->weaponTransitionWaitFrames;
+							const auto weaponTransitionWaitElapsed =
+								animationState->weaponTransitionWaitElapsed;
 							animationState->weaponLocomotionReassertPending = false;
 							animationState->weaponTransitionCompletionObserved = false;
-							animationState->weaponTransitionWaitFrames = 0;
+							animationState->weaponTransitionWaitElapsed = 0.0F;
 							animationState->weaponTransitionAnimationObserved = false;
 							animationState->weaponTransitionExitForced = false;
 							animationState->weaponDefaultStateDispatched = false;
 							animationState->weaponReplayBaseDispatched = false;
 							animationState->weaponTransitionMoveStartDispatched = false;
 							animationState->weaponReplayDiagnosticFramesRemaining = 30;
+							animationState->weaponRestoredWithoutCompletion =
+								!weaponCompletionWasObserved;
 							animationState->weaponReplayDiagnosticWeaponDrawn =
 								authoritativeState.weaponDrawn;
 							logs::info(
-								"Animation sync restored state after weapon transition: actor={:08X} state={} jumping={} weaponDrawn={} completionMarkerObserved={} weaponState={} transitionWaitFrames={} eventTimedOut={}",
+								"Animation sync restored state after weapon transition: actor={:08X} state={} jumping={} weaponDrawn={} completionMarkerObserved={} weaponState={} transitionWaitSeconds={:.3f} eventTimedOut={}",
 								actorHandle.native_handle(),
 								Multiplayer::GetMovementStateName(state.movementState),
 								state.jumping,
@@ -2575,7 +2739,7 @@ namespace NPCSpawner
 								weaponCompletionWasObserved,
 								static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(
 									weaponState),
-								weaponTransitionWaitFrames,
+								weaponTransitionWaitElapsed,
 								eventAttemptsExhausted);
 						}
 					}
@@ -2595,9 +2759,11 @@ namespace NPCSpawner
 					}
 					animationState->failedDispatchAttempts = 0;
 					animationState->rejectedEventAttempts = 0;
+					animationState->rejectedEventElapsed = 0.0F;
 					if (jumpLandRequired) {
 						animationState->landingCompletionPending = true;
 						animationState->landingCompletionWaitFrames = 0;
+						animationState->landingCompletionWaitElapsed = 0.0F;
 						logs::info(
 							"Animation sync waiting for landing completion marker: actor={:08X} revision={}",
 							actorHandle.native_handle(),
@@ -2610,6 +2776,37 @@ namespace NPCSpawner
 					++animationState->failedDispatchAttempts;
 				} else {
 					++animationState->rejectedEventAttempts;
+					animationState->rejectedEventElapsed += std::clamp(
+						a_deltaTime,
+						0.0F,
+						kMaximumFrameTime);
+				}
+			}
+
+			animationState->directionCrossBlendElapsed += std::clamp(
+				a_deltaTime,
+				0.0F,
+				kMaximumFrameTime);
+			if (animationState->directionCrossBlendPending) {
+				// One graph update after CyclicFreeze, matching Skyrim's own spacing.
+				animationState->directionCrossBlendPending = false;
+				(void) SendNetworkAnimationEvent(a_npc, cyclicCrossBlendEvent);
+			} else if (!isMoving || state.jumping || !variablesAccepted) {
+				animationState->hasCrossBlendedDirection = false;
+			} else {
+				const float directionChange = std::abs(
+					sampleDirection - animationState->crossBlendedDirection);
+				const float cyclicDirectionChange =
+					(std::min)(directionChange, 1.0F - directionChange);
+				if (!animationState->hasCrossBlendedDirection ||
+					(cyclicDirectionChange >= kDirectionCrossBlendThreshold &&
+						animationState->directionCrossBlendElapsed >=
+							kDirectionCrossBlendIntervalSeconds)) {
+					(void) SendNetworkAnimationEvent(a_npc, cyclicFreezeEvent);
+					animationState->crossBlendedDirection = sampleDirection;
+					animationState->hasCrossBlendedDirection = true;
+					animationState->directionCrossBlendPending = true;
+					animationState->directionCrossBlendElapsed = 0.0F;
 				}
 			}
 
@@ -3076,6 +3273,13 @@ namespace NPCSpawner
 			characterAnimationGraphVTable.write_vfunc(
 				0x1,
 				PuppetAnimationGraphHook::Thunk);
+		REL::Relocation<std::uintptr_t> directionChannelVTable{
+			RE::VTABLE_BSTAnimationGraphDataChannel_Actor_float_ActorDirectionChannel_[0]
+		};
+		PuppetDirectionChannelHook::_original =
+			directionChannelVTable.write_vfunc(
+				0x1,
+				PuppetDirectionChannelHook::Thunk);
 
 		REL::Relocation<std::uintptr_t> characterVTable{ RE::VTABLE_Character[0] };
 		const auto actorUpdateIndex = REL::Relocate(0xAD, 0xAD, 0xAF);
@@ -3247,7 +3451,7 @@ namespace NPCSpawner
 		actor->EnableAI(true);
 
 		auto animationState = std::make_shared<AnimationState>();
-		RequestAnimationUpdate(animationState, a_animationState, a_speed);
+		RequestAnimationUpdate(animationState, a_animationState, a_speed, 0.0F);
 		logs::info(
 			"Created remote-puppet actor reference: actor={:08X} base={:08X} constructionBase={:08X} revision={} desired={}/{}",
 			actor->GetHandle().native_handle(),
@@ -3279,17 +3483,22 @@ namespace NPCSpawner
 		ControlledNPC& a_npc,
 		const RE::NiPoint3& a_targetPosition,
 		float a_targetHeading,
-		float a_translationSpeed)
+		float a_translationSpeed,
+		float a_direction)
 	{
 		a_npc.targetPosition = a_targetPosition;
 		a_npc.targetHeading = a_targetHeading;
 		if (std::isfinite(a_translationSpeed) && a_translationSpeed >= 0.0F) {
 			a_npc.translationSpeed = a_translationSpeed;
 			a_npc.animationSpeed = a_translationSpeed;
+			a_npc.animationDirection =
+				Multiplayer::NormalizeMovementDirection(a_direction);
 			RequestAnimationUpdate(
 				a_npc.animationState,
 				a_npc.targetAnimationState,
-				a_npc.animationSpeed);
+				a_npc.animationSpeed,
+				a_npc.animationDirection);
+			SetAuthoritativeDirection(a_npc);
 		}
 	}
 
@@ -3300,11 +3509,13 @@ namespace NPCSpawner
 		const auto previousAnimationState = a_npc.targetAnimationState;
 		a_npc.targetAnimationState = a_animationState;
 		SetAuthoritativeJumpState(a_npc, a_animationState.jumping);
+		SetAuthoritativeDirection(a_npc);
 		SetAuthoritativeWeaponDrawnState(a_npc, a_animationState.weaponDrawn);
 		RequestAnimationUpdate(
 			a_npc.animationState,
 			a_animationState,
-			a_npc.animationSpeed);
+			a_npc.animationSpeed,
+			a_npc.animationDirection);
 		if (previousAnimationState != a_animationState && a_npc.animationState) {
 			logs::info(
 				"Animation sync updated actor request: actor={:08X} revision={} previous={}/{} desired={}/{}",
@@ -3498,7 +3709,7 @@ namespace NPCSpawner
 		// package and weapon state only at this established main-loop boundary,
 		// never from inside Skyrim's per-actor update hook.
 		SanitizeRemoteCombatState(*actor);
-		if (RecoverAuthoritativeAnimation(*actor, a_npc)) {
+		if (RecoverAuthoritativeAnimation(*actor, a_npc, a_deltaTime)) {
 			// Keep transform and graph writes paused until the reverted graph and its
 			// controller have remained available across consecutive main-loop passes.
 			return true;
@@ -3557,7 +3768,7 @@ namespace NPCSpawner
 			return true;
 		}
 
-		ApplyAnimationUpdate(*actor, a_npc);
+		ApplyAnimationUpdate(*actor, a_npc, a_deltaTime);
 		const bool landingCompletionPending = a_npc.animationState &&
 			a_npc.animationState->landingCompletionPending;
 		if (!IsAnimationStateSettled(a_npc) && !landingCompletionPending) {

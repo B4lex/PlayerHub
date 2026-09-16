@@ -28,6 +28,14 @@ namespace NPCSpawner
 		std::atomic_bool desiredJumping{ false };
 		std::atomic_bool desiredWeaponDrawn{ false };
 		std::atomic<float> desiredSpeed{ 0.0F };
+		std::atomic<float> desiredDirection{ 0.0F };
+		// Direction the active cyclic locomotion blend was last moved to.
+		float crossBlendedDirection{ 0.0F };
+		bool hasCrossBlendedDirection{ false };
+		// CyclicFreeze was sent; CyclicCrossBlend follows on the next graph update.
+		bool directionCrossBlendPending{ false };
+		// Time since the last direction cross-blend started.
+		float directionCrossBlendElapsed{ 0.0F };
 		std::atomic_uint64_t desiredRevision{ 0 };
 		std::atomic_uint64_t processedRevision{ 0 };
 
@@ -40,11 +48,13 @@ namespace NPCSpawner
 		RE::BSAnimationGraphManager* landingEventSinkGraph{ nullptr };
 		std::uint32_t failedDispatchAttempts{ 0 };
 		std::uint32_t rejectedEventAttempts{ 0 };
+		float rejectedEventElapsed{ 0.0F };
 		// JumpLand only enters Skyrim's timed landing branch. Keep the compound
 		// transition open until that branch emits JumpLandEnd, then fully reassert
 		// grounded locomotion before accepting another animation edge.
 		bool landingCompletionPending{ false };
 		std::uint32_t landingCompletionWaitFrames{ 0 };
+		float landingCompletionWaitElapsed{ 0.0F };
 		bool hasDispatched{ false };
 		bool hasAttempted{ false };
 		bool hasVariableUpdateResult{ false };
@@ -54,7 +64,7 @@ namespace NPCSpawner
 		// annotation (or a bounded fallback for custom graphs).
 		bool weaponLocomotionReassertPending{ false };
 		bool weaponTransitionCompletionObserved{ false };
-		std::uint32_t weaponTransitionWaitFrames{ 0 };
+		float weaponTransitionWaitElapsed{ 0.0F };
 		// The fallback measures the matching clip, not time spent finishing an
 		// opposite transition that was already running when the request flipped.
 		bool weaponTransitionAnimationObserved{ false };
@@ -62,6 +72,9 @@ namespace NPCSpawner
 		bool weaponDefaultStateDispatched{ false };
 		bool weaponReplayBaseDispatched{ false };
 		bool weaponTransitionMoveStartDispatched{ false };
+		// Locomotion was restored by the bounded fallback before the clip's exit
+		// annotation. A late exit annotation then replays locomotion once more.
+		bool weaponRestoredWithoutCompletion{ false };
 		// Bounded post-replay diagnostics compare the graph state reached after the
 		// visually working draw path with the failing sheathe path.
 		std::uint32_t weaponReplayDiagnosticFramesRemaining{ 0 };
@@ -78,8 +91,9 @@ namespace NPCSpawner
 		// it briefly so the main-loop pass can detect a delayed stagger/recoil without
 		// rebuilding an otherwise healthy graph.
 		std::uint32_t observedHitEvents{ 0 };
-		std::uint32_t hitReactionObservationFrames{ 0 };
+		float hitReactionObservationRemaining{ 0.0F };
 		std::uint32_t recoveryWaitFrames{ 0 };
+		float recoveryWaitElapsed{ 0.0F };
 		std::uint32_t recoveryStableFrames{ 0 };
 		std::uint32_t recoveryCount{ 0 };
 		// A network attack temporarily owns the graph. Base-state changes and later
@@ -106,6 +120,8 @@ namespace NPCSpawner
 		float translationSpeed{ 550.0F };
 		// Speed from the same network sample as targetPosition and movement state.
 		float animationSpeed{ 550.0F };
+		// Graph `Direction` from the same sample: travel relative to heading.
+		float animationDirection{ 0.0F };
 		float stoppingDistance{ 1.0F };
 		RE::IAnimationGraphManagerHolder* animationGraphHolder{ nullptr };
 		RE::FormID targetFurnitureRefID{ 0 };
@@ -131,7 +147,8 @@ namespace NPCSpawner
 		ControlledNPC& a_npc,
 		const RE::NiPoint3& a_targetPosition,
 		float a_targetHeading,
-		float a_translationSpeed);
+		float a_translationSpeed,
+		float a_direction);
 
 	void SetAnimationState(
 		ControlledNPC& a_npc,

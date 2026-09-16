@@ -39,6 +39,7 @@ The client emits `player:update`:
   "z": 0.0,
   "heading": 0.0,
   "speed": 400.0,
+  "direction": 0.0,
   "movementState": "running",
   "jumping": false,
   "cellId": 16513,
@@ -109,9 +110,23 @@ applied checkpoint changes jump phase.
   measured snapshot-to-snapshot speed; while airborne it also uses a bounded
   positional-error catch-up rate so a standing jump cannot stall when sampled
   speed is zero. Heading is applied from the remote snapshot.
-- Heading comes from horizontal snapshot-to-snapshot travel when the player is
-  moving. While stationary or changing coordinate spaces, it falls back to the
-  source actor's body angle. Camera/cursor aim is not used.
+- Heading is the source actor's body angle, so a backpedalling or strafing
+  player keeps facing the same way. `direction` is the travel direction relative
+  to that heading, in the behavior graph's `Direction` units in `[0, 1]`
+  (0 forward, 0.25 right, 0.5 backward, 0.75 left). It is read from the source
+  graph's `Direction` variable. When a custom graph does not expose it, it is
+  derived from horizontal snapshot-to-snapshot travel. The puppet writes it to
+  its own `Direction` variable while moving. Vanilla locomotion selects
+  forward/backward/strafe clips only through `Direction`
+  (`BSCyclicBlendTransitionGenerator.fBlendParameter` over `*_Direction_Blend`);
+  there is no separate backward movement event. Skyrim also copies each actor's
+  own movement direction into that variable through `ActorDirectionChannel`
+  during every animation update, after main-loop graph writes; for a puppet
+  that is always forward, so the channel's polled value is replaced with the
+  network direction. Like Skyrim does for the player, a direction change of at
+  least 1/8 of a turn is cross-blended with `CyclicFreeze` followed one graph
+  update later by `CyclicCrossBlend`, at most once per 0.25 seconds so the
+  0.2-second blend is not restarted while the source's `Direction` ramps.
 - Animation state is selected by the source player and replicated explicitly as
   `idle`, `walking`, `running`, `sprinting`, `sneakingIdle`,
   `sneakingWalking`, or `sneakingRunning`, plus an orthogonal `jumping` flag.

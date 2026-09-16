@@ -21,14 +21,20 @@ namespace FrameUpdate
 		constexpr float kSpawnRetryDelay = 1.0F;
 		constexpr float kSnapshotInterval = 0.05F;
 		constexpr float kMinimumHeadingTravel = 1.0F;
+		constexpr float kTwoPi = 6.28318530717958647692F;
 		constexpr float kAnimationActionTimeout = 10.0F;
 		constexpr std::uint32_t kMaximumAnimationActionAttempts = 4;
+		// Rejected attacks are also retried for at least this long, so a high frame
+		// rate cannot spend every attempt inside one short graph blend.
+		constexpr float kMinimumAnimationActionRetrySeconds = 0.25F;
 		constexpr std::size_t kMaximumQueuedAnimationActions = 32;
 		struct PendingAnimationAction
 		{
 			Network::AnimationAction action;
 			float age{ 0.0F };
 			std::uint32_t dispatchAttempts{ 0 };
+			// Time since the first rejected dispatch attempt.
+			float retryElapsed{ 0.0F };
 		};
 		struct RemotePuppet
 		{
@@ -479,7 +485,18 @@ namespace FrameUpdate
 					(cellID == previousCellID));
 
 			float speed = 0.0F;
+			// The body angle is the facing direction. Travel direction is carried
+			// separately so a backpedalling puppet keeps facing forward.
 			float heading = a_player.GetAngleZ();
+			if (!std::isfinite(heading)) {
+				heading = 0.0F;
+			}
+			static const RE::BSFixedString directionVariable{ "Direction" };
+			float direction = 0.0F;
+			const bool graphDirectionAvailable = a_player.GetGraphVariableFloat(
+				directionVariable,
+				direction) &&
+				std::isfinite(direction);
 			if (comparableLocalSpace && snapshotElapsed > 0.0F) {
 				const float deltaX = position.x - previousPosition.x;
 				const float deltaY = position.y - previousPosition.y;
@@ -493,16 +510,15 @@ namespace FrameUpdate
 					speed = 0.0F;
 				}
 
-				if (horizontalDistanceSquared >=
-					kMinimumHeadingTravel * kMinimumHeadingTravel) {
-					// Skyrim heading zero faces positive Y. Deriving yaw from actual
-					// travel keeps remote puppets independent from camera/cursor aim.
-					heading = std::atan2(deltaX, deltaY);
+				if (!graphDirectionAvailable &&
+					horizontalDistanceSquared >=
+						kMinimumHeadingTravel * kMinimumHeadingTravel) {
+					// A custom graph may not expose Direction. Skyrim heading zero faces
+					// positive Y, so derive the travel angle relative to the body.
+					direction = (std::atan2(deltaX, deltaY) - heading) / kTwoPi;
 				}
 			}
-			if (!std::isfinite(heading)) {
-				heading = 0.0F;
-			}
+			direction = Multiplayer::NormalizeMovementDirection(direction);
 
 			previousPosition = position;
 			previousCellID = cellID;
@@ -513,7 +529,7 @@ namespace FrameUpdate
 			if (!hasPreviousAnimationState ||
 				animationState != previousAnimationState) {
 				logs::info(
-					"Animation sync publishing local state: sequence={} previous={}/{} state={}/{} position=({:.3f},{:.3f},{:.3f}) speed={:.1f} physicalJump={} physicalMidair={}",
+					"Animation sync publishing local state: sequence={} previous={}/{} state={}/{} position=({:.3f},{:.3f},{:.3f}) speed={:.1f} direction={:.3f} physicalJump={} physicalMidair={}",
 					static_cast<unsigned long long>(sequence),
 					hasPreviousAnimationState ?
 						Multiplayer::GetMovementStateName(
@@ -527,6 +543,7 @@ namespace FrameUpdate
 					position.y,
 					position.z,
 					speed,
+					direction,
 					a_player.IsInJumpState(),
 					a_player.IsInMidair());
 				previousAnimationState = animationState;
@@ -549,6 +566,7 @@ namespace FrameUpdate
 				.z = position.z,
 				.heading = heading,
 				.speed = speed,
+				.direction = direction,
 				.animationState = animationState,
 				.cellID = cellID,
 				.worldspaceID = worldspaceID,
@@ -614,7 +632,7 @@ namespace FrameUpdate
 				}
 				if (animationStateChanged) {
 					logs::info(
-						"Animation sync accepted main-loop target: player={} previousSequence={} previous={}/{} sequence={} state={}/{} position=({:.3f},{:.3f},{:.3f}) speed={:.1f}",
+						"Animation sync accepted main-loop target: player={} previousSequence={} previous={}/{} sequence={} state={}/{} position=({:.3f},{:.3f},{:.3f}) speed={:.1f} direction={:.3f}",
 						update.playerID,
 						static_cast<unsigned long long>(puppet->second.lastSequence),
 						inserted ?
@@ -631,7 +649,8 @@ namespace FrameUpdate
 						update.transform.x,
 						update.transform.y,
 						update.transform.z,
-						update.transform.speed);
+						update.transform.speed,
+						update.transform.direction);
 				}
 				if (!inserted && puppet->second.target.graphEpoch !=
 					update.transform.graphEpoch) {
@@ -714,6 +733,9 @@ namespace FrameUpdate
 		{
 			for (auto& pending : a_puppet.pendingAnimationActions) {
 				pending.age += (std::max)(a_delta, 0.0F);
+				if (pending.dispatchAttempts != 0) {
+					pending.retryElapsed += (std::max)(a_delta, 0.0F);
+				}
 			}
 			while (!a_puppet.pendingAnimationActions.empty() &&
 				a_puppet.pendingAnimationActions.front().age >=
@@ -765,13 +787,15 @@ namespace FrameUpdate
 					static_cast<unsigned long long>(action.checkpointSequence));
 				a_puppet.pendingAnimationActions.pop_front();
 			} else if (pending.dispatchAttempts >=
-				kMaximumAnimationActionAttempts) {
+					kMaximumAnimationActionAttempts &&
+				pending.retryElapsed >= kMinimumAnimationActionRetrySeconds) {
 				logs::warn(
-					"Animation sync rejected normal attack after bounded retries: player={} actor={:08X} actionSequence={} attempts={}",
+					"Animation sync rejected normal attack after bounded retries: player={} actor={:08X} actionSequence={} attempts={} retrySeconds={:.3f}",
 					a_playerID,
 					a_puppet.controlledNPC->handle.native_handle(),
 					static_cast<unsigned long long>(action.actionSequence),
-					pending.dispatchAttempts);
+					pending.dispatchAttempts,
+					pending.retryElapsed);
 				a_puppet.pendingAnimationActions.pop_front();
 			}
 		}
@@ -903,7 +927,8 @@ namespace FrameUpdate
 					*a_puppet.controlledNPC,
 					targetPosition,
 					a_puppet.target.heading,
-					a_puppet.target.speed);
+					a_puppet.target.speed,
+					a_puppet.target.direction);
 				a_puppet.appliedSequence = a_puppet.lastSequence;
 			}
 

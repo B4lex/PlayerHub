@@ -14,6 +14,7 @@ def valid_payload(sequence: int) -> dict[str, bool | int | float | str]:
         "z": 3.0,
         "heading": 0.0,
         "speed": 400.0,
+        "direction": 0.0,
         "movementState": "running",
         "jumping": False,
         "weaponDrawn": False,

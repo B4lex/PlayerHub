@@ -91,9 +91,9 @@ old space.
 
 ## Remaining protocol gaps
 
-- Direction is currently represented by turning the puppet toward travel and
-  setting graph direction/turn variables to zero. Backpedalling, strafing, and
-  independent look direction need explicit sampled direction variables.
+- Body heading and graph `Direction` are replicated, so backpedalling and
+  strafing use the source graph's directional locomotion. `TurnDelta` is still
+  zero, and look/aim direction independent of the body is not replicated.
 - There is no timestamped interpolation buffer; transforms chase the newest
   sample. Network jitter can therefore affect spatial smoothness even when
   locomotion state is correct.

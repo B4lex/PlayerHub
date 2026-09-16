@@ -23,6 +23,7 @@ namespace Network
 		constexpr auto kServerEndpointPath =
 			"Data/SKSE/Plugins/skyrim-mp-server.txt";
 		std::atomic_bool connected{ false };
+		std::atomic_uint64_t connectionGeneration{ 0 };
 		std::mutex remoteChangesLock;
 		std::unordered_map<std::string, RemotePlayerTransform> pendingTransforms;
 		std::unordered_map<std::string, PlayerTransform> latestReceivedTransforms;
@@ -287,6 +288,7 @@ namespace Network
 			double z = 0.0;
 			double heading = 0.0;
 			double speed = 0.0;
+			double direction = 0.0;
 			Multiplayer::MovementState movementState{
 				Multiplayer::MovementState::kIdle
 			};
@@ -305,6 +307,9 @@ namespace Network
 				!ReadNumber(values, "speed", speed) ||
 				speed < 0.0 ||
 				speed > (std::numeric_limits<float>::max)() ||
+				!ReadNumber(values, "direction", direction) ||
+				direction < 0.0 ||
+				direction > 1.0 ||
 				!ReadMovementState(values, movementState) ||
 				!ReadBool(values, "jumping", jumping) ||
 				!ReadBool(values, "weaponDrawn", weaponDrawn) ||
@@ -343,6 +348,8 @@ namespace Network
 				.z = static_cast<float>(z),
 				.heading = static_cast<float>(heading),
 				.speed = static_cast<float>(speed),
+				.direction = Multiplayer::NormalizeMovementDirection(
+					static_cast<float>(direction)),
 				.animationState = Multiplayer::AnimationState{
 					.movementState = movementState,
 					.jumping = jumping,
@@ -895,8 +902,15 @@ namespace Network
 				logs::info("Socket.IO transport connected to {}", GetServerEndpoint());
 			});
 			client.set_socket_open_listener([](std::string const&) {
-				connected.store(true, std::memory_order_release);
-				logs::info("Socket.IO default namespace ready");
+				// Automatic reconnects do not always report a close first, so the
+				// connected flag alone cannot reveal that the server lost our state.
+				const auto generation =
+					connectionGeneration.fetch_add(1, std::memory_order_acq_rel) + 1;
+				const bool wasConnected = connected.exchange(true, std::memory_order_acq_rel);
+				logs::info(
+					"Socket.IO default namespace ready: connectionGeneration={} closeObserved={}",
+					static_cast<unsigned long long>(generation),
+					!wasConnected);
 			});
 			client.set_socket_close_listener([](std::string const&) {
 				connected.store(false, std::memory_order_release);
@@ -925,6 +939,11 @@ namespace Network
 		return connected.load(std::memory_order_acquire);
 	}
 
+	std::uint64_t GetConnectionGeneration()
+	{
+		return connectionGeneration.load(std::memory_order_acquire);
+	}
+
 	void PublishLocalPlayerTransform(const PlayerTransform& a_transform)
 	{
 		if (!IsConnected()) {
@@ -938,6 +957,7 @@ namespace Network
 		values["z"] = sio::double_message::create(a_transform.z);
 		values["heading"] = sio::double_message::create(a_transform.heading);
 		values["speed"] = sio::double_message::create(a_transform.speed);
+		values["direction"] = sio::double_message::create(a_transform.direction);
 		values["movementState"] = sio::string_message::create(
 			Multiplayer::GetMovementStateName(
 				a_transform.animationState.movementState));
