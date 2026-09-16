@@ -16,6 +16,17 @@ MOVEMENT_STATES = frozenset(
 ANIMATION_ACTION_FAMILIES = frozenset({"attack"})
 ATTACK_ACTIONS = frozenset({"normal"})
 
+MAXIMUM_INT64 = 0x7FFFFFFFFFFFFFFF
+MAXIMUM_PLUGIN_NAME_LENGTH = 260
+MAXIMUM_LOCAL_FORM_ID = 0xFFFFFF
+MAXIMUM_HEAD_PARTS = 16
+MAXIMUM_HEAD_PART_TYPE = 6
+MAXIMUM_TINTS = 64
+MAXIMUM_TINT_TYPE = 14
+FACE_MORPH_COUNT = 19
+FACE_PART_COUNT = 4
+MAXIMUM_FLOAT32 = 3.4028234663852886e38
+
 
 def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None:
     if not isinstance(data, dict):
@@ -117,4 +128,147 @@ def parse_animation_action(data: Any) -> dict[str, Any] | None:
         "family": family,
         "action": action,
         "prerequisites": prerequisites.copy(),
+    }
+
+
+def _is_integer(value: Any, minimum: int, maximum: int) -> bool:
+    return (
+        not isinstance(value, bool)
+        and isinstance(value, int)
+        and minimum <= value <= maximum
+    )
+
+
+def _is_number(value: Any, minimum: float, maximum: float) -> bool:
+    return (
+        not isinstance(value, bool)
+        and isinstance(value, (int, float))
+        and math.isfinite(value)
+        and minimum <= value <= maximum
+    )
+
+
+def _parse_form_reference(data: Any, extra_fields: tuple[str, ...] = ()) -> dict[str, Any] | None:
+    if not isinstance(data, dict):
+        return None
+    plugin = data.get("plugin")
+    form_id = data.get("formId")
+    if (
+        not isinstance(plugin, str)
+        or not 1 <= len(plugin) <= MAXIMUM_PLUGIN_NAME_LENGTH
+        or not _is_integer(form_id, 0, MAXIMUM_LOCAL_FORM_ID)
+    ):
+        return None
+    reference: dict[str, Any] = {"plugin": plugin, "formId": form_id}
+    for field in extra_fields:
+        reference[field] = data.get(field)
+    return reference
+
+
+def _parse_color(data: Any, extra_fields: tuple[str, ...] = ()) -> dict[str, Any] | None:
+    if not isinstance(data, dict):
+        return None
+    color: dict[str, Any] = {}
+    for channel in ("r", "g", "b"):
+        value = data.get(channel)
+        if not _is_integer(value, 0, 0xFF):
+            return None
+        color[channel] = value
+    for field in extra_fields:
+        color[field] = data.get(field)
+    return color
+
+
+def parse_player_appearance(data: Any) -> dict[str, Any] | None:
+    """Validate latest-wins character appearance state."""
+    if not isinstance(data, dict):
+        return None
+
+    revision = data.get("revision")
+    female = data.get("female")
+    weight = data.get("weight")
+    height = data.get("height")
+    if (
+        not _is_integer(revision, 1, MAXIMUM_INT64)
+        or not isinstance(female, bool)
+        or not _is_number(weight, 0.0, 100.0)
+        or not _is_number(height, 0.25, 4.0)
+    ):
+        return None
+
+    race = _parse_form_reference(data.get("race"))
+    if race is None:
+        return None
+
+    raw_head_parts = data.get("headParts")
+    if not isinstance(raw_head_parts, list) or len(raw_head_parts) > MAXIMUM_HEAD_PARTS:
+        return None
+    head_parts = []
+    for raw_head_part in raw_head_parts:
+        head_part = _parse_form_reference(raw_head_part, ("type",))
+        if head_part is None or not _is_integer(head_part["type"], 0, MAXIMUM_HEAD_PART_TYPE):
+            return None
+        head_parts.append(head_part)
+
+    if "hairColor" not in data or "faceDetails" not in data:
+        return None
+    hair_color = None
+    if data["hairColor"] is not None:
+        hair_color = _parse_color(data["hairColor"])
+        if hair_color is None:
+            return None
+    face_details = None
+    if data["faceDetails"] is not None:
+        face_details = _parse_form_reference(data["faceDetails"])
+        if face_details is None:
+            return None
+
+    body_tint = _parse_color(data.get("bodyTint"))
+    if body_tint is None:
+        return None
+
+    face_morphs = data.get("faceMorphs")
+    if (
+        not isinstance(face_morphs, list)
+        or len(face_morphs) != FACE_MORPH_COUNT
+        or not all(_is_number(value, -MAXIMUM_FLOAT32, MAXIMUM_FLOAT32) for value in face_morphs)
+    ):
+        return None
+
+    face_parts = data.get("faceParts")
+    if (
+        not isinstance(face_parts, list)
+        or len(face_parts) != FACE_PART_COUNT
+        or not all(_is_integer(value, -(2**31), 2**31 - 1) for value in face_parts)
+    ):
+        return None
+
+    raw_tints = data.get("tints")
+    if not isinstance(raw_tints, list) or len(raw_tints) > MAXIMUM_TINTS:
+        return None
+    tints = []
+    for raw_tint in raw_tints:
+        tint = _parse_color(raw_tint, ("index", "type", "alpha"))
+        if (
+            tint is None
+            or not _is_integer(tint["index"], 0, 0xFFFF)
+            or not _is_integer(tint["type"], 0, MAXIMUM_TINT_TYPE)
+            or not _is_number(tint["alpha"], 0.0, 1.0)
+        ):
+            return None
+        tints.append(tint)
+
+    return {
+        "revision": revision,
+        "race": race,
+        "female": female,
+        "weight": weight,
+        "height": height,
+        "headParts": head_parts,
+        "hairColor": hair_color,
+        "faceDetails": face_details,
+        "bodyTint": body_tint,
+        "faceMorphs": list(face_morphs),
+        "faceParts": list(face_parts),
+        "tints": tints,
     }

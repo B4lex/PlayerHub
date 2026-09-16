@@ -75,9 +75,10 @@ applied checkpoint changes jump phase.
   a space again. Exterior cell changes within one worldspace remain continuous.
 - A new puppet reference is created directly at its first received snapshot;
   there is no intermediate spawn at the local player's position.
-- The proof of concept uses the local player's actor base for every remote
-  puppet. Network-selected appearance and equipment are not implemented yet
-  and remain separate from animation ownership and combat suppression.
+- Puppets use a runtime actor base built from the source player's synchronized
+  appearance (`specs/006-player-appearance-sync.md`), falling back to the local
+  player's actor base until one is available. Equipment is not implemented yet.
+  Both remain separate from animation ownership and combat suppression.
 - Puppet references retain normal actor, graph, controller, and collision
   processing. Attack/cast decisions are disabled, and immediately before each
   actor update the live AI process ignores combat and any combat controller is
@@ -142,8 +143,8 @@ applied checkpoint changes jump phase.
 
 ## POC limitations
 
-1. Every peer currently uses its local player character's actor base. Remote
-   appearance/equipment synchronization is not implemented.
+1. Remote equipment synchronization is not implemented. Appearance is
+   synchronized separately (spec 006).
 2. Cell and worldspace form IDs only work reliably when peers have compatible
    load orders.
 3. Interior/worldspace changes use an intentional despawn/respawn boundary;

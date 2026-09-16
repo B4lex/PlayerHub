@@ -2,6 +2,7 @@
 
 #include <sio_client.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <deque>
@@ -24,6 +25,8 @@ namespace Network
 		std::mutex remoteChangesLock;
 		std::unordered_map<std::string, RemotePlayerTransform> pendingTransforms;
 		std::unordered_map<std::string, PlayerTransform> latestReceivedTransforms;
+		std::unordered_map<std::string, RemotePlayerAppearance> pendingAppearances;
+		std::unordered_map<std::string, std::uint64_t> latestReceivedAppearanceRevisions;
 		std::deque<AnimationAction> pendingAnimationActions;
 		std::unordered_map<std::string, std::uint64_t> latestReceivedActionSequences;
 		std::unordered_set<std::string> pendingDisconnects;
@@ -82,28 +85,40 @@ namespace Network
 			return !a_result.empty();
 		}
 
-		bool ReadNumber(
+		sio::message::ptr FindValue(
 			const std::map<std::string, sio::message::ptr>& a_values,
-			const std::string& a_key,
-			double& a_result)
+			const std::string& a_key)
 		{
 			const auto value = a_values.find(a_key);
-			if (value == a_values.end() || !value->second) {
+			return value == a_values.end() ? sio::message::ptr{} : value->second;
+		}
+
+		bool ReadNumberValue(const sio::message::ptr& a_value, double& a_result)
+		{
+			if (!a_value) {
 				return false;
 			}
 
-			switch (value->second->get_flag()) {
+			switch (a_value->get_flag()) {
 			case sio::message::flag_double:
-				a_result = value->second->get_double();
+				a_result = a_value->get_double();
 				break;
 			case sio::message::flag_integer:
-				a_result = static_cast<double>(value->second->get_int());
+				a_result = static_cast<double>(a_value->get_int());
 				break;
 			default:
 				return false;
 			}
 
 			return std::isfinite(a_result);
+		}
+
+		bool ReadNumber(
+			const std::map<std::string, sio::message::ptr>& a_values,
+			const std::string& a_key,
+			double& a_result)
+		{
+			return ReadNumberValue(FindValue(a_values, a_key), a_result);
 		}
 
 		bool ReadMovementState(
@@ -151,25 +166,96 @@ namespace Network
 			return true;
 		}
 
-		bool ReadUnsignedInteger(
-			const std::map<std::string, sio::message::ptr>& a_values,
-			const std::string& a_key,
+		bool ReadUnsignedIntegerValue(
+			const sio::message::ptr& a_value,
 			std::uint64_t a_maximum,
 			std::uint64_t& a_result)
 		{
-			const auto value = a_values.find(a_key);
-			if (value == a_values.end() || !value->second ||
-				value->second->get_flag() != sio::message::flag_integer) {
+			if (!a_value || a_value->get_flag() != sio::message::flag_integer) {
 				return false;
 			}
 
-			const auto integer = value->second->get_int();
+			const auto integer = a_value->get_int();
 			if (integer < 0 || static_cast<std::uint64_t>(integer) > a_maximum) {
 				return false;
 			}
 
 			a_result = static_cast<std::uint64_t>(integer);
 			return true;
+		}
+
+		bool ReadUnsignedInteger(
+			const std::map<std::string, sio::message::ptr>& a_values,
+			const std::string& a_key,
+			std::uint64_t a_maximum,
+			std::uint64_t& a_result)
+		{
+			return ReadUnsignedIntegerValue(FindValue(a_values, a_key), a_maximum, a_result);
+		}
+
+		bool ReadArray(
+			const std::map<std::string, sio::message::ptr>& a_values,
+			const std::string& a_key,
+			std::size_t a_maximumSize,
+			const std::vector<sio::message::ptr>*& a_result)
+		{
+			const auto value = FindValue(a_values, a_key);
+			if (!value || value->get_flag() != sio::message::flag_array ||
+				value->get_vector().size() > a_maximumSize) {
+				return false;
+			}
+
+			a_result = &value->get_vector();
+			return true;
+		}
+
+		bool ReadAppearanceColor(
+			const sio::message::ptr& a_value,
+			Multiplayer::AppearanceColor& a_result)
+		{
+			if (!a_value || a_value->get_flag() != sio::message::flag_object) {
+				return false;
+			}
+
+			const auto& values = a_value->get_map();
+			std::uint64_t red = 0;
+			std::uint64_t green = 0;
+			std::uint64_t blue = 0;
+			if (!ReadUnsignedInteger(values, "r", 0xFF, red) ||
+				!ReadUnsignedInteger(values, "g", 0xFF, green) ||
+				!ReadUnsignedInteger(values, "b", 0xFF, blue)) {
+				return false;
+			}
+
+			a_result = Multiplayer::AppearanceColor{
+				.red = static_cast<std::uint8_t>(red),
+				.green = static_cast<std::uint8_t>(green),
+				.blue = static_cast<std::uint8_t>(blue)
+			};
+			return true;
+		}
+
+		bool ReadAppearanceFormReference(
+			const std::map<std::string, sio::message::ptr>& a_values,
+			Multiplayer::AppearanceFormReference& a_result)
+		{
+			std::uint64_t localFormID = 0;
+			if (!ReadString(a_values, "plugin", a_result.plugin) ||
+				!ReadUnsignedInteger(
+					a_values,
+					"formId",
+					Multiplayer::PlayerAppearance::kMaximumLocalFormID,
+					localFormID)) {
+				return false;
+			}
+
+			a_result.localFormID = static_cast<std::uint32_t>(localFormID);
+			return true;
+		}
+
+		bool IsNullValue(const sio::message::ptr& a_value)
+		{
+			return !a_value || a_value->get_flag() == sio::message::flag_null;
 		}
 
 		bool ParseRemoteTransform(
@@ -315,6 +401,161 @@ namespace Network
 			return true;
 		}
 
+		// Returns nullptr on success, otherwise the name of the rejected field.
+		const char* ParseRemoteAppearance(
+			const sio::message::ptr& a_data,
+			RemotePlayerAppearance& a_result)
+		{
+			if (!a_data || a_data->get_flag() != sio::message::flag_object) {
+				return "payload";
+			}
+
+			using Multiplayer::PlayerAppearance;
+			const auto& values = a_data->get_map();
+			auto& appearance = a_result.appearance;
+
+			std::uint64_t revision = 0;
+			if (!ReadString(values, "playerId", a_result.playerID)) {
+				return "playerId";
+			}
+			if (!ReadUnsignedInteger(
+					values,
+					"revision",
+					(std::numeric_limits<std::int64_t>::max)(),
+					revision) ||
+				revision == 0) {
+				return "revision";
+			}
+			appearance.revision = revision;
+
+			const auto race = FindValue(values, "race");
+			if (!race || race->get_flag() != sio::message::flag_object ||
+				!ReadAppearanceFormReference(race->get_map(), appearance.race)) {
+				return "race";
+			}
+			if (!ReadBool(values, "female", appearance.female)) {
+				return "female";
+			}
+
+			double weight = 0.0;
+			if (!ReadNumber(values, "weight", weight) ||
+				std::abs(weight) > (std::numeric_limits<float>::max)()) {
+				return "weight";
+			}
+			appearance.weight = static_cast<float>(weight);
+
+			double height = 0.0;
+			if (!ReadNumber(values, "height", height) ||
+				std::abs(height) > (std::numeric_limits<float>::max)()) {
+				return "height";
+			}
+			appearance.height = static_cast<float>(height);
+
+			const std::vector<sio::message::ptr>* headParts = nullptr;
+			if (!ReadArray(values, "headParts", PlayerAppearance::kMaximumHeadParts, headParts)) {
+				return "headParts";
+			}
+			for (const auto& headPart : *headParts) {
+				Multiplayer::AppearanceHeadPart result;
+				std::uint64_t type = 0;
+				if (!headPart || headPart->get_flag() != sio::message::flag_object ||
+					!ReadAppearanceFormReference(headPart->get_map(), result.form) ||
+					!ReadUnsignedInteger(
+						headPart->get_map(),
+						"type",
+						PlayerAppearance::kMaximumHeadPartType,
+						type)) {
+					return "headParts[]";
+				}
+				result.type = static_cast<std::uint8_t>(type);
+				appearance.headParts.push_back(std::move(result));
+			}
+
+			// JSON null may decode to either a null message or an empty pointer.
+			const auto hairColor = FindValue(values, "hairColor");
+			if (IsNullValue(hairColor)) {
+				appearance.hairColor.reset();
+			} else {
+				Multiplayer::AppearanceColor color;
+				if (!ReadAppearanceColor(hairColor, color)) {
+					return "hairColor";
+				}
+				appearance.hairColor = color;
+			}
+
+			const auto faceDetails = FindValue(values, "faceDetails");
+			if (IsNullValue(faceDetails)) {
+				appearance.faceDetails = {};
+			} else if (faceDetails->get_flag() != sio::message::flag_object ||
+					   !ReadAppearanceFormReference(faceDetails->get_map(), appearance.faceDetails)) {
+				return "faceDetails";
+			}
+
+			if (!ReadAppearanceColor(FindValue(values, "bodyTint"), appearance.bodyTint)) {
+				return "bodyTint";
+			}
+
+			const std::vector<sio::message::ptr>* faceMorphs = nullptr;
+			if (!ReadArray(values, "faceMorphs", PlayerAppearance::kFaceMorphCount, faceMorphs) ||
+				faceMorphs->size() != PlayerAppearance::kFaceMorphCount) {
+				return "faceMorphs";
+			}
+			for (std::size_t i = 0; i < PlayerAppearance::kFaceMorphCount; ++i) {
+				double morph = 0.0;
+				if (!ReadNumberValue((*faceMorphs)[i], morph)) {
+					return "faceMorphs[]";
+				}
+				// Unset morphs use FLT_MAX as a sentinel. The JSON parser is not full
+				// precision, so that value can come back marginally above FLT_MAX.
+				const double floatLimit = (std::numeric_limits<float>::max)();
+				appearance.faceMorphs[i] =
+					static_cast<float>(std::clamp(morph, -floatLimit, floatLimit));
+			}
+
+			const std::vector<sio::message::ptr>* faceParts = nullptr;
+			if (!ReadArray(values, "faceParts", PlayerAppearance::kFacePartCount, faceParts) ||
+				faceParts->size() != PlayerAppearance::kFacePartCount) {
+				return "faceParts";
+			}
+			for (std::size_t i = 0; i < PlayerAppearance::kFacePartCount; ++i) {
+				const auto& part = (*faceParts)[i];
+				if (!part || part->get_flag() != sio::message::flag_integer ||
+					part->get_int() < (std::numeric_limits<std::int32_t>::min)() ||
+					part->get_int() > (std::numeric_limits<std::int32_t>::max)()) {
+					return "faceParts[]";
+				}
+				appearance.faceParts[i] = static_cast<std::int32_t>(part->get_int());
+			}
+
+			const std::vector<sio::message::ptr>* tints = nullptr;
+			if (!ReadArray(values, "tints", PlayerAppearance::kMaximumTints, tints)) {
+				return "tints";
+			}
+			for (const auto& tint : *tints) {
+				Multiplayer::AppearanceTint result;
+				std::uint64_t index = 0;
+				std::uint64_t type = 0;
+				double alpha = 0.0;
+				if (!tint || tint->get_flag() != sio::message::flag_object ||
+					!ReadUnsignedInteger(tint->get_map(), "index", 0xFFFF, index) ||
+					!ReadUnsignedInteger(
+						tint->get_map(),
+						"type",
+						PlayerAppearance::kMaximumTintType,
+						type) ||
+					!ReadAppearanceColor(tint, result.color) ||
+					!ReadNumber(tint->get_map(), "alpha", alpha)) {
+					return "tints[]";
+				}
+				result.index = static_cast<std::uint16_t>(index);
+				result.type = static_cast<std::uint8_t>(type);
+				result.alpha = static_cast<float>(alpha);
+				appearance.tints.push_back(result);
+			}
+
+			return Multiplayer::IsValidAppearance(appearance) ? nullptr : "value ranges";
+		}
+
 		void OnRemoteTransform(
 			std::string const&,
 			sio::message::ptr const& a_data,
@@ -401,6 +642,41 @@ namespace Network
 			pendingAnimationActions.push_back(std::move(action));
 		}
 
+		void OnRemoteAppearance(
+			std::string const&,
+			sio::message::ptr const& a_data,
+			bool,
+			sio::message::list&)
+		{
+			RemotePlayerAppearance update;
+			if (const auto* rejectedField = ParseRemoteAppearance(a_data, update)) {
+				logs::warn(
+					"Ignored malformed Socket.IO player:appearance payload: player={} field={}",
+					update.playerID.empty() ? "<unknown>" : update.playerID,
+					rejectedField);
+				return;
+			}
+
+			const auto playerID = update.playerID;
+			std::scoped_lock lock{ remoteChangesLock };
+			pendingDisconnects.erase(playerID);
+
+			const auto latest = latestReceivedAppearanceRevisions.find(playerID);
+			if (latest != latestReceivedAppearanceRevisions.end() &&
+				update.appearance.revision <= latest->second) {
+				logs::info(
+					"Appearance sync ignored stale appearance: player={} revision={} newestRevision={}",
+					playerID,
+					static_cast<unsigned long long>(update.appearance.revision),
+					static_cast<unsigned long long>(latest->second));
+				return;
+			}
+			latestReceivedAppearanceRevisions.insert_or_assign(
+				playerID,
+				update.appearance.revision);
+			pendingAppearances.insert_or_assign(playerID, std::move(update));
+		}
+
 		void OnRemoteDisconnect(
 			std::string const&,
 			sio::message::ptr const& a_data,
@@ -419,6 +695,8 @@ namespace Network
 			std::scoped_lock lock{ remoteChangesLock };
 			pendingTransforms.erase(playerID);
 			latestReceivedTransforms.erase(playerID);
+			pendingAppearances.erase(playerID);
+			latestReceivedAppearanceRevisions.erase(playerID);
 			latestReceivedActionSequences.erase(playerID);
 			std::erase_if(
 				pendingAnimationActions,
@@ -441,6 +719,9 @@ namespace Network
 			socket->on(
 				"player:action",
 				sio::socket::event_listener_aux(OnRemoteAnimationAction));
+			socket->on(
+				"player:appearance",
+				sio::socket::event_listener_aux(OnRemoteAppearance));
 			socket->on("player:left", sio::socket::event_listener_aux(OnRemoteDisconnect));
 
 			client.set_open_listener([] {
@@ -510,6 +791,80 @@ namespace Network
 		GetClient().socket()->emit("player:update", payload);
 	}
 
+	void PublishLocalAppearance(const Multiplayer::PlayerAppearance& a_appearance)
+	{
+		if (!IsConnected() || !Multiplayer::IsValidAppearance(a_appearance)) {
+			return;
+		}
+
+		const auto createColor = [](const Multiplayer::AppearanceColor& a_color) {
+			auto color = sio::object_message::create();
+			auto& values = color->get_map();
+			values["r"] = sio::int_message::create(a_color.red);
+			values["g"] = sio::int_message::create(a_color.green);
+			values["b"] = sio::int_message::create(a_color.blue);
+			return color;
+		};
+		const auto createFormReference =
+			[](const Multiplayer::AppearanceFormReference& a_reference) {
+				if (a_reference.IsEmpty()) {
+					return sio::null_message::create();
+				}
+				auto reference = sio::object_message::create();
+				auto& values = reference->get_map();
+				values["plugin"] = sio::string_message::create(a_reference.plugin);
+				values["formId"] = sio::int_message::create(a_reference.localFormID);
+				return reference;
+			};
+
+		auto headParts = sio::array_message::create();
+		for (const auto& headPart : a_appearance.headParts) {
+			auto reference = createFormReference(headPart.form);
+			reference->get_map()["type"] = sio::int_message::create(headPart.type);
+			headParts->get_vector().push_back(std::move(reference));
+		}
+
+		auto faceMorphs = sio::array_message::create();
+		for (const auto morph : a_appearance.faceMorphs) {
+			faceMorphs->get_vector().push_back(sio::double_message::create(morph));
+		}
+
+		auto faceParts = sio::array_message::create();
+		for (const auto part : a_appearance.faceParts) {
+			faceParts->get_vector().push_back(sio::int_message::create(part));
+		}
+
+		auto tints = sio::array_message::create();
+		for (const auto& tint : a_appearance.tints) {
+			auto layer = createColor(tint.color);
+			auto& values = layer->get_map();
+			values["index"] = sio::int_message::create(tint.index);
+			values["type"] = sio::int_message::create(tint.type);
+			values["alpha"] = sio::double_message::create(tint.alpha);
+			tints->get_vector().push_back(std::move(layer));
+		}
+
+		auto payload = sio::object_message::create();
+		auto& values = payload->get_map();
+		values["revision"] = sio::int_message::create(
+			static_cast<std::int64_t>(a_appearance.revision));
+		values["race"] = createFormReference(a_appearance.race);
+		values["female"] = sio::bool_message::create(a_appearance.female);
+		values["weight"] = sio::double_message::create(a_appearance.weight);
+		values["height"] = sio::double_message::create(a_appearance.height);
+		values["headParts"] = std::move(headParts);
+		values["hairColor"] = a_appearance.hairColor ?
+			createColor(*a_appearance.hairColor) :
+			sio::null_message::create();
+		values["faceDetails"] = createFormReference(a_appearance.faceDetails);
+		values["bodyTint"] = createColor(a_appearance.bodyTint);
+		values["faceMorphs"] = std::move(faceMorphs);
+		values["faceParts"] = std::move(faceParts);
+		values["tints"] = std::move(tints);
+
+		GetClient().socket()->emit("player:appearance", payload);
+	}
+
 	void PublishLocalNormalAttack(
 		std::uint64_t a_graphEpoch,
 		std::uint64_t a_checkpointSequence)
@@ -556,6 +911,12 @@ namespace Network
 			changes.transforms.push_back(std::move(entry.second));
 		}
 		pendingTransforms.clear();
+
+		changes.appearances.reserve(pendingAppearances.size());
+		for (auto& entry : pendingAppearances) {
+			changes.appearances.push_back(std::move(entry.second));
+		}
+		pendingAppearances.clear();
 
 		changes.animationActions.reserve(pendingAnimationActions.size());
 		while (!pendingAnimationActions.empty()) {

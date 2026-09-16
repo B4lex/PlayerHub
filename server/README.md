@@ -32,6 +32,12 @@ to `http://127.0.0.1:3000` for local testing.
 - `player:action` relays that action to every other connected player after its
   graph epoch, drawn-weapon, and unoccupied-furniture checkpoint prerequisites
   are verified.
+- `player:appearance` carries the player's latest character appearance (race,
+  sex, weight, head parts, hair color, face morphs, and tints) with an
+  increasing revision. It is relayed to other players with `playerId`. The
+  server stores the latest appearance per connection and sends every stored
+  appearance to a newly connected client. See
+  `specs/006-player-appearance-sync.md`.
 - `player:left` tells peers to remove the disconnected player's puppet.
 
 Attacks are intentionally not another field in `player:update`: a snapshot
@@ -52,7 +58,8 @@ $env:SKYRIM_MP_RECORDING_ENABLED = "true"
 uv run server
 ```
 
-When enabled, every accepted `player:update` and `animation:action` is persisted
+When enabled, every accepted `player:update`, `player:appearance`, and
+`animation:action` is persisted
 to one ordered `recordings/<playerId>.json` timeline. Each file is atomically
 refreshed after a message, so it remains valid and replayable if the server is
 interrupted. The `playerId` is the current Socket.IO session ID (there is no
@@ -73,8 +80,9 @@ uv run replay recordings/player_movement.example.json
 ```
 
 The recording is either an array of legacy update payloads or an object
-containing a `messages` array. New timeline entries contain `event` with either
-`player:update` or `animation:action`, plus the corresponding `payload`. Put
+containing a `messages` array. New timeline entries contain `event` with
+`player:update`, `player:appearance`, or `animation:action`, plus the
+corresponding `payload`. Put
 timing beside a payload with `delayMs` (delay before that message), or
 `timestampMs` (an absolute time within the recording). A top-level
 `defaultDelayMs` applies to entries without timing.

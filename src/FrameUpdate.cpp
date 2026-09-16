@@ -1,5 +1,6 @@
 #include "FrameUpdate.h"
 #include "NPCSpawner.h"
+#include "PlayerAppearance.h"
 #include "SocketIOClient.h"
 
 #include <algorithm>
@@ -35,6 +36,7 @@ namespace FrameUpdate
 			std::uint64_t appliedSequence{ 0 };
 			std::deque<PendingAnimationAction> pendingAnimationActions;
 			std::optional<NPCSpawner::ControlledNPC> controlledNPC;
+			PlayerAppearance::RemoteAppearance appearance;
 			RE::FormID spawnedCellID{ 0 };
 			RE::FormID spawnedWorldspaceID{ 0 };
 			float spawnRetryRemaining{ 0.0F };
@@ -658,6 +660,16 @@ namespace FrameUpdate
 				}
 			}
 
+			for (auto& update : changes.appearances) {
+				// An appearance may arrive before the first checkpoint. The puppet is
+				// only spawned once a checkpoint places it in the local space.
+				auto& puppet = a_puppets[update.playerID];
+				PlayerAppearance::AcceptRemoteAppearance(
+					puppet.appearance,
+					update.playerID,
+					std::move(update.appearance));
+			}
+
 			for (auto& action : changes.animationActions) {
 				const auto puppet = a_puppets.find(action.playerID);
 				if (puppet == a_puppets.end() ||
@@ -803,6 +815,25 @@ namespace FrameUpdate
 					a_puppet.target.worldspaceID,
 					a_puppet.spawnedCellID,
 					a_puppet.spawnedWorldspaceID);
+			PlayerAppearance::AdvanceRemoteAppearance(a_puppet.appearance, a_delta);
+			if (a_puppet.controlledNPC && isInLocalSpace && !changedSpawnedSpace &&
+				PlayerAppearance::RequiresRespawn(a_puppet.appearance)) {
+				// Race, sex, head parts, and weight are only applied when 3D loads.
+				// Rebuild the puppet from the newest checkpoint with the new base.
+				const auto actorHandle =
+					a_puppet.controlledNPC->handle.native_handle();
+				NPCSpawner::RemoveControlledNPC(*a_puppet.controlledNPC);
+				a_puppet.controlledNPC.reset();
+				a_puppet.pendingAnimationActions.clear();
+				a_puppet.appliedSequence = 0;
+				a_puppet.spawnRetryRemaining = 0.0F;
+				logs::info(
+					"Recycling remote player puppet {} actor {:08X} after appearance change: spawnedRevision={} revision={}",
+					a_playerID,
+					actorHandle,
+					static_cast<unsigned long long>(a_puppet.appearance.spawnedRevision),
+					static_cast<unsigned long long>(a_puppet.appearance.latest->revision));
+			}
 			if (a_puppet.controlledNPC &&
 				(!isInLocalSpace || changedSpawnedSpace)) {
 				const auto actorHandle =
@@ -906,6 +937,12 @@ namespace FrameUpdate
 					a_puppet.controlledNPC.reset();
 					a_puppet.pendingAnimationActions.clear();
 					a_puppet.spawnRetryRemaining = kSpawnRetryDelay;
+				} else if (auto actor = controlledNPC.handle.get()) {
+					PlayerAppearance::UpdateSpawnedPuppet(
+						a_puppet.appearance,
+						a_playerID,
+						*actor,
+						controlledNPC.ready);
 				}
 			}
 
@@ -918,8 +955,18 @@ namespace FrameUpdate
 				return;
 			}
 
+			auto* spawnBase = PlayerAppearance::GetSpawnBase(
+				a_puppet.appearance,
+				a_playerID,
+				a_playerBase);
+			if (!spawnBase) {
+				// Briefly wait for the first appearance so a late joiner is not spawned
+				// with the local look and immediately replaced.
+				return;
+			}
+
 			a_puppet.controlledNPC = NPCSpawner::SpawnControlledNPC(
-				a_playerBase,
+				spawnBase,
 				targetPosition,
 				a_puppet.target.heading,
 				Multiplayer::AnimationState{},
@@ -929,6 +976,7 @@ namespace FrameUpdate
 				a_puppet.spawnRetryRemaining = kSpawnRetryDelay;
 				return;
 			}
+			PlayerAppearance::OnPuppetSpawned(a_puppet.appearance, spawnBase);
 			a_puppet.appliedSequence = a_puppet.lastSequence;
 			a_puppet.spawnedCellID = a_puppet.target.cellID;
 			a_puppet.spawnedWorldspaceID = a_puppet.target.worldspaceID;
@@ -948,7 +996,7 @@ namespace FrameUpdate
 			}
 		}
 
-		void OnFrame(RE::Actor* a_player, float a_delta)
+		void OnFrame(RE::PlayerCharacter* a_player, float a_delta)
 		{
 			static RemotePuppets remotePuppets;
 
@@ -969,6 +1017,7 @@ namespace FrameUpdate
 				localGraphEpoch,
 				localGraphEpochChanged,
 				capturedNormalAttacks);
+			PlayerAppearance::UpdateLocalAppearance(*a_player, a_delta);
 
 			auto* localCell = a_player->GetParentCell();
 			auto* playerBase = a_player->GetActorBase();

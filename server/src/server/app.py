@@ -6,10 +6,15 @@ from typing import Any
 import socketio
 from fastapi import FastAPI
 
-from server.protocol import parse_animation_action, parse_player_update
+from server.protocol import (
+    parse_animation_action,
+    parse_player_appearance,
+    parse_player_update,
+)
 from server.recording import (
     PlayerRecording,
     append_animation_action,
+    append_player_appearance,
     append_player_update,
 )
 
@@ -19,6 +24,7 @@ api = FastAPI(title="Skyrim Multiplayer Server")
 sio = socketio.AsyncServer(async_mode="asgi")
 player_states: dict[str, dict[str, bool | int | float | str]] = {}
 player_action_sequences: dict[str, int] = {}
+player_appearances: dict[str, dict[str, Any]] = {}
 player_recordings: dict[str, PlayerRecording] = {}
 RECORDINGS_DIRECTORY = Path(__file__).resolve().parents[2] / "recordings"
 RECORDING_ENABLED = os.getenv("SKYRIM_MP_RECORDING_ENABLED", "false").lower() in {
@@ -47,12 +53,18 @@ async def poc() -> dict[str, str]:
 async def connect(sid: str, environ: dict[str, Any]) -> None:
     del environ
     logger.info("Socket.IO client connected: %s", sid)
+    # Appearance only changes rarely, so late joiners receive the stored state.
+    for player_id, appearance in list(player_appearances.items()):
+        if player_id == sid:
+            continue
+        await sio.emit("player:appearance", {"playerId": player_id, **appearance}, to=sid)
 
 
 @sio.event
 async def disconnect(sid: str, reason: str) -> None:
     player_states.pop(sid, None)
     player_action_sequences.pop(sid, None)
+    player_appearances.pop(sid, None)
     player_recordings.pop(sid, None)
     outbound = {"playerId": sid}
     logger.info("Socket.IO TX player:left payload=%s", outbound)
@@ -88,6 +100,37 @@ async def player_update(sid: str, data: Any) -> dict[str, bool | str]:
     outbound = {"playerId": sid, **state}
     logger.debug("Socket.IO TX player:state source=%s payload=%s", sid, outbound)
     await sio.emit("player:state", outbound, skip_sid=sid)
+    return {"ok": True}
+
+
+@sio.on("player:appearance")
+async def player_appearance(sid: str, data: Any) -> dict[str, bool | str]:
+    logger.debug("Socket.IO RX player:appearance sid=%s payload=%s", sid, data)
+    appearance = parse_player_appearance(data)
+    if appearance is None:
+        logger.warning("Rejected malformed player:appearance from %s", sid)
+        return {"ok": False, "error": "invalid player appearance"}
+
+    previous = player_appearances.get(sid)
+    if previous is not None and appearance["revision"] <= previous["revision"]:
+        return {"ok": False, "error": "stale appearance revision"}
+
+    if RECORDING_ENABLED:
+        try:
+            recording_path = append_player_appearance(
+                player_recordings, RECORDINGS_DIRECTORY, sid, appearance
+            )
+        except OSError:
+            logger.exception("Unable to record player:appearance from %s", sid)
+            return {"ok": False, "error": "unable to record player appearance"}
+        logger.info("Recorded player:appearance sid=%s file=%s", sid, recording_path)
+
+    player_appearances[sid] = appearance
+    outbound = {"playerId": sid, **appearance}
+    logger.info(
+        "Socket.IO TX player:appearance source=%s revision=%s", sid, appearance["revision"]
+    )
+    await sio.emit("player:appearance", outbound, skip_sid=sid)
     return {"ok": True}
 
 

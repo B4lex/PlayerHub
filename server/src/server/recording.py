@@ -87,3 +87,21 @@ def append_animation_action(
         payload,
         monotonic_ns,
     )
+
+
+def append_player_appearance(
+    recordings: dict[str, PlayerRecording],
+    recordings_directory: Path,
+    player_id: str,
+    payload: dict[str, Any],
+    monotonic_ns: Callable[[], int] = time.monotonic_ns,
+) -> Path:
+    """Append a validated latest-wins player:appearance state."""
+    return _append_message(
+        recordings,
+        recordings_directory,
+        player_id,
+        "player:appearance",
+        payload,
+        monotonic_ns,
+    )

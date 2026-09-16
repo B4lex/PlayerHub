@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AppearanceState.h"
 #include "MovementState.h"
 
 #include <cstdint>
@@ -45,9 +46,17 @@ namespace Network
 		PlayerTransform transform;
 	};
 
+	struct RemotePlayerAppearance
+	{
+		std::string playerID;
+		Multiplayer::PlayerAppearance appearance;
+	};
+
 	struct RemotePlayerChanges
 	{
 		std::vector<RemotePlayerTransform> transforms;
+		// Only the newest pending appearance revision per player.
+		std::vector<RemotePlayerAppearance> appearances;
 		std::vector<AnimationAction> animationActions;
 		std::vector<std::string> disconnectedPlayerIDs;
 	};
@@ -60,6 +69,9 @@ namespace Network
 	// Called from the game thread. socket.io-client-cpp queues the emit for its
 	// transport thread; no Skyrim objects cross the network boundary.
 	void PublishLocalPlayerTransform(const PlayerTransform& a_transform);
+
+	// Publishes the latest-wins appearance state. The caller owns revisions.
+	void PublishLocalAppearance(const Multiplayer::PlayerAppearance& a_appearance);
 
 	// Publishes one item in the ordered semantic action stream. Power attacks are
 	// intentionally normalized to this same normal-attack vocabulary by capture.
