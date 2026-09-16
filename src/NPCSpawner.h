@@ -185,6 +185,9 @@ namespace NPCSpawner
 	[[nodiscard]] bool CanDispatchNormalAttack(const ControlledNPC& a_npc);
 	[[nodiscard]] bool DispatchNormalAttack(ControlledNPC& a_npc);
 	[[nodiscard]] bool IsAnimationActionPlaying(const ControlledNPC& a_npc);
+	// A replicated draw or sheathe clip has not reached its exit annotation or
+	// bounded fallback yet.
+	[[nodiscard]] bool IsWeaponTransitionPlaying(const ControlledNPC& a_npc);
 
 	void RemoveControlledNPC(ControlledNPC& a_npc);
 
