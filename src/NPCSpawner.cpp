@@ -4026,7 +4026,7 @@ namespace NPCSpawner
 	bool UpdateControlledNPC(
 		ControlledNPC& a_npc,
 		float a_deltaTime,
-		bool a_allowTranslation)
+		std::optional<Multiplayer::AnimationState> a_translationState)
 	{
 		if (!RequireGameThread("UpdateControlledNPC")) {
 			return true;
@@ -4128,12 +4128,15 @@ namespace NPCSpawner
 			// landing branch itself keeps following the grounded network path.
 			return true;
 		}
-		if (!a_allowTranslation && !landingCompletionPending) {
+		if (!a_translationState && !landingCompletionPending) {
 			// A compound transition is still converging toward the latest locomotion
 			// state. Applying its transform during an intermediate state would pair
 			// position from the latest sample with stale graph state.
 			return true;
 		}
+
+		const auto translationState =
+			a_translationState.value_or(a_npc.targetAnimationState);
 
 		const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
 		ApplySmoothedHeading(*actor, a_npc.targetHeading, deltaTime);
@@ -4154,8 +4157,8 @@ namespace NPCSpawner
 		if (distanceToTravel <= kArrivalTolerance) {
 			return true;
 		}
-		if (!IsMoving(a_npc.targetAnimationState.movementState) &&
-			!a_npc.targetAnimationState.jumping) {
+		if (!IsMoving(translationState.movementState) &&
+			!translationState.jumping) {
 			// An idle snapshot is a current-state checkpoint, not an instruction to
 			// visibly walk the remaining interpolation backlog while playing idle.
 			actor->SetPosition(target, true);
@@ -4166,7 +4169,7 @@ namespace NPCSpawner
 			return true;
 		}
 
-		const float interpolationSpeed = a_npc.targetAnimationState.jumping ?
+		const float interpolationSpeed = translationState.jumping ?
 			(std::max)(
 				a_npc.translationSpeed,
 				distanceToTravel / kAirborneTransformCatchUpTime) :

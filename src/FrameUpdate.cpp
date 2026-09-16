@@ -995,14 +995,25 @@ namespace FrameUpdate
 				if (!furniturePlaying) {
 					AdvanceAnimationAction(a_playerID, a_puppet);
 				}
-				const bool animationMatchesLatestSample =
-					controlledNPC.targetAnimationState ==
-						GetPresentableAnimationState(a_puppet) &&
-					!furniturePlaying;
+				const auto presentableState = GetPresentableAnimationState(a_puppet);
+				std::optional<Multiplayer::AnimationState> translationState;
+				if (!furniturePlaying) {
+					if (controlledNPC.targetAnimationState == presentableState) {
+						translationState = presentableState;
+					} else if (NPCSpawner::IsAnimationActionPlaying(controlledNPC) ||
+						(controlledNPC.targetAnimationState.jumping &&
+							presentableState.jumping)) {
+						// An attack clip or an airborne branch holds the dispatched
+						// locomotion for its whole duration, while the remote player keeps
+						// travelling. Follow the latest sample instead of freezing and then
+						// snapping once the graph releases.
+						translationState = presentableState;
+					}
+				}
 				if (!NPCSpawner::UpdateControlledNPC(
 						controlledNPC,
 						a_delta,
-						animationMatchesLatestSample)) {
+						translationState)) {
 					logs::warn(
 						"Remote player puppet {} lost its actor handle; respawning it",
 						a_playerID);
