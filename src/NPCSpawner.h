@@ -55,6 +55,9 @@ namespace NPCSpawner
 		bool weaponLocomotionReassertPending{ false };
 		bool weaponTransitionCompletionObserved{ false };
 		std::uint32_t weaponTransitionWaitFrames{ 0 };
+		// The fallback measures the matching clip, not time spent finishing an
+		// opposite transition that was already running when the request flipped.
+		bool weaponTransitionAnimationObserved{ false };
 		bool weaponTransitionExitForced{ false };
 		bool weaponDefaultStateDispatched{ false };
 		bool weaponReplayBaseDispatched{ false };
