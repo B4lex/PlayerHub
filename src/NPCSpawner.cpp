@@ -1213,6 +1213,7 @@ namespace NPCSpawner
 			a_state.landingCompletionPending = false;
 			a_state.landingCompletionWaitFrames = 0;
 			a_state.landingCompletionWaitElapsed = 0.0F;
+			a_state.landingLocomotionReassertPending = false;
 			a_state.weaponLocomotionReassertPending = false;
 			a_state.weaponTransitionCompletionObserved = false;
 			a_state.weaponTransitionWaitElapsed = 0.0F;
@@ -1976,6 +1977,7 @@ namespace NPCSpawner
 				animationState->landingCompletionPending = false;
 				animationState->landingCompletionWaitFrames = 0;
 				animationState->landingCompletionWaitElapsed = 0.0F;
+				animationState->landingLocomotionReassertPending = false;
 				animationState->weaponLocomotionReassertPending = false;
 				animationState->weaponTransitionCompletionObserved = false;
 				animationState->weaponTransitionWaitElapsed = 0.0F;
@@ -2015,6 +2017,7 @@ namespace NPCSpawner
 				animationState->landingCompletionPending = false;
 				animationState->landingCompletionWaitFrames = 0;
 				animationState->landingCompletionWaitElapsed = 0.0F;
+				animationState->landingLocomotionReassertPending = false;
 				animationState->weaponLocomotionReassertPending = false;
 				animationState->weaponTransitionCompletionObserved = false;
 				animationState->weaponTransitionWaitElapsed = 0.0F;
@@ -2053,6 +2056,7 @@ namespace NPCSpawner
 				animationState->landingCompletionPending = false;
 				animationState->landingCompletionWaitFrames = 0;
 				animationState->landingCompletionWaitElapsed = 0.0F;
+				animationState->landingLocomotionReassertPending = false;
 				animationState->weaponLocomotionReassertPending = false;
 				animationState->weaponTransitionCompletionObserved = false;
 				animationState->weaponTransitionWaitElapsed = 0.0F;
@@ -2133,6 +2137,20 @@ namespace NPCSpawner
 				--animationState->weaponReplayDiagnosticFramesRemaining;
 			}
 
+			if (animationState->landingCompletionPending &&
+				animationState->desiredJumping.load(std::memory_order_acquire)) {
+				// A consecutive takeoff leaves the landing branch directly, as the
+				// local player's graph does. Waiting for JumpLandEnd would hold the
+				// takeoff until the remote jump is already over. The jump dispatch
+				// below closes the landing observation window; grounded locomotion is
+				// reasserted after that jump's own landing.
+				animationState->landingCompletionPending = false;
+				animationState->landingCompletionWaitFrames = 0;
+				animationState->landingCompletionWaitElapsed = 0.0F;
+				logs::info(
+					"Animation sync takeoff preempted pending landing completion: actor={:08X}",
+					actorHandle.native_handle());
+			}
 			if (animationState->landingCompletionPending) {
 				const auto completedLandings = ConsumeJumpLandEnds(a_npc);
 				bool landingCompleted = completedLandings != 0;
@@ -2188,10 +2206,10 @@ namespace NPCSpawner
 					SetLandingCompletionObservation(*actor, false);
 					// JumpLandEnd selects the graph's exit branch. Reassert every active
 					// grounded axis afterward—even if the network movement enum did not
-					// change—so the actor cannot exit into idle and slide.
-					animationState->hasDispatched = false;
-					animationState->hasAttempted = false;
-					animationState->hasVariableUpdateResult = false;
+					// change—so the actor cannot exit into idle and slide. Keep the
+					// dispatch history: forgetting it reads a drawn weapon as a new draw
+					// and arms a weapon-transition replay that later fires mid-jump.
+					animationState->landingLocomotionReassertPending = true;
 					animationState->failedDispatchAttempts = 0;
 					animationState->rejectedEventAttempts = 0;
 					animationState->rejectedEventElapsed = 0.0F;
@@ -2383,6 +2401,8 @@ namespace NPCSpawner
 			const bool reassertLocomotionAfterAttack =
 				animationState->attackLocomotionReassertPending &&
 				!animationState->attackPlaybackPending;
+			const bool reassertLocomotionAfterLanding =
+				animationState->landingLocomotionReassertPending;
 			// A weapon branch may consume locomotion events. Replay a valid base edge
 			// first, then layer sprint/sneak movement/jump on a later graph update.
 			// Sending every edge together can make each one report success while no
@@ -2444,22 +2464,26 @@ namespace NPCSpawner
 					IsMoving(previousState.movementState) != isMoving : isMoving)) ||
 					((replayingWeaponBase ||
 						reassertLocomotionAfterSwimStop ||
-						reassertLocomotionAfterAttack) && isMoving));
+						reassertLocomotionAfterAttack ||
+						reassertLocomotionAfterLanding) && isMoving));
 			const bool sneakRequired = !jumpLandRequired &&
 				((dispatchRequired && (hadPreviousState ?
 					IsSneaking(previousState.movementState) != isSneaking : isSneaking)) ||
 					((replayingWeaponBase ||
 						reassertLocomotionAfterSwimStop ||
-						reassertLocomotionAfterAttack) && isSneaking));
+						reassertLocomotionAfterAttack ||
+						reassertLocomotionAfterLanding) && isSneaking));
 			const bool sprintRequired = !jumpLandRequired &&
 				((dispatchRequired && (hadPreviousState ?
 					IsSprinting(previousState.movementState) != isSprinting : isSprinting)) ||
 					((replayingWeaponBase ||
 						reassertLocomotionAfterSwimStop ||
-						reassertLocomotionAfterAttack) && isSprinting));
+						reassertLocomotionAfterAttack ||
+						reassertLocomotionAfterLanding) && isSprinting));
 			const bool eventDispatchRequired = dispatchRequired ||
 				reassertLocomotionAfterSwimStop ||
-				reassertLocomotionAfterAttack;
+				reassertLocomotionAfterAttack ||
+				reassertLocomotionAfterLanding;
 			if (dispatchRequired && (!animationState->hasAttempted ||
 				animationState->lastAttempted != state)) {
 				animationState->lastAttempted = state;
@@ -2749,6 +2773,9 @@ namespace NPCSpawner
 							"Animation sync reasserted locomotion after swim stop: actor={:08X} state={}",
 							actorHandle.native_handle(),
 							Multiplayer::GetMovementStateName(state.movementState));
+					}
+					if (reassertLocomotionAfterLanding) {
+						animationState->landingLocomotionReassertPending = false;
 					}
 					if (reassertLocomotionAfterAttack) {
 						animationState->attackLocomotionReassertPending = false;
@@ -3590,8 +3617,17 @@ namespace NPCSpawner
 		}
 
 		return !a_npc.animationState->landingCompletionPending &&
-			a_npc.animationState->processedRevision.load(
-				std::memory_order_acquire) ==
+			IsAnimationStateSettledExceptLanding(a_npc);
+	}
+
+	bool IsAnimationStateSettledExceptLanding(const ControlledNPC& a_npc)
+	{
+		if (!a_npc.animationState) {
+			return true;
+		}
+
+		return a_npc.animationState->processedRevision.load(
+				   std::memory_order_acquire) ==
 			a_npc.animationState->desiredRevision.load(std::memory_order_acquire);
 	}
 
@@ -3783,9 +3819,10 @@ namespace NPCSpawner
 			// network transform interpolation here would pull the actor off its marker.
 			return true;
 		}
-		if (!IsAnimationStateSettled(a_npc)) {
+		if (!IsAnimationStateSettledExceptLanding(a_npc)) {
 			// A completed furniture exit invalidates the old locomotion dispatch so
-			// the next update can reconstruct it before translation resumes.
+			// the next update can reconstruct it before translation resumes. The
+			// landing branch itself keeps following the grounded network path.
 			return true;
 		}
 		if (!a_allowTranslation && !landingCompletionPending) {
