@@ -2924,6 +2924,52 @@ namespace NPCSpawner
 			return root->world * markerNode->markers[a_marker].offset;
 		}
 
+		bool UseNativeFurniture(RE::Actor& a_actor, RE::TESObjectREFR& a_furniture)
+		{
+			// TESFurniture::Activate rejects every activator except the player, so use
+			// the entry NPC Sit procedures use (ID 37330). It records the occupied
+			// reference, lets ID 39923 choose an entry point (filling furnitureIdle,
+			// furniturePathPoint and the entry angle) and reserves that marker.
+			// UpdateNativeSitSleepState then plays the chosen entry idle. The quick
+			// entry (ID 37324) is not used: it selects the Idle*EnterInstant records
+			// and skips the transition.
+			using UseFurniture = bool(RE::Actor*, RE::TESObjectREFR*);
+			static REL::Relocation<UseFurniture> useFurniture{ REL::ID(37330) };
+			return useFurniture(std::addressof(a_actor), std::addressof(a_furniture));
+		}
+
+		bool IsFurnitureEntryPointChosen(const RE::AIProcess& a_process)
+		{
+			// ID 39923 leaves the marker unset when it only requested a sheathe.
+			return a_process.middleHigh &&
+				a_process.middleHigh->currentFurnitureMarkerID !=
+					static_cast<std::uint32_t>(-1);
+		}
+
+		bool IsWeaponTransitionUnsettled(const AnimationState& a_state)
+		{
+			if (!a_state.weaponLocomotionReassertPending) {
+				return false;
+			}
+			const bool completed = a_state.weaponTransitionCompletionObserved ||
+				a_state.weaponTransitionWaitElapsed >= kWeaponTransitionFallbackSeconds;
+			if (!completed) {
+				return true;
+			}
+			// The reassert flag stays armed across an idle interval so that later
+			// movement replays locomotion after the weapon clip. An idle target has
+			// nothing left to replay once the clip is complete and, for a sheathe, the
+			// default state has been forced.
+			const bool moving = IsMoving(
+				a_state.desired.load(std::memory_order_acquire));
+			const bool jumping =
+				a_state.desiredJumping.load(std::memory_order_acquire);
+			const bool weaponDrawn =
+				a_state.desiredWeaponDrawn.load(std::memory_order_acquire);
+			return moving || jumping ||
+				(!weaponDrawn && !a_state.weaponDefaultStateDispatched);
+		}
+
 		bool StartNativeFurnitureEntry(
 			ControlledNPC& a_npc,
 			RE::Actor& a_actor,
@@ -2935,33 +2981,28 @@ namespace NPCSpawner
 				return false;
 			}
 
-			// TESFurniture::Activate rejects every activator except the player, so use
-			// the entry NPC Sit procedures use (ID 37330). It records the occupied
-			// reference, lets ID 39923 choose an entry point (filling furnitureIdle,
-			// furniturePathPoint and the entry angle) and reserves that marker.
-			// UpdateNativeSitSleepState then plays the chosen entry idle. The quick
-			// entry (ID 37324) is not used: it selects the Idle*EnterInstant records
-			// and skips the transition.
-			using UseFurniture = bool(RE::Actor*, RE::TESObjectREFR*);
-			static REL::Relocation<UseFurniture> useFurniture{ REL::ID(37330) };
-
 			(void) SetActorSitSleepState(a_actor, RE::SIT_SLEEP_STATE::kNormal);
-			const bool started =
-				useFurniture(std::addressof(a_actor), std::addressof(a_furniture));
+			const bool started = UseNativeFurniture(a_actor, a_furniture);
 			const auto* entryIdle = process->middleHigh->furnitureIdle;
 			if (!started) {
 				// Occupancy is recorded before the entry point is chosen and is left
 				// behind when none is available.
 				process->ClearFurniture();
 			}
+			const auto* actorState = a_actor.AsActorState();
 			logs::info(
-				"Animation sync started furniture entry: actor={:08X} furniture={:08X} started={} marker={} markerDistance={:.2f} entryIdle={:08X}",
+				"Animation sync started furniture entry: actor={:08X} furniture={:08X} started={} marker={} markerDistance={:.2f} entryIdle={:08X} weaponState={} inCombat={}",
 				a_npc.handle.native_handle(),
 				a_furniture.GetFormID(),
 				started,
 				process->middleHigh->currentFurnitureMarkerID,
 				a_markerDistance,
-				started && entryIdle ? entryIdle->GetFormID() : 0);
+				started && entryIdle ? entryIdle->GetFormID() : 0,
+				actorState ?
+					static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(
+						actorState->GetWeaponState()) :
+					0,
+				a_actor.IsInCombat());
 			return started;
 		}
 
@@ -2984,6 +3025,73 @@ namespace NPCSpawner
 			a_npc.requestedFurnitureRefID = 0;
 			a_npc.furnitureRetryRemaining = 0.0F;
 			a_npc.furnitureTransitionElapsed = 0.0F;
+		}
+
+		bool AdvanceDeferredFurnitureEntry(
+			RE::Actor& a_actor,
+			ControlledNPC& a_npc,
+			RE::AIProcess& a_process,
+			RE::SIT_SLEEP_STATE a_sitSleepState,
+			float a_deltaTime)
+		{
+			// With a weapon drawn, ID 39923 requests a sheathe and returns without an
+			// entry point, so no entry idle can play. Skyrim's Sit procedure (ID 39648)
+			// selects again on later updates while the marker is unset; do the same
+			// once the sheathe has finished.
+			a_npc.furnitureTransitionElapsed += a_deltaTime;
+			auto furniture = a_actor.GetOccupiedFurniture().get();
+			const auto* actorState = a_actor.AsActorState();
+			if (furniture && actorState &&
+				actorState->GetWeaponState() == RE::WEAPON_STATE::kSheathed &&
+				a_npc.furnitureRetryRemaining <= 0.0F) {
+				const bool started = UseNativeFurniture(a_actor, *furniture);
+				const bool entryPointChosen = IsFurnitureEntryPointChosen(a_process);
+				if (!entryPointChosen) {
+					a_npc.furnitureRetryRemaining = kFurnitureRetryInterval;
+				}
+				const auto* entryIdle = a_process.middleHigh ?
+					a_process.middleHigh->furnitureIdle :
+					nullptr;
+				logs::info(
+					"Animation sync resumed deferred furniture entry: actor={:08X} furniture={:08X} started={} marker={} entryIdle={:08X} sitSleepState={} elapsed={:.3f}",
+					a_npc.handle.native_handle(),
+					furniture->GetFormID(),
+					started,
+					a_process.middleHigh ?
+						a_process.middleHigh->currentFurnitureMarkerID :
+						static_cast<std::uint32_t>(-1),
+					entryIdle ? entryIdle->GetFormID() : 0,
+					static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(
+						a_sitSleepState),
+					a_npc.furnitureTransitionElapsed);
+				if (entryPointChosen) {
+					a_npc.furnitureRetryRemaining = 0.0F;
+					a_npc.furnitureTransitionElapsed = 0.0F;
+					return true;
+				}
+			}
+			if (a_npc.furnitureTransitionElapsed < kFurnitureEntryFallbackSeconds) {
+				return true;
+			}
+
+			logs::warn(
+				"Animation sync abandoned deferred furniture entry for retry: actor={:08X} furniture={:08X} sitSleepState={} weaponState={} elapsed={:.3f}",
+				a_npc.handle.native_handle(),
+				a_npc.targetFurnitureRefID,
+				static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(
+					a_sitSleepState),
+				actorState ?
+					static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(
+						actorState->GetWeaponState()) :
+					0,
+				a_npc.furnitureTransitionElapsed);
+			a_process.ClearFurniture();
+			(void) SetActorSitSleepState(a_actor, RE::SIT_SLEEP_STATE::kNormal);
+			a_actor.InitiateDoNothingPackage();
+			ResetFurnitureRequest(a_npc);
+			a_npc.furnitureRetryRemaining = kFurnitureRetryInterval;
+			SetFurnitureAnimationOwnership(a_npc, false);
+			return false;
 		}
 
 		bool AdvanceFurnitureInteraction(
@@ -3022,6 +3130,16 @@ namespace NPCSpawner
 				occupiedFurnitureRefID == targetFurnitureRefID) {
 				SetFurnitureAnimationOwnership(a_npc, true);
 				a_npc.requestedFurnitureRefID = targetFurnitureRefID;
+				auto* process = a_actor.GetActorRuntimeData().currentProcess;
+				if (process && !IsFurnitureEntryPointChosen(*process) &&
+					!IsFurnitureEntryComplete(sitSleepState)) {
+					return AdvanceDeferredFurnitureEntry(
+						a_actor,
+						a_npc,
+						*process,
+						sitSleepState,
+						deltaTime);
+				}
 				a_npc.furnitureRetryRemaining = 0.0F;
 				a_npc.furnitureTransitionElapsed = 0.0F;
 				return true;
@@ -3200,7 +3318,7 @@ namespace NPCSpawner
 				!IsAnimationStateSettled(a_npc) ||
 				(a_npc.animationState &&
 					(a_npc.animationState->attackPlaybackPending ||
-						a_npc.animationState->weaponLocomotionReassertPending ||
+						IsWeaponTransitionUnsettled(*a_npc.animationState) ||
 						a_npc.animationState->graphRecoveryInProgress)) ||
 				a_npc.furnitureRetryRemaining > 0.0F) {
 				return false;
@@ -3253,6 +3371,11 @@ namespace NPCSpawner
 			}
 			a_npc.requestedFurnitureRefID = targetFurnitureRefID;
 			a_npc.furnitureTransitionElapsed = 0.0F;
+			if (auto* process = a_actor.GetActorRuntimeData().currentProcess;
+				process && !IsFurnitureEntryPointChosen(*process)) {
+				// Entry is waiting for a sheathe; resume as soon as it completes.
+				a_npc.furnitureRetryRemaining = 0.0F;
+			}
 			return true;
 		}
 	}

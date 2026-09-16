@@ -50,7 +50,10 @@ receiver uses the NPC path. It waits until:
 - the reference resolves to a loaded `TESFurniture` in the puppet's coordinate
   space;
 - the puppet is ready, its locomotion has settled, and no attack, weapon, or
-  graph-recovery transition is pending;
+  graph-recovery transition is pending. A completed weapon clip counts as
+  settled while the target is idle (after a sheathe, once the default state has
+  been forced), even though its locomotion replay stays armed for later
+  movement;
 - the puppet is within 24 units of the latest checkpoint;
 - the furniture has an available marker (ID 20162), within 96 units (2D) of the
   puppet.
@@ -64,6 +67,13 @@ entry used by NPC Sit procedures (ID 37330). It records the occupied
 reference, chooses an entry point (ID 39923: entry idle, path point, angle,
 marker), and reserves the marker. If no entry point is available, the occupancy
 it recorded is cleared and entry is retried after one second.
+
+If the puppet has a weapon drawn, ID 39923 only requests a sheathe and returns
+without an entry point (the marker stays unset and no entry idle is chosen).
+Skyrim's Sit procedure (ID 39648) selects again on later updates while the
+marker is unset, so the receiver repeats the entry once the weapon is sheathed,
+retrying every second. If no entry point is chosen within ten seconds, the
+occupancy is cleared and a fresh entry is attempted.
 
 The quick entry (ID 37324) is not used: it selects the `Idle*EnterInstant`
 records and skips the transition.
