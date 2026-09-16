@@ -105,3 +105,21 @@ def append_player_appearance(
         payload,
         monotonic_ns,
     )
+
+
+def append_player_equipment(
+    recordings: dict[str, PlayerRecording],
+    recordings_directory: Path,
+    player_id: str,
+    payload: dict[str, Any],
+    monotonic_ns: Callable[[], int] = time.monotonic_ns,
+) -> Path:
+    """Append a validated latest-wins player:equipment state."""
+    return _append_message(
+        recordings,
+        recordings_directory,
+        player_id,
+        "player:equipment",
+        payload,
+        monotonic_ns,
+    )

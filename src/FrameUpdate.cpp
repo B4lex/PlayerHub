@@ -1,6 +1,7 @@
 #include "FrameUpdate.h"
 #include "NPCSpawner.h"
 #include "PlayerAppearance.h"
+#include "PlayerEquipment.h"
 #include "SocketIOClient.h"
 
 #include <algorithm>
@@ -37,6 +38,7 @@ namespace FrameUpdate
 			std::deque<PendingAnimationAction> pendingAnimationActions;
 			std::optional<NPCSpawner::ControlledNPC> controlledNPC;
 			PlayerAppearance::RemoteAppearance appearance;
+			PlayerEquipment::RemoteEquipment equipment;
 			RE::FormID spawnedCellID{ 0 };
 			RE::FormID spawnedWorldspaceID{ 0 };
 			float spawnRetryRemaining{ 0.0F };
@@ -670,6 +672,16 @@ namespace FrameUpdate
 					std::move(update.appearance));
 			}
 
+			for (auto& update : changes.equipment) {
+				// Equipment is kept independent of whether a puppet reference exists,
+				// so every respawn reconciles from the newest revision.
+				auto& puppet = a_puppets[update.playerID];
+				PlayerEquipment::AcceptRemoteEquipment(
+					puppet.equipment,
+					update.playerID,
+					std::move(update.equipment));
+			}
+
 			for (auto& action : changes.animationActions) {
 				const auto puppet = a_puppets.find(action.playerID);
 				if (puppet == a_puppets.end() ||
@@ -734,6 +746,8 @@ namespace FrameUpdate
 				a_puppet.target.animationState.jumping ||
 				a_puppet.target.furnitureRefID != 0 ||
 				!a_puppet.target.animationState.weaponDrawn ||
+				// A weapon swap published before the attack must reach the hands first.
+				!PlayerEquipment::AreHandsSettled(a_puppet.equipment) ||
 				!NPCSpawner::CanDispatchNormalAttack(*a_puppet.controlledNPC)) {
 				return;
 			}
@@ -762,6 +776,20 @@ namespace FrameUpdate
 			}
 		}
 
+		// The latest checkpoint's animation state, except that a draw waits for the
+		// synchronized weapon to reach the hands so the puppet does not draw fists
+		// and then pop the weapon in. The wait is bounded by PlayerEquipment.
+		Multiplayer::AnimationState GetPresentableAnimationState(const RemotePuppet& a_puppet)
+		{
+			auto target = a_puppet.target.animationState;
+			if (a_puppet.controlledNPC && target.weaponDrawn &&
+				!a_puppet.controlledNPC->targetAnimationState.weaponDrawn &&
+				!PlayerEquipment::IsReadyForWeaponDraw(a_puppet.equipment)) {
+				target.weaponDrawn = false;
+			}
+			return target;
+		}
+
 		void AdvanceAnimationState(
 			const std::string& a_playerID,
 			RemotePuppet& a_puppet)
@@ -774,7 +802,7 @@ namespace FrameUpdate
 			}
 
 			const auto current = a_puppet.controlledNPC->targetAnimationState;
-			const auto target = a_puppet.target.animationState;
+			const auto target = GetPresentableAnimationState(a_puppet);
 			if (current == target) {
 				return;
 			}
@@ -881,6 +909,11 @@ namespace FrameUpdate
 
 			if (a_puppet.controlledNPC) {
 				auto& controlledNPC = *a_puppet.controlledNPC;
+				PlayerEquipment::UpdateSpawnedPuppet(
+					a_puppet.equipment,
+					a_playerID,
+					controlledNPC,
+					a_delta);
 				bool furniturePlaying =
 					NPCSpawner::IsFurnitureInteractionPlaying(controlledNPC);
 				if (controlledNPC.targetFurnitureRefID !=
@@ -925,7 +958,7 @@ namespace FrameUpdate
 				}
 				const bool animationMatchesLatestSample =
 					controlledNPC.targetAnimationState ==
-						a_puppet.target.animationState &&
+						GetPresentableAnimationState(a_puppet) &&
 					!furniturePlaying;
 				if (!NPCSpawner::UpdateControlledNPC(
 						controlledNPC,
@@ -977,6 +1010,7 @@ namespace FrameUpdate
 				return;
 			}
 			PlayerAppearance::OnPuppetSpawned(a_puppet.appearance, spawnBase);
+			PlayerEquipment::OnPuppetSpawned(a_puppet.equipment);
 			a_puppet.appliedSequence = a_puppet.lastSequence;
 			a_puppet.spawnedCellID = a_puppet.target.cellID;
 			a_puppet.spawnedWorldspaceID = a_puppet.target.worldspaceID;
@@ -1011,6 +1045,12 @@ namespace FrameUpdate
 			const auto localGraphEpoch = ObserveLocalGraphEpoch(
 				*a_player,
 				localGraphEpochChanged);
+			// Flush equipment before a captured attack can be published, so peers
+			// receive a weapon swap ahead of the attack that uses it.
+			PlayerEquipment::UpdateLocalEquipment(
+				*a_player,
+				a_delta,
+				capturedNormalAttacks != 0);
 			PublishLocalTransform(
 				*a_player,
 				a_delta,

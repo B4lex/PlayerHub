@@ -15,6 +15,7 @@ import socketio
 from server.protocol import (
     parse_animation_action,
     parse_player_appearance,
+    parse_player_equipment,
     parse_player_update,
 )
 
@@ -147,6 +148,10 @@ def load_recording(path: Path) -> list[RecordedUpdate]:
             payload = parse_player_appearance(raw_payload)
             if payload is None:
                 raise ValueError(f"message {index}: invalid player:appearance payload")
+        elif event == "player:equipment":
+            payload = parse_player_equipment(raw_payload)
+            if payload is None:
+                raise ValueError(f"message {index}: invalid player:equipment payload")
         else:
             raise ValueError(f"message {index}: unsupported event {event!r}")
 
@@ -186,7 +191,7 @@ def replay(
                 sent += 1
                 if update.event == "player:update":
                     identifier = f"sequence={update.payload['sequence']}"
-                elif update.event == "player:appearance":
+                elif update.event in ("player:appearance", "player:equipment"):
                     identifier = f"revision={update.payload['revision']}"
                 else:
                     identifier = f"actionSequence={update.payload['actionSequence']}"
@@ -201,7 +206,7 @@ def replay(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Replay recorded player state, appearance, and animation actions to a Skyrim Multiplayer Socket.IO server."
+        description="Replay recorded player state, appearance, equipment, and animation actions to a Skyrim Multiplayer Socket.IO server."
     )
     parser.add_argument("recording", type=Path, help="JSON recording to replay")
     parser.add_argument("--url", default="http://127.0.0.1:3000", help="Socket.IO server URL")

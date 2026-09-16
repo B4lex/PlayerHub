@@ -272,3 +272,83 @@ def parse_player_appearance(data: Any) -> dict[str, Any] | None:
         "faceParts": list(face_parts),
         "tints": tints,
     }
+
+
+MAXIMUM_ARMOR_ENTRIES = 32
+ARMOR_TYPES = frozenset({"light", "heavy", "clothing"})
+HAND_KINDS = frozenset({"weapon", "torch"})
+MINIMUM_WEAPON_TYPE = 1
+MAXIMUM_WEAPON_TYPE = 9
+TWO_HANDED_WEAPON_TYPES = frozenset({5, 6, 7, 9})
+
+
+def _parse_hand(data: Any, left_hand: bool) -> dict[str, Any] | None:
+    reference = _parse_form_reference(data, ("kind",))
+    if reference is None or reference["kind"] not in HAND_KINDS:
+        return None
+    if reference["kind"] == "torch":
+        return reference if left_hand else None
+
+    weapon_type = data.get("weaponType")
+    if not _is_integer(weapon_type, MINIMUM_WEAPON_TYPE, MAXIMUM_WEAPON_TYPE):
+        return None
+    if left_hand and weapon_type in TWO_HANDED_WEAPON_TYPES:
+        return None
+    reference["weaponType"] = weapon_type
+    return reference
+
+
+def parse_player_equipment(data: Any) -> dict[str, Any] | None:
+    """Validate latest-wins equipped item state."""
+    if not isinstance(data, dict):
+        return None
+
+    revision = data.get("revision")
+    if not _is_integer(revision, 1, MAXIMUM_INT64):
+        return None
+
+    raw_armor = data.get("armor")
+    if not isinstance(raw_armor, list) or len(raw_armor) > MAXIMUM_ARMOR_ENTRIES:
+        return None
+    armor = []
+    seen_armor: set[tuple[str, int]] = set()
+    for raw_entry in raw_armor:
+        entry = _parse_form_reference(raw_entry, ("slotMask", "armorType"))
+        if (
+            entry is None
+            or not _is_integer(entry["slotMask"], 1, 0xFFFFFFFF)
+            or entry["armorType"] not in ARMOR_TYPES
+        ):
+            return None
+        key = (entry["plugin"], entry["formId"])
+        if key in seen_armor:
+            return None
+        seen_armor.add(key)
+        armor.append(entry)
+
+    if "rightHand" not in data or "leftHand" not in data:
+        return None
+    right_hand = None
+    if data["rightHand"] is not None:
+        right_hand = _parse_hand(data["rightHand"], left_hand=False)
+        if right_hand is None:
+            return None
+    left_hand = None
+    if data["leftHand"] is not None:
+        left_hand = _parse_hand(data["leftHand"], left_hand=True)
+        if left_hand is None:
+            return None
+    if (
+        right_hand is not None
+        and right_hand["kind"] == "weapon"
+        and right_hand["weaponType"] in TWO_HANDED_WEAPON_TYPES
+        and left_hand is not None
+    ):
+        return None
+
+    return {
+        "revision": revision,
+        "armor": armor,
+        "rightHand": right_hand,
+        "leftHand": left_hand,
+    }

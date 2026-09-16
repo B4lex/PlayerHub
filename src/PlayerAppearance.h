@@ -30,6 +30,8 @@ namespace PlayerAppearance
 		float appearanceWaitElapsed{ 0.0F };
 		float respawnCooldown{ 0.0F };
 		bool colorsApplied{ false };
+		// Face tint texture the spawned puppet's tints were last rendered into.
+		RE::NiPointer<RE::NiSourceTexture> faceTintTexture;
 	};
 
 	void AcceptRemoteAppearance(
@@ -52,7 +54,8 @@ namespace PlayerAppearance
 	// True when a newer appearance than the spawned one should replace the puppet.
 	[[nodiscard]] bool RequiresRespawn(const RemoteAppearance& a_remote);
 
-	// Applies post-3D presentation (hair and skin color) once per spawned actor.
+	// Applies post-3D presentation: hair and skin color once per spawned actor, and
+	// the face tint render whenever the actor's head gets a new tint texture.
 	void UpdateSpawnedPuppet(
 		RemoteAppearance& a_remote,
 		const std::string& a_playerID,

@@ -77,8 +77,9 @@ applied checkpoint changes jump phase.
   there is no intermediate spawn at the local player's position.
 - Puppets use a runtime actor base built from the source player's synchronized
   appearance (`specs/006-player-appearance-sync.md`), falling back to the local
-  player's actor base until one is available. Equipment is not implemented yet.
-  Both remain separate from animation ownership and combat suppression.
+  player's actor base until one is available. Equipped items are synchronized
+  separately (`specs/007-player-equipment-sync.md`). Both remain separate from
+  animation ownership and combat suppression.
 - Puppet references retain normal actor, graph, controller, and collision
   processing. Attack/cast decisions are disabled, and immediately before each
   actor update the live AI process ignores combat and any combat controller is
@@ -143,8 +144,8 @@ applied checkpoint changes jump phase.
 
 ## POC limitations
 
-1. Remote equipment synchronization is not implemented. Appearance is
-   synchronized separately (spec 006).
+1. Appearance (spec 006) and equipped items (spec 007) are synchronized
+   separately. Only vanilla items are shown on remote puppets.
 2. Cell and worldspace form IDs only work reliably when peers have compatible
    load orders.
 3. Interior/worldspace changes use an intentional despawn/respawn boundary;
@@ -155,7 +156,7 @@ applied checkpoint changes jump phase.
 5. There is no timestamped interpolation buffer, extrapolation, latency
    compensation, or teleport detection. Only the latest snapshot is retained.
 6. Basic locomotion, sneak/sprint, and jump transitions are replicated.
-   Swimming, combat, equipment, directional strafing, and actor values are not;
+   Swimming, combat, directional strafing, and actor values are not;
    unsynchronized local combat and hit reactions are suppressed on puppets.
 7. The endpoint defaults to `http://127.0.0.1:3000`. Remote clients configure
    it through `Data/SKSE/Plugins/skyrim-mp-server.txt`; there is no in-game UI.

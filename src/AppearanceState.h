@@ -1,5 +1,7 @@
 #pragma once
 
+#include "FormReference.h"
+
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -11,17 +13,7 @@
 
 namespace Multiplayer
 {
-	// Load-order independent form identity: the defining plugin's file name and
-	// the form ID local to that file. An empty plugin name means "no form".
-	struct AppearanceFormReference
-	{
-		std::string plugin;
-		std::uint32_t localFormID{ 0 };
-
-		[[nodiscard]] bool IsEmpty() const noexcept { return plugin.empty(); }
-
-		bool operator==(const AppearanceFormReference&) const = default;
-	};
+	using AppearanceFormReference = FormReference;
 
 	struct AppearanceColor
 	{
@@ -62,8 +54,10 @@ namespace Multiplayer
 		static constexpr std::size_t kFacePartCount = 4;
 		static constexpr std::size_t kMaximumHeadParts = 16;
 		static constexpr std::size_t kMaximumTints = 64;
-		static constexpr std::size_t kMaximumPluginNameLength = 260;
-		static constexpr std::uint32_t kMaximumLocalFormID = 0x00FFFFFF;
+		static constexpr std::size_t kMaximumPluginNameLength =
+			FormReference::kMaximumPluginNameLength;
+		static constexpr std::uint32_t kMaximumLocalFormID =
+			FormReference::kMaximumLocalFormID;
 		static constexpr std::uint8_t kMaximumHeadPartType = 6;
 		static constexpr std::uint8_t kMaximumTintType = 14;
 		static constexpr float kMaximumWeight = 100.0F;
@@ -100,18 +94,6 @@ namespace Multiplayer
 		}
 	};
 
-	[[nodiscard]] inline bool IsValidAppearanceFormReference(
-		const AppearanceFormReference& a_reference,
-		bool a_allowEmpty)
-	{
-		if (a_reference.IsEmpty()) {
-			return a_allowEmpty && a_reference.localFormID == 0;
-		}
-		return a_reference.plugin.size() <=
-				PlayerAppearance::kMaximumPluginNameLength &&
-			a_reference.localFormID <= PlayerAppearance::kMaximumLocalFormID;
-	}
-
 	// Shared by capture and by the network parser so both sides enforce the same
 	// bounds as the server.
 	[[nodiscard]] inline bool IsValidAppearance(const PlayerAppearance& a_appearance)
@@ -119,8 +101,8 @@ namespace Multiplayer
 		if (a_appearance.revision == 0 ||
 			a_appearance.revision > static_cast<std::uint64_t>(
 				(std::numeric_limits<std::int64_t>::max)()) ||
-			!IsValidAppearanceFormReference(a_appearance.race, false) ||
-			!IsValidAppearanceFormReference(a_appearance.faceDetails, true) ||
+			!IsValidFormReference(a_appearance.race, false) ||
+			!IsValidFormReference(a_appearance.faceDetails, true) ||
 			!std::isfinite(a_appearance.weight) ||
 			a_appearance.weight < 0.0F ||
 			a_appearance.weight > PlayerAppearance::kMaximumWeight ||
@@ -133,7 +115,7 @@ namespace Multiplayer
 		}
 
 		for (const auto& headPart : a_appearance.headParts) {
-			if (!IsValidAppearanceFormReference(headPart.form, false) ||
+			if (!IsValidFormReference(headPart.form, false) ||
 				headPart.type > PlayerAppearance::kMaximumHeadPartType) {
 				return false;
 			}

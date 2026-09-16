@@ -9,12 +9,14 @@ from fastapi import FastAPI
 from server.protocol import (
     parse_animation_action,
     parse_player_appearance,
+    parse_player_equipment,
     parse_player_update,
 )
 from server.recording import (
     PlayerRecording,
     append_animation_action,
     append_player_appearance,
+    append_player_equipment,
     append_player_update,
 )
 
@@ -25,6 +27,7 @@ sio = socketio.AsyncServer(async_mode="asgi")
 player_states: dict[str, dict[str, bool | int | float | str]] = {}
 player_action_sequences: dict[str, int] = {}
 player_appearances: dict[str, dict[str, Any]] = {}
+player_equipment: dict[str, dict[str, Any]] = {}
 player_recordings: dict[str, PlayerRecording] = {}
 RECORDINGS_DIRECTORY = Path(__file__).resolve().parents[2] / "recordings"
 RECORDING_ENABLED = os.getenv("SKYRIM_MP_RECORDING_ENABLED", "false").lower() in {
@@ -58,6 +61,10 @@ async def connect(sid: str, environ: dict[str, Any]) -> None:
         if player_id == sid:
             continue
         await sio.emit("player:appearance", {"playerId": player_id, **appearance}, to=sid)
+    for player_id, equipment in list(player_equipment.items()):
+        if player_id == sid:
+            continue
+        await sio.emit("player:equipment", {"playerId": player_id, **equipment}, to=sid)
 
 
 @sio.event
@@ -65,6 +72,7 @@ async def disconnect(sid: str, reason: str) -> None:
     player_states.pop(sid, None)
     player_action_sequences.pop(sid, None)
     player_appearances.pop(sid, None)
+    player_equipment.pop(sid, None)
     player_recordings.pop(sid, None)
     outbound = {"playerId": sid}
     logger.info("Socket.IO TX player:left payload=%s", outbound)
@@ -131,6 +139,37 @@ async def player_appearance(sid: str, data: Any) -> dict[str, bool | str]:
         "Socket.IO TX player:appearance source=%s revision=%s", sid, appearance["revision"]
     )
     await sio.emit("player:appearance", outbound, skip_sid=sid)
+    return {"ok": True}
+
+
+@sio.on("player:equipment")
+async def player_equipment_update(sid: str, data: Any) -> dict[str, bool | str]:
+    logger.debug("Socket.IO RX player:equipment sid=%s payload=%s", sid, data)
+    equipment = parse_player_equipment(data)
+    if equipment is None:
+        logger.warning("Rejected malformed player:equipment from %s", sid)
+        return {"ok": False, "error": "invalid player equipment"}
+
+    previous = player_equipment.get(sid)
+    if previous is not None and equipment["revision"] <= previous["revision"]:
+        return {"ok": False, "error": "stale equipment revision"}
+
+    if RECORDING_ENABLED:
+        try:
+            recording_path = append_player_equipment(
+                player_recordings, RECORDINGS_DIRECTORY, sid, equipment
+            )
+        except OSError:
+            logger.exception("Unable to record player:equipment from %s", sid)
+            return {"ok": False, "error": "unable to record player equipment"}
+        logger.info("Recorded player:equipment sid=%s file=%s", sid, recording_path)
+
+    player_equipment[sid] = equipment
+    outbound = {"playerId": sid, **equipment}
+    logger.info(
+        "Socket.IO TX player:equipment source=%s revision=%s", sid, equipment["revision"]
+    )
+    await sio.emit("player:equipment", outbound, skip_sid=sid)
     return {"ok": True}
 
 

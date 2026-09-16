@@ -10,6 +10,7 @@
 #include <limits>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -27,6 +28,8 @@ namespace Network
 		std::unordered_map<std::string, PlayerTransform> latestReceivedTransforms;
 		std::unordered_map<std::string, RemotePlayerAppearance> pendingAppearances;
 		std::unordered_map<std::string, std::uint64_t> latestReceivedAppearanceRevisions;
+		std::unordered_map<std::string, RemotePlayerEquipment> pendingEquipment;
+		std::unordered_map<std::string, std::uint64_t> latestReceivedEquipmentRevisions;
 		std::deque<AnimationAction> pendingAnimationActions;
 		std::unordered_map<std::string, std::uint64_t> latestReceivedActionSequences;
 		std::unordered_set<std::string> pendingDisconnects;
@@ -235,16 +238,16 @@ namespace Network
 			return true;
 		}
 
-		bool ReadAppearanceFormReference(
+		bool ReadFormReference(
 			const std::map<std::string, sio::message::ptr>& a_values,
-			Multiplayer::AppearanceFormReference& a_result)
+			Multiplayer::FormReference& a_result)
 		{
 			std::uint64_t localFormID = 0;
 			if (!ReadString(a_values, "plugin", a_result.plugin) ||
 				!ReadUnsignedInteger(
 					a_values,
 					"formId",
-					Multiplayer::PlayerAppearance::kMaximumLocalFormID,
+					Multiplayer::FormReference::kMaximumLocalFormID,
 					localFormID)) {
 				return false;
 			}
@@ -256,6 +259,18 @@ namespace Network
 		bool IsNullValue(const sio::message::ptr& a_value)
 		{
 			return !a_value || a_value->get_flag() == sio::message::flag_null;
+		}
+
+		sio::message::ptr CreateFormReference(const Multiplayer::FormReference& a_reference)
+		{
+			if (a_reference.IsEmpty()) {
+				return sio::null_message::create();
+			}
+			auto reference = sio::object_message::create();
+			auto& values = reference->get_map();
+			values["plugin"] = sio::string_message::create(a_reference.plugin);
+			values["formId"] = sio::int_message::create(a_reference.localFormID);
+			return reference;
 		}
 
 		bool ParseRemoteTransform(
@@ -430,7 +445,7 @@ namespace Network
 
 			const auto race = FindValue(values, "race");
 			if (!race || race->get_flag() != sio::message::flag_object ||
-				!ReadAppearanceFormReference(race->get_map(), appearance.race)) {
+				!ReadFormReference(race->get_map(), appearance.race)) {
 				return "race";
 			}
 			if (!ReadBool(values, "female", appearance.female)) {
@@ -459,7 +474,7 @@ namespace Network
 				Multiplayer::AppearanceHeadPart result;
 				std::uint64_t type = 0;
 				if (!headPart || headPart->get_flag() != sio::message::flag_object ||
-					!ReadAppearanceFormReference(headPart->get_map(), result.form) ||
+					!ReadFormReference(headPart->get_map(), result.form) ||
 					!ReadUnsignedInteger(
 						headPart->get_map(),
 						"type",
@@ -487,7 +502,7 @@ namespace Network
 			if (IsNullValue(faceDetails)) {
 				appearance.faceDetails = {};
 			} else if (faceDetails->get_flag() != sio::message::flag_object ||
-					   !ReadAppearanceFormReference(faceDetails->get_map(), appearance.faceDetails)) {
+					   !ReadFormReference(faceDetails->get_map(), appearance.faceDetails)) {
 				return "faceDetails";
 			}
 
@@ -554,6 +569,117 @@ namespace Network
 			}
 
 			return Multiplayer::IsValidAppearance(appearance) ? nullptr : "value ranges";
+		}
+
+		bool ReadEquipmentHand(
+			const sio::message::ptr& a_value,
+			std::optional<Multiplayer::EquipmentHand>& a_result)
+		{
+			// JSON null may decode to either a null message or an empty pointer.
+			if (IsNullValue(a_value)) {
+				a_result.reset();
+				return true;
+			}
+			if (a_value->get_flag() != sio::message::flag_object) {
+				return false;
+			}
+
+			const auto& values = a_value->get_map();
+			Multiplayer::EquipmentHand hand;
+			std::string kind;
+			if (!ReadFormReference(values, hand.form) || !ReadString(values, "kind", kind)) {
+				return false;
+			}
+			if (kind == "torch") {
+				hand.kind = Multiplayer::EquipmentHandKind::kTorch;
+			} else if (kind == "weapon") {
+				std::uint64_t weaponType = 0;
+				if (!ReadUnsignedInteger(
+						values,
+						"weaponType",
+						Multiplayer::PlayerEquipment::kMaximumWeaponType,
+						weaponType)) {
+					return false;
+				}
+				hand.kind = Multiplayer::EquipmentHandKind::kWeapon;
+				hand.weaponType = static_cast<std::uint8_t>(weaponType);
+			} else {
+				return false;
+			}
+			a_result = std::move(hand);
+			return true;
+		}
+
+		// Returns nullptr on success, otherwise the name of the rejected field.
+		const char* ParseRemoteEquipment(
+			const sio::message::ptr& a_data,
+			RemotePlayerEquipment& a_result)
+		{
+			if (!a_data || a_data->get_flag() != sio::message::flag_object) {
+				return "payload";
+			}
+
+			using Multiplayer::PlayerEquipment;
+			const auto& values = a_data->get_map();
+			auto& equipment = a_result.equipment;
+
+			std::uint64_t revision = 0;
+			if (!ReadString(values, "playerId", a_result.playerID)) {
+				return "playerId";
+			}
+			if (!ReadUnsignedInteger(
+					values,
+					"revision",
+					(std::numeric_limits<std::int64_t>::max)(),
+					revision) ||
+				revision == 0) {
+				return "revision";
+			}
+			equipment.revision = revision;
+
+			const std::vector<sio::message::ptr>* armor = nullptr;
+			if (!ReadArray(values, "armor", PlayerEquipment::kMaximumArmor, armor)) {
+				return "armor";
+			}
+			for (const auto& entry : *armor) {
+				Multiplayer::EquipmentArmor result;
+				std::uint64_t slotMask = 0;
+				std::string armorType;
+				if (!entry || entry->get_flag() != sio::message::flag_object ||
+					!ReadFormReference(entry->get_map(), result.form) ||
+					!ReadUnsignedInteger(
+						entry->get_map(),
+						"slotMask",
+						(std::numeric_limits<std::uint32_t>::max)(),
+						slotMask) ||
+					!ReadString(entry->get_map(), "armorType", armorType)) {
+					return "armor[]";
+				}
+				if (armorType == "light") {
+					result.armorType = Multiplayer::EquipmentArmorType::kLight;
+				} else if (armorType == "heavy") {
+					result.armorType = Multiplayer::EquipmentArmorType::kHeavy;
+				} else if (armorType == "clothing") {
+					result.armorType = Multiplayer::EquipmentArmorType::kClothing;
+				} else {
+					return "armor[].armorType";
+				}
+				result.slotMask = static_cast<std::uint32_t>(slotMask);
+				equipment.armor.push_back(std::move(result));
+			}
+
+			const auto rightHand = values.find("rightHand");
+			if (rightHand == values.end() ||
+				!ReadEquipmentHand(rightHand->second, equipment.rightHand)) {
+				return "rightHand";
+			}
+			const auto leftHand = values.find("leftHand");
+			if (leftHand == values.end() ||
+				!ReadEquipmentHand(leftHand->second, equipment.leftHand)) {
+				return "leftHand";
+			}
+
+			return Multiplayer::IsValidEquipment(equipment) ? nullptr : "value ranges";
 		}
 
 		void OnRemoteTransform(
@@ -677,6 +803,41 @@ namespace Network
 			pendingAppearances.insert_or_assign(playerID, std::move(update));
 		}
 
+		void OnRemoteEquipment(
+			std::string const&,
+			sio::message::ptr const& a_data,
+			bool,
+			sio::message::list&)
+		{
+			RemotePlayerEquipment update;
+			if (const auto* rejectedField = ParseRemoteEquipment(a_data, update)) {
+				logs::warn(
+					"Ignored malformed Socket.IO player:equipment payload: player={} field={}",
+					update.playerID.empty() ? "<unknown>" : update.playerID,
+					rejectedField);
+				return;
+			}
+
+			const auto playerID = update.playerID;
+			std::scoped_lock lock{ remoteChangesLock };
+			pendingDisconnects.erase(playerID);
+
+			const auto latest = latestReceivedEquipmentRevisions.find(playerID);
+			if (latest != latestReceivedEquipmentRevisions.end() &&
+				update.equipment.revision <= latest->second) {
+				logs::info(
+					"Equipment sync ignored stale equipment: player={} revision={} newestRevision={}",
+					playerID,
+					static_cast<unsigned long long>(update.equipment.revision),
+					static_cast<unsigned long long>(latest->second));
+				return;
+			}
+			latestReceivedEquipmentRevisions.insert_or_assign(
+				playerID,
+				update.equipment.revision);
+			pendingEquipment.insert_or_assign(playerID, std::move(update));
+		}
+
 		void OnRemoteDisconnect(
 			std::string const&,
 			sio::message::ptr const& a_data,
@@ -697,6 +858,8 @@ namespace Network
 			latestReceivedTransforms.erase(playerID);
 			pendingAppearances.erase(playerID);
 			latestReceivedAppearanceRevisions.erase(playerID);
+			pendingEquipment.erase(playerID);
+			latestReceivedEquipmentRevisions.erase(playerID);
 			latestReceivedActionSequences.erase(playerID);
 			std::erase_if(
 				pendingAnimationActions,
@@ -722,6 +885,9 @@ namespace Network
 			socket->on(
 				"player:appearance",
 				sio::socket::event_listener_aux(OnRemoteAppearance));
+			socket->on(
+				"player:equipment",
+				sio::socket::event_listener_aux(OnRemoteEquipment));
 			socket->on("player:left", sio::socket::event_listener_aux(OnRemoteDisconnect));
 
 			client.set_open_listener([] {
@@ -805,21 +971,9 @@ namespace Network
 			values["b"] = sio::int_message::create(a_color.blue);
 			return color;
 		};
-		const auto createFormReference =
-			[](const Multiplayer::AppearanceFormReference& a_reference) {
-				if (a_reference.IsEmpty()) {
-					return sio::null_message::create();
-				}
-				auto reference = sio::object_message::create();
-				auto& values = reference->get_map();
-				values["plugin"] = sio::string_message::create(a_reference.plugin);
-				values["formId"] = sio::int_message::create(a_reference.localFormID);
-				return reference;
-			};
-
 		auto headParts = sio::array_message::create();
 		for (const auto& headPart : a_appearance.headParts) {
-			auto reference = createFormReference(headPart.form);
+			auto reference = CreateFormReference(headPart.form);
 			reference->get_map()["type"] = sio::int_message::create(headPart.type);
 			headParts->get_vector().push_back(std::move(reference));
 		}
@@ -848,7 +1002,7 @@ namespace Network
 		auto& values = payload->get_map();
 		values["revision"] = sio::int_message::create(
 			static_cast<std::int64_t>(a_appearance.revision));
-		values["race"] = createFormReference(a_appearance.race);
+		values["race"] = CreateFormReference(a_appearance.race);
 		values["female"] = sio::bool_message::create(a_appearance.female);
 		values["weight"] = sio::double_message::create(a_appearance.weight);
 		values["height"] = sio::double_message::create(a_appearance.height);
@@ -856,13 +1010,54 @@ namespace Network
 		values["hairColor"] = a_appearance.hairColor ?
 			createColor(*a_appearance.hairColor) :
 			sio::null_message::create();
-		values["faceDetails"] = createFormReference(a_appearance.faceDetails);
+		values["faceDetails"] = CreateFormReference(a_appearance.faceDetails);
 		values["bodyTint"] = createColor(a_appearance.bodyTint);
 		values["faceMorphs"] = std::move(faceMorphs);
 		values["faceParts"] = std::move(faceParts);
 		values["tints"] = std::move(tints);
 
 		GetClient().socket()->emit("player:appearance", payload);
+	}
+
+	void PublishLocalEquipment(const Multiplayer::PlayerEquipment& a_equipment)
+	{
+		if (!IsConnected() || !Multiplayer::IsValidEquipment(a_equipment)) {
+			return;
+		}
+
+		const auto createHand = [](const std::optional<Multiplayer::EquipmentHand>& a_hand) {
+			if (!a_hand) {
+				return sio::null_message::create();
+			}
+			auto hand = CreateFormReference(a_hand->form);
+			auto& values = hand->get_map();
+			values["kind"] = sio::string_message::create(
+				std::string{ Multiplayer::GetEquipmentHandKindName(a_hand->kind) });
+			if (a_hand->kind == Multiplayer::EquipmentHandKind::kWeapon) {
+				values["weaponType"] = sio::int_message::create(a_hand->weaponType);
+			}
+			return hand;
+		};
+
+		auto armor = sio::array_message::create();
+		for (const auto& entry : a_equipment.armor) {
+			auto reference = CreateFormReference(entry.form);
+			auto& values = reference->get_map();
+			values["slotMask"] = sio::int_message::create(entry.slotMask);
+			values["armorType"] = sio::string_message::create(
+				std::string{ Multiplayer::GetEquipmentArmorTypeName(entry.armorType) });
+			armor->get_vector().push_back(std::move(reference));
+		}
+
+		auto payload = sio::object_message::create();
+		auto& values = payload->get_map();
+		values["revision"] = sio::int_message::create(
+			static_cast<std::int64_t>(a_equipment.revision));
+		values["armor"] = std::move(armor);
+		values["rightHand"] = createHand(a_equipment.rightHand);
+		values["leftHand"] = createHand(a_equipment.leftHand);
+
+		GetClient().socket()->emit("player:equipment", payload);
 	}
 
 	void PublishLocalNormalAttack(
@@ -917,6 +1112,12 @@ namespace Network
 			changes.appearances.push_back(std::move(entry.second));
 		}
 		pendingAppearances.clear();
+
+		changes.equipment.reserve(pendingEquipment.size());
+		for (auto& entry : pendingEquipment) {
+			changes.equipment.push_back(std::move(entry.second));
+		}
+		pendingEquipment.clear();
 
 		changes.animationActions.reserve(pendingAnimationActions.size());
 		while (!pendingAnimationActions.empty()) {
