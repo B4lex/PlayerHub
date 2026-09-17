@@ -172,6 +172,19 @@ namespace Network
 			return true;
 		}
 
+		// A missing field reads as false; a present one must be a boolean.
+		bool ReadOptionalBool(
+			const std::map<std::string, sio::message::ptr>& a_values,
+			const std::string& a_key,
+			bool& a_result)
+		{
+			if (!a_values.contains(a_key)) {
+				a_result = false;
+				return true;
+			}
+			return ReadBool(a_values, a_key, a_result);
+		}
+
 		bool ReadUnsignedIntegerValue(
 			const sio::message::ptr& a_value,
 			std::uint64_t a_maximum,
@@ -296,6 +309,7 @@ namespace Network
 			};
 			bool jumping = false;
 			bool weaponDrawn = false;
+			Multiplayer::HandPresentation handPresentation;
 			std::uint64_t cellID = 0;
 			std::uint64_t worldspaceID = 0;
 			std::uint64_t furnitureRefID = 0;
@@ -315,6 +329,9 @@ namespace Network
 				!ReadMovementState(values, movementState) ||
 				!ReadBool(values, "jumping", jumping) ||
 				!ReadBool(values, "weaponDrawn", weaponDrawn) ||
+				!ReadOptionalBool(values, "bowDrawn", handPresentation.bowDrawn) ||
+				!ReadOptionalBool(values, "castingLeft", handPresentation.castingLeft) ||
+				!ReadOptionalBool(values, "castingRight", handPresentation.castingRight) ||
 				!ReadUnsignedInteger(
 					values,
 					"cellId",
@@ -366,6 +383,7 @@ namespace Network
 					.jumping = jumping,
 					.weaponDrawn = weaponDrawn
 				},
+				.handPresentation = handPresentation,
 				.cellID = static_cast<std::uint32_t>(cellID),
 				.worldspaceID = static_cast<std::uint32_t>(worldspaceID),
 				.furnitureRefID = static_cast<std::uint32_t>(furnitureRefID),
@@ -616,7 +634,15 @@ namespace Network
 			const auto& values = a_value->get_map();
 			Multiplayer::EquipmentHand hand;
 			std::string kind;
-			if (!ReadFormReference(values, hand.form) || !ReadString(values, "kind", kind)) {
+			if (!ReadString(values, "kind", kind)) {
+				return false;
+			}
+			if (kind == "spell") {
+				hand.kind = Multiplayer::EquipmentHandKind::kSpell;
+				a_result = std::move(hand);
+				return true;
+			}
+			if (!ReadFormReference(values, hand.form)) {
 				return false;
 			}
 			if (kind == "torch") {
@@ -706,6 +732,11 @@ namespace Network
 			if (leftHand == values.end() ||
 				!ReadEquipmentHand(leftHand->second, equipment.leftHand)) {
 				return "leftHand";
+			}
+			if (const auto ammo = FindValue(values, "ammo"); !IsNullValue(ammo) &&
+				(ammo->get_flag() != sio::message::flag_object ||
+					!ReadFormReference(ammo->get_map(), equipment.ammo))) {
+				return "ammo";
 			}
 
 			return Multiplayer::IsValidEquipment(equipment) ? nullptr : "value ranges";
@@ -992,6 +1023,12 @@ namespace Network
 			a_transform.animationState.jumping);
 		values["weaponDrawn"] = sio::bool_message::create(
 			a_transform.animationState.weaponDrawn);
+		values["bowDrawn"] = sio::bool_message::create(
+			a_transform.handPresentation.bowDrawn);
+		values["castingLeft"] = sio::bool_message::create(
+			a_transform.handPresentation.castingLeft);
+		values["castingRight"] = sio::bool_message::create(
+			a_transform.handPresentation.castingRight);
 		values["cellId"] = sio::int_message::create(a_transform.cellID);
 		values["worldspaceId"] = sio::int_message::create(a_transform.worldspaceID);
 		values["furnitureRefId"] = sio::int_message::create(
@@ -1080,6 +1117,11 @@ namespace Network
 			if (!a_hand) {
 				return sio::null_message::create();
 			}
+			if (a_hand->kind == Multiplayer::EquipmentHandKind::kSpell) {
+				auto hand = sio::object_message::create();
+				hand->get_map()["kind"] = sio::string_message::create("spell");
+				return hand;
+			}
 			auto hand = CreateFormReference(a_hand->form);
 			auto& values = hand->get_map();
 			values["kind"] = sio::string_message::create(
@@ -1107,6 +1149,7 @@ namespace Network
 		values["armor"] = std::move(armor);
 		values["rightHand"] = createHand(a_equipment.rightHand);
 		values["leftHand"] = createHand(a_equipment.leftHand);
+		values["ammo"] = CreateFormReference(a_equipment.ammo);
 
 		GetClient().socket()->emit("player:equipment", payload);
 	}

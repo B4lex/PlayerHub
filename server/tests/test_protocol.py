@@ -15,6 +15,9 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "movementState": "sprinting",
             "jumping": False,
             "weaponDrawn": True,
+            "bowDrawn": True,
+            "castingLeft": False,
+            "castingRight": True,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
             "furnitureRefId": 0xA729,
@@ -35,6 +38,9 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "movementState": "running",
             "jumping": True,
             "weaponDrawn": False,
+            "bowDrawn": False,
+            "castingLeft": False,
+            "castingRight": False,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
             "furnitureRefId": 0,
@@ -214,6 +220,9 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "movementState": "walking",
             "jumping": False,
             "weaponDrawn": True,
+            "bowDrawn": False,
+            "castingLeft": False,
+            "castingRight": False,
             "cellId": 1,
             "worldspaceId": 0,
             "furnitureRefId": 0,
@@ -264,6 +273,52 @@ class ParsePlayerUpdateTests(unittest.TestCase):
         }
 
         self.assertIsNone(parse_player_update(payload))
+
+    def test_defaults_missing_hand_presentation(self) -> None:
+        payload = {
+            "x": 1.0,
+            "y": 2.0,
+            "z": 3.0,
+            "heading": 0.0,
+            "speed": 0.0,
+            "direction": 0.0,
+            "movementState": "idle",
+            "jumping": False,
+            "weaponDrawn": True,
+            "cellId": 1,
+            "worldspaceId": 0,
+            "furnitureRefId": 0,
+            "graphEpoch": 1,
+            "sequence": 1,
+        }
+
+        self.assertEqual(
+            parse_player_update(payload),
+            {**payload, "bowDrawn": False, "castingLeft": False, "castingRight": False},
+        )
+
+    def test_rejects_non_boolean_hand_presentation(self) -> None:
+        for field in ("bowDrawn", "castingLeft", "castingRight"):
+            payload = {
+                "x": 1.0,
+                "y": 2.0,
+                "z": 3.0,
+                "heading": 0.0,
+                "speed": 0.0,
+                "direction": 0.0,
+                "movementState": "idle",
+                "jumping": False,
+                "weaponDrawn": True,
+                field: 1,
+                "cellId": 1,
+                "worldspaceId": 0,
+                "furnitureRefId": 0,
+                "graphEpoch": 1,
+                "sequence": 1,
+            }
+
+            with self.subTest(field=field):
+                self.assertIsNone(parse_player_update(payload))
 
 
 class ParseAnimationActionTests(unittest.TestCase):

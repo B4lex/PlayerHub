@@ -23,6 +23,9 @@ namespace CombatSync
 
 		// Captured local attacks waiting for the next published checkpoint.
 		std::uint32_t s_pendingNormalAttacks = 0;
+		// Hand presentation observed since the last published checkpoint.
+		Multiplayer::HandPresentation s_currentHandPresentation;
+		Multiplayer::HandPresentation s_unpublishedHandPresentation;
 
 		constexpr bool IsMeleeAttackState(RE::ATTACK_STATE_ENUM a_state)
 		{
@@ -37,6 +40,70 @@ namespace CombatSync
 				return false;
 			}
 		}
+
+		bool IsHoldingRangedWeapon(const RE::Actor& a_actor)
+		{
+			const auto* rightHand = a_actor.GetEquippedObject(false);
+			const auto* weapon = rightHand ? rightHand->As<RE::TESObjectWEAP>() : nullptr;
+			return weapon && (weapon->IsBow() || weapon->IsCrossbow());
+		}
+
+		constexpr bool IsBowDrawState(RE::ATTACK_STATE_ENUM a_state)
+		{
+			// Releasing and later states already let the arrow go.
+			return a_state == RE::ATTACK_STATE_ENUM::kBowDraw ||
+				a_state == RE::ATTACK_STATE_ENUM::kBowAttached ||
+				a_state == RE::ATTACK_STATE_ENUM::kBowDrawn;
+		}
+
+		constexpr bool IsCastingState(RE::MagicCaster::State a_state)
+		{
+			// From the cast request through charging, a charged hold, and release.
+			// kNone is a readied hand that is not casting; kUnk08 and kUnk09 interrupt.
+			switch (a_state) {
+			case RE::MagicCaster::State::kUnk01:
+			case RE::MagicCaster::State::kUnk02:
+			case RE::MagicCaster::State::kReady:
+			case RE::MagicCaster::State::kUnk04:
+			case RE::MagicCaster::State::kCharging:
+			case RE::MagicCaster::State::kCasting:
+			case RE::MagicCaster::State::kUnk07:
+				return true;
+			default:
+				return false;
+			}
+		}
+
+		bool IsCastingSpell(RE::PlayerCharacter& a_player, bool a_leftHand)
+		{
+			// Only a hand that peers show as a spell hand can present a cast. A staff
+			// uses the same caster but stays a weapon.
+			const auto* equipped = a_player.GetEquippedObject(a_leftHand);
+			if (!equipped ||
+				!(equipped->Is(RE::FormType::Spell) || equipped->Is(RE::FormType::Scroll))) {
+				return false;
+			}
+			const auto* caster = a_player.GetMagicCaster(a_leftHand ?
+					RE::MagicSystem::CastingSource::kLeftHand :
+					RE::MagicSystem::CastingSource::kRightHand);
+			return caster && IsCastingState(caster->state.get());
+		}
+
+		Multiplayer::HandPresentation GetHandPresentation(RE::PlayerCharacter& a_player)
+		{
+			const auto* actorState = a_player.AsActorState();
+			if (!actorState || !actorState->IsWeaponDrawn()) {
+				return {};
+			}
+			const auto* rightHand = a_player.GetEquippedObject(false);
+			const auto* weapon = rightHand ? rightHand->As<RE::TESObjectWEAP>() : nullptr;
+			return Multiplayer::HandPresentation{
+				.bowDrawn = weapon && weapon->IsBow() &&
+					IsBowDrawState(actorState->GetAttackState()),
+				.castingLeft = IsCastingSpell(a_player, true),
+				.castingRight = IsCastingSpell(a_player, false)
+			};
+		}
 	}
 
 	bool CaptureLocalAttack(const LocalFrame& a_local)
@@ -48,7 +115,10 @@ namespace CombatSync
 		const auto* actorState = a_local.player.AsActorState();
 		const auto attackState = actorState ? actorState->GetAttackState() :
 			RE::ATTACK_STATE_ENUM::kNone;
-		const bool meleeAttackActive = IsMeleeAttackState(attackState);
+		// A bow or crossbow shot passes through kNextAttack and kFollowThrough too.
+		// Bow draws are presented by the checkpoint instead.
+		const bool meleeAttackActive = !IsHoldingRangedWeapon(a_local.player) &&
+			IsMeleeAttackState(attackState);
 		const bool priorAttackFinishing =
 			previousAttackState == RE::ATTACK_STATE_ENUM::kNextAttack ||
 			previousAttackState == RE::ATTACK_STATE_ENUM::kFollowThrough;
@@ -69,6 +139,39 @@ namespace CombatSync
 				a_local.player.IsPowerAttacking());
 		}
 		return attackStarted;
+	}
+
+	bool CaptureLocalHandPresentation(const LocalFrame& a_local)
+	{
+		const auto previous = s_currentHandPresentation;
+		const auto current = GetHandPresentation(a_local.player);
+		s_currentHandPresentation = current;
+		s_unpublishedHandPresentation.bowDrawn |= current.bowDrawn;
+		s_unpublishedHandPresentation.castingLeft |= current.castingLeft;
+		s_unpublishedHandPresentation.castingRight |= current.castingRight;
+		if (current == previous) {
+			return false;
+		}
+
+		logs::info(
+			"Animation sync observed local hand presentation: bowDrawn={} castingLeft={} castingRight={} attackState={}",
+			current.bowDrawn,
+			current.castingLeft,
+			current.castingRight,
+			static_cast<std::underlying_type_t<RE::ATTACK_STATE_ENUM>>(
+				a_local.player.AsActorState() ?
+					a_local.player.AsActorState()->GetAttackState() :
+					RE::ATTACK_STATE_ENUM::kNone));
+		return (current.bowDrawn && !previous.bowDrawn) ||
+			(current.castingLeft && !previous.castingLeft) ||
+			(current.castingRight && !previous.castingRight);
+	}
+
+	Multiplayer::HandPresentation SampleLocalHandPresentation()
+	{
+		// Capture runs earlier in the same pass, so this always includes the
+		// current presentation.
+		return std::exchange(s_unpublishedHandPresentation, {});
 	}
 
 	void QueueLocalAttacks(std::uint32_t a_capturedAttacks, bool a_graphEpochChanged)
@@ -243,6 +346,39 @@ namespace CombatSync
 				pending.dispatchAttempts,
 				pending.retryElapsed);
 			a_state.pendingAnimationActions.pop_front();
+		}
+	}
+
+	void SyncHandPresentation(
+		const RemoteFrame& a_remote,
+		RemoteActor& a_actor,
+		bool a_handsSettled,
+		float a_delta)
+	{
+		const auto& checkpoint = a_remote.checkpoint;
+		const auto& target = checkpoint.handPresentation;
+		// The stance change waits for the presentation to end (AnimationSync holds
+		// it), so a sheathe or jump first releases the draw and stops channelling.
+		const bool stanceAllows = checkpoint.animationState.weaponDrawn &&
+			!checkpoint.animationState.jumping &&
+			checkpoint.furnitureRefID == 0;
+		// A spell or bow swap published before the presentation reaches the hands
+		// first, so the draw does not start on the previous weapon.
+		const bool mayStart = a_handsSettled &&
+			!ActorAnimation::IsAnimationActionPlaying(a_actor);
+
+		ActorAnimation::ApplyBowDraw(
+			a_actor,
+			stanceAllows && target.bowDrawn,
+			mayStart,
+			a_delta);
+		for (const bool leftHand : { true, false }) {
+			ActorAnimation::ApplySpellCast(
+				a_actor,
+				leftHand,
+				stanceAllows && target.IsCasting(leftHand),
+				mayStart,
+				a_delta);
 		}
 	}
 }

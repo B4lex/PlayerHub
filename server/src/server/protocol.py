@@ -13,6 +13,10 @@ MOVEMENT_STATES = frozenset(
     }
 )
 
+# Sustained bow draw and spell channelling. Kept as checkpoint state rather than
+# actions because their duration matters, not how often they start.
+HAND_PRESENTATION_FIELDS = ("bowDrawn", "castingLeft", "castingRight")
+
 ANIMATION_ACTION_FAMILIES = frozenset({"attack"})
 ATTACK_ACTIONS = frozenset({"normal"})
 
@@ -62,6 +66,14 @@ def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None
     if not isinstance(weapon_drawn, bool):
         return None
     values["weaponDrawn"] = weapon_drawn
+
+    # Recordings made before bow and spell synchronization have no hand
+    # presentation, which means nothing is drawn or cast.
+    for field in HAND_PRESENTATION_FIELDS:
+        presenting = data.get(field, False)
+        if not isinstance(presenting, bool):
+            return None
+        values[field] = presenting
 
     cell_id = data.get("cellId")
     worldspace_id = data.get("worldspaceId")
@@ -310,13 +322,17 @@ def parse_player_appearance(data: Any) -> dict[str, Any] | None:
 
 MAXIMUM_ARMOR_ENTRIES = 32
 ARMOR_TYPES = frozenset({"light", "heavy", "clothing"})
-HAND_KINDS = frozenset({"weapon", "torch"})
+HAND_KINDS = frozenset({"weapon", "torch", "spell"})
 MINIMUM_WEAPON_TYPE = 1
 MAXIMUM_WEAPON_TYPE = 9
 TWO_HANDED_WEAPON_TYPES = frozenset({5, 6, 7, 9})
 
 
 def _parse_hand(data: Any, left_hand: bool) -> dict[str, Any] | None:
+    # A spell hand has no item identity: every receiver shows the same
+    # placeholder spell, so the source's spell is never sent.
+    if isinstance(data, dict) and data.get("kind") == "spell":
+        return {"kind": "spell"}
     reference = _parse_form_reference(data, ("kind",))
     if reference is None or reference["kind"] not in HAND_KINDS:
         return None
@@ -380,9 +396,17 @@ def parse_player_equipment(data: Any) -> dict[str, Any] | None:
     ):
         return None
 
+    # Recordings made before ammo synchronization have no ammo.
+    ammo = None
+    if data.get("ammo") is not None:
+        ammo = _parse_form_reference(data["ammo"])
+        if ammo is None:
+            return None
+
     return {
         "revision": revision,
         "armor": armor,
         "rightHand": right_hand,
         "leftHand": left_hand,
+        "ammo": ammo,
     }

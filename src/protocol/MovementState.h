@@ -48,6 +48,23 @@ namespace Multiplayer
 		constexpr bool operator==(const AnimationState&) const noexcept = default;
 	};
 
+	// Sustained hand presentation: a bow held drawn and spells being channelled.
+	// Only how long they last is replicated, never what they would release, and
+	// they stay apart from AnimationState because its changes restage locomotion.
+	struct HandPresentation
+	{
+		bool bowDrawn{ false };
+		bool castingLeft{ false };
+		bool castingRight{ false };
+
+		[[nodiscard]] constexpr bool IsCasting(bool a_leftHand) const noexcept
+		{
+			return a_leftHand ? castingLeft : castingRight;
+		}
+
+		constexpr bool operator==(const HandPresentation&) const noexcept = default;
+	};
+
 	// Movement direction relative to the body facing, in the behavior graph's
 	// `Direction` units: 0 forward, 0.25 right, 0.5 backward, 0.75 left.
 	[[nodiscard]] inline float NormalizeMovementDirection(float a_direction) noexcept

@@ -43,6 +43,7 @@ namespace ActorRegistry
 			bool authoritativeWeaponDrawn{ false };
 			bool animationFirewallEnabled{ false };
 			bool furnitureAnimationOwned{ false };
+			bool castAnimationOwned{ false };
 			bool landingCompletionObservationAllowed{ false };
 			bool observeJumpLandEndEvent{ false };
 			bool observeWeaponTransitionEndEvent{ false };
@@ -144,6 +145,30 @@ namespace ActorRegistry
 		}
 	}
 
+	void SetCastAnimationOwned(
+		const RemoteActor& a_remote,
+		bool a_owned)
+	{
+		std::scoped_lock lock{ s_mutex };
+		const auto registration = s_registrations.find(a_remote.animationGraphHolder);
+		if (registration != s_registrations.end()) {
+			registration->second.castAnimationOwned = a_owned;
+		}
+	}
+
+	bool IsCastAnimationOwned(const RE::Actor* a_actor)
+	{
+		if (!a_actor) {
+			return false;
+		}
+
+		std::scoped_lock lock{ s_mutex };
+		const auto registration = s_registrations.find(
+			static_cast<const RE::IAnimationGraphManagerHolder*>(a_actor));
+		return registration != s_registrations.end() &&
+			registration->second.castAnimationOwned;
+	}
+
 	std::optional<GraphInput> FindGraphInput(
 		const RE::IAnimationGraphManagerHolder* a_holder)
 	{
@@ -155,7 +180,8 @@ namespace ActorRegistry
 		return GraphInput{
 			.actorHandle = registration->second.actorHandle,
 			.animationFirewallEnabled = registration->second.animationFirewallEnabled,
-			.furnitureAnimationOwned = registration->second.furnitureAnimationOwned
+			.furnitureAnimationOwned = registration->second.furnitureAnimationOwned,
+			.castAnimationOwned = registration->second.castAnimationOwned
 		};
 	}
 

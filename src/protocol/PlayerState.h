@@ -19,6 +19,8 @@ namespace Network
 		float direction{ 0.0F };
 		// Locomotion, jump phase, and combat stance from the same snapshot.
 		Multiplayer::AnimationState animationState{};
+		// Bow draw and spell channelling, gated on the receiver by weapon stance.
+		Multiplayer::HandPresentation handPresentation{};
 		std::uint32_t cellID{ 0 };
 		// Non-zero for exterior cells. Interior cells use zero and must match by
 		// cell ID because their local coordinates are not globally comparable.

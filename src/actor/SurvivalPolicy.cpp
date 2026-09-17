@@ -553,8 +553,14 @@ namespace SurvivalPolicy
 			RE::Actor::BOOL_FLAGS::kAngryWithPlayer);
 		flags.set(
 			RE::Actor::BOOL_FLAGS::kAttackingDisabled,
-			RE::Actor::BOOL_FLAGS::kCastingDisabled,
 			RE::Actor::BOOL_FLAGS::kDoNotShowOnStealthMeter);
+		// A network cast keeps the caster enabled until it stops. Its release is
+		// suppressed by CombatIsolation.
+		if (ActorRegistry::IsCastAnimationOwned(&a_actor)) {
+			flags.reset(RE::Actor::BOOL_FLAGS::kCastingDisabled);
+		} else {
+			flags.set(RE::Actor::BOOL_FLAGS::kCastingDisabled);
+		}
 
 		// A do-nothing package does not itself opt out of combat. In particular,
 		// CombatBehaviorDodgeThreat can still run for an unaggressive actor when a

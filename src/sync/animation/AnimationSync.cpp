@@ -243,17 +243,22 @@ namespace AnimationSync
 
 		// The latest checkpoint's animation state, except that a draw waits for the
 		// synchronized weapon to reach the hands so the remote actor does not draw fists
-		// and then pop the weapon in. The wait is bounded by EquipmentSync.
+		// and then pop the weapon in. The wait is bounded by EquipmentSync. A held
+		// bow draw or cast keeps the stance and grounded state until it has ended,
+		// while locomotion keeps following the checkpoint.
 		Multiplayer::AnimationState GetPresentableAnimationState(
 			const RemoteFrame& a_remote,
 			const RemoteActor& a_actor,
 			bool a_readyForWeaponDraw)
 		{
 			auto target = a_remote.checkpoint.animationState;
-			if (target.weaponDrawn &&
-				!ActorAnimation::GetTargetState(a_actor).weaponDrawn &&
-				!a_readyForWeaponDraw) {
+			const auto current = ActorAnimation::GetTargetState(a_actor);
+			if (target.weaponDrawn && !current.weaponDrawn && !a_readyForWeaponDraw) {
 				target.weaponDrawn = false;
+			}
+			if (ActorAnimation::IsHandPresentationPlaying(a_actor)) {
+				target.weaponDrawn = current.weaponDrawn;
+				target.jumping = current.jumping;
 			}
 			return target;
 		}

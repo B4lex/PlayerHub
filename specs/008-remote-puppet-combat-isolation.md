@@ -18,8 +18,9 @@ if the actor were not there.
 
 ## Non-goals
 
-- Magic and explosions a remote actor might release. Remote actors have
-  casting disabled; spell casting is not replicated.
+- Explosions and magic from sources other than a remote actor's own bow draw
+  or hand casters. Spec 011 suppresses arrow launches and spell releases for
+  the draws and casts it replicates.
 - Non-combat awareness: head tracking, greetings, and pathing around the actor.
 - Runtimes other than 1.7.104. On other runtimes the hooks are not installed and
   a warning is logged.

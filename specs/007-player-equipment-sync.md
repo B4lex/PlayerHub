@@ -24,8 +24,9 @@ Before this change actors had no synchronized equipment. `weaponDrawn`
 
 - The unequipped inventory, gold, item counts beyond what equipping needs, and
   carry weight.
-- Ammo (quiver), spells and scrolls in hands, and the equipped shout or power.
-  A hand holding a spell is sent as empty.
+- The equipped shout or power. Ammo and spell or scroll hands were added by
+  spec 011: a spell hand is sent as `{"kind": "spell"}` and shown as a
+  placeholder spell, and `ammo` carries the equipped arrows.
 - Enchantments, tempering, poison, charge, and player-given names. Enchanted
   items are reduced to their unenchanted base item (see
   [Enchanted and crafted items](#enchanted-and-crafted-items)).
@@ -87,7 +88,8 @@ affect vanilla resolution in this phase. They exist for the future fallback. A
 receiver still validates them, but the locally resolved form is authoritative
 for how an item is equipped.
 
-A hand holding nothing, bare fists (`WEAPON_TYPE` `0`), or a spell is `null`.
+A hand holding nothing or bare fists (`WEAPON_TYPE` `0`) is `null`. Spell hands
+and `ammo` are specified in spec 011.
 Dual-wielding the same one-handed weapon sends the same reference in both hands.
 
 ### Server
@@ -137,7 +139,8 @@ On the main-loop thread, from the player:
   - A shield is not a hand entry. It is worn armor and appears in `armor`.
   - A two-handed weapon, bow, or crossbow is reported in `rightHand` only, even
     if the engine also reports it for the left hand.
-  - Anything else (spell, scroll, nothing) → `null`.
+  - A spell or scroll → `spell` (spec 011).
+  - Anything else → `null`.
 
 ### Enchanted and crafted items
 

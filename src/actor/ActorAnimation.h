@@ -4,6 +4,7 @@
 
 #include <RE/Skyrim.h>
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 
@@ -105,6 +106,26 @@ namespace ActorAnimation
 		// leaves the combo window, so one window consumes at most one attack.
 		bool attackChainDispatched{ false };
 		bool attackLocomotionReassertPending{ false };
+		// A network bow draw is held from an accepted bowAttackStart until the
+		// checkpoint releases it. The shot then owns the graph for its clip length,
+		// like a normal attack.
+		bool bowDrawHeld{ false };
+		bool bowReleasePending{ false };
+		float bowPhaseElapsed{ 0.0F };
+		// Time since the release was first requested; rejected releases retry.
+		float bowReleaseRequestElapsed{ 0.0F };
+		float bowEventRetryElapsed{ 0.0F };
+		// Network spell casting per hand, indexed by IsLeftHand: [0] right, [1]
+		// left. Held from a cast request on the hand's own magic caster until the
+		// checkpoint stops it; then stopping until the caster and the graph have
+		// both left the cast.
+		std::array<bool, 2> castHeld{};
+		std::array<bool, 2> castStopping{};
+		std::array<float, 2> castStopRequestElapsed{};
+		std::array<float, 2> castEventRetryElapsed{};
+		// Mirrors ActorRegistry cast ownership; kept across graph resets so an
+		// abandoned cast still releases it.
+		bool castAnimationOwned{ false };
 	};
 
 	[[nodiscard]] Multiplayer::AnimationState GetTargetState(const RemoteActor& a_remote);
@@ -133,6 +154,27 @@ namespace ActorAnimation
 	// Starts an attack, or chains it into the playing one when that is allowed.
 	[[nodiscard]] bool DispatchNormalAttack(RemoteActor& a_remote);
 	[[nodiscard]] bool IsAnimationActionPlaying(const RemoteActor& a_remote);
+
+	// Converges a network bow draw toward a_drawn: starts it when a_mayStart and
+	// the graph is stable, grounded, fully drawn, and holds a bow; releases it
+	// once a_drawn clears. Only the animation plays; CombatIsolation keeps the
+	// arrow from being fired.
+	void ApplyBowDraw(
+		RemoteActor& a_remote,
+		bool a_drawn,
+		bool a_mayStart,
+		float a_deltaTime);
+	// Converges one hand's placeholder-spell channelling toward a_casting, under
+	// the same graph conditions as ApplyBowDraw. CombatIsolation keeps the spell
+	// from being released.
+	void ApplySpellCast(
+		RemoteActor& a_remote,
+		bool a_leftHand,
+		bool a_casting,
+		bool a_mayStart,
+		float a_deltaTime);
+	// A bow draw, its release, or a cast still owns the actor's stance and hands.
+	[[nodiscard]] bool IsHandPresentationPlaying(const RemoteActor& a_remote);
 	// A replicated draw or sheathe clip has not reached its exit annotation or
 	// bounded fallback yet.
 	[[nodiscard]] bool IsWeaponTransitionPlaying(const RemoteActor& a_remote);

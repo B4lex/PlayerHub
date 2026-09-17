@@ -9,8 +9,10 @@
 struct RemoteActor;
 
 // Semantic attack presentation: when a captured local attack is published and
-// when a received attack may play on the remote actor. Local world combat with
-// the actor is prevented separately by actor/CombatIsolation.
+// when a received attack may play on the remote actor, and the sustained bow
+// draw and spell channelling that travel with each checkpoint. Local world
+// combat with the actor, and anything it would release, is prevented
+// separately by actor/CombatIsolation.
 namespace CombatSync
 {
 	struct PendingAnimationAction
@@ -31,6 +33,13 @@ namespace CombatSync
 
 	// Local stage, every pass: detects the start of a local melee attack.
 	[[nodiscard]] bool CaptureLocalAttack(const LocalFrame& a_local);
+	// Local stage, every pass: observes the local bow draw and spell channelling.
+	// Returns true when one of them began, so equipment can be flushed first.
+	[[nodiscard]] bool CaptureLocalHandPresentation(const LocalFrame& a_local);
+	// Local stage, called by CheckpointPublisher once per published checkpoint:
+	// everything presented since the previous checkpoint, so a presentation
+	// shorter than the snapshot interval still reaches peers.
+	[[nodiscard]] Multiplayer::HandPresentation SampleLocalHandPresentation();
 	// Local stage, every pass after equipment capture: adds captured attacks to
 	// the bounded publish backlog, discarding it at a graph-epoch boundary.
 	void QueueLocalAttacks(std::uint32_t a_capturedAttacks, bool a_graphEpochChanged);
@@ -57,4 +66,12 @@ namespace CombatSync
 		RemoteState& a_state,
 		RemoteActor& a_actor,
 		bool a_handsSettled);
+	// Remote stage, after SyncCombat: converges the bow draw and spell
+	// channelling toward the checkpoint. A sheathe, jump, or furniture checkpoint
+	// ends them. The caller skips it while furniture owns the actor.
+	void SyncHandPresentation(
+		const RemoteFrame& a_remote,
+		RemoteActor& a_actor,
+		bool a_handsSettled,
+		float a_delta);
 }
