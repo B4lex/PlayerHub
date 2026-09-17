@@ -18,9 +18,12 @@ MOVEMENT_STATES = frozenset(
 HAND_PRESENTATION_FIELDS = ("bowDrawn", "castingLeft", "castingRight", "blocking")
 
 ANIMATION_ACTION_FAMILIES = frozenset({"attack"})
-# Right-hand, left-hand, and dual-wield swings, and bashes. Power variants are
-# normalized to the plain action of the same hand by the client.
+# Right-hand, left-hand, and dual-wield swings, and bashes. Each may be a power
+# attack or power bash.
 ATTACK_ACTIONS = frozenset({"normal", "left", "dual", "bash"})
+# The movement direction a power attack was started with. Only power attacks
+# carry one.
+POWER_ATTACK_DIRECTIONS = frozenset({"standing", "forward", "backward", "left", "right"})
 
 MAXIMUM_INT64 = 0x7FFFFFFFFFFFFFFF
 MAXIMUM_PLUGIN_NAME_LENGTH = 260
@@ -150,18 +153,31 @@ def parse_animation_action(data: Any) -> dict[str, Any] | None:
     ):
         return None
 
+    power = data.get("power")
+    direction = data.get("direction")
+    if not isinstance(power, bool) or (
+        (not isinstance(direction, str) or direction not in POWER_ATTACK_DIRECTIONS)
+        if power
+        else "direction" in data
+    ):
+        return None
+
     prerequisites = data.get("prerequisites")
     if not isinstance(prerequisites, dict) or prerequisites != {"weaponDrawn": True}:
         return None
 
-    return {
+    parsed = {
         "actionSequence": action_sequence,
         "graphEpoch": graph_epoch,
         "checkpointSequence": checkpoint_sequence,
         "family": family,
         "action": action,
+        "power": power,
         "prerequisites": prerequisites.copy(),
     }
+    if power:
+        parsed["direction"] = direction
+    return parsed
 
 
 def _is_integer(value: Any, minimum: int, maximum: int) -> bool:

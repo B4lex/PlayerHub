@@ -23,7 +23,7 @@ namespace CombatSync
         constexpr std::size_t kMaximumQueuedAnimationActions = 32;
 
         // Captured local attacks waiting for the next published checkpoint.
-        std::deque<Network::AttackAction> s_pendingAttacks;
+        std::deque<Network::Attack> s_pendingAttacks;
         // Hand presentation observed since the last published checkpoint.
         Multiplayer::HandPresentation s_currentHandPresentation;
         Multiplayer::HandPresentation s_unpublishedHandPresentation;
@@ -50,36 +50,72 @@ namespace CombatSync
             return weapon && (weapon->IsBow() || weapon->IsCrossbow());
         }
 
-        // The hand, or bash, of an attack that just started. The attack data is the
-        // race's entry for the graph event that started it; without one the attack
-        // is presented as a right-hand swing.
-        Network::AttackAction ClassifyAttack(const RE::PlayerCharacter& a_player, RE::ATTACK_STATE_ENUM a_attackState)
+        Network::PowerAttackDirection ToPowerAttackDirection(AnimationEvents::PowerAttackEventDirection a_direction)
         {
-            if (a_attackState == RE::ATTACK_STATE_ENUM::kBash)
+            switch (a_direction)
             {
-                return Network::AttackAction::kBash;
+                case AnimationEvents::PowerAttackEventDirection::kForward:
+                    return Network::PowerAttackDirection::kForward;
+                case AnimationEvents::PowerAttackEventDirection::kBackward:
+                    return Network::PowerAttackDirection::kBackward;
+                case AnimationEvents::PowerAttackEventDirection::kLeft:
+                    return Network::PowerAttackDirection::kLeft;
+                case AnimationEvents::PowerAttackEventDirection::kRight:
+                    return Network::PowerAttackDirection::kRight;
+                default:
+                    return Network::PowerAttackDirection::kStanding;
             }
-            const auto* process = a_player.GetActorRuntimeData().currentProcess;
-            const auto* attackData = process && process->high ? process->high->attackData.get() : nullptr;
-            if (!attackData)
+        }
+
+        // The hand, or bash, of an attack that just started, and whether it is a
+        // power attack in which direction. The attack data is the race's entry for
+        // the graph event that started it; without one the attack is presented as
+        // a plain right-hand swing.
+        Network::Attack ClassifyAttack(const RE::BGSAttackData* a_attackData, RE::ATTACK_STATE_ENUM a_attackState)
+        {
+            Network::Attack attack{};
+            if (a_attackData)
             {
-                return Network::AttackAction::kNormal;
+                attack.power = a_attackData->data.flags.any(RE::AttackData::AttackFlag::kPowerAttack);
+                if (attack.power)
+                {
+                    const auto* eventName = a_attackData->event.c_str();
+                    attack.direction = ToPowerAttackDirection(
+                        AnimationEvents::GetPowerAttackEventDirection(eventName ? eventName : ""));
+                }
             }
-            if (attackData->data.flags.any(RE::AttackData::AttackFlag::kBashAttack))
+            const bool bashData = a_attackData && a_attackData->data.flags.any(RE::AttackData::AttackFlag::kBashAttack);
+            if (a_attackState == RE::ATTACK_STATE_ENUM::kBash || bashData)
             {
-                return Network::AttackAction::kBash;
+                attack.action = Network::AttackAction::kBash;
+                // Attack data left over from a swing does not make the bash a power bash.
+                attack.power = attack.power && bashData;
+                // A bash has no direction.
+                attack.direction = Network::PowerAttackDirection::kStanding;
+                return attack;
             }
-            const auto* eventName = attackData->event.c_str();
+            if (!a_attackData)
+            {
+                return attack;
+            }
+            const auto* eventName = a_attackData->event.c_str();
             switch (AnimationEvents::GetAttackEventHand(eventName ? eventName : ""))
             {
                 case AnimationEvents::AttackEventHand::kDual:
-                    return Network::AttackAction::kDual;
+                    attack.action = Network::AttackAction::kDual;
+                    // Dual-wield and two-fist power attacks have no direction.
+                    attack.direction = Network::PowerAttackDirection::kStanding;
+                    break;
                 case AnimationEvents::AttackEventHand::kLeft:
-                    return Network::AttackAction::kLeft;
+                    attack.action = Network::AttackAction::kLeft;
+                    break;
                 default:
                     // CommonLib's IsLeftAttack reads the attack data's left-hand flag.
-                    return attackData->IsLeftAttack() ? Network::AttackAction::kLeft : Network::AttackAction::kNormal;
+                    attack.action
+                        = a_attackData->IsLeftAttack() ? Network::AttackAction::kLeft : Network::AttackAction::kNormal;
+                    break;
             }
+            return attack;
         }
 
         constexpr bool IsBowDrawState(RE::ATTACK_STATE_ENUM a_state)
@@ -168,10 +204,13 @@ namespace CombatSync
         }
     }
 
-    std::optional<Network::AttackAction> CaptureLocalAttack(const LocalFrame& a_local)
+    std::optional<Network::Attack> CaptureLocalAttack(const LocalFrame& a_local)
     {
         static RE::ATTACK_STATE_ENUM previousAttackState = RE::ATTACK_STATE_ENUM::kNone;
         static bool attackWindowActive = false;
+        // The latest captured attack of the window is already presented as a power
+        // attack or bash, so it can no longer become one.
+        static bool attackPowerResolved = false;
 
         const auto* actorState = a_local.player.AsActorState();
         const auto attackState = actorState ? actorState->GetAttackState() : RE::ATTACK_STATE_ENUM::kNone;
@@ -191,15 +230,45 @@ namespace CombatSync
 
         attackWindowActive = attackActive;
         previousAttackState = attackState;
-        if (!attackStarted)
+        if (!attackActive)
         {
+            attackPowerResolved = false;
             return std::nullopt;
         }
-        const auto attack = ClassifyAttack(a_local.player, attackState);
+
+        const auto* process = a_local.player.GetActorRuntimeData().currentProcess;
+        const auto* attackData = process && process->high ? process->high->attackData.get() : nullptr;
+        const auto* attackEvent = attackData ? attackData->event.c_str() : nullptr;
+        if (!attackStarted)
+        {
+            // A held attack button starts the plain swing, and the engine replaces its
+            // attack data with the power attack once the power attack delay passes
+            // (observed in game). No attack state edge marks it.
+            if (attackPowerResolved || bashing || !attackData
+                || !attackData->data.flags.any(RE::AttackData::AttackFlag::kPowerAttack))
+            {
+                return std::nullopt;
+            }
+            attackPowerResolved = true;
+            const auto attack = ClassifyAttack(attackData, attackState);
+            logs::info(
+                "Animation sync observed local power attack of the playing swing: state={} "
+                "normalizedAction=attack/{} direction={} attackEvent={}",
+                static_cast<std::underlying_type_t<RE::ATTACK_STATE_ENUM>>(attackState),
+                Network::GetAttackActionName(attack.action), Network::GetPowerAttackDirectionName(attack.direction),
+                attackEvent ? attackEvent : "<none>");
+            return attack;
+        }
+
+        const auto attack = ClassifyAttack(attackData, attackState);
+        attackPowerResolved = attack.power || attack.action == Network::AttackAction::kBash;
         logs::info(
-            "Animation sync observed local attack state edge: state={} normalizedAction=attack/{} powerAttack={}",
+            "Animation sync observed local attack state edge: state={} normalizedAction=attack/{} power={} "
+            "direction={} attackEvent={} powerAttacking={}",
             static_cast<std::underlying_type_t<RE::ATTACK_STATE_ENUM>>(attackState),
-            Network::GetAttackActionName(attack), a_local.player.IsPowerAttacking());
+            Network::GetAttackActionName(attack.action), attack.power,
+            Network::GetPowerAttackDirectionName(attack.direction), attackEvent ? attackEvent : "<none>",
+            a_local.player.IsPowerAttacking());
         return attack;
     }
 
@@ -235,7 +304,7 @@ namespace CombatSync
         return std::exchange(s_unpublishedHandPresentation, {});
     }
 
-    void QueueLocalAttacks(std::optional<Network::AttackAction> a_capturedAttack, bool a_graphEpochChanged)
+    void QueueLocalAttacks(std::optional<Network::Attack> a_capturedAttack, bool a_graphEpochChanged)
     {
         if (a_graphEpochChanged)
         {
@@ -262,7 +331,7 @@ namespace CombatSync
         }
         else if (a_checkpoint.animationState.weaponDrawn)
         {
-            for (const auto attack : s_pendingAttacks)
+            for (const auto& attack : s_pendingAttacks)
             {
                 Network::PublishLocalAttack(attack, a_checkpoint.graphEpoch, a_checkpoint.sequence);
             }
@@ -351,15 +420,52 @@ namespace CombatSync
         {
             return;
         }
+        const bool playing = ActorAnimation::IsAnimationActionPlaying(a_actor);
+        // A held attack button publishes the plain swing and then its power attack.
+        // When both are queued before the swing starts, the power attack starts
+        // directly instead of first showing the beginning of the plain swing.
+        if (!playing && a_state.pendingAnimationActions.size() >= 2)
+        {
+            const auto& plain = a_state.pendingAnimationActions[0].action;
+            const auto& power = a_state.pendingAnimationActions[1].action;
+            if (!plain.attack.power && plain.attack.action != Network::AttackAction::kBash && power.attack.power
+                && power.attack.action == plain.attack.action && power.graphEpoch == plain.graphEpoch)
+            {
+                logs::info(
+                    "Animation sync merged queued attack into its power attack: player={} action={} "
+                    "actionSequence={} powerActionSequence={}",
+                    a_remote.playerID, Network::GetAttackActionName(plain.attack.action),
+                    static_cast<unsigned long long>(plain.actionSequence),
+                    static_cast<unsigned long long>(power.actionSequence));
+                a_state.pendingAnimationActions.pop_front();
+            }
+        }
         auto& pending = a_state.pendingAnimationActions.front();
         const auto& action = pending.action;
         // A playing attack only takes the next one as a chained swing in its combo
         // window. Waiting for the whole recovery instead makes every replayed swing
         // slower than the local chain, so spammed attacks pile up behind it. A bash
-        // never chains.
-        const bool chaining = ActorAnimation::IsAnimationActionPlaying(a_actor);
+        // never chains. A power attack of the playing plain swing's hand turns that
+        // swing into the power attack instead, as the source's held button did.
+        const bool poweringUp = playing && ActorAnimation::CanPowerUpAttack(a_actor, action.attack);
+        const bool chaining = playing && !poweringUp;
         if (chaining && !ActorAnimation::CanChainAttack(a_actor, action.attack))
         {
+            if (action.attack.power && !pending.powerUpWaitLogged && a_actor.animation)
+            {
+                pending.powerUpWaitLogged = true;
+                const auto& animation = *a_actor.animation;
+                logs::info(
+                    "Animation sync power attack waits for the playing attack: player={} actor={:08X} "
+                    "actionSequence={} action={} playingAction={} playingPower={} playingBash={} observed={} "
+                    "settled={} elapsed={:.3f}",
+                    a_remote.playerID, a_actor.handle.native_handle(),
+                    static_cast<unsigned long long>(action.actionSequence),
+                    Network::GetAttackActionName(action.attack.action),
+                    Network::GetAttackActionName(animation.attackPlaybackAction), animation.attackPlaybackPower,
+                    animation.attackPlaybackBash, animation.attackPlaybackObserved,
+                    ActorAnimation::IsAnimationStateSettled(a_actor), animation.attackPlaybackElapsed);
+            }
             return;
         }
 
@@ -367,7 +473,7 @@ namespace CombatSync
             || a_remote.checkpoint.animationState.jumping || a_remote.checkpoint.furnitureRefID != 0
             || !a_remote.checkpoint.animationState.weaponDrawn ||
             // A weapon swap published before the attack must reach the hands first.
-            !a_handsSettled || (!chaining && !ActorAnimation::CanDispatchAttack(a_actor, action.attack)))
+            !a_handsSettled || (!playing && !ActorAnimation::CanDispatchAttack(a_actor, action.attack)))
         {
             return;
         }
@@ -383,12 +489,13 @@ namespace CombatSync
         if (accepted)
         {
             logs::info(
-                "Animation sync processed attack: player={} actor={:08X} action={} actionSequence={} graphEpoch={} "
-                "checkpointSequence={} chained={} queued={}",
-                a_remote.playerID, a_actor.handle.native_handle(), Network::GetAttackActionName(action.attack),
+                "Animation sync processed attack: player={} actor={:08X} action={} power={} direction={} "
+                "actionSequence={} graphEpoch={} checkpointSequence={} poweredUp={} chained={} queued={}",
+                a_remote.playerID, a_actor.handle.native_handle(), Network::GetAttackActionName(action.attack.action),
+                action.attack.power, Network::GetPowerAttackDirectionName(action.attack.direction),
                 static_cast<unsigned long long>(action.actionSequence),
                 static_cast<unsigned long long>(action.graphEpoch),
-                static_cast<unsigned long long>(action.checkpointSequence), chaining,
+                static_cast<unsigned long long>(action.checkpointSequence), poweringUp, chaining,
                 a_state.pendingAnimationActions.size() - 1);
             a_state.pendingAnimationActions.pop_front();
         }
@@ -396,10 +503,11 @@ namespace CombatSync
             && pending.retryElapsed >= kMinimumAnimationActionRetrySeconds)
         {
             logs::warn(
-                "Animation sync rejected attack after bounded retries: player={} actor={:08X} action={} "
+                "Animation sync rejected attack after bounded retries: player={} actor={:08X} action={} power={} "
                 "actionSequence={} attempts={} retrySeconds={:.3f}",
-                a_remote.playerID, a_actor.handle.native_handle(), Network::GetAttackActionName(action.attack),
-                static_cast<unsigned long long>(action.actionSequence), pending.dispatchAttempts, pending.retryElapsed);
+                a_remote.playerID, a_actor.handle.native_handle(), Network::GetAttackActionName(action.attack.action),
+                action.attack.power, static_cast<unsigned long long>(action.actionSequence), pending.dispatchAttempts,
+                pending.retryElapsed);
             a_state.pendingAnimationActions.pop_front();
         }
     }

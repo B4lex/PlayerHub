@@ -16,6 +16,10 @@ namespace ActorMovement
 
         constexpr float kArrivalTolerance = 1.0F;
         constexpr float kAirborneTransformCatchUpTime = 0.2F;
+        // An attack's own motion, such as a forward power attack's lunge, carries the
+        // source faster than its last measured speed and on past the end of its
+        // movement input. The actor follows it within about this time.
+        constexpr float kAttackTransformCatchUpTime = 0.2F;
         constexpr float kTwoPi = 6.28318530717958647692F;
         constexpr float kHeadingDeadZone = 0.00872664625997164788F;
         constexpr float kMaximumHeadingRate = kTwoPi;
@@ -83,10 +87,13 @@ namespace ActorMovement
         {
             return;
         }
-        if (!IsMoving(a_translationState.movementState) && !a_translationState.jumping)
+        const bool attackPlaying = ActorAnimation::IsAnimationActionPlaying(a_remote);
+        if (!IsMoving(a_translationState.movementState) && !a_translationState.jumping && !attackPlaying)
         {
             // An idle snapshot is a current-state checkpoint, not an instruction to
-            // visibly walk the remaining interpolation backlog while playing idle.
+            // visibly walk the remaining interpolation backlog while playing idle. A
+            // playing attack is not idle: the source's attack motion may still be
+            // carrying it after its movement input ended.
             a_actor.SetPosition(target, true);
             return;
         }
@@ -96,8 +103,11 @@ namespace ActorMovement
             return;
         }
 
-        const float interpolationSpeed = a_translationState.jumping
-            ? (std::max)(a_remote.movement.translationSpeed, distanceToTravel / kAirborneTransformCatchUpTime)
+        const float catchUpTime = a_translationState.jumping ? kAirborneTransformCatchUpTime
+            : attackPlaying                                  ? kAttackTransformCatchUpTime
+                                                             : 0.0F;
+        const float interpolationSpeed = catchUpTime > 0.0F
+            ? (std::max)(a_remote.movement.translationSpeed, distanceToTravel / catchUpTime)
             : a_remote.movement.translationSpeed;
         const float step = (std::min)(interpolationSpeed * deltaTime, distanceToTravel);
         const float interpolation = step / distance;

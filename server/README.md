@@ -32,9 +32,10 @@ to `http://127.0.0.1:3000` for local testing.
   checkpoint sequence number.
 - `player:state` relays a validated transform to every other connected player.
 - `animation:action` carries a validated, ordered semantic action. The
-  vocabulary is `attack/normal`, `attack/left`, `attack/dual`, and `attack/bash`;
-  power attacks and power bashes are normalized to the plain action of the same
-  hand.
+  vocabulary is `attack/normal`, `attack/left`, `attack/dual`, and `attack/bash`.
+  Every attack carries a boolean `power`. A power attack or power bash also
+  carries a `direction` (`standing`, `forward`, `backward`, `left`, or `right`),
+  which a plain attack must not. See `specs/013-power-attack-sync.md`.
 - `player:action` relays that action to every other connected player after its
   graph epoch, drawn-weapon, and unoccupied-furniture checkpoint prerequisites
   are verified.

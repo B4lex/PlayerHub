@@ -78,8 +78,8 @@ namespace AnimationEvents
         return ContainsIgnoringCase(a_eventName, "Cast");
     }
 
-    // The graph event of the attack data a local attack started with. Only the
-    // hand is kept: power, sprint, and directional variants of an attack share it.
+    // The graph event of the attack data a local attack started with. The hand
+    // is shared by the power, sprint, and directional variants of an attack.
     enum class AttackEventHand
     {
         kRight,
@@ -89,7 +89,8 @@ namespace AnimationEvents
 
     constexpr AttackEventHand GetAttackEventHand(std::string_view a_eventName) noexcept
     {
-        if (ContainsIgnoringCase(a_eventName, "DualWield"))
+        // attackPowerStartH2HCombo is the power attack of both fists.
+        if (ContainsIgnoringCase(a_eventName, "DualWield") || ContainsIgnoringCase(a_eventName, "H2HCombo"))
         {
             return AttackEventHand::kDual;
         }
@@ -110,6 +111,76 @@ namespace AnimationEvents
     static_assert(GetAttackEventHand("AttackStartH2HLeft") == AttackEventHand::kLeft);
     static_assert(GetAttackEventHand("AttackStartH2HRight") == AttackEventHand::kRight);
     static_assert(GetAttackEventHand("attackPowerStartDualWield") == AttackEventHand::kDual);
+    static_assert(GetAttackEventHand("attackPowerStartH2HCombo") == AttackEventHand::kDual);
+    static_assert(GetAttackEventHand("attackPowerStartLeftLeftHand") == AttackEventHand::kLeft);
+    static_assert(GetAttackEventHand("attackPowerStart_SprintLeftHand") == AttackEventHand::kLeft);
+
+    // The direction of a power attack's event. The vanilla race attack data names
+    // it after the hand prefix (attackPowerStartLeftLeftHand is a left-hand attack
+    // toward the left). Sprinting variants count as forward, and events without a
+    // direction (in place, dual-wield, both fists, power bash) as standing.
+    enum class PowerAttackEventDirection
+    {
+        kStanding,
+        kForward,
+        kBackward,
+        kLeft,
+        kRight
+    };
+
+    constexpr PowerAttackEventDirection GetPowerAttackEventDirection(std::string_view a_eventName) noexcept
+    {
+        std::string_view name = a_eventName;
+        for (const std::string_view handSuffix : { "LeftHand", "RightHand" })
+        {
+            if (EndsWithIgnoringCase(name, handSuffix))
+            {
+                name.remove_suffix(handSuffix.size());
+                break;
+            }
+        }
+        if (ContainsIgnoringCase(name, "Forward") || ContainsIgnoringCase(name, "Sprint"))
+        {
+            return PowerAttackEventDirection::kForward;
+        }
+        if (ContainsIgnoringCase(name, "Back"))
+        {
+            return PowerAttackEventDirection::kBackward;
+        }
+        if (EndsWithIgnoringCase(name, "Left"))
+        {
+            return PowerAttackEventDirection::kLeft;
+        }
+        if (EndsWithIgnoringCase(name, "Right"))
+        {
+            return PowerAttackEventDirection::kRight;
+        }
+        return PowerAttackEventDirection::kStanding;
+    }
+
+    static_assert(GetPowerAttackEventDirection("attackPowerStartInPlace") == PowerAttackEventDirection::kStanding);
+    static_assert(GetPowerAttackEventDirection("attackPowerStartForward") == PowerAttackEventDirection::kForward);
+    static_assert(GetPowerAttackEventDirection("attackPowerStartBackward") == PowerAttackEventDirection::kBackward);
+    static_assert(GetPowerAttackEventDirection("attackPowerStartLeft") == PowerAttackEventDirection::kLeft);
+    static_assert(GetPowerAttackEventDirection("attackPowerStartRight") == PowerAttackEventDirection::kRight);
+    static_assert(
+        GetPowerAttackEventDirection("attackPowerStartInPlaceLeftHand") == PowerAttackEventDirection::kStanding);
+    static_assert(
+        GetPowerAttackEventDirection("attackPowerStartForwardLeftHand") == PowerAttackEventDirection::kForward);
+    static_assert(GetPowerAttackEventDirection("attackPowerStartBackLeftHand") == PowerAttackEventDirection::kBackward);
+    static_assert(GetPowerAttackEventDirection("attackPowerStartLeftLeftHand") == PowerAttackEventDirection::kLeft);
+    static_assert(GetPowerAttackEventDirection("attackPowerStartRightLeftHand") == PowerAttackEventDirection::kRight);
+    static_assert(
+        GetPowerAttackEventDirection("attackPowerStartForwardH2HRightHand") == PowerAttackEventDirection::kForward);
+    static_assert(
+        GetPowerAttackEventDirection("attackPowerStartForwardH2HLeftHand") == PowerAttackEventDirection::kForward);
+    static_assert(GetPowerAttackEventDirection("attackPowerStart_Sprint") == PowerAttackEventDirection::kForward);
+    static_assert(GetPowerAttackEventDirection("attackPowerStart_2HWSprint") == PowerAttackEventDirection::kForward);
+    static_assert(
+        GetPowerAttackEventDirection("attackPowerStart_SprintLeftHand") == PowerAttackEventDirection::kForward);
+    static_assert(GetPowerAttackEventDirection("attackPowerStartDualWield") == PowerAttackEventDirection::kStanding);
+    static_assert(GetPowerAttackEventDirection("attackPowerStartH2HCombo") == PowerAttackEventDirection::kStanding);
+    static_assert(GetPowerAttackEventDirection("bashPowerStart") == PowerAttackEventDirection::kStanding);
 
     static_assert(IsCastAnimationEvent("MRh_SpellAimedConcentrationStart"));
     static_assert(IsCastAnimationEvent("MLH_SpellRelease_event"));

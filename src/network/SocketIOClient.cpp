@@ -379,6 +379,35 @@ namespace Network
             return false;
         }
 
+        // Only a power attack carries a direction, and it always does.
+        bool ReadPowerAttack(const std::map<std::string, sio::message::ptr>& a_values, Attack& a_result)
+        {
+            if (!ReadBool(a_values, "power", a_result.power))
+            {
+                return false;
+            }
+            a_result.direction = PowerAttackDirection::kStanding;
+            if (!a_result.power)
+            {
+                return !a_values.contains("direction");
+            }
+            std::string direction;
+            if (!ReadString(a_values, "direction", direction))
+            {
+                return false;
+            }
+            for (const auto candidate : { PowerAttackDirection::kStanding, PowerAttackDirection::kForward,
+                     PowerAttackDirection::kBackward, PowerAttackDirection::kLeft, PowerAttackDirection::kRight })
+            {
+                if (direction == GetPowerAttackDirectionName(candidate))
+                {
+                    a_result.direction = candidate;
+                    return true;
+                }
+            }
+            return false;
+        }
+
         bool ParseRemoteAnimationAction(const sio::message::ptr& a_data, AnimationAction& a_result)
         {
             if (!a_data || a_data->get_flag() != sio::message::flag_object)
@@ -392,7 +421,8 @@ namespace Network
             std::uint64_t graphEpoch = 0;
             std::uint64_t checkpointSequence = 0;
             if (!ReadString(values, "playerId", a_result.playerID) || !ReadString(values, "family", family)
-                || family != "attack" || !ReadAttackAction(values, a_result.attack)
+                || family != "attack" || !ReadAttackAction(values, a_result.attack.action)
+                || !ReadPowerAttack(values, a_result.attack)
                 || !ReadUnsignedInteger(
                     values, "actionSequence", (std::numeric_limits<std::int64_t>::max)(), actionSequence)
                 || actionSequence == 0
@@ -808,9 +838,10 @@ namespace Network
 
             latestReceivedActionSequences.insert_or_assign(action.playerID, action.actionSequence);
             logs::info(
-                "Animation sync received attack: player={} action={} actionSequence={} graphEpoch={} "
-                "checkpointSequence={}",
-                action.playerID, GetAttackActionName(action.attack),
+                "Animation sync received attack: player={} action={} power={} direction={} actionSequence={} "
+                "graphEpoch={} checkpointSequence={}",
+                action.playerID, GetAttackActionName(action.attack.action), action.attack.power,
+                GetPowerAttackDirectionName(action.attack.direction),
                 static_cast<unsigned long long>(action.actionSequence),
                 static_cast<unsigned long long>(action.graphEpoch),
                 static_cast<unsigned long long>(action.checkpointSequence));
@@ -1112,7 +1143,7 @@ namespace Network
         GetClient().socket()->emit("player:equipment", payload);
     }
 
-    void PublishLocalAttack(AttackAction a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence)
+    void PublishLocalAttack(const Attack& a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence)
     {
         if (!IsConnected() || a_graphEpoch == 0 || a_checkpointSequence == 0)
         {
@@ -1133,12 +1164,20 @@ namespace Network
         values["graphEpoch"] = sio::int_message::create(static_cast<std::int64_t>(a_graphEpoch));
         values["checkpointSequence"] = sio::int_message::create(static_cast<std::int64_t>(a_checkpointSequence));
         values["family"] = sio::string_message::create("attack");
-        values["action"] = sio::string_message::create(GetAttackActionName(a_attack));
+        values["action"] = sio::string_message::create(GetAttackActionName(a_attack.action));
+        values["power"] = sio::bool_message::create(a_attack.power);
+        if (a_attack.power)
+        {
+            values["direction"] = sio::string_message::create(GetPowerAttackDirectionName(a_attack.direction));
+        }
         values["prerequisites"] = std::move(prerequisites);
 
-        logs::info("Animation sync publishing attack: action={} actionSequence={} graphEpoch={} checkpointSequence={}",
-            GetAttackActionName(a_attack), static_cast<unsigned long long>(localActionSequence),
-            static_cast<unsigned long long>(a_graphEpoch), static_cast<unsigned long long>(a_checkpointSequence));
+        logs::info(
+            "Animation sync publishing attack: action={} power={} direction={} actionSequence={} graphEpoch={} "
+            "checkpointSequence={}",
+            GetAttackActionName(a_attack.action), a_attack.power, GetPowerAttackDirectionName(a_attack.direction),
+            static_cast<unsigned long long>(localActionSequence), static_cast<unsigned long long>(a_graphEpoch),
+            static_cast<unsigned long long>(a_checkpointSequence));
         GetClient().socket()->emit("animation:action", payload);
     }
 

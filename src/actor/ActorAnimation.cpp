@@ -6,6 +6,7 @@
 #include "runtime/GameThread.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <utility>
 
@@ -22,6 +23,12 @@ namespace ActorAnimation
         // Rejected graph events are also retried for at least this long, so a high
         // frame rate cannot spend every attempt inside one short graph blend.
         constexpr float kMinimumEventRetrySeconds = 0.1F;
+        // Locomotion edges need a far longer budget than the presentation events
+        // above. The graph refuses locomotion for as long as it is still leaving an
+        // attack, and a power attack's exit was measured holding it past 0.1
+        // seconds every time, so the old budget gave up exactly one frame early and
+        // recorded an edge the graph never took.
+        constexpr float kLocomotionEventRetrySeconds = 0.75F;
         // Skyrim cross-blends directional locomotion (CyclicFreeze, then
         // CyclicCrossBlend) instead of sweeping through intermediate directions.
         // The source's Direction ramps over several samples, so only a change of
@@ -36,6 +43,12 @@ namespace ActorAnimation
         constexpr std::int32_t kStandingTurnState = 1;
         constexpr std::uint32_t kInitialTurnStateOverrideLogs = 8;
         constexpr std::uint32_t kTurnStateOverrideLogInterval = 120;
+        // A locomotion dispatch the graph keeps rejecting retries for much longer
+        // than an actor may visibly stand still. Holding the transform for the whole
+        // retry leaves the actor running on the spot and then applies the collected
+        // backlog in one jump when the state finally settles, so the hold gives up
+        // after this and follows the network path with the graph state reached so far.
+        constexpr float kUnsettledTranslationHoldSeconds = 0.15F;
         constexpr std::uint32_t kGraphRecoveryStableFrames = 2;
         constexpr float kGraphRecoveryFallbackSeconds = 2.0F;
         constexpr std::uint32_t kGraphRecoveryWaitLogInterval = 120;
@@ -391,6 +404,40 @@ namespace ActorAnimation
             }
         }
 
+        // The vanilla power attack events of the race attack data. A remote actor's
+        // graph takes each from its ready state (1hm_behavior.hkx) when its hands
+        // match the condition, and plays the NPC variant of the clip.
+        const RE::BSFixedString& GetPowerAttackEvent(const RE::Actor& a_actor, const Network::Attack& a_attack)
+        {
+            // Indexed by Network::PowerAttackDirection.
+            static const std::array<RE::BSFixedString, 5> rightHandEvents{ "attackPowerStartInPlace",
+                "attackPowerStartForward", "attackPowerStartBackward", "attackPowerStartLeft",
+                "attackPowerStartRight" };
+            static const std::array<RE::BSFixedString, 5> leftHandEvents{ "attackPowerStartInPlaceLeftHand",
+                "attackPowerStartForwardLeftHand", "attackPowerStartBackLeftHand", "attackPowerStartLeftLeftHand",
+                "attackPowerStartRightLeftHand" };
+            static const RE::BSFixedString unarmedRightEvent{ "attackPowerStartForwardH2HRightHand" };
+            static const RE::BSFixedString unarmedLeftEvent{ "attackPowerStartForwardH2HLeftHand" };
+            static const RE::BSFixedString unarmedDualEvent{ "attackPowerStartH2HCombo" };
+            static const RE::BSFixedString dualWieldEvent{ "attackPowerStartDualWield" };
+            static const RE::BSFixedString bashPowerStartEvent{ "bashPowerStart" };
+            const auto direction = static_cast<std::size_t>(a_attack.direction);
+            // Fists have only a forward power attack per hand.
+            const bool rightHandArmed = a_actor.GetEquippedObject(false) != nullptr;
+            const bool leftHandArmed = a_actor.GetEquippedObject(true) != nullptr;
+            switch (a_attack.action)
+            {
+                case Network::AttackAction::kLeft:
+                    return leftHandArmed ? leftHandEvents[direction] : unarmedLeftEvent;
+                case Network::AttackAction::kDual:
+                    return rightHandArmed || leftHandArmed ? dualWieldEvent : unarmedDualEvent;
+                case Network::AttackAction::kBash:
+                    return bashPowerStartEvent;
+                default:
+                    return rightHandArmed ? rightHandEvents[direction] : unarmedRightEvent;
+            }
+        }
+
         bool IsHoldingBow(const RE::Actor& a_actor)
         {
             const auto* rightHand = a_actor.GetEquippedObject(false);
@@ -513,7 +560,39 @@ namespace ActorAnimation
             == a_remote.animation->desiredRevision.load(std::memory_order_acquire);
     }
 
-    bool CanDispatchAttack(const RemoteActor& a_remote, Network::AttackAction a_attack)
+    bool ShouldHoldTranslation(RemoteActor& a_remote, float a_deltaTime)
+    {
+        if (!a_remote.animation)
+        {
+            return false;
+        }
+
+        auto& state = *a_remote.animation;
+        if (IsAnimationStateSettledExceptLanding(a_remote))
+        {
+            state.unsettledTranslationHoldElapsed = 0.0F;
+            state.unsettledTranslationHoldReported = false;
+            return false;
+        }
+
+        state.unsettledTranslationHoldElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        if (state.unsettledTranslationHoldElapsed < kUnsettledTranslationHoldSeconds)
+        {
+            return true;
+        }
+        if (!state.unsettledTranslationHoldReported)
+        {
+            state.unsettledTranslationHoldReported = true;
+            logs::info(
+                "Animation sync resumed translation while its locomotion dispatch is unsettled: actor={:08X} "
+                "dispatched={} heldSeconds={:.3f} rejectedEventAttempts={}",
+                a_remote.handle.native_handle(), Multiplayer::GetMovementStateName(state.lastDispatched.movementState),
+                state.unsettledTranslationHoldElapsed, state.rejectedEventAttempts);
+        }
+        return false;
+    }
+
+    bool CanDispatchAttack(const RemoteActor& a_remote, const Network::Attack& a_attack)
     {
         if (!GameThread::Require("CanDispatchAttack") || !a_remote.ready || !a_remote.animation
             || !a_remote.animationGraphHolder || !IsAnimationStateSettled(a_remote)
@@ -521,7 +600,7 @@ namespace ActorAnimation
             || IsBowOrCastPlaying(*a_remote.animation) ||
             // The source bashes from a raised block, so only a bash plays from it.
             // Other attacks wait until the block is lowered.
-            (a_attack != Network::AttackAction::kBash && IsBlockPlaying(*a_remote.animation)) ||
+            (a_attack.action != Network::AttackAction::kBash && IsBlockPlaying(*a_remote.animation)) ||
             // The reassert flag stays armed while idle after a completed draw, so
             // only a transition that is still unsettled may hold the attack.
             IsWeaponTransitionUnsettled(*a_remote.animation) || a_remote.animation->graphRecoveryInProgress
@@ -551,9 +630,9 @@ namespace ActorAnimation
             && a_remote.animation->graphManager == graphManager.get();
     }
 
-    bool CanChainAttack(const RemoteActor& a_remote, Network::AttackAction a_attack)
+    bool CanChainAttack(const RemoteActor& a_remote, const Network::Attack& a_attack)
     {
-        if (!GameThread::Require("CanChainAttack") || !a_remote.ready || a_attack == Network::AttackAction::kBash
+        if (!GameThread::Require("CanChainAttack") || !a_remote.ready || a_attack.action == Network::AttackAction::kBash
             || !a_remote.animation || !a_remote.animationGraphHolder || !IsAnimationStateSettled(a_remote)
             || !a_remote.animation->attackPlaybackPending || !a_remote.animation->attackPlaybackObserved
             || a_remote.animation->attackChainDispatched || a_remote.animation->graphRecoveryInProgress
@@ -583,10 +662,48 @@ namespace ActorAnimation
             && a_remote.animation->graphManager == graphManager.get();
     }
 
-    bool DispatchAttack(RemoteActor& a_remote, Network::AttackAction a_attack)
+    bool CanPowerUpAttack(const RemoteActor& a_remote, const Network::Attack& a_attack)
     {
-        const bool chaining = CanChainAttack(a_remote, a_attack);
-        if (!chaining && !CanDispatchAttack(a_remote, a_attack))
+        if (!GameThread::Require("CanPowerUpAttack") || !a_remote.ready || !a_attack.power
+            || a_attack.action == Network::AttackAction::kBash || !a_remote.animation || !a_remote.animationGraphHolder
+            || !IsAnimationStateSettled(a_remote)
+            || !a_remote.animation->attackPlaybackPending
+            // The actor's attack state is not waited for: a remote actor reports it
+            // well into the swing, which showed most of the plain swing before the
+            // power attack. A graph not yet in its attack state rejects the event
+            // and the action is retried.
+            || a_remote.animation->attackPlaybackBash || a_remote.animation->attackPlaybackPower
+            || a_remote.animation->attackPlaybackAction != a_attack.action
+            || a_remote.animation->graphRecoveryInProgress || a_remote.animation->targetAnimationState.jumping
+            || !a_remote.animation->targetAnimationState.weaponDrawn)
+        {
+            return false;
+        }
+
+        auto actorPtr = a_remote.handle.get();
+        if (!actorPtr)
+        {
+            return false;
+        }
+        auto* actor = actorPtr.get();
+        auto* holder = static_cast<RE::IAnimationGraphManagerHolder*>(actor);
+        const auto* actorState = actor->AsActorState();
+        if (holder != a_remote.animationGraphHolder || !actorState
+            || actorState->GetWeaponState() != RE::WEAPON_STATE::kDrawn)
+        {
+            return false;
+        }
+
+        RE::BSTSmartPointer<RE::BSAnimationGraphManager> graphManager;
+        return actor->Is3DLoaded() && actor->GetAnimationGraphManager(graphManager) && graphManager
+            && a_remote.animation->graphManager == graphManager.get();
+    }
+
+    bool DispatchAttack(RemoteActor& a_remote, const Network::Attack& a_attack)
+    {
+        const bool poweringUp = CanPowerUpAttack(a_remote, a_attack);
+        const bool chaining = !poweringUp && CanChainAttack(a_remote, a_attack);
+        if (!poweringUp && !chaining && !CanDispatchAttack(a_remote, a_attack))
         {
             return false;
         }
@@ -597,8 +714,9 @@ namespace ActorAnimation
         {
             return false;
         }
-        const auto& attackEvent = GetAttackEvent(*actorPtr, a_attack);
-        if (!chaining)
+        const auto& plainEvent = GetAttackEvent(*actorPtr, a_attack.action);
+        const auto& attackEvent = a_attack.power ? GetPowerAttackEvent(*actorPtr, a_attack) : plainEvent;
+        if (!chaining && !poweringUp)
         {
             // An exit left over from an earlier bash must not end this attack.
             (void)ActorRegistry::ConsumeBashExits(*actorPtr);
@@ -610,24 +728,57 @@ namespace ActorAnimation
         // no AI update can run inside this synchronous call.
         actorFlags.reset(RE::Actor::BOOL_FLAGS::kAttackingDisabled);
         bool accepted = SendNetworkAnimationEvent(a_remote, attackEvent);
+        // A graph without the power attack of these hands or this direction, for
+        // example from a mod, shows the plain attack of the same hand instead. A
+        // rejected chain only means the combo window does not take it, so the
+        // power attack waits for the playing attack to finish. A playing plain
+        // attack that rejects its power attack already shows the plain one.
+        const bool startsNewAttack = !chaining && !poweringUp;
+        const bool powerFellBack
+            = !accepted && a_attack.power && startsNewAttack && SendNetworkAnimationEvent(a_remote, plainEvent);
+        accepted = accepted || powerFellBack;
         // The dual-wield branch requires two one-handed weapons in the actor's hand
         // types. When a mod or an unsettled hand disagrees, a right-hand swing is
         // the vanilla presentation of the same input.
-        const bool fellBack = !accepted && a_attack == Network::AttackAction::kDual
+        const bool dualFellBack = !accepted && a_attack.action == Network::AttackAction::kDual
+            && (a_attack.power ? startsNewAttack : !poweringUp)
             && SendNetworkAnimationEvent(a_remote, attackStartEvent);
-        accepted = accepted || fellBack;
+        accepted = accepted || dualFellBack;
         actorFlags.set(RE::Actor::BOOL_FLAGS::kAttackingDisabled);
         if (!accepted)
         {
             return false;
         }
-        if (fellBack)
+        if (a_attack.power)
+        {
+            // Stamina is not managed on the actor. Logged to check that an exhausted
+            // actor still plays power attacks.
+            const auto* actorValueOwner = actorPtr->AsActorValueOwner();
+            logs::info(
+                "Animation sync dispatched power attack: actor={:08X} action={} direction={} event={} "
+                "presentedAsPlain={} presentedAsRightHand={} poweredUpPlayingAttack={} chained={} stamina={:.1f}",
+                a_remote.handle.native_handle(), Network::GetAttackActionName(a_attack.action),
+                Network::GetPowerAttackDirectionName(a_attack.direction), attackEvent.c_str(), powerFellBack,
+                dualFellBack, poweringUp, chaining,
+                actorValueOwner ? actorValueOwner->GetActorValue(RE::ActorValue::kStamina) : 0.0F);
+        }
+        else if (dualFellBack)
         {
             logs::info("Animation sync presented dual-wield attack as a right-hand attack: actor={:08X}",
                 a_remote.handle.native_handle());
         }
 
         a_remote.animation->attackPlaybackElapsed = 0.0F;
+        // Only an attack that did not fall back to the plain swing is a power attack.
+        a_remote.animation->attackPlaybackPower = a_attack.power && !powerFellBack;
+        if (poweringUp)
+        {
+            // The power attack plays on in the attack state. Its own attack state is
+            // observed again, so the transition cannot end ownership early.
+            a_remote.animation->attackPlaybackObserved = false;
+            return true;
+        }
+        a_remote.animation->attackPlaybackAction = a_attack.action;
         if (chaining)
         {
             // The graph leaves the combo window on a later update. Until then the
@@ -636,7 +787,7 @@ namespace ActorAnimation
             return true;
         }
         a_remote.animation->attackPlaybackPending = true;
-        a_remote.animation->attackPlaybackBash = a_attack == Network::AttackAction::kBash;
+        a_remote.animation->attackPlaybackBash = a_attack.action == Network::AttackAction::kBash;
         a_remote.animation->attackPlaybackObserved = false;
         a_remote.animation->attackChainDispatched = false;
         a_remote.animation->attackLocomotionReassertPending = false;
@@ -1089,6 +1240,7 @@ namespace ActorAnimation
         a_state.attackPlaybackPending = false;
         a_state.attackPlaybackObserved = false;
         a_state.attackChainDispatched = false;
+        a_state.attackPlaybackPower = false;
         a_state.attackPlaybackElapsed = 0.0F;
         a_state.attackLocomotionReassertPending = false;
         ResetHandPresentation(a_state);
@@ -1130,6 +1282,7 @@ namespace ActorAnimation
         a_state.attackPlaybackPending = false;
         a_state.attackPlaybackObserved = false;
         a_state.attackChainDispatched = false;
+        a_state.attackPlaybackPower = false;
         a_state.attackPlaybackElapsed = 0.0F;
         // Native attacks normally return to locomotion themselves. Also request an
         // explicit replay without invalidating the drawn stance; treating this as a
@@ -1350,6 +1503,7 @@ namespace ActorAnimation
             animationState->attackPlaybackPending = false;
             animationState->attackPlaybackObserved = false;
             animationState->attackChainDispatched = false;
+            animationState->attackPlaybackPower = false;
             animationState->attackPlaybackElapsed = 0.0F;
             animationState->attackLocomotionReassertPending = false;
             ResetHandPresentation(*animationState);
@@ -1390,6 +1544,7 @@ namespace ActorAnimation
             animationState->attackPlaybackPending = false;
             animationState->attackPlaybackObserved = false;
             animationState->attackChainDispatched = false;
+            animationState->attackPlaybackPower = false;
             animationState->attackPlaybackElapsed = 0.0F;
             animationState->attackLocomotionReassertPending = false;
             ResetHandPresentation(*animationState);
@@ -1428,6 +1583,7 @@ namespace ActorAnimation
             animationState->attackPlaybackPending = false;
             animationState->attackPlaybackObserved = false;
             animationState->attackChainDispatched = false;
+            animationState->attackPlaybackPower = false;
             animationState->attackPlaybackElapsed = 0.0F;
             animationState->attackLocomotionReassertPending = false;
             ResetHandPresentation(*animationState);
@@ -1729,6 +1885,8 @@ namespace ActorAnimation
         const bool hadPreviousState = hadPreviouslyDispatched && !replayingWeaponBase;
         const bool dispatchRequired = reassertLocomotionAfterWeaponTransition || !animationState->hasDispatched
             || animationState->lastDispatched != state;
+        const char* const previousStateLabel
+            = hadPreviousState ? Multiplayer::GetMovementStateName(previousState.movementState) : "uninitialized";
         const bool jumpRequired
             = dispatchRequired && (hadPreviousState ? previousState.jumping != state.jumping : state.jumping);
         const bool jumpLandRequired = jumpRequired && !state.jumping;
@@ -1797,14 +1955,13 @@ namespace ActorAnimation
         const auto stopEventAttempt = animationState->rejectedEventAttempts + 1;
         if (!stopEventsAccepted
             && (stopEventAttempt < kMaximumEventDispatchAttempts
-                || animationState->rejectedEventElapsed < kMinimumEventRetrySeconds))
+                || animationState->rejectedEventElapsed < kLocomotionEventRetrySeconds))
         {
             logs::info(
                 "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} "
                 "result=retrying-stop-events strings={} moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} "
                 "jumpEvent=deferred/{} eventAttempt={}/{}",
-                actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision),
-                hadPreviousState ? Multiplayer::GetMovementStateName(previousState.movementState) : "uninitialized",
+                actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision), previousStateLabel,
                 hadPreviousState && previousState.jumping ? "jumping" : "grounded",
                 Multiplayer::GetMovementStateName(state.movementState), state.jumping ? "jumping" : "grounded",
                 stringsAvailable, moveAccepted, moveStopRequired, sneakAccepted, sneakStopRequired, sprintAccepted,
@@ -1903,7 +2060,7 @@ namespace ActorAnimation
             const auto variableAttempt = animationState->failedDispatchAttempts + 1;
             const auto eventAttempt = animationState->rejectedEventAttempts + 1;
             const bool eventAttemptsExhausted = !eventsAccepted && eventAttempt >= kMaximumEventDispatchAttempts
-                && animationState->rejectedEventElapsed >= kMinimumEventRetrySeconds;
+                && animationState->rejectedEventElapsed >= kLocomotionEventRetrySeconds;
             const bool stateProcessed = variablesAccepted && (eventsAccepted || eventAttemptsExhausted);
             if (variablesAccepted || variableAttempt == 1 || variableAttempt % 60 == 0)
             {
@@ -1913,8 +2070,7 @@ namespace ActorAnimation
                     "directionVariable={} turnVariable={} sprintVariable={} jumpVariable={} moveEvent={}/{} "
                     "sneakEvent={}/{} sprintEvent={}/{} jumpEvent={}/{} graphSpeed={:.1f} variableAttempt={} "
                     "eventAttempt={}/{}",
-                    actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision),
-                    hadPreviousState ? Multiplayer::GetMovementStateName(previousState.movementState) : "uninitialized",
+                    actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision), previousStateLabel,
                     hadPreviousState && previousState.jumping ? "jumping" : "grounded",
                     Multiplayer::GetMovementStateName(state.movementState), state.jumping ? "jumping" : "grounded",
                     !variablesAccepted           ? "variables-rejected"
