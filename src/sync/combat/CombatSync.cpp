@@ -11,7 +11,10 @@ namespace CombatSync
 {
 	namespace
 	{
-		constexpr float kAnimationActionTimeout = 10.0F;
+		// An attack is presentation of what the peer did just now. Replaying it
+		// seconds later only extends the swing sequence past the peer's own; this
+		// still covers a weapon draw or swing that the attack waits behind.
+		constexpr float kAnimationActionTimeoutSeconds = 3.0F;
 		constexpr std::uint32_t kMaximumAnimationActionAttempts = 4;
 		// Rejected attacks are also retried for at least this long, so a high frame
 		// rate cannot spend every attempt inside one short graph blend.
@@ -163,7 +166,7 @@ namespace CombatSync
 		}
 		while (!a_state.pendingAnimationActions.empty() &&
 			a_state.pendingAnimationActions.front().age >=
-				kAnimationActionTimeout) {
+				kAnimationActionTimeoutSeconds) {
 			logs::warn(
 				"Animation sync timed out queued attack: player={} actionSequence={} graphEpoch={}",
 				a_remote.playerID,
@@ -186,8 +189,14 @@ namespace CombatSync
 		RemoteActor& a_actor,
 		bool a_handsSettled)
 	{
-		if (a_state.pendingAnimationActions.empty() ||
-			ActorAnimation::IsAnimationActionPlaying(a_actor)) {
+		if (a_state.pendingAnimationActions.empty()) {
+			return;
+		}
+		// A playing attack only takes the next one as a chained swing in its combo
+		// window. Waiting for the whole recovery instead makes every replayed swing
+		// slower than the local chain, so spammed attacks pile up behind it.
+		const bool chaining = ActorAnimation::IsAnimationActionPlaying(a_actor);
+		if (chaining && !ActorAnimation::CanChainNormalAttack(a_actor)) {
 			return;
 		}
 
@@ -200,21 +209,28 @@ namespace CombatSync
 			!a_remote.checkpoint.animationState.weaponDrawn ||
 			// A weapon swap published before the attack must reach the hands first.
 			!a_handsSettled ||
-			!ActorAnimation::CanDispatchNormalAttack(a_actor)) {
+			(!chaining && !ActorAnimation::CanDispatchNormalAttack(a_actor))) {
 			return;
 		}
 
-		++pending.dispatchAttempts;
 		const bool accepted = ActorAnimation::DispatchNormalAttack(
 			a_actor);
+		if (!accepted && chaining) {
+			// A closed combo window is not a rejection of the attack itself; it
+			// starts normally once the playing attack completes.
+			return;
+		}
+		++pending.dispatchAttempts;
 		if (accepted) {
 			logs::info(
-				"Animation sync processed normal attack: player={} actor={:08X} actionSequence={} graphEpoch={} checkpointSequence={}",
+				"Animation sync processed normal attack: player={} actor={:08X} actionSequence={} graphEpoch={} checkpointSequence={} chained={} queued={}",
 				a_remote.playerID,
 				a_actor.handle.native_handle(),
 				static_cast<unsigned long long>(action.actionSequence),
 				static_cast<unsigned long long>(action.graphEpoch),
-				static_cast<unsigned long long>(action.checkpointSequence));
+				static_cast<unsigned long long>(action.checkpointSequence),
+				chaining,
+				a_state.pendingAnimationActions.size() - 1);
 			a_state.pendingAnimationActions.pop_front();
 		} else if (pending.dispatchAttempts >=
 				kMaximumAnimationActionAttempts &&

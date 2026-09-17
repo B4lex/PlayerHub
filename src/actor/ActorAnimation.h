@@ -95,11 +95,15 @@ namespace ActorAnimation
 		float recoveryWaitElapsed{ 0.0F };
 		std::uint32_t recoveryStableFrames{ 0 };
 		std::uint32_t recoveryCount{ 0 };
-		// A network attack temporarily owns the graph. Base-state changes and later
-		// actions wait for the native attack state to finish (or a bounded fallback).
+		// A network attack temporarily owns the graph. Base-state changes wait for
+		// the native attack state to finish (or a bounded fallback); later attacks
+		// either chain in its combo window or wait as well.
 		bool attackPlaybackPending{ false };
 		bool attackPlaybackObserved{ false };
 		float attackPlaybackElapsed{ 0.0F };
+		// A queued attack was chained into the playing one. Cleared once the graph
+		// leaves the combo window, so one window consumes at most one attack.
+		bool attackChainDispatched{ false };
 		bool attackLocomotionReassertPending{ false };
 	};
 
@@ -123,6 +127,10 @@ namespace ActorAnimation
 
 	// Semantic attacks may only enter a stable, grounded, fully drawn graph.
 	[[nodiscard]] bool CanDispatchNormalAttack(const RemoteActor& a_remote);
+	// The playing network attack is in its combo window, where the next queued
+	// attack chains as the following swing, as it does on the local player.
+	[[nodiscard]] bool CanChainNormalAttack(const RemoteActor& a_remote);
+	// Starts an attack, or chains it into the playing one when that is allowed.
 	[[nodiscard]] bool DispatchNormalAttack(RemoteActor& a_remote);
 	[[nodiscard]] bool IsAnimationActionPlaying(const RemoteActor& a_remote);
 	// A replicated draw or sheathe clip has not reached its exit annotation or

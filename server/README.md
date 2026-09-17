@@ -44,6 +44,13 @@ to `http://127.0.0.1:3000` for local testing.
   relay, storage, and late-join lifecycle as `player:appearance`. See
   `specs/007-player-equipment-sync.md`.
 - `player:left` tells peers to remove the disconnected player's puppet.
+- `latency:probe` is acknowledged immediately with `{"ok": true, "serverTimeMs": ...}`
+  and never relayed. The plugin sends one per second, shows the acknowledgement
+  round trip as its ping, and uses `serverTimeMs` to estimate the server clock.
+- `player:update` may carry an optional `sentAtMs`: the source's emit time on the
+  server clock. It is relayed on `player:state` but never stored or recorded, and
+  a missing or invalid value is dropped without rejecting the checkpoint. Peers
+  use it to show the remote packet delay.
 
 Attacks are intentionally not another field in `player:update`: a snapshot
 field would collapse repeated attacks. The plugin emits one separate

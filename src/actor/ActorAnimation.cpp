@@ -40,6 +40,14 @@ namespace ActorAnimation
 		constexpr float kAttackStartFallbackSeconds = 1.25F;
 		constexpr float kAttackPlaybackFallbackSeconds = 4.0F;
 
+		// The native attack takes attackStart as its next combo swing in these
+		// states; CombatSync captures the local player's chained swings from them.
+		constexpr bool IsAttackChainWindow(RE::ATTACK_STATE_ENUM a_state) noexcept
+		{
+			return a_state == RE::ATTACK_STATE_ENUM::kNextAttack ||
+				a_state == RE::ATTACK_STATE_ENUM::kFollowThrough;
+		}
+
 		constexpr bool IsWeaponTransitionAnimating(
 			RE::WEAPON_STATE a_weaponState,
 			bool a_weaponDrawn) noexcept
@@ -401,7 +409,9 @@ namespace ActorAnimation
 			!IsAnimationStateSettled(a_remote) ||
 			a_remote.animation->attackPlaybackPending ||
 			a_remote.animation->attackLocomotionReassertPending ||
-			a_remote.animation->weaponLocomotionReassertPending ||
+			// The reassert flag stays armed while idle after a completed draw, so
+			// only a transition that is still unsettled may hold the attack.
+			IsWeaponTransitionUnsettled(*a_remote.animation) ||
 			a_remote.animation->graphRecoveryInProgress ||
 			a_remote.animation->targetAnimationState.jumping ||
 			!a_remote.animation->targetAnimationState.weaponDrawn) {
@@ -427,9 +437,43 @@ namespace ActorAnimation
 			a_remote.animation->graphManager == graphManager.get();
 	}
 
+	bool CanChainNormalAttack(const RemoteActor& a_remote)
+	{
+		if (!GameThread::Require("CanChainNormalAttack") || !a_remote.ready ||
+			!a_remote.animation || !a_remote.animationGraphHolder ||
+			!IsAnimationStateSettled(a_remote) ||
+			!a_remote.animation->attackPlaybackPending ||
+			!a_remote.animation->attackPlaybackObserved ||
+			a_remote.animation->attackChainDispatched ||
+			a_remote.animation->graphRecoveryInProgress ||
+			a_remote.animation->targetAnimationState.jumping ||
+			!a_remote.animation->targetAnimationState.weaponDrawn) {
+			return false;
+		}
+
+		auto actorPtr = a_remote.handle.get();
+		if (!actorPtr) {
+			return false;
+		}
+		auto* actor = actorPtr.get();
+		auto* holder = static_cast<RE::IAnimationGraphManagerHolder*>(actor);
+		const auto* actorState = actor->AsActorState();
+		if (holder != a_remote.animationGraphHolder || !actorState ||
+			actorState->GetWeaponState() != RE::WEAPON_STATE::kDrawn ||
+			!IsAttackChainWindow(actorState->GetAttackState())) {
+			return false;
+		}
+
+		RE::BSTSmartPointer<RE::BSAnimationGraphManager> graphManager;
+		return actor->Is3DLoaded() &&
+			actor->GetAnimationGraphManager(graphManager) && graphManager &&
+			a_remote.animation->graphManager == graphManager.get();
+	}
+
 	bool DispatchNormalAttack(RemoteActor& a_remote)
 	{
-		if (!CanDispatchNormalAttack(a_remote)) {
+		const bool chaining = CanChainNormalAttack(a_remote);
+		if (!chaining && !CanDispatchNormalAttack(a_remote)) {
 			return false;
 		}
 
@@ -450,9 +494,16 @@ namespace ActorAnimation
 			return false;
 		}
 
+		a_remote.animation->attackPlaybackElapsed = 0.0F;
+		if (chaining) {
+			// The graph leaves the combo window on a later update. Until then the
+			// actor state still reports it and must not consume another attack.
+			a_remote.animation->attackChainDispatched = true;
+			return true;
+		}
 		a_remote.animation->attackPlaybackPending = true;
 		a_remote.animation->attackPlaybackObserved = false;
-		a_remote.animation->attackPlaybackElapsed = 0.0F;
+		a_remote.animation->attackChainDispatched = false;
 		a_remote.animation->attackLocomotionReassertPending = false;
 		const auto* actorState = actorPtr->AsActorState();
 		a_remote.animation->attackPlaybackObserved = actorState &&
@@ -527,6 +578,7 @@ namespace ActorAnimation
 		a_state.weaponRestoredWithoutCompletion = false;
 		a_state.attackPlaybackPending = false;
 		a_state.attackPlaybackObserved = false;
+		a_state.attackChainDispatched = false;
 		a_state.attackPlaybackElapsed = 0.0F;
 		a_state.attackLocomotionReassertPending = false;
 		a_state.processedRevision.store(0, std::memory_order_release);
@@ -552,6 +604,10 @@ namespace ActorAnimation
 			actorState->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone;
 		a_state.attackPlaybackObserved =
 			a_state.attackPlaybackObserved || attacking;
+		if (a_state.attackChainDispatched && actorState &&
+			!IsAttackChainWindow(actorState->GetAttackState())) {
+			a_state.attackChainDispatched = false;
+		}
 		const bool completed = a_state.attackPlaybackObserved && !attacking;
 		const bool startTimedOut = !a_state.attackPlaybackObserved &&
 			a_state.attackPlaybackElapsed >= kAttackStartFallbackSeconds;
@@ -570,6 +626,7 @@ namespace ActorAnimation
 			playbackTimedOut);
 		a_state.attackPlaybackPending = false;
 		a_state.attackPlaybackObserved = false;
+		a_state.attackChainDispatched = false;
 		a_state.attackPlaybackElapsed = 0.0F;
 		// Native attacks normally return to locomotion themselves. Also request an
 		// explicit replay without invalidating the drawn stance; treating this as a
@@ -784,6 +841,7 @@ namespace ActorAnimation
 			animationState->weaponTransitionMoveStartDispatched = false;
 			animationState->attackPlaybackPending = false;
 			animationState->attackPlaybackObserved = false;
+			animationState->attackChainDispatched = false;
 			animationState->attackPlaybackElapsed = 0.0F;
 			animationState->attackLocomotionReassertPending = false;
 			animationState->processedRevision.store(
@@ -823,6 +881,7 @@ namespace ActorAnimation
 			animationState->weaponTransitionMoveStartDispatched = false;
 			animationState->attackPlaybackPending = false;
 			animationState->attackPlaybackObserved = false;
+			animationState->attackChainDispatched = false;
 			animationState->attackPlaybackElapsed = 0.0F;
 			animationState->attackLocomotionReassertPending = false;
 			animationState->processedRevision.store(
@@ -864,6 +923,7 @@ namespace ActorAnimation
 			animationState->weaponReplayDiagnosticFramesRemaining = 0;
 			animationState->attackPlaybackPending = false;
 			animationState->attackPlaybackObserved = false;
+			animationState->attackChainDispatched = false;
 			animationState->attackPlaybackElapsed = 0.0F;
 			animationState->attackLocomotionReassertPending = false;
 		}

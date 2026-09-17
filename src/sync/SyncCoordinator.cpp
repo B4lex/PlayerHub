@@ -1,6 +1,7 @@
 #include "sync/SyncCoordinator.h"
 #include "actor/ActorAnimation.h"
 #include "actor/ActorRuntime.h"
+#include "network/PacketDelay.h"
 #include "network/SocketIOClient.h"
 #include "sync/ActorLifecycle.h"
 #include "sync/CheckpointPublisher.h"
@@ -62,6 +63,9 @@ namespace SyncCoordinator
 					.previousSequence = state.lastSequence,
 					.checkpoint = update.transform
 				};
+				if (update.sentAtServerMilliseconds) {
+					Network::RecordRemotePacketDelay(*update.sentAtServerMilliseconds);
+				}
 				FurnitureSync::OnCheckpointAccepted(checkpointUpdate);
 				AnimationSync::OnCheckpointAccepted(checkpointUpdate);
 				CombatSync::OnCheckpointAccepted(state.combat, checkpointUpdate);

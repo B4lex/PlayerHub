@@ -5,6 +5,8 @@
 #include "protocol/PlayerState.h"
 
 #include <cstdint>
+#include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -14,6 +16,9 @@ namespace Network
 	{
 		std::string playerID;
 		PlayerTransform transform;
+		// Server-clock milliseconds when the source emitted this checkpoint.
+		// Empty when the source had no clock estimate yet.
+		std::optional<double> sentAtServerMilliseconds;
 	};
 
 	struct RemotePlayerAppearance
@@ -64,6 +69,12 @@ namespace Network
 	void PublishLocalNormalAttack(
 		std::uint64_t a_graphEpoch,
 		std::uint64_t a_checkpointSequence);
+
+	// Emits latency:probe. a_onAcknowledged runs on the transport thread when the
+	// server acknowledges it, with the server clock in milliseconds when the ack
+	// carried one; it never runs if the connection drops first.
+	void EmitLatencyProbe(
+		std::function<void(std::optional<double> a_serverTimeMilliseconds)> a_onAcknowledged);
 
 	// Transfers network-thread updates to the caller. The authoritative
 	// main-loop frame hook is the only consumer.

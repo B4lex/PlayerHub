@@ -1,4 +1,5 @@
 #include "network/SocketIOClient.h"
+#include "network/LatencyProbe.h"
 
 #include <sio_client.h>
 
@@ -340,6 +341,15 @@ namespace Network
 					(std::numeric_limits<std::int64_t>::max)(),
 					sequence)) {
 				return false;
+			}
+
+			// Optional transport metadata: a malformed stamp only loses the delay
+			// sample, never the checkpoint.
+			double sentAt = 0.0;
+			if (ReadNumber(values, "sentAtMs", sentAt) && sentAt >= 0.0) {
+				a_result.sentAtServerMilliseconds = sentAt;
+			} else {
+				a_result.sentAtServerMilliseconds.reset();
 			}
 
 			a_result.transform = PlayerTransform{
@@ -984,6 +994,9 @@ namespace Network
 			static_cast<std::int64_t>(a_transform.graphEpoch));
 		values["sequence"] = sio::int_message::create(
 			static_cast<std::int64_t>(a_transform.sequence));
+		if (const auto serverTime = GetServerTimeMilliseconds()) {
+			values["sentAtMs"] = sio::double_message::create(*serverTime);
+		}
 
 		GetClient().socket()->emit("player:update", payload);
 	}
@@ -1126,6 +1139,30 @@ namespace Network
 			static_cast<unsigned long long>(a_graphEpoch),
 			static_cast<unsigned long long>(a_checkpointSequence));
 		GetClient().socket()->emit("animation:action", payload);
+	}
+
+	void EmitLatencyProbe(
+		std::function<void(std::optional<double> a_serverTimeMilliseconds)> a_onAcknowledged)
+	{
+		if (!IsConnected()) {
+			return;
+		}
+
+		GetClient().socket()->emit(
+			"latency:probe",
+			nullptr,
+			[onAcknowledged = std::move(a_onAcknowledged)](sio::message::list const& a_response) {
+				std::optional<double> serverTime;
+				if (a_response.size() > 0 && a_response[0] &&
+					a_response[0]->get_flag() == sio::message::flag_object) {
+					double value = 0.0;
+					if (ReadNumber(a_response[0]->get_map(), "serverTimeMs", value) &&
+						value >= 0.0) {
+						serverTime = value;
+					}
+				}
+				onAcknowledged(serverTime);
+			});
 	}
 
 	RemotePlayerChanges DrainRemotePlayerChanges()
