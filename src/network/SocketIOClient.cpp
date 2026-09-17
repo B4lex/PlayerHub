@@ -20,7 +20,7 @@ namespace Network
 {
     namespace
     {
-        constexpr auto kDefaultServerEndpoint = "http://172.22.53.101:3000";
+        constexpr auto kDefaultServerEndpoint = "https://8fa21dsv.lmfao.pp.ua";
         constexpr auto kServerEndpointPath = "Data/SKSE/Plugins/skyrim-mp-server.txt";
         std::atomic_bool connected{ false };
         std::atomic_uint64_t connectionGeneration{ 0 };
