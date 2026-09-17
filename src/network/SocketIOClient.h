@@ -70,8 +70,9 @@ namespace Network
 	void PublishLocalEquipment(const Multiplayer::PlayerEquipment& a_equipment);
 
 	// Publishes one item in the ordered semantic action stream. Power attacks are
-	// intentionally normalized to this same normal-attack vocabulary by capture.
-	void PublishLocalNormalAttack(
+	// intentionally normalized to the plain attack of the same hand by capture.
+	void PublishLocalAttack(
+		AttackAction a_attack,
 		std::uint64_t a_graphEpoch,
 		std::uint64_t a_checkpointSequence);
 

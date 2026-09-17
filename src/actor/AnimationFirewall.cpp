@@ -72,8 +72,10 @@ namespace AnimationFirewall
 					IsWeaponTransitionEndEvent(eventView, false);
 				const bool shouldTraceWeaponEvent =
 					IsWeaponTransitionTraceEvent(eventView);
+				const bool isBashExit =
+					AnimationEvents::EqualsIgnoringCase(eventView, "bashExit");
 				if (!isJumpLandEnd && !isWeaponTransitionEnd &&
-					!shouldTraceWeaponEvent) {
+					!shouldTraceWeaponEvent && !isBashExit) {
 					return RE::BSEventNotifyControl::kContinue;
 				}
 
@@ -100,6 +102,12 @@ namespace AnimationFirewall
 						actorHandle,
 						expectedWeaponDrawn,
 						eventName);
+				}
+				if (observation.bashExitCount != 0) {
+					logs::info(
+						"Observed actor bash exit marker: actor={:08X} count={}",
+						actorHandle,
+						observation.bashExitCount);
 				}
 				if (weaponCompletionCount != 0) {
 					logs::info(

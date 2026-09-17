@@ -25,12 +25,16 @@ to `http://127.0.0.1:3000` for local testing.
 - `player:update` carries the local player's position, heading, measured speed,
   explicit movement-animation state, jump phase, bow draw and per-hand spell
   casting (`bowDrawn`, `castingLeft`, `castingRight`, optional and defaulting to
-  `false`; see `specs/011-bow-and-spell-presentation-sync.md`), cell and worldspace form IDs,
+  `false`; see `specs/011-bow-and-spell-presentation-sync.md`), blocking
+  (`blocking`, optional and defaulting to `false`; see
+  `specs/012-off-hand-block-and-bash-sync.md`), cell and worldspace form IDs,
   occupied furniture reference FormID, graph epoch, and monotonically increasing
   checkpoint sequence number.
 - `player:state` relays a validated transform to every other connected player.
-- `animation:action` carries a validated, ordered semantic action. The current
-  vocabulary is only `attack/normal`; power attacks are normalized to it.
+- `animation:action` carries a validated, ordered semantic action. The
+  vocabulary is `attack/normal`, `attack/left`, `attack/dual`, and `attack/bash`;
+  power attacks and power bashes are normalized to the plain action of the same
+  hand.
 - `player:action` relays that action to every other connected player after its
   graph epoch, drawn-weapon, and unoccupied-furniture checkpoint prerequisites
   are verified.
@@ -57,7 +61,7 @@ to `http://127.0.0.1:3000` for local testing.
 
 Attacks are intentionally not another field in `player:update`: a snapshot
 field would collapse repeated attacks. The plugin emits one separate
-`animation:action` message for every observed melee attack and receives it as
+`animation:action` message for every observed melee attack or bash and receives it as
 `player:action` on peers.
 
 The plugin publishes at 20 Hz. Peers in different exterior cells of the same

@@ -19,6 +19,7 @@ def valid_state(sequence: int = 1) -> dict[str, bool | int | float | str]:
         "bowDrawn": False,
         "castingLeft": False,
         "castingRight": False,
+        "blocking": False,
         "cellId": 1,
         "worldspaceId": 60,
         "furnitureRefId": 0,
