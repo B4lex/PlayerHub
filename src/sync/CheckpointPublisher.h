@@ -10,24 +10,22 @@
 // and occupied furniture for one coherent player:update.
 namespace CheckpointPublisher
 {
-	enum class Status
-	{
-		kNotDue,
-		kDisconnected,
-		// Due, but the player had no parent cell. The interval was consumed.
-		kSkipped,
-		kPublished
-	};
+    enum class Status
+    {
+        kNotDue,
+        kDisconnected,
+        // Due, but the player had no parent cell. The interval was consumed.
+        kSkipped,
+        kPublished
+    };
 
-	struct Publication
-	{
-		Status status{ Status::kNotDue };
-		// Valid when status is kPublished.
-		Network::PlayerTransform checkpoint{};
-	};
+    struct Publication
+    {
+        Status status{ Status::kNotDue };
+        // Valid when status is kPublished.
+        Network::PlayerTransform checkpoint{};
+    };
 
-	[[nodiscard]] Publication PublishLocalCheckpoint(
-		const LocalFrame& a_local,
-		float a_delta,
-		std::uint64_t a_graphEpoch);
+    [[nodiscard]] Publication PublishLocalCheckpoint(
+        const LocalFrame& a_local, float a_delta, std::uint64_t a_graphEpoch);
 }

@@ -14,14 +14,14 @@
 // owns and interprets its own member. Accessed only by the main-loop pass.
 struct PeerState
 {
-	Network::PlayerTransform latestCheckpoint;
-	std::uint64_t lastSequence{ 0 };
-	// Checkpoint sequence whose transform the current actor last received.
-	std::uint64_t appliedSequence{ 0 };
-	CombatSync::RemoteState combat;
-	ActorLifecycleState lifecycle;
-	AppearanceSync::RemoteState appearance;
-	EquipmentSync::RemoteState equipment;
+    Network::PlayerTransform latestCheckpoint;
+    std::uint64_t lastSequence{ 0 };
+    // Checkpoint sequence whose transform the current actor last received.
+    std::uint64_t appliedSequence{ 0 };
+    CombatSync::RemoteState combat;
+    ActorLifecycleState lifecycle;
+    AppearanceSync::RemoteState appearance;
+    EquipmentSync::RemoteState equipment;
 };
 
 using Peers = std::unordered_map<std::string, PeerState>;
