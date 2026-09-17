@@ -19,6 +19,7 @@ def valid_equipment(revision: int = 1) -> dict[str, object]:
         ],
         "rightHand": {"plugin": "Skyrim.esm", "formId": 0x12EB7, "kind": "weapon", "weaponType": 1},
         "leftHand": {"plugin": "Skyrim.esm", "formId": 0x1D4EC, "kind": "torch"},
+        "ammo": {"plugin": "Skyrim.esm", "formId": 0x1397D},
     }
 
 
@@ -27,7 +28,7 @@ class ParsePlayerEquipmentTests(unittest.TestCase):
         self.assertEqual(parse_player_equipment(valid_equipment()), valid_equipment())
 
     def test_accepts_empty_equipment(self) -> None:
-        payload = {"revision": 1, "armor": [], "rightHand": None, "leftHand": None}
+        payload = {"revision": 1, "armor": [], "rightHand": None, "leftHand": None, "ammo": None}
 
         self.assertEqual(parse_player_equipment(payload), payload)
 
@@ -43,6 +44,22 @@ class ParsePlayerEquipmentTests(unittest.TestCase):
         payload["leftHand"] = dict(payload["rightHand"])
 
         self.assertEqual(parse_player_equipment(payload), payload)
+
+    def test_accepts_spells_in_both_hands_without_identity(self) -> None:
+        payload = valid_equipment()
+        payload["rightHand"] = {"kind": "spell", "plugin": "Skyrim.esm", "formId": 0x2DD2A}
+        payload["leftHand"] = {"kind": "spell"}
+
+        expected = valid_equipment()
+        expected["rightHand"] = {"kind": "spell"}
+        expected["leftHand"] = {"kind": "spell"}
+        self.assertEqual(parse_player_equipment(payload), expected)
+
+    def test_defaults_missing_ammo(self) -> None:
+        payload = valid_equipment()
+        del payload["ammo"]
+
+        self.assertEqual(parse_player_equipment(payload), {**payload, "ammo": None})
 
     def test_drops_unknown_fields(self) -> None:
         payload = valid_equipment()
@@ -70,7 +87,10 @@ class ParsePlayerEquipmentTests(unittest.TestCase):
             "form id too large": lambda p: p["rightHand"].update(formId=0x1000000),
             "missing right hand": lambda p: p.pop("rightHand"),
             "missing left hand": lambda p: p.pop("leftHand"),
-            "hand kind": lambda p: p["rightHand"].update(kind="spell"),
+            "hand kind": lambda p: p["rightHand"].update(kind="staff"),
+            "spell hand not an object": lambda p: p.update(leftHand="spell"),
+            "ammo without form id": lambda p: p["ammo"].pop("formId"),
+            "ammo not an object": lambda p: p.update(ammo=0x1397D),
             "hand-to-hand weapon": lambda p: p["rightHand"].update(weaponType=0),
             "weapon type too large": lambda p: p["rightHand"].update(weaponType=10),
             "missing weapon type": lambda p: p["rightHand"].pop("weaponType"),

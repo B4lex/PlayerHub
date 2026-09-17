@@ -21,7 +21,10 @@ namespace Multiplayer
 	enum class EquipmentHandKind : std::uint8_t
 	{
 		kWeapon,
-		kTorch
+		kTorch,
+		// Any spell or scroll. Receivers show one placeholder spell, so it carries
+		// no form.
+		kSpell
 	};
 
 	// Worn armor, clothing, jewelry, or shield. The slot mask and armor type are
@@ -56,13 +59,15 @@ namespace Multiplayer
 		std::vector<EquipmentArmor> armor;
 		std::optional<EquipmentHand> rightHand;
 		std::optional<EquipmentHand> leftHand;
+		// Equipped arrows or bolts. Empty form means none.
+		FormReference ammo;
 		// Source-local publication counter. Not part of the equipped state itself.
 		std::uint64_t revision{ 0 };
 
 		[[nodiscard]] bool HasSameItems(const PlayerEquipment& a_other) const
 		{
 			if (rightHand != a_other.rightHand || leftHand != a_other.leftHand ||
-				armor.size() != a_other.armor.size()) {
+				ammo != a_other.ammo || armor.size() != a_other.armor.size()) {
 				return false;
 			}
 			// Worn armor is a set; inventory iteration order is not meaningful.
@@ -108,13 +113,23 @@ namespace Multiplayer
 	[[nodiscard]] constexpr std::string_view GetEquipmentHandKindName(
 		EquipmentHandKind a_kind) noexcept
 	{
-		return a_kind == EquipmentHandKind::kTorch ? "torch" : "weapon";
+		switch (a_kind) {
+		case EquipmentHandKind::kTorch:
+			return "torch";
+		case EquipmentHandKind::kSpell:
+			return "spell";
+		default:
+			return "weapon";
+		}
 	}
 
 	[[nodiscard]] inline bool IsValidEquipmentHand(
 		const EquipmentHand& a_hand,
 		bool a_leftHand)
 	{
+		if (a_hand.kind == EquipmentHandKind::kSpell) {
+			return a_hand.form.IsEmpty() && a_hand.weaponType == 0;
+		}
 		if (!IsValidFormReference(a_hand.form, false)) {
 			return false;
 		}
@@ -133,7 +148,8 @@ namespace Multiplayer
 		if (a_equipment.revision == 0 ||
 			a_equipment.revision > static_cast<std::uint64_t>(
 				(std::numeric_limits<std::int64_t>::max)()) ||
-			a_equipment.armor.size() > PlayerEquipment::kMaximumArmor) {
+			a_equipment.armor.size() > PlayerEquipment::kMaximumArmor ||
+			!IsValidFormReference(a_equipment.ammo, true)) {
 			return false;
 		}
 

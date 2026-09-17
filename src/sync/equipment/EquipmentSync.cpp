@@ -29,6 +29,9 @@ namespace EquipmentSync
 		constexpr RE::FormID kPlayerReferenceFormID = 0x00000014;
 		constexpr RE::FormID kRightHandEquipSlotFormID = 0x00013F42;
 		constexpr RE::FormID kLeftHandEquipSlotFormID = 0x00013F43;
+		// Enough arrows for the quiver to look filled. Remote bow shots never
+		// consume them.
+		constexpr std::int32_t kSynchronizedAmmoCount = 20;
 
 		// Items are only accepted from plugins every Skyrim SE/AE install has. A
 		// future fallback replaces the drop branch of the Resolve* policy below.
@@ -45,6 +48,14 @@ namespace EquipmentSync
 		using Multiplayer::EquipmentHand;
 		using Multiplayer::EquipmentHandKind;
 		using EquipmentData = Multiplayer::PlayerEquipment;
+
+		// Healing Hands: a hand holding any spell shows this concentration spell,
+		// whose hand effect and casting animation stand in for every spell. Remote
+		// actors never release it.
+		const Multiplayer::FormReference kPlaceholderSpell{
+			.plugin = "Skyrim.esm",
+			.localFormID = 0x04D3F2
+		};
 
 		std::atomic_bool localEquipmentDirty{ true };
 
@@ -153,9 +164,14 @@ namespace EquipmentSync
 				};
 			}
 
+			if (a_form->Is(RE::FormType::Spell) || a_form->Is(RE::FormType::Scroll)) {
+				// Peers show a placeholder spell, so which spell it is does not matter.
+				return EquipmentHand{ .kind = EquipmentHandKind::kSpell };
+			}
+
 			auto* light = a_form->As<RE::TESObjectLIGH>();
 			if (!light || !a_leftHand || !light->CanBeCarried()) {
-				// Spells, scrolls, and anything else are sent as an empty hand.
+				// Anything else is sent as an empty hand.
 				return std::nullopt;
 			}
 			const auto reference = FormLookup::MakeFormReference(light);
@@ -167,6 +183,22 @@ namespace EquipmentSync
 				.form = *reference,
 				.kind = EquipmentHandKind::kTorch
 			};
+		}
+
+		// Equipped arrows or bolts are a worn inventory entry. Actor::GetCurrentAmmo
+		// reports nothing for the player.
+		RE::TESAmmo* GetWornAmmo(RE::Actor& a_actor)
+		{
+			const auto inventory = a_actor.GetInventory([](RE::TESBoundObject& a_object) {
+				return a_object.IsAmmo();
+			});
+			for (const auto& [object, data] : inventory) {
+				const auto& [count, entry] = data;
+				if (count > 0 && entry && entry->IsWorn()) {
+					return object->As<RE::TESAmmo>();
+				}
+			}
+			return nullptr;
 		}
 
 		std::optional<EquipmentData> CaptureLocalEquipment(
@@ -222,6 +254,13 @@ namespace EquipmentSync
 				Multiplayer::IsTwoHandedWeaponType(equipment.rightHand->weaponType)) {
 				equipment.leftHand.reset();
 			}
+			if (auto* ammo = GetWornAmmo(a_player)) {
+				if (auto reference = FormLookup::MakeFormReference(ammo)) {
+					equipment.ammo = std::move(*reference);
+				} else {
+					++a_skipped;
+				}
+			}
 			return equipment;
 		}
 
@@ -250,8 +289,31 @@ namespace EquipmentSync
 			return { .form = armor };
 		}
 
+		Resolution<RE::TESAmmo> ResolveAmmo(const Multiplayer::FormReference& a_reference)
+		{
+			if (!IsAcceptedItemPlugin(a_reference.plugin)) {
+				return { .dropReason = "non-vanilla" };
+			}
+			auto* form = FormLookup::ResolveForm(a_reference);
+			if (!form) {
+				return { .dropReason = "missing" };
+			}
+			auto* ammo = form->As<RE::TESAmmo>();
+			if (!ammo) {
+				return { .dropReason = "wrong-type" };
+			}
+			return { .form = ammo };
+		}
+
 		Resolution<RE::TESBoundObject> ResolveHand(const EquipmentHand& a_entry)
 		{
+			if (a_entry.kind == EquipmentHandKind::kSpell) {
+				auto* spell = FormLookup::ResolveForm<RE::SpellItem>(kPlaceholderSpell);
+				if (!spell) {
+					return { .dropReason = "missing-placeholder-spell" };
+				}
+				return { .form = spell };
+			}
 			if (!IsAcceptedItemPlugin(a_entry.form.plugin)) {
 				return { .dropReason = "non-vanilla" };
 			}
@@ -300,8 +362,14 @@ namespace EquipmentSync
 				return {};
 			}
 			const auto resolution = ResolveHand(*a_entry);
+			const bool spell = a_entry->kind == EquipmentHandKind::kSpell;
 			if (!resolution.form) {
-				LogDroppedEntry(a_playerID, a_revision, a_slot, a_entry->form, resolution.dropReason);
+				LogDroppedEntry(
+					a_playerID,
+					a_revision,
+					a_slot,
+					spell ? kPlaceholderSpell : a_entry->form,
+					resolution.dropReason);
 				return {};
 			}
 			const auto* weapon = resolution.form->As<RE::TESObjectWEAP>();
@@ -309,7 +377,8 @@ namespace EquipmentSync
 				.object = resolution.form,
 				.twoHanded = weapon &&
 					Multiplayer::IsTwoHandedWeaponType(
-						static_cast<std::uint8_t>(weapon->GetWeaponType()))
+						static_cast<std::uint8_t>(weapon->GetWeaponType())),
+				.spell = spell
 			};
 		}
 
@@ -336,6 +405,7 @@ namespace EquipmentSync
 			a_remote.armor.clear();
 			a_remote.rightHand = {};
 			a_remote.leftHand = {};
+			a_remote.ammo = nullptr;
 			// A newer revision does not make a swap that is already waiting less
 			// overdue. Fast consecutive changes must not extend the deferral forever.
 			const float handDeferralElapsed = a_remote.handDeferralElapsed;
@@ -367,15 +437,24 @@ namespace EquipmentSync
 					a_remote.leftHand.object->GetFormID());
 				a_remote.leftHand = {};
 			}
+			if (!equipment.ammo.IsEmpty()) {
+				const auto resolution = ResolveAmmo(equipment.ammo);
+				if (resolution.form) {
+					a_remote.ammo = resolution.form;
+				} else {
+					LogDroppedEntry(a_playerID, revision, "ammo", equipment.ammo, resolution.dropReason);
+				}
+			}
 
 			logs::info(
-				"Equipment sync resolved remote equipment: player={} revision={} armor={}/{} rightHand={:08X} leftHand={:08X}",
+				"Equipment sync resolved remote equipment: player={} revision={} armor={}/{} rightHand={:08X} leftHand={:08X} ammo={:08X}",
 				a_playerID,
 				static_cast<unsigned long long>(revision),
 				a_remote.armor.size(),
 				equipment.armor.size(),
 				a_remote.rightHand.object ? a_remote.rightHand.object->GetFormID() : 0,
-				a_remote.leftHand.object ? a_remote.leftHand.object->GetFormID() : 0);
+				a_remote.leftHand.object ? a_remote.leftHand.object->GetFormID() : 0,
+				a_remote.ammo ? a_remote.ammo->GetFormID() : 0);
 		}
 
 		const RE::BGSEquipSlot* GetHandSlot(bool a_leftHand)
@@ -414,6 +493,7 @@ namespace EquipmentSync
 		bool IsHandSwapDeferred(const RE::Actor& a_actor, const RemoteActor& a_remoteActor)
 		{
 			if (ActorAnimation::IsAnimationActionPlaying(a_remoteActor) ||
+				ActorAnimation::IsHandPresentationPlaying(a_remoteActor) ||
 				ActorAnimation::IsWeaponTransitionPlaying(a_remoteActor)) {
 				return true;
 			}
@@ -434,8 +514,13 @@ namespace EquipmentSync
 
 		bool CanUnequipHandObject(const RE::TESBoundObject* a_object)
 		{
-			// Remote actors never own spells; only swap physical hand objects.
+			// Spells are not inventory items; they are deselected instead.
 			return a_object && (a_object->IsWeapon() || a_object->Is(RE::FormType::Light));
+		}
+
+		RE::SpellItem* AsSpell(RE::TESBoundObject* a_object)
+		{
+			return a_object ? a_object->As<RE::SpellItem>() : nullptr;
 		}
 	}
 
@@ -528,13 +613,17 @@ namespace EquipmentSync
 		}
 
 		logs::info(
-			"Equipment sync publishing local equipment: revision={} armor={} rightHand={}|{:06X} leftHand={}|{:06X} skipped={} flush={}",
+			"Equipment sync publishing local equipment: revision={} armor={} rightHand={}:{}|{:06X} leftHand={}:{}|{:06X} ammo={}|{:06X} skipped={} flush={}",
 			static_cast<unsigned long long>(pending->revision),
 			pending->armor.size(),
-			pending->rightHand ? pending->rightHand->form.plugin : "<none>",
+			pending->rightHand ? Multiplayer::GetEquipmentHandKindName(pending->rightHand->kind) : "none",
+			pending->rightHand ? pending->rightHand->form.plugin : "",
 			pending->rightHand ? pending->rightHand->form.localFormID : 0,
-			pending->leftHand ? pending->leftHand->form.plugin : "<none>",
+			pending->leftHand ? Multiplayer::GetEquipmentHandKindName(pending->leftHand->kind) : "none",
+			pending->leftHand ? pending->leftHand->form.plugin : "",
 			pending->leftHand ? pending->leftHand->form.localFormID : 0,
+			pending->ammo.IsEmpty() ? "<none>" : pending->ammo.plugin,
+			pending->ammo.localFormID,
 			skipped,
 			a_flush);
 		Network::PublishLocalEquipment(*pending);
@@ -604,8 +693,10 @@ namespace EquipmentSync
 		auto inventory = actor->GetInventory();
 		auto* equippedRight = GetEquippedHandObject(*actor, false);
 		auto* equippedLeft = GetEquippedHandObject(*actor, true);
+		auto* equippedAmmo = GetWornAmmo(*actor);
 		const bool handsMatch = equippedRight == a_remote.rightHand.object &&
-			IsLeftHandMatched(a_remote, equippedLeft);
+			IsLeftHandMatched(a_remote, equippedLeft) &&
+			equippedAmmo == a_remote.ammo;
 		const bool handsDeferred = !handsMatch &&
 			IsHandSwapDeferred(*actor, a_remoteActor) &&
 			a_remote.handDeferralElapsed < kMaximumHandDeferral;
@@ -614,19 +705,22 @@ namespace EquipmentSync
 		for (auto* armor : a_remote.armor) {
 			required[armor] = 1;
 		}
-		if (a_remote.rightHand.object) {
-			++required[a_remote.rightHand.object];
+		for (const auto* hand : { &a_remote.rightHand, &a_remote.leftHand }) {
+			if (hand->object && !hand->spell) {
+				++required[hand->object];
+			}
 		}
-		if (a_remote.leftHand.object) {
-			++required[a_remote.leftHand.object];
+		if (a_remote.ammo) {
+			required[a_remote.ammo] = kSynchronizedAmmoCount;
 		}
 		if (handsDeferred) {
 			// Removing an equipped hand object forces an unequip, so a deferred swap
 			// would leave the remote actor sheathing or drawing empty hands until it applies.
 			// Keep the stale objects until the swap replaces them.
-			for (auto* equipped : { equippedRight, equippedLeft }) {
+			for (RE::TESBoundObject* equipped : { equippedRight, equippedLeft, static_cast<RE::TESBoundObject*>(equippedAmmo) }) {
 				const auto entry = inventory.find(equipped);
-				if (CanUnequipHandObject(equipped) && entry != inventory.end()) {
+				if ((CanUnequipHandObject(equipped) || (equipped && equipped == equippedAmmo)) &&
+					entry != inventory.end()) {
 					auto& count = required[equipped];
 					count = (std::max)(count, entry->second.first);
 				}
@@ -763,26 +857,51 @@ namespace EquipmentSync
 				equipManager->UnequipObject(actor, equippedLeft, nullptr, 1, leftSlot, false, true, false);
 				swappedHands = true;
 			}
-			if (a_remote.rightHand.object && equippedRight != a_remote.rightHand.object) {
+			// A placeholder spell in a hand that should be empty has no item to
+			// replace it. Deselecting may clear both hands; the equips below
+			// restore a hand that still needs it.
+			if (auto* spell = AsSpell(equippedRight); spell && !a_remote.rightHand.object) {
+				actor->DeselectSpell(spell);
+				swappedHands = true;
+			}
+			if (auto* spell = AsSpell(equippedLeft); spell && !a_remote.leftHand.object) {
+				actor->DeselectSpell(spell);
+				swappedHands = true;
+			}
+			equippedRight = GetEquippedHandObject(*actor, false);
+			equippedLeft = GetEquippedHandObject(*actor, true);
+
+			const auto equipHand = [&](const ResolvedHand& a_hand, const RE::BGSEquipSlot* a_slot) {
+				if (a_hand.spell) {
+					equipManager->EquipSpell(actor, AsSpell(a_hand.object), a_slot);
+					return;
+				}
 				// Two-handed weapons use their own both-hands slot.
 				equipManager->EquipObject(
 					actor,
-					a_remote.rightHand.object,
+					a_hand.object,
 					nullptr,
 					1,
-					a_remote.rightHand.twoHanded ? nullptr : rightSlot,
+					a_hand.twoHanded ? nullptr : a_slot,
 					false,
 					true,
 					false);
+			};
+			if (a_remote.rightHand.object && equippedRight != a_remote.rightHand.object) {
+				equipHand(a_remote.rightHand, rightSlot);
 				swappedHands = true;
 			}
 			if (a_remote.leftHand.object && equippedLeft != a_remote.leftHand.object) {
+				equipHand(a_remote.leftHand, leftSlot);
+				swappedHands = true;
+			}
+			if (a_remote.ammo && GetWornAmmo(*actor) != a_remote.ammo) {
 				equipManager->EquipObject(
 					actor,
-					a_remote.leftHand.object,
+					a_remote.ammo,
 					nullptr,
-					1,
-					leftSlot,
+					kSynchronizedAmmoCount,
+					nullptr,
 					false,
 					true,
 					false);
@@ -791,7 +910,7 @@ namespace EquipmentSync
 		}
 
 		logs::info(
-			"Equipment sync reconciling actor: player={} actor={:08X} revision={} attempt={} removed={} added={} equippedArmor={} swappedHands={} handsDeferred={} rightHand={:08X} leftHand={:08X}",
+			"Equipment sync reconciling actor: player={} actor={:08X} revision={} attempt={} removed={} added={} equippedArmor={} swappedHands={} handsDeferred={} rightHand={:08X} leftHand={:08X} ammo={:08X}",
 			a_playerID,
 			a_remoteActor.handle.native_handle(),
 			static_cast<unsigned long long>(a_remote.resolvedRevision),
@@ -802,7 +921,8 @@ namespace EquipmentSync
 			swappedHands,
 			handsDeferred,
 			a_remote.rightHand.object ? a_remote.rightHand.object->GetFormID() : 0,
-			a_remote.leftHand.object ? a_remote.leftHand.object->GetFormID() : 0);
+			a_remote.leftHand.object ? a_remote.leftHand.object->GetFormID() : 0,
+			a_remote.ammo ? a_remote.ammo->GetFormID() : 0);
 	}
 
 	bool AreHandsSettled(const RemoteState& a_remote)

@@ -39,6 +39,14 @@ namespace ActorAnimation
 		constexpr float kWeaponTransitionFallbackSeconds = 2.5F;
 		constexpr float kAttackStartFallbackSeconds = 1.25F;
 		constexpr float kAttackPlaybackFallbackSeconds = 4.0F;
+		// A graph that keeps rejecting attackRelease this long is cancelled instead.
+		constexpr float kBowReleaseFallbackSeconds = 1.5F;
+		// The release clip's length. The next draw and locomotion replay wait for it.
+		constexpr float kBowShotSeconds = 0.5F;
+		// Upper bound for the shot while the attack state still reports a bow attack.
+		constexpr float kBowShotFallbackSeconds = 2.0F;
+		// A cast still playing this long after its interrupt is abandoned.
+		constexpr float kCastStopFallbackSeconds = 1.0F;
 
 		// The native attack takes attackStart as its next combo swing in these
 		// states; CombatSync captures the local player's chained swings from them.
@@ -324,6 +332,91 @@ namespace ActorAnimation
 			return moving || jumping ||
 				(!weaponDrawn && !a_state.weaponDefaultStateDispatched);
 		}
+
+		constexpr bool IsBowAttackState(RE::ATTACK_STATE_ENUM a_state) noexcept
+		{
+			return a_state >= RE::ATTACK_STATE_ENUM::kBowDraw &&
+				a_state <= RE::ATTACK_STATE_ENUM::kBowFollowThrough;
+		}
+
+		static_assert(IsBowAttackState(RE::ATTACK_STATE_ENUM::kBowDrawn));
+		static_assert(!IsBowAttackState(RE::ATTACK_STATE_ENUM::kFollowThrough));
+
+		void ResetHandPresentation(State& a_state)
+		{
+			a_state.bowDrawHeld = false;
+			a_state.bowReleasePending = false;
+			a_state.bowPhaseElapsed = 0.0F;
+			a_state.bowReleaseRequestElapsed = 0.0F;
+			a_state.bowEventRetryElapsed = kMinimumEventRetrySeconds;
+			a_state.castHeld = {};
+			a_state.castStopping = {};
+			a_state.castStopRequestElapsed = {};
+			a_state.castEventRetryElapsed.fill(kMinimumEventRetrySeconds);
+		}
+
+		bool IsHoldingBow(const RE::Actor& a_actor)
+		{
+			const auto* rightHand = a_actor.GetEquippedObject(false);
+			const auto* weapon = rightHand ? rightHand->As<RE::TESObjectWEAP>() : nullptr;
+			return weapon && weapon->IsBow();
+		}
+
+		bool IsHoldingSpell(const RE::Actor& a_actor, bool a_leftHand)
+		{
+			const auto* hand = a_actor.GetEquippedObject(a_leftHand);
+			return hand && hand->Is(RE::FormType::Spell);
+		}
+
+		// A bow draw or cast may only enter a stable, grounded, fully drawn graph
+		// that no attack, weapon transition, shot, or recovery owns.
+		bool CanStartHandPresentation(const RemoteActor& a_remote, RE::Actor& a_actor)
+		{
+			const auto& state = *a_remote.animation;
+			if (!a_remote.ready || !a_remote.animationGraphHolder ||
+				!IsAnimationStateSettled(a_remote) ||
+				state.attackPlaybackPending ||
+				state.attackLocomotionReassertPending ||
+				state.bowReleasePending ||
+				IsWeaponTransitionUnsettled(state) ||
+				state.graphRecoveryInProgress ||
+				state.targetAnimationState.jumping ||
+				!state.targetAnimationState.weaponDrawn) {
+				return false;
+			}
+
+			auto* holder = static_cast<RE::IAnimationGraphManagerHolder*>(
+				std::addressof(a_actor));
+			const auto* actorState = a_actor.AsActorState();
+			if (holder != a_remote.animationGraphHolder || !actorState ||
+				actorState->GetWeaponState() != RE::WEAPON_STATE::kDrawn) {
+				return false;
+			}
+
+			RE::BSTSmartPointer<RE::BSAnimationGraphManager> graphManager;
+			return a_actor.Is3DLoaded() &&
+				a_actor.GetAnimationGraphManager(graphManager) && graphManager &&
+				state.graphManager == graphManager.get();
+		}
+
+		bool SendHandPresentationEvent(
+			RemoteActor& a_remote,
+			RE::Actor& a_actor,
+			const RE::BSFixedString& a_eventName)
+		{
+			// The same synchronous dispatch window as DispatchNormalAttack: the
+			// persistent suppression flags can make the graph reject a replicated
+			// bow draw. They are restored before any AI update can run.
+			auto& actorFlags = a_actor.GetActorRuntimeData().boolFlags;
+			actorFlags.reset(
+				RE::Actor::BOOL_FLAGS::kAttackingDisabled,
+				RE::Actor::BOOL_FLAGS::kCastingDisabled);
+			const bool accepted = SendNetworkAnimationEvent(a_remote, a_eventName);
+			actorFlags.set(
+				RE::Actor::BOOL_FLAGS::kAttackingDisabled,
+				RE::Actor::BOOL_FLAGS::kCastingDisabled);
+			return accepted;
+		}
 	}
 
 	Multiplayer::AnimationState GetTargetState(const RemoteActor& a_remote)
@@ -409,6 +502,7 @@ namespace ActorAnimation
 			!IsAnimationStateSettled(a_remote) ||
 			a_remote.animation->attackPlaybackPending ||
 			a_remote.animation->attackLocomotionReassertPending ||
+			IsHandPresentationPlaying(a_remote) ||
 			// The reassert flag stays armed while idle after a completed draw, so
 			// only a transition that is still unsettled may hold the attack.
 			IsWeaponTransitionUnsettled(*a_remote.animation) ||
@@ -517,6 +611,259 @@ namespace ActorAnimation
 			a_remote.animation->attackPlaybackPending;
 	}
 
+	void ApplyBowDraw(
+		RemoteActor& a_remote,
+		bool a_drawn,
+		bool a_mayStart,
+		float a_deltaTime)
+	{
+		if (!GameThread::Require("ApplyBowDraw") || !a_remote.animation) {
+			return;
+		}
+		auto actorPtr = a_remote.handle.get();
+		if (!actorPtr) {
+			return;
+		}
+
+		static const RE::BSFixedString bowAttackStartEvent{ "bowAttackStart" };
+		static const RE::BSFixedString attackReleaseEvent{ "attackRelease" };
+		static const RE::BSFixedString attackStopEvent{ "attackStop" };
+		static const RE::BSFixedString bowResetEvent{ "bowReset" };
+
+		auto& actor = *actorPtr;
+		auto& state = *a_remote.animation;
+		const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+		state.bowEventRetryElapsed = (std::min)(
+			state.bowEventRetryElapsed + deltaTime,
+			kMinimumEventRetrySeconds);
+
+		if (state.bowReleasePending) {
+			state.bowPhaseElapsed += deltaTime;
+			// A remote actor's attack state does not follow its graph, so the shot is
+			// given a fixed time. A state that does report a bow attack extends it.
+			const auto* actorState = actor.AsActorState();
+			const bool attackStateBusy = actorState &&
+				IsBowAttackState(actorState->GetAttackState());
+			const bool completed = state.bowPhaseElapsed >= kBowShotSeconds &&
+				!attackStateBusy;
+			const bool timedOut = state.bowPhaseElapsed >= kBowShotFallbackSeconds;
+			if (!completed && !timedOut) {
+				return;
+			}
+			logs::info(
+				"Animation sync completed bow shot ownership: actor={:08X} elapsed={:.3f} timedOut={}",
+				a_remote.handle.native_handle(),
+				state.bowPhaseElapsed,
+				timedOut);
+			state.bowReleasePending = false;
+			state.bowPhaseElapsed = 0.0F;
+			// As after a normal attack, replay locomotion without touching the stance.
+			state.attackLocomotionReassertPending = true;
+			return;
+		}
+
+		if (state.bowDrawHeld) {
+			state.bowPhaseElapsed += deltaTime;
+			if (a_drawn) {
+				return;
+			}
+
+			state.bowReleaseRequestElapsed += deltaTime;
+			if (state.bowEventRetryElapsed < kMinimumEventRetrySeconds) {
+				return;
+			}
+			state.bowEventRetryElapsed = 0.0F;
+			// An early release is rejected until the draw can take it, as the local
+			// player's early release still waits for the arrow to be drawn. A graph
+			// that keeps rejecting it is cancelled instead, so the draw never stays
+			// held without its source.
+			const bool released =
+				SendHandPresentationEvent(a_remote, actor, attackReleaseEvent);
+			const bool releaseTimedOut =
+				state.bowReleaseRequestElapsed >= kBowReleaseFallbackSeconds;
+			if (!released && !releaseTimedOut) {
+				return;
+			}
+			const bool cancelled = !released &&
+				(SendHandPresentationEvent(a_remote, actor, attackStopEvent) ||
+					SendHandPresentationEvent(a_remote, actor, bowResetEvent));
+			logs::info(
+				"Animation sync released bow draw: actor={:08X} released={} cancelled={} heldSeconds={:.3f} releaseWaitSeconds={:.3f}",
+				a_remote.handle.native_handle(),
+				released,
+				cancelled,
+				state.bowPhaseElapsed,
+				state.bowReleaseRequestElapsed);
+			state.bowDrawHeld = false;
+			state.bowReleasePending = true;
+			state.bowPhaseElapsed = 0.0F;
+			return;
+		}
+
+		if (!a_drawn || !a_mayStart ||
+			state.bowEventRetryElapsed < kMinimumEventRetrySeconds ||
+			!IsHoldingBow(actor) ||
+			!CanStartHandPresentation(a_remote, actor)) {
+			return;
+		}
+		state.bowEventRetryElapsed = 0.0F;
+		if (!SendHandPresentationEvent(a_remote, actor, bowAttackStartEvent)) {
+			return;
+		}
+
+		state.bowDrawHeld = true;
+		state.bowPhaseElapsed = 0.0F;
+		state.bowReleaseRequestElapsed = 0.0F;
+		// A release that is already due goes out on the next pass.
+		state.bowEventRetryElapsed = kMinimumEventRetrySeconds;
+		logs::info(
+			"Animation sync started bow draw: actor={:08X}",
+			a_remote.handle.native_handle());
+	}
+
+	void ApplySpellCast(
+		RemoteActor& a_remote,
+		bool a_leftHand,
+		bool a_casting,
+		bool a_mayStart,
+		float a_deltaTime)
+	{
+		if (!GameThread::Require("ApplySpellCast") || !a_remote.animation) {
+			return;
+		}
+		auto actorPtr = a_remote.handle.get();
+		if (!actorPtr) {
+			return;
+		}
+
+		auto& actor = *actorPtr;
+		auto& state = *a_remote.animation;
+		const std::size_t hand = a_leftHand ? 1 : 0;
+		const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+		static const RE::BSFixedString wantCastLeftVariable{ "bWantCastLeft" };
+		static const RE::BSFixedString wantCastRightVariable{ "bWantCastRight" };
+		const auto& wantCastVariable = a_leftHand ? wantCastLeftVariable : wantCastRightVariable;
+		static const RE::BSFixedString castingLeftVariable{ "IsCastingLeft" };
+		static const RE::BSFixedString castingRightVariable{ "IsCastingRight" };
+		const auto& castingVariable = a_leftHand ? castingLeftVariable : castingRightVariable;
+		const auto setCastOwnership = [&a_remote, &state](bool a_owned) {
+			if (state.castAnimationOwned != a_owned) {
+				state.castAnimationOwned = a_owned;
+				ActorRegistry::SetCastAnimationOwned(a_remote, a_owned);
+			}
+		};
+		const auto releaseCastOwnership = [&state, &setCastOwnership]() {
+			setCastOwnership(
+				state.castHeld[0] || state.castHeld[1] ||
+				state.castStopping[0] || state.castStopping[1]);
+		};
+		state.castEventRetryElapsed[hand] = (std::min)(
+			state.castEventRetryElapsed[hand] + deltaTime,
+			kMinimumEventRetrySeconds);
+
+		// The caster, not raw graph events, drives the cast: the magic graph
+		// interrupts a cast its caster did not request.
+		auto* caster = actor.GetMagicCaster(a_leftHand ?
+				RE::MagicSystem::CastingSource::kLeftHand :
+				RE::MagicSystem::CastingSource::kRightHand);
+		const auto casterState = caster ? caster->state.get() : RE::MagicCaster::State::kNone;
+
+		if (state.castStopping[hand]) {
+			state.castStopRequestElapsed[hand] += deltaTime;
+			// The caster returns to idle as soon as the cast is interrupted, but the
+			// graph leaves its casting state later. A new cast waits for both, so it
+			// does not enter a concentration loop that is still playing.
+			bool graphCasting = false;
+			actor.GetGraphVariableBool(castingVariable, graphCasting);
+			const bool idle =
+				casterState == RE::MagicCaster::State::kNone && !graphCasting;
+			const bool timedOut =
+				state.castStopRequestElapsed[hand] >= kCastStopFallbackSeconds;
+			if (!idle && !timedOut) {
+				return;
+			}
+			logs::info(
+				"Animation sync stopped spell cast: actor={:08X} hand={} idle={} stopSeconds={:.3f}",
+				a_remote.handle.native_handle(),
+				a_leftHand ? "left" : "right",
+				idle,
+				state.castStopRequestElapsed[hand]);
+			state.castStopping[hand] = false;
+			state.castStopRequestElapsed[hand] = 0.0F;
+			releaseCastOwnership();
+			return;
+		}
+
+		if (state.castHeld[hand]) {
+			// An equipment swap that takes the spell away also ends the cast.
+			if (a_casting && IsHoldingSpell(actor, a_leftHand)) {
+				// The magic graph stays in its casting state only while this
+				// variable is set, and emits CastStop as soon as it clears. The
+				// caster's own release action selects the cast clip.
+				actor.SetGraphVariableBool(wantCastVariable, true);
+				return;
+			}
+			state.castHeld[hand] = false;
+			state.castStopping[hand] = true;
+			state.castStopRequestElapsed[hand] = 0.0F;
+			actor.SetGraphVariableBool(wantCastVariable, false);
+			// Only the interrupt performs the hand's interrupt action. FinishCast
+			// returns the caster to idle but leaves a concentration clip looping
+			// (observed in game). InterruptCast also finishes the cast.
+			if (caster) {
+				caster->InterruptCast(false);
+			}
+			return;
+		}
+
+		releaseCastOwnership();
+		if (!a_casting || !a_mayStart || !caster ||
+			state.castEventRetryElapsed[hand] < kMinimumEventRetrySeconds ||
+			state.bowDrawHeld ||
+			!IsHoldingSpell(actor, a_leftHand) ||
+			!CanStartHandPresentation(a_remote, actor)) {
+			return;
+		}
+		state.castEventRetryElapsed[hand] = 0.0F;
+
+		auto* spell = actor.GetEquippedObject(a_leftHand)->As<RE::MagicItem>();
+		// The caster sends its graph events synchronously and on later updates, and
+		// checks the casting-disabled flag, so both are opened before the request.
+		setCastOwnership(true);
+		actor.GetActorRuntimeData().boolFlags.reset(RE::Actor::BOOL_FLAGS::kCastingDisabled);
+		if (caster->currentSpell != spell) {
+			caster->SetCurrentSpell(spell);
+		}
+		// RequestCastImpl only sends BeginCast. The caster ignores the graph's cast
+		// annotations while idle, and the graph leaves its casting state again
+		// unless the want-cast variable is set, so both are set as a cast request
+		// by the engine would.
+		if (caster->state.get() == RE::MagicCaster::State::kNone) {
+			caster->state = RE::MagicCaster::State::kUnk01;
+		}
+		actor.SetGraphVariableBool(wantCastVariable, true);
+		caster->RequestCastImpl();
+
+		state.castHeld[hand] = true;
+		state.castStopRequestElapsed[hand] = 0.0F;
+		logs::info(
+			"Animation sync started spell cast: actor={:08X} hand={} spell={:08X}",
+			a_remote.handle.native_handle(),
+			a_leftHand ? "left" : "right",
+			spell ? spell->GetFormID() : 0);
+	}
+
+	bool IsHandPresentationPlaying(const RemoteActor& a_remote)
+	{
+		if (!a_remote.animation) {
+			return false;
+		}
+		const auto& state = *a_remote.animation;
+		return state.bowDrawHeld || state.bowReleasePending ||
+			state.castHeld[0] || state.castHeld[1] ||
+			state.castStopping[0] || state.castStopping[1];
+	}
+
 	bool IsWeaponTransitionPlaying(const RemoteActor& a_remote)
 	{
 		return a_remote.animation &&
@@ -581,6 +928,7 @@ namespace ActorAnimation
 		a_state.attackChainDispatched = false;
 		a_state.attackPlaybackElapsed = 0.0F;
 		a_state.attackLocomotionReassertPending = false;
+		ResetHandPresentation(a_state);
 		a_state.processedRevision.store(0, std::memory_order_release);
 		a_state.graphManager = nullptr;
 		a_state.landingEventSinkGraph = nullptr;
@@ -844,6 +1192,7 @@ namespace ActorAnimation
 			animationState->attackChainDispatched = false;
 			animationState->attackPlaybackElapsed = 0.0F;
 			animationState->attackLocomotionReassertPending = false;
+			ResetHandPresentation(*animationState);
 			animationState->processedRevision.store(
 				0,
 				std::memory_order_release);
@@ -884,6 +1233,7 @@ namespace ActorAnimation
 			animationState->attackChainDispatched = false;
 			animationState->attackPlaybackElapsed = 0.0F;
 			animationState->attackLocomotionReassertPending = false;
+			ResetHandPresentation(*animationState);
 			animationState->processedRevision.store(
 				0,
 				std::memory_order_release);
@@ -926,6 +1276,7 @@ namespace ActorAnimation
 			animationState->attackChainDispatched = false;
 			animationState->attackPlaybackElapsed = 0.0F;
 			animationState->attackLocomotionReassertPending = false;
+			ResetHandPresentation(*animationState);
 		}
 		bool landingEventSinkRegistered =
 			animationState->landingEventSinkGraph == graphManager.get();
@@ -1710,6 +2061,7 @@ namespace ActorAnimation
 	{
 		return a_remote.animation &&
 			(a_remote.animation->attackPlaybackPending ||
+				IsHandPresentationPlaying(a_remote) ||
 				IsWeaponTransitionUnsettled(*a_remote.animation) ||
 				a_remote.animation->graphRecoveryInProgress);
 	}

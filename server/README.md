@@ -23,7 +23,9 @@ to `http://127.0.0.1:3000` for local testing.
 - `GET /health` returns a basic health check.
 - `GET /poc` returns a human-readable proof-of-concept response.
 - `player:update` carries the local player's position, heading, measured speed,
-  explicit movement-animation state, jump phase, cell and worldspace form IDs,
+  explicit movement-animation state, jump phase, bow draw and per-hand spell
+  casting (`bowDrawn`, `castingLeft`, `castingRight`, optional and defaulting to
+  `false`; see `specs/011-bow-and-spell-presentation-sync.md`), cell and worldspace form IDs,
   occupied furniture reference FormID, graph epoch, and monotonically increasing
   checkpoint sequence number.
 - `player:state` relays a validated transform to every other connected player.
@@ -39,8 +41,9 @@ to `http://127.0.0.1:3000` for local testing.
   appearance to a newly connected client. See
   `specs/006-player-appearance-sync.md`.
 - `player:equipment` carries the player's latest equipped items (worn armor,
-  right- and left-hand weapon or torch) as load-order independent
-  `{plugin, formId}` references with an increasing revision. It uses the same
+  right- and left-hand weapon or torch, and equipped `ammo`) as load-order
+  independent `{plugin, formId}` references with an increasing revision. A hand
+  holding a spell is `{"kind": "spell"}` without a reference. It uses the same
   relay, storage, and late-join lifecycle as `player:appearance`. See
   `specs/007-player-equipment-sync.md`.
 - `player:left` tells peers to remove the disconnected player's actor.

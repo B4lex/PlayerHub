@@ -25,12 +25,17 @@ namespace ActorRegistry
 	[[nodiscard]] bool EnableAnimationFirewall(const RemoteActor& a_remote);
 	void DisableAnimationFirewall(const RemoteActor& a_remote);
 	void SetFurnitureAnimationOwned(const RemoteActor& a_remote, bool a_owned);
+	// A network spell cast is running through the actor's own magic caster, which
+	// drives the graph and needs casting enabled until the cast has stopped.
+	void SetCastAnimationOwned(const RemoteActor& a_remote, bool a_owned);
+	[[nodiscard]] bool IsCastAnimationOwned(const RE::Actor* a_actor);
 
 	struct GraphInput
 	{
 		std::uint32_t actorHandle{ 0 };
 		bool animationFirewallEnabled{ false };
 		bool furnitureAnimationOwned{ false };
+		bool castAnimationOwned{ false };
 	};
 
 	[[nodiscard]] std::optional<GraphInput> FindGraphInput(

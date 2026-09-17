@@ -1,6 +1,7 @@
 #include "sync/CheckpointPublisher.h"
 #include "network/SocketIOClient.h"
 #include "sync/animation/AnimationSync.h"
+#include "sync/combat/CombatSync.h"
 #include "sync/furniture/FurnitureSync.h"
 #include "sync/movement/MovementSync.h"
 
@@ -53,6 +54,7 @@ namespace CheckpointPublisher
 		const auto furnitureRefID = FurnitureSync::SampleLocalFurniture(
 			a_local,
 			sequence);
+		const auto handPresentation = CombatSync::SampleLocalHandPresentation();
 
 		const Network::PlayerTransform checkpoint{
 			.x = movement.position.x,
@@ -62,6 +64,7 @@ namespace CheckpointPublisher
 			.speed = movement.speed,
 			.direction = movement.direction,
 			.animationState = animationState,
+			.handPresentation = handPresentation,
 			.cellID = movement.cellID,
 			.worldspaceID = movement.worldspaceID,
 			.furnitureRefID = furnitureRefID,

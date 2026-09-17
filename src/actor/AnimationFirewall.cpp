@@ -15,6 +15,7 @@ namespace AnimationFirewall
 	{
 		using ActorConstants::kBlockedEventLogInterval;
 		using ActorConstants::kInitialBlockedEventLogs;
+		using AnimationEvents::IsCastAnimationEvent;
 		using AnimationEvents::IsWeaponTransitionEndEvent;
 		using AnimationEvents::IsWeaponTransitionTraceEvent;
 
@@ -31,6 +32,10 @@ namespace AnimationFirewall
 				// annotation moves the new weapon from its sheath node into the hand.
 				a_eventName == "WeapOutRightReplaceForceEquip" ||
 				a_eventName == "WeapOutLeftReplaceForceEquip" ||
+				// Drawing spell hands, and equipping a spell or weapon over them.
+				a_eventName == "Magic_Equip" ||
+				a_eventName == "MagicForceEquip" ||
+				a_eventName == "MagicWeap_ForceEquip" ||
 				// Raises and lowers the left arm for a carried torch.
 				a_eventName == "torchEquip" ||
 				a_eventName == "torchUnequip";
@@ -121,6 +126,7 @@ namespace AnimationFirewall
 				bool firewallEnabled = false;
 				bool allowClientManagedEvent = false;
 				bool allowFurnitureEvent = false;
+				bool allowCastEvent = false;
 				bool isSwimStopEvent = false;
 				const auto* eventName = a_eventName.c_str();
 				if (const auto registration = ActorRegistry::FindGraphInput(a_holder)) {
@@ -138,6 +144,9 @@ namespace AnimationFirewall
 						IsClientManagedAnimationEvent(eventView);
 					allowFurnitureEvent =
 						registration->furnitureAnimationOwned;
+					// A network cast runs through the actor's own magic caster.
+					allowCastEvent = registration->castAnimationOwned &&
+						IsCastAnimationEvent(eventView);
 					isSwimStopEvent = eventView == "swimStop";
 				}
 
@@ -147,7 +156,7 @@ namespace AnimationFirewall
 				// temporarily owns the graph while the remote actor uses furniture; its event
 				// names vary by furniture record and are generated locally by Skyrim.
 				if (!firewallEnabled || allowClientManagedEvent ||
-					allowFurnitureEvent) {
+					allowFurnitureEvent || allowCastEvent) {
 					const bool accepted = _original(a_holder, a_eventName);
 					if (firewallEnabled && isSwimStopEvent && accepted) {
 						ActorRegistry::RecordSwimStop(a_holder);

@@ -30,6 +30,8 @@ namespace EquipmentSync
 	{
 		RE::TESBoundObject* object{ nullptr };
 		bool twoHanded{ false };
+		// The placeholder spell. It is equipped as a spell, never as an item.
+		bool spell{ false };
 	};
 
 	// Per remote player receive state. Accessed only by the main-loop pass.
@@ -43,6 +45,7 @@ namespace EquipmentSync
 		std::vector<RE::TESObjectARMO*> armor;
 		ResolvedHand rightHand;
 		ResolvedHand leftHand;
+		RE::TESAmmo* ammo{ nullptr };
 
 		// Reconciliation state of the current remote actor reference.
 		float checkElapsed{ 0.0F };
@@ -52,6 +55,7 @@ namespace EquipmentSync
 		std::uint32_t attempts{ 0 };
 		bool exhausted{ false };
 		bool armorMatches{ false };
+		// Both hands and the equipped ammo, which a bow draw nocks.
 		bool handsMatch{ false };
 	};
 
