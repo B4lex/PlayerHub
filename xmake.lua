@@ -14,6 +14,8 @@ add_rules("plugin.vsxmake.autoupdate")
 
 -- Socket.IO client used by the multiplayer network layer.
 add_requires("socket-io-client 3.1.0", { configs = { shared = false } })
+-- Dear ImGui draws the in-game overlay on Skyrim's own D3D11 device.
+add_requires("imgui v1.92.9", { configs = { dx11 = true, win32 = true } })
 set_runtimes("MD")
 
 -- define targets
@@ -28,7 +30,7 @@ target("skyrim-mp")
     add_files("src/**.cpp")
     add_headerfiles("src/**.h")
     add_includedirs("src")
-    add_packages("socket-io-client")
+    add_packages("socket-io-client", "imgui")
     -- socket-io-client uses Winsock through standalone Asio on Windows.
     add_syslinks("ws2_32")
     set_pcxxheader("src/pch.h")

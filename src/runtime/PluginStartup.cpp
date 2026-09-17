@@ -5,6 +5,7 @@
 #include "network/SocketIOClient.h"
 #include "runtime/MainLoopHook.h"
 #include "sync/equipment/EquipmentSync.h"
+#include "ui/Overlay.h"
 
 namespace PluginStartup
 {
@@ -33,10 +34,13 @@ namespace PluginStartup
 
 	void Install()
 	{
-		// Remote-actor entry detours use the trampoline too, so allocate first.
-		SKSE::AllocTrampoline(14 + CombatIsolation::kTrampolineSize);
+		// Remote-actor entry detours and the UI overlay use the trampoline too,
+		// so allocate first.
+		SKSE::AllocTrampoline(
+			14 + CombatIsolation::kTrampolineSize + UI::Overlay::kTrampolineSize);
 		InstallRemoteActorHooks();
 		MainLoopHook::Install();
+		UI::Overlay::Install();
 
 		SKSE::GetMessagingInterface()->RegisterListener(
 			[](SKSE::MessagingInterface::Message* a_message) {

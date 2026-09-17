@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ from server.protocol import (
     parse_player_appearance,
     parse_player_equipment,
     parse_player_update,
+    parse_sent_at,
 )
 from server.recording import (
     PlayerRecording,
@@ -105,7 +107,12 @@ async def player_update(sid: str, data: Any) -> dict[str, bool | str]:
         logger.info("Recorded player:update sid=%s file=%s", sid, recording_path)
 
     player_states[sid] = state
-    outbound = {"playerId": sid, **state}
+    outbound: dict[str, bool | int | float | str] = {"playerId": sid, **state}
+    # Transport metadata for the receiver's packet delay; not part of the stored
+    # or recorded checkpoint, so replays never relay stale emit times.
+    sent_at = parse_sent_at(data)
+    if sent_at is not None:
+        outbound["sentAtMs"] = sent_at
     logger.debug("Socket.IO TX player:state source=%s payload=%s", sid, outbound)
     await sio.emit("player:state", outbound, skip_sid=sid)
     return {"ok": True}
@@ -210,6 +217,14 @@ async def animation_action(sid: str, data: Any) -> dict[str, bool | str]:
     logger.debug("Socket.IO TX player:action source=%s payload=%s", sid, outbound)
     await sio.emit("player:action", outbound, skip_sid=sid)
     return {"ok": True}
+
+
+@sio.on("latency:probe")
+async def latency_probe(sid: str, data: Any = None) -> dict[str, bool | float]:
+    # The client times this acknowledgement to measure its round trip, and uses
+    # the server clock to stamp payloads that peers compare against their own.
+    del sid, data
+    return {"ok": True, "serverTimeMs": time.time() * 1000.0}
 
 
 # Socket.IO handles /socket.io; all other requests are forwarded to FastAPI.
