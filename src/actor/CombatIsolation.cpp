@@ -30,7 +30,7 @@ namespace CombatIsolation
 			const auto count = ++suppressedCount;
 			if (count <= kInitialBlockedEventLogs || count % kBlockedEventLogInterval == 0) {
 				logs::info(
-					"Suppressed local hostility involving remote puppet: path={} actor={:08X} target={:08X} count={}",
+					"Suppressed local hostility involving remote actor: path={} actor={:08X} target={:08X} count={}",
 					a_path,
 					a_actor ? a_actor->GetFormID() : 0,
 					a_target ? a_target->GetFormID() : 0,
@@ -149,7 +149,7 @@ namespace CombatIsolation
 		// The entry bytes are verified against 1.7.104 only.
 		if (!REL::Module::IsAE()) {
 			logs::warn(
-				"Remote-puppet combat isolation hooks are verified only on Skyrim AE; local enemies may target puppets");
+				"Remote actor combat isolation hooks are verified only on Skyrim AE; local enemies may target actors");
 			return;
 		}
 
@@ -172,7 +172,7 @@ namespace CombatIsolation
 			reinterpret_cast<std::uintptr_t>(&StartCombatHook::Thunk),
 			"StartCombat");
 		logs::info(
-			"Remote-puppet combat isolation hooks: hostility={} isHostileToActor={} startCombat={}",
+			"Remote actor combat isolation hooks: hostility={} isHostileToActor={} startCombat={}",
 			HostilityHook::_original.address() != 0,
 			IsHostileToActorHook::_original.address() != 0,
 			StartCombatHook::_original.address() != 0);

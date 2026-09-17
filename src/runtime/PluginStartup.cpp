@@ -4,6 +4,7 @@
 #include "actor/SurvivalPolicy.h"
 #include "network/SocketIOClient.h"
 #include "runtime/MainLoopHook.h"
+#include "sync/SyncCoordinator.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "ui/Overlay.h"
 
@@ -47,6 +48,10 @@ namespace PluginStartup
 				switch (a_message->type) {
 				case SKSE::MessagingInterface::kDataLoaded:
 					OnDataLoaded();
+					break;
+				case SKSE::MessagingInterface::kSaveGame:
+					// Dispatched before the engine writes the save.
+					SyncCoordinator::OnGameSave();
 					break;
 				default:
 					break;

@@ -8,7 +8,7 @@ Skyrim main-loop call hook (one bound owner thread)
         -> Socket.IO player:update
             -> server validates sequence and relays player:state
                 -> network callback keeps newest complete sample per player
-                    -> game-thread RemotePuppet target
+                    -> game-thread RemoteActor target
                         -> graph variables/events
                         -> direct transform interpolation
 ```
@@ -18,7 +18,7 @@ It does not yet
 capture semantic animation actions such as attacks, furniture, crafting, mounts,
 or complex idles, so action replay/epochs are intentionally outside this fix.
 The Socket.IO session ID acts as the remote receive-state lifetime boundary.
-`player:left` deletes the corresponding puppet and clears its receive state;
+`player:left` deletes the corresponding actor and clears its receive state;
 an interior/worldspace mismatch retires only the actor reference so it can be
 recreated at the next compatible snapshot without reusing coordinates from the
 old space.
@@ -41,7 +41,7 @@ old space.
    required event returned false. Required events now get four bounded retries.
    The cap is necessary because Skyrim's return value is not a reliable graph
    state acknowledgement and may also mean the transition is already active.
-5. The graph used the puppet base actor's full walk/run speed while direct
+5. The graph used the actor base actor's full walk/run speed while direct
    translation used replicated sample speed. Graph `Speed` and `SpeedSampled`
    now use the same sample as the transform, with actor speed only as a fallback
    for an invalid/zero moving sample. Airborne translation additionally derives
@@ -63,7 +63,7 @@ old space.
    and animation need. The revised policy leaves normal actor processing and
    collision intact, disables attack/cast decisions, and marks the live AI and
    combat-controller paths as ignoring/inactive immediately before every actor
-   update. A puppet-only graph hook rejects every local animation event while a
+   update. A actor-only graph hook rejects every local animation event while a
    controller-only network dispatch bypasses that public local-event filter.
    A graph output-event sink observes the graph-owned `JumpLandEnd` lifecycle
    marker after the replicated state becomes grounded. The controller waits for
@@ -72,7 +72,7 @@ old space.
    continue during that wait, and locomotion edge changes are held while
    airborne because the jump branch rejects them.
    `bInJumpState` is restored before every jump event, and landing aligns the
-   puppet with the grounded checkpoint before `JumpLand` is dispatched.
+   actor with the grounded checkpoint before `JumpLand` is dispatched.
    The same applied jump value is reasserted immediately before and after the
    normal actor update so local controller state cannot overwrite it.
    Some hit reactions enter the behavior graph below that public function, so
@@ -83,7 +83,7 @@ old space.
    waits for a stable graph/controller, and then replays the newest
    authoritative locomotion state. If the native revert fails or remains
    unavailable for 120 passes, `DoReset3D` reconstructs the graph as a fallback.
-9. Every public puppet operation that dereferences a Skyrim object checks the
+9. Every public actor operation that dereferences a Skyrim object checks the
    current Windows thread ID against the thread captured by the main-loop hook.
    `RE::Main::threadID` is not used: the runtime comparison log showed that
    field did not identify the thread executing the frame pass. An accidental

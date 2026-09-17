@@ -54,6 +54,11 @@ namespace Network
 	// publishers republish whenever this changes.
 	[[nodiscard]] std::uint64_t GetConnectionGeneration();
 
+	// Advances on every acknowledgement the server returns. Socket.IO can keep
+	// reporting a dead transport as connected for a long time, so an unchanged
+	// count while probes are outstanding is the reliable sign of a lost server.
+	[[nodiscard]] std::uint64_t GetServerResponseCount();
+
 	// Called from the game thread. socket.io-client-cpp queues the emit for its
 	// transport thread; no Skyrim objects cross the network boundary.
 	void PublishLocalPlayerTransform(const PlayerTransform& a_transform);
@@ -75,6 +80,11 @@ namespace Network
 	// carried one; it never runs if the connection drops first.
 	void EmitLatencyProbe(
 		std::function<void(std::optional<double> a_serverTimeMilliseconds)> a_onAcknowledged);
+
+	// Drops every pending change and per-player receive history, as if each
+	// remote player had left. The server resends appearance and equipment with
+	// their existing revisions on connect, which would otherwise be rejected.
+	void ForgetRemotePlayers();
 
 	// Transfers network-thread updates to the caller. The authoritative
 	// main-loop frame hook is the only consumer.

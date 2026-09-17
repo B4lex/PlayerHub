@@ -1,19 +1,19 @@
-# Controlled NPC Puppet POC
+# Controlled NPC Actor POC
 
 ## Status
 
-Superseded as a runtime demo by `002-network-synchronization-poc.md`. The
+Superseded as a runtime demo by `002-network-synchronization.md`. The
 controlled-actor implementation remains the presentation layer, but its target
 now comes from remote player snapshots instead of the local player-following
 test.
 
-Remote puppets currently use the local `PlayerCharacter`'s actor base. This is
+Remote actors currently use the local `PlayerCharacter`'s actor base. This is
 only a visual placeholder until the network protocol carries each remote
 player's appearance and equipment.
 
 ## Goals
 
-- Prove that an actor can be spawned and moved as a network-style puppet.
+- Prove that an actor can be spawned and moved as a network-style actor.
 - Keep local AI from navigating or choosing a conflicting movement destination.
 - Provide basic idle, walk, and run presentation while direct transform movement remains authoritative.
 - Keep all Skyrim object access on the game thread.
@@ -54,7 +54,7 @@ Skyrim main-loop call hook
 - `shared_ptr<AnimationState> animationState`: latest requested state and speed,
   last processed state, and request/processing revisions.
 - `IAnimationGraphManagerHolder* animationGraphHolder`: identity used by the
-  puppet-only graph-event filter; it is never dereferenced after registration.
+  actor-only graph-event filter; it is never dereferenced after registration.
 - `bool ready`: actor 3D, character controller, and animation graph manager have
   initialized.
 
@@ -94,17 +94,17 @@ Future network code must not call `RE::Actor` APIs from its receiver thread. It 
 
 1. `CreateReferenceAtLocation` creates the persistent actor directly at the
    first remote snapshot's position and heading. Exterior spawning waits until
-   the cell containing that position is loaded; it never creates the puppet at
+   the cell containing that position is loaded; it never creates the actor at
    the local player as an intermediate location. Because the special
    `PlayerBase` record (`00000007`) does not complete this generic placement
    path, the reference is constructed with a regular NPC base and immediately
    switched to `PlayerBase` before its 3D initializes.
 2. Activation is blocked so the player cannot interact with the proxy.
-3. Actor processing remains enabled throughout the puppet lifetime. Disabling
+3. Actor processing remains enabled throughout the actor lifetime. Disabling
    it clears `kProcessMe`, zeroes controller velocity, and can prevent the 3D,
    controller, or graph from initializing and updating.
 4. The current proof of concept uses the local `PlayerCharacter` actor base for
-   every remote puppet. Appearance replication is separate from
+   every remote actor. Appearance replication is separate from
    remote-animation ownership; a future protocol must select the remote
    player's actual base appearance and equipment.
 5. Attack/cast decisions are disabled on each spawned reference. Immediately
@@ -114,10 +114,10 @@ Future network code must not call `RE::Actor` APIs from its receiver thread. It 
 6. Reference, 3D, and character-controller collision remain enabled. Local
    combat reactions are suppressed at their decision/event paths rather than by
    removing the actor from the physics world. Local actors never become hostile
-   to a puppet; see `008-remote-puppet-combat-isolation.md`.
+   to a actor; see `008-remote-actor-combat-isolation.md`.
 7. `InitiateDoNothingPackage()` removes autonomous package travel once the 3D
    and controller are ready.
-8. At spawn time, the puppet is registered with a hook on
+8. At spawn time, the actor is registered with a hook on
    `Character`'s `IAnimationGraphManagerHolder::NotifyAnimationGraph` entry.
    The firewall activates after the graph accepts its initial network state, so
    graph construction is not filtered. Replicated locomotion is dispatched
@@ -125,9 +125,9 @@ Future network code must not call `RE::Actor` APIs from its receiver thread. It 
    filter; events injected by local gameplay or mods are rejected and logged
    per event name. The firewall opens again while a replacement graph is
    initializing, then reactivates after the network state is restored.
-9. A `TESHitEvent` for a registered puppet queues graph recovery instead of
+9. A `TESHitEvent` for a registered actor queues graph recovery instead of
    mutating the graph from inside Skyrim's hit callback, which may overlap
-   animation work. On the next game-thread puppet update, the firewall opens
+   animation work. On the next game-thread actor update, the firewall opens
    and Skyrim's native `RevertAnimationGraphManager` resets the complete graph,
    including variables and partially active transitions. `DoReset3D(false)` is
    used only when the native graph revert fails or does not become ready within
@@ -136,7 +136,7 @@ Future network code must not call `RE::Actor` APIs from its receiver thread. It 
    latest network locomotion state and speed are then replayed from an
    invalidated synchronization revision. Stagger/recoil polling also catches
    interruptions without a hit event.
-10. The update loop never calls `MoveTo(player)`: an exterior puppet can
+10. The update loop never calls `MoveTo(player)`: an exterior actor can
    legitimately occupy a different parent cell from the local player.
 
 ## Follow and transform movement
@@ -155,7 +155,7 @@ The demo currently spawns the actor beside the player. It begins moving only aft
 ## Locomotion presentation
 
 Transform motion remains authoritative. Animation is presentation only. The
-source client's explicit movement state is authoritative; the puppet does not
+source client's explicit movement state is authoritative; the actor does not
 validate a transition against its previous local state.
 
 - Graph mutation and direct translation run in the same main-loop pass, with
@@ -172,7 +172,7 @@ validate a transition against its previous local state.
   staged one graph update at a time, such as `idle -> running -> sprinting`, so
   dependent events are not sent together, but skipped low-level locomotion
   states are not replayed as historical actions.
-- Puppet translation uses the network snapshot's numeric speed and never
+- Actor translation uses the network snapshot's numeric speed and never
   infers an animation from either speed or target distance.
 
 This is a vanilla-humanoid proof of concept. Foot sliding, unusual transitions, and incompatibility with custom behavior graphs are expected until network snapshots include complete animation state.
@@ -188,7 +188,7 @@ The implementation was revised as follows:
   `PlayerCharacter::UpdateAnimation`; that hook can execute on animation workers.
 - Run the complete synchronization pass from Skyrim's main-loop call site and
   bind its first observed Windows thread ID as the sole engine-mutation owner.
-- Refuse all public puppet operations that access Skyrim objects from another
+- Refuse all public actor operations that access Skyrim objects from another
   thread, and stop updating if the main-loop hook ever migrates threads.
 - In that pass, revalidate the actor handle, loaded 3D, and
   `BSAnimationGraphManager` before setting variables or sending graph events.
@@ -196,7 +196,7 @@ The implementation was revised as follows:
 The earlier queued-graph revision compiled and linked successfully. The current
 game-thread/coherence and remote-ownership changes still require a user-run
 Windows build and in-game stability test. Blocked local graph events are logged
-with the puppet handle and event name so any remaining interference can be
+with the actor handle and event name so any remaining interference can be
 traced.
 
 ## Known limitations and next steps

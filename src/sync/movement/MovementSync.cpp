@@ -31,10 +31,14 @@ namespace MovementSync
 		const auto position = a_local.player.GetPosition();
 		const auto cellID = a_cell.GetFormID();
 		const auto worldspaceID = GetWorldspaceID(a_local.player);
+		// A fast travel within one space is a relocation, not a speed sample.
 		const bool comparableLocalSpace = s_hasPreviousPosition &&
-			((worldspaceID != 0 || s_previousWorldspaceID != 0) ?
-				(worldspaceID != 0 && worldspaceID == s_previousWorldspaceID) :
-				(cellID == s_previousCellID));
+			IsSameCoordinateSpace(
+				cellID,
+				worldspaceID,
+				s_previousCellID,
+				s_previousWorldspaceID) &&
+			position.GetDistance(s_previousPosition) <= kRelocationDistance;
 
 		float speed = 0.0F;
 		// The body angle is the facing direction. Travel direction is carried

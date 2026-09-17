@@ -6,7 +6,7 @@ Implemented as an exterior-worldspace transform synchronization proof of
 concept. Every plugin publishes its local player transform to the FastAPI
 Socket.IO server at 20 Hz. The server validates and relays snapshots to all
 other clients. Each remote Socket.IO connection owns at most one controlled NPC
-puppet on the game thread.
+actor on the game thread.
 
 ## Runtime architecture
 
@@ -14,7 +14,7 @@ puppet on the game thread.
 Skyrim main-loop call hook (one bound owner thread)
     -> publish local position, heading, measured speed, movement/jump state, cell/worldspace IDs, sequence
     -> drain queued remote snapshots
-    -> create/update/remove ID-keyed controlled NPC puppets
+    -> create/update/remove ID-keyed controlled NPC actors
 
 Socket.IO callback (network thread)
     -> validate and parse plain message data
@@ -55,7 +55,7 @@ payload as `player:state` to every other connection. On disconnect it emits
 Only the newest pending transform/locomotion/jump checkpoint per remote player
 is retained between game frames. Movement and jump phase are current state, not
 discrete action history: replaying skipped movement or jump events would make
-the graph traverse obsolete states while the puppet already follows the newest
+the graph traverse obsolete states while the actor already follows the newest
 target. The receiver derives transient takeoff and landing events only when its
 applied checkpoint changes jump phase.
 
@@ -74,35 +74,35 @@ applied checkpoint changes jump phase.
   previous interior or worldspace. The latest network state is retained, and a
   new reference is created at the exact remote snapshot once both players share
   a space again. Exterior cell changes within one worldspace remain continuous.
-- A new puppet reference is created directly at its first received snapshot;
+- A new actor reference is created directly at its first received snapshot;
   there is no intermediate spawn at the local player's position.
-- Puppets use a runtime actor base built from the source player's synchronized
+- Actors use a runtime actor base built from the source player's synchronized
   appearance (`specs/006-player-appearance-sync.md`), falling back to the local
   player's actor base until one is available. Equipped items are synchronized
   separately (`specs/007-player-equipment-sync.md`). Both remain separate from
   animation ownership and combat suppression.
-- Puppet references retain normal actor, graph, controller, and collision
+- Actor references retain normal actor, graph, controller, and collision
   processing. Attack/cast decisions are disabled, and immediately before each
   actor update the live AI process ignores combat and any combat controller is
-  inactive. A puppet-only graph hook rejects locally injected events; the
+  inactive. A actor-only graph hook rejects locally injected events; the
   network controller sends replicated locomotion directly to the saved graph
   function.
   During an authoritative landing, a graph output-event sink observes the
   delayed `JumpLandEnd` annotation so the landing branch can return to
   locomotion. The landing edge is not complete until this marker is observed
   (with a bounded fallback), after which the controller reasserts grounded
-  locomotion so the puppet cannot exit the branch in a sliding idle pose.
+  locomotion so the actor cannot exit the branch in a sliding idle pose.
   Transform interpolation remains live while the timed landing branch finishes.
   This prevents local combat responses from taking graph ownership away from
-  replicated locomotion without producing a T-pose or non-colliding puppet.
+  replicated locomotion without producing a T-pose or non-colliding actor.
 - Hit callbacks only enqueue recovery data. The game-thread update uses
   Skyrim's native animation-graph revert, waits for graph/controller stability,
   and then replays the newest locomotion checkpoint. A 3D rebuild is retained
   as a fallback when the native revert is rejected or does not become ready.
-- The server's explicit `player:left` event removes the puppet and its receive
+- The server's explicit `player:left` event removes the actor and its receive
   state. A coordinate-space mismatch retires only the actor reference while
   retaining the latest receive state for an exact-cell respawn. A local
-  Socket.IO transport failure retains all puppets during reconnection.
+  Socket.IO transport failure retains all actors during reconnection.
 - Sequence numbers are checked by both server and client to ignore stale state.
   Network-thread coalescing also retains the highest pending sequence, so a late
   older packet cannot replace a newer packet before the game thread drains it.
@@ -115,13 +115,13 @@ applied checkpoint changes jump phase.
   to that heading, in the behavior graph's `Direction` units in `[0, 1]`
   (0 forward, 0.25 right, 0.5 backward, 0.75 left). It is read from the source
   graph's `Direction` variable. When a custom graph does not expose it, it is
-  derived from horizontal snapshot-to-snapshot travel. The puppet writes it to
+  derived from horizontal snapshot-to-snapshot travel. The actor writes it to
   its own `Direction` variable while moving. Vanilla locomotion selects
   forward/backward/strafe clips only through `Direction`
   (`BSCyclicBlendTransitionGenerator.fBlendParameter` over `*_Direction_Blend`);
   there is no separate backward movement event. Skyrim also copies each actor's
   own movement direction into that variable through `ActorDirectionChannel`
-  during every animation update, after main-loop graph writes; for a puppet
+  during every animation update, after main-loop graph writes; for a actor
   that is always forward, so the channel's polled value is replaced with the
   network direction. Like Skyrim does for the player, a direction change of at
   least 1/8 of a turn is cross-blended with `CyclicFreeze` followed one graph
@@ -133,7 +133,7 @@ applied checkpoint changes jump phase.
   The graph's `bInJumpState` provides the responsive takeoff edge. After the
   player has actually become airborne, physical ground contact provides the
   landing edge because the graph flag can remain set during landing cleanup.
-- Puppet translation uses the replicated numeric speed independently of the
+- Actor translation uses the replicated numeric speed independently of the
   replicated animation state. Neither distance nor numeric speed selects the
   walking versus running animation.
 - The latest locomotion state is applied from the same sample as the numeric
@@ -160,7 +160,7 @@ applied checkpoint changes jump phase.
 ## POC limitations
 
 1. Appearance (spec 006) and equipped items (spec 007) are synchronized
-   separately. Only vanilla items are shown on remote puppets.
+   separately. Only vanilla items are shown on remote actors.
 2. Cell and worldspace form IDs only work reliably when peers have compatible
    load orders.
 3. Interior/worldspace changes use an intentional despawn/respawn boundary;
@@ -172,6 +172,6 @@ applied checkpoint changes jump phase.
    compensation, or teleport detection. Only the latest snapshot is retained.
 6. Basic locomotion, sneak/sprint, and jump transitions are replicated.
    Swimming, combat, directional strafing, and actor values are not;
-   unsynchronized local combat and hit reactions are suppressed on puppets.
+   unsynchronized local combat and hit reactions are suppressed on actors.
 7. The endpoint defaults to `http://127.0.0.1:3000`. Remote clients configure
    it through `Data/SKSE/Plugins/skyrim-mp-server.txt`; there is no in-game UI.

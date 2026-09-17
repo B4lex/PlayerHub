@@ -12,7 +12,7 @@ describes a different behavior.
 The goal is to give each synchronization concern an explicit home and a frame
 entry point, while keeping one coordinator responsible for ordering. The frame
 hook and NPC creation/removal belong outside the synchronization modules.
-The refactor also transitions project-owned `Puppet` and `NPCSpawner` names to
+The refactor also transitions project-owned `Actor` and `NPCSpawner` names to
 `Actor` names for the remote player representation.
 
 ## Current seams in the code
@@ -20,7 +20,7 @@ The refactor also transitions project-owned `Puppet` and `NPCSpawner` names to
 | Current code | Responsibilities to retain | Proposed owner |
 | --- | --- | --- |
 | `FrameUpdate.cpp` `MainLoopUpdateHook`, `Install` | Main-loop call detour, original call first, delta validation, game-thread binding, trampoline allocation | `runtime/MainLoopHook` and `runtime/PluginStartup` |
-| `FrameUpdate.cpp` `OnFrame`, `ApplyNetworkChanges`, `RemotePuppet` | Drain once, disconnect/sequence handling, shared peer lifetime, fixed execution order | `sync/SyncCoordinator`, `sync/PeerState` |
+| `FrameUpdate.cpp` `OnFrame`, `ApplyNetworkChanges`, `RemoteActor` | Drain once, disconnect/sequence handling, shared peer lifetime, fixed execution order | `sync/SyncCoordinator`, `sync/PeerState` |
 | `FrameUpdate.cpp` `GetAnimationState`, `GetNextAnimationStep`, `AdvanceAnimationState`, graph epoch | Local locomotion/jump/stance capture and staged graph targets | `sync/animation/AnimationSync` |
 | `FrameUpdate.cpp` `PublishLocalTransform`, coordinate-space checks, `NPCSpawner.cpp` transform setters/interpolation | 20 Hz checkpoint cadence, position, heading, speed/direction, compatible space | `sync/movement/MovementSync` plus `actor/ActorMovement` |
 | `FrameUpdate.cpp` local attack observation, queued actions, `AdvanceAnimationAction` | Attack edge capture, graph-epoch/action ordering, bounded queue and dispatch | `sync/combat/CombatSync` |
@@ -103,9 +103,9 @@ instance or handle. Keep `RE::Actor` qualified when referring to Skyrim's
 engine type, so `RemoteActor` and `RE::Actor` cannot be mistaken for each other.
 `PeerState` continues to mean the network player's complete receive state;
 it is not the actor itself. During migration, old `NPCSpawner`, `ControlledNPC`,
-and `RemotePuppet` APIs can be forwarding adapters, but remove them after
+and `RemoteActor` APIs can be forwarding adapters, but remove them after
 callers have moved to `ActorSpawner`, `RemoteActor`, and `PeerState`. New code
-should not introduce `Puppet` names. Existing wire names and log messages can
+should not introduce `Actor` names. Existing wire names and log messages can
 stay until a separate change where changing them is intentional and testable.
 
 ## State and interface shape
@@ -328,7 +328,7 @@ semantics, or engine hook sites.
 
 The restructuring is complete when `FrameUpdate.cpp` and `NPCSpawner.cpp`
 have been replaced by the narrow coordinator, hook, spawn, and feature owners
-above; the new code uses `Actor` naming instead of `Puppet` naming; every
+above; the new code uses `Actor` naming instead of `Actor` naming; every
 feature has a visible frame entry point; one module owns each piece of
 persistent state; and the behavior checks match the baseline.
 
@@ -353,4 +353,4 @@ The structural move is implemented. Where it differs from the proposal above:
 - `ActorRegistry` preserves each original lock scope as one operation. Pure
   event-name classification in the graph input hook runs outside the lock.
 - Log messages and `GameThread::Require` operation names are unchanged, so
-  logs still say "puppet" and the old function names.
+  logs still say "actor" and the old function names.

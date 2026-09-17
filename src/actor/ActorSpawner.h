@@ -20,4 +20,13 @@ namespace ActorSpawner
 		float a_stoppingDistance = 1.0F);
 
 	void Remove(RemoteActor& a_remote);
+
+	// Whether Spawn can currently place an actor at the position: an exterior
+	// position needs its cell loaded; an interior uses the local player's cell.
+	[[nodiscard]] bool IsSpawnLocationLoaded(const RE::NiPoint3& a_position);
+
+	// TESObjectREFR::CheckSaveGame rejects a reference flagged as permanently
+	// deleted, and the change-form writer then drops its record instead of
+	// serializing it. Disable and SetDelete do not keep a reference out of a save.
+	void SetExcludedFromSaves(const RemoteActor& a_remote, bool a_excluded);
 }

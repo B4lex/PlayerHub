@@ -1,4 +1,5 @@
 #include "sync/ActorLifecycle.h"
+#include "actor/ActorConstants.h"
 #include "actor/ActorSpawner.h"
 #include "sync/PeerState.h"
 #include "sync/SyncFrame.h"
@@ -13,6 +14,8 @@ namespace ActorLifecycle
 		constexpr float kActorSpeed = 550.0F;
 		constexpr float kActorStoppingDistance = 1.0F;
 		constexpr float kSpawnRetryDelay = 1.0F;
+		// A reloaded location normally restores an actor's 3D within a few passes.
+		constexpr float kStrandedActorSeconds = 2.0F;
 
 		// Returns the retired actor's handle for logging.
 		std::uint32_t Retire(PeerState& a_peer)
@@ -24,6 +27,7 @@ namespace ActorLifecycle
 			CombatSync::ClearRemoteActions(a_peer.combat);
 			a_peer.appliedSequence = 0;
 			lifecycle.spawnRetryRemaining = 0.0F;
+			lifecycle.strandedElapsed = 0.0F;
 			return actorHandle;
 		}
 	}
@@ -44,7 +48,7 @@ namespace ActorLifecycle
 		// Rebuild the actor from the newest checkpoint with the new base.
 		const auto actorHandle = Retire(a_peer);
 		logs::info(
-			"Recycling remote player puppet {} actor {:08X} after appearance change: spawnedRevision={} revision={}",
+			"Recycling remote player actor {} actor {:08X} after appearance change: spawnedRevision={} revision={}",
 			a_remote.playerID,
 			actorHandle,
 			static_cast<unsigned long long>(a_peer.appearance.spawnedRevision),
@@ -59,7 +63,7 @@ namespace ActorLifecycle
 	{
 		const auto actorHandle = Retire(a_peer);
 		logs::info(
-			"Recycling remote player puppet {} actor {:08X} after coordinate-space change: spawnedCell={:08X} spawnedWorld={:08X} targetCell={:08X} targetWorld={:08X} localCell={:08X} localWorld={:08X}",
+			"Recycling remote player actor {} actor {:08X} after coordinate-space change: spawnedCell={:08X} spawnedWorld={:08X} targetCell={:08X} targetWorld={:08X} localCell={:08X} localWorld={:08X}",
 			a_remote.playerID,
 			actorHandle,
 			a_peer.lifecycle.spawnedCellID,
@@ -70,10 +74,77 @@ namespace ActorLifecycle
 			a_localWorldspaceID);
 	}
 
+	void RetireWhenStranded(
+		const RemoteFrame& a_remote,
+		PeerState& a_peer,
+		float a_delta)
+	{
+		auto& lifecycle = a_peer.lifecycle;
+		auto actorPtr = lifecycle.actor->handle.get();
+		if (!actorPtr) {
+			// ActorRuntime reports the lost handle.
+			return;
+		}
+
+		const RE::NiPoint3 targetPosition{
+			a_remote.checkpoint.x,
+			a_remote.checkpoint.y,
+			a_remote.checkpoint.z
+		};
+		const auto actorPosition = actorPtr->GetPosition();
+		const float distance = actorPosition.GetDistance(targetPosition);
+		const bool has3D = actorPtr->Is3DLoaded();
+		const char* reason = nullptr;
+		if (distance > MovementSync::kRelocationDistance) {
+			// Translation would visibly slide across the map, or never happen
+			// while the actor's old cell is unloaded.
+			reason = "relocated";
+		} else if (has3D ||
+			!ActorSpawner::IsSpawnLocationLoaded(targetPosition)) {
+			lifecycle.strandedElapsed = 0.0F;
+		} else {
+			// The actor's own cell stayed unloaded, so it cannot regain 3D, and
+			// translation waits for a graph that needs 3D.
+			lifecycle.strandedElapsed += std::clamp(
+				a_delta,
+				0.0F,
+				ActorConstants::kMaximumFrameTime);
+			if (lifecycle.strandedElapsed >= kStrandedActorSeconds) {
+				reason = "unloaded";
+			}
+		}
+		if (!reason) {
+			return;
+		}
+
+		const auto actorHandle = Retire(a_peer);
+		logs::info(
+			"Recycling remote player actor {} actor {:08X} after fast travel: reason={} actorPosition=({:.3f},{:.3f},{:.3f}) target=({:.3f},{:.3f},{:.3f}) distance={:.1f} loaded3D={} sequence={}",
+			a_remote.playerID,
+			actorHandle,
+			reason,
+			actorPosition.x,
+			actorPosition.y,
+			actorPosition.z,
+			targetPosition.x,
+			targetPosition.y,
+			targetPosition.z,
+			distance,
+			has3D,
+			static_cast<unsigned long long>(a_remote.lastSequence));
+	}
+
+	void SetExcludedFromSaves(PeerState& a_peer, bool a_excluded)
+	{
+		if (a_peer.lifecycle.actor) {
+			ActorSpawner::SetExcludedFromSaves(*a_peer.lifecycle.actor, a_excluded);
+		}
+	}
+
 	void OnActorLost(const RemoteFrame& a_remote, PeerState& a_peer)
 	{
 		logs::warn(
-			"Remote player puppet {} lost its actor handle; respawning it",
+			"Remote player actor {} lost its actor handle; respawning it",
 			a_remote.playerID);
 		a_peer.lifecycle.actor.reset();
 		CombatSync::ClearRemoteActions(a_peer.combat);
@@ -132,7 +203,7 @@ namespace ActorLifecycle
 		lifecycle.spawnedWorldspaceID = a_remote.checkpoint.worldspaceID;
 
 		logs::info(
-			"Allocated remote player puppet {} as actor {:08X} at transform sequence={} with target animation state={}/{}; waiting for 3D and animation graph readiness",
+			"Allocated remote player actor {} as actor {:08X} at transform sequence={} with target animation state={}/{}; waiting for 3D and animation graph readiness",
 			a_remote.playerID,
 			lifecycle.actor->handle.native_handle(),
 			static_cast<unsigned long long>(a_peer.appliedSequence),
@@ -142,7 +213,7 @@ namespace ActorLifecycle
 
 		if (auto* console = RE::ConsoleLog::GetSingleton()) {
 			console->Print(
-				"SkyrimMP remote player puppet reference allocated; initializing.");
+				"SkyrimMP remote player actor reference allocated; initializing.");
 		}
 	}
 }

@@ -303,7 +303,7 @@ namespace ActorFurniture
 		const auto sitSleepState = GetActorSitSleepState(a_actor);
 		if (sitSleepState != a_remote.furniture.loggedSitSleepState) {
 			logs::info(
-				"Animation sync puppet sit/sleep state changed: actor={:08X} previous={} current={} occupied={:08X} target={:08X}",
+				"Animation sync actor sit/sleep state changed: actor={:08X} previous={} current={} occupied={:08X} target={:08X}",
 				a_remote.handle.native_handle(),
 				static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(
 					a_remote.furniture.loggedSitSleepState),
