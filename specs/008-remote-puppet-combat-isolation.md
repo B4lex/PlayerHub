@@ -12,13 +12,14 @@ been verified in game. Open items are listed under
 A remote actor stands in for a player who lives in another world. In the local
 world it must be invisible to combat: local enemies, creatures, guards, and
 followers never become hostile to it, never target it, and never start combat
-with it. Local gameplay continues exactly as if the actor were not there.
+with it. The remote actor's replicated attacks do not damage, stagger, or
+otherwise hit anything in the local world. Local gameplay continues exactly as
+if the actor were not there.
 
 ## Non-goals
 
-- Blocking damage, stagger, or other hit effects that a actor's replicated
-  weapon swing applies to local actors. Only the combat reaction to such a hit
-  is suppressed here.
+- Magic and explosions a remote actor might release. Remote actors have
+  casting disabled; spell casting is not replicated.
 - Non-combat awareness: head tracking, greetings, and pathing around the actor.
 - Runtimes other than 1.7.104. On other runtimes the hooks are not installed and
   a warning is logged.
@@ -58,7 +59,7 @@ removing the flag alone is not enough.
    jumps back to the sixth byte, then writes a 5-byte branch to the thunk. The
    bytes are compared first; if they differ, for example because another plugin
    already patched the function, that hook is skipped and an error is logged.
-   Startup logs which of the three hooks were installed.
+   Startup logs which hooks were installed.
 4. A actor is identified by its registration in the actor graph table, looked
    up under the table mutex, so the check is safe from worker threads.
    Registration happens right after the reference is created and is removed
@@ -67,6 +68,20 @@ removing the flag alone is not enough.
    frenzied local actors also ignore them.
 6. Suppressions are logged with the path, both form IDs, and a count, throttled
    like the other firewall logs.
+7. Remote actor attack animations play natively, so their `HitFrame`
+   annotations still run the local hit pipeline. Two more hooks drop hits whose
+   aggressor is a remote actor:
+
+   | ID | Function | Hook | Effect |
+   | --- | --- | --- | --- |
+   | 38603 | Melee hit frame `(attacker, leftHand, flag)`: weapon reach sweep, then hits on actors (38627) and objects (38628) | entry detour, moved bytes `mov rax, rsp; mov [rax+10h], dl` | returns without sweeping |
+   | 44218 + 0x90 | Projectile impact calling the actor hit 38627 `(shooter, target, projectile, leftHand)` | call-site detour | skips the hit |
+
+   The melee hook also covers the queued path: when 38603 defers itself (ID 36915), the deferred task (ID 36991) calls 38603
+   again. Skipping 38603 drops damage, stagger, hit impulses, hit effects, and
+   the resulting `TESHitEvent` on the target. The entry detour pads its sixth
+   byte with a NOP; the call-site detour chains to whatever the call pointed to
+   before, so another plugin's hook at that site keeps working.
 
 The existing actor-side suppression (do-nothing package, disabled combat
 controller, `SanitizeRemoteCombatState`) and the damage, kill, and magic
@@ -79,14 +94,20 @@ Verified against the 1.7.104 executable:
 1. IDs 37534, 37537, and 38561 resolve to functions with the entry bytes above,
    and those functions take `this` in `rcx` and the target actor in `rdx`.
 2. 38561 returns its result in `al` and returns false on its own early rejects.
+3. ID 38603 has no return value and takes the attacker in `rcx`. It is the only
+   caller of the object hit 38628 and calls the actor hit 38627 twice.
+4. ID 38627 takes the aggressor in `rcx`, the target in `rdx`, and an optional
+   projectile in `r8`, and has no return value. Its callers are 38603 and 44218,
+   which passes the actor resolved from the projectile's shooter handle.
 
 Not yet checked in game:
 
-3. No combat path adds a actor to a local combat group's targets without
+5. No combat path adds a actor to a local combat group's targets without
    passing through 37532/37534 or `StartCombat`.
-4. Clearing `kPlayerTeammate` does not make the local player's hits on a actor
+6. Clearing `kPlayerTeammate` does not make the local player's hits on a actor
    start a crime or assault reaction. The actor copies the player base, which
    has no crime faction.
+7. Bashes and unarmed attacks also land through 38603.
 
 ## Acceptance criteria
 
@@ -97,4 +118,8 @@ Not yet checked in game:
 3. Local followers do not attack a actor.
 4. A local actor hit by a actor's replicated swing does not enter combat with
    the actor.
-5. Combat between local actors and the local player is otherwise unchanged.
+5. A remote actor's melee, bash, or unarmed attack that connects with the local
+   player, an NPC, or a physics object deals no damage, causes no stagger or
+   hit reaction, and does not move the object.
+6. An arrow shot by a remote actor that strikes a local actor deals no damage.
+7. Combat between local actors and the local player is otherwise unchanged.

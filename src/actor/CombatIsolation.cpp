@@ -5,6 +5,7 @@
 #include <array>
 #include <atomic>
 #include <cstring>
+#include <span>
 #include <string_view>
 
 namespace CombatIsolation
@@ -39,30 +40,49 @@ namespace CombatIsolation
 			return true;
 		}
 
-		// Redirects a function's first instructions to a_thunk and returns the address
-		// of a gateway that runs them and resumes the original function. The moved
-		// instructions must be exactly a_prologue and position independent. Returns 0
-		// without patching if the bytes differ, for example on another runtime or
-		// when another plugin already patched the function.
-		constexpr std::size_t kEntryDetourPrologueSize = 5;
+		// Returns true when a registered remote actor is the aggressor of a hit.
+		// Its native attack animations still run the local hit pipeline, but the
+		// swing belongs to another player's world and must not affect this one.
+		bool IsRemoteActorHit(
+			const RE::Actor* a_aggressor,
+			const RE::TESObjectREFR* a_target,
+			std::string_view a_path)
+		{
+			if (!ActorRegistry::IsRegistered(a_aggressor)) {
+				return false;
+			}
+
+			static std::atomic_uint32_t suppressedCount{ 0 };
+			const auto count = ++suppressedCount;
+			if (count <= kInitialBlockedEventLogs || count % kBlockedEventLogInterval == 0) {
+				logs::info(
+					"Suppressed remote actor hit: path={} aggressor={:08X} target={:08X} count={}",
+					a_path,
+					a_aggressor->GetFormID(),
+					a_target ? a_target->GetFormID() : 0,
+					count);
+			}
+			return true;
+		}
+
 		// jmp [rip+0] followed by the 64-bit resume address.
 		constexpr std::size_t kAbsoluteJumpSize = 14;
-		// The gateway plus the absolute jump write_branch<5> allocates.
-		constexpr std::size_t kEntryDetourTrampolineSize =
-			kEntryDetourPrologueSize + 2 * kAbsoluteJumpSize;
-		constexpr std::size_t kCombatIsolationDetourCount = 3;
-		static_assert(
-			kCombatIsolationDetourCount * kEntryDetourTrampolineSize ==
-			kTrampolineSize);
+		constexpr std::size_t kBranchSize = 5;
 
+		// Redirects a function's first instructions to a_thunk and returns the address
+		// of a gateway that runs them and resumes the original function. The moved
+		// instructions must be exactly a_prologue, at least five bytes, and position
+		// independent. Returns 0 without patching if the bytes differ, for example on
+		// another runtime or when another plugin already patched the function.
 		std::uintptr_t WriteEntryDetour(
 			REL::ID a_id,
-			const std::array<std::uint8_t, kEntryDetourPrologueSize>& a_prologue,
+			std::span<const std::uint8_t> a_prologue,
 			std::uintptr_t a_thunk,
 			std::string_view a_name)
 		{
 			const auto target = REL::Relocation<std::uintptr_t>{ a_id }.address();
-			if (std::memcmp(
+			if (a_prologue.size() < kBranchSize ||
+				std::memcmp(
 					reinterpret_cast<const void*>(target),
 					a_prologue.data(),
 					a_prologue.size()) != 0) {
@@ -75,19 +95,75 @@ namespace CombatIsolation
 
 			auto& trampoline = SKSE::GetTrampoline();
 			auto* gateway = static_cast<std::uint8_t*>(
-				trampoline.allocate(kEntryDetourPrologueSize + kAbsoluteJumpSize));
+				trampoline.allocate(a_prologue.size() + kAbsoluteJumpSize));
 			std::memcpy(gateway, a_prologue.data(), a_prologue.size());
 			const std::array<std::uint8_t, 6> jump{ 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 };
-			const std::uintptr_t resume = target + kEntryDetourPrologueSize;
-			std::memcpy(gateway + kEntryDetourPrologueSize, jump.data(), jump.size());
+			const std::uintptr_t resume = target + a_prologue.size();
+			std::memcpy(gateway + a_prologue.size(), jump.data(), jump.size());
 			std::memcpy(
-				gateway + kEntryDetourPrologueSize + jump.size(),
+				gateway + a_prologue.size() + jump.size(),
 				&resume,
 				sizeof(resume));
 
+			// Pad the rest of a longer prologue so the patched entry disassembles
+			// cleanly; execution never reaches these bytes.
+			for (auto offset = kBranchSize; offset < a_prologue.size(); ++offset) {
+				REL::safe_write(target + offset, std::uint8_t{ 0x90 });
+			}
 			(void) trampoline.write_branch<5>(target, a_thunk);
 			return reinterpret_cast<std::uintptr_t>(gateway);
 		}
+
+		// Redirects the 5-byte call at a_id + a_offset to a_thunk and returns the
+		// previous destination, which may be another plugin's detour. Returns 0
+		// without patching if the instruction there is not a relative call.
+		std::uintptr_t WriteCallDetour(
+			REL::ID a_id,
+			std::ptrdiff_t a_offset,
+			std::uintptr_t a_thunk,
+			std::string_view a_name)
+		{
+			const auto site = REL::Relocation<std::uintptr_t>{ a_id }.address() + a_offset;
+			if (*reinterpret_cast<const std::uint8_t*>(site) != 0xE8) {
+				logs::error(
+					"Did not install {} hook: no call at ID {} + {:#x}",
+					a_name,
+					a_id.id(),
+					a_offset);
+				return 0;
+			}
+			return SKSE::GetTrampoline().write_call<5>(site, a_thunk);
+		}
+
+		constexpr std::array<std::uint8_t, 5> kHostilityPrologue{
+			0x44, 0x88, 0x4C, 0x24, 0x20  // mov [rsp+20h], r9b
+		};
+		constexpr std::array<std::uint8_t, 5> kIsHostileToActorPrologue{
+			0x48, 0x89, 0x5C, 0x24, 0x10  // mov [rsp+10h], rbx
+		};
+		constexpr std::array<std::uint8_t, 5> kStartCombatPrologue{
+			0x4C, 0x8B, 0xDC,  // mov r11, rsp
+			0x55,              // push rbp
+			0x56               // push rsi
+		};
+		constexpr std::array<std::uint8_t, 6> kWeaponSwingHitPrologue{
+			0x48, 0x8B, 0xC4,  // mov rax, rsp
+			0x88, 0x50, 0x10   // mov [rax+10h], dl
+		};
+
+		// A gateway plus the absolute jump write_branch<5> allocates.
+		constexpr std::size_t EntryDetourTrampolineSize(std::size_t a_prologueSize)
+		{
+			return a_prologueSize + 2 * kAbsoluteJumpSize;
+		}
+
+		static_assert(
+			EntryDetourTrampolineSize(kHostilityPrologue.size()) +
+				EntryDetourTrampolineSize(kIsHostileToActorPrologue.size()) +
+				EntryDetourTrampolineSize(kStartCombatPrologue.size()) +
+				EntryDetourTrampolineSize(kWeaponSwingHitPrologue.size()) +
+				kAbsoluteJumpSize ==
+			kTrampolineSize);
 
 		// The engine's hostility decision (ID 37534 on 1.7.104): aggression and
 		// faction reaction toward a target. Its wrappers (IDs 37532 and 37533) serve
@@ -142,6 +218,41 @@ namespace CombatIsolation
 			static inline REL::Relocation<decltype(Thunk)> _original;
 		};
 
+		// The melee hit frame (ID 38603 on 1.7.104): sweeps the attacker's weapon
+		// reach and hits the actors and objects it finds, applying damage, stagger,
+		// impulses, and hit effects. Reached from the attack animation's HitFrame
+		// annotation, possibly after being queued to another update pass.
+		struct WeaponSwingHitHook
+		{
+			static void Thunk(RE::Actor* a_attacker, bool a_leftHand, bool a_flag)
+			{
+				if (IsRemoteActorHit(a_attacker, nullptr, "WeaponSwing")) {
+					return;
+				}
+				_original(a_attacker, a_leftHand, a_flag);
+			}
+
+			static inline REL::Relocation<decltype(Thunk)> _original;
+		};
+
+		// The call from a projectile impact (ID 44218) to the actor hit (ID 38627),
+		// which builds HitData for the shooter and applies it to the struck actor.
+		struct ProjectileHitHook
+		{
+			static void Thunk(
+				RE::Actor* a_shooter,
+				RE::TESObjectREFR* a_target,
+				RE::Projectile* a_projectile,
+				bool a_leftHand)
+			{
+				if (IsRemoteActorHit(a_shooter, a_target, "ProjectileHit")) {
+					return;
+				}
+				_original(a_shooter, a_target, a_projectile, a_leftHand);
+			}
+
+			static inline REL::Relocation<decltype(Thunk)> _original;
+		};
 	}
 
 	void InstallHooks()
@@ -153,28 +264,37 @@ namespace CombatIsolation
 			return;
 		}
 
-		// mov [rsp+20h], r9b
 		HostilityHook::_original = WriteEntryDetour(
 			REL::ID(37534),
-			{ 0x44, 0x88, 0x4C, 0x24, 0x20 },
+			kHostilityPrologue,
 			reinterpret_cast<std::uintptr_t>(&HostilityHook::Thunk),
 			"hostility decision");
-		// mov [rsp+10h], rbx
 		IsHostileToActorHook::_original = WriteEntryDetour(
 			REL::ID(37537),
-			{ 0x48, 0x89, 0x5C, 0x24, 0x10 },
+			kIsHostileToActorPrologue,
 			reinterpret_cast<std::uintptr_t>(&IsHostileToActorHook::Thunk),
 			"IsHostileToActor");
-		// mov r11, rsp; push rbp; push rsi
 		StartCombatHook::_original = WriteEntryDetour(
 			REL::ID(38561),
-			{ 0x4C, 0x8B, 0xDC, 0x55, 0x56 },
+			kStartCombatPrologue,
 			reinterpret_cast<std::uintptr_t>(&StartCombatHook::Thunk),
 			"StartCombat");
+		WeaponSwingHitHook::_original = WriteEntryDetour(
+			REL::ID(38603),
+			kWeaponSwingHitPrologue,
+			reinterpret_cast<std::uintptr_t>(&WeaponSwingHitHook::Thunk),
+			"weapon swing hit");
+		ProjectileHitHook::_original = WriteCallDetour(
+			REL::ID(44218),
+			0x90,
+			reinterpret_cast<std::uintptr_t>(&ProjectileHitHook::Thunk),
+			"projectile hit");
 		logs::info(
-			"Remote actor combat isolation hooks: hostility={} isHostileToActor={} startCombat={}",
+			"Remote actor combat isolation hooks: hostility={} isHostileToActor={} startCombat={} weaponSwingHit={} projectileHit={}",
 			HostilityHook::_original.address() != 0,
 			IsHostileToActorHook::_original.address() != 0,
-			StartCombatHook::_original.address() != 0);
+			StartCombatHook::_original.address() != 0,
+			WeaponSwingHitHook::_original.address() != 0,
+			ProjectileHitHook::_original.address() != 0);
 	}
 }
