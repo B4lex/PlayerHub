@@ -135,16 +135,11 @@ namespace ActorAnimation
         bool blockStopAccepted{ false };
         float blockStopElapsed{ 0.0F };
         float blockEventRetryElapsed{ 0.0F };
-        // Time a held block has been missing from the graph, for example after a
-        // bash or recoil left through the ready state.
-        float blockLostElapsed{ 0.0F };
         // The block, bow draw, and cast lower bodies choose their standing or moving
         // state from iSyncIdleLocomotion when entered, which stays 0 on a remote
-        // actor, so a moving actor slid in the standing pose. After a start, a
-        // moving actor takes their moveStart edge instead.
+        // actor. A presentation started while moving takes their moveStart edge.
         bool presentationMoveStartPending{ false };
         std::uint32_t presentationMoveStartWaitPasses{ 0 };
-        std::uint32_t presentationMoveStartAttempts{ 0 };
         float presentationMoveStartElapsed{ 0.0F };
     };
 
@@ -182,8 +177,8 @@ namespace ActorAnimation
     // from being released.
     void ApplySpellCast(RemoteActor& a_remote, bool a_leftHand, bool a_casting, bool a_mayStart, float a_deltaTime);
     // Converges a network block toward a_blocking: raises it when a_mayStart and
-    // the graph is stable, grounded, and fully drawn, holds it (raising it again
-    // after a bash that left it), and lowers it once a_blocking clears.
+    // the graph is stable, grounded, and fully drawn, holds it through bashes, and
+    // lowers it once a_blocking clears.
     void ApplyBlock(RemoteActor& a_remote, bool a_blocking, bool a_mayStart, float a_deltaTime);
     // Selects the moving lower body of a block, bow draw, or cast that has just
     // started while the actor moves. Runs after the Apply* presentation stages.
