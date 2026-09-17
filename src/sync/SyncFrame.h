@@ -13,24 +13,24 @@
 
 struct LocalFrame
 {
-	RE::PlayerCharacter& player;
+    RE::PlayerCharacter& player;
 };
 
 struct RemoteFrame
 {
-	const std::string& playerID;
-	// The newest accepted checkpoint and its sequence.
-	const Network::PlayerTransform& checkpoint;
-	std::uint64_t lastSequence;
+    const std::string& playerID;
+    // The newest accepted checkpoint and its sequence.
+    const Network::PlayerTransform& checkpoint;
+    std::uint64_t lastSequence;
 };
 
 // A newer checkpoint accepted from the network, before it replaces the previous
 // one. inserted marks the first message ever received for the player.
 struct CheckpointUpdate
 {
-	const std::string& playerID;
-	bool inserted;
-	const Network::PlayerTransform& previous;
-	std::uint64_t previousSequence;
-	const Network::PlayerTransform& checkpoint;
+    const std::string& playerID;
+    bool inserted;
+    const Network::PlayerTransform& previous;
+    std::uint64_t previousSequence;
+    const Network::PlayerTransform& checkpoint;
 };
