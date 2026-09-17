@@ -50,14 +50,9 @@ namespace ActorAnimation
         // A block still raised this long after blockStop is dropped instantly. It
         // covers a bash that was already playing when the block was lowered.
         constexpr float kBlockStopFallbackSeconds = 1.5F;
-        // A held block missing from the graph this long is raised again. Shorter
-        // gaps are the graph's own transitions into and out of a bash.
-        constexpr float kBlockReraiseSeconds = 0.25F;
         // A cast enters its graph state some updates after the caster's request. A
         // graph without the casting variables takes moveStart after this long.
         constexpr float kCastLowerBodyEntrySeconds = 0.5F;
-        // A presentation's moveStart that is still rejected after this is abandoned.
-        constexpr float kPresentationMoveStartFallbackSeconds = 1.0F;
 
         // The native attack takes attackStart as its next combo swing in these
         // states; CombatSync captures the local player's chained swings from them.
@@ -332,10 +327,8 @@ namespace ActorAnimation
             a_state.blockStopAccepted = false;
             a_state.blockStopElapsed = 0.0F;
             a_state.blockEventRetryElapsed = kMinimumEventRetrySeconds;
-            a_state.blockLostElapsed = 0.0F;
             a_state.presentationMoveStartPending = false;
             a_state.presentationMoveStartWaitPasses = 0;
-            a_state.presentationMoveStartAttempts = 0;
             a_state.presentationMoveStartElapsed = 0.0F;
         }
 
@@ -343,7 +336,6 @@ namespace ActorAnimation
         {
             a_state.presentationMoveStartPending = true;
             a_state.presentationMoveStartWaitPasses = 0;
-            a_state.presentationMoveStartAttempts = 0;
             a_state.presentationMoveStartElapsed = 0.0F;
         }
 
@@ -901,12 +893,12 @@ namespace ActorAnimation
         auto& state = *a_remote.animation;
         const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
         state.blockEventRetryElapsed = (std::min)(state.blockEventRetryElapsed + deltaTime, kMinimumEventRetrySeconds);
-        bool graphBlocking = false;
-        const bool graphBlockingAvailable = actor.GetGraphVariableBool(isBlockingVariable, graphBlocking);
 
         if (state.blockStopping)
         {
             state.blockStopElapsed += deltaTime;
+            bool graphBlocking = false;
+            const bool graphBlockingAvailable = actor.GetGraphVariableBool(isBlockingVariable, graphBlocking);
             // A graph without the variable only has the accepted event as evidence.
             const bool lowered = graphBlockingAvailable ? !graphBlocking : state.blockStopAccepted;
             const bool timedOut = state.blockStopElapsed >= kBlockStopFallbackSeconds;
@@ -938,32 +930,14 @@ namespace ActorAnimation
         {
             if (a_blocking)
             {
+                // Set on every pass, so a bash's bashExit returns to the block.
                 SetBlockRequest(actor, true);
-                // A bash, recoil, or attack that exits through the ready state leaves
-                // the block. Raise it again once nothing else owns the graph.
-                const bool missing = graphBlockingAvailable && !graphBlocking && !state.attackPlaybackPending;
-                state.blockLostElapsed = missing ? state.blockLostElapsed + deltaTime : 0.0F;
-                if (state.blockLostElapsed < kBlockReraiseSeconds
-                    || state.blockEventRetryElapsed < kMinimumEventRetrySeconds
-                    || !CanStartHandPresentation(a_remote, actor))
-                {
-                    return;
-                }
-                state.blockEventRetryElapsed = 0.0F;
-                if (SendHandPresentationEvent(a_remote, actor, blockStartEvent))
-                {
-                    RequestPresentationMoveStart(state);
-                    logs::info("Animation sync raised held block again: actor={:08X} missingSeconds={:.3f}",
-                        a_remote.handle.native_handle(), state.blockLostElapsed);
-                    state.blockLostElapsed = 0.0F;
-                }
                 return;
             }
 
             state.blockHeld = false;
             state.blockStopping = true;
             state.blockStopElapsed = 0.0F;
-            state.blockLostElapsed = 0.0F;
             state.blockEventRetryElapsed = 0.0F;
             SetBlockRequest(actor, false);
             state.blockStopAccepted = SendHandPresentationEvent(a_remote, actor, blockStopEvent);
@@ -992,7 +966,6 @@ namespace ActorAnimation
         }
 
         state.blockHeld = true;
-        state.blockLostElapsed = 0.0F;
         RequestPresentationMoveStart(state);
         logs::info("Animation sync raised block: actor={:08X}", a_remote.handle.native_handle());
     }
@@ -1043,22 +1016,16 @@ namespace ActorAnimation
             }
         }
 
+        // Sent once: the lower body takes it on the graph's first update in the
+        // branch, and a rejection means it is not standing, so a retry never helps.
         static const RE::BSFixedString moveStartEvent{ "moveStart" };
         const bool accepted = SendNetworkAnimationEvent(a_remote, moveStartEvent);
-        ++state.presentationMoveStartAttempts;
-        const bool exhausted = state.presentationMoveStartAttempts >= kMaximumEventDispatchAttempts
-            && state.presentationMoveStartElapsed >= kPresentationMoveStartFallbackSeconds;
-        if (!accepted && !exhausted)
-        {
-            return;
-        }
         logs::info(
             "Animation sync selected moving presentation lower body: actor={:08X} state={} block={} bow={} cast={} "
-            "accepted={} attempts={} elapsed={:.3f}",
+            "accepted={} elapsed={:.3f}",
             a_remote.handle.native_handle(),
             Multiplayer::GetMovementStateName(state.targetAnimationState.movementState), state.blockHeld,
-            state.bowDrawHeld, castHeld, accepted, state.presentationMoveStartAttempts,
-            state.presentationMoveStartElapsed);
+            state.bowDrawHeld, castHeld, accepted, state.presentationMoveStartElapsed);
         state.presentationMoveStartPending = false;
     }
 

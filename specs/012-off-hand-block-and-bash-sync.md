@@ -168,9 +168,7 @@ no playing attack.
   `iWantBlock`, then `blockStart` is sent through the bypass like a bow event.
   A rejected start clears the request and retries every 0.1 s.
 - **Hold.** The request is set again on every pass, so a bash's `bashExit`
-  returns to the block state. If the graph's `IsBlocking` variable stays false
-  for 0.25 s while no attack plays, for example after a recoil or a bash that
-  left through the ready state, `blockStart` is sent again.
+  returns to the block state.
 - **Lower.** The request is cleared and `blockStop` is sent. A playing bash
   rejects it and then exits to the ready state by itself. A block state that
   rejected it is asked again every 0.1 s while no attack plays. The block is
@@ -179,6 +177,9 @@ no playing attack.
   replayed as after an attack.
 - A graph reset clears all block state. The next pass clears a request left on
   the actor.
+- A block counts as hand presentation. `AnimationSync` therefore holds the
+  actor's `weaponDrawn` and `jumping` while it is held or lowering, furniture
+  entry waits for it, and a bow draw or cast does not start.
 
 ### Moving lower body
 
@@ -187,19 +188,17 @@ The lower bodies of the block (`Blocking_LowerBody_Behavior`), bow draw
 machines choose their standing or moving start state from
 `iSyncIdleLocomotion` when they are entered. The engine leaves it at 0 on a
 remote actor (the weapon replay diagnostics log it as 0 while running), so a
-block, bow draw, or cast started while moving entered the standing pose and the
-actor slid under network translation (observed in game). After such a start,
+block, bow draw, or cast started while moving would enter the standing pose
+while network translation continues. After such a start,
 `ActorAnimation::AdvancePresentationLocomotion` waits for the graph to enter the
 branch (two synchronization passes, and for a cast also its `IsCastingLeft` or
 `IsCastingRight` variable, for at most 0.5 s) and then sends `moveStart`, the
-lower body's standing-to-moving edge. A rejected `moveStart` is retried for 1 s.
+lower body's standing-to-moving edge. It is sent once: a rejection means the
+lower body is not standing, and retries were never accepted in game.
 Nothing is sent while standing, while a bash owns the graph (its locomotion
 replay sends `moveStart`), or after the presentation has ended. Movement that
 starts later during a presentation reaches the lower body through the ordinary
 locomotion events.
-- A block counts as hand presentation. `AnimationSync` therefore holds the
-  actor's `weaponDrawn` and `jumping` while it is held or lowering, furniture
-  entry waits for it, and a bow draw or cast does not start.
 
 ## Isolation
 
@@ -224,8 +223,7 @@ To verify in game:
    one-handed weapons, two-handed weapons, torches, and fists, and the block pose
    follows walking and running.
 5. The graph variable `IsBlocking` follows the block state on a remote actor. If
-   it does not, a held block is never raised again after it was left, and a
-   lowering block completes on the accepted `blockStop`.
+   it does not, a lowering block completes on the accepted `blockStop`.
 6. `bashStart` from a raised block plays the bash, and with `wantBlocking` and
    `iWantBlock` set, `bashExit` returns to the block. A bow bash plays from the
    ready state.
