@@ -23,7 +23,7 @@ namespace GameThread
 				std::memory_order_acq_rel,
 				std::memory_order_acquire)) {
 			logs::info(
-				"Bound remote-puppet engine access to main-loop thread {}",
+				"Bound remote actor engine access to main-loop thread {}",
 				currentThread);
 			return true;
 		}
@@ -36,7 +36,7 @@ namespace GameThread
 				true,
 				std::memory_order_relaxed)) {
 			logs::critical(
-				"Main-loop hook migrated threads; refusing remote-puppet update: currentThread={} authoritativeThread={}",
+				"Main-loop hook migrated threads; refusing Remote actor update: currentThread={} authoritativeThread={}",
 				currentThread,
 				expectedThread);
 		}
@@ -63,7 +63,7 @@ namespace GameThread
 
 		if (!s_wrongThreadLogged.exchange(true, std::memory_order_relaxed)) {
 			logs::critical(
-				"Refused remote-puppet engine access outside the authoritative main-loop thread: operation={} currentThread={} authoritativeThread={}",
+				"Refused remote actor engine access outside the authoritative main-loop thread: operation={} currentThread={} authoritativeThread={}",
 				a_operation,
 				currentThread,
 				authoritativeThread);

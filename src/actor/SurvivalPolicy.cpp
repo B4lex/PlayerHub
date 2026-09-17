@@ -90,7 +90,7 @@ namespace SurvivalPolicy
 			for (auto* activeEffect : effectsToDispel) {
 				const auto* baseEffect = activeEffect->GetBaseObject();
 				logs::info(
-					"Dispelling magic effect that bypassed the remote-puppet firewall: actor={:08X} spell={:08X} effect={:08X}",
+					"Dispelling magic effect that bypassed the remote actor firewall: actor={:08X} spell={:08X} effect={:08X}",
 					a_actor.GetHandle().native_handle(),
 					activeEffect->spell ? activeEffect->spell->GetFormID() : 0,
 					baseEffect ? baseEffect->GetFormID() : 0);
@@ -110,7 +110,7 @@ namespace SurvivalPolicy
 				(a_blockedDamageCount <= kInitialBlockedEventLogs ||
 					a_blockedDamageCount % kBlockedEventLogInterval == 0)) {
 				logs::info(
-					"Blocked local health damage to remote puppet: actor={:08X} path={} damage={:.3f} count={}",
+					"Blocked local health damage to remote actor: actor={:08X} path={} damage={:.3f} count={}",
 					a_actorHandle,
 					a_path,
 					a_damage,
@@ -141,7 +141,7 @@ namespace SurvivalPolicy
 					(requestCount <= kInitialBlockedEventLogs ||
 						requestCount % kBlockedEventLogInterval == 0)) {
 					logs::info(
-						"Observed local hit on remote puppet; watching for an animation reaction: actor={:08X} aggressor={:08X} source={:08X} projectile={:08X} count={}",
+						"Observed local hit on remote actor; watching for an animation reaction: actor={:08X} aggressor={:08X} source={:08X} projectile={:08X} count={}",
 						actorHandle,
 						a_event->cause ? a_event->cause->GetFormID() : 0,
 						a_event->source,
@@ -186,7 +186,7 @@ namespace SurvivalPolicy
 					(requestCount <= kInitialBlockedEventLogs ||
 						requestCount % kBlockedEventLogInterval == 0)) {
 					logs::info(
-						"Observed harmful magic effect on remote puppet; watching for an animation reaction: actor={:08X} caster={:08X} effect={:08X} count={}",
+						"Observed harmful magic effect on remote actor; watching for an animation reaction: actor={:08X} caster={:08X} effect={:08X} count={}",
 						actorHandle,
 						a_event->caster ? a_event->caster->GetFormID() : 0,
 						a_event->magicEffect,
@@ -215,7 +215,7 @@ namespace SurvivalPolicy
 				if (blockedEffectCount <= kInitialBlockedEventLogs ||
 					blockedEffectCount % kBlockedEventLogInterval == 0) {
 					logs::info(
-						"Blocked magic effect before it reached remote puppet: actor={:08X} caster={:08X} spell={:08X} effect={:08X} count={}",
+						"Blocked magic effect before it reached remote actor: actor={:08X} caster={:08X} spell={:08X} effect={:08X} count={}",
 						actorHandle,
 						a_targetData.caster ? a_targetData.caster->GetFormID() : 0,
 						a_targetData.magicItem ?
@@ -411,7 +411,7 @@ namespace SurvivalPolicy
 				if (interventionCount <= kInitialBlockedEventLogs ||
 					interventionCount % kBlockedEventLogInterval == 0) {
 					logs::info(
-						"Reasserted remote-puppet survival state: actor={:08X} previousLifeState={} health={:.3f}/{:.3f} resurrected={} observationRequest={}",
+						"Reasserted remote actor survival state: actor={:08X} previousLifeState={} health={:.3f}/{:.3f} resurrected={} observationRequest={}",
 						actorHandle,
 						static_cast<std::underlying_type_t<RE::ACTOR_LIFE_STATE>>(
 							previousLifeState),
@@ -536,7 +536,7 @@ namespace SurvivalPolicy
 			const auto [actorHandle, requestCount] =
 				ActorRegistry::RequestHitObservation(&a_actor);
 			logs::info(
-				"Removed suppressed magic from remote puppet; watching for an animation reaction: actor={:08X} effects={} request={}",
+				"Removed suppressed magic from remote actor; watching for an animation reaction: actor={:08X} effects={} request={}",
 				actorHandle,
 				dispelledEffects,
 				requestCount);
@@ -643,7 +643,7 @@ namespace SurvivalPolicy
 				sanitizationCount <= kInitialBlockedEventLogs ||
 				sanitizationCount % kBlockedEventLogInterval == 0) {
 				logs::info(
-					"Sanitized local puppet combat presentation: actor={:08X} cowerEvents={} package={} combat={} target={} fleeing={} weaponState={} desiredWeaponDrawn={} sanitization={} observationRequest={}",
+					"Sanitized local actor combat presentation: actor={:08X} cowerEvents={} package={} combat={} target={} fleeing={} weaponState={} desiredWeaponDrawn={} sanitization={} observationRequest={}",
 					actorHandle,
 					cowerRequests,
 					static_cast<std::underlying_type_t<RE::PACKAGE_TYPE>>(packageType),

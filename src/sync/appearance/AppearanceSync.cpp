@@ -821,7 +821,7 @@ namespace AppearanceSync
 			a_actor.UpdateHairColor();
 			a_actor.UpdateSkinColor();
 			logs::info(
-				"Appearance sync applied puppet colors: player={} actor={:08X} base={:08X} revision={} faceNode={}",
+				"Appearance sync applied actor colors: player={} actor={:08X} base={:08X} revision={} faceNode={}",
 				a_playerID,
 				a_actor.GetHandle().native_handle(),
 				a_remote.spawnedBase->GetFormID(),
@@ -841,7 +841,7 @@ namespace AppearanceSync
 		a_remote.faceTintTexture.reset(tintTexture);
 		const auto renderedTints = QueueFaceTintRender(*a_remote.spawnedBase, *tintTexture);
 		logs::info(
-			"Appearance sync queued puppet face tint: player={} actor={:08X} base={:08X} revision={} tints={}/{}",
+			"Appearance sync queued actor face tint: player={} actor={:08X} base={:08X} revision={} tints={}/{}",
 			a_playerID,
 			a_actor.GetHandle().native_handle(),
 			a_remote.spawnedBase->GetFormID(),

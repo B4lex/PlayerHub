@@ -25,6 +25,7 @@ namespace Network
 			"Data/SKSE/Plugins/skyrim-mp-server.txt";
 		std::atomic_bool connected{ false };
 		std::atomic_uint64_t connectionGeneration{ 0 };
+		std::atomic_uint64_t serverResponseCount{ 0 };
 		std::mutex remoteChangesLock;
 		std::unordered_map<std::string, RemotePlayerTransform> pendingTransforms;
 		std::unordered_map<std::string, PlayerTransform> latestReceivedTransforms;
@@ -939,7 +940,7 @@ namespace Network
 				// player left. Keep their remote actors until the server explicitly emits
 				// player:left, allowing automatic Socket.IO reconnects to be seamless.
 				RE::ConsoleLog::GetSingleton()->Print("MP: Connection closed.");
-				logs::info("Socket.IO namespace closed; retaining remote puppets");
+				logs::info("Socket.IO namespace closed; retaining remote actors");
 			});
 			client.set_fail_listener([] {
 				connected.store(false, std::memory_order_release);
@@ -947,7 +948,7 @@ namespace Network
 			});
 			client.set_close_listener([](sio::client::close_reason const&) {
 				connected.store(false, std::memory_order_release);
-				logs::info("Socket.IO connection closed; retaining remote puppets");
+				logs::info("Socket.IO connection closed; retaining remote actors");
 			});
 
 			logs::info("Opening Socket.IO connection to {}", GetServerEndpoint());
@@ -963,6 +964,11 @@ namespace Network
 	std::uint64_t GetConnectionGeneration()
 	{
 		return connectionGeneration.load(std::memory_order_acquire);
+	}
+
+	std::uint64_t GetServerResponseCount()
+	{
+		return serverResponseCount.load(std::memory_order_acquire);
 	}
 
 	void PublishLocalPlayerTransform(const PlayerTransform& a_transform)
@@ -1152,6 +1158,7 @@ namespace Network
 			"latency:probe",
 			nullptr,
 			[onAcknowledged = std::move(a_onAcknowledged)](sio::message::list const& a_response) {
+				serverResponseCount.fetch_add(1, std::memory_order_acq_rel);
 				std::optional<double> serverTime;
 				if (a_response.size() > 0 && a_response[0] &&
 					a_response[0]->get_flag() == sio::message::flag_object) {
@@ -1163,6 +1170,20 @@ namespace Network
 				}
 				onAcknowledged(serverTime);
 			});
+	}
+
+	void ForgetRemotePlayers()
+	{
+		std::scoped_lock lock{ remoteChangesLock };
+		pendingTransforms.clear();
+		latestReceivedTransforms.clear();
+		pendingAppearances.clear();
+		latestReceivedAppearanceRevisions.clear();
+		pendingEquipment.clear();
+		latestReceivedEquipmentRevisions.clear();
+		pendingAnimationActions.clear();
+		latestReceivedActionSequences.clear();
+		pendingDisconnects.clear();
 	}
 
 	RemotePlayerChanges DrainRemotePlayerChanges()

@@ -43,7 +43,7 @@ to `http://127.0.0.1:3000` for local testing.
   `{plugin, formId}` references with an increasing revision. It uses the same
   relay, storage, and late-join lifecycle as `player:appearance`. See
   `specs/007-player-equipment-sync.md`.
-- `player:left` tells peers to remove the disconnected player's puppet.
+- `player:left` tells peers to remove the disconnected player's actor.
 - `latency:probe` is acknowledged immediately with `{"ok": true, "serverTimeMs": ...}`
   and never relayed. The plugin sends one per second, shows the acknowledgement
   round trip as its ping, and uses `serverTimeMs` to estimate the server clock.

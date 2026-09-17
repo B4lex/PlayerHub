@@ -10,6 +10,10 @@ struct RemoteActor;
 
 namespace MovementSync
 {
+	// A displacement larger than one exterior cell is a relocation (map or
+	// carriage fast travel, door-less teleport), never locomotion to follow.
+	inline constexpr float kRelocationDistance = 4096.0F;
+
 	constexpr bool IsSameCoordinateSpace(
 		RE::FormID a_firstCellID,
 		RE::FormID a_firstWorldspaceID,

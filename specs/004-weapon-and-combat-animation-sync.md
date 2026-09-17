@@ -9,7 +9,7 @@ combat behavior remain out of scope.
 
 ## Goal
 
-Extend remote-puppet animation synchronization beyond locomotion with an
+Extend remote actor animation synchronization beyond locomotion with an
 ordered, reconstructable animation-action stream. Weapon draw and sheathe are
 the first action family; attacks and later combat presentation build on the
 same lifecycle rather than being folded into movement snapshots.
@@ -18,8 +18,8 @@ same lifecycle rather than being folded into movement snapshots.
 
 - Replicate the current weapon presentation as an orthogonal `weaponDrawn`
   checkpoint field.
-- Let Skyrim perform the native draw/sheathe transition on the puppet.
-- Preserve puppet ownership of combat decisions, targets, damage, casting, and
+- Let Skyrim perform the native draw/sheathe transition on the actor.
+- Preserve actor ownership of combat decisions, targets, damage, casting, and
   locally generated graph events.
 - Replicate accepted normal and power attack starts through one ordered,
   versioned `attack/normal` action.
@@ -33,10 +33,10 @@ the latest player state. Like locomotion and jump phase, this is current state,
 not action history: the receiver retains only the newest checkpoint per remote
 player.
 
-On the game thread, the puppet compares the authoritative desired state with
+On the game thread, the actor compares the authoritative desired state with
 Skyrim's current weapon state. When a transition is needed and a matching
 native transition is not already in progress, it invokes Skyrim's native
-draw/sheathe path. A puppet-only animation firewall continues to reject local
+draw/sheathe path. A actor-only animation firewall continues to reject local
 animation injection, except for presentation-only events managed by the
 client. Skyrim's `WantToDraw` and `WantToSheathe` states only represent an
 outstanding request, so the receiver retries the native request until the actor
@@ -50,7 +50,7 @@ advances to `Drawing` or `Sheathing`. Native weapon transitions require:
 Skyrim also manages the non-interrupting swimming transitions locally, so the
 firewall permits `SwimStart` and `swimStop`. After `swimStop` is accepted and
 the actor leaves Skyrim's swimming state, the synchronization pass reasserts
-the current locomotion events so a moving puppet returns to walking instead of
+the current locomotion events so a moving actor returns to walking instead of
 sliding in an idle pose.
 
 Weapon clips similarly take temporary ownership of the graph. The receiver
@@ -59,7 +59,7 @@ annotation and allows its worker-thread exit one graph update to settle. After
 the base locomotion checkpoint has settled, a moving draw/sheathe request is
 queued before its transition-specific `moveStart`; the draw graph selects its
 standing or moving branch at entry, so deferring that edge until `ActorState`
-reports `Drawing` can expose the standing clip while the puppet keeps moving.
+reports `Drawing` can expose the standing clip while the actor keeps moving.
 After unequip, when both the graph and actor state should be sheathed, the
 receiver forces `IdleForceDefaultState` before replaying the current locomotion
 and jump checkpoint. It must not force the default state after equip because
@@ -129,12 +129,12 @@ not retain historical actions.
 The receiver holds a bounded per-player FIFO. Its front action waits until:
 
 - its checkpoint has arrived and its graph epoch matches the latest checkpoint;
-- the puppet graph and latest applied animation state are settled;
+- the actor graph and latest applied animation state are settled;
 - jump/landing and draw/equip recovery no longer own the graph;
 - `ActorState` confirms the weapon is fully drawn; and
 - the preceding synchronized attack has completed.
 
-Once ready, the receiver briefly suspends only the puppet's
+Once ready, the receiver briefly suspends only the actor's
 `kAttackingDisabled` flag for the synchronous dispatch and sends the fixed
 `attackStart` event through the network-owned firewall bypass. The flag is
 restored before another actor/AI update can run. The receiver does not send
@@ -168,7 +168,7 @@ accepted checkpoint/epoch boundary may be dispatched.
 
 ## Acceptance criteria
 
-1. A remote puppet converges to the authoritative drawn/sheathed state without
+1. A remote actor converges to the authoritative drawn/sheathed state without
    enabling local combat AI or local attack events.
 2. Repeated state packets and dropped intermediate draw/sheathe packets still
    converge to the latest weapon stance.
@@ -180,7 +180,7 @@ accepted checkpoint/epoch boundary may be dispatched.
 5. An attack waits for jump/landing and draw/equip completion and cannot
    interrupt those graph branches. A later jump, equip transition, or attack
    does not interrupt an already accepted synchronized attack.
-6. Walking and running puppets keep locomotion and translation active while the
+6. Walking and running actors keep locomotion and translation active while the
    normal attack plays.
 7. Only the `attack/normal` vocabulary is accepted, with contiguous action
    sequence, matching graph epoch, a prior checkpoint, a drawn-weapon

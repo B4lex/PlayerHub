@@ -661,7 +661,7 @@ namespace EquipmentSync
 		if (a_remote.armorMatches && a_remote.handsMatch) {
 			if (a_remote.attempts != 0 || a_remote.exhausted) {
 				logs::info(
-					"Equipment sync reconciled puppet: player={} actor={:08X} revision={} attempts={}",
+					"Equipment sync reconciled actor: player={} actor={:08X} revision={} attempts={}",
 					a_playerID,
 					a_remoteActor.handle.native_handle(),
 					static_cast<unsigned long long>(a_remote.resolvedRevision),
@@ -687,7 +687,7 @@ namespace EquipmentSync
 		if (a_remote.attempts >= kMaximumReconcileAttempts) {
 			a_remote.exhausted = true;
 			logs::warn(
-				"Equipment sync gave up reconciling puppet: player={} actor={:08X} revision={} inventoryMatches={} armorWorn={} rightHand={:08X}/{:08X} leftHand={:08X}/{:08X}",
+				"Equipment sync gave up reconciling actor: player={} actor={:08X} revision={} inventoryMatches={} armorWorn={} rightHand={:08X}/{:08X} leftHand={:08X}/{:08X}",
 				a_playerID,
 				a_remoteActor.handle.native_handle(),
 				static_cast<unsigned long long>(a_remote.resolvedRevision),
@@ -791,7 +791,7 @@ namespace EquipmentSync
 		}
 
 		logs::info(
-			"Equipment sync reconciling puppet: player={} actor={:08X} revision={} attempt={} removed={} added={} equippedArmor={} swappedHands={} handsDeferred={} rightHand={:08X} leftHand={:08X}",
+			"Equipment sync reconciling actor: player={} actor={:08X} revision={} attempt={} removed={} added={} equippedArmor={} swappedHands={} handsDeferred={} rightHand={:08X} leftHand={:08X}",
 			a_playerID,
 			a_remoteActor.handle.native_handle(),
 			static_cast<unsigned long long>(a_remote.resolvedRevision),

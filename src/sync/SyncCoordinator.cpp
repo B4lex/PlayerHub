@@ -1,8 +1,10 @@
 #include "sync/SyncCoordinator.h"
 #include "actor/ActorAnimation.h"
+#include "actor/ActorConstants.h"
 #include "actor/ActorRuntime.h"
 #include "network/PacketDelay.h"
 #include "network/SocketIOClient.h"
+#include "runtime/GameThread.h"
 #include "sync/ActorLifecycle.h"
 #include "sync/CheckpointPublisher.h"
 #include "sync/PeerState.h"
@@ -14,12 +16,26 @@
 #include "sync/furniture/FurnitureSync.h"
 #include "sync/movement/MovementSync.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <utility>
 
 namespace SyncCoordinator
 {
 	namespace
 	{
+		// A brief interruption keeps actors so automatic reconnects are seamless;
+		// a server silent this long (latency probes go out every second) means
+		// the peers' state cannot be trusted.
+		constexpr float kConnectionLossDespawnSeconds = 10.0F;
+
+		// Accessed only on the bound main-loop thread.
+		Peers s_peers;
+		std::uint64_t s_observedServerResponses = 0;
+		float s_serverSilenceElapsed = 0.0F;
+		bool s_actorsExcludedFromSaves = false;
+
 		// Receive stage. Transforms are latest-wins by sequence, appearance and
 		// equipment by revision; actions are ordered and bounded; a disconnect
 		// clears everything for that player.
@@ -36,7 +52,7 @@ namespace SyncCoordinator
 				ActorLifecycle::RemoveOnDisconnect(peer->second);
 				a_peers.erase(peer);
 				logs::info(
-					"Removed remote player puppet {} after server player:left",
+					"Removed remote player actor {} after server player:left",
 					playerID);
 			}
 
@@ -100,6 +116,64 @@ namespace SyncCoordinator
 					known ? &peer->second.combat : nullptr,
 					known ? &peer->second.latestCheckpoint : nullptr,
 					std::move(action));
+			}
+		}
+
+		void RestoreSaveEligibility(Peers& a_peers)
+		{
+			if (!s_actorsExcludedFromSaves) {
+				return;
+			}
+			auto* saveLoadGame = RE::BGSSaveLoadGame::GetSingleton();
+			if (saveLoadGame && saveLoadGame->GetSaveGameSaving()) {
+				return;
+			}
+
+			// The flag is only meant for the save writer; its other engine uses
+			// concern references pending destruction, so it is not kept longer.
+			for (auto& [playerID, peer] : a_peers) {
+				ActorLifecycle::SetExcludedFromSaves(peer, false);
+			}
+			s_actorsExcludedFromSaves = false;
+		}
+
+		void DespawnAfterConnectionLoss(Peers& a_peers, float a_delta)
+		{
+			// Socket.IO may keep a dead transport marked connected, so silence is
+			// measured by server acknowledgements rather than by IsConnected.
+			const auto responses = Network::GetServerResponseCount();
+			if (responses != s_observedServerResponses) {
+				s_observedServerResponses = responses;
+				s_serverSilenceElapsed = 0.0F;
+				return;
+			}
+			if (s_serverSilenceElapsed >= kConnectionLossDespawnSeconds) {
+				// Already despawned during this outage.
+				return;
+			}
+
+			s_serverSilenceElapsed += std::clamp(
+				a_delta,
+				0.0F,
+				ActorConstants::kMaximumFrameTime);
+			if (s_serverSilenceElapsed < kConnectionLossDespawnSeconds ||
+				a_peers.empty()) {
+				return;
+			}
+
+			for (auto& [playerID, peer] : a_peers) {
+				ActorLifecycle::RemoveOnDisconnect(peer);
+			}
+			logs::info(
+				"Removed {} remote player actors after {:.0f} seconds without a server response: connected={}",
+				a_peers.size(),
+				kConnectionLossDespawnSeconds,
+				Network::IsConnected());
+			a_peers.clear();
+			// Reconnecting rebuilds every peer from the server's resent state.
+			Network::ForgetRemotePlayers();
+			if (auto* console = RE::ConsoleLog::GetSingleton()) {
+				console->Print("MP: Server connection lost; removed remote players.");
 			}
 		}
 
@@ -175,6 +249,11 @@ namespace SyncCoordinator
 				CombatSync::ClearRemoteActions(a_peer.combat);
 				return;
 			}
+			if (lifecycle.actor) {
+				// Same-space fast travel keeps the coordinate space, so it is
+				// detected by displacement instead. The actor respawns below.
+				ActorLifecycle::RetireWhenStranded(remote, a_peer, a_delta);
+			}
 
 			if (lifecycle.actor) {
 				auto& actor = *lifecycle.actor;
@@ -232,9 +311,9 @@ namespace SyncCoordinator
 
 	void OnFrame(RE::PlayerCharacter* a_player, float a_delta)
 	{
-		static Peers peers;
-
-		ApplyNetworkChanges(peers);
+		RestoreSaveEligibility(s_peers);
+		ApplyNetworkChanges(s_peers);
+		DespawnAfterConnectionLoss(s_peers, a_delta);
 		if (!a_player) {
 			return;
 		}
@@ -247,7 +326,7 @@ namespace SyncCoordinator
 			return;
 		}
 
-		for (auto& [playerID, peer] : peers) {
+		for (auto& [playerID, peer] : s_peers) {
 			SyncPeer(
 				playerID,
 				peer,
@@ -256,5 +335,24 @@ namespace SyncCoordinator
 				MovementSync::GetWorldspaceID(*a_player),
 				a_delta);
 		}
+	}
+
+	void OnGameSave()
+	{
+		if (!GameThread::Require("ExcludeRemoteActorsFromSave")) {
+			// Touching peers here would race the main loop; the save keeps actors.
+			return;
+		}
+
+		std::size_t excluded = 0;
+		for (auto& [playerID, peer] : s_peers) {
+			if (peer.lifecycle.actor) {
+				ActorLifecycle::SetExcludedFromSaves(peer, true);
+				++excluded;
+			}
+		}
+		// Every peer is restored, so an actor spawned after this is unaffected.
+		s_actorsExcludedFromSaves = true;
+		logs::info("Excluded {} remote player actors from game save", excluded);
 	}
 }

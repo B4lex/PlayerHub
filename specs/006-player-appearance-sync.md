@@ -3,19 +3,19 @@
 ## Status
 
 Implemented and working in game between two clients on Skyrim AE 1.7.104. A
-remote puppet spawns from a runtime actor base built from the source's appearance
+remote actor spawns from a runtime actor base built from the source's appearance
 and shows that appearance. The remaining open items are listed under
 [Engine assumptions](#engine-assumptions).
 
 ## Goal
 
-A remote puppet looks like the source player's character and carries its name:
+A remote actor looks like the source player's character and carries its name:
 race, sex, body
 weight, height, head parts (face, eyes and eye color, hair, beard, brows,
 scars), hair color, face morph sliders and presets, face detail texture, skin
 tone, and face tint layers (war paint, dirt, lip and cheek color, and so on).
 
-Before this change every puppet used the *local* player's actor base, so every
+Before this change every actor used the *local* player's actor base, so every
 remote player looked like the viewer.
 
 ## Non-goals
@@ -145,7 +145,7 @@ Publishing policy:
 
 The network thread keeps only the newest pending appearance per player (by
 revision) and discards it on `player:left`. The main-loop pass stores it on the
-remote puppet. A rejected payload is logged with the name of the offending
+remote actor. A rejected payload is logged with the name of the offending
 field.
 
 ### Actor base
@@ -154,7 +154,7 @@ Every accepted appearance revision gets a new runtime `TESNPC`:
 
 1. Create it with the `TESNPC` form factory, assign a dynamic form ID
    (`TESDataHandler::GetNextID`), and `Copy` the local player base. That keeps
-   class, AI data, and factions identical to the puppets we had before.
+   class, AI data, and factions identical to the actors we had before.
 2. Detach every appearance pointer the copy may share with the player base
    (`headParts`, `faceData`, `headRelatedData`, `tintLayers`, `faceNPC`) and
    allocate fresh ones, so the local player can never be changed.
@@ -162,7 +162,7 @@ Every accepted appearance revision gets a new runtime `TESNPC`:
    by the copy. The crosshair and other name displays read it from the base.
 4. Apply the resolved appearance (below).
 
-Bases are never freed. A deleted puppet reference may still point at its base
+Bases are never freed. A deleted actor reference may still point at its base
 for a few frames, and the leak is bounded by the source's publish rate.
 
 ### Resolution and vanilla fallback
@@ -180,11 +180,11 @@ Each fallback is logged once per revision.
 
 ### Spawn and respawn
 
-- A puppet waits up to 3 seconds after its first checkpoint for an appearance.
+- A actor waits up to 3 seconds after its first checkpoint for an appearance.
   After that it spawns from the local player base, as it did before, and so
   also shows the local player's name.
-- A newer appearance revision than the one the puppet was spawned with retires
-  the puppet at the next main-loop pass, as a coordinate-space change does.
+- A newer appearance revision than the one the actor was spawned with retires
+  the actor at the next main-loop pass, as a coordinate-space change does.
   Respawn uses the new base and reconstructs locomotion, weapon stance, and
   furniture from the newest checkpoint. These respawns are at least 2 seconds
   apart per player.
@@ -193,7 +193,7 @@ Each fallback is logged once per revision.
 - The receiver also renders the face tint (AE only). `PrepareHeadPartForShaders`
   (ID 26838) gives a runtime-built face a blank tint texture and fills it only
   for the player base, or for NPCs when `bUseFaceGenPreprocessedHeads` is off.
-  Left blank, the puppet shows the dark face bug. The receiver finds the face
+  Left blank, the actor shows the dark face bug. The receiver finds the face
   geometry (named after the face head part's editor ID), takes its FaceGen
   material's tint texture, and queues the engine's tint render (ID 27040) with
   masks built from the base's tint layers: the race `TintAsset` texture, the
@@ -217,19 +217,19 @@ Not yet specifically checked:
 3. `TintAsset::texture.index` matches `TESNPC::Layer::tintIndex`, and
    `interpolationValue = alpha * 100` with the matching `preset` reproduces the
    source's war paint and face tint colors exactly.
-4. The puppet animation firewall, combat suppression, and furniture entry behave
+4. The actor animation firewall, combat suppression, and furniture entry behave
    the same with a copied base as with `PlayerBase`.
 
 ## Acceptance criteria
 
-1. A remote puppet shows the source player's race, sex, weight, hair, eyes,
+1. A remote actor shows the source player's race, sex, weight, hair, eyes,
    hair color, face shape, and skin/face tints.
 2. Late joiners see the correct appearance without the source changing anything.
-3. Changing appearance or name (barber, RaceMenu) updates the remote puppet within a few
+3. Changing appearance or name (barber, RaceMenu) updates the remote actor within a few
    seconds with a single respawn, and it then returns to its synchronized
    locomotion/furniture state.
 4. A peer missing the source's race or head part plugin sees a vanilla fallback
    and no crash.
-5. The local player's own appearance never changes because of a remote puppet.
+5. The local player's own appearance never changes because of a remote actor.
 6. Malformed or stale appearance payloads are rejected by the server and the
    client.

@@ -85,20 +85,20 @@ namespace AnimationFirewall
 
 				if (landingCompletionCount != 0) {
 					logs::info(
-						"Observed puppet landing completion marker: actor={:08X} count={}",
+						"Observed actor landing completion marker: actor={:08X} count={}",
 						actorHandle,
 						landingCompletionCount);
 				}
 				if (traceWeaponEvent) {
 					logs::info(
-						"Observed puppet weapon-transition graph event: actor={:08X} expectedWeaponDrawn={} event={}",
+						"Observed actor weapon-transition graph event: actor={:08X} expectedWeaponDrawn={} event={}",
 						actorHandle,
 						expectedWeaponDrawn,
 						eventName);
 				}
 				if (weaponCompletionCount != 0) {
 					logs::info(
-						"Observed puppet weapon transition completion marker: actor={:08X} event={} count={}",
+						"Observed actor weapon transition completion marker: actor={:08X} event={} count={}",
 						actorHandle,
 						eventName,
 						weaponCompletionCount);
@@ -162,7 +162,7 @@ namespace AnimationFirewall
 					(blockedEventCount <= kInitialBlockedEventLogs ||
 						blockedEventCount % kBlockedEventLogInterval == 0)) {
 					logs::info(
-						"Blocked local puppet animation event: actor={:08X} event={} count={}",
+						"Blocked local actor animation event: actor={:08X} event={} count={}",
 						actorHandle,
 						a_eventName.c_str(),
 						blockedEventCount);
@@ -244,7 +244,7 @@ namespace AnimationFirewall
 
 		if (activated) {
 			logs::info(
-				"Activated puppet animation firewall: actor={:08X}",
+				"Activated actor animation firewall: actor={:08X}",
 				a_remote.handle.native_handle());
 		}
 	}

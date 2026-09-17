@@ -16,6 +16,18 @@ namespace ActorSpawner
 		// known-good actor base only to make CreateReferenceAtLocation construct the
 		// reference, then replace it with PlayerBase before 3D is initialized.
 		constexpr RE::FormID kActorConstructionTemplateFormID = 0x00013BBF;
+
+		RE::TESObjectCELL* GetSpawnCell(
+			RE::PlayerCharacter& a_player,
+			const RE::NiPoint3& a_position)
+		{
+			if (!a_player.GetWorldspace()) {
+				return a_player.GetParentCell();
+			}
+			// TES::GetCell only resolves exterior cells that are currently loaded.
+			auto* tes = RE::TES::GetSingleton();
+			return tes ? tes->GetCell(a_position) : nullptr;
+		}
 	}
 
 	std::optional<RemoteActor> Spawn(
@@ -43,16 +55,12 @@ namespace ActorSpawner
 			return std::nullopt;
 		}
 
-		auto* targetCell = player->GetParentCell();
 		auto* worldspace = player->GetWorldspace();
-		if (worldspace) {
-			auto* tes = RE::TES::GetSingleton();
-			targetCell = tes ? tes->GetCell(a_targetPosition) : nullptr;
-			if (!targetCell) {
-				// Wait until the exterior cell containing the first remote snapshot
-				// is loaded instead of briefly creating the remote actor beside the player.
-				return std::nullopt;
-			}
+		auto* targetCell = GetSpawnCell(*player, a_targetPosition);
+		if (!targetCell) {
+			// Wait until the exterior cell containing the first remote snapshot
+			// is loaded instead of briefly creating the remote actor beside the player.
+			return std::nullopt;
 		}
 
 		// Remote actors must survive ordinary exterior cell unloads within one worldspace.
@@ -65,7 +73,7 @@ namespace ActorSpawner
 				kActorConstructionTemplateFormID);
 			if (!constructionBase) {
 				logs::critical(
-					"Unable to find remote-puppet actor construction template {:08X}",
+					"Unable to find remote actor actor construction template {:08X}",
 					kActorConstructionTemplateFormID);
 				return std::nullopt;
 			}
@@ -102,7 +110,7 @@ namespace ActorSpawner
 			actor->SetObjectReference(a_npcBase);
 			if (actor->GetActorBase() != a_npcBase) {
 				logs::critical(
-					"Unable to assign player base to remote puppet: actor={:08X} requestedBase={:08X} actualBase={:08X}",
+					"Unable to assign player base to remote actor: actor={:08X} requestedBase={:08X} actualBase={:08X}",
 					actor->GetHandle().native_handle(),
 					a_npcBase->GetFormID(),
 					actor->GetActorBase() ? actor->GetActorBase()->GetFormID() : 0);
@@ -126,7 +134,7 @@ namespace ActorSpawner
 		animationState->targetAnimationState = a_animationState;
 		ActorAnimation::RequestAnimationUpdate(animationState.get(), a_animationState, a_speed, 0.0F);
 		logs::info(
-			"Created remote-puppet actor reference: actor={:08X} base={:08X} constructionBase={:08X} revision={} desired={}/{}",
+			"Created remote actor actor reference: actor={:08X} base={:08X} constructionBase={:08X} revision={} desired={}/{}",
 			actor->GetHandle().native_handle(),
 			actor->GetActorBase() ? actor->GetActorBase()->GetFormID() : 0,
 			constructionBase->GetFormID(),
@@ -167,5 +175,32 @@ namespace ActorSpawner
 		auto* actor = actorPtr.get();
 		actor->Disable();
 		actor->SetDelete(true);
+	}
+
+	bool IsSpawnLocationLoaded(const RE::NiPoint3& a_position)
+	{
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		return player && player->GetParentCell() &&
+			GetSpawnCell(*player, a_position) != nullptr;
+	}
+
+	void SetExcludedFromSaves(const RemoteActor& a_remote, bool a_excluded)
+	{
+		if (!GameThread::Require("SetRemoteActorExcludedFromSaves")) {
+			return;
+		}
+
+		auto actorPtr = a_remote.handle.get();
+		if (!actorPtr) {
+			return;
+		}
+
+		constexpr auto kPermanentlyDeleted =
+			RE::TESForm::InGameFormFlag::kRefPermanentlyDeleted;
+		if (a_excluded) {
+			actorPtr->inGameFormFlags.set(kPermanentlyDeleted);
+		} else {
+			actorPtr->inGameFormFlags.reset(kPermanentlyDeleted);
+		}
 	}
 }

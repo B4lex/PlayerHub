@@ -33,7 +33,7 @@ when the player activates the furniture, before the player walks to the entry
 point and plays the entry idle.
 
 No animation event, idle, or action crosses the wire. The receiver lets Skyrim
-choose all of them locally for the puppet.
+choose all of them locally for the actor.
 
 Like cell and worldspace identifiers, reference FormIDs require the same plugins
 in the same load order on every peer. Old recordings default to
@@ -47,28 +47,28 @@ is using furniture.
 `TESFurniture::Activate` refuses every activator except the player, so the
 receiver uses the NPC path. It waits until:
 
-- the reference resolves to a loaded `TESFurniture` in the puppet's coordinate
+- the reference resolves to a loaded `TESFurniture` in the actor's coordinate
   space;
-- the puppet is ready, its locomotion has settled, and no attack, weapon, or
+- the actor is ready, its locomotion has settled, and no attack, weapon, or
   graph-recovery transition is pending. A completed weapon clip counts as
   settled while the target is idle (after a sheathe, once the default state has
   been forced), even though its locomotion replay stays armed for later
   movement;
-- the puppet is within 24 units of the latest checkpoint;
+- the actor is within 24 units of the latest checkpoint;
 - the furniture has an available marker (ID 20162), within 96 units (2D) of the
-  puppet.
+  actor.
 
 It does not wait for the source to settle on the marker, which would delay the
-puppet by the source's whole entry idle. The native entry aligns the puppet to
+actor by the source's whole entry idle. The native entry aligns the actor to
 its chosen entry point.
 
-The receiver then snaps the puppet to the checkpoint transform and calls the
+The receiver then snaps the actor to the checkpoint transform and calls the
 entry used by NPC Sit procedures (ID 37330). It records the occupied
 reference, chooses an entry point (ID 39923: entry idle, path point, angle,
 marker), and reserves the marker. If no entry point is available, the occupancy
 it recorded is cleared and entry is retried after one second.
 
-If the puppet has a weapon drawn, ID 39923 only requests a sheathe and returns
+If the actor has a weapon drawn, ID 39923 only requests a sheathe and returns
 without an entry point (the marker stays unset and no entry idle is chosen).
 Skyrim's Sit procedure (ID 39648) selects again on later updates while the
 marker is unset, so the receiver repeats the entry once the weapon is sheathed,
@@ -80,13 +80,13 @@ records and skips the transition.
 
 ### Use
 
-While the puppet occupies furniture, the receiver runs Skyrim's per-frame
+While the actor occupies furniture, the receiver runs Skyrim's per-frame
 sit/sleep state machine (ID 37332 → 39861) itself, because Skyrim only reaches
-it from package procedure branches the puppet's do-nothing package never takes.
+it from package procedure branches the actor's do-nothing package never takes.
 The state machine plays the entry idle (WantToSit → WaitingForSitAnim), and the
 behavior graph completes IsSitting.
 
-While a furniture interaction is active, furniture owns the puppet. Network
+While a furniture interaction is active, furniture owns the actor. Network
 translation, heading, locomotion changes, weapon changes, and queued attacks
 wait. The animation firewall admits Skyrim's locally generated graph events for
 that bounded lifecycle only. Combat, damage, magic, targeting, and survival
@@ -96,12 +96,12 @@ policies remain enforced independently.
 
 When the checkpoint changes to zero or to a different reference:
 
-- **Seated puppet:** the receiver requests the native exit once per second (get-up
+- **Seated actor:** the receiver requests the native exit once per second (get-up
   package, WantToStand/WantToWake, `IdleFurnitureExit`). The state machine
   returns it to Normal.
 - **Entry not yet seated:** there is no native exit to request, so the receiver
   clears the occupancy and returns the state to Normal.
-- **Completion:** once the puppet is unoccupied and Normal, the receiver restores
+- **Completion:** once the actor is unoccupied and Normal, the receiver restores
   the do-nothing package and rebuilds the latest locomotion checkpoint.
 - **Stuck exit:** after ten seconds the receiver clears the occupancy, forces
   `IdleForceDefaultState`, and restores the do-nothing package. Target changes
@@ -116,7 +116,7 @@ most ten seconds before the request is released and retried.
 - A furniture checkpoint discards queued attacks and suppresses attack dispatch.
 - An already playing attack finishes before furniture entry.
 - Furniture exit finishes before newer locomotion or attacks are applied.
-- Puppet respawn and coordinate-space changes discard local furniture progress
+- Actor respawn and coordinate-space changes discard local furniture progress
   and reconstruct from the newest checkpoint.
 - Late join reconstructs occupancy from the repeated checkpoint field. Historical
   enter/exit transitions are not replayed.
@@ -133,10 +133,10 @@ most ten seconds before the request is released and retried.
 
 ## Acceptance criteria
 
-1. Entering a resolvable furniture reference makes the remote puppet use that
+1. Entering a resolvable furniture reference makes the remote actor use that
    same reference with its native entry idle, starting close to the source's
    entry.
-2. Leaving it plays the native exit and returns the puppet to the latest
+2. Leaving it plays the native exit and returns the actor to the latest
    synchronized locomotion state.
 3. Dropped intermediate snapshots and late join converge to the newest occupied
    reference or to no furniture.

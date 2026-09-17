@@ -8,16 +8,16 @@ need to be checked in game.
 
 ## Goal
 
-A remote puppet wears and wields what the source player has equipped: armor,
+A remote actor wears and wields what the source player has equipped: armor,
 clothing, jewelry, shield, the weapons in either hand, and a torch. When the
-source changes equipment, the puppet follows within a fraction of a second.
+source changes equipment, the actor follows within a fraction of a second.
 There is no respawn and no equip animation.
 
-The puppet's inventory holds **only** the synchronized equipped items. The rest
-of the source's inventory is never sent, and the puppet has nothing beyond that
+The actor's inventory holds **only** the synchronized equipped items. The rest
+of the source's inventory is never sent, and the actor has nothing beyond that
 set, so it cannot equip anything else.
 
-Before this change puppets had no synchronized equipment. `weaponDrawn`
+Before this change actors had no synchronized equipment. `weaponDrawn`
 (spec 004) always drew fists.
 
 ## Non-goals
@@ -34,7 +34,7 @@ Before this change puppets had no synchronized equipment. `weaponDrawn`
   already carries the hints for it.
 - Equipment while transformed (werewolf, vampire lord). As in spec 006, peers
   keep the last equipment captured in a playable race.
-- Equip and unequip sounds and animations on the puppet.
+- Equip and unequip sounds and animations on the actor.
 - RaceMenu/NiOverride armor overlays, and skeleton-dependent physics (SMP/CBPC).
 
 ## Protocol
@@ -149,7 +149,7 @@ unenchanted item through `templateWeapon` or `templateArmor`.
 
 The sender follows that template chain, bounded to 8 steps, to the first form
 with no template, and publishes that form. If it is dynamic, the item is
-skipped. The remote puppet therefore shows the unenchanted base model with no
+skipped. The remote actor therefore shows the unenchanted base model with no
 enchantment shader. Player-crafted, non-enchanted items are ordinary plugin
 forms and are sent as is.
 
@@ -170,7 +170,7 @@ forms and are sent as is.
 
 The network thread keeps only the newest pending equipment per player (by
 revision) and discards it on `player:left`. The main-loop pass stores it on the
-remote player state, independent of whether a puppet reference currently
+remote player state, independent of whether a actor reference currently
 exists. A rejected payload is logged with the name of the offending field.
 
 ### Vanilla filter
@@ -195,25 +195,25 @@ branch without touching capture, protocol, or reconciliation.
 
 Consequences in this phase, all accepted:
 
-- A dropped body armor leaves the puppet in the race's naked skin.
-- A dropped weapon leaves the hand empty. The puppet draws fists and plays the
+- A dropped body armor leaves the actor in the race's naked skin.
+- A dropped weapon leaves the hand empty. The actor draws fists and plays the
   unarmed attack.
 
-### Puppet inventory ownership
+### Actor inventory ownership
 
-The puppet's inventory must always equal the resolved equipped set. To stop
+The actor's inventory must always equal the resolved equipped set. To stop
 anything else from entering it:
 
 - The runtime actor base from spec 006 clears its copied `TESContainer` entries
   and sets `defaultOutfit` and `sleepOutfit` to `nullptr`. The local player base
   is never modified.
-- The fallback puppet built from the local player base, and the construction
+- The fallback actor built from the local player base, and the construction
   template (`00013BBF`), may still put initial items into the reference. So
   reconciliation, not the base, is the authority.
 
 ### Reconciliation
 
-This runs in the main-loop pass for a puppet whose actor is ready and 3D-loaded.
+This runs in the main-loop pass for a actor whose actor is ready and 3D-loaded.
 Each check measures the live inventory counts, worn armor, and equipped hand
 objects against the resolved set. Before equipment is received, the resolved
 set is empty, so construction-template items are still removed. When the live
@@ -221,7 +221,7 @@ state differs, a mutation pass runs:
 
 1. Compute required counts: one per accepted armor entry, and for the hands one
    per hand object, so dual-wielding the same weapon requires two.
-2. Remove from the puppet's inventory every object not required, and the excess
+2. Remove from the actor's inventory every object not required, and the excess
    count of required ones. That includes gold and items added by leveled lists,
    scripts, or death items. Removed items are deleted, never transferred to any
    container or to the player.
@@ -235,20 +235,20 @@ state differs, a mutation pass runs:
 A mismatch is checked every frame until the first mutation pass, so a new
 revision applies immediately. After a pass, and while the state matches, the
 check runs every 0.25 s. At most 4 mutation passes run before the live state
-matches. After that the puppet keeps whatever it reached until the next
+matches. After that the actor keeps whatever it reached until the next
 revision or respawn. Periodic checks continue, and a later match resets the
 budget.
 
-The puppet must not change its own equipment. AI auto-equip of "best" armor or
+The actor must not change its own equipment. AI auto-equip of "best" armor or
 weapon, outfit re-application on cell load, and unequip-on-hit are either
-blocked for puppets or undone by the next reconciliation. Reconciliation
+blocked for actors or undone by the next reconciliation. Reconciliation
 compares against the live equipped state rather than only the last applied
 revision.
 
 ### Interaction with weapon and attack sync (spec 004)
 
 - **Spawn and respawn.** Equipment is reconciled before the first weapon-stance
-  reconstruction. A puppet whose latest checkpoint is `weaponDrawn=true` waits
+  reconstruction. A actor whose latest checkpoint is `weaponDrawn=true` waits
   for hand reconciliation, bounded to 1 second, before its native draw request.
   That way it does not draw fists and then pop a weapon in.
 - **Armor** changes apply immediately in every graph state.
@@ -262,7 +262,7 @@ revision.
 
 ### Respawns
 
-Retiring a puppet (coordinate-space change, appearance revision) keeps the
+Retiring a actor (coordinate-space change, appearance revision) keeps the
 remote equipment state. The new reference is reconciled from it after spawn.
 Equipment changes never trigger a respawn.
 
@@ -289,14 +289,14 @@ To verify in game:
    poll must cover it.
 2. `GetEquippedObject(true)` reports two-handed weapons, bows, and crossbows in
    the left hand as well. The capture rule above handles either answer.
-3. `EquipObject` with `forceEquip=true` on a puppet with a drawn weapon swaps the
+3. `EquipObject` with `forceEquip=true` on a actor with a drawn weapon swaps the
    weapon in place. It must update the graph weapon-type variables (for example
    `iRightHandType`, `iLeftHandType`) so the next attack uses the new weapon's
-   animation, without events the puppet firewall blocks. If it does not, hand
+   animation, without events the actor firewall blocks. If it does not, hand
    swaps while drawn fall back to the existing instant sheathe/draw path.
-4. Puppets do not auto-equip or unequip on actor process updates once their
+4. Actors do not auto-equip or unequip on actor process updates once their
    inventory holds only the synchronized set and their outfits are cleared.
-5. Removing items from a puppet reference with no destination deletes them and
+5. Removing items from a actor reference with no destination deletes them and
    fires no player-facing notification.
 6. The template chain of every vanilla enchanted weapon and armor ends at a
    non-dynamic, non-enchanted form. Player enchanting keeps the base form and
@@ -307,11 +307,11 @@ To verify in game:
 
 ## Acceptance criteria
 
-1. A remote puppet shows the source's vanilla armor, clothing, jewelry, shield,
+1. A remote actor shows the source's vanilla armor, clothing, jewelry, shield,
    weapons in both hands, and torch.
-2. The puppet's inventory holds exactly those items and nothing else, including
+2. The actor's inventory holds exactly those items and nothing else, including
    after cell reload, respawn, and a hit reaction.
-3. Changing equipment on the source (menu, favorites, hotkey) updates the puppet
+3. Changing equipment on the source (menu, favorites, hotkey) updates the actor
    within 0.5 s with no respawn, equip animation, or sound.
 4. Late joiners see the current equipment without the source changing anything.
 5. Items from non-vanilla plugins are dropped on the receiver with a log entry.
@@ -319,6 +319,6 @@ To verify in game:
 6. Player-enchanted items appear as their unenchanted base item.
 7. Drawing a weapon right after spawn or a swap draws the synchronized weapon,
    and the next attack uses its animation.
-8. The local player's inventory and equipment never change because of a puppet.
+8. The local player's inventory and equipment never change because of a actor.
 9. Malformed or stale equipment payloads are rejected by the server and the
    client.

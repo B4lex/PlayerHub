@@ -197,7 +197,7 @@ namespace ActorAnimation
 			}
 			const auto recoveryCount = ++animationState->recoveryCount;
 			logs::info(
-				"Started puppet animation-graph recovery: actor={:08X} desired={} detectedReaction={} observedHits={} graphReverted={} fallback3DReset={} previousGraph={} recovery={}",
+				"Started actor animation-graph recovery: actor={:08X} desired={} detectedReaction={} observedHits={} graphReverted={} fallback3DReset={} previousGraph={} recovery={}",
 				a_remote.handle.native_handle(),
 				Multiplayer::GetMovementStateName(
 					a_remote.animation->targetAnimationState.movementState),
@@ -703,7 +703,7 @@ namespace ActorAnimation
 				animationState->recoveryWaitElapsed = 0.0F;
 				a_actor.DoReset3D(false);
 				logs::warn(
-					"Puppet graph revert did not become ready; escalating to 3D reset: actor={:08X} recovery={}",
+					"Actor graph revert did not become ready; escalating to 3D reset: actor={:08X} recovery={}",
 					a_remote.handle.native_handle(),
 					animationState->recoveryCount);
 				return true;
@@ -712,7 +712,7 @@ namespace ActorAnimation
 				animationState->recoveryWaitFrames %
 					kGraphRecoveryWaitLogInterval == 0) {
 				logs::info(
-					"Waiting for recovered puppet animation graph: actor={:08X} loaded3D={} controller={} graph={} waitedFrames={} recovery={}",
+					"Waiting for recovered actor animation graph: actor={:08X} loaded3D={} controller={} graph={} waitedFrames={} recovery={}",
 					a_remote.handle.native_handle(),
 					a_actor.Is3DLoaded(),
 					a_actor.GetCharController() != nullptr,
@@ -742,7 +742,7 @@ namespace ActorAnimation
 		// that state appeared after this recovery began.
 		animationState->localInterruptionLatched = false;
 		logs::info(
-			"Recovered puppet animation graph is stable; replaying authoritative locomotion: actor={:08X} desired={} graphReplaced={} fallback3DReset={} recovery={}",
+			"Recovered actor animation graph is stable; replaying authoritative locomotion: actor={:08X} desired={} graphReplaced={} fallback3DReset={} recovery={}",
 			a_remote.handle.native_handle(),
 			Multiplayer::GetMovementStateName(
 				a_remote.animation->targetAnimationState.movementState),
@@ -935,7 +935,7 @@ namespace ActorAnimation
 			if (landingEventSinkRegistered) {
 				animationState->landingEventSinkGraph = graphManager.get();
 				logs::info(
-					"Registered puppet animation output-event sink: actor={:08X}",
+					"Registered actor animation output-event sink: actor={:08X}",
 					actorHandle.native_handle());
 			}
 		}

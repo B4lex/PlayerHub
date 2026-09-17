@@ -62,7 +62,7 @@ namespace ActorRuntime
 					a_remote.initializationWaitFrames %
 						kActorInitializationLogInterval == 0) {
 					logs::info(
-						"Waiting for remote-puppet actor initialization: actor={:08X} base={:08X} loaded3D={} controller={} graph={} waitedFrames={}",
+						"Waiting for remote actor actor initialization: actor={:08X} base={:08X} loaded3D={} controller={} graph={} waitedFrames={}",
 						a_remote.handle.native_handle(),
 						actor->GetActorBase() ? actor->GetActorBase()->GetFormID() : 0,
 						has3D,
@@ -78,7 +78,7 @@ namespace ActorRuntime
 			actor->InitiateDoNothingPackage();
 			a_remote.ready = true;
 			logs::info(
-				"Remote-puppet actor became ready: actor={:08X} base={:08X} desired={} hasCollision={} aiEnabled={} waitedFrames={}",
+				"Remote actor actor became ready: actor={:08X} base={:08X} desired={} hasCollision={} aiEnabled={} waitedFrames={}",
 				a_remote.handle.native_handle(),
 				actor->GetActorBase() ? actor->GetActorBase()->GetFormID() : 0,
 				Multiplayer::GetMovementStateName(
@@ -87,7 +87,11 @@ namespace ActorRuntime
 				actor->IsAIEnabled(),
 				a_remote.initializationWaitFrames);
 		}
-		AnimationFirewall::Enable(a_remote);
+		if (actor->Is3DLoaded()) {
+			// Without 3D there is no graph to protect, and ApplyAnimationUpdate
+			// disables the firewall again, which would log every pass.
+			AnimationFirewall::Enable(a_remote);
+		}
 		const bool furnitureLifecycleActive =
 			a_remote.furniture.requestedFurnitureRefID != 0 ||
 			a_remote.furniture.furnitureAnimationOwned;
