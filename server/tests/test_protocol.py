@@ -338,6 +338,7 @@ class ParseAnimationActionTests(unittest.TestCase):
             "checkpointSequence": 18,
             "family": "attack",
             "action": "normal",
+            "power": False,
             "prerequisites": {"weaponDrawn": True},
         }
 
@@ -351,11 +352,55 @@ class ParseAnimationActionTests(unittest.TestCase):
                 "checkpointSequence": 18,
                 "family": "attack",
                 "action": action,
+                "power": False,
                 "prerequisites": {"weaponDrawn": True},
             }
 
             with self.subTest(action=action):
                 self.assertEqual(parse_animation_action(payload), payload)
+
+    def test_accepts_power_attacks_with_direction(self) -> None:
+        for action in ("normal", "left", "dual", "bash"):
+            for direction in ("standing", "forward", "backward", "left", "right"):
+                payload = {
+                    "actionSequence": 3,
+                    "graphEpoch": 2,
+                    "checkpointSequence": 18,
+                    "family": "attack",
+                    "action": action,
+                    "power": True,
+                    "direction": direction,
+                    "prerequisites": {"weaponDrawn": True},
+                }
+
+                with self.subTest(action=action, direction=direction):
+                    self.assertEqual(parse_animation_action(payload), payload)
+
+    def test_rejects_invalid_power_fields(self) -> None:
+        base = {
+            "actionSequence": 3,
+            "graphEpoch": 2,
+            "checkpointSequence": 18,
+            "family": "attack",
+            "action": "normal",
+            "prerequisites": {"weaponDrawn": True},
+        }
+        invalid = (
+            {},
+            {"power": 1},
+            {"power": None},
+            {"power": True},
+            {"power": True, "direction": "sprint"},
+            {"power": True, "direction": "attackPowerStartForward"},
+            {"power": True, "direction": None},
+            {"power": False, "direction": "forward"},
+            {"power": False, "direction": None},
+            {"direction": "standing"},
+        )
+
+        for fields in invalid:
+            with self.subTest(fields=fields):
+                self.assertIsNone(parse_animation_action({**base, **fields}))
 
     def test_rejects_arbitrary_graph_event(self) -> None:
         payload = {
@@ -364,6 +409,7 @@ class ParseAnimationActionTests(unittest.TestCase):
             "checkpointSequence": 18,
             "family": "attack",
             "action": "attackPowerStart",
+            "power": False,
             "prerequisites": {"weaponDrawn": True},
         }
 
@@ -376,6 +422,7 @@ class ParseAnimationActionTests(unittest.TestCase):
             "checkpointSequence": 18,
             "family": "attack",
             "action": "normal",
+            "power": False,
             "prerequisites": {"weaponDrawn": False},
         }
 

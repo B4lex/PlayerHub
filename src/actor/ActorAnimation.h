@@ -44,6 +44,13 @@ namespace ActorAnimation
         std::uint32_t failedDispatchAttempts{ 0 };
         std::uint32_t rejectedEventAttempts{ 0 };
         float rejectedEventElapsed{ 0.0F };
+        // The transform is held while a locomotion dispatch has not reached the
+        // graph, so a sample is never applied against stale graph state. That hold
+        // is bounded: a rejected event retries for far longer than an actor may
+        // visibly stand still, and a held actor accumulates a backlog that the next
+        // idle checkpoint applies in one jump.
+        float unsettledTranslationHoldElapsed{ 0.0F };
+        bool unsettledTranslationHoldReported{ false };
         // JumpLand only enters Skyrim's timed landing branch. Keep the compound
         // transition open until that branch emits JumpLandEnd, then fully reassert
         // grounded locomotion before accepting another animation edge. Only a
@@ -106,6 +113,11 @@ namespace ActorAnimation
         // The playing attack is a bash. Its bashExit annotation ends it, since a
         // remote actor's attack state does not report bashes (observed in game).
         bool attackPlaybackBash{ false };
+        // The hand of the playing attack, and whether it has become a power attack.
+        // A held attack button starts a plain swing that a later power action turns
+        // into a power attack, as the source's engine does.
+        Network::AttackAction attackPlaybackAction{ Network::AttackAction::kNormal };
+        bool attackPlaybackPower{ false };
         // A queued attack was chained into the playing one. Cleared once the graph
         // leaves the combo window, so one window consumes at most one attack.
         bool attackChainDispatched{ false };
@@ -154,19 +166,28 @@ namespace ActorAnimation
     [[nodiscard]] bool SendNetworkAnimationEvent(RemoteActor& a_remote, const RE::BSFixedString& a_eventName);
 
     [[nodiscard]] bool IsAnimationStateSettled(const RemoteActor& a_remote);
+    // True while the transform must not follow the network path because the newest
+    // locomotion revision has not reached the graph. Bounded, so a long event retry
+    // cannot freeze the actor in place and then move it the whole backlog at once.
+    [[nodiscard]] bool ShouldHoldTranslation(RemoteActor& a_remote, float a_deltaTime);
     // Every requested revision was processed, but the graph may still be playing
     // a landing branch. A consecutive takeoff is allowed to interrupt that branch.
     [[nodiscard]] bool IsAnimationStateSettledExceptLanding(const RemoteActor& a_remote);
 
     // Semantic attacks may only enter a stable, grounded, fully drawn graph. Only
     // a bash may start from a held block.
-    [[nodiscard]] bool CanDispatchAttack(const RemoteActor& a_remote, Network::AttackAction a_attack);
+    [[nodiscard]] bool CanDispatchAttack(const RemoteActor& a_remote, const Network::Attack& a_attack);
     // The playing network attack is in its combo window, where the next queued
-    // swing chains as the following one, as it does on the local player. A bash
-    // never chains.
-    [[nodiscard]] bool CanChainAttack(const RemoteActor& a_remote, Network::AttackAction a_attack);
-    // Starts an attack, or chains it into the playing one when that is allowed.
-    [[nodiscard]] bool DispatchAttack(RemoteActor& a_remote, Network::AttackAction a_attack);
+    // swing or power attack chains as the following one, as it does on the local
+    // player. A bash never chains.
+    [[nodiscard]] bool CanChainAttack(const RemoteActor& a_remote, const Network::Attack& a_attack);
+    // A power attack of the playing plain attack's hand turns that attack into the
+    // power attack, as a held attack button does on the source.
+    [[nodiscard]] bool CanPowerUpAttack(const RemoteActor& a_remote, const Network::Attack& a_attack);
+    // Starts an attack, turns the playing attack into a power attack, or chains it
+    // into the playing one when that is allowed. A new power attack the graph
+    // rejects is started as the plain attack of its hand.
+    [[nodiscard]] bool DispatchAttack(RemoteActor& a_remote, const Network::Attack& a_attack);
     [[nodiscard]] bool IsAnimationActionPlaying(const RemoteActor& a_remote);
 
     // Converges a network bow draw toward a_drawn: starts it when a_mayStart and

@@ -3,10 +3,11 @@
 ## Status
 
 Implemented for drawn/sheathed presentation and the first semantic combat
-action: a normal weapon attack. Power-attack starts are intentionally presented
-to peers as normal attacks. Spec 012 extends the vocabulary with left-hand and
-dual-wield attacks and bashes, and adds blocking as checkpoint state. Equipment selection, damage, targeting, and general
-combat behavior remain out of scope.
+action: a normal weapon attack. Spec 012 extends the vocabulary with left-hand and
+dual-wield attacks and bashes, and adds blocking as checkpoint state. Spec 013
+presents power attacks, which this spec originally showed as normal attacks.
+Equipment selection, damage, targeting, and general combat behavior remain out
+of scope.
 
 ## Goal
 
@@ -116,8 +117,8 @@ An action record must include at least:
 The main-loop sampler observes edges in PlayerCharacter's melee
 `ATTACK_STATE_ENUM`, including a new swing after `NextAttack`/`FollowThrough`.
 This is downstream of input mapping and works for both normal and power attacks;
-both become `attack/normal`, and no native graph event string crosses the
-network. The next 20 Hz checkpoint is emitted before the action and supplies its
+spec 013 marks power attacks with `power` and a direction, and no native graph
+event string crosses the network. The next 20 Hz checkpoint is emitted before the action and supplies its
 graph epoch and checkpoint sequence.
 
 The server validates the vocabulary, prerequisite, epoch, checkpoint, and
@@ -163,8 +164,7 @@ accepted checkpoint/epoch boundary may be dispatched.
 - Combat simulation, hit validation, damage, targeting, or perks. Bow draws and
   spell casting are presented by spec 011 as checkpoint state, and blocking and
   bashes by spec 012.
-- Preserving power-attack presentation; it is deliberately rendered as a normal
-  attack in this phase.
+- Preserving power-attack presentation in this phase; spec 013 adds it.
 - Replaying an attack that occurred before a late join or graph reconstruction.
 - Allowing arbitrary remote behavior-graph events.
 
@@ -177,14 +177,14 @@ accepted checkpoint/epoch boundary may be dispatched.
 3. A graph rebuild restores the latest stance before any subsequently queued
    semantic action is considered dispatchable.
 4. Every locally accepted normal attack produces one ordered remote normal
-   attack, while a locally accepted power attack produces the same remote normal
-   animation.
+   attack. A locally accepted power attack produces one ordered remote power
+   attack (spec 013).
 5. An attack waits for jump/landing and draw/equip completion and cannot
    interrupt those graph branches. A later jump, equip transition, or attack
    does not interrupt an already accepted synchronized attack.
 6. Walking and running actors keep locomotion and translation active while the
    normal attack plays.
 7. Only the `attack` vocabulary (`normal`, and `left`, `dual`, and `bash` from
-   spec 012) is accepted, with contiguous action
+   spec 012, with the `power` and `direction` fields of spec 013) is accepted, with contiguous action
    sequence, matching graph epoch, a prior checkpoint, a drawn-weapon
    prerequisite, bounded queue/retries, and explicit timeout/rejection results.

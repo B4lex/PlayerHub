@@ -40,13 +40,14 @@ a peer does not have a matching modded asset or behavior.
   possible.
 
 ## Protocol and verification
+- Backward compatibility between protocol or server versions is not a priority:
+  every client release is supplied with its required server update. Prefer clear,
+  direct protocol evolution over compatibility shims for older client versions.
 - A wire change usually spans `src/protocol/`, serialization and parsing in
   `src/network/`, validation and relay in `server/src/server/`, and the owning
   `src/sync/` feature. Check all of these and update the matching server tests.
 - Validate untrusted network fields at the boundary, including types, finite
-  numbers, ranges, sequence or revision ordering, and form references. Preserve
-  documented defaults for optional fields so older recordings and different
-  client versions can still be read where possible.
+  numbers, ranges, sequence or revision ordering, and form references.
 - For server changes, run the relevant test module from `server/` with
   `uv run python -m unittest discover -s tests -p 'test_<module>.py'`.
   Run the full suite with `uv run python -m unittest discover -s tests` when

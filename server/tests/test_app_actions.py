@@ -30,6 +30,7 @@ def valid_action(sequence: int = 1) -> dict[str, object]:
         "checkpointSequence": 10,
         "family": "attack",
         "action": "normal",
+        "power": False,
         "prerequisites": {"weaponDrawn": True},
     }
 
@@ -74,6 +75,21 @@ class AnimationActionRelayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [call.args[1]["action"] for call in emit.await_args_list],
             ["left", "dual", "bash"],
+        )
+
+    async def test_relays_power_attack_with_direction(self) -> None:
+        emit = AsyncMock()
+        server_app.player_states["player-1"] = valid_state()
+        action = {**valid_action(), "power": True, "direction": "backward"}
+
+        with patch.object(server_app.sio, "emit", new=emit):
+            result = await server_app.animation_action("player-1", action)
+
+        self.assertEqual(result, {"ok": True})
+        emit.assert_awaited_once_with(
+            "player:action",
+            {"playerId": "player-1", **action},
+            skip_sid="player-1",
         )
 
     async def test_rejects_sequence_gap(self) -> None:

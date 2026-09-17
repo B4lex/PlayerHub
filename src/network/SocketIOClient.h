@@ -69,9 +69,9 @@ namespace Network
     // Publishes the latest-wins equipped items. The caller owns revisions.
     void PublishLocalEquipment(const Multiplayer::PlayerEquipment& a_equipment);
 
-    // Publishes one item in the ordered semantic action stream. Power attacks are
-    // intentionally normalized to the plain attack of the same hand by capture.
-    void PublishLocalAttack(AttackAction a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
+    // Publishes one item in the ordered semantic action stream: the attack's hand
+    // and, for a power attack, its direction. Graph event names never cross it.
+    void PublishLocalAttack(const Attack& a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
 
     // Emits latency:probe. a_onAcknowledged runs on the transport thread when the
     // server acknowledges it, with the server clock in milliseconds when the ack

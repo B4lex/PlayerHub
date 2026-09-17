@@ -33,6 +33,7 @@ def valid_action(sequence: int = 1) -> dict[str, object]:
         "checkpointSequence": 1,
         "family": "attack",
         "action": "normal",
+        "power": False,
         "prerequisites": {"weaponDrawn": True},
     }
 

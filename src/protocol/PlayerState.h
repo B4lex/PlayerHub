@@ -35,15 +35,14 @@ namespace Network
         std::uint64_t sequence{ 0 };
     };
 
-    // The attack vocabulary of the ordered action stream. Power attacks are
-    // presented as the plain attack of the same hand, and a power bash as a bash.
+    // The attack vocabulary of the ordered action stream.
     enum class AttackAction : std::uint8_t
     {
         // A right-hand, or unarmed right, swing.
         kNormal,
         // A left-hand weapon or unarmed left swing.
         kLeft,
-        // Both weapons at once.
+        // Both weapons, or both fists, at once.
         kDual,
         // A shield, weapon, torch, or bow bash.
         kBash
@@ -64,10 +63,47 @@ namespace Network
         }
     }
 
+    // The movement direction a power attack was started with. A sprinting power
+    // attack is presented as a forward one.
+    enum class PowerAttackDirection : std::uint8_t
+    {
+        kStanding,
+        kForward,
+        kBackward,
+        kLeft,
+        kRight
+    };
+
+    [[nodiscard]] constexpr const char* GetPowerAttackDirectionName(PowerAttackDirection a_direction) noexcept
+    {
+        switch (a_direction)
+        {
+            case PowerAttackDirection::kForward:
+                return "forward";
+            case PowerAttackDirection::kBackward:
+                return "backward";
+            case PowerAttackDirection::kLeft:
+                return "left";
+            case PowerAttackDirection::kRight:
+                return "right";
+            default:
+                return "standing";
+        }
+    }
+
+    struct Attack
+    {
+        AttackAction action{ AttackAction::kNormal };
+        // A power attack, or a power bash, of the action's hand.
+        bool power{ false };
+        // Only meaningful for a power attack.
+        PowerAttackDirection direction{ PowerAttackDirection::kStanding };
+    };
+
     struct AnimationAction
     {
         std::string playerID;
-        AttackAction attack{ AttackAction::kNormal };
+        Attack attack{};
         std::uint64_t actionSequence{ 0 };
         std::uint64_t graphEpoch{ 0 };
         std::uint64_t checkpointSequence{ 0 };

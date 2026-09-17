@@ -29,9 +29,9 @@ Nothing is hit, staggered, or damaged. Only the animation plays.
 
 ## Non-goals
 
-- Power attacks, power bashes, sprint attacks, and their directions. As in
-  spec 004, a power attack is presented as the plain attack of the same hand,
-  and a power bash as a bash.
+- Power attacks, power bashes, sprint attacks, and their directions. Here a
+  power attack is presented as the plain attack of the same hand, and a power
+  bash as a bash; spec 013 adds power attacks and power bashes.
 - Shield charge (`BlockBashSprint`), block hit reactions, and bash failures.
 - Crossbow bashes. The crossbow attack branch is not replicated (spec 011).
 - Bow zoom. With a bow, the block button zooms (`BowZoom` sends `blockStart`)
@@ -240,7 +240,7 @@ To verify in game:
 
 1. Left-hand weapon swings, unarmed left punches, and dual-wield swings play the
    same hand on peers, standing or moving, in the same order as the source's
-   attacks. Power attacks play the plain attack of the same hand.
+   attacks. Power attacks are covered by spec 013.
 2. Blocking with a shield, a one- or two-handed weapon, a torch, or fists raises
    the block on peers for as long as the source holds it, standing or moving. A
    bow zoom is not shown as a block.

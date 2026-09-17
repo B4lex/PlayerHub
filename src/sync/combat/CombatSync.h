@@ -24,6 +24,8 @@ namespace CombatSync
         std::uint32_t dispatchAttempts{ 0 };
         // Time since the first rejected dispatch attempt.
         float retryElapsed{ 0.0F };
+        // A power attack waiting for the playing attack was logged once.
+        bool powerUpWaitLogged{ false };
     };
 
     // Transient attack history of one peer. It is never reconstructed after a
@@ -33,9 +35,9 @@ namespace CombatSync
         std::deque<PendingAnimationAction> pendingAnimationActions;
     };
 
-    // Local stage, every pass: detects the start of a local melee attack or bash
-    // and which hand it uses.
-    [[nodiscard]] std::optional<Network::AttackAction> CaptureLocalAttack(const LocalFrame& a_local);
+    // Local stage, every pass: detects the start of a local melee attack or bash,
+    // which hand it uses, and whether it is a power attack in which direction.
+    [[nodiscard]] std::optional<Network::Attack> CaptureLocalAttack(const LocalFrame& a_local);
     // Local stage, every pass: observes the local bow draw, spell channelling, and
     // blocking. Returns true when one of them began, so equipment can be flushed
     // first.
@@ -46,7 +48,7 @@ namespace CombatSync
     [[nodiscard]] Multiplayer::HandPresentation SampleLocalHandPresentation();
     // Local stage, every pass after equipment capture: adds a captured attack to
     // the bounded publish backlog, discarding it at a graph-epoch boundary.
-    void QueueLocalAttacks(std::optional<Network::AttackAction> a_capturedAttack, bool a_graphEpochChanged);
+    void QueueLocalAttacks(std::optional<Network::Attack> a_capturedAttack, bool a_graphEpochChanged);
     // Attacks captured while disconnected have no valid sequence boundary.
     void DiscardLocalAttacks();
     // Publishes queued attacks against the checkpoint that was just published.

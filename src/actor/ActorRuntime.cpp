@@ -103,7 +103,10 @@ namespace ActorRuntime
         ActorAnimation::HoldIdleTurnState(*actor, a_remote);
         ActorAnimation::ApplyAnimationUpdate(*actor, a_remote, a_deltaTime);
         const bool landingCompletionPending = a_remote.animation && a_remote.animation->landingCompletionPending;
-        if (!ActorAnimation::IsAnimationStateSettled(a_remote) && !landingCompletionPending)
+        // Evaluated once per pass: it ages the bounded hold, and both gates below
+        // ask the same question about the same pass.
+        const bool holdForUnsettledDispatch = ActorAnimation::ShouldHoldTranslation(a_remote, a_deltaTime);
+        if (holdForUnsettledDispatch && !landingCompletionPending)
         {
             // Direct transform motion while the graph is unavailable is the primary
             // visible sliding failure. Keep the latest target, but do not move until
@@ -116,7 +119,7 @@ namespace ActorRuntime
             // network transform interpolation here would pull the actor off its marker.
             return true;
         }
-        if (!ActorAnimation::IsAnimationStateSettledExceptLanding(a_remote))
+        if (holdForUnsettledDispatch)
         {
             // A completed furniture exit invalidates the old locomotion dispatch so
             // the next update can reconstruct it before translation resumes. The
