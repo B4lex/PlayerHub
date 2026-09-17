@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol/MovementState.h"
+#include "protocol/PlayerState.h"
 
 #include <RE/Skyrim.h>
 
@@ -102,6 +103,9 @@ namespace ActorAnimation
 		bool attackPlaybackPending{ false };
 		bool attackPlaybackObserved{ false };
 		float attackPlaybackElapsed{ 0.0F };
+		// The playing attack is a bash. Its bashExit annotation ends it, since a
+		// remote actor's attack state does not report bashes (observed in game).
+		bool attackPlaybackBash{ false };
 		// A queued attack was chained into the playing one. Cleared once the graph
 		// leaves the combo window, so one window consumes at most one attack.
 		bool attackChainDispatched{ false };
@@ -126,6 +130,24 @@ namespace ActorAnimation
 		// Mirrors ActorRegistry cast ownership; kept across graph resets so an
 		// abandoned cast still releases it.
 		bool castAnimationOwned{ false };
+		// A network block is held from an accepted blockStart until the checkpoint
+		// lowers it, then stopping until the graph has left its block state.
+		bool blockHeld{ false };
+		bool blockStopping{ false };
+		bool blockStopAccepted{ false };
+		float blockStopElapsed{ 0.0F };
+		float blockEventRetryElapsed{ 0.0F };
+		// Time a held block has been missing from the graph, for example after a
+		// bash or recoil left through the ready state.
+		float blockLostElapsed{ 0.0F };
+		// The block, bow draw, and cast lower bodies choose their standing or moving
+		// state from iSyncIdleLocomotion when entered, which stays 0 on a remote
+		// actor, so a moving actor slid in the standing pose. After a start, a
+		// moving actor takes their moveStart edge instead.
+		bool presentationMoveStartPending{ false };
+		std::uint32_t presentationMoveStartWaitPasses{ 0 };
+		std::uint32_t presentationMoveStartAttempts{ 0 };
+		float presentationMoveStartElapsed{ 0.0F };
 	};
 
 	[[nodiscard]] Multiplayer::AnimationState GetTargetState(const RemoteActor& a_remote);
@@ -146,13 +168,21 @@ namespace ActorAnimation
 	[[nodiscard]] bool IsAnimationStateSettledExceptLanding(
 		const RemoteActor& a_remote);
 
-	// Semantic attacks may only enter a stable, grounded, fully drawn graph.
-	[[nodiscard]] bool CanDispatchNormalAttack(const RemoteActor& a_remote);
+	// Semantic attacks may only enter a stable, grounded, fully drawn graph. Only
+	// a bash may start from a held block.
+	[[nodiscard]] bool CanDispatchAttack(
+		const RemoteActor& a_remote,
+		Network::AttackAction a_attack);
 	// The playing network attack is in its combo window, where the next queued
-	// attack chains as the following swing, as it does on the local player.
-	[[nodiscard]] bool CanChainNormalAttack(const RemoteActor& a_remote);
+	// swing chains as the following one, as it does on the local player. A bash
+	// never chains.
+	[[nodiscard]] bool CanChainAttack(
+		const RemoteActor& a_remote,
+		Network::AttackAction a_attack);
 	// Starts an attack, or chains it into the playing one when that is allowed.
-	[[nodiscard]] bool DispatchNormalAttack(RemoteActor& a_remote);
+	[[nodiscard]] bool DispatchAttack(
+		RemoteActor& a_remote,
+		Network::AttackAction a_attack);
 	[[nodiscard]] bool IsAnimationActionPlaying(const RemoteActor& a_remote);
 
 	// Converges a network bow draw toward a_drawn: starts it when a_mayStart and
@@ -173,7 +203,19 @@ namespace ActorAnimation
 		bool a_casting,
 		bool a_mayStart,
 		float a_deltaTime);
-	// A bow draw, its release, or a cast still owns the actor's stance and hands.
+	// Converges a network block toward a_blocking: raises it when a_mayStart and
+	// the graph is stable, grounded, and fully drawn, holds it (raising it again
+	// after a bash that left it), and lowers it once a_blocking clears.
+	void ApplyBlock(
+		RemoteActor& a_remote,
+		bool a_blocking,
+		bool a_mayStart,
+		float a_deltaTime);
+	// Selects the moving lower body of a block, bow draw, or cast that has just
+	// started while the actor moves. Runs after the Apply* presentation stages.
+	void AdvancePresentationLocomotion(RemoteActor& a_remote, float a_deltaTime);
+	// A bow draw, its release, a cast, or a block still owns the actor's stance
+	// and hands.
 	[[nodiscard]] bool IsHandPresentationPlaying(const RemoteActor& a_remote);
 	// A replicated draw or sheathe clip has not reached its exit annotation or
 	// bounded fallback yet.

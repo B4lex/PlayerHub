@@ -183,17 +183,17 @@ namespace SyncCoordinator
 		{
 			const LocalFrame local{ .player = a_player };
 
-			const bool attackCaptured = CombatSync::CaptureLocalAttack(local);
+			const auto capturedAttack = CombatSync::CaptureLocalAttack(local);
 			const bool handPresentationStarted =
 				CombatSync::CaptureLocalHandPresentation(local);
 			const auto graphEpoch = AnimationSync::ObserveLocalGraphEpoch(local);
-			// Flush equipment before a captured attack, bow draw, or cast can be
-			// published, so peers receive a weapon swap ahead of its use.
+			// Flush equipment before a captured attack, bow draw, cast, or block can
+			// be published, so peers receive a weapon swap ahead of its use.
 			EquipmentSync::SyncEquipment(
 				local,
 				a_delta,
-				attackCaptured || handPresentationStarted);
-			CombatSync::QueueLocalAttacks(attackCaptured ? 1 : 0, graphEpoch.changed);
+				capturedAttack.has_value() || handPresentationStarted);
+			CombatSync::QueueLocalAttacks(capturedAttack, graphEpoch.changed);
 			const auto publication = CheckpointPublisher::PublishLocalCheckpoint(
 				local,
 				a_delta,
@@ -285,7 +285,7 @@ namespace SyncCoordinator
 					attackPlaying,
 					furniturePlaying);
 				// Stage the freshest base state before considering an action. If this
-				// changes the graph request, CanDispatchNormalAttack keeps the action
+				// changes the graph request, CanDispatchAttack keeps the action
 				// queued until ApplyAnimationUpdate settles it on a following frame.
 				if (!furniturePlaying) {
 					CombatSync::SyncCombat(remote, a_peer.combat, actor, handsSettled);

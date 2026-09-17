@@ -19,7 +19,8 @@ namespace Network
 		float direction{ 0.0F };
 		// Locomotion, jump phase, and combat stance from the same snapshot.
 		Multiplayer::AnimationState animationState{};
-		// Bow draw and spell channelling, gated on the receiver by weapon stance.
+		// Bow draw, spell channelling, and blocking, gated on the receiver by weapon
+		// stance.
 		Multiplayer::HandPresentation handPresentation{};
 		std::uint32_t cellID{ 0 };
 		// Non-zero for exterior cells. Interior cells use zero and must match by
@@ -34,9 +35,38 @@ namespace Network
 		std::uint64_t sequence{ 0 };
 	};
 
+	// The attack vocabulary of the ordered action stream. Power attacks are
+	// presented as the plain attack of the same hand, and a power bash as a bash.
+	enum class AttackAction : std::uint8_t
+	{
+		// A right-hand, or unarmed right, swing.
+		kNormal,
+		// A left-hand weapon or unarmed left swing.
+		kLeft,
+		// Both weapons at once.
+		kDual,
+		// A shield, weapon, torch, or bow bash.
+		kBash
+	};
+
+	[[nodiscard]] constexpr const char* GetAttackActionName(AttackAction a_action) noexcept
+	{
+		switch (a_action) {
+		case AttackAction::kLeft:
+			return "left";
+		case AttackAction::kDual:
+			return "dual";
+		case AttackAction::kBash:
+			return "bash";
+		default:
+			return "normal";
+		}
+	}
+
 	struct AnimationAction
 	{
 		std::string playerID;
+		AttackAction attack{ AttackAction::kNormal };
 		std::uint64_t actionSequence{ 0 };
 		std::uint64_t graphEpoch{ 0 };
 		std::uint64_t checkpointSequence{ 0 };

@@ -47,6 +47,17 @@ namespace ActorAnimation
 		constexpr float kBowShotFallbackSeconds = 2.0F;
 		// A cast still playing this long after its interrupt is abandoned.
 		constexpr float kCastStopFallbackSeconds = 1.0F;
+		// A block still raised this long after blockStop is dropped instantly. It
+		// covers a bash that was already playing when the block was lowered.
+		constexpr float kBlockStopFallbackSeconds = 1.5F;
+		// A held block missing from the graph this long is raised again. Shorter
+		// gaps are the graph's own transitions into and out of a bash.
+		constexpr float kBlockReraiseSeconds = 0.25F;
+		// A cast enters its graph state some updates after the caster's request. A
+		// graph without the casting variables takes moveStart after this long.
+		constexpr float kCastLowerBodyEntrySeconds = 0.5F;
+		// A presentation's moveStart that is still rejected after this is abandoned.
+		constexpr float kPresentationMoveStartFallbackSeconds = 1.0F;
 
 		// The native attack takes attackStart as its next combo swing in these
 		// states; CombatSync captures the local player's chained swings from them.
@@ -353,6 +364,73 @@ namespace ActorAnimation
 			a_state.castStopping = {};
 			a_state.castStopRequestElapsed = {};
 			a_state.castEventRetryElapsed.fill(kMinimumEventRetrySeconds);
+			a_state.blockHeld = false;
+			a_state.blockStopping = false;
+			a_state.blockStopAccepted = false;
+			a_state.blockStopElapsed = 0.0F;
+			a_state.blockEventRetryElapsed = kMinimumEventRetrySeconds;
+			a_state.blockLostElapsed = 0.0F;
+			a_state.presentationMoveStartPending = false;
+			a_state.presentationMoveStartWaitPasses = 0;
+			a_state.presentationMoveStartAttempts = 0;
+			a_state.presentationMoveStartElapsed = 0.0F;
+		}
+
+		void RequestPresentationMoveStart(State& a_state)
+		{
+			a_state.presentationMoveStartPending = true;
+			a_state.presentationMoveStartWaitPasses = 0;
+			a_state.presentationMoveStartAttempts = 0;
+			a_state.presentationMoveStartElapsed = 0.0F;
+		}
+
+		bool IsBowOrCastPlaying(const State& a_state)
+		{
+			return a_state.bowDrawHeld || a_state.bowReleasePending ||
+				a_state.castHeld[0] || a_state.castHeld[1] ||
+				a_state.castStopping[0] || a_state.castStopping[1];
+		}
+
+		bool IsBlockPlaying(const State& a_state)
+		{
+			return a_state.blockHeld || a_state.blockStopping;
+		}
+
+		// The graph returns to its block state after a bash, recoil, or attack only
+		// while iWantBlock is set, which the engine derives from wantBlocking.
+		void SetBlockRequest(RE::Actor& a_actor, bool a_blocking)
+		{
+			static const RE::BSFixedString wantBlockVariable{ "iWantBlock" };
+			if (auto* actorState = a_actor.AsActorState()) {
+				actorState->actorState2.wantBlocking = a_blocking;
+			}
+			(void) a_actor.SetGraphVariableInt(wantBlockVariable, a_blocking ? 1 : 0);
+		}
+
+		const RE::BSFixedString& GetAttackEvent(
+			const RE::Actor& a_actor,
+			Network::AttackAction a_attack)
+		{
+			static const RE::BSFixedString attackStartEvent{ "attackStart" };
+			static const RE::BSFixedString attackStartLeftHandEvent{ "attackStartLeftHand" };
+			static const RE::BSFixedString attackStartH2HLeftEvent{ "AttackStartH2HLeft" };
+			static const RE::BSFixedString attackStartDualWieldEvent{ "attackStartDualWield" };
+			static const RE::BSFixedString bashStartEvent{ "bashStart" };
+			switch (a_attack) {
+			case Network::AttackAction::kLeft:
+				// An empty left hand punches through the unarmed branch.
+				return a_actor.GetEquippedObject(true) ?
+					attackStartLeftHandEvent :
+					attackStartH2HLeftEvent;
+			case Network::AttackAction::kDual:
+				return attackStartDualWieldEvent;
+			case Network::AttackAction::kBash:
+				// Plays the whole bash; its bashExit annotation returns to the block or
+				// ready state by iWantBlock.
+				return bashStartEvent;
+			default:
+				return attackStartEvent;
+			}
 		}
 
 		bool IsHoldingBow(const RE::Actor& a_actor)
@@ -404,7 +482,7 @@ namespace ActorAnimation
 			RE::Actor& a_actor,
 			const RE::BSFixedString& a_eventName)
 		{
-			// The same synchronous dispatch window as DispatchNormalAttack: the
+			// The same synchronous dispatch window as DispatchAttack: the
 			// persistent suppression flags can make the graph reject a replicated
 			// bow draw. They are restored before any AI update can run.
 			auto& actorFlags = a_actor.GetActorRuntimeData().boolFlags;
@@ -495,14 +573,20 @@ namespace ActorAnimation
 			a_remote.animation->desiredRevision.load(std::memory_order_acquire);
 	}
 
-	bool CanDispatchNormalAttack(const RemoteActor& a_remote)
+	bool CanDispatchAttack(
+		const RemoteActor& a_remote,
+		Network::AttackAction a_attack)
 	{
-		if (!GameThread::Require("CanDispatchNormalAttack") || !a_remote.ready ||
+		if (!GameThread::Require("CanDispatchAttack") || !a_remote.ready ||
 			!a_remote.animation || !a_remote.animationGraphHolder ||
 			!IsAnimationStateSettled(a_remote) ||
 			a_remote.animation->attackPlaybackPending ||
 			a_remote.animation->attackLocomotionReassertPending ||
-			IsHandPresentationPlaying(a_remote) ||
+			IsBowOrCastPlaying(*a_remote.animation) ||
+			// The source bashes from a raised block, so only a bash plays from it.
+			// Other attacks wait until the block is lowered.
+			(a_attack != Network::AttackAction::kBash &&
+				IsBlockPlaying(*a_remote.animation)) ||
 			// The reassert flag stays armed while idle after a completed draw, so
 			// only a transition that is still unsettled may hold the attack.
 			IsWeaponTransitionUnsettled(*a_remote.animation) ||
@@ -531,9 +615,12 @@ namespace ActorAnimation
 			a_remote.animation->graphManager == graphManager.get();
 	}
 
-	bool CanChainNormalAttack(const RemoteActor& a_remote)
+	bool CanChainAttack(
+		const RemoteActor& a_remote,
+		Network::AttackAction a_attack)
 	{
-		if (!GameThread::Require("CanChainNormalAttack") || !a_remote.ready ||
+		if (!GameThread::Require("CanChainAttack") || !a_remote.ready ||
+			a_attack == Network::AttackAction::kBash ||
 			!a_remote.animation || !a_remote.animationGraphHolder ||
 			!IsAnimationStateSettled(a_remote) ||
 			!a_remote.animation->attackPlaybackPending ||
@@ -564,10 +651,12 @@ namespace ActorAnimation
 			a_remote.animation->graphManager == graphManager.get();
 	}
 
-	bool DispatchNormalAttack(RemoteActor& a_remote)
+	bool DispatchAttack(
+		RemoteActor& a_remote,
+		Network::AttackAction a_attack)
 	{
-		const bool chaining = CanChainNormalAttack(a_remote);
-		if (!chaining && !CanDispatchNormalAttack(a_remote)) {
+		const bool chaining = CanChainAttack(a_remote, a_attack);
+		if (!chaining && !CanDispatchAttack(a_remote, a_attack)) {
 			return false;
 		}
 
@@ -576,16 +665,32 @@ namespace ActorAnimation
 		if (!actorPtr) {
 			return false;
 		}
+		const auto& attackEvent = GetAttackEvent(*actorPtr, a_attack);
+		if (!chaining) {
+			// An exit left over from an earlier bash must not end this attack.
+			(void) ActorRegistry::ConsumeBashExits(*actorPtr);
+		}
 		auto& actorFlags = actorPtr->GetActorRuntimeData().boolFlags;
 		// The persistent flag prevents autonomous combat decisions, but it can also
-		// make the behavior graph reject a directly replicated attackStart. Open a
+		// make the behavior graph reject a directly replicated attack. Open a
 		// game-thread-only dispatch window and restore the policy before returning;
 		// no AI update can run inside this synchronous call.
 		actorFlags.reset(RE::Actor::BOOL_FLAGS::kAttackingDisabled);
-		const bool accepted = SendNetworkAnimationEvent(a_remote, attackStartEvent);
+		bool accepted = SendNetworkAnimationEvent(a_remote, attackEvent);
+		// The dual-wield branch requires two one-handed weapons in the actor's hand
+		// types. When a mod or an unsettled hand disagrees, a right-hand swing is
+		// the vanilla presentation of the same input.
+		const bool fellBack = !accepted && a_attack == Network::AttackAction::kDual &&
+			SendNetworkAnimationEvent(a_remote, attackStartEvent);
+		accepted = accepted || fellBack;
 		actorFlags.set(RE::Actor::BOOL_FLAGS::kAttackingDisabled);
 		if (!accepted) {
 			return false;
+		}
+		if (fellBack) {
+			logs::info(
+				"Animation sync presented dual-wield attack as a right-hand attack: actor={:08X}",
+				a_remote.handle.native_handle());
 		}
 
 		a_remote.animation->attackPlaybackElapsed = 0.0F;
@@ -596,6 +701,7 @@ namespace ActorAnimation
 			return true;
 		}
 		a_remote.animation->attackPlaybackPending = true;
+		a_remote.animation->attackPlaybackBash = a_attack == Network::AttackAction::kBash;
 		a_remote.animation->attackPlaybackObserved = false;
 		a_remote.animation->attackChainDispatched = false;
 		a_remote.animation->attackLocomotionReassertPending = false;
@@ -702,6 +808,7 @@ namespace ActorAnimation
 
 		if (!a_drawn || !a_mayStart ||
 			state.bowEventRetryElapsed < kMinimumEventRetrySeconds ||
+			IsBlockPlaying(state) ||
 			!IsHoldingBow(actor) ||
 			!CanStartHandPresentation(a_remote, actor)) {
 			return;
@@ -712,6 +819,7 @@ namespace ActorAnimation
 		}
 
 		state.bowDrawHeld = true;
+		RequestPresentationMoveStart(state);
 		state.bowPhaseElapsed = 0.0F;
 		state.bowReleaseRequestElapsed = 0.0F;
 		// A release that is already due goes out on the next pass.
@@ -820,6 +928,7 @@ namespace ActorAnimation
 		if (!a_casting || !a_mayStart || !caster ||
 			state.castEventRetryElapsed[hand] < kMinimumEventRetrySeconds ||
 			state.bowDrawHeld ||
+			IsBlockPlaying(state) ||
 			!IsHoldingSpell(actor, a_leftHand) ||
 			!CanStartHandPresentation(a_remote, actor)) {
 			return;
@@ -845,6 +954,7 @@ namespace ActorAnimation
 		caster->RequestCastImpl();
 
 		state.castHeld[hand] = true;
+		RequestPresentationMoveStart(state);
 		state.castStopRequestElapsed[hand] = 0.0F;
 		logs::info(
 			"Animation sync started spell cast: actor={:08X} hand={} spell={:08X}",
@@ -853,15 +963,206 @@ namespace ActorAnimation
 			spell ? spell->GetFormID() : 0);
 	}
 
+	void ApplyBlock(
+		RemoteActor& a_remote,
+		bool a_blocking,
+		bool a_mayStart,
+		float a_deltaTime)
+	{
+		if (!GameThread::Require("ApplyBlock") || !a_remote.animation) {
+			return;
+		}
+		auto actorPtr = a_remote.handle.get();
+		if (!actorPtr) {
+			return;
+		}
+
+		static const RE::BSFixedString blockStartEvent{ "blockStart" };
+		static const RE::BSFixedString blockStopEvent{ "blockStop" };
+		static const RE::BSFixedString blockStopInstantEvent{ "blockStopInstant" };
+		static const RE::BSFixedString isBlockingVariable{ "IsBlocking" };
+
+		auto& actor = *actorPtr;
+		auto& state = *a_remote.animation;
+		const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+		state.blockEventRetryElapsed = (std::min)(
+			state.blockEventRetryElapsed + deltaTime,
+			kMinimumEventRetrySeconds);
+		bool graphBlocking = false;
+		const bool graphBlockingAvailable =
+			actor.GetGraphVariableBool(isBlockingVariable, graphBlocking);
+
+		if (state.blockStopping) {
+			state.blockStopElapsed += deltaTime;
+			// A graph without the variable only has the accepted event as evidence.
+			const bool lowered = graphBlockingAvailable ?
+				!graphBlocking :
+				state.blockStopAccepted;
+			const bool timedOut = state.blockStopElapsed >= kBlockStopFallbackSeconds;
+			if (!lowered && !timedOut) {
+				// A playing bash rejects blockStop, and its exit then leaves the block
+				// by itself because iWantBlock is clear. Only a graph that stays in the
+				// block state is asked again.
+				if (!state.blockStopAccepted && !state.attackPlaybackPending &&
+					state.blockEventRetryElapsed >= kMinimumEventRetrySeconds) {
+					state.blockEventRetryElapsed = 0.0F;
+					state.blockStopAccepted =
+						SendHandPresentationEvent(a_remote, actor, blockStopEvent);
+				}
+				return;
+			}
+			const bool forced = !lowered &&
+				SendHandPresentationEvent(a_remote, actor, blockStopInstantEvent);
+			logs::info(
+				"Animation sync lowered block: actor={:08X} lowered={} forcedInstant={} stopSeconds={:.3f}",
+				a_remote.handle.native_handle(),
+				lowered,
+				forced,
+				state.blockStopElapsed);
+			state.blockStopping = false;
+			state.blockStopAccepted = false;
+			state.blockStopElapsed = 0.0F;
+			// As after an attack, replay locomotion without touching the stance.
+			state.attackLocomotionReassertPending = true;
+			return;
+		}
+
+		if (state.blockHeld) {
+			if (a_blocking) {
+				SetBlockRequest(actor, true);
+				// A bash, recoil, or attack that exits through the ready state leaves
+				// the block. Raise it again once nothing else owns the graph.
+				const bool missing = graphBlockingAvailable && !graphBlocking &&
+					!state.attackPlaybackPending;
+				state.blockLostElapsed = missing ?
+					state.blockLostElapsed + deltaTime :
+					0.0F;
+				if (state.blockLostElapsed < kBlockReraiseSeconds ||
+					state.blockEventRetryElapsed < kMinimumEventRetrySeconds ||
+					!CanStartHandPresentation(a_remote, actor)) {
+					return;
+				}
+				state.blockEventRetryElapsed = 0.0F;
+				if (SendHandPresentationEvent(a_remote, actor, blockStartEvent)) {
+					RequestPresentationMoveStart(state);
+					logs::info(
+						"Animation sync raised held block again: actor={:08X} missingSeconds={:.3f}",
+						a_remote.handle.native_handle(),
+						state.blockLostElapsed);
+					state.blockLostElapsed = 0.0F;
+				}
+				return;
+			}
+
+			state.blockHeld = false;
+			state.blockStopping = true;
+			state.blockStopElapsed = 0.0F;
+			state.blockLostElapsed = 0.0F;
+			state.blockEventRetryElapsed = 0.0F;
+			SetBlockRequest(actor, false);
+			state.blockStopAccepted =
+				SendHandPresentationEvent(a_remote, actor, blockStopEvent);
+			logs::info(
+				"Animation sync requested block stop: actor={:08X} accepted={}",
+				a_remote.handle.native_handle(),
+				state.blockStopAccepted);
+			return;
+		}
+
+		// A graph reset abandons a held block without lowering the actor's request.
+		const auto* actorState = actor.AsActorState();
+		if (actorState && actorState->actorState2.wantBlocking) {
+			SetBlockRequest(actor, false);
+		}
+		if (!a_blocking || !a_mayStart ||
+			state.blockEventRetryElapsed < kMinimumEventRetrySeconds ||
+			IsBowOrCastPlaying(state) ||
+			!CanStartHandPresentation(a_remote, actor)) {
+			return;
+		}
+		state.blockEventRetryElapsed = 0.0F;
+		SetBlockRequest(actor, true);
+		if (!SendHandPresentationEvent(a_remote, actor, blockStartEvent)) {
+			SetBlockRequest(actor, false);
+			return;
+		}
+
+		state.blockHeld = true;
+		state.blockLostElapsed = 0.0F;
+		RequestPresentationMoveStart(state);
+		logs::info(
+			"Animation sync raised block: actor={:08X}",
+			a_remote.handle.native_handle());
+	}
+
+	void AdvancePresentationLocomotion(RemoteActor& a_remote, float a_deltaTime)
+	{
+		if (!GameThread::Require("AdvancePresentationLocomotion") || !a_remote.animation ||
+			!a_remote.animation->presentationMoveStartPending) {
+			return;
+		}
+		auto& state = *a_remote.animation;
+		const bool castHeld = state.castHeld[0] || state.castHeld[1];
+		const bool presentationHeld = state.blockHeld || state.bowDrawHeld || castHeld;
+		auto actorPtr = a_remote.handle.get();
+		if (!actorPtr || !presentationHeld ||
+			!IsMoving(state.targetAnimationState.movementState)) {
+			// A standing start needs nothing, and movement that starts later sends
+			// its own moveStart into the presentation's lower body.
+			state.presentationMoveStartPending = false;
+			return;
+		}
+		if (state.attackPlaybackPending) {
+			// A bash owns the graph; the locomotion replay after it sends moveStart.
+			return;
+		}
+
+		state.presentationMoveStartElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+		// The start event is evaluated on the graph's next update. Counting passes
+		// rather than time is intended: the branch must have been entered once.
+		if (++state.presentationMoveStartWaitPasses < 2) {
+			return;
+		}
+		if (castHeld && !state.blockHeld && !state.bowDrawHeld &&
+			state.presentationMoveStartElapsed < kCastLowerBodyEntrySeconds) {
+			static const RE::BSFixedString castingLeftVariable{ "IsCastingLeft" };
+			static const RE::BSFixedString castingRightVariable{ "IsCastingRight" };
+			bool castingLeft = false;
+			bool castingRight = false;
+			(void) actorPtr->GetGraphVariableBool(castingLeftVariable, castingLeft);
+			(void) actorPtr->GetGraphVariableBool(castingRightVariable, castingRight);
+			if (!castingLeft && !castingRight) {
+				return;
+			}
+		}
+
+		static const RE::BSFixedString moveStartEvent{ "moveStart" };
+		const bool accepted = SendNetworkAnimationEvent(a_remote, moveStartEvent);
+		++state.presentationMoveStartAttempts;
+		const bool exhausted =
+			state.presentationMoveStartAttempts >= kMaximumEventDispatchAttempts &&
+			state.presentationMoveStartElapsed >= kPresentationMoveStartFallbackSeconds;
+		if (!accepted && !exhausted) {
+			return;
+		}
+		logs::info(
+			"Animation sync selected moving presentation lower body: actor={:08X} state={} block={} bow={} cast={} accepted={} attempts={} elapsed={:.3f}",
+			a_remote.handle.native_handle(),
+			Multiplayer::GetMovementStateName(state.targetAnimationState.movementState),
+			state.blockHeld,
+			state.bowDrawHeld,
+			castHeld,
+			accepted,
+			state.presentationMoveStartAttempts,
+			state.presentationMoveStartElapsed);
+		state.presentationMoveStartPending = false;
+	}
+
 	bool IsHandPresentationPlaying(const RemoteActor& a_remote)
 	{
-		if (!a_remote.animation) {
-			return false;
-		}
-		const auto& state = *a_remote.animation;
-		return state.bowDrawHeld || state.bowReleasePending ||
-			state.castHeld[0] || state.castHeld[1] ||
-			state.castStopping[0] || state.castStopping[1];
+		return a_remote.animation &&
+			(IsBowOrCastPlaying(*a_remote.animation) ||
+				IsBlockPlaying(*a_remote.animation));
 	}
 
 	bool IsWeaponTransitionPlaying(const RemoteActor& a_remote)
@@ -956,8 +1257,11 @@ namespace ActorAnimation
 			!IsAttackChainWindow(actorState->GetAttackState())) {
 			a_state.attackChainDispatched = false;
 		}
-		const bool completed = a_state.attackPlaybackObserved && !attacking;
-		const bool startTimedOut = !a_state.attackPlaybackObserved &&
+		const bool bashExited = a_state.attackPlaybackBash &&
+			ActorRegistry::ConsumeBashExits(a_actor) != 0;
+		const bool completed = (a_state.attackPlaybackObserved && !attacking) ||
+			bashExited;
+		const bool startTimedOut = !completed && !a_state.attackPlaybackObserved &&
 			a_state.attackPlaybackElapsed >= kAttackStartFallbackSeconds;
 		const bool playbackTimedOut = a_state.attackPlaybackElapsed >=
 			kAttackPlaybackFallbackSeconds;
@@ -966,8 +1270,10 @@ namespace ActorAnimation
 		}
 
 		logs::info(
-			"Animation sync completed normal attack ownership: actor={:08X} observedPlayback={} elapsed={:.3f} startTimedOut={} playbackTimedOut={}",
+			"Animation sync completed attack ownership: actor={:08X} bash={} bashExited={} observedPlayback={} elapsed={:.3f} startTimedOut={} playbackTimedOut={}",
 			a_actor.GetHandle().native_handle(),
+			a_state.attackPlaybackBash,
+			bashExited,
 			a_state.attackPlaybackObserved,
 			a_state.attackPlaybackElapsed,
 			startTimedOut,
@@ -1987,7 +2293,7 @@ namespace ActorAnimation
 				if (reassertLocomotionAfterAttack) {
 					animationState->attackLocomotionReassertPending = false;
 					logs::info(
-						"Animation sync reasserted locomotion after normal attack: actor={:08X} state={}",
+						"Animation sync reasserted locomotion after attack or hand presentation: actor={:08X} state={}",
 						actorHandle.native_handle(),
 						Multiplayer::GetMovementStateName(state.movementState));
 				}

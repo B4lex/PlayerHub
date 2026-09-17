@@ -13,12 +13,14 @@ MOVEMENT_STATES = frozenset(
     }
 )
 
-# Sustained bow draw and spell channelling. Kept as checkpoint state rather than
-# actions because their duration matters, not how often they start.
-HAND_PRESENTATION_FIELDS = ("bowDrawn", "castingLeft", "castingRight")
+# Sustained bow draw, spell channelling, and blocking. Kept as checkpoint state
+# rather than actions because their duration matters, not how often they start.
+HAND_PRESENTATION_FIELDS = ("bowDrawn", "castingLeft", "castingRight", "blocking")
 
 ANIMATION_ACTION_FAMILIES = frozenset({"attack"})
-ATTACK_ACTIONS = frozenset({"normal"})
+# Right-hand, left-hand, and dual-wield swings, and bashes. Power variants are
+# normalized to the plain action of the same hand by the client.
+ATTACK_ACTIONS = frozenset({"normal", "left", "dual", "bash"})
 
 MAXIMUM_INT64 = 0x7FFFFFFFFFFFFFFF
 MAXIMUM_PLUGIN_NAME_LENGTH = 260
@@ -67,8 +69,8 @@ def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None
         return None
     values["weaponDrawn"] = weapon_drawn
 
-    # Recordings made before bow and spell synchronization have no hand
-    # presentation, which means nothing is drawn or cast.
+    # Recordings made before bow, spell, and block synchronization have no hand
+    # presentation, which means nothing is drawn, cast, or blocked.
     for field in HAND_PRESENTATION_FIELDS:
         presenting = data.get(field, False)
         if not isinstance(presenting, bool):

@@ -18,6 +18,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "bowDrawn": True,
             "castingLeft": False,
             "castingRight": True,
+            "blocking": True,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
             "furnitureRefId": 0xA729,
@@ -41,6 +42,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "bowDrawn": False,
             "castingLeft": False,
             "castingRight": False,
+            "blocking": False,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
             "furnitureRefId": 0,
@@ -223,6 +225,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "bowDrawn": False,
             "castingLeft": False,
             "castingRight": False,
+            "blocking": False,
             "cellId": 1,
             "worldspaceId": 0,
             "furnitureRefId": 0,
@@ -294,11 +297,17 @@ class ParsePlayerUpdateTests(unittest.TestCase):
 
         self.assertEqual(
             parse_player_update(payload),
-            {**payload, "bowDrawn": False, "castingLeft": False, "castingRight": False},
+            {
+                **payload,
+                "bowDrawn": False,
+                "castingLeft": False,
+                "castingRight": False,
+                "blocking": False,
+            },
         )
 
     def test_rejects_non_boolean_hand_presentation(self) -> None:
-        for field in ("bowDrawn", "castingLeft", "castingRight"):
+        for field in ("bowDrawn", "castingLeft", "castingRight", "blocking"):
             payload = {
                 "x": 1.0,
                 "y": 2.0,
@@ -333,6 +342,20 @@ class ParseAnimationActionTests(unittest.TestCase):
         }
 
         self.assertEqual(parse_animation_action(payload), payload)
+
+    def test_accepts_off_hand_attacks_and_bash(self) -> None:
+        for action in ("left", "dual", "bash"):
+            payload = {
+                "actionSequence": 3,
+                "graphEpoch": 2,
+                "checkpointSequence": 18,
+                "family": "attack",
+                "action": action,
+                "prerequisites": {"weaponDrawn": True},
+            }
+
+            with self.subTest(action=action):
+                self.assertEqual(parse_animation_action(payload), payload)
 
     def test_rejects_arbitrary_graph_event(self) -> None:
         payload = {

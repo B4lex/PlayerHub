@@ -59,7 +59,8 @@ The server and client treat a missing field as `false`, so recordings made
 before this change still load. A present field must be a boolean. The server
 always relays all three. They are kept in `Network::PlayerTransform::handPresentation`
 (`Multiplayer::HandPresentation`), not in `AnimationState`, because a change to
-`AnimationState` restages locomotion.
+`AnimationState` restages locomotion. Spec 012 adds `blocking` to the same
+structure.
 
 ### `player:equipment`
 
@@ -169,6 +170,8 @@ attack playing. The actor graph operations live in `ActorAnimation`:
 - Bow events are sent through the firewall bypass. `kAttackingDisabled` and
   `kCastingDisabled` are cleared only for that synchronous call, like
   `attackStart`. Starts and rejected events retry at most every 0.1 s.
+- A draw or cast started while moving selects its moving lower body with
+  `moveStart`, as described in spec 012 under "Moving lower body".
 - All presentation state is cleared whenever the graph is invalidated
   (recovery, 3D or graph loss, graph replacement).
 - Readied spell hands draw through the magic equip branch. The firewall allows

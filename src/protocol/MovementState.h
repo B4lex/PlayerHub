@@ -48,14 +48,16 @@ namespace Multiplayer
 		constexpr bool operator==(const AnimationState&) const noexcept = default;
 	};
 
-	// Sustained hand presentation: a bow held drawn and spells being channelled.
-	// Only how long they last is replicated, never what they would release, and
-	// they stay apart from AnimationState because its changes restage locomotion.
+	// Sustained hand presentation: a bow held drawn, spells being channelled, and
+	// a raised block. Only how long they last is replicated, never what they would
+	// release, and they stay apart from AnimationState because its changes
+	// restage locomotion.
 	struct HandPresentation
 	{
 		bool bowDrawn{ false };
 		bool castingLeft{ false };
 		bool castingRight{ false };
+		bool blocking{ false };
 
 		[[nodiscard]] constexpr bool IsCasting(bool a_leftHand) const noexcept
 		{

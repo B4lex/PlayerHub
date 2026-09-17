@@ -52,6 +52,22 @@ namespace AnimationEvents
 		return true;
 	}
 
+	constexpr bool ContainsIgnoringCase(std::string_view a_text, std::string_view a_part) noexcept
+	{
+		for (std::size_t start = 0; start + a_part.size() <= a_text.size(); ++start) {
+			if (EqualsIgnoringCase(a_text.substr(start, a_part.size()), a_part)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	constexpr bool EndsWithIgnoringCase(std::string_view a_text, std::string_view a_suffix) noexcept
+	{
+		return a_text.size() >= a_suffix.size() &&
+			EqualsIgnoringCase(a_text.substr(a_text.size() - a_suffix.size()), a_suffix);
+	}
+
 	// Events a hand's magic caster sends to its actor's graph while casting. Graph
 	// event names are case-insensitive, and the left release idle sends
 	// MLH_SpellRelease_event.
@@ -62,14 +78,40 @@ namespace AnimationEvents
 				return true;
 			}
 		}
-		constexpr std::string_view cast{ "Cast" };
-		for (std::size_t start = 0; start + cast.size() <= a_eventName.size(); ++start) {
-			if (EqualsIgnoringCase(a_eventName.substr(start, cast.size()), cast)) {
-				return true;
-			}
-		}
-		return false;
+		return ContainsIgnoringCase(a_eventName, "Cast");
 	}
+
+	// The graph event of the attack data a local attack started with. Only the
+	// hand is kept: power, sprint, and directional variants of an attack share it.
+	enum class AttackEventHand
+	{
+		kRight,
+		kLeft,
+		kDual
+	};
+
+	constexpr AttackEventHand GetAttackEventHand(std::string_view a_eventName) noexcept
+	{
+		if (ContainsIgnoringCase(a_eventName, "DualWield")) {
+			return AttackEventHand::kDual;
+		}
+		// attackPowerStartLeft is a right-hand power attack toward the left, so only
+		// the hand suffixes count.
+		if (EndsWithIgnoringCase(a_eventName, "LeftHand") ||
+			EndsWithIgnoringCase(a_eventName, "H2HLeft")) {
+			return AttackEventHand::kLeft;
+		}
+		return AttackEventHand::kRight;
+	}
+
+	static_assert(GetAttackEventHand("attackStart") == AttackEventHand::kRight);
+	static_assert(GetAttackEventHand("attackPowerStartLeft") == AttackEventHand::kRight);
+	static_assert(GetAttackEventHand("attackStartLeftHand") == AttackEventHand::kLeft);
+	static_assert(GetAttackEventHand("attackStartSprintLeftHand") == AttackEventHand::kLeft);
+	static_assert(GetAttackEventHand("attackPowerStartForwardH2HLeftHand") == AttackEventHand::kLeft);
+	static_assert(GetAttackEventHand("AttackStartH2HLeft") == AttackEventHand::kLeft);
+	static_assert(GetAttackEventHand("AttackStartH2HRight") == AttackEventHand::kRight);
+	static_assert(GetAttackEventHand("attackPowerStartDualWield") == AttackEventHand::kDual);
 
 	static_assert(IsCastAnimationEvent("MRh_SpellAimedConcentrationStart"));
 	static_assert(IsCastAnimationEvent("MLH_SpellRelease_event"));

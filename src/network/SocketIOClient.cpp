@@ -332,6 +332,7 @@ namespace Network
 				!ReadOptionalBool(values, "bowDrawn", handPresentation.bowDrawn) ||
 				!ReadOptionalBool(values, "castingLeft", handPresentation.castingLeft) ||
 				!ReadOptionalBool(values, "castingRight", handPresentation.castingRight) ||
+				!ReadOptionalBool(values, "blocking", handPresentation.blocking) ||
 				!ReadUnsignedInteger(
 					values,
 					"cellId",
@@ -393,6 +394,27 @@ namespace Network
 			return true;
 		}
 
+		bool ReadAttackAction(
+			const std::map<std::string, sio::message::ptr>& a_values,
+			AttackAction& a_result)
+		{
+			std::string action;
+			if (!ReadString(a_values, "action", action)) {
+				return false;
+			}
+			for (const auto candidate : {
+					 AttackAction::kNormal,
+					 AttackAction::kLeft,
+					 AttackAction::kDual,
+					 AttackAction::kBash }) {
+				if (action == GetAttackActionName(candidate)) {
+					a_result = candidate;
+					return true;
+				}
+			}
+			return false;
+		}
+
 		bool ParseRemoteAnimationAction(
 			const sio::message::ptr& a_data,
 			AnimationAction& a_result)
@@ -403,13 +425,12 @@ namespace Network
 
 			const auto& values = a_data->get_map();
 			std::string family;
-			std::string action;
 			std::uint64_t actionSequence = 0;
 			std::uint64_t graphEpoch = 0;
 			std::uint64_t checkpointSequence = 0;
 			if (!ReadString(values, "playerId", a_result.playerID) ||
 				!ReadString(values, "family", family) || family != "attack" ||
-				!ReadString(values, "action", action) || action != "normal" ||
+				!ReadAttackAction(values, a_result.attack) ||
 				!ReadUnsignedInteger(
 					values,
 					"actionSequence",
@@ -820,8 +841,9 @@ namespace Network
 				action.playerID,
 				action.actionSequence);
 			logs::info(
-				"Animation sync received normal attack: player={} actionSequence={} graphEpoch={} checkpointSequence={}",
+				"Animation sync received attack: player={} action={} actionSequence={} graphEpoch={} checkpointSequence={}",
 				action.playerID,
+				GetAttackActionName(action.attack),
 				static_cast<unsigned long long>(action.actionSequence),
 				static_cast<unsigned long long>(action.graphEpoch),
 				static_cast<unsigned long long>(action.checkpointSequence));
@@ -1029,6 +1051,8 @@ namespace Network
 			a_transform.handPresentation.castingLeft);
 		values["castingRight"] = sio::bool_message::create(
 			a_transform.handPresentation.castingRight);
+		values["blocking"] = sio::bool_message::create(
+			a_transform.handPresentation.blocking);
 		values["cellId"] = sio::int_message::create(a_transform.cellID);
 		values["worldspaceId"] = sio::int_message::create(a_transform.worldspaceID);
 		values["furnitureRefId"] = sio::int_message::create(
@@ -1154,7 +1178,8 @@ namespace Network
 		GetClient().socket()->emit("player:equipment", payload);
 	}
 
-	void PublishLocalNormalAttack(
+	void PublishLocalAttack(
+		AttackAction a_attack,
 		std::uint64_t a_graphEpoch,
 		std::uint64_t a_checkpointSequence)
 	{
@@ -1179,11 +1204,12 @@ namespace Network
 		values["checkpointSequence"] = sio::int_message::create(
 			static_cast<std::int64_t>(a_checkpointSequence));
 		values["family"] = sio::string_message::create("attack");
-		values["action"] = sio::string_message::create("normal");
+		values["action"] = sio::string_message::create(GetAttackActionName(a_attack));
 		values["prerequisites"] = std::move(prerequisites);
 
 		logs::info(
-			"Animation sync publishing normal attack: actionSequence={} graphEpoch={} checkpointSequence={}",
+			"Animation sync publishing attack: action={} actionSequence={} graphEpoch={} checkpointSequence={}",
+			GetAttackActionName(a_attack),
 			static_cast<unsigned long long>(localActionSequence),
 			static_cast<unsigned long long>(a_graphEpoch),
 			static_cast<unsigned long long>(a_checkpointSequence));

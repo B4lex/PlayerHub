@@ -51,6 +51,7 @@ namespace ActorRegistry
 		std::uint32_t actorHandle{ 0 };
 		std::uint32_t landingCompletionCount{ 0 };
 		std::uint32_t weaponCompletionCount{ 0 };
+		std::uint32_t bashExitCount{ 0 };
 		bool traceWeaponEvent{ false };
 		bool expectedWeaponDrawn{ false };
 	};
@@ -86,6 +87,8 @@ namespace ActorRegistry
 	[[nodiscard]] std::uint32_t ConsumeWeaponTransitionEnds(const RemoteActor& a_remote);
 	[[nodiscard]] std::uint32_t ConsumeJumpLandEnds(const RemoteActor& a_remote);
 	[[nodiscard]] std::uint32_t ConsumeCombatSanitizationRequests(const RE::Actor& a_actor);
+	// bashExit annotations: a bash clip ended, into the block or the ready state.
+	[[nodiscard]] std::uint32_t ConsumeBashExits(const RE::Actor& a_actor);
 
 	void SetLandingCompletionObservation(const RE::Actor& a_actor, bool a_allowed);
 	// Arms JumpLandEnd observation after the grounded transform and variables.

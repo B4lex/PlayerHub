@@ -31,10 +31,12 @@ namespace ActorRegistry
 			std::uint32_t pendingJumpLandEnds{ 0 };
 			std::uint32_t pendingSwimStops{ 0 };
 			std::uint32_t pendingWeaponTransitionEnds{ 0 };
+			std::uint32_t pendingBashExits{ 0 };
 			std::uint32_t hitObservationCount{ 0 };
 			std::uint32_t combatSanitizationCount{ 0 };
 			std::uint32_t jumpLandEndCount{ 0 };
 			std::uint32_t weaponTransitionEndCount{ 0 };
+			std::uint32_t bashExitCount{ 0 };
 			bool authoritativeJumping{ false };
 			// Network travel direction while moving, in graph Direction units. The
 			// actor's direction channel would otherwise feed the remote actor's own (empty)
@@ -253,6 +255,12 @@ namespace ActorRegistry
 			observation.weaponCompletionCount =
 				++registration->second.weaponTransitionEndCount;
 			registration->second.observeWeaponTransitionEndEvent = false;
+			observation.actorHandle = registration->second.actorHandle;
+		}
+		if (registration != s_registrations.end() &&
+			AnimationEvents::EqualsIgnoringCase(a_eventName, "bashExit")) {
+			++registration->second.pendingBashExits;
+			observation.bashExitCount = ++registration->second.bashExitCount;
 			observation.actorHandle = registration->second.actorHandle;
 		}
 		return observation;
@@ -514,6 +522,21 @@ namespace ActorRegistry
 		}
 
 		return std::exchange(registration->second.pendingJumpLandEnds, 0);
+	}
+
+	std::uint32_t ConsumeBashExits(const RE::Actor& a_actor)
+	{
+		std::scoped_lock lock{ s_mutex };
+		const auto registration = std::ranges::find_if(
+			s_registrations,
+			[&a_actor](const auto& a_entry) {
+				return a_entry.second.actor == std::addressof(a_actor);
+			});
+		if (registration == s_registrations.end()) {
+			return 0;
+		}
+
+		return std::exchange(registration->second.pendingBashExits, 0);
 	}
 
 	std::uint32_t ConsumeCombatSanitizationRequests(const RE::Actor& a_actor)

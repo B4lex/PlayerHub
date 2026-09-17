@@ -57,6 +57,25 @@ class AnimationActionRelayTests(unittest.IsolatedAsyncioTestCase):
             skip_sid="player-1",
         )
 
+    async def test_relays_off_hand_attacks_and_bash_in_order(self) -> None:
+        emit = AsyncMock()
+        server_app.player_states["player-1"] = valid_state()
+        actions = []
+        for sequence, kind in enumerate(("left", "dual", "bash"), start=1):
+            action = valid_action(sequence)
+            action["action"] = kind
+            actions.append(action)
+
+        with patch.object(server_app.sio, "emit", new=emit):
+            for action in actions:
+                result = await server_app.animation_action("player-1", action)
+                self.assertEqual(result, {"ok": True})
+
+        self.assertEqual(
+            [call.args[1]["action"] for call in emit.await_args_list],
+            ["left", "dual", "bash"],
+        )
+
     async def test_rejects_sequence_gap(self) -> None:
         server_app.player_states["player-1"] = valid_state()
         server_app.player_action_sequences["player-1"] = 1
