@@ -451,21 +451,6 @@ namespace CombatSync
         const bool chaining = playing && !poweringUp;
         if (chaining && !ActorAnimation::CanChainAttack(a_actor, action.attack))
         {
-            if (action.attack.power && !pending.powerUpWaitLogged && a_actor.animation)
-            {
-                pending.powerUpWaitLogged = true;
-                const auto& animation = *a_actor.animation;
-                logs::info(
-                    "Animation sync power attack waits for the playing attack: player={} actor={:08X} "
-                    "actionSequence={} action={} playingAction={} playingPower={} playingBash={} observed={} "
-                    "settled={} elapsed={:.3f}",
-                    a_remote.playerID, a_actor.handle.native_handle(),
-                    static_cast<unsigned long long>(action.actionSequence),
-                    Network::GetAttackActionName(action.attack.action),
-                    Network::GetAttackActionName(animation.attackPlaybackAction), animation.attackPlaybackPower,
-                    animation.attackPlaybackBash, animation.attackPlaybackObserved,
-                    ActorAnimation::IsAnimationStateSettled(a_actor), animation.attackPlaybackElapsed);
-            }
             return;
         }
 

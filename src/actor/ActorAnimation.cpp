@@ -716,7 +716,8 @@ namespace ActorAnimation
         }
         const auto& plainEvent = GetAttackEvent(*actorPtr, a_attack.action);
         const auto& attackEvent = a_attack.power ? GetPowerAttackEvent(*actorPtr, a_attack) : plainEvent;
-        if (!chaining && !poweringUp)
+        const bool startsNewAttack = !chaining && !poweringUp;
+        if (startsNewAttack)
         {
             // An exit left over from an earlier bash must not end this attack.
             (void)ActorRegistry::ConsumeBashExits(*actorPtr);
@@ -733,7 +734,6 @@ namespace ActorAnimation
         // rejected chain only means the combo window does not take it, so the
         // power attack waits for the playing attack to finish. A playing plain
         // attack that rejects its power attack already shows the plain one.
-        const bool startsNewAttack = !chaining && !poweringUp;
         const bool powerFellBack
             = !accepted && a_attack.power && startsNewAttack && SendNetworkAnimationEvent(a_remote, plainEvent);
         accepted = accepted || powerFellBack;
@@ -741,8 +741,7 @@ namespace ActorAnimation
         // types. When a mod or an unsettled hand disagrees, a right-hand swing is
         // the vanilla presentation of the same input.
         const bool dualFellBack = !accepted && a_attack.action == Network::AttackAction::kDual
-            && (a_attack.power ? startsNewAttack : !poweringUp)
-            && SendNetworkAnimationEvent(a_remote, attackStartEvent);
+            && (!a_attack.power || startsNewAttack) && SendNetworkAnimationEvent(a_remote, attackStartEvent);
         accepted = accepted || dualFellBack;
         actorFlags.set(RE::Actor::BOOL_FLAGS::kAttackingDisabled);
         if (!accepted)

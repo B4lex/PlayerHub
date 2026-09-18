@@ -154,12 +154,13 @@ def parse_animation_action(data: Any) -> dict[str, Any] | None:
         return None
 
     power = data.get("power")
+    if not isinstance(power, bool):
+        return None
     direction = data.get("direction")
-    if not isinstance(power, bool) or (
-        (not isinstance(direction, str) or direction not in POWER_ATTACK_DIRECTIONS)
-        if power
-        else "direction" in data
-    ):
+    if power:
+        if not isinstance(direction, str) or direction not in POWER_ATTACK_DIRECTIONS:
+            return None
+    elif "direction" in data:
         return None
 
     prerequisites = data.get("prerequisites")

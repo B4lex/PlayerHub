@@ -24,8 +24,6 @@ namespace CombatSync
         std::uint32_t dispatchAttempts{ 0 };
         // Time since the first rejected dispatch attempt.
         float retryElapsed{ 0.0F };
-        // A power attack waiting for the playing attack was logged once.
-        bool powerUpWaitLogged{ false };
     };
 
     // Transient attack history of one peer. It is never reconstructed after a

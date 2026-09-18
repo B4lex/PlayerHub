@@ -167,9 +167,7 @@ chains in a combo window or starts as a new attack.
 
 When a plain attack and a following power attack of the same hand are both
 queued before the plain attack starts, the plain attack is dropped and the power
-attack starts directly, so its beginning is not shown twice. A power attack
-waiting behind a playing attack logs why once ("power attack waits for the
-playing attack").
+attack starts directly, so its beginning is not shown twice.
 
 For a power attack it sends:
 
