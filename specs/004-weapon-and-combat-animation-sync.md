@@ -50,10 +50,27 @@ advances to `Drawing` or `Sheathing`. Native weapon transitions require:
 - `Unequip`
 
 Skyrim also manages the non-interrupting swimming transitions locally, so the
-firewall permits `SwimStart` and `swimStop`. After `swimStop` is accepted and
-the actor leaves Skyrim's swimming state, the synchronization pass reasserts
-the current locomotion events so a moving actor returns to walking instead of
-sliding in an idle pose.
+firewall permits `SwimStart` and `swimStop`. The vanilla `Swim_Behavior`
+enters `SwimIdle` or `SwimLocomotion` from `iSyncIdleLocomotion`, which stays 0
+on a remote actor, and leaves `SwimIdle` only on `moveStart`. When `SwimStart`
+is accepted while the dispatched and target locomotion are both moving, the
+synchronization pass waits two main-loop passes for the swim branch, then sends
+`moveStart` until it is accepted, the actor stops moving or leaves the water,
+or 0.5 seconds pass. A swim started while standing needs nothing extra: the
+later idle-to-moving dispatch sends its own `moveStart` into `SwimIdle`. After
+`swimStop` is accepted and the actor leaves Skyrim's swimming state, the
+synchronization pass reasserts the current locomotion events so a moving actor
+returns to walking instead of sliding in an idle pose.
+
+`SwimStart`, `JumpLand`, and `JumpLandEnd` are all wildcard transitions of the
+vanilla root state machine, and `JumpLandEnd` leads to `Default_State` (land
+locomotion) from `Swim_State` too. A jump into water reaches the network as a
+landing at the surface, and Skyrim sends `SwimStart` just after it (observed in
+game), so the landing clip never emits `JumpLandEnd`. While Skyrim reports the
+actor swimming, a pending landing therefore ends without the bounded
+`JumpLandEnd` fallback or the grounded locomotion reassert, and a network
+landing that arrives after `SwimStart` sends no `JumpLand`. Otherwise the actor
+walks on the riverbed until it leaves the water.
 
 Weapon clips similarly take temporary ownership of the graph. The receiver
 waits for the matching `WeapEquip_Out[Moving]` or `Unequip_Out[Moving]`

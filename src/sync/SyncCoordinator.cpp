@@ -1,6 +1,5 @@
 #include "sync/SyncCoordinator.h"
 #include "actor/ActorAnimation.h"
-#include "actor/ActorConstants.h"
 #include "actor/ActorRuntime.h"
 #include "network/PacketDelay.h"
 #include "network/SocketIOClient.h"
@@ -16,7 +15,6 @@
 #include "sync/furniture/FurnitureSync.h"
 #include "sync/movement/MovementSync.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -25,16 +23,43 @@ namespace SyncCoordinator
 {
     namespace
     {
-        // A brief interruption keeps actors so automatic reconnects are seamless;
-        // a server silent this long (latency probes go out every second) means
-        // the peers' state cannot be trusted.
-        constexpr float kConnectionLossDespawnSeconds = 10.0F;
-
         // Accessed only on the bound main-loop thread.
         Peers s_peers;
-        std::uint64_t s_observedServerResponses = 0;
-        float s_serverSilenceElapsed = 0.0F;
+        std::uint64_t s_peersConnectionGeneration = 0;
         bool s_actorsExcludedFromSaves = false;
+
+        // Remote player IDs are the server's per-connection sids, so a closed or
+        // replaced connection leaves no peer that the server will update or
+        // report as left. Reconnecting rebuilds every peer from resent state.
+        void RemovePeersFromLostConnection(Peers& a_peers, const Network::RemotePlayerChanges& a_changes)
+        {
+            if (a_changes.connected && a_changes.connectionGeneration == s_peersConnectionGeneration)
+            {
+                return;
+            }
+            if (a_changes.connected)
+            {
+                s_peersConnectionGeneration = a_changes.connectionGeneration;
+            }
+            if (a_peers.empty())
+            {
+                return;
+            }
+
+            for (auto& [playerID, peer] : a_peers)
+            {
+                ActorLifecycle::RemoveOnDisconnect(peer);
+            }
+            logs::info("Removed {} remote player actors after losing the server connection: connected={} "
+                       "connectionGeneration={}",
+                a_peers.size(), a_changes.connected,
+                static_cast<unsigned long long>(a_changes.connectionGeneration));
+            a_peers.clear();
+            if (auto* console = RE::ConsoleLog::GetSingleton())
+            {
+                console->Print("MP: Server connection lost; removed remote players.");
+            }
+        }
 
         // Receive stage. Transforms are latest-wins by sequence, appearance and
         // equipment by revision; actions are ordered and bounded; a disconnect
@@ -42,6 +67,7 @@ namespace SyncCoordinator
         void ApplyNetworkChanges(Peers& a_peers)
         {
             auto changes = Network::DrainRemotePlayerChanges();
+            RemovePeersFromLostConnection(a_peers, changes);
 
             for (const auto& playerID : changes.disconnectedPlayerIDs)
             {
@@ -132,44 +158,6 @@ namespace SyncCoordinator
                 ActorLifecycle::SetExcludedFromSaves(peer, false);
             }
             s_actorsExcludedFromSaves = false;
-        }
-
-        void DespawnAfterConnectionLoss(Peers& a_peers, float a_delta)
-        {
-            // Socket.IO may keep a dead transport marked connected, so silence is
-            // measured by server acknowledgements rather than by IsConnected.
-            const auto responses = Network::GetServerResponseCount();
-            if (responses != s_observedServerResponses)
-            {
-                s_observedServerResponses = responses;
-                s_serverSilenceElapsed = 0.0F;
-                return;
-            }
-            if (s_serverSilenceElapsed >= kConnectionLossDespawnSeconds)
-            {
-                // Already despawned during this outage.
-                return;
-            }
-
-            s_serverSilenceElapsed += std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
-            if (s_serverSilenceElapsed < kConnectionLossDespawnSeconds || a_peers.empty())
-            {
-                return;
-            }
-
-            for (auto& [playerID, peer] : a_peers)
-            {
-                ActorLifecycle::RemoveOnDisconnect(peer);
-            }
-            logs::info("Removed {} remote player actors after {:.0f} seconds without a server response: connected={}",
-                a_peers.size(), kConnectionLossDespawnSeconds, Network::IsConnected());
-            a_peers.clear();
-            // Reconnecting rebuilds every peer from the server's resent state.
-            Network::ForgetRemotePlayers();
-            if (auto* console = RE::ConsoleLog::GetSingleton())
-            {
-                console->Print("MP: Server connection lost; removed remote players.");
-            }
         }
 
         // Local stages. Attack capture and graph-epoch observation run every pass;
@@ -286,7 +274,6 @@ namespace SyncCoordinator
     {
         RestoreSaveEligibility(s_peers);
         ApplyNetworkChanges(s_peers);
-        DespawnAfterConnectionLoss(s_peers, a_delta);
         if (!a_player)
         {
             return;

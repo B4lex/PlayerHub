@@ -72,6 +72,9 @@ namespace ActorAnimation
         // A cast enters its graph state some updates after the caster's request. A
         // graph without the casting variables takes moveStart after this long.
         constexpr float kCastLowerBodyEntrySeconds = 0.5F;
+        // SwimIdle rejects moveStart until the graph has taken SwimStart. A moving
+        // actor that is still rejected after this long stays in SwimIdle.
+        constexpr float kSwimMoveStartFallbackSeconds = 0.5F;
 
         // The native attack takes attackStart as its next combo swing in these
         // states; CombatSync captures the local player's chained swings from them.
@@ -487,6 +490,48 @@ namespace ActorAnimation
             const bool accepted = SendNetworkAnimationEvent(a_remote, a_eventName);
             actorFlags.set(RE::Actor::BOOL_FLAGS::kAttackingDisabled, RE::Actor::BOOL_FLAGS::kCastingDisabled);
             return accepted;
+        }
+
+        // Moves a remote actor that entered the water while moving from SwimIdle into
+        // SwimLocomotion. A swim started while standing needs nothing: the network
+        // idle-to-moving dispatch sends its own moveStart into SwimIdle.
+        void AdvanceSwimMoveStart(
+            RemoteActor& a_remote, State& a_state, const RE::ActorState* a_actorState, float a_deltaTime)
+        {
+            if (!a_state.swimMoveStartPending)
+            {
+                return;
+            }
+            const bool movingDispatched = a_state.hasDispatched && IsMoving(a_state.lastDispatched.movementState)
+                && IsMoving(a_state.targetAnimationState.movementState);
+            if (!movingDispatched || !a_actorState || !a_actorState->IsSwimming())
+            {
+                a_state.swimMoveStartPending = false;
+                return;
+            }
+
+            a_state.swimMoveStartElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+            // SwimStart is evaluated on the graph's next update. Counting passes
+            // rather than time is intended: the swim branch must have been entered.
+            if (++a_state.swimMoveStartWaitPasses < 2)
+            {
+                return;
+            }
+
+            static const RE::BSFixedString moveStartEvent{ "moveStart" };
+            ++a_state.swimMoveStartAttempts;
+            const bool accepted = SendNetworkAnimationEvent(a_remote, moveStartEvent);
+            if (!accepted && a_state.swimMoveStartElapsed < kSwimMoveStartFallbackSeconds)
+            {
+                return;
+            }
+            a_state.swimMoveStartPending = false;
+            logs::info(
+                "Animation sync selected moving swim state: actor={:08X} state={} accepted={} attempts={} "
+                "elapsed={:.3f}",
+                a_remote.handle.native_handle(),
+                Multiplayer::GetMovementStateName(a_state.targetAnimationState.movementState), accepted,
+                a_state.swimMoveStartAttempts, a_state.swimMoveStartElapsed);
         }
     }
 
@@ -1646,6 +1691,20 @@ namespace ActorAnimation
             logs::info("Animation sync takeoff preempted pending landing completion: actor={:08X}",
                 actorHandle.native_handle());
         }
+        const auto* actorState = actor->AsActorState();
+        if (animationState->landingCompletionPending && actorState && actorState->IsSwimming())
+        {
+            // SwimStart replaced the landing branch, so its JumpLandEnd marker never
+            // arrives. JumpLandEnd is a root wildcard transition: forcing it would pull
+            // the graph from Swim_State into land locomotion while Skyrim keeps the
+            // actor swimming. Swimming owns locomotion until swimStop.
+            (void)ActorRegistry::ConsumeJumpLandEnds(a_remote);
+            animationState->landingCompletionPending = false;
+            animationState->landingCompletionWaitFrames = 0;
+            animationState->landingCompletionWaitElapsed = 0.0F;
+            ActorRegistry::SetLandingCompletionObservation(*actor, false);
+            logs::info("Animation sync landing branch replaced by swimming: actor={:08X}", actorHandle.native_handle());
+        }
         if (animationState->landingCompletionPending)
         {
             const auto completedLandings = ActorRegistry::ConsumeJumpLandEnds(a_remote);
@@ -1735,7 +1794,6 @@ namespace ActorAnimation
             animationState->weaponReplayDiagnosticFramesRemaining = 0;
             animationState->weaponRestoredWithoutCompletion = false;
         }
-        const auto* actorState = actor->AsActorState();
         const auto weaponState = actorState ? actorState->GetWeaponState() : RE::WEAPON_STATE::kSheathed;
         const auto observedWeaponTransitionEnds = ActorRegistry::ConsumeWeaponTransitionEnds(a_remote);
         if (observedWeaponTransitionEnds != 0)
@@ -1832,11 +1890,20 @@ namespace ActorAnimation
                 animationState->weaponTransitionCompletionObserved, defaultStateAccepted);
             return;
         }
+        if (ActorRegistry::ConsumeSwimStarts(a_remote) != 0)
+        {
+            animationState->swimMoveStartPending = true;
+            animationState->swimMoveStartWaitPasses = 0;
+            animationState->swimMoveStartAttempts = 0;
+            animationState->swimMoveStartElapsed = 0.0F;
+        }
         const auto observedSwimStops = ActorRegistry::ConsumeSwimStops(a_remote);
         if (observedSwimStops != 0)
         {
             animationState->swimLocomotionReassertPending = true;
+            animationState->swimMoveStartPending = false;
         }
+        AdvanceSwimMoveStart(a_remote, *animationState, actorState, a_deltaTime);
         const bool authoritativeLocomotionActive
             = IsMoving(authoritativeState.movementState) || authoritativeState.jumping;
         const bool reassertLocomotionAfterWeaponTransition
@@ -1888,7 +1955,10 @@ namespace ActorAnimation
             = hadPreviousState ? Multiplayer::GetMovementStateName(previousState.movementState) : "uninitialized";
         const bool jumpRequired
             = dispatchRequired && (hadPreviousState ? previousState.jumping != state.jumping : state.jumping);
-        const bool jumpLandRequired = jumpRequired && !state.jumping;
+        // A landing in water sends no JumpLand. The root graph takes it from any state,
+        // including Swim_State, and the landing branch then exits into land locomotion.
+        const bool landingInWater = jumpRequired && !state.jumping && actorState && actorState->IsSwimming();
+        const bool jumpLandRequired = jumpRequired && !state.jumping && !landingInWater;
         if (jumpLandRequired && !landingEventSinkRegistered)
         {
             // Do not enter a landing branch whose completion marker cannot yet be
@@ -1940,7 +2010,7 @@ namespace ActorAnimation
             // JumpLand starts a timed landing branch whose graph output emits
             // JumpLandEnd later, often from an animation worker thread. Observe that
             // output only while the network-authoritative state is grounded.
-            ActorRegistry::SetLandingCompletionObservation(*actor, !state.jumping);
+            ActorRegistry::SetLandingCompletionObservation(*actor, jumpLandRequired);
         }
         bool moveAccepted
             = moveStopRequired && stringsAvailable ? SendNetworkAnimationEvent(a_remote, moveStopEvent) : false;
@@ -2045,7 +2115,7 @@ namespace ActorAnimation
             {
                 sprintAccepted = SendNetworkAnimationEvent(a_remote, sprintStartEvent);
             }
-            if (jumpRequired && variablesAccepted)
+            if (jumpRequired && !landingInWater && variablesAccepted)
             {
                 if (jumpLandRequired)
                 {
@@ -2055,7 +2125,7 @@ namespace ActorAnimation
                     state.jumping ? (isMoving ? jumpDirectionalStartEvent : jumpStandingStartEvent) : jumpLandEvent);
             }
             const bool eventsAccepted = (!moveRequired || moveAccepted) && (!sneakRequired || sneakAccepted)
-                && (!sprintRequired || sprintAccepted) && (!jumpRequired || jumpAccepted);
+                && (!sprintRequired || sprintAccepted) && (!jumpRequired || landingInWater || jumpAccepted);
             const auto variableAttempt = animationState->failedDispatchAttempts + 1;
             const auto eventAttempt = animationState->rejectedEventAttempts + 1;
             const bool eventAttemptsExhausted = !eventsAccepted && eventAttempt >= kMaximumEventDispatchAttempts
@@ -2151,6 +2221,11 @@ namespace ActorAnimation
                     animationState->landingCompletionWaitFrames = 0;
                     animationState->landingCompletionWaitElapsed = 0.0F;
                     logs::info("Animation sync waiting for landing completion marker: actor={:08X} revision={}",
+                        actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision));
+                }
+                else if (landingInWater)
+                {
+                    logs::info("Animation sync skipped landing branch while swimming: actor={:08X} revision={}",
                         actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision));
                 }
                 animationState->processedRevision.store(desiredRevision, std::memory_order_release);
