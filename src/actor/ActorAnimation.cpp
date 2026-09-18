@@ -30,6 +30,12 @@ namespace ActorAnimation
         constexpr float kDirectionCrossBlendThreshold = 0.125F;
         constexpr float kDirectionCrossBlendIntervalSeconds = 0.25F;
         constexpr float kHitReactionObservationSeconds = 0.1F;
+        // The idle turn state machines of the vanilla behaviors (MT_Idle_TurnBehavior,
+        // 1HM_Idle_Behavior, Bow_Idle_Behavior, MagicReadyIdleTurnBehavior, ...) number
+        // their states 0 turn right, 1 standing, and 2 turn left.
+        constexpr std::int32_t kStandingTurnState = 1;
+        constexpr std::uint32_t kInitialTurnStateOverrideLogs = 8;
+        constexpr std::uint32_t kTurnStateOverrideLogInterval = 120;
         constexpr std::uint32_t kGraphRecoveryStableFrames = 2;
         constexpr float kGraphRecoveryFallbackSeconds = 2.0F;
         constexpr std::uint32_t kGraphRecoveryWaitLogInterval = 120;
@@ -1236,6 +1242,45 @@ namespace ActorAnimation
             Multiplayer::GetMovementStateName(a_remote.animation->targetAnimationState.movementState), graphWasReplaced,
             used3DReset, animationState->recoveryCount);
         return false;
+    }
+
+    void HoldIdleTurnState(RE::Actor& a_actor, RemoteActor& a_remote)
+    {
+        if (!a_remote.animation)
+        {
+            return;
+        }
+
+        // Skyrim records the local AI's turn-in-place request in iSyncTurnState along
+        // with its TurnLeft/TurnRight/turnStop events. The remote actor's AI keeps asking
+        // to face its own target because the network owns the heading. The firewall
+        // blocks those events, but every idle turn state machine takes this variable
+        // as its start state. Each time one reactivates (after a weapon draw or sheathe,
+        // IdleForceDefaultState, or stopping), it would enter a turn clip that it can
+        // leave only on the blocked turnStop, looping until a network event leaves idle.
+        static const RE::BSFixedString syncTurnStateVariable{ "iSyncTurnState" };
+        std::int32_t syncTurnState = kStandingTurnState;
+        if (!a_actor.GetGraphVariableInt(syncTurnStateVariable, syncTurnState)
+            || syncTurnState == kStandingTurnState)
+        {
+            return;
+        }
+
+        const bool accepted = a_actor.SetGraphVariableInt(syncTurnStateVariable, kStandingTurnState);
+        // The AI may have written the variable after the previous pass, just as a
+        // machine reactivated. turnStop returns any turn state to standing, and a
+        // standing state has no turnStop transition.
+        static const RE::BSFixedString turnStopEvent{ "turnStop" };
+        const bool turnStopAccepted = SendNetworkAnimationEvent(a_remote, turnStopEvent);
+        auto& state = *a_remote.animation;
+        ++state.turnStateOverrides;
+        if (state.turnStateOverrides <= kInitialTurnStateOverrideLogs
+            || state.turnStateOverrides % kTurnStateOverrideLogInterval == 0)
+        {
+            logs::info(
+                "Animation sync held idle turn state: actor={:08X} localTurnState={} accepted={} turnStop={} count={}",
+                a_remote.handle.native_handle(), syncTurnState, accepted, turnStopAccepted, state.turnStateOverrides);
+        }
     }
 
     void ApplyAnimationUpdate(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)

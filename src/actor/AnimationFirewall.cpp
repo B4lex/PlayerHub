@@ -164,19 +164,35 @@ namespace AnimationFirewall
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
+        // BSTAnimationGraphDataChannel<Actor, float, Channel>:
+        // BSAnimationGraphChannel::value at 0x18, then the channel's cached value
+        // at 0x24 and its Actor at 0x28 (see RE::ActorSpeedChannel).
+        constexpr std::ptrdiff_t kChannelGraphValueOffset = 0x18;
+        constexpr std::ptrdiff_t kChannelCachedValueOffset = 0x24;
+        constexpr std::ptrdiff_t kChannelActorOffset = 0x28;
+
+        // The pointer is only compared with registered remote actors, never
+        // dereferenced, so non-remote actor channels are left untouched.
+        const RE::Actor* GetChannelActor(const RE::BSAnimationGraphChannel* a_channel)
+        {
+            const RE::Actor* actor = nullptr;
+            std::memcpy(&actor, reinterpret_cast<const std::byte*>(a_channel) + kChannelActorOffset, sizeof(actor));
+            return actor;
+        }
+
+        void OverrideChannelValue(RE::BSAnimationGraphChannel* a_channel, float a_value)
+        {
+            auto* bytes = reinterpret_cast<std::byte*>(a_channel);
+            std::memcpy(bytes + kChannelGraphValueOffset, &a_value, sizeof(float));
+            std::memcpy(bytes + kChannelCachedValueOffset, &a_value, sizeof(float));
+        }
+
         // Skyrim copies Actor-derived values into graph variables through channels
         // polled during each animation update, after main-loop graph writes. The
         // Direction channel reads the remote actor's own movement request, which is always
         // forward, so replace its polled value with the network direction.
         struct DirectionChannelHook
         {
-            // BSTAnimationGraphDataChannel<Actor, float, ActorDirectionChannel>:
-            // BSAnimationGraphChannel::value at 0x18, then the channel's cached value
-            // at 0x24 and its Actor at 0x28 (see RE::ActorSpeedChannel).
-            static constexpr std::ptrdiff_t kValueOffset = 0x18;
-            static constexpr std::ptrdiff_t kChannelValueOffset = 0x24;
-            static constexpr std::ptrdiff_t kActorOffset = 0x28;
-
             static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
             {
                 _original(a_channel, a_arg);
@@ -185,20 +201,28 @@ namespace AnimationFirewall
                     return;
                 }
 
-                const auto* bytes = reinterpret_cast<std::byte*>(a_channel);
-                const RE::Actor* actor = nullptr;
-                std::memcpy(&actor, bytes + kActorOffset, sizeof(actor));
-                // The pointer is only compared with registered remote actors, never
-                // dereferenced, so non-remote actor channels are left untouched.
-                const auto direction = ActorRegistry::GetAuthoritativeDirection(actor);
-                if (!direction)
+                if (const auto direction = ActorRegistry::GetAuthoritativeDirection(GetChannelActor(a_channel)))
                 {
-                    return;
+                    OverrideChannelValue(a_channel, *direction);
                 }
+            }
 
-                auto* writableBytes = reinterpret_cast<std::byte*>(a_channel);
-                std::memcpy(writableBytes + kValueOffset, &*direction, sizeof(float));
-                std::memcpy(writableBytes + kChannelValueOffset, &*direction, sizeof(float));
+            static inline REL::Relocation<decltype(Thunk)> _original;
+        };
+
+        // The TurnDelta channel follows the local AI's turn request, which the network
+        // heading never satisfies. It sets the speed of the turn-in-place blends and
+        // first-person rotation. Remote actors never turn in place (see
+        // ActorAnimation::HoldIdleTurnState), so the graph must not see a turn rate.
+        struct TurnDeltaChannelHook
+        {
+            static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
+            {
+                _original(a_channel, a_arg);
+                if (a_channel && ActorRegistry::IsRegistered(GetChannelActor(a_channel)))
+                {
+                    OverrideChannelValue(a_channel, 0.0F);
+                }
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -217,6 +241,10 @@ namespace AnimationFirewall
             RE::VTABLE_BSTAnimationGraphDataChannel_Actor_float_ActorDirectionChannel_[0]
         };
         DirectionChannelHook::_original = directionChannelVTable.write_vfunc(0x1, DirectionChannelHook::Thunk);
+        REL::Relocation<std::uintptr_t> turnDeltaChannelVTable{
+            RE::VTABLE_BSTAnimationGraphDataChannel_Actor_float_ActorTurnDeltaChannel_[0]
+        };
+        TurnDeltaChannelHook::_original = turnDeltaChannelVTable.write_vfunc(0x1, TurnDeltaChannelHook::Thunk);
     }
 
     void Enable(RemoteActor& a_remote)

@@ -81,6 +81,8 @@ namespace ActorAnimation
         // swimStop exits through a client-managed graph branch. Reassert locomotion
         // once the actor state confirms that Skyrim has left swimming.
         bool swimLocomotionReassertPending{ false };
+        // Local AI turn-in-place requests overridden by HoldIdleTurnState.
+        std::uint32_t turnStateOverrides{ 0 };
         bool lastVariableUpdateAccepted{ false };
         bool localInterruptionLatched{ false };
         bool graphRecoveryInProgress{ false };
@@ -199,6 +201,8 @@ namespace ActorAnimation
     // Returns true while a graph recovery holds transform and graph writes.
     [[nodiscard]] bool RecoverAuthoritativeAnimation(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime);
     void ApplyAnimationUpdate(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime);
+    // Keeps the graph's idle turn state machines out of their turn-in-place states.
+    void HoldIdleTurnState(RE::Actor& a_actor, RemoteActor& a_remote);
     // An attack, weapon transition, or graph recovery must finish before native
     // furniture entry may take the graph.
     [[nodiscard]] bool IsFurnitureEntryBlocked(const RemoteActor& a_remote);
