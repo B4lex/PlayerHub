@@ -99,6 +99,8 @@ namespace ActorRuntime
             return true;
         }
 
+        // Before ApplyAnimationUpdate, whose events can reactivate an idle turn machine.
+        ActorAnimation::HoldIdleTurnState(*actor, a_remote);
         ActorAnimation::ApplyAnimationUpdate(*actor, a_remote, a_deltaTime);
         const bool landingCompletionPending = a_remote.animation && a_remote.animation->landingCompletionPending;
         if (!ActorAnimation::IsAnimationStateSettled(a_remote) && !landingCompletionPending)

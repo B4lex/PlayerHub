@@ -6,8 +6,8 @@ struct RemoteActor;
 
 namespace AnimationFirewall
 {
-    // Installs the local animation-event filter and the Direction channel
-    // override for registered remote actors.
+    // Installs the local animation-event filter and the Direction and TurnDelta
+    // channel overrides for registered remote actors.
     void InstallHooks();
 
     // Admits only network-owned and client-managed events once enabled.

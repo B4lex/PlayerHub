@@ -127,6 +127,19 @@ applied checkpoint changes jump phase.
   least 1/8 of a turn is cross-blended with `CyclicFreeze` followed one graph
   update later by `CyclicCrossBlend`, at most once per 0.25 seconds so the
   0.2-second blend is not restarted while the source's `Direction` ramps.
+- Remote actors never turn in place; their heading comes from the network. The
+  remote actor's own AI still asks to face its package or combat target, which
+  that heading never satisfies. Skyrim then sends `TurnLeft`/`TurnRight`/
+  `turnStop` (and `NPC_Turn*`) and records the request in `iSyncTurnState`.
+  The firewall blocks the events, but every vanilla idle turn state machine
+  (`MT_Idle_TurnBehavior`, `1HM_Idle_Behavior`, `Bow_Idle_Behavior`,
+  `MagicReadyIdleTurnBehavior`, and others) binds its start state to
+  `iSyncTurnState` (0 turn right, 1 standing, 2 turn left). Each time one
+  reactivates, after a weapon transition, `IdleForceDefaultState`, or a stop,
+  it would enter a turn clip that it leaves only on the blocked `turnStop`.
+  `iSyncTurnState` is therefore held at 1 before each graph update, with a
+  network `turnStop` whenever the AI changed it. `ActorTurnDeltaChannel`,
+  which copies the AI's turn rate into `TurnDelta`, is also forced to 0.
 - Animation state is selected by the source player and replicated explicitly as
   `idle`, `walking`, `running`, `sprinting`, `sneakingIdle`,
   `sneakingWalking`, or `sneakingRunning`, plus an orthogonal `jumping` flag.
