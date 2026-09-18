@@ -25,7 +25,10 @@ from server.recording import (
 logger = logging.getLogger("uvicorn.error")
 
 api = FastAPI(title="Skyrim Multiplayer Server")
-sio = socketio.AsyncServer(async_mode="asgi")
+# Send the namespace CONNECT before running the connect handler. Otherwise the
+# late-joiner replay below reaches the client ahead of CONNECT, and the client
+# discards it when the namespace opens.
+sio = socketio.AsyncServer(async_mode="asgi", always_connect=True)
 player_states: dict[str, dict[str, bool | int | float | str]] = {}
 player_action_sequences: dict[str, int] = {}
 player_appearances: dict[str, dict[str, Any]] = {}
