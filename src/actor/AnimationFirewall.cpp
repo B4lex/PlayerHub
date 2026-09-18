@@ -113,6 +113,7 @@ namespace AnimationFirewall
                 bool allowClientManagedEvent = false;
                 bool allowFurnitureEvent = false;
                 bool allowCastEvent = false;
+                bool isSwimStartEvent = false;
                 bool isSwimStopEvent = false;
                 const auto* eventName = a_eventName.c_str();
                 if (const auto registration = ActorRegistry::FindGraphInput(a_holder))
@@ -130,6 +131,7 @@ namespace AnimationFirewall
                     allowFurnitureEvent = registration->furnitureAnimationOwned;
                     // A network cast runs through the actor's own magic caster.
                     allowCastEvent = registration->castAnimationOwned && IsCastAnimationEvent(eventView);
+                    isSwimStartEvent = eventView == "SwimStart";
                     isSwimStopEvent = eventView == "swimStop";
                 }
 
@@ -141,9 +143,14 @@ namespace AnimationFirewall
                 if (!firewallEnabled || allowClientManagedEvent || allowFurnitureEvent || allowCastEvent)
                 {
                     const bool accepted = _original(a_holder, a_eventName);
-                    if (firewallEnabled && isSwimStopEvent && accepted)
+                    if (firewallEnabled && (isSwimStartEvent || isSwimStopEvent))
                     {
-                        ActorRegistry::RecordSwimStop(a_holder);
+                        if (accepted)
+                        {
+                            ActorRegistry::RecordSwimTransition(a_holder, isSwimStartEvent);
+                        }
+                        logs::info("Observed actor swim transition: actor={:08X} event={} accepted={}", actorHandle,
+                            eventName, accepted);
                     }
                     return accepted;
                 }

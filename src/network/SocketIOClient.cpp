@@ -24,7 +24,6 @@ namespace Network
         constexpr auto kServerEndpointPath = "Data/SKSE/Plugins/skyrim-mp-server.txt";
         std::atomic_bool connected{ false };
         std::atomic_uint64_t connectionGeneration{ 0 };
-        std::atomic_uint64_t serverResponseCount{ 0 };
         std::mutex remoteChangesLock;
         std::unordered_map<std::string, RemotePlayerTransform> pendingTransforms;
         std::unordered_map<std::string, PlayerTransform> latestReceivedTransforms;
@@ -900,6 +899,32 @@ namespace Network
             pendingEquipment.insert_or_assign(playerID, std::move(update));
         }
 
+        // Drops every pending change and per-player receive history, as if each
+        // remote player had left. Requires remoteChangesLock.
+        void ForgetRemotePlayersLocked()
+        {
+            pendingTransforms.clear();
+            latestReceivedTransforms.clear();
+            pendingAppearances.clear();
+            latestReceivedAppearanceRevisions.clear();
+            pendingEquipment.clear();
+            latestReceivedEquipmentRevisions.clear();
+            pendingAnimationActions.clear();
+            latestReceivedActionSequences.clear();
+            pendingDisconnects.clear();
+        }
+
+        // Remote player IDs are the server's per-connection sids, so every known
+        // remote player is gone once our connection closes or is replaced. The
+        // connection state changes under the lock Drain uses, so a drain never
+        // mixes changes from different connections.
+        void MarkDisconnected()
+        {
+            std::scoped_lock lock{ remoteChangesLock };
+            connected.store(false, std::memory_order_release);
+            ForgetRemotePlayersLocked();
+        }
+
         void OnRemoteDisconnect(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
         {
             if (!a_data || a_data->get_flag() != sio::message::flag_object)
@@ -948,26 +973,25 @@ namespace Network
             client.set_socket_open_listener([](std::string const&) {
                 // Automatic reconnects do not always report a close first, so the
                 // connected flag alone cannot reveal that the server lost our state.
+                std::scoped_lock lock{ remoteChangesLock };
+                ForgetRemotePlayersLocked();
                 const auto generation = connectionGeneration.fetch_add(1, std::memory_order_acq_rel) + 1;
                 const bool wasConnected = connected.exchange(true, std::memory_order_acq_rel);
                 logs::info("Socket.IO default namespace ready: connectionGeneration={} closeObserved={}",
                     static_cast<unsigned long long>(generation), !wasConnected);
             });
             client.set_socket_close_listener([](std::string const&) {
-                connected.store(false, std::memory_order_release);
-                // A local transport interruption does not prove that any remote
-                // player left. Keep their remote actors until the server explicitly emits
-                // player:left, allowing automatic Socket.IO reconnects to be seamless.
+                MarkDisconnected();
                 RE::ConsoleLog::GetSingleton()->Print("MP: Connection closed.");
-                logs::info("Socket.IO namespace closed; retaining remote actors");
+                logs::info("Socket.IO namespace closed; forgetting remote players");
             });
             client.set_fail_listener([] {
-                connected.store(false, std::memory_order_release);
+                MarkDisconnected();
                 logs::warn("Socket.IO could not connect to {}", GetServerEndpoint());
             });
             client.set_close_listener([](sio::client::close_reason const&) {
-                connected.store(false, std::memory_order_release);
-                logs::info("Socket.IO connection closed; retaining remote actors");
+                MarkDisconnected();
+                logs::info("Socket.IO connection closed; forgetting remote players");
             });
 
             logs::info("Opening Socket.IO connection to {}", GetServerEndpoint());
@@ -983,11 +1007,6 @@ namespace Network
     std::uint64_t GetConnectionGeneration()
     {
         return connectionGeneration.load(std::memory_order_acquire);
-    }
-
-    std::uint64_t GetServerResponseCount()
-    {
-        return serverResponseCount.load(std::memory_order_acquire);
     }
 
     void PublishLocalPlayerTransform(const PlayerTransform& a_transform)
@@ -1190,7 +1209,6 @@ namespace Network
 
         GetClient().socket()->emit("latency:probe", nullptr,
             [onAcknowledged = std::move(a_onAcknowledged)](sio::message::list const& a_response) {
-                serverResponseCount.fetch_add(1, std::memory_order_acq_rel);
                 std::optional<double> serverTime;
                 if (a_response.size() > 0 && a_response[0] && a_response[0]->get_flag() == sio::message::flag_object)
                 {
@@ -1202,20 +1220,6 @@ namespace Network
                 }
                 onAcknowledged(serverTime);
             });
-    }
-
-    void ForgetRemotePlayers()
-    {
-        std::scoped_lock lock{ remoteChangesLock };
-        pendingTransforms.clear();
-        latestReceivedTransforms.clear();
-        pendingAppearances.clear();
-        latestReceivedAppearanceRevisions.clear();
-        pendingEquipment.clear();
-        latestReceivedEquipmentRevisions.clear();
-        pendingAnimationActions.clear();
-        latestReceivedActionSequences.clear();
-        pendingDisconnects.clear();
     }
 
     RemotePlayerChanges DrainRemotePlayerChanges()
@@ -1257,6 +1261,9 @@ namespace Network
             changes.disconnectedPlayerIDs.push_back(std::move(playerID));
         }
         pendingDisconnects.clear();
+
+        changes.connectionGeneration = connectionGeneration.load(std::memory_order_acquire);
+        changes.connected = connected.load(std::memory_order_acquire);
 
         return changes;
     }

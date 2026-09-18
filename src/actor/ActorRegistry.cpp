@@ -29,6 +29,7 @@ namespace ActorRegistry
             std::uint32_t pendingHitObservations{ 0 };
             std::uint32_t pendingCombatSanitizations{ 0 };
             std::uint32_t pendingJumpLandEnds{ 0 };
+            std::uint32_t pendingSwimStarts{ 0 };
             std::uint32_t pendingSwimStops{ 0 };
             std::uint32_t pendingWeaponTransitionEnds{ 0 };
             std::uint32_t pendingBashExits{ 0 };
@@ -176,13 +177,13 @@ namespace ActorRegistry
             .castAnimationOwned = registration->second.castAnimationOwned };
     }
 
-    void RecordSwimStop(const RE::IAnimationGraphManagerHolder* a_holder)
+    void RecordSwimTransition(const RE::IAnimationGraphManagerHolder* a_holder, bool a_started)
     {
         std::scoped_lock lock{ s_mutex };
         const auto registration = s_registrations.find(a_holder);
         if (registration != s_registrations.end())
         {
-            ++registration->second.pendingSwimStops;
+            ++(a_started ? registration->second.pendingSwimStarts : registration->second.pendingSwimStops);
         }
     }
 
@@ -401,6 +402,18 @@ namespace ActorRegistry
         }
 
         return std::exchange(registration->second.pendingHitObservations, 0);
+    }
+
+    std::uint32_t ConsumeSwimStarts(const RemoteActor& a_remote)
+    {
+        std::scoped_lock lock{ s_mutex };
+        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
+        if (registration == s_registrations.end())
+        {
+            return 0;
+        }
+
+        return std::exchange(registration->second.pendingSwimStarts, 0);
     }
 
     std::uint32_t ConsumeSwimStops(const RemoteActor& a_remote)

@@ -88,6 +88,13 @@ namespace ActorAnimation
         // swimStop exits through a client-managed graph branch. Reassert locomotion
         // once the actor state confirms that Skyrim has left swimming.
         bool swimLocomotionReassertPending{ false };
+        // SwimStart enters Swim_Behavior at the state iSyncIdleLocomotion selects,
+        // which stays 0 (SwimIdle) on a remote actor. An actor that enters the water
+        // while moving takes SwimIdle's moveStart edge into SwimLocomotion.
+        bool swimMoveStartPending{ false };
+        std::uint32_t swimMoveStartWaitPasses{ 0 };
+        std::uint32_t swimMoveStartAttempts{ 0 };
+        float swimMoveStartElapsed{ 0.0F };
         // Local AI turn-in-place requests overridden by HoldIdleTurnState.
         std::uint32_t turnStateOverrides{ 0 };
         bool lastVariableUpdateAccepted{ false };

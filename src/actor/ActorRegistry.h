@@ -39,7 +39,8 @@ namespace ActorRegistry
     };
 
     [[nodiscard]] std::optional<GraphInput> FindGraphInput(const RE::IAnimationGraphManagerHolder* a_holder);
-    void RecordSwimStop(const RE::IAnimationGraphManagerHolder* a_holder);
+    // Counts an accepted SwimStart (a_started) or swimStop for the holder.
+    void RecordSwimTransition(const RE::IAnimationGraphManagerHolder* a_holder, bool a_started);
     // Returns the event's blocked count, or zero for an unregistered holder.
     [[nodiscard]] std::uint32_t RecordBlockedGraphEvent(
         const RE::IAnimationGraphManagerHolder* a_holder, const char* a_eventName);
@@ -73,6 +74,7 @@ namespace ActorRegistry
     [[nodiscard]] std::pair<std::uint32_t, std::uint32_t> RecordCombatSanitization(const RE::Actor& a_actor);
 
     [[nodiscard]] std::uint32_t ConsumeHitObservations(const RemoteActor& a_remote);
+    [[nodiscard]] std::uint32_t ConsumeSwimStarts(const RemoteActor& a_remote);
     [[nodiscard]] std::uint32_t ConsumeSwimStops(const RemoteActor& a_remote);
     [[nodiscard]] std::uint32_t ConsumeWeaponTransitionEnds(const RemoteActor& a_remote);
     [[nodiscard]] std::uint32_t ConsumeJumpLandEnds(const RemoteActor& a_remote);
