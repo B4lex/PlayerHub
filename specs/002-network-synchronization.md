@@ -109,7 +109,11 @@ applied checkpoint changes jump phase.
 - Position approaches the latest authoritative target at the source player's
   measured snapshot-to-snapshot speed; while airborne it also uses a bounded
   positional-error catch-up rate so a standing jump cannot stall when sampled
-  speed is zero. Heading is applied from the remote snapshot.
+  speed is zero. Grounded movement adds a backlog drain proportional to the
+  remaining distance (about 0.5 seconds), because a sample's speed covers only
+  that sample's travel: a network stall or translation hold would otherwise
+  leave a lag that persists until the idle checkpoint snaps across it. Heading
+  is applied from the remote snapshot.
 - Heading is the source actor's body angle, so a backpedalling or strafing
   player keeps facing the same way. `direction` is the travel direction relative
   to that heading, in the behavior graph's `Direction` units in `[0, 1]`

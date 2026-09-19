@@ -20,6 +20,11 @@ namespace ActorMovement
         // source faster than its last measured speed and on past the end of its
         // movement input. The actor follows it within about this time.
         constexpr float kAttackTransformCatchUpTime = 0.2F;
+        // A sample's speed only covers that sample's own travel, so a network stall
+        // or a translation hold leaves a backlog that speed matching never recovers
+        // while moving, and the idle checkpoint then snaps across it. Drain it over
+        // about this time. A steady backlog of one sample merely arrives early.
+        constexpr float kLocomotionBacklogDrainTime = 0.5F;
         constexpr float kTwoPi = 6.28318530717958647692F;
         constexpr float kHeadingDeadZone = 0.00872664625997164788F;
         constexpr float kMaximumHeadingRate = kTwoPi;
@@ -108,7 +113,7 @@ namespace ActorMovement
                                                              : 0.0F;
         const float interpolationSpeed = catchUpTime > 0.0F
             ? (std::max)(a_remote.movement.translationSpeed, distanceToTravel / catchUpTime)
-            : a_remote.movement.translationSpeed;
+            : a_remote.movement.translationSpeed + distanceToTravel / kLocomotionBacklogDrainTime;
         const float step = (std::min)(interpolationSpeed * deltaTime, distanceToTravel);
         const float interpolation = step / distance;
 
