@@ -12,11 +12,6 @@ namespace ActorSpawner
 {
     namespace
     {
-        // PlayerBase (00000007) is not an ordinary placeable NPC record. Use a
-        // known-good actor base only to make CreateReferenceAtLocation construct the
-        // reference, then replace it with PlayerBase before 3D is initialized.
-        constexpr RE::FormID kActorConstructionTemplateFormID = 0x00013BBF;
-
         RE::TESObjectCELL* GetSpawnCell(RE::PlayerCharacter& a_player, const RE::NiPoint3& a_position)
         {
             if (!a_player.GetWorldspace())
@@ -40,6 +35,14 @@ namespace ActorSpawner
             return std::nullopt;
         }
 
+        if (a_npcBase->IsPlayer())
+        {
+            // CreateReferenceAtLocation returns a reference for PlayerBase, but it
+            // never completes normal actor/3D initialization.
+            logs::critical("Refusing to spawn a remote actor from PlayerBase");
+            return std::nullopt;
+        }
+
         auto* player = RE::PlayerCharacter::GetSingleton();
         auto* dataHandler = RE::TESDataHandler::GetSingleton();
         if (!player || !player->GetParentCell() || !dataHandler)
@@ -60,21 +63,9 @@ namespace ActorSpawner
         // Interior/worldspace changes are handled as explicit respawn boundaries by
         // SyncCoordinator. Create the reference at the first compatible snapshot so its
         // initial character-controller position is never the local player's position.
-        auto* constructionBase = a_npcBase;
-        if (a_npcBase->IsPlayer())
-        {
-            constructionBase = RE::TESForm::LookupByID<RE::TESNPC>(kActorConstructionTemplateFormID);
-            if (!constructionBase)
-            {
-                logs::critical(
-                    "Unable to find remote actor actor construction template {:08X}", kActorConstructionTemplateFormID);
-                return std::nullopt;
-            }
-        }
-
         const RE::NiPoint3 targetRotation{ 0.0F, 0.0F, a_targetHeading };
-        const auto spawnedHandle = dataHandler->CreateReferenceAtLocation(constructionBase, a_targetPosition,
-            targetRotation, targetCell, worldspace, nullptr, nullptr, RE::ObjectRefHandle{}, true, true);
+        const auto spawnedHandle = dataHandler->CreateReferenceAtLocation(a_npcBase, a_targetPosition, targetRotation,
+            targetCell, worldspace, nullptr, nullptr, RE::ObjectRefHandle{}, true, true);
         auto spawnedRef = spawnedHandle.get();
         if (!spawnedRef)
         {
@@ -87,32 +78,6 @@ namespace ActorSpawner
             return std::nullopt;
         }
 
-        if (constructionBase != a_npcBase)
-        {
-            // CreateReferenceAtLocation does return a reference for PlayerBase, but it
-            // never completes normal actor/3D initialization. Constructing from a
-            // regular TESNPC first avoids that special-case while SetObjectReference
-            // still makes the resulting actor use the player's race and appearance.
-            const bool rebuildLoaded3D = actor->Is3DLoaded();
-            actor->SetObjectReference(a_npcBase);
-            if (actor->GetActorBase() != a_npcBase)
-            {
-                logs::critical(
-                    "Unable to assign player base to remote actor: actor={:08X} requestedBase={:08X} actualBase={:08X}",
-                    actor->GetHandle().native_handle(), a_npcBase->GetFormID(),
-                    actor->GetActorBase() ? actor->GetActorBase()->GetFormID() : 0);
-                actor->Disable();
-                actor->SetDelete(true);
-                return std::nullopt;
-            }
-            if (rebuildLoaded3D)
-            {
-                // Usually the initial 3D load is still queued. If it completed
-                // synchronously, discard the construction template's model now.
-                actor->DoReset3D(false);
-            }
-        }
-
         actor->SetActivationBlocked(true);
         // The animation graph and character controller only finish initializing
         // while the actor remains in Skyrim's normal processing pipeline.
@@ -121,11 +86,9 @@ namespace ActorSpawner
         auto animationState = std::make_unique<ActorAnimation::State>();
         animationState->targetAnimationState = a_animationState;
         ActorAnimation::RequestAnimationUpdate(animationState.get(), a_animationState, a_speed, 0.0F);
-        logs::info(
-            "Created remote actor actor reference: actor={:08X} base={:08X} constructionBase={:08X} revision={} "
-            "desired={}/{}",
+        logs::info("Created remote actor reference: actor={:08X} base={:08X} revision={} desired={}/{}",
             actor->GetHandle().native_handle(), actor->GetActorBase() ? actor->GetActorBase()->GetFormID() : 0,
-            constructionBase->GetFormID(), static_cast<unsigned long long>(animationState->desiredRevision.load()),
+            static_cast<unsigned long long>(animationState->desiredRevision.load()),
             Multiplayer::GetMovementStateName(a_animationState.movementState),
             a_animationState.jumping ? "jumping" : "grounded");
 

@@ -190,8 +190,8 @@ namespace SyncCoordinator
         }
 
         // Remote stages for one peer.
-        void SyncPeer(const std::string& a_playerID, PeerState& a_peer, RE::TESNPC* a_localPlayerBase,
-            RE::FormID a_localCellID, RE::FormID a_localWorldspaceID, float a_delta)
+        void SyncPeer(const std::string& a_playerID, PeerState& a_peer, RE::FormID a_localCellID,
+            RE::FormID a_localWorldspaceID, float a_delta)
         {
             const RemoteFrame remote{
                 .playerID = a_playerID, .checkpoint = a_peer.latestCheckpoint, .lastSequence = a_peer.lastSequence
@@ -266,7 +266,7 @@ namespace SyncCoordinator
             {
                 return;
             }
-            ActorLifecycle::SpawnWhenDue(remote, a_peer, a_localPlayerBase, a_delta);
+            ActorLifecycle::SpawnWhenDue(remote, a_peer, a_delta);
         }
     }
 
@@ -282,16 +282,14 @@ namespace SyncCoordinator
         SyncLocalPlayer(*a_player, a_delta);
 
         auto* localCell = a_player->GetParentCell();
-        auto* playerBase = a_player->GetActorBase();
-        if (!localCell || !playerBase)
+        if (!localCell)
         {
             return;
         }
 
         for (auto& [playerID, peer] : s_peers)
         {
-            SyncPeer(
-                playerID, peer, playerBase, localCell->GetFormID(), MovementSync::GetWorldspaceID(*a_player), a_delta);
+            SyncPeer(playerID, peer, localCell->GetFormID(), MovementSync::GetWorldspaceID(*a_player), a_delta);
         }
     }
 

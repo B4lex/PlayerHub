@@ -20,12 +20,13 @@ namespace AppearanceSync
     struct RemoteState
     {
         std::optional<Multiplayer::PlayerAppearance> latest;
-        // Runtime actor base built for baseRevision. Bases are never freed: a
-        // retired reference may still point at its base for a few frames.
+        // Runtime actor base built for baseRevision, where zero is the default look.
+        // Bases are never freed: a retired reference may still point at its base
+        // for a few frames.
         RE::TESNPC* base{ nullptr };
         std::uint64_t baseRevision{ 0 };
-        std::uint64_t failedRevision{ 0 };
-        // Revision the current remote actor was spawned with; zero for the fallback base.
+        std::optional<std::uint64_t> failedRevision;
+        // Revision the current remote actor was spawned with; zero for the default look.
         std::uint64_t spawnedRevision{ 0 };
         RE::TESNPC* spawnedBase{ nullptr };
         float appearanceWaitElapsed{ 0.0F };
@@ -41,11 +42,11 @@ namespace AppearanceSync
     // Remote frame stage: advances first-appearance wait and respawn cooldown.
     void SyncAppearance(RemoteState& a_remote, float a_delta);
 
-    // Returns the actor base a new remote actor should use, building it for the latest
-    // revision if needed. Returns nullptr while a first appearance is still
-    // expected; afterwards falls back to the local player base.
-    [[nodiscard]] RE::TESNPC* GetSpawnBase(
-        RemoteState& a_remote, const std::string& a_playerID, RE::TESNPC* a_localPlayerBase);
+    // Returns the actor base a new remote actor should use, building a fresh runtime
+    // base for the latest revision if needed. Returns nullptr while a first
+    // appearance is still expected; afterwards builds a default look. A revision
+    // that cannot be built keeps the previously built base, if any.
+    [[nodiscard]] RE::TESNPC* GetSpawnBase(RemoteState& a_remote, const std::string& a_playerID);
 
     void OnActorSpawned(RemoteState& a_remote, RE::TESNPC* a_spawnedBase);
 
