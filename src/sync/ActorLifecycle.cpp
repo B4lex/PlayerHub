@@ -136,7 +136,7 @@ namespace ActorLifecycle
         }
     }
 
-    void SpawnWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, RE::TESNPC* a_localPlayerBase, float a_delta)
+    void SpawnWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
     {
         auto& lifecycle = a_peer.lifecycle;
         lifecycle.spawnRetryRemaining -= (std::max)(a_delta, 0.0F);
@@ -145,11 +145,11 @@ namespace ActorLifecycle
             return;
         }
 
-        auto* spawnBase = AppearanceSync::GetSpawnBase(a_peer.appearance, a_remote.playerID, a_localPlayerBase);
+        auto* spawnBase = AppearanceSync::GetSpawnBase(a_peer.appearance, a_remote.playerID);
         if (!spawnBase)
         {
             // Briefly wait for the first appearance so a late joiner is not spawned
-            // with the local look and immediately replaced.
+            // with the default look and immediately replaced.
             return;
         }
 

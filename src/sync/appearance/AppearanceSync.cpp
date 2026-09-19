@@ -360,6 +360,13 @@ namespace AppearanceSync
             return a_form.GetFormID() == formID;
         }
 
+        RE::TESRace* LookupFallbackRace()
+        {
+            auto* dataHandler = RE::TESDataHandler::GetSingleton();
+            return dataHandler ? dataHandler->LookupForm<RE::TESRace>(kFallbackRaceLocalFormID, kFallbackRacePlugin)
+                               : nullptr;
+        }
+
         RE::TESRace* ResolveRace(const std::string& a_playerID, const AppearanceData& a_appearance)
         {
             auto* race = ResolveForm<RE::TESRace>(a_appearance.race);
@@ -371,9 +378,7 @@ namespace AppearanceSync
             logs::warn("Appearance sync falling back to NordRace: player={} revision={} race={}|{:06X} resolved={}",
                 a_playerID, static_cast<unsigned long long>(a_appearance.revision), a_appearance.race.plugin,
                 a_appearance.race.localFormID, race != nullptr);
-            auto* dataHandler = RE::TESDataHandler::GetSingleton();
-            return dataHandler ? dataHandler->LookupForm<RE::TESRace>(kFallbackRaceLocalFormID, kFallbackRacePlugin)
-                               : nullptr;
+            return LookupFallbackRace();
         }
 
         RE::BGSHeadPart* FindDefaultHeadPart(FaceRelatedData* a_faceData, std::uint8_t a_type)
@@ -458,9 +463,33 @@ namespace AppearanceSync
             return 0;
         }
 
-        RE::TESNPC* CreateActorBase(
-            const std::string& a_playerID, const AppearanceData& a_appearance, RE::TESNPC& a_localPlayerBase)
+        // BGSDefaultObjectManager::GetObject is unusable here because windows.h
+        // defines GetObject as a macro.
+        RE::TESCombatStyle* GetDefaultCombatStyle()
         {
+            constexpr std::size_t kCombatStyleIndex = RE::DEFAULT_OBJECTS::kCombatStyle;
+            const auto* defaults = RE::BGSDefaultObjectManager::GetSingleton();
+            auto* form = defaults && defaults->IsObjectInitialized(kCombatStyleIndex)
+                ? defaults->objects[kCombatStyleIndex]
+                : nullptr;
+            return form ? form->As<RE::TESCombatStyle>() : nullptr;
+        }
+
+        // Builds a runtime actor base from engine defaults instead of copying a template
+        // record, so remote actors do not depend on any particular base form. The
+        // TESNPC constructor already runs InitializeData, which leaves no class, AI
+        // packages, factions, inventory, or outfits, and points faceData at a shared
+        // engine default that must be replaced rather than written.
+        RE::TESNPC* CreateActorBase(const std::string& a_playerID, const AppearanceData& a_appearance)
+        {
+            auto* race = ResolveRace(a_playerID, a_appearance);
+            if (!race)
+            {
+                logs::error("Appearance sync could not resolve any race: player={} revision={}", a_playerID,
+                    static_cast<unsigned long long>(a_appearance.revision));
+                return nullptr;
+            }
+
             auto* factory = RE::IFormFactory::GetConcreteFormFactoryByType<RE::TESNPC>();
             auto* npc = factory ? factory->Create() : nullptr;
             if (!npc || !AssignDynamicFormID(*npc))
@@ -470,47 +499,22 @@ namespace AppearanceSync
                 return nullptr;
             }
 
-            const auto formID = npc->GetFormID();
-            // Copy class, AI data, and factions from the player base so remote actors keep
-            // the same actor policy they had before appearance synchronization.
-            npc->Copy(&a_localPlayerBase);
-            if (npc->GetFormID() != formID)
-            {
-                logs::critical(
-                    "Appearance sync actor base changed form ID during Copy: player={} expected={:08X} actual={:08X}",
-                    a_playerID, formID, npc->GetFormID());
-                return nullptr;
-            }
-
-            auto* race = ResolveRace(a_playerID, a_appearance);
             auto* faceData = GetFaceRelatedData(race, a_appearance.female);
-            if (!race)
-            {
-                logs::error("Appearance sync could not resolve any race: player={} revision={}", a_playerID,
-                    static_cast<unsigned long long>(a_appearance.revision));
-                return nullptr;
-            }
-
-            // Copy may share appearance storage with the player base. Replace every
-            // pointer before writing so the local player can never be modified.
-            npc->faceNPC = nullptr;
             npc->headRelatedData = new RE::TESNPC::HeadRelatedData();
             npc->faceData = RE::calloc<RE::TESNPC::FaceData>(1);
             npc->tintLayers = new RE::BSTArray<RE::TESNPC::Layer*>();
-            npc->headParts = nullptr;
-            npc->numHeadParts = 0;
 
-            // The remote actor inventory holds only synchronized equipment. Drop the copied
-            // container and outfits without freeing storage shared with the player base.
-            npc->containerObjects = nullptr;
-            npc->numContainerObjects = 0;
-            npc->defaultOutfit = nullptr;
-            npc->sleepOutfit = nullptr;
-
-            // Copy took the local player's name; the remote actor must show the source's.
+            // A remote player is one specific character, never a generic NPC.
+            npc->actorData.actorBaseFlags.set(RE::ACTOR_BASE_DATA::Flag::kUnique);
             npc->fullName = a_appearance.name;
             npc->race = race;
             npc->originalRace = race;
+            // TESNPC::InitItemImpl completes these only for NPCs loaded from plugins:
+            // an NPC without attack data takes its race's (BGSAttackDataForm::InitItem),
+            // and one without a combat style gets the default object. Weapon draws
+            // read the attack data map without a null check.
+            npc->attackDataMap = race->attackDataMap;
+            npc->combatStyle = GetDefaultCombatStyle();
             npc->actorData.actorBaseFlags.set(a_appearance.female, RE::ACTOR_BASE_DATA::Flag::kFemale);
             npc->weight = a_appearance.weight;
             npc->height = a_appearance.height;
@@ -568,13 +572,57 @@ namespace AppearanceSync
             logs::info(
                 "Appearance sync built actor base: player={} revision={} base={:08X} name=\"{}\" race={:08X} female={} "
                 "weight={:.1f} height={:.2f} headParts={}/{} hairColor={:08X} faceDetails={:08X} tints={}/{} "
-                "droppedTints={}",
+                "droppedTints={} attackData={} combatStyle={:08X}",
                 a_playerID, static_cast<unsigned long long>(a_appearance.revision), npc->GetFormID(), a_appearance.name,
                 race->GetFormID(), a_appearance.female, a_appearance.weight, a_appearance.height, headParts.size(),
                 a_appearance.headParts.size(), hairColor ? hairColor->GetFormID() : 0,
                 faceDetails ? faceDetails->GetFormID() : 0, npc->tintLayers->size(), a_appearance.tints.size(),
-                droppedTints);
+                droppedTints, npc->attackDataMap != nullptr, npc->combatStyle ? npc->combatStyle->GetFormID() : 0);
             return npc;
+        }
+
+        // The look of a remote player whose appearance never arrived: the fallback
+        // race's default head parts and skin tone.
+        AppearanceData MakeDefaultAppearance()
+        {
+            AppearanceData appearance{ .race = AppearanceFormReference{ .plugin = std::string{ kFallbackRacePlugin },
+                                           .localFormID = kFallbackRaceLocalFormID } };
+            const auto* faceData = GetFaceRelatedData(LookupFallbackRace(), appearance.female);
+            if (!faceData)
+            {
+                return appearance;
+            }
+
+            if (faceData->headParts)
+            {
+                for (const auto* headPart : *faceData->headParts)
+                {
+                    if (const auto reference = MakeFormReference(headPart))
+                    {
+                        appearance.headParts.push_back(AppearanceHeadPart{
+                            .form = *reference, .type = static_cast<std::uint8_t>(headPart->type.underlying()) });
+                    }
+                }
+            }
+
+            if (faceData->tintMasks)
+            {
+                using SkinTone = TintAsset::TintLayer::SkinTone;
+                for (const auto* asset : *faceData->tintMasks)
+                {
+                    const auto* color = asset ? asset->texture.presetDefault : nullptr;
+                    if (color && asset->texture.skinTone == SkinTone::kSkinTone)
+                    {
+                        appearance.bodyTint = ToAppearanceColor(color->color);
+                        appearance.tints.push_back(AppearanceTint{ .index = asset->texture.index,
+                            .type = static_cast<std::uint8_t>(SkinTone::kSkinTone),
+                            .color = appearance.bodyTint,
+                            .alpha = 1.0F });
+                        break;
+                    }
+                }
+            }
+            return appearance;
         }
 
         RE::NiSourceTexture* FindFaceTintTexture(RE::Actor& a_actor, const RE::TESNPC& a_base)
@@ -763,17 +811,20 @@ namespace AppearanceSync
         a_remote.respawnCooldown = (std::max)(a_remote.respawnCooldown - delta, 0.0F);
     }
 
-    RE::TESNPC* GetSpawnBase(RemoteState& a_remote, const std::string& a_playerID, RE::TESNPC* a_localPlayerBase)
+    RE::TESNPC* GetSpawnBase(RemoteState& a_remote, const std::string& a_playerID)
     {
-        if (!a_remote.latest)
+        if (!a_remote.latest && a_remote.appearanceWaitElapsed < kFirstAppearanceWaitSeconds)
         {
-            return a_remote.appearanceWaitElapsed >= kFirstAppearanceWaitSeconds ? a_localPlayerBase : nullptr;
+            return nullptr;
         }
 
-        const auto revision = a_remote.latest->revision;
-        if (a_remote.baseRevision != revision && a_remote.failedRevision != revision && a_localPlayerBase)
+        // Revision zero stands for the default look.
+        const auto revision = a_remote.latest ? a_remote.latest->revision : 0;
+        if ((!a_remote.base || a_remote.baseRevision != revision) && a_remote.failedRevision != revision)
         {
-            if (auto* base = CreateActorBase(a_playerID, *a_remote.latest, *a_localPlayerBase))
+            auto* base = a_remote.latest ? CreateActorBase(a_playerID, *a_remote.latest)
+                                         : CreateActorBase(a_playerID, MakeDefaultAppearance());
+            if (base)
             {
                 a_remote.base = base;
                 a_remote.baseRevision = revision;
@@ -784,7 +835,8 @@ namespace AppearanceSync
             }
         }
 
-        return a_remote.base && a_remote.baseRevision == revision ? a_remote.base : a_localPlayerBase;
+        // A revision that could not be built keeps the previously built base.
+        return a_remote.base;
     }
 
     void OnActorSpawned(RemoteState& a_remote, RE::TESNPC* a_spawnedBase)

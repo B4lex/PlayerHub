@@ -45,5 +45,5 @@ namespace ActorLifecycle
 
     // Spawns the actor from the newest checkpoint once the retry delay elapsed
     // and an actor base is available.
-    void SpawnWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, RE::TESNPC* a_localPlayerBase, float a_delta);
+    void SpawnWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta);
 }
