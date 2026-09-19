@@ -1271,6 +1271,7 @@ namespace ActorAnimation
         a_state.landingCompletionWaitFrames = 0;
         a_state.landingCompletionWaitElapsed = 0.0F;
         a_state.landingLocomotionReassertPending = false;
+        a_state.landingSprintStopPending = false;
         a_state.weaponLocomotionReassertPending = false;
         a_state.weaponTransitionCompletionObserved = false;
         a_state.weaponTransitionWaitElapsed = 0.0F;
@@ -1536,6 +1537,7 @@ namespace ActorAnimation
             animationState->landingCompletionWaitFrames = 0;
             animationState->landingCompletionWaitElapsed = 0.0F;
             animationState->landingLocomotionReassertPending = false;
+            animationState->landingSprintStopPending = false;
             animationState->weaponLocomotionReassertPending = false;
             animationState->weaponTransitionCompletionObserved = false;
             animationState->weaponTransitionWaitElapsed = 0.0F;
@@ -1578,6 +1580,7 @@ namespace ActorAnimation
             animationState->landingCompletionWaitFrames = 0;
             animationState->landingCompletionWaitElapsed = 0.0F;
             animationState->landingLocomotionReassertPending = false;
+            animationState->landingSprintStopPending = false;
             animationState->weaponLocomotionReassertPending = false;
             animationState->weaponTransitionCompletionObserved = false;
             animationState->weaponTransitionWaitElapsed = 0.0F;
@@ -1615,6 +1618,7 @@ namespace ActorAnimation
             animationState->landingCompletionWaitFrames = 0;
             animationState->landingCompletionWaitElapsed = 0.0F;
             animationState->landingLocomotionReassertPending = false;
+            animationState->landingSprintStopPending = false;
             animationState->weaponLocomotionReassertPending = false;
             animationState->weaponTransitionCompletionObserved = false;
             animationState->weaponTransitionWaitElapsed = 0.0F;
@@ -1980,14 +1984,20 @@ namespace ActorAnimation
                 || ((replayingWeaponBase || reassertLocomotionAfterSwimStop || reassertLocomotionAfterAttack
                         || reassertLocomotionAfterLanding)
                     && isSneaking));
+        const bool eventDispatchRequired = dispatchRequired || reassertLocomotionAfterSwimStop
+            || reassertLocomotionAfterAttack || reassertLocomotionAfterLanding;
         const bool sprintRequired = !jumpLandRequired
             && ((dispatchRequired
                     && (hadPreviousState ? IsSprinting(previousState.movementState) != isSprinting : isSprinting))
                 || ((replayingWeaponBase || reassertLocomotionAfterSwimStop || reassertLocomotionAfterAttack
                         || reassertLocomotionAfterLanding)
-                    && isSprinting));
-        const bool eventDispatchRequired = dispatchRequired || reassertLocomotionAfterSwimStop
-            || reassertLocomotionAfterAttack || reassertLocomotionAfterLanding;
+                    && isSprinting)
+                || (eventDispatchRequired && animationState->landingSprintStopPending && !isSprinting));
+        // A landing from sprint into a non-sprint state defers SprintStop to the
+        // landing reassert. The stop edge is evaluated against IsSprinting, so the
+        // variable keeps its sprint value until that stop has been sent.
+        const bool deferSprintStop
+            = jumpLandRequired && !isSprinting && hadPreviousState && IsSprinting(previousState.movementState);
         if (dispatchRequired && (!animationState->hasAttempted || animationState->lastAttempted != state))
         {
             animationState->lastAttempted = state;
@@ -2005,6 +2015,8 @@ namespace ActorAnimation
         const bool moveStopRequired = moveRequired && !isMoving;
         const bool sneakStopRequired = sneakRequired && !isSneaking;
         const bool sprintStopRequired = sprintRequired && !isSprinting;
+        const bool sprintVariableValue
+            = isSprinting || deferSprintStop || (animationState->landingSprintStopPending && !sprintStopRequired);
         if (jumpRequired)
         {
             // JumpLand starts a timed landing branch whose graph output emits
@@ -2077,7 +2089,7 @@ namespace ActorAnimation
             dampedSpeedAccepted = actor->SetGraphVariableFloat(speedDampedVariable, graphSpeed);
             directionAccepted = actor->SetGraphVariableFloat(strings->direction, isMoving ? sampleDirection : 0.0F);
             turnAccepted = actor->SetGraphVariableFloat(strings->turnDelta, 0.0F);
-            sprintVariableAccepted = actor->SetGraphVariableBool(strings->isSprinting, isSprinting);
+            sprintVariableAccepted = actor->SetGraphVariableBool(strings->isSprinting, sprintVariableValue);
             jumpVariableAccepted = actor->SetGraphVariableBool(inJumpStateVariable, state.jumping);
         }
         const bool variablesAccepted = stringsAvailable && speedAccepted && sampledSpeedAccepted && dampedSpeedAccepted
@@ -2215,6 +2227,13 @@ namespace ActorAnimation
                 animationState->failedDispatchAttempts = 0;
                 animationState->rejectedEventAttempts = 0;
                 animationState->rejectedEventElapsed = 0.0F;
+                // Any other processed dispatch has sent the owed stop.
+                animationState->landingSprintStopPending = deferSprintStop;
+                if (animationState->landingSprintStopPending)
+                {
+                    logs::info("Animation sync deferred sprint stop past landing: actor={:08X} revision={}",
+                        actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision));
+                }
                 if (jumpLandRequired)
                 {
                     animationState->landingCompletionPending = true;
