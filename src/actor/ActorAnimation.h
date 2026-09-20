@@ -85,10 +85,6 @@ namespace ActorAnimation
         // Locomotion was restored by the bounded fallback before the clip's exit
         // annotation. A late exit annotation then replays locomotion once more.
         bool weaponRestoredWithoutCompletion{ false };
-        // Bounded post-replay diagnostics compare the graph state reached after the
-        // visually working draw path with the failing sheathe path.
-        std::uint32_t weaponReplayDiagnosticFramesRemaining{ 0 };
-        bool weaponReplayDiagnosticWeaponDrawn{ false };
         // swimStop exits through a client-managed graph branch. Reassert locomotion
         // once the actor state confirms that Skyrim has left swimming.
         bool swimLocomotionReassertPending{ false };
