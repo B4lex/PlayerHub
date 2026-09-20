@@ -252,23 +252,77 @@ actors that were hit ran package 18 and cycled between `kWantToSheathe` and
 `SanitizeRemoteCombatState` therefore restores the do-nothing package whenever
 the actor is running any other package, not only a reaction package. Its caller
 passes `a_mayResetPackage`, which is false until the actor is ready (its first
-do-nothing package has not been installed yet) and while a furniture
-interaction owns the actor, because furniture entry runs a package of its own.
-The sanitization log gained an `unownedPackage` field, and logs the pass that
-takes a package back. A takeover also gets its own log line and counter
+do-nothing package has not been installed yet). It was also false while a
+furniture interaction owned the actor, on the belief that furniture entry runs
+a package of its own. It does not: furniture runs on the do-nothing package, and
+a package selected during an entry took the occupancy back before the next
+pass while nothing took the package back. Installing the do-nothing package
+does not reach `ClearFurniture` (ID 39798) through `PutCreatedPackage` or
+`SetRunOncePackage` within four call levels, and `PutCreatedPackage` skips its
+sit-state handling for the do-nothing type, so the takeback now also runs
+during furniture interactions. The sanitization log gained an `unownedPackage`
+field, and logs the pass that takes a package back. A takeover also gets its
+own log line and counter
 ("Took back local actor package", with the package's type and form), because a
 takeover lasts a frame or two and the sanitization counter's logging interval
 would otherwise hide it.
 
-This stays reactive: the engine's package still runs for the part of a frame
-before the main-loop pass. Candidate 3 below would prevent the selection
-instead.
+Taking a package back is reactive, and against a package the engine reselects
+every pass it does not converge at all. A remote actor standing in a tavern is
+filled into the bard audience quest alias and handed `BardAudienceTravelToLoc2`
+(`00108EDD`) and `BardAudienceStayInLocationAndApplaud` (`00108ED6`). Those
+send it walking away from the transform its peer is authoritative for, and
+reselection wins again on the next pass: one capture took the same package back
+13,800 times in four minutes, and another 3,720. It also stole the furniture
+occupancy one pass after every entry, so the actor barely sat.
+
+Two changes contain it:
+
+- `Actor::CheckForCurrentAliasPackage` (vfunc `0x49`, the same index on every
+  runtime) returns null for a registered remote actor, so an alias package is
+  refused where the engine asks for it rather than removed afterwards. A remote
+  actor is never a participant in a local quest.
+- `AssertDoNothingPackage` installs the do-nothing package as the run-once
+  package. A run-once package outranks the packages quest and scene systems
+  select and survives reselection; this was learned from the stale
+  `InitiateGetUpPackage` in spec 005, which stuck for the rest of a session for
+  exactly that reason. Every path which hands a remote actor back to ordinary
+  synchronization uses it in place of `InitiateDoNothingPackage`.
 
 Verified in the 2026-09-20 capture: every one of 21 hits across three actors
 was followed on the next main-loop pass, about 15 ms later, by one takeover of
 `DefaultMasterPackage`, and never a second one for the same hit. No actor
 reported `kWantToSheathe` while the network held the weapon drawn, against many
 such frames before the change.
+
+### Scene packages
+
+The bard audience packages also arrive while a bard sings, through the song's
+scene rather than package evaluation. In the second 2026-09-21 capture
+`BardAudienceTravelToLoc2` (`00108EDD`, sending the audience to dance in front
+of the bard) was taken back every pass for the whole song, over 13,000 times in
+two minutes, then `BardAudienceStayInLocationAndApplaud` (`00108ED6`) as it
+ended, with no alias package refused. Every furniture entry in that window lost
+its occupancy before the next pass; the first entry after the song sat.
+
+On 1.7.104 a scene's package action installs its package on the alias's actor
+directly through ID 39149, setting the scene-package bit, without asking
+package evaluation:
+
+- `BGSSceneActionPackage` vfunc `0x10` (ID 24244) starts the action. It
+  resolves the alias's actor through the scene's quest (ID 25066), installs the
+  first package whose conditions the actor meets, and, when the alias has no
+  actor, marks the action started and ends it through vfunc `0x11` (ID 24245).
+- ID 24252 takes the action, the scene and the actor, and reinstalls the
+  package whenever the actor runs another one. Scene updates call it at ID
+  24130 + `0x9A` and ID 24173 + `0x61` for every running package action.
+- ID 24253 installs packages the same way but has no call or pointer reference
+  in the binary, and is not hooked.
+
+`ScenePackageSuppression` refuses both for a registered remote actor ("Refused
+local scene package", with the scene, quest, alias and package). The start hook
+resolves the alias through `TESQuest::GetAliasedRef` and handles a remote actor
+as the engine handles an alias without one. Not yet verified in game.
 
 ### Acceptance criteria
 
@@ -309,10 +363,12 @@ Not implemented. Each needs its own verification before adoption.
 3. **Package selection (IDs 39114 `CheckForNewPackage` and 38959
    `InitFromPackage`).** Would keep any package from being chosen instead of
    taking it back afterwards, removing the frame in which the engine's package
-   runs (see "Package takeover"). TiltedEvolution compiles both out
-   (`#define AI_SYNC 0`), so they are unproven. Our own
-   `InitiateDoNothingPackage()`, and the package furniture entry installs, must
-   still get through.
+   runs (see "Package takeover"). Alias packages, which were the damaging case,
+   are already refused at their own entry point, so what remains is the
+   short-lived reaction packages the takeback handles adequately.
+   TiltedEvolution compiles both out (`#define AI_SYNC 0`), so they are
+   unproven. `AssertDoNothingPackage`, and the package furniture entry installs,
+   must still get through.
 4. **Health regeneration (ID 37448).** TiltedEvolution skips health regen for
    remote actors. `SurvivalPolicy` already owns remote health, so this is low
    value.

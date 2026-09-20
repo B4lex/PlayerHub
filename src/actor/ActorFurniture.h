@@ -6,6 +6,16 @@ struct RemoteActor;
 
 namespace ActorFurniture
 {
+    // What holds back a requested entry once the reference has resolved.
+    enum class EntryGate : std::uint8_t
+    {
+        kNone,
+        kAnimationUnsettled,
+        kAnimationBlocked,
+        kAlignment,
+        kMarkerDistance
+    };
+
     // Skyrim-native sit/sleep lifecycle of one remote actor.
     struct State
     {
@@ -25,11 +35,13 @@ namespace ActorFurniture
         // retry budget instead of the one for an entry Skyrim dropped mid-idle.
         bool occupancyObserved{ false };
         bool entrySettleLogged{ false };
-        // A target assigned while the actor was still settling from its spawn began
-        // before the actor existed, behind the local loading screen. Its entry idle
-        // already played on the source and was never visible here, so the actor
-        // adopts the seated pose instead of replaying a sit the peer has finished.
-        bool resumeWithoutEntryIdle{ false };
+        // These gates hold an entry back on every pass without an engine refusal
+        // to report, so each is logged once when it starts holding the request.
+        EntryGate loggedEntryGate{ EntryGate::kNone };
+        // IdleFurnitureExit leaves the furniture graph node outright. Nothing
+        // drives an exit animation for a remote actor, so it is sent on the first
+        // pass of an exit, and tracked here so it is sent once per exit.
+        bool furnitureExitGraphForced{ false };
     };
 
     // Sets reconstructable native TESFurniture occupancy. Zero requests exit.
