@@ -177,7 +177,8 @@ applied checkpoint changes jump phase.
 ## POC limitations
 
 1. Appearance (spec 006) and equipped items (spec 007) are synchronized
-   separately. Only vanilla items are shown on remote actors.
+   separately. An item is shown only if the receiver has the plugin defining it;
+   there is no fallback for a missing one yet.
 2. Cell and worldspace form IDs only work reliably when peers have compatible
    load orders.
 3. Interior/worldspace changes use an intentional despawn/respawn boundary;

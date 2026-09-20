@@ -30,9 +30,9 @@ Before this change actors had no synchronized equipment. `weaponDrawn`
 - Enchantments, tempering, poison, charge, and player-given names. Enchanted
   items are reduced to their unenchanted base item (see
   [Enchanted and crafted items](#enchanted-and-crafted-items)).
-- Non-vanilla items on the receiver. They are dropped for now. A later spec adds
-  a fallback that maps a missing item to a vanilla equivalent, and the protocol
-  already carries the hints for it.
+- Items whose defining plugin the receiver does not have. They are dropped for
+  now. A later spec adds a fallback that maps a missing item to a vanilla
+  equivalent, and the protocol already carries the hints for it.
 - Equipment while transformed (werewolf, vampire lord). As in spec 006, peers
   keep the last equipment captured in a playable race.
 - Equip and unequip sounds and animations on the actor.
@@ -65,9 +65,9 @@ file-local ID. Dynamic (`FF`) forms cannot be referenced. If an item cannot be
 reduced to a referenceable base item, the entry is omitted.
 
 The **sender publishes every referenceable equipped item, vanilla or not**. All
-filtering happens on the receiver. That keeps the wire format ready for the
-future fallback system and lets receivers with the same mods see those items
-later without a protocol change.
+filtering happens on the receiver, which resolves an item from any plugin it has
+loaded. Peers that share a mod see its items; a peer missing the plugin drops
+the entry until the future fallback system fills it in.
 
 ### Fields
 
@@ -84,9 +84,9 @@ later without a protocol change.
 
 Plugin names are 1..260 characters and `formId` is `0..0xFFFFFF`, as in
 spec 006. The hint fields `slotMask`, `armorType`, and `weaponType` do not
-affect vanilla resolution in this phase. They exist for the future fallback. A
-receiver still validates them, but the locally resolved form is authoritative
-for how an item is equipped.
+affect resolution in this phase. They exist for the future fallback. A receiver
+still validates them, but the locally resolved form is authoritative for how an
+item is equipped.
 
 A hand holding nothing or bare fists (`WEAPON_TYPE` `0`) is `null`. Spell hands
 and `ammo` are specified in spec 011.
@@ -176,21 +176,19 @@ revision) and discards it on `player:left`. The main-loop pass stores it on the
 remote player state, independent of whether a actor reference currently
 exists. A rejected payload is logged with the name of the offending field.
 
-### Vanilla filter
+### Resolution filter
 
-An entry is accepted only if both of these hold:
-
-1. Its `plugin` is one of `Skyrim.esm`, `Update.esm`, `Dawnguard.esm`,
-   `HearthFires.esm`, or `Dragonborn.esm`, compared case-insensitively.
-2. The form resolves locally through `TESDataHandler::LookupForm` and has the
-   expected type: `TESObjectARMO` for `armor`, `TESObjectWEAP` for `weapon`, or
-   a carriable `TESObjectLIGH` for `torch`.
+An entry is accepted if the form resolves locally through
+`TESDataHandler::LookupForm` and has the expected type: `TESObjectARMO` for
+`armor`, `TESObjectWEAP` for `weapon`, or a carriable `TESObjectLIGH` for
+`torch`. The defining plugin is not restricted: an item from any plugin the
+receiver has loaded resolves, at whatever load-order index it sits locally.
 
 Everything else is dropped from the resolved set. Each drop is logged once per
-revision with player, plugin, form ID, and reason (`non-vanilla`, `missing`,
-`wrong-type`). A form defined by a vanilla plugin is accepted even when a local
-mod overrides its record, so the receiver sees its own local version of that
-item.
+revision with player, plugin, form ID, and reason (`missing`, `wrong-type`). A
+reference names the plugin that *defines* the form, so a form is still accepted
+when a local mod overrides its record, and the receiver sees its own version of
+that item.
 
 The filter is a single policy function that takes an entry and returns a
 resolved form or a drop reason. The future fallback system replaces the drop
@@ -275,8 +273,9 @@ Equipment changes never trigger a respawn.
   `FormLookup.{h,cpp}` encodes and resolves it for both appearance and
   equipment.
 - `EquipmentState.h` holds plain data plus `IsValidEquipment`, shared by capture
-  and the network parser. `PlayerEquipment.{h,cpp}` holds capture, the vanilla
-  filter, receive state, and reconciliation, mirroring the appearance split.
+  and the network parser. `PlayerEquipment.{h,cpp}` holds capture, the
+  resolution filter, receive state, and reconciliation, mirroring the appearance
+  split.
 - `FrameUpdate.cpp` calls reconciliation before animation state is advanced.
   It holds a sheathed-to-drawn step in `GetPresentableAnimationState` and gates
   attack dispatch on `AreHandsSettled`.
@@ -310,15 +309,15 @@ To verify in game:
 
 ## Acceptance criteria
 
-1. A remote actor shows the source's vanilla armor, clothing, jewelry, shield,
-   weapons in both hands, and torch.
+1. A remote actor shows the source's armor, clothing, jewelry, shield, weapons
+   in both hands, and torch, from any plugin the receiver also has.
 2. The actor's inventory holds exactly those items and nothing else, including
    after cell reload, respawn, and a hit reaction.
 3. Changing equipment on the source (menu, favorites, hotkey) updates the actor
    within 0.5 s with no respawn, equip animation, or sound.
 4. Late joiners see the current equipment without the source changing anything.
-5. Items from non-vanilla plugins are dropped on the receiver with a log entry.
-   A receiver with the same mods still drops them in this phase.
+5. Items whose defining plugin the receiver does not have are dropped with a log
+   entry. A receiver with the same mod shows them.
 6. Player-enchanted items appear as their unenchanted base item.
 7. Drawing a weapon right after spawn or a swap draws the synchronized weapon,
    and the next attack uses its animation.
