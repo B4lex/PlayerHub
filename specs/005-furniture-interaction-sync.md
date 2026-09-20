@@ -49,6 +49,11 @@ receiver uses the NPC path. It waits until:
 
 - the reference resolves to a loaded `TESFurniture` in the actor's coordinate
   space;
+- the actor has been ready for 1.5 seconds. An actor created in the pass the
+  local cell finished loading has not run one update with its do-nothing
+  package, its equipment, or a settled AI process; entry started there is
+  accepted, torn down by the engine within one pass of `IsSitting`, and leaves
+  the marker reserved;
 - the actor is ready, its locomotion has settled, and no attack, weapon, or
   graph-recovery transition is pending. A completed weapon clip counts as
   settled while the target is idle (after a sheathe, once the default state has
@@ -75,8 +80,19 @@ marker is unset, so the receiver repeats the entry once the weapon is sheathed,
 retrying every second. If no entry point is chosen within ten seconds, the
 occupancy is cleared and a fresh entry is attempted.
 
-The quick entry (ID 37324) is not used: it selects the `Idle*EnterInstant`
-records and skips the transition.
+The quick entry (ID 37324) selects the `Idle*EnterInstant` records and skips the
+transition, so it is used only to resume an interaction that began before the
+actor existed: a target assigned while the actor was still settling from its
+spawn started behind the local loading screen, and its entry idle already played
+on the source. Replaying it there would restart a sit the peer finished. A
+refusal falls back to the transition entry, which is used for every interaction
+the local player could have watched begin.
+
+ID 37330 reports success before the occupancy it records is observable, and
+sometimes records none at all. The entry is confirmed on a later pass, when the
+actor is seen occupying the target. An entry that is never confirmed is retried
+after 1.5 seconds rather than after the ten seconds allowed for an entry that
+was seated and then dropped.
 
 ### Use
 
@@ -100,7 +116,10 @@ When the checkpoint changes to zero or to a different reference:
   package, WantToStand/WantToWake, `IdleFurnitureExit`). The state machine
   returns it to Normal.
 - **Entry not yet seated:** there is no native exit to request, so the receiver
-  clears the occupancy and returns the state to Normal.
+  releases the actor's marker reservations, clears the occupancy, and returns
+  the state to Normal. Occupancy the actor took on a reference that was never
+  requested resolves the same way; if it survives three seconds of that, the
+  interaction is abandoned and retried from the entry path.
 - **Completion:** once the actor is unoccupied and Normal, the receiver restores
   the do-nothing package and rebuilds the latest locomotion checkpoint.
 - **Stuck exit:** after ten seconds the receiver clears the occupancy, forces
@@ -117,7 +136,10 @@ most ten seconds before the request is released and retried.
 - An already playing attack finishes before furniture entry.
 - Furniture exit finishes before newer locomotion or attacks are applied.
 - Actor respawn and coordinate-space changes discard local furniture progress
-  and reconstruct from the newest checkpoint.
+  and reconstruct from the newest checkpoint. A retired actor releases its
+  occupancy and its marker reservations first: reservations are keyed by actor
+  handle on the furniture reference, and one that outlives its actor makes
+  Skyrim refuse every entry point to the replacement.
 - Late join reconstructs occupancy from the repeated checkpoint field. Historical
   enter/exit transitions are not replayed.
 
