@@ -160,7 +160,10 @@ attack playing. The actor graph operations live in `ActorAnimation`:
   clip looping (observed in game). The stop completes once the caster is `kNone`
   and the hand's `IsCastingLeft`/`IsCastingRight` graph variable is false, or
   after 1 s. No new cast on that hand starts before then. A cast also stops
-  when the hand loses its spell.
+  when the hand loses its spell. Once no hand is still casting or stopping and
+  no other presentation is playing, locomotion is reasserted as after a normal
+  attack, because the cast's lower body exits into its standing state (see
+  spec 012 under "Moving lower body").
 - While a cast is held or stopping, the actor's registry entry marks cast
   ownership. The firewall then passes cast events (`MLh_*`, `MRh_*`,
   `DualMagic_*`, and names containing `Cast`), which the caster sends then and

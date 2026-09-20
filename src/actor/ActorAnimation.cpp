@@ -76,6 +76,21 @@ namespace ActorAnimation
         // actor that is still rejected after this long stays in SwimIdle.
         constexpr float kSwimMoveStartFallbackSeconds = 0.5F;
 
+        // A graph that rejects a locomotion edge is asked again on every pass until
+        // its retry budget runs out, which is a whole second of identical lines at a
+        // high frame rate. Report the first pass of such a burst and a sample of the
+        // wait; the dispatch that ends it carries the attempt count. Counting passes
+        // rather than seconds is intended: this only throttles the log.
+        constexpr bool ShouldReportEventRetry(std::uint32_t a_attempt) noexcept
+        {
+            constexpr std::uint32_t kEventRetryReportInterval = 60;
+            return a_attempt == 1 || a_attempt % kEventRetryReportInterval == 0;
+        }
+
+        static_assert(ShouldReportEventRetry(1));
+        static_assert(!ShouldReportEventRetry(2));
+        static_assert(ShouldReportEventRetry(60));
+
         // The native attack takes attackStart as its next combo swing in these
         // states; CombatSync captures the local player's chained swings from them.
         constexpr bool IsAttackChainWindow(RE::ATTACK_STATE_ENUM a_state) noexcept
@@ -1003,12 +1018,24 @@ namespace ActorAnimation
             {
                 return;
             }
-            logs::info("Animation sync stopped spell cast: actor={:08X} hand={} idle={} stopSeconds={:.3f}",
-                a_remote.handle.native_handle(), a_leftHand ? "left" : "right", idle,
-                state.castStopRequestElapsed[hand]);
+            const float stopSeconds = state.castStopRequestElapsed[hand];
             state.castStopping[hand] = false;
             state.castStopRequestElapsed[hand] = 0.0F;
             releaseCastOwnership();
+            // The cast's lower body exits into its standing state, so a moving actor
+            // would keep translating under an idle pose and slide, and its recorded
+            // moving state would reject the next moveStop. As after an attack, replay
+            // locomotion without touching the stance, once the last hand presentation
+            // has left the graph.
+            const bool presentationEnded = !IsBowOrCastPlaying(state) && !IsBlockPlaying(state);
+            if (presentationEnded)
+            {
+                state.attackLocomotionReassertPending = true;
+            }
+            logs::info(
+                "Animation sync stopped spell cast: actor={:08X} hand={} idle={} stopSeconds={:.3f} "
+                "reassertedLocomotion={}",
+                a_remote.handle.native_handle(), a_leftHand ? "left" : "right", idle, stopSeconds, presentationEnded);
             return;
         }
 
@@ -1280,7 +1307,6 @@ namespace ActorAnimation
         a_state.weaponDefaultStateDispatched = false;
         a_state.weaponReplayBaseDispatched = false;
         a_state.weaponTransitionMoveStartDispatched = false;
-        a_state.weaponReplayDiagnosticFramesRemaining = 0;
         a_state.weaponRestoredWithoutCompletion = false;
         a_state.attackPlaybackPending = false;
         a_state.attackPlaybackObserved = false;
@@ -1508,11 +1534,6 @@ namespace ActorAnimation
         static const RE::BSFixedString idleForceDefaultStateEvent{ "IdleForceDefaultState" };
         static const RE::BSFixedString inJumpStateVariable{ "bInJumpState" };
         static const RE::BSFixedString speedDampedVariable{ "SpeedDamped" };
-        static const RE::BSFixedString syncIdleLocomotionVariable{ "iSyncIdleLocomotion" };
-        static const RE::BSFixedString syncForwardStateVariable{ "iSyncForwardState" };
-        static const RE::BSFixedString syncSprintStateVariable{ "iSyncSprintState" };
-        static const RE::BSFixedString animationDrivenVariable{ "bAnimationDriven" };
-        static const RE::BSFixedString equipOKVariable{ "bEquipOk" };
 
         // The caller is already running in the authoritative main-loop hook.
         // Apply graph state before direct translation so a single network sample
@@ -1627,7 +1648,6 @@ namespace ActorAnimation
             animationState->weaponDefaultStateDispatched = false;
             animationState->weaponReplayBaseDispatched = false;
             animationState->weaponTransitionMoveStartDispatched = false;
-            animationState->weaponReplayDiagnosticFramesRemaining = 0;
             animationState->attackPlaybackPending = false;
             animationState->attackPlaybackObserved = false;
             animationState->attackChainDispatched = false;
@@ -1645,41 +1665,6 @@ namespace ActorAnimation
                 animationState->landingEventSinkGraph = graphManager.get();
                 logs::info("Registered actor animation output-event sink: actor={:08X}", actorHandle.native_handle());
             }
-        }
-
-        if (animationState->weaponReplayDiagnosticFramesRemaining != 0)
-        {
-            constexpr std::uint32_t kDiagnosticFrameCount = 30;
-            const auto diagnosticFrame
-                = kDiagnosticFrameCount - animationState->weaponReplayDiagnosticFramesRemaining + 1;
-            if (diagnosticFrame == 1 || diagnosticFrame == 2 || diagnosticFrame == 4 || diagnosticFrame == 8
-                || diagnosticFrame == 16 || diagnosticFrame == kDiagnosticFrameCount)
-            {
-                std::int32_t syncIdleLocomotion = 0;
-                std::int32_t syncForwardState = 0;
-                std::int32_t syncSprintState = 0;
-                bool animationDriven = false;
-                bool equipOK = false;
-                const bool syncIdleAvailable
-                    = actor->GetGraphVariableInt(syncIdleLocomotionVariable, syncIdleLocomotion);
-                const bool syncForwardAvailable
-                    = actor->GetGraphVariableInt(syncForwardStateVariable, syncForwardState);
-                const bool syncSprintAvailable = actor->GetGraphVariableInt(syncSprintStateVariable, syncSprintState);
-                const bool animationDrivenAvailable
-                    = actor->GetGraphVariableBool(animationDrivenVariable, animationDriven);
-                const bool equipOKAvailable = actor->GetGraphVariableBool(equipOKVariable, equipOK);
-                const auto* diagnosticActorState = actor->AsActorState();
-                const auto diagnosticWeaponState
-                    = diagnosticActorState ? diagnosticActorState->GetWeaponState() : RE::WEAPON_STATE::kSheathed;
-                logs::info(
-                    "Animation sync weapon replay timeline: actor={:08X} weaponDrawn={} frame={}/{} weaponState={} "
-                    "syncIdle={}/{} syncForward={}/{} syncSprint={}/{} animationDriven={}/{} equipOK={}/{}",
-                    actorHandle.native_handle(), animationState->weaponReplayDiagnosticWeaponDrawn, diagnosticFrame,
-                    kDiagnosticFrameCount, static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(diagnosticWeaponState),
-                    syncIdleAvailable, syncIdleLocomotion, syncForwardAvailable, syncForwardState, syncSprintAvailable,
-                    syncSprintState, animationDrivenAvailable, animationDriven, equipOKAvailable, equipOK);
-            }
-            --animationState->weaponReplayDiagnosticFramesRemaining;
         }
 
         if (animationState->landingCompletionPending && animationState->desiredJumping.load(std::memory_order_acquire))
@@ -1795,7 +1780,6 @@ namespace ActorAnimation
             animationState->weaponDefaultStateDispatched = false;
             animationState->weaponReplayBaseDispatched = false;
             animationState->weaponTransitionMoveStartDispatched = false;
-            animationState->weaponReplayDiagnosticFramesRemaining = 0;
             animationState->weaponRestoredWithoutCompletion = false;
         }
         const auto weaponState = actorState ? actorState->GetWeaponState() : RE::WEAPON_STATE::kSheathed;
@@ -2038,15 +2022,18 @@ namespace ActorAnimation
             && (stopEventAttempt < kMaximumEventDispatchAttempts
                 || animationState->rejectedEventElapsed < kLocomotionEventRetrySeconds))
         {
-            logs::info(
-                "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} "
-                "result=retrying-stop-events strings={} moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} "
-                "jumpEvent=deferred/{} eventAttempt={}/{}",
-                actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision), previousStateLabel,
-                hadPreviousState && previousState.jumping ? "jumping" : "grounded",
-                Multiplayer::GetMovementStateName(state.movementState), state.jumping ? "jumping" : "grounded",
-                stringsAvailable, moveAccepted, moveStopRequired, sneakAccepted, sneakStopRequired, sprintAccepted,
-                sprintStopRequired, jumpLandRequired, stopEventAttempt, kMaximumEventDispatchAttempts);
+            if (ShouldReportEventRetry(stopEventAttempt))
+            {
+                logs::info(
+                    "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} "
+                    "result=retrying-stop-events strings={} moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} "
+                    "jumpEvent=deferred/{} eventAttempt={}/{}",
+                    actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision), previousStateLabel,
+                    hadPreviousState && previousState.jumping ? "jumping" : "grounded",
+                    Multiplayer::GetMovementStateName(state.movementState), state.jumping ? "jumping" : "grounded",
+                    stringsAvailable, moveAccepted, moveStopRequired, sneakAccepted, sneakStopRequired, sprintAccepted,
+                    sprintStopRequired, jumpLandRequired, stopEventAttempt, kMaximumEventDispatchAttempts);
+            }
             ++animationState->rejectedEventAttempts;
             animationState->rejectedEventElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
             return;
@@ -2143,7 +2130,12 @@ namespace ActorAnimation
             const bool eventAttemptsExhausted = !eventsAccepted && eventAttempt >= kMaximumEventDispatchAttempts
                 && animationState->rejectedEventElapsed >= kLocomotionEventRetrySeconds;
             const bool stateProcessed = variablesAccepted && (eventsAccepted || eventAttemptsExhausted);
-            if (variablesAccepted || variableAttempt == 1 || variableAttempt % 60 == 0)
+            // A rejection burst repeats on every pass; only its outcome and a
+            // sample of the wait are worth a line.
+            const bool retryingEvents = variablesAccepted && !stateProcessed;
+            const bool reportDispatch = retryingEvents ? ShouldReportEventRetry(eventAttempt)
+                                                       : variablesAccepted || ShouldReportEventRetry(variableAttempt);
+            if (reportDispatch)
             {
                 logs::info(
                     "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} result={} "
@@ -2194,9 +2186,7 @@ namespace ActorAnimation
                         animationState->weaponDefaultStateDispatched = false;
                         animationState->weaponReplayBaseDispatched = false;
                         animationState->weaponTransitionMoveStartDispatched = false;
-                        animationState->weaponReplayDiagnosticFramesRemaining = 30;
                         animationState->weaponRestoredWithoutCompletion = !weaponCompletionWasObserved;
-                        animationState->weaponReplayDiagnosticWeaponDrawn = authoritativeState.weaponDrawn;
                         logs::info(
                             "Animation sync restored state after weapon transition: actor={:08X} state={} jumping={} "
                             "weaponDrawn={} completionMarkerObserved={} weaponState={} transitionWaitSeconds={:.3f} "

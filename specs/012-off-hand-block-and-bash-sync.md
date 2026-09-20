@@ -187,9 +187,9 @@ The lower bodies of the block (`Blocking_LowerBody_Behavior`), bow draw
 (`Bow_Attack_LowerBodyBehavior`), and cast (`DefaultMagicCastingBehavior`) state
 machines choose their standing or moving start state from
 `iSyncIdleLocomotion` when they are entered. The engine leaves it at 0 on a
-remote actor (the weapon replay diagnostics log it as 0 while running), so a
-block, bow draw, or cast started while moving would enter the standing pose
-while network translation continues. After such a start,
+remote actor (observed in game, including while running), so a block, bow draw,
+or cast started while moving would enter the standing pose while network
+translation continues. After such a start,
 `ActorAnimation::AdvancePresentationLocomotion` waits for the graph to enter the
 branch (two synchronization passes, and for a cast also its `IsCastingLeft` or
 `IsCastingRight` variable, for at most 0.5 s) and then sends `moveStart`, the
@@ -199,6 +199,15 @@ Nothing is sent while standing, while a bash owns the graph (its locomotion
 replay sends `moveStart`), or after the presentation has ended. Movement that
 starts later during a presentation reaches the lower body through the ordinary
 locomotion events.
+
+Leaving that lower body is the mirror case. Its exit returns the graph to the
+standing state of the base locomotion, so an actor that is still moving would
+translate under an idle pose. Every presentation therefore reasserts locomotion
+when it ends: the bow after its shot, the block once it is lowered, and the cast
+once no hand is still casting or stopping. The replay sends `moveStart`, and
+`sneakStart`/`sprintStart` where they apply, without touching the stance.
+Without it the actor slides, and the graph, which is no longer moving, then also
+rejects the next `moveStop` until its bounded retries time out.
 
 ## Isolation
 
