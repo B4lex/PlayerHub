@@ -3,6 +3,7 @@
 #include "actor/ActorRegistry.h"
 #include "runtime/GameThread.h"
 
+#include <atomic>
 #include <cmath>
 #include <memory>
 #include <optional>
@@ -293,6 +294,37 @@ namespace SurvivalPolicy
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
+        struct AliasPackageHook
+        {
+            static RE::TESPackage* Thunk(RE::Actor* a_actor)
+            {
+                // Quest and scene aliases recruit whatever NPCs are at hand: a remote
+                // actor standing in a tavern is filled into the bard audience and
+                // handed travel and applaud packages. Those outrank the do-nothing
+                // package, move the actor off the transform its peer is authoritative
+                // for, and are reselected every pass however often they are taken
+                // back. A remote actor is never a participant in local quests, so the
+                // package is refused at the point the engine asks for it.
+                if (!ActorRegistry::IsRegistered(a_actor))
+                {
+                    return _original(a_actor);
+                }
+
+                // Called from Skyrim's package evaluation, which is not confined to
+                // the main loop.
+                static std::atomic<std::uint32_t> s_refusedAliasPackageCount{ 0 };
+                const auto refusedCount = ++s_refusedAliasPackageCount;
+                if (refusedCount <= kInitialBlockedEventLogs || refusedCount % kBlockedEventLogInterval == 0)
+                {
+                    logs::info("Refused local alias package for remote actor: actor={:08X} count={}",
+                        a_actor ? a_actor->GetHandle().native_handle() : 0, refusedCount);
+                }
+                return nullptr;
+            }
+
+            static inline REL::Relocation<decltype(Thunk)> _original;
+        };
+
         bool IsLocalReactionPackage(RE::PACKAGE_TYPE a_packageType)
         {
             switch (a_packageType)
@@ -422,6 +454,11 @@ namespace SurvivalPolicy
         // not pass through Actor::HandleHealthDamage.
         REL::Relocation<std::uintptr_t> characterActorValueOwnerVTable{ RE::VTABLE_Character[5] };
         ActorValueHook::_original = characterActorValueOwnerVTable.write_vfunc(0x6, ActorValueHook::Thunk);
+
+        // Actor::CheckForCurrentAliasPackage. Its index is below the first entry
+        // VR shifts, so it is the same on every runtime.
+        AliasPackageHook::_original = characterVTable.write_vfunc(0x49, AliasPackageHook::Thunk);
+        logs::info("Remote actor package suppression hook: aliasPackage=true");
     }
 
     void RegisterEventSinks()
@@ -502,6 +539,29 @@ namespace SurvivalPolicy
         }
     }
 
+    void AssertDoNothingPackage(RE::Actor& a_actor)
+    {
+        a_actor.InitiateDoNothingPackage();
+
+        // The do-nothing package alone loses to the packages quest and scene
+        // systems assign to a bystander: a remote actor standing in a tavern is
+        // recruited as bard audience and sent travelling, and reselection wins
+        // again on the next pass however often it is taken back. A run-once
+        // package outranks those and survives reselection, so the do-nothing
+        // package is installed as one.
+        auto* process = a_actor.GetActorRuntimeData().currentProcess;
+        if (!process)
+        {
+            return;
+        }
+
+        auto* doNothingPackage = process->currentPackage.package;
+        if (doNothingPackage && doNothingPackage->packData.packType.get() == RE::PACKAGE_TYPE::kDoNothing)
+        {
+            process->SetRunOncePackage(doNothingPackage, std::addressof(a_actor));
+        }
+    }
+
     void SanitizeRemoteCombatState(RE::Actor& a_actor, bool a_mayResetPackage)
     {
         auto& runtimeData = a_actor.GetActorRuntimeData();
@@ -515,8 +575,7 @@ namespace SurvivalPolicy
         // nothing above catches it, and which sheathes the weapon it has no reason
         // to hold, fighting the authoritative weapon state for as long as it runs.
         // A remote actor is driven by the do-nothing package alone.
-        const bool unownedPackage
-            = a_mayResetPackage && currentPackage && packageType != RE::PACKAGE_TYPE::kDoNothing;
+        const bool unownedPackage = a_mayResetPackage && currentPackage && packageType != RE::PACKAGE_TYPE::kDoNothing;
         const bool wasInCombat = a_actor.IsInCombat();
         const bool hadCombatTarget = static_cast<bool>(runtimeData.currentCombatTarget);
 
@@ -557,7 +616,7 @@ namespace SurvivalPolicy
         }
         if (needsAIReset || unownedPackage)
         {
-            a_actor.InitiateDoNothingPackage();
+            AssertDoNothingPackage(a_actor);
         }
         if (unownedPackage)
         {

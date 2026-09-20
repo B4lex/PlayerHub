@@ -48,9 +48,11 @@ namespace ActorRuntime
         // reasserted, especially during town-wide alarm/flee evaluation. Mutate
         // package and weapon state only at this established main-loop boundary,
         // never from inside Skyrim's per-actor update hook. Sanitization owns the
-        // package only once the actor is ready, which installs its first one below,
-        // and while no furniture interaction is running one of its own.
-        SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready && !furnitureLifecycleActive);
+        // package once the actor is ready, which installs its first one below.
+        // Furniture interactions run on the do-nothing package as well, and a
+        // package the engine selects while one runs takes the occupancy back.
+        // Installing the do-nothing package does not clear furniture occupancy.
+        SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready);
         if (ActorAnimation::RecoverAuthoritativeAnimation(*actor, a_remote, a_deltaTime))
         {
             // Keep transform and graph writes paused until the reverted graph and its
@@ -86,7 +88,7 @@ namespace ActorRuntime
 
             // Keep the actor in the normal update pipeline, but give it no autonomous
             // travel package. The update hook suppresses only its combat decisions.
-            actor->InitiateDoNothingPackage();
+            SurvivalPolicy::AssertDoNothingPackage(*actor);
             a_remote.ready = true;
             logs::info(
                 "Remote actor actor became ready: actor={:08X} base={:08X} desired={} hasCollision={} aiEnabled={} "

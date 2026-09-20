@@ -11,8 +11,8 @@ inventory, recipes, menus, skill gains, and produced items are not synchronized.
 ## Goal
 
 Show a remote player entering, using, and leaving the same world furniture as
-the source player, with Skyrim's native entry point, entry idle, furniture idle,
-and exit animation.
+the source player, with Skyrim's native entry point, entry idle, and furniture
+idle. The exit animation is out of scope; see Exit for why.
 
 ## Protocol
 
@@ -60,8 +60,22 @@ receiver uses the NPC path. It waits until:
   been forced), even though its locomotion replay stays armed for later
   movement;
 - the actor is within 24 units of the latest checkpoint;
-- the furniture has an available marker (ID 20162), within 96 units (2D) of the
-  actor.
+- the furniture has an available marker (ID 20162), and one of its markers is
+  within 96 units (2D) of the actor. The distance is measured to the nearest
+  marker, not the one the probe returns: the probe returns the first free
+  index while the native entry picks its own entry point, so on a bench the
+  probe's marker can lie at the far end while the actor stands beside another
+  seat, which held the entry back silently for as long as the source sat;
+- the local player does not occupy that same reference. Each peer keeps its own
+  world, so both players can be assigned one reference, and the marker probe
+  does not report the player's own occupancy. The native entry then records
+  occupancy which the engine takes back on the next pass, restarting the entry
+  idle for as long as the player stays seated, so nothing is ever played. Two
+  actors on one marker is a non-goal; entry waits for the player to leave.
+
+Each of the settled-locomotion, animation-transition, checkpoint-distance and
+marker-distance gates logs once when it starts holding a request, with the
+distances involved.
 
 It does not wait for the source to settle on the marker, which would delay the
 actor by the source's whole entry idle. The native entry aligns the actor to
@@ -80,13 +94,10 @@ marker is unset, so the receiver repeats the entry once the weapon is sheathed,
 retrying every second. If no entry point is chosen within ten seconds, the
 occupancy is cleared and a fresh entry is attempted.
 
-The quick entry (ID 37324) selects the `Idle*EnterInstant` records and skips the
-transition, so it is used only to resume an interaction that began before the
-actor existed: a target assigned while the actor was still settling from its
-spawn started behind the local loading screen, and its entry idle already played
-on the source. Replaying it there would restart a sit the peer finished. A
-refusal falls back to the transition entry, which is used for every interaction
-the local player could have watched begin.
+The quick entry (ID 37324) is not used: it selects the `Idle*EnterInstant`
+records and skips the transition. Resuming an interaction that began before the
+actor existed through it was tried and reverted; it did not reproduce the
+source's seated state.
 
 ID 37330 reports success before the occupancy it records is observable, and
 sometimes records none at all. The entry is confirmed on a later pass, when the
@@ -102,6 +113,13 @@ it from package procedure branches the actor's do-nothing package never takes.
 The state machine plays the entry idle (WantToSit → WaitingForSitAnim), and the
 behavior graph completes IsSitting.
 
+The actor stays on its do-nothing package throughout, and any other package
+the engine selects is taken back as it is outside furniture (spec 008,
+"Package takeover"). A package running during an entry takes the occupancy back
+before the next pass. Scene package actions, such as the bard audience sent to
+dance while a bard sings, are refused for remote actors (spec 008, "Scene
+packages").
+
 While a furniture interaction is active, furniture owns the actor. Network
 translation, heading, locomotion changes, weapon changes, and queued attacks
 wait. The animation firewall admits Skyrim's locally generated graph events for
@@ -112,14 +130,54 @@ policies remain enforced independently.
 
 When the checkpoint changes to zero or to a different reference:
 
-- **Seated actor:** the receiver requests the native exit once per second (get-up
-  package, WantToStand/WantToWake, `IdleFurnitureExit`). The state machine
-  returns it to Normal.
+- **Seated actor:** the receiver sets WantToStand/WantToWake and sends
+  `IdleFurnitureExit` on the same pass, which leaves the furniture graph node.
+  The state is retried once per second while the actor has not entered one of
+  those states, and is not reissued once it has. The actor returns to Normal in
+  about 200ms. Any run-once package is released on completion.
+
+  No get-up package is installed. ID 39861 ignores WantToStand, so it drives
+  nothing for an actor whose do-nothing package never reaches a procedure, while
+  `InitiateGetUpPackage` installs a run-once package whose procedure can never
+  finish once the actor has left the furniture. That package outranks the
+  do-nothing package and survives it, so combat sanitization retakes it every
+  pass for the rest of the session, and the engine moves the actor off its
+  marker in between. One capture showed it taken back over 13,000 times,
+  starting five milliseconds after the first furniture exit.
+
+  **The exit animation is not synchronized.** ID 37332 -> 39861 in 1.7.104
+  dispatches on sit/sleep state and handles only WantToSit, WaitingForSitAnim,
+  WantToSleep and WaitingForSleepAnim; WantToStand and WantToWake fall through
+  to its epilogue untouched. Entry idles are played from there through ID 40156,
+  which is passed `furnitureIdle` at `middleHigh+0x228`. Nothing native drives
+  the exit for an actor whose do-nothing package reaches no procedure. Three
+  approaches were tried against captures and all failed, none of which should be
+  repeated:
+  - Deferring `IdleFurnitureExit` so a native get-up could select and play an
+    exit idle. `furnitureIdle` stayed on the entry idle for the whole wait;
+    39861 shows why nothing is ever selected. The delay also broke exits
+    outright, because a source sitting and standing repeatedly cycles faster
+    than it, and every return to the furniture restarted the exit.
+  - Selecting the exit idle from the entry idle's siblings under its parent and
+    playing it through `AIProcess::PlayIdle`. The siblings are not enter/exit
+    pairs: parent `0001379F` holds four directional entry variants, so the
+    search returned another entry idle for one chair and nothing for the rest.
+    `PlayIdle` also refused every call.
+  - Holding locomotion after the actor returned to Normal, so a graph-driven
+    exit animation would not be overwritten by the dispatch reconstruction.
+
 - **Entry not yet seated:** there is no native exit to request, so the receiver
-  releases the actor's marker reservations, clears the occupancy, and returns
-  the state to Normal. Occupancy the actor took on a reference that was never
-  requested resolves the same way; if it survives three seconds of that, the
-  interaction is abandoned and retried from the entry path.
+  releases the actor's marker reservations, clears the occupancy, returns the
+  state to Normal, and forces `IdleForceDefaultState`. The event matters: the
+  engine bookkeeping is not what is playing the entry idle. Left alone, that
+  idle reaches its seated node a second later and the engine sets IsSitting on
+  an actor which occupies nothing. Occupancy the actor took on a reference that
+  was never requested resolves the same way; if it survives three seconds of
+  that, the interaction is abandoned and retried from the entry path.
+- **Seated without occupancy:** a sit/sleep state other than Normal is unwound
+  even when no occupancy, request, or target is left to key on, through the same
+  native exit as a seated actor. Nothing else observes that state, so without it
+  the actor holds the pose until something unrelated resets its graph.
 - **Completion:** once the actor is unoccupied and Normal, the receiver restores
   the do-nothing package and rebuilds the latest locomotion checkpoint.
 - **Stuck exit:** after ten seconds the receiver clears the occupancy, forces
