@@ -1,5 +1,6 @@
 #include "actor/ActorRuntime.h"
 #include "actor/ActorAnimation.h"
+#include "actor/ActorConstants.h"
 #include "actor/ActorFurniture.h"
 #include "actor/ActorMovement.h"
 #include "actor/ActorRegistry.h"
@@ -8,11 +9,16 @@
 #include "actor/SurvivalPolicy.h"
 #include "runtime/GameThread.h"
 
+#include <algorithm>
+
 namespace ActorRuntime
 {
     namespace
     {
         constexpr std::uint32_t kActorInitializationLogInterval = 120;
+        // Saturation point for RemoteActor::readyElapsed. It only has to outlast the
+        // longest spawn settling gate, so it never grows without bound.
+        constexpr float kReadyElapsedCeilingSeconds = 10.0F;
     }
 
     bool Update(RemoteActor& a_remote, float a_deltaTime, std::optional<Multiplayer::AnimationState> a_translationState)
@@ -88,6 +94,14 @@ namespace ActorRuntime
                 a_remote.handle.native_handle(), actor->GetActorBase() ? actor->GetActorBase()->GetFormID() : 0,
                 Multiplayer::GetMovementStateName(a_remote.animation->targetAnimationState.movementState),
                 actor->HasCollision(), actor->IsAIEnabled(), a_remote.initializationWaitFrames);
+        }
+        else if (a_remote.readyElapsed < kReadyElapsedCeilingSeconds)
+        {
+            // Accumulated here rather than in a feature module: this is the one pass
+            // that always runs for a ready actor, whatever a feature does below.
+            a_remote.readyElapsed
+                = (std::min)(a_remote.readyElapsed + std::clamp(a_deltaTime, 0.0F, ActorConstants::kMaximumFrameTime),
+                    kReadyElapsedCeilingSeconds);
         }
         if (actor->Is3DLoaded())
         {

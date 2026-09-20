@@ -25,5 +25,9 @@ struct RemoteActor
     // Main-loop passes spent waiting for 3D, controller, and graph; only used to
     // throttle initialization logs.
     std::uint32_t initializationWaitFrames{ 0 };
+    // Seconds the actor has been ready, saturated once it is past every settling
+    // gate. An actor created in the pass a cell load finished still has its
+    // package, equipment, and AI process being installed around it.
+    float readyElapsed{ 0.0F };
     bool ready{ false };
 };

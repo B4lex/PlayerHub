@@ -1,5 +1,6 @@
 #include "actor/ActorSpawner.h"
 #include "actor/ActorAnimation.h"
+#include "actor/ActorFurniture.h"
 #include "actor/ActorRegistry.h"
 #include "actor/SurvivalPolicy.h"
 #include "runtime/GameThread.h"
@@ -114,8 +115,16 @@ namespace ActorSpawner
             return;
         }
 
-        ActorRegistry::Unregister(a_remote);
         auto actorPtr = a_remote.handle.get();
+        if (actorPtr)
+        {
+            // Before the registration is dropped and the reference is deleted: a
+            // deleted actor keeps the marker it reserved on its furniture, and
+            // Skyrim then refuses every entry point on that furniture to the
+            // replacement actor until the reservation expires.
+            ActorFurniture::ReleaseFurniture(*actorPtr, a_remote);
+        }
+        ActorRegistry::Unregister(a_remote);
         if (!actorPtr)
         {
             return;
