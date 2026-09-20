@@ -1,6 +1,7 @@
 #include "runtime/PluginStartup.h"
 #include "actor/AnimationFirewall.h"
 #include "actor/CombatIsolation.h"
+#include "actor/ReactionSuppression.h"
 #include "actor/RemoteCollision.h"
 #include "actor/SurvivalPolicy.h"
 #include "network/SocketIOClient.h"
@@ -18,11 +19,12 @@ namespace PluginStartup
             AnimationFirewall::InstallHooks();
             SurvivalPolicy::InstallHooks();
             CombatIsolation::InstallHooks();
+            ReactionSuppression::InstallHooks();
             RemoteCollision::InstallHooks();
 
             logs::info(
-                "Installed remote-replica actor policy, damage/kill firewall, magic firewall, animation firewall, and "
-                "pass-through collision");
+                "Installed remote-replica actor policy, damage/kill firewall, magic firewall, animation firewall, "
+                "reaction suppression, and pass-through collision");
         }
 
         void OnDataLoaded()
@@ -39,8 +41,8 @@ namespace PluginStartup
     {
         // Remote-actor entry detours and the UI overlay use the trampoline too,
         // so allocate first.
-        SKSE::AllocTrampoline(14 + CombatIsolation::kTrampolineSize + RemoteCollision::kTrampolineSize
-            + UI::Overlay::kTrampolineSize);
+        SKSE::AllocTrampoline(14 + CombatIsolation::kTrampolineSize + ReactionSuppression::kTrampolineSize
+            + RemoteCollision::kTrampolineSize + UI::Overlay::kTrampolineSize);
         InstallRemoteActorHooks();
         MainLoopHook::Install();
         UI::Overlay::Install();

@@ -109,6 +109,19 @@ namespace ActorRegistry
         return s_registrations.contains(static_cast<const RE::IAnimationGraphManagerHolder*>(a_actor));
     }
 
+    bool IsRegistered(RE::ActorHandle a_handle)
+    {
+        const auto nativeHandle = a_handle.native_handle();
+        if (nativeHandle == 0)
+        {
+            return false;
+        }
+
+        std::scoped_lock lock{ s_mutex };
+        return std::ranges::any_of(s_registrations,
+            [nativeHandle](const auto& a_entry) { return a_entry.second.actorHandle == nativeHandle; });
+    }
+
     bool EnableAnimationFirewall(const RemoteActor& a_remote)
     {
         std::scoped_lock lock{ s_mutex };

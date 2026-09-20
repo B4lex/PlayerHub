@@ -9,9 +9,7 @@
 
 struct RemoteActor;
 
-// Registered remote actor identity and the observations engine hooks record for
-// it. Every operation takes the registry lock, so hook callbacks on worker
-// threads may use them; they never touch PeerState or mutate a graph.
+
 namespace ActorRegistry
 {
     // Main-loop thread only. Registration precedes the first hook observation of
@@ -20,13 +18,14 @@ namespace ActorRegistry
     void Unregister(RemoteActor& a_remote);
 
     [[nodiscard]] bool IsRegistered(const RE::Actor* a_actor);
+    // For hooks that only hold a handle; avoids resolving it on a worker thread.
+    [[nodiscard]] bool IsRegistered(RE::ActorHandle a_handle);
 
     // Returns true only when the firewall was newly activated.
     [[nodiscard]] bool EnableAnimationFirewall(const RemoteActor& a_remote);
     void DisableAnimationFirewall(const RemoteActor& a_remote);
     void SetFurnitureAnimationOwned(const RemoteActor& a_remote, bool a_owned);
-    // A network spell cast is running through the actor's own magic caster, which
-    // drives the graph and needs casting enabled until the cast has stopped.
+
     void SetCastAnimationOwned(const RemoteActor& a_remote, bool a_owned);
     [[nodiscard]] bool IsCastAnimationOwned(const RE::Actor* a_actor);
 
@@ -39,9 +38,7 @@ namespace ActorRegistry
     };
 
     [[nodiscard]] std::optional<GraphInput> FindGraphInput(const RE::IAnimationGraphManagerHolder* a_holder);
-    // Counts an accepted SwimStart (a_started) or swimStop for the holder.
     void RecordSwimTransition(const RE::IAnimationGraphManagerHolder* a_holder, bool a_started);
-    // Returns the event's blocked count, or zero for an unregistered holder.
     [[nodiscard]] std::uint32_t RecordBlockedGraphEvent(
         const RE::IAnimationGraphManagerHolder* a_holder, const char* a_eventName);
 
@@ -65,7 +62,6 @@ namespace ActorRegistry
     void SetAuthoritativeWeaponDrawnState(const RemoteActor& a_remote, bool a_weaponDrawn);
     [[nodiscard]] std::optional<bool> GetAuthoritativeWeaponDrawnState(const RE::Actor& a_actor);
 
-    // Each returns {actor handle, running count}, or zeros when unregistered.
     [[nodiscard]] std::pair<std::uint32_t, std::uint32_t> BlockMagicEffect(const RE::MagicTarget* a_target);
     [[nodiscard]] std::pair<std::uint32_t, std::uint32_t> BlockHealthDamage(const RE::Actor* a_actor);
     [[nodiscard]] std::pair<std::uint32_t, std::uint32_t> BlockHealthActorValueDamage(
@@ -79,10 +75,8 @@ namespace ActorRegistry
     [[nodiscard]] std::uint32_t ConsumeWeaponTransitionEnds(const RemoteActor& a_remote);
     [[nodiscard]] std::uint32_t ConsumeJumpLandEnds(const RemoteActor& a_remote);
     [[nodiscard]] std::uint32_t ConsumeCombatSanitizationRequests(const RE::Actor& a_actor);
-    // bashExit annotations: a bash clip ended, into the block or the ready state.
     [[nodiscard]] std::uint32_t ConsumeBashExits(const RE::Actor& a_actor);
 
     void SetLandingCompletionObservation(const RE::Actor& a_actor, bool a_allowed);
-    // Arms JumpLandEnd observation after the grounded transform and variables.
     void ArmJumpLandEndObservation(const RE::Actor& a_actor);
 }

@@ -20,5 +20,4 @@ CMakeLists.txt
 !.gitkeep
 deploy_dirs/*
 
-latest.log
-remote/*
+*.log

@@ -502,7 +502,7 @@ namespace SurvivalPolicy
         }
     }
 
-    void SanitizeRemoteCombatState(RE::Actor& a_actor)
+    void SanitizeRemoteCombatState(RE::Actor& a_actor, bool a_mayResetPackage)
     {
         auto& runtimeData = a_actor.GetActorRuntimeData();
         const auto cowerRequests = ActorRegistry::ConsumeCombatSanitizationRequests(a_actor);
@@ -510,6 +510,13 @@ namespace SurvivalPolicy
         const auto* currentPackage = a_actor.GetCurrentPackage();
         const auto packageType = currentPackage ? currentPackage->packData.packType.get() : RE::PACKAGE_TYPE::kNone;
         const bool reactionPackage = IsLocalReactionPackage(packageType);
+        // A hit makes the engine re-evaluate packages. It then picks
+        // DefaultMasterPackage (kPackage), which is not a reaction package, so
+        // nothing above catches it, and which sheathes the weapon it has no reason
+        // to hold, fighting the authoritative weapon state for as long as it runs.
+        // A remote actor is driven by the do-nothing package alone.
+        const bool unownedPackage
+            = a_mayResetPackage && currentPackage && packageType != RE::PACKAGE_TYPE::kDoNothing;
         const bool wasInCombat = a_actor.IsInCombat();
         const bool hadCombatTarget = static_cast<bool>(runtimeData.currentCombatTarget);
 
@@ -543,10 +550,29 @@ namespace SurvivalPolicy
             {
                 a_actor.StopAlarmOnActor();
             }
-            a_actor.InitiateDoNothingPackage();
             if (a_actor.GetEmotionType() == RE::EmotionType::kFear)
             {
                 a_actor.SetEmotionType(RE::EmotionType::kNeutral);
+            }
+        }
+        if (needsAIReset || unownedPackage)
+        {
+            a_actor.InitiateDoNothingPackage();
+        }
+        if (unownedPackage)
+        {
+            // Counted separately from the sanitization passes below: a takeover
+            // lasts a frame or two, far inside their logging interval, so it would
+            // otherwise leave no trace of the package the engine had selected.
+            // Main-loop thread only, like the rest of this function.
+            static std::uint32_t s_packageTakeoverCount = 0;
+            const auto takeoverCount = ++s_packageTakeoverCount;
+            if (takeoverCount <= kInitialBlockedEventLogs || takeoverCount % kBlockedEventLogInterval == 0)
+            {
+                logs::info("Took back local actor package: actor={:08X} package={} packageForm={:08X} count={}",
+                    a_actor.GetHandle().native_handle(),
+                    static_cast<std::underlying_type_t<RE::PACKAGE_TYPE>>(packageType), currentPackage->GetFormID(),
+                    takeoverCount);
             }
         }
 
@@ -564,17 +590,18 @@ namespace SurvivalPolicy
             observationRequestCount = requestCount;
         }
 
-        if (needsAIReset || weaponTransitionPending)
+        if (needsAIReset || unownedPackage || weaponTransitionPending)
         {
             const auto [actorHandle, sanitizationCount] = ActorRegistry::RecordCombatSanitization(a_actor);
             if (cowerRequests != 0 || sanitizationCount <= kInitialBlockedEventLogs
                 || sanitizationCount % kBlockedEventLogInterval == 0)
             {
                 logs::info(
-                    "Sanitized local actor combat presentation: actor={:08X} cowerEvents={} package={} combat={} "
-                    "target={} fleeing={} weaponState={} desiredWeaponDrawn={} sanitization={} observationRequest={}",
+                    "Sanitized local actor combat presentation: actor={:08X} cowerEvents={} package={} "
+                    "unownedPackage={} combat={} target={} fleeing={} weaponState={} desiredWeaponDrawn={} "
+                    "sanitization={} observationRequest={}",
                     actorHandle, cowerRequests, static_cast<std::underlying_type_t<RE::PACKAGE_TYPE>>(packageType),
-                    wasInCombat, hadCombatTarget, wasFleeing,
+                    unownedPackage, wasInCombat, hadCombatTarget, wasFleeing,
                     static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(weaponState), authoritativeWeaponDrawn,
                     sanitizationCount, observationRequestCount);
             }
