@@ -35,11 +35,16 @@ namespace ActorRuntime
             ActorAnimation::AdvanceAttackPlayback(*actor, *a_remote.animation, a_deltaTime);
         }
         SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);
+        // Evaluated once per pass, before anything below starts or ends an
+        // interaction: the furniture gates below ask about the same pass.
+        const bool furnitureLifecycleActive = ActorFurniture::IsFurnitureInteractionPlaying(a_remote);
         // Combat packages can be selected before the suppression flags are
         // reasserted, especially during town-wide alarm/flee evaluation. Mutate
         // package and weapon state only at this established main-loop boundary,
-        // never from inside Skyrim's per-actor update hook.
-        SurvivalPolicy::SanitizeRemoteCombatState(*actor);
+        // never from inside Skyrim's per-actor update hook. Sanitization owns the
+        // package only once the actor is ready, which installs its first one below,
+        // and while no furniture interaction is running one of its own.
+        SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready && !furnitureLifecycleActive);
         if (ActorAnimation::RecoverAuthoritativeAnimation(*actor, a_remote, a_deltaTime))
         {
             // Keep transform and graph writes paused until the reverted graph and its
@@ -90,8 +95,6 @@ namespace ActorRuntime
             // disables the firewall again, which would log every pass.
             AnimationFirewall::Enable(a_remote);
         }
-        const bool furnitureLifecycleActive
-            = a_remote.furniture.requestedFurnitureRefID != 0 || a_remote.furniture.furnitureAnimationOwned;
         if (furnitureLifecycleActive && ActorFurniture::AdvanceFurnitureInteraction(*actor, a_remote, a_deltaTime))
         {
             // Once native entry starts, furniture owns placement, heading, and the
