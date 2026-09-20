@@ -23,6 +23,21 @@ namespace ActorSpawner
             auto* tes = RE::TES::GetSingleton();
             return tes ? tes->GetCell(a_position) : nullptr;
         }
+
+        // TESObjectREFR::CheckSaveGame returns false for a reference flagged as
+        // permanently deleted, and the change-form writer then drops its record.
+        void SetReferenceExcludedFromSaves(RE::TESObjectREFR& a_reference, bool a_excluded)
+        {
+            constexpr auto kPermanentlyDeleted = RE::TESForm::InGameFormFlag::kRefPermanentlyDeleted;
+            if (a_excluded)
+            {
+                a_reference.inGameFormFlags.set(kPermanentlyDeleted);
+            }
+            else
+            {
+                a_reference.inGameFormFlags.reset(kPermanentlyDeleted);
+            }
+        }
     }
 
     std::optional<RemoteActor> Spawn(RE::TESNPC* a_npcBase, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
@@ -133,6 +148,14 @@ namespace ActorSpawner
         auto* actor = actorPtr.get();
         actor->Disable();
         actor->SetDelete(true);
+        // Deleting a reference does not retire the change form the save writer
+        // keeps for it, so a retired actor is still written into every later save
+        // of that playthrough. Such a record carries the runtime actor base the
+        // reference was spawned from, and that base is never serialized: on load
+        // the record binds to whichever dynamic form receives the same ID while
+        // the save is replayed, and the load crashes. The exclusion is permanent
+        // because nothing restores a reference that is being destroyed.
+        SetReferenceExcludedFromSaves(*actor, true);
     }
 
     bool IsSpawnLocationLoaded(const RE::NiPoint3& a_position)
@@ -154,14 +177,6 @@ namespace ActorSpawner
             return;
         }
 
-        constexpr auto kPermanentlyDeleted = RE::TESForm::InGameFormFlag::kRefPermanentlyDeleted;
-        if (a_excluded)
-        {
-            actorPtr->inGameFormFlags.set(kPermanentlyDeleted);
-        }
-        else
-        {
-            actorPtr->inGameFormFlags.reset(kPermanentlyDeleted);
-        }
+        SetReferenceExcludedFromSaves(*actorPtr, a_excluded);
     }
 }
