@@ -108,7 +108,7 @@ which would otherwise also publish every shot as `attack/normal`.
 - A placeholder in a hand that should be empty is removed with
   `Actor::DeselectSpell`. A weapon or torch that should replace it is equipped
   over it.
-- Accepted `ammo` goes through the same vanilla filter as other items
+- Accepted `ammo` goes through the same resolution filter as other items
   (`TESAmmo`). Twenty are kept in inventory and equipped, which fills the
   quiver. Remote shots never spend them.
 - `handsMatch` now also requires the equipped ammo to match. That way a bow

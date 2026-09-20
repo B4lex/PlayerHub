@@ -5,9 +5,7 @@
 #include "network/SocketIOClient.h"
 
 #include <algorithm>
-#include <array>
 #include <atomic>
-#include <cctype>
 #include <cmath>
 #include <limits>
 #include <map>
@@ -32,11 +30,6 @@ namespace EquipmentSync
         // Enough arrows for the quiver to look filled. Remote bow shots never
         // consume them.
         constexpr std::int32_t kSynchronizedAmmoCount = 20;
-
-        // Items are only accepted from plugins every Skyrim SE/AE install has. A
-        // future fallback replaces the drop branch of the Resolve* policy below.
-        constexpr std::array<std::string_view, 5> kAcceptedItemPlugins{ "Skyrim.esm", "Update.esm", "Dawnguard.esm",
-            "HearthFires.esm", "Dragonborn.esm" };
 
         using Multiplayer::EquipmentArmor;
         using Multiplayer::EquipmentArmorType;
@@ -72,20 +65,6 @@ namespace EquipmentSync
                 return RE::BSEventNotifyControl::kContinue;
             }
         };
-
-        bool EqualsIgnoreCase(std::string_view a_first, std::string_view a_second)
-        {
-            return std::ranges::equal(a_first, a_second, [](char a_left, char a_right) {
-                return std::tolower(static_cast<unsigned char>(a_left))
-                    == std::tolower(static_cast<unsigned char>(a_right));
-            });
-        }
-
-        bool IsAcceptedItemPlugin(std::string_view a_plugin)
-        {
-            return std::ranges::any_of(kAcceptedItemPlugins,
-                [a_plugin](std::string_view a_accepted) { return EqualsIgnoreCase(a_plugin, a_accepted); });
-        }
 
         bool IsPlayableRace(const RE::TESRace* a_race)
         {
@@ -259,14 +238,12 @@ namespace EquipmentSync
             std::string_view dropReason;
         };
 
-        // The single receive policy: resolve an accepted entry to a local form, or
-        // return why it is dropped. The future fallback system replaces the drops.
+        // The single receive policy: resolve an entry to a local form of the
+        // expected type, or return why it is dropped. Any plugin the receiver has
+        // loaded resolves; a plugin the receiver is missing drops the entry. The
+        // future fallback system replaces the drops.
         Resolution<RE::TESObjectARMO> ResolveArmor(const EquipmentArmor& a_entry)
         {
-            if (!IsAcceptedItemPlugin(a_entry.form.plugin))
-            {
-                return { .dropReason = "non-vanilla" };
-            }
             auto* form = FormLookup::ResolveForm(a_entry.form);
             if (!form)
             {
@@ -282,10 +259,6 @@ namespace EquipmentSync
 
         Resolution<RE::TESAmmo> ResolveAmmo(const Multiplayer::FormReference& a_reference)
         {
-            if (!IsAcceptedItemPlugin(a_reference.plugin))
-            {
-                return { .dropReason = "non-vanilla" };
-            }
             auto* form = FormLookup::ResolveForm(a_reference);
             if (!form)
             {
@@ -309,10 +282,6 @@ namespace EquipmentSync
                     return { .dropReason = "missing-placeholder-spell" };
                 }
                 return { .form = spell };
-            }
-            if (!IsAcceptedItemPlugin(a_entry.form.plugin))
-            {
-                return { .dropReason = "non-vanilla" };
             }
             auto* form = FormLookup::ResolveForm(a_entry.form);
             if (!form)

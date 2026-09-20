@@ -26,7 +26,7 @@ The refactor also transitions project-owned `Actor` and `NPCSpawner` names to
 | `FrameUpdate.cpp` local attack observation, queued actions, `AdvanceAnimationAction` | Attack edge capture, graph-epoch/action ordering, bounded queue and dispatch | `sync/combat/CombatSync` |
 | `FrameUpdate.cpp` furniture capture and target staging, `NPCSpawner.cpp` native furniture lifecycle | Occupancy checkpoint, entry/use/exit and graph ownership | `sync/furniture/FurnitureSync` plus `actor/ActorFurniture` |
 | `PlayerAppearance.*` | Local revisions, received appearance, base construction, tint, respawn request | `sync/appearance/AppearanceSync` (may initially wrap existing files) |
-| `PlayerEquipment.*` | Local revisions/events, vanilla resolution, remote actor inventory reconciliation, hand readiness | `sync/equipment/EquipmentSync` (may initially wrap existing files) |
+| `PlayerEquipment.*` | Local revisions/events, form resolution, remote actor inventory reconciliation, hand readiness | `sync/equipment/EquipmentSync` (may initially wrap existing files) |
 | `NPCSpawner.cpp` spawn/init/remove and `UpdateControlledNPC` | Actor creation and retirement; per-actor engine application | `actor/ActorSpawner`, `actor/ActorRuntime` |
 | `NPCSpawner.cpp` graph firewall, event observations, damage/magic/combat detours and survival policy | Hook installation, registration, worker-thread-safe identity, isolation | `actor/ActorRegistry`, `actor/AnimationFirewall`, `actor/CombatIsolation`, `actor/SurvivalPolicy` |
 | `SocketIOClient.*`, state/form headers | Transport queue, validation, serialization; shared protocol types | Client `network/` and `protocol/` |
