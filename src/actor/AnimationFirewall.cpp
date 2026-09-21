@@ -292,4 +292,20 @@ namespace AnimationFirewall
         auto* holder = static_cast<RE::IAnimationGraphManagerHolder*>(std::addressof(a_actor));
         return GraphInputHook::_original(holder, a_eventName);
     }
+
+    bool ForceDefaultGraphState(RE::Actor& a_actor)
+    {
+        static const RE::BSFixedString defaultStateEvent{ "IdleForceDefaultState" };
+        static const RE::BSFixedString torchEquipEvent{ "torchEquip" };
+        const bool defaultStateAccepted = NotifyNetworkAnimationGraph(a_actor, defaultStateEvent);
+        const auto* leftHand = a_actor.GetEquippedObject(true);
+        const auto* light = leftHand ? leftHand->As<RE::TESObjectLIGH>() : nullptr;
+        if (defaultStateAccepted && light && light->CanBeCarried())
+        {
+            const bool torchAccepted = NotifyNetworkAnimationGraph(a_actor, torchEquipEvent);
+            logs::info("Raised carried torch after graph default reset: actor={:08X} torch={:08X} accepted={}",
+                a_actor.GetHandle().native_handle(), light->GetFormID(), torchAccepted);
+        }
+        return defaultStateAccepted;
+    }
 }

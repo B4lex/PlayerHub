@@ -19,4 +19,9 @@ namespace AnimationFirewall
 
     // Delivers a network-owned event past the filter. Game thread only.
     [[nodiscard]] bool NotifyNetworkAnimationGraph(RE::Actor& a_actor, const RE::BSFixedString& a_eventName);
+
+    // Sends IdleForceDefaultState past the filter, then raises a carried torch
+    // again, because the reset also drops the graph's torch arm layer.
+    // Returns whether the default-state event was accepted. Game thread only.
+    [[nodiscard]] bool ForceDefaultGraphState(RE::Actor& a_actor);
 }

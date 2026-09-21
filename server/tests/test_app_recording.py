@@ -1,4 +1,3 @@
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -38,72 +37,91 @@ def valid_action(sequence: int = 1) -> dict[str, object]:
     }
 
 
-class PlayerUpdateRecordingTests(unittest.IsolatedAsyncioTestCase):
+class PlayerCaptureThroughHandlersTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.addAsyncCleanup(self.temporary_directory.cleanup)
-        self.recordings_directory = Path(self.temporary_directory.name) / "recordings"
-        self.original_recordings_directory = server_app.RECORDINGS_DIRECTORY
-        self.original_recording_enabled = server_app.RECORDING_ENABLED
-        server_app.RECORDINGS_DIRECTORY = self.recordings_directory
-        server_app.RECORDING_ENABLED = True
-        server_app.player_states.clear()
-        server_app.player_action_sequences.clear()
-        server_app.player_recordings.clear()
+        self.original_directory = server_app.recording_store.directory
+        server_app.recording_store.directory = Path(self.temporary_directory.name) / "recordings"
+        self.clear()
 
     async def asyncTearDown(self) -> None:
-        server_app.RECORDINGS_DIRECTORY = self.original_recordings_directory
-        server_app.RECORDING_ENABLED = self.original_recording_enabled
-        server_app.player_states.clear()
-        server_app.player_action_sequences.clear()
-        server_app.player_recordings.clear()
+        server_app.captures.stop_all("test cleanup")
+        server_app.recording_store.directory = self.original_directory
+        self.clear()
 
-    async def test_records_only_accepted_updates(self) -> None:
-        with patch.object(server_app.sio, "emit", new=AsyncMock()):
-            self.assertEqual(await server_app.player_update("player-1", valid_payload(1)), {"ok": True})
-            self.assertEqual(
-                await server_app.player_update("player-1", valid_payload(1)),
-                {"ok": False, "error": "stale sequence"},
-            )
+    def clear(self) -> None:
+        registry = server_app.registry
+        for table in (
+            registry.connected_at,
+            registry.states,
+            registry.action_sequences,
+            registry.appearances,
+            registry.equipment,
+        ):
+            table.clear()
 
-        path = self.recordings_directory / "player-1.json"
-        document = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(document["playerId"], "player-1")
-        self.assertEqual(len(document["messages"]), 1)
-        self.assertEqual(document["messages"][0]["payload"]["sequence"], 1)
-
-    async def test_does_not_create_recordings_when_disabled(self) -> None:
-        server_app.RECORDING_ENABLED = False
-
-        with patch.object(server_app.sio, "emit", new=AsyncMock()):
-            self.assertEqual(await server_app.player_update("player-1", valid_payload(1)), {"ok": True})
-
-        self.assertFalse(self.recordings_directory.exists())
-
-    async def test_records_accepted_actions_after_their_checkpoint(self) -> None:
+    async def test_records_only_accepted_messages_of_a_captured_player(self) -> None:
         checkpoint = valid_payload(1)
         checkpoint["weaponDrawn"] = True
+        info = server_app.captures.start("player-1", "", "", [])
 
         with patch.object(server_app.sio, "emit", new=AsyncMock()):
+            self.assertEqual(await server_app.player_update("player-1", checkpoint), {"ok": True})
             self.assertEqual(
                 await server_app.player_update("player-1", checkpoint),
-                {"ok": True},
+                {"ok": False, "error": "stale sequence"},
             )
-            self.assertEqual(
-                await server_app.animation_action("player-1", valid_action()),
-                {"ok": True},
-            )
+            self.assertEqual(await server_app.animation_action("player-1", valid_action()), {"ok": True})
             self.assertEqual(
                 await server_app.animation_action("player-1", valid_action(3)),
                 {"ok": False, "error": "non-contiguous action sequence"},
             )
+            await server_app.player_update("player-2", valid_payload(1))  # not captured
+        server_app.captures.stop(info.id)
 
-        path = self.recordings_directory / "player-1.json"
-        document = json.loads(path.read_text(encoding="utf-8"))
+        recording = server_app.recording_store.load(info.id)
         self.assertEqual(
-            [message["event"] for message in document["messages"]],
-            ["player:update", "animation:action"],
+            [message.event for message in recording.messages], ["player:update", "animation:action"]
         )
+        self.assertEqual(recording.messages[0].payload["sequence"], 1)
+
+    async def test_records_nothing_until_a_capture_is_started(self) -> None:
+        with patch.object(server_app.sio, "emit", new=AsyncMock()):
+            self.assertEqual(await server_app.player_update("player-1", valid_payload(1)), {"ok": True})
+
+        self.assertFalse(server_app.recording_store.directory.exists())
+
+    async def test_a_failing_capture_never_blocks_the_relay(self) -> None:
+        server_app.captures.start("player-1", "", "", [])
+        emit = AsyncMock()
+
+        with (
+            patch.object(server_app.sio, "emit", new=emit),
+            patch.object(server_app.captures._by_player["player-1"].writer, "write", side_effect=OSError("disk full")),
+        ):
+            result = await server_app.player_update("player-1", valid_payload(1))
+
+        self.assertEqual(result, {"ok": True})
+        emit.assert_awaited_once()
+        self.assertFalse(server_app.captures.is_capturing("player-1"))
+
+    async def test_disconnecting_ends_the_capture_with_a_reason(self) -> None:
+        info = server_app.captures.start("player-1", "", "", [])
+
+        with patch.object(server_app.sio, "emit", new=AsyncMock()):
+            await server_app.disconnect("player-1", "transport close")
+
+        self.assertEqual(server_app.recording_store.info(info.id).end_reason, "disconnected")
+
+    async def test_tracks_connected_players_for_the_admin_panel(self) -> None:
+        with patch.object(server_app.sio, "emit", new=AsyncMock()):
+            await server_app.connect("player-1", {})
+            self.assertIn("player-1", server_app.registry.connected_at)
+
+            await server_app.disconnect("player-1", "transport close")
+
+        self.assertNotIn("player-1", server_app.registry.connected_at)
 
     async def test_rejects_regressing_graph_epoch(self) -> None:
         first = valid_payload(1)
@@ -116,3 +134,7 @@ class PlayerUpdateRecordingTests(unittest.IsolatedAsyncioTestCase):
                 await server_app.player_update("player-1", second),
                 {"ok": False, "error": "stale graph epoch"},
             )
+
+
+if __name__ == "__main__":
+    unittest.main()

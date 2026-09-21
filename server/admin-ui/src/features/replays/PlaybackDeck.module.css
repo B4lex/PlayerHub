@@ -1,0 +1,133 @@
+.deck {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.title {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.label {
+  font-size: 1rem;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.error {
+  padding: 0.5rem 0.75rem;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius-sm);
+}
+
+.transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+/* Beside the time on a wide screen; under it when the row runs out of room. */
+.scrub {
+  display: flex;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.toggle {
+  width: 2.75rem;
+  height: 2.75rem;
+  min-height: 0;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.time {
+  min-width: 9.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.duration {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.rate {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.rate select {
+  min-height: 1.85rem;
+  padding: 0 0.4rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0 0 0 auto;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  list-style: none;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.swatch {
+  width: 0.5rem;
+  height: 0.85rem;
+  border-radius: 2px;
+}
+
+@media (max-width: 40rem) {
+  .time {
+    min-width: 0;
+  }
+
+  .legend {
+    margin-left: 0;
+  }
+}

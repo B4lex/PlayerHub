@@ -1,0 +1,44 @@
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.heading {
+  min-width: 0;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.description {
+  margin-top: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.body {
+  padding: 1.25rem;
+}
+
+.flush {
+  overflow-x: auto;
+}

@@ -1,4 +1,3 @@
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,7 +5,6 @@ from unittest.mock import AsyncMock, patch
 
 import server.app as server_app
 from server.protocol import parse_player_equipment
-from server.replay import load_recording
 
 
 def valid_equipment(revision: int = 1) -> dict[str, object]:
@@ -165,33 +163,27 @@ class PlayerEquipmentRelayTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("player-1", server_app.player_equipment)
 
 
-class PlayerEquipmentRecordingTests(unittest.IsolatedAsyncioTestCase):
+class PlayerEquipmentCaptureTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.addAsyncCleanup(self.temporary_directory.cleanup)
-        self.recordings_directory = Path(self.temporary_directory.name) / "recordings"
-        self.original_recordings_directory = server_app.RECORDINGS_DIRECTORY
-        self.original_recording_enabled = server_app.RECORDING_ENABLED
-        server_app.RECORDINGS_DIRECTORY = self.recordings_directory
-        server_app.RECORDING_ENABLED = True
+        self.original_directory = server_app.recording_store.directory
+        server_app.recording_store.directory = Path(self.temporary_directory.name) / "recordings"
         server_app.player_equipment.clear()
-        server_app.player_recordings.clear()
 
     async def asyncTearDown(self) -> None:
-        server_app.RECORDINGS_DIRECTORY = self.original_recordings_directory
-        server_app.RECORDING_ENABLED = self.original_recording_enabled
+        server_app.captures.stop_all("test cleanup")
+        server_app.recording_store.directory = self.original_directory
         server_app.player_equipment.clear()
-        server_app.player_recordings.clear()
 
-    async def test_records_equipment_that_replay_can_load(self) -> None:
+    async def test_captures_equipment_of_a_recorded_player_only(self) -> None:
+        info = server_app.captures.start("player-1", "", "", [])
+
         with patch.object(server_app.sio, "emit", new=AsyncMock()):
             await server_app.player_equipment_update("player-1", valid_equipment())
+            await server_app.player_equipment_update("player-2", valid_equipment())
+        server_app.captures.stop(info.id)
 
-        path = self.recordings_directory / "player-1.json"
-        document = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(document["messages"][0]["event"], "player:equipment")
-
-        updates = load_recording(path)
-        self.assertEqual(len(updates), 1)
-        self.assertEqual(updates[0].event, "player:equipment")
-        self.assertEqual(updates[0].payload, valid_equipment())
+        recording = server_app.recording_store.load(info.id)
+        self.assertEqual([m.event for m in recording.messages], ["player:equipment"])
+        self.assertEqual(recording.messages[0].payload, valid_equipment())

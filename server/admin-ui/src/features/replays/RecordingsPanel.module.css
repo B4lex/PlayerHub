@@ -1,0 +1,106 @@
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 34rem;
+}
+
+.table th {
+  padding: 0.65rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+
+.table td {
+  padding: 0.8rem 1rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.label {
+  max-width: 18rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.numeric {
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+/* On a phone, each recording becomes a card so its actions are never off-screen. */
+@media (max-width: 40rem) {
+  .table {
+    min-width: 0;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .table,
+  .table tbody {
+    display: block;
+  }
+
+  .table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.35rem 0.75rem;
+    align-items: center;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .table td {
+    padding: 0;
+    border: 0;
+  }
+
+  .table td:nth-child(1) {
+    grid-column: 1;
+  }
+
+  .table td:nth-child(2),
+  .table td:nth-child(3) {
+    grid-column: 1;
+  }
+
+  .table td:nth-child(4) {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+  }
+
+  .label {
+    max-width: none;
+  }
+}

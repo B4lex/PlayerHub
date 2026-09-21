@@ -1,12 +1,23 @@
 import logging
-import os
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 import socketio
 from fastapi import FastAPI
 
+from server.admin import (
+    AdminContext,
+    StateBroadcaster,
+    build_state,
+    create_admin_router,
+    mount_admin_ui,
+    publish_state,
+    register_admin_namespace,
+)
+from server.playback import PlaybackManager, Publisher, SocketPublisher
 from server.protocol import (
     parse_animation_action,
     parse_player_appearance,
@@ -14,33 +25,79 @@ from server.protocol import (
     parse_player_update,
     parse_sent_at,
 )
-from server.recording import (
-    PlayerRecording,
-    append_animation_action,
-    append_player_appearance,
-    append_player_equipment,
-    append_player_update,
-)
+from server.recording import CaptureManager, RecordingStore
+from server.registry import PlayerRegistry
 
 logger = logging.getLogger("uvicorn.error")
 
-api = FastAPI(title="Skyrim Multiplayer Server")
+RECORDINGS_DIRECTORY = Path(__file__).resolve().parents[2] / "recordings"
+
 # Send the namespace CONNECT before running the connect handler. Otherwise the
 # late-joiner replay below reaches the client ahead of CONNECT, and the client
 # discards it when the namespace opens.
 sio = socketio.AsyncServer(async_mode="asgi", always_connect=True)
-player_states: dict[str, dict[str, bool | int | float | str]] = {}
-player_action_sequences: dict[str, int] = {}
-player_appearances: dict[str, dict[str, Any]] = {}
-player_equipment: dict[str, dict[str, Any]] = {}
-player_recordings: dict[str, PlayerRecording] = {}
-RECORDINGS_DIRECTORY = Path(__file__).resolve().parents[2] / "recordings"
-RECORDING_ENABLED = os.getenv("SKYRIM_MP_RECORDING_ENABLED", "false").lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+
+registry = PlayerRegistry()
+# The handlers and their tests address the registry's tables directly.
+player_states = registry.states
+player_action_sequences = registry.action_sequences
+player_appearances = registry.appearances
+player_equipment = registry.equipment
+
+
+def _notify_admin() -> None:
+    # The broadcaster is built from the managers below, so it is looked up late.
+    admin_broadcaster.changed()
+
+
+# Admin panel: recordings are captured on request, and replays run inside the
+# server as synthetic players. Every manager reports changes so open panels
+# stay current.
+recording_store = RecordingStore(RECORDINGS_DIRECTORY)
+captures = CaptureManager(recording_store, on_change=_notify_admin)
+playbacks = PlaybackManager(
+    recording_store,
+    lambda player_id: _replay_publisher(player_id),
+    on_change=_notify_admin,
+)
+admin_context = AdminContext(
+    registry=registry,
+    store=recording_store,
+    captures=captures,
+    playbacks=playbacks,
+    on_change=_notify_admin,
+)
+
+
+def _admin_state() -> dict[str, Any]:
+    return build_state(admin_context).model_dump(mode="json", by_alias=True)
+
+
+admin_broadcaster = StateBroadcaster(
+    build=_admin_state,
+    publish=lambda state: publish_state(sio, state),
+)
+
+
+def _replay_publisher(player_id: str) -> Publisher:
+    # Looked up per call so the current ``sio.emit`` is used, not one captured at import.
+    async def emit(event: str, payload: dict[str, Any]) -> None:
+        await sio.emit(event, payload)
+
+    return SocketPublisher(player_id, emit, registry)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    yield
+    captures.stop_all("shutdown")
+    await playbacks.close_all()
+
+
+api = FastAPI(title="Skyrim Multiplayer Server", lifespan=lifespan)
+api.include_router(create_admin_router(admin_context))
+register_admin_namespace(sio, admin_broadcaster, _admin_state)
+mount_admin_ui(api)
 
 
 @api.get("/health")
@@ -61,6 +118,8 @@ async def poc() -> dict[str, str]:
 async def connect(sid: str, environ: dict[str, Any]) -> None:
     del environ
     logger.info("Socket.IO client connected: %s", sid)
+    registry.add(sid)
+    _notify_admin()
     # Appearance only changes rarely, so late joiners receive the stored state.
     for player_id, appearance in list(player_appearances.items()):
         if player_id == sid:
@@ -74,11 +133,9 @@ async def connect(sid: str, environ: dict[str, Any]) -> None:
 
 @sio.event
 async def disconnect(sid: str, reason: str) -> None:
-    player_states.pop(sid, None)
-    player_action_sequences.pop(sid, None)
-    player_appearances.pop(sid, None)
-    player_equipment.pop(sid, None)
-    player_recordings.pop(sid, None)
+    captures.stop_player(sid, "disconnected")
+    registry.remove(sid)
+    _notify_admin()
     outbound = {"playerId": sid}
     logger.info("Socket.IO TX player:left payload=%s", outbound)
     await sio.emit("player:left", outbound)
@@ -99,17 +156,9 @@ async def player_update(sid: str, data: Any) -> dict[str, bool | str]:
     if previous is not None and state["graphEpoch"] < previous["graphEpoch"]:
         return {"ok": False, "error": "stale graph epoch"}
 
-    if RECORDING_ENABLED:
-        try:
-            recording_path = append_player_update(
-                player_recordings, RECORDINGS_DIRECTORY, sid, state
-            )
-        except OSError:
-            logger.exception("Unable to record player:update from %s", sid)
-            return {"ok": False, "error": "unable to record player transform"}
-        logger.info("Recorded player:update sid=%s file=%s", sid, recording_path)
-
     player_states[sid] = state
+    captures.record(sid, "player:update", state)
+    _notify_admin()
     outbound: dict[str, bool | int | float | str] = {"playerId": sid, **state}
     # Transport metadata for the receiver's packet delay; not part of the stored
     # or recorded checkpoint, so replays never relay stale emit times.
@@ -133,17 +182,9 @@ async def player_appearance(sid: str, data: Any) -> dict[str, bool | str]:
     if previous is not None and appearance["revision"] <= previous["revision"]:
         return {"ok": False, "error": "stale appearance revision"}
 
-    if RECORDING_ENABLED:
-        try:
-            recording_path = append_player_appearance(
-                player_recordings, RECORDINGS_DIRECTORY, sid, appearance
-            )
-        except OSError:
-            logger.exception("Unable to record player:appearance from %s", sid)
-            return {"ok": False, "error": "unable to record player appearance"}
-        logger.info("Recorded player:appearance sid=%s file=%s", sid, recording_path)
-
     player_appearances[sid] = appearance
+    captures.record(sid, "player:appearance", appearance)
+    _notify_admin()
     outbound = {"playerId": sid, **appearance}
     logger.info(
         "Socket.IO TX player:appearance source=%s revision=%s", sid, appearance["revision"]
@@ -164,17 +205,8 @@ async def player_equipment_update(sid: str, data: Any) -> dict[str, bool | str]:
     if previous is not None and equipment["revision"] <= previous["revision"]:
         return {"ok": False, "error": "stale equipment revision"}
 
-    if RECORDING_ENABLED:
-        try:
-            recording_path = append_player_equipment(
-                player_recordings, RECORDINGS_DIRECTORY, sid, equipment
-            )
-        except OSError:
-            logger.exception("Unable to record player:equipment from %s", sid)
-            return {"ok": False, "error": "unable to record player equipment"}
-        logger.info("Recorded player:equipment sid=%s file=%s", sid, recording_path)
-
     player_equipment[sid] = equipment
+    captures.record(sid, "player:equipment", equipment)
     outbound = {"playerId": sid, **equipment}
     logger.info(
         "Socket.IO TX player:equipment source=%s revision=%s", sid, equipment["revision"]
@@ -205,17 +237,8 @@ async def animation_action(sid: str, data: Any) -> dict[str, bool | str]:
     if previous_sequence is not None and action["actionSequence"] != previous_sequence + 1:
         return {"ok": False, "error": "non-contiguous action sequence"}
 
-    if RECORDING_ENABLED:
-        try:
-            recording_path = append_animation_action(
-                player_recordings, RECORDINGS_DIRECTORY, sid, action
-            )
-        except OSError:
-            logger.exception("Unable to record animation:action from %s", sid)
-            return {"ok": False, "error": "unable to record animation action"}
-        logger.info("Recorded animation:action sid=%s file=%s", sid, recording_path)
-
     player_action_sequences[sid] = action["actionSequence"]
+    captures.record(sid, "animation:action", action)
     outbound = {"playerId": sid, **action}
     logger.debug("Socket.IO TX player:action source=%s payload=%s", sid, outbound)
     await sio.emit("player:action", outbound, skip_sid=sid)
