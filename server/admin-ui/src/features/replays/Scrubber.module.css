@@ -1,0 +1,66 @@
+.scrubber {
+  --thumb: 16px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Inset by half the thumb, which is how far a range thumb's centre travels, so ticks line up with it. */
+.markers {
+  position: relative;
+  height: 12px;
+  margin: 0 calc(var(--thumb) / 2);
+}
+
+.marker {
+  position: absolute;
+  top: 0;
+  width: 5px;
+  height: 12px;
+  padding: 0;
+  transform: translateX(-50%);
+  border: 0;
+  border-radius: 2px;
+  opacity: 0.9;
+}
+.marker:hover {
+  opacity: 1;
+  transform: translateX(-50%) scaleY(1.25);
+}
+
+.range {
+  display: block;
+  width: 100%;
+  height: var(--thumb);
+  margin: 2px 0 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+
+.range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--accent) var(--progress), var(--border-strong) var(--progress));
+}
+.range::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--accent) var(--progress), var(--border-strong) var(--progress));
+}
+
+.range::-webkit-slider-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: -5px;
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  background: var(--surface);
+  appearance: none;
+}
+.range::-moz-range-thumb {
+  width: calc(var(--thumb) - 6px);
+  height: calc(var(--thumb) - 6px);
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  background: var(--surface);
+}

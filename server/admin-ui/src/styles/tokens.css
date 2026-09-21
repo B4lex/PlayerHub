@@ -1,0 +1,94 @@
+/* Design tokens. Dark is the default; light follows the system setting. */
+:root {
+  color-scheme: dark;
+
+  --bg: #0e1116;
+  --surface: #161a21;
+  --surface-raised: #1c222b;
+  --surface-hover: #212833;
+  --border: #29313c;
+  --border-strong: #3a4553;
+
+  --text: #e7eaef;
+  --text-muted: #9aa5b4;
+  --text-faint: #6f7b8b;
+
+  --accent: #e0a33a;
+  --accent-hover: #ecb352;
+  --accent-text: #1a1305;
+  --accent-soft: rgba(224, 163, 58, 0.14);
+
+  --danger: #f0605f;
+  --danger-soft: rgba(240, 96, 95, 0.14);
+  --success: #45bb85;
+  --success-soft: rgba(69, 187, 133, 0.14);
+  --info: #6aa7f5;
+  --info-soft: rgba(106, 167, 245, 0.14);
+  --warning: #e0a33a;
+  --warning-soft: rgba(224, 163, 58, 0.14);
+
+  /* Timeline marker kinds. Each is also named in its tooltip and the legend. */
+  --marker-attack: #f0605f;
+  --marker-weapon: #e0a33a;
+  --marker-furniture: #45bb85;
+  --marker-area: #6aa7f5;
+  --marker-equipment: #b48cf0;
+  --marker-appearance: #ee7fb5;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  --sidebar-width: 15rem;
+  --gutter: 1.5rem;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --bg: #f3f5f8;
+    --surface: #ffffff;
+    --surface-raised: #f7f8fa;
+    --surface-hover: #eef1f5;
+    --border: #dde2e9;
+    --border-strong: #c3cbd6;
+
+    --text: #1b2028;
+    --text-muted: #566172;
+    --text-faint: #7a8595;
+
+    --accent: #9a6608;
+    --accent-hover: #835603;
+    --accent-text: #ffffff;
+    --accent-soft: rgba(154, 102, 8, 0.11);
+
+    --danger: #c9302f;
+    --danger-soft: rgba(201, 48, 47, 0.1);
+    --success: #1c7e52;
+    --success-soft: rgba(28, 126, 82, 0.1);
+    --info: #2b6cc4;
+    --info-soft: rgba(43, 108, 196, 0.1);
+    --warning: #9a6608;
+    --warning-soft: rgba(154, 102, 8, 0.11);
+
+    --marker-attack: #d13b3a;
+    --marker-weapon: #b27408;
+    --marker-furniture: #1c8a5a;
+    --marker-area: #2f76d1;
+    --marker-equipment: #7d4fc7;
+    --marker-appearance: #c73d86;
+
+    --shadow: 0 1px 2px rgba(20, 30, 45, 0.08), 0 8px 24px rgba(20, 30, 45, 0.08);
+  }
+}
+
+@media (max-width: 52rem) {
+  :root {
+    --gutter: 1rem;
+  }
+}

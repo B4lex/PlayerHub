@@ -70,57 +70,97 @@ worldspace remain synchronized; interiors require an exact cell match. The
 server retains each connection's latest sequence number so stale or reordered
 updates are rejected.
 
-Recording is disabled by default. To enable it for a server launch, set the
-`SKYRIM_MP_RECORDING_ENABLED` boolean flag before starting the server:
+## Admin panel
 
-```powershell
-$env:SKYRIM_MP_RECORDING_ENABLED = "true"
-uv run server
-```
+The server hosts a web admin panel at `http://127.0.0.1:3000/admin/`, with a
+**Dashboard** (connected players, active captures and replays, stored
+recordings, uptime) and **Replay management** (capture, replay, delete). It is a
+React and TypeScript app in `admin-ui/`; see `admin-ui/README.md` to build it or
+run it in development. Until it is built, `/admin/` explains how, and the REST
+API below works regardless.
 
-When enabled, every accepted `player:update`, `player:appearance`,
-`player:equipment`, and `animation:action` is persisted
-to one ordered `recordings/<playerId>.json` timeline. Each file is atomically
-refreshed after a message, so it remains valid and replayable if the server is
-interrupted. The `playerId` is the current Socket.IO session ID (there is no
-stable account ID in this POC), and its filename is URL encoded when needed.
-Generated recordings are ignored by Git; the bundled example remains tracked.
+The panel talks to the server in two ways. Commands are REST calls under `/api`
+(documented at `/docs`). Live state is a full snapshot pushed over the `/admin`
+Socket.IO namespace on connect and after every change, at most twice a second.
+The namespace is separate from the player namespace, so an open panel is never
+counted as a player. There is no authentication: like the rest of this POC, do
+not expose the port to the public Internet.
+
+## Recordings
+
+Recording is controlled from the panel (or `POST /api/recordings`), per player,
+and runs until stopped. Nothing is recorded by default. Starting a capture writes
+the player's current appearance, equipment, and latest checkpoint first, so a
+recording that begins mid-session replays on its own. After that every accepted
+`player:update`, `player:appearance`, `player:equipment`, and `animation:action`
+of that player is appended. A capture also ends when the player disconnects or the
+server shuts down, and a failing disk ends only the capture, never the relay.
+
+A recording is one append-only JSON Lines file, `recordings/<id>.jsonl`, with the
+ID `YYYYMMDD-HHMMSS-xxxxxx`. It has a `header` line (label, player, start time),
+one `message` line per event (`t` in milliseconds from the start, the event name,
+and the validated payload exactly as relayed), and an `end` line with the reason.
+A file without an `end` line is an interrupted capture and still replays; a torn
+last line is ignored. Recordings are ignored by Git.
+
+| Endpoint | |
+| --- | --- |
+| `GET /api/state` | Everything the panel shows: players, recordings, playbacks |
+| `GET /api/recordings/{id}` | One recording with its timeline markers |
+| `POST /api/recordings` `{playerId, label?}` | Start capturing a connected player |
+| `POST /api/recordings/{id}/stop` | Stop a capture |
+| `DELETE /api/recordings/{id}` | Delete a recording that is not being captured |
+| `POST /api/playbacks` `{recordingId, autoplay?, rate?, loop?, startMs?}` | Replay a recording |
+| `POST /api/playbacks/{id}/play`, `/pause` | Resume or pause |
+| `POST /api/playbacks/{id}/seek` `{positionMs}` | Jump to a time |
+| `PATCH /api/playbacks/{id}` `{rate?, loop?}` | Speed (0.1 to 4) and looping |
+| `DELETE /api/playbacks/{id}` | Stop a replay and remove its virtual player |
+
+## Replaying a recording
+
+A replay runs inside the server as a **virtual player** (`replay:<id>`). Every
+connected client sees it as another peer: it is relayed as `player:state`,
+`player:action`, `player:appearance`, `player:equipment`, and `player:left`, and
+clients that join mid-replay receive its appearance and equipment. Nothing in the
+plugin distinguishes it from a real player.
+
+Clients accept a peer's state only with a rising `sequence`, a non-decreasing
+`graphEpoch`, contiguous `actionSequence` values, and rising appearance and
+equipment revisions. A replay that pauses, seeks backwards, or loops cannot reuse
+a recording's own numbers, so the virtual player numbers everything itself and
+only takes the recording's content (`server/playback/virtual_player.py`):
+
+- **Seek** does not replay what it skips. It sends the appearance, equipment, and
+  checkpoint in effect at the target, and starts a new graph epoch so clients drop
+  attack actions queued for the old position. Appearance and equipment are resent
+  only if they differ from what clients already show.
+- **Pause** freezes the timeline and holds the actor in place: its last checkpoint
+  is repeated four times a second with locomotion stopped (idle, speed zero, not
+  jumping), so it stands still instead of running in place and late joiners still
+  see it. Playing from the end starts over.
+- **Speed** scales the timeline; the recorded animation speed is not adjusted, so
+  motion at other than 1x looks faster or slower than the animation implies.
 
 FastAPI's interactive HTTP documentation is available at
 `http://127.0.0.1:3000/docs`.
 
-## Replay a recorded player
+## Replay from the command line
 
-`replay` is a Socket.IO test client that connects using the WebSocket transport
-and emits recorded state checkpoints and animation actions. Start the server,
-then in another terminal run:
+`replay` is a Socket.IO test client that connects like a player and sends a
+recording through the real ingestion path (validation, relay, and capture
+included). Unlike a panel replay, it is a real connection with its own session
+ID. Start the server, then in another terminal run:
 
 ```powershell
-uv run replay recordings/player_movement.example.json
+uv run replay recordings/20260921-101500-a1b2c3.jsonl
 ```
 
-The recording is either an array of legacy update payloads or an object
-containing a `messages` array. New timeline entries contain `event` with
-`player:update`, `player:appearance`, `player:equipment`, or
-`animation:action`, plus the
-corresponding `payload`. Put
-timing beside a payload with `delayMs` (delay before that message), or
-`timestampMs` (an absolute time within the recording). A top-level
-`defaultDelayMs` applies to entries without timing.
-
-Legacy transform-only recordings remain usable and are treated as
-`player:update`. The replay client derives a missing `speed` from adjacent
-positions, defaults a missing `jumping` flag to grounded, defaults a missing
-`weaponDrawn` flag to sheathed, defaults a missing `furnitureRefId` to zero, and
-defaults a missing `graphEpoch` to the initial epoch 1. Transform-only recordings
-made before action persistence cannot reconstruct attacks that are not present
-in the file.
-
-Useful options include `--url http://192.168.1.20:3000`, `--speed 2` to replay
-twice as fast, `--no-timing` to send as fast as acknowledgements allow, and
-`--loop` for continuous playback. The client waits for the server acknowledgement
-by default and stops if the server rejects a message (for example, a stale
-sequence number).
+It reads the same `.jsonl` files the server writes, and numbers its messages
+itself, so `--loop` keeps working past the first pass. Useful options include
+`--url http://192.168.1.20:3000`, `--speed 2` to replay twice as fast,
+`--no-timing` to send as fast as acknowledgements allow, and `--loop` for
+continuous playback. The client waits for the server acknowledgement by default
+and stops if the server rejects a message.
 
 ## Connecting from another computer
 

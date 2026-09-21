@@ -593,9 +593,7 @@ namespace ActorFurniture
                 // idle it is already playing. That idle then runs to its seated node
                 // and the engine sets IsSitting on an actor which occupies nothing,
                 // where no target or request is left for the exit path to notice.
-                static const RE::BSFixedString defaultStateEvent{ "IdleForceDefaultState" };
-                const bool defaultStateAccepted
-                    = AnimationFirewall::NotifyNetworkAnimationGraph(a_actor, defaultStateEvent);
+                const bool defaultStateAccepted = AnimationFirewall::ForceDefaultGraphState(a_actor);
                 if (a_remote.furniture.furnitureRetryRemaining <= 0.0F)
                 {
                     a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
@@ -675,8 +673,7 @@ namespace ActorFurniture
                     process->ClearFurniture();
                 }
                 (void)SetActorSitSleepState(a_actor, RE::SIT_SLEEP_STATE::kNormal);
-                static const RE::BSFixedString defaultStateEvent{ "IdleForceDefaultState" };
-                (void)AnimationFirewall::NotifyNetworkAnimationGraph(a_actor, defaultStateEvent);
+                (void)AnimationFirewall::ForceDefaultGraphState(a_actor);
                 SurvivalPolicy::AssertDoNothingPackage(a_actor);
                 a_remote.furniture.furnitureTransitionElapsed = 0.0F;
                 logs::warn("Animation sync forced stuck furniture exit: actor={:08X} occupied={:08X} target={:08X}",

@@ -1531,7 +1531,6 @@ namespace ActorAnimation
         static const RE::BSFixedString weaponEquipOutMovingEvent{ "WeapEquip_OutMoving" };
         static const RE::BSFixedString weaponUnequipOutEvent{ "Unequip_Out" };
         static const RE::BSFixedString weaponUnequipOutMovingEvent{ "Unequip_OutMoving" };
-        static const RE::BSFixedString idleForceDefaultStateEvent{ "IdleForceDefaultState" };
         static const RE::BSFixedString inJumpStateVariable{ "bInJumpState" };
         static const RE::BSFixedString speedDampedVariable{ "SpeedDamped" };
 
@@ -1868,7 +1867,7 @@ namespace ActorAnimation
             // direct moveStart can report success while being ignored. Once ActorState
             // is also sheathed, force the graph's matching default state first and
             // replay authoritative locomotion on the next update.
-            const bool defaultStateAccepted = SendNetworkAnimationEvent(a_remote, idleForceDefaultStateEvent);
+            const bool defaultStateAccepted = AnimationFirewall::ForceDefaultGraphState(a_actor);
             animationState->weaponDefaultStateDispatched = true;
             logs::info(
                 "Animation sync reset graph to default after weapon transition: actor={:08X} weaponDrawn={} "
