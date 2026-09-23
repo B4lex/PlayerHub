@@ -51,7 +51,9 @@ The client emits `player:update`:
 
 The server adds its Socket.IO session ID as `playerId` and emits the resulting
 payload as `player:state` to every other connection. On disconnect it emits
-`player:disconnect` with the same `playerId`.
+`player:disconnect` with the same `playerId`. The Engine.IO heartbeat (5 s ping
+interval, 5 s pong timeout) disconnects an unresponsive client, so its actor is
+despawned within 10 seconds of the last heartbeat.
 
 Checkpoints are accepted only while the player is in the game world. The client
 emits `player:enter` once its character is placed in a loaded cell, and
