@@ -111,7 +111,7 @@ namespace AnimationFirewall
                 std::uint32_t blockedEventCount = 0;
                 bool firewallEnabled = false;
                 bool allowClientManagedEvent = false;
-                bool allowFurnitureEvent = false;
+                bool allowNativeGraphEvent = false;
                 bool allowCastEvent = false;
                 bool isSwimStartEvent = false;
                 bool isSwimStopEvent = false;
@@ -128,7 +128,9 @@ namespace AnimationFirewall
                     // combat AI, targeting, attacks, damage, and magic remain suppressed
                     // elsewhere.
                     allowClientManagedEvent = IsClientManagedAnimationEvent(eventView);
-                    allowFurnitureEvent = registration->furnitureAnimationOwned;
+                    // Death and ragdoll own the graph of a dead actor, like native
+                    // furniture while it is in use.
+                    allowNativeGraphEvent = registration->furnitureAnimationOwned || registration->dead;
                     // A network cast runs through the actor's own magic caster.
                     allowCastEvent = registration->castAnimationOwned && IsCastAnimationEvent(eventView);
                     isSwimStartEvent = eventView == "SwimStart";
@@ -140,7 +142,7 @@ namespace AnimationFirewall
                 // leave the newly spawned actor in its default pose. Native furniture
                 // temporarily owns the graph while the remote actor uses furniture; its event
                 // names vary by furniture record and are generated locally by Skyrim.
-                if (!firewallEnabled || allowClientManagedEvent || allowFurnitureEvent || allowCastEvent)
+                if (!firewallEnabled || allowClientManagedEvent || allowNativeGraphEvent || allowCastEvent)
                 {
                     const bool accepted = _original(a_holder, a_eventName);
                     if (firewallEnabled && (isSwimStartEvent || isSwimStopEvent))

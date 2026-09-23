@@ -22,6 +22,9 @@ namespace Network
         // Bow draw, spell channelling, and blocking, gated on the receiver by weapon
         // stance.
         Multiplayer::HandPresentation handPresentation{};
+        // The source is dying or dead. Receivers then leave its actor to a local
+        // death and ragdoll, and ignore the presentation fields above.
+        bool dead{ false };
         std::uint32_t cellID{ 0 };
         // Non-zero for exterior cells. Interior cells use zero and must match by
         // cell ID because their local coordinates are not globally comparable.

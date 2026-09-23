@@ -33,12 +33,18 @@ namespace ActorRegistry
     void SetCastAnimationOwned(const RemoteActor& a_remote, bool a_owned);
     [[nodiscard]] bool IsCastAnimationOwned(const RE::Actor* a_actor);
 
+    // The actor's player died. For the rest of the registration the actor is
+    // left to Skyrim's own death: damage and kills reach it, survival is no
+    // longer enforced, and every graph event is admitted.
+    void SetDead(const RemoteActor& a_remote);
+
     struct GraphInput
     {
         std::uint32_t actorHandle{ 0 };
         bool animationFirewallEnabled{ false };
         bool furnitureAnimationOwned{ false };
         bool castAnimationOwned{ false };
+        bool dead{ false };
     };
 
     [[nodiscard]] std::optional<GraphInput> FindGraphInput(const RE::IAnimationGraphManagerHolder* a_holder);
@@ -59,7 +65,15 @@ namespace ActorRegistry
     [[nodiscard]] GraphOutputObservation ObserveGraphOutputEvent(const RE::TESObjectREFR* a_holder,
         std::string_view a_eventName, bool a_isJumpLandEnd, bool a_shouldTraceWeaponEvent);
 
-    [[nodiscard]] std::optional<bool> GetAuthoritativeJumpState(const RE::Actor* a_actor);
+    struct UpdatePolicy
+    {
+        bool authoritativeJumping{ false };
+        bool dead{ false };
+    };
+
+    // What the engine actor update must reassert, or nullopt for an actor that
+    // is not a remote actor.
+    [[nodiscard]] std::optional<UpdatePolicy> GetUpdatePolicy(const RE::Actor* a_actor);
     void SetAuthoritativeJumpState(const RemoteActor& a_remote, bool a_jumping);
     void SetAuthoritativeDirection(const RemoteActor& a_remote);
     [[nodiscard]] std::optional<float> GetAuthoritativeDirection(const RE::Actor* a_actor);

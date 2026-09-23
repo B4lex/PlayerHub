@@ -30,4 +30,7 @@ struct RemoteActor
     // package, equipment, and AI process being installed around it.
     float readyElapsed{ 0.0F };
     bool ready{ false };
+    // Killed for its player's death and left to Skyrim's death and ragdoll. Such
+    // an actor is never driven again; a revived player gets a new actor.
+    bool dead{ false };
 };

@@ -48,6 +48,7 @@ namespace ActorRegistry
             bool animationFirewallEnabled{ false };
             bool furnitureAnimationOwned{ false };
             bool castAnimationOwned{ false };
+            bool dead{ false };
             bool landingCompletionObservationAllowed{ false };
             bool observeJumpLandEndEvent{ false };
             bool observeWeaponTransitionEndEvent{ false };
@@ -199,6 +200,16 @@ namespace ActorRegistry
         return registration != s_registrations.end() && registration->second.castAnimationOwned;
     }
 
+    void SetDead(const RemoteActor& a_remote)
+    {
+        std::scoped_lock lock{ s_mutex };
+        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
+        if (registration != s_registrations.end())
+        {
+            registration->second.dead = true;
+        }
+    }
+
     std::optional<GraphInput> FindGraphInput(const RE::IAnimationGraphManagerHolder* a_holder)
     {
         std::scoped_lock lock{ s_mutex };
@@ -210,7 +221,8 @@ namespace ActorRegistry
         return GraphInput{ .actorHandle = registration->second.actorHandle,
             .animationFirewallEnabled = registration->second.animationFirewallEnabled,
             .furnitureAnimationOwned = registration->second.furnitureAnimationOwned,
-            .castAnimationOwned = registration->second.castAnimationOwned };
+            .castAnimationOwned = registration->second.castAnimationOwned,
+            .dead = registration->second.dead };
     }
 
     void RecordSwimTransition(const RE::IAnimationGraphManagerHolder* a_holder, bool a_started)
@@ -280,7 +292,7 @@ namespace ActorRegistry
         return observation;
     }
 
-    std::optional<bool> GetAuthoritativeJumpState(const RE::Actor* a_actor)
+    std::optional<UpdatePolicy> GetUpdatePolicy(const RE::Actor* a_actor)
     {
         if (!a_actor)
         {
@@ -295,7 +307,8 @@ namespace ActorRegistry
             return std::nullopt;
         }
 
-        return registration->second.authoritativeJumping;
+        return UpdatePolicy{ .authoritativeJumping = registration->second.authoritativeJumping,
+            .dead = registration->second.dead };
     }
 
     void SetAuthoritativeJumpState(const RemoteActor& a_remote, bool a_jumping)
@@ -383,7 +396,7 @@ namespace ActorRegistry
         std::scoped_lock lock{ s_mutex };
         const auto registration = std::ranges::find_if(
             s_registrations, [a_actor](const auto& a_entry) { return a_entry.second.actor == a_actor; });
-        if (registration == s_registrations.end())
+        if (registration == s_registrations.end() || registration->second.dead)
         {
             return {};
         }
@@ -401,7 +414,7 @@ namespace ActorRegistry
         std::scoped_lock lock{ s_mutex };
         const auto registration = std::ranges::find_if(s_registrations,
             [a_actorValueOwner](const auto& a_entry) { return a_entry.second.actorValueOwner == a_actorValueOwner; });
-        if (registration == s_registrations.end())
+        if (registration == s_registrations.end() || registration->second.dead)
         {
             return {};
         }

@@ -406,21 +406,23 @@ namespace SurvivalPolicy
                 // Reassert policy and persistent jump state immediately around Skyrim's
                 // actor update. The local grounded controller must not overwrite the
                 // network-owned bInJumpState between main-loop synchronization passes.
-                std::optional<bool> authoritativeJumpState;
+                std::optional<ActorRegistry::UpdatePolicy> policy;
                 if (GameThread::IsAuthoritative())
                 {
-                    authoritativeJumpState = ActorRegistry::GetAuthoritativeJumpState(a_actor);
+                    policy = ActorRegistry::GetUpdatePolicy(a_actor);
                 }
-                const bool protectRemoteActor = authoritativeJumpState.has_value();
+                // An actor whose player died is left to Skyrim's death and ragdoll;
+                // survival enforcement would resurrect it.
+                const bool protectRemoteActor = policy && !policy->dead;
                 if (protectRemoteActor)
                 {
                     ApplyRemoteReplicaPolicy(*a_actor);
-                    (void)ApplyAuthoritativeJumpState(*a_actor, *authoritativeJumpState);
+                    (void)ApplyAuthoritativeJumpState(*a_actor, policy->authoritativeJumping);
                 }
                 _original(a_actor, a_delta);
                 if (protectRemoteActor)
                 {
-                    (void)ApplyAuthoritativeJumpState(*a_actor, *authoritativeJumpState);
+                    (void)ApplyAuthoritativeJumpState(*a_actor, policy->authoritativeJumping);
                     EnforceRemoteActorSurvival(*a_actor);
                 }
             }

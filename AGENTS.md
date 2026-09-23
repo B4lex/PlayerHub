@@ -43,6 +43,15 @@ a peer does not have a matching modded asset or behavior.
   directly, and keep implementation-only dependencies in `.cpp` files when
   possible.
 
+## Performance
+- Keep the client modification performant: expect hundreds of remote actors to
+  be synchronized at once. Treat per-actor, per-frame work as the hot path and
+  consider how a change scales with the number of remote actors.
+- Avoid per-frame allocations, repeated engine lookups, and linear scans over
+  all actors where a cached or indexed lookup would do. Do expensive work only
+  when state changes, and spread or throttle work that does not need to run
+  every frame.
+
 ## Protocol and verification
 - Backward compatibility between protocol or server versions is not a priority:
   every client release is supplied with its required server update. Prefer clear,
