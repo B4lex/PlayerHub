@@ -25,6 +25,10 @@ namespace ActorRegistry
     [[nodiscard]] bool EnableAnimationFirewall(const RemoteActor& a_remote);
     void DisableAnimationFirewall(const RemoteActor& a_remote);
     void SetFurnitureAnimationOwned(const RemoteActor& a_remote, bool a_owned);
+    // The furniture the actor occupies or is entering, published for the local
+    // player's activation, which Skyrim runs on a worker thread.
+    void SetHeldFurniture(const RemoteActor& a_remote, RE::FormID a_furnitureRefID);
+    [[nodiscard]] bool IsFurnitureHeld(RE::FormID a_furnitureRefID);
 
     void SetCastAnimationOwned(const RemoteActor& a_remote, bool a_owned);
     [[nodiscard]] bool IsCastAnimationOwned(const RE::Actor* a_actor);

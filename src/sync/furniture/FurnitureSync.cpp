@@ -30,6 +30,60 @@ namespace FurnitureSync
         return furnitureRefID;
     }
 
+    bool IsHeldByLocalPlayer(const LocalFrame& a_local, RE::TESObjectREFR& a_furniture)
+    {
+        return GetOccupiedFurnitureRefID(a_local.player) == a_furniture.GetFormID()
+            || ActorFurniture::HasMarkerReservation(a_local.player, a_furniture);
+    }
+
+    bool BlocksLocalActivation(const LocalFrame& a_local, RE::TESObjectREFR& a_furniture, RemoteActor& a_actor)
+    {
+        auto actorPtr = a_actor.handle.get();
+        return actorPtr && ActorFurniture::HoldsFurniture(*actorPtr, a_actor, a_furniture)
+            && !ActorFurniture::HasAvailableMarker(a_local.player, a_furniture);
+    }
+
+    const char* FindFurnitureYieldReason(
+        const RemoteFrame& a_remote, RE::TESObjectREFR* a_localFurniture, RemoteActor* a_actor)
+    {
+        const auto furnitureRefID = a_remote.checkpoint.furnitureRefID;
+        if (furnitureRefID == 0)
+        {
+            return nullptr;
+        }
+        if (a_localFurniture && a_localFurniture->GetFormID() == furnitureRefID)
+        {
+            // An actor seated beside the local player on a shared bench keeps its seat.
+            RE::NiPointer<RE::Actor> actorPtr;
+            if (a_actor)
+            {
+                actorPtr = a_actor->handle.get();
+            }
+            if (!actorPtr || !ActorFurniture::HoldsFurniture(*actorPtr, *a_actor, *a_localFurniture))
+            {
+                return "occupied by the local player";
+            }
+        }
+        if (a_actor && ActorFurniture::GetTargetFurniture(*a_actor) == furnitureRefID
+            && ActorFurniture::IsTargetHeldByOtherActor(*a_actor))
+        {
+            return "occupied by another actor";
+        }
+        return nullptr;
+    }
+
+    bool IsVacated(const LocalFrame& a_local, RE::FormID a_furnitureRefID)
+    {
+        auto* furniture = RE::TESForm::LookupByID<RE::TESObjectREFR>(a_furnitureRefID);
+        return furniture && !IsHeldByLocalPlayer(a_local, *furniture)
+            && ActorFurniture::HasAvailableMarker(a_local.player, *furniture);
+    }
+
+    void OnActorSpawned(const RemoteFrame& a_remote, RemoteActor& a_actor)
+    {
+        ActorFurniture::ResumeFurniture(a_actor, a_remote.checkpoint.furnitureRefID);
+    }
+
     void OnCheckpointAccepted(const CheckpointUpdate& a_update)
     {
         if (a_update.previous.furnitureRefID != a_update.checkpoint.furnitureRefID)

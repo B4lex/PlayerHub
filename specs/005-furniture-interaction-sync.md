@@ -14,6 +14,11 @@ Show a remote player entering, using, and leaving the same world furniture as
 the source player, with Skyrim's native entry point, entry idle, and furniture
 idle. The exit animation is out of scope; see Exit for why.
 
+A remote actor must never keep the local player out of furniture, nor stack on
+a marker another actor already uses. Each peer keeps its own world, so several
+players can use one reference at once; where they would collide locally, the
+remote actor is hidden instead (see Shared furniture).
+
 ## Protocol
 
 Furniture occupancy is reconstructable state, not transient history. Every
@@ -53,7 +58,9 @@ receiver uses the NPC path. It waits until:
   local cell finished loading has not run one update with its do-nothing
   package, its equipment, or a settled AI process; entry started there is
   accepted, torn down by the engine within one pass of `IsSitting`, and leaves
-  the marker reserved;
+  the marker reserved. An actor resuming its source's furniture (below) only
+  waits for one update after readiness: it has no entry idle to be torn down,
+  and waiting would leave it standing on the seat for the whole delay;
 - the actor is ready, its locomotion has settled, and no attack, weapon, or
   graph-recovery transition is pending. A completed weapon clip counts as
   settled while the target is idle (after a sheathe, once the default state has
@@ -66,12 +73,11 @@ receiver uses the NPC path. It waits until:
   index while the native entry picks its own entry point, so on a bench the
   probe's marker can lie at the far end while the actor stands beside another
   seat, which held the entry back silently for as long as the source sat;
-- the local player does not occupy that same reference. Each peer keeps its own
-  world, so both players can be assigned one reference, and the marker probe
-  does not report the player's own occupancy. The native entry then records
+- the local player does not occupy that same reference. The marker probe does
+  not report the player's own occupancy, and a native entry there records
   occupancy which the engine takes back on the next pass, restarting the entry
-  idle for as long as the player stays seated, so nothing is ever played. Two
-  actors on one marker is a non-goal; entry waits for the player to leave.
+  idle for as long as the player stays seated. Such an actor is hidden instead
+  (see Shared furniture).
 
 Each of the settled-locomotion, animation-transition, checkpoint-distance and
 marker-distance gates logs once when it starts holding a request, with the
@@ -94,10 +100,23 @@ marker is unset, so the receiver repeats the entry once the weapon is sheathed,
 retrying every second. If no entry point is chosen within ten seconds, the
 occupancy is cleared and a fresh entry is attempted.
 
-The quick entry (ID 37324) is not used: it selects the `Idle*EnterInstant`
-records and skips the transition. Resuming an interaction that began before the
-actor existed through it was tried and reverted; it did not reproduce the
-source's seated state.
+An actor spawned while its source already uses furniture resumes it seated:
+the source's entry played before the actor existed. This covers a peer coming
+into view seated, an actor rebuilt after an appearance change or fast travel,
+and one returning after it was hidden for shared furniture, so players already
+using furniture when the local player joins appear seated. Its first entry into
+that reference passes the same gates, except for the shorter spawn settle
+described above, then follows the path Skyrim uses to
+reseat an actor whose 3D loads in furniture (ID 40438): record the occupancy
+(ID 39955), choose an entry point (ID 39923), and pass the chosen marker to the
+quick entry (ID 37324), which reserves it, plays the `Idle*EnterInstant`
+record, sets IsSitting/IsSleeping and snaps the actor onto the marker (ID
+37326, whose result it returns). The quick entry takes the marker as a third
+argument; an earlier attempt that omitted it failed to seat the actor. A seated
+state counts as success even when the snap failed. A refusal releases the
+reservation and occupancy it recorded and falls back to the transition entry.
+Once the source moves to another target, the resume no longer applies, so a
+later entry the local player can watch plays its transition.
 
 ID 37330 reports success before the occupancy it records is observable, and
 sometimes records none at all. The entry is confirmed on a later pass, when the
@@ -188,6 +207,75 @@ Changing directly from one reference to another exits the old furniture before
 entering the new one. If Skyrim drops a started entry, ownership is held for at
 most ten seconds before the request is released and retried.
 
+## Shared furniture
+
+Each peer keeps its own world, so one reference can be used at once by the
+local player, local NPCs, and several remote players. When a remote actor would
+block the local player or share a marker with another actor, it is hidden
+locally: retired like any respawn (occupancy and marker reservations released,
+reference disabled and deleted), while its source keeps using the furniture in
+its own world. A hidden actor is not respawned while its newest checkpoint
+still names that reference.
+
+### Local player activation
+
+Skyrim runs the player's furniture activation (`TESFurniture::Activate`,
+vfunc 0x37) on a worker thread, where no remote actor may be touched. A hook
+there reads, under a lock, the furniture each remote actor holds (occupied or
+requested), which the main loop publishes to the actor registry on every
+furniture pass. If one holds the reference, the hook refuses that activation, so
+Skyrim shows no "in use" message, and defers it to the main loop. Either way the
+activation is queued.
+
+At the start of the next main-loop pass, before the local checkpoint is
+sampled, each queued activation is resolved:
+
+- if the local player already occupies or reserves the reference, it was
+  accepted and nothing is done;
+- otherwise every remote actor that holds it (occupied, requested, or a marker
+  reservation) while the probe (ID 20162) finds no free marker for the local
+  player is hidden;
+- if any actor was hidden or the activation was deferred, the reference is
+  activated again for the player through `ActivateRef` with default processing
+  only. The reference's scripts already ran in the original activation.
+
+On a bench with a free marker nobody is hidden; the deferred activation is
+repeated and the player sits beside the actor.
+
+### Remote entry
+
+Before its actor is updated, a remote actor is hidden if:
+
+- **the local player occupies the checkpoint's reference** and the actor does
+  not already hold it. An actor already seated beside the player on a shared
+  bench keeps its seat;
+- **another actor holds it:** on its last entry attempt the probe found no free
+  marker, and the reference carries a marker reservation by another live,
+  enabled actor, a local NPC or another remote player's actor. The later actor
+  yields, so whoever entered first keeps the seat. A probe failure without such
+  a reservation (a stale reservation, or a runtime other than 1.7.104) keeps
+  the one-second retry instead. The flag is set by the entry attempt, so the
+  actor is hidden one pass later. An actor spawned into furniture resumes it,
+  so it makes that attempt on its first update after readiness.
+
+### Return
+
+A hidden actor is spawned again when either:
+
+- its newest checkpoint leaves the reference, so it reappears standing;
+- the reference is vacated locally: the local player neither occupies nor
+  reserves it, and the probe finds a free marker for the player. The actor
+  then resumes the furniture seated (see Entry). The probe needs 1.7.104; on
+  other runtimes the actor waits for its source to leave.
+
+If the local player sits back down before the returned actor has entered, the
+actor does not hold the reference yet and is hidden again.
+
+Hiding logs `Hiding remote player actor ... reason=`, and returning after the
+reference was vacated logs `Restoring remote player actor ... was vacated`.
+Local activations log `Observed local furniture activation` and, when repeated,
+`Reactivated furniture for the local player`.
+
 ## Ordering and recovery
 
 - A furniture checkpoint discards queued attacks and suppresses attack dispatch.
@@ -199,14 +287,18 @@ most ten seconds before the request is released and retried.
   handle on the furniture reference, and one that outlives its actor makes
   Skyrim refuse every entry point to the replacement.
 - Late join reconstructs occupancy from the repeated checkpoint field. Historical
-  enter/exit transitions are not replayed.
+  enter/exit transitions are not replayed; an actor spawned into its source's
+  furniture resumes it seated.
+- Shared-furniture resolution runs after coordinate-space and fast-travel
+  retirement and before the actor is updated; local activations are resolved
+  before the local checkpoint is sampled.
 
 ## Non-goals
 
 - Synchronizing crafting menus, selected recipes, ingredients, output items,
   skill progression, sleeping/waiting UI, or ownership/crime consequences.
-- Reserving furniture globally across clients or rendering multiple actors in a
-  single-marker furniture object.
+- Reserving furniture globally across clients or rendering multiple actors on
+  one marker. The actor that would share a marker is hidden instead.
 - Synchronizing arbitrary activators, doors, containers, scripted furniture,
   paired idles, mounts, or killmoves.
 - Translating FormIDs between different plugin load orders.
@@ -225,3 +317,12 @@ most ten seconds before the request is released and retried.
 5. Unresolved, non-furniture, and cross-space references, unavailable markers,
    and stuck transitions are bounded, logged, and retried.
 6. Existing recordings without the field replay as `furnitureRefId: 0`.
+7. The local player can use furniture a remote actor holds, without an "in use"
+   message; the actor is hidden for as long as its source stays in it or the
+   player keeps the last free marker.
+8. Two actors never stack on one marker: a remote actor entering furniture held
+   by the local player, a local NPC, or another remote actor is hidden.
+9. A player already using furniture when the local player joins or comes into
+   range appears in it without an entry idle, on the first update after its
+   actor is ready. A hidden actor whose source is still seated returns the same
+   way once the furniture is vacated locally.

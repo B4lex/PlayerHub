@@ -6,6 +6,7 @@
 #include "actor/ScenePackageSuppression.h"
 #include "actor/SurvivalPolicy.h"
 #include "network/SocketIOClient.h"
+#include "runtime/FurnitureActivationHook.h"
 #include "runtime/MainLoopHook.h"
 #include "sync/SyncCoordinator.h"
 #include "sync/equipment/EquipmentSync.h"
@@ -48,6 +49,7 @@ namespace PluginStartup
             + UI::Overlay::kTrampolineSize);
         InstallRemoteActorHooks();
         MainLoopHook::Install();
+        FurnitureActivationHook::Install();
         UI::Overlay::Install();
 
         SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* a_message) {

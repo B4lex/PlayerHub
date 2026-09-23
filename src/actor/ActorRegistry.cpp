@@ -23,6 +23,7 @@ namespace ActorRegistry
             const RE::MagicTarget* magicTarget{ nullptr };
             const RE::ActorValueOwner* actorValueOwner{ nullptr };
             std::uint32_t actorHandle{ 0 };
+            RE::FormID heldFurnitureRefID{ 0 };
             std::unordered_map<std::string, std::uint32_t> blockedEventCounts;
             std::uint32_t blockedMagicEffects{ 0 };
             std::uint32_t blockedHealthDamage{ 0 };
@@ -152,6 +153,28 @@ namespace ActorRegistry
         {
             registration->second.furnitureAnimationOwned = a_owned;
         }
+    }
+
+    void SetHeldFurniture(const RemoteActor& a_remote, RE::FormID a_furnitureRefID)
+    {
+        std::scoped_lock lock{ s_mutex };
+        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
+        if (registration != s_registrations.end())
+        {
+            registration->second.heldFurnitureRefID = a_furnitureRefID;
+        }
+    }
+
+    bool IsFurnitureHeld(RE::FormID a_furnitureRefID)
+    {
+        if (a_furnitureRefID == 0)
+        {
+            return false;
+        }
+
+        std::scoped_lock lock{ s_mutex };
+        return std::ranges::any_of(s_registrations,
+            [a_furnitureRefID](const auto& a_entry) { return a_entry.second.heldFurnitureRefID == a_furnitureRefID; });
     }
 
     void SetCastAnimationOwned(const RemoteActor& a_remote, bool a_owned)
