@@ -861,6 +861,17 @@ namespace ActorAnimation
         return a_remote.animation && a_remote.animation->attackPlaybackPending;
     }
 
+    bool IsSwimming(const RemoteActor& a_remote)
+    {
+        if (!GameThread::Require("IsSwimming"))
+        {
+            return false;
+        }
+        const auto actorPtr = a_remote.handle.get();
+        const auto* actorState = actorPtr ? actorPtr->AsActorState() : nullptr;
+        return actorState && actorState->IsSwimming();
+    }
+
     void ApplyBowDraw(RemoteActor& a_remote, bool a_drawn, bool a_mayStart, float a_deltaTime)
     {
         if (!GameThread::Require("ApplyBowDraw") || !a_remote.animation)

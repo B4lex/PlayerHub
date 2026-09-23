@@ -192,7 +192,17 @@ namespace AnimationSync
             const bool physicalMidair = a_player.IsInMidair();
             const bool requestedJumping = graphJumpStateAvailable ? graphJumping : (physicalJumping || physicalMidair);
 
-            if (replicatedJumping)
+            if (state->IsSwimming())
+            {
+                // Swimming has no takeoff: the jump input only swims upward, but
+                // the remote actor's swim graph still accepts a jump event. A jump
+                // that ends in the water lands there, and a graph jump state left
+                // over from swimming must reset before a new takeoff counts.
+                replicatedJumping = false;
+                observedMidair = false;
+                waitForGraphJumpReset = requestedJumping;
+            }
+            else if (replicatedJumping)
             {
                 observedMidair = observedMidair || physicalMidair;
                 if (observedMidair && !physicalMidair)
@@ -255,6 +265,12 @@ namespace AnimationSync
             {
                 target.weaponDrawn = current.weaponDrawn;
                 target.jumping = current.jumping;
+            }
+            if (target.jumping && !current.jumping && ActorAnimation::IsSwimming(a_actor))
+            {
+                // Interpolation can put this actor into swim depth while the source
+                // player still wades, and a jump there would play in Swim_State.
+                target.jumping = false;
             }
             return target;
         }
