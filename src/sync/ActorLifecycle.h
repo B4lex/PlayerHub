@@ -39,6 +39,9 @@ namespace ActorLifecycle
     // either far from the newest checkpoint, or still without 3D a while after
     // that checkpoint's location has loaded. SpawnWhenDue rebuilds it there.
     void RetireWhenStranded(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta);
+    // Retires an actor killed for its player's death once the player is alive
+    // again. SpawnWhenDue rebuilds it standing at the newest checkpoint.
+    void RetireForRevival(const RemoteFrame& a_remote, PeerState& a_peer);
     // Retires the actor, if any, and holds its respawn while the newest
     // checkpoint still uses a_furnitureRefID.
     void YieldFurniture(

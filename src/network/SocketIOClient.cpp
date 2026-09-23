@@ -303,6 +303,7 @@ namespace Network
             bool jumping = false;
             bool weaponDrawn = false;
             Multiplayer::HandPresentation handPresentation;
+            bool dead = false;
             std::uint64_t cellID = 0;
             std::uint64_t worldspaceID = 0;
             std::uint64_t furnitureRefID = 0;
@@ -318,6 +319,7 @@ namespace Network
                 || !ReadOptionalBool(values, "castingLeft", handPresentation.castingLeft)
                 || !ReadOptionalBool(values, "castingRight", handPresentation.castingRight)
                 || !ReadOptionalBool(values, "blocking", handPresentation.blocking)
+                || !ReadBool(values, "dead", dead)
                 || !ReadUnsignedInteger(values, "cellId", (std::numeric_limits<std::uint32_t>::max)(), cellID)
                 || !ReadUnsignedInteger(
                     values, "worldspaceId", (std::numeric_limits<std::uint32_t>::max)(), worldspaceID)
@@ -352,6 +354,7 @@ namespace Network
                     .jumping = jumping,
                     .weaponDrawn = weaponDrawn },
                 .handPresentation = handPresentation,
+                .dead = dead,
                 .cellID = static_cast<std::uint32_t>(cellID),
                 .worldspaceID = static_cast<std::uint32_t>(worldspaceID),
                 .furnitureRefID = static_cast<std::uint32_t>(furnitureRefID),
@@ -1078,6 +1081,7 @@ namespace Network
         values["castingLeft"] = sio::bool_message::create(a_transform.handPresentation.castingLeft);
         values["castingRight"] = sio::bool_message::create(a_transform.handPresentation.castingRight);
         values["blocking"] = sio::bool_message::create(a_transform.handPresentation.blocking);
+        values["dead"] = sio::bool_message::create(a_transform.dead);
         values["cellId"] = sio::int_message::create(a_transform.cellID);
         values["worldspaceId"] = sio::int_message::create(a_transform.worldspaceID);
         values["furnitureRefId"] = sio::int_message::create(a_transform.furnitureRefID);

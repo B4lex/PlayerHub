@@ -19,6 +19,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "castingLeft": False,
             "castingRight": True,
             "blocking": True,
+            "dead": False,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
             "furnitureRefId": 0xA729,
@@ -43,6 +44,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "castingLeft": False,
             "castingRight": False,
             "blocking": False,
+            "dead": False,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
             "furnitureRefId": 0,
@@ -226,6 +228,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "castingLeft": False,
             "castingRight": False,
             "blocking": False,
+            "dead": False,
             "cellId": 1,
             "worldspaceId": 0,
             "furnitureRefId": 0,
@@ -303,8 +306,57 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 "castingLeft": False,
                 "castingRight": False,
                 "blocking": False,
+                "dead": False,
             },
         )
+
+    def test_accepts_dead_player(self) -> None:
+        payload = {
+            "x": 1.0,
+            "y": 2.0,
+            "z": 3.0,
+            "heading": 0.0,
+            "speed": 0.0,
+            "direction": 0.0,
+            "movementState": "idle",
+            "jumping": False,
+            "weaponDrawn": True,
+            "bowDrawn": False,
+            "castingLeft": False,
+            "castingRight": False,
+            "blocking": False,
+            "dead": True,
+            "cellId": 1,
+            "worldspaceId": 0,
+            "furnitureRefId": 0,
+            "graphEpoch": 1,
+            "sequence": 1,
+        }
+
+        self.assertEqual(parse_player_update(payload), payload)
+
+    def test_rejects_non_boolean_dead_state(self) -> None:
+        for dead in (1, "true", None):
+            payload = {
+                "x": 1.0,
+                "y": 2.0,
+                "z": 3.0,
+                "heading": 0.0,
+                "speed": 0.0,
+                "direction": 0.0,
+                "movementState": "idle",
+                "jumping": False,
+                "weaponDrawn": False,
+                "dead": dead,
+                "cellId": 1,
+                "worldspaceId": 0,
+                "furnitureRefId": 0,
+                "graphEpoch": 1,
+                "sequence": 1,
+            }
+
+            with self.subTest(dead=dead):
+                self.assertIsNone(parse_player_update(payload))
 
     def test_rejects_non_boolean_hand_presentation(self) -> None:
         for field in ("bowDrawn", "castingLeft", "castingRight", "blocking"):

@@ -491,6 +491,7 @@ namespace ActorFurniture
         }
         (void)SetActorSitSleepState(a_actor, RE::SIT_SLEEP_STATE::kNormal);
         SetFurnitureAnimationOwnership(a_remote, false);
+        ActorRegistry::SetHeldFurniture(a_remote, 0);
         ResetFurnitureRequest(a_remote);
         a_remote.furniture.targetFurnitureRefID = 0;
         a_remote.furniture.loggedSitSleepState = RE::SIT_SLEEP_STATE::kNormal;
@@ -499,7 +500,7 @@ namespace ActorFurniture
         if (furniture || releasedMarkerCount != 0)
         {
             logs::info(
-                "Animation sync released furniture before retiring actor: actor={:08X} furniture={:08X} "
+                "Animation sync released actor furniture: actor={:08X} furniture={:08X} "
                 "releasedMarkers={}",
                 a_remote.handle.native_handle(), furniture ? furniture->GetFormID() : 0, releasedMarkerCount);
         }

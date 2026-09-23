@@ -37,7 +37,9 @@ to `http://127.0.0.1:3000` for local testing.
   casting (`bowDrawn`, `castingLeft`, `castingRight`, optional and defaulting to
   `false`; see `specs/011-bow-and-spell-presentation-sync.md`), blocking
   (`blocking`, optional and defaulting to `false`; see
-  `specs/012-off-hand-block-and-bash-sync.md`), cell and worldspace form IDs,
+  `specs/012-off-hand-block-and-bash-sync.md`), whether the player is dying or
+  dead (`dead`, optional and defaulting to `false`; see
+  `specs/015-player-death-sync.md`), cell and worldspace form IDs,
   occupied furniture reference FormID, graph epoch, and monotonically increasing
   checkpoint sequence number. It is rejected with `not in world` outside
   `player:enter` and `player:exit`.

@@ -113,6 +113,13 @@ namespace ActorLifecycle
             static_cast<unsigned long long>(a_remote.lastSequence));
     }
 
+    void RetireForRevival(const RemoteFrame& a_remote, PeerState& a_peer)
+    {
+        const auto actorHandle = Retire(a_peer);
+        logs::info("Recycling remote player actor {} actor {:08X} after the player came back to life: sequence={}",
+            a_remote.playerID, actorHandle, static_cast<unsigned long long>(a_remote.lastSequence));
+    }
+
     void YieldFurniture(
         const RemoteFrame& a_remote, PeerState& a_peer, RE::FormID a_furnitureRefID, const char* a_reason)
     {
@@ -144,7 +151,10 @@ namespace ActorLifecycle
 
     void OnActorLost(const RemoteFrame& a_remote, PeerState& a_peer)
     {
-        logs::warn("Remote player actor {} lost its actor handle; respawning it", a_remote.playerID);
+        logs::warn("Remote player actor {} lost its actor handle; respawning it: dead={}", a_remote.playerID,
+            a_peer.lifecycle.actor->dead);
+        // Only unregisters: the reference is already gone.
+        ActorSpawner::Remove(*a_peer.lifecycle.actor);
         a_peer.lifecycle.actor.reset();
         CombatSync::ClearRemoteActions(a_peer.combat);
         a_peer.lifecycle.spawnRetryRemaining = kSpawnRetryDelay;

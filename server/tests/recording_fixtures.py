@@ -29,6 +29,7 @@ def checkpoint(sequence: int = 1, **overrides: Any) -> dict[str, Any]:
         "castingLeft": False,
         "castingRight": False,
         "blocking": False,
+        "dead": False,
         "cellId": 1,
         "worldspaceId": 60,
         "furnitureRefId": 0,

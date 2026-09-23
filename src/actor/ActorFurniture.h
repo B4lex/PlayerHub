@@ -62,7 +62,8 @@ namespace ActorFurniture
     // Drops occupancy and the marker reservation the actor holds on its furniture.
     // Called before the reference is retired: a deleted actor keeps its reservation,
     // and the engine then refuses every entry point on that furniture to the
-    // replacement actor until the reservation expires.
+    // replacement actor until the reservation expires. Also called before a kill,
+    // since a body is no longer driven out of its furniture.
     void ReleaseFurniture(RE::Actor& a_actor, RemoteActor& a_remote);
 
     // Whether the actor occupies, is entering, or holds a marker reservation on

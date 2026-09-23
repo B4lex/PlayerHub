@@ -80,6 +80,13 @@ def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None
             return None
         values[field] = presenting
 
+    # Dying or dead. Recordings made before death synchronization have no life
+    # state, which means the player is alive.
+    dead = data.get("dead", False)
+    if not isinstance(dead, bool):
+        return None
+    values["dead"] = dead
+
     cell_id = data.get("cellId")
     worldspace_id = data.get("worldspaceId")
     furniture_ref_id = data.get("furnitureRefId")

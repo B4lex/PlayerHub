@@ -2,6 +2,7 @@
 #include "network/SocketIOClient.h"
 #include "sync/animation/AnimationSync.h"
 #include "sync/combat/CombatSync.h"
+#include "sync/death/DeathSync.h"
 #include "sync/furniture/FurnitureSync.h"
 #include "sync/movement/MovementSync.h"
 
@@ -44,6 +45,7 @@ namespace CheckpointPublisher
         const auto animationState = AnimationSync::SampleLocalAnimation(a_local, sequence, movement);
         const auto furnitureRefID = FurnitureSync::SampleLocalFurniture(a_local, sequence);
         const auto handPresentation = CombatSync::SampleLocalHandPresentation();
+        const bool dead = DeathSync::SampleLocalDeath(a_local, sequence);
 
         const Network::PlayerTransform checkpoint{ .x = movement.position.x,
             .y = movement.position.y,
@@ -53,6 +55,7 @@ namespace CheckpointPublisher
             .direction = movement.direction,
             .animationState = animationState,
             .handPresentation = handPresentation,
+            .dead = dead,
             .cellID = movement.cellID,
             .worldspaceID = movement.worldspaceID,
             .furnitureRefID = furnitureRefID,

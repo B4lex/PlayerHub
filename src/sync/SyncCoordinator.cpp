@@ -11,6 +11,7 @@
 #include "sync/animation/AnimationSync.h"
 #include "sync/appearance/AppearanceSync.h"
 #include "sync/combat/CombatSync.h"
+#include "sync/death/DeathSync.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/furniture/FurnitureSync.h"
 #include "sync/movement/MovementSync.h"
@@ -311,6 +312,20 @@ namespace SyncCoordinator
                 // Do not preserve transient combat history while no actor/checkpoint
                 // can be reconstructed in the local coordinate space.
                 CombatSync::ClearRemoteActions(a_peer.combat);
+                return;
+            }
+            if (lifecycle.actor && DeathSync::SyncDeath(remote, a_peer))
+            {
+                // The body is left to Skyrim's ragdoll; only its handle and look are kept.
+                auto& actor = *lifecycle.actor;
+                if (auto liveActor = actor.handle.get())
+                {
+                    AppearanceSync::ApplyActorPresentation(a_peer.appearance, a_playerID, *liveActor, actor.ready);
+                }
+                else
+                {
+                    ActorLifecycle::OnActorLost(remote, a_peer);
+                }
                 return;
             }
             if (lifecycle.actor)
