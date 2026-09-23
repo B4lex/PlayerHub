@@ -52,7 +52,12 @@ function PlayerRow({ player }: { player: Player }) {
               Recording
             </Badge>
           )}
-          {!player.virtual && player.recordingId === null && <Badge tone="success">Online</Badge>}
+          {!player.virtual && player.recordingId === null && player.inWorld && <Badge tone="success">Online</Badge>}
+          {!player.inWorld && (
+            <Badge tone="neutral" title="In the main menu or a loading screen">
+              Out of world
+            </Badge>
+          )}
         </div>
       </td>
     </tr>

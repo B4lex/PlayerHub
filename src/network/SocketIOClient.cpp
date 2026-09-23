@@ -33,6 +33,7 @@ namespace Network
         std::unordered_map<std::string, std::uint64_t> latestReceivedEquipmentRevisions;
         std::deque<AnimationAction> pendingAnimationActions;
         std::unordered_map<std::string, std::uint64_t> latestReceivedActionSequences;
+        std::unordered_set<std::string> pendingExits;
         std::unordered_set<std::string> pendingDisconnects;
         std::uint64_t localActionSequence = 0;
 
@@ -911,6 +912,7 @@ namespace Network
             latestReceivedEquipmentRevisions.clear();
             pendingAnimationActions.clear();
             latestReceivedActionSequences.clear();
+            pendingExits.clear();
             pendingDisconnects.clear();
         }
 
@@ -925,29 +927,56 @@ namespace Network
             ForgetRemotePlayersLocked();
         }
 
-        void OnRemoteDisconnect(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
+        bool ReadPlayerID(const sio::message::ptr& a_data, std::string& a_result)
         {
-            if (!a_data || a_data->get_flag() != sio::message::flag_object)
+            return a_data && a_data->get_flag() == sio::message::flag_object
+                && ReadString(a_data->get_map(), "playerId", a_result);
+        }
+
+        // Forgets the player's checkpoint and action stream. Requires
+        // remoteChangesLock.
+        void ForgetRemoteWorldStateLocked(const std::string& a_playerID)
+        {
+            pendingTransforms.erase(a_playerID);
+            latestReceivedTransforms.erase(a_playerID);
+            latestReceivedActionSequences.erase(a_playerID);
+            std::erase_if(pendingAnimationActions,
+                [&a_playerID](const AnimationAction& a_action) { return a_action.playerID == a_playerID; });
+        }
+
+        void OnRemoteExit(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
+        {
+            std::string playerID;
+            if (!ReadPlayerID(a_data, playerID))
             {
+                logs::warn("Ignored malformed Socket.IO player:exit payload");
                 return;
             }
 
+            logs::info("Remote player {} left the world", playerID);
+            std::scoped_lock lock{ remoteChangesLock };
+            ForgetRemoteWorldStateLocked(playerID);
+            // Unlike a disconnect, a later message does not cancel the exit: the
+            // main-loop pass must drop the old actor before a new checkpoint.
+            pendingExits.insert(std::move(playerID));
+        }
+
+        void OnRemoteDisconnect(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
+        {
             std::string playerID;
-            if (!ReadString(a_data->get_map(), "playerId", playerID))
+            if (!ReadPlayerID(a_data, playerID))
             {
+                logs::warn("Ignored malformed Socket.IO player:disconnect payload");
                 return;
             }
 
             std::scoped_lock lock{ remoteChangesLock };
-            pendingTransforms.erase(playerID);
-            latestReceivedTransforms.erase(playerID);
+            ForgetRemoteWorldStateLocked(playerID);
             pendingAppearances.erase(playerID);
             latestReceivedAppearanceRevisions.erase(playerID);
             pendingEquipment.erase(playerID);
             latestReceivedEquipmentRevisions.erase(playerID);
-            latestReceivedActionSequences.erase(playerID);
-            std::erase_if(pendingAnimationActions,
-                [&playerID](const AnimationAction& a_action) { return a_action.playerID == playerID; });
+            pendingExits.erase(playerID);
             pendingDisconnects.insert(std::move(playerID));
         }
     }
@@ -964,7 +993,8 @@ namespace Network
             socket->on("player:action", sio::socket::event_listener_aux(OnRemoteAnimationAction));
             socket->on("player:appearance", sio::socket::event_listener_aux(OnRemoteAppearance));
             socket->on("player:equipment", sio::socket::event_listener_aux(OnRemoteEquipment));
-            socket->on("player:left", sio::socket::event_listener_aux(OnRemoteDisconnect));
+            socket->on("player:exit", sio::socket::event_listener_aux(OnRemoteExit));
+            socket->on("player:disconnect", sio::socket::event_listener_aux(OnRemoteDisconnect));
 
             client.set_open_listener([] {
                 RE::ConsoleLog::GetSingleton()->Print("MP: Connected.");
@@ -1007,6 +1037,22 @@ namespace Network
     std::uint64_t GetConnectionGeneration()
     {
         return connectionGeneration.load(std::memory_order_acquire);
+    }
+
+    void PublishLocalWorldEnter()
+    {
+        if (IsConnected())
+        {
+            GetClient().socket()->emit("player:enter");
+        }
+    }
+
+    void PublishLocalWorldExit()
+    {
+        if (IsConnected())
+        {
+            GetClient().socket()->emit("player:exit");
+        }
     }
 
     void PublishLocalPlayerTransform(const PlayerTransform& a_transform)
@@ -1254,6 +1300,13 @@ namespace Network
             changes.animationActions.push_back(std::move(pendingAnimationActions.front()));
             pendingAnimationActions.pop_front();
         }
+
+        changes.exitedPlayerIDs.reserve(pendingExits.size());
+        for (auto& playerID : pendingExits)
+        {
+            changes.exitedPlayerIDs.push_back(std::move(playerID));
+        }
+        pendingExits.clear();
 
         changes.disconnectedPlayerIDs.reserve(pendingDisconnects.size());
         for (auto& playerID : pendingDisconnects)

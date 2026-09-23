@@ -172,7 +172,7 @@ forms and are sent as is.
 ### Accepting updates
 
 The network thread keeps only the newest pending equipment per player (by
-revision) and discards it on `player:left`. The main-loop pass stores it on the
+revision) and discards it on `player:disconnect`. The main-loop pass stores it on the
 remote player state, independent of whether a actor reference currently
 exists. A rejected payload is logged with the name of the offending field.
 

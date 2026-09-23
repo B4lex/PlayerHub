@@ -12,9 +12,10 @@ uv run server
 ```
 
 Per-message Socket.IO diagnostics are emitted at the normal service log level:
-received `player:update` payloads and relayed `player:state` / `player:left`
-payloads. The game console logs its transmitted `player:update` and received
-`player:state` / `player:left` messages. At the default 20 Hz update rate this
+received `player:update` payloads and relayed `player:state` / `player:exit` /
+`player:disconnect` payloads. The game console logs its transmitted
+`player:update` and received `player:state` / `player:exit` /
+`player:disconnect` messages. At the default 20 Hz update rate this
 is intentionally verbose.
 
 The server listens on port `3000` on all interfaces. The SKSE plugin defaults
@@ -22,6 +23,15 @@ to `http://127.0.0.1:3000` for local testing.
 
 - `GET /health` returns a basic health check.
 - `GET /poc` returns a human-readable proof-of-concept response.
+- `player:enter` and `player:exit` carry no payload and mark whether the player
+  is placed in the game world. A client connects out of the world (main menu),
+  enters once its character is in a loaded cell, and exits when a loading screen
+  or the main menu opens. Both are acknowledged with `{"ok": true}` and are
+  idempotent. The server forgets the player's checkpoint and action stream on
+  exit, but keeps its appearance and equipment.
+- `player:exit` is relayed to peers with `playerId`, telling them to remove the
+  player's actor while keeping its appearance and equipment. `player:enter` is
+  not relayed: the next `player:state` places the player again.
 - `player:update` carries the local player's position, heading, measured speed,
   explicit movement-animation state, jump phase, bow draw and per-hand spell
   casting (`bowDrawn`, `castingLeft`, `castingRight`, optional and defaulting to
@@ -29,7 +39,8 @@ to `http://127.0.0.1:3000` for local testing.
   (`blocking`, optional and defaulting to `false`; see
   `specs/012-off-hand-block-and-bash-sync.md`), cell and worldspace form IDs,
   occupied furniture reference FormID, graph epoch, and monotonically increasing
-  checkpoint sequence number.
+  checkpoint sequence number. It is rejected with `not in world` outside
+  `player:enter` and `player:exit`.
 - `player:state` relays a validated transform to every other connected player.
 - `animation:action` carries a validated, ordered semantic action. The
   vocabulary is `attack/normal`, `attack/left`, `attack/dual`, and `attack/bash`.
@@ -51,7 +62,8 @@ to `http://127.0.0.1:3000` for local testing.
   holding a spell is `{"kind": "spell"}` without a reference. It uses the same
   relay, storage, and late-join lifecycle as `player:appearance`. See
   `specs/007-player-equipment-sync.md`.
-- `player:left` tells peers to remove the disconnected player's actor.
+- `player:disconnect` tells peers to remove the disconnected player's actor
+  and forget all of its state.
 - `latency:probe` is acknowledged immediately with `{"ok": true, "serverTimeMs": ...}`
   and never relayed. The plugin sends one per second, shows the acknowledgement
   round trip as its ping, and uses `serverTimeMs` to estimate the server clock.
@@ -90,10 +102,11 @@ not expose the port to the public Internet.
 
 Recording is controlled from the panel (or `POST /api/recordings`), per player,
 and runs until stopped. Nothing is recorded by default. Starting a capture writes
-the player's current appearance, equipment, and latest checkpoint first, so a
-recording that begins mid-session replays on its own. After that every accepted
-`player:update`, `player:appearance`, `player:equipment`, and `animation:action`
-of that player is appended. A capture also ends when the player disconnects or the
+the player's current appearance, equipment, and latest checkpoint first (preceded
+by `player:exit` when the player is out of the world), so a recording that begins
+mid-session replays on its own. After that every accepted `player:enter`,
+`player:exit`, `player:update`, `player:appearance`, `player:equipment`, and
+`animation:action` of that player is appended. A capture also ends when the player disconnects or the
 server shuts down, and a failing disk ends only the capture, never the relay.
 
 A recording is one append-only JSON Lines file, `recordings/<id>.jsonl`, with the
@@ -120,8 +133,10 @@ last line is ignored. Recordings are ignored by Git.
 
 A replay runs inside the server as a **virtual player** (`replay:<id>`). Every
 connected client sees it as another peer: it is relayed as `player:state`,
-`player:action`, `player:appearance`, `player:equipment`, and `player:left`, and
-clients that join mid-replay receive its appearance and equipment. Nothing in the
+`player:action`, `player:appearance`, `player:equipment`, `player:exit`, and
+`player:disconnect`, and clients that join mid-replay receive its appearance
+and equipment. While the recorded player was out of the world, the virtual player
+exits too and sends no checkpoints. Nothing in the
 plugin distinguishes it from a real player.
 
 Clients accept a peer's state only with a rising `sequence`, a non-decreasing

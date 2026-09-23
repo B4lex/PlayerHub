@@ -45,9 +45,11 @@ class LatencyProbeTests(unittest.IsolatedAsyncioTestCase):
 class PacketDelayRelayTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         server_app.player_states.clear()
+        server_app.registry.enter("player-1")
 
     def tearDown(self) -> None:
         server_app.player_states.clear()
+        server_app.registry.in_world.clear()
 
     async def test_relays_sent_at_without_storing_it(self) -> None:
         emit = AsyncMock()

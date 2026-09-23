@@ -56,6 +56,8 @@ def _renumber(virtual: VirtualPlayer, update: RecordedUpdate) -> dict[str, Any] 
             return virtual.appearance(update.payload)
         case "player:equipment":
             return virtual.equipment(update.payload)
+        case "player:enter" | "player:exit":
+            return {}
     raise ValueError(f"unsupported event {update.event!r}")
 
 
@@ -77,6 +79,8 @@ def replay(
     try:
         while True:
             virtual.break_continuity()
+            # A recording starts in the world unless it says otherwise.
+            client.call("player:enter", {}, timeout=ack_timeout)
             for update in updates:
                 if update.delay_seconds:
                     time.sleep(update.delay_seconds / speed)
@@ -94,6 +98,8 @@ def replay(
                     identifier = f"sequence={payload['sequence']}"
                 elif update.event in ("player:appearance", "player:equipment"):
                     identifier = f"revision={payload['revision']}"
+                elif update.event in ("player:enter", "player:exit"):
+                    identifier = ""
                 else:
                     identifier = f"actionSequence={payload['actionSequence']}"
                 print(f"sent {sent}: event={update.event} {identifier}", flush=True)

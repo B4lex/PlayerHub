@@ -65,6 +65,8 @@ class PlaybackSession:
 
     Because checkpoints are latest-wins, a seek does not replay what it skips:
     it sends the appearance, equipment, and checkpoint in effect at the target.
+    While the recorded player was out of the world, the virtual player exits it
+    too and sends no checkpoints.
     """
 
     def __init__(
@@ -102,6 +104,12 @@ class PlaybackSession:
                 series[1].append(message.payload)
         if not self._series["player:update"][0]:
             raise PlaybackError("recording has no player:update checkpoints")
+        self._presence_times: list[int] = []
+        self._presence: list[bool] = []
+        for message in self._messages:
+            if message.event in ("player:enter", "player:exit"):
+                self._presence_times.append(message.t_ms)
+                self._presence.append(message.event == "player:enter")
         self._duration_ms = recording.duration_ms
         self._validate_rate(rate)
 
@@ -115,6 +123,7 @@ class PlaybackSession:
         self._snapshot_pending = True
         self._heartbeat_due = 0.0
         self._last_update: dict[str, Any] | None = None
+        self._in_world = False
         self._revision = 0
         # Bumped by every control call; an emission in flight checks it after
         # each await and abandons a plan the caller has since changed.
@@ -130,6 +139,10 @@ class PlaybackSession:
         if self._playing:
             return PlaybackStatus.PLAYING
         return PlaybackStatus.ENDED if self._ended else PlaybackStatus.PAUSED
+
+    @property
+    def in_world(self) -> bool:
+        return self._in_world
 
     def position_ms(self) -> float:
         return self._position(self._clock())
@@ -277,8 +290,12 @@ class PlaybackSession:
         equipment = self._latest_at("player:equipment", position)
         if equipment is not None and (payload := self._virtual.equipment(equipment)):
             await self._publisher.equipment(payload)
-        update = self._latest_at("player:update", position)
+        update = self._checkpoint_at(position)
+        if update is None:
+            await self._exit()
+            return
         self._last_update = update
+        self._enter()
         if not self._playing:
             self._heartbeat_due = now + HEARTBEAT_SECONDS
         await self._publisher.checkpoint(self._virtual.checkpoint(update, hold=not self._playing))
@@ -290,10 +307,43 @@ class PlaybackSession:
         # Before the first recorded value, the first one is the best estimate.
         return payloads[max(bisect_right(times, position) - 1, 0)]
 
+    def _checkpoint_at(self, position: float) -> dict[str, Any] | None:
+        """The checkpoint in effect, or None while the player is out of the world."""
+        presence_index = bisect_right(self._presence_times, position) - 1
+        if presence_index < 0:
+            # Before any recorded change, the player is in the world unless it enters later.
+            if self._presence and self._presence[0]:
+                return None
+            return self._latest_at("player:update", position)
+        if not self._presence[presence_index]:
+            return None
+        times = self._series["player:update"][0]
+        update_index = bisect_right(times, position) - 1
+        if update_index >= 0 and times[update_index] < self._presence_times[presence_index]:
+            # The latest checkpoint predates this entry; wait for the next one.
+            return None
+        return self._latest_at("player:update", position)
+
+    def _enter(self) -> None:
+        if not self._in_world:
+            self._in_world = True
+            self._on_change()
+
+    async def _exit(self) -> None:
+        # The next checkpoint places the player in the world again.
+        self._last_update = None
+        if self._in_world:
+            self._in_world = False
+            self._on_change()
+            await self._publisher.exit()
+
     async def _emit_message(self, message: RecordedMessage) -> None:
         match message.event:
+            case "player:exit":
+                await self._exit()
             case "player:update":
                 self._last_update = message.payload
+                self._enter()
                 await self._publisher.checkpoint(self._virtual.checkpoint(message.payload))
             case "player:appearance":
                 if payload := self._virtual.appearance(message.payload):

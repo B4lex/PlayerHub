@@ -86,6 +86,7 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(
             client.call.call_args_list,
             [
+                call("player:enter", {}, timeout=5.0),
                 call("player:update", drawn, timeout=5.0),
                 call("animation:action", action(), timeout=5.0),
             ],
@@ -105,7 +106,7 @@ class ReplayTests(unittest.TestCase):
             with self.assertRaises(KeyboardInterrupt):
                 replay(messages, "http://localhost:3000", 1.0, True, 0.5, True, 5.0)
 
-        sent = [call_.args[1] for call_ in client.call.call_args_list]
+        sent = [call_.args[1] for call_ in client.call.call_args_list if call_.args[0] == "player:update"]
         self.assertEqual([(p["sequence"], p["graphEpoch"]) for p in sent], [(1, 3), (2, 3), (3, 4), (4, 4)])
 
     @patch("server.replay.socketio.Client")

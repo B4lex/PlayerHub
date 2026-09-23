@@ -32,6 +32,7 @@ class PlayerModel(CamelModel):
     id: str
     name: str
     virtual: bool
+    in_world: bool = Field(description="Placed in the game world, not in the main menu or a loading screen")
     connected_at_ms: float | None
     cell_id: int | None
     worldspace_id: int | None

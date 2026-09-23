@@ -50,8 +50,9 @@ namespace ActorLifecycle
     void SetExcludedFromSaves(PeerState& a_peer, bool a_excluded);
     // The actor handle became invalid; schedules a respawn after a delay.
     void OnActorLost(const RemoteFrame& a_remote, PeerState& a_peer);
-    // The player left; the peer state is about to be erased.
-    void RemoveOnDisconnect(PeerState& a_peer);
+    // The player disconnected or left the world; removes the actor, if any,
+    // without scheduling a respawn.
+    void RemoveActor(PeerState& a_peer);
 
     // Spawns the actor from the newest checkpoint once the retry delay elapsed,
     // an actor base is available, and no yielded furniture holds it back.

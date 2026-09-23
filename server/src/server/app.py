@@ -137,9 +137,34 @@ async def disconnect(sid: str, reason: str) -> None:
     registry.remove(sid)
     _notify_admin()
     outbound = {"playerId": sid}
-    logger.info("Socket.IO TX player:left payload=%s", outbound)
-    await sio.emit("player:left", outbound)
+    logger.info("Socket.IO TX player:disconnect payload=%s", outbound)
+    await sio.emit("player:disconnect", outbound)
     logger.info("Socket.IO client disconnected: %s (%s)", sid, reason)
+
+
+@sio.on("player:enter")
+async def player_enter(sid: str, data: Any = None) -> dict[str, bool]:
+    # Peers learn of the player from its next checkpoint; nothing is relayed.
+    del data
+    if registry.enter(sid):
+        logger.info("Socket.IO player entered the world: %s", sid)
+        captures.record(sid, "player:enter", {})
+        _notify_admin()
+    return {"ok": True}
+
+
+@sio.on("player:exit")
+async def player_exit(sid: str, data: Any = None) -> dict[str, bool]:
+    del data
+    if not registry.exit(sid):
+        return {"ok": True}
+    logger.info("Socket.IO player left the world: %s", sid)
+    captures.record(sid, "player:exit", {})
+    _notify_admin()
+    outbound = {"playerId": sid}
+    logger.info("Socket.IO TX player:exit payload=%s", outbound)
+    await sio.emit("player:exit", outbound, skip_sid=sid)
+    return {"ok": True}
 
 
 @sio.on("player:update")
@@ -149,6 +174,8 @@ async def player_update(sid: str, data: Any) -> dict[str, bool | str]:
     if state is None:
         logger.warning("Rejected malformed player:update from %s", sid)
         return {"ok": False, "error": "invalid player transform"}
+    if sid not in registry.in_world:
+        return {"ok": False, "error": "not in world"}
 
     previous = player_states.get(sid)
     if previous is not None and state["sequence"] <= previous["sequence"]:

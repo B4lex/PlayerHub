@@ -29,7 +29,14 @@ from server.protocol import (
 FORMAT_NAME = "skyrim-mp-recording"
 FORMAT_VERSION = 2
 
+
+def _parse_presence(data: Any) -> dict[str, Any] | None:
+    return {} if data == {} else None
+
+
 PAYLOAD_PARSERS: dict[str, Callable[[Any], dict[str, Any] | None]] = {
+    "player:enter": _parse_presence,
+    "player:exit": _parse_presence,
     "player:update": parse_player_update,
     "player:appearance": parse_player_appearance,
     "player:equipment": parse_player_equipment,

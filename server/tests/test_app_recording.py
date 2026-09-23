@@ -44,6 +44,8 @@ class PlayerCaptureThroughHandlersTests(unittest.IsolatedAsyncioTestCase):
         self.original_directory = server_app.recording_store.directory
         server_app.recording_store.directory = Path(self.temporary_directory.name) / "recordings"
         self.clear()
+        server_app.registry.enter("player-1")
+        server_app.registry.enter("player-2")
 
     async def asyncTearDown(self) -> None:
         server_app.captures.stop_all("test cleanup")
@@ -54,6 +56,7 @@ class PlayerCaptureThroughHandlersTests(unittest.IsolatedAsyncioTestCase):
         registry = server_app.registry
         for table in (
             registry.connected_at,
+            registry.in_world,
             registry.states,
             registry.action_sequences,
             registry.appearances,

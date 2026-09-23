@@ -25,7 +25,8 @@ FastAPI + python-socketio server
     -> validate player:update
     -> reject stale sequence numbers
     -> relay player:state to other clients
-    -> relay player:left on disconnect
+    -> relay player:exit when a player leaves the world
+    -> relay player:disconnect on disconnect
 ```
 
 ## Protocol
@@ -50,7 +51,14 @@ The client emits `player:update`:
 
 The server adds its Socket.IO session ID as `playerId` and emits the resulting
 payload as `player:state` to every other connection. On disconnect it emits
-`player:left` with the same `playerId`.
+`player:disconnect` with the same `playerId`.
+
+Checkpoints are accepted only while the player is in the game world. The client
+emits `player:enter` once its character is placed in a loaded cell, and
+`player:exit` when a loading screen or the main menu opens or a save starts
+loading. The server relays the exit as `player:exit` with `playerId`; peers
+remove the actor and forget its checkpoint and action history, but keep its
+appearance and equipment until its next checkpoint places it again.
 
 Only the newest pending transform/locomotion/jump checkpoint per remote player
 is retained between game frames. Movement and jump phase are current state, not
@@ -99,8 +107,8 @@ applied checkpoint changes jump phase.
   Skyrim's native animation-graph revert, waits for graph/controller stability,
   and then replays the newest locomotion checkpoint. A 3D rebuild is retained
   as a fallback when the native revert is rejected or does not become ready.
-- The server's explicit `player:left` event removes the actor and its receive
-  state. A coordinate-space mismatch retires only the actor reference while
+- The server's explicit `player:disconnect` event removes the actor and its
+  receive state, and `player:exit` removes the actor and its checkpoint state. A coordinate-space mismatch retires only the actor reference while
   retaining the latest receive state for an exact-cell respawn. A local
   Socket.IO transport failure retains all actors during reconnection.
 - Sequence numbers are checked by both server and client to ignore stale state.

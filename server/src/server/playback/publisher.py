@@ -14,6 +14,7 @@ class Publisher(Protocol):
     async def action(self, payload: dict[str, Any]) -> None: ...
     async def appearance(self, payload: dict[str, Any]) -> None: ...
     async def equipment(self, payload: dict[str, Any]) -> None: ...
+    async def exit(self) -> None: ...
     async def left(self) -> None: ...
 
 
@@ -51,7 +52,10 @@ class SocketPublisher:
         self._registry.equipment[self.player_id] = payload
         await self._emit("player:equipment", {"playerId": self.player_id, **payload})
 
+    async def exit(self) -> None:
+        await self._emit("player:exit", {"playerId": self.player_id})
+
     async def left(self) -> None:
         self._registry.appearances.pop(self.player_id, None)
         self._registry.equipment.pop(self.player_id, None)
-        await self._emit("player:left", {"playerId": self.player_id})
+        await self._emit("player:disconnect", {"playerId": self.player_id})

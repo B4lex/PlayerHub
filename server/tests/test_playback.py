@@ -15,6 +15,7 @@ from recording_fixtures import (
 from server.playback import PlaybackError, PlaybackSession, PlaybackStatus
 from server.playback.virtual_player import VirtualPlayer, hold_pose
 from server.protocol import parse_animation_action, parse_player_update
+from server.recording.format import Recording
 
 
 class VirtualPlayerTests(unittest.TestCase):
@@ -123,6 +124,9 @@ class RecordingPublisher:
 
     async def equipment(self, payload: dict[str, Any]) -> None:
         self.events.append(("equipment", payload))
+
+    async def exit(self) -> None:
+        self.events.append(("exit", {}))
 
     async def left(self) -> None:
         self.events.append(("left", {}))
@@ -305,6 +309,87 @@ class PlaybackSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([kind for kind, _ in publisher.events], ["appearance", "checkpoint"])
         self.assertEqual(publisher.events[0][1]["name"], "Renamed")
         self.assertEqual(publisher.events[0][1]["revision"], 2)
+
+    def absence(self) -> Recording:
+        """In the world until 200 ms, out of it until 400 ms, and placed again at 500 ms."""
+        return recording(
+            [
+                message(0, "player:appearance", appearance()),
+                message(0, "player:update", checkpoint(1)),
+                message(100, "player:update", checkpoint(2, x=10.0)),
+                message(200, "player:exit", {}),
+                message(400, "player:enter", {}),
+                message(500, "player:update", checkpoint(3, x=50.0)),
+            ],
+            600,
+        )
+
+    async def test_follows_the_player_out_of_the_world_and_back(self) -> None:
+        session, clock, publisher = self.make_session(self.absence())
+        await session.advance()
+        publisher.take()
+
+        clock.advance(0.25)
+        await session.advance()
+        self.assertEqual([kind for kind, _ in publisher.take()], ["checkpoint", "exit"])
+        self.assertFalse(session.in_world)
+
+        clock.advance(0.2)
+        await session.advance()
+        self.assertEqual(publisher.take(), [])
+
+        clock.advance(0.1)
+        await session.advance()
+        self.assertEqual(publisher.positions(), [50.0])
+        self.assertTrue(session.in_world)
+
+    async def test_a_paused_replay_out_of_the_world_sends_no_heartbeat(self) -> None:
+        session, clock, publisher = self.make_session(self.absence())
+        await session.advance()
+        clock.advance(0.3)
+        await session.advance()
+        session.pause()
+        await session.advance()
+        publisher.take()
+
+        clock.advance(1.0)
+        await session.advance()
+
+        self.assertEqual(publisher.events, [])
+
+    async def test_seeking_follows_recorded_presence(self) -> None:
+        session, _, publisher = self.make_session(self.absence())
+        await session.advance()
+        publisher.take()
+
+        session.seek(300)
+        await session.advance()
+        self.assertEqual(publisher.take(), [("exit", {})])
+
+        # Entered, but the checkpoint from before the absence is no longer valid.
+        session.seek(450)
+        await session.advance()
+        self.assertEqual(publisher.take(), [])
+
+        session.seek(550)
+        await session.advance()
+        self.assertEqual(publisher.positions(), [50.0])
+
+    async def test_a_recording_that_starts_out_of_the_world_waits_for_its_entry(self) -> None:
+        messages = [
+            message(0, "player:exit", {}),
+            message(0, "player:appearance", appearance()),
+            message(200, "player:enter", {}),
+            message(200, "player:update", checkpoint(1, x=20.0)),
+        ]
+        session, clock, publisher = self.make_session(recording(messages, 300))
+
+        await session.advance()
+        self.assertEqual([kind for kind, _ in publisher.take()], ["appearance"])
+
+        clock.advance(0.2)
+        await session.advance()
+        self.assertEqual(publisher.positions(), [20.0])
 
     async def test_actions_after_a_seek_stay_contiguous(self) -> None:
         session, clock, publisher = self.make_session()

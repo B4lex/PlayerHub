@@ -47,6 +47,7 @@ def build_state(ctx: AdminContext) -> AdminState:
                 id=player_id,
                 name=ctx.registry.name_of(player_id),
                 virtual=False,
+                in_world=player_id in ctx.registry.in_world,
                 connected_at_ms=connected_at * 1000.0,
                 cell_id=state["cellId"] if state else None,
                 worldspace_id=state["worldspaceId"] if state else None,
@@ -57,13 +58,15 @@ def build_state(ctx: AdminContext) -> AdminState:
             )
         )
 
-    playbacks = [session.state() for session in ctx.playbacks.sessions()]
-    for playback in playbacks:
+    sessions = ctx.playbacks.sessions()
+    playbacks = [session.state() for session in sessions]
+    for session, playback in zip(sessions, playbacks, strict=True):
         players.append(
             PlayerModel(
                 id=playback.player_id,
                 name=playback.player_name,
                 virtual=True,
+                in_world=session.in_world,
                 connected_at_ms=None,
                 cell_id=None,
                 worldspace_id=None,

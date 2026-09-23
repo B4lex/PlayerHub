@@ -14,6 +14,7 @@
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/furniture/FurnitureSync.h"
 #include "sync/movement/MovementSync.h"
+#include "sync/presence/PresenceSync.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -61,7 +62,7 @@ namespace SyncCoordinator
 
             for (auto& [playerID, peer] : a_peers)
             {
-                ActorLifecycle::RemoveOnDisconnect(peer);
+                ActorLifecycle::RemoveActor(peer);
             }
             logs::info("Removed {} remote player actors after losing the server connection: connected={} "
                        "connectionGeneration={}",
@@ -74,13 +75,40 @@ namespace SyncCoordinator
             }
         }
 
+        // The player left the world. Only its appearance and equipment stay valid;
+        // its next checkpoint places it again as if it had just joined.
+        void ForgetWorldState(PeerState& a_peer)
+        {
+            ActorLifecycle::RemoveActor(a_peer);
+            a_peer.lifecycle = {};
+            a_peer.combat = {};
+            a_peer.latestCheckpoint = {};
+            a_peer.lastSequence = 0;
+            a_peer.appliedSequence = 0;
+        }
+
         // Receive stage. Transforms are latest-wins by sequence, appearance and
-        // equipment by revision; actions are ordered and bounded; a disconnect
-        // clears everything for that player.
+        // equipment by revision; actions are ordered and bounded; a world exit
+        // clears the player's checkpoint state and a disconnect clears everything.
+        // Exits apply first, since changes drained with one arrived after it.
         void ApplyNetworkChanges(Peers& a_peers)
         {
             auto changes = Network::DrainRemotePlayerChanges();
             RemovePeersFromLostConnection(a_peers, changes);
+
+            for (const auto& playerID : changes.exitedPlayerIDs)
+            {
+                const auto peer = a_peers.find(playerID);
+                if (peer == a_peers.end())
+                {
+                    continue;
+                }
+
+                const bool hadActor = peer->second.lifecycle.actor.has_value();
+                ForgetWorldState(peer->second);
+                logs::info("Removed remote player {} from the world after server player:exit: hadActor={}", playerID,
+                    hadActor);
+            }
 
             for (const auto& playerID : changes.disconnectedPlayerIDs)
             {
@@ -90,9 +118,9 @@ namespace SyncCoordinator
                     continue;
                 }
 
-                ActorLifecycle::RemoveOnDisconnect(peer->second);
+                ActorLifecycle::RemoveActor(peer->second);
                 a_peers.erase(peer);
-                logs::info("Removed remote player actor {} after server player:left", playerID);
+                logs::info("Removed remote player actor {} after server player:disconnect", playerID);
             }
 
             for (auto& update : changes.transforms)
@@ -360,7 +388,16 @@ namespace SyncCoordinator
         }
 
         YieldActivatedFurniture(s_peers, *a_player);
-        SyncLocalPlayer(*a_player, a_delta);
+        if (PresenceSync::SyncPresence(LocalFrame{ .player = *a_player }))
+        {
+            SyncLocalPlayer(*a_player, a_delta);
+        }
+        else
+        {
+            // Attacks captured before leaving would otherwise anchor to the first
+            // checkpoint after returning.
+            CombatSync::DiscardLocalAttacks();
+        }
 
         auto* localCell = a_player->GetParentCell();
         if (!localCell)
