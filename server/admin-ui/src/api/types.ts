@@ -15,6 +15,8 @@ export interface Player {
   id: string;
   name: string;
   virtual: boolean;
+  /** Placed in the game world, not in the main menu or a loading screen. */
+  inWorld: boolean;
   connectedAtMs: number | null;
   cellId: number | null;
   worldspaceId: number | null;

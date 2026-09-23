@@ -10,6 +10,7 @@
 #include "runtime/MainLoopHook.h"
 #include "sync/SyncCoordinator.h"
 #include "sync/equipment/EquipmentSync.h"
+#include "sync/presence/PresenceSync.h"
 #include "ui/Overlay.h"
 
 namespace PluginStartup
@@ -34,6 +35,7 @@ namespace PluginStartup
         {
             SurvivalPolicy::RegisterEventSinks();
             EquipmentSync::RegisterEventSinks();
+            PresenceSync::RegisterEventSinks();
             RE::ConsoleLog::GetSingleton()->Print("Skyrim Multiplayer initialized.");
             RE::ConsoleLog::GetSingleton()->Print("SkyrimMP connecting to synchronization server.");
             Network::Initialize();
@@ -57,6 +59,9 @@ namespace PluginStartup
             {
                 case SKSE::MessagingInterface::kDataLoaded:
                     OnDataLoaded();
+                    break;
+                case SKSE::MessagingInterface::kPreLoadGame:
+                    PresenceSync::OnGameLoadStarted();
                     break;
                 case SKSE::MessagingInterface::kSaveGame:
                     // Dispatched before the engine writes the save.

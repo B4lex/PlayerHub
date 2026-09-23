@@ -61,6 +61,7 @@ class AdminApiTests(unittest.IsolatedAsyncioTestCase):
 
     def connect_player(self, player_id: str = "player-1") -> None:
         self.registry.add(player_id)
+        self.registry.enter(player_id)
         self.registry.appearances[player_id] = appearance(1, name="Lydia")
         self.registry.equipment[player_id] = equipment(1)
         self.registry.states[player_id] = checkpoint(5)
@@ -79,6 +80,7 @@ class AdminApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(state["players"][0]["id"], "player-1")
         self.assertEqual(state["players"][0]["name"], "Lydia")
+        self.assertTrue(state["players"][0]["inWorld"])
         self.assertEqual(state["players"][0]["movementState"], "running")
         self.assertEqual(state["players"][0]["position"], {"x": 1.0, "y": 2.0, "z": 3.0})
         self.assertEqual(state["recordings"][0]["durationMs"], 1000)
@@ -110,6 +112,20 @@ class AdminApiTests(unittest.IsolatedAsyncioTestCase):
             [message.event for message in loaded.messages],
             ["player:appearance", "player:equipment", "player:update", "player:update"],
         )
+
+    async def test_a_capture_of_a_player_out_of_the_world_starts_with_its_exit(self) -> None:
+        self.connect_player()
+        self.registry.exit("player-1")
+
+        started = await self.client.post("/api/recordings", json={"playerId": "player-1"})
+        await self.client.post(f"/api/recordings/{started.json()['id']}/stop")
+
+        loaded = self.context.store.load(started.json()["id"])
+        self.assertEqual(
+            [message.event for message in loaded.messages],
+            ["player:exit", "player:appearance", "player:equipment"],
+        )
+        self.assertFalse(build_state(self.context).players[0].in_world)
 
     async def test_capture_errors(self) -> None:
         self.connect_player()
@@ -194,7 +210,7 @@ class AdminApiTests(unittest.IsolatedAsyncioTestCase):
         removed = await self.client.delete(base)
 
         self.assertEqual(removed.status_code, 204)
-        self.assertEqual(self.emit.await_args_list[-1].args[0], "player:left")
+        self.assertEqual(self.emit.await_args_list[-1].args[0], "player:disconnect")
         self.assertNotIn(playback["playerId"], self.registry.appearances)
         self.assertEqual((await self.client.post(f"{base}/play")).status_code, 404)
 
@@ -310,7 +326,7 @@ class SocketPublisherTests(unittest.IsolatedAsyncioTestCase):
 
         await publisher.left()
 
-        emit.assert_awaited_with("player:left", {"playerId": "replay:1"})
+        emit.assert_awaited_with("player:disconnect", {"playerId": "replay:1"})
         self.assertNotIn("replay:1", registry.appearances)
         self.assertNotIn("replay:1", registry.equipment)
 

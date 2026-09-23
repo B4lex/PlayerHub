@@ -18,7 +18,7 @@ It does not yet
 capture semantic animation actions such as attacks, furniture, crafting, mounts,
 or complex idles, so action replay/epochs are intentionally outside this fix.
 The Socket.IO session ID acts as the remote receive-state lifetime boundary.
-`player:left` deletes the corresponding actor and clears its receive state;
+`player:disconnect` deletes the corresponding actor and clears its receive state;
 an interior/worldspace mismatch retires only the actor reference so it can be
 recreated at the next compatible snapshot without reusing coordinates from the
 old space.

@@ -72,6 +72,7 @@ class ReadRecordingTests(TemporaryDirectoryTestCase):
             "corrupt middle line": ["not json", '{"type":"end","t":1,"reason":"x"}'],
             "unknown event": ['{"type":"message","t":0,"event":"player:dance","payload":{}}'],
             "invalid payload": ['{"type":"message","t":0,"event":"player:update","payload":{"x":1}}'],
+            "presence with payload": ['{"type":"message","t":0,"event":"player:exit","payload":{"x":1}}'],
             "unknown line type": ['{"type":"marker","t":0}'],
             "missing timestamp": ['{"type":"end","reason":"x"}'],
         }
@@ -82,6 +83,16 @@ class ReadRecordingTests(TemporaryDirectoryTestCase):
                     file.write("\n".join([*lines, '{"type":"end","t":2,"reason":"x"}']) + "\n")
                 with self.assertRaises(RecordingError):
                     read_recording(path)
+
+    def test_reads_world_presence(self) -> None:
+        path = write_recording(
+            self.directory / "a.jsonl",
+            recording([message(0, "player:exit", {}), message(10, "player:enter", {})], 10),
+        )
+
+        loaded = read_recording(path)
+
+        self.assertEqual([(m.event, m.payload) for m in loaded.messages], [("player:exit", {}), ("player:enter", {})])
 
     def test_rejects_timestamps_going_backwards(self) -> None:
         path = write_recording(

@@ -41,6 +41,10 @@ namespace Network
         // Only the newest pending equipment revision per player.
         std::vector<RemotePlayerEquipment> equipment;
         std::vector<AnimationAction> animationActions;
+        // Players that left the world. Their checkpoint and actions are
+        // forgotten, while appearance and equipment remain valid. Checkpoints and
+        // actions above for the same player arrived after the exit.
+        std::vector<std::string> exitedPlayerIDs;
         std::vector<std::string> disconnectedPlayerIDs;
         // Connection state when these changes were drained. Remote player IDs
         // are the server's per-connection sids, so while disconnected, or once
@@ -60,6 +64,12 @@ namespace Network
     // reconnects. The server forgets per-connection state, so latest-wins
     // publishers republish whenever this changes.
     [[nodiscard]] std::uint64_t GetConnectionGeneration();
+
+    // The server accepts checkpoints only between player:enter and player:exit,
+    // and forgets the checkpoint and action stream on exit. Both are ordered
+    // with the checkpoint stream; safe to call from any thread.
+    void PublishLocalWorldEnter();
+    void PublishLocalWorldExit();
 
     // Called from the game thread. socket.io-client-cpp queues the emit for its
     // transport thread; no Skyrim objects cross the network boundary.

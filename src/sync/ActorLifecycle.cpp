@@ -150,7 +150,7 @@ namespace ActorLifecycle
         a_peer.lifecycle.spawnRetryRemaining = kSpawnRetryDelay;
     }
 
-    void RemoveOnDisconnect(PeerState& a_peer)
+    void RemoveActor(PeerState& a_peer)
     {
         if (a_peer.lifecycle.actor)
         {

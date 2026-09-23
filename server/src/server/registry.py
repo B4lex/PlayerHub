@@ -13,9 +13,14 @@ class PlayerRegistry:
 
     Replay playback also files its synthetic players' appearance and equipment
     here, so a client that joins mid-replay receives them like any other peer's.
+
+    A connected player is in the world only between its ``player:enter`` and
+    ``player:exit``; outside it (main menu, loading screens) it has no
+    checkpoint or action stream, but keeps its appearance and equipment.
     """
 
     connected_at: dict[str, float] = field(default_factory=dict)
+    in_world: set[str] = field(default_factory=set)
     states: dict[str, PlayerUpdate] = field(default_factory=dict)
     action_sequences: dict[str, int] = field(default_factory=dict)
     appearances: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -26,10 +31,25 @@ class PlayerRegistry:
 
     def remove(self, player_id: str) -> None:
         self.connected_at.pop(player_id, None)
-        self.states.pop(player_id, None)
-        self.action_sequences.pop(player_id, None)
+        self.exit(player_id)
         self.appearances.pop(player_id, None)
         self.equipment.pop(player_id, None)
+
+    def enter(self, player_id: str) -> bool:
+        """Mark the player as in the world. False if it already was."""
+        if player_id in self.in_world:
+            return False
+        self.in_world.add(player_id)
+        return True
+
+    def exit(self, player_id: str) -> bool:
+        """Drop the player's world state. False if it was not in the world."""
+        self.states.pop(player_id, None)
+        self.action_sequences.pop(player_id, None)
+        if player_id not in self.in_world:
+            return False
+        self.in_world.discard(player_id)
+        return True
 
     def name_of(self, player_id: str) -> str:
         appearance = self.appearances.get(player_id)
@@ -38,6 +58,8 @@ class PlayerRegistry:
     def initial_events(self, player_id: str) -> list[tuple[str, dict[str, Any]]]:
         """The player's current state as events, in the order a peer needs them."""
         events: list[tuple[str, dict[str, Any]]] = []
+        if player_id not in self.in_world:
+            events.append(("player:exit", {}))
         if player_id in self.appearances:
             events.append(("player:appearance", self.appearances[player_id]))
         if player_id in self.equipment:
