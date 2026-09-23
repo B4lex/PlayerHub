@@ -196,6 +196,8 @@ namespace ActorAnimation
     // rejects is started as the plain attack of its hand.
     [[nodiscard]] bool DispatchAttack(RemoteActor& a_remote, const Network::Attack& a_attack);
     [[nodiscard]] bool IsAnimationActionPlaying(const RemoteActor& a_remote);
+    // A swimming actor takes no jump: its swim graph would play a land takeoff.
+    [[nodiscard]] bool IsSwimming(const RemoteActor& a_remote);
 
     // Converges a network bow draw toward a_drawn: starts it when a_mayStart and
     // the graph is stable, grounded, fully drawn, and holds a bow; releases it
