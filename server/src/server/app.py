@@ -32,10 +32,18 @@ logger = logging.getLogger("uvicorn.error")
 
 RECORDINGS_DIRECTORY = Path(__file__).resolve().parents[2] / "recordings"
 
+HEARTBEAT_INTERVAL_SECONDS = 5
+HEARTBEAT_TIMEOUT_SECONDS = 10
+
 # Send the namespace CONNECT before running the connect handler. Otherwise the
 # late-joiner replay below reaches the client ahead of CONNECT, and the client
 # discards it when the namespace opens.
-sio = socketio.AsyncServer(async_mode="asgi", always_connect=True)
+sio = socketio.AsyncServer(
+    async_mode="asgi",
+    always_connect=True,
+    ping_interval=HEARTBEAT_INTERVAL_SECONDS,
+    ping_timeout=HEARTBEAT_TIMEOUT_SECONDS,
+)
 
 registry = PlayerRegistry()
 # The handlers and their tests address the registry's tables directly.

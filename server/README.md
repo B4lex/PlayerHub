@@ -65,7 +65,9 @@ to `http://127.0.0.1:3000` for local testing.
   relay, storage, and late-join lifecycle as `player:appearance`. See
   `specs/007-player-equipment-sync.md`.
 - `player:disconnect` tells peers to remove the disconnected player's actor
-  and forget all of its state.
+  and forget all of its state. The server pings every client every 5 seconds
+  and disconnects one that does not answer within 10 more, so a crashed or
+  unreachable player is removed within 10 seconds.
 - `latency:probe` is acknowledged immediately with `{"ok": true, "serverTimeMs": ...}`
   and never relayed. The plugin sends one per second, shows the acknowledgement
   round trip as its ping, and uses `serverTimeMs` to estimate the server clock.

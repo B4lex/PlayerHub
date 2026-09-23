@@ -136,6 +136,13 @@ class WorldPresenceTests(unittest.IsolatedAsyncioTestCase):
         emit.assert_awaited_once_with("player:disconnect", {"playerId": "player-1"})
         self.assertNotIn("player-1", server_app.registry.in_world)
 
+    def test_unresponsive_connections_are_dropped_within_ten_seconds(self) -> None:
+        eio = server_app.sio.eio
+
+        self.assertLessEqual(
+            eio.ping_interval + eio.ping_interval_grace_period + eio.ping_timeout, 10
+        )
+
     async def test_records_presence_changes_of_a_captured_player(self) -> None:
         with (
             patch.object(server_app.sio, "emit", new=AsyncMock()),
