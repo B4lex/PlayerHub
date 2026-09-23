@@ -3,6 +3,7 @@
 #include "actor/ActorSpawner.h"
 #include "sync/PeerState.h"
 #include "sync/SyncFrame.h"
+#include "sync/furniture/FurnitureSync.h"
 #include "sync/movement/MovementSync.h"
 
 #include <algorithm>
@@ -112,6 +113,27 @@ namespace ActorLifecycle
             static_cast<unsigned long long>(a_remote.lastSequence));
     }
 
+    void YieldFurniture(
+        const RemoteFrame& a_remote, PeerState& a_peer, RE::FormID a_furnitureRefID, const char* a_reason)
+    {
+        auto& lifecycle = a_peer.lifecycle;
+        const auto actorHandle = lifecycle.actor ? Retire(a_peer) : 0;
+        lifecycle.yieldedFurnitureRefID = a_furnitureRefID;
+        logs::info(
+            "Hiding remote player actor {} actor {:08X} while furniture {:08X} is in use: reason={} "
+            "checkpointFurniture={:08X} sequence={}",
+            a_remote.playerID, actorHandle, a_furnitureRefID, a_reason, a_remote.checkpoint.furnitureRefID,
+            static_cast<unsigned long long>(a_remote.lastSequence));
+    }
+
+    void EndFurnitureYield(const RemoteFrame& a_remote, PeerState& a_peer)
+    {
+        logs::info("Restoring remote player actor {} after furniture {:08X} was vacated: sequence={}",
+            a_remote.playerID, a_peer.lifecycle.yieldedFurnitureRefID,
+            static_cast<unsigned long long>(a_remote.lastSequence));
+        a_peer.lifecycle.yieldedFurnitureRefID = 0;
+    }
+
     void SetExcludedFromSaves(PeerState& a_peer, bool a_excluded)
     {
         if (a_peer.lifecycle.actor)
@@ -139,6 +161,14 @@ namespace ActorLifecycle
     void SpawnWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
     {
         auto& lifecycle = a_peer.lifecycle;
+        if (lifecycle.yieldedFurnitureRefID != 0)
+        {
+            if (a_remote.checkpoint.furnitureRefID == lifecycle.yieldedFurnitureRefID)
+            {
+                return;
+            }
+            lifecycle.yieldedFurnitureRefID = 0;
+        }
         lifecycle.spawnRetryRemaining -= (std::max)(a_delta, 0.0F);
         if (lifecycle.spawnRetryRemaining > 0.0F)
         {
@@ -163,17 +193,18 @@ namespace ActorLifecycle
         }
         AppearanceSync::OnActorSpawned(a_peer.appearance, spawnBase);
         EquipmentSync::OnActorSpawned(a_peer.equipment);
+        FurnitureSync::OnActorSpawned(a_remote, *lifecycle.actor);
         a_peer.appliedSequence = a_peer.lastSequence;
         lifecycle.spawnedCellID = a_remote.checkpoint.cellID;
         lifecycle.spawnedWorldspaceID = a_remote.checkpoint.worldspaceID;
 
         logs::info(
             "Allocated remote player actor {} as actor {:08X} at transform sequence={} with target animation "
-            "state={}/{}; waiting for 3D and animation graph readiness",
+            "state={}/{} furniture={:08X}; waiting for 3D and animation graph readiness",
             a_remote.playerID, lifecycle.actor->handle.native_handle(),
             static_cast<unsigned long long>(a_peer.appliedSequence),
             Multiplayer::GetMovementStateName(a_remote.checkpoint.animationState.movementState),
-            a_remote.checkpoint.animationState.jumping ? "jumping" : "grounded");
+            a_remote.checkpoint.animationState.jumping ? "jumping" : "grounded", a_remote.checkpoint.furnitureRefID);
 
         if (auto* console = RE::ConsoleLog::GetSingleton())
         {

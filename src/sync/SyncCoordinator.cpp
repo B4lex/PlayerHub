@@ -17,7 +17,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <utility>
+#include <vector>
 
 namespace SyncCoordinator
 {
@@ -27,6 +29,17 @@ namespace SyncCoordinator
         Peers s_peers;
         std::uint64_t s_peersConnectionGeneration = 0;
         bool s_actorsExcludedFromSaves = false;
+
+        struct LocalFurnitureActivation
+        {
+            RE::FormID furnitureRefID{ 0 };
+            bool deferred{ false };
+        };
+
+        // Skyrim activates on a worker thread, so activations are queued there and
+        // handled by the next main-loop pass.
+        std::mutex s_localFurnitureActivationsLock;
+        std::vector<LocalFurnitureActivation> s_localFurnitureActivations;
 
         // Remote player IDs are the server's per-connection sids, so a closed or
         // replaced connection leaves no peer that the server will update or
@@ -139,6 +152,58 @@ namespace SyncCoordinator
             }
         }
 
+        // Hides remote actors that left an activated furniture no free marker, then
+        // activates it again for the local player when that hid an actor or the
+        // original activation was deferred.
+        void YieldActivatedFurniture(Peers& a_peers, RE::PlayerCharacter& a_player)
+        {
+            std::vector<LocalFurnitureActivation> activations;
+            {
+                const std::scoped_lock lock{ s_localFurnitureActivationsLock };
+                activations.swap(s_localFurnitureActivations);
+            }
+
+            const LocalFrame local{ .player = a_player };
+            for (const auto& activation : activations)
+            {
+                auto* furniture = RE::TESForm::LookupByID<RE::TESObjectREFR>(activation.furnitureRefID);
+                const bool held = furniture && FurnitureSync::IsHeldByLocalPlayer(local, *furniture);
+                logs::info("Observed local furniture activation: furniture={:08X} resolved={} deferred={} held={}",
+                    activation.furnitureRefID, furniture != nullptr, activation.deferred, held);
+                if (!furniture || held)
+                {
+                    continue;
+                }
+
+                std::size_t yielded = 0;
+                for (auto& [playerID, peer] : a_peers)
+                {
+                    if (!peer.lifecycle.actor
+                        || !FurnitureSync::BlocksLocalActivation(local, *furniture, *peer.lifecycle.actor))
+                    {
+                        continue;
+                    }
+                    const RemoteFrame remote{
+                        .playerID = playerID, .checkpoint = peer.latestCheckpoint, .lastSequence = peer.lastSequence
+                    };
+                    ActorLifecycle::YieldFurniture(remote, peer, activation.furnitureRefID, "local activation");
+                    ++yielded;
+                }
+                if (yielded == 0 && !activation.deferred)
+                {
+                    continue;
+                }
+
+                // ActivateRef already ran the reference's scripts; only the furniture's
+                // own activation is repeated.
+                const bool reactivated = furniture->ActivateRef(&a_player, 0, nullptr, 1, true);
+                logs::info(
+                    "Reactivated furniture for the local player after hiding {} remote actors: furniture={:08X} "
+                    "deferred={} reactivated={}",
+                    yielded, activation.furnitureRefID, activation.deferred, reactivated);
+            }
+        }
+
         void RestoreSaveEligibility(Peers& a_peers)
         {
             if (!s_actorsExcludedFromSaves)
@@ -190,8 +255,9 @@ namespace SyncCoordinator
         }
 
         // Remote stages for one peer.
-        void SyncPeer(const std::string& a_playerID, PeerState& a_peer, RE::FormID a_localCellID,
-            RE::FormID a_localWorldspaceID, float a_delta)
+        void SyncPeer(const std::string& a_playerID, PeerState& a_peer, const LocalFrame& a_local,
+            RE::FormID a_localCellID, RE::FormID a_localWorldspaceID, RE::TESObjectREFR* a_localFurniture,
+            float a_delta)
         {
             const RemoteFrame remote{
                 .playerID = a_playerID, .checkpoint = a_peer.latestCheckpoint, .lastSequence = a_peer.lastSequence
@@ -224,6 +290,14 @@ namespace SyncCoordinator
                 // Same-space fast travel keeps the coordinate space, so it is
                 // detected by displacement instead. The actor respawns below.
                 ActorLifecycle::RetireWhenStranded(remote, a_peer, a_delta);
+            }
+            if (lifecycle.yieldedFurnitureRefID != remote.checkpoint.furnitureRefID)
+            {
+                if (const auto* reason = FurnitureSync::FindFurnitureYieldReason(
+                        remote, a_localFurniture, lifecycle.actor ? &*lifecycle.actor : nullptr))
+                {
+                    ActorLifecycle::YieldFurniture(remote, a_peer, remote.checkpoint.furnitureRefID, reason);
+                }
             }
 
             if (lifecycle.actor)
@@ -266,6 +340,12 @@ namespace SyncCoordinator
             {
                 return;
             }
+            if (lifecycle.yieldedFurnitureRefID != 0
+                && lifecycle.yieldedFurnitureRefID == remote.checkpoint.furnitureRefID
+                && FurnitureSync::IsVacated(a_local, lifecycle.yieldedFurnitureRefID))
+            {
+                ActorLifecycle::EndFurnitureYield(remote, a_peer);
+            }
             ActorLifecycle::SpawnWhenDue(remote, a_peer, a_delta);
         }
     }
@@ -279,6 +359,7 @@ namespace SyncCoordinator
             return;
         }
 
+        YieldActivatedFurniture(s_peers, *a_player);
         SyncLocalPlayer(*a_player, a_delta);
 
         auto* localCell = a_player->GetParentCell();
@@ -287,10 +368,19 @@ namespace SyncCoordinator
             return;
         }
 
+        const LocalFrame local{ .player = *a_player };
+        const auto localFurniture = a_player->GetOccupiedFurniture().get();
         for (auto& [playerID, peer] : s_peers)
         {
-            SyncPeer(playerID, peer, localCell->GetFormID(), MovementSync::GetWorldspaceID(*a_player), a_delta);
+            SyncPeer(playerID, peer, local, localCell->GetFormID(), MovementSync::GetWorldspaceID(*a_player),
+                localFurniture.get(), a_delta);
         }
+    }
+
+    void QueueLocalFurnitureActivation(RE::FormID a_furnitureRefID, bool a_deferred)
+    {
+        const std::scoped_lock lock{ s_localFurnitureActivationsLock };
+        s_localFurnitureActivations.push_back({ .furnitureRefID = a_furnitureRefID, .deferred = a_deferred });
     }
 
     void OnGameSave()

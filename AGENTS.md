@@ -21,6 +21,10 @@ a peer does not have a matching modded asset or behavior.
 - Prefer cohesive modules with narrow interfaces. Extract code when it has a
   distinct responsibility, rather than creating a new file for every helper.
 
+## Code style guidelines
+- Minimize adding new comments. Comment only genuinely non-obvious constraints 
+  or "why" decisions, not self-evident "what".
+
 ## Build notes
 - This project uses XMake under wine, so do not try to build it when the host is Linux.
 - `xmake.lua` is the source of truth for the C++23 plugin target and dependencies.

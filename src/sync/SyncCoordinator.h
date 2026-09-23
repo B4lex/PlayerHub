@@ -13,4 +13,9 @@ namespace SyncCoordinator
     // left out of the save, so none is restored from it; the next pass after
     // saving finishes makes them saveable engine references again.
     void OnGameSave();
+
+    // Thread-safe; called when the local player activates furniture. The next
+    // pass hides remote actors that leave it no free marker, then activates it
+    // again when that hid an actor or Skyrim's activation was deferred.
+    void QueueLocalFurnitureActivation(RE::FormID a_furnitureRefID, bool a_deferred);
 }

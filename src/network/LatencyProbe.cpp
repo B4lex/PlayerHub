@@ -18,13 +18,8 @@ namespace Network
         constexpr float kMaximumFrameTime = 0.1F;
         constexpr std::int64_t kNoLatency = -1;
 
-        // Written by the transport thread's ack callback, read by the UI.
         std::atomic_int64_t latencyMilliseconds{ kNoLatency };
-        // Server clock minus local system clock, or NaN while unknown. Written by
-        // the ack callback, read by publishers and the delay tracker.
         std::atomic<double> serverClockOffsetMilliseconds{ std::numeric_limits<double>::quiet_NaN() };
-        // The probe whose acknowledgement is still expected, or 0 for none.
-        // Acks of abandoned probes lose the compare-exchange and are ignored.
         std::atomic_uint64_t outstandingProbeID{ 0 };
 
         // Main-loop thread only.
@@ -60,13 +55,10 @@ namespace Network
                     return;
                 }
 
-                // Wall-clock round trip: frame rate does not affect the result.
                 const auto roundTrip = std::chrono::steady_clock::now() - sentAt;
                 latencyMilliseconds.store(std::chrono::duration_cast<std::chrono::milliseconds>(roundTrip).count(),
                     std::memory_order_release);
 
-                // Assume the server read its clock halfway through the round trip.
-                // The error is at most half of any asymmetry between the two legs.
                 if (a_serverTime)
                 {
                     const auto midpoint = GetSystemTimeMilliseconds(sentAtSystem)
@@ -86,8 +78,6 @@ namespace Network
             return;
         }
 
-        // The server keeps no probe state, but a reconnect can strand the
-        // outstanding ack and the previous sample describes another connection.
         const auto generation = GetConnectionGeneration();
         if (generation != probeConnectionGeneration)
         {
