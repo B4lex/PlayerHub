@@ -2089,6 +2089,11 @@ namespace ActorAnimation
             sprintVariableAccepted = actor->SetGraphVariableBool(strings->isSprinting, sprintVariableValue);
             jumpVariableAccepted = actor->SetGraphVariableBool(inJumpStateVariable, state.jumping);
         }
+        if (speedAccepted && graphSpeed != animationState->publishedGraphSpeed)
+        {
+            ActorRegistry::SetAuthoritativeSpeed(a_remote, graphSpeed);
+            animationState->publishedGraphSpeed = graphSpeed;
+        }
         const bool variablesAccepted = stringsAvailable && speedAccepted && sampledSpeedAccepted && dampedSpeedAccepted
             && directionAccepted && turnAccepted && sprintVariableAccepted && jumpVariableAccepted;
         if (animationState->hasDispatched && animationState->hasVariableUpdateResult

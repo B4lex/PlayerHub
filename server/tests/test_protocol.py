@@ -21,6 +21,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "blocking": True,
             "dead": False,
             "mounted": False,
+            "swimming": False,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
             "furnitureRefId": 0xA729,
@@ -47,6 +48,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "blocking": False,
             "dead": False,
             "mounted": False,
+            "swimming": False,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
             "furnitureRefId": 0,
@@ -232,6 +234,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "blocking": False,
             "dead": False,
             "mounted": False,
+            "swimming": False,
             "cellId": 1,
             "worldspaceId": 0,
             "furnitureRefId": 0,
@@ -311,6 +314,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 "blocking": False,
                 "dead": False,
                 "mounted": False,
+                "swimming": False,
             },
         )
 
@@ -331,6 +335,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "blocking": False,
             "dead": True,
             "mounted": False,
+            "swimming": False,
             "cellId": 1,
             "worldspaceId": 0,
             "furnitureRefId": 0,
@@ -380,6 +385,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "blocking": False,
             "dead": False,
             "mounted": True,
+            "swimming": False,
             "cellId": 1,
             "worldspaceId": 60,
             "furnitureRefId": 0,
@@ -410,6 +416,56 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             }
 
             with self.subTest(mounted=mounted):
+                self.assertIsNone(parse_player_update(payload))
+
+    def test_accepts_swimming_player(self) -> None:
+        payload = {
+            "x": 1.0,
+            "y": 2.0,
+            "z": -40.0,
+            "heading": 0.0,
+            "speed": 150.0,
+            "direction": 0.0,
+            "movementState": "running",
+            "jumping": False,
+            "weaponDrawn": False,
+            "bowDrawn": False,
+            "castingLeft": False,
+            "castingRight": False,
+            "blocking": False,
+            "dead": False,
+            "mounted": False,
+            "swimming": True,
+            "cellId": 1,
+            "worldspaceId": 60,
+            "furnitureRefId": 0,
+            "graphEpoch": 1,
+            "sequence": 1,
+        }
+
+        self.assertEqual(parse_player_update(payload), payload)
+
+    def test_rejects_non_boolean_swimming_state(self) -> None:
+        for swimming in (1, "true", None):
+            payload = {
+                "x": 1.0,
+                "y": 2.0,
+                "z": 3.0,
+                "heading": 0.0,
+                "speed": 0.0,
+                "direction": 0.0,
+                "movementState": "idle",
+                "jumping": False,
+                "weaponDrawn": False,
+                "swimming": swimming,
+                "cellId": 1,
+                "worldspaceId": 60,
+                "furnitureRefId": 0,
+                "graphEpoch": 1,
+                "sequence": 1,
+            }
+
+            with self.subTest(swimming=swimming):
                 self.assertIsNone(parse_player_update(payload))
 
     def test_rejects_non_boolean_hand_presentation(self) -> None:

@@ -56,6 +56,12 @@ namespace ActorRegistry
             // network speed.
             bool gaitDriven{ false };
             float gaitSpeed{ 0.0F };
+            // Skyrim's movement update is skipped: the network transform is the only
+            // writer of the actor's position and heading.
+            bool networkPlaced{ false };
+            // The graph Speed of a network-placed actor, which Skyrim no longer
+            // measures from its movement.
+            float authoritativeSpeed{ 0.0F };
             bool landingCompletionObservationAllowed{ false };
             bool observeJumpLandEndEvent{ false };
             bool observeWeaponTransitionEndEvent{ false };
@@ -66,6 +72,9 @@ namespace ActorRegistry
         // Lets the speed channel of every local actor skip the lock while no
         // remote player rides.
         std::atomic<std::size_t> s_gaitDrivenCount{ 0 };
+        // Lets the movement update of every local actor skip the lock while no
+        // remote actor is network-placed.
+        std::atomic<std::size_t> s_networkPlacedCount{ 0 };
 
         // Called with s_mutex held.
         void EraseRegistration(const RE::IAnimationGraphManagerHolder* a_holder)
@@ -78,6 +87,10 @@ namespace ActorRegistry
             if (registration->second.gaitDriven)
             {
                 s_gaitDrivenCount.fetch_sub(1, std::memory_order_relaxed);
+            }
+            if (registration->second.networkPlaced)
+            {
+                s_networkPlacedCount.fetch_sub(1, std::memory_order_relaxed);
             }
             s_registrations.erase(registration);
         }
@@ -109,7 +122,13 @@ namespace ActorRegistry
                 .authoritativeWeaponDrawn = a_remote.animation->targetAnimationState.weaponDrawn,
                 .animationFirewallEnabled = false,
                 .furnitureAnimationOwned = a_remote.furniture.furnitureAnimationOwned,
+                .networkPlaced = a_remote.collision.networkPlaced,
+                .authoritativeSpeed = a_remote.animation->publishedGraphSpeed,
                 .observeWeaponTransitionEndEvent = a_remote.animation->targetAnimationState.weaponDrawn });
+        if (a_remote.collision.networkPlaced)
+        {
+            s_networkPlacedCount.fetch_add(1, std::memory_order_relaxed);
+        }
         a_remote.animationGraphHolder = holder;
     }
 
@@ -268,17 +287,70 @@ namespace ActorRegistry
         registration->second.gaitSpeed = a_speed;
     }
 
-    std::optional<float> GetGaitSpeed(const RE::Actor* a_actor)
+    void SetNetworkPlaced(const RemoteActor& a_remote, bool a_networkPlaced)
     {
-        if (!a_actor || s_gaitDrivenCount.load(std::memory_order_relaxed) == 0)
+        std::scoped_lock lock{ s_mutex };
+        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
+        if (registration == s_registrations.end() || registration->second.networkPlaced == a_networkPlaced)
+        {
+            return;
+        }
+        registration->second.networkPlaced = a_networkPlaced;
+        if (a_networkPlaced)
+        {
+            s_networkPlacedCount.fetch_add(1, std::memory_order_relaxed);
+        }
+        else
+        {
+            s_networkPlacedCount.fetch_sub(1, std::memory_order_relaxed);
+        }
+    }
+
+    bool IsNetworkPlaced(const RE::Actor* a_actor)
+    {
+        if (!a_actor || s_networkPlacedCount.load(std::memory_order_relaxed) == 0)
+        {
+            return false;
+        }
+
+        std::scoped_lock lock{ s_mutex };
+        const auto registration = s_registrations.find(static_cast<const RE::IAnimationGraphManagerHolder*>(a_actor));
+        // A dead actor is left to Skyrim's death and ragdoll.
+        return registration != s_registrations.end() && registration->second.networkPlaced
+            && !registration->second.dead;
+    }
+
+    void SetAuthoritativeSpeed(const RemoteActor& a_remote, float a_speed)
+    {
+        std::scoped_lock lock{ s_mutex };
+        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
+        if (registration != s_registrations.end())
+        {
+            registration->second.authoritativeSpeed = a_speed;
+        }
+    }
+
+    std::optional<float> GetAuthoritativeSpeed(const RE::Actor* a_actor)
+    {
+        if (!a_actor
+            || (s_gaitDrivenCount.load(std::memory_order_relaxed) == 0
+                && s_networkPlacedCount.load(std::memory_order_relaxed) == 0))
         {
             return std::nullopt;
         }
 
         std::scoped_lock lock{ s_mutex };
         const auto registration = s_registrations.find(static_cast<const RE::IAnimationGraphManagerHolder*>(a_actor));
-        return registration != s_registrations.end() && registration->second.gaitDriven
-            ? std::optional<float>{ registration->second.gaitSpeed }
+        if (registration == s_registrations.end())
+        {
+            return std::nullopt;
+        }
+        if (registration->second.gaitDriven)
+        {
+            return registration->second.gaitSpeed;
+        }
+        return registration->second.networkPlaced && !registration->second.dead
+            ? std::optional<float>{ registration->second.authoritativeSpeed }
             : std::nullopt;
     }
 

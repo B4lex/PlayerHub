@@ -60,6 +60,7 @@ namespace CheckpointPublisher
             .handPresentation = handPresentation,
             .dead = dead,
             .mounted = static_cast<bool>(mount),
+            .swimming = movement.swimming,
             .cellID = movement.cellID,
             .worldspaceID = movement.worldspaceID,
             .furnitureRefID = furnitureRefID,

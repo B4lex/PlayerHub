@@ -41,8 +41,10 @@ to `http://127.0.0.1:3000` for local testing.
   dead (`dead`, optional and defaulting to `false`; see
   `specs/015-player-death-sync.md`), whether the player rides a mount
   (`mounted`, optional and defaulting to `false`; the position fields then
-  describe the mount; see `specs/016-mount-riding-sync.md`), cell and
-  worldspace form IDs,
+  describe the mount; see `specs/016-mount-riding-sync.md`), whether that
+  player or its mount swims (`swimming`, optional and defaulting to `false`;
+  see `specs/017-remote-actor-world-isolation.md`), cell and worldspace form
+  IDs,
   occupied furniture reference FormID, graph epoch, and monotonically increasing
   checkpoint sequence number. It is rejected with `not in world` outside
   `player:enter` and `player:exit`.

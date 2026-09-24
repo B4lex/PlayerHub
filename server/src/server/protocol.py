@@ -97,6 +97,13 @@ def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None
         return None
     values["mounted"] = mounted
 
+    # The carrier, the player or its mount, swims. Recordings made before swim
+    # synchronization have no swim state, which means not swimming.
+    swimming = data.get("swimming", False)
+    if not isinstance(swimming, bool):
+        return None
+    values["swimming"] = swimming
+
     cell_id = data.get("cellId")
     worldspace_id = data.get("worldspaceId")
     furniture_ref_id = data.get("furnitureRefId")

@@ -7,6 +7,7 @@
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationFirewall.h"
 #include "actor/RemoteActor.h"
+#include "actor/RemoteCollision.h"
 #include "actor/SurvivalPolicy.h"
 #include "runtime/GameThread.h"
 
@@ -127,8 +128,10 @@ namespace ActorRuntime
         {
             // Once native entry starts, furniture owns placement, heading, and the
             // graph. In particular, do not replay locomotion during graph recovery.
+            RemoteCollision::ReleaseToEngine(*actor, a_remote, "furniture", false);
             return true;
         }
+        RemoteCollision::PlaceByNetwork(*actor, a_remote);
 
         // Before ApplyAnimationUpdate, whose events can reactivate an idle turn machine.
         ActorAnimation::HoldIdleTurnState(*actor, a_remote);
@@ -148,6 +151,7 @@ namespace ActorRuntime
         {
             // Native furniture controls placement, heading, and the graph. Applying
             // network transform interpolation here would pull the actor off its marker.
+            RemoteCollision::ReleaseToEngine(*actor, a_remote, "furniture", false);
             return true;
         }
         if (holdForUnsettledDispatch)
@@ -187,7 +191,9 @@ namespace ActorRuntime
         auto* actor = actorPtr.get();
         SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);
         SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready);
-        ActorMount::ApplyRiderCollision(*actor);
+        // Skyrim carries a seated rider with its mount, so its body needs no
+        // collision until it stands beside it.
+        RemoteCollision::ReleaseToEngine(*actor, a_remote, "mount", actor->IsOnMount());
         if (AdvanceReadiness(*actor, a_remote, a_deltaTime) && a_gait)
         {
             ActorMount::ApplyGait(*actor, a_remote, *a_gait, a_mountSpeed, a_deltaTime, false, "rider");
@@ -212,10 +218,16 @@ namespace ActorRuntime
         auto* actor = actorPtr.get();
         SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);
         SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready);
-        if (!AdvanceReadiness(*actor, a_remote, a_deltaTime) || a_control == MountControl::kHeld)
+        if (!AdvanceReadiness(*actor, a_remote, a_deltaTime))
         {
             return true;
         }
+        if (a_control == MountControl::kHeld)
+        {
+            RemoteCollision::ReleaseToEngine(*actor, a_remote, "mount clip", false);
+            return true;
+        }
+        RemoteCollision::PlaceByNetwork(*actor, a_remote);
         if (a_control == MountControl::kPlaced)
         {
             // An idle translation state places it on the target at once.

@@ -91,8 +91,10 @@ applied checkpoint changes jump phase.
   player's actor base until one is available. Equipped items are synchronized
   separately (`specs/007-player-equipment-sync.md`). Both remain separate from
   animation ownership and combat suppression.
-- Actor references retain normal actor, graph, controller, and collision
-  processing. Attack/cast decisions are disabled, and immediately before each
+- Actor references retain normal actor and graph processing. The network
+  transform alone places them: Skyrim's movement update is skipped and their
+  character body is out of collision while no native interaction places them
+  (`specs/017-remote-actor-world-isolation.md`). Attack/cast decisions are disabled, and immediately before each
   actor update the live AI process ignores combat and any combat controller is
   inactive. A actor-only graph hook rejects locally injected events; the
   network controller sends replicated locomotion directly to the saved graph

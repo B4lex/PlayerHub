@@ -24,6 +24,8 @@ namespace ActorDeath
         auto* actor = actorPtr.get();
         a_remote.dead = true;
         ActorFurniture::ReleaseFurniture(*actor, a_remote);
+        // A dead actor is never updated again, and its body must land on the world.
+        RemoteCollision::ReleaseToEngine(*actor, a_remote, "death", false);
         // Before the kill: the registry's kill and damage guards would refuse it,
         // and the survival policy would resurrect the actor on its next update.
         ActorRegistry::SetDead(a_remote);

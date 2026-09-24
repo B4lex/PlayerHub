@@ -111,20 +111,14 @@ Future network code must not call `RE::Actor` APIs from its receiver thread. It 
    before Skyrim's normal actor update, the live AI process is marked as
    ignoring combat and any combat controller is marked inactive. The original
    update still runs, preserving graph and controller processing.
-6. Reference, 3D, and character-controller collision remain enabled, so each
-   actor still stands on the world. A hook on the actor movement update call
-   (ID 37350 + 0xFB, as in powerofthree's Tweaks' TCL fix) sets the Havok
-   no-collision filter bit on the character body a controller bumped into for
-   the duration of that update, when either the mover or the bumped body's
-   reference is a remote actor, so remote actors never body-block each other
-   or the local player. The `kNoCharacterCollisions` controller flag does not
-   reach that body. The reference must not carry the `kCollisionsDisabled`
-   flag that `TCL` toggles: for any actor, it switches the movement update
-   (ID 37356) to TCL's noclip integration, which skips character-controller
-   simulation. Skyrim still enters swimming from the actor's submerged depth,
-   but it leaves swimming only once the controller reports support or its
-   in-air state (ID 37348), so a noclip actor keeps swimming on land. Local
-   combat reactions are suppressed at their decision/event paths.
+6. The network transform alone places a network-placed actor: a hook on the
+   actor movement update call (ID 37350 + 0xFB) skips Skyrim's movement update
+   for it, its character body is out of every collision, and its controller is
+   reported supported unless its source swims. Native furniture, mounts, and
+   death still hand the actor to Skyrim's movement update. See
+   `017-remote-actor-world-isolation.md`. The reference must not carry the
+   `kCollisionsDisabled` flag that `TCL` toggles. Local combat reactions are
+   suppressed at their decision/event paths.
    Local actors never become hostile to a actor; see `008-remote-actor-combat-isolation.md`.
 7. `InitiateDoNothingPackage()` removes autonomous package travel once the 3D
    and controller are ready.

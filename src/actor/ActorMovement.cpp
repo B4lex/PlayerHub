@@ -59,10 +59,11 @@ namespace ActorMovement
     }
 
     void SetTargetTransform(RemoteActor& a_remote, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
-        float a_translationSpeed, float a_direction)
+        float a_translationSpeed, float a_direction, bool a_swimming)
     {
         a_remote.movement.targetPosition = a_targetPosition;
         a_remote.movement.targetHeading = a_targetHeading;
+        a_remote.movement.sourceSwimming = a_swimming;
         if (std::isfinite(a_translationSpeed) && a_translationSpeed >= 0.0F)
         {
             a_remote.movement.translationSpeed = a_translationSpeed;

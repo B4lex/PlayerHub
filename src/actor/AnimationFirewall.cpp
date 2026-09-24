@@ -245,9 +245,9 @@ namespace AnimationFirewall
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
-        // The Speed channel reads the actor's own movement speed. A remote mount is
-        // moved by its transform, and its rider is carried, so that speed is zero
-        // for both, and their riding locomotion would play standing still.
+        // The Speed channel reads the speed Skyrim's movement update measures. A
+        // network-placed actor skips that update, and a rider is carried by its
+        // mount, so their locomotion would play at a stale speed or standing still.
         struct SpeedChannelHook
         {
             static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
@@ -258,7 +258,7 @@ namespace AnimationFirewall
                     return;
                 }
 
-                if (const auto speed = ActorRegistry::GetGaitSpeed(GetChannelActor(a_channel)))
+                if (const auto speed = ActorRegistry::GetAuthoritativeSpeed(GetChannelActor(a_channel)))
                 {
                     OverrideChannelValue(a_channel, *speed);
                 }

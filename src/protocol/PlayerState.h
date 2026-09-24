@@ -28,6 +28,9 @@ namespace Network
         // The source rides a mount. Position, heading, speed, and direction then
         // describe the mount, which carries the rider.
         bool mounted{ false };
+        // The actor these fields place, the player or its mount, swims. Receivers
+        // report their actor supported by the ground only while this is false.
+        bool swimming{ false };
         std::uint32_t cellID{ 0 };
         // Non-zero for exterior cells. Interior cells use zero and must match by
         // cell ID because their local coordinates are not globally comparable.

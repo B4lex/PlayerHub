@@ -72,10 +72,12 @@ namespace MovementSync
         s_previousWorldspaceID = worldspaceID;
         s_hasPreviousPosition = true;
 
+        const auto* actorState = a_carrier.AsActorState();
         return LocalSample{ .position = position,
             .heading = heading,
             .speed = speed,
             .direction = direction,
+            .swimming = actorState && actorState->IsSwimming(),
             .cellID = cellID,
             .worldspaceID = worldspaceID };
     }
@@ -95,7 +97,7 @@ namespace MovementSync
 
         const RE::NiPoint3 targetPosition{ a_remote.checkpoint.x, a_remote.checkpoint.y, a_remote.checkpoint.z };
         ActorMovement::SetTargetTransform(a_actor, targetPosition, a_remote.checkpoint.heading,
-            a_remote.checkpoint.speed, a_remote.checkpoint.direction);
+            a_remote.checkpoint.speed, a_remote.checkpoint.direction, a_remote.checkpoint.swimming);
         a_appliedSequence = a_remote.lastSequence;
     }
 }
