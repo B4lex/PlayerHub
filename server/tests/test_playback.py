@@ -8,13 +8,14 @@ from recording_fixtures import (
     checkpoint,
     equipment,
     message,
+    mount_transition,
     recording,
     timeline,
 )
 
 from server.playback import PlaybackError, PlaybackSession, PlaybackStatus
 from server.playback.virtual_player import VirtualPlayer, hold_pose
-from server.protocol import parse_animation_action, parse_player_update
+from server.protocol import parse_animation_action, parse_mount_transition, parse_player_update
 from server.recording.format import Recording
 
 
@@ -68,6 +69,19 @@ class VirtualPlayerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             VirtualPlayer().action(action())
 
+    def test_mount_transitions_follow_the_latest_checkpoint(self) -> None:
+        virtual = VirtualPlayer()
+        virtual.checkpoint(checkpoint(10, graphEpoch=3, mounted=True))
+        virtual.break_continuity()
+        virtual.checkpoint(checkpoint(20, graphEpoch=3, mounted=True))
+
+        transition = virtual.mount_transition(mount_transition("exit", 19, graphEpoch=3))
+
+        self.assertEqual(transition, mount_transition("exit", 2, graphEpoch=4))
+        self.assertIsNotNone(parse_mount_transition(transition))
+        with self.assertRaises(ValueError):
+            VirtualPlayer().mount_transition(mount_transition())
+
     def test_resends_appearance_and_equipment_only_when_they_change(self) -> None:
         virtual = VirtualPlayer()
 
@@ -118,6 +132,9 @@ class RecordingPublisher:
 
     async def action(self, payload: dict[str, Any]) -> None:
         self.events.append(("action", payload))
+
+    async def mount_transition(self, payload: dict[str, Any]) -> None:
+        self.events.append(("mount", payload))
 
     async def appearance(self, payload: dict[str, Any]) -> None:
         self.events.append(("appearance", payload))
@@ -190,6 +207,30 @@ class PlaybackSessionTests(unittest.IsolatedAsyncioTestCase):
         checkpoint_sequence = publisher.events[4][1]["sequence"]
         self.assertEqual(publisher.events[5][1]["checkpointSequence"], checkpoint_sequence)
         self.assertEqual(publisher.events[5][1]["actionSequence"], 1)
+
+    async def test_mount_transitions_follow_their_checkpoint(self) -> None:
+        value = recording(
+            [
+                message(0, "player:appearance", appearance()),
+                message(0, "player:update", checkpoint(7)),
+                message(100, "player:update", checkpoint(8, mounted=True)),
+                message(100, "mount:transition", mount_transition("enter", 8)),
+                message(200, "player:update", checkpoint(9, mounted=True)),
+            ],
+            300,
+        )
+        session, clock, publisher = self.make_session(value)
+        await session.advance()
+        publisher.take()
+
+        clock.advance(0.2)
+        await session.advance()
+
+        # A seek or the initial snapshot never replays a transition it skips.
+        kinds = [kind for kind, _ in publisher.events]
+        self.assertEqual(kinds, ["checkpoint", "mount", "checkpoint"])
+        self.assertEqual(publisher.events[1][1]["checkpointSequence"], publisher.events[0][1]["sequence"])
+        self.assertEqual(publisher.events[1][1]["transition"], "enter")
 
     async def test_pause_freezes_the_position_and_holds_the_pose(self) -> None:
         session, clock, publisher = self.make_session()

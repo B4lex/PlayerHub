@@ -114,4 +114,25 @@ namespace Network
         std::uint64_t graphEpoch{ 0 };
         std::uint64_t checkpointSequence{ 0 };
     };
+
+    // An animated mount or dismount. A checkpoint that starts or stops riding
+    // without one is presented instantly.
+    enum class MountTransition : std::uint8_t
+    {
+        kEnter,
+        kExit
+    };
+
+    [[nodiscard]] constexpr const char* GetMountTransitionName(MountTransition a_transition) noexcept
+    {
+        return a_transition == MountTransition::kExit ? "exit" : "enter";
+    }
+
+    struct RemoteMountTransition
+    {
+        std::string playerID;
+        MountTransition transition{ MountTransition::kEnter };
+        std::uint64_t graphEpoch{ 0 };
+        std::uint64_t checkpointSequence{ 0 };
+    };
 }

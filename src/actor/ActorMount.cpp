@@ -1,4 +1,5 @@
 #include "actor/ActorMount.h"
+#include "actor/ActorAnimation.h"
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationFirewall.h"
@@ -37,8 +38,10 @@ namespace ActorMount
         // Skyrim's mount entry (ID 38704) builds this interaction and starts it,
         // but only its animated branch builds one; its quick branch, used by
         // PutActorOnMountQuick, restarts the rider's existing interaction. So a new
-        // interaction is built the same way and started quick.
-        bool StartInstantMountInteraction(RE::Actor& a_rider, RE::Actor& a_mount)
+        // interaction is built the same way, and started quick unless animated.
+        // The animated start performs the mount action on the rider's graph, and
+        // stops the interaction at once if the graph rejects it.
+        bool StartMountInteraction(RE::Actor& a_rider, RE::Actor& a_mount, bool a_animated)
         {
             // MountInteraction(rider, mount), 0x38 bytes from Skyrim's heap. Its
             // reference count starts at zero; the last release destroys and frees it.
@@ -57,12 +60,37 @@ namespace ActorMount
             }
             RE::BSTSmartPointer<RE::RefrInteraction> interaction{ construct(
                 memory, std::addressof(a_rider), std::addressof(a_mount)) };
-            return start(std::addressof(a_rider), std::addressof(interaction), true);
+            return start(std::addressof(a_rider), std::addressof(interaction), !a_animated);
         }
 
         bool IsGettingOnOrOff(const RE::Actor& a_actor)
         {
             return a_actor.GetActorRuntimeData().boolFlags.any(RE::Actor::BOOL_FLAGS::kGettingOnOffMount);
+        }
+
+        // The rider graph's HorseEnter and HorseExit set its sit state, which only
+        // returns to riding or normal once the clip ends.
+        bool IsRiderClipPlaying(const RE::Actor& a_rider)
+        {
+            if (!a_rider.IsOnMount())
+            {
+                return false;
+            }
+            // Actor's ActorState base moved on AE; AsActorState relocates it.
+            const auto* actorState = a_rider.AsActorState();
+            if (!actorState)
+            {
+                return false;
+            }
+            switch (actorState->GetSitSleepState())
+            {
+                case RE::SIT_SLEEP_STATE::kWantToSit:
+                case RE::SIT_SLEEP_STATE::kWaitingForSitAnim:
+                case RE::SIT_SLEEP_STATE::kWantToStand:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         bool SendGaitEvent(RE::Actor& a_actor, Gait& a_gait, const char* a_eventName, const char* a_role)
@@ -107,7 +135,7 @@ namespace ActorMount
         return s_mountBase;
     }
 
-    bool Seat(RemoteActor& a_rider, const RemoteActor& a_mount)
+    bool Seat(RemoteActor& a_rider, const RemoteActor& a_mount, bool a_animated)
     {
         if (!GameThread::Require("SeatRemoteRider") || !REL::Module::IsAE())
         {
@@ -125,7 +153,7 @@ namespace ActorMount
         ActorRegistry::SetMounted(a_rider, true);
         // The engine update reasserts this, and an on-foot jump must not carry over.
         ActorRegistry::SetAuthoritativeJumpState(a_rider, false);
-        const bool started = StartInstantMountInteraction(*riderPtr, *mountPtr);
+        const bool started = StartMountInteraction(*riderPtr, *mountPtr, a_animated);
         if (!started)
         {
             ActorRegistry::SetMounted(a_rider, false);
@@ -141,11 +169,48 @@ namespace ActorMount
         return riderPtr && mountPtr && riderPtr->GetMount(currentMount) && currentMount.get() == mountPtr.get();
     }
 
-    bool IsInTransition(const RemoteActor& a_rider, const RemoteActor& a_mount)
+    bool Dismount(const RemoteActor& a_rider)
+    {
+        if (!GameThread::Require("DismountRemoteRider") || !REL::Module::IsAE())
+        {
+            return false;
+        }
+
+        auto riderPtr = a_rider.handle.get();
+        if (!riderPtr)
+        {
+            return false;
+        }
+        // Mode 0 is the AI dismount procedure's: the exit clip plays, and the
+        // interaction ends when it does. Modes 1 and 2 are quick and forced.
+        using DismountActor = bool(RE::Actor*, std::int32_t);
+        static REL::Relocation<DismountActor> dismount{ REL::ID(38705) };
+        constexpr std::int32_t kAnimatedDismount = 0;
+        return dismount(riderPtr.get(), kAnimatedDismount);
+    }
+
+    void ReleaseRider(RemoteActor& a_rider)
+    {
+        ActorRegistry::SetMounted(a_rider, false);
+        if (a_rider.animation)
+        {
+            ActorAnimation::InvalidateAnimationDispatch(*a_rider.animation);
+        }
+    }
+
+    bool IsInTransition(const RemoteActor& a_rider, const RemoteActor* a_mount)
     {
         auto riderPtr = a_rider.handle.get();
-        auto mountPtr = a_mount.handle.get();
-        return (riderPtr && IsGettingOnOrOff(*riderPtr)) || (mountPtr && IsGettingOnOrOff(*mountPtr));
+        auto mountPtr = a_mount ? a_mount->handle.get() : RE::NiPointer<RE::Actor>{};
+        return (riderPtr && (IsGettingOnOrOff(*riderPtr) || IsRiderClipPlaying(*riderPtr)))
+            || (mountPtr && IsGettingOnOrOff(*mountPtr));
+    }
+
+    std::uint32_t GetSitSleepState(const RemoteActor& a_rider)
+    {
+        auto riderPtr = a_rider.handle.get();
+        const auto* actorState = riderPtr ? riderPtr->AsActorState() : nullptr;
+        return actorState ? static_cast<std::uint32_t>(actorState->GetSitSleepState()) : 0;
     }
 
     void ApplyGait(RE::Actor& a_actor, const RemoteActor& a_remote, Gait& a_gait, float a_speed, float a_deltaTime,

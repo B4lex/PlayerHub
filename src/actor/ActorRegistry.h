@@ -38,6 +38,7 @@ namespace ActorRegistry
     // longer enforced, and every graph event is admitted.
     void SetDead(const RemoteActor& a_remote);
     // The actor rides a remote mount, whose native interaction owns its graph.
+    // A rider taken off its mount also stops reporting a riding gait.
     void SetMounted(const RemoteActor& a_remote, bool a_mounted);
     // Marks a remote mount or its seated rider as having its riding gait driven
     // by the network, and sets the speed its graph's Speed channel reports.

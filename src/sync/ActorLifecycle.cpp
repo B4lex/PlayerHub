@@ -9,7 +9,9 @@
 
 #include <algorithm>
 #include <optional>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace ActorLifecycle
 {
@@ -20,9 +22,24 @@ namespace ActorLifecycle
         constexpr float kSpawnRetryDelay = 1.0F;
         // A reloaded location normally restores an actor's 3D within a few passes.
         constexpr float kStrandedActorSeconds = 2.0F;
+        // Longer than any vanilla mount or dismount clip. Past it the pair is
+        // removed anyway rather than kept in the world indefinitely.
+        constexpr float kDeferredRemovalTimeoutSeconds = 5.0F;
+
+        // An actor and its mount removed while a mount or dismount clip linked their
+        // graphs. Accessed only on the main-loop thread.
+        struct DeferredRemoval
+        {
+            std::string playerID;
+            RemoteActor actor;
+            std::optional<RemoteActor> mount;
+            float elapsed{ 0.0F };
+        };
+
+        std::vector<DeferredRemoval> s_deferredRemovals;
 
         // Removes the mount, if any. Called in the same pass as its rider's removal
-        // and after it: the rider is not taken off first (see ActorMount).
+        // and after it: a seated rider is not taken off first (see ActorMount).
         void RemoveMountActor(ActorLifecycleState& a_lifecycle)
         {
             if (!a_lifecycle.mount)
@@ -34,15 +51,54 @@ namespace ActorLifecycle
             a_lifecycle.mountSpawnRetryRemaining = 0.0F;
         }
 
+        // Removes the actor and its mount, rider first. Removing either while a
+        // paired mount clip links their graphs crashes on the next graph event, so
+        // such a pair is kept, undriven, until the clip ends.
+        void RemoveActorAndMount(const std::string& a_playerID, ActorLifecycleState& a_lifecycle)
+        {
+            if (!a_lifecycle.actor)
+            {
+                RemoveMountActor(a_lifecycle);
+                return;
+            }
+            auto* mount = a_lifecycle.mount ? &a_lifecycle.mount->actor : nullptr;
+            if (!ActorMount::IsInTransition(*a_lifecycle.actor, mount))
+            {
+                ActorSpawner::Remove(*a_lifecycle.actor);
+                a_lifecycle.actor.reset();
+                RemoveMountActor(a_lifecycle);
+                return;
+            }
+
+            logs::info("Deferring removal of remote player {} actor {:08X} and mount {:08X} until their mount clip ends",
+                a_playerID, a_lifecycle.actor->handle.native_handle(), mount ? mount->handle.native_handle() : 0);
+            auto& removal = s_deferredRemovals.emplace_back(
+                DeferredRemoval{ .playerID = a_playerID, .actor = std::move(*a_lifecycle.actor) });
+            if (mount)
+            {
+                removal.mount = std::move(*mount);
+            }
+            a_lifecycle.actor.reset();
+            a_lifecycle.mount.reset();
+            a_lifecycle.mountSpawnRetryRemaining = 0.0F;
+        }
+
+        bool HasDeferredRemoval(const std::string& a_playerID)
+        {
+            return std::ranges::any_of(
+                s_deferredRemovals, [&a_playerID](const DeferredRemoval& a_removal) {
+                    return a_removal.playerID == a_playerID;
+                });
+        }
+
         // Returns the retired actor's handle for logging.
-        std::uint32_t Retire(PeerState& a_peer)
+        std::uint32_t Retire(const RemoteFrame& a_remote, PeerState& a_peer)
         {
             auto& lifecycle = a_peer.lifecycle;
             const auto actorHandle = lifecycle.actor->handle.native_handle();
-            ActorSpawner::Remove(*lifecycle.actor);
-            lifecycle.actor.reset();
-            RemoveMountActor(lifecycle);
+            RemoveActorAndMount(a_remote.playerID, lifecycle);
             CombatSync::ClearRemoteActions(a_peer.combat);
+            MountSync::DiscardRemoteTransition(a_peer.mounting);
             a_peer.appliedSequence = 0;
             lifecycle.spawnRetryRemaining = 0.0F;
             lifecycle.strandedElapsed = 0.0F;
@@ -62,7 +118,7 @@ namespace ActorLifecycle
     {
         // Race, sex, head parts, and weight are only applied when 3D loads.
         // Rebuild the actor from the newest checkpoint with the new base.
-        const auto actorHandle = Retire(a_peer);
+        const auto actorHandle = Retire(a_remote, a_peer);
         logs::info(
             "Recycling remote player actor {} actor {:08X} after appearance change: spawnedRevision={} revision={}",
             a_remote.playerID, actorHandle, static_cast<unsigned long long>(a_peer.appearance.spawnedRevision),
@@ -72,7 +128,7 @@ namespace ActorLifecycle
     void RetireForSpaceChange(
         const RemoteFrame& a_remote, PeerState& a_peer, RE::FormID a_localCellID, RE::FormID a_localWorldspaceID)
     {
-        const auto actorHandle = Retire(a_peer);
+        const auto actorHandle = Retire(a_remote, a_peer);
         logs::info(
             "Recycling remote player actor {} actor {:08X} after coordinate-space change: spawnedCell={:08X} "
             "spawnedWorld={:08X} targetCell={:08X} targetWorld={:08X} localCell={:08X} localWorld={:08X}",
@@ -120,7 +176,7 @@ namespace ActorLifecycle
             return;
         }
 
-        const auto actorHandle = Retire(a_peer);
+        const auto actorHandle = Retire(a_remote, a_peer);
         logs::info(
             "Recycling remote player actor {} actor {:08X} after fast travel: reason={} "
             "actorPosition=({:.3f},{:.3f},{:.3f}) target=({:.3f},{:.3f},{:.3f}) distance={:.1f} loaded3D={} "
@@ -132,7 +188,7 @@ namespace ActorLifecycle
 
     void RetireForRevival(const RemoteFrame& a_remote, PeerState& a_peer)
     {
-        const auto actorHandle = Retire(a_peer);
+        const auto actorHandle = Retire(a_remote, a_peer);
         logs::info("Recycling remote player actor {} actor {:08X} after the player came back to life: sequence={}",
             a_remote.playerID, actorHandle, static_cast<unsigned long long>(a_remote.lastSequence));
     }
@@ -141,9 +197,9 @@ namespace ActorLifecycle
     {
         const auto& mount = *a_peer.lifecycle.mount;
         const auto mountHandle = mount.actor.handle.native_handle();
-        const bool transition = ActorMount::IsInTransition(*a_peer.lifecycle.actor, mount.actor);
+        const bool transition = ActorMount::IsInTransition(*a_peer.lifecycle.actor, &mount.actor);
         const bool seated = ActorMount::IsSeated(*a_peer.lifecycle.actor, mount.actor);
-        const auto actorHandle = Retire(a_peer);
+        const auto actorHandle = Retire(a_remote, a_peer);
         logs::info(
             "Recycling remote player actor {} actor {:08X} and mount {:08X} after the player dismounted: seated={} "
             "transition={} sequence={}",
@@ -151,10 +207,19 @@ namespace ActorLifecycle
             static_cast<unsigned long long>(a_remote.lastSequence));
     }
 
+    void RemoveMountAfterDismount(const RemoteFrame& a_remote, PeerState& a_peer)
+    {
+        const auto mountHandle = a_peer.lifecycle.mount->actor.handle.native_handle();
+        RemoveMountActor(a_peer.lifecycle);
+        logs::info("Removed remote player {} mount {:08X} after actor {:08X} dismounted: sequence={}",
+            a_remote.playerID, mountHandle, a_peer.lifecycle.actor->handle.native_handle(),
+            static_cast<unsigned long long>(a_remote.lastSequence));
+    }
+
     void RetireForMountLoss(const RemoteFrame& a_remote, PeerState& a_peer)
     {
         const auto mountHandle = a_peer.lifecycle.mount->actor.handle.native_handle();
-        const auto actorHandle = Retire(a_peer);
+        const auto actorHandle = Retire(a_remote, a_peer);
         logs::warn("Recycling remote player actor {} actor {:08X} after losing mount {:08X}: sequence={}",
             a_remote.playerID, actorHandle, mountHandle, static_cast<unsigned long long>(a_remote.lastSequence));
     }
@@ -163,8 +228,8 @@ namespace ActorLifecycle
     {
         const auto& mount = *a_peer.lifecycle.mount;
         const auto mountHandle = mount.actor.handle.native_handle();
-        const bool transition = ActorMount::IsInTransition(*a_peer.lifecycle.actor, mount.actor);
-        const auto actorHandle = Retire(a_peer);
+        const bool transition = ActorMount::IsInTransition(*a_peer.lifecycle.actor, &mount.actor);
+        const auto actorHandle = Retire(a_remote, a_peer);
         logs::info(
             "Recycling remote player actor {} actor {:08X} and mount {:08X} after the player died riding: "
             "transition={} sequence={}",
@@ -176,7 +241,7 @@ namespace ActorLifecycle
         const RemoteFrame& a_remote, PeerState& a_peer, RE::FormID a_furnitureRefID, const char* a_reason)
     {
         auto& lifecycle = a_peer.lifecycle;
-        const auto actorHandle = lifecycle.actor ? Retire(a_peer) : 0;
+        const auto actorHandle = lifecycle.actor ? Retire(a_remote, a_peer) : 0;
         lifecycle.yieldedFurnitureRefID = a_furnitureRefID;
         logs::info(
             "Hiding remote player actor {} actor {:08X} while furniture {:08X} is in use: reason={} "
@@ -217,13 +282,60 @@ namespace ActorLifecycle
         a_peer.lifecycle.spawnRetryRemaining = kSpawnRetryDelay;
     }
 
-    void RemoveActor(PeerState& a_peer)
+    void RemoveActor(const std::string& a_playerID, PeerState& a_peer)
     {
-        if (a_peer.lifecycle.actor)
+        RemoveActorAndMount(a_playerID, a_peer.lifecycle);
+    }
+
+    void UpdateDeferredRemovals(float a_delta)
+    {
+        if (s_deferredRemovals.empty())
         {
-            ActorSpawner::Remove(*a_peer.lifecycle.actor);
+            return;
         }
-        RemoveMountActor(a_peer.lifecycle);
+
+        const float delta = std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
+        std::erase_if(s_deferredRemovals, [delta](DeferredRemoval& a_removal) {
+            a_removal.elapsed += delta;
+            const auto* mount = a_removal.mount ? &*a_removal.mount : nullptr;
+            const bool clipPlaying = ActorMount::IsInTransition(a_removal.actor, mount);
+            if (clipPlaying && a_removal.elapsed < kDeferredRemovalTimeoutSeconds)
+            {
+                return false;
+            }
+            if (clipPlaying)
+            {
+                logs::warn("Removing remote player {} actor {:08X} and mount {:08X} while their mount clip still "
+                           "plays: waited={:.2f}s",
+                    a_removal.playerID, a_removal.actor.handle.native_handle(),
+                    mount ? mount->handle.native_handle() : 0, a_removal.elapsed);
+            }
+            else
+            {
+                logs::info("Removed remote player {} actor {:08X} and mount {:08X} after their mount clip ended: "
+                           "waited={:.2f}s",
+                    a_removal.playerID, a_removal.actor.handle.native_handle(),
+                    mount ? mount->handle.native_handle() : 0, a_removal.elapsed);
+            }
+            ActorSpawner::Remove(a_removal.actor);
+            if (a_removal.mount)
+            {
+                ActorSpawner::Remove(*a_removal.mount);
+            }
+            return true;
+        });
+    }
+
+    void SetDeferredRemovalsExcludedFromSaves(bool a_excluded)
+    {
+        for (const auto& removal : s_deferredRemovals)
+        {
+            ActorSpawner::SetExcludedFromSaves(removal.actor, a_excluded);
+            if (removal.mount)
+            {
+                ActorSpawner::SetExcludedFromSaves(*removal.mount, a_excluded);
+            }
+        }
     }
 
     void SpawnWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
@@ -238,7 +350,7 @@ namespace ActorLifecycle
             lifecycle.yieldedFurnitureRefID = 0;
         }
         lifecycle.spawnRetryRemaining -= (std::max)(a_delta, 0.0F);
-        if (lifecycle.spawnRetryRemaining > 0.0F)
+        if (lifecycle.spawnRetryRemaining > 0.0F || HasDeferredRemoval(a_remote.playerID))
         {
             return;
         }

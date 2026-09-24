@@ -33,6 +33,7 @@ namespace Network
         std::unordered_map<std::string, std::uint64_t> latestReceivedEquipmentRevisions;
         std::deque<AnimationAction> pendingAnimationActions;
         std::unordered_map<std::string, std::uint64_t> latestReceivedActionSequences;
+        std::deque<RemoteMountTransition> pendingMountTransitions;
         std::unordered_set<std::string> pendingExits;
         std::unordered_set<std::string> pendingDisconnects;
         std::uint64_t localActionSequence = 0;
@@ -459,6 +460,36 @@ namespace Network
             return true;
         }
 
+        bool ParseRemoteMountTransition(const sio::message::ptr& a_data, RemoteMountTransition& a_result)
+        {
+            if (!a_data || a_data->get_flag() != sio::message::flag_object)
+            {
+                return false;
+            }
+
+            const auto& values = a_data->get_map();
+            std::string transition;
+            if (!ReadString(values, "playerId", a_result.playerID) || !ReadString(values, "transition", transition)
+                || !ReadUnsignedInteger(
+                    values, "graphEpoch", (std::numeric_limits<std::int64_t>::max)(), a_result.graphEpoch)
+                || a_result.graphEpoch == 0
+                || !ReadUnsignedInteger(values, "checkpointSequence", (std::numeric_limits<std::int64_t>::max)(),
+                    a_result.checkpointSequence)
+                || a_result.checkpointSequence == 0)
+            {
+                return false;
+            }
+            for (const auto candidate : { MountTransition::kEnter, MountTransition::kExit })
+            {
+                if (transition == GetMountTransitionName(candidate))
+                {
+                    a_result.transition = candidate;
+                    return true;
+                }
+            }
+            return false;
+        }
+
         // Returns nullptr on success, otherwise the name of the rejected field.
         const char* ParseRemoteAppearance(const sio::message::ptr& a_data, RemotePlayerAppearance& a_result)
         {
@@ -853,6 +884,24 @@ namespace Network
             pendingAnimationActions.push_back(std::move(action));
         }
 
+        void OnRemoteMountTransition(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
+        {
+            RemoteMountTransition transition;
+            if (!ParseRemoteMountTransition(a_data, transition))
+            {
+                logs::warn("Ignored malformed Socket.IO player:mount payload");
+                return;
+            }
+
+            logs::info("Mount sync received transition: player={} transition={} graphEpoch={} checkpointSequence={}",
+                transition.playerID, GetMountTransitionName(transition.transition),
+                static_cast<unsigned long long>(transition.graphEpoch),
+                static_cast<unsigned long long>(transition.checkpointSequence));
+            std::scoped_lock lock{ remoteChangesLock };
+            pendingDisconnects.erase(transition.playerID);
+            pendingMountTransitions.push_back(std::move(transition));
+        }
+
         void OnRemoteAppearance(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
         {
             RemotePlayerAppearance update;
@@ -917,6 +966,7 @@ namespace Network
             latestReceivedEquipmentRevisions.clear();
             pendingAnimationActions.clear();
             latestReceivedActionSequences.clear();
+            pendingMountTransitions.clear();
             pendingExits.clear();
             pendingDisconnects.clear();
         }
@@ -947,6 +997,9 @@ namespace Network
             latestReceivedActionSequences.erase(a_playerID);
             std::erase_if(pendingAnimationActions,
                 [&a_playerID](const AnimationAction& a_action) { return a_action.playerID == a_playerID; });
+            std::erase_if(pendingMountTransitions, [&a_playerID](const RemoteMountTransition& a_transition) {
+                return a_transition.playerID == a_playerID;
+            });
         }
 
         void OnRemoteExit(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
@@ -996,6 +1049,7 @@ namespace Network
 
             socket->on("player:state", sio::socket::event_listener_aux(OnRemoteTransform));
             socket->on("player:action", sio::socket::event_listener_aux(OnRemoteAnimationAction));
+            socket->on("player:mount", sio::socket::event_listener_aux(OnRemoteMountTransition));
             socket->on("player:appearance", sio::socket::event_listener_aux(OnRemoteAppearance));
             socket->on("player:equipment", sio::socket::event_listener_aux(OnRemoteEquipment));
             socket->on("player:exit", sio::socket::event_listener_aux(OnRemoteExit));
@@ -1253,6 +1307,26 @@ namespace Network
         GetClient().socket()->emit("animation:action", payload);
     }
 
+    void PublishLocalMountTransition(
+        MountTransition a_transition, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence)
+    {
+        if (!IsConnected() || a_graphEpoch == 0 || a_checkpointSequence == 0)
+        {
+            return;
+        }
+
+        auto payload = sio::object_message::create();
+        auto& values = payload->get_map();
+        values["transition"] = sio::string_message::create(GetMountTransitionName(a_transition));
+        values["graphEpoch"] = sio::int_message::create(static_cast<std::int64_t>(a_graphEpoch));
+        values["checkpointSequence"] = sio::int_message::create(static_cast<std::int64_t>(a_checkpointSequence));
+
+        logs::info("Mount sync publishing transition: transition={} graphEpoch={} checkpointSequence={}",
+            GetMountTransitionName(a_transition), static_cast<unsigned long long>(a_graphEpoch),
+            static_cast<unsigned long long>(a_checkpointSequence));
+        GetClient().socket()->emit("mount:transition", payload);
+    }
+
     void EmitLatencyProbe(std::function<void(std::optional<double> a_serverTimeMilliseconds)> a_onAcknowledged)
     {
         if (!IsConnected())
@@ -1306,6 +1380,13 @@ namespace Network
         {
             changes.animationActions.push_back(std::move(pendingAnimationActions.front()));
             pendingAnimationActions.pop_front();
+        }
+
+        changes.mountTransitions.reserve(pendingMountTransitions.size());
+        while (!pendingMountTransitions.empty())
+        {
+            changes.mountTransitions.push_back(std::move(pendingMountTransitions.front()));
+            pendingMountTransitions.pop_front();
         }
 
         changes.exitedPlayerIDs.reserve(pendingExits.size());

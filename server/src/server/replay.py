@@ -52,6 +52,8 @@ def _renumber(virtual: VirtualPlayer, update: RecordedUpdate) -> dict[str, Any] 
             return virtual.checkpoint(update.payload)
         case "animation:action":
             return virtual.action(update.payload)
+        case "mount:transition":
+            return virtual.mount_transition(update.payload)
         case "player:appearance":
             return virtual.appearance(update.payload)
         case "player:equipment":
@@ -100,6 +102,8 @@ def replay(
                     identifier = f"revision={payload['revision']}"
                 elif update.event in ("player:enter", "player:exit"):
                     identifier = ""
+                elif update.event == "mount:transition":
+                    identifier = f"transition={payload['transition']}"
                 else:
                     identifier = f"actionSequence={payload['actionSequence']}"
                 print(f"sent {sent}: event={update.event} {identifier}", flush=True)
