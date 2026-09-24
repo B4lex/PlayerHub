@@ -1,4 +1,5 @@
 #include "ui/Overlay.h"
+#include "runtime/FrameProfiler.h"
 #include "ui/hud/PingIndicator.h"
 
 #include <backends/imgui_impl_dx11.h>
@@ -162,6 +163,7 @@ namespace UI::Overlay
             static void Thunk(std::uint32_t a_timer)
             {
                 _original(a_timer);
+                const FrameProfiler::ScopedSection section{ FrameProfiler::Section::Overlay };
                 DrawFrame();
             }
 
