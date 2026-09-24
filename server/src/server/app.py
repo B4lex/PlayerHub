@@ -1,5 +1,4 @@
 import logging
-import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -24,7 +23,6 @@ from server.protocol import (
     parse_player_appearance,
     parse_player_equipment,
     parse_player_update,
-    parse_sent_at,
 )
 from server.recording import CaptureManager, RecordingStore
 from server.registry import PlayerRegistry
@@ -197,11 +195,6 @@ async def player_update(sid: str, data: Any) -> dict[str, bool | str]:
     captures.record(sid, "player:update", state)
     _notify_admin()
     outbound: dict[str, bool | int | float | str] = {"playerId": sid, **state}
-    # Transport metadata for the receiver's packet delay; not part of the stored
-    # or recorded checkpoint, so replays never relay stale emit times.
-    sent_at = parse_sent_at(data)
-    if sent_at is not None:
-        outbound["sentAtMs"] = sent_at
     logger.debug("Socket.IO TX player:state source=%s payload=%s", sid, outbound)
     await sio.emit("player:state", outbound, skip_sid=sid)
     return {"ok": True}
@@ -316,11 +309,11 @@ async def mount_transition(sid: str, data: Any) -> dict[str, bool | str]:
 
 
 @sio.on("latency:probe")
-async def latency_probe(sid: str, data: Any = None) -> dict[str, bool | float]:
-    # The client times this acknowledgement to measure its round trip, and uses
-    # the server clock to stamp payloads that peers compare against their own.
+async def latency_probe(sid: str, data: Any = None) -> dict[str, bool]:
+    # The client times this acknowledgement to measure its round trip, and treats
+    # a missing one as a lost connection.
     del sid, data
-    return {"ok": True, "serverTimeMs": time.time() * 1000.0}
+    return {"ok": True}
 
 
 # Socket.IO handles /socket.io; all other requests are forwarded to FastAPI.

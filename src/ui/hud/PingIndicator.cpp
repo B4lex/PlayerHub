@@ -1,6 +1,5 @@
 #include "ui/hud/PingIndicator.h"
-#include "network/LatencyProbe.h"
-#include "network/PacketDelay.h"
+#include "network/ConnectionMonitor.h"
 #include "network/SocketIOClient.h"
 #include "ui/Layout.h"
 
@@ -28,19 +27,19 @@ namespace UI::PingIndicator
             | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing
             | ImGuiWindowFlags_AlwaysAutoResize;
 
-        void DrawMilliseconds(const char* a_label, std::optional<std::chrono::milliseconds> a_value)
+        void DrawPing(std::optional<std::chrono::milliseconds> a_latency)
         {
-            if (!a_value)
+            if (!a_latency)
             {
-                ImGui::TextColored(kMutedColor, "%s -- ms", a_label);
+                ImGui::TextColored(kMutedColor, "Ping -- ms");
                 return;
             }
 
-            const auto milliseconds = static_cast<long long>(a_value->count());
+            const auto milliseconds = static_cast<long long>(a_latency->count());
             const auto& color = milliseconds <= kGoodLatencyMilliseconds ? kGoodColor
                 : milliseconds <= kFairLatencyMilliseconds               ? kFairColor
                                                                          : kPoorColor;
-            ImGui::TextColored(color, "%s %lld ms", a_label, milliseconds);
+            ImGui::TextColored(color, "Ping %lld ms", milliseconds);
         }
     }
 
@@ -56,12 +55,11 @@ namespace UI::PingIndicator
 
         if (!Network::IsConnected())
         {
-            ImGui::TextColored(kPoorColor, "Offline");
+            ImGui::TextColored(kPoorColor, "Disconnected");
         }
         else
         {
-            DrawMilliseconds("Ping", Network::GetLatency());
-            DrawMilliseconds("Delay", Network::GetRemotePacketDelay());
+            DrawPing(Network::GetLatency());
         }
 
         ImGui::End();

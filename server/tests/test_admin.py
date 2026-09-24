@@ -305,7 +305,7 @@ class SocketPublisherTests(unittest.IsolatedAsyncioTestCase):
     async def test_relays_as_a_peer_and_registers_late_join_state(self) -> None:
         emit = AsyncMock()
         registry = PlayerRegistry()
-        publisher = SocketPublisher("replay:1", emit, registry, wall_clock=lambda: 12.5)
+        publisher = SocketPublisher("replay:1", emit, registry)
 
         await publisher.appearance({"revision": 1, "name": "Lydia"})
         await publisher.equipment({"revision": 1, "armor": []})
@@ -319,7 +319,7 @@ class SocketPublisherTests(unittest.IsolatedAsyncioTestCase):
             [
                 ("player:appearance", {"playerId": "replay:1", "revision": 1, "name": "Lydia"}),
                 ("player:equipment", {"playerId": "replay:1", "revision": 1, "armor": []}),
-                ("player:state", {"playerId": "replay:1", "sequence": 1, "sentAtMs": 12500.0}),
+                ("player:state", {"playerId": "replay:1", "sequence": 1}),
                 ("player:action", {"playerId": "replay:1", "actionSequence": 1}),
             ],
         )

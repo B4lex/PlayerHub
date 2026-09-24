@@ -6,7 +6,6 @@
 
 #include <cstdint>
 #include <functional>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -16,9 +15,6 @@ namespace Network
     {
         std::string playerID;
         PlayerTransform transform;
-        // Server-clock milliseconds when the source emitted this checkpoint.
-        // Empty when the source had no clock estimate yet.
-        std::optional<double> sentAtServerMilliseconds;
     };
 
     struct RemotePlayerAppearance
@@ -56,7 +52,9 @@ namespace Network
         bool connected = false;
     };
 
-    // Starts the Socket.IO client. Safe to call more than once.
+    // Starts the Socket.IO client. Safe to call more than once. The client never
+    // retries by itself; ConnectionMonitor drives every recovery through
+    // BeginReconnect.
     void Initialize();
 
     [[nodiscard]] bool IsConnected();
@@ -92,9 +90,23 @@ namespace Network
         MountTransition a_transition, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
 
     // Emits latency:probe. a_onAcknowledged runs on the transport thread when the
-    // server acknowledges it, with the server clock in milliseconds when the ack
-    // carried one; it never runs if the connection drops first.
-    void EmitLatencyProbe(std::function<void(std::optional<double> a_serverTimeMilliseconds)> a_onAcknowledged);
+    // server acknowledges it; it never runs if the connection drops first.
+    void EmitLatencyProbe(std::function<void()> a_onAcknowledged);
+
+    // Declares the current connection dead because the server stopped
+    // answering. Behaves as if the transport had reported the loss: the client
+    // is disconnected and every remote player is forgotten. Main-loop thread.
+    void AbandonConnection();
+
+    // Closes whatever is left of the old transport and opens a new one on a
+    // worker thread, whether the loss was ours, the server's, or a failed
+    // attempt. Returns false while a previous call is still working.
+    [[nodiscard]] bool BeginReconnect();
+
+    // Whether the latest attempt, from Initialize or BeginReconnect, has been
+    // handed to the transport and then failed or closed before the namespace
+    // opened.
+    [[nodiscard]] bool DidReconnectAttemptFail();
 
     // Transfers network-thread updates to the caller. The authoritative
     // main-loop frame hook is the only consumer.

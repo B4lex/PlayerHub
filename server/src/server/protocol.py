@@ -136,21 +136,6 @@ def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None
     return values
 
 
-def parse_sent_at(data: Any) -> float | None:
-    """Return the optional server-clock emit time a client stamped on a payload."""
-    if not isinstance(data, dict):
-        return None
-    sent_at = data.get("sentAtMs")
-    if (
-        isinstance(sent_at, bool)
-        or not isinstance(sent_at, (int, float))
-        or not math.isfinite(sent_at)
-        or sent_at < 0
-    ):
-        return None
-    return float(sent_at)
-
-
 def parse_animation_action(data: Any) -> dict[str, Any] | None:
     """Validate the deliberately small, versioned semantic action vocabulary."""
     if not isinstance(data, dict):
