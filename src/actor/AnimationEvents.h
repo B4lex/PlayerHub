@@ -57,6 +57,11 @@ namespace AnimationEvents
         return false;
     }
 
+    constexpr bool StartsWithIgnoringCase(std::string_view a_text, std::string_view a_prefix) noexcept
+    {
+        return a_text.size() >= a_prefix.size() && EqualsIgnoringCase(a_text.substr(0, a_prefix.size()), a_prefix);
+    }
+
     constexpr bool EndsWithIgnoringCase(std::string_view a_text, std::string_view a_suffix) noexcept
     {
         return a_text.size() >= a_suffix.size()

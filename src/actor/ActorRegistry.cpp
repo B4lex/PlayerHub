@@ -3,6 +3,8 @@
 #include "actor/RemoteActor.h"
 
 #include <algorithm>
+#include <atomic>
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -49,6 +51,11 @@ namespace ActorRegistry
             bool furnitureAnimationOwned{ false };
             bool castAnimationOwned{ false };
             bool dead{ false };
+            bool mounted{ false };
+            // A remote mount or its seated rider, whose riding gait follows the
+            // network speed.
+            bool gaitDriven{ false };
+            float gaitSpeed{ 0.0F };
             bool landingCompletionObservationAllowed{ false };
             bool observeJumpLandEndEvent{ false };
             bool observeWeaponTransitionEndEvent{ false };
@@ -56,6 +63,24 @@ namespace ActorRegistry
 
         std::mutex s_mutex;
         std::unordered_map<const RE::IAnimationGraphManagerHolder*, Registration> s_registrations;
+        // Lets the speed channel of every local actor skip the lock while no
+        // remote player rides.
+        std::atomic<std::size_t> s_gaitDrivenCount{ 0 };
+
+        // Called with s_mutex held.
+        void EraseRegistration(const RE::IAnimationGraphManagerHolder* a_holder)
+        {
+            const auto registration = s_registrations.find(a_holder);
+            if (registration == s_registrations.end())
+            {
+                return;
+            }
+            if (registration->second.gaitDriven)
+            {
+                s_gaitDrivenCount.fetch_sub(1, std::memory_order_relaxed);
+            }
+            s_registrations.erase(registration);
+        }
     }
 
     void Register(RemoteActor& a_remote, RE::Actor& a_actor)
@@ -69,8 +94,9 @@ namespace ActorRegistry
         std::scoped_lock lock{ s_mutex };
         if (a_remote.animationGraphHolder)
         {
-            s_registrations.erase(a_remote.animationGraphHolder);
+            EraseRegistration(a_remote.animationGraphHolder);
         }
+        EraseRegistration(holder);
         s_registrations.insert_or_assign(holder,
             Registration{ .actor = std::addressof(a_actor),
                 .magicTarget = a_actor.AsMagicTarget(),
@@ -95,7 +121,7 @@ namespace ActorRegistry
         }
 
         std::scoped_lock lock{ s_mutex };
-        s_registrations.erase(a_remote.animationGraphHolder);
+        EraseRegistration(a_remote.animationGraphHolder);
         a_remote.animationGraphHolder = nullptr;
     }
 
@@ -210,6 +236,46 @@ namespace ActorRegistry
         }
     }
 
+    void SetMounted(const RemoteActor& a_remote, bool a_mounted)
+    {
+        std::scoped_lock lock{ s_mutex };
+        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
+        if (registration != s_registrations.end())
+        {
+            registration->second.mounted = a_mounted;
+        }
+    }
+
+    void SetGaitSpeed(const RemoteActor& a_remote, float a_speed)
+    {
+        std::scoped_lock lock{ s_mutex };
+        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
+        if (registration == s_registrations.end())
+        {
+            return;
+        }
+        if (!registration->second.gaitDriven)
+        {
+            registration->second.gaitDriven = true;
+            s_gaitDrivenCount.fetch_add(1, std::memory_order_relaxed);
+        }
+        registration->second.gaitSpeed = a_speed;
+    }
+
+    std::optional<float> GetGaitSpeed(const RE::Actor* a_actor)
+    {
+        if (!a_actor || s_gaitDrivenCount.load(std::memory_order_relaxed) == 0)
+        {
+            return std::nullopt;
+        }
+
+        std::scoped_lock lock{ s_mutex };
+        const auto registration = s_registrations.find(static_cast<const RE::IAnimationGraphManagerHolder*>(a_actor));
+        return registration != s_registrations.end() && registration->second.gaitDriven
+            ? std::optional<float>{ registration->second.gaitSpeed }
+            : std::nullopt;
+    }
+
     std::optional<GraphInput> FindGraphInput(const RE::IAnimationGraphManagerHolder* a_holder)
     {
         std::scoped_lock lock{ s_mutex };
@@ -222,7 +288,9 @@ namespace ActorRegistry
             .animationFirewallEnabled = registration->second.animationFirewallEnabled,
             .furnitureAnimationOwned = registration->second.furnitureAnimationOwned,
             .castAnimationOwned = registration->second.castAnimationOwned,
-            .dead = registration->second.dead };
+            .dead = registration->second.dead,
+            .mounted = registration->second.mounted,
+            .gaitDriven = registration->second.gaitDriven };
     }
 
     void RecordSwimTransition(const RE::IAnimationGraphManagerHolder* a_holder, bool a_started)
@@ -344,9 +412,13 @@ namespace ActorRegistry
         std::scoped_lock lock{ s_mutex };
         const auto registration = std::ranges::find_if(
             s_registrations, [a_actor](const auto& a_entry) { return a_entry.second.actor == a_actor; });
-        return registration != s_registrations.end()
-            ? std::optional<float>{ registration->second.authoritativeDirection }
-            : std::nullopt;
+        if (registration == s_registrations.end())
+        {
+            return std::nullopt;
+        }
+        // A riding gait only travels the way the mount faces. A rider's on-foot
+        // direction is stale once it is seated.
+        return registration->second.gaitDriven ? 0.0F : registration->second.authoritativeDirection;
     }
 
     void SetAuthoritativeWeaponDrawnState(const RemoteActor& a_remote, bool a_weaponDrawn)

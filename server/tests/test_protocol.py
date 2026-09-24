@@ -20,6 +20,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "castingRight": True,
             "blocking": True,
             "dead": False,
+            "mounted": False,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
             "furnitureRefId": 0xA729,
@@ -45,6 +46,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "castingRight": False,
             "blocking": False,
             "dead": False,
+            "mounted": False,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
             "furnitureRefId": 0,
@@ -229,6 +231,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "castingRight": False,
             "blocking": False,
             "dead": False,
+            "mounted": False,
             "cellId": 1,
             "worldspaceId": 0,
             "furnitureRefId": 0,
@@ -307,6 +310,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 "castingRight": False,
                 "blocking": False,
                 "dead": False,
+                "mounted": False,
             },
         )
 
@@ -326,6 +330,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "castingRight": False,
             "blocking": False,
             "dead": True,
+            "mounted": False,
             "cellId": 1,
             "worldspaceId": 0,
             "furnitureRefId": 0,
@@ -356,6 +361,55 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             }
 
             with self.subTest(dead=dead):
+                self.assertIsNone(parse_player_update(payload))
+
+    def test_accepts_mounted_player(self) -> None:
+        payload = {
+            "x": 1.0,
+            "y": 2.0,
+            "z": 3.0,
+            "heading": 0.0,
+            "speed": 700.0,
+            "direction": 0.0,
+            "movementState": "running",
+            "jumping": False,
+            "weaponDrawn": False,
+            "bowDrawn": False,
+            "castingLeft": False,
+            "castingRight": False,
+            "blocking": False,
+            "dead": False,
+            "mounted": True,
+            "cellId": 1,
+            "worldspaceId": 60,
+            "furnitureRefId": 0,
+            "graphEpoch": 1,
+            "sequence": 1,
+        }
+
+        self.assertEqual(parse_player_update(payload), payload)
+
+    def test_rejects_non_boolean_mounted_state(self) -> None:
+        for mounted in (1, "true", None):
+            payload = {
+                "x": 1.0,
+                "y": 2.0,
+                "z": 3.0,
+                "heading": 0.0,
+                "speed": 0.0,
+                "direction": 0.0,
+                "movementState": "idle",
+                "jumping": False,
+                "weaponDrawn": False,
+                "mounted": mounted,
+                "cellId": 1,
+                "worldspaceId": 60,
+                "furnitureRefId": 0,
+                "graphEpoch": 1,
+                "sequence": 1,
+            }
+
+            with self.subTest(mounted=mounted):
                 self.assertIsNone(parse_player_update(payload))
 
     def test_rejects_non_boolean_hand_presentation(self) -> None:

@@ -29,6 +29,14 @@ namespace DeathSync
 
     bool SyncDeath(const RemoteFrame& a_remote, PeerState& a_peer)
     {
+        if (a_remote.checkpoint.dead && a_peer.lifecycle.mount)
+        {
+            // A rider is never taken off its mount (see ActorMount). The mount goes
+            // with the rider, whose replacement is killed once it is ready.
+            ActorLifecycle::RetireMountedForDeath(a_remote, a_peer);
+            return false;
+        }
+
         auto& actor = *a_peer.lifecycle.actor;
         if (actor.dead)
         {
