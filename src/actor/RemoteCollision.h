@@ -1,5 +1,7 @@
 #pragma once
 
+#include <RE/Skyrim.h>
+
 #include <cstddef>
 
 namespace RemoteCollision
@@ -11,4 +13,10 @@ namespace RemoteCollision
     // characters, while every controller keeps its world collision. Requires
     // kTrampolineSize trampoline bytes.
     void InstallHooks();
+
+    // Takes the actor's own character body out of, or back into, every character
+    // collision; its controller keeps its world collision. Returns whether the
+    // body changed. A rebuilt controller starts colliding again, so a caller
+    // reasserts it while it applies. Main-loop thread only.
+    bool SetCharacterBodyCollision(RE::Actor& a_actor, bool a_enabled);
 }

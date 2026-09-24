@@ -56,6 +56,11 @@ namespace ActorMount
     // The rider's sit state, for diagnostics.
     [[nodiscard]] std::uint32_t GetSitSleepState(const RemoteActor& a_rider);
 
+    // Actor-module internal, called by ActorRuntime on every rider update: a rider
+    // on its mount, including during either clip, lets every character through its
+    // own character body.
+    void ApplyRiderCollision(RE::Actor& a_rider);
+
     // Actor-module internal, called by ActorRuntime: drives the riding
     // locomotion of a mount, or of its seated rider, from the mount's speed. Both
     // graphs pick their walk, trot, and run from their own Speed. Only the
