@@ -1,6 +1,5 @@
 """Where a replay's messages go: the same relay events a real player produces."""
 
-import time
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
@@ -31,15 +30,13 @@ class SocketPublisher:
         player_id: str,
         emit: Emit,
         registry: PlayerRegistry,
-        wall_clock: Callable[[], float] = time.time,
     ) -> None:
         self.player_id = player_id
         self._emit = emit
         self._registry = registry
-        self._wall_clock = wall_clock
 
     async def checkpoint(self, payload: dict[str, Any]) -> None:
-        outbound = {"playerId": self.player_id, **payload, "sentAtMs": self._wall_clock() * 1000.0}
+        outbound = {"playerId": self.player_id, **payload}
         await self._emit("player:state", outbound)
 
     async def action(self, payload: dict[str, Any]) -> None:

@@ -1,4 +1,3 @@
-import math
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -32,20 +31,17 @@ def valid_state(sequence: int = 1) -> dict[str, bool | int | float | str]:
 
 
 class LatencyProbeTests(unittest.IsolatedAsyncioTestCase):
-    async def test_acknowledges_with_server_time_without_relaying(self) -> None:
+    async def test_acknowledges_without_relaying(self) -> None:
         emit = AsyncMock()
 
-        with (
-            patch.object(server_app.sio, "emit", new=emit),
-            patch.object(server_app.time, "time", return_value=1_700_000_000.25),
-        ):
+        with patch.object(server_app.sio, "emit", new=emit):
             result = await server_app.latency_probe("player-1")
 
-        self.assertEqual(result, {"ok": True, "serverTimeMs": 1_700_000_000_250.0})
+        self.assertEqual(result, {"ok": True})
         emit.assert_not_awaited()
 
 
-class PacketDelayRelayTests(unittest.IsolatedAsyncioTestCase):
+class CheckpointRelayTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         server_app.player_states.clear()
         server_app.registry.enter("player-1")
@@ -54,7 +50,7 @@ class PacketDelayRelayTests(unittest.IsolatedAsyncioTestCase):
         server_app.player_states.clear()
         server_app.registry.in_world.clear()
 
-    async def test_relays_sent_at_without_storing_it(self) -> None:
+    async def test_relays_checkpoint_without_client_metadata(self) -> None:
         emit = AsyncMock()
 
         with patch.object(server_app.sio, "emit", new=emit):
@@ -65,24 +61,7 @@ class PacketDelayRelayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, {"ok": True})
         emit.assert_awaited_once_with(
             "player:state",
-            {"playerId": "player-1", **valid_state(), "sentAtMs": 1_700_000_000_250.5},
+            {"playerId": "player-1", **valid_state()},
             skip_sid="player-1",
         )
         self.assertEqual(server_app.player_states["player-1"], valid_state())
-
-    async def test_drops_missing_or_invalid_sent_at(self) -> None:
-        for sequence, sent_at in enumerate((None, -1.0, math.inf, True, "1"), start=1):
-            emit = AsyncMock()
-            payload = valid_state(sequence)
-            if sent_at is not None:
-                payload["sentAtMs"] = sent_at
-
-            with patch.object(server_app.sio, "emit", new=emit):
-                result = await server_app.player_update("player-1", payload)
-
-            self.assertEqual(result, {"ok": True})
-            emit.assert_awaited_once_with(
-                "player:state",
-                {"playerId": "player-1", **valid_state(sequence)},
-                skip_sid="player-1",
-            )

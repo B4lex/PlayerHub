@@ -1,6 +1,5 @@
 #include "runtime/MainLoopHook.h"
-#include "network/LatencyProbe.h"
-#include "network/PacketDelay.h"
+#include "network/ConnectionMonitor.h"
 #include "runtime/FrameProfiler.h"
 #include "runtime/GameThread.h"
 #include "sync/SyncCoordinator.h"
@@ -34,8 +33,7 @@ namespace MainLoopHook
                 }
 
                 SyncCoordinator::OnFrame(RE::PlayerCharacter::GetSingleton(), delta);
-                Network::UpdateLatencyProbe(delta);
-                Network::UpdatePacketDelay(delta);
+                Network::UpdateConnectionMonitor(delta);
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;

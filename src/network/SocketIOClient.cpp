@@ -1,5 +1,4 @@
 #include "network/SocketIOClient.h"
-#include "network/LatencyProbe.h"
 
 #include <sio_client.h>
 
@@ -7,11 +6,13 @@
 #include <atomic>
 #include <cmath>
 #include <deque>
+#include <exception>
 #include <fstream>
 #include <limits>
 #include <map>
 #include <mutex>
 #include <optional>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -24,6 +25,8 @@ namespace Network
         constexpr auto kServerEndpointPath = "Data/SKSE/Plugins/skyrim-mp-server.txt";
         std::atomic_bool connected{ false };
         std::atomic_uint64_t connectionGeneration{ 0 };
+        std::atomic_bool reconnectWorkerRunning{ false };
+        std::atomic_bool attemptFailed{ false };
         std::mutex remoteChangesLock;
         std::unordered_map<std::string, RemotePlayerTransform> pendingTransforms;
         std::unordered_map<std::string, PlayerTransform> latestReceivedTransforms;
@@ -74,6 +77,13 @@ namespace Network
             // Keep the Socket.IO client alive for the lifetime of the SKSE DLL.
             static sio::client client;
             return client;
+        }
+
+        // A copy, because the client drops its socket object when the server closes
+        // the namespace.
+        sio::socket::ptr GetSocket()
+        {
+            return GetClient().socket();
         }
 
         bool ReadString(
@@ -333,18 +343,6 @@ namespace Network
                 || !ReadUnsignedInteger(values, "sequence", (std::numeric_limits<std::int64_t>::max)(), sequence))
             {
                 return false;
-            }
-
-            // Optional transport metadata: a malformed stamp only loses the delay
-            // sample, never the checkpoint.
-            double sentAt = 0.0;
-            if (ReadNumber(values, "sentAtMs", sentAt) && sentAt >= 0.0)
-            {
-                a_result.sentAtServerMilliseconds = sentAt;
-            }
-            else
-            {
-                a_result.sentAtServerMilliseconds.reset();
             }
 
             a_result.transform = PlayerTransform{ .x = static_cast<float>(x),
@@ -981,6 +979,7 @@ namespace Network
         {
             std::scoped_lock lock{ remoteChangesLock };
             connected.store(false, std::memory_order_release);
+            attemptFailed.store(true, std::memory_order_release);
             ForgetRemotePlayersLocked();
         }
 
@@ -1039,6 +1038,21 @@ namespace Network
             pendingExits.erase(playerID);
             pendingDisconnects.insert(std::move(playerID));
         }
+
+        // The client discards the socket object, with its handlers, when the
+        // server closes the namespace, so every attempt registers them again on
+        // whichever object it is about to open.
+        void RegisterSocketHandlers()
+        {
+            const auto socket = GetSocket();
+            socket->on("player:state", sio::socket::event_listener_aux(OnRemoteTransform));
+            socket->on("player:action", sio::socket::event_listener_aux(OnRemoteAnimationAction));
+            socket->on("player:mount", sio::socket::event_listener_aux(OnRemoteMountTransition));
+            socket->on("player:appearance", sio::socket::event_listener_aux(OnRemoteAppearance));
+            socket->on("player:equipment", sio::socket::event_listener_aux(OnRemoteEquipment));
+            socket->on("player:exit", sio::socket::event_listener_aux(OnRemoteExit));
+            socket->on("player:disconnect", sio::socket::event_listener_aux(OnRemoteDisconnect));
+        }
     }
 
     void Initialize()
@@ -1047,22 +1061,20 @@ namespace Network
 
         std::call_once(connectOnce, [] {
             auto& client = GetClient();
-            auto socket = client.socket();
+            RegisterSocketHandlers();
 
-            socket->on("player:state", sio::socket::event_listener_aux(OnRemoteTransform));
-            socket->on("player:action", sio::socket::event_listener_aux(OnRemoteAnimationAction));
-            socket->on("player:mount", sio::socket::event_listener_aux(OnRemoteMountTransition));
-            socket->on("player:appearance", sio::socket::event_listener_aux(OnRemoteAppearance));
-            socket->on("player:equipment", sio::socket::event_listener_aux(OnRemoteEquipment));
-            socket->on("player:exit", sio::socket::event_listener_aux(OnRemoteExit));
-            socket->on("player:disconnect", sio::socket::event_listener_aux(OnRemoteDisconnect));
+            // The library's own retry gives up on any close with a normal status,
+            // which is how a server drops a client, and leaves the namespace closed
+            // on a live transport. Every loss is reported once and recovered by
+            // ConnectionMonitor instead.
+            client.set_reconnect_attempts(0);
 
             client.set_open_listener([] {
                 RE::ConsoleLog::GetSingleton()->Print("MP: Connected.");
                 logs::info("Socket.IO transport connected to {}", GetServerEndpoint());
             });
             client.set_socket_open_listener([](std::string const&) {
-                // Automatic reconnects do not always report a close first, so the
+                // A reopened namespace does not always follow a reported close, so the
                 // connected flag alone cannot reveal that the server lost our state.
                 std::scoped_lock lock{ remoteChangesLock };
                 ForgetRemotePlayersLocked();
@@ -1080,9 +1092,10 @@ namespace Network
                 MarkDisconnected();
                 logs::warn("Socket.IO could not connect to {}", GetServerEndpoint());
             });
-            client.set_close_listener([](sio::client::close_reason const&) {
+            client.set_close_listener([](sio::client::close_reason const& a_reason) {
                 MarkDisconnected();
-                logs::info("Socket.IO connection closed; forgetting remote players");
+                logs::info("Socket.IO connection closed by {}; forgetting remote players",
+                    a_reason == sio::client::close_reason_drop ? "the transport" : "a normal close");
             });
 
             logs::info("Opening Socket.IO connection to {}", GetServerEndpoint());
@@ -1104,7 +1117,7 @@ namespace Network
     {
         if (IsConnected())
         {
-            GetClient().socket()->emit("player:enter");
+            GetSocket()->emit("player:enter");
         }
     }
 
@@ -1112,7 +1125,7 @@ namespace Network
     {
         if (IsConnected())
         {
-            GetClient().socket()->emit("player:exit");
+            GetSocket()->emit("player:exit");
         }
     }
 
@@ -1147,12 +1160,8 @@ namespace Network
         values["furnitureRefId"] = sio::int_message::create(a_transform.furnitureRefID);
         values["graphEpoch"] = sio::int_message::create(static_cast<std::int64_t>(a_transform.graphEpoch));
         values["sequence"] = sio::int_message::create(static_cast<std::int64_t>(a_transform.sequence));
-        if (const auto serverTime = GetServerTimeMilliseconds())
-        {
-            values["sentAtMs"] = sio::double_message::create(*serverTime);
-        }
 
-        GetClient().socket()->emit("player:update", payload);
+        GetSocket()->emit("player:update", payload);
     }
 
     void PublishLocalAppearance(const Multiplayer::PlayerAppearance& a_appearance)
@@ -1218,7 +1227,7 @@ namespace Network
         values["faceParts"] = std::move(faceParts);
         values["tints"] = std::move(tints);
 
-        GetClient().socket()->emit("player:appearance", payload);
+        GetSocket()->emit("player:appearance", payload);
     }
 
     void PublishLocalEquipment(const Multiplayer::PlayerEquipment& a_equipment)
@@ -1269,7 +1278,7 @@ namespace Network
         values["leftHand"] = createHand(a_equipment.leftHand);
         values["ammo"] = CreateFormReference(a_equipment.ammo);
 
-        GetClient().socket()->emit("player:equipment", payload);
+        GetSocket()->emit("player:equipment", payload);
     }
 
     void PublishLocalAttack(const Attack& a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence)
@@ -1307,7 +1316,7 @@ namespace Network
             GetAttackActionName(a_attack.action), a_attack.power, GetPowerAttackDirectionName(a_attack.direction),
             static_cast<unsigned long long>(localActionSequence), static_cast<unsigned long long>(a_graphEpoch),
             static_cast<unsigned long long>(a_checkpointSequence));
-        GetClient().socket()->emit("animation:action", payload);
+        GetSocket()->emit("animation:action", payload);
     }
 
     void PublishLocalMountTransition(
@@ -1327,35 +1336,71 @@ namespace Network
         logs::info("Mount sync publishing transition: transition={} graphEpoch={} checkpointSequence={}",
             GetMountTransitionName(a_transition), static_cast<unsigned long long>(a_graphEpoch),
             static_cast<unsigned long long>(a_checkpointSequence));
-        GetClient().socket()->emit("mount:transition", payload);
+        GetSocket()->emit("mount:transition", payload);
     }
 
-    void EmitLatencyProbe(std::function<void(std::optional<double> a_serverTimeMilliseconds)> a_onAcknowledged)
+    void EmitLatencyProbe(std::function<void()> a_onAcknowledged)
     {
         if (!IsConnected())
         {
             return;
         }
 
-        GetClient().socket()->emit("latency:probe", nullptr,
-            [onAcknowledged = std::move(a_onAcknowledged)](sio::message::list const& a_response) {
-                std::optional<double> serverTime;
-                if (a_response.size() > 0 && a_response[0] && a_response[0]->get_flag() == sio::message::flag_object)
-                {
-                    double value = 0.0;
-                    if (ReadNumber(a_response[0]->get_map(), "serverTimeMs", value) && value >= 0.0)
-                    {
-                        serverTime = value;
-                    }
-                }
-                onAcknowledged(serverTime);
-            });
+        GetSocket()->emit("latency:probe", nullptr,
+            [onAcknowledged = std::move(a_onAcknowledged)](sio::message::list const&) { onAcknowledged(); });
+    }
+
+    void AbandonConnection()
+    {
+        logs::warn("Abandoning the Socket.IO connection to {}; forgetting remote players", GetServerEndpoint());
+        MarkDisconnected();
+    }
+
+    bool BeginReconnect()
+    {
+        if (reconnectWorkerRunning.exchange(true, std::memory_order_acq_rel))
+        {
+            return false;
+        }
+
+        // The client cannot be reopened from its own transport thread, and
+        // closing a wedged transport waits on its close handshake.
+        std::thread([] {
+            try
+            {
+                auto& client = GetClient();
+                // Joins the old transport thread, so nothing from the dead
+                // connection is reported once the new attempt starts.
+                client.sync_close();
+                RegisterSocketHandlers();
+                attemptFailed.store(false, std::memory_order_release);
+                client.connect(GetServerEndpoint());
+            }
+            catch (const std::exception& a_exception)
+            {
+                logs::error("Socket.IO reconnect attempt threw: {}", a_exception.what());
+                attemptFailed.store(true, std::memory_order_release);
+            }
+            reconnectWorkerRunning.store(false, std::memory_order_release);
+        }).detach();
+        return true;
+    }
+
+    bool DidReconnectAttemptFail()
+    {
+        return !reconnectWorkerRunning.load(std::memory_order_acquire) && attemptFailed.load(std::memory_order_acquire);
     }
 
     RemotePlayerChanges DrainRemotePlayerChanges()
     {
         RemotePlayerChanges changes;
         std::scoped_lock lock{ remoteChangesLock };
+
+        // An abandoned transport may still deliver events until it is replaced.
+        if (!connected.load(std::memory_order_acquire))
+        {
+            ForgetRemotePlayersLocked();
+        }
 
         changes.transforms.reserve(pendingTransforms.size());
         for (auto& entry : pendingTransforms)
