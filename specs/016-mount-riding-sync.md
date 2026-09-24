@@ -256,6 +256,13 @@ The rider's registration is marked mounted while it is seated. Like furniture
 ownership, that lets the firewall admit every native graph event on the rider,
 because the mount interaction drives the rider's graph.
 
+While the rider is on its mount, including during either clip, its own
+character body has Havok's no-collision filter bit set, so every character
+passes through it. The mount's body keeps the usual pass-through hook. The rider
+update reasserts the bit, since a rebuilt controller starts colliding again, and
+clears it once the rider is off the mount. `Remote rider character body
+collision disabled` and `restored` log each change.
+
 ## Engine assumptions
 
 These were traced in the 1.7.104 binary, and the calls run only on AE:
@@ -285,6 +292,15 @@ These were traced in the 1.7.104 binary, and the calls run only on AE:
   dismount with mode 2: from the main loop (ID 36564), an actor update (ID
   37347), and 3D load (ID 40438). That last one drops a rider whose mount is
   gone, so a rider left without its mount is a case the engine handles.
+- A seated rider's character controller stays in the world. After moving a
+  ridden mount, its movement update (ID 37350) tries the rider's controller at
+  the rider's `actorMountPosition` (ID 78260) to set the mount's
+  `kMountPointClear`. The rider's body can therefore overlap the mount's, or
+  stand beside it. A proxy controller's rigid body (vfunc 0x10, which proxy
+  controllers read from offset 0x5A0) is the body other characters bump, and its
+  world collision uses a separate phantom. The contact pass (ID 79130) records
+  only one bumped character body per controller (ID 78303), so the pass-through
+  hook frees a mover from only one of the two overlapping bodies per update.
 
 Verified in the first run: the quick start seats a spawned actor on a spawned
 mount (`started=true seatedNow=true`). The actor stayed seated for the whole
@@ -308,6 +324,9 @@ To verify in game, from `latest.log`:
   it logs `moving=true` without `sprinting=true`, and few `Corrected remote
   mount graph gait` lines.
 - The rider's gait sample reports a `horseSpeedSampled` near the mount's.
+- A rider seated on its horse logs `Remote rider character body collision
+  disabled`, and `restored` after its dismount. The local player walks through
+  the rider and its horse, whether on foot or riding.
 - Removing the seated pair on a dismount and on death does not crash
   (`Recycling ... after the player dismounted: seated=true transition=false`).
 

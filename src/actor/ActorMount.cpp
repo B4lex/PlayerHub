@@ -4,6 +4,7 @@
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationFirewall.h"
 #include "actor/RemoteActor.h"
+#include "actor/RemoteCollision.h"
 #include "runtime/GameThread.h"
 
 #include <algorithm>
@@ -204,6 +205,19 @@ namespace ActorMount
         auto mountPtr = a_mount ? a_mount->handle.get() : RE::NiPointer<RE::Actor>{};
         return (riderPtr && (IsGettingOnOrOff(*riderPtr) || IsRiderClipPlaying(*riderPtr)))
             || (mountPtr && IsGettingOnOrOff(*mountPtr));
+    }
+
+    void ApplyRiderCollision(RE::Actor& a_rider)
+    {
+        // Skyrim keeps a seated rider's character body in the world, where it can
+        // overlap its mount's, and the pass-through hook frees a mover from only
+        // the one body it last bumped.
+        const bool onMount = a_rider.IsOnMount();
+        if (RemoteCollision::SetCharacterBodyCollision(a_rider, !onMount))
+        {
+            logs::info("Remote rider character body collision {}: actor={:08X}", onMount ? "disabled" : "restored",
+                a_rider.GetHandle().native_handle());
+        }
     }
 
     std::uint32_t GetSitSleepState(const RemoteActor& a_rider)

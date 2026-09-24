@@ -82,4 +82,23 @@ namespace RemoteCollision
             = SKSE::GetTrampoline().write_call<5>(site, reinterpret_cast<std::uintptr_t>(&UpdateMovementHook::Thunk));
         logs::info("Installed remote actor pass-through collision hook");
     }
+
+    bool SetCharacterBodyCollision(RE::Actor& a_actor, bool a_enabled)
+    {
+        // The body other characters bump and the hook above disables. A proxy
+        // controller keeps its world collision in a separate phantom.
+        auto* controller = a_actor.GetCharController();
+        auto* body = controller ? controller->GetRigidBody() : nullptr;
+        if (!body)
+        {
+            return false;
+        }
+        auto& filter = body->collidable.broadPhaseHandle.collisionFilterInfo;
+        if (filter.QNoCollision() != a_enabled)
+        {
+            return false;
+        }
+        filter.SetNoCollision(!a_enabled);
+        return true;
+    }
 }

@@ -187,6 +187,7 @@ namespace ActorRuntime
         auto* actor = actorPtr.get();
         SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);
         SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready);
+        ActorMount::ApplyRiderCollision(*actor);
         if (AdvanceReadiness(*actor, a_remote, a_deltaTime) && a_gait)
         {
             ActorMount::ApplyGait(*actor, a_remote, *a_gait, a_mountSpeed, a_deltaTime, false, "rider");
