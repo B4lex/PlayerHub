@@ -1,6 +1,7 @@
 #pragma once
 
 #include "actor/RemoteActor.h"
+#include "sync/mount/MountSync.h"
 
 #include <RE/Skyrim.h>
 
@@ -14,6 +15,10 @@ struct RemoteFrame;
 struct ActorLifecycleState
 {
     std::optional<RemoteActor> actor;
+    // The mount carrying the actor while its player rides. It never outlives the
+    // actor: every retirement or removal of the actor removes it in the same pass.
+    std::optional<MountSync::RemoteMount> mount;
+    float mountSpawnRetryRemaining{ 0.0F };
     RE::FormID spawnedCellID{ 0 };
     RE::FormID spawnedWorldspaceID{ 0 };
     float spawnRetryRemaining{ 0.0F };
@@ -42,6 +47,15 @@ namespace ActorLifecycle
     // Retires an actor killed for its player's death once the player is alive
     // again. SpawnWhenDue rebuilds it standing at the newest checkpoint.
     void RetireForRevival(const RemoteFrame& a_remote, PeerState& a_peer);
+    // Retires the actor and its mount once the player no longer rides. The actor
+    // respawns on foot, since its graph is left in the riding state.
+    void RetireForDismount(const RemoteFrame& a_remote, PeerState& a_peer);
+    // Retires the actor after its mount's handle became invalid. SpawnWhenDue and
+    // MountSync rebuild both while the player still rides.
+    void RetireForMountLoss(const RemoteFrame& a_remote, PeerState& a_peer);
+    // Retires the actor and its mount after the player died riding. The actor
+    // respawns on foot, and DeathSync then kills it where it stands.
+    void RetireMountedForDeath(const RemoteFrame& a_remote, PeerState& a_peer);
     // Retires the actor, if any, and holds its respawn while the newest
     // checkpoint still uses a_furnitureRefID.
     void YieldFurniture(
@@ -53,11 +67,14 @@ namespace ActorLifecycle
     void SetExcludedFromSaves(PeerState& a_peer, bool a_excluded);
     // The actor handle became invalid; schedules a respawn after a delay.
     void OnActorLost(const RemoteFrame& a_remote, PeerState& a_peer);
-    // The player disconnected or left the world; removes the actor, if any,
-    // without scheduling a respawn.
+    // The player disconnected or left the world; removes the actor and its mount,
+    // if any, without scheduling a respawn.
     void RemoveActor(PeerState& a_peer);
 
     // Spawns the actor from the newest checkpoint once the retry delay elapsed,
     // an actor base is available, and no yielded furniture holds it back.
     void SpawnWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta);
+    // Spawns the actor's mount at the newest checkpoint once the retry delay
+    // elapsed. The actor must exist.
+    void SpawnMountWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta);
 }

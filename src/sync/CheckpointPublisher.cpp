@@ -4,6 +4,7 @@
 #include "sync/combat/CombatSync.h"
 #include "sync/death/DeathSync.h"
 #include "sync/furniture/FurnitureSync.h"
+#include "sync/mount/MountSync.h"
 #include "sync/movement/MovementSync.h"
 
 #include <algorithm>
@@ -41,7 +42,9 @@ namespace CheckpointPublisher
         }
         ++sequence;
 
-        const auto movement = MovementSync::SampleLocalMovement(a_local, *cell, snapshotElapsed);
+        const auto mount = MountSync::SampleLocalMount(a_local, sequence);
+        const auto movement
+            = MovementSync::SampleLocalMovement(a_local, mount ? *mount : a_local.player, *cell, snapshotElapsed);
         const auto animationState = AnimationSync::SampleLocalAnimation(a_local, sequence, movement);
         const auto furnitureRefID = FurnitureSync::SampleLocalFurniture(a_local, sequence);
         const auto handPresentation = CombatSync::SampleLocalHandPresentation();
@@ -56,6 +59,7 @@ namespace CheckpointPublisher
             .animationState = animationState,
             .handPresentation = handPresentation,
             .dead = dead,
+            .mounted = static_cast<bool>(mount),
             .cellID = movement.cellID,
             .worldspaceID = movement.worldspaceID,
             .furnitureRefID = furnitureRefID,

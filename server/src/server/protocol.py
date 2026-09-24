@@ -87,6 +87,13 @@ def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None
         return None
     values["dead"] = dead
 
+    # Riding a mount, whose transform the position fields then carry. Recordings
+    # made before mount synchronization have no mount state, which means on foot.
+    mounted = data.get("mounted", False)
+    if not isinstance(mounted, bool):
+        return None
+    values["mounted"] = mounted
+
     cell_id = data.get("cellId")
     worldspace_id = data.get("worldspaceId")
     furniture_ref_id = data.get("furnitureRefId")

@@ -33,6 +33,24 @@ namespace AnimationFirewall
                 a_eventName == "torchEquip" || a_eventName == "torchUnequip";
         }
 
+        // Locomotion requests Skyrim's own movement logic may send a remote mount.
+        // ActorMount drives these from the network instead.
+        constexpr bool IsMountGaitEvent(std::string_view a_eventName) noexcept
+        {
+            using AnimationEvents::EqualsIgnoringCase;
+            return EqualsIgnoringCase(a_eventName, "moveStart") || EqualsIgnoringCase(a_eventName, "moveStop")
+                || EqualsIgnoringCase(a_eventName, "SprintStart") || EqualsIgnoringCase(a_eventName, "SprintStop")
+                || EqualsIgnoringCase(a_eventName, "moveForward") || EqualsIgnoringCase(a_eventName, "moveBackward")
+                || EqualsIgnoringCase(a_eventName, "BrakeStart") || EqualsIgnoringCase(a_eventName, "BrakeStop")
+                || EqualsIgnoringCase(a_eventName, "turnLeft") || EqualsIgnoringCase(a_eventName, "turnRight")
+                || EqualsIgnoringCase(a_eventName, "turnStop")
+                || AnimationEvents::StartsWithIgnoringCase(a_eventName, "cannedTurn");
+        }
+
+        static_assert(IsMountGaitEvent("MoveStop"));
+        static_assert(IsMountGaitEvent("cannedTurnLeft90"));
+        static_assert(!IsMountGaitEvent("HorseEnter"));
+
         static_assert(IsClientManagedAnimationEvent("swimStop"));
         static_assert(IsClientManagedAnimationEvent("SwimStart"));
         static_assert(IsClientManagedAnimationEvent("WeapEquip"));
@@ -115,6 +133,7 @@ namespace AnimationFirewall
                 bool allowCastEvent = false;
                 bool isSwimStartEvent = false;
                 bool isSwimStopEvent = false;
+                bool blockMountGaitEvent = false;
                 const auto* eventName = a_eventName.c_str();
                 if (const auto registration = ActorRegistry::FindGraphInput(a_holder))
                 {
@@ -128,11 +147,17 @@ namespace AnimationFirewall
                     // combat AI, targeting, attacks, damage, and magic remain suppressed
                     // elsewhere.
                     allowClientManagedEvent = IsClientManagedAnimationEvent(eventView);
-                    // Death and ragdoll own the graph of a dead actor, like native
-                    // furniture while it is in use.
-                    allowNativeGraphEvent = registration->furnitureAnimationOwned || registration->dead;
+                    // Death and ragdoll own the graph of a dead actor, and the mount
+                    // interaction that of a rider, like native furniture while it is
+                    // in use.
+                    allowNativeGraphEvent
+                        = registration->furnitureAnimationOwned || registration->dead || registration->mounted;
                     // A network cast runs through the actor's own magic caster.
                     allowCastEvent = registration->castAnimationOwned && IsCastAnimationEvent(eventView);
+                    // A remote mount's graph is otherwise native. Its seated rider takes
+                    // every native event: the rider's riding graph follows its mount.
+                    blockMountGaitEvent
+                        = registration->gaitDriven && !registration->mounted && IsMountGaitEvent(eventView);
                     isSwimStartEvent = eventView == "SwimStart";
                     isSwimStopEvent = eventView == "swimStop";
                 }
@@ -142,7 +167,8 @@ namespace AnimationFirewall
                 // leave the newly spawned actor in its default pose. Native furniture
                 // temporarily owns the graph while the remote actor uses furniture; its event
                 // names vary by furniture record and are generated locally by Skyrim.
-                if (!firewallEnabled || allowClientManagedEvent || allowNativeGraphEvent || allowCastEvent)
+                if (!blockMountGaitEvent
+                    && (!firewallEnabled || allowClientManagedEvent || allowNativeGraphEvent || allowCastEvent))
                 {
                     const bool accepted = _original(a_holder, a_eventName);
                     if (firewallEnabled && (isSwimStartEvent || isSwimStopEvent))
@@ -219,6 +245,28 @@ namespace AnimationFirewall
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
+        // The Speed channel reads the actor's own movement speed. A remote mount is
+        // moved by its transform, and its rider is carried, so that speed is zero
+        // for both, and their riding locomotion would play standing still.
+        struct SpeedChannelHook
+        {
+            static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
+            {
+                _original(a_channel, a_arg);
+                if (!a_channel)
+                {
+                    return;
+                }
+
+                if (const auto speed = ActorRegistry::GetGaitSpeed(GetChannelActor(a_channel)))
+                {
+                    OverrideChannelValue(a_channel, *speed);
+                }
+            }
+
+            static inline REL::Relocation<decltype(Thunk)> _original;
+        };
+
         // The TurnDelta channel follows the local AI's turn request, which the network
         // heading never satisfies. It sets the speed of the turn-in-place blends and
         // first-person rotation. Remote actors never turn in place (see
@@ -250,6 +298,10 @@ namespace AnimationFirewall
             RE::VTABLE_BSTAnimationGraphDataChannel_Actor_float_ActorDirectionChannel_[0]
         };
         DirectionChannelHook::_original = directionChannelVTable.write_vfunc(0x1, DirectionChannelHook::Thunk);
+        REL::Relocation<std::uintptr_t> speedChannelVTable{
+            RE::VTABLE_BSTAnimationGraphDataChannel_Actor_float_ActorSpeedChannel_[0]
+        };
+        SpeedChannelHook::_original = speedChannelVTable.write_vfunc(0x1, SpeedChannelHook::Thunk);
         REL::Relocation<std::uintptr_t> turnDeltaChannelVTable{
             RE::VTABLE_BSTAnimationGraphDataChannel_Actor_float_ActorTurnDeltaChannel_[0]
         };

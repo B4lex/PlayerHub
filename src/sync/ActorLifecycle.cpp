@@ -1,5 +1,6 @@
 #include "sync/ActorLifecycle.h"
 #include "actor/ActorConstants.h"
+#include "actor/ActorMount.h"
 #include "actor/ActorSpawner.h"
 #include "sync/PeerState.h"
 #include "sync/SyncFrame.h"
@@ -7,6 +8,8 @@
 #include "sync/movement/MovementSync.h"
 
 #include <algorithm>
+#include <optional>
+#include <utility>
 
 namespace ActorLifecycle
 {
@@ -18,6 +21,19 @@ namespace ActorLifecycle
         // A reloaded location normally restores an actor's 3D within a few passes.
         constexpr float kStrandedActorSeconds = 2.0F;
 
+        // Removes the mount, if any. Called in the same pass as its rider's removal
+        // and after it: the rider is not taken off first (see ActorMount).
+        void RemoveMountActor(ActorLifecycleState& a_lifecycle)
+        {
+            if (!a_lifecycle.mount)
+            {
+                return;
+            }
+            ActorSpawner::Remove(a_lifecycle.mount->actor);
+            a_lifecycle.mount.reset();
+            a_lifecycle.mountSpawnRetryRemaining = 0.0F;
+        }
+
         // Returns the retired actor's handle for logging.
         std::uint32_t Retire(PeerState& a_peer)
         {
@@ -25,6 +41,7 @@ namespace ActorLifecycle
             const auto actorHandle = lifecycle.actor->handle.native_handle();
             ActorSpawner::Remove(*lifecycle.actor);
             lifecycle.actor.reset();
+            RemoveMountActor(lifecycle);
             CombatSync::ClearRemoteActions(a_peer.combat);
             a_peer.appliedSequence = 0;
             lifecycle.spawnRetryRemaining = 0.0F;
@@ -120,6 +137,41 @@ namespace ActorLifecycle
             a_remote.playerID, actorHandle, static_cast<unsigned long long>(a_remote.lastSequence));
     }
 
+    void RetireForDismount(const RemoteFrame& a_remote, PeerState& a_peer)
+    {
+        const auto& mount = *a_peer.lifecycle.mount;
+        const auto mountHandle = mount.actor.handle.native_handle();
+        const bool transition = ActorMount::IsInTransition(*a_peer.lifecycle.actor, mount.actor);
+        const bool seated = ActorMount::IsSeated(*a_peer.lifecycle.actor, mount.actor);
+        const auto actorHandle = Retire(a_peer);
+        logs::info(
+            "Recycling remote player actor {} actor {:08X} and mount {:08X} after the player dismounted: seated={} "
+            "transition={} sequence={}",
+            a_remote.playerID, actorHandle, mountHandle, seated, transition,
+            static_cast<unsigned long long>(a_remote.lastSequence));
+    }
+
+    void RetireForMountLoss(const RemoteFrame& a_remote, PeerState& a_peer)
+    {
+        const auto mountHandle = a_peer.lifecycle.mount->actor.handle.native_handle();
+        const auto actorHandle = Retire(a_peer);
+        logs::warn("Recycling remote player actor {} actor {:08X} after losing mount {:08X}: sequence={}",
+            a_remote.playerID, actorHandle, mountHandle, static_cast<unsigned long long>(a_remote.lastSequence));
+    }
+
+    void RetireMountedForDeath(const RemoteFrame& a_remote, PeerState& a_peer)
+    {
+        const auto& mount = *a_peer.lifecycle.mount;
+        const auto mountHandle = mount.actor.handle.native_handle();
+        const bool transition = ActorMount::IsInTransition(*a_peer.lifecycle.actor, mount.actor);
+        const auto actorHandle = Retire(a_peer);
+        logs::info(
+            "Recycling remote player actor {} actor {:08X} and mount {:08X} after the player died riding: "
+            "transition={} sequence={}",
+            a_remote.playerID, actorHandle, mountHandle, transition,
+            static_cast<unsigned long long>(a_remote.lastSequence));
+    }
+
     void YieldFurniture(
         const RemoteFrame& a_remote, PeerState& a_peer, RE::FormID a_furnitureRefID, const char* a_reason)
     {
@@ -147,14 +199,19 @@ namespace ActorLifecycle
         {
             ActorSpawner::SetExcludedFromSaves(*a_peer.lifecycle.actor, a_excluded);
         }
+        if (a_peer.lifecycle.mount)
+        {
+            ActorSpawner::SetExcludedFromSaves(a_peer.lifecycle.mount->actor, a_excluded);
+        }
     }
 
     void OnActorLost(const RemoteFrame& a_remote, PeerState& a_peer)
     {
-        logs::warn("Remote player actor {} lost its actor handle; respawning it: dead={}", a_remote.playerID,
-            a_peer.lifecycle.actor->dead);
+        logs::warn("Remote player actor {} lost its actor handle; respawning it: dead={} mounted={}", a_remote.playerID,
+            a_peer.lifecycle.actor->dead, a_peer.lifecycle.mount.has_value());
         // Only unregisters: the reference is already gone.
         ActorSpawner::Remove(*a_peer.lifecycle.actor);
+        RemoveMountActor(a_peer.lifecycle);
         a_peer.lifecycle.actor.reset();
         CombatSync::ClearRemoteActions(a_peer.combat);
         a_peer.lifecycle.spawnRetryRemaining = kSpawnRetryDelay;
@@ -166,6 +223,7 @@ namespace ActorLifecycle
         {
             ActorSpawner::Remove(*a_peer.lifecycle.actor);
         }
+        RemoveMountActor(a_peer.lifecycle);
     }
 
     void SpawnWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
@@ -220,5 +278,36 @@ namespace ActorLifecycle
         {
             console->Print("SkyrimMP remote player actor reference allocated; initializing.");
         }
+    }
+
+    void SpawnMountWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
+    {
+        auto& lifecycle = a_peer.lifecycle;
+        lifecycle.mountSpawnRetryRemaining -= (std::max)(a_delta, 0.0F);
+        if (lifecycle.mountSpawnRetryRemaining > 0.0F)
+        {
+            return;
+        }
+
+        std::optional<RemoteActor> mountActor;
+        if (auto* mountBase = ActorMount::GetMountBase())
+        {
+            const RE::NiPoint3 targetPosition{ a_remote.checkpoint.x, a_remote.checkpoint.y, a_remote.checkpoint.z };
+            mountActor = ActorSpawner::Spawn(mountBase, targetPosition, a_remote.checkpoint.heading,
+                Multiplayer::AnimationState{}, kActorSpeed, kActorStoppingDistance);
+        }
+        if (!mountActor)
+        {
+            lifecycle.mountSpawnRetryRemaining = kSpawnRetryDelay;
+            return;
+        }
+        // No applied sequence: MountSync hands it the checkpoint's speed before its
+        // first gait, which would otherwise start from the spawn speed.
+        lifecycle.mount.emplace(MountSync::RemoteMount{ .actor = std::move(*mountActor) });
+        logs::info(
+            "Allocated remote player {} mount as actor {:08X} for actor {:08X} at transform sequence={}; waiting "
+            "for both to be ready before seating",
+            a_remote.playerID, lifecycle.mount->actor.handle.native_handle(), lifecycle.actor->handle.native_handle(),
+            static_cast<unsigned long long>(a_peer.lastSequence));
     }
 }

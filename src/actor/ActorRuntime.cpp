@@ -2,6 +2,7 @@
 #include "actor/ActorAnimation.h"
 #include "actor/ActorConstants.h"
 #include "actor/ActorFurniture.h"
+#include "actor/ActorMount.h"
 #include "actor/ActorMovement.h"
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationFirewall.h"
@@ -19,6 +20,59 @@ namespace ActorRuntime
         // Saturation point for RemoteActor::readyElapsed. It only has to outlast the
         // longest spawn settling gate, so it never grows without bound.
         constexpr float kReadyElapsedCeilingSeconds = 10.0F;
+
+        // Returns whether the actor is ready. Reference creation may return before
+        // the actor has a loaded 3D and character controller. Disabling AI at spawn
+        // time clears kProcessMe, preventing that initialization and leaving the
+        // actor in a T-pose.
+        bool AdvanceReadiness(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)
+        {
+            if (a_remote.ready)
+            {
+                if (a_remote.readyElapsed < kReadyElapsedCeilingSeconds)
+                {
+                    // Accumulated here rather than in a feature module: this is the one
+                    // pass that always runs for a ready actor, whatever a feature does.
+                    a_remote.readyElapsed = (std::min)(a_remote.readyElapsed
+                            + std::clamp(a_deltaTime, 0.0F, ActorConstants::kMaximumFrameTime),
+                        kReadyElapsedCeilingSeconds);
+                }
+                return true;
+            }
+
+            RE::BSTSmartPointer<RE::BSAnimationGraphManager> graphManager;
+            const bool has3D = a_actor.Is3DLoaded();
+            const bool hasController = a_actor.GetCharController() != nullptr;
+            const bool hasGraph
+                = has3D && hasController && a_actor.GetAnimationGraphManager(graphManager) && graphManager;
+            if (!has3D || !hasController || !hasGraph)
+            {
+                ++a_remote.initializationWaitFrames;
+                if (a_remote.initializationWaitFrames == 1
+                    || a_remote.initializationWaitFrames % kActorInitializationLogInterval == 0)
+                {
+                    logs::info(
+                        "Waiting for remote actor actor initialization: actor={:08X} base={:08X} loaded3D={} "
+                        "controller={} graph={} waitedFrames={}",
+                        a_remote.handle.native_handle(),
+                        a_actor.GetActorBase() ? a_actor.GetActorBase()->GetFormID() : 0, has3D, hasController,
+                        hasGraph, a_remote.initializationWaitFrames);
+                }
+                return false;
+            }
+
+            // Keep the actor in the normal update pipeline, but give it no autonomous
+            // travel package. The update hook suppresses only its combat decisions.
+            SurvivalPolicy::AssertDoNothingPackage(a_actor);
+            a_remote.ready = true;
+            logs::info(
+                "Remote actor actor became ready: actor={:08X} base={:08X} desired={} hasCollision={} aiEnabled={} "
+                "waitedFrames={}",
+                a_remote.handle.native_handle(), a_actor.GetActorBase() ? a_actor.GetActorBase()->GetFormID() : 0,
+                Multiplayer::GetMovementStateName(a_remote.animation->targetAnimationState.movementState),
+                a_actor.HasCollision(), a_actor.IsAIEnabled(), a_remote.initializationWaitFrames);
+            return true;
+        }
     }
 
     bool Update(RemoteActor& a_remote, float a_deltaTime, std::optional<Multiplayer::AnimationState> a_translationState)
@@ -59,51 +113,9 @@ namespace ActorRuntime
             // controller have remained available across consecutive main-loop passes.
             return true;
         }
-        auto* controller = actor->GetCharController();
-
-        // Reference creation may return before the actor has a loaded 3D and
-        // character controller. Disabling AI at spawn time clears kProcessMe,
-        // preventing that initialization and leaving the actor in a T-pose.
-        if (!a_remote.ready)
+        if (!AdvanceReadiness(*actor, a_remote, a_deltaTime))
         {
-            RE::BSTSmartPointer<RE::BSAnimationGraphManager> graphManager;
-            const bool has3D = actor->Is3DLoaded();
-            const bool hasController = controller != nullptr;
-            const bool hasGraph
-                = has3D && hasController && actor->GetAnimationGraphManager(graphManager) && graphManager;
-            if (!has3D || !hasController || !hasGraph)
-            {
-                ++a_remote.initializationWaitFrames;
-                if (a_remote.initializationWaitFrames == 1
-                    || a_remote.initializationWaitFrames % kActorInitializationLogInterval == 0)
-                {
-                    logs::info(
-                        "Waiting for remote actor actor initialization: actor={:08X} base={:08X} loaded3D={} "
-                        "controller={} graph={} waitedFrames={}",
-                        a_remote.handle.native_handle(), actor->GetActorBase() ? actor->GetActorBase()->GetFormID() : 0,
-                        has3D, hasController, hasGraph, a_remote.initializationWaitFrames);
-                }
-                return true;
-            }
-
-            // Keep the actor in the normal update pipeline, but give it no autonomous
-            // travel package. The update hook suppresses only its combat decisions.
-            SurvivalPolicy::AssertDoNothingPackage(*actor);
-            a_remote.ready = true;
-            logs::info(
-                "Remote actor actor became ready: actor={:08X} base={:08X} desired={} hasCollision={} aiEnabled={} "
-                "waitedFrames={}",
-                a_remote.handle.native_handle(), actor->GetActorBase() ? actor->GetActorBase()->GetFormID() : 0,
-                Multiplayer::GetMovementStateName(a_remote.animation->targetAnimationState.movementState),
-                actor->HasCollision(), actor->IsAIEnabled(), a_remote.initializationWaitFrames);
-        }
-        else if (a_remote.readyElapsed < kReadyElapsedCeilingSeconds)
-        {
-            // Accumulated here rather than in a feature module: this is the one pass
-            // that always runs for a ready actor, whatever a feature does below.
-            a_remote.readyElapsed
-                = (std::min)(a_remote.readyElapsed + std::clamp(a_deltaTime, 0.0F, ActorConstants::kMaximumFrameTime),
-                    kReadyElapsedCeilingSeconds);
+            return true;
         }
         if (actor->Is3DLoaded())
         {
@@ -154,6 +166,61 @@ namespace ActorRuntime
         }
 
         const auto translationState = a_translationState.value_or(a_remote.animation->targetAnimationState);
+        ActorMovement::ApplyTranslation(*actor, a_remote, a_deltaTime, translationState);
+        return true;
+    }
+
+    bool UpdateRider(RemoteActor& a_remote, ActorMount::Gait& a_gait, float a_mountSpeed, float a_deltaTime)
+    {
+        if (!GameThread::Require("UpdateRemoteRider"))
+        {
+            return true;
+        }
+
+        auto actorPtr = a_remote.handle.get();
+        if (!actorPtr)
+        {
+            ActorRegistry::Unregister(a_remote);
+            return false;
+        }
+
+        auto* actor = actorPtr.get();
+        SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);
+        SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready);
+        if (AdvanceReadiness(*actor, a_remote, a_deltaTime))
+        {
+            ActorMount::ApplyGait(*actor, a_remote, a_gait, a_mountSpeed, a_deltaTime, false, "rider");
+        }
+        return true;
+    }
+
+    bool UpdateMount(RemoteActor& a_remote, ActorMount::Gait& a_gait, float a_deltaTime)
+    {
+        if (!GameThread::Require("UpdateRemoteMount"))
+        {
+            return true;
+        }
+
+        auto actorPtr = a_remote.handle.get();
+        if (!actorPtr)
+        {
+            ActorRegistry::Unregister(a_remote);
+            return false;
+        }
+
+        auto* actor = actorPtr.get();
+        SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);
+        SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready);
+        if (!AdvanceReadiness(*actor, a_remote, a_deltaTime))
+        {
+            return true;
+        }
+
+        // The mount's own graph is never firewalled: only its gait is driven, and
+        // the rest of its graph stays native.
+        ActorMount::ApplyGait(*actor, a_remote, a_gait, a_remote.movement.animationSpeed, a_deltaTime, true, "mount");
+        const Multiplayer::AnimationState translationState{ .movementState
+            = a_gait.moving ? Multiplayer::MovementState::kRunning : Multiplayer::MovementState::kIdle };
         ActorMovement::ApplyTranslation(*actor, a_remote, a_deltaTime, translationState);
         return true;
     }

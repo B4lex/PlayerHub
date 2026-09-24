@@ -49,9 +49,10 @@ namespace MovementSync
     };
 
     // Local stage, called by CheckpointPublisher once per published checkpoint.
-    // Speed is measured against the previous published sample.
+    // a_carrier is the local player, or the mount it rides. Speed is measured
+    // against the previous published sample.
     [[nodiscard]] LocalSample SampleLocalMovement(
-        const LocalFrame& a_local, const RE::TESObjectCELL& a_cell, float a_snapshotElapsed);
+        const LocalFrame& a_local, RE::Actor& a_carrier, const RE::TESObjectCELL& a_cell, float a_snapshotElapsed);
 
     [[nodiscard]] bool IsInLocalSpace(
         const RemoteFrame& a_remote, RE::FormID a_localCellID, RE::FormID a_localWorldspaceID);

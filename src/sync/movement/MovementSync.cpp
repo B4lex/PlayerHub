@@ -23,9 +23,10 @@ namespace MovementSync
         return worldspace ? worldspace->GetFormID() : 0;
     }
 
-    LocalSample SampleLocalMovement(const LocalFrame& a_local, const RE::TESObjectCELL& a_cell, float a_snapshotElapsed)
+    LocalSample SampleLocalMovement(
+        const LocalFrame& a_local, RE::Actor& a_carrier, const RE::TESObjectCELL& a_cell, float a_snapshotElapsed)
     {
-        const auto position = a_local.player.GetPosition();
+        const auto position = a_carrier.GetPosition();
         const auto cellID = a_cell.GetFormID();
         const auto worldspaceID = GetWorldspaceID(a_local.player);
         // A fast travel within one space is a relocation, not a speed sample.
@@ -36,7 +37,7 @@ namespace MovementSync
         float speed = 0.0F;
         // The body angle is the facing direction. Travel direction is carried
         // separately so a backpedalling remote actor keeps facing forward.
-        float heading = a_local.player.GetAngleZ();
+        float heading = a_carrier.GetAngleZ();
         if (!std::isfinite(heading))
         {
             heading = 0.0F;
@@ -44,7 +45,7 @@ namespace MovementSync
         static const RE::BSFixedString directionVariable{ "Direction" };
         float direction = 0.0F;
         const bool graphDirectionAvailable
-            = a_local.player.GetGraphVariableFloat(directionVariable, direction) && std::isfinite(direction);
+            = a_carrier.GetGraphVariableFloat(directionVariable, direction) && std::isfinite(direction);
         if (comparableLocalSpace && a_snapshotElapsed > 0.0F)
         {
             const float deltaX = position.x - s_previousPosition.x;

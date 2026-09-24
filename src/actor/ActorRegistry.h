@@ -37,6 +37,16 @@ namespace ActorRegistry
     // left to Skyrim's own death: damage and kills reach it, survival is no
     // longer enforced, and every graph event is admitted.
     void SetDead(const RemoteActor& a_remote);
+    // The actor rides a remote mount, whose native interaction owns its graph.
+    void SetMounted(const RemoteActor& a_remote, bool a_mounted);
+    // Marks a remote mount or its seated rider as having its riding gait driven
+    // by the network, and sets the speed its graph's Speed channel reports.
+    // Skyrim polls that channel from the actor's own movement, which is zero for
+    // a mount moved by its transform and for a rider it carries.
+    void SetGaitSpeed(const RemoteActor& a_remote, float a_speed);
+    // The speed of a gait-driven actor, or nullopt for any other actor. Safe to
+    // call from animation worker threads.
+    [[nodiscard]] std::optional<float> GetGaitSpeed(const RE::Actor* a_actor);
 
     struct GraphInput
     {
@@ -45,6 +55,8 @@ namespace ActorRegistry
         bool furnitureAnimationOwned{ false };
         bool castAnimationOwned{ false };
         bool dead{ false };
+        bool mounted{ false };
+        bool gaitDriven{ false };
     };
 
     [[nodiscard]] std::optional<GraphInput> FindGraphInput(const RE::IAnimationGraphManagerHolder* a_holder);

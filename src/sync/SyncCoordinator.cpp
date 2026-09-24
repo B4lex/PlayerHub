@@ -14,6 +14,7 @@
 #include "sync/death/DeathSync.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/furniture/FurnitureSync.h"
+#include "sync/mount/MountSync.h"
 #include "sync/movement/MovementSync.h"
 #include "sync/presence/PresenceSync.h"
 
@@ -343,7 +344,24 @@ namespace SyncCoordinator
                 }
             }
 
-            if (lifecycle.actor)
+            if (lifecycle.actor && MountSync::SyncMount(remote, a_peer, a_delta))
+            {
+                // The mount carries the actor, and the mount interaction owns its
+                // graph; only its equipment and look are kept.
+                auto& actor = *lifecycle.actor;
+                CombatSync::ClearRemoteActions(a_peer.combat);
+                EquipmentSync::SyncEquipment(a_peer.equipment, a_playerID, actor, a_delta);
+                auto& mount = *lifecycle.mount;
+                if (!ActorRuntime::UpdateRider(actor, mount.riderGait, mount.actor.movement.animationSpeed, a_delta))
+                {
+                    ActorLifecycle::OnActorLost(remote, a_peer);
+                }
+                else if (auto liveActor = actor.handle.get())
+                {
+                    AppearanceSync::ApplyActorPresentation(a_peer.appearance, a_playerID, *liveActor, actor.ready);
+                }
+            }
+            else if (lifecycle.actor)
             {
                 auto& actor = *lifecycle.actor;
                 MovementSync::SyncMovement(remote, a_peer.appliedSequence, actor);
