@@ -170,7 +170,7 @@ namespace ActorRuntime
         return true;
     }
 
-    bool UpdateRider(RemoteActor& a_remote, ActorMount::Gait& a_gait, float a_mountSpeed, float a_deltaTime)
+    bool UpdateRider(RemoteActor& a_remote, ActorMount::Gait* a_gait, float a_mountSpeed, float a_deltaTime)
     {
         if (!GameThread::Require("UpdateRemoteRider"))
         {
@@ -187,14 +187,14 @@ namespace ActorRuntime
         auto* actor = actorPtr.get();
         SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);
         SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready);
-        if (AdvanceReadiness(*actor, a_remote, a_deltaTime))
+        if (AdvanceReadiness(*actor, a_remote, a_deltaTime) && a_gait)
         {
-            ActorMount::ApplyGait(*actor, a_remote, a_gait, a_mountSpeed, a_deltaTime, false, "rider");
+            ActorMount::ApplyGait(*actor, a_remote, *a_gait, a_mountSpeed, a_deltaTime, false, "rider");
         }
         return true;
     }
 
-    bool UpdateMount(RemoteActor& a_remote, ActorMount::Gait& a_gait, float a_deltaTime)
+    bool UpdateMount(RemoteActor& a_remote, ActorMount::Gait& a_gait, MountControl a_control, float a_deltaTime)
     {
         if (!GameThread::Require("UpdateRemoteMount"))
         {
@@ -211,8 +211,14 @@ namespace ActorRuntime
         auto* actor = actorPtr.get();
         SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);
         SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready);
-        if (!AdvanceReadiness(*actor, a_remote, a_deltaTime))
+        if (!AdvanceReadiness(*actor, a_remote, a_deltaTime) || a_control == MountControl::kHeld)
         {
+            return true;
+        }
+        if (a_control == MountControl::kPlaced)
+        {
+            // An idle translation state places it on the target at once.
+            ActorMovement::ApplyTranslation(*actor, a_remote, a_deltaTime, Multiplayer::AnimationState{});
             return true;
         }
 

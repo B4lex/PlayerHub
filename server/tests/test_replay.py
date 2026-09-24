@@ -8,6 +8,7 @@ from recording_fixtures import (
     appearance,
     checkpoint,
     message,
+    mount_transition,
     recording,
     write_recording,
 )
@@ -92,6 +93,22 @@ class ReplayTests(unittest.TestCase):
             ],
         )
         client.disconnect.assert_called_once_with()
+
+    @patch("server.replay.socketio.Client")
+    def test_sends_mount_transitions_against_the_latest_checkpoint(self, client_factory: Mock) -> None:
+        client = client_factory.return_value
+        client.call.return_value = {"ok": True}
+        messages = [
+            RecordedUpdate(checkpoint(41, mounted=True), 0.0, "player:update"),
+            RecordedUpdate(mount_transition("enter", 41), 0.0, "mount:transition"),
+        ]
+
+        replay(messages, "http://localhost:3000", 1.0, False, 0.0, True, 5.0)
+
+        self.assertEqual(
+            client.call.call_args_list[-1],
+            call("mount:transition", mount_transition("enter", 1), timeout=5.0),
+        )
 
     @patch("server.replay.socketio.Client")
     def test_numbers_messages_itself_so_looping_is_never_stale(self, client_factory: Mock) -> None:
