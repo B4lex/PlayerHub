@@ -1,6 +1,7 @@
 #include "runtime/MainLoopHook.h"
 #include "network/LatencyProbe.h"
 #include "network/PacketDelay.h"
+#include "runtime/FrameProfiler.h"
 #include "runtime/GameThread.h"
 #include "sync/SyncCoordinator.h"
 
@@ -17,6 +18,15 @@ namespace MainLoopHook
             {
                 _original(a_context);
 
+                {
+                    const FrameProfiler::ScopedSection section{ FrameProfiler::Section::MainLoop };
+                    Update();
+                }
+                FrameProfiler::EndFrame();
+            }
+
+            static void Update()
+            {
                 const auto delta = RE::Main::QFrameAnimTime();
                 if (!std::isfinite(delta) || delta <= 0.0F || !GameThread::Bind())
                 {

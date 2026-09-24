@@ -21,6 +21,14 @@ add_requires("socket-io-client 3.1.0", { configs = { shared = false, cxxflags = 
 add_requires("imgui v1.92.9", { configs = { dx11 = true, win32 = true } })
 set_runtimes("MD")
 
+-- Logs the plugin's own per-frame processing time: xmake f --frame_profiler=y
+option("frame_profiler")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Log the plugin's per-frame processing time")
+    add_defines("SKYRIM_MP_FRAME_PROFILER")
+option_end()
+
 -- define targets
 target("skyrim-mp")
     add_rules("commonlibsse-ng.plugin", {
@@ -34,6 +42,7 @@ target("skyrim-mp")
     add_headerfiles("src/**.h")
     add_includedirs("src")
     add_packages("socket-io-client", "imgui")
+    add_options("frame_profiler")
     -- socket-io-client uses Winsock through standalone Asio on Windows.
     add_syslinks("ws2_32")
     set_pcxxheader("src/pch.h")
