@@ -45,9 +45,19 @@ namespace ActorRegistry
     // Skyrim polls that channel from the actor's own movement, which is zero for
     // a mount moved by its transform and for a rider it carries.
     void SetGaitSpeed(const RemoteActor& a_remote, float a_speed);
-    // The speed of a gait-driven actor, or nullopt for any other actor. Safe to
-    // call from animation worker threads.
-    [[nodiscard]] std::optional<float> GetGaitSpeed(const RE::Actor* a_actor);
+    // While set, Skyrim's movement update is skipped for the actor, so the
+    // network transform is the only writer of its position and heading.
+    void SetNetworkPlaced(const RemoteActor& a_remote, bool a_networkPlaced);
+    // Whether a living actor is network-placed. Safe to call from the movement
+    // update's worker threads.
+    [[nodiscard]] bool IsNetworkPlaced(const RE::Actor* a_actor);
+    // The graph Speed of a network-placed actor. Skyrim's Speed channel measures
+    // it from the movement update, which such an actor no longer runs.
+    void SetAuthoritativeSpeed(const RemoteActor& a_remote, float a_speed);
+    // The speed a gait-driven actor, or else a living network-placed actor,
+    // reports to its graph, or nullopt for any other actor. Safe to call from
+    // animation worker threads.
+    [[nodiscard]] std::optional<float> GetAuthoritativeSpeed(const RE::Actor* a_actor);
 
     struct GraphInput
     {

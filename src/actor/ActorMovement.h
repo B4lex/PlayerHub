@@ -19,10 +19,12 @@ namespace ActorMovement
         // Graph `Direction` from the same sample: travel relative to heading.
         float animationDirection{ 0.0F };
         float stoppingDistance{ 1.0F };
+        // The source swims, so the ground does not support it.
+        bool sourceSwimming{ false };
     };
 
     void SetTargetTransform(RemoteActor& a_remote, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
-        float a_translationSpeed, float a_direction);
+        float a_translationSpeed, float a_direction, bool a_swimming);
 
     // Actor-module internal, called by ActorRuntime once graph state permits
     // translation: smooths heading and moves toward the target transform.

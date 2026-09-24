@@ -343,19 +343,9 @@ as the engine handles an alias without one. Not yet verified in game.
 
 Not implemented. Each needs its own verification before adoption.
 
-1. **Skipping the remote actor's movement update (ID 37356).**
-   TiltedEvolution's `HookActorProcess` returns before this function for every
-   remote actor. Despite its name there, it is not AI processing: on 1.7.104
-   its only caller is ID 37350 + 0xFB, the call `RemoteCollision` already
-   wraps. It is the character movement update: it turns the process velocity
-   by the heading, integrates the character controller, and calls
-   `SetPosition` (19790) and `SetHeading` (37230) and graph variable setters.
-   Remote actors are already placed directly with `SetPosition(..., true)`, so
-   skipping it would remove a second writer of their position and heading. It
-   would also leave the controller's support and in-air state stale. Swim
-   exit (ID 37348), `IsInMidair`, and landing checks read that state, so
-   swimming and landing would need network-driven state. Try it behind a
-   toggle.
+1. **Skipping the remote actor's movement update (ID 37356).** Adopted for
+   network-placed actors in `017-remote-actor-world-isolation.md`, which also
+   replaces the controller support that swimming reads.
 2. **Voice playback (ID 37542, TiltedEvolution's `SpeakSoundFunction`).** Four
    callers. Blocking it for remote actors mutes every voice line, including
    ones outside 39643. It is only needed if criterion 1 fails. Replicated voice
@@ -373,8 +363,9 @@ Not implemented. Each needs its own verification before adoption.
    remote actors. `SurvivalPolicy` already owns remote health, so this is low
    value.
 5. **Engine position writes (ID 19790).** TiltedEvolution ignores
-   `SetPosition` on remote actors except its own calls. It belongs with
-   candidate 1.
+   `SetPosition` on remote actors except its own calls. Candidate 1 already
+   removed the movement update's writes; this would also cover other engine
+   callers.
 
 Already covered or not applicable: damage (ID 37335) is handled by the
 `HandleHealthDamage` hook, and death items (ID 37198) do not apply because

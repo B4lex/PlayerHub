@@ -3,6 +3,7 @@
 #include "actor/ActorAnimation.h"
 #include "actor/ActorFurniture.h"
 #include "actor/ActorMovement.h"
+#include "actor/RemoteCollision.h"
 
 #include <RE/Skyrim.h>
 
@@ -30,6 +31,7 @@ struct RemoteActor
     // package, equipment, and AI process being installed around it.
     float readyElapsed{ 0.0F };
     bool ready{ false };
+    RemoteCollision::State collision;
     // Killed for its player's death and left to Skyrim's death and ragdoll. Such
     // an actor is never driven again; a revived player gets a new actor.
     bool dead{ false };
