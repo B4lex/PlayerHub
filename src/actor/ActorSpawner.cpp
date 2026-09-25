@@ -102,7 +102,7 @@ namespace ActorSpawner
         auto animationState = std::make_unique<ActorAnimation::State>();
         animationState->targetAnimationState = a_animationState;
         ActorAnimation::RequestAnimationUpdate(animationState.get(), a_animationState, a_speed, 0.0F);
-        logs::info("Created remote actor reference: actor={:08X} base={:08X} revision={} desired={}/{}",
+        logs::debug("Created remote actor reference: actor={:08X} base={:08X} revision={} desired={}/{}",
             actor->GetHandle().native_handle(), actor->GetActorBase() ? actor->GetActorBase()->GetFormID() : 0,
             static_cast<unsigned long long>(animationState->desiredRevision.load()),
             Multiplayer::GetMovementStateName(a_animationState.movementState),

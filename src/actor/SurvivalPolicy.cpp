@@ -86,7 +86,7 @@ namespace SurvivalPolicy
             for (auto* activeEffect : effectsToDispel)
             {
                 const auto* baseEffect = activeEffect->GetBaseObject();
-                logs::info(
+                logs::debug(
                     "Dispelling magic effect that bypassed the remote actor firewall: actor={:08X} spell={:08X} "
                     "effect={:08X}",
                     a_actor.GetHandle().native_handle(), activeEffect->spell ? activeEffect->spell->GetFormID() : 0,
@@ -104,7 +104,7 @@ namespace SurvivalPolicy
                 && (a_blockedDamageCount <= kInitialBlockedEventLogs
                     || a_blockedDamageCount % kBlockedEventLogInterval == 0))
             {
-                logs::info("Blocked local health damage to remote actor: actor={:08X} path={} damage={:.3f} count={}",
+                logs::debug("Blocked local health damage to remote actor: actor={:08X} path={} damage={:.3f} count={}",
                     a_actorHandle, a_path, a_damage, a_blockedDamageCount);
             }
         }
@@ -131,7 +131,7 @@ namespace SurvivalPolicy
                 if (requestCount != 0
                     && (requestCount <= kInitialBlockedEventLogs || requestCount % kBlockedEventLogInterval == 0))
                 {
-                    logs::info(
+                    logs::debug(
                         "Observed local hit on remote actor; watching for an animation reaction: actor={:08X} "
                         "aggressor={:08X} source={:08X} projectile={:08X} count={}",
                         actorHandle, a_event->cause ? a_event->cause->GetFormID() : 0, a_event->source,
@@ -173,7 +173,7 @@ namespace SurvivalPolicy
                 if (requestCount != 0
                     && (requestCount <= kInitialBlockedEventLogs || requestCount % kBlockedEventLogInterval == 0))
                 {
-                    logs::info(
+                    logs::debug(
                         "Observed harmful magic effect on remote actor; watching for an animation reaction: "
                         "actor={:08X} caster={:08X} effect={:08X} count={}",
                         actorHandle, a_event->caster ? a_event->caster->GetFormID() : 0, a_event->magicEffect,
@@ -200,7 +200,7 @@ namespace SurvivalPolicy
                 if (blockedEffectCount <= kInitialBlockedEventLogs
                     || blockedEffectCount % kBlockedEventLogInterval == 0)
                 {
-                    logs::info(
+                    logs::debug(
                         "Blocked magic effect before it reached remote actor: actor={:08X} caster={:08X} spell={:08X} "
                         "effect={:08X} count={}",
                         actorHandle, a_targetData.caster ? a_targetData.caster->GetFormID() : 0,
@@ -316,7 +316,7 @@ namespace SurvivalPolicy
                 const auto refusedCount = ++s_refusedAliasPackageCount;
                 if (refusedCount <= kInitialBlockedEventLogs || refusedCount % kBlockedEventLogInterval == 0)
                 {
-                    logs::info("Refused local alias package for remote actor: actor={:08X} count={}",
+                    logs::debug("Refused local alias package for remote actor: actor={:08X} count={}",
                         a_actor ? a_actor->GetHandle().native_handle() : 0, refusedCount);
                 }
                 return nullptr;
@@ -390,7 +390,7 @@ namespace SurvivalPolicy
                 }
                 if (interventionCount <= kInitialBlockedEventLogs || interventionCount % kBlockedEventLogInterval == 0)
                 {
-                    logs::info(
+                    logs::debug(
                         "Reasserted remote actor survival state: actor={:08X} previousLifeState={} "
                         "health={:.3f}/{:.3f} resurrected={} observationRequest={}",
                         actorHandle, static_cast<std::underlying_type_t<RE::ACTOR_LIFE_STATE>>(previousLifeState),
@@ -460,7 +460,7 @@ namespace SurvivalPolicy
         // Actor::CheckForCurrentAliasPackage. Its index is below the first entry
         // VR shifts, so it is the same on every runtime.
         AliasPackageHook::_original = characterVTable.write_vfunc(0x49, AliasPackageHook::Thunk);
-        logs::info("Remote actor package suppression hook: aliasPackage=true");
+        logs::debug("Remote actor package suppression hook: aliasPackage=true");
     }
 
     void RegisterEventSinks()
@@ -481,7 +481,7 @@ namespace SurvivalPolicy
         eventSources->AddEventSink(HitEventSink::GetSingleton());
         eventSources->AddEventSink(MagicEffectEventSink::GetSingleton());
         registered = true;
-        logs::info("Registered remote-replica hit and magic observation event sinks");
+        logs::debug("Registered remote-replica hit and magic observation event sinks");
     }
 
     void ApplyRemoteReplicaPolicy(RE::Actor& a_actor)
@@ -498,7 +498,7 @@ namespace SurvivalPolicy
         if (dispelledEffects != 0)
         {
             const auto [actorHandle, requestCount] = ActorRegistry::RequestHitObservation(&a_actor);
-            logs::info(
+            logs::debug(
                 "Removed suppressed magic from remote actor; watching for an animation reaction: actor={:08X} "
                 "effects={} request={}",
                 actorHandle, dispelledEffects, requestCount);
@@ -630,7 +630,7 @@ namespace SurvivalPolicy
             const auto takeoverCount = ++s_packageTakeoverCount;
             if (takeoverCount <= kInitialBlockedEventLogs || takeoverCount % kBlockedEventLogInterval == 0)
             {
-                logs::info("Took back local actor package: actor={:08X} package={} packageForm={:08X} count={}",
+                logs::debug("Took back local actor package: actor={:08X} package={} packageForm={:08X} count={}",
                     a_actor.GetHandle().native_handle(),
                     static_cast<std::underlying_type_t<RE::PACKAGE_TYPE>>(packageType), currentPackage->GetFormID(),
                     takeoverCount);
@@ -657,7 +657,7 @@ namespace SurvivalPolicy
             if (cowerRequests != 0 || sanitizationCount <= kInitialBlockedEventLogs
                 || sanitizationCount % kBlockedEventLogInterval == 0)
             {
-                logs::info(
+                logs::debug(
                     "Sanitized local actor combat presentation: actor={:08X} cowerEvents={} package={} "
                     "unownedPackage={} combat={} target={} fleeing={} weaponState={} desiredWeaponDrawn={} "
                     "sanitization={} observationRequest={}",

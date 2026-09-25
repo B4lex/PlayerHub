@@ -95,23 +95,23 @@ namespace AnimationFirewall
 
                 if (landingCompletionCount != 0)
                 {
-                    logs::info("Observed actor landing completion marker: actor={:08X} count={}", actorHandle,
+                    logs::debug("Observed actor landing completion marker: actor={:08X} count={}", actorHandle,
                         landingCompletionCount);
                 }
                 if (traceWeaponEvent)
                 {
-                    logs::info(
+                    logs::debug(
                         "Observed actor weapon-transition graph event: actor={:08X} expectedWeaponDrawn={} event={}",
                         actorHandle, expectedWeaponDrawn, eventName);
                 }
                 if (observation.bashExitCount != 0)
                 {
-                    logs::info("Observed actor bash exit marker: actor={:08X} count={}", actorHandle,
+                    logs::debug("Observed actor bash exit marker: actor={:08X} count={}", actorHandle,
                         observation.bashExitCount);
                 }
                 if (weaponCompletionCount != 0)
                 {
-                    logs::info("Observed actor weapon transition completion marker: actor={:08X} event={} count={}",
+                    logs::debug("Observed actor weapon transition completion marker: actor={:08X} event={} count={}",
                         actorHandle, eventName, weaponCompletionCount);
                 }
                 return RE::BSEventNotifyControl::kContinue;
@@ -177,7 +177,7 @@ namespace AnimationFirewall
                         {
                             ActorRegistry::RecordSwimTransition(a_holder, isSwimStartEvent);
                         }
-                        logs::info("Observed actor swim transition: actor={:08X} event={} accepted={}", actorHandle,
+                        logs::debug("Observed actor swim transition: actor={:08X} event={} accepted={}", actorHandle,
                             eventName, accepted);
                     }
                     return accepted;
@@ -189,7 +189,7 @@ namespace AnimationFirewall
                     && (blockedEventCount <= kInitialBlockedEventLogs
                         || blockedEventCount % kBlockedEventLogInterval == 0))
                 {
-                    logs::info("Blocked local actor animation event: actor={:08X} event={} count={}", actorHandle,
+                    logs::debug("Blocked local actor animation event: actor={:08X} event={} count={}", actorHandle,
                         a_eventName.c_str(), blockedEventCount);
                 }
 
@@ -314,7 +314,7 @@ namespace AnimationFirewall
 
         if (activated)
         {
-            logs::info("Activated actor animation firewall: actor={:08X}", a_remote.handle.native_handle());
+            logs::debug("Activated actor animation firewall: actor={:08X}", a_remote.handle.native_handle());
         }
     }
 
@@ -357,7 +357,7 @@ namespace AnimationFirewall
         if (defaultStateAccepted && light && light->CanBeCarried())
         {
             const bool torchAccepted = NotifyNetworkAnimationGraph(a_actor, torchEquipEvent);
-            logs::info("Raised carried torch after graph default reset: actor={:08X} torch={:08X} accepted={}",
+            logs::debug("Raised carried torch after graph default reset: actor={:08X} torch={:08X} accepted={}",
                 a_actor.GetHandle().native_handle(), light->GetFormID(), torchAccepted);
         }
         return defaultStateAccepted;

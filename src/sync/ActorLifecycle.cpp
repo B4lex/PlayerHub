@@ -70,7 +70,8 @@ namespace ActorLifecycle
                 return;
             }
 
-            logs::info("Deferring removal of remote player {} actor {:08X} and mount {:08X} until their mount clip ends",
+            logs::debug(
+                "Deferring removal of remote player {} actor {:08X} and mount {:08X} until their mount clip ends",
                 a_playerID, a_lifecycle.actor->handle.native_handle(), mount ? mount->handle.native_handle() : 0);
             auto& removal = s_deferredRemovals.emplace_back(
                 DeferredRemoval{ .playerID = a_playerID, .actor = std::move(*a_lifecycle.actor) });
@@ -119,7 +120,7 @@ namespace ActorLifecycle
         // Race, sex, head parts, and weight are only applied when 3D loads.
         // Rebuild the actor from the newest checkpoint with the new base.
         const auto actorHandle = Retire(a_remote, a_peer);
-        logs::info(
+        logs::debug(
             "Recycling remote player actor {} actor {:08X} after appearance change: spawnedRevision={} revision={}",
             a_remote.playerID, actorHandle, static_cast<unsigned long long>(a_peer.appearance.spawnedRevision),
             static_cast<unsigned long long>(a_peer.appearance.latest->revision));
@@ -129,7 +130,7 @@ namespace ActorLifecycle
         const RemoteFrame& a_remote, PeerState& a_peer, RE::FormID a_localCellID, RE::FormID a_localWorldspaceID)
     {
         const auto actorHandle = Retire(a_remote, a_peer);
-        logs::info(
+        logs::debug(
             "Recycling remote player actor {} actor {:08X} after coordinate-space change: spawnedCell={:08X} "
             "spawnedWorld={:08X} targetCell={:08X} targetWorld={:08X} localCell={:08X} localWorld={:08X}",
             a_remote.playerID, actorHandle, a_peer.lifecycle.spawnedCellID, a_peer.lifecycle.spawnedWorldspaceID,
@@ -177,7 +178,7 @@ namespace ActorLifecycle
         }
 
         const auto actorHandle = Retire(a_remote, a_peer);
-        logs::info(
+        logs::debug(
             "Recycling remote player actor {} actor {:08X} after fast travel: reason={} "
             "actorPosition=({:.3f},{:.3f},{:.3f}) target=({:.3f},{:.3f},{:.3f}) distance={:.1f} loaded3D={} "
             "sequence={}",
@@ -189,7 +190,7 @@ namespace ActorLifecycle
     void RetireForRevival(const RemoteFrame& a_remote, PeerState& a_peer)
     {
         const auto actorHandle = Retire(a_remote, a_peer);
-        logs::info("Recycling remote player actor {} actor {:08X} after the player came back to life: sequence={}",
+        logs::debug("Recycling remote player actor {} actor {:08X} after the player came back to life: sequence={}",
             a_remote.playerID, actorHandle, static_cast<unsigned long long>(a_remote.lastSequence));
     }
 
@@ -200,7 +201,7 @@ namespace ActorLifecycle
         const bool transition = ActorMount::IsInTransition(*a_peer.lifecycle.actor, &mount.actor);
         const bool seated = ActorMount::IsSeated(*a_peer.lifecycle.actor, mount.actor);
         const auto actorHandle = Retire(a_remote, a_peer);
-        logs::info(
+        logs::debug(
             "Recycling remote player actor {} actor {:08X} and mount {:08X} after the player dismounted: seated={} "
             "transition={} sequence={}",
             a_remote.playerID, actorHandle, mountHandle, seated, transition,
@@ -211,7 +212,7 @@ namespace ActorLifecycle
     {
         const auto mountHandle = a_peer.lifecycle.mount->actor.handle.native_handle();
         RemoveMountActor(a_peer.lifecycle);
-        logs::info("Removed remote player {} mount {:08X} after actor {:08X} dismounted: sequence={}",
+        logs::debug("Removed remote player {} mount {:08X} after actor {:08X} dismounted: sequence={}",
             a_remote.playerID, mountHandle, a_peer.lifecycle.actor->handle.native_handle(),
             static_cast<unsigned long long>(a_remote.lastSequence));
     }
@@ -230,7 +231,7 @@ namespace ActorLifecycle
         const auto mountHandle = mount.actor.handle.native_handle();
         const bool transition = ActorMount::IsInTransition(*a_peer.lifecycle.actor, &mount.actor);
         const auto actorHandle = Retire(a_remote, a_peer);
-        logs::info(
+        logs::debug(
             "Recycling remote player actor {} actor {:08X} and mount {:08X} after the player died riding: "
             "transition={} sequence={}",
             a_remote.playerID, actorHandle, mountHandle, transition,
@@ -243,7 +244,7 @@ namespace ActorLifecycle
         auto& lifecycle = a_peer.lifecycle;
         const auto actorHandle = lifecycle.actor ? Retire(a_remote, a_peer) : 0;
         lifecycle.yieldedFurnitureRefID = a_furnitureRefID;
-        logs::info(
+        logs::debug(
             "Hiding remote player actor {} actor {:08X} while furniture {:08X} is in use: reason={} "
             "checkpointFurniture={:08X} sequence={}",
             a_remote.playerID, actorHandle, a_furnitureRefID, a_reason, a_remote.checkpoint.furnitureRefID,
@@ -252,7 +253,7 @@ namespace ActorLifecycle
 
     void EndFurnitureYield(const RemoteFrame& a_remote, PeerState& a_peer)
     {
-        logs::info("Restoring remote player actor {} after furniture {:08X} was vacated: sequence={}",
+        logs::debug("Restoring remote player actor {} after furniture {:08X} was vacated: sequence={}",
             a_remote.playerID, a_peer.lifecycle.yieldedFurnitureRefID,
             static_cast<unsigned long long>(a_remote.lastSequence));
         a_peer.lifecycle.yieldedFurnitureRefID = 0;
@@ -312,8 +313,9 @@ namespace ActorLifecycle
             }
             else
             {
-                logs::info("Removed remote player {} actor {:08X} and mount {:08X} after their mount clip ended: "
-                           "waited={:.2f}s",
+                logs::debug(
+                    "Removed remote player {} actor {:08X} and mount {:08X} after their mount clip ended: "
+                    "waited={:.2f}s",
                     a_removal.playerID, a_removal.actor.handle.native_handle(),
                     mount ? mount->handle.native_handle() : 0, a_removal.elapsed);
             }
@@ -378,7 +380,7 @@ namespace ActorLifecycle
         lifecycle.spawnedCellID = a_remote.checkpoint.cellID;
         lifecycle.spawnedWorldspaceID = a_remote.checkpoint.worldspaceID;
 
-        logs::info(
+        logs::debug(
             "Allocated remote player actor {} as actor {:08X} at transform sequence={} with target animation "
             "state={}/{} furniture={:08X}; waiting for 3D and animation graph readiness",
             a_remote.playerID, lifecycle.actor->handle.native_handle(),
@@ -416,7 +418,7 @@ namespace ActorLifecycle
         // No applied sequence: MountSync hands it the checkpoint's speed before its
         // first gait, which would otherwise start from the spawn speed.
         lifecycle.mount.emplace(MountSync::RemoteMount{ .actor = std::move(*mountActor) });
-        logs::info(
+        logs::debug(
             "Allocated remote player {} mount as actor {:08X} for actor {:08X} at transform sequence={}; waiting "
             "for both to be ready before seating",
             a_remote.playerID, lifecycle.mount->actor.handle.native_handle(), lifecycle.actor->handle.native_handle(),

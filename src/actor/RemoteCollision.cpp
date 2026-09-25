@@ -73,7 +73,7 @@ namespace RemoteCollision
             }
             a_remote.collision.networkPlaced = a_networkPlaced;
             ActorRegistry::SetNetworkPlaced(a_remote, a_networkPlaced);
-            logs::info("Remote actor placement owner changed: actor={:08X} owner={} engineMovement={}",
+            logs::debug("Remote actor placement owner changed: actor={:08X} owner={} engineMovement={}",
                 a_remote.handle.native_handle(), a_owner, !a_networkPlaced);
         }
 
@@ -95,7 +95,7 @@ namespace RemoteCollision
                 return;
             }
             filter.SetNoCollision(a_isolated);
-            logs::info("Remote actor character body collision {}: actor={:08X} owner={} controller={}",
+            logs::debug("Remote actor character body collision {}: actor={:08X} owner={} controller={}",
                 a_isolated ? "disabled" : "restored", a_actor.GetHandle().native_handle(), a_owner,
                 skyrim_cast<RE::bhkCharProxyController*>(controller) ? "proxy" : "rigidBody");
         }
@@ -114,7 +114,7 @@ namespace RemoteCollision
                 return;
             }
             controller->flags.set(!a_placesActor, RE::CHARACTER_FLAGS::kNoSim);
-            logs::info("Remote actor character body {} the actor: actor={:08X}",
+            logs::debug("Remote actor character body {} the actor: actor={:08X}",
                 a_placesActor ? "places" : "no longer places", a_actor.GetHandle().native_handle());
         }
 
@@ -136,7 +136,7 @@ namespace RemoteCollision
             }
             controller->flags.set(supported, RE::CHARACTER_FLAGS::kSupport);
             const auto* actorState = a_actor.AsActorState();
-            logs::info("Remote actor controller support changed: actor={:08X} supported={} swimming={}",
+            logs::debug("Remote actor controller support changed: actor={:08X} supported={} swimming={}",
                 a_remote.handle.native_handle(), supported, actorState && actorState->IsSwimming());
         }
     }
@@ -165,7 +165,7 @@ namespace RemoteCollision
         }
         UpdateMovementHook::_original
             = SKSE::GetTrampoline().write_call<5>(site, reinterpret_cast<std::uintptr_t>(&UpdateMovementHook::Thunk));
-        logs::info("Installed remote actor movement isolation hook");
+        logs::debug("Installed remote actor movement isolation hook");
     }
 
     void PlaceByNetwork(RE::Actor& a_actor, RemoteActor& a_remote)

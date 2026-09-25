@@ -27,7 +27,7 @@ namespace PresenceSync
             }
             s_published = false;
             Network::PublishLocalWorldExit();
-            logs::info("Local player left the world: reason={} connectionGeneration={}", a_reason,
+            logs::debug("Local player left the world: reason={} connectionGeneration={}", a_reason,
                 static_cast<unsigned long long>(s_publishedConnectionGeneration));
         }
 
@@ -84,7 +84,7 @@ namespace PresenceSync
         }
         ui->AddEventSink<RE::MenuOpenCloseEvent>(MenuEventSink::GetSingleton());
         registered = true;
-        logs::info("Registered world presence menu sink");
+        logs::debug("Registered world presence menu sink");
     }
 
     void OnGameLoadStarted()
@@ -113,7 +113,7 @@ namespace PresenceSync
         {
             s_published = true;
             Network::PublishLocalWorldEnter();
-            logs::info("Local player entered the world: connectionGeneration={}",
+            logs::debug("Local player entered the world: connectionGeneration={}",
                 static_cast<unsigned long long>(s_publishedConnectionGeneration));
         }
         else if (!inWorld)

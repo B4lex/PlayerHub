@@ -103,7 +103,7 @@ namespace ActorMount
                 const auto rejectedEvents = ++a_gait.rejectedEvents;
                 if (rejectedEvents <= kInitialBlockedEventLogs || rejectedEvents % kBlockedEventLogInterval == 0)
                 {
-                    logs::info("Remote {} graph rejected gait event: actor={:08X} event={} speed={:.1f} count={}",
+                    logs::debug("Remote {} graph rejected gait event: actor={:08X} event={} speed={:.1f} count={}",
                         a_role, a_actor.GetHandle().native_handle(), a_eventName, a_gait.graphSpeed, rejectedEvents);
                 }
             }
@@ -258,21 +258,21 @@ namespace ActorMount
             {
                 const bool accepted = SendGaitEvent(a_actor, a_gait, "SprintStop", a_role);
                 a_gait.sprinting = false;
-                logs::info("Remote {} gait changed: actor={:08X} sprinting=false accepted={} speed={:.1f}", a_role,
+                logs::debug("Remote {} gait changed: actor={:08X} sprinting=false accepted={} speed={:.1f}", a_role,
                     a_actor.GetHandle().native_handle(), accepted, a_speed);
             }
             if (moving != a_gait.moving)
             {
                 const bool accepted = SendGaitEvent(a_actor, a_gait, moving ? "moveStart" : "moveStop", a_role);
                 a_gait.moving = moving;
-                logs::info("Remote {} gait changed: actor={:08X} moving={} accepted={} speed={:.1f}", a_role,
+                logs::debug("Remote {} gait changed: actor={:08X} moving={} accepted={} speed={:.1f}", a_role,
                     a_actor.GetHandle().native_handle(), moving, accepted, a_speed);
             }
             if (a_gait.moving && sprinting && !a_gait.sprinting)
             {
                 const bool accepted = SendGaitEvent(a_actor, a_gait, "SprintStart", a_role);
                 a_gait.sprinting = true;
-                logs::info("Remote {} gait changed: actor={:08X} sprinting=true accepted={} speed={:.1f}", a_role,
+                logs::debug("Remote {} gait changed: actor={:08X} sprinting=true accepted={} speed={:.1f}", a_role,
                     a_actor.GetHandle().native_handle(), accepted, a_speed);
             }
 
@@ -318,7 +318,7 @@ namespace ActorMount
                         const auto corrections = ++a_gait.corrections;
                         if (corrections <= kInitialBlockedEventLogs || corrections % kBlockedEventLogInterval == 0)
                         {
-                            logs::info(
+                            logs::debug(
                                 "Corrected remote {} graph gait: actor={:08X} event={} accepted={} speed={:.1f} "
                                 "graphMoving={} graphSprinting={} horseSpeedSampled={:.1f} count={}",
                                 a_role, a_actor.GetHandle().native_handle(), correction, accepted, a_speed, graphMoving,
@@ -338,7 +338,7 @@ namespace ActorMount
         if (a_gait.diagnosticElapsed >= kGaitDiagnosticSeconds)
         {
             a_gait.diagnosticElapsed = 0.0F;
-            logs::info(
+            logs::debug(
                 "Remote {} gait sample: actor={:08X} speed={:.1f} graphSpeed={:.1f} horseSpeedSampled={:.1f} "
                 "sprinting={}",
                 a_role, a_actor.GetHandle().native_handle(), a_speed, GetGraphFloat(a_actor, speedVariable),

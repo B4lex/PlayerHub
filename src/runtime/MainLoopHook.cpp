@@ -47,6 +47,6 @@ namespace MainLoopHook
         MainLoopUpdateHook::_original
             = SKSE::GetTrampoline().write_call<5>(mainLoopUpdateCall.address(), MainLoopUpdateHook::Thunk);
 
-        logs::info("Installed authoritative Skyrim main-loop network frame hook");
+        logs::debug("Installed authoritative Skyrim main-loop network frame hook");
     }
 }

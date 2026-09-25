@@ -96,7 +96,7 @@ namespace MountSync
             }
             if (transition)
             {
-                logs::info("Observed local player mount transition: sequence={} transition={} sitSleepState={}",
+                logs::debug("Observed local player mount transition: sequence={} transition={} sitSleepState={}",
                     static_cast<unsigned long long>(a_sequence), Network::GetMountTransitionName(*transition),
                     static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(sitSleepState));
                 s_localTransition = transition;
@@ -121,7 +121,7 @@ namespace MountSync
                 mount.seated = false;
                 mount.dismounted = true;
                 mount.dismountedElapsed = 0.0F;
-                logs::info(
+                logs::debug(
                     "Remote player {} actor {:08X} finished its dismount from mount {:08X}: elapsed={:.2f}s "
                     "checkpointMounted={} sequence={}",
                     a_remote.playerID, rider.handle.native_handle(), mount.actor.handle.native_handle(),
@@ -155,7 +155,7 @@ namespace MountSync
 
             a_peer.mounting.pending.reset();
             const bool started = ActorMount::Dismount(rider);
-            logs::info(
+            logs::debug(
                 "Starting remote player {} actor {:08X} dismount from mount {:08X}: started={} checkpointMounted={} "
                 "sequence={}",
                 a_remote.playerID, rider.handle.native_handle(), mount.actor.handle.native_handle(), started,
@@ -242,7 +242,7 @@ namespace MountSync
                 || seatAttempts % kBlockedEventLogInterval == 0)
             {
                 // The seat itself is confirmed by the next seat check.
-                logs::info(
+                logs::debug(
                     "Seating remote player {} actor {:08X} on mount {:08X}: animated={} started={} seatedNow={} "
                     "attempt={} sequence={}",
                     a_remote.playerID, rider.handle.native_handle(), mount.actor.handle.native_handle(), animated,
@@ -265,7 +265,7 @@ namespace MountSync
         const auto mountID = mount ? mount->GetFormID() : 0;
         if (mountID != previousMountID)
         {
-            logs::info("Publishing local player mount: sequence={} mount={:08X} previous={:08X}",
+            logs::debug("Publishing local player mount: sequence={} mount={:08X} previous={:08X}",
                 static_cast<unsigned long long>(a_sequence), mountID, previousMountID);
             previousMountID = mountID;
         }
@@ -305,7 +305,7 @@ namespace MountSync
         }
         if (reason)
         {
-            logs::info("Mount sync ignored transition: player={} transition={} checkpointSequence={} reason={}",
+            logs::debug("Mount sync ignored transition: player={} transition={} checkpointSequence={} reason={}",
                 a_transition.playerID, Network::GetMountTransitionName(a_transition.transition),
                 static_cast<unsigned long long>(a_transition.checkpointSequence), reason);
             return;
@@ -331,7 +331,7 @@ namespace MountSync
             transitions.pending->age += delta;
             if (transitions.pending->age > kTransitionStartSeconds)
             {
-                logs::info(
+                logs::debug(
                     "Remote player {} mount transition {} did not start within {:.1f}s; presenting it instantly: "
                     "checkpointSequence={}",
                     a_remote.playerID, Network::GetMountTransitionName(transitions.pending->transition),
@@ -378,7 +378,7 @@ namespace MountSync
         const bool transitionPlaying = ActorMount::IsInTransition(rider, &mount.actor);
         if (transitionPlaying != mount.transitionPlaying)
         {
-            logs::info(
+            logs::debug(
                 "Remote player {} mount clip {}: actor={:08X} mount={:08X} animatedSeat={} exiting={} "
                 "seated={} sitSleepState={} sequence={}",
                 a_remote.playerID, transitionPlaying ? "started" : "ended", rider.handle.native_handle(),

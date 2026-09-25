@@ -38,6 +38,6 @@ namespace FurnitureActivationHook
     {
         REL::Relocation<std::uintptr_t> furnitureVTable{ RE::VTABLE_TESFurniture[0] };
         ActivateHook::_original = furnitureVTable.write_vfunc(0x37, ActivateHook::Thunk);
-        logs::info("Installed local furniture activation hook");
+        logs::debug("Installed local furniture activation hook");
     }
 }
