@@ -368,6 +368,7 @@ namespace EquipmentSync
             a_remote.exhausted = false;
             a_remote.armorMatches = false;
             a_remote.handsMatch = false;
+            a_remote.handsDeferred = false;
         }
 
         void EnsureResolved(RemoteState& a_remote, const std::string& a_playerID)
@@ -668,7 +669,7 @@ namespace EquipmentSync
         {
             a_remote.handsUnsettledElapsed = 0.0F;
         }
-        else
+        else if (!a_remote.handsDeferred)
         {
             a_remote.handsUnsettledElapsed += delta;
         }
@@ -683,9 +684,12 @@ namespace EquipmentSync
         // Before the first mutation pass, check every frame so a new revision or a
         // released hand deferral applies immediately. After a pass, give the engine
         // an interval to apply it; matched states are re-verified at that interval
-        // against autonomous engine changes.
-        const bool immediate
-            = !(a_remote.armorMatches && a_remote.handsMatch) && !a_remote.exhausted && a_remote.attempts == 0;
+        // against autonomous engine changes. A deferred pass may already have added
+        // the new hand objects, so its release is watched separately; a draw held for
+        // the swap would otherwise wait out the interval.
+        const bool deferralReleased = a_remote.handsDeferred && !IsHandSwapDeferred(*actor, a_remoteActor);
+        const bool immediate = deferralReleased
+            || (!(a_remote.armorMatches && a_remote.handsMatch) && !a_remote.exhausted && a_remote.attempts == 0);
         a_remote.checkElapsed += delta;
         if (!immediate && a_remote.checkElapsed < kReconcileCheckInterval)
         {
@@ -767,6 +771,7 @@ namespace EquipmentSync
         // not hold them.
         a_remote.armorMatches = inventoryMatches && armorWorn;
         a_remote.handsMatch = handsMatch;
+        a_remote.handsDeferred = handsDeferred;
         if (a_remote.armorMatches && a_remote.handsMatch)
         {
             if (a_remote.attempts != 0 || a_remote.exhausted)
