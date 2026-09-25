@@ -65,10 +65,10 @@ namespace SyncCoordinator
             {
                 ActorLifecycle::RemoveActor(playerID, peer);
             }
-            logs::info("Removed {} remote player actors after losing the server connection: connected={} "
-                       "connectionGeneration={}",
-                a_peers.size(), a_changes.connected,
-                static_cast<unsigned long long>(a_changes.connectionGeneration));
+            logs::debug(
+                "Removed {} remote player actors after losing the server connection: connected={} "
+                "connectionGeneration={}",
+                a_peers.size(), a_changes.connected, static_cast<unsigned long long>(a_changes.connectionGeneration));
             a_peers.clear();
             if (auto* console = RE::ConsoleLog::GetSingleton())
             {
@@ -108,7 +108,7 @@ namespace SyncCoordinator
 
                 const bool hadActor = peer->second.lifecycle.actor.has_value();
                 ForgetWorldState(playerID, peer->second);
-                logs::info("Removed remote player {} from the world after server player:exit: hadActor={}", playerID,
+                logs::debug("Removed remote player {} from the world after server player:exit: hadActor={}", playerID,
                     hadActor);
             }
 
@@ -122,7 +122,7 @@ namespace SyncCoordinator
 
                 ActorLifecycle::RemoveActor(playerID, peer->second);
                 a_peers.erase(peer);
-                logs::info("Removed remote player actor {} after server player:disconnect", playerID);
+                logs::debug("Removed remote player actor {} after server player:disconnect", playerID);
             }
 
             for (auto& update : changes.transforms)
@@ -131,7 +131,7 @@ namespace SyncCoordinator
                 auto& state = peer->second;
                 if (!inserted && update.transform.sequence <= state.lastSequence)
                 {
-                    logs::info(
+                    logs::debug(
                         "Animation sync ignored stale main-loop snapshot: player={} sequence={} state={} "
                         "newestSequence={} newestState={}",
                         update.playerID, static_cast<unsigned long long>(update.transform.sequence),
@@ -203,7 +203,7 @@ namespace SyncCoordinator
             {
                 auto* furniture = RE::TESForm::LookupByID<RE::TESObjectREFR>(activation.furnitureRefID);
                 const bool held = furniture && FurnitureSync::IsHeldByLocalPlayer(local, *furniture);
-                logs::info("Observed local furniture activation: furniture={:08X} resolved={} deferred={} held={}",
+                logs::debug("Observed local furniture activation: furniture={:08X} resolved={} deferred={} held={}",
                     activation.furnitureRefID, furniture != nullptr, activation.deferred, held);
                 if (!furniture || held)
                 {
@@ -232,7 +232,7 @@ namespace SyncCoordinator
                 // ActivateRef already ran the reference's scripts; only the furniture's
                 // own activation is repeated.
                 const bool reactivated = furniture->ActivateRef(&a_player, 0, nullptr, 1, true);
-                logs::info(
+                logs::debug(
                     "Reactivated furniture for the local player after hiding {} remote actors: furniture={:08X} "
                     "deferred={} reactivated={}",
                     yielded, activation.furnitureRefID, activation.deferred, reactivated);
@@ -481,6 +481,6 @@ namespace SyncCoordinator
         ActorLifecycle::SetDeferredRemovalsExcludedFromSaves(true);
         // Every peer is restored, so an actor spawned after this is unaffected.
         s_actorsExcludedFromSaves = true;
-        logs::info("Excluded {} remote player actors from game save", excluded);
+        logs::debug("Excluded {} remote player actors from game save", excluded);
     }
 }

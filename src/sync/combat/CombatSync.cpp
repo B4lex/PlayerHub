@@ -251,7 +251,7 @@ namespace CombatSync
             }
             attackPowerResolved = true;
             const auto attack = ClassifyAttack(attackData, attackState);
-            logs::info(
+            logs::debug(
                 "Animation sync observed local power attack of the playing swing: state={} "
                 "normalizedAction=attack/{} direction={} attackEvent={}",
                 static_cast<std::underlying_type_t<RE::ATTACK_STATE_ENUM>>(attackState),
@@ -262,7 +262,7 @@ namespace CombatSync
 
         const auto attack = ClassifyAttack(attackData, attackState);
         attackPowerResolved = attack.power || attack.action == Network::AttackAction::kBash;
-        logs::info(
+        logs::debug(
             "Animation sync observed local attack state edge: state={} normalizedAction=attack/{} power={} "
             "direction={} attackEvent={} powerAttacking={}",
             static_cast<std::underlying_type_t<RE::ATTACK_STATE_ENUM>>(attackState),
@@ -286,7 +286,7 @@ namespace CombatSync
             return false;
         }
 
-        logs::info(
+        logs::debug(
             "Animation sync observed local hand presentation: bowDrawn={} castingLeft={} castingRight={} blocking={} "
             "attackState={}",
             current.bowDrawn, current.castingLeft, current.castingRight, current.blocking,
@@ -350,7 +350,7 @@ namespace CombatSync
                   });
             if (removed != 0)
             {
-                logs::info(
+                logs::debug(
                     "Animation sync rejected queued actions at graph-epoch boundary: player={} graphEpoch={} "
                     "rejected={}",
                     a_update.playerID, static_cast<unsigned long long>(newEpoch), removed);
@@ -358,7 +358,7 @@ namespace CombatSync
         }
         if (a_update.checkpoint.furnitureRefID != 0 && !a_state.pendingAnimationActions.empty())
         {
-            logs::info(
+            logs::debug(
                 "Animation sync discarded queued attacks at furniture checkpoint: player={} furniture={:08X} "
                 "rejected={}",
                 a_update.playerID, a_update.checkpoint.furnitureRefID, a_state.pendingAnimationActions.size());
@@ -372,7 +372,7 @@ namespace CombatSync
         if (!a_state || !a_checkpoint || a_action.graphEpoch < a_checkpoint->graphEpoch
             || a_checkpoint->furnitureRefID != 0)
         {
-            logs::info(
+            logs::debug(
                 "Animation sync rejected action without a compatible checkpoint: player={} actionSequence={} "
                 "graphEpoch={}",
                 a_action.playerID, static_cast<unsigned long long>(a_action.actionSequence),
@@ -431,7 +431,7 @@ namespace CombatSync
             if (!plain.attack.power && plain.attack.action != Network::AttackAction::kBash && power.attack.power
                 && power.attack.action == plain.attack.action && power.graphEpoch == plain.graphEpoch)
             {
-                logs::info(
+                logs::debug(
                     "Animation sync merged queued attack into its power attack: player={} action={} "
                     "actionSequence={} powerActionSequence={}",
                     a_remote.playerID, Network::GetAttackActionName(plain.attack.action),
@@ -473,7 +473,7 @@ namespace CombatSync
         ++pending.dispatchAttempts;
         if (accepted)
         {
-            logs::info(
+            logs::debug(
                 "Animation sync processed attack: player={} actor={:08X} action={} power={} direction={} "
                 "actionSequence={} graphEpoch={} checkpointSequence={} poweredUp={} chained={} queued={}",
                 a_remote.playerID, a_actor.handle.native_handle(), Network::GetAttackActionName(action.attack.action),

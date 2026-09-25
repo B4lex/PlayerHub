@@ -224,7 +224,7 @@ namespace ActorAnimation
                 a_actor.DoReset3D(false);
             }
             const auto recoveryCount = ++animationState->recoveryCount;
-            logs::info(
+            logs::debug(
                 "Started actor animation-graph recovery: actor={:08X} desired={} detectedReaction={} observedHits={} "
                 "graphReverted={} fallback3DReset={} previousGraph={} recovery={}",
                 a_remote.handle.native_handle(),
@@ -272,7 +272,7 @@ namespace ActorAnimation
                 if (moveStartAccepted)
                 {
                     a_remote.animation->weaponTransitionMoveStartDispatched = true;
-                    logs::info("Animation sync selected moving weapon-transition branch: actor={:08X} weaponDrawn={}",
+                    logs::debug("Animation sync selected moving weapon-transition branch: actor={:08X} weaponDrawn={}",
                         a_remote.handle.native_handle(), authoritativeWeaponDrawn);
                 }
             }
@@ -541,7 +541,7 @@ namespace ActorAnimation
                 return;
             }
             a_state.swimMoveStartPending = false;
-            logs::info(
+            logs::debug(
                 "Animation sync selected moving swim state: actor={:08X} state={} accepted={} attempts={} "
                 "elapsed={:.3f}",
                 a_remote.handle.native_handle(),
@@ -566,7 +566,7 @@ namespace ActorAnimation
             a_remote.movement.animationDirection);
         if (previousAnimationState != a_animationState && a_remote.animation)
         {
-            logs::info("Animation sync updated actor request: actor={:08X} revision={} previous={}/{} desired={}/{}",
+            logs::debug("Animation sync updated actor request: actor={:08X} revision={} previous={}/{} desired={}/{}",
                 a_remote.handle.native_handle(),
                 static_cast<unsigned long long>(a_remote.animation->desiredRevision.load(std::memory_order_acquire)),
                 Multiplayer::GetMovementStateName(previousAnimationState.movementState),
@@ -643,7 +643,7 @@ namespace ActorAnimation
         if (!state.unsettledTranslationHoldReported)
         {
             state.unsettledTranslationHoldReported = true;
-            logs::info(
+            logs::debug(
                 "Animation sync resumed translation while its locomotion dispatch is unsettled: actor={:08X} "
                 "dispatched={} heldSeconds={:.3f} rejectedEventAttempts={}",
                 a_remote.handle.native_handle(), Multiplayer::GetMovementStateName(state.lastDispatched.movementState),
@@ -813,7 +813,7 @@ namespace ActorAnimation
             // Stamina is not managed on the actor. Logged to check that an exhausted
             // actor still plays power attacks.
             const auto* actorValueOwner = actorPtr->AsActorValueOwner();
-            logs::info(
+            logs::debug(
                 "Animation sync dispatched power attack: actor={:08X} action={} direction={} event={} "
                 "presentedAsPlain={} presentedAsRightHand={} poweredUpPlayingAttack={} chained={} stamina={:.1f}",
                 a_remote.handle.native_handle(), Network::GetAttackActionName(a_attack.action),
@@ -823,7 +823,7 @@ namespace ActorAnimation
         }
         else if (dualFellBack)
         {
-            logs::info("Animation sync presented dual-wield attack as a right-hand attack: actor={:08X}",
+            logs::debug("Animation sync presented dual-wield attack as a right-hand attack: actor={:08X}",
                 a_remote.handle.native_handle());
         }
 
@@ -907,7 +907,7 @@ namespace ActorAnimation
             {
                 return;
             }
-            logs::info("Animation sync completed bow shot ownership: actor={:08X} elapsed={:.3f} timedOut={}",
+            logs::debug("Animation sync completed bow shot ownership: actor={:08X} elapsed={:.3f} timedOut={}",
                 a_remote.handle.native_handle(), state.bowPhaseElapsed, timedOut);
             state.bowReleasePending = false;
             state.bowPhaseElapsed = 0.0F;
@@ -943,7 +943,7 @@ namespace ActorAnimation
             const bool cancelled = !released
                 && (SendHandPresentationEvent(a_remote, actor, attackStopEvent)
                     || SendHandPresentationEvent(a_remote, actor, bowResetEvent));
-            logs::info(
+            logs::debug(
                 "Animation sync released bow draw: actor={:08X} released={} cancelled={} heldSeconds={:.3f} "
                 "releaseWaitSeconds={:.3f}",
                 a_remote.handle.native_handle(), released, cancelled, state.bowPhaseElapsed,
@@ -971,7 +971,7 @@ namespace ActorAnimation
         state.bowReleaseRequestElapsed = 0.0F;
         // A release that is already due goes out on the next pass.
         state.bowEventRetryElapsed = kMinimumEventRetrySeconds;
-        logs::info("Animation sync started bow draw: actor={:08X}", a_remote.handle.native_handle());
+        logs::debug("Animation sync started bow draw: actor={:08X}", a_remote.handle.native_handle());
     }
 
     void ApplySpellCast(RemoteActor& a_remote, bool a_leftHand, bool a_casting, bool a_mayStart, float a_deltaTime)
@@ -1043,7 +1043,7 @@ namespace ActorAnimation
             {
                 state.attackLocomotionReassertPending = true;
             }
-            logs::info(
+            logs::debug(
                 "Animation sync stopped spell cast: actor={:08X} hand={} idle={} stopSeconds={:.3f} "
                 "reassertedLocomotion={}",
                 a_remote.handle.native_handle(), a_leftHand ? "left" : "right", idle, stopSeconds, presentationEnded);
@@ -1107,7 +1107,7 @@ namespace ActorAnimation
         state.castHeld[hand] = true;
         RequestPresentationMoveStart(state);
         state.castStopRequestElapsed[hand] = 0.0F;
-        logs::info("Animation sync started spell cast: actor={:08X} hand={} spell={:08X}",
+        logs::debug("Animation sync started spell cast: actor={:08X} hand={} spell={:08X}",
             a_remote.handle.native_handle(), a_leftHand ? "left" : "right", spell ? spell->GetFormID() : 0);
     }
 
@@ -1155,7 +1155,7 @@ namespace ActorAnimation
                 return;
             }
             const bool forced = !lowered && SendHandPresentationEvent(a_remote, actor, blockStopInstantEvent);
-            logs::info("Animation sync lowered block: actor={:08X} lowered={} forcedInstant={} stopSeconds={:.3f}",
+            logs::debug("Animation sync lowered block: actor={:08X} lowered={} forcedInstant={} stopSeconds={:.3f}",
                 a_remote.handle.native_handle(), lowered, forced, state.blockStopElapsed);
             state.blockStopping = false;
             state.blockStopAccepted = false;
@@ -1180,8 +1180,8 @@ namespace ActorAnimation
             state.blockEventRetryElapsed = 0.0F;
             SetBlockRequest(actor, false);
             state.blockStopAccepted = SendHandPresentationEvent(a_remote, actor, blockStopEvent);
-            logs::info("Animation sync requested block stop: actor={:08X} accepted={}", a_remote.handle.native_handle(),
-                state.blockStopAccepted);
+            logs::debug("Animation sync requested block stop: actor={:08X} accepted={}",
+                a_remote.handle.native_handle(), state.blockStopAccepted);
             return;
         }
 
@@ -1206,7 +1206,7 @@ namespace ActorAnimation
 
         state.blockHeld = true;
         RequestPresentationMoveStart(state);
-        logs::info("Animation sync raised block: actor={:08X}", a_remote.handle.native_handle());
+        logs::debug("Animation sync raised block: actor={:08X}", a_remote.handle.native_handle());
     }
 
     void AdvancePresentationLocomotion(RemoteActor& a_remote, float a_deltaTime)
@@ -1259,7 +1259,7 @@ namespace ActorAnimation
         // branch, and a rejection means it is not standing, so a retry never helps.
         static const RE::BSFixedString moveStartEvent{ "moveStart" };
         const bool accepted = SendNetworkAnimationEvent(a_remote, moveStartEvent);
-        logs::info(
+        logs::debug(
             "Animation sync selected moving presentation lower body: actor={:08X} state={} block={} bow={} cast={} "
             "accepted={} elapsed={:.3f}",
             a_remote.handle.native_handle(),
@@ -1356,7 +1356,7 @@ namespace ActorAnimation
             return;
         }
 
-        logs::info(
+        logs::debug(
             "Animation sync completed attack ownership: actor={:08X} bash={} bashExited={} observedPlayback={} "
             "elapsed={:.3f} startTimedOut={} playbackTimedOut={}",
             a_actor.GetHandle().native_handle(), a_state.attackPlaybackBash, bashExited, a_state.attackPlaybackObserved,
@@ -1443,7 +1443,7 @@ namespace ActorAnimation
             if (animationState->recoveryWaitFrames == 1
                 || animationState->recoveryWaitFrames % kGraphRecoveryWaitLogInterval == 0)
             {
-                logs::info(
+                logs::debug(
                     "Waiting for recovered actor animation graph: actor={:08X} loaded3D={} controller={} graph={} "
                     "waitedFrames={} recovery={}",
                     a_remote.handle.native_handle(), a_actor.Is3DLoaded(), a_actor.GetCharController() != nullptr,
@@ -1470,7 +1470,7 @@ namespace ActorAnimation
         // ragdoll/paralysis. Allow the next frame to start physical recovery if
         // that state appeared after this recovery began.
         animationState->localInterruptionLatched = false;
-        logs::info(
+        logs::debug(
             "Recovered actor animation graph is stable; replaying authoritative locomotion: actor={:08X} desired={} "
             "graphReplaced={} fallback3DReset={} recovery={}",
             a_remote.handle.native_handle(),
@@ -1512,7 +1512,7 @@ namespace ActorAnimation
         if (state.turnStateOverrides <= kInitialTurnStateOverrideLogs
             || state.turnStateOverrides % kTurnStateOverrideLogInterval == 0)
         {
-            logs::info(
+            logs::debug(
                 "Animation sync held idle turn state: actor={:08X} localTurnState={} accepted={} turnStop={} count={}",
                 a_remote.handle.native_handle(), syncTurnState, accepted, turnStopAccepted, state.turnStateOverrides);
         }
@@ -1555,7 +1555,7 @@ namespace ActorAnimation
             ActorRegistry::SetLandingCompletionObservation(a_actor, false);
             if (animationState->hasDispatched || animationState->graphManager)
             {
-                logs::info("Animation sync reset graph state: actor={:08X} reason=actor-or-3d-unavailable",
+                logs::debug("Animation sync reset graph state: actor={:08X} reason=actor-or-3d-unavailable",
                     actorHandle.native_handle());
             }
             animationState->hasDispatched = false;
@@ -1598,7 +1598,7 @@ namespace ActorAnimation
             ActorRegistry::SetLandingCompletionObservation(*actor, false);
             if (animationState->hasDispatched || animationState->graphManager)
             {
-                logs::info("Animation sync reset graph state: actor={:08X} reason=graph-unavailable",
+                logs::debug("Animation sync reset graph state: actor={:08X} reason=graph-unavailable",
                     actorHandle.native_handle());
             }
             animationState->hasDispatched = false;
@@ -1635,7 +1635,7 @@ namespace ActorAnimation
         {
             AnimationFirewall::Disable(a_remote);
             ActorRegistry::SetLandingCompletionObservation(*actor, false);
-            logs::info("Animation sync detected {} graph: actor={:08X}; next state will be fully asserted",
+            logs::debug("Animation sync detected {} graph: actor={:08X}; next state will be fully asserted",
                 animationState->graphManager ? "replacement" : "initial", actorHandle.native_handle());
             animationState->graphManager = graphManager.get();
             animationState->hasDispatched = false;
@@ -1673,7 +1673,7 @@ namespace ActorAnimation
             if (landingEventSinkRegistered)
             {
                 animationState->landingEventSinkGraph = graphManager.get();
-                logs::info("Registered actor animation output-event sink: actor={:08X}", actorHandle.native_handle());
+                logs::debug("Registered actor animation output-event sink: actor={:08X}", actorHandle.native_handle());
             }
         }
 
@@ -1687,7 +1687,7 @@ namespace ActorAnimation
             animationState->landingCompletionPending = false;
             animationState->landingCompletionWaitFrames = 0;
             animationState->landingCompletionWaitElapsed = 0.0F;
-            logs::info("Animation sync takeoff preempted pending landing completion: actor={:08X}",
+            logs::debug("Animation sync takeoff preempted pending landing completion: actor={:08X}",
                 actorHandle.native_handle());
         }
         const auto* actorState = actor->AsActorState();
@@ -1702,7 +1702,8 @@ namespace ActorAnimation
             animationState->landingCompletionWaitFrames = 0;
             animationState->landingCompletionWaitElapsed = 0.0F;
             ActorRegistry::SetLandingCompletionObservation(*actor, false);
-            logs::info("Animation sync landing branch replaced by swimming: actor={:08X}", actorHandle.native_handle());
+            logs::debug(
+                "Animation sync landing branch replaced by swimming: actor={:08X}", actorHandle.native_handle());
         }
         if (animationState->landingCompletionPending)
         {
@@ -1717,7 +1718,7 @@ namespace ActorAnimation
                 const auto currentPosition = actor->GetPosition();
                 bool graphJumping = false;
                 const bool graphJumpAvailable = actor->GetGraphVariableBool(inJumpStateVariable, graphJumping);
-                logs::info(
+                logs::debug(
                     "Animation sync landing timeline: actor={:08X} waitedFrames={} current=({:.3f},{:.3f},{:.3f}) "
                     "target=({:.3f},{:.3f},{:.3f}) zError={:.3f} physicalJump={} physicalMidair={} "
                     "graphJumpAvailable={} graphJump={}",
@@ -1752,7 +1753,7 @@ namespace ActorAnimation
                 animationState->failedDispatchAttempts = 0;
                 animationState->rejectedEventAttempts = 0;
                 animationState->rejectedEventElapsed = 0.0F;
-                logs::info(
+                logs::debug(
                     "Animation sync completing landing branch and reasserting grounded locomotion: actor={:08X} "
                     "observedMarkers={} waitedFrames={} forced={} forcedEventAccepted={}",
                     actorHandle.native_handle(), completedLandings, completedAfterFrames, forcedCompletion,
@@ -1813,7 +1814,7 @@ namespace ActorAnimation
                 animationState->weaponReplayBaseDispatched = false;
                 animationState->weaponTransitionMoveStartDispatched = false;
             }
-            logs::info(
+            logs::debug(
                 "Animation sync observed weapon transition exit: actor={:08X} weaponDrawn={} weaponState={} markers={} "
                 "lateCompletion={}",
                 actorHandle.native_handle(), authoritativeState.weaponDrawn,
@@ -1880,7 +1881,7 @@ namespace ActorAnimation
             // replay authoritative locomotion on the next update.
             const bool defaultStateAccepted = AnimationFirewall::ForceDefaultGraphState(a_actor);
             animationState->weaponDefaultStateDispatched = true;
-            logs::info(
+            logs::debug(
                 "Animation sync reset graph to default after weapon transition: actor={:08X} weaponDrawn={} "
                 "weaponState={} completionMarkerObserved={} eventAccepted={}",
                 actorHandle.native_handle(), authoritativeState.weaponDrawn,
@@ -2034,7 +2035,7 @@ namespace ActorAnimation
         {
             if (ShouldReportEventRetry(stopEventAttempt))
             {
-                logs::info(
+                logs::debug(
                     "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} "
                     "result=retrying-stop-events strings={} moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} "
                     "jumpEvent=deferred/{} eventAttempt={}/{}",
@@ -2060,7 +2061,7 @@ namespace ActorAnimation
             actor->SetPosition(a_remote.movement.targetPosition, true);
             if (animationState->rejectedEventAttempts == 0)
             {
-                logs::info(
+                logs::debug(
                     "Animation sync aligned landing transform: actor={:08X} current=({:.3f},{:.3f},{:.3f}) "
                     "target=({:.3f},{:.3f},{:.3f}) zError={:.3f} physicalJump={} physicalMidair={} "
                     "graphJumpAvailable={} graphJump={}",
@@ -2099,7 +2100,7 @@ namespace ActorAnimation
         if (animationState->hasDispatched && animationState->hasVariableUpdateResult
             && animationState->lastVariableUpdateAccepted != variablesAccepted)
         {
-            logs::info(
+            logs::debug(
                 "Animation sync graph variable refresh changed: actor={:08X} revision={} state={} result={} strings={} "
                 "speed={} sampledSpeed={} dampedSpeed={} direction={} turn={} sprint={} jump={}",
                 actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision),
@@ -2152,7 +2153,7 @@ namespace ActorAnimation
                                                        : variablesAccepted || ShouldReportEventRetry(variableAttempt);
             if (reportDispatch)
             {
-                logs::info(
+                logs::debug(
                     "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} result={} "
                     "eventsAccepted={} strings={} speedVariable={} sampledSpeedVariable={} dampedSpeedVariable={} "
                     "directionVariable={} turnVariable={} sprintVariable={} jumpVariable={} moveEvent={}/{} "
@@ -2180,7 +2181,7 @@ namespace ActorAnimation
                     if (weaponReplayNeedsFollowup)
                     {
                         animationState->weaponReplayBaseDispatched = true;
-                        logs::info(
+                        logs::debug(
                             "Animation sync staged weapon locomotion replay: actor={:08X} step={}/{} target={}/{} "
                             "weaponDrawn={} eventTimedOut={}",
                             actorHandle.native_handle(), Multiplayer::GetMovementStateName(state.movementState),
@@ -2202,7 +2203,7 @@ namespace ActorAnimation
                         animationState->weaponReplayBaseDispatched = false;
                         animationState->weaponTransitionMoveStartDispatched = false;
                         animationState->weaponRestoredWithoutCompletion = !weaponCompletionWasObserved;
-                        logs::info(
+                        logs::debug(
                             "Animation sync restored state after weapon transition: actor={:08X} state={} jumping={} "
                             "weaponDrawn={} completionMarkerObserved={} weaponState={} transitionWaitSeconds={:.3f} "
                             "eventTimedOut={}",
@@ -2215,7 +2216,7 @@ namespace ActorAnimation
                 if (reassertLocomotionAfterSwimStop)
                 {
                     animationState->swimLocomotionReassertPending = false;
-                    logs::info("Animation sync reasserted locomotion after swim stop: actor={:08X} state={}",
+                    logs::debug("Animation sync reasserted locomotion after swim stop: actor={:08X} state={}",
                         actorHandle.native_handle(), Multiplayer::GetMovementStateName(state.movementState));
                 }
                 if (reassertLocomotionAfterLanding)
@@ -2225,7 +2226,7 @@ namespace ActorAnimation
                 if (reassertLocomotionAfterAttack)
                 {
                     animationState->attackLocomotionReassertPending = false;
-                    logs::info(
+                    logs::debug(
                         "Animation sync reasserted locomotion after attack or hand presentation: actor={:08X} state={}",
                         actorHandle.native_handle(), Multiplayer::GetMovementStateName(state.movementState));
                 }
@@ -2236,7 +2237,7 @@ namespace ActorAnimation
                 animationState->landingSprintStopPending = deferSprintStop;
                 if (animationState->landingSprintStopPending)
                 {
-                    logs::info("Animation sync deferred sprint stop past landing: actor={:08X} revision={}",
+                    logs::debug("Animation sync deferred sprint stop past landing: actor={:08X} revision={}",
                         actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision));
                 }
                 if (jumpLandRequired)
@@ -2244,12 +2245,12 @@ namespace ActorAnimation
                     animationState->landingCompletionPending = true;
                     animationState->landingCompletionWaitFrames = 0;
                     animationState->landingCompletionWaitElapsed = 0.0F;
-                    logs::info("Animation sync waiting for landing completion marker: actor={:08X} revision={}",
+                    logs::debug("Animation sync waiting for landing completion marker: actor={:08X} revision={}",
                         actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision));
                 }
                 else if (landingInWater)
                 {
-                    logs::info("Animation sync skipped landing branch while swimming: actor={:08X} revision={}",
+                    logs::debug("Animation sync skipped landing branch while swimming: actor={:08X} revision={}",
                         actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision));
                 }
                 animationState->processedRevision.store(desiredRevision, std::memory_order_release);

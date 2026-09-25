@@ -116,7 +116,7 @@ namespace ActorFurniture
             const auto* usedMarkers = a_furniture.extraList.GetByType<RE::ExtraUsedMarkers>();
             if (!usedMarkers || usedMarkers->usedMarkers.empty())
             {
-                logs::warn("Animation sync furniture marker reservations: actor={:08X} furniture={:08X} reservations=0",
+                logs::debug("Animation sync furniture marker reservations: actor={:08X} furniture={:08X} reservations=0",
                     a_actorHandle, a_furniture.GetFormID());
                 return;
             }
@@ -124,7 +124,7 @@ namespace ActorFurniture
             for (const auto& marker : usedMarkers->usedMarkers)
             {
                 const auto reservedBy = marker.actorinMarker.get();
-                logs::warn(
+                logs::debug(
                     "Animation sync furniture marker reservation: actor={:08X} furniture={:08X} marker={} "
                     "reservedBy={:08X} reservedByForm={:08X} reservedByResolved={}",
                     a_actorHandle, a_furniture.GetFormID(), marker.markerID, marker.actorinMarker.native_handle(),
@@ -313,7 +313,7 @@ namespace ActorFurniture
                 process->ClearFurniture();
             }
             const auto* actorState = a_actor.AsActorState();
-            logs::info(
+            logs::debug(
                 "Animation sync started furniture entry: actor={:08X} furniture={:08X} started={} instant={} "
                 "marker={} markerDistance={:.2f} entryIdle={:08X} occupied={:08X} sitSleepState={} weaponState={} "
                 "inCombat={}",
@@ -376,7 +376,7 @@ namespace ActorFurniture
                     a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
                 }
                 const auto* entryIdle = a_process.middleHigh ? a_process.middleHigh->furnitureIdle : nullptr;
-                logs::info(
+                logs::debug(
                     "Animation sync resumed deferred furniture entry: actor={:08X} furniture={:08X} started={} "
                     "marker={} entryIdle={:08X} sitSleepState={} elapsed={:.3f}",
                     a_remote.handle.native_handle(), furniture->GetFormID(), started,
@@ -442,7 +442,7 @@ namespace ActorFurniture
             a_remote.furniture.furnitureTransitionElapsed = 0.0F;
             a_remote.furniture.furnitureExitGraphForced = false;
         }
-        logs::info(
+        logs::debug(
             "Animation sync updated furniture request: actor={:08X} previous={:08X} desired={:08X} readyElapsed={:.3f}",
             a_remote.handle.native_handle(), previousFurnitureRefID, a_furnitureRefID, a_remote.readyElapsed);
     }
@@ -499,7 +499,7 @@ namespace ActorFurniture
         a_remote.furniture.loggedEntryGate = EntryGate::kNone;
         if (furniture || releasedMarkerCount != 0)
         {
-            logs::info(
+            logs::debug(
                 "Animation sync released actor furniture: actor={:08X} furniture={:08X} "
                 "releasedMarkers={}",
                 a_remote.handle.native_handle(), furniture ? furniture->GetFormID() : 0, releasedMarkerCount);
@@ -547,7 +547,7 @@ namespace ActorFurniture
         const auto sitSleepState = GetActorSitSleepState(a_actor);
         if (sitSleepState != a_remote.furniture.loggedSitSleepState)
         {
-            logs::info(
+            logs::debug(
                 "Animation sync actor sit/sleep state changed: actor={:08X} previous={} current={} occupied={:08X} "
                 "target={:08X} furnitureIdle={:08X}",
                 a_remote.handle.native_handle(),
@@ -574,7 +574,7 @@ namespace ActorFurniture
                 // it recorded. Entries that report success without ever reaching
                 // here are refusals, not slow entries.
                 a_remote.furniture.occupancyObserved = true;
-                logs::info(
+                logs::debug(
                     "Animation sync confirmed furniture occupancy: actor={:08X} furniture={:08X} marker={} "
                     "sitSleepState={} elapsed={:.3f}",
                     a_remote.handle.native_handle(), targetFurnitureRefID,
@@ -683,7 +683,7 @@ namespace ActorFurniture
                     sheathedState.weaponDrawn = false;
                     ActorAnimation::SetAnimationState(a_remote, sheathedState);
                 }
-                logs::info(
+                logs::debug(
                     "Animation sync completed furniture exit: actor={:08X} furniture={:08X} nextFurniture={:08X}",
                     a_remote.handle.native_handle(), exitedFurnitureRefID, targetFurnitureRefID);
                 return false;
@@ -716,7 +716,7 @@ namespace ActorFurniture
                 if (a_remote.furniture.furnitureRetryRemaining <= 0.0F)
                 {
                     a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
-                    logs::info(
+                    logs::debug(
                         "Animation sync cancelled incomplete furniture entry: actor={:08X} occupied={:08X} "
                         "requested={:08X} target={:08X} sitSleepState={} defaultStateAccepted={} elapsed={:.3f}",
                         a_remote.handle.native_handle(), occupiedFurnitureRefID,
@@ -760,7 +760,7 @@ namespace ActorFurniture
                         a_actor, sleeping ? RE::SIT_SLEEP_STATE::kWantToWake : RE::SIT_SLEEP_STATE::kWantToStand);
                 }
                 a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
-                logs::info(
+                logs::debug(
                     "Animation sync requested furniture exit: actor={:08X} occupied={:08X} target={:08X} "
                     "sitSleepState={} stateAccepted={} furnitureIdle={:08X} elapsed={:.3f}",
                     a_remote.handle.native_handle(), occupiedFurnitureRefID, targetFurnitureRefID,
@@ -777,7 +777,7 @@ namespace ActorFurniture
                 a_remote.furniture.furnitureExitGraphForced = true;
                 static const RE::BSFixedString furnitureExitEvent{ "IdleFurnitureExit" };
                 const bool eventAccepted = AnimationFirewall::NotifyNetworkAnimationGraph(a_actor, furnitureExitEvent);
-                logs::info(
+                logs::debug(
                     "Animation sync forced furniture exit graph event: actor={:08X} occupied={:08X} sitSleepState={} "
                     "furnitureIdle={:08X} eventAccepted={} elapsed={:.3f}",
                     a_remote.handle.native_handle(), occupiedFurnitureRefID,
@@ -837,7 +837,7 @@ namespace ActorFurniture
             if (!a_remote.furniture.entrySettleLogged)
             {
                 a_remote.furniture.entrySettleLogged = true;
-                logs::info(
+                logs::debug(
                     "Animation sync deferring furniture entry until the spawn settles: actor={:08X} furniture={:08X} "
                     "resuming={} readyElapsed={:.3f}",
                     a_remote.handle.native_handle(), targetFurnitureRefID, resuming, a_remote.readyElapsed);
@@ -854,7 +854,7 @@ namespace ActorFurniture
         {
             if (EnterEntryGate(a_remote, EntryGate::kAnimationUnsettled))
             {
-                logs::info(
+                logs::debug(
                     "Animation sync furniture entry waiting for settled locomotion: actor={:08X} furniture={:08X}",
                     a_remote.handle.native_handle(), targetFurnitureRefID);
             }
@@ -864,7 +864,7 @@ namespace ActorFurniture
         {
             if (EnterEntryGate(a_remote, EntryGate::kAnimationBlocked))
             {
-                logs::info(
+                logs::debug(
                     "Animation sync furniture entry waiting for an attack, weapon, or graph transition: actor={:08X} "
                     "furniture={:08X}",
                     a_remote.handle.native_handle(), targetFurnitureRefID);
@@ -884,7 +884,7 @@ namespace ActorFurniture
             if (EnterEntryGate(a_remote, EntryGate::kAlignment))
             {
                 const auto& targetPosition = a_remote.movement.targetPosition;
-                logs::info(
+                logs::debug(
                     "Animation sync furniture entry waiting for the actor to reach the checkpoint: actor={:08X} "
                     "furniture={:08X} actorPosition=({:.1f},{:.1f},{:.1f}) target=({:.1f},{:.1f},{:.1f}) "
                     "distance={:.1f}",
@@ -900,7 +900,7 @@ namespace ActorFurniture
         if (marker < 0)
         {
             a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
-            logs::warn(
+            logs::debug(
                 "Animation sync found no available furniture marker: actor={:08X} furniture={:08X} heldByOther={}",
                 a_remote.handle.native_handle(), targetFurnitureRefID, a_remote.furniture.targetHeldByOtherActor);
             if (a_remote.furniture.targetHeldByOtherActor)
@@ -921,7 +921,7 @@ namespace ActorFurniture
             {
                 const auto probePosition
                     = GetFurnitureMarkerPosition(*furniture, marker).value_or(furniture->GetPosition());
-                logs::info(
+                logs::debug(
                     "Animation sync furniture entry waiting for the actor to approach a marker: actor={:08X} "
                     "furniture={:08X} nearestMarker={} nearestDistance={:.1f} freeMarker={} freeDistance={:.1f}",
                     a_remote.handle.native_handle(), targetFurnitureRefID, nearestMarker.marker, markerDistance, marker,

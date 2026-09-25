@@ -823,7 +823,7 @@ namespace Network
                 && (update.transform.sequence <= latest->second.sequence
                     || update.transform.graphEpoch < latest->second.graphEpoch))
             {
-                logs::info(
+                logs::debug(
                     "Animation sync ignored stale network snapshot: player={} sequence={} state={} newestSequence={} "
                     "newestState={}",
                     playerID, static_cast<unsigned long long>(update.transform.sequence),
@@ -855,7 +855,7 @@ namespace Network
             {
                 if (action.actionSequence <= latest->second)
                 {
-                    logs::info(
+                    logs::debug(
                         "Animation sync ignored stale action: player={} actionSequence={} newestActionSequence={}",
                         action.playerID, static_cast<unsigned long long>(action.actionSequence),
                         static_cast<unsigned long long>(latest->second));
@@ -873,7 +873,7 @@ namespace Network
             }
 
             latestReceivedActionSequences.insert_or_assign(action.playerID, action.actionSequence);
-            logs::info(
+            logs::debug(
                 "Animation sync received attack: player={} action={} power={} direction={} actionSequence={} "
                 "graphEpoch={} checkpointSequence={}",
                 action.playerID, GetAttackActionName(action.attack.action), action.attack.power,
@@ -893,7 +893,7 @@ namespace Network
                 return;
             }
 
-            logs::info("Mount sync received transition: player={} transition={} graphEpoch={} checkpointSequence={}",
+            logs::debug("Mount sync received transition: player={} transition={} graphEpoch={} checkpointSequence={}",
                 transition.playerID, GetMountTransitionName(transition.transition),
                 static_cast<unsigned long long>(transition.graphEpoch),
                 static_cast<unsigned long long>(transition.checkpointSequence));
@@ -919,7 +919,7 @@ namespace Network
             const auto latest = latestReceivedAppearanceRevisions.find(playerID);
             if (latest != latestReceivedAppearanceRevisions.end() && update.appearance.revision <= latest->second)
             {
-                logs::info("Appearance sync ignored stale appearance: player={} revision={} newestRevision={}",
+                logs::debug("Appearance sync ignored stale appearance: player={} revision={} newestRevision={}",
                     playerID, static_cast<unsigned long long>(update.appearance.revision),
                     static_cast<unsigned long long>(latest->second));
                 return;
@@ -945,7 +945,7 @@ namespace Network
             const auto latest = latestReceivedEquipmentRevisions.find(playerID);
             if (latest != latestReceivedEquipmentRevisions.end() && update.equipment.revision <= latest->second)
             {
-                logs::info("Equipment sync ignored stale equipment: player={} revision={} newestRevision={}", playerID,
+                logs::debug("Equipment sync ignored stale equipment: player={} revision={} newestRevision={}", playerID,
                     static_cast<unsigned long long>(update.equipment.revision),
                     static_cast<unsigned long long>(latest->second));
                 return;
@@ -1012,7 +1012,7 @@ namespace Network
                 return;
             }
 
-            logs::info("Remote player {} left the world", playerID);
+            logs::debug("Remote player {} left the world", playerID);
             std::scoped_lock lock{ remoteChangesLock };
             ForgetRemoteWorldStateLocked(playerID);
             // Unlike a disconnect, a later message does not cancel the exit: the
@@ -1076,12 +1076,16 @@ namespace Network
             client.set_socket_open_listener([](std::string const&) {
                 // A reopened namespace does not always follow a reported close, so the
                 // connected flag alone cannot reveal that the server lost our state.
-                std::scoped_lock lock{ remoteChangesLock };
-                ForgetRemotePlayersLocked();
-                const auto generation = connectionGeneration.fetch_add(1, std::memory_order_acq_rel) + 1;
-                const bool wasConnected = connected.exchange(true, std::memory_order_acq_rel);
-                logs::info("Socket.IO default namespace ready: connectionGeneration={} closeObserved={}",
-                    static_cast<unsigned long long>(generation), !wasConnected);
+                unsigned long long generation;
+                bool wasConnected;
+                {
+                    std::scoped_lock lock{ remoteChangesLock };
+                    ForgetRemotePlayersLocked();
+                    generation = connectionGeneration.fetch_add(1, std::memory_order_acq_rel) + 1;
+                    wasConnected = connected.exchange(true, std::memory_order_acq_rel);
+                }
+                logs::info("Socket.IO default namespace ready: connectionGeneration={} closeObserved={}", generation,
+                    !wasConnected);
             });
             client.set_socket_close_listener([](std::string const&) {
                 MarkDisconnected();
@@ -1310,7 +1314,7 @@ namespace Network
         }
         values["prerequisites"] = std::move(prerequisites);
 
-        logs::info(
+        logs::debug(
             "Animation sync publishing attack: action={} power={} direction={} actionSequence={} graphEpoch={} "
             "checkpointSequence={}",
             GetAttackActionName(a_attack.action), a_attack.power, GetPowerAttackDirectionName(a_attack.direction),
@@ -1333,7 +1337,7 @@ namespace Network
         values["graphEpoch"] = sio::int_message::create(static_cast<std::int64_t>(a_graphEpoch));
         values["checkpointSequence"] = sio::int_message::create(static_cast<std::int64_t>(a_checkpointSequence));
 
-        logs::info("Mount sync publishing transition: transition={} graphEpoch={} checkpointSequence={}",
+        logs::debug("Mount sync publishing transition: transition={} graphEpoch={} checkpointSequence={}",
             GetMountTransitionName(a_transition), static_cast<unsigned long long>(a_graphEpoch),
             static_cast<unsigned long long>(a_checkpointSequence));
         GetSocket()->emit("mount:transition", payload);

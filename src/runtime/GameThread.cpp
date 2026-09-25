@@ -20,7 +20,7 @@ namespace GameThread
         if (s_authoritativeGameThreadID.compare_exchange_strong(
                 expectedThread, currentThread, std::memory_order_acq_rel, std::memory_order_acquire))
         {
-            logs::info("Bound remote actor engine access to main-loop thread {}", currentThread);
+            logs::debug("Bound remote actor engine access to main-loop thread {}", currentThread);
             return true;
         }
 

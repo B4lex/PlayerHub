@@ -408,7 +408,7 @@ namespace EquipmentSync
                 }
             }
 
-            logs::info(
+            logs::debug(
                 "Equipment sync resolved remote equipment: player={} revision={} armor={}/{} rightHand={:08X} "
                 "leftHand={:08X} ammo={:08X}",
                 a_playerID, static_cast<unsigned long long>(revision), a_remote.armor.size(), equipment.armor.size(),
@@ -504,7 +504,7 @@ namespace EquipmentSync
         }
         eventSources->AddEventSink<RE::TESEquipEvent>(EquipEventSink::GetSingleton());
         registered = true;
-        logs::info("Registered local equipment event sink");
+        logs::debug("Registered local equipment event sink");
     }
 
     void SyncEquipment(const LocalFrame& a_local, float a_delta, bool a_flush)
@@ -542,7 +542,7 @@ namespace EquipmentSync
             // The server forgets a connection's equipment when it drops.
             if (published)
             {
-                logs::info("Equipment sync republishing after connect: revision={} connectionGeneration={}",
+                logs::debug("Equipment sync republishing after connect: revision={} connectionGeneration={}",
                     static_cast<unsigned long long>(published->revision), static_cast<unsigned long long>(generation));
                 Network::PublishLocalEquipment(*published);
                 publishElapsed = 0.0F;
@@ -587,7 +587,7 @@ namespace EquipmentSync
             return;
         }
 
-        logs::info(
+        logs::debug(
             "Equipment sync publishing local equipment: revision={} armor={} rightHand={}:{}|{:06X} "
             "leftHand={}:{}|{:06X} ammo={}|{:06X} skipped={} flush={}",
             static_cast<unsigned long long>(pending->revision), pending->armor.size(),
@@ -612,7 +612,7 @@ namespace EquipmentSync
             return;
         }
 
-        logs::info("Equipment sync accepted remote equipment: player={} revision={} armor={} rightHand={} leftHand={}",
+        logs::debug("Equipment sync accepted remote equipment: player={} revision={} armor={} rightHand={} leftHand={}",
             a_playerID, static_cast<unsigned long long>(a_equipment.revision), a_equipment.armor.size(),
             a_equipment.rightHand.has_value(), a_equipment.leftHand.has_value());
         a_remote.latest = std::move(a_equipment);
@@ -734,7 +734,7 @@ namespace EquipmentSync
         {
             if (a_remote.attempts != 0 || a_remote.exhausted)
             {
-                logs::info("Equipment sync reconciled actor: player={} actor={:08X} revision={} attempts={}",
+                logs::debug("Equipment sync reconciled actor: player={} actor={:08X} revision={} attempts={}",
                     a_playerID, a_remoteActor.handle.native_handle(),
                     static_cast<unsigned long long>(a_remote.resolvedRevision), a_remote.attempts);
             }
@@ -881,7 +881,7 @@ namespace EquipmentSync
             }
         }
 
-        logs::info(
+        logs::debug(
             "Equipment sync reconciling actor: player={} actor={:08X} revision={} attempt={} removed={} added={} "
             "equippedArmor={} swappedHands={} handsDeferred={} rightHand={:08X} leftHand={:08X} ammo={:08X}",
             a_playerID, a_remoteActor.handle.native_handle(),

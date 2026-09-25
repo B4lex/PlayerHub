@@ -32,7 +32,7 @@ namespace ScenePackageSuppression
 
             const auto* quest = a_scene ? a_scene->parentQuest : nullptr;
             const auto* package = a_action.packages.empty() ? nullptr : a_action.packages.front();
-            logs::info(
+            logs::debug(
                 "Refused local scene package for remote actor: path={} actor={:08X} scene={:08X} quest={:08X} "
                 "alias={} package={:08X} packages={} count={}",
                 a_path, a_actor.GetHandle().native_handle(), a_scene ? a_scene->GetFormID() : 0,
@@ -122,7 +122,7 @@ namespace ScenePackageSuppression
         StartActionHook::_original = actionVTable.write_vfunc(0x10, StartActionHook::Thunk);
         const bool firstUpdateSite = UpdateActionHook<24130, 0x9A>::Install();
         const bool secondUpdateSite = UpdateActionHook<24173, 0x61>::Install();
-        logs::info("Remote actor scene package suppression hooks: startAction=true updateAction={}/{}", firstUpdateSite,
-            secondUpdateSite);
+        logs::debug("Remote actor scene package suppression hooks: startAction=true updateAction={}/{}",
+            firstUpdateSite, secondUpdateSite);
     }
 }

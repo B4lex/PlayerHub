@@ -569,7 +569,7 @@ namespace AppearanceSync
                 npc->tintLayers->push_back(layer);
             }
 
-            logs::info(
+            logs::debug(
                 "Appearance sync built actor base: player={} revision={} base={:08X} name=\"{}\" race={:08X} female={} "
                 "weight={:.1f} height={:.2f} headParts={}/{} hairColor={:08X} faceDetails={:08X} tints={}/{} "
                 "droppedTints={} attackData={} combatStyle={:08X}",
@@ -725,7 +725,7 @@ namespace AppearanceSync
             // The server forgets a connection's appearance when it drops.
             if (published)
             {
-                logs::info("Appearance sync republishing after connect: revision={} connectionGeneration={}",
+                logs::debug("Appearance sync republishing after connect: revision={} connectionGeneration={}",
                     static_cast<unsigned long long>(published->revision), static_cast<unsigned long long>(generation));
                 Network::PublishLocalAppearance(*published);
                 publishElapsed = 0.0F;
@@ -773,7 +773,7 @@ namespace AppearanceSync
             return;
         }
 
-        logs::info(
+        logs::debug(
             "Appearance sync publishing local appearance: revision={} name=\"{}\" race={}|{:06X} female={} "
             "headParts={} tints={}",
             static_cast<unsigned long long>(candidate->revision), candidate->name, candidate->race.plugin,
@@ -792,7 +792,7 @@ namespace AppearanceSync
             return;
         }
 
-        logs::info(
+        logs::debug(
             "Appearance sync accepted remote appearance: player={} revision={} name=\"{}\" race={}|{:06X} female={} "
             "headParts={} tints={}",
             a_playerID, static_cast<unsigned long long>(a_appearance.revision), a_appearance.name,
@@ -870,7 +870,7 @@ namespace AppearanceSync
             a_remote.colorsApplied = true;
             a_actor.UpdateHairColor();
             a_actor.UpdateSkinColor();
-            logs::info(
+            logs::debug(
                 "Appearance sync applied actor colors: player={} actor={:08X} base={:08X} revision={} faceNode={}",
                 a_playerID, a_actor.GetHandle().native_handle(), a_remote.spawnedBase->GetFormID(),
                 static_cast<unsigned long long>(a_remote.spawnedRevision), a_actor.GetFaceNodeSkinned() != nullptr);
@@ -889,7 +889,8 @@ namespace AppearanceSync
         }
         a_remote.faceTintTexture.reset(tintTexture);
         const auto renderedTints = QueueFaceTintRender(*a_remote.spawnedBase, *tintTexture);
-        logs::info("Appearance sync queued actor face tint: player={} actor={:08X} base={:08X} revision={} tints={}/{}",
+        logs::debug(
+            "Appearance sync queued actor face tint: player={} actor={:08X} base={:08X} revision={} tints={}/{}",
             a_playerID, a_actor.GetHandle().native_handle(), a_remote.spawnedBase->GetFormID(),
             static_cast<unsigned long long>(a_remote.spawnedRevision), renderedTints,
             a_remote.spawnedBase->tintLayers ? a_remote.spawnedBase->tintLayers->size() : 0);

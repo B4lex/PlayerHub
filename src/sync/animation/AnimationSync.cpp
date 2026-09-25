@@ -312,7 +312,7 @@ namespace AnimationSync
             epochChanged = true;
             observedGraph = graphManager.get();
             continuityLost = false;
-            logs::info("Animation sync advanced local graph epoch: graphEpoch={}",
+            logs::debug("Animation sync advanced local graph epoch: graphEpoch={}",
                 static_cast<unsigned long long>(graphEpoch));
         }
         return LocalGraphEpoch{ .epoch = graphEpoch, .changed = epochChanged };
@@ -327,7 +327,7 @@ namespace AnimationSync
         const auto animationState = GetAnimationState(a_local.player);
         if (!hasPreviousAnimationState || animationState != previousAnimationState)
         {
-            logs::info(
+            logs::debug(
                 "Animation sync publishing local state: sequence={} previous={}/{} state={}/{} "
                 "position=({:.3f},{:.3f},{:.3f}) speed={:.1f} direction={:.3f} physicalJump={} physicalMidair={}",
                 static_cast<unsigned long long>(a_sequence),
@@ -350,7 +350,7 @@ namespace AnimationSync
             = a_update.inserted || a_update.previous.animationState != a_update.checkpoint.animationState;
         if (animationStateChanged)
         {
-            logs::info(
+            logs::debug(
                 "Animation sync accepted main-loop target: player={} previousSequence={} previous={}/{} sequence={} "
                 "state={}/{} position=({:.3f},{:.3f},{:.3f}) speed={:.1f} direction={:.3f}",
                 a_update.playerID, static_cast<unsigned long long>(a_update.previousSequence),
@@ -390,7 +390,7 @@ namespace AnimationSync
         {
             return;
         }
-        logs::info(
+        logs::debug(
             "Animation sync advancing animation state: player={} actor={:08X} sequence={} current={}/{} step={}/{} "
             "target={}/{}",
             a_remote.playerID, a_actor.handle.native_handle(), static_cast<unsigned long long>(a_remote.lastSequence),

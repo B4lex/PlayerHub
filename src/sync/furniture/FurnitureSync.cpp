@@ -22,7 +22,7 @@ namespace FurnitureSync
         const auto furnitureRefID = GetOccupiedFurnitureRefID(a_local.player);
         if (!hasPreviousFurnitureRefID || furnitureRefID != previousFurnitureRefID)
         {
-            logs::info("Animation sync publishing local furniture state: sequence={} previous={:08X} furniture={:08X}",
+            logs::debug("Animation sync publishing local furniture state: sequence={} previous={:08X} furniture={:08X}",
                 static_cast<unsigned long long>(a_sequence), previousFurnitureRefID, furnitureRefID);
             previousFurnitureRefID = furnitureRefID;
             hasPreviousFurnitureRefID = true;
@@ -88,7 +88,7 @@ namespace FurnitureSync
     {
         if (a_update.previous.furnitureRefID != a_update.checkpoint.furnitureRefID)
         {
-            logs::info(
+            logs::debug(
                 "Animation sync accepted main-loop furniture target: player={} sequence={} previous={:08X} "
                 "furniture={:08X}",
                 a_update.playerID, static_cast<unsigned long long>(a_update.checkpoint.sequence),

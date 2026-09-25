@@ -76,8 +76,9 @@ namespace ReactionSuppression
                         const auto* item = a_item ? *a_item : nullptr;
                         const auto* info = item ? item->info : nullptr;
                         const auto* topic = item ? item->topic : nullptr;
-                        logs::info("Suppressed remote actor dialogue response: speaker={:08X} listener={:08X} "
-                                   "topic={:08X} info={:08X} count={}",
+                        logs::debug(
+                            "Suppressed remote actor dialogue response: speaker={:08X} listener={:08X} "
+                            "topic={:08X} info={:08X} count={}",
                             a_speaker->GetFormID(), a_listener ? a_listener->GetFormID() : 0,
                             topic ? topic->GetFormID() : 0, info ? info->GetFormID() : 0, count);
                     }
@@ -105,8 +106,8 @@ namespace ReactionSuppression
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     if (const auto count = CountSuppression(suppressedCount))
                     {
-                        logs::info("Suppressed remote actor fleeing: actor={:08X} count={}", a_actor->GetFormID(),
-                            count);
+                        logs::debug(
+                            "Suppressed remote actor fleeing: actor={:08X} count={}", a_actor->GetFormID(), count);
                     }
                     return false;
                 }
@@ -129,7 +130,7 @@ namespace ReactionSuppression
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     if (const auto count = CountSuppression(suppressedCount))
                     {
-                        logs::info("Suppressed remote actor detection: owner={:08X} target={:08X} count={}",
+                        logs::debug("Suppressed remote actor detection: owner={:08X} target={:08X} count={}",
                             a_knowledge->owner.native_handle(), a_knowledge->target.native_handle(), count);
                     }
                     return;
@@ -157,7 +158,7 @@ namespace ReactionSuppression
             REL::ID(37577), kIsFleeingPrologue, reinterpret_cast<std::uintptr_t>(&IsFleeingHook::Thunk), "IsFleeing");
         SetDetectionStateHook::_original = WriteEntryDetour(REL::ID(42704), kSetDetectionStatePrologue,
             reinterpret_cast<std::uintptr_t>(&SetDetectionStateHook::Thunk), "detection state");
-        logs::info("Remote actor reaction suppression hooks: dialogueResponse={} isFleeing={} detectionState={}",
+        logs::debug("Remote actor reaction suppression hooks: dialogueResponse={} isFleeing={} detectionState={}",
             ProcessResponseHook::_original.address() != 0, IsFleeingHook::_original.address() != 0,
             SetDetectionStateHook::_original.address() != 0);
     }

@@ -74,7 +74,7 @@ namespace UI::Overlay
             }
 
             initialized = true;
-            logs::info("UI overlay: initialized Dear ImGui {}", IMGUI_VERSION);
+            logs::debug("UI overlay: initialized Dear ImGui {}", IMGUI_VERSION);
             return true;
         }
 
@@ -183,6 +183,6 @@ namespace UI::Overlay
         RendererEndHook::_original
             = SKSE::GetTrampoline().write_call<5>(rendererEndTimerCall.address(), RendererEndHook::Thunk);
 
-        logs::info("Installed UI overlay renderer hook");
+        logs::debug("Installed UI overlay renderer hook");
     }
 }

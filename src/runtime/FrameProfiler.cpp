@@ -69,7 +69,7 @@ namespace FrameProfiler
                     ToMilliseconds(section.maximumNanoseconds));
             }
 
-            logs::info(
+            logs::debug(
                 "Frame profiler: frames={} averageFrame={:.3f}ms pluginAverage={:.3f}ms ({:.2f}%) "
                 "pluginMaximum={:.3f}ms{}",
                 s_frames, ToMilliseconds(averageFrameNanoseconds), ToMilliseconds(averagePluginNanoseconds),
@@ -103,7 +103,7 @@ namespace FrameProfiler
         if (!s_windowStart)
         {
             s_windowStart = now;
-            logs::info("Frame profiler: enabled, reporting every {} main-loop passes", kReportIntervalFrames);
+            logs::debug("Frame profiler: enabled, reporting every {} main-loop passes", kReportIntervalFrames);
             return;
         }
 

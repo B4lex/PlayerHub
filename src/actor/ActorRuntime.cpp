@@ -52,7 +52,7 @@ namespace ActorRuntime
                 if (a_remote.initializationWaitFrames == 1
                     || a_remote.initializationWaitFrames % kActorInitializationLogInterval == 0)
                 {
-                    logs::info(
+                    logs::debug(
                         "Waiting for remote actor actor initialization: actor={:08X} base={:08X} loaded3D={} "
                         "controller={} graph={} waitedFrames={}",
                         a_remote.handle.native_handle(),
@@ -66,7 +66,7 @@ namespace ActorRuntime
             // travel package. The update hook suppresses only its combat decisions.
             SurvivalPolicy::AssertDoNothingPackage(a_actor);
             a_remote.ready = true;
-            logs::info(
+            logs::debug(
                 "Remote actor actor became ready: actor={:08X} base={:08X} desired={} hasCollision={} aiEnabled={} "
                 "waitedFrames={}",
                 a_remote.handle.native_handle(), a_actor.GetActorBase() ? a_actor.GetActorBase()->GetFormID() : 0,

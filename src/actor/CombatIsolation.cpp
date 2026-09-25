@@ -32,7 +32,7 @@ namespace CombatIsolation
             const auto count = ++suppressedCount;
             if (count <= kInitialBlockedEventLogs || count % kBlockedEventLogInterval == 0)
             {
-                logs::info(
+                logs::debug(
                     "Suppressed local hostility involving remote actor: path={} actor={:08X} target={:08X} count={}",
                     a_path, a_actor ? a_actor->GetFormID() : 0, a_target ? a_target->GetFormID() : 0, count);
             }
@@ -53,7 +53,7 @@ namespace CombatIsolation
             const auto count = ++suppressedCount;
             if (count <= kInitialBlockedEventLogs || count % kBlockedEventLogInterval == 0)
             {
-                logs::info("Suppressed remote actor hit: path={} aggressor={:08X} target={:08X} count={}", a_path,
+                logs::debug("Suppressed remote actor hit: path={} aggressor={:08X} target={:08X} count={}", a_path,
                     a_aggressor->GetFormID(), a_target ? a_target->GetFormID() : 0, count);
             }
             return true;
@@ -72,7 +72,7 @@ namespace CombatIsolation
             const auto count = ++suppressedCount;
             if (count <= kInitialBlockedEventLogs || count % kBlockedEventLogInterval == 0)
             {
-                logs::info("Suppressed remote actor release: path={} actor={:08X} count={}", a_path,
+                logs::debug("Suppressed remote actor release: path={} actor={:08X} count={}", a_path,
                     a_actor->GetFormID(), count);
             }
             return true;
@@ -280,7 +280,7 @@ namespace CombatIsolation
             REL::Relocation<std::uintptr_t> actorMagicCasterVTable{ RE::VTABLE_ActorMagicCaster[0] };
             CastSpellImmediateHook::_original = actorMagicCasterVTable.write_vfunc(0x1, CastSpellImmediateHook::Thunk);
             CheckCastHook::_original = actorMagicCasterVTable.write_vfunc(0xA, CheckCastHook::Thunk);
-            logs::info("Remote actor release hooks: arrowRelease={} castSpellImmediate={} checkCast={}",
+            logs::debug("Remote actor release hooks: arrowRelease={} castSpellImmediate={} checkCast={}",
                 ArrowReleaseHandlerHook::_original.address() != 0, CastSpellImmediateHook::_original.address() != 0,
                 CheckCastHook::_original.address() != 0);
         }
@@ -311,7 +311,7 @@ namespace CombatIsolation
             REL::ID(34407), kSpellFirePrologue, reinterpret_cast<std::uintptr_t>(&SpellFireHook::Thunk), "spell fire");
         ProjectileHitHook::_original = WriteCallDetour(
             REL::ID(44218), 0x90, reinterpret_cast<std::uintptr_t>(&ProjectileHitHook::Thunk), "projectile hit");
-        logs::info(
+        logs::debug(
             "Remote actor combat isolation hooks: hostility={} isHostileToActor={} startCombat={} weaponSwingHit={} "
             "spellFire={} projectileHit={}",
             HostilityHook::_original.address() != 0, IsHostileToActorHook::_original.address() != 0,

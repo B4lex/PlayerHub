@@ -19,7 +19,7 @@ namespace DeathSync
         const bool dead = lifeState == RE::ACTOR_LIFE_STATE::kDying || lifeState == RE::ACTOR_LIFE_STATE::kDead;
         if (dead != previousDead)
         {
-            logs::info("Publishing local player life state: sequence={} dead={} lifeState={}",
+            logs::debug("Publishing local player life state: sequence={} dead={} lifeState={}",
                 static_cast<unsigned long long>(a_sequence), dead,
                 static_cast<std::underlying_type_t<RE::ACTOR_LIFE_STATE>>(lifeState));
             previousDead = dead;
@@ -58,7 +58,7 @@ namespace DeathSync
         // Attacks queued before the death must not play on the body.
         CombatSync::ClearRemoteActions(a_peer.combat);
         const bool killed = ActorDeath::Kill(actor);
-        logs::info("Remote player {} died: actor={:08X} killed={} sequence={}", a_remote.playerID,
+        logs::debug("Remote player {} died: actor={:08X} killed={} sequence={}", a_remote.playerID,
             actor.handle.native_handle(), killed, static_cast<unsigned long long>(a_remote.lastSequence));
         return true;
     }
