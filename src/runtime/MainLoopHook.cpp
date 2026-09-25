@@ -1,7 +1,7 @@
 #include "runtime/MainLoopHook.h"
 #include "network/ConnectionMonitor.h"
-#include "runtime/FrameProfiler.h"
 #include "runtime/GameThread.h"
+#include "runtime/PluginTime.h"
 #include "sync/SyncCoordinator.h"
 
 #include <cmath>
@@ -18,10 +18,10 @@ namespace MainLoopHook
                 _original(a_context);
 
                 {
-                    const FrameProfiler::ScopedSection section{ FrameProfiler::Section::MainLoop };
+                    const PluginTime::Scope timing;
                     Update();
                 }
-                FrameProfiler::EndFrame();
+                PluginTime::EndFrame();
             }
 
             static void Update()

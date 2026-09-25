@@ -1,6 +1,6 @@
 #include "ui/Overlay.h"
-#include "runtime/FrameProfiler.h"
-#include "ui/hud/PingIndicator.h"
+#include "runtime/PluginTime.h"
+#include "ui/hud/StatusPanel.h"
 
 #include <backends/imgui_impl_dx11.h>
 #include <backends/imgui_impl_win32.h>
@@ -130,7 +130,7 @@ namespace UI::Overlay
             ApplyScale(io.DisplaySize.y);
 
             ImGui::NewFrame();
-            PingIndicator::Draw();
+            StatusPanel::Draw();
             ImGui::Render();
 
             // The DX11 backend restores the pipeline state it changes, except the
@@ -163,7 +163,7 @@ namespace UI::Overlay
             static void Thunk(std::uint32_t a_timer)
             {
                 _original(a_timer);
-                const FrameProfiler::ScopedSection section{ FrameProfiler::Section::Overlay };
+                const PluginTime::Scope timing;
                 DrawFrame();
             }
 

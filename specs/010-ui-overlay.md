@@ -11,8 +11,8 @@ logged.
 ## Goal
 
 Give the plugin its own UI layer. The first use is a small indicator in a screen
-corner showing whether the client is connected and its round-trip latency to the
-server. Later, the same layer has to host settings that players can change.
+corner showing whether the client is connected, its round-trip latency to the
+server, and how much frame time the plugin itself takes. Later, the same layer has to host settings that players can change.
 
 ## Technology choice
 
@@ -31,9 +31,11 @@ ImGui settings screen without changing the network side.
 src/ui/
   Overlay.h/.cpp            # renderer hook, ImGui context/backends, frame order
   Layout.h                  # shared placement helpers (screen corners)
-  hud/PingIndicator.h/.cpp  # always-on connection/ping widget
+  hud/StatusPanel.h/.cpp    # always-on connection, ping, and plugin time widget
 src/network/
   ConnectionMonitor.h/.cpp  # probe cadence, timeout, latest sample, reconnect schedule
+src/runtime/
+  PluginTime.h/.cpp         # plugin time per main-loop pass, averaged each second
 ```
 
 `ui/` reads state and never changes the game or the network. `Overlay::DrawFrame`
@@ -107,9 +109,9 @@ the overlay shows that state whichever side ended it. Every loss is recoverable.
   publishers republish their state. Remote players are recreated from the
   server's replay.
 
-## Ping indicator
+## Status panel
 
-The indicator sits in the top-right corner, 12 px from both edges before scaling,
+The panel sits in the top-right corner, 12 px from both edges before scaling,
 on a translucent background. It takes no input.
 
 | State | Text | Color |
@@ -120,6 +122,28 @@ on a translucent background. It takes no input.
 | ≤ 150 ms | `Ping N ms` | yellow |
 | > 150 ms | `Ping N ms` | red |
 
+Below the ping line, always shown whatever the connection state:
+
+| State | Text | Color |
+| --- | --- | --- |
+| First window not complete | `Plugin -- ms` | grey |
+| Otherwise | `Plugin N.NN ms` | grey |
+
+## Plugin time
+
+- `PluginTime::Scope` wraps the plugin's work in the main-loop hook and in the
+  renderer hook. Scopes add their duration, measured with
+  `std::chrono::steady_clock`, to a shared atomic total, because the renderer
+  hook is not guaranteed to run on the main-loop thread.
+- The main-loop hook calls `PluginTime::EndFrame` once per pass, after its
+  scope closes. Time spent before the first pass, such as startup, is dropped.
+- Once at least 1 second of wall-clock time has passed since the window started,
+  the total divided by the passes in the window becomes the published average,
+  and a new window starts. The overlay reads that average, so it changes once
+  per second instead of flickering every frame.
+- It is always compiled in and costs two clock reads per hook call, so it needs
+  no build option.
+
 ## Future work: settings screen
 
 - Input: Skyrim reads keyboard and mouse through DirectInput, so window messages
@@ -129,7 +153,7 @@ on a translucent background. It takes no input.
   use the same back-buffer size as `io.DisplaySize`.
 - Settings storage: add one settings module that loads and saves a file under
   `Data/SKSE/Plugins/` and is read by the game thread. The server endpoint file
-  and `PingIndicator::kCorner` are the first candidates to move there.
+  and `StatusPanel::kCorner` are the first candidates to move there.
 - Pausing: while the menu is open, decide whether to open a native menu, so
   that the game pauses and controls are released, or to only capture input.
 
@@ -138,7 +162,7 @@ on a translucent background. It takes no input.
 - Server: `test_app_latency.py` checks that the probe is acknowledged with
   `{"ok": true}` and not relayed, and that a client-supplied `sentAtMs` is
   neither stored nor relayed.
-- In game (pending): the indicator shows `Disconnected` before the connection,
+- In game (pending): the panel shows `Disconnected` before the connection,
   then a stable ping. Stopping the server shows `Disconnected`, and a restart
   recovers. So do a server-side kick, and a blocked route to the server, which
   is noticed after the 5-second probe timeout. The overlay scales at 1080p and

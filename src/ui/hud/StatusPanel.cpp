@@ -1,6 +1,7 @@
-#include "ui/hud/PingIndicator.h"
+#include "ui/hud/StatusPanel.h"
 #include "network/ConnectionMonitor.h"
 #include "network/SocketIOClient.h"
+#include "runtime/PluginTime.h"
 #include "ui/Layout.h"
 
 #include <imgui.h>
@@ -8,7 +9,7 @@
 #include <chrono>
 #include <optional>
 
-namespace UI::PingIndicator
+namespace UI::StatusPanel
 {
     namespace
     {
@@ -41,13 +42,25 @@ namespace UI::PingIndicator
                                                                          : kPoorColor;
             ImGui::TextColored(color, "Ping %lld ms", milliseconds);
         }
+
+        void DrawPluginTime(std::optional<std::chrono::nanoseconds> a_average)
+        {
+            if (!a_average)
+            {
+                ImGui::TextColored(kMutedColor, "Plugin -- ms");
+                return;
+            }
+
+            const std::chrono::duration<double, std::milli> milliseconds = *a_average;
+            ImGui::TextColored(kMutedColor, "Plugin %.2f ms", milliseconds.count());
+        }
     }
 
     void Draw()
     {
         SetNextWindowCorner(kCorner, kMarginPixels);
         ImGui::SetNextWindowBgAlpha(kBackgroundAlpha);
-        if (!ImGui::Begin("##PingIndicator", nullptr, kWindowFlags))
+        if (!ImGui::Begin("##StatusPanel", nullptr, kWindowFlags))
         {
             ImGui::End();
             return;
@@ -61,6 +74,7 @@ namespace UI::PingIndicator
         {
             DrawPing(Network::GetLatency());
         }
+        DrawPluginTime(PluginTime::GetAverageFrameTime());
 
         ImGui::End();
     }
