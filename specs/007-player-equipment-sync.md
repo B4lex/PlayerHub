@@ -30,9 +30,9 @@ Before this change actors had no synchronized equipment. `weaponDrawn`
 - Enchantments, tempering, poison, charge, and player-given names. Enchanted
   items are reduced to their unenchanted base item (see
   [Enchanted and crafted items](#enchanted-and-crafted-items)).
-- Items whose defining plugin the receiver does not have. They are dropped for
-  now. A later spec adds a fallback that maps a missing item to a vanilla
-  equivalent, and the protocol already carries the hints for it.
+- Items whose defining plugin the receiver does not have. They are dropped
+  here. Spec 019 replaces them with configured fallback items, using the hints
+  the protocol already carries.
 - Equipment while transformed (werewolf, vampire lord). As in spec 006, peers
   keep the last equipment captured in a playable race.
 - Equip and unequip sounds and animations on the actor.
@@ -67,7 +67,7 @@ reduced to a referenceable base item, the entry is omitted.
 The **sender publishes every referenceable equipped item, vanilla or not**. All
 filtering happens on the receiver, which resolves an item from any plugin it has
 loaded. Peers that share a mod see its items; a peer missing the plugin drops
-the entry until the future fallback system fills it in.
+the entry, or shows a fallback for it (spec 019).
 
 ### Fields
 
@@ -84,7 +84,7 @@ the entry until the future fallback system fills it in.
 
 Plugin names are 1..260 characters and `formId` is `0..0xFFFFFF`, as in
 spec 006. The hint fields `slotMask`, `armorType`, and `weaponType` do not
-affect resolution in this phase. They exist for the future fallback. A receiver
+affect resolution. They select the fallback of spec 019. A receiver
 still validates them, but the locally resolved form is authoritative for how an
 item is equipped.
 
@@ -191,7 +191,7 @@ when a local mod overrides its record, and the receiver sees its own version of
 that item.
 
 The filter is a single policy function that takes an entry and returns a
-resolved form or a drop reason. The future fallback system replaces the drop
+resolved form or a drop reason. The fallback of spec 019 replaces the drop
 branch without touching capture, protocol, or reconciliation.
 
 Consequences in this phase, all accepted:

@@ -225,14 +225,13 @@ and stops if the server rejects a message.
 
 ## Connecting from another computer
 
-Create this file under the remote player's Skyrim installation:
+On the remote player's machine, edit `skyrim-mp.ini` next to `skyrim-mp.dll`
+(the plugin writes it with defaults on the first launch) and set the shared
+server's reachable URL, for example:
 
-`Data/SKSE/Plugins/skyrim-mp-server.txt`
-
-Put the shared server's reachable URL on its first line, for example:
-
-```text
-http://192.168.1.20:3000
+```ini
+[Network]
+ServerEndpoint = http://192.168.1.20:3000
 ```
 
 Allow inbound TCP port `3000` through the server machine's firewall. This POC

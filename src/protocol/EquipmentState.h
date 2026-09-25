@@ -27,8 +27,8 @@ namespace Multiplayer
         kSpell
     };
 
-    // Worn armor, clothing, jewelry, or shield. The slot mask and armor type are
-    // hints for a future fallback when the form is unavailable on the receiver.
+    // Worn armor, clothing, jewelry, or shield. The slot mask and armor type
+    // select a fallback when the form is unavailable on the receiver.
     struct EquipmentArmor
     {
         FormReference form;

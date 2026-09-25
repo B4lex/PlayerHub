@@ -204,4 +204,5 @@ applied checkpoint changes jump phase.
    Swimming, combat, directional strafing, and actor values are not;
    unsynchronized local combat and hit reactions are suppressed on actors.
 7. The endpoint defaults to `http://127.0.0.1:3000`. Remote clients configure
-   it through `Data/SKSE/Plugins/skyrim-mp-server.txt`; there is no in-game UI.
+   it through `[Network] ServerEndpoint` in `skyrim-mp.ini` next to the plugin
+   DLL (spec 019); there is no in-game UI.

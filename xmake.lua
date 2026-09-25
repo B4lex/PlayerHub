@@ -12,13 +12,9 @@ set_warnings("allextra")
 add_rules("mode.debug", "mode.releasedbg")
 add_rules("plugin.vsxmake.autoupdate")
 
--- Socket.IO client used by the multiplayer network layer.
--- SIO_TLS switches sioclient's websocketpp transport to asio_tls_client and makes
--- it dial wss://; the library picks the scheme at compile time, so without this
--- define a wss:// endpoint would still be contacted over plaintext ws://.
 add_requires("socket-io-client 3.1.0", { configs = { shared = false, cxxflags = "-DSIO_TLS" } })
--- Dear ImGui draws the in-game overlay on Skyrim's own D3D11 device.
 add_requires("imgui v1.92.9", { configs = { dx11 = true, win32 = true } })
+add_requires("simpleini v4.25", { configs = { convert = "none" } })
 set_runtimes("MD")
 
 -- define targets
@@ -33,7 +29,7 @@ target("skyrim-mp")
     add_files("src/**.cpp")
     add_headerfiles("src/**.h")
     add_includedirs("src")
-    add_packages("socket-io-client", "imgui")
+    add_packages("socket-io-client", "imgui", "simpleini")
     -- socket-io-client uses Winsock through standalone Asio on Windows.
     add_syslinks("ws2_32")
     set_pcxxheader("src/pch.h")
