@@ -1,4 +1,5 @@
 #include "network/SocketIOClient.h"
+#include "config/PluginConfig.h"
 
 #include <sio_client.h>
 
@@ -7,7 +8,6 @@
 #include <cmath>
 #include <deque>
 #include <exception>
-#include <fstream>
 #include <limits>
 #include <map>
 #include <mutex>
@@ -21,8 +21,6 @@ namespace Network
 {
     namespace
     {
-        constexpr auto kDefaultServerEndpoint = "https://8fa21dsv.lmfao.pp.ua";
-        constexpr auto kServerEndpointPath = "Data/SKSE/Plugins/skyrim-mp-server.txt";
         std::atomic_bool connected{ false };
         std::atomic_uint64_t connectionGeneration{ 0 };
         std::atomic_bool reconnectWorkerRunning{ false };
@@ -43,33 +41,7 @@ namespace Network
 
         const std::string& GetServerEndpoint()
         {
-            static const std::string endpoint = [] {
-                std::ifstream input{ kServerEndpointPath };
-                std::string configuredEndpoint;
-                if (!std::getline(input, configuredEndpoint))
-                {
-                    return std::string{ kDefaultServerEndpoint };
-                }
-
-                const auto first = configuredEndpoint.find_first_not_of(" \t\r\n");
-                const auto last = configuredEndpoint.find_last_not_of(" \t\r\n");
-                if (first == std::string::npos)
-                {
-                    return std::string{ kDefaultServerEndpoint };
-                }
-                configuredEndpoint = configuredEndpoint.substr(first, last - first + 1);
-
-                if (!configuredEndpoint.starts_with("http://") && !configuredEndpoint.starts_with("https://"))
-                {
-                    logs::warn(
-                        "Ignoring invalid endpoint in {}; using {}", kServerEndpointPath, kDefaultServerEndpoint);
-                    return std::string{ kDefaultServerEndpoint };
-                }
-
-                return configuredEndpoint;
-            }();
-
-            return endpoint;
+            return Config::Get().network.serverEndpoint;
         }
 
         sio::client& GetClient()

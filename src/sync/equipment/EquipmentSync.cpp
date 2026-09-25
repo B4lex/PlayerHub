@@ -3,12 +3,15 @@
 #include "actor/RemoteActor.h"
 #include "forms/FormLookup.h"
 #include "network/SocketIOClient.h"
+#include "sync/equipment/EquipmentFallback.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <format>
 #include <limits>
 #include <map>
+#include <span>
 #include <string_view>
 #include <utility>
 
@@ -239,9 +242,8 @@ namespace EquipmentSync
         };
 
         // The single receive policy: resolve an entry to a local form of the
-        // expected type, or return why it is dropped. Any plugin the receiver has
-        // loaded resolves; a plugin the receiver is missing drops the entry. The
-        // future fallback system replaces the drops.
+        // expected type, or return why it is unresolved. Any plugin the receiver
+        // has loaded resolves. An unresolved entry gets a configured fallback.
         Resolution<RE::TESObjectARMO> ResolveArmor(const EquipmentArmor& a_entry)
         {
             auto* form = FormLookup::ResolveForm(a_entry.form);
@@ -305,12 +307,29 @@ namespace EquipmentSync
             return { .form = weapon };
         }
 
-        void LogDroppedEntry(const std::string& a_playerID, std::uint64_t a_revision, std::string_view a_slot,
-            const Multiplayer::FormReference& a_form, std::string_view a_reason)
+        std::string FormatFallback(std::span<RE::TESObjectARMO* const> a_forms)
         {
-            logs::warn("Equipment sync dropped remote item: player={} revision={} slot={} item={}|{:06X} reason={}",
+            std::string text;
+            for (const auto* form : a_forms)
+            {
+                text += std::format("{}{:08X}", text.empty() ? "" : ",", form->GetFormID());
+            }
+            return text.empty() ? "none" : text;
+        }
+
+        std::string FormatFallback(const RE::TESForm* a_form)
+        {
+            return a_form ? std::format("{:08X}", a_form->GetFormID()) : "none";
+        }
+
+        void LogUnresolvedEntry(const std::string& a_playerID, std::uint64_t a_revision, std::string_view a_slot,
+            const Multiplayer::FormReference& a_form, std::string_view a_reason, std::string_view a_fallback)
+        {
+            logs::warn(
+                "Equipment sync could not resolve remote item: player={} revision={} slot={} item={}|{:06X} "
+                "reason={} fallback={}",
                 a_playerID, static_cast<unsigned long long>(a_revision), a_slot, a_form.plugin, a_form.localFormID,
-                a_reason);
+                a_reason, a_fallback);
         }
 
         ResolvedHand ResolveHandEntry(const std::string& a_playerID, std::uint64_t a_revision, std::string_view a_slot,
@@ -322,14 +341,19 @@ namespace EquipmentSync
             }
             const auto resolution = ResolveHand(*a_entry);
             const bool spell = a_entry->kind == EquipmentHandKind::kSpell;
-            if (!resolution.form)
+            auto* object = resolution.form;
+            if (!object)
             {
-                LogDroppedEntry(
-                    a_playerID, a_revision, a_slot, spell ? kPlaceholderSpell : a_entry->form, resolution.dropReason);
-                return {};
+                object = EquipmentFallback::FindHand(*a_entry);
+                LogUnresolvedEntry(a_playerID, a_revision, a_slot, spell ? kPlaceholderSpell : a_entry->form,
+                    resolution.dropReason, FormatFallback(object));
+                if (!object)
+                {
+                    return {};
+                }
             }
-            const auto* weapon = resolution.form->As<RE::TESObjectWEAP>();
-            return ResolvedHand{ .object = resolution.form,
+            const auto* weapon = object->As<RE::TESObjectWEAP>();
+            return ResolvedHand{ .object = object,
                 .twoHanded
                 = weapon && Multiplayer::IsTwoHandedWeaponType(static_cast<std::uint8_t>(weapon->GetWeaponType())),
                 .spell = spell };
@@ -371,18 +395,29 @@ namespace EquipmentSync
             }
 
             const auto& equipment = *a_remote.latest;
+            // Resolved items take their slots first; fallbacks only fill what is left.
+            std::uint32_t occupiedSlots = 0;
+            std::vector<std::pair<const EquipmentArmor*, std::string_view>> unresolved;
             for (const auto& entry : equipment.armor)
             {
                 const auto resolution = ResolveArmor(entry);
                 if (!resolution.form)
                 {
-                    LogDroppedEntry(a_playerID, revision, "armor", entry.form, resolution.dropReason);
+                    unresolved.emplace_back(&entry, resolution.dropReason);
                     continue;
                 }
                 if (std::ranges::find(a_remote.armor, resolution.form) == a_remote.armor.end())
                 {
                     a_remote.armor.push_back(resolution.form);
+                    occupiedSlots |= resolution.form->GetSlotMask().underlying();
                 }
+            }
+            for (const auto& [entry, reason] : unresolved)
+            {
+                const auto firstFallback = a_remote.armor.size();
+                EquipmentFallback::AppendArmor(*entry, occupiedSlots, a_remote.armor);
+                LogUnresolvedEntry(a_playerID, revision, "armor", entry->form, reason,
+                    FormatFallback(std::span{ a_remote.armor }.subspan(firstFallback)));
             }
             a_remote.rightHand = ResolveHandEntry(a_playerID, revision, "rightHand", equipment.rightHand);
             a_remote.leftHand = ResolveHandEntry(a_playerID, revision, "leftHand", equipment.leftHand);
@@ -398,13 +433,15 @@ namespace EquipmentSync
             if (!equipment.ammo.IsEmpty())
             {
                 const auto resolution = ResolveAmmo(equipment.ammo);
-                if (resolution.form)
+                a_remote.ammo = resolution.form;
+                if (!a_remote.ammo)
                 {
-                    a_remote.ammo = resolution.form;
-                }
-                else
-                {
-                    LogDroppedEntry(a_playerID, revision, "ammo", equipment.ammo, resolution.dropReason);
+                    // Ammo carries no type hint. The source's crossbow implies bolts.
+                    const bool bolt = equipment.rightHand && equipment.rightHand->kind == EquipmentHandKind::kWeapon
+                        && equipment.rightHand->weaponType == static_cast<std::uint8_t>(RE::WEAPON_TYPE::kCrossbow);
+                    a_remote.ammo = EquipmentFallback::FindAmmo(bolt);
+                    LogUnresolvedEntry(a_playerID, revision, "ammo", equipment.ammo, resolution.dropReason,
+                        FormatFallback(a_remote.ammo));
                 }
             }
 

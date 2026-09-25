@@ -5,10 +5,12 @@
 #include "actor/RemoteCollision.h"
 #include "actor/ScenePackageSuppression.h"
 #include "actor/SurvivalPolicy.h"
+#include "config/PluginConfig.h"
 #include "network/SocketIOClient.h"
 #include "runtime/FurnitureActivationHook.h"
 #include "runtime/MainLoopHook.h"
 #include "sync/SyncCoordinator.h"
+#include "sync/equipment/EquipmentFallback.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/presence/PresenceSync.h"
 #include "ui/Overlay.h"
@@ -34,6 +36,7 @@ namespace PluginStartup
         void OnDataLoaded()
         {
             SurvivalPolicy::RegisterEventSinks();
+            EquipmentFallback::Initialize();
             EquipmentSync::RegisterEventSinks();
             PresenceSync::RegisterEventSinks();
             RE::ConsoleLog::GetSingleton()->Print("Skyrim Multiplayer initialized.");
@@ -44,6 +47,8 @@ namespace PluginStartup
 
     void Install()
     {
+        Config::Load();
+
         // Remote-actor entry detours and the UI overlay use the trampoline too,
         // so allocate first.
         SKSE::AllocTrampoline(14 + CombatIsolation::kTrampolineSize + ReactionSuppression::kTrampolineSize

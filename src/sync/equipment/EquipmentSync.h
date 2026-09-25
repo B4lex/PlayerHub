@@ -38,8 +38,9 @@ namespace EquipmentSync
     struct RemoteState
     {
         std::optional<Multiplayer::PlayerEquipment> latest;
-        // Local forms for resolvedRevision after the vanilla filter. Revision zero
-        // means no equipment was received, which reconciles to an empty inventory.
+        // Local forms for resolvedRevision, with fallbacks for unresolved entries.
+        // Revision zero means no equipment was received, which reconciles to an
+        // empty inventory.
         std::uint64_t resolvedRevision{ 0 };
         bool resolved{ false };
         std::vector<RE::TESObjectARMO*> armor;

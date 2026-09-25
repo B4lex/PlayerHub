@@ -1,0 +1,182 @@
+#include "sync/equipment/EquipmentFallback.h"
+#include "config/PluginConfig.h"
+#include "forms/FormLookup.h"
+
+#include <algorithm>
+#include <array>
+#include <string>
+#include <string_view>
+
+namespace EquipmentFallback
+{
+    namespace
+    {
+        using Settings = Config::EquipmentFallbackSettings;
+        using Multiplayer::FormReference;
+
+        // Slot indices from slot 30. When the fallbacks of one missing item
+        // overlap, the earlier slot wins, so the most visible pieces go first.
+        constexpr auto kArmorSlotOrder = [] {
+            constexpr std::array<std::uint32_t, 6> kMainSlots{ 2, 0, 1, 3, 7, 9 }; // Body Head Hair Hands Feet Shield
+            std::array<std::uint32_t, Settings::kArmorSlotCount> order{};
+            std::size_t next = 0;
+            for (const auto slot : kMainSlots)
+            {
+                order[next++] = slot;
+            }
+            for (std::uint32_t slot = 0; slot < Settings::kArmorSlotCount; ++slot)
+            {
+                if (std::ranges::find(kMainSlots, slot) == kMainSlots.end())
+                {
+                    order[next++] = slot;
+                }
+            }
+            return order;
+        }();
+
+        struct ResolvedFallbacks
+        {
+            // Indexed by slot from 30, then by Multiplayer::EquipmentArmorType, with
+            // the slot's any-type item already applied to empty types.
+            std::array<std::array<RE::TESObjectARMO*, Settings::kArmorTypeCount>, Settings::kArmorSlotCount> armor{};
+            std::array<RE::TESObjectWEAP*, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> weapons{};
+            RE::TESObjectLIGH* torch{ nullptr };
+            RE::TESAmmo* arrow{ nullptr };
+            RE::TESAmmo* bolt{ nullptr };
+        };
+
+        ResolvedFallbacks resolved;
+
+        // Resolves one configured item, or logs why it cannot be used. a_accept
+        // returns the typed form, or null for a form of the wrong kind.
+        template <class T, class Accept>
+        T* ResolveConfigured(
+            const FormReference& a_reference, std::string_view a_label, std::uint32_t& a_unusable, Accept a_accept)
+        {
+            if (a_reference.IsEmpty())
+            {
+                return nullptr;
+            }
+            auto* form = FormLookup::ResolveForm(a_reference);
+            T* accepted = form ? a_accept(*form) : nullptr;
+            if (!accepted)
+            {
+                ++a_unusable;
+                logs::warn("Equipment fallback ignored [EquipmentFallback] {}: item={}|{:06X} reason={}", a_label,
+                    a_reference.plugin, a_reference.localFormID, form ? "wrong-type" : "missing");
+            }
+            return accepted;
+        }
+
+        RE::TESObjectARMO* ResolveArmor(
+            const FormReference& a_reference, std::string_view a_label, std::uint32_t& a_unusable)
+        {
+            return ResolveConfigured<RE::TESObjectARMO>(a_reference, a_label, a_unusable, [](RE::TESForm& a_form) {
+                auto* armor = a_form.As<RE::TESObjectARMO>();
+                return armor && armor->GetSlotMask().underlying() != 0 ? armor : nullptr;
+            });
+        }
+
+        RE::TESAmmo* ResolveAmmo(
+            const FormReference& a_reference, std::string_view a_label, bool a_bolt, std::uint32_t& a_unusable)
+        {
+            return ResolveConfigured<RE::TESAmmo>(a_reference, a_label, a_unusable, [a_bolt](RE::TESForm& a_form) {
+                auto* ammo = a_form.As<RE::TESAmmo>();
+                return ammo && ammo->IsBolt() == a_bolt ? ammo : nullptr;
+            });
+        }
+    }
+
+    void Initialize()
+    {
+        const auto& settings = Config::Get().equipmentFallback;
+        resolved = {};
+        if (!settings.enabled)
+        {
+            logs::info("Equipment fallback is disabled; unresolvable remote items are left off");
+            return;
+        }
+
+        std::uint32_t unusable = 0;
+        for (std::size_t slot = 0; slot < settings.armor.size(); ++slot)
+        {
+            const auto& configured = settings.armor[slot];
+            auto* anyType
+                = ResolveArmor(configured.anyArmorType, Config::GetArmorFallbackKey(slot, std::nullopt), unusable);
+            for (std::size_t type = 0; type < configured.byArmorType.size(); ++type)
+            {
+                auto* armor = ResolveArmor(configured.byArmorType[type],
+                    Config::GetArmorFallbackKey(slot, static_cast<Multiplayer::EquipmentArmorType>(type)), unusable);
+                resolved.armor[slot][type] = armor ? armor : anyType;
+            }
+        }
+
+        for (std::size_t type = Multiplayer::PlayerEquipment::kMinimumWeaponType; type < settings.weapons.size();
+            ++type)
+        {
+            resolved.weapons[type] = ResolveConfigured<RE::TESObjectWEAP>(
+                settings.weapons[type], Config::GetWeaponFallbackKey(type), unusable, [type](RE::TESForm& a_form) {
+                    auto* weapon = a_form.As<RE::TESObjectWEAP>();
+                    return weapon && static_cast<std::size_t>(weapon->GetWeaponType()) == type ? weapon : nullptr;
+                });
+        }
+        resolved.torch
+            = ResolveConfigured<RE::TESObjectLIGH>(settings.torch, "Torch", unusable, [](RE::TESForm& a_form) {
+                  auto* light = a_form.As<RE::TESObjectLIGH>();
+                  return light && light->CanBeCarried() ? light : nullptr;
+              });
+        resolved.arrow = ResolveAmmo(settings.arrow, "Arrow", false, unusable);
+        resolved.bolt = ResolveAmmo(settings.bolt, "Bolt", true, unusable);
+
+        logs::info("Equipment fallback initialized: unusableItems={}", unusable);
+    }
+
+    void AppendArmor(const Multiplayer::EquipmentArmor& a_entry, std::uint32_t& a_occupiedSlots,
+        std::vector<RE::TESObjectARMO*>& a_armor)
+    {
+        const auto type = static_cast<std::size_t>(a_entry.armorType);
+        if (type >= Settings::kArmorTypeCount)
+        {
+            return;
+        }
+        for (const auto slot : kArmorSlotOrder)
+        {
+            const auto slotBit = 1U << slot;
+            if ((a_entry.slotMask & slotBit) == 0 || (a_occupiedSlots & slotBit) != 0)
+            {
+                continue;
+            }
+            auto* armor = resolved.armor[slot][type];
+            if (!armor)
+            {
+                continue;
+            }
+            // Equipping over an occupied slot would unequip the item shown there.
+            const auto armorSlots = armor->GetSlotMask().underlying();
+            if ((armorSlots & a_occupiedSlots) != 0)
+            {
+                continue;
+            }
+            a_occupiedSlots |= armorSlots;
+            a_armor.push_back(armor);
+        }
+    }
+
+    RE::TESBoundObject* FindHand(const Multiplayer::EquipmentHand& a_entry)
+    {
+        switch (a_entry.kind)
+        {
+            case Multiplayer::EquipmentHandKind::kWeapon:
+                return a_entry.weaponType < resolved.weapons.size() ? resolved.weapons[a_entry.weaponType] : nullptr;
+            case Multiplayer::EquipmentHandKind::kTorch:
+                return resolved.torch;
+            default:
+                return nullptr;
+        }
+    }
+
+    RE::TESAmmo* FindAmmo(bool a_bolt)
+    {
+        return a_bolt ? resolved.bolt : resolved.arrow;
+    }
+}
