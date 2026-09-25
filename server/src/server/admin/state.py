@@ -6,12 +6,14 @@ from dataclasses import dataclass, field
 
 from server.admin.schemas import (
     AdminState,
+    BatchModel,
     PlaybackModel,
     PlayerModel,
     Position,
     RecordingModel,
     ServerModel,
 )
+from server.loadtest import BatchManager
 from server.playback import PlaybackManager
 from server.recording import CaptureManager, RecordingInfo, RecordingStore
 from server.registry import PlayerRegistry
@@ -25,6 +27,7 @@ class AdminContext:
     store: RecordingStore
     captures: CaptureManager
     playbacks: PlaybackManager
+    batches: BatchManager
     # Tells connected panels that state changed; see StateBroadcaster.changed.
     on_change: Callable[[], None] = lambda: None
     started_at: float = field(default_factory=time.time)
@@ -40,7 +43,12 @@ def list_recordings(ctx: AdminContext) -> list[RecordingInfo]:
 
 def build_state(ctx: AdminContext) -> AdminState:
     players: list[PlayerModel] = []
+    # Load-test bots are summarized by their batch; hundreds of rows would
+    # bloat every snapshot and bury the real players.
+    bots = ctx.batches.player_ids()
     for player_id, connected_at in ctx.registry.connected_at.items():
+        if player_id in bots:
+            continue
         state = ctx.registry.states.get(player_id)
         players.append(
             PlayerModel(
@@ -83,4 +91,5 @@ def build_state(ctx: AdminContext) -> AdminState:
         players=players,
         recordings=[RecordingModel.model_validate(info) for info in list_recordings(ctx)],
         playbacks=[PlaybackModel.model_validate(playback) for playback in playbacks],
+        batches=[BatchModel.model_validate(batch.state()) for batch in ctx.batches.batches()],
     )

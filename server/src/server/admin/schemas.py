@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
+from server.loadtest import MAXIMUM_BOTS, MAXIMUM_RAMP_UP_SECONDS, MAXIMUM_RATE_SPREAD
 from server.playback.session import MAXIMUM_RATE, MINIMUM_RATE
 from server.recording.capture import MAXIMUM_LABEL_LENGTH
 
@@ -70,6 +71,40 @@ class PlaybackModel(CamelModel):
     error: str | None
 
 
+class BatchSettingsModel(CamelModel):
+    players: int
+    transport: Literal["virtual", "socket"]
+    seed: int
+    jitter: float
+    rate_spread: float
+    ramp_up_seconds: float
+
+
+class BotModel(CamelModel):
+    index: int
+    name: str
+    player_id: str | None = Field(description="Assigned once the bot joins")
+    status: Literal["pending", "playing", "paused", "failed"]
+    start_ms: int
+    rate: float
+    position_ms: int = Field(description="Timeline position when this state was produced")
+    error: str | None
+
+
+class BatchModel(CamelModel):
+    """A load-test batch: one recording replayed by many looping bots."""
+
+    id: str
+    recording_id: str
+    label: str
+    player_name: str
+    created_at: str
+    duration_ms: int
+    status: Literal["starting", "running", "paused"]
+    settings: BatchSettingsModel
+    bots: list[BotModel]
+
+
 class ServerModel(CamelModel):
     started_at_ms: float
     server_time_ms: float
@@ -82,6 +117,7 @@ class AdminState(CamelModel):
     players: list[PlayerModel]
     recordings: list[RecordingModel]
     playbacks: list[PlaybackModel]
+    batches: list[BatchModel]
 
 
 class MarkerModel(CamelModel):
@@ -117,3 +153,13 @@ class SeekRequest(CamelModel):
 class PlaybackSettingsRequest(CamelModel):
     rate: float | None = Field(None, ge=MINIMUM_RATE, le=MAXIMUM_RATE, allow_inf_nan=False)
     loop: bool | None = None
+
+
+class CreateBatchRequest(CamelModel):
+    recording_id: str
+    players: int = Field(ge=1, le=MAXIMUM_BOTS)
+    transport: Literal["virtual", "socket"] = "virtual"
+    seed: int | None = Field(None, ge=0, le=2**31 - 1, description="Omit for a random one")
+    jitter: float = Field(0.5, ge=0, le=1, allow_inf_nan=False, description="Share of the spacing a bot may move")
+    rate_spread: float = Field(0.0, ge=0, le=MAXIMUM_RATE_SPREAD, allow_inf_nan=False)
+    ramp_up_seconds: float = Field(0.0, ge=0, le=MAXIMUM_RAMP_UP_SECONDS, allow_inf_nan=False)

@@ -1,0 +1,18 @@
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.batches {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@media (max-width: 70rem) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -16,6 +16,7 @@ from server.admin import (
     publish_state,
     register_admin_namespace,
 )
+from server.loadtest import BatchManager
 from server.playback import PlaybackManager, Publisher, SocketPublisher
 from server.protocol import (
     parse_animation_action,
@@ -68,11 +69,18 @@ playbacks = PlaybackManager(
     lambda player_id: _replay_publisher(player_id),
     on_change=_notify_admin,
 )
+# Load-test bots replay a recording like the playbacks above, many at once.
+batches = BatchManager(
+    recording_store,
+    lambda player_id: _replay_publisher(player_id),
+    on_change=_notify_admin,
+)
 admin_context = AdminContext(
     registry=registry,
     store=recording_store,
     captures=captures,
     playbacks=playbacks,
+    batches=batches,
     on_change=_notify_admin,
 )
 
@@ -100,6 +108,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
     captures.stop_all("shutdown")
     await playbacks.close_all()
+    await batches.close_all()
 
 
 api = FastAPI(title="Skyrim Multiplayer Server", lifespan=lifespan)
