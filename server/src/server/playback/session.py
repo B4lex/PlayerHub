@@ -32,6 +32,11 @@ class PlaybackError(ValueError):
     """A recording that cannot be replayed, or an invalid playback request."""
 
 
+def require_checkpoints(recording: Recording) -> None:
+    if not any(message.event == "player:update" for message in recording.messages):
+        raise PlaybackError("recording has no player:update checkpoints")
+
+
 class PlaybackStatus(StrEnum):
     PLAYING = "playing"
     PAUSED = "paused"
@@ -85,6 +90,7 @@ class PlaybackSession:
     ) -> None:
         self.id = session_id
         self.player_id = player_id
+        require_checkpoints(recording)
         self._recording = recording
         self._publisher = publisher
         self._clock = clock
@@ -102,8 +108,6 @@ class PlaybackSession:
             if series is not None:
                 series[0].append(message.t_ms)
                 series[1].append(message.payload)
-        if not self._series["player:update"][0]:
-            raise PlaybackError("recording has no player:update checkpoints")
         self._presence_times: list[int] = []
         self._presence: list[bool] = []
         for message in self._messages:
@@ -139,6 +143,10 @@ class PlaybackSession:
         if self._playing:
             return PlaybackStatus.PLAYING
         return PlaybackStatus.ENDED if self._ended else PlaybackStatus.PAUSED
+
+    @property
+    def error(self) -> str | None:
+        return self._error
 
     @property
     def in_world(self) -> bool:

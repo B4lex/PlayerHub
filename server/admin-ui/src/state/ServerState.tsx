@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { connectAdminSocket, type ConnectionStatus } from "../api/socket";
-import type { AdminState, Player, Playback, Recording, ServerInfo } from "../api/types";
+import type { AdminState, Batch, Player, Playback, Recording, ServerInfo } from "../api/types";
 import { newerPlayback } from "../lib/playbackClock";
 
 /** A playback plus the local time its state arrived, so its position can be extrapolated. */
@@ -26,6 +26,8 @@ interface ServerStateValue {
   players: Player[];
   recordings: Recording[];
   playbacks: PlaybackView[];
+  /** Load-test batches. Their bots are not in `players`. */
+  batches: Batch[];
   /** Use a playback returned by a command right away instead of waiting for the next push. */
   adoptPlayback: (playback: Playback) => void;
 }
@@ -80,6 +82,7 @@ export function ServerStateProvider({ children }: { children: ReactNode }) {
       players: snapshot?.state.players ?? [],
       recordings: snapshot?.state.recordings ?? [],
       playbacks,
+      batches: snapshot?.state.batches ?? [],
       adoptPlayback,
     }),
     [connection, snapshot, playbacks, adoptPlayback],

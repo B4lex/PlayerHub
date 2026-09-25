@@ -2,6 +2,10 @@
 
 export type RecordingStatus = "recording" | "complete" | "interrupted";
 export type PlaybackStatus = "playing" | "paused" | "ended";
+export type BatchStatus = "starting" | "running" | "paused";
+export type BotStatus = "pending" | "playing" | "paused" | "failed";
+/** `virtual`: replayed inside the server. `socket`: a loopback Socket.IO client per bot. */
+export type BatchTransport = "virtual" | "socket";
 export type MarkerKind = "attack" | "appearance" | "equipment" | "weapon" | "furniture" | "area";
 
 export interface Position {
@@ -60,6 +64,44 @@ export interface Playback {
   error: string | null;
 }
 
+export interface BatchSettings {
+  players: number;
+  transport: BatchTransport;
+  seed: number;
+  /** Share of the spacing between bots that each may be moved by, 0 to 1. */
+  jitter: number;
+  /** Each bot's speed varies within 1 ± this. */
+  rateSpread: number;
+  rampUpSeconds: number;
+}
+
+export interface Bot {
+  index: number;
+  name: string;
+  /** Assigned once the bot joins. */
+  playerId: string | null;
+  status: BotStatus;
+  startMs: number;
+  rate: number;
+  /** Timeline position when the server produced this state. */
+  positionMs: number;
+  error: string | null;
+}
+
+/** A load-test batch: one recording replayed by many looping bots. */
+export interface Batch {
+  id: string;
+  recordingId: string;
+  label: string;
+  playerName: string;
+  /** ISO-8601, UTC. */
+  createdAt: string;
+  durationMs: number;
+  status: BatchStatus;
+  settings: BatchSettings;
+  bots: Bot[];
+}
+
 export interface ServerInfo {
   startedAtMs: number;
   serverTimeMs: number;
@@ -71,6 +113,7 @@ export interface AdminState {
   players: Player[];
   recordings: Recording[];
   playbacks: Playback[];
+  batches: Batch[];
 }
 
 export interface Marker {
@@ -94,4 +137,15 @@ export interface OpenPlaybackRequest {
 export interface PlaybackSettings {
   rate?: number;
   loop?: boolean;
+}
+
+export interface CreateBatchRequest {
+  recordingId: string;
+  players: number;
+  transport?: BatchTransport;
+  /** Omit for a random one; the batch reports the seed it used. */
+  seed?: number;
+  jitter?: number;
+  rateSpread?: number;
+  rampUpSeconds?: number;
 }

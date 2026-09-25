@@ -1,4 +1,6 @@
 import type {
+  Batch,
+  CreateBatchRequest,
   OpenPlaybackRequest,
   Playback,
   PlaybackSettings,
@@ -73,5 +75,12 @@ export const api = {
     configure: (id: string, settings: PlaybackSettings) =>
       request<Playback>("PATCH", `/api/playbacks/${enc(id)}`, settings),
     close: (id: string) => request<void>("DELETE", `/api/playbacks/${enc(id)}`),
+  },
+  batches: {
+    /** Replay a recording with many bots spread over its timeline. */
+    create: (options: CreateBatchRequest) => request<Batch>("POST", "/api/batches", options),
+    pause: (id: string) => request<Batch>("POST", `/api/batches/${enc(id)}/pause`),
+    resume: (id: string) => request<Batch>("POST", `/api/batches/${enc(id)}/resume`),
+    close: (id: string) => request<void>("DELETE", `/api/batches/${enc(id)}`),
   },
 };

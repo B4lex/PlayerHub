@@ -101,7 +101,8 @@ updates are rejected.
 
 The server hosts a web admin panel at `http://127.0.0.1:3000/admin/`, with a
 **Dashboard** (connected players, active captures and replays, stored
-recordings, uptime) and **Replay management** (capture, replay, delete). It is a
+recordings, uptime), **Replay management** (capture, replay, delete), and
+**Load testing** (many bots replaying one recording; see below). It is a
 React and TypeScript app in `admin-ui/`; see `admin-ui/README.md` to build it or
 run it in development. Until it is built, `/admin/` explains how, and the REST
 API below works regardless.
@@ -134,7 +135,7 @@ last line is ignored. Recordings are ignored by Git.
 
 | Endpoint | |
 | --- | --- |
-| `GET /api/state` | Everything the panel shows: players, recordings, playbacks |
+| `GET /api/state` | Everything the panel shows: players, recordings, playbacks, batches |
 | `GET /api/recordings/{id}` | One recording with its timeline markers |
 | `POST /api/recordings` `{playerId, label?}` | Start capturing a connected player |
 | `POST /api/recordings/{id}/stop` | Stop a capture |
@@ -174,6 +175,35 @@ only takes the recording's content (`server/playback/virtual_player.py`):
 
 FastAPI's interactive HTTP documentation is available at
 `http://127.0.0.1:3000/docs`.
+
+## Load testing
+
+A **batch** replays one recording with many bots at once, for load testing and
+comparing builds. Bot `i` of `N` starts at `i × duration / N`, moved by up to
+`jitter / 2` of that spacing either way, so the bots do different things at any
+moment. Every bot loops. A **seed** fixes the layout: the same seed and settings
+give the same start positions and speeds, so runs can be repeated across
+builds. Optional settings:
+
+- **Ramp-up**: bots join one by one over this time instead of all at once. A bot
+  that joins later starts further along, so the spacing is kept.
+- **Speed variation**: each bot plays at `1 ± rateSpread`, so the spacing drifts
+  instead of repeating exactly every loop.
+- **Connection**: `virtual` bots (`bot:<batch>-<n>`) are replayed inside the
+  server like a panel replay. `socket` bots are loopback Socket.IO clients that
+  go through the player ingestion path (validation, relay, per-connection
+  delivery). They run in the server's own process and event loop, so their
+  client-side work counts against the server's CPU.
+
+Bots are named after the recorded player with a number (`Lydia #3`). They are
+left out of the snapshot's `players` list and appear only under their batch.
+Batches exist only while the server runs.
+
+| Endpoint | |
+| --- | --- |
+| `POST /api/batches` `{recordingId, players, transport?, seed?, jitter?, rateSpread?, rampUpSeconds?}` | Start a batch (1 to 500 bots) |
+| `POST /api/batches/{id}/pause`, `/resume` | Pause or resume every bot |
+| `DELETE /api/batches/{id}` | Stop a batch and remove its bots |
 
 ## Replay from the command line
 

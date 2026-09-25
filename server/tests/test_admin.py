@@ -2,6 +2,7 @@ import asyncio
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -16,6 +17,8 @@ from recording_fixtures import (
 )
 
 from server.admin import AdminContext, StateBroadcaster, build_state, create_admin_router
+from server.admin.api import own_url
+from server.loadtest import BatchManager
 from server.playback import PlaybackManager, SocketPublisher
 from server.recording import CaptureManager, RecordingStore
 from server.registry import PlayerRegistry
@@ -43,11 +46,17 @@ class AdminApiTests(unittest.IsolatedAsyncioTestCase):
             lambda player_id: SocketPublisher(player_id, self.emit, self.registry),
             on_change=on_change,
         )
+        self.batches = BatchManager(
+            store,
+            lambda player_id: SocketPublisher(player_id, self.emit, self.registry),
+            on_change=on_change,
+        )
         self.context = AdminContext(
             registry=self.registry,
             store=store,
             captures=self.captures,
             playbacks=self.playbacks,
+            batches=self.batches,
             on_change=on_change,
         )
         app = FastAPI()
@@ -57,6 +66,7 @@ class AdminApiTests(unittest.IsolatedAsyncioTestCase):
         )
         self.addAsyncCleanup(self.client.aclose)
         self.addAsyncCleanup(self.playbacks.close_all)
+        self.addAsyncCleanup(self.batches.close_all)
         self.addCleanup(self.captures.stop_all, "test cleanup")
 
     def connect_player(self, player_id: str = "player-1") -> None:
@@ -230,6 +240,87 @@ class AdminApiTests(unittest.IsolatedAsyncioTestCase):
             [r.status_code for r in (unknown_recording, bad_rate, unreadable, unknown_playback, negative_seek, bad_settings)],
             [404, 422, 422, 404, 422, 422],  # an unparsable file is 422, not 404
         )
+
+    # -- load-test batches --------------------------------------------------
+
+    async def test_runs_a_batch_of_bots_and_controls_it(self) -> None:
+        recording_id = self.store_recording()
+
+        created = await self.client.post(
+            "/api/batches", json={"recordingId": recording_id, "players": 4, "jitter": 0}
+        )
+
+        self.assertEqual(created.status_code, 201)
+        batch = created.json()
+        self.assertEqual(batch["settings"]["players"], 4)
+        self.assertEqual(batch["settings"]["transport"], "virtual")
+        self.assertIsInstance(batch["settings"]["seed"], int)
+        self.assertEqual(len(batch["bots"]), 4)
+        base = f"/api/batches/{batch['id']}"
+
+        paused = (await self.client.post(f"{base}/pause")).json()
+        resumed = (await self.client.post(f"{base}/resume")).json()
+        state = build_state(self.context)
+        closed = await self.client.delete(base)
+
+        self.assertEqual(paused["status"], "paused")
+        self.assertIn(resumed["status"], ("starting", "running"))
+        self.assertEqual([listed.id for listed in state.batches], [batch["id"]])
+        self.assertEqual(closed.status_code, 204)
+        self.assertEqual((await self.client.post(f"{base}/pause")).status_code, 404)
+        self.assertEqual(build_state(self.context).batches, [])
+
+    async def test_a_seed_reproduces_the_same_bot_layout(self) -> None:
+        recording_id = self.store_recording()
+        request = {"recordingId": recording_id, "players": 5, "seed": 1234, "rateSpread": 0.2}
+
+        first = (await self.client.post("/api/batches", json=request)).json()
+        second = (await self.client.post("/api/batches", json=request)).json()
+
+        self.assertNotEqual(first["id"], second["id"])
+        self.assertEqual(
+            [(bot["startMs"], bot["rate"]) for bot in first["bots"]],
+            [(bot["startMs"], bot["rate"]) for bot in second["bots"]],
+        )
+
+    async def test_socket_bots_are_summarized_by_their_batch_not_listed_as_players(self) -> None:
+        self.connect_player()
+        self.registry.add("bot-sid")
+        self.batches.player_ids = lambda: {"bot-sid"}  # type: ignore[method-assign]
+
+        players = build_state(self.context).players
+
+        self.assertEqual([player.id for player in players], ["player-1"])
+
+    async def test_batch_errors(self) -> None:
+        recording_id = self.store_recording()
+
+        unknown_recording = await self.client.post(
+            "/api/batches", json={"recordingId": "20260101-000000-ffffff", "players": 2}
+        )
+        no_players = await self.client.post("/api/batches", json={"recordingId": recording_id, "players": 0})
+        too_many = await self.client.post("/api/batches", json={"recordingId": recording_id, "players": 501})
+        bad_jitter = await self.client.post(
+            "/api/batches", json={"recordingId": recording_id, "players": 2, "jitter": 1.5}
+        )
+        bad_transport = await self.client.post(
+            "/api/batches", json={"recordingId": recording_id, "players": 2, "transport": "carrier-pigeon"}
+        )
+        unknown_batch = await self.client.delete("/api/batches/nope")
+
+        self.assertEqual(
+            [r.status_code for r in (unknown_recording, no_players, too_many, bad_jitter, bad_transport, unknown_batch)],
+            [404, 422, 422, 422, 422, 404],
+        )
+
+    def test_socket_bots_connect_to_the_address_the_request_arrived_at(self) -> None:
+        def request(server: Any) -> Any:
+            return SimpleNamespace(scope={"server": server})
+
+        self.assertEqual(own_url(request(("127.0.0.1", 3000))), "http://127.0.0.1:3000")
+        self.assertEqual(own_url(request(("::1", 3000))), "http://[::1]:3000")
+        self.assertIsNone(own_url(request(None)))
+        self.assertIsNone(own_url(request(("/run/server.sock", None))))
 
     async def test_state_changes_are_announced(self) -> None:
         self.connect_player()

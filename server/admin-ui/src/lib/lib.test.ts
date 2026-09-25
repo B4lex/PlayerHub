@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatBytes, formatFormId, formatRelative, formatTimestamp, plural } from "./format";
+import { botPositionAt } from "./batchClock";
 import { newerPlayback, positionAt } from "./playbackClock";
 
 const timeline = { status: "playing", positionMs: 1000, durationMs: 10_000, rate: 1, loop: false } as const;
@@ -67,5 +68,19 @@ describe("formatting", () => {
     expect(formatFormId(0x3c)).toBe("0x0000003C");
     expect(plural(1, "player")).toBe("1 player");
     expect(plural(2, "player")).toBe("2 players");
+  });
+});
+
+describe("botPositionAt", () => {
+  const bot = { status: "playing", positionMs: 9_000, rate: 1.5 } as const;
+
+  it("advances at the bot's rate and wraps, because bots always loop", () => {
+    expect(botPositionAt(bot, 10_000, 400)).toBe(9_600);
+    expect(botPositionAt(bot, 10_000, 1_000)).toBe(500);
+  });
+
+  it("stands still unless playing", () => {
+    expect(botPositionAt({ ...bot, status: "paused" }, 10_000, 5_000)).toBe(9_000);
+    expect(botPositionAt({ ...bot, status: "failed" }, 10_000, 5_000)).toBe(9_000);
   });
 });

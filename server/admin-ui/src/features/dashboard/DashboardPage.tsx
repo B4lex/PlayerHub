@@ -65,13 +65,14 @@ function PlayerRow({ player }: { player: Player }) {
 }
 
 export function DashboardPage() {
-  const { loaded, server, snapshotReceivedAt, players, recordings, playbacks } = useServerState();
+  const { loaded, server, snapshotReceivedAt, players, recordings, playbacks, batches } = useServerState();
   const now = useTicker(1000);
 
   const online = players.filter((player) => !player.virtual);
   const capturing = recordings.filter((recording) => recording.status === "recording");
   const stored = recordings.filter((recording) => recording.status !== "recording");
   const playing = playbacks.filter((playback) => playback.status === "playing");
+  const bots = batches.reduce((total, batch) => total + batch.bots.filter((bot) => bot.playerId !== null).length, 0);
   const storedBytes = stored.reduce((total, recording) => total + recording.sizeBytes, 0);
   // The server's own clock, carried forward locally, so it is right even if this browser's clock is not.
   const uptimeMs =
@@ -97,6 +98,12 @@ export function DashboardPage() {
           label="Active replays"
           value={loaded ? playbacks.length : "–"}
           hint={playbacks.length > 0 ? `${playing.length} playing, ${playbacks.length - playing.length} paused or finished` : "None running"}
+        />
+        <StatTile
+          icon="gauge"
+          label="Load-test bots"
+          value={loaded ? bots : "–"}
+          hint={batches.length > 0 ? <Link to="/load-testing">{plural(batches.length, "batch", "batches")}</Link> : "No batches running"}
         />
         <StatTile
           icon="disk"
