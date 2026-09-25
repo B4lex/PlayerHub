@@ -26,12 +26,13 @@ namespace FurnitureSync
         const LocalFrame& a_local, RE::TESObjectREFR& a_furniture, RemoteActor& a_actor);
 
     // Remote stage: why the actor must be hidden instead of entering the
-    // checkpoint's furniture, or null. The local player occupies it, which native
-    // entry does not detect: occupancy it records is taken back on the next pass.
-    // Or another remote player or NPC already holds it, so whoever enters later
-    // yields rather than stacking on the same marker.
-    [[nodiscard]] const char* FindFurnitureYieldReason(
-        const RemoteFrame& a_remote, RE::TESObjectREFR* a_localFurniture, RemoteActor* a_actor);
+    // checkpoint's furniture, or null. The local player occupies it and no other
+    // marker is free for the actor; native entry onto the local player's marker
+    // is taken back on the next pass. Or another remote player or NPC already
+    // holds it, so whoever enters later yields rather than stacking on the same
+    // marker.
+    [[nodiscard]] const char* FindFurnitureYieldReason(const LocalFrame& a_local, const RemoteFrame& a_remote,
+        RE::TESObjectREFR* a_localFurniture, RemoteActor* a_actor);
 
     // Remote stage, while an actor is hidden for the furniture: whether the local
     // player left it and a marker is free again, so the actor can return.

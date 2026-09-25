@@ -74,6 +74,10 @@ namespace ActorFurniture
 
     // Whether Skyrim's entry-point probe finds a free marker for a_user.
     [[nodiscard]] bool HasAvailableMarker(RE::Actor& a_user, RE::TESObjectREFR& a_furniture);
+    // Whether the probe finds a free marker for a_user other than the one
+    // a_occupant is seated on.
+    [[nodiscard]] bool HasAvailableMarkerBeside(
+        RE::Actor& a_user, RE::Actor& a_occupant, RE::TESObjectREFR& a_furniture);
 
     // Actor-module internal, called by ActorRuntime. Returns true while native
     // furniture owns the actor's placement, heading, and graph.

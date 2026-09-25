@@ -346,7 +346,7 @@ namespace SyncCoordinator
             if (lifecycle.yieldedFurnitureRefID != remote.checkpoint.furnitureRefID)
             {
                 if (const auto* reason = FurnitureSync::FindFurnitureYieldReason(
-                        remote, a_localFurniture, lifecycle.actor ? &*lifecycle.actor : nullptr))
+                        a_local, remote, a_localFurniture, lifecycle.actor ? &*lifecycle.actor : nullptr))
                 {
                     ActorLifecycle::YieldFurniture(remote, a_peer, remote.checkpoint.furnitureRefID, reason);
                 }

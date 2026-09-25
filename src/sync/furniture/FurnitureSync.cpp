@@ -43,8 +43,8 @@ namespace FurnitureSync
             && !ActorFurniture::HasAvailableMarker(a_local.player, a_furniture);
     }
 
-    const char* FindFurnitureYieldReason(
-        const RemoteFrame& a_remote, RE::TESObjectREFR* a_localFurniture, RemoteActor* a_actor)
+    const char* FindFurnitureYieldReason(const LocalFrame& a_local, const RemoteFrame& a_remote,
+        RE::TESObjectREFR* a_localFurniture, RemoteActor* a_actor)
     {
         const auto furnitureRefID = a_remote.checkpoint.furnitureRefID;
         if (furnitureRefID == 0)
@@ -53,15 +53,22 @@ namespace FurnitureSync
         }
         if (a_localFurniture && a_localFurniture->GetFormID() == furnitureRefID)
         {
-            // An actor seated beside the local player on a shared bench keeps its seat.
             RE::NiPointer<RE::Actor> actorPtr;
             if (a_actor)
             {
                 actorPtr = a_actor->handle.get();
             }
-            if (!actorPtr || !ActorFurniture::HoldsFurniture(*actorPtr, *a_actor, *a_localFurniture))
+            if (!actorPtr)
             {
                 return "occupied by the local player";
+            }
+            // An actor seated beside the local player on a shared bench keeps its
+            // seat, and one yet to enter takes another free seat. The probe waits
+            // for readiness, as native entry does.
+            if (!ActorFurniture::HoldsFurniture(*actorPtr, *a_actor, *a_localFurniture) && a_actor->ready
+                && !ActorFurniture::HasAvailableMarkerBeside(*actorPtr, a_local.player, *a_localFurniture))
+            {
+                return "no marker free beside the local player";
             }
         }
         if (a_actor && ActorFurniture::GetTargetFurniture(*a_actor) == furnitureRefID

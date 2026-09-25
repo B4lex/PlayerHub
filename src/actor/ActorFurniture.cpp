@@ -534,6 +534,20 @@ namespace ActorFurniture
         return FindAvailableFurnitureMarker(a_user, a_furniture) >= 0;
     }
 
+    bool HasAvailableMarkerBeside(RE::Actor& a_user, RE::Actor& a_occupant, RE::TESObjectREFR& a_furniture)
+    {
+        const auto marker = FindAvailableFurnitureMarker(a_user, a_furniture);
+        if (marker < 0)
+        {
+            return false;
+        }
+        // A seated occupant is not always visible to the probe, and native entry
+        // onto its marker is taken back, so that marker never counts as free.
+        const auto* process = a_occupant.GetActorRuntimeData().currentProcess;
+        return !process || !process->middleHigh
+            || process->middleHigh->currentFurnitureMarkerID != static_cast<std::uint32_t>(marker);
+    }
+
     bool AdvanceFurnitureInteraction(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)
     {
         const auto targetFurnitureRefID = a_remote.furniture.targetFurnitureRefID;
@@ -893,8 +907,8 @@ namespace ActorFurniture
             }
             return false;
         }
-        // Furniture the local player or another actor occupies is never entered
-        // here: FurnitureSync hides the actor while its source uses that furniture.
+        // Furniture shared with the local player is entered here only while another
+        // marker is free: FurnitureSync hides the actor otherwise.
         const auto marker = FindAvailableFurnitureMarker(a_actor, *furniture);
         a_remote.furniture.targetHeldByOtherActor = marker < 0 && IsReservedByOtherActor(a_actor, *furniture);
         if (marker < 0)
