@@ -58,6 +58,8 @@ namespace EquipmentSync
         bool armorMatches{ false };
         // Both hands and the equipped ammo, which a bow draw nocks.
         bool handsMatch{ false };
+        // The last check held the hand swap back for a playing clip or transition.
+        bool handsDeferred{ false };
     };
 
     void AcceptRemoteEquipment(
@@ -75,6 +77,8 @@ namespace EquipmentSync
     [[nodiscard]] bool AreHandsSettled(const RemoteState& a_remote);
 
     // Weapon draws wait for hand reconciliation, bounded so an unresolvable swap
-    // cannot hold the source's stance indefinitely.
+    // cannot hold the source's stance indefinitely. The bound only counts time the
+    // swap could apply, so a sheathe that defers it cannot release the draw with
+    // the old weapon.
     [[nodiscard]] bool IsReadyForWeaponDraw(const RemoteState& a_remote);
 }
