@@ -72,7 +72,9 @@ old space.
    continue during that wait, and locomotion edge changes are held while
    airborne because the jump branch rejects them.
    `bInJumpState` is restored before every jump event, and landing aligns the
-   actor with the grounded checkpoint before `JumpLand` is dispatched.
+   actor with the grounded checkpoint before `JumpLand` is dispatched. The
+   airborne actor first travels on to where the source landed (bounded), so the
+   alignment clears only a residual instead of one checkpoint of travel.
    The same applied jump value is reasserted immediately before and after the
    normal actor update so local controller state cannot overwrite it.
    Some hit reactions enter the behavior graph below that public function, so

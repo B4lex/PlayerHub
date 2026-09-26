@@ -3,6 +3,7 @@
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
 #include "actor/RemoteActor.h"
+#include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
 
 #include <algorithm>
@@ -26,6 +27,12 @@ namespace ActorMovement
         // while moving, and the idle checkpoint then snaps across it. Drain it over
         // about this time. A steady backlog of one sample merely arrives early.
         constexpr float kLocomotionBacklogDrainTime = 0.5F;
+        // Checkpoints are 50 ms apart, so an actor following the network path is
+        // normally within one sample of the landing. A larger backlog is snapped by
+        // the landing alignment rather than holding the airborne pose longer.
+        constexpr float kLandingApproachSeconds = 0.25F;
+        // Beyond kArrivalTolerance, where translation stops short of its target.
+        constexpr float kLandingArrivalTolerance = 2.0F;
         constexpr float kTwoPi = 6.28318530717958647692F;
         constexpr float kHeadingDeadZone = 0.00872664625997164788F;
         constexpr float kMaximumHeadingRate = kTwoPi;
@@ -76,6 +83,54 @@ namespace ActorMovement
         }
     }
 
+    bool ShouldDeferLanding(RemoteActor& a_remote, bool a_landingPending, float a_deltaTime)
+    {
+        auto& movement = a_remote.movement;
+        if (!a_landingPending)
+        {
+            movement.landingPosition.reset();
+            movement.landingApproachEnded = false;
+            return false;
+        }
+        if (movement.landingApproachEnded || !GameThread::Require("ShouldDeferLanding"))
+        {
+            return false;
+        }
+
+        if (movement.landingPosition)
+        {
+            movement.landingApproachElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        }
+        else
+        {
+            movement.landingPosition = movement.targetPosition;
+            movement.landingApproachElapsed = 0.0F;
+        }
+        const auto actor = a_remote.handle.get();
+        if (!actor)
+        {
+            return false;
+        }
+
+        const float distanceToTravel
+            = actor->GetPosition().GetDistance(*movement.landingPosition) - movement.stoppingDistance;
+        const bool arrived = distanceToTravel <= kLandingArrivalTolerance;
+        if (!arrived && movement.landingApproachElapsed < kLandingApproachSeconds)
+        {
+            return true;
+        }
+        movement.landingApproachEnded = true;
+        if (!arrived)
+        {
+            // Land on the latest sample instead, as without an approach.
+            movement.landingPosition.reset();
+        }
+        logs::debug("Movement landing approach ended: actor={:08X} result={} elapsed={:.3f} distance={:.1f}",
+            a_remote.handle.native_handle(), arrived ? "arrived" : "timed-out", movement.landingApproachElapsed,
+            distanceToTravel);
+        return false;
+    }
+
     void ApplyTranslation(
         RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime, Multiplayer::AnimationState a_translationState)
     {
@@ -84,7 +139,7 @@ namespace ActorMovement
         ApplySmoothedHeading(a_actor, a_remote.movement.targetHeading, deltaTime);
 
         const auto current = a_actor.GetPosition();
-        const auto& target = a_remote.movement.targetPosition;
+        const auto target = a_remote.movement.landingPosition.value_or(a_remote.movement.targetPosition);
 
         const RE::NiPoint3 offset{ target.x - current.x, target.y - current.y, target.z - current.z };
         const float distanceSquared = offset.x * offset.x + offset.y * offset.y + offset.z * offset.z;
@@ -114,9 +169,12 @@ namespace ActorMovement
         const float catchUpTime = a_translationState.jumping ? kAirborneTransformCatchUpTime
             : attackPlaying                                  ? kAttackTransformCatchUpTime
                                                              : 0.0F;
-        const float interpolationSpeed = catchUpTime > 0.0F
-            ? (std::max)(a_remote.movement.translationSpeed, distanceToTravel / catchUpTime)
-            : a_remote.movement.translationSpeed + distanceToTravel / kLocomotionBacklogDrainTime;
+        // The drain term also applies with a catch-up time, which alone only
+        // shortens a backlog above translationSpeed * catchUpTime and would carry
+        // a smaller one through the whole jump into the landing.
+        const float backlogSpeed = a_remote.movement.translationSpeed + distanceToTravel / kLocomotionBacklogDrainTime;
+        const float interpolationSpeed
+            = catchUpTime > 0.0F ? (std::max)(backlogSpeed, distanceToTravel / catchUpTime) : backlogSpeed;
         const float step = (std::min)(interpolationSpeed * deltaTime, distanceToTravel);
         const float interpolation = step / distance;
 

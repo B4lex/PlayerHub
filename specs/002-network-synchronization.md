@@ -178,10 +178,11 @@ applied checkpoint changes jump phase.
   attempts before state convergence continues. A newly created or reloaded
   graph receives the current assertion.
 - Takeoff first restores `bInJumpState` and the jump sample's graph variables,
-  then dispatches `JumpStandingStart` or `JumpDirectionalStart`. Landing aligns
-  the actor to the grounded transform checkpoint, restores
-  `bInJumpState=false` and the current locomotion variables, and only then
-  dispatches `JumpLand`. The applied jump value is also reasserted around each
+  then dispatches `JumpStandingStart` or `JumpDirectionalStart`. Landing waits
+  for the airborne actor to travel on to the landing checkpoint's position
+  (bounded to 0.25 s, after which it lands on the latest checkpoint instead),
+  aligns the actor there, restores `bInJumpState=false` and the current
+  locomotion variables, and only then dispatches `JumpLand`. The applied jump value is also reasserted around each
   normal actor update so the locally grounded controller cannot overwrite it.
   Post-jump locomotion is reasserted after the graph output sink observes
   `JumpLandEnd`.

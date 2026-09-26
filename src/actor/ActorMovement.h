@@ -4,6 +4,8 @@
 
 #include <RE/Skyrim.h>
 
+#include <optional>
+
 struct RemoteActor;
 
 namespace ActorMovement
@@ -21,10 +23,20 @@ namespace ActorMovement
         float stoppingDistance{ 1.0F };
         // The source swims, so the ground does not support it.
         bool sourceSwimming{ false };
+        // Where the source landed. The airborne actor comes down there, rather than
+        // cutting toward later samples, before its landing plays.
+        std::optional<RE::NiPoint3> landingPosition;
+        float landingApproachElapsed{ 0.0F };
+        bool landingApproachEnded{ false };
     };
 
     void SetTargetTransform(RemoteActor& a_remote, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
         float a_translationSpeed, float a_direction, bool a_swimming);
+
+    // Holds a grounded checkpoint's landing while the airborne actor travels on to
+    // where the source landed, for a bounded time, so the landing does not have to
+    // snap the actor across its interpolation backlog.
+    [[nodiscard]] bool ShouldDeferLanding(RemoteActor& a_remote, bool a_landingPending, float a_deltaTime);
 
     // Actor-module internal, called by ActorRuntime once graph state permits
     // translation: smooths heading and moves toward the target transform.
