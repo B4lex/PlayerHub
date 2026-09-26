@@ -93,6 +93,10 @@ namespace ActorAnimation
         std::uint32_t swimMoveStartWaitPasses{ 0 };
         std::uint32_t swimMoveStartAttempts{ 0 };
         float swimMoveStartElapsed{ 0.0F };
+        // The magic-ready graph's sneak and non-sneak branches each re-enter at the
+        // standing state iSyncIdleLocomotion selects, so a sneak edge taken while
+        // moving also owes that branch its moveStart edge.
+        bool sneakMoveStartPending{ false };
         // Local AI turn-in-place requests overridden by HoldIdleTurnState.
         std::uint32_t turnStateOverrides{ 0 };
         bool lastVariableUpdateAccepted{ false };
