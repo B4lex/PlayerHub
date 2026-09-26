@@ -153,3 +153,14 @@ old space.
 18. The supplied logs reproduce movement/graph divergence: actors spawned while
     stale locomotion states replayed, and `SprintStop`/`moveStop` rejected after
     their prerequisite variables had already been cleared.
+19. Vanilla `JumpLandEnd` exits into the standing state selected by
+    `iSyncIdleLocomotion` (0 on a remote actor), so a landing has no
+    `SprintStop` edge until `moveStart` re-enters locomotion. The locomotion,
+    sneak, jump, and landing state machines (`MT_Locomotion_Behavior`,
+    `Melee_Locomotion_Behavior`, `Sneak_Locomotion_Behavior`, `JumpLand_Behavior`,
+    ...) start in the sprint or non-sprint state stored in `iSyncSprintState`,
+    and only some of them write it back. A sprinting takeoff left it at sprint,
+    so a running landing re-entered `Sprint_State` and later walking, running,
+    and backward movement kept the sprint clip. The receiver now writes
+    `iSyncSprintState` from the replicated state with the other locomotion
+    variables instead of deferring `SprintStop` past the landing.

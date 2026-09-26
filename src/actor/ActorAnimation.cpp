@@ -1312,7 +1312,6 @@ namespace ActorAnimation
         a_state.landingCompletionWaitFrames = 0;
         a_state.landingCompletionWaitElapsed = 0.0F;
         a_state.landingLocomotionReassertPending = false;
-        a_state.landingSprintStopPending = false;
         a_state.weaponLocomotionReassertPending = false;
         a_state.weaponTransitionCompletionObserved = false;
         a_state.weaponTransitionWaitElapsed = 0.0F;
@@ -1573,7 +1572,6 @@ namespace ActorAnimation
             animationState->landingCompletionWaitFrames = 0;
             animationState->landingCompletionWaitElapsed = 0.0F;
             animationState->landingLocomotionReassertPending = false;
-            animationState->landingSprintStopPending = false;
             animationState->weaponLocomotionReassertPending = false;
             animationState->weaponTransitionCompletionObserved = false;
             animationState->weaponTransitionWaitElapsed = 0.0F;
@@ -1616,7 +1614,6 @@ namespace ActorAnimation
             animationState->landingCompletionWaitFrames = 0;
             animationState->landingCompletionWaitElapsed = 0.0F;
             animationState->landingLocomotionReassertPending = false;
-            animationState->landingSprintStopPending = false;
             animationState->weaponLocomotionReassertPending = false;
             animationState->weaponTransitionCompletionObserved = false;
             animationState->weaponTransitionWaitElapsed = 0.0F;
@@ -1654,7 +1651,6 @@ namespace ActorAnimation
             animationState->landingCompletionWaitFrames = 0;
             animationState->landingCompletionWaitElapsed = 0.0F;
             animationState->landingLocomotionReassertPending = false;
-            animationState->landingSprintStopPending = false;
             animationState->weaponLocomotionReassertPending = false;
             animationState->weaponTransitionCompletionObserved = false;
             animationState->weaponTransitionWaitElapsed = 0.0F;
@@ -1991,13 +1987,7 @@ namespace ActorAnimation
                     && (hadPreviousState ? IsSprinting(previousState.movementState) != isSprinting : isSprinting))
                 || ((replayingWeaponBase || reassertLocomotionAfterSwimStop || reassertLocomotionAfterAttack
                         || reassertLocomotionAfterLanding)
-                    && isSprinting)
-                || (eventDispatchRequired && animationState->landingSprintStopPending && !isSprinting));
-        // A landing from sprint into a non-sprint state defers SprintStop to the
-        // landing reassert. The stop edge is evaluated against IsSprinting, so the
-        // variable keeps its sprint value until that stop has been sent.
-        const bool deferSprintStop
-            = jumpLandRequired && !isSprinting && hadPreviousState && IsSprinting(previousState.movementState);
+                    && isSprinting));
         if (dispatchRequired && (!animationState->hasAttempted || animationState->lastAttempted != state))
         {
             animationState->lastAttempted = state;
@@ -2015,8 +2005,6 @@ namespace ActorAnimation
         const bool moveStopRequired = moveRequired && !isMoving;
         const bool sneakStopRequired = sneakRequired && !isSneaking;
         const bool sprintStopRequired = sprintRequired && !isSprinting;
-        const bool sprintVariableValue
-            = isSprinting || deferSprintStop || (animationState->landingSprintStopPending && !sprintStopRequired);
         if (jumpRequired)
         {
             // JumpLand starts a timed landing branch whose graph output emits
@@ -2084,6 +2072,7 @@ namespace ActorAnimation
         bool directionAccepted = false;
         bool turnAccepted = false;
         bool sprintVariableAccepted = false;
+        bool syncSprintStateAccepted = false;
         bool jumpVariableAccepted = false;
         if (strings)
         {
@@ -2093,7 +2082,13 @@ namespace ActorAnimation
             dampedSpeedAccepted = actor->SetGraphVariableFloat(speedDampedVariable, graphSpeed);
             directionAccepted = actor->SetGraphVariableFloat(strings->direction, isMoving ? sampleDirection : 0.0F);
             turnAccepted = actor->SetGraphVariableFloat(strings->turnDelta, 0.0F);
-            sprintVariableAccepted = actor->SetGraphVariableBool(strings->isSprinting, sprintVariableValue);
+            sprintVariableAccepted = actor->SetGraphVariableBool(strings->isSprinting, isSprinting);
+            // The vanilla locomotion, sneak, jump, and landing state machines pick
+            // their sprint or non-sprint state from iSyncSprintState when entered,
+            // and only some of them write it back. A sprinting takeoff leaves it at
+            // sprint, so the moveStart after a running landing re-entered Sprint_State
+            // where no SprintStop had been sent. Keep it authoritative instead.
+            syncSprintStateAccepted = actor->SetGraphVariableInt(strings->iSyncSprintState, isSprinting ? 1 : 0);
             jumpVariableAccepted = actor->SetGraphVariableBool(inJumpStateVariable, state.jumping);
         }
         if (speedAccepted && graphSpeed != animationState->publishedGraphSpeed)
@@ -2134,7 +2129,10 @@ namespace ActorAnimation
             }
             if (sprintRequired && isSprinting && variablesAccepted)
             {
-                sprintAccepted = SendNetworkAnimationEvent(a_remote, sprintStartEvent);
+                // An accepted moveStart has already entered Sprint_State through
+                // iSyncSprintState, which leaves SprintStart without an edge.
+                sprintAccepted = SendNetworkAnimationEvent(a_remote, sprintStartEvent)
+                    || (moveRequired && moveAccepted && syncSprintStateAccepted);
             }
             if (jumpRequired && !landingInWater && variablesAccepted)
             {
@@ -2162,9 +2160,9 @@ namespace ActorAnimation
                 logs::debug(
                     "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} result={} "
                     "eventsAccepted={} strings={} speedVariable={} sampledSpeedVariable={} dampedSpeedVariable={} "
-                    "directionVariable={} turnVariable={} sprintVariable={} jumpVariable={} moveEvent={}/{} "
-                    "sneakEvent={}/{} sprintEvent={}/{} jumpEvent={}/{} graphSpeed={:.1f} variableAttempt={} "
-                    "eventAttempt={}/{}",
+                    "directionVariable={} turnVariable={} sprintVariable={} syncSprintVariable={} jumpVariable={} "
+                    "moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} jumpEvent={}/{} graphSpeed={:.1f} "
+                    "variableAttempt={} eventAttempt={}/{}",
                     actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision), previousStateLabel,
                     hadPreviousState && previousState.jumping ? "jumping" : "grounded",
                     Multiplayer::GetMovementStateName(state.movementState), state.jumping ? "jumping" : "grounded",
@@ -2173,9 +2171,10 @@ namespace ActorAnimation
                         : eventAttemptsExhausted ? "processed-event-timeout"
                                                  : "retrying-events",
                     eventsAccepted, stringsAvailable, speedAccepted, sampledSpeedAccepted, dampedSpeedAccepted,
-                    directionAccepted, turnAccepted, sprintVariableAccepted, jumpVariableAccepted, moveAccepted,
-                    moveRequired, sneakAccepted, sneakRequired, sprintAccepted, sprintRequired, jumpAccepted,
-                    jumpRequired, graphSpeed, variableAttempt, eventAttempt, kMaximumEventDispatchAttempts);
+                    directionAccepted, turnAccepted, sprintVariableAccepted, syncSprintStateAccepted,
+                    jumpVariableAccepted, moveAccepted, moveRequired, sneakAccepted, sneakRequired, sprintAccepted,
+                    sprintRequired, jumpAccepted, jumpRequired, graphSpeed, variableAttempt, eventAttempt,
+                    kMaximumEventDispatchAttempts);
             }
 
             if (stateProcessed)
@@ -2239,13 +2238,6 @@ namespace ActorAnimation
                 animationState->failedDispatchAttempts = 0;
                 animationState->rejectedEventAttempts = 0;
                 animationState->rejectedEventElapsed = 0.0F;
-                // Any other processed dispatch has sent the owed stop.
-                animationState->landingSprintStopPending = deferSprintStop;
-                if (animationState->landingSprintStopPending)
-                {
-                    logs::debug("Animation sync deferred sprint stop past landing: actor={:08X} revision={}",
-                        actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision));
-                }
                 if (jumpLandRequired)
                 {
                     animationState->landingCompletionPending = true;
