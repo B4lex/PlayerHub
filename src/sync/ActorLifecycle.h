@@ -21,9 +21,12 @@ struct ActorLifecycleState
     // or hands both to a deferred removal while a mount clip links them.
     std::optional<MountSync::RemoteMount> mount;
     float mountSpawnRetryRemaining{ 0.0F };
+    float mountSpawnAllowanceWaitSeconds{ 0.0F };
     RE::FormID spawnedCellID{ 0 };
     RE::FormID spawnedWorldspaceID{ 0 };
     float spawnRetryRemaining{ 0.0F };
+    // Seconds the due spawn has waited for the spawn rate limit.
+    float spawnAllowanceWaitSeconds{ 0.0F };
     // Seconds the actor has been without 3D while its target location is loaded.
     float strandedElapsed{ 0.0F };
     // Furniture the actor is hidden for because the local player or another
@@ -86,11 +89,14 @@ namespace ActorLifecycle
     // SetExcludedFromSaves for the actors and mounts awaiting removal.
     void SetDeferredRemovalsExcludedFromSaves(bool a_excluded);
 
+    // Once per pass, before any peer: grants spawns at [Performance]
+    // SpawnsPerSecond, shared by every actor and mount spawn in the pass.
+    void RefillSpawnAllowance(float a_delta);
     // Spawns the actor from the newest checkpoint once the retry delay elapsed,
-    // an actor base is available, and neither yielded furniture nor the player's
-    // previous actor awaiting removal holds it back.
+    // an actor base is available, the spawn rate allows it, and neither yielded
+    // furniture nor the player's previous actor awaiting removal holds it back.
     void SpawnWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta);
     // Spawns the actor's mount at the newest checkpoint once the retry delay
-    // elapsed. The actor must exist.
+    // elapsed and the spawn rate allows it. The actor must exist.
     void SpawnMountWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta);
 }

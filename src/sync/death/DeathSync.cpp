@@ -1,6 +1,5 @@
 #include "sync/death/DeathSync.h"
 #include "actor/ActorDeath.h"
-#include "runtime/Profiling.h"
 #include "sync/ActorLifecycle.h"
 #include "sync/PeerState.h"
 #include "sync/combat/CombatSync.h"
@@ -30,7 +29,6 @@ namespace DeathSync
 
     bool SyncDeath(const RemoteFrame& a_remote, PeerState& a_peer)
     {
-        PROFILE_FUNCTION();
         if (a_remote.checkpoint.dead && a_peer.lifecycle.mount)
         {
             // A rider is never taken off its mount (see ActorMount). The mount goes

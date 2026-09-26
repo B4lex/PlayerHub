@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -41,10 +42,17 @@ namespace Config
         Multiplayer::FormReference bolt;
     };
 
+    struct PerformanceSettings
+    {
+        // Remote actors and mounts spawned per second at most. Zero is unlimited.
+        std::uint32_t spawnsPerSecond{ 20 };
+    };
+
     struct PluginConfig
     {
         NetworkSettings network;
         EquipmentFallbackSettings equipmentFallback;
+        PerformanceSettings performance;
     };
 
     // Reads skyrim-mp.ini next to the plugin DLL, writing a default file when there

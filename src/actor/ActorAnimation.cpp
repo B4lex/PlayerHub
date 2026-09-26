@@ -4,6 +4,7 @@
 #include "actor/AnimationFirewall.h"
 #include "actor/RemoteActor.h"
 #include "runtime/GameThread.h"
+#include "runtime/Profiling.h"
 
 #include <algorithm>
 #include <array>
@@ -236,6 +237,7 @@ namespace ActorAnimation
         void ApplyAuthoritativeWeaponPresentation(
             RE::Actor& a_actor, RemoteActor& a_remote, bool a_moving, bool a_moveStartAlreadyDispatched)
         {
+            PROFILE_FUNCTION();
             const auto* actorState = a_actor.AsActorState();
             if (!actorState)
             {
@@ -578,6 +580,7 @@ namespace ActorAnimation
 
     bool SendNetworkAnimationEvent(RemoteActor& a_remote, const RE::BSFixedString& a_eventName)
     {
+        PROFILE_FUNCTION();
         if (!GameThread::Require("SendNetworkAnimationEvent"))
         {
             return false;
@@ -1374,6 +1377,7 @@ namespace ActorAnimation
 
     bool RecoverAuthoritativeAnimation(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)
     {
+        PROFILE_FUNCTION();
         const auto animationState = a_remote.animation.get();
         if (!animationState)
         {
@@ -1520,6 +1524,7 @@ namespace ActorAnimation
 
     void ApplyAnimationUpdate(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)
     {
+        PROFILE_FUNCTION();
         const auto animationState = a_remote.animation.get();
         if (!animationState)
         {
@@ -2082,6 +2087,7 @@ namespace ActorAnimation
         bool jumpVariableAccepted = false;
         if (strings)
         {
+            PROFILE_SCOPE("ApplyAnimationUpdate graph variables");
             speedAccepted = actor->SetGraphVariableFloat(strings->speed, graphSpeed);
             sampledSpeedAccepted = actor->SetGraphVariableFloat(strings->speedSampled, graphSpeed);
             dampedSpeedAccepted = actor->SetGraphVariableFloat(speedDampedVariable, graphSpeed);

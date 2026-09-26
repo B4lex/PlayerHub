@@ -1,6 +1,7 @@
 #include "actor/RemoteCollision.h"
 #include "actor/ActorRegistry.h"
 #include "actor/RemoteActor.h"
+#include "runtime/Profiling.h"
 
 #include <cstdint>
 #include <memory>
@@ -170,6 +171,7 @@ namespace RemoteCollision
 
     void PlaceByNetwork(RE::Actor& a_actor, RemoteActor& a_remote)
     {
+        PROFILE_FUNCTION();
         SetNetworkPlaced(a_remote, true, "network");
         SetBodyPlacesActor(a_actor, false);
         SetCharacterBodyIsolated(a_actor, true, "network");

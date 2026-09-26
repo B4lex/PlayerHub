@@ -406,6 +406,7 @@ namespace AnimationSync
     std::optional<Multiplayer::AnimationState> GetTranslationState(
         const RemoteFrame& a_remote, const RemoteActor& a_actor, bool a_readyForWeaponDraw, bool a_furniturePlaying)
     {
+        PROFILE_FUNCTION();
         const auto presentableState = GetPresentableAnimationState(a_remote, a_actor, a_readyForWeaponDraw);
         std::optional<Multiplayer::AnimationState> translationState;
         if (!a_furniturePlaying)

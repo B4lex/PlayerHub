@@ -24,6 +24,9 @@ namespace EquipmentSync
         constexpr float kCapturePollInterval = 1.0F;
         constexpr float kMinimumPublishInterval = 0.25F;
         constexpr float kReconcileCheckInterval = 0.25F;
+        // A matched actor re-checks what is visible every reconcile interval, and
+        // its whole inventory, whose leftovers are not, at this slower interval.
+        constexpr float kMatchedInventoryCheckInterval = 5.0F;
         constexpr float kMaximumHandDeferral = 2.0F;
         constexpr float kMaximumWeaponDrawWait = 1.0F;
         constexpr std::uint32_t kMaximumReconcileAttempts = 4;
@@ -363,6 +366,7 @@ namespace EquipmentSync
         void ResetReconciliation(RemoteState& a_remote)
         {
             a_remote.checkElapsed = kReconcileCheckInterval;
+            a_remote.inventoryCheckElapsed = 0.0F;
             a_remote.handDeferralElapsed = 0.0F;
             a_remote.handsUnsettledElapsed = 0.0F;
             a_remote.attempts = 0;
@@ -488,6 +492,45 @@ namespace EquipmentSync
                 return !a_equippedLeft || a_equippedLeft == a_remote.rightHand.object;
             }
             return a_equippedLeft == a_remote.leftHand.object;
+        }
+
+        // Whether the hands, ammo, and worn armor still match, read from the worn
+        // entries without the inventory map Actor::GetInventory builds.
+        bool IsPresentationMatched(RE::Actor& a_actor, const RemoteState& a_remote)
+        {
+            if (GetEquippedHandObject(a_actor, false) != a_remote.rightHand.object
+                || !IsLeftHandMatched(a_remote, GetEquippedHandObject(a_actor, true)))
+            {
+                return false;
+            }
+
+            auto* changes = a_actor.GetInventoryChanges();
+            if (!changes || !changes->entryList)
+            {
+                return false;
+            }
+            std::size_t wornArmor = 0;
+            RE::TESBoundObject* wornAmmo = nullptr;
+            for (const auto* entry : *changes->entryList)
+            {
+                if (!entry || !entry->object || !entry->IsWorn())
+                {
+                    continue;
+                }
+                if (auto* armor = entry->object->As<RE::TESObjectARMO>())
+                {
+                    if (std::ranges::find(a_remote.armor, armor) == a_remote.armor.end())
+                    {
+                        return false;
+                    }
+                    ++wornArmor;
+                }
+                else if (entry->object->IsAmmo() && !wornAmmo)
+                {
+                    wornAmmo = entry->object;
+                }
+            }
+            return wornArmor == a_remote.armor.size() && wornAmmo == a_remote.ammo;
         }
 
         bool IsHandSwapDeferred(const RE::Actor& a_actor, const RemoteActor& a_remoteActor)
@@ -700,6 +743,14 @@ namespace EquipmentSync
         }
         const float sinceLastCheck = a_remote.checkElapsed;
         a_remote.checkElapsed = 0.0F;
+        a_remote.inventoryCheckElapsed += sinceLastCheck;
+        if (a_remote.armorMatches && a_remote.handsMatch
+            && a_remote.inventoryCheckElapsed < kMatchedInventoryCheckInterval
+            && IsPresentationMatched(*actor, a_remote))
+        {
+            return;
+        }
+        a_remote.inventoryCheckElapsed = 0.0F;
 
         // Measure the live state before mutating anything.
         auto inventory = actor->GetInventory();

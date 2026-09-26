@@ -3,6 +3,7 @@
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
 #include "actor/RemoteActor.h"
+#include "runtime/Profiling.h"
 
 #include <algorithm>
 #include <cmath>
@@ -78,6 +79,7 @@ namespace ActorMovement
     void ApplyTranslation(
         RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime, Multiplayer::AnimationState a_translationState)
     {
+        PROFILE_FUNCTION();
         const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
         ApplySmoothedHeading(a_actor, a_remote.movement.targetHeading, deltaTime);
 

@@ -666,6 +666,7 @@ namespace AppearanceSync
         // engine uses (ID 27040) from the remote actor base's tint layers.
         std::size_t QueueFaceTintRender(const RE::TESNPC& a_base, RE::NiSourceTexture& a_texture)
         {
+            PROFILE_FUNCTION();
             // A render job has 16 layer slots and does not check the mask count.
             constexpr std::size_t kMaximumRenderedTints = 16;
             using RenderTintMasks = bool(RE::BSTArray<RE::TintMask*>*, RE::NiTexture*);
@@ -805,7 +806,6 @@ namespace AppearanceSync
 
     void SyncAppearance(RemoteState& a_remote, float a_delta)
     {
-        PROFILE_FUNCTION();
         const float delta = std::isfinite(a_delta) ? (std::max)(a_delta, 0.0F) : 0.0F;
         if (!a_remote.latest)
         {
@@ -871,6 +871,7 @@ namespace AppearanceSync
 
         if (!a_remote.colorsApplied)
         {
+            PROFILE_SCOPE("ApplyActorPresentation colors");
             a_remote.colorsApplied = true;
             a_actor.UpdateHairColor();
             a_actor.UpdateSkinColor();
