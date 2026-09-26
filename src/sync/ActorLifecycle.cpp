@@ -2,6 +2,7 @@
 #include "actor/ActorConstants.h"
 #include "actor/ActorMount.h"
 #include "actor/ActorSpawner.h"
+#include "config/PluginConfig.h"
 #include "runtime/Profiling.h"
 #include "sync/PeerState.h"
 #include "sync/SyncFrame.h"
@@ -38,6 +39,30 @@ namespace ActorLifecycle
         };
 
         std::vector<DeferredRemoval> s_deferredRemovals;
+        // Spawns the current pass may still start, under the configured rate.
+        float s_spawnAllowance{ 0.0F };
+        // The longest wait of a spawn held back in the previous pass. A spawn starts
+        // only once it has waited as long, so a fixed peer order cannot starve the
+        // last peers under sustained demand.
+        float s_previousLongestSpawnWait{ 0.0F };
+        float s_longestSpawnWait{ 0.0F };
+
+        // a_waitSeconds accumulates while the spawn is held back.
+        bool TakeSpawnAllowance(float& a_waitSeconds, float a_delta)
+        {
+            if (Config::Get().performance.spawnsPerSecond == 0)
+            {
+                return true;
+            }
+            if (s_spawnAllowance >= 1.0F && a_waitSeconds >= s_previousLongestSpawnWait)
+            {
+                s_spawnAllowance -= 1.0F;
+                return true;
+            }
+            a_waitSeconds += std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
+            s_longestSpawnWait = (std::max)(s_longestSpawnWait, a_waitSeconds);
+            return false;
+        }
 
         // Removes the mount, if any. Called in the same pass as its rider's removal
         // and after it: a seated rider is not taken off first (see ActorMount).
@@ -140,6 +165,7 @@ namespace ActorLifecycle
 
     void RetireWhenStranded(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
     {
+        PROFILE_FUNCTION();
         auto& lifecycle = a_peer.lifecycle;
         auto actorPtr = lifecycle.actor->handle.get();
         if (!actorPtr)
@@ -342,6 +368,16 @@ namespace ActorLifecycle
         }
     }
 
+    void RefillSpawnAllowance(float a_delta)
+    {
+        const float delta = std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
+        const float passShare = static_cast<float>(Config::Get().performance.spawnsPerSecond) * delta;
+        // At least one spawn per pass, and never more than one pass's share, so an
+        // idle period cannot save up a burst.
+        s_spawnAllowance = (std::min)(s_spawnAllowance + passShare, (std::max)(passShare, 1.0F));
+        s_previousLongestSpawnWait = std::exchange(s_longestSpawnWait, 0.0F);
+    }
+
     void SpawnWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
     {
         PROFILE_FUNCTION();
@@ -367,6 +403,11 @@ namespace ActorLifecycle
             // with the default look and immediately replaced.
             return;
         }
+        if (!TakeSpawnAllowance(lifecycle.spawnAllowanceWaitSeconds, a_delta))
+        {
+            return;
+        }
+        const float allowanceWait = std::exchange(lifecycle.spawnAllowanceWaitSeconds, 0.0F);
 
         const RE::NiPoint3 targetPosition{ a_remote.checkpoint.x, a_remote.checkpoint.y, a_remote.checkpoint.z };
         lifecycle.actor = ActorSpawner::Spawn(spawnBase, targetPosition, a_remote.checkpoint.heading,
@@ -385,11 +426,12 @@ namespace ActorLifecycle
 
         logs::debug(
             "Allocated remote player actor {} as actor {:08X} at transform sequence={} with target animation "
-            "state={}/{} furniture={:08X}; waiting for 3D and animation graph readiness",
+            "state={}/{} furniture={:08X} spawnAllowanceWait={:.2f}s; waiting for 3D and animation graph readiness",
             a_remote.playerID, lifecycle.actor->handle.native_handle(),
             static_cast<unsigned long long>(a_peer.appliedSequence),
             Multiplayer::GetMovementStateName(a_remote.checkpoint.animationState.movementState),
-            a_remote.checkpoint.animationState.jumping ? "jumping" : "grounded", a_remote.checkpoint.furnitureRefID);
+            a_remote.checkpoint.animationState.jumping ? "jumping" : "grounded", a_remote.checkpoint.furnitureRefID,
+            allowanceWait);
 
         if (auto* console = RE::ConsoleLog::GetSingleton())
         {
@@ -401,10 +443,12 @@ namespace ActorLifecycle
     {
         auto& lifecycle = a_peer.lifecycle;
         lifecycle.mountSpawnRetryRemaining -= (std::max)(a_delta, 0.0F);
-        if (lifecycle.mountSpawnRetryRemaining > 0.0F)
+        if (lifecycle.mountSpawnRetryRemaining > 0.0F
+            || !TakeSpawnAllowance(lifecycle.mountSpawnAllowanceWaitSeconds, a_delta))
         {
             return;
         }
+        lifecycle.mountSpawnAllowanceWaitSeconds = 0.0F;
 
         std::optional<RemoteActor> mountActor;
         if (auto* mountBase = ActorMount::GetMountBase())

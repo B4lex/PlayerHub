@@ -2,6 +2,7 @@
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
 #include "runtime/GameThread.h"
+#include "runtime/Profiling.h"
 
 #include <atomic>
 #include <cmath>
@@ -486,6 +487,7 @@ namespace SurvivalPolicy
 
     void ApplyRemoteReplicaPolicy(RE::Actor& a_actor)
     {
+        PROFILE_FUNCTION();
         // This reference-local flag reduces normal friendly-hit presentation.
         // Survival is also reasserted because some concrete engine and console
         // routines bypass virtual damage hooks entirely.
@@ -566,6 +568,7 @@ namespace SurvivalPolicy
 
     void SanitizeRemoteCombatState(RE::Actor& a_actor, bool a_mayResetPackage)
     {
+        PROFILE_FUNCTION();
         auto& runtimeData = a_actor.GetActorRuntimeData();
         const auto cowerRequests = ActorRegistry::ConsumeCombatSanitizationRequests(a_actor);
 

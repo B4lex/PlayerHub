@@ -129,6 +129,7 @@ namespace SyncCoordinator
 
             for (auto& update : changes.transforms)
             {
+                PROFILE_SCOPE("ApplyNetworkChanges transform");
                 auto [peer, inserted] = a_peers.try_emplace(update.playerID);
                 auto& state = peer->second;
                 if (!inserted && update.transform.sequence <= state.lastSequence)
@@ -430,6 +431,7 @@ namespace SyncCoordinator
         RestoreSaveEligibility(s_peers);
         ApplyNetworkChanges(s_peers);
         ActorLifecycle::UpdateDeferredRemovals(a_delta);
+        ActorLifecycle::RefillSpawnAllowance(a_delta);
         if (!a_player)
         {
             return;

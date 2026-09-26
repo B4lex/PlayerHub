@@ -70,6 +70,17 @@ namespace Config
             });
         }
 
+        std::optional<std::uint32_t> ParseUnsigned(std::string_view a_value)
+        {
+            std::uint32_t value = 0;
+            const auto [end, error] = std::from_chars(a_value.data(), a_value.data() + a_value.size(), value);
+            if (a_value.empty() || error != std::errc{} || end != a_value.data() + a_value.size())
+            {
+                return std::nullopt;
+            }
+            return value;
+        }
+
         std::optional<bool> ParseBool(std::string_view a_value)
         {
             for (const auto name : { "true", "yes", "on", "1" })
@@ -144,6 +155,8 @@ namespace Config
             virtual void Section(std::string_view a_name, std::string_view a_comment) = 0;
             virtual void Comment(std::string_view a_comment) = 0;
             virtual void Bool(std::string_view a_key, bool& a_value, std::string_view a_comment) = 0;
+            virtual void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+                std::uint32_t a_maximum) = 0;
             virtual void String(std::string_view a_key, std::string& a_value, std::string_view a_comment,
                 bool (*a_isValid)(std::string_view)) = 0;
             // Grouped under a preceding Comment, so a form entry has none of its own.
@@ -198,10 +211,21 @@ namespace Config
             a_visitor.Form("Bolt", a_settings.bolt);
         }
 
+        void DescribePerformance(PerformanceSettings& a_settings, SettingsVisitor& a_visitor)
+        {
+            a_visitor.Section("Performance", "Limits that trade how quickly remote players appear for frame time.");
+            a_visitor.Unsigned("SpawnsPerSecond", a_settings.spawnsPerSecond,
+                "Remote players and mounts spawned per second at most. Many players joining or\n"
+                "arriving at once then appear over a few seconds instead of in one long frame.\n"
+                "0 spawns every due player at once.",
+                1000);
+        }
+
         void Describe(PluginConfig& a_config, SettingsVisitor& a_visitor)
         {
             DescribeNetwork(a_config.network, a_visitor);
             DescribeEquipmentFallback(a_config.equipmentFallback, a_visitor);
+            DescribePerformance(a_config.performance, a_visitor);
         }
 
         void SetDefaultArmorFallbacks(EquipmentFallbackSettings& a_settings)
@@ -303,6 +327,22 @@ namespace Config
                 WarnInvalid(a_key, *value, a_value ? "true" : "false");
             }
 
+            void Unsigned(
+                std::string_view a_key, std::uint32_t& a_value, std::string_view, std::uint32_t a_maximum) override
+            {
+                const auto value = Take(a_key);
+                if (!value)
+                {
+                    return;
+                }
+                if (const auto parsed = ParseUnsigned(*value); parsed && *parsed <= a_maximum)
+                {
+                    a_value = *parsed;
+                    return;
+                }
+                WarnInvalid(a_key, *value, std::format("{}", a_value));
+            }
+
             void String(std::string_view a_key, std::string& a_value, std::string_view,
                 bool (*a_isValid)(std::string_view)) override
             {
@@ -397,6 +437,12 @@ namespace Config
             void Bool(std::string_view a_key, bool& a_value, std::string_view a_comment) override
             {
                 Set(a_key, a_value ? "true" : "false", a_comment);
+            }
+
+            void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+                std::uint32_t) override
+            {
+                Set(a_key, std::format("{}", a_value), a_comment);
             }
 
             void String(std::string_view a_key, std::string& a_value, std::string_view a_comment,

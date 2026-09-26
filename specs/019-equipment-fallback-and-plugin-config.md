@@ -103,6 +103,18 @@ Defaults, all from `Skyrim.esm` unless noted, by editor ID:
 
 Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 
+### `[Performance]`
+
+| Key | Meaning | Default |
+| --- | --- | --- |
+| `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0` to `1000`; `0` is unlimited | `20` |
+
+Every spawn in a main-loop pass draws from one allowance, refilled by the rate
+times the frame time. A pass may always start one spawn, but never saves up more
+than its own share. A due spawn waits until it has waited as long as the
+longest spawn held back in the previous pass, so the oldest waits go first
+regardless of peer order.
+
 ## Receiver
 
 ### Resolving the configuration
@@ -162,3 +174,6 @@ form IDs, or `none`.
    logged and fall back to their defaults or to no fallback.
 7. `[Network] ServerEndpoint` sets the server URL. `skyrim-mp-server.txt` is no
    longer read.
+8. `[Performance] SpawnsPerSecond` bounds how many remote actors and mounts are
+   spawned per second, so many players arriving at once do not spawn in one
+   frame.

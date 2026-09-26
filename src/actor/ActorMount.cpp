@@ -5,6 +5,7 @@
 #include "actor/AnimationFirewall.h"
 #include "actor/RemoteActor.h"
 #include "runtime/GameThread.h"
+#include "runtime/Profiling.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -216,6 +217,7 @@ namespace ActorMount
     void ApplyGait(RE::Actor& a_actor, const RemoteActor& a_remote, Gait& a_gait, float a_speed, float a_deltaTime,
         bool a_sendEvents, const char* a_role)
     {
+        PROFILE_FUNCTION();
         static const RE::BSFixedString speedVariable{ "Speed" };
         static const RE::BSFixedString horseSpeedSampledVariable{ "HorseSpeedSampled" };
 

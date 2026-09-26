@@ -50,6 +50,7 @@ namespace EquipmentSync
 
         // Reconciliation state of the current remote actor reference.
         float checkElapsed{ 0.0F };
+        float inventoryCheckElapsed{ 0.0F };
         float handDeferralElapsed{ 0.0F };
         float handsUnsettledElapsed{ 0.0F };
         // Mutation passes since the live state last matched. Bounded per revision.

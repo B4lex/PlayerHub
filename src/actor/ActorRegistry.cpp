@@ -1,10 +1,13 @@
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationEvents.h"
 #include "actor/RemoteActor.h"
+#include "runtime/GameThread.h"
+#include "runtime/Profiling.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -19,6 +22,10 @@ namespace ActorRegistry
         using AnimationEvents::IsWeaponTransitionEndEvent;
         using Multiplayer::IsMoving;
 
+        // The main-loop thread reads its own fields without s_mutex (see
+        // LockUnlessMainThread) and writes those other threads read under it.
+        // Pending counts other threads raise are atomics it consumes without the
+        // lock; the observation flags and hook counts are only accessed under it.
         struct Registration
         {
             const RE::Actor* actor{ nullptr };
@@ -29,14 +36,15 @@ namespace ActorRegistry
             std::unordered_map<std::string, std::uint32_t> blockedEventCounts;
             std::uint32_t blockedMagicEffects{ 0 };
             std::uint32_t blockedHealthDamage{ 0 };
-            std::uint32_t pendingHitObservations{ 0 };
-            std::uint32_t pendingCombatSanitizations{ 0 };
-            std::uint32_t pendingJumpLandEnds{ 0 };
-            std::uint32_t pendingSwimStarts{ 0 };
-            std::uint32_t pendingSwimStops{ 0 };
-            std::uint32_t pendingWeaponTransitionEnds{ 0 };
-            std::uint32_t pendingBashExits{ 0 };
+            std::atomic<std::uint32_t> pendingHitObservations{ 0 };
+            std::atomic<std::uint32_t> pendingCombatSanitizations{ 0 };
+            std::atomic<std::uint32_t> pendingJumpLandEnds{ 0 };
+            std::atomic<std::uint32_t> pendingSwimStarts{ 0 };
+            std::atomic<std::uint32_t> pendingSwimStops{ 0 };
+            std::atomic<std::uint32_t> pendingWeaponTransitionEnds{ 0 };
+            std::atomic<std::uint32_t> pendingBashExits{ 0 };
             std::uint32_t hitObservationCount{ 0 };
+            // Main-loop thread only.
             std::uint32_t combatSanitizationCount{ 0 };
             std::uint32_t jumpLandEndCount{ 0 };
             std::uint32_t weaponTransitionEndCount{ 0 };
@@ -67,7 +75,7 @@ namespace ActorRegistry
             bool observeWeaponTransitionEndEvent{ false };
         };
 
-        std::mutex s_mutex;
+        PROFILE_LOCKABLE(std::mutex, s_mutex);
         std::unordered_map<const RE::IAnimationGraphManagerHolder*, Registration> s_registrations;
         // Lets the speed channel of every local actor skip the lock while no
         // remote player rides.
@@ -94,6 +102,43 @@ namespace ActorRegistry
             }
             s_registrations.erase(registration);
         }
+
+        // Called with s_mutex held.
+        auto FindRegistration(const RE::Actor* a_actor)
+        {
+            return s_registrations.find(static_cast<const RE::IAnimationGraphManagerHolder*>(a_actor));
+        }
+
+        using RegistryLock = std::unique_lock<decltype(s_mutex)>;
+
+        // Registrations are inserted and erased only on the main-loop thread
+        // (Register and Unregister run from the spawner and actor runtime), so
+        // that thread may find one without s_mutex. Every other thread holds it.
+        RegistryLock LockUnlessMainThread()
+        {
+            return GameThread::IsAuthoritative() ? RegistryLock{} : RegistryLock{ s_mutex };
+        }
+
+        // For a write to a field other threads read under s_mutex.
+        void LockForWrite(RegistryLock& a_lock)
+        {
+            if (!a_lock.owns_lock())
+            {
+                a_lock = RegistryLock{ s_mutex };
+            }
+        }
+
+        // Called with s_mutex held, or on the main-loop thread.
+        Registration* Find(const RE::IAnimationGraphManagerHolder* a_holder)
+        {
+            const auto registration = s_registrations.find(a_holder);
+            return registration != s_registrations.end() ? std::addressof(registration->second) : nullptr;
+        }
+
+        Registration* Find(const RE::Actor& a_actor)
+        {
+            return Find(static_cast<const RE::IAnimationGraphManagerHolder*>(std::addressof(a_actor)));
+        }
     }
 
     void Register(RemoteActor& a_remote, RE::Actor& a_actor)
@@ -110,21 +155,21 @@ namespace ActorRegistry
             EraseRegistration(a_remote.animationGraphHolder);
         }
         EraseRegistration(holder);
-        s_registrations.insert_or_assign(holder,
-            Registration{ .actor = std::addressof(a_actor),
-                .magicTarget = a_actor.AsMagicTarget(),
-                .actorValueOwner = a_actor.AsActorValueOwner(),
-                .actorHandle = a_remote.handle.native_handle(),
-                .authoritativeJumping = a_remote.animation->targetAnimationState.jumping,
-                .authoritativeDirection = IsMoving(a_remote.animation->targetAnimationState.movementState)
-                    ? a_remote.movement.animationDirection
-                    : 0.0F,
-                .authoritativeWeaponDrawn = a_remote.animation->targetAnimationState.weaponDrawn,
-                .animationFirewallEnabled = false,
-                .furnitureAnimationOwned = a_remote.furniture.furnitureAnimationOwned,
-                .networkPlaced = a_remote.collision.networkPlaced,
-                .authoritativeSpeed = a_remote.animation->publishedGraphSpeed,
-                .observeWeaponTransitionEndEvent = a_remote.animation->targetAnimationState.weaponDrawn });
+        // Constructed in place: the atomics make a Registration immovable.
+        auto& registration = s_registrations.try_emplace(holder).first->second;
+        registration.actor = std::addressof(a_actor);
+        registration.magicTarget = a_actor.AsMagicTarget();
+        registration.actorValueOwner = a_actor.AsActorValueOwner();
+        registration.actorHandle = a_remote.handle.native_handle();
+        registration.authoritativeJumping = a_remote.animation->targetAnimationState.jumping;
+        registration.authoritativeDirection = IsMoving(a_remote.animation->targetAnimationState.movementState)
+            ? a_remote.movement.animationDirection
+            : 0.0F;
+        registration.authoritativeWeaponDrawn = a_remote.animation->targetAnimationState.weaponDrawn;
+        registration.furnitureAnimationOwned = a_remote.furniture.furnitureAnimationOwned;
+        registration.networkPlaced = a_remote.collision.networkPlaced;
+        registration.authoritativeSpeed = a_remote.animation->publishedGraphSpeed;
+        registration.observeWeaponTransitionEndEvent = a_remote.animation->targetAnimationState.weaponDrawn;
         if (a_remote.collision.networkPlaced)
         {
             s_networkPlacedCount.fetch_add(1, std::memory_order_relaxed);
@@ -171,23 +216,25 @@ namespace ActorRegistry
 
     bool EnableAnimationFirewall(const RemoteActor& a_remote)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
-        if (registration != s_registrations.end() && !registration->second.animationFirewallEnabled)
+        auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        if (!registration || registration->animationFirewallEnabled)
         {
-            registration->second.animationFirewallEnabled = true;
-            return true;
+            return false;
         }
-        return false;
+        LockForWrite(lock);
+        registration->animationFirewallEnabled = true;
+        return true;
     }
 
     void DisableAnimationFirewall(const RemoteActor& a_remote)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
-        if (registration != s_registrations.end())
+        auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        if (registration && registration->animationFirewallEnabled)
         {
-            registration->second.animationFirewallEnabled = false;
+            LockForWrite(lock);
+            registration->animationFirewallEnabled = false;
         }
     }
 
@@ -203,11 +250,12 @@ namespace ActorRegistry
 
     void SetHeldFurniture(const RemoteActor& a_remote, RE::FormID a_furnitureRefID)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
-        if (registration != s_registrations.end())
+        auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        if (registration && registration->heldFurnitureRefID != a_furnitureRefID)
         {
-            registration->second.heldFurnitureRefID = a_furnitureRefID;
+            LockForWrite(lock);
+            registration->heldFurnitureRefID = a_furnitureRefID;
         }
     }
 
@@ -240,9 +288,9 @@ namespace ActorRegistry
             return false;
         }
 
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = s_registrations.find(static_cast<const RE::IAnimationGraphManagerHolder*>(a_actor));
-        return registration != s_registrations.end() && registration->second.castAnimationOwned;
+        const auto lock = LockUnlessMainThread();
+        const auto* registration = Find(*a_actor);
+        return registration && registration->castAnimationOwned;
     }
 
     void SetDead(const RemoteActor& a_remote)
@@ -404,8 +452,7 @@ namespace ActorRegistry
     {
         GraphOutputObservation observation;
         std::scoped_lock lock{ s_mutex };
-        const auto registration = std::ranges::find_if(
-            s_registrations, [a_holder](const auto& a_entry) { return a_entry.second.actor == a_holder; });
+        const auto registration = s_registrations.find(static_cast<const RE::IAnimationGraphManagerHolder*>(a_holder));
         if (registration != s_registrations.end() && a_isJumpLandEnd
             && registration->second.landingCompletionObservationAllowed && registration->second.observeJumpLandEndEvent)
         {
@@ -446,8 +493,7 @@ namespace ActorRegistry
         }
 
         std::scoped_lock lock{ s_mutex };
-        const auto registration = std::ranges::find_if(
-            s_registrations, [a_actor](const auto& a_entry) { return a_entry.second.actor == a_actor; });
+        const auto registration = FindRegistration(a_actor);
         if (registration == s_registrations.end())
         {
             return std::nullopt;
@@ -459,11 +505,12 @@ namespace ActorRegistry
 
     void SetAuthoritativeJumpState(const RemoteActor& a_remote, bool a_jumping)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
-        if (registration != s_registrations.end())
+        auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        if (registration && registration->authoritativeJumping != a_jumping)
         {
-            registration->second.authoritativeJumping = a_jumping;
+            LockForWrite(lock);
+            registration->authoritativeJumping = a_jumping;
         }
     }
 
@@ -472,11 +519,12 @@ namespace ActorRegistry
         const float direction = IsMoving(a_remote.animation->targetAnimationState.movementState)
             ? a_remote.movement.animationDirection
             : 0.0F;
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
-        if (registration != s_registrations.end())
+        auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        if (registration && registration->authoritativeDirection != direction)
         {
-            registration->second.authoritativeDirection = direction;
+            LockForWrite(lock);
+            registration->authoritativeDirection = direction;
         }
     }
 
@@ -488,8 +536,7 @@ namespace ActorRegistry
         }
 
         std::scoped_lock lock{ s_mutex };
-        const auto registration = std::ranges::find_if(
-            s_registrations, [a_actor](const auto& a_entry) { return a_entry.second.actor == a_actor; });
+        const auto registration = FindRegistration(a_actor);
         if (registration == s_registrations.end())
         {
             return std::nullopt;
@@ -501,26 +548,27 @@ namespace ActorRegistry
 
     void SetAuthoritativeWeaponDrawnState(const RemoteActor& a_remote, bool a_weaponDrawn)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
-        if (registration != s_registrations.end() && registration->second.authoritativeWeaponDrawn != a_weaponDrawn)
+        auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        if (!registration || registration->authoritativeWeaponDrawn == a_weaponDrawn)
         {
-            registration->second.authoritativeWeaponDrawn = a_weaponDrawn;
-            // Arm before DrawWeaponMagicHands runs on the next remote actor update. Its
-            // completion annotation may be emitted from an animation worker.
-            registration->second.pendingWeaponTransitionEnds = 0;
-            registration->second.observeWeaponTransitionEndEvent = true;
+            return;
         }
+        // The worker observing the completion reads the state, the flag, and the
+        // count together.
+        LockForWrite(lock);
+        registration->authoritativeWeaponDrawn = a_weaponDrawn;
+        // Arm before DrawWeaponMagicHands runs on the next remote actor update. Its
+        // completion annotation may be emitted from an animation worker.
+        registration->pendingWeaponTransitionEnds = 0;
+        registration->observeWeaponTransitionEndEvent = true;
     }
 
     std::optional<bool> GetAuthoritativeWeaponDrawnState(const RE::Actor& a_actor)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = std::ranges::find_if(s_registrations,
-            [&a_actor](const auto& a_entry) { return a_entry.second.actor == std::addressof(a_actor); });
-        return registration != s_registrations.end()
-            ? std::optional<bool>{ registration->second.authoritativeWeaponDrawn }
-            : std::nullopt;
+        const auto lock = LockUnlessMainThread();
+        const auto* registration = Find(a_actor);
+        return registration ? std::optional<bool>{ registration->authoritativeWeaponDrawn } : std::nullopt;
     }
 
     std::pair<std::uint32_t, std::uint32_t> BlockMagicEffect(const RE::MagicTarget* a_target)
@@ -544,8 +592,7 @@ namespace ActorRegistry
         }
 
         std::scoped_lock lock{ s_mutex };
-        const auto registration = std::ranges::find_if(
-            s_registrations, [a_actor](const auto& a_entry) { return a_entry.second.actor == a_actor; });
+        const auto registration = FindRegistration(a_actor);
         if (registration == s_registrations.end() || registration->second.dead)
         {
             return {};
@@ -580,8 +627,7 @@ namespace ActorRegistry
         }
 
         std::scoped_lock lock{ s_mutex };
-        const auto registration = std::ranges::find_if(
-            s_registrations, [a_actor](const auto& a_entry) { return a_entry.second.actor == a_actor; });
+        const auto registration = FindRegistration(a_actor);
         if (registration == s_registrations.end())
         {
             return {};
@@ -593,127 +639,92 @@ namespace ActorRegistry
 
     std::uint32_t ConsumeHitObservations(const RemoteActor& a_remote)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
-        if (registration == s_registrations.end())
-        {
-            return 0;
-        }
-
-        return std::exchange(registration->second.pendingHitObservations, 0);
+        const auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        return registration ? registration->pendingHitObservations.exchange(0) : 0;
     }
 
     std::uint32_t ConsumeSwimStarts(const RemoteActor& a_remote)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
-        if (registration == s_registrations.end())
-        {
-            return 0;
-        }
-
-        return std::exchange(registration->second.pendingSwimStarts, 0);
+        const auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        return registration ? registration->pendingSwimStarts.exchange(0) : 0;
     }
 
     std::uint32_t ConsumeSwimStops(const RemoteActor& a_remote)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
-        if (registration == s_registrations.end())
-        {
-            return 0;
-        }
-
-        return std::exchange(registration->second.pendingSwimStops, 0);
+        const auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        return registration ? registration->pendingSwimStops.exchange(0) : 0;
     }
 
     std::uint32_t ConsumeWeaponTransitionEnds(const RemoteActor& a_remote)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
-        if (registration == s_registrations.end())
-        {
-            return 0;
-        }
-
-        return std::exchange(registration->second.pendingWeaponTransitionEnds, 0);
+        const auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        return registration ? registration->pendingWeaponTransitionEnds.exchange(0) : 0;
     }
 
     void SetLandingCompletionObservation(const RE::Actor& a_actor, bool a_allowed)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = std::ranges::find_if(s_registrations,
-            [&a_actor](const auto& a_entry) { return a_entry.second.actor == std::addressof(a_actor); });
-        if (registration != s_registrations.end())
+        auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_actor);
+        // While disallowed nothing arms the observation or raises its count, so
+        // disallowing it again changes nothing.
+        if (!registration || (!a_allowed && !registration->landingCompletionObservationAllowed))
         {
-            registration->second.landingCompletionObservationAllowed = a_allowed;
-            registration->second.observeJumpLandEndEvent = false;
-            registration->second.pendingJumpLandEnds = 0;
+            return;
         }
+        LockForWrite(lock);
+        registration->landingCompletionObservationAllowed = a_allowed;
+        registration->observeJumpLandEndEvent = false;
+        registration->pendingJumpLandEnds = 0;
     }
 
     void ArmJumpLandEndObservation(const RE::Actor& a_actor)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = std::ranges::find_if(s_registrations,
-            [&a_actor](const auto& a_entry) { return a_entry.second.actor == std::addressof(a_actor); });
-        if (registration != s_registrations.end() && registration->second.landingCompletionObservationAllowed)
+        auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_actor);
+        if (registration && registration->landingCompletionObservationAllowed)
         {
+            LockForWrite(lock);
             // Arm only after the grounded transform and graph variables are in
             // place. A delayed marker from the prior jump must not complete this one.
-            registration->second.pendingJumpLandEnds = 0;
-            registration->second.observeJumpLandEndEvent = true;
+            registration->pendingJumpLandEnds = 0;
+            registration->observeJumpLandEndEvent = true;
         }
     }
 
     std::uint32_t ConsumeJumpLandEnds(const RemoteActor& a_remote)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
-        if (registration == s_registrations.end())
-        {
-            return 0;
-        }
-
-        return std::exchange(registration->second.pendingJumpLandEnds, 0);
+        const auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        return registration ? registration->pendingJumpLandEnds.exchange(0) : 0;
     }
 
     std::uint32_t ConsumeBashExits(const RE::Actor& a_actor)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = std::ranges::find_if(s_registrations,
-            [&a_actor](const auto& a_entry) { return a_entry.second.actor == std::addressof(a_actor); });
-        if (registration == s_registrations.end())
-        {
-            return 0;
-        }
-
-        return std::exchange(registration->second.pendingBashExits, 0);
+        const auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_actor);
+        return registration ? registration->pendingBashExits.exchange(0) : 0;
     }
 
     std::uint32_t ConsumeCombatSanitizationRequests(const RE::Actor& a_actor)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = std::ranges::find_if(s_registrations,
-            [&a_actor](const auto& a_entry) { return a_entry.second.actor == std::addressof(a_actor); });
-        if (registration == s_registrations.end())
-        {
-            return 0;
-        }
-
-        return std::exchange(registration->second.pendingCombatSanitizations, 0);
+        const auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_actor);
+        return registration ? registration->pendingCombatSanitizations.exchange(0) : 0;
     }
 
     std::pair<std::uint32_t, std::uint32_t> RecordCombatSanitization(const RE::Actor& a_actor)
     {
-        std::scoped_lock lock{ s_mutex };
-        const auto registration = std::ranges::find_if(s_registrations,
-            [&a_actor](const auto& a_entry) { return a_entry.second.actor == std::addressof(a_actor); });
-        if (registration == s_registrations.end())
+        if (!GameThread::IsAuthoritative())
         {
             return {};
         }
 
-        return { registration->second.actorHandle, ++registration->second.combatSanitizationCount };
+        auto* registration = Find(a_actor);
+        return registration ? std::pair{ registration->actorHandle, ++registration->combatSanitizationCount }
+                            : std::pair<std::uint32_t, std::uint32_t>{};
     }
 }

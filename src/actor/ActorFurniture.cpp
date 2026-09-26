@@ -5,6 +5,7 @@
 #include "actor/RemoteActor.h"
 #include "actor/SurvivalPolicy.h"
 #include "runtime/GameThread.h"
+#include "runtime/Profiling.h"
 
 #include <algorithm>
 #include <cmath>
@@ -550,6 +551,7 @@ namespace ActorFurniture
 
     bool AdvanceFurnitureInteraction(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)
     {
+        PROFILE_FUNCTION();
         const auto targetFurnitureRefID = a_remote.furniture.targetFurnitureRefID;
         const auto occupiedFurnitureRefID = GetOccupiedFurnitureRefID(a_actor);
         // Published before this pass advances it; the activation reading it runs

@@ -3,6 +3,7 @@
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationEvents.h"
 #include "actor/RemoteActor.h"
+#include "runtime/Profiling.h"
 
 #include <cstddef>
 #include <cstring>
@@ -349,6 +350,7 @@ namespace AnimationFirewall
 
     bool ForceDefaultGraphState(RE::Actor& a_actor)
     {
+        PROFILE_FUNCTION();
         static const RE::BSFixedString defaultStateEvent{ "IdleForceDefaultState" };
         static const RE::BSFixedString torchEquipEvent{ "torchEquip" };
         const bool defaultStateAccepted = NotifyNetworkAnimationGraph(a_actor, defaultStateEvent);

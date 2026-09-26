@@ -324,7 +324,6 @@ namespace MountSync
 
     bool SyncMount(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
     {
-        PROFILE_FUNCTION();
         auto& lifecycle = a_peer.lifecycle;
         auto& transitions = a_peer.mounting;
         const float delta = std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
