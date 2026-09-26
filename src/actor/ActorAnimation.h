@@ -63,10 +63,6 @@ namespace ActorAnimation
         // JumpLandEnd selects the graph's exit branch. Reassert the active grounded
         // locomotion events once, without forgetting the dispatched weapon stance.
         bool landingLocomotionReassertPending{ false };
-        // JumpLand defers every locomotion exit, and the landing branch of a
-        // sprinting takeoff exits back into sprint. A landing into a non-sprint
-        // state therefore still owes SprintStop to the next locomotion dispatch.
-        bool landingSprintStopPending{ false };
         bool hasDispatched{ false };
         bool hasAttempted{ false };
         bool hasVariableUpdateResult{ false };
