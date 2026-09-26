@@ -30,8 +30,9 @@ namespace AnimationSync
     void OnCheckpointAccepted(const CheckpointUpdate& a_update);
 
     // Remote stage: stages the next graph step toward the checkpoint's state.
-    // The caller skips it while an attack or furniture owns the graph.
-    void SyncAnimation(const RemoteFrame& a_remote, RemoteActor& a_actor, bool a_readyForWeaponDraw);
+    // The caller skips it while an attack or furniture owns the graph. A landing
+    // waits, bounded, for the airborne actor to reach where the source landed.
+    void SyncAnimation(const RemoteFrame& a_remote, RemoteActor& a_actor, bool a_readyForWeaponDraw, float a_delta);
 
     // Remote stage result: how the transform may follow the network path this
     // pass, or nullopt to hold it while a compound transition converges.

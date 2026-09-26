@@ -2088,16 +2088,20 @@ namespace ActorAnimation
             // The grounded checkpoint and JumpLand describe one boundary. Clear
             // interpolation backlog before changing the persistent graph state,
             // otherwise the landing branch can begin while the remote actor is aloft.
-            actor->SetPosition(a_remote.movement.targetPosition, true);
+            // The landing approach normally leaves only a residual to clear here.
+            auto& movement = a_remote.movement;
+            const auto landingPosition = movement.landingPosition.value_or(movement.targetPosition);
+            movement.landingPosition.reset();
+            actor->SetPosition(landingPosition, true);
             if (animationState->rejectedEventAttempts == 0)
             {
                 logs::debug(
                     "Animation sync aligned landing transform: actor={:08X} current=({:.3f},{:.3f},{:.3f}) "
-                    "target=({:.3f},{:.3f},{:.3f}) zError={:.3f} physicalJump={} physicalMidair={} "
+                    "target=({:.3f},{:.3f},{:.3f}) distance={:.1f} zError={:.3f} physicalJump={} physicalMidair={} "
                     "graphJumpAvailable={} graphJump={}",
                     actorHandle.native_handle(), positionBeforeLanding.x, positionBeforeLanding.y,
-                    positionBeforeLanding.z, a_remote.movement.targetPosition.x, a_remote.movement.targetPosition.y,
-                    a_remote.movement.targetPosition.z, a_remote.movement.targetPosition.z - positionBeforeLanding.z,
+                    positionBeforeLanding.z, landingPosition.x, landingPosition.y, landingPosition.z,
+                    positionBeforeLanding.GetDistance(landingPosition), landingPosition.z - positionBeforeLanding.z,
                     actor->IsInJumpState(), actor->IsInMidair(), graphJumpAvailableBeforeLanding,
                     graphJumpingBeforeLanding);
             }

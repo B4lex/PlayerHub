@@ -386,7 +386,7 @@ namespace SyncCoordinator
                 const bool attackPlaying = ActorAnimation::IsAnimationActionPlaying(actor);
                 if (!attackPlaying && !furniturePlaying)
                 {
-                    AnimationSync::SyncAnimation(remote, actor, readyForWeaponDraw);
+                    AnimationSync::SyncAnimation(remote, actor, readyForWeaponDraw, a_delta);
                 }
                 furniturePlaying = FurnitureSync::SyncFurnitureEntry(remote, actor, attackPlaying, furniturePlaying);
                 // Stage the freshest base state before considering an action. If this

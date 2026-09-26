@@ -1,6 +1,7 @@
 #include "sync/animation/AnimationSync.h"
 #include "actor/ActorAnimation.h"
 #include "actor/ActorFurniture.h"
+#include "actor/ActorMovement.h"
 #include "actor/RemoteActor.h"
 #include "runtime/Profiling.h"
 
@@ -366,7 +367,7 @@ namespace AnimationSync
         }
     }
 
-    void SyncAnimation(const RemoteFrame& a_remote, RemoteActor& a_actor, bool a_readyForWeaponDraw)
+    void SyncAnimation(const RemoteFrame& a_remote, RemoteActor& a_actor, bool a_readyForWeaponDraw, float a_delta)
     {
         PROFILE_FUNCTION();
         if (ActorFurniture::IsFurnitureInteractionPlaying(a_actor)
@@ -377,6 +378,10 @@ namespace AnimationSync
 
         const auto current = ActorAnimation::GetTargetState(a_actor);
         const auto target = GetPresentableAnimationState(a_remote, a_actor, a_readyForWeaponDraw);
+        if (ActorMovement::ShouldDeferLanding(a_actor, current.jumping && !target.jumping, a_delta))
+        {
+            return;
+        }
         if (current == target)
         {
             return;
@@ -416,14 +421,14 @@ namespace AnimationSync
             {
                 translationState = presentableState;
             }
-            else if (ActorAnimation::IsAnimationActionPlaying(a_actor)
-                || (targetState.jumping && presentableState.jumping))
+            else if (ActorAnimation::IsAnimationActionPlaying(a_actor) || targetState.jumping)
             {
                 // An attack clip or an airborne branch holds the dispatched
                 // locomotion for its whole duration, while the remote player keeps
                 // travelling. Follow the latest sample instead of freezing and then
-                // snapping once the graph releases.
-                translationState = presentableState;
+                // snapping once the graph releases. An airborne actor keeps its
+                // airborne pace until its landing is staged.
+                translationState = targetState.jumping ? targetState : presentableState;
             }
         }
         return translationState;
