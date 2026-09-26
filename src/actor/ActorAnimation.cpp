@@ -153,6 +153,16 @@ namespace ActorAnimation
             return func(holder);
         }
 
+        // Diagnostics only. The vanilla locomotion branches tag iState while they
+        // run (iState_NPC1HM, iState_NPCSneaking, iState_NPCSprinting, ...), so it
+        // shows which branch the last graph update left active; -1 if unavailable.
+        std::int32_t GetGraphStateTag(const RE::Actor& a_actor)
+        {
+            static const RE::BSFixedString stateVariable{ "iState" };
+            std::int32_t value = -1;
+            return a_actor.GetGraphVariableInt(stateVariable, value) ? value : -1;
+        }
+
         bool IsActorInHitReaction(RE::Actor& a_actor)
         {
             static const RE::BSFixedString isRecoilingVariable{ "IsRecoiling" };
@@ -549,6 +559,31 @@ namespace ActorAnimation
                 a_remote.handle.native_handle(),
                 Multiplayer::GetMovementStateName(a_state.targetAnimationState.movementState), accepted,
                 a_state.swimMoveStartAttempts, a_state.swimMoveStartElapsed);
+        }
+
+        // Sent once, one graph update after the sneak edge. The unarmed and melee
+        // graphs toggle sneak inside locomotion and reject it; MagicBehavior's
+        // (Sneak)MagicReady branches enter standing and take it.
+        void AdvanceSneakMoveStart(RemoteActor& a_remote, State& a_state)
+        {
+            if (!a_state.sneakMoveStartPending)
+            {
+                return;
+            }
+            a_state.sneakMoveStartPending = false;
+            const auto& dispatched = a_state.lastDispatched;
+            const auto& target = a_state.targetAnimationState;
+            if (!a_state.hasDispatched || !IsMoving(dispatched.movementState) || dispatched.jumping
+                || !IsMoving(target.movementState) || target.jumping || a_state.attackPlaybackPending
+                || IsWeaponTransitionUnsettled(a_state))
+            {
+                return;
+            }
+
+            static const RE::BSFixedString moveStartEvent{ "moveStart" };
+            const bool accepted = SendNetworkAnimationEvent(a_remote, moveStartEvent);
+            logs::debug("Animation sync selected moving state after sneak edge: actor={:08X} state={} accepted={}",
+                a_remote.handle.native_handle(), Multiplayer::GetMovementStateName(dispatched.movementState), accepted);
         }
     }
 
@@ -1904,6 +1939,7 @@ namespace ActorAnimation
             animationState->swimMoveStartPending = false;
         }
         AdvanceSwimMoveStart(a_remote, *animationState, actorState, a_deltaTime);
+        AdvanceSneakMoveStart(a_remote, *animationState);
         const bool authoritativeLocomotionActive
             = IsMoving(authoritativeState.movementState) || authoritativeState.jumping;
         const bool reassertLocomotionAfterWeaponTransition
@@ -2031,12 +2067,13 @@ namespace ActorAnimation
                 logs::debug(
                     "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} "
                     "result=retrying-stop-events strings={} moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} "
-                    "jumpEvent=deferred/{} eventAttempt={}/{}",
+                    "jumpEvent=deferred/{} iState={} eventAttempt={}/{}",
                     actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision), previousStateLabel,
                     hadPreviousState && previousState.jumping ? "jumping" : "grounded",
                     Multiplayer::GetMovementStateName(state.movementState), state.jumping ? "jumping" : "grounded",
                     stringsAvailable, moveAccepted, moveStopRequired, sneakAccepted, sneakStopRequired, sprintAccepted,
-                    sprintStopRequired, jumpLandRequired, stopEventAttempt, kMaximumEventDispatchAttempts);
+                    sprintStopRequired, jumpLandRequired, GetGraphStateTag(*actor), stopEventAttempt,
+                    kMaximumEventDispatchAttempts);
             }
             ++animationState->rejectedEventAttempts;
             animationState->rejectedEventElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
@@ -2161,7 +2198,7 @@ namespace ActorAnimation
                     "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} result={} "
                     "eventsAccepted={} strings={} speedVariable={} sampledSpeedVariable={} dampedSpeedVariable={} "
                     "directionVariable={} turnVariable={} sprintVariable={} syncSprintVariable={} jumpVariable={} "
-                    "moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} jumpEvent={}/{} graphSpeed={:.1f} "
+                    "moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} jumpEvent={}/{} graphSpeed={:.1f} iState={} "
                     "variableAttempt={} eventAttempt={}/{}",
                     actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision), previousStateLabel,
                     hadPreviousState && previousState.jumping ? "jumping" : "grounded",
@@ -2173,8 +2210,8 @@ namespace ActorAnimation
                     eventsAccepted, stringsAvailable, speedAccepted, sampledSpeedAccepted, dampedSpeedAccepted,
                     directionAccepted, turnAccepted, sprintVariableAccepted, syncSprintStateAccepted,
                     jumpVariableAccepted, moveAccepted, moveRequired, sneakAccepted, sneakRequired, sprintAccepted,
-                    sprintRequired, jumpAccepted, jumpRequired, graphSpeed, variableAttempt, eventAttempt,
-                    kMaximumEventDispatchAttempts);
+                    sprintRequired, jumpAccepted, jumpRequired, graphSpeed, GetGraphStateTag(*actor), variableAttempt,
+                    eventAttempt, kMaximumEventDispatchAttempts);
             }
 
             if (stateProcessed)
@@ -2238,6 +2275,7 @@ namespace ActorAnimation
                 animationState->failedDispatchAttempts = 0;
                 animationState->rejectedEventAttempts = 0;
                 animationState->rejectedEventElapsed = 0.0F;
+                animationState->sneakMoveStartPending = sneakRequired && sneakAccepted && isMoving && !state.jumping;
                 if (jumpLandRequired)
                 {
                     animationState->landingCompletionPending = true;

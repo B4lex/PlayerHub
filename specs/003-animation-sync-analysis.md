@@ -164,3 +164,11 @@ old space.
     and backward movement kept the sprint clip. The receiver now writes
     `iSyncSprintState` from the replicated state with the other locomotion
     variables instead of deferring `SprintStop` past the landing.
+20. With a spell readied, locomotion runs in MagicBehavior's
+    `MagicReadyRootBehavior`, whose `DefaultMagicReady` and `SneakMagicReady`
+    branches each re-enter their standing/locomotion machine at
+    `iSyncIdleLocomotion` (0 on a remote actor). A `SneakStart` or `SneakStop`
+    taken while moving left the actor in the standing pose while it translated,
+    and the following `moveStop` had no edge. The receiver now sends one
+    `moveStart` on the graph update after a sneak edge taken while moving; the
+    unarmed and melee graphs keep sneak inside locomotion and reject it.
