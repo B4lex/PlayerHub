@@ -2,6 +2,7 @@
 #include "actor/ActorAnimation.h"
 #include "actor/ActorFurniture.h"
 #include "actor/RemoteActor.h"
+#include "runtime/Profiling.h"
 
 #include <limits>
 
@@ -278,6 +279,7 @@ namespace AnimationSync
 
     LocalGraphEpoch ObserveLocalGraphEpoch(const LocalFrame& a_local)
     {
+        PROFILE_FUNCTION();
         static RE::BSAnimationGraphManager* observedGraph = nullptr;
         static std::uint64_t graphEpoch = 1;
         static bool graphWasObserved = false;
@@ -366,6 +368,7 @@ namespace AnimationSync
 
     void SyncAnimation(const RemoteFrame& a_remote, RemoteActor& a_actor, bool a_readyForWeaponDraw)
     {
+        PROFILE_FUNCTION();
         if (ActorFurniture::IsFurnitureInteractionPlaying(a_actor)
             || !ActorAnimation::IsAnimationStateSettledExceptLanding(a_actor))
         {

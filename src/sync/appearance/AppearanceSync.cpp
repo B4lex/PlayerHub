@@ -1,6 +1,7 @@
 #include "sync/appearance/AppearanceSync.h"
 #include "forms/FormLookup.h"
 #include "network/SocketIOClient.h"
+#include "runtime/Profiling.h"
 
 #include <algorithm>
 #include <array>
@@ -704,6 +705,7 @@ namespace AppearanceSync
 
     void SyncAppearance(const LocalFrame& a_local, float a_delta)
     {
+        PROFILE_FUNCTION();
         static float captureElapsed = kCaptureInterval;
         static float publishElapsed = kMinimumPublishInterval;
         static std::optional<AppearanceData> published;
@@ -803,6 +805,7 @@ namespace AppearanceSync
 
     void SyncAppearance(RemoteState& a_remote, float a_delta)
     {
+        PROFILE_FUNCTION();
         const float delta = std::isfinite(a_delta) ? (std::max)(a_delta, 0.0F) : 0.0F;
         if (!a_remote.latest)
         {
@@ -859,6 +862,7 @@ namespace AppearanceSync
     void ApplyActorPresentation(
         RemoteState& a_remote, const std::string& a_playerID, RE::Actor& a_actor, bool a_actorReady)
     {
+        PROFILE_FUNCTION();
         if (!a_actorReady || !a_actor.Is3DLoaded() || !a_remote.spawnedBase || a_remote.spawnedBase != a_remote.base
             || a_actor.GetActorBase() != a_remote.spawnedBase)
         {

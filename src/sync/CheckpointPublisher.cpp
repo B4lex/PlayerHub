@@ -1,5 +1,6 @@
 #include "sync/CheckpointPublisher.h"
 #include "network/SocketIOClient.h"
+#include "runtime/Profiling.h"
 #include "sync/animation/AnimationSync.h"
 #include "sync/combat/CombatSync.h"
 #include "sync/death/DeathSync.h"
@@ -19,6 +20,7 @@ namespace CheckpointPublisher
 
     Publication PublishLocalCheckpoint(const LocalFrame& a_local, float a_delta, std::uint64_t a_graphEpoch)
     {
+        PROFILE_FUNCTION();
         static float elapsed = kSnapshotInterval;
         static std::uint64_t sequence = 0;
 

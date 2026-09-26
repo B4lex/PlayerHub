@@ -2,6 +2,7 @@
 #include "actor/ActorConstants.h"
 #include "actor/ActorMount.h"
 #include "actor/ActorSpawner.h"
+#include "runtime/Profiling.h"
 #include "sync/PeerState.h"
 #include "sync/SyncFrame.h"
 #include "sync/furniture/FurnitureSync.h"
@@ -290,6 +291,7 @@ namespace ActorLifecycle
 
     void UpdateDeferredRemovals(float a_delta)
     {
+        PROFILE_FUNCTION();
         if (s_deferredRemovals.empty())
         {
             return;
@@ -342,6 +344,7 @@ namespace ActorLifecycle
 
     void SpawnWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
     {
+        PROFILE_FUNCTION();
         auto& lifecycle = a_peer.lifecycle;
         if (lifecycle.yieldedFurnitureRefID != 0)
         {

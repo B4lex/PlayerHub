@@ -3,6 +3,7 @@
 #include "actor/RemoteActor.h"
 #include "forms/FormLookup.h"
 #include "network/SocketIOClient.h"
+#include "runtime/Profiling.h"
 #include "sync/equipment/EquipmentFallback.h"
 
 #include <algorithm>
@@ -547,6 +548,7 @@ namespace EquipmentSync
 
     void SyncEquipment(const LocalFrame& a_local, float a_delta, bool a_flush)
     {
+        PROFILE_FUNCTION();
         static float quietElapsed = 0.0F;
         static float pollElapsed = kCapturePollInterval;
         static float publishElapsed = kMinimumPublishInterval;
@@ -663,6 +665,7 @@ namespace EquipmentSync
 
     void SyncEquipment(RemoteState& a_remote, const std::string& a_playerID, RemoteActor& a_remoteActor, float a_delta)
     {
+        PROFILE_FUNCTION();
         const float delta = std::isfinite(a_delta) ? (std::max)(a_delta, 0.0F) : 0.0F;
         EnsureResolved(a_remote, a_playerID);
         if (a_remote.handsMatch || a_remote.exhausted)

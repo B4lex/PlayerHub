@@ -51,6 +51,10 @@ a peer does not have a matching modded asset or behavior.
   all actors where a cached or indexed lookup would do. Do expensive work only
   when state changes, and spread or throttle work that does not need to run
   every frame.
+- Profile with Tracy by configuring `xmake f --tracy=y`. Instrument with the
+  macros in `src/runtime/Profiling.h`, which expand to nothing in normal builds.
+  Prefer one zone per sync stage or per-peer function over zones in tight loops
+  or high-frequency engine hooks.
 
 ## Protocol and verification
 - Backward compatibility between protocol or server versions is not a priority:
