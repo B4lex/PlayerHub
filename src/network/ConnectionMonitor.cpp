@@ -1,5 +1,6 @@
 #include "network/ConnectionMonitor.h"
 #include "network/SocketIOClient.h"
+#include "runtime/Profiling.h"
 
 #include <algorithm>
 #include <atomic>
@@ -169,6 +170,7 @@ namespace Network
 
     void UpdateConnectionMonitor(float a_deltaSeconds)
     {
+        PROFILE_FUNCTION();
         const auto deltaSeconds = std::clamp(a_deltaSeconds, 0.0F, kMaximumFrameTime);
         if (IsConnected())
         {

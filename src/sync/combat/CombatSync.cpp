@@ -3,6 +3,7 @@
 #include "actor/AnimationEvents.h"
 #include "actor/RemoteActor.h"
 #include "network/SocketIOClient.h"
+#include "runtime/Profiling.h"
 
 #include <algorithm>
 #include <type_traits>
@@ -206,6 +207,7 @@ namespace CombatSync
 
     std::optional<Network::Attack> CaptureLocalAttack(const LocalFrame& a_local)
     {
+        PROFILE_FUNCTION();
         static RE::ATTACK_STATE_ENUM previousAttackState = RE::ATTACK_STATE_ENUM::kNone;
         static bool attackWindowActive = false;
         // The latest captured attack of the window is already presented as a power
@@ -416,6 +418,7 @@ namespace CombatSync
 
     void SyncCombat(const RemoteFrame& a_remote, RemoteState& a_state, RemoteActor& a_actor, bool a_handsSettled)
     {
+        PROFILE_FUNCTION();
         if (a_state.pendingAnimationActions.empty())
         {
             return;
@@ -499,6 +502,7 @@ namespace CombatSync
 
     void SyncHandPresentation(const RemoteFrame& a_remote, RemoteActor& a_actor, bool a_handsSettled, float a_delta)
     {
+        PROFILE_FUNCTION();
         const auto& checkpoint = a_remote.checkpoint;
         const auto& target = checkpoint.handPresentation;
         // The stance change waits for the presentation to end (AnimationSync holds

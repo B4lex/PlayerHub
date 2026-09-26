@@ -1,5 +1,6 @@
 #include "network/SocketIOClient.h"
 #include "config/PluginConfig.h"
+#include "runtime/Profiling.h"
 
 #include <sio_client.h>
 
@@ -779,6 +780,7 @@ namespace Network
 
         void OnRemoteTransform(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
         {
+            PROFILE_FUNCTION();
             RemotePlayerTransform update;
             if (!ParseRemoteTransform(a_data, update))
             {
@@ -813,6 +815,7 @@ namespace Network
 
         void OnRemoteAnimationAction(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
         {
+            PROFILE_FUNCTION();
             AnimationAction action;
             if (!ParseRemoteAnimationAction(a_data, action))
             {
@@ -858,6 +861,7 @@ namespace Network
 
         void OnRemoteMountTransition(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
         {
+            PROFILE_FUNCTION();
             RemoteMountTransition transition;
             if (!ParseRemoteMountTransition(a_data, transition))
             {
@@ -876,6 +880,7 @@ namespace Network
 
         void OnRemoteAppearance(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
         {
+            PROFILE_FUNCTION();
             RemotePlayerAppearance update;
             if (const auto* rejectedField = ParseRemoteAppearance(a_data, update))
             {
@@ -902,6 +907,7 @@ namespace Network
 
         void OnRemoteEquipment(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
         {
+            PROFILE_FUNCTION();
             RemotePlayerEquipment update;
             if (const auto* rejectedField = ParseRemoteEquipment(a_data, update))
             {
@@ -977,6 +983,7 @@ namespace Network
 
         void OnRemoteExit(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
         {
+            PROFILE_FUNCTION();
             std::string playerID;
             if (!ReadPlayerID(a_data, playerID))
             {
@@ -994,6 +1001,7 @@ namespace Network
 
         void OnRemoteDisconnect(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
         {
+            PROFILE_FUNCTION();
             std::string playerID;
             if (!ReadPlayerID(a_data, playerID))
             {
@@ -1042,6 +1050,7 @@ namespace Network
             client.set_reconnect_attempts(0);
 
             client.set_open_listener([] {
+                PROFILE_THREAD_NAME("Socket.IO");
                 RE::ConsoleLog::GetSingleton()->Print("MP: Connected.");
                 logs::info("Socket.IO transport connected to {}", GetServerEndpoint());
             });
@@ -1107,6 +1116,7 @@ namespace Network
 
     void PublishLocalPlayerTransform(const PlayerTransform& a_transform)
     {
+        PROFILE_FUNCTION();
         if (!IsConnected())
         {
             return;
@@ -1142,6 +1152,7 @@ namespace Network
 
     void PublishLocalAppearance(const Multiplayer::PlayerAppearance& a_appearance)
     {
+        PROFILE_FUNCTION();
         if (!IsConnected() || !Multiplayer::IsValidAppearance(a_appearance))
         {
             return;
@@ -1208,6 +1219,7 @@ namespace Network
 
     void PublishLocalEquipment(const Multiplayer::PlayerEquipment& a_equipment)
     {
+        PROFILE_FUNCTION();
         if (!IsConnected() || !Multiplayer::IsValidEquipment(a_equipment))
         {
             return;
@@ -1259,6 +1271,7 @@ namespace Network
 
     void PublishLocalAttack(const Attack& a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence)
     {
+        PROFILE_FUNCTION();
         if (!IsConnected() || a_graphEpoch == 0 || a_checkpointSequence == 0)
         {
             return;
@@ -1298,6 +1311,7 @@ namespace Network
     void PublishLocalMountTransition(
         MountTransition a_transition, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence)
     {
+        PROFILE_FUNCTION();
         if (!IsConnected() || a_graphEpoch == 0 || a_checkpointSequence == 0)
         {
             return;
@@ -1369,6 +1383,7 @@ namespace Network
 
     RemotePlayerChanges DrainRemotePlayerChanges()
     {
+        PROFILE_FUNCTION();
         RemotePlayerChanges changes;
         std::scoped_lock lock{ remoteChangesLock };
 

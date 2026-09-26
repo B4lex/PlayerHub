@@ -1,5 +1,6 @@
 #include "ui/Overlay.h"
 #include "runtime/PluginTime.h"
+#include "runtime/Profiling.h"
 #include "ui/hud/StatusPanel.h"
 
 #include <backends/imgui_impl_dx11.h>
@@ -164,6 +165,7 @@ namespace UI::Overlay
             {
                 _original(a_timer);
                 const PluginTime::Scope timing;
+                PROFILE_SCOPE("Overlay");
                 DrawFrame();
             }
 

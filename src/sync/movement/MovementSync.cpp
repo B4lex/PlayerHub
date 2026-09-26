@@ -1,6 +1,7 @@
 #include "sync/movement/MovementSync.h"
 #include "actor/ActorMovement.h"
 #include "actor/RemoteActor.h"
+#include "runtime/Profiling.h"
 
 #include <cmath>
 
@@ -90,6 +91,7 @@ namespace MovementSync
 
     void SyncMovement(const RemoteFrame& a_remote, std::uint64_t& a_appliedSequence, RemoteActor& a_actor)
     {
+        PROFILE_FUNCTION();
         if (a_appliedSequence == a_remote.lastSequence)
         {
             return;

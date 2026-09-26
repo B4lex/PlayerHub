@@ -3,6 +3,7 @@
 #include "actor/ActorRuntime.h"
 #include "network/SocketIOClient.h"
 #include "runtime/GameThread.h"
+#include "runtime/Profiling.h"
 #include "sync/ActorLifecycle.h"
 #include "sync/CheckpointPublisher.h"
 #include "sync/PeerState.h"
@@ -95,6 +96,7 @@ namespace SyncCoordinator
         // Exits apply first, since changes drained with one arrived after it.
         void ApplyNetworkChanges(Peers& a_peers)
         {
+            PROFILE_FUNCTION();
             auto changes = Network::DrainRemotePlayerChanges();
             RemovePeersFromLostConnection(a_peers, changes);
 
@@ -192,6 +194,7 @@ namespace SyncCoordinator
         // original activation was deferred.
         void YieldActivatedFurniture(Peers& a_peers, RE::PlayerCharacter& a_player)
         {
+            PROFILE_FUNCTION();
             std::vector<LocalFurnitureActivation> activations;
             {
                 const std::scoped_lock lock{ s_localFurnitureActivationsLock };
@@ -265,6 +268,7 @@ namespace SyncCoordinator
         // the checkpoint and its attacks are published at the snapshot cadence.
         void SyncLocalPlayer(RE::PlayerCharacter& a_player, float a_delta)
         {
+            PROFILE_FUNCTION();
             const LocalFrame local{ .player = a_player };
 
             const auto capturedAttack = CombatSync::CaptureLocalAttack(local);
@@ -297,6 +301,7 @@ namespace SyncCoordinator
             RE::FormID a_localCellID, RE::FormID a_localWorldspaceID, RE::TESObjectREFR* a_localFurniture,
             float a_delta)
         {
+            PROFILE_FUNCTION();
             const RemoteFrame remote{
                 .playerID = a_playerID, .checkpoint = a_peer.latestCheckpoint, .lastSequence = a_peer.lastSequence
             };
@@ -420,6 +425,8 @@ namespace SyncCoordinator
 
     void OnFrame(RE::PlayerCharacter* a_player, float a_delta)
     {
+        PROFILE_FUNCTION();
+        PROFILE_PLOT("Remote peers", s_peers.size());
         RestoreSaveEligibility(s_peers);
         ApplyNetworkChanges(s_peers);
         ActorLifecycle::UpdateDeferredRemovals(a_delta);

@@ -2,6 +2,7 @@
 #include "actor/ActorAnimation.h"
 #include "actor/ActorFurniture.h"
 #include "actor/RemoteActor.h"
+#include "runtime/Profiling.h"
 
 namespace FurnitureSync
 {
@@ -105,6 +106,7 @@ namespace FurnitureSync
 
     bool SyncFurniture(const RemoteFrame& a_remote, RemoteActor& a_actor)
     {
+        PROFILE_FUNCTION();
         bool furniturePlaying = ActorFurniture::IsFurnitureInteractionPlaying(a_actor);
         if (ActorFurniture::GetTargetFurniture(a_actor) != a_remote.checkpoint.furnitureRefID
             && (a_remote.checkpoint.furnitureRefID == 0 || furniturePlaying))
@@ -121,6 +123,7 @@ namespace FurnitureSync
     bool SyncFurnitureEntry(
         const RemoteFrame& a_remote, RemoteActor& a_actor, bool a_attackPlaying, bool a_furniturePlaying)
     {
+        PROFILE_FUNCTION();
         if (a_remote.checkpoint.furnitureRefID != 0
             && ActorFurniture::GetTargetFurniture(a_actor) != a_remote.checkpoint.furnitureRefID && !a_attackPlaying
             && !ActorAnimation::GetTargetState(a_actor).jumping && ActorAnimation::IsAnimationStateSettled(a_actor))

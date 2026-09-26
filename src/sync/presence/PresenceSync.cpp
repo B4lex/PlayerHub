@@ -1,5 +1,6 @@
 #include "sync/presence/PresenceSync.h"
 #include "network/SocketIOClient.h"
+#include "runtime/Profiling.h"
 
 #include <cstdint>
 #include <memory>
@@ -95,6 +96,7 @@ namespace PresenceSync
 
     bool SyncPresence(const LocalFrame& a_local)
     {
+        PROFILE_FUNCTION();
         const bool inWorld = IsInWorld(a_local);
 
         std::scoped_lock lock{ s_lock };

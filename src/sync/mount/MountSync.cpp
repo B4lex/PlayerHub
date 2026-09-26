@@ -2,6 +2,7 @@
 #include "actor/ActorConstants.h"
 #include "actor/ActorRuntime.h"
 #include "network/SocketIOClient.h"
+#include "runtime/Profiling.h"
 #include "sync/ActorLifecycle.h"
 #include "sync/PeerState.h"
 #include "sync/combat/CombatSync.h"
@@ -323,6 +324,7 @@ namespace MountSync
 
     bool SyncMount(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
     {
+        PROFILE_FUNCTION();
         auto& lifecycle = a_peer.lifecycle;
         auto& transitions = a_peer.mounting;
         const float delta = std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
@@ -443,6 +445,7 @@ namespace MountSync
 
     bool UpdateRider(PeerState& a_peer, float a_delta)
     {
+        PROFILE_FUNCTION();
         auto& lifecycle = a_peer.lifecycle;
         auto& rider = *lifecycle.actor;
         if (!lifecycle.mount)

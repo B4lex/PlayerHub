@@ -10,6 +10,7 @@
 #include "actor/RemoteCollision.h"
 #include "actor/SurvivalPolicy.h"
 #include "runtime/GameThread.h"
+#include "runtime/Profiling.h"
 
 #include <algorithm>
 
@@ -78,6 +79,7 @@ namespace ActorRuntime
 
     bool Update(RemoteActor& a_remote, float a_deltaTime, std::optional<Multiplayer::AnimationState> a_translationState)
     {
+        PROFILE_FUNCTION();
         if (!GameThread::Require("UpdateControlledNPC"))
         {
             return true;
@@ -176,6 +178,7 @@ namespace ActorRuntime
 
     bool UpdateRider(RemoteActor& a_remote, ActorMount::Gait* a_gait, float a_mountSpeed, float a_deltaTime)
     {
+        PROFILE_FUNCTION();
         if (!GameThread::Require("UpdateRemoteRider"))
         {
             return true;

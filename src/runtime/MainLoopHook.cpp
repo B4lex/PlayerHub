@@ -2,6 +2,7 @@
 #include "network/ConnectionMonitor.h"
 #include "runtime/GameThread.h"
 #include "runtime/PluginTime.h"
+#include "runtime/Profiling.h"
 #include "sync/SyncCoordinator.h"
 
 #include <cmath>
@@ -22,10 +23,12 @@ namespace MainLoopHook
                     Update();
                 }
                 PluginTime::EndFrame();
+                PROFILE_FRAME();
             }
 
             static void Update()
             {
+                PROFILE_SCOPE("MainLoopHook");
                 const auto delta = RE::Main::QFrameAnimTime();
                 if (!std::isfinite(delta) || delta <= 0.0F || !GameThread::Bind())
                 {
