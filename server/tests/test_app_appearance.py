@@ -11,6 +11,7 @@ def valid_appearance(revision: int = 1) -> dict[str, object]:
     return {
         "revision": revision,
         "name": "Lydia Stormblade",
+        "level": 42,
         "race": {"plugin": "Skyrim.esm", "formId": 0x13746},
         "female": True,
         "weight": 42.5,
@@ -57,6 +58,18 @@ class ParsePlayerAppearanceTests(unittest.TestCase):
         self.assertEqual(parse_player_appearance(missing), expected)
         self.assertEqual(parse_player_appearance(null), expected)
 
+    def test_missing_or_null_level_is_unknown(self) -> None:
+        expected = valid_appearance()
+        expected["level"] = 0
+        missing = valid_appearance()
+        missing.pop("level")
+        null = valid_appearance()
+        null["level"] = None
+
+        self.assertEqual(parse_player_appearance(missing), expected)
+        self.assertEqual(parse_player_appearance(null), expected)
+        self.assertEqual(parse_player_appearance(expected), expected)
+
     def test_drops_unknown_fields(self) -> None:
         payload = valid_appearance()
         payload["extra"] = True
@@ -71,6 +84,10 @@ class ParsePlayerAppearanceTests(unittest.TestCase):
             "name with control character": lambda p: p.update(name="Lydia\nStormblade"),
             "name too long": lambda p: p.update(name="é" * 65),
             "name with lone surrogate": lambda p: p.update(name="\ud800"),
+            "boolean level": lambda p: p.update(level=True),
+            "negative level": lambda p: p.update(level=-1),
+            "level too large": lambda p: p.update(level=0x10000),
+            "fractional level": lambda p: p.update(level=1.5),
             "boolean weight": lambda p: p.update(weight=True),
             "weight too large": lambda p: p.update(weight=101.0),
             "height too small": lambda p: p.update(height=0.1),
@@ -94,12 +111,17 @@ class ParsePlayerAppearanceTests(unittest.TestCase):
                 self.assertIsNone(parse_player_appearance(payload))
 
 
+def clear_appearances() -> None:
+    server_app.player_appearances.clear()
+    server_app.registry.name_indices.clear()
+
+
 class PlayerAppearanceRelayTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
-        server_app.player_appearances.clear()
+        clear_appearances()
 
     def tearDown(self) -> None:
-        server_app.player_appearances.clear()
+        clear_appearances()
 
     async def test_relays_and_stores_appearance(self) -> None:
         emit = AsyncMock()
@@ -111,9 +133,32 @@ class PlayerAppearanceRelayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(server_app.player_appearances["player-1"], valid_appearance())
         emit.assert_awaited_once_with(
             "player:appearance",
-            {"playerId": "player-1", **valid_appearance()},
+            {"playerId": "player-1", **valid_appearance(), "nameIndex": 1},
             skip_sid="player-1",
         )
+
+    async def test_indexes_players_with_the_same_name(self) -> None:
+        emit = AsyncMock()
+
+        async def publish(player_id: str, name: str, revision: int = 1) -> int:
+            payload = valid_appearance(revision)
+            payload["name"] = name
+            with patch.object(server_app.sio, "emit", new=emit):
+                self.assertEqual(await server_app.player_appearance(player_id, payload), {"ok": True})
+            return emit.await_args.args[1]["nameIndex"]
+
+        self.assertEqual(await publish("player-1", "Lydia"), 1)
+        self.assertEqual(await publish("player-2", "lydia"), 2)
+        self.assertEqual(await publish("player-3", "Aela"), 1)
+        # A new revision under the same name keeps the index.
+        self.assertEqual(await publish("player-2", "Lydia", 2), 2)
+        with patch.object(server_app.sio, "emit", new=AsyncMock()):
+            await server_app.disconnect("player-1", "client disconnect")
+        # Indexes are not renumbered; a newcomer takes the lowest free one.
+        self.assertEqual(await publish("player-4", "Lydia"), 1)
+        self.assertEqual(await publish("player-3", "Lydia", 2), 3)
+        self.assertEqual(await publish("player-4", "Serana", 2), 1)
+        self.assertEqual(await publish("player-5", "Lydia"), 1)
 
     async def test_rejects_stale_revision(self) -> None:
         with patch.object(server_app.sio, "emit", new=AsyncMock()):
@@ -128,25 +173,32 @@ class PlayerAppearanceRelayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, {"ok": False, "error": "invalid player appearance"})
 
     async def test_sends_stored_appearances_to_late_joiner(self) -> None:
-        server_app.player_appearances["player-1"] = valid_appearance(3)
+        server_app.registry.set_appearance("player-1", valid_appearance(3))
+        server_app.registry.set_appearance("player-3", valid_appearance(1))
         emit = AsyncMock()
 
         with patch.object(server_app.sio, "emit", new=emit):
             await server_app.connect("player-2", {})
 
-        emit.assert_awaited_once_with(
+        emit.assert_any_await(
             "player:appearance",
-            {"playerId": "player-1", **valid_appearance(3)},
+            {"playerId": "player-1", **valid_appearance(3), "nameIndex": 1},
+            to="player-2",
+        )
+        emit.assert_any_await(
+            "player:appearance",
+            {"playerId": "player-3", **valid_appearance(1), "nameIndex": 2},
             to="player-2",
         )
 
     async def test_forgets_appearance_on_disconnect(self) -> None:
-        server_app.player_appearances["player-1"] = valid_appearance()
+        server_app.registry.set_appearance("player-1", valid_appearance())
 
         with patch.object(server_app.sio, "emit", new=AsyncMock()):
             await server_app.disconnect("player-1", "client disconnect")
 
         self.assertNotIn("player-1", server_app.player_appearances)
+        self.assertNotIn("player-1", server_app.registry.name_indices)
 
 
 class PlayerAppearanceCaptureTests(unittest.IsolatedAsyncioTestCase):
@@ -155,12 +207,12 @@ class PlayerAppearanceCaptureTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.temporary_directory.cleanup)
         self.original_directory = server_app.recording_store.directory
         server_app.recording_store.directory = Path(self.temporary_directory.name) / "recordings"
-        server_app.player_appearances.clear()
+        clear_appearances()
 
     async def asyncTearDown(self) -> None:
         server_app.captures.stop_all("test cleanup")
         server_app.recording_store.directory = self.original_directory
-        server_app.player_appearances.clear()
+        clear_appearances()
 
     async def test_captures_appearance_of_a_recorded_player_only(self) -> None:
         info = server_app.captures.start("player-1", "", "", [])

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -11,6 +12,9 @@ namespace Multiplayer
         std::string playerID;
         // The sender's character name, empty until its appearance is known.
         std::string senderName;
+        // As in PlayerAppearance; the level is zero until known.
+        std::uint32_t senderNameIndex{ 1 };
+        std::uint16_t senderLevel{ 0 };
         std::string text;
     };
 

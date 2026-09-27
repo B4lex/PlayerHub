@@ -101,6 +101,8 @@ changes, and only one list can be open.
   into view.
 - Clicking a row or `None` picks it. Enter picks the first match. Escape closes the
   list; the settings window already leaves Escape to an open popup.
+- A `Clear` button beside the field sets it to `None`; it is disabled while the
+  value is already empty.
 - With `[UI] ItemPreview`, a 13-font-size square panel to the right shows the
   hovered item's model, or the current value's when no row is hovered, with its
   name and `Plugin|0xID` below.

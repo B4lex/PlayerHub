@@ -408,7 +408,10 @@ class SocketPublisherTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [call.args for call in emit.await_args_list],
             [
-                ("player:appearance", {"playerId": "replay:1", "revision": 1, "name": "Lydia"}),
+                (
+                    "player:appearance",
+                    {"playerId": "replay:1", "revision": 1, "name": "Lydia", "nameIndex": 1},
+                ),
                 ("player:equipment", {"playerId": "replay:1", "revision": 1, "armor": []}),
                 ("player:state", {"playerId": "replay:1", "sequence": 1}),
                 ("player:action", {"playerId": "replay:1", "actionSequence": 1}),
@@ -418,6 +421,8 @@ class SocketPublisherTests(unittest.IsolatedAsyncioTestCase):
         await publisher.left()
 
         emit.assert_awaited_with("player:disconnect", {"playerId": "replay:1"})
+        self.assertNotIn("replay:1", registry.appearances)
+        self.assertNotIn("replay:1", registry.name_indices)
         self.assertNotIn("replay:1", registry.appearances)
         self.assertNotIn("replay:1", registry.equipment)
 

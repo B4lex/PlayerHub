@@ -25,6 +25,7 @@ namespace UI
         constexpr ImVec4 kWarningColor{ 0.95F, 0.70F, 0.35F, 1.0F };
         constexpr ImGuiTableFlags kListFlags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg;
         constexpr const char* kNoneText = "None";
+        constexpr const char* kClearText = "Clear";
     }
 
     bool ItemPicker::Draw(const char* a_id, FormReference& a_value, const Forms::ItemFilter& a_filter)
@@ -37,8 +38,12 @@ namespace UI
         ImGui::PushID(a_id);
         const auto& label = GetLabel(ImGui::GetID("##item"), a_value, a_filter);
         const auto fontSize = ImGui::GetFontSize();
+        const auto& style = ImGui::GetStyle();
+        const auto clearWidth = ImGui::CalcTextSize(kClearText).x + style.FramePadding.x * 2.0F;
+        const auto comboWidth = (std::max)(ImGui::CalcItemWidth() - clearWidth - style.ItemSpacing.x, fontSize);
+        ImGui::SetNextItemWidth(comboWidth);
         ImGui::SetNextWindowSize(
-            ImVec2{ (std::max)(ImGui::CalcItemWidth(), kPopupWidthFonts * fontSize), kPopupHeightFonts * fontSize });
+            ImVec2{ (std::max)(comboWidth, kPopupWidthFonts * fontSize), kPopupHeightFonts * fontSize });
 
         const bool warning = label.kind == LabelKind::kMismatch || label.kind == LabelKind::kPluginMissing;
         const bool dim = label.kind == LabelKind::kNone;
@@ -77,6 +82,19 @@ namespace UI
         {
             changed = DrawList(a_value, a_filter);
             ImGui::EndCombo();
+        }
+
+        ImGui::SameLine();
+        ImGui::BeginDisabled(a_value.IsEmpty());
+        if (ImGui::Button(kClearText))
+        {
+            a_value = {};
+            changed = true;
+        }
+        ImGui::EndDisabled();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip))
+        {
+            ImGui::SetTooltip("Set to None.");
         }
         ImGui::PopID();
         return changed;

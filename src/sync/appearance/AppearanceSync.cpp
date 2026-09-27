@@ -2,6 +2,7 @@
 #include "forms/FormLookup.h"
 #include "network/SocketIOClient.h"
 #include "runtime/Profiling.h"
+#include "sync/PlayerLabel.h"
 
 #include <algorithm>
 #include <array>
@@ -256,6 +257,7 @@ namespace AppearanceSync
 
             const auto* fullName = base->GetFullName();
             AppearanceData appearance{ .name = SanitizeName(fullName ? fullName : ""),
+                .level = a_player.GetLevel(),
                 .race = *raceReference,
                 .female = base->IsFemale(),
                 .weight = std::clamp(base->weight, 0.0F, AppearanceData::kMaximumWeight),
@@ -507,7 +509,7 @@ namespace AppearanceSync
 
             // A remote player is one specific character, never a generic NPC.
             npc->actorData.actorBaseFlags.set(RE::ACTOR_BASE_DATA::Flag::kUnique);
-            npc->fullName = a_appearance.name;
+            npc->fullName = PlayerLabel::Format(a_appearance.name, a_appearance.nameIndex, a_appearance.level);
             npc->race = race;
             npc->originalRace = race;
             // TESNPC::InitItemImpl completes these only for NPCs loaded from plugins:
@@ -746,13 +748,13 @@ namespace AppearanceSync
         {
             return;
         }
-        if (published && published->HasSameLook(*captured))
+        if (published && published->HasSameLook(*captured) && published->HasSameLabel(*captured))
         {
             candidate.reset();
             return;
         }
         // Require two identical captures so editor slider drags are not streamed.
-        if (!candidate || !candidate->HasSameLook(*captured))
+        if (!candidate || !candidate->HasSameLook(*captured) || !candidate->HasSameLabel(*captured))
         {
             candidate = std::move(captured);
             return;
@@ -777,10 +779,11 @@ namespace AppearanceSync
         }
 
         logs::debug(
-            "Appearance sync publishing local appearance: revision={} name=\"{}\" race={}|{:06X} female={} "
+            "Appearance sync publishing local appearance: revision={} name=\"{}\" level={} race={}|{:06X} female={} "
             "headParts={} tints={}",
-            static_cast<unsigned long long>(candidate->revision), candidate->name, candidate->race.plugin,
-            candidate->race.localFormID, candidate->female, candidate->headParts.size(), candidate->tints.size());
+            static_cast<unsigned long long>(candidate->revision), candidate->name, candidate->level,
+            candidate->race.plugin, candidate->race.localFormID, candidate->female, candidate->headParts.size(),
+            candidate->tints.size());
         Network::PublishLocalAppearance(*candidate);
         published = std::move(candidate);
         candidate.reset();
@@ -795,12 +798,31 @@ namespace AppearanceSync
             return;
         }
 
+        const bool relabelOnly = a_remote.latest && a_remote.latest->HasSameLook(a_appearance);
         logs::debug(
-            "Appearance sync accepted remote appearance: player={} revision={} name=\"{}\" race={}|{:06X} female={} "
-            "headParts={} tints={}",
+            "Appearance sync accepted remote appearance: player={} revision={} name=\"{}\" nameIndex={} level={} "
+            "race={}|{:06X} female={} headParts={} tints={} relabelOnly={}",
             a_playerID, static_cast<unsigned long long>(a_appearance.revision), a_appearance.name,
-            a_appearance.race.plugin, a_appearance.race.localFormID, a_appearance.female, a_appearance.headParts.size(),
-            a_appearance.tints.size());
+            a_appearance.nameIndex, a_appearance.level, a_appearance.race.plugin, a_appearance.race.localFormID,
+            a_appearance.female, a_appearance.headParts.size(), a_appearance.tints.size(), relabelOnly);
+
+        if (relabelOnly)
+        {
+            const auto previousRevision = a_remote.latest->revision;
+            if (a_remote.base)
+            {
+                a_remote.base->fullName
+                    = PlayerLabel::Format(a_appearance.name, a_appearance.nameIndex, a_appearance.level);
+            }
+            if (a_remote.baseRevision == previousRevision)
+            {
+                a_remote.baseRevision = a_appearance.revision;
+            }
+            if (a_remote.spawnedRevision == previousRevision)
+            {
+                a_remote.spawnedRevision = a_appearance.revision;
+            }
+        }
         a_remote.latest = std::move(a_appearance);
     }
 

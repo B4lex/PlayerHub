@@ -530,6 +530,23 @@ namespace Network
                 appearance.name = name->get_string();
             }
 
+            // Zero means unknown, as in recordings made before level synchronization.
+            std::uint64_t level = 0;
+            if (!IsNullValue(FindValue(values, "level"))
+                && !ReadUnsignedInteger(values, "level", (std::numeric_limits<std::uint16_t>::max)(), level))
+            {
+                return "level";
+            }
+            appearance.level = static_cast<std::uint16_t>(level);
+
+            std::uint64_t nameIndex = 0;
+            if (!ReadUnsignedInteger(values, "nameIndex", (std::numeric_limits<std::uint32_t>::max)(), nameIndex)
+                || nameIndex == 0)
+            {
+                return "nameIndex";
+            }
+            appearance.nameIndex = static_cast<std::uint32_t>(nameIndex);
+
             const auto race = FindValue(values, "race");
             if (!race || race->get_flag() != sio::message::flag_object
                 || !ReadFormReference(race->get_map(), appearance.race))
@@ -951,14 +968,21 @@ namespace Network
             const auto& values = a_data->get_map();
             const auto name = FindValue(values, "name");
             const auto text = FindValue(values, "text");
+            std::uint64_t nameIndex = 0;
+            std::uint64_t level = 0;
             if (!ReadString(values, "playerId", a_result.playerID) || !name
                 || name->get_flag() != sio::message::flag_string || !text
-                || text->get_flag() != sio::message::flag_string)
+                || text->get_flag() != sio::message::flag_string
+                || !ReadUnsignedInteger(values, "nameIndex", (std::numeric_limits<std::uint32_t>::max)(), nameIndex)
+                || nameIndex == 0
+                || !ReadUnsignedInteger(values, "level", (std::numeric_limits<std::uint16_t>::max)(), level))
             {
                 return false;
             }
 
             a_result.senderName = name->get_string();
+            a_result.senderNameIndex = static_cast<std::uint32_t>(nameIndex);
+            a_result.senderLevel = static_cast<std::uint16_t>(level);
             a_result.text = text->get_string();
             return Multiplayer::IsValidAppearanceName(a_result.senderName)
                 && Multiplayer::IsValidChatText(a_result.text);
@@ -1264,6 +1288,7 @@ namespace Network
         auto& values = payload->get_map();
         values["revision"] = sio::int_message::create(static_cast<std::int64_t>(a_appearance.revision));
         values["name"] = sio::string_message::create(a_appearance.name);
+        values["level"] = sio::int_message::create(a_appearance.level);
         values["race"] = CreateFormReference(a_appearance.race);
         values["female"] = sio::bool_message::create(a_appearance.female);
         values["weight"] = sio::double_message::create(a_appearance.weight);

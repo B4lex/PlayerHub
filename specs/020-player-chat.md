@@ -19,7 +19,7 @@ anyone's world.
 | Event | Direction | Payload |
 | --- | --- | --- |
 | `chat:send` | client → server | `{"text": string}`, acknowledged with `{"ok": true}` or `{"ok": false, "error": ...}` |
-| `chat:message` | server → every client | `{"playerId": string, "name": string, "text": string}` |
+| `chat:message` | server → every client | `{"playerId": string, "name": string, "nameIndex": integer, "level": integer, "text": string}` |
 
 - The server trims surrounding spaces and rejects empty text, control
   characters (below U+0020, and U+007F), unencodable strings such as lone
@@ -27,8 +27,11 @@ anyone's world.
 - `ChatThrottle` allows 5 messages per player in any 5 seconds
   (`"rate limited"`). Rejected messages do not count, and a disconnect forgets
   the player's history.
-- `name` is the sender's character name from its latest `player:appearance`,
-  or empty before one arrives. The client shows an empty name as `Unknown`.
+- `name` and `level` are the sender's character name and level from its latest
+  `player:appearance`, or empty and `0` before one arrives. `nameIndex` is the
+  sender's name index (`1` before an appearance). The client shows the sender
+  as a player label (`specs/023-player-labels.md`), with an empty name as
+  `Unknown`.
 - The sender receives its own message too, so every player sees the same
   order, and a message the sender sees was delivered.
 - Chat does not require being in the world, keeps no history for late joiners,

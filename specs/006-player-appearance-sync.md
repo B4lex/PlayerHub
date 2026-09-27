@@ -43,6 +43,7 @@ The client emits `player:appearance`:
 {
   "revision": 3,
   "name": "Lydia Stormblade",
+  "level": 12,
   "race": { "plugin": "Skyrim.esm", "formId": 79686 },
   "female": false,
   "weight": 50.0,
@@ -77,6 +78,7 @@ form is missing. Dynamic (`FF`) forms cannot be referenced and are omitted.
 | --- | --- | --- |
 | `revision` | Source-local monotonic counter | integer `1..2^63-1`, strictly increasing per connection |
 | `name` | Character name (`TESFullName` of the actor base) | string of at most 128 UTF-8 bytes, no control characters; missing or `null` means empty |
+| `level` | Character level | integer `0..65535`, where `0` is unknown; missing or `null` means `0` |
 | `race` | `TESRace` | form reference |
 | `female` | Sex | boolean |
 | `weight` | `TESNPC::weight`, body morph | number `0..100` |
@@ -117,6 +119,7 @@ On the game thread, once per second, the client captures from the player:
   that is playable; otherwise capture is skipped (transformation).
 - `name`: the actor base full name with control characters removed, cut at a
   UTF-8 code point boundary to 128 bytes.
+- `level`: `Actor::GetLevel`.
 - `female`, `weight`, `height`, `headParts[0..numHeadParts)`, the hair color
   form's RGB, `faceDetails`, `faceData` morphs/parts.
 - `bodyTint`: `TESNPC::bodyTintColor`; if it is black, the color of the skin
@@ -158,8 +161,10 @@ Every accepted appearance revision gets a new runtime `TESNPC`:
 2. Detach every appearance pointer the copy may share with the player base
    (`headParts`, `faceData`, `headRelatedData`, `tintLayers`, `faceNPC`) and
    allocate fresh ones, so the local player can never be changed.
-3. Set the base full name to `name`, replacing the local player's name taken
-   by the copy. The crosshair and other name displays read it from the base.
+3. Set the base full name to the player label built from `name`, `level`, and
+   the server's `nameIndex` (`specs/023-player-labels.md`), replacing the local
+   player's name taken by the copy. The crosshair and other name displays read
+   it from the base.
 4. Apply the resolved appearance (below).
 
 Bases are never freed. A deleted actor reference may still point at its base
@@ -225,9 +230,10 @@ Not yet specifically checked:
 1. A remote actor shows the source player's race, sex, weight, hair, eyes,
    hair color, face shape, and skin/face tints.
 2. Late joiners see the correct appearance without the source changing anything.
-3. Changing appearance or name (barber, RaceMenu) updates the remote actor within a few
+3. Changing appearance (barber, RaceMenu) updates the remote actor within a few
    seconds with a single respawn, and it then returns to its synchronized
-   locomotion/furniture state.
+   locomotion/furniture state. A change of only the name or level relabels the
+   remote actor without a respawn.
 4. A peer missing the source's race or head part plugin sees a vanilla fallback
    and no crash.
 5. The local player's own appearance never changes because of a remote actor.

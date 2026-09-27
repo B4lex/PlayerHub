@@ -70,6 +70,7 @@ def appearance(revision: int = 1, name: str = "Lydia Stormblade") -> dict[str, A
     return {
         "revision": revision,
         "name": name,
+        "level": 12,
         "race": {"plugin": "Skyrim.esm", "formId": 0x13746},
         "female": True,
         "weight": 42.5,

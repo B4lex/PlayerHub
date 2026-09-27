@@ -64,9 +64,8 @@ namespace Multiplayer
         static constexpr float kMinimumHeight = 0.25F;
         static constexpr float kMaximumHeight = 4.0F;
 
-        // Character name shown on the remote actor. It is not part of the look, but it
-        // lives on the same actor base and changes about as rarely.
         std::string name;
+        std::uint16_t level{ 0 };
         AppearanceFormReference race;
         bool female{ false };
         float weight{ 50.0F };
@@ -80,13 +79,22 @@ namespace Multiplayer
         std::vector<AppearanceTint> tints;
         // Source-local publication counter. Not part of the look itself.
         std::uint64_t revision{ 0 };
+        // Assigned by the server to tell apart players with the same name; 1 for the
+        // first of them. Not published by the client.
+        std::uint32_t nameIndex{ 1 };
 
+        // Everything the actor base is built from except its label.
         [[nodiscard]] bool HasSameLook(const PlayerAppearance& a_other) const
         {
-            return name == a_other.name && race == a_other.race && female == a_other.female && weight == a_other.weight
+            return race == a_other.race && female == a_other.female && weight == a_other.weight
                 && height == a_other.height && headParts == a_other.headParts && hairColor == a_other.hairColor
                 && faceDetails == a_other.faceDetails && bodyTint == a_other.bodyTint
                 && faceMorphs == a_other.faceMorphs && faceParts == a_other.faceParts && tints == a_other.tints;
+        }
+
+        [[nodiscard]] bool HasSameLabel(const PlayerAppearance& a_other) const
+        {
+            return name == a_other.name && level == a_other.level && nameIndex == a_other.nameIndex;
         }
     };
 

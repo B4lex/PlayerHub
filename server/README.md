@@ -63,9 +63,10 @@ to `http://127.0.0.1:3000` for local testing.
   living latest checkpoint of that epoch, and each transition must be anchored
   to a newer checkpoint than the previous one. `player:mount` relays it to every
   other connected player. See `specs/016-mount-riding-sync.md`.
-- `player:appearance` carries the player's latest character name and appearance
-  (race, sex, weight, head parts, hair color, face morphs, and tints) with an
-  increasing revision. It is relayed to other players with `playerId`. The
+- `player:appearance` carries the player's latest character name, level, and
+  appearance (race, sex, weight, head parts, hair color, face morphs, and tints)
+  with an increasing revision. It is relayed to other players with `playerId`
+  and a `nameIndex` that tells apart players with the same name. The
   server stores the latest appearance per connection and sends every stored
   appearance to a newly connected client. See
   `specs/006-player-appearance-sync.md`.
@@ -84,7 +85,8 @@ to `http://127.0.0.1:3000` for local testing.
   rejected with `{"ok": false, "error": "invalid chat message"}`, and more than
   5 messages in 5 seconds from one player with `"rate limited"`. An accepted
   message is relayed as `chat:message` with `playerId` and the sender's
-  character `name` to every player, the sender included, and is not recorded.
+  character `name`, `nameIndex`, and `level` to every player, the sender
+  included, and is not recorded.
   See `specs/020-player-chat.md`.
 - `latency:probe` is acknowledged immediately with `{"ok": true, "serverTimeMs": ...}`
   and never relayed. The plugin sends one per second, shows the acknowledgement

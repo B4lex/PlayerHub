@@ -1,6 +1,7 @@
 #include "sync/chat/ChatSync.h"
 #include "network/SocketIOClient.h"
 #include "protocol/ChatMessage.h"
+#include "sync/PlayerLabel.h"
 
 #include <mutex>
 #include <utility>
@@ -53,7 +54,7 @@ namespace ChatSync
         for (auto& message : Network::DrainChatMessages())
         {
             a_lines.push_back(ChatLine{ .kind = LineKind::kPlayer,
-                .sender = message.senderName.empty() ? std::string{ "Unknown" } : std::move(message.senderName),
+                .sender = PlayerLabel::Format(message.senderName, message.senderNameIndex, message.senderLevel),
                 .text = std::move(message.text) });
         }
 

@@ -46,8 +46,8 @@ class SocketPublisher:
         await self._emit("player:mount", {"playerId": self.player_id, **payload})
 
     async def appearance(self, payload: dict[str, Any]) -> None:
-        self._registry.appearances[self.player_id] = payload
-        await self._emit("player:appearance", {"playerId": self.player_id, **payload})
+        relayed = self._registry.set_appearance(self.player_id, payload)
+        await self._emit("player:appearance", {"playerId": self.player_id, **relayed})
 
     async def equipment(self, payload: dict[str, Any]) -> None:
         self._registry.equipment[self.player_id] = payload
@@ -57,6 +57,5 @@ class SocketPublisher:
         await self._emit("player:exit", {"playerId": self.player_id})
 
     async def left(self) -> None:
-        self._registry.appearances.pop(self.player_id, None)
-        self._registry.equipment.pop(self.player_id, None)
+        self._registry.forget_presentation(self.player_id)
         await self._emit("player:disconnect", {"playerId": self.player_id})
