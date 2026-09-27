@@ -37,6 +37,7 @@ src/ui/
   Layout.h                  # shared placement helpers (screen corners)
   hud/StatusPanel.h/.cpp    # always-on connection, ping, and plugin time widget
   chat/ChatWindow.h/.cpp    # global chat, see specs/020-player-chat.md
+  settings/SettingsWindow.h/.cpp  # plugin settings, see specs/021-in-game-settings.md
 src/network/
   ConnectionMonitor.h/.cpp  # probe cadence, timeout, latest sample, reconnect schedule
 src/runtime/
@@ -49,8 +50,7 @@ modules it presents, such as `ChatSync`. Every screen is an independent
 startup, and `Overlay::DrawFrame` draws them all in registration order. Windows
 never reference each other. A window's header exposes only a factory, such as
 `CreateChatWindow`, so its state stays in its own `.cpp`. Add later screens as
-siblings, for example `ui/menu/SettingsMenu`, and register them in
-`Overlay::Install`.
+siblings and register them in `Overlay::Install`.
 
 ## Input focus
 
@@ -81,9 +81,18 @@ keyboard and the game receives no keyboard or mouse input.
 - Keyboard presses and releases become ImGui key events: editing and navigation
   keys, modifiers, and the letters used by editing shortcuts (scan codes are
   physical positions). Typed text comes from Skyrim's `CharEvent`s. Tab is not
-  forwarded, so it cannot move keyboard focus off a text field. Mouse movement
-  and buttons are swallowed; wheel notches are handed to the focused window.
-  Gamepad input always reaches the game.
+  forwarded, so it cannot move keyboard focus off a text field. Gamepad input
+  always reaches the game.
+- Mouse movement and buttons never reach the game while a window has focus. A
+  window that returns true from `Window::UsesMouse` gets them through Dear
+  ImGui: `InputCapture` clears `ImGuiConfigFlags_NoMouse`, sets
+  `io.MouseDrawCursor`, and moves an absolute cursor by DirectInput's relative
+  counts, scaled by `backBufferHeight / 1080` and clamped to the back buffer.
+  The cursor starts in the middle of the screen whenever such a window takes
+  focus, and its position is queued after the Win32 backend's, which follows
+  the hidden system cursor. Left, right, and middle buttons and the wheel go
+  to ImGui. A keyboard-only window gets no mouse and receives the wheel as
+  `WindowInput::wheelSteps` instead.
 - Events are queued under a lock and applied in `Overlay::DrawFrame` before
   `ImGui::NewFrame`, since the renderer hook is not guaranteed to run on the
   main-loop thread. Losing focus sends `AddFocusEvent(false)`, which releases
@@ -221,17 +230,6 @@ Below the ping line, always shown whatever the connection state:
   per second instead of flickering every frame.
 - It is always compiled in and costs two clock reads per hook call, so it needs
   no build option.
-
-## Future work: settings screen
-
-- Mouse: `InputCapture` already routes the keyboard. A mouse-driven menu also
-  needs an absolute cursor built from DirectInput's relative motion, drawn by
-  ImGui and scaled to the same back-buffer size as `io.DisplaySize`.
-- Settings storage: add one settings module that loads and saves a file under
-  `Data/SKSE/Plugins/` and is read by the game thread. The server endpoint file
-  and `StatusPanel::kCorner` are the first candidates to move there.
-- Pausing: while the menu is open, decide whether to open a native menu, so
-  that the game pauses and controls are released, or to only capture input.
 
 ## Verification
 

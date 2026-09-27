@@ -112,6 +112,10 @@ namespace Network
     // attempt. Returns false while a previous call is still working.
     [[nodiscard]] bool BeginReconnect();
 
+    // Whether the latest attempt, from Initialize or BeginReconnect, went to an
+    // endpoint other than the configured one. False before Initialize.
+    [[nodiscard]] bool IsEndpointOutdated();
+
     // Whether the latest attempt, from Initialize or BeginReconnect, has been
     // handed to the transport and then failed or closed before the namespace
     // opened.

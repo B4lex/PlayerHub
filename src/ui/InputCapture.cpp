@@ -5,8 +5,10 @@
 
 #include <imgui.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
+#include <cfloat>
 #include <cstdint>
 #include <mutex>
 #include <utility>
@@ -28,12 +30,18 @@ namespace UI::InputCapture
             kWindow
         };
 
+        // Relative mouse counts are scaled as pixels at this back-buffer height, so
+        // the cursor crosses the screen at the same speed at any resolution.
+        constexpr float kCursorReferenceScreenHeight = 1080.0F;
+
         struct CapturedEvent
         {
-            // ImGuiKey_None for a typed character.
+            // ImGuiKey_None for a typed character or a mouse button.
             ImGuiKey key{ ImGuiKey_None };
             bool down{ false };
             std::uint32_t character{ 0 };
+            // An ImGuiMouseButton, or -1 for a key or character.
+            int mouseButton{ -1 };
         };
 
         struct DispatchState
@@ -53,10 +61,13 @@ namespace UI::InputCapture
         std::mutex s_capturedLock;
         std::vector<CapturedEvent> s_captured;
         float s_capturedWheelSteps{ 0.0F };
+        ImVec2 s_capturedMouseMotion{};
 
         // Overlay thread only.
         std::vector<CapturedEvent> s_forwarding;
         bool s_imguiFocused{ false };
+        bool s_imguiMouse{ false };
+        ImVec2 s_cursor{};
 
         // DirectInput scan codes are physical positions, so letters only serve
         // text-editing shortcuts; typed text arrives as character events. Tab is
@@ -170,6 +181,14 @@ namespace UI::InputCapture
                 return;
             }
 
+            if (a_code <= MouseKey::kMiddleButton)
+            {
+                if (a_button.IsDown() || !a_button.IsPressed())
+                {
+                    Capture(CapturedEvent{ .down = a_button.IsPressed(), .mouseButton = static_cast<int>(a_code) });
+                }
+                return;
+            }
             if (a_button.IsDown() && (a_code == MouseKey::kWheelUp || a_code == MouseKey::kWheelDown))
             {
                 const std::scoped_lock lock{ s_capturedLock };
@@ -237,6 +256,13 @@ namespace UI::InputCapture
                     }
                     return !a_state.focused;
                 case RE::INPUT_EVENT_TYPE::kMouseMove:
+                    if (a_state.focused)
+                    {
+                        const auto& motion = *a_event.AsMouseMoveEvent();
+                        const std::scoped_lock lock{ s_capturedLock };
+                        s_capturedMouseMotion.x += static_cast<float>(motion.mouseInputX);
+                        s_capturedMouseMotion.y += static_cast<float>(motion.mouseInputY);
+                    }
                     return !a_state.focused;
                 default:
                     return true;
@@ -285,6 +311,40 @@ namespace UI::InputCapture
             return kept;
         }
 
+        // Dear ImGui sees the mouse only while a window that uses it has focus. The
+        // cursor starts in the middle of the screen each time.
+        void SetImGuiMouse(ImGuiIO& a_io, bool a_enabled)
+        {
+            if (a_enabled == s_imguiMouse)
+            {
+                return;
+            }
+            s_imguiMouse = a_enabled;
+            a_io.MouseDrawCursor = a_enabled;
+            if (a_enabled)
+            {
+                a_io.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+                s_cursor = ImVec2{ a_io.DisplaySize.x * 0.5F, a_io.DisplaySize.y * 0.5F };
+                return;
+            }
+            for (int button = 0; button < ImGuiMouseButton_COUNT; ++button)
+            {
+                a_io.AddMouseButtonEvent(button, false);
+            }
+            a_io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+            a_io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
+        }
+
+        void MoveCursor(ImGuiIO& a_io, ImVec2 a_motion)
+        {
+            const auto scale = a_io.DisplaySize.y / kCursorReferenceScreenHeight;
+            s_cursor.x = std::clamp(s_cursor.x + a_motion.x * scale, 0.0F, a_io.DisplaySize.x);
+            s_cursor.y = std::clamp(s_cursor.y + a_motion.y * scale, 0.0F, a_io.DisplaySize.y);
+            // Queued after the Win32 backend's own position, which follows the
+            // hidden system cursor, so this one wins.
+            a_io.AddMousePosEvent(s_cursor.x, s_cursor.y);
+        }
+
         struct InputDispatchHook
         {
             // Replaces the call in BSInputDeviceManager::PollInputDevices that sends
@@ -331,25 +391,45 @@ namespace UI::InputCapture
         s_overlayActive.store(true, std::memory_order_release);
 
         float wheelSteps = 0.0F;
+        ImVec2 mouseMotion{};
         {
             const std::scoped_lock lock{ s_capturedLock };
             s_forwarding.swap(s_captured);
             wheelSteps = std::exchange(s_capturedWheelSteps, 0.0F);
+            mouseMotion = std::exchange(s_capturedMouseMotion, ImVec2{});
         }
 
         auto& io = ImGui::GetIO();
         const bool focused = WindowManager::HasFocus();
+        const bool mouse = focused && WindowManager::FocusedWindowUsesMouse();
         if (focused != s_imguiFocused)
         {
             // Losing focus also releases every key Dear ImGui still holds.
             io.AddFocusEvent(focused);
             s_imguiFocused = focused;
         }
+        SetImGuiMouse(io, mouse);
+        if (mouse)
+        {
+            MoveCursor(io, mouseMotion);
+            if (wheelSteps != 0.0F)
+            {
+                io.AddMouseWheelEvent(0.0F, wheelSteps);
+            }
+            wheelSteps = 0.0F;
+        }
         if (focused)
         {
             for (const auto& event : s_forwarding)
             {
-                if (event.key != ImGuiKey_None)
+                if (event.mouseButton >= 0)
+                {
+                    if (mouse)
+                    {
+                        io.AddMouseButtonEvent(event.mouseButton, event.down);
+                    }
+                }
+                else if (event.key != ImGuiKey_None)
                 {
                     io.AddKeyEvent(event.key, event.down);
                 }

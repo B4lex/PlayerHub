@@ -6,15 +6,16 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <optional>
+#include <memory>
 #include <string>
-#include <string_view>
 
 namespace Config
 {
     struct NetworkSettings
     {
         std::string serverEndpoint;
+
+        bool operator==(const NetworkSettings&) const = default;
     };
 
     // Local items shown in place of remote equipment this game cannot resolve. An
@@ -31,6 +32,8 @@ namespace Config
             std::array<Multiplayer::FormReference, kArmorTypeCount> byArmorType;
             // Used when the armor type's own entry is empty.
             Multiplayer::FormReference anyArmorType;
+
+            bool operator==(const ArmorSlot&) const = default;
         };
 
         bool enabled{ true };
@@ -40,12 +43,24 @@ namespace Config
         Multiplayer::FormReference torch;
         Multiplayer::FormReference arrow;
         Multiplayer::FormReference bolt;
+
+        bool operator==(const EquipmentFallbackSettings&) const = default;
     };
 
     struct PerformanceSettings
     {
         // Remote actors and mounts spawned per second at most. Zero is unlimited.
         std::uint32_t spawnsPerSecond{ 20 };
+
+        bool operator==(const PerformanceSettings&) const = default;
+    };
+
+    struct UISettings
+    {
+        // DirectInput scan code that opens the settings window.
+        std::uint32_t settingsKey{ 0 };
+
+        bool operator==(const UISettings&) const = default;
     };
 
     struct PluginConfig
@@ -53,6 +68,9 @@ namespace Config
         NetworkSettings network;
         EquipmentFallbackSettings equipmentFallback;
         PerformanceSettings performance;
+        UISettings ui;
+
+        bool operator==(const PluginConfig&) const = default;
     };
 
     // Reads skyrim-mp.ini next to the plugin DLL, writing a default file when there
@@ -60,12 +78,19 @@ namespace Config
     // load, before anything reads the configuration.
     void Load();
 
-    // Immutable after Load, so any thread may read it.
-    [[nodiscard]] const PluginConfig& Get();
+    // The live configuration. Safe from any thread; a snapshot never changes, so
+    // hold it only as long as one consistent view is needed. Per-actor code
+    // should read it once per pass rather than per actor.
+    [[nodiscard]] std::shared_ptr<const PluginConfig> Get();
 
-    // [EquipmentFallback] key names, so diagnostics name what to edit. No armor
-    // type means the slot's any-type key.
-    [[nodiscard]] std::string GetArmorFallbackKey(
-        std::size_t a_slotIndex, std::optional<Multiplayer::EquipmentArmorType> a_armorType);
-    [[nodiscard]] std::string_view GetWeaponFallbackKey(std::size_t a_weaponType);
+    // Advances with every Apply, so a consumer can notice a change without
+    // comparing settings each pass. Safe from any thread.
+    [[nodiscard]] std::uint64_t GetRevision();
+
+    // Replaces the live configuration, then saves it to the file. Consumers pick
+    // up the change on their own thread. Values must already be valid: the
+    // settings window checks them with the same description the file reader
+    // uses. Returns false if the file could not be written; the change still
+    // applies for this session. Safe from any thread.
+    [[nodiscard]] bool Apply(PluginConfig a_config);
 }

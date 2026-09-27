@@ -5,6 +5,7 @@
 #include "ui/WindowManager.h"
 #include "ui/chat/ChatWindow.h"
 #include "ui/hud/StatusPanel.h"
+#include "ui/settings/SettingsWindow.h"
 
 #include <backends/imgui_impl_dx11.h>
 #include <backends/imgui_impl_win32.h>
@@ -44,8 +45,9 @@ namespace UI::Overlay
             io.IniFilename = nullptr;
             io.LogFilename = nullptr;
             // Skyrim reads the mouse through DirectInput as relative motion, so
-            // windows are keyboard-only. The keyboard reaches ImGui only through
-            // InputCapture, while a window has focus.
+            // InputCapture enables the mouse, with a drawn cursor, only while a
+            // window that uses it has focus. The keyboard reaches ImGui only
+            // through InputCapture, while a window has focus.
             io.ConfigFlags |= ImGuiConfigFlags_NoMouse | ImGuiConfigFlags_NoMouseCursorChange;
 
             Fonts::Load(*io.Fonts, kBaseFontSize);
@@ -185,6 +187,7 @@ namespace UI::Overlay
 
         WindowManager::Register(CreateStatusPanel());
         WindowManager::Register(CreateChatWindow());
+        WindowManager::Register(CreateSettingsWindow());
         InputCapture::Install();
 
         REL::Relocation<std::uintptr_t> rendererEndTimerCall{ RELOCATION_ID(75461, 77246), 0x9 };

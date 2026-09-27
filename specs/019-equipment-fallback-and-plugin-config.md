@@ -26,8 +26,8 @@ replaces `skyrim-mp-server.txt`.
   only stands in for its slot and weapon type.
 - Protocol changes. The fallback uses the hints spec 007 already sends:
   `slotMask` and `armorType` for armor, `kind` and `weaponType` for hands.
-- Reloading the configuration while the game runs. Changes apply on restart.
-- An in-game settings UI.
+- Reloading the file while the game runs. Edits to the file apply on restart;
+  the in-game settings window of spec 021 applies its changes at once.
 
 ## Configuration file
 
@@ -49,11 +49,12 @@ read once when SKSE loads the plugin, before any other plugin work.
 
 ### Extensibility
 
-Each setting is described once, in `PluginConfig.cpp`, through a visitor that
-both reads the file and writes the default file. A new option is a field in
-`Config::PluginConfig` plus one line in that description. Features read their
-typed settings through `Config::Get()`, which is immutable after load and safe
-from any thread.
+Each setting is described once, in `SettingsSchema.cpp`, through a visitor that
+reads the file, writes it, and draws the in-game settings window (spec 021). A
+new option is a field in `Config::PluginConfig` plus one line in that
+description. Features read their typed settings through `Config::Get()`, an
+immutable snapshot that is safe from any thread; spec 021 describes how a
+feature follows a changed snapshot.
 
 ### `[Network]`
 
@@ -119,7 +120,8 @@ regardless of peer order.
 
 ### Resolving the configuration
 
-At `kDataLoaded`, every configured form is resolved once and checked:
+At `kDataLoaded`, and again whenever the settings window changes
+`[EquipmentFallback]`, every configured form is resolved and checked:
 `TESObjectARMO` with a slot mask for armor, a `TESObjectWEAP` of exactly the key's
 weapon type, a carriable `TESObjectLIGH` for the torch, and a `TESAmmo` that is
 or is not a bolt. A form that is missing or of the wrong kind is logged with its

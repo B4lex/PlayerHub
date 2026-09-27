@@ -10,6 +10,7 @@
 #include "sync/movement/MovementSync.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <utility>
@@ -41,6 +42,8 @@ namespace ActorLifecycle
         std::vector<DeferredRemoval> s_deferredRemovals;
         // Spawns the current pass may still start, under the configured rate.
         float s_spawnAllowance{ 0.0F };
+        // Read once per pass, so waiting spawns do not each load the configuration.
+        std::uint32_t s_spawnsPerSecond{ 0 };
         // The longest wait of a spawn held back in the previous pass. A spawn starts
         // only once it has waited as long, so a fixed peer order cannot starve the
         // last peers under sustained demand.
@@ -50,7 +53,7 @@ namespace ActorLifecycle
         // a_waitSeconds accumulates while the spawn is held back.
         bool TakeSpawnAllowance(float& a_waitSeconds, float a_delta)
         {
-            if (Config::Get().performance.spawnsPerSecond == 0)
+            if (s_spawnsPerSecond == 0)
             {
                 return true;
             }
@@ -371,7 +374,8 @@ namespace ActorLifecycle
     void RefillSpawnAllowance(float a_delta)
     {
         const float delta = std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
-        const float passShare = static_cast<float>(Config::Get().performance.spawnsPerSecond) * delta;
+        s_spawnsPerSecond = Config::Get()->performance.spawnsPerSecond;
+        const float passShare = static_cast<float>(s_spawnsPerSecond) * delta;
         // At least one spawn per pass, and never more than one pass's share, so an
         // idle period cannot save up a burst.
         s_spawnAllowance = (std::min)(s_spawnAllowance + passShare, (std::max)(passShare, 1.0F));

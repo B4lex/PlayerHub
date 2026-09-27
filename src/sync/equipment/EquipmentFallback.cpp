@@ -1,9 +1,12 @@
 #include "sync/equipment/EquipmentFallback.h"
 #include "config/PluginConfig.h"
+#include "config/SettingsSchema.h"
 #include "forms/FormLookup.h"
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -46,6 +49,10 @@ namespace EquipmentFallback
         };
 
         ResolvedFallbacks resolved;
+        // The configuration the items were resolved from; null before Initialize.
+        std::shared_ptr<const Config::PluginConfig> resolvedConfig;
+        std::uint64_t resolvedConfigRevision{ 0 };
+        std::uint64_t generation{ 0 };
 
         // Resolves one configured item, or logs why it cannot be used. a_accept
         // returns the typed form, or null for a form of the wrong kind.
@@ -89,7 +96,10 @@ namespace EquipmentFallback
 
     void Initialize()
     {
-        const auto& settings = Config::Get().equipmentFallback;
+        resolvedConfigRevision = Config::GetRevision();
+        resolvedConfig = Config::Get();
+        ++generation;
+        const auto& settings = resolvedConfig->equipmentFallback;
         resolved = {};
         if (!settings.enabled)
         {
@@ -128,7 +138,31 @@ namespace EquipmentFallback
         resolved.arrow = ResolveAmmo(settings.arrow, "Arrow", false, unusable);
         resolved.bolt = ResolveAmmo(settings.bolt, "Bolt", true, unusable);
 
-        logs::info("Equipment fallback initialized: unusableItems={}", unusable);
+        logs::info("Equipment fallback initialized: unusableItems={} generation={}", unusable,
+            static_cast<unsigned long long>(generation));
+    }
+
+    void Refresh()
+    {
+        // Apply publishes the configuration before its revision, so a snapshot
+        // taken after reading the revision is at least that new.
+        const auto revision = Config::GetRevision();
+        if (!resolvedConfig || revision == resolvedConfigRevision)
+        {
+            return;
+        }
+        if (Config::Get()->equipmentFallback == resolvedConfig->equipmentFallback)
+        {
+            resolvedConfigRevision = revision;
+            return;
+        }
+        logs::info("Equipment fallback settings changed; resolving the configured items again");
+        Initialize();
+    }
+
+    std::uint64_t GetGeneration()
+    {
+        return generation;
     }
 
     void AppendArmor(const Multiplayer::EquipmentArmor& a_entry, std::uint32_t& a_occupiedSlots,

@@ -42,6 +42,8 @@ namespace EquipmentSync
         // Revision zero means no equipment was received, which reconciles to an
         // empty inventory.
         std::uint64_t resolvedRevision{ 0 };
+        // EquipmentFallback::GetGeneration the forms were resolved with.
+        std::uint64_t resolvedFallbackGeneration{ 0 };
         bool resolved{ false };
         std::vector<RE::TESObjectARMO*> armor;
         ResolvedHand rightHand;
