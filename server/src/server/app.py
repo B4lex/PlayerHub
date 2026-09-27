@@ -16,10 +16,12 @@ from server.admin import (
     publish_state,
     register_admin_namespace,
 )
+from server.chat import ChatThrottle
 from server.loadtest import BatchManager
 from server.playback import PlaybackManager, Publisher, SocketPublisher
 from server.protocol import (
     parse_animation_action,
+    parse_chat_message,
     parse_mount_transition,
     parse_player_appearance,
     parse_player_equipment,
@@ -52,6 +54,7 @@ player_action_sequences = registry.action_sequences
 player_mount_transition_sequences = registry.mount_transition_sequences
 player_appearances = registry.appearances
 player_equipment = registry.equipment
+chat_throttle = ChatThrottle()
 
 
 def _notify_admin() -> None:
@@ -152,6 +155,7 @@ async def connect(sid: str, environ: dict[str, Any]) -> None:
 async def disconnect(sid: str, reason: str) -> None:
     captures.stop_player(sid, "disconnected")
     registry.remove(sid)
+    chat_throttle.forget(sid)
     _notify_admin()
     outbound = {"playerId": sid}
     logger.info("Socket.IO TX player:disconnect payload=%s", outbound)
@@ -314,6 +318,22 @@ async def mount_transition(sid: str, data: Any) -> dict[str, bool | str]:
     outbound = {"playerId": sid, **transition}
     logger.info("Socket.IO TX player:mount source=%s payload=%s", sid, outbound)
     await sio.emit("player:mount", outbound, skip_sid=sid)
+    return {"ok": True}
+
+
+@sio.on("chat:send")
+async def chat_send(sid: str, data: Any) -> dict[str, bool | str]:
+    message = parse_chat_message(data)
+    if message is None:
+        logger.warning("Rejected malformed chat:send from %s", sid)
+        return {"ok": False, "error": "invalid chat message"}
+    if not chat_throttle.allow(sid):
+        return {"ok": False, "error": "rate limited"}
+
+    # Global chat, echoed to the sender too, so every player sees one order.
+    outbound = {"playerId": sid, "name": registry.name_of(sid), **message}
+    logger.info("Socket.IO TX chat:message source=%s bytes=%s", sid, len(message["text"].encode()))
+    await sio.emit("chat:message", outbound)
     return {"ok": True}
 
 

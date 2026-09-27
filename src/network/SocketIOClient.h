@@ -1,12 +1,14 @@
 #pragma once
 
 #include "protocol/AppearanceState.h"
+#include "protocol/ChatMessage.h"
 #include "protocol/EquipmentState.h"
 #include "protocol/PlayerState.h"
 
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Network
@@ -89,6 +91,13 @@ namespace Network
     void PublishLocalMountTransition(
         MountTransition a_transition, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
 
+    // Emits chat:send with already trimmed, valid text. Returns false without
+    // sending while disconnected. a_onRejected runs on the transport thread with
+    // the server's reason if it refuses the message; accepted messages come back
+    // through DrainChatMessages like everyone else's.
+    [[nodiscard]] bool PublishChatMessage(
+        std::string_view a_text, std::function<void(std::string_view)> a_onRejected);
+
     // Emits latency:probe. a_onAcknowledged runs on the transport thread when the
     // server acknowledges it; it never runs if the connection drops first.
     void EmitLatencyProbe(std::function<void()> a_onAcknowledged);
@@ -111,4 +120,8 @@ namespace Network
     // Transfers network-thread updates to the caller. The authoritative
     // main-loop frame hook is the only consumer.
     [[nodiscard]] RemotePlayerChanges DrainRemotePlayerChanges();
+
+    // Transfers received chat messages, oldest first. Unlike player state, they
+    // outlive the connection they arrived on. Safe to call from any thread.
+    [[nodiscard]] std::vector<Multiplayer::ChatMessage> DrainChatMessages();
 }

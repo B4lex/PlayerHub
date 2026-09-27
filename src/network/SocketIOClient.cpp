@@ -40,6 +40,11 @@ namespace Network
         std::unordered_set<std::string> pendingDisconnects;
         std::uint64_t localActionSequence = 0;
 
+        // Bounds memory while nothing drains chat, for example without the overlay.
+        constexpr std::size_t kMaximumPendingChatMessages = 128;
+        std::mutex chatMessagesLock;
+        std::deque<Multiplayer::ChatMessage> pendingChatMessages;
+
         const std::string& GetServerEndpoint()
         {
             return Config::Get().network.serverEndpoint;
@@ -932,6 +937,47 @@ namespace Network
             pendingEquipment.insert_or_assign(playerID, std::move(update));
         }
 
+        bool ParseRemoteChatMessage(const sio::message::ptr& a_data, Multiplayer::ChatMessage& a_result)
+        {
+            if (!a_data || a_data->get_flag() != sio::message::flag_object)
+            {
+                return false;
+            }
+
+            const auto& values = a_data->get_map();
+            const auto name = FindValue(values, "name");
+            const auto text = FindValue(values, "text");
+            if (!ReadString(values, "playerId", a_result.playerID) || !name
+                || name->get_flag() != sio::message::flag_string || !text
+                || text->get_flag() != sio::message::flag_string)
+            {
+                return false;
+            }
+
+            a_result.senderName = name->get_string();
+            a_result.text = text->get_string();
+            return Multiplayer::IsValidAppearanceName(a_result.senderName)
+                && Multiplayer::IsValidChatText(a_result.text);
+        }
+
+        void OnRemoteChatMessage(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
+        {
+            PROFILE_FUNCTION();
+            Multiplayer::ChatMessage message;
+            if (!ParseRemoteChatMessage(a_data, message))
+            {
+                logs::warn("Ignored malformed Socket.IO chat:message payload");
+                return;
+            }
+
+            std::scoped_lock lock{ chatMessagesLock };
+            if (pendingChatMessages.size() >= kMaximumPendingChatMessages)
+            {
+                pendingChatMessages.pop_front();
+            }
+            pendingChatMessages.push_back(std::move(message));
+        }
+
         // Drops every pending change and per-player receive history, as if each
         // remote player had left. Requires remoteChangesLock.
         void ForgetRemotePlayersLocked()
@@ -1032,6 +1078,7 @@ namespace Network
             socket->on("player:equipment", sio::socket::event_listener_aux(OnRemoteEquipment));
             socket->on("player:exit", sio::socket::event_listener_aux(OnRemoteExit));
             socket->on("player:disconnect", sio::socket::event_listener_aux(OnRemoteDisconnect));
+            socket->on("chat:message", sio::socket::event_listener_aux(OnRemoteChatMessage));
         }
     }
 
@@ -1329,6 +1376,35 @@ namespace Network
         GetSocket()->emit("mount:transition", payload);
     }
 
+    bool PublishChatMessage(std::string_view a_text, std::function<void(std::string_view)> a_onRejected)
+    {
+        if (!IsConnected())
+        {
+            return false;
+        }
+
+        auto payload = sio::object_message::create();
+        payload->get_map()["text"] = sio::string_message::create(std::string{ a_text });
+        GetSocket()->emit("chat:send", payload,
+            [onRejected = std::move(a_onRejected)](sio::message::list const& a_acknowledgement) {
+                const auto& result = a_acknowledgement.size() > 0 ? a_acknowledgement[0] : sio::message::ptr{};
+                if (!result || result->get_flag() != sio::message::flag_object)
+                {
+                    return;
+                }
+                bool ok = false;
+                if (ReadBool(result->get_map(), "ok", ok) && ok)
+                {
+                    return;
+                }
+                std::string error;
+                ReadString(result->get_map(), "error", error);
+                logs::info("Server rejected chat message: {}", error.empty() ? "<no reason>" : error);
+                onRejected(error);
+            });
+        return true;
+    }
+
     void EmitLatencyProbe(std::function<void()> a_onAcknowledged)
     {
         if (!IsConnected())
@@ -1446,5 +1522,18 @@ namespace Network
         changes.connected = connected.load(std::memory_order_acquire);
 
         return changes;
+    }
+
+    std::vector<Multiplayer::ChatMessage> DrainChatMessages()
+    {
+        std::vector<Multiplayer::ChatMessage> messages;
+        std::scoped_lock lock{ chatMessagesLock };
+        messages.reserve(pendingChatMessages.size());
+        for (auto& message : pendingChatMessages)
+        {
+            messages.push_back(std::move(message));
+        }
+        pendingChatMessages.clear();
+        return messages;
     }
 }
