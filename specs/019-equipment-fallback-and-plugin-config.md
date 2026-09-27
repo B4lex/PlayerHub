@@ -69,7 +69,6 @@ because it differs between modpacks. An empty value means no fallback.
 
 | Key | Meaning |
 | --- | --- |
-| `Enabled` | `false` restores spec 007's behavior of leaving missing items off |
 | `<Slot>` | armor for that biped slot; `Head` also stands in for `Hair` |
 | `OneHandSword` … `Crossbow` | weapon for that Creation Kit weapon type |
 | `Torch`, `Arrow`, `Bolt` | carried torch and ammunition |
@@ -168,7 +167,7 @@ form IDs, or `none`.
 3. A missing weapon shows the fallback of the same weapon type in the same hand,
    and attacks use that type's animations.
 4. A missing torch or ammunition shows the configured torch, arrows, or bolts.
-5. `Enabled = false`, or an empty value, leaves the item off as in spec 007.
+5. An empty value leaves the item off as in spec 007.
 6. Invalid values, unknown keys, and configured forms that do not resolve are
    logged and fall back to their defaults or to no fallback.
 7. `[Network] ServerEndpoint` sets the server URL. `skyrim-mp-server.txt` is no

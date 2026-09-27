@@ -13,10 +13,12 @@ class ChatRelayTests(unittest.IsolatedAsyncioTestCase):
     @staticmethod
     def clear() -> None:
         server_app.registry.appearances.clear()
+        server_app.registry.name_indices.clear()
         server_app.chat_throttle._sent.clear()
 
     async def test_relays_to_every_player_with_the_sender_name(self) -> None:
-        server_app.registry.appearances["player-1"] = {"name": "Lydia"}
+        server_app.registry.set_appearance("player-0", {"name": "Lydia", "level": 3})
+        server_app.registry.set_appearance("player-1", {"name": "Lydia", "level": 101})
         emit = AsyncMock()
 
         with patch.object(server_app.sio, "emit", new=emit):
@@ -25,7 +27,13 @@ class ChatRelayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, {"ok": True})
         emit.assert_awaited_once_with(
             "chat:message",
-            {"playerId": "player-1", "name": "Lydia", "text": "I am sworn to carry your burdens"},
+            {
+                "playerId": "player-1",
+                "name": "Lydia",
+                "nameIndex": 2,
+                "level": 101,
+                "text": "I am sworn to carry your burdens",
+            },
         )
 
     async def test_relays_an_empty_name_before_appearance_is_known(self) -> None:
@@ -35,7 +43,10 @@ class ChatRelayTests(unittest.IsolatedAsyncioTestCase):
             result = await server_app.chat_send("player-1", {"text": "hello"})
 
         self.assertEqual(result, {"ok": True})
-        emit.assert_awaited_once_with("chat:message", {"playerId": "player-1", "name": "", "text": "hello"})
+        emit.assert_awaited_once_with(
+            "chat:message",
+            {"playerId": "player-1", "name": "", "nameIndex": 1, "level": 0, "text": "hello"},
+        )
 
     async def test_rejects_malformed_messages_without_relaying(self) -> None:
         emit = AsyncMock()

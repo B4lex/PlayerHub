@@ -68,11 +68,6 @@ namespace EquipmentFallback
         ++generation;
         const auto& settings = resolvedConfig->equipmentFallback;
         resolved = {};
-        if (!settings.enabled)
-        {
-            logs::info("Equipment fallback is disabled; unresolvable remote items are left off");
-            return;
-        }
 
         std::uint32_t unusable = 0;
         for (std::size_t slot = 0; slot < settings.armor.size(); ++slot)

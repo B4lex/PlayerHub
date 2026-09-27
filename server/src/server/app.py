@@ -141,9 +141,10 @@ async def connect(sid: str, environ: dict[str, Any]) -> None:
     registry.add(sid)
     _notify_admin()
     # Appearance only changes rarely, so late joiners receive the stored state.
-    for player_id, appearance in list(player_appearances.items()):
+    for player_id in list(player_appearances):
         if player_id == sid:
             continue
+        appearance = registry.relayed_appearance(player_id)
         await sio.emit("player:appearance", {"playerId": player_id, **appearance}, to=sid)
     for player_id, equipment in list(player_equipment.items()):
         if player_id == sid:
@@ -225,10 +226,10 @@ async def player_appearance(sid: str, data: Any) -> dict[str, bool | str]:
     if previous is not None and appearance["revision"] <= previous["revision"]:
         return {"ok": False, "error": "stale appearance revision"}
 
-    player_appearances[sid] = appearance
+    relayed = registry.set_appearance(sid, appearance)
     captures.record(sid, "player:appearance", appearance)
     _notify_admin()
-    outbound = {"playerId": sid, **appearance}
+    outbound = {"playerId": sid, **relayed}
     logger.info(
         "Socket.IO TX player:appearance source=%s revision=%s", sid, appearance["revision"]
     )
@@ -331,7 +332,7 @@ async def chat_send(sid: str, data: Any) -> dict[str, bool | str]:
         return {"ok": False, "error": "rate limited"}
 
     # Global chat, echoed to the sender too, so every player sees one order.
-    outbound = {"playerId": sid, "name": registry.name_of(sid), **message}
+    outbound = {"playerId": sid, **registry.sender_of(sid), **message}
     logger.info("Socket.IO TX chat:message source=%s bytes=%s", sid, len(message["text"].encode()))
     await sio.emit("chat:message", outbound)
     return {"ok": True}

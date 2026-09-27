@@ -27,8 +27,9 @@ namespace UI
     class ItemPicker
     {
     public:
-        // Draws the field for a_value at the cursor, as wide as the next ImGui
-        // item. Returns true when the user picked an item or None.
+        // Draws the field for a_value at the cursor, with a button that clears it,
+        // together as wide as the next ImGui item. Returns true when the user
+        // picked an item or None.
         bool Draw(const char* a_id, Multiplayer::FormReference& a_value, const Forms::ItemFilter& a_filter);
 
         // Forgets cached field labels, for example when the window reopens.

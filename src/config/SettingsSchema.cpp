@@ -80,35 +80,32 @@ namespace Config
 
         void DescribeNetwork(NetworkSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("Network", "Connection to the synchronization server.");
+            a_visitor.Section("Network", "");
             a_visitor.String("ServerEndpoint", a_settings.serverEndpoint,
                 "Server URL, starting with http:// or https://.", IsValidServerEndpoint);
             a_visitor.Bool("AutoConnect", a_settings.autoConnect,
-                "Connects when a game loads. Set to false to connect with the Connect button in\n"
-                "the settings window instead. A change applies from the next game loaded from\n"
-                "the main menu.");
+                "");
         }
 
         void DescribeEquipmentFallback(EquipmentFallbackSettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("EquipmentFallback",
                 "Equipment items shown on remote players in place of missing mod items.");
-            a_visitor.Bool("Enabled", a_settings.enabled, "Set to false to leave missing items off entirely.");
 
+            a_visitor.Comment("Apparel");
             for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)
             {
                 a_visitor.Form(GetArmorFallbackKey(slot), a_settings.armor[slot], GetArmorFallbackFilter(slot));
             }
 
-            a_visitor.Comment(
-                "Weapons, by weapon type. The fallback must have the same type.");
+            a_visitor.Comment("Weapons");
             for (std::size_t type = Multiplayer::PlayerEquipment::kMinimumWeaponType; type < a_settings.weapons.size();
                 ++type)
             {
                 a_visitor.Form(GetWeaponFallbackKey(type), a_settings.weapons[type], GetWeaponFallbackFilter(type));
             }
 
-            a_visitor.Comment("Torch, and the ammunition shown with a bow (Arrow) or crossbow (Bolt).");
+            a_visitor.Comment("Miscellaneous");
             a_visitor.Form("Torch", a_settings.torch, Forms::kTorchFilter);
             a_visitor.Form("Arrow", a_settings.arrow, Forms::kArrowFilter);
             a_visitor.Form("Bolt", a_settings.bolt, Forms::kBoltFilter);

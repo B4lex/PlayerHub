@@ -31,7 +31,6 @@ namespace Config
             1U << 5, 1U << 7, 1U << 9, 1U << 12 };
         static constexpr std::size_t kArmorSlotCount = kArmorSlotMasks.size();
 
-        bool enabled{ true };
         // Indexed like kArmorSlotMasks.
         std::array<Multiplayer::FormReference, kArmorSlotCount> armor;
         // Indexed by RE::WEAPON_TYPE; hand-to-hand is unused.
