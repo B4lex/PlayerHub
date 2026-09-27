@@ -106,8 +106,12 @@ which would otherwise also publish every shot as `attack/normal`.
   `ActorEquipManager::EquipSpell` in that hand's slot. It is not an inventory
   item, so it never counts toward required inventory.
 - A placeholder in a hand that should be empty is removed with
-  `Actor::DeselectSpell`. A weapon or torch that should replace it is equipped
-  over it.
+  `ActorEquipManager::UnequipSpell` (ID 38902, the target of Papyrus
+  `Actor.UnequipSpell`) in that hand's slot. Like `EquipSpell`, it runs
+  `ActionForceEquip`, which moves a drawn hand out of its spell pose.
+  `Actor::DeselectSpell` sends no graph event and left the hand raised; it
+  remains the fallback on runtimes other than AE. A weapon or torch that
+  should replace the placeholder is equipped over it.
 - Accepted `ammo` goes through the same resolution filter as other items
   (`TESAmmo`). Twenty are kept in inventory and equipped, which fills the
   quiver. Remote shots never spend them.
@@ -178,7 +182,10 @@ attack playing. The actor graph operations live in `ActorAnimation`:
 - All presentation state is cleared whenever the graph is invalidated
   (recovery, 3D or graph loss, graph replacement).
 - Readied spell hands draw through the magic equip branch. The firewall allows
-  `Magic_Equip`, `MagicForceEquip`, and `MagicWeap_ForceEquip`. Its
+  `Magic_Equip`, `MagicForceEquip`, and `MagicWeap_ForceEquip`, and the
+  `ActionForceEquip` events that swap a single drawn hand to or from a spell:
+  `MagicForceEquipRight`, `MagicForceEquipLeft`, `WeapSoloEquip`, and
+  `Magic_Solo_Equip`. Its
   `Magic_Equip_Out[Moving]` and `Magic_Unequip_Out[Moving]` annotations complete
   a weapon transition like the weapon equip exits. Without them, the draw never
   reached `kDrawn` and no cast could start.
@@ -220,8 +227,10 @@ To verify in game:
    shows each change.
 2. `ActorEquipManager::EquipSpell` equips a spell on an actor that does not know
    it, and `GetEquippedObject` then returns it (confirmed in game with Sparks).
-   A drawn actor shows the spell's hand effect. `Actor::DeselectSpell` empties
-   the hand.
+   A drawn actor shows the spell's hand effect. `ActorEquipManager::UnequipSpell`
+   empties only the given hand and lowers it through `ActionForceEquip`
+   (`WeapOutRightReplaceForceEquip` for the right hand, `WeapSoloEquip` or
+   `Magic_Solo_Equip` for the left).
 3. `DrawWeaponMagicHands(true)` readies spell hands with no graph events other than
    the allowed magic equip events. Check `latest.log` for other blocked `Magic*`
    or `M?h_*` events during a draw.

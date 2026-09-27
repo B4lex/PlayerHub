@@ -552,13 +552,31 @@ namespace EquipmentSync
 
         bool CanUnequipHandObject(const RE::TESBoundObject* a_object)
         {
-            // Spells are not inventory items; they are deselected instead.
+            // Spells are not inventory items; UnequipSpell removes them instead.
             return a_object && (a_object->IsWeapon() || a_object->Is(RE::FormType::Light));
         }
 
         RE::SpellItem* AsSpell(RE::TESBoundObject* a_object)
         {
             return a_object ? a_object->As<RE::SpellItem>() : nullptr;
+        }
+
+        // ActorEquipManager::UnequipSpell, the target of Papyrus Actor.UnequipSpell,
+        // which CommonLibSSE-NG does not expose. Like EquipSpell it runs the equip
+        // pipeline, whose ActionForceEquip moves a drawn hand out of its spell pose;
+        // Actor::DeselectSpell only clears the selection and leaves the pose.
+        // Verified against 1.7.104 only.
+        void UnequipSpell(RE::ActorEquipManager& a_equipManager, RE::Actor& a_actor, RE::SpellItem* a_spell,
+            const RE::BGSEquipSlot* a_slot)
+        {
+            if (!REL::Module::IsAE())
+            {
+                a_actor.DeselectSpell(a_spell);
+                return;
+            }
+            using func_t = void(RE::ActorEquipManager*, RE::Actor*, RE::SpellItem*, const RE::BGSEquipSlot*);
+            static REL::Relocation<func_t> func{ REL::ID(38902) };
+            func(std::addressof(a_equipManager), std::addressof(a_actor), a_spell, a_slot);
         }
     }
 
@@ -926,16 +944,15 @@ namespace EquipmentSync
                 swappedHands = true;
             }
             // A placeholder spell in a hand that should be empty has no item to
-            // replace it. Deselecting may clear both hands; the equips below
-            // restore a hand that still needs it.
+            // replace it. The equips below restore a hand that still needs it.
             if (auto* spell = AsSpell(equippedRight); spell && !a_remote.rightHand.object)
             {
-                actor->DeselectSpell(spell);
+                UnequipSpell(*equipManager, *actor, spell, rightSlot);
                 swappedHands = true;
             }
             if (auto* spell = AsSpell(equippedLeft); spell && !a_remote.leftHand.object)
             {
-                actor->DeselectSpell(spell);
+                UnequipSpell(*equipManager, *actor, spell, leftSlot);
                 swappedHands = true;
             }
             equippedRight = GetEquippedHandObject(*actor, false);

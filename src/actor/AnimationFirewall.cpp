@@ -29,7 +29,12 @@ namespace AnimationFirewall
                 a_eventName == "WeapOutRightReplaceForceEquip" || a_eventName == "WeapOutLeftReplaceForceEquip" ||
                 // Drawing spell hands, and equipping a spell or weapon over them.
                 a_eventName == "Magic_Equip" || a_eventName == "MagicForceEquip"
+                || a_eventName == "MagicForceEquipRight" || a_eventName == "MagicForceEquipLeft"
                 || a_eventName == "MagicWeap_ForceEquip" ||
+                // ActionForceEquip emptying the left hand beside a weapon or unarmed
+                // right hand, or beside a spell (the LeftH2HEquip and
+                // LeftMagicForceUnequip idles).
+                a_eventName == "WeapSoloEquip" || a_eventName == "Magic_Solo_Equip" ||
                 // Raises and lowers the left arm for a carried torch.
                 a_eventName == "torchEquip" || a_eventName == "torchUnequip";
         }
