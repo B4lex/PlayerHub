@@ -11,9 +11,17 @@
 // this game cannot resolve. Main-loop thread only.
 namespace EquipmentFallback
 {
-    // Resolves the configured items once and logs unusable ones. Requires Skyrim's
+    // Resolves the configured items and logs unusable ones. Requires Skyrim's
     // data-loaded state; until then nothing has a fallback.
     void Initialize();
+
+    // Once per pass: resolves the items again after the settings window changed
+    // them. Advances GetGeneration when it does.
+    void Refresh();
+
+    // Advances whenever the resolved items change, so remote equipment resolved
+    // with older fallbacks is resolved again.
+    [[nodiscard]] std::uint64_t GetGeneration();
 
     // Appends fallback armor for an unresolved entry: one per slot the entry
     // covers, skipping any whose slots overlap a_occupiedSlots, which then gains

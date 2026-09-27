@@ -12,6 +12,7 @@
 #include "sync/appearance/AppearanceSync.h"
 #include "sync/combat/CombatSync.h"
 #include "sync/death/DeathSync.h"
+#include "sync/equipment/EquipmentFallback.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/furniture/FurnitureSync.h"
 #include "sync/mount/MountSync.h"
@@ -429,6 +430,7 @@ namespace SyncCoordinator
         PROFILE_FUNCTION();
         PROFILE_PLOT("Remote peers", s_peers.size());
         RestoreSaveEligibility(s_peers);
+        EquipmentFallback::Refresh();
         ApplyNetworkChanges(s_peers);
         ActorLifecycle::UpdateDeferredRemovals(a_delta);
         ActorLifecycle::RefillSpawnAllowance(a_delta);

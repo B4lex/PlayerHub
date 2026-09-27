@@ -1,4 +1,5 @@
 #include "network/ConnectionMonitor.h"
+#include "config/PluginConfig.h"
 #include "network/SocketIOClient.h"
 #include "runtime/Profiling.h"
 
@@ -46,6 +47,8 @@ namespace Network
         std::uint64_t lastProbeID = 0;
         std::uint64_t probeConnectionGeneration = 0;
         float secondsSinceProbe = kProbeIntervalSeconds;
+        std::uint64_t observedConfigRevision = 0;
+        bool endpointChangePending = false;
 
         void ForgetLatency()
         {
@@ -139,6 +142,38 @@ namespace Network
             }
         }
 
+        // Returns whether the connection is being moved to a changed endpoint. The
+        // move skips the reconnect delay and waits only for a previous attempt's
+        // worker to finish.
+        bool FollowEndpointChange()
+        {
+            const auto revision = Config::GetRevision();
+            if (revision != observedConfigRevision)
+            {
+                observedConfigRevision = revision;
+                endpointChangePending = endpointChangePending || IsEndpointOutdated();
+            }
+            if (!endpointChangePending)
+            {
+                return false;
+            }
+
+            if (IsConnected())
+            {
+                AbandonConnection();
+            }
+            if (!BeginReconnect())
+            {
+                return true;
+            }
+            endpointChangePending = false;
+            ForgetLatency();
+            reconnectAttempts = 0;
+            EnterPhase(Phase::kReconnecting);
+            logs::info("Server endpoint changed; reconnecting");
+            return true;
+        }
+
         void UpdateDisconnected(float a_deltaSeconds)
         {
             if (phase == Phase::kConnected)
@@ -172,6 +207,10 @@ namespace Network
     {
         PROFILE_FUNCTION();
         const auto deltaSeconds = std::clamp(a_deltaSeconds, 0.0F, kMaximumFrameTime);
+        if (FollowEndpointChange())
+        {
+            return;
+        }
         if (IsConnected())
         {
             UpdateConnected(deltaSeconds);

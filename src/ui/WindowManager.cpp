@@ -34,6 +34,12 @@ namespace UI::WindowManager
         return s_focused.load(std::memory_order_acquire) != nullptr;
     }
 
+    bool FocusedWindowUsesMouse()
+    {
+        const auto* focused = s_focused.load(std::memory_order_acquire);
+        return focused && focused->UsesMouse();
+    }
+
     bool FocusByKey(std::uint32_t a_scanCode)
     {
         for (const auto& window : s_windows)

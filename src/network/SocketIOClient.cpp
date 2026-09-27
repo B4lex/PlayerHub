@@ -45,9 +45,27 @@ namespace Network
         std::mutex chatMessagesLock;
         std::deque<Multiplayer::ChatMessage> pendingChatMessages;
 
-        const std::string& GetServerEndpoint()
+        // The endpoint of the latest connection attempt. Empty before Initialize.
+        std::mutex attemptEndpointLock;
+        std::string attemptEndpoint;
+
+        std::string GetAttemptEndpoint()
         {
-            return Config::Get().network.serverEndpoint;
+            const std::scoped_lock lock{ attemptEndpointLock };
+            return attemptEndpoint;
+        }
+
+        // The endpoint is read for every attempt, so a changed setting applies to
+        // the next one.
+        void ConnectToConfiguredEndpoint(sio::client& a_client)
+        {
+            auto endpoint = Config::Get()->network.serverEndpoint;
+            {
+                const std::scoped_lock lock{ attemptEndpointLock };
+                attemptEndpoint = endpoint;
+            }
+            logs::info("Opening Socket.IO connection to {}", endpoint);
+            a_client.connect(endpoint);
         }
 
         sio::client& GetClient()
@@ -1099,7 +1117,7 @@ namespace Network
             client.set_open_listener([] {
                 PROFILE_THREAD_NAME("Socket.IO");
                 RE::ConsoleLog::GetSingleton()->Print("MP: Connected.");
-                logs::info("Socket.IO transport connected to {}", GetServerEndpoint());
+                logs::info("Socket.IO transport connected to {}", GetAttemptEndpoint());
             });
             client.set_socket_open_listener([](std::string const&) {
                 // A reopened namespace does not always follow a reported close, so the
@@ -1122,7 +1140,7 @@ namespace Network
             });
             client.set_fail_listener([] {
                 MarkDisconnected();
-                logs::warn("Socket.IO could not connect to {}", GetServerEndpoint());
+                logs::warn("Socket.IO could not connect to {}", GetAttemptEndpoint());
             });
             client.set_close_listener([](sio::client::close_reason const& a_reason) {
                 MarkDisconnected();
@@ -1130,8 +1148,7 @@ namespace Network
                     a_reason == sio::client::close_reason_drop ? "the transport" : "a normal close");
             });
 
-            logs::info("Opening Socket.IO connection to {}", GetServerEndpoint());
-            client.connect(GetServerEndpoint());
+            ConnectToConfiguredEndpoint(client);
         });
     }
 
@@ -1418,7 +1435,7 @@ namespace Network
 
     void AbandonConnection()
     {
-        logs::warn("Abandoning the Socket.IO connection to {}; forgetting remote players", GetServerEndpoint());
+        logs::warn("Abandoning the Socket.IO connection to {}; forgetting remote players", GetAttemptEndpoint());
         MarkDisconnected();
     }
 
@@ -1440,7 +1457,7 @@ namespace Network
                 client.sync_close();
                 RegisterSocketHandlers();
                 attemptFailed.store(false, std::memory_order_release);
-                client.connect(GetServerEndpoint());
+                ConnectToConfiguredEndpoint(client);
             }
             catch (const std::exception& a_exception)
             {
@@ -1450,6 +1467,12 @@ namespace Network
             reconnectWorkerRunning.store(false, std::memory_order_release);
         }).detach();
         return true;
+    }
+
+    bool IsEndpointOutdated()
+    {
+        const auto endpoint = GetAttemptEndpoint();
+        return !endpoint.empty() && endpoint != Config::Get()->network.serverEndpoint;
     }
 
     bool DidReconnectAttemptFail()

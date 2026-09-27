@@ -1,46 +1,35 @@
 #include "config/PluginConfig.h"
+#include "config/SettingsSchema.h"
 
 #include <SimpleIni.h>
 
-#include <algorithm>
-#include <cctype>
-#include <charconv>
+#include <atomic>
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <initializer_list>
 #include <iterator>
+#include <mutex>
 #include <optional>
+#include <span>
 #include <string_view>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 namespace Config
 {
     namespace
     {
         constexpr std::string_view kFileName = "skyrim-mp.ini";
+        constexpr std::string_view kTemporaryExtension = ".tmp";
         constexpr std::string_view kFallbackDirectory = "Data/SKSE/Plugins";
-        constexpr std::string_view kDefaultServerEndpoint = "https://8fa21dsv.lmfao.pp.ua";
         constexpr std::size_t kMaximumModulePathLength = 32768;
-        constexpr std::uint32_t kFirstArmorSlot = 30;
 
-        // Creation Kit names of biped slots 30..43. Later slots have no vanilla
-        // meaning and are named by number.
-        constexpr std::array<std::string_view, 14> kArmorSlotNames{ "Head", "Hair", "Body", "Hands", "Forearms",
-            "Amulet", "Ring", "Feet", "Calves", "Shield", "Tail", "LongHair", "Circlet", "Ears" };
-        // Indexed by Multiplayer::EquipmentArmorType.
-        constexpr std::array<std::string_view, EquipmentFallbackSettings::kArmorTypeCount> kArmorTypeNames{ "Light",
-            "Heavy", "Clothing" };
-        // Creation Kit weapon animation types, indexed by RE::WEAPON_TYPE.
-        constexpr std::array<std::string_view, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> kWeaponTypeNames{
-            "HandToHandMelee", "OneHandSword", "OneHandDagger", "OneHandAxe", "OneHandMace", "TwoHandSword",
-            "TwoHandAxe", "Bow", "Staff", "Crossbow"
-        };
-
-        constexpr std::string_view kWhitespace = " \t\r\n";
         constexpr std::string_view kFileHeader
             = "Skyrim Multiplayer configuration. Written with default values when missing.\n"
-              "Restart the game to apply changes. Removing a line restores its default.\n"
+              "Edits here apply on the next start; the in-game settings window ([UI] SettingsKey)\n"
+              "applies changes at once and saves them here. Removing a line restores its default.\n"
               "Comments must be on their own line.\n"
               "\n";
 
@@ -52,252 +41,21 @@ namespace Config
             return { text.begin(), text.end() };
         }
 
-        std::string_view Trim(std::string_view a_text)
+        // Each line of the parts as a `;` comment line.
+        std::string FormatComment(std::initializer_list<std::string_view> a_parts)
         {
-            const auto first = a_text.find_first_not_of(kWhitespace);
-            if (first == std::string_view::npos)
+            std::string text;
+            for (auto part : a_parts)
             {
-                return {};
-            }
-            return a_text.substr(first, a_text.find_last_not_of(kWhitespace) - first + 1);
-        }
-
-        bool EqualsIgnoreCase(std::string_view a_left, std::string_view a_right)
-        {
-            return std::ranges::equal(a_left, a_right, [](char a_first, char a_second) {
-                return std::tolower(static_cast<unsigned char>(a_first))
-                    == std::tolower(static_cast<unsigned char>(a_second));
-            });
-        }
-
-        std::optional<std::uint32_t> ParseUnsigned(std::string_view a_value)
-        {
-            std::uint32_t value = 0;
-            const auto [end, error] = std::from_chars(a_value.data(), a_value.data() + a_value.size(), value);
-            if (a_value.empty() || error != std::errc{} || end != a_value.data() + a_value.size())
-            {
-                return std::nullopt;
-            }
-            return value;
-        }
-
-        std::optional<bool> ParseBool(std::string_view a_value)
-        {
-            for (const auto name : { "true", "yes", "on", "1" })
-            {
-                if (EqualsIgnoreCase(a_value, name))
+                while (!part.empty())
                 {
-                    return true;
+                    const auto end = part.find('\n');
+                    const auto line = part.substr(0, end);
+                    text += std::format("{};{}{}", text.empty() ? "" : "\n", line.empty() ? "" : " ", line);
+                    part.remove_prefix(end == std::string_view::npos ? part.size() : end + 1);
                 }
             }
-            for (const auto name : { "false", "no", "off", "0" })
-            {
-                if (EqualsIgnoreCase(a_value, name))
-                {
-                    return false;
-                }
-            }
-            return std::nullopt;
-        }
-
-        // `Plugin.esp|0x0012AB`: the defining plugin and the hexadecimal form ID local
-        // to it. A full load-order form ID would not match across modpacks.
-        std::optional<FormReference> ParseFormReference(std::string_view a_value)
-        {
-            const auto separator = a_value.find('|');
-            if (separator == std::string_view::npos)
-            {
-                return std::nullopt;
-            }
-
-            const auto plugin = Trim(a_value.substr(0, separator));
-            auto formID = Trim(a_value.substr(separator + 1));
-            if (formID.starts_with("0x") || formID.starts_with("0X"))
-            {
-                formID.remove_prefix(2);
-            }
-
-            std::uint32_t localFormID = 0;
-            const auto [end, error] = std::from_chars(formID.data(), formID.data() + formID.size(), localFormID, 16);
-            if (formID.empty() || error != std::errc{} || end != formID.data() + formID.size())
-            {
-                return std::nullopt;
-            }
-
-            FormReference reference{ .plugin = std::string{ plugin }, .localFormID = localFormID };
-            if (reference.IsEmpty() || !Multiplayer::IsValidFormReference(reference, false))
-            {
-                return std::nullopt;
-            }
-            return reference;
-        }
-
-        std::string FormatFormReference(const FormReference& a_reference)
-        {
-            return a_reference.IsEmpty() ? std::string{}
-                                         : std::format("{}|0x{:06X}", a_reference.plugin, a_reference.localFormID);
-        }
-
-        // Whitespace also rejects a trailing comment, which SimpleIni keeps in the value.
-        bool IsValidServerEndpoint(std::string_view a_value)
-        {
-            return (a_value.starts_with("http://") || a_value.starts_with("https://"))
-                && a_value.find_first_of(kWhitespace) == std::string_view::npos;
-        }
-
-        // One description of every setting drives both reading the file and writing
-        // the default one. A new option is a field in PluginConfig plus a line here.
-        class SettingsVisitor
-        {
-        public:
-            virtual ~SettingsVisitor() = default;
-
-            virtual void Section(std::string_view a_name, std::string_view a_comment) = 0;
-            virtual void Comment(std::string_view a_comment) = 0;
-            virtual void Bool(std::string_view a_key, bool& a_value, std::string_view a_comment) = 0;
-            virtual void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-                std::uint32_t a_maximum) = 0;
-            virtual void String(std::string_view a_key, std::string& a_value, std::string_view a_comment,
-                bool (*a_isValid)(std::string_view)) = 0;
-            // Grouped under a preceding Comment, so a form entry has none of its own.
-            virtual void Form(std::string_view a_key, FormReference& a_value) = 0;
-        };
-
-        void DescribeNetwork(NetworkSettings& a_settings, SettingsVisitor& a_visitor)
-        {
-            a_visitor.Section("Network", "Connection to the synchronization server.");
-            a_visitor.String("ServerEndpoint", a_settings.serverEndpoint,
-                "Server URL, starting with http:// or https://.", IsValidServerEndpoint);
-        }
-
-        void DescribeEquipmentFallback(EquipmentFallbackSettings& a_settings, SettingsVisitor& a_visitor)
-        {
-            a_visitor.Section("EquipmentFallback",
-                "Items shown on remote players in place of equipment this game does not have,\n"
-                "for example armor or weapons from a mod that is not installed here.\n"
-                "Values are Plugin|FormID: the plugin that defines the item and the item's\n"
-                "hexadecimal form ID without the load order prefix. An empty value means no fallback.");
-            a_visitor.Bool("Enabled", a_settings.enabled, "Set to false to leave missing items off entirely.");
-
-            a_visitor.Comment(
-                "Armor, by biped slot: <Slot>.Light, <Slot>.Heavy, <Slot>.Clothing, or <Slot> for any\n"
-                "armor type without its own value. A missing item gets the fallback of every slot it\n"
-                "covers, unless that fallback would take a slot another shown item already uses.\n"
-                "Slots: Head, Hair, Body, Hands, Forearms, Amulet, Ring, Feet, Calves, Shield, Tail,\n"
-                "LongHair, Circlet, Ears, and Slot44 through Slot61. Vanilla helmets and hoods use Hair.");
-            for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)
-            {
-                auto& entry = a_settings.armor[slot];
-                for (std::size_t type = 0; type < entry.byArmorType.size(); ++type)
-                {
-                    a_visitor.Form(GetArmorFallbackKey(slot, static_cast<Multiplayer::EquipmentArmorType>(type)),
-                        entry.byArmorType[type]);
-                }
-                a_visitor.Form(GetArmorFallbackKey(slot, std::nullopt), entry.anyArmorType);
-            }
-
-            a_visitor.Comment(
-                "Weapons, by weapon type. The fallback must have the same type. TwoHandAxe also covers\n"
-                "warhammers.");
-            for (std::size_t type = Multiplayer::PlayerEquipment::kMinimumWeaponType; type < a_settings.weapons.size();
-                ++type)
-            {
-                a_visitor.Form(GetWeaponFallbackKey(type), a_settings.weapons[type]);
-            }
-
-            a_visitor.Comment("Torch, and the ammunition shown with a bow (Arrow) or crossbow (Bolt).");
-            a_visitor.Form("Torch", a_settings.torch);
-            a_visitor.Form("Arrow", a_settings.arrow);
-            a_visitor.Form("Bolt", a_settings.bolt);
-        }
-
-        void DescribePerformance(PerformanceSettings& a_settings, SettingsVisitor& a_visitor)
-        {
-            a_visitor.Section("Performance", "Limits that trade how quickly remote players appear for frame time.");
-            a_visitor.Unsigned("SpawnsPerSecond", a_settings.spawnsPerSecond,
-                "Remote players and mounts spawned per second at most. Many players joining or\n"
-                "arriving at once then appear over a few seconds instead of in one long frame.\n"
-                "0 spawns every due player at once.",
-                1000);
-        }
-
-        void Describe(PluginConfig& a_config, SettingsVisitor& a_visitor)
-        {
-            DescribeNetwork(a_config.network, a_visitor);
-            DescribeEquipmentFallback(a_config.equipmentFallback, a_visitor);
-            DescribePerformance(a_config.performance, a_visitor);
-        }
-
-        void SetDefaultArmorFallbacks(EquipmentFallbackSettings& a_settings)
-        {
-            struct DefaultArmor
-            {
-                std::uint32_t slot;
-                std::uint32_t light;
-                std::uint32_t heavy;
-                std::uint32_t clothing;
-                std::uint32_t any;
-            };
-            // Hide (light), iron (heavy), and farm clothes. The helmets and hood also
-            // cover Circlet, and Hair is tried first, so the circlet only stands in
-            // for missing circlet-only items.
-            constexpr std::array<DefaultArmor, 9> kDefaults{ {
-                { .slot = 30, .light = 0x013913, .heavy = 0x012E4D, .clothing = 0x0D3DE8, .any = 0 },
-                { .slot = 31, .light = 0x013913, .heavy = 0x012E4D, .clothing = 0x0D3DE8, .any = 0 },
-                { .slot = 32, .light = 0x013911, .heavy = 0x012E49, .clothing = 0x01BE1A, .any = 0 },
-                { .slot = 33, .light = 0x013912, .heavy = 0x012E46, .clothing = 0, .any = 0 },
-                { .slot = 35, .light = 0, .heavy = 0, .clothing = 0, .any = 0x0877D5 },
-                { .slot = 36, .light = 0, .heavy = 0, .clothing = 0, .any = 0x01CF2B },
-                { .slot = 37, .light = 0x013910, .heavy = 0x012E4B, .clothing = 0x01BE1B, .any = 0 },
-                { .slot = 39, .light = 0x013914, .heavy = 0x012EB6, .clothing = 0, .any = 0 },
-                { .slot = 42, .light = 0, .heavy = 0, .clothing = 0, .any = 0x0166D6 },
-            } };
-
-            const auto skyrim = [](std::uint32_t a_localFormID) {
-                return a_localFormID == 0 ? FormReference{}
-                                          : FormReference{ .plugin = "Skyrim.esm", .localFormID = a_localFormID };
-            };
-            for (const auto& entry : kDefaults)
-            {
-                auto& slot = a_settings.armor[entry.slot - kFirstArmorSlot];
-                slot.byArmorType[static_cast<std::size_t>(Multiplayer::EquipmentArmorType::kLight)]
-                    = skyrim(entry.light);
-                slot.byArmorType[static_cast<std::size_t>(Multiplayer::EquipmentArmorType::kHeavy)]
-                    = skyrim(entry.heavy);
-                slot.byArmorType[static_cast<std::size_t>(Multiplayer::EquipmentArmorType::kClothing)]
-                    = skyrim(entry.clothing);
-                slot.anyArmorType = skyrim(entry.any);
-            }
-        }
-
-        PluginConfig MakeDefaultConfig()
-        {
-            PluginConfig config;
-            config.network.serverEndpoint = kDefaultServerEndpoint;
-
-            auto& fallback = config.equipmentFallback;
-            SetDefaultArmorFallbacks(fallback);
-            const auto skyrim = [](std::uint32_t a_localFormID) {
-                return FormReference{ .plugin = "Skyrim.esm", .localFormID = a_localFormID };
-            };
-            const auto dawnguard = [](std::uint32_t a_localFormID) {
-                return FormReference{ .plugin = "Dawnguard.esm", .localFormID = a_localFormID };
-            };
-            // Iron weapons, the hunting bow, an unenchanted staff, and the Dawnguard
-            // crossbow.
-            fallback.weapons[1] = skyrim(0x012EB7);
-            fallback.weapons[2] = skyrim(0x01397E);
-            fallback.weapons[3] = skyrim(0x013790);
-            fallback.weapons[4] = skyrim(0x013982);
-            fallback.weapons[5] = skyrim(0x01359D);
-            fallback.weapons[6] = skyrim(0x013980);
-            fallback.weapons[7] = skyrim(0x013985);
-            fallback.weapons[8] = skyrim(0x0BE11F);
-            fallback.weapons[9] = dawnguard(0x000801);
-            fallback.torch = skyrim(0x01D4EC);
-            fallback.arrow = skyrim(0x01397D);
-            fallback.bolt = dawnguard(0x000BB3);
-            return config;
+            return text;
         }
 
         class SettingsReader final : public SettingsVisitor
@@ -379,6 +137,21 @@ namespace Config
                 WarnInvalid(a_key, *value, FormatFormReference(a_value));
             }
 
+            void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view) override
+            {
+                const auto value = Take(a_key);
+                if (!value)
+                {
+                    return;
+                }
+                if (const auto parsed = ParseKey(*value))
+                {
+                    a_value = *parsed;
+                    return;
+                }
+                WarnInvalid(a_key, *value, FormatKey(a_value));
+            }
+
             // Every key a setting reads has been removed, so what is left is unknown.
             void ReportUnknownEntries() const
             {
@@ -420,7 +193,42 @@ namespace Config
             std::string section;
         };
 
-        class DefaultFileWriter final : public SettingsVisitor
+        // Visits every setting as the text the file stores for it.
+        class TextVisitor : public SettingsVisitor
+        {
+        public:
+            void Bool(std::string_view a_key, bool& a_value, std::string_view a_comment) override
+            {
+                Text(a_key, a_value ? "true" : "false", a_comment);
+            }
+
+            void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+                std::uint32_t) override
+            {
+                Text(a_key, std::format("{}", a_value), a_comment);
+            }
+
+            void String(std::string_view a_key, std::string& a_value, std::string_view a_comment,
+                bool (*)(std::string_view)) override
+            {
+                Text(a_key, a_value, a_comment);
+            }
+
+            void Form(std::string_view a_key, FormReference& a_value) override
+            {
+                Text(a_key, FormatFormReference(a_value), {});
+            }
+
+            void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment) override
+            {
+                Text(a_key, FormatKey(a_value), a_comment);
+            }
+
+        protected:
+            virtual void Text(std::string_view a_key, std::string_view a_value, std::string_view a_comment) = 0;
+        };
+
+        class DefaultFileWriter final : public TextVisitor
         {
         public:
             DefaultFileWriter() { file.SetUnicode(true); }
@@ -434,32 +242,6 @@ namespace Config
 
             void Comment(std::string_view a_comment) override { pendingComment = a_comment; }
 
-            void Bool(std::string_view a_key, bool& a_value, std::string_view a_comment) override
-            {
-                Set(a_key, a_value ? "true" : "false", a_comment);
-            }
-
-            void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-                std::uint32_t) override
-            {
-                Set(a_key, std::format("{}", a_value), a_comment);
-            }
-
-            void String(std::string_view a_key, std::string& a_value, std::string_view a_comment,
-                bool (*)(std::string_view)) override
-            {
-                Set(a_key, a_value, a_comment);
-            }
-
-            void Form(std::string_view a_key, FormReference& a_value) override
-            {
-                // Unset forms stay out of the file; the group comment lists the keys.
-                if (!a_value.IsEmpty())
-                {
-                    Set(a_key, FormatFormReference(a_value), {});
-                }
-            }
-
             [[nodiscard]] std::optional<std::string> Save() const
             {
                 std::string text;
@@ -470,28 +252,24 @@ namespace Config
                 return text;
             }
 
-        private:
-            void Set(std::string_view a_key, std::string_view a_value, std::string_view a_comment)
+        protected:
+            void Text(std::string_view a_key, std::string_view a_value, std::string_view a_comment) override
             {
+                // Unset forms stay out of the file; the group comment lists the keys.
+                if (a_value.empty())
+                {
+                    return;
+                }
                 const auto comment = TakeComment(a_comment);
                 file.SetValue(section.c_str(), std::string{ a_key }.c_str(), std::string{ a_value }.c_str(),
                     comment.empty() ? nullptr : comment.c_str());
             }
 
-            // The pending group comment, then a_comment, as `;` lines.
+        private:
+            // The pending group comment, then a_comment.
             std::string TakeComment(std::string_view a_comment)
             {
-                std::string text;
-                for (auto part : { std::string_view{ pendingComment }, a_comment })
-                {
-                    while (!part.empty())
-                    {
-                        const auto end = part.find('\n');
-                        const auto line = part.substr(0, end);
-                        text += std::format("{};{}{}", text.empty() ? "" : "\n", line.empty() ? "" : " ", line);
-                        part.remove_prefix(end == std::string_view::npos ? part.size() : end + 1);
-                    }
-                }
+                auto text = FormatComment({ pendingComment, a_comment });
                 pendingComment.clear();
                 return text;
             }
@@ -500,6 +278,70 @@ namespace Config
             std::string section;
             // The file header leads the first section's comment.
             std::string pendingComment{ kFileHeader };
+        };
+
+        // Every setting's text, in description order.
+        class ValueCollector final : public TextVisitor
+        {
+        public:
+            void Section(std::string_view, std::string_view) override {}
+            void Comment(std::string_view) override {}
+
+            std::vector<std::string> values;
+
+        protected:
+            void Text(std::string_view, std::string_view a_value, std::string_view) override
+            {
+                values.emplace_back(a_value);
+            }
+        };
+
+        // Writes settings into a loaded file, keeping its comments, its order, and
+        // entries no setting reads. A setting that is absent from the file and at
+        // its default stays absent, so a removed line keeps meaning "default".
+        class FileUpdater final : public TextVisitor
+        {
+        public:
+            FileUpdater(CSimpleIniA& a_file, std::span<const std::string> a_defaults)
+                : file(a_file)
+                , defaults(a_defaults)
+            {
+            }
+
+            void Section(std::string_view a_name, std::string_view a_comment) override
+            {
+                section = a_name;
+                sectionComment = a_comment;
+            }
+
+            void Comment(std::string_view) override {}
+
+        protected:
+            void Text(std::string_view a_key, std::string_view a_value, std::string_view a_comment) override
+            {
+                const auto& defaultValue = defaults[next++];
+                const std::string key{ a_key };
+                if (a_value == defaultValue && !file.KeyExists(section.c_str(), key.c_str()))
+                {
+                    return;
+                }
+                // SimpleIni only uses a comment for a section or key it adds.
+                if (!file.SectionExists(section.c_str()))
+                {
+                    const auto comment = FormatComment({ sectionComment });
+                    file.SetValue(section.c_str(), nullptr, nullptr, comment.empty() ? nullptr : comment.c_str());
+                }
+                const auto comment = FormatComment({ a_comment });
+                file.SetValue(section.c_str(), key.c_str(), std::string{ a_value }.c_str(),
+                    comment.empty() ? nullptr : comment.c_str());
+            }
+
+        private:
+            CSimpleIniA& file;
+            std::span<const std::string> defaults;
+            std::size_t next{ 0 };
+            std::string section;
+            std::string_view sectionComment;
         };
 
         std::filesystem::path GetPluginDirectory()
@@ -535,19 +377,44 @@ namespace Config
             return std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{} };
         }
 
-        void WriteDefaultFile(const std::filesystem::path& a_path, PluginConfig a_defaults)
+        // Through a temporary file, so a failed write never leaves a truncated file.
+        bool WriteFile(const std::filesystem::path& a_path, std::string_view a_text)
         {
-            DefaultFileWriter writer;
-            Describe(a_defaults, writer);
-            const auto text = writer.Save();
-            std::ofstream output;
-            if (text)
+            auto temporaryPath = a_path;
+            temporaryPath += kTemporaryExtension;
             {
-                output.open(a_path, std::ios::binary);
-                output << *text;
+                std::ofstream output{ temporaryPath, std::ios::binary | std::ios::trunc };
+                output.write(a_text.data(), static_cast<std::streamsize>(a_text.size()));
                 output.close();
+                if (!output)
+                {
+                    return false;
+                }
             }
-            if (!text || !output)
+
+            std::error_code error;
+            std::filesystem::rename(temporaryPath, a_path, error);
+            if (error)
+            {
+                logs::warn("Config could not replace {}: {}", ToUtf8(a_path), error.message());
+                std::filesystem::remove(temporaryPath, error);
+                return false;
+            }
+            return true;
+        }
+
+        std::optional<std::string> MakeDefaultFileText()
+        {
+            auto defaults = MakeDefaultConfig();
+            DefaultFileWriter writer;
+            Describe(defaults, writer);
+            return writer.Save();
+        }
+
+        void WriteDefaultFile(const std::filesystem::path& a_path)
+        {
+            const auto text = MakeDefaultFileText();
+            if (!text || !WriteFile(a_path, *text))
             {
                 logs::warn("Config could not write the default {}; using defaults", ToUtf8(a_path));
                 return;
@@ -555,17 +422,48 @@ namespace Config
             logs::info("Config wrote the default {}", ToUtf8(a_path));
         }
 
-        PluginConfig& GetStorage()
+        bool SaveFile(const std::filesystem::path& a_path, PluginConfig a_config)
         {
-            static PluginConfig config = MakeDefaultConfig();
-            return config;
+            CSimpleIniA file;
+            file.SetUnicode(true);
+            // A missing or unreadable file is recreated from the commented default.
+            auto text = ReadFile(a_path);
+            if (!text || file.LoadData(*text) < 0)
+            {
+                file.Reset();
+                text = MakeDefaultFileText();
+                if (!text || file.LoadData(*text) < 0)
+                {
+                    return false;
+                }
+            }
+
+            auto defaults = MakeDefaultConfig();
+            ValueCollector defaultValues;
+            Describe(defaults, defaultValues);
+            FileUpdater updater{ file, defaultValues.values };
+            Describe(a_config, updater);
+
+            std::string output;
+            return file.Save(output, false) >= 0 && WriteFile(a_path, output);
         }
+
+        std::atomic<std::shared_ptr<const PluginConfig>> s_config{ std::make_shared<const PluginConfig>(
+            MakeDefaultConfig()) };
+        std::atomic_uint64_t s_revision{ 0 };
+
+        // Serializes file access and Apply, so the live configuration and the file
+        // always change in the same order.
+        std::mutex s_fileLock;
+        std::filesystem::path s_path;
     }
 
     void Load()
     {
+        const std::scoped_lock lock{ s_fileLock };
         auto config = MakeDefaultConfig();
-        const auto path = GetPluginDirectory() / kFileName;
+        s_path = GetPluginDirectory() / kFileName;
+        const auto& path = s_path;
 
         std::error_code error;
         const bool exists = std::filesystem::exists(path, error);
@@ -576,7 +474,7 @@ namespace Config
         }
         else if (!exists)
         {
-            WriteDefaultFile(path, config);
+            WriteDefaultFile(path);
         }
         else if (const auto text = ReadFile(path))
         {
@@ -599,29 +497,33 @@ namespace Config
             logs::warn("Config could not read {}; using defaults", ToUtf8(path));
         }
 
-        GetStorage() = std::move(config);
+        s_config.store(std::make_shared<const PluginConfig>(std::move(config)), std::memory_order_release);
     }
 
-    const PluginConfig& Get()
+    std::shared_ptr<const PluginConfig> Get()
     {
-        return GetStorage();
+        return s_config.load(std::memory_order_acquire);
     }
 
-    std::string GetArmorFallbackKey(std::size_t a_slotIndex, std::optional<Multiplayer::EquipmentArmorType> a_armorType)
+    std::uint64_t GetRevision()
     {
-        auto key = a_slotIndex < kArmorSlotNames.size() ? std::string{ kArmorSlotNames[a_slotIndex] }
-                                                        : std::format("Slot{}", kFirstArmorSlot + a_slotIndex);
-        if (a_armorType)
+        return s_revision.load(std::memory_order_acquire);
+    }
+
+    bool Apply(PluginConfig a_config)
+    {
+        const std::scoped_lock lock{ s_fileLock };
+        auto config = std::make_shared<const PluginConfig>(std::move(a_config));
+        s_config.store(config, std::memory_order_release);
+        const auto revision = s_revision.fetch_add(1, std::memory_order_acq_rel) + 1;
+
+        if (s_path.empty() || !SaveFile(s_path, *config))
         {
-            const auto type = static_cast<std::size_t>(*a_armorType);
-            key += '.';
-            key += type < kArmorTypeNames.size() ? kArmorTypeNames[type] : "Unknown";
+            logs::warn("Config applied revision {} but could not save {}; changes last until restart", revision,
+                ToUtf8(s_path));
+            return false;
         }
-        return key;
-    }
-
-    std::string_view GetWeaponFallbackKey(std::size_t a_weaponType)
-    {
-        return a_weaponType < kWeaponTypeNames.size() ? kWeaponTypeNames[a_weaponType] : "Unknown";
+        logs::info("Config applied revision {} and saved {}", revision, ToUtf8(s_path));
+        return true;
     }
 }

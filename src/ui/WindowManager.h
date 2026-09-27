@@ -17,6 +17,10 @@ namespace UI::WindowManager
     // Safe to call from any thread.
     [[nodiscard]] bool HasFocus();
 
+    // Whether the focused window, if any, uses the mouse. Safe to call from any
+    // thread.
+    [[nodiscard]] bool FocusedWindowUsesMouse();
+
     // Gives focus to the first window that uses a_scanCode as its focus key.
     // False if a window already has focus or none uses the key.
     [[nodiscard]] bool FocusByKey(std::uint32_t a_scanCode);

@@ -379,13 +379,16 @@ namespace EquipmentSync
         void EnsureResolved(RemoteState& a_remote, const std::string& a_playerID)
         {
             const auto revision = a_remote.latest ? a_remote.latest->revision : 0;
-            if (a_remote.resolved && a_remote.resolvedRevision == revision)
+            const auto fallbackGeneration = EquipmentFallback::GetGeneration();
+            if (a_remote.resolved && a_remote.resolvedRevision == revision
+                && a_remote.resolvedFallbackGeneration == fallbackGeneration)
             {
                 return;
             }
 
             a_remote.resolved = true;
             a_remote.resolvedRevision = revision;
+            a_remote.resolvedFallbackGeneration = fallbackGeneration;
             a_remote.armor.clear();
             a_remote.rightHand = {};
             a_remote.leftHand = {};
