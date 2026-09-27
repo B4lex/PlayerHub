@@ -80,6 +80,8 @@ class ParsePlayerEquipmentTests(unittest.TestCase):
             "duplicate armor": lambda p: p["armor"].append(dict(p["armor"][0])),
             "zero slot mask": lambda p: p["armor"][0].update(slotMask=0),
             "slot mask overflow": lambda p: p["armor"][0].update(slotMask=2**32),
+            "unsynced slot": lambda p: p["armor"][0].update(slotMask=1 << 4),
+            "synced and unsynced slots": lambda p: p["armor"][0].update(slotMask=4 | 1 << 11),
             "armor type": lambda p: p["armor"][0].update(armorType="robes"),
             "empty plugin": lambda p: p["armor"][0].update(plugin=""),
             "form id too large": lambda p: p["rightHand"].update(formId=0x1000000),

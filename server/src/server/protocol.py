@@ -371,6 +371,8 @@ def parse_player_appearance(data: Any) -> dict[str, Any] | None:
 
 
 MAXIMUM_ARMOR_ENTRIES = 32
+# Head, Hair, Body, Hands, Amulet, Feet, Shield, and Circlet, as slot mask bits from slot 30.
+SYNCED_ARMOR_SLOT_MASK = sum(1 << slot for slot in (0, 1, 2, 3, 5, 7, 9, 12))
 ARMOR_TYPES = frozenset({"light", "heavy", "clothing"})
 HAND_KINDS = frozenset({"weapon", "torch", "spell"})
 MINIMUM_WEAPON_TYPE = 1
@@ -417,6 +419,7 @@ def parse_player_equipment(data: Any) -> dict[str, Any] | None:
         if (
             entry is None
             or not _is_integer(entry["slotMask"], 1, 0xFFFFFFFF)
+            or entry["slotMask"] & ~SYNCED_ARMOR_SLOT_MASK
             or entry["armorType"] not in ARMOR_TYPES
         ):
             return None

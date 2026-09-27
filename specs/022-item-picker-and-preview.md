@@ -2,7 +2,9 @@
 
 ## Status
 
-Implemented, pending a Windows build and in-game check. On Linux,
+Implemented and built on Windows. In game, the settings UI works and the
+preview shows models. Background loads attach through the attach pass below,
+which has not been run in game yet. On Linux,
 `ItemCatalog.cpp`, `ItemPicker.cpp`, `SettingsWindow.cpp`, `SettingsSchema.cpp`,
 and `PluginConfig.cpp` were compiled against Dear ImGui 1.92.9 and SimpleIni with
 stubbed SKSE headers, and run headless with a fake catalog and a stand-in
@@ -12,7 +14,7 @@ list that shows only matching items, the preview following the hovered row, Ente
 picking the first match, None clearing a value, Escape closing the list before the
 window, Apply saving `Plugin|0xID`, and `ItemPreview = false` hiding the preview.
 `ItemForms.cpp`, `ItemPreview.cpp`, and the changed `EquipmentFallback.cpp` need
-CommonLibSSE-NG and were only reviewed.
+CommonLibSSE-NG, so they were only checked in game.
 
 ## Goal
 
@@ -58,9 +60,9 @@ so the list and the live behavior never disagree.
 
 | Key | Accepts |
 | --- | --- |
-| `<Slot>.Light`, `.Heavy`, `.Clothing` | armor of that armor type covering the slot |
+| `<Slot>.Light`, `.Heavy`, `.Clothing` (not for `Amulet` and `Circlet`) | armor of that armor type covering the slot |
 | `<Slot>` | armor of any armor type covering the slot |
-| `Head`, `Hair`, `LongHair`, `Circlet`, and their types | armor covering any of these four slots |
+| `Head`, `Hair`, `Circlet`, and their types | armor covering any of these three slots |
 | weapon keys | a weapon of exactly that weapon type |
 | `Torch` | a carriable light |
 | `Arrow`, `Bolt` | ammunition that is not, or is, a bolt |
@@ -115,11 +117,14 @@ renderer. The approach follows `Item3DPreview` in ModExplorerMenu.
 - `Update` runs in `Overlay::DrawFrame` before `ImGui::NewFrame`, when the game
   frame is finished and the overlay has not drawn yet. If the previous frame drew
   a preview, it calls `Inventory3DManager::Begin3D(kInventory)` once and
-  `LoadInventoryItem` whenever the form changes. It then projects the model's
+  `LoadInventoryItem` whenever the form changes. A model that loads in the
+  background is attached only by `Render`. So while none is attached, `Update`
+  calls `Render` with `UI::numDisablePauseMenu` set to zero, and the scene render
+  draws nothing (see below). Once a model is attached, `Update` projects the model's
   world bound through `UI3DSceneManager::viewFrustum` to a screen rectangle and:
   1. saves that rectangle of the back buffer,
   2. clears it to the preview background (`ID3D11DeviceContext1::ClearView`),
-  3. calls `Inventory3DManager::Render` with `UI::numDisablePauseMenu` raised by
+  3. calls `Inventory3DManager::Render` with `UI::numDisablePauseMenu` at least
      one for the call (see below),
   4. copies the rectangle into a 2048² texture that ImGui samples,
   5. puts the saved pixels back.
@@ -142,20 +147,17 @@ renderer. The approach follows `Item3DPreview` in ModExplorerMenu.
   positive. The count is positive while an inventory menu is open, and while
   ModExplorerMenu's menu is, because it sets `kDisablePauseMenu` only when it
   pauses. That is why ModExplorerMenu needs pausing. The overlay is not a menu,
-  and opening one would take input focus, so `ItemPreview` raises the count
-  around the call and restores it. Everything runs on the main-loop thread. The
-  scene draws into the engine's current render target, which was the back buffer
-  in the first in-game capture check.
+  and opening one would take input focus, so `ItemPreview` sets the count for the
+  call and restores it. Everything runs on the main-loop thread. The scene draws
+  into the engine's current render target. A one-time pixel readback confirmed
+  that is the back buffer at the overlay hook. With the count at zero the scene
+  drew nothing: every captured pixel matched the cleared background.
 
 ## Logging
 
 - `Item catalog built: items=N plugins=N` once at data load.
 - `Item preview started` and `stopped` at debug level, and the first capture of
   each start with its screen box and bound radius, to check the projection.
-  With that first capture, `Item preview capture check` reads the pixels back
-  once. It gives how many differ from the cleared background, their high (alpha)
-  byte, and whether the back buffer was the bound render target before and after
-  `Inventory3DManager::Render`.
 - `Item preview waiting` once per item whose model has not appeared a second
   after loading started. It gives the models `Inventory3DManager` holds, its load
   task state, and the manager's and scene's light schemes.
@@ -166,11 +168,12 @@ renderer. The approach follows `Item3DPreview` in ModExplorerMenu.
 ## Verification
 
 - Linux (done): the headless checks in Status.
+- In game (done): the log reports the catalog size, the Equipment Fallback tab
+  shows item names, and the preview shows the model.
 - In game (pending):
-  - The log reports the catalog size.
-  - The Equipment Fallback tab shows item names.
-  - A list opens with the current item highlighted and its model shown, and
-    hovering rows switches the model with no flicker on the world behind.
+  - Items whose models load in the background appear after the attach pass. A
+    stall logs `Item preview waiting`.
+  - Hovering rows switches the model with no flicker on the world behind.
   - Nothing is left on screen after the list closes.
   - Opening the inventory afterwards shows its own 3D models normally.
   - FPS stays steady while a list is open.

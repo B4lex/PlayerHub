@@ -48,6 +48,16 @@ namespace UI
             }
         }
 
+        void FormatFormKey(std::string_view a_key, std::string& a_result)
+        {
+            a_result.assign(a_key);
+            if (const auto dot = a_result.find('.'); dot != std::string::npos)
+            {
+                a_result.replace(dot, 1, " (");
+                a_result += ')';
+            }
+        }
+
         // Comments are wrapped for the file; the window wraps them itself.
         void DrawNote(std::string_view a_text, std::string& a_buffer)
         {
@@ -222,8 +232,7 @@ namespace UI
                 sectionOpen = false;
             }
 
-            // Form keys are shown as the file names them, since the group comment
-            // explains them in those terms.
+            // Form keys keep the file's names, with the armor type in brackets.
             bool BeginRow(std::string_view a_key, bool a_displayName)
             {
                 if (!sectionOpen)
@@ -237,7 +246,7 @@ namespace UI
                 }
                 else
                 {
-                    label.assign(a_key);
+                    FormatFormKey(a_key, label);
                 }
                 ImGui::AlignTextToFramePadding();
                 ImGui::TextUnformatted(label.c_str(), label.c_str() + label.size());
