@@ -1,15 +1,59 @@
 #include "actor/RemoteCollision.h"
+#include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
 #include "actor/RemoteActor.h"
 #include "runtime/Profiling.h"
 
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 namespace RemoteCollision
 {
     namespace
     {
+        // Collision filters a mover ignores for one movement update, restored
+        // when it ends. Skipped when already ignored, so each is restored once.
+        class PassThrough
+        {
+        public:
+            PassThrough() = default;
+            PassThrough(const PassThrough&) = delete;
+            PassThrough& operator=(const PassThrough&) = delete;
+
+            ~PassThrough()
+            {
+                for (std::size_t index = 0; index < _count; ++index)
+                {
+                    _filters[index]->SetNoCollision(false);
+                }
+            }
+
+            void Add(RE::CFilter& a_filter)
+            {
+                if (a_filter.QNoCollision() || _count == _filters.size())
+                {
+                    return;
+                }
+                a_filter.SetNoCollision(true);
+                _filters[_count++] = std::addressof(a_filter);
+            }
+
+        private:
+            std::array<RE::CFilter*, 64> _filters{};
+            std::size_t _count{ 0 };
+        };
+
+        bool IsCharacterLayer(RE::COL_LAYER a_layer)
+        {
+            return a_layer == RE::COL_LAYER::kCharController || a_layer == RE::COL_LAYER::kBiped
+                || a_layer == RE::COL_LAYER::kBipedNoCC;
+        }
+
         // Skyrim's movement update (ID 37356) moves an actor by its animation's
         // root motion through its character controller, which pushes out of and
         // pushes local bodies, and then feeds the achieved motion back into the
@@ -17,31 +61,88 @@ namespace RemoteCollision
         // transform, so it is skipped. Otherwise, as in powerofthree's Tweaks' TCL
         // fix, the character body a moving controller bumped into ignores
         // collision for that update when either character is remote.
+        //
+        // The player's proxy controller also collides with remote skeleton
+        // bodies, such as a seated rider's legs at its mount's flanks. Its
+        // phantom's overlap list holds every body its movement can touch, so the
+        // remote character and skeleton bodies in it ignore collision for the
+        // player's update, and keep it for everything else.
         struct UpdateMovementHook
         {
-            // The bumped body's filter to disable, or null when the mover and the
-            // bumped character are both local.
-            static RE::CFilter* GetPassThroughFilter(RE::Actor* a_mover)
+            static void AddBumpedCharacter(RE::Actor* a_mover, PassThrough& a_passThrough)
             {
                 auto* controller = a_mover ? a_mover->GetCharController() : nullptr;
                 auto* bumped = controller ? controller->bumpedCharCollisionObject.get() : nullptr;
                 if (!bumped)
                 {
-                    return nullptr;
-                }
-
-                auto& filter = bumped->collidable.broadPhaseHandle.collisionFilterInfo;
-                if (filter.QNoCollision())
-                {
-                    return nullptr;
+                    return;
                 }
                 if (ActorRegistry::IsRegistered(a_mover))
                 {
-                    return std::addressof(filter);
+                    a_passThrough.Add(bumped->collidable.broadPhaseHandle.collisionFilterInfo);
+                    return;
                 }
                 auto* bumpedRef = RE::TESHavokUtilities::FindCollidableRef(bumped->collidable);
-                return bumpedRef && ActorRegistry::IsRegistered(bumpedRef->As<RE::Actor>()) ? std::addressof(filter)
-                                                                                            : nullptr;
+                if (bumpedRef && ActorRegistry::IsRegistered(bumpedRef->As<RE::Actor>()))
+                {
+                    a_passThrough.Add(bumped->collidable.broadPhaseHandle.collisionFilterInfo);
+                }
+            }
+
+            static void AddRemoteBody(RE::hkpCollidable* a_collidable, PassThrough& a_passThrough)
+            {
+                if (!a_collidable)
+                {
+                    return;
+                }
+                auto& filter = a_collidable->broadPhaseHandle.collisionFilterInfo;
+                if (filter.QNoCollision() || !IsCharacterLayer(filter.GetCollisionLayer()))
+                {
+                    return;
+                }
+                auto* ref = RE::TESHavokUtilities::FindCollidableRef(*a_collidable);
+                if (ref && ActorRegistry::IsRegistered(ref->As<RE::Actor>()))
+                {
+                    a_passThrough.Add(filter);
+                }
+            }
+
+            static void AddOverlappingRemoteBodies(RE::Actor& a_player, PassThrough& a_passThrough)
+            {
+                auto* controller = skyrim_cast<RE::bhkCharProxyController*>(a_player.GetCharController());
+                auto* proxy = controller ? controller->GetCharacterProxy() : nullptr;
+                auto* phantom = proxy ? proxy->shapePhantom : nullptr;
+                if (!phantom)
+                {
+                    return;
+                }
+                switch (phantom->GetType())
+                {
+                    case RE::hkpPhantomType::kSimpleShape:
+                        for (auto* collidable : static_cast<RE::hkpSimpleShapePhantom*>(phantom)->collisionDetails)
+                        {
+                            AddRemoteBody(collidable, a_passThrough);
+                        }
+                        break;
+                    case RE::hkpPhantomType::kCachingShape:
+                        for (auto& detail : static_cast<RE::hkpCachingShapePhantom*>(phantom)->collisionDetails)
+                        {
+                            AddRemoteBody(detail.collidable, a_passThrough);
+                        }
+                        break;
+                    default:
+                    {
+                        static std::atomic_flag s_reported;
+                        if (!s_reported.test_and_set())
+                        {
+                            logs::warn(
+                                "Local player phantom has an unsupported type {}; remote skeletons may "
+                                "body-block the player",
+                                std::to_underlying(phantom->GetType()));
+                        }
+                        return;
+                    }
+                }
             }
 
             static void Thunk(RE::Actor* a_actor, float a_delta)
@@ -51,16 +152,13 @@ namespace RemoteCollision
                     return;
                 }
 
-                auto* filter = GetPassThroughFilter(a_actor);
-                if (filter)
+                PassThrough passThrough;
+                AddBumpedCharacter(a_actor, passThrough);
+                if (a_actor && a_actor->IsPlayerRef())
                 {
-                    filter->SetNoCollision(true);
+                    AddOverlappingRemoteBodies(*a_actor, passThrough);
                 }
                 _original(a_actor, a_delta);
-                if (filter)
-                {
-                    filter->SetNoCollision(false);
-                }
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -99,6 +197,42 @@ namespace RemoteCollision
             logs::debug("Remote actor character body collision {}: actor={:08X} owner={} controller={}",
                 a_isolated ? "disabled" : "restored", a_actor.GetHandle().native_handle(), a_owner,
                 skyrim_cast<RE::bhkCharProxyController*>(controller) ? "proxy" : "rigidBody");
+        }
+
+        constexpr float kSkeletonRecheckSeconds = 0.5F;
+
+        // A live skeleton's bone and weapon bodies, and a dead one's ragdoll.
+        bool IsSkeletonLayer(RE::COL_LAYER a_layer)
+        {
+            return a_layer == RE::COL_LAYER::kBiped || a_layer == RE::COL_LAYER::kBipedNoCC
+                || a_layer == RE::COL_LAYER::kDeadBip;
+        }
+
+        // Returns how many bodies changed.
+        std::uint32_t SetSkeletonIsolated(RE::Actor& a_actor, bool a_isolated)
+        {
+            auto* root = a_actor.Get3D(false);
+            if (!root)
+            {
+                return 0;
+            }
+            std::uint32_t changed = 0;
+            RE::BSVisit::TraverseScenegraphCollision(root, [&](RE::bhkNiCollisionObject* a_object) {
+                auto* body = a_object->body.get();
+                auto* worldObject = body ? static_cast<RE::hkpWorldObject*>(body->referencedObject.get()) : nullptr;
+                if (!worldObject)
+                {
+                    return RE::BSVisit::BSVisitControl::kContinue;
+                }
+                auto& filter = worldObject->collidable.broadPhaseHandle.collisionFilterInfo;
+                if (IsSkeletonLayer(filter.GetCollisionLayer()) && filter.QNoCollision() != a_isolated)
+                {
+                    filter.SetNoCollision(a_isolated);
+                    ++changed;
+                }
+                return RE::BSVisit::BSVisitControl::kContinue;
+            });
+            return changed;
         }
 
         // Every physics step, the rigid-body controller's post-simulation callback
@@ -187,5 +321,35 @@ namespace RemoteCollision
         }
         SetNetworkPlaced(a_remote, false, a_owner);
         SetCharacterBodyIsolated(a_actor, a_carried, a_owner);
+        if (!a_carried && a_remote.collision.skeletonIsolated)
+        {
+            a_remote.collision.skeletonIsolated = false;
+            const auto changed = SetSkeletonIsolated(a_actor, false);
+            logs::debug("Remote actor skeleton collision restored: actor={:08X} owner={} bodies={}",
+                a_remote.handle.native_handle(), a_owner, changed);
+        }
+    }
+
+    void IsolateCarriedSkeleton(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)
+    {
+        auto& collision = a_remote.collision;
+        if (collision.skeletonIsolated)
+        {
+            collision.skeletonRecheckElapsed += std::clamp(a_deltaTime, 0.0F, ActorConstants::kMaximumFrameTime);
+            if (collision.skeletonRecheckElapsed < kSkeletonRecheckSeconds)
+            {
+                return;
+            }
+        }
+        collision.skeletonRecheckElapsed = 0.0F;
+
+        PROFILE_FUNCTION();
+        const auto changed = SetSkeletonIsolated(a_actor, true);
+        if (!collision.skeletonIsolated || changed > 0)
+        {
+            logs::debug("Remote actor skeleton collision {}: actor={:08X} bodies={}",
+                collision.skeletonIsolated ? "reasserted" : "disabled", a_remote.handle.native_handle(), changed);
+        }
+        collision.skeletonIsolated = true;
     }
 }

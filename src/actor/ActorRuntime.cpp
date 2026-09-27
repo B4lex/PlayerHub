@@ -196,7 +196,12 @@ namespace ActorRuntime
         SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready);
         // Skyrim carries a seated rider with its mount, so its body needs no
         // collision until it stands beside it.
-        RemoteCollision::ReleaseToEngine(*actor, a_remote, "mount", actor->IsOnMount());
+        const bool carried = actor->IsOnMount();
+        RemoteCollision::ReleaseToEngine(*actor, a_remote, "mount", carried);
+        if (carried)
+        {
+            RemoteCollision::IsolateCarriedSkeleton(*actor, a_remote, a_deltaTime);
+        }
         if (AdvanceReadiness(*actor, a_remote, a_deltaTime) && a_gait)
         {
             ActorMount::ApplyGait(*actor, a_remote, *a_gait, a_mountSpeed, a_deltaTime, false, "rider");
@@ -228,6 +233,9 @@ namespace ActorRuntime
         if (a_control == MountControl::kHeld)
         {
             RemoteCollision::ReleaseToEngine(*actor, a_remote, "mount clip", false);
+            // The firewall blocks the gait events Skyrim sends a mount, so only this
+            // stops a gait the network left running before a clip.
+            ActorMount::ApplyGait(*actor, a_remote, a_gait, 0.0F, a_deltaTime, true, "mount");
             return true;
         }
         RemoteCollision::PlaceByNetwork(*actor, a_remote);

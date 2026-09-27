@@ -40,6 +40,10 @@ namespace MountSync
         // Longer than any vanilla dismount clip. Past it the dismount is treated as
         // failed, and the actor respawns on foot.
         constexpr float kDismountTimeoutSeconds = 5.0F;
+        // Skyrim's exit clip assumes a halted mount. Started over running
+        // locomotion, the mount kept running against the clip, shook, and the
+        // dismount timed out, so a dismount waits this long for the mount to halt.
+        constexpr float kDismountHaltSeconds = 1.0F;
         // After its dismount clip, the actor waits beside its mount for the
         // checkpoint that no longer rides. A player still riding after this is
         // seated again.
@@ -120,6 +124,9 @@ namespace MountSync
             {
                 mount.exiting = false;
                 mount.seated = false;
+                // The rider's graph is back in locomotion, so it can play the mount
+                // animation again.
+                mount.carriesRider = false;
                 mount.dismounted = true;
                 mount.dismountedElapsed = 0.0F;
                 logs::debug(
@@ -144,12 +151,22 @@ namespace MountSync
 
         // Starts a received dismount once both actors can play it. Returns whether
         // it started.
-        bool StartDismountWhenPending(const RemoteFrame& a_remote, PeerState& a_peer)
+        bool StartDismountWhenPending(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
         {
             auto& mount = *a_peer.lifecycle.mount;
             auto& rider = *a_peer.lifecycle.actor;
-            if (!IsPending(a_peer.mounting, MountTransition::kExit) || !rider.ready || !mount.actor.ready
-                || mount.transitionPlaying)
+            if (!IsPending(a_peer.mounting, MountTransition::kExit))
+            {
+                mount.haltElapsed = 0.0F;
+                return false;
+            }
+            mount.haltElapsed += a_delta;
+            if (!rider.ready || !mount.actor.ready || mount.transitionPlaying)
+            {
+                return false;
+            }
+            const bool mountMoving = ActorMount::IsGraphMoving(mount.actor);
+            if (mountMoving && mount.haltElapsed < kDismountHaltSeconds)
             {
                 return false;
             }
@@ -158,9 +175,11 @@ namespace MountSync
             const bool started = ActorMount::Dismount(rider);
             logs::debug(
                 "Starting remote player {} actor {:08X} dismount from mount {:08X}: started={} checkpointMounted={} "
-                "sequence={}",
+                "haltWait={:.2f}s mountMoving={} sequence={}",
                 a_remote.playerID, rider.handle.native_handle(), mount.actor.handle.native_handle(), started,
-                a_remote.checkpoint.mounted, static_cast<unsigned long long>(a_remote.lastSequence));
+                a_remote.checkpoint.mounted, mount.haltElapsed, mountMoving,
+                static_cast<unsigned long long>(a_remote.lastSequence));
+            mount.haltElapsed = 0.0F;
             if (started)
             {
                 mount.exiting = true;
@@ -329,7 +348,19 @@ namespace MountSync
         const float delta = std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
         if (transitions.pending)
         {
-            transitions.pending->age += delta;
+            // An enter received during the previous dismount cannot start before that
+            // clip ends, and an exit before its mount halts. kDismountTimeoutSeconds
+            // and kDismountHaltSeconds bound those waits.
+            const auto transition = transitions.pending->transition;
+            const bool waitsForMount = lifecycle.mount
+                && ((transition == MountTransition::kEnter
+                        && (lifecycle.mount->exiting || lifecycle.mount->dismounted))
+                    || (transition == MountTransition::kExit && lifecycle.mount->seated
+                        && lifecycle.mount->haltElapsed < kDismountHaltSeconds));
+            if (!waitsForMount)
+            {
+                transitions.pending->age += delta;
+            }
             if (transitions.pending->age > kTransitionStartSeconds)
             {
                 logs::debug(
@@ -394,8 +425,11 @@ namespace MountSync
         }
         // Until its rider is first seated, the mount gets no gait: one started from
         // the relocation sample would still run when the mount animation starts.
+        // A mount about to be dismounted is held too, so that Skyrim brakes it.
+        const bool halting = mount.seated && IsPending(transitions, MountTransition::kExit);
         auto control = ActorRuntime::MountControl::kDriven;
-        if (mount.transitionPlaying || mount.exiting || mount.dismounted || mount.clipSettleRemaining > 0.0F)
+        if (mount.transitionPlaying || mount.exiting || mount.dismounted || mount.clipSettleRemaining > 0.0F
+            || halting)
         {
             control = ActorRuntime::MountControl::kHeld;
         }
@@ -417,7 +451,16 @@ namespace MountSync
         if (mount.dismounted)
         {
             mount.dismountedElapsed += delta;
-            if (mount.dismountedElapsed >= kDismountedRideSeconds)
+            if (enterPending)
+            {
+                logs::debug(
+                    "Remote player {} actor {:08X} mounts {:08X} again after its dismount: elapsed={:.2f}s sequence={}",
+                    a_remote.playerID, rider.handle.native_handle(), mount.actor.handle.native_handle(),
+                    mount.dismountedElapsed, static_cast<unsigned long long>(a_remote.lastSequence));
+                mount.dismounted = false;
+                mount.seatRetryRemaining = 0.0F;
+            }
+            else if (mount.dismountedElapsed >= kDismountedRideSeconds)
             {
                 logs::warn(
                     "Remote player {} still rides {:.1f}s after actor {:08X} dismounted; seating it again: "
@@ -429,7 +472,7 @@ namespace MountSync
             }
             return true;
         }
-        if (mount.seated && StartDismountWhenPending(a_remote, a_peer))
+        if (mount.seated && StartDismountWhenPending(a_remote, a_peer, delta))
         {
             return true;
         }
@@ -456,7 +499,8 @@ namespace MountSync
         // rider's graph is not riding.
         auto& mount = *lifecycle.mount;
         const bool riding = mount.seated && !mount.transitionPlaying && !mount.exiting;
-        return ActorRuntime::UpdateRider(
-            rider, riding ? &mount.riderGait : nullptr, mount.actor.movement.animationSpeed, a_delta);
+        const bool halting = IsPending(a_peer.mounting, MountTransition::kExit);
+        return ActorRuntime::UpdateRider(rider, riding ? &mount.riderGait : nullptr,
+            halting ? 0.0F : mount.actor.movement.animationSpeed, a_delta);
     }
 }

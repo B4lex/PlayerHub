@@ -24,7 +24,9 @@ from that displaced position, so an actor touching the local world shook.
 
 - Skeleton (ragdoll bone) bodies. Local projectiles, melee, traps that test
   them, and the crosshair still find the remote actor. See
-  [Follow-ups](#follow-ups).
+  [Follow-ups](#follow-ups). The local player's own movement ignores them, and
+  a seated rider's are isolated while it rides
+  (`specs/016-mount-riding-sync.md`).
 - A remote actor while native furniture, a mount, or its own death places it.
   Skyrim keeps moving it then, as before.
 
