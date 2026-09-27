@@ -23,9 +23,13 @@ namespace Network
     namespace
     {
         std::atomic_bool connected{ false };
+        std::atomic_bool transportOpen{ false };
         std::atomic_uint64_t connectionGeneration{ 0 };
         std::atomic_bool reconnectWorkerRunning{ false };
         std::atomic_bool attemptFailed{ false };
+        // Set by BeginClose and cleared by BeginReconnect, so a transport that
+        // opens while it is being closed is not reported as connected.
+        std::atomic_bool closeRequested{ false };
         std::mutex remoteChangesLock;
         std::unordered_map<std::string, RemotePlayerTransform> pendingTransforms;
         std::unordered_map<std::string, PlayerTransform> latestReceivedTransforms;
@@ -752,30 +756,12 @@ namespace Network
             {
                 Multiplayer::EquipmentArmor result;
                 std::uint64_t slotMask = 0;
-                std::string armorType;
                 if (!entry || entry->get_flag() != sio::message::flag_object
                     || !ReadFormReference(entry->get_map(), result.form)
                     || !ReadUnsignedInteger(
-                        entry->get_map(), "slotMask", (std::numeric_limits<std::uint32_t>::max)(), slotMask)
-                    || !ReadString(entry->get_map(), "armorType", armorType))
+                        entry->get_map(), "slotMask", (std::numeric_limits<std::uint32_t>::max)(), slotMask))
                 {
                     return "armor[]";
-                }
-                if (armorType == "light")
-                {
-                    result.armorType = Multiplayer::EquipmentArmorType::kLight;
-                }
-                else if (armorType == "heavy")
-                {
-                    result.armorType = Multiplayer::EquipmentArmorType::kHeavy;
-                }
-                else if (armorType == "clothing")
-                {
-                    result.armorType = Multiplayer::EquipmentArmorType::kClothing;
-                }
-                else
-                {
-                    return "armor[].armorType";
                 }
                 result.slotMask = static_cast<std::uint32_t>(slotMask);
                 equipment.armor.push_back(std::move(result));
@@ -1102,9 +1088,9 @@ namespace Network
 
     void Initialize()
     {
-        static std::once_flag connectOnce;
+        static std::once_flag initializeOnce;
 
-        std::call_once(connectOnce, [] {
+        std::call_once(initializeOnce, [] {
             auto& client = GetClient();
             RegisterSocketHandlers();
 
@@ -1116,6 +1102,7 @@ namespace Network
 
             client.set_open_listener([] {
                 PROFILE_THREAD_NAME("Socket.IO");
+                transportOpen.store(true, std::memory_order_release);
                 RE::ConsoleLog::GetSingleton()->Print("MP: Connected.");
                 logs::info("Socket.IO transport connected to {}", GetAttemptEndpoint());
             });
@@ -1126,6 +1113,13 @@ namespace Network
                 bool wasConnected;
                 {
                     std::scoped_lock lock{ remoteChangesLock };
+                    // Checked under the lock MarkDisconnected takes, so a close
+                    // requested after this check still marks the client disconnected.
+                    if (closeRequested.load(std::memory_order_acquire))
+                    {
+                        logs::info("Socket.IO default namespace opened while closing; ignoring it");
+                        return;
+                    }
                     ForgetRemotePlayersLocked();
                     generation = connectionGeneration.fetch_add(1, std::memory_order_acq_rel) + 1;
                     wasConnected = connected.exchange(true, std::memory_order_acq_rel);
@@ -1139,22 +1133,27 @@ namespace Network
                 logs::info("Socket.IO namespace closed; forgetting remote players");
             });
             client.set_fail_listener([] {
+                transportOpen.store(false, std::memory_order_release);
                 MarkDisconnected();
                 logs::warn("Socket.IO could not connect to {}", GetAttemptEndpoint());
             });
             client.set_close_listener([](sio::client::close_reason const& a_reason) {
+                transportOpen.store(false, std::memory_order_release);
                 MarkDisconnected();
                 logs::info("Socket.IO connection closed by {}; forgetting remote players",
                     a_reason == sio::client::close_reason_drop ? "the transport" : "a normal close");
             });
-
-            ConnectToConfiguredEndpoint(client);
         });
     }
 
     bool IsConnected()
     {
         return connected.load(std::memory_order_acquire);
+    }
+
+    bool IsTransportOpen()
+    {
+        return transportOpen.load(std::memory_order_acquire);
     }
 
     std::uint64_t GetConnectionGeneration()
@@ -1317,8 +1316,6 @@ namespace Network
             auto reference = CreateFormReference(entry.form);
             auto& values = reference->get_map();
             values["slotMask"] = sio::int_message::create(entry.slotMask);
-            values["armorType"]
-                = sio::string_message::create(std::string{ Multiplayer::GetEquipmentArmorTypeName(entry.armorType) });
             armor->get_vector().push_back(std::move(reference));
         }
 
@@ -1445,6 +1442,7 @@ namespace Network
         {
             return false;
         }
+        closeRequested.store(false, std::memory_order_release);
 
         // The client cannot be reopened from its own transport thread, and
         // closing a wedged transport waits on its close handshake.
@@ -1463,6 +1461,31 @@ namespace Network
             {
                 logs::error("Socket.IO reconnect attempt threw: {}", a_exception.what());
                 attemptFailed.store(true, std::memory_order_release);
+            }
+            reconnectWorkerRunning.store(false, std::memory_order_release);
+        }).detach();
+        return true;
+    }
+
+    bool BeginClose()
+    {
+        closeRequested.store(true, std::memory_order_release);
+        MarkDisconnected();
+        if (reconnectWorkerRunning.exchange(true, std::memory_order_acq_rel))
+        {
+            return false;
+        }
+
+        // Like BeginReconnect, closing may wait on the close handshake.
+        std::thread([] {
+            try
+            {
+                GetClient().sync_close();
+                logs::info("Socket.IO client closed on request");
+            }
+            catch (const std::exception& a_exception)
+            {
+                logs::error("Socket.IO close threw: {}", a_exception.what());
             }
             reconnectWorkerRunning.store(false, std::memory_order_release);
         }).detach();

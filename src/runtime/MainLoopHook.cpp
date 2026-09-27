@@ -29,14 +29,21 @@ namespace MainLoopHook
             static void Update()
             {
                 PROFILE_SCOPE("MainLoopHook");
-                const auto delta = RE::Main::QFrameAnimTime();
-                if (!std::isfinite(delta) || delta <= 0.0F || !GameThread::Bind())
+                if (!GameThread::Bind())
                 {
                     return;
                 }
 
-                SyncCoordinator::OnFrame(RE::PlayerCharacter::GetSingleton(), delta);
-                Network::UpdateConnectionMonitor(delta);
+                // Frame time stops in the main menu and while the game is paused.
+                // The connection still follows the game and the player's choice
+                // there, with its timers held.
+                const auto delta = RE::Main::QFrameAnimTime();
+                const bool advancing = std::isfinite(delta) && delta > 0.0F;
+                if (advancing)
+                {
+                    SyncCoordinator::OnFrame(RE::PlayerCharacter::GetSingleton(), delta);
+                }
+                Network::UpdateConnectionMonitor(advancing ? delta : 0.0F);
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;

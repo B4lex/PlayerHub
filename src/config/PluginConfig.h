@@ -14,6 +14,8 @@ namespace Config
     struct NetworkSettings
     {
         std::string serverEndpoint;
+        // Whether each game starts connected, rather than waiting for Connect.
+        bool autoConnect{ true };
 
         bool operator==(const NetworkSettings&) const = default;
     };
@@ -22,23 +24,16 @@ namespace Config
     // empty reference means no fallback.
     struct EquipmentFallbackSettings
     {
-        // Indexed like Multiplayer::kSyncedArmorSlots.
-        static constexpr std::size_t kArmorSlotCount = Multiplayer::kSyncedArmorSlots.size();
-        static constexpr std::size_t kArmorTypeCount = 3;
-
-        struct ArmorSlot
-        {
-            // Indexed by Multiplayer::EquipmentArmorType. Empty for slots without
-            // typed keys.
-            std::array<Multiplayer::FormReference, kArmorTypeCount> byArmorType;
-            // Used when the armor type's own entry is empty.
-            Multiplayer::FormReference anyArmorType;
-
-            bool operator==(const ArmorSlot&) const = default;
-        };
+        // The synced biped slots, bit 0 being slot 30, that each armor fallback
+        // stands in for: Head (with Hair), Body, Hands, Amulet, Feet, Shield, and
+        // Circlet.
+        static constexpr std::array<std::uint32_t, 7> kArmorSlotMasks{ (1U << 0) | (1U << 1), 1U << 2, 1U << 3,
+            1U << 5, 1U << 7, 1U << 9, 1U << 12 };
+        static constexpr std::size_t kArmorSlotCount = kArmorSlotMasks.size();
 
         bool enabled{ true };
-        std::array<ArmorSlot, kArmorSlotCount> armor;
+        // Indexed like kArmorSlotMasks.
+        std::array<Multiplayer::FormReference, kArmorSlotCount> armor;
         // Indexed by RE::WEAPON_TYPE; hand-to-hand is unused.
         std::array<Multiplayer::FormReference, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> weapons;
         Multiplayer::FormReference torch;
@@ -61,6 +56,7 @@ namespace Config
         // DirectInput scan code that opens the settings window.
         std::uint32_t settingsKey{ 0 };
         bool itemPreview{ true };
+        bool statusPanel{ true };
 
         bool operator==(const UISettings&) const = default;
     };

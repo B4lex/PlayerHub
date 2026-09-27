@@ -11,9 +11,9 @@ def valid_equipment(revision: int = 1) -> dict[str, object]:
     return {
         "revision": revision,
         "armor": [
-            {"plugin": "Skyrim.esm", "formId": 0x12E49, "slotMask": 4, "armorType": "heavy"},
-            {"plugin": "Dawnguard.esm", "formId": 0x13E7, "slotMask": 512, "armorType": "light"},
-            {"plugin": "Some Mod.esp", "formId": 0x812, "slotMask": 1, "armorType": "clothing"},
+            {"plugin": "Skyrim.esm", "formId": 0x12E49, "slotMask": 4},
+            {"plugin": "Dawnguard.esm", "formId": 0x13E7, "slotMask": 512},
+            {"plugin": "Some Mod.esp", "formId": 0x812, "slotMask": 1},
         ],
         "rightHand": {"plugin": "Skyrim.esm", "formId": 0x12EB7, "kind": "weapon", "weaponType": 1},
         "leftHand": {"plugin": "Skyrim.esm", "formId": 0x1D4EC, "kind": "torch"},
@@ -73,7 +73,7 @@ class ParsePlayerEquipmentTests(unittest.TestCase):
             "armor not a list": lambda p: p.update(armor={}),
             "too many armor entries": lambda p: p.update(
                 armor=[
-                    {"plugin": "Skyrim.esm", "formId": i, "slotMask": 1, "armorType": "light"}
+                    {"plugin": "Skyrim.esm", "formId": i, "slotMask": 1}
                     for i in range(33)
                 ]
             ),
@@ -82,7 +82,6 @@ class ParsePlayerEquipmentTests(unittest.TestCase):
             "slot mask overflow": lambda p: p["armor"][0].update(slotMask=2**32),
             "unsynced slot": lambda p: p["armor"][0].update(slotMask=1 << 4),
             "synced and unsynced slots": lambda p: p["armor"][0].update(slotMask=4 | 1 << 11),
-            "armor type": lambda p: p["armor"][0].update(armorType="robes"),
             "empty plugin": lambda p: p["armor"][0].update(plugin=""),
             "form id too large": lambda p: p["rightHand"].update(formId=0x1000000),
             "missing right hand": lambda p: p.pop("rightHand"),

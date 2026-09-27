@@ -1,5 +1,6 @@
 #include "sync/presence/PresenceSync.h"
 #include "network/SocketIOClient.h"
+#include "runtime/GameSession.h"
 #include "runtime/Profiling.h"
 
 #include <cstdint>
@@ -49,10 +50,19 @@ namespace PresenceSync
             RE::BSEventNotifyControl ProcessEvent(
                 const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
             {
-                if (a_event && a_event->opening && IsWorldHidingMenu(a_event->menuName.c_str()))
+                if (!a_event || !a_event->opening)
+                {
+                    return RE::BSEventNotifyControl::kContinue;
+                }
+                const std::string_view menuName = a_event->menuName.c_str();
+                if (IsWorldHidingMenu(menuName))
                 {
                     std::scoped_lock lock{ s_lock };
-                    PublishExitLocked(a_event->menuName.c_str());
+                    PublishExitLocked(menuName);
+                }
+                if (menuName == RE::MainMenu::MENU_NAME)
+                {
+                    GameSession::SetInGame(false);
                 }
                 return RE::BSEventNotifyControl::kContinue;
             }
@@ -98,6 +108,10 @@ namespace PresenceSync
     {
         PROFILE_FUNCTION();
         const bool inWorld = IsInWorld(a_local);
+        if (inWorld)
+        {
+            GameSession::SetInGame(true);
+        }
 
         std::scoped_lock lock{ s_lock };
         if (!Network::IsConnected())

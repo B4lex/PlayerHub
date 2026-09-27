@@ -42,7 +42,7 @@ namespace PluginStartup
             EquipmentSync::RegisterEventSinks();
             PresenceSync::RegisterEventSinks();
             RE::ConsoleLog::GetSingleton()->Print("Skyrim Multiplayer initialized.");
-            RE::ConsoleLog::GetSingleton()->Print("SkyrimMP connecting to synchronization server.");
+            // ConnectionMonitor connects once the player enters the world.
             Network::Initialize();
         }
     }

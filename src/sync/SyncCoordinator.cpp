@@ -74,7 +74,7 @@ namespace SyncCoordinator
             a_peers.clear();
             if (auto* console = RE::ConsoleLog::GetSingleton())
             {
-                console->Print("MP: Server connection lost; removed remote players.");
+                console->Print("MP: Disconnected from the server; removed remote players.");
             }
         }
 

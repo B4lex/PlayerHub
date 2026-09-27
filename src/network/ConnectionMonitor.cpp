@@ -1,12 +1,14 @@
 #include "network/ConnectionMonitor.h"
 #include "config/PluginConfig.h"
 #include "network/SocketIOClient.h"
+#include "runtime/GameSession.h"
 #include "runtime/Profiling.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <random>
+#include <utility>
 
 namespace Network
 {
@@ -30,6 +32,11 @@ namespace Network
 
         enum class Phase
         {
+            // No connection is wanted, and the client is closed.
+            kIdle,
+            // No connection is wanted; waiting for a previous worker to finish
+            // before the client can be closed.
+            kClosing,
             kConnected,
             kWaitingToReconnect,
             kReconnecting,
@@ -37,10 +44,10 @@ namespace Network
 
         std::atomic_int64_t latencyMilliseconds{ kNoLatency };
         std::atomic_uint64_t outstandingProbeID{ 0 };
+        std::atomic_bool connectionEnabled{ false };
 
-        // Main-loop thread only. Initialize() opens the first connection itself,
-        // so the monitor starts out waiting for that attempt.
-        Phase phase = Phase::kReconnecting;
+        // Main-loop thread only.
+        Phase phase = Phase::kIdle;
         float phaseSeconds = 0.0F;
         unsigned reconnectAttempts = 0;
         float reconnectDelaySeconds = 0.0F;
@@ -49,6 +56,7 @@ namespace Network
         float secondsSinceProbe = kProbeIntervalSeconds;
         std::uint64_t observedConfigRevision = 0;
         bool endpointChangePending = false;
+        bool observedInGame = false;
 
         void ForgetLatency()
         {
@@ -174,6 +182,53 @@ namespace Network
             return true;
         }
 
+        // Each game starts from [Network] AutoConnect.
+        void FollowGameStart(bool a_inGame)
+        {
+            if (a_inGame == std::exchange(observedInGame, a_inGame) || !a_inGame)
+            {
+                return;
+            }
+            const bool autoConnect = Config::Get()->network.autoConnect;
+            connectionEnabled.store(autoConnect, std::memory_order_release);
+            logs::info(
+                "Game started; {}", autoConnect ? "connecting automatically" : "waiting for the player to connect");
+        }
+
+        void Close()
+        {
+            if (phase == Phase::kIdle)
+            {
+                return;
+            }
+            if (phase != Phase::kClosing)
+            {
+                logs::info("Closing the server connection: reason={}",
+                    connectionEnabled.load(std::memory_order_acquire) ? "left the game" : "player disconnected");
+                ForgetLatency();
+                EnterPhase(Phase::kClosing);
+            }
+            if (BeginClose())
+            {
+                EnterPhase(Phase::kIdle);
+            }
+        }
+
+        void Open()
+        {
+            // A previous worker may still be closing the client; retried next pass.
+            if (!BeginReconnect())
+            {
+                return;
+            }
+            observedConfigRevision = Config::GetRevision();
+            endpointChangePending = false;
+            reconnectAttempts = 0;
+            ForgetLatency();
+            EnterPhase(Phase::kReconnecting);
+            logs::info("Connecting to the server");
+        }
+
         void UpdateDisconnected(float a_deltaSeconds)
         {
             if (phase == Phase::kConnected)
@@ -207,6 +262,18 @@ namespace Network
     {
         PROFILE_FUNCTION();
         const auto deltaSeconds = std::clamp(a_deltaSeconds, 0.0F, kMaximumFrameTime);
+        const bool inGame = GameSession::IsInGame();
+        FollowGameStart(inGame);
+        if (!inGame || !connectionEnabled.load(std::memory_order_acquire))
+        {
+            Close();
+            return;
+        }
+        if (phase == Phase::kIdle || phase == Phase::kClosing)
+        {
+            Open();
+            return;
+        }
         if (FollowEndpointChange())
         {
             return;
@@ -219,6 +286,24 @@ namespace Network
         {
             UpdateDisconnected(deltaSeconds);
         }
+    }
+
+    void SetConnectionEnabled(bool a_enabled)
+    {
+        if (connectionEnabled.exchange(a_enabled, std::memory_order_acq_rel) != a_enabled)
+        {
+            logs::info("Player {} the server", a_enabled ? "connected to" : "disconnected from");
+        }
+    }
+
+    ConnectionState GetConnectionState()
+    {
+        if (!GameSession::IsInGame() || !connectionEnabled.load(std::memory_order_acquire))
+        {
+            return IsConnected() || IsTransportOpen() ? ConnectionState::kDisconnecting
+                                                      : ConnectionState::kDisconnected;
+        }
+        return IsConnected() ? ConnectionState::kConnected : ConnectionState::kConnecting;
     }
 
     std::optional<std::chrono::milliseconds> GetLatency()

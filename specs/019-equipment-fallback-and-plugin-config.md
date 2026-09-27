@@ -5,15 +5,13 @@
 Implemented and run in game. On Linux, `PluginConfig.cpp` was compiled against
 SimpleIni with stubbed SKSE logging and checked for default-file generation,
 overrides, invalid values, and unknown keys. The default fallback form IDs were checked
-against `Skyrim.esm` and `Dawnguard.esm` records: type, slots, armor type, and
-weapon type.
+against `Skyrim.esm` and `Dawnguard.esm` records: type, slots, and weapon type.
 
 ## Goal
 
 A remote player whose equipment comes from a mod the receiver does not have
 still appears dressed and armed. Each unresolvable item is replaced by a local
-item for the same slot: a heavy cuirass by a heavy cuirass, a greatsword by a
-greatsword. Before this change, spec 007 dropped such items, which left actors
+item for the same slot: a cuirass by a cuirass, a greatsword by a greatsword. Before this change, spec 007 dropped such items, which left actors
 in the race's naked skin or unarmed.
 
 The replacements are configured in an INI file next to the plugin DLL. That file
@@ -22,10 +20,10 @@ replaces `skyrim-mp-server.txt`.
 
 ## Non-goals
 
-- Matching the look of the missing item (material, color, style). A fallback
-  only stands in for its slot and weapon type.
+- Matching the look of the missing item (material, color, style, or armor
+  type). A fallback only stands in for its slot and weapon type.
 - Protocol changes. The fallback uses the hints spec 007 already sends:
-  `slotMask` and `armorType` for armor, `kind` and `weaponType` for hands.
+  `slotMask` for armor, `kind` and `weaponType` for hands.
 - Reloading the file while the game runs. Edits to the file apply on restart;
   the in-game settings window of spec 021 applies its changes at once.
 
@@ -61,6 +59,7 @@ feature follows a changed snapshot.
 | Key | Meaning | Default |
 | --- | --- | --- |
 | `ServerEndpoint` | Server URL, starting with `http://` or `https://` | the public server |
+| `AutoConnect` | Whether each game connects when it loads; otherwise the settings window's Connect button does | `true` |
 
 ### `[EquipmentFallback]`
 
@@ -71,27 +70,24 @@ because it differs between modpacks. An empty value means no fallback.
 | Key | Meaning |
 | --- | --- |
 | `Enabled` | `false` restores spec 007's behavior of leaving missing items off |
-| `<Slot>.Light`, `<Slot>.Heavy`, `<Slot>.Clothing` | armor for that biped slot and armor type |
-| `<Slot>` | armor for that slot when the type's own key is empty |
+| `<Slot>` | armor for that biped slot; `Head` also stands in for `Hair` |
 | `OneHandSword` … `Crossbow` | weapon for that Creation Kit weapon type |
 | `Torch`, `Arrow`, `Bolt` | carried torch and ammunition |
 
-Slots are the synced slots of spec 007, by Creation Kit name: `Head`, `Hair`,
-`Body`, `Hands`, `Amulet`, `Feet`, `Shield`, and `Circlet`. Jewelry looks the
-same whatever its armor type, so `Amulet` and `Circlet` have only the `<Slot>`
-key.
+Slots are the synced slots of spec 007, by Creation Kit name, with `Hair`
+folded into `Head`: `Head`, `Body`, `Hands`, `Amulet`, `Feet`, `Shield`, and `Circlet`.
 
 Defaults, all from `Skyrim.esm` unless noted, by editor ID:
 
-| Slot | Light | Heavy | Clothing | Any type |
-| --- | --- | --- | --- | --- |
-| Head, Hair | `ArmorHideHelmet` | `ArmorIronHelmet` | `ClothesCollegeHood` | |
-| Body | `ArmorHideCuirass` | `ArmorIronCuirass` | `ClothesFarmClothes01` | |
-| Hands | `ArmorHideGauntlets` | `ArmorIronGauntlets` | | |
-| Feet | `ArmorHideBoots` | `ArmorIronBoots` | `ClothesFarmBoots01` | |
-| Shield | `ArmorHideShield` | `ArmorIronShield` | | |
-| Amulet | | | | `JewelryNecklaceGold` |
-| Circlet | | | | `ClothesCirclet01` |
+| Slot | Default |
+| --- | --- |
+| Head | `ArmorHideHelmet` |
+| Body | `ArmorHideCuirass` |
+| Hands | `ArmorHideGauntlets` |
+| Feet | `ArmorHideBoots` |
+| Shield | `ArmorHideShield` |
+| Amulet | `JewelryNecklaceGold` |
+| Circlet | `ClothesCirclet01` |
 
 | Key | Default |
 | --- | --- |
@@ -122,8 +118,7 @@ regardless of peer order.
 
 At `kDataLoaded`, and again whenever the settings window changes
 `[EquipmentFallback]`, every configured form is resolved and checked with the
-key's item filter (spec 022): armor of the key's armor type covering the key's
-slot, where Head, Hair, and Circlet count as one group; a
+key's item filter (spec 022): armor covering the key's slot, where Head, Hair, and Circlet count as one group; a
 `TESObjectWEAP` of exactly the key's weapon type; a carriable `TESObjectLIGH` for
 the torch; and a `TESAmmo` that is or is not a bolt. A form that is missing or
 does not fit is logged with its key and treated as unset. After that, a lookup is
@@ -136,8 +131,9 @@ Spec 007's resolution filter is unchanged. Its drop branch now selects fallbacks
 1. All resolvable armor is resolved first, and the union of its slot masks
    becomes the occupied slots.
 2. For each unresolved entry, the slots of its `slotMask` are visited in
-   priority order: Body, Head, Hair, Hands, Feet, Shield, Amulet, Circlet. For a slot that is not occupied yet, the fallback is the key for the
-   entry's armor type, or else the slot's any-type key.
+   priority order: Body, Head (for Head or Hair), Hands, Feet, Shield, Amulet,
+   Circlet. For a slot the entry covers that is not fully occupied yet, the
+   fallback is the slot's key.
 3. A fallback whose own slot mask overlaps an occupied slot is skipped, because
    equipping it would unequip an item already shown. Otherwise it is added, and
    its slots become occupied.
@@ -145,8 +141,8 @@ Spec 007's resolution filter is unchanged. Its drop branch now selects fallbacks
 So a missing cuirass with built-in gauntlets and boots gets a body, hands, and
 feet fallback, except where the player shows real gauntlets or boots. When the
 fallbacks of one missing item overlap, the earlier slot wins, so the most
-visible pieces go first. A missing full helmet (Head and Hair) gets one vanilla
-helmet: the Head fallback covers Hair, so Hair is already occupied.
+visible pieces go first. A missing helmet or hood, whether it covers Head, Hair,
+or both, gets the one Head fallback.
 
 ### Hands and ammunition
 
@@ -167,7 +163,7 @@ form IDs, or `none`.
 1. With no INI file, the first launch writes `skyrim-mp.ini` next to the DLL
    with the defaults. Later launches never overwrite it.
 2. A remote player wearing armor from a plugin the receiver lacks shows vanilla
-   armor of the same armor type in the covered slots, without displacing items
+   armor in the covered slots, without displacing items
    that did resolve.
 3. A missing weapon shows the fallback of the same weapon type in the same hand,
    and attacks use that type's animations.

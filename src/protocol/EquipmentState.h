@@ -12,13 +12,6 @@
 
 namespace Multiplayer
 {
-    enum class EquipmentArmorType : std::uint8_t
-    {
-        kLight,
-        kHeavy,
-        kClothing
-    };
-
     enum class EquipmentHandKind : std::uint8_t
     {
         kWeapon,
@@ -42,13 +35,12 @@ namespace Multiplayer
     }();
 
     // Worn armor, clothing, jewelry, or shield. The slot mask, limited to the
-    // synced slots, and armor type select a fallback when the form is
-    // unavailable on the receiver.
+    // synced slots, selects a fallback when the form is unavailable on the
+    // receiver.
     struct EquipmentArmor
     {
         FormReference form;
         std::uint32_t slotMask{ 0 };
-        EquipmentArmorType armorType{ EquipmentArmorType::kClothing };
 
         bool operator==(const EquipmentArmor&) const = default;
     };
@@ -115,19 +107,6 @@ namespace Multiplayer
 
     static_assert(IsTwoHandedWeaponType(7));
     static_assert(!IsTwoHandedWeaponType(8));
-
-    [[nodiscard]] constexpr std::string_view GetEquipmentArmorTypeName(EquipmentArmorType a_type) noexcept
-    {
-        switch (a_type)
-        {
-            case EquipmentArmorType::kLight:
-                return "light";
-            case EquipmentArmorType::kHeavy:
-                return "heavy";
-            default:
-                return "clothing";
-        }
-    }
 
     [[nodiscard]] constexpr std::string_view GetEquipmentHandKindName(EquipmentHandKind a_kind) noexcept
     {

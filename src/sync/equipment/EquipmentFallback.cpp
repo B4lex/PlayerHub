@@ -17,17 +17,15 @@ namespace EquipmentFallback
         using Settings = Config::EquipmentFallbackSettings;
         using Multiplayer::FormReference;
 
-        // Indices into Multiplayer::kSyncedArmorSlots. When the fallbacks of one
+        // Indices into Settings::kArmorSlotMasks. When the fallbacks of one
         // missing item overlap, the earlier slot wins, so the most visible pieces
-        // go first: Body, Head, Hair, Hands, Feet, Shield, Amulet, Circlet.
-        constexpr std::array<std::size_t, Settings::kArmorSlotCount> kArmorSlotOrder{ 2, 0, 1, 3, 5, 6, 4, 7 };
+        // go first: Body, Head, Hands, Feet, Shield, Amulet, Circlet.
+        constexpr std::array<std::size_t, Settings::kArmorSlotCount> kArmorSlotOrder{ 1, 0, 2, 4, 5, 3, 6 };
 
         struct ResolvedFallbacks
         {
-            // Indexed like Multiplayer::kSyncedArmorSlots, then by
-            // Multiplayer::EquipmentArmorType, with the slot's any-type item
-            // already applied to empty types.
-            std::array<std::array<RE::TESObjectARMO*, Settings::kArmorTypeCount>, Settings::kArmorSlotCount> armor{};
+            // Indexed like Settings::kArmorSlotMasks.
+            std::array<RE::TESObjectARMO*, Settings::kArmorSlotCount> armor{};
             std::array<RE::TESObjectWEAP*, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> weapons{};
             RE::TESObjectLIGH* torch{ nullptr };
             RE::TESAmmo* arrow{ nullptr };
@@ -79,18 +77,8 @@ namespace EquipmentFallback
         std::uint32_t unusable = 0;
         for (std::size_t slot = 0; slot < settings.armor.size(); ++slot)
         {
-            const auto& configured = settings.armor[slot];
-            auto* anyType = ResolveConfigured<RE::TESObjectARMO>(configured.anyArmorType,
-                Config::GetArmorFallbackKey(slot, std::nullopt), Config::GetArmorFallbackFilter(slot, std::nullopt),
-                unusable);
-            for (std::size_t type = 0; type < configured.byArmorType.size(); ++type)
-            {
-                const auto armorType = static_cast<Multiplayer::EquipmentArmorType>(type);
-                auto* armor = ResolveConfigured<RE::TESObjectARMO>(configured.byArmorType[type],
-                    Config::GetArmorFallbackKey(slot, armorType), Config::GetArmorFallbackFilter(slot, armorType),
-                    unusable);
-                resolved.armor[slot][type] = armor ? armor : anyType;
-            }
+            resolved.armor[slot] = ResolveConfigured<RE::TESObjectARMO>(settings.armor[slot],
+                Config::GetArmorFallbackKey(slot), Config::GetArmorFallbackFilter(slot), unusable);
         }
 
         for (std::size_t type = Multiplayer::PlayerEquipment::kMinimumWeaponType; type < settings.weapons.size();
@@ -133,19 +121,14 @@ namespace EquipmentFallback
     void AppendArmor(const Multiplayer::EquipmentArmor& a_entry, std::uint32_t& a_occupiedSlots,
         std::vector<RE::TESObjectARMO*>& a_armor)
     {
-        const auto type = static_cast<std::size_t>(a_entry.armorType);
-        if (type >= Settings::kArmorTypeCount)
-        {
-            return;
-        }
         for (const auto slot : kArmorSlotOrder)
         {
-            const auto slotBit = 1U << Multiplayer::kSyncedArmorSlots[slot];
-            if ((a_entry.slotMask & slotBit) == 0 || (a_occupiedSlots & slotBit) != 0)
+            const auto covered = a_entry.slotMask & Settings::kArmorSlotMasks[slot];
+            if (covered == 0 || (covered & ~a_occupiedSlots) == 0)
             {
                 continue;
             }
-            auto* armor = resolved.armor[slot][type];
+            auto* armor = resolved.armor[slot];
             if (!armor)
             {
                 continue;

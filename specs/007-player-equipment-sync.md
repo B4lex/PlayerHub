@@ -48,9 +48,9 @@ event. The client emits `player:equipment`:
 {
   "revision": 7,
   "armor": [
-    { "plugin": "Skyrim.esm", "formId": 77385, "slotMask": 4, "armorType": "heavy" },
-    { "plugin": "Skyrim.esm", "formId": 77389, "slotMask": 512, "armorType": "heavy" },
-    { "plugin": "Dawnguard.esm", "formId": 5095, "slotMask": 1, "armorType": "light" }
+    { "plugin": "Skyrim.esm", "formId": 77385, "slotMask": 4 },
+    { "plugin": "Skyrim.esm", "formId": 77389, "slotMask": 512 },
+    { "plugin": "Dawnguard.esm", "formId": 5095, "slotMask": 1 }
   ],
   "rightHand": { "plugin": "Skyrim.esm", "formId": 77936, "kind": "weapon", "weaponType": 1 },
   "leftHand": { "plugin": "Skyrim.esm", "formId": 110, "kind": "torch" }
@@ -76,14 +76,13 @@ the entry, or shows a fallback for it (spec 019).
 | `revision` | Source-local monotonic counter | integer `1..2^63-1`, strictly increasing per connection |
 | `armor` | Worn playable `TESObjectARMO`s, including shields | at most 32 entries; form references unique |
 | `armor[].slotMask` | `BGSBipedObjectForm` slot mask, bit 0 = slot 30, limited to the synced slots | non-zero; only bits of the synced slots |
-| `armor[].armorType` | `light`, `heavy`, or `clothing` | enum |
 | `rightHand` | Right-hand object, or `null` | hand entry |
 | `leftHand` | Left-hand object, or `null` | hand entry |
 | `hand.kind` | `weapon` or `torch` | enum; `torch` only in `leftHand` |
 | `hand.weaponType` | `WEAPON_TYPE` `1..9`; present only for `weapon` | two-handed types (`5` 2H sword, `6` 2H axe, `7` bow, `9` crossbow) only in `rightHand`, and then `leftHand` must be `null` |
 
 Plugin names are 1..260 characters and `formId` is `0..0xFFFFFF`, as in
-spec 006. The hint fields `slotMask`, `armorType`, and `weaponType` do not
+spec 006. The hint fields `slotMask` and `weaponType` do not
 affect resolution. They select the fallback of spec 019. A receiver
 still validates them, but the locally resolved form is authoritative for how an
 item is equipped.

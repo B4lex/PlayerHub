@@ -38,12 +38,14 @@ src/ui/
   hud/StatusPanel.h/.cpp    # always-on connection, ping, and plugin time widget
   chat/ChatWindow.h/.cpp    # global chat, see specs/020-player-chat.md
   settings/SettingsWindow.h/.cpp  # plugin settings, see specs/021-in-game-settings.md
+  settings/ConnectionControls.h/.cpp  # connection indicator and Connect/Disconnect button
   widgets/ItemPicker.h/.cpp  # reusable item dropdown, see specs/022-item-picker-and-preview.md
   preview/ItemPreview.h/.cpp # 3D item model capture for windows
 src/network/
-  ConnectionMonitor.h/.cpp  # probe cadence, timeout, latest sample, reconnect schedule
+  ConnectionMonitor.h/.cpp  # when to connect, probe cadence, timeout, latest sample, reconnect schedule
 src/runtime/
   PluginTime.h/.cpp         # plugin time per main-loop pass, averaged each second
+  GameSession.h/.cpp        # whether a game is loaded, set by PresenceSync
 ```
 
 `ui/` never changes the game; it reaches the network only through the feature
@@ -155,11 +157,12 @@ when it builds `CharEvent`s (checked against 1.7.104).
 
 - The client emits `latency:probe` with no arguments and an ack callback. The
   server returns `{"ok": true}` right away and does not relay or store anything.
-- The main-loop hook calls `Network::UpdateConnectionMonitor(delta)` after
-  `SyncCoordinator::OnFrame`, so it runs only while the game frame time
-  advances. The main menu does not, so there the ping stays unknown until a save
-  loads. The client sends a probe every 1 second after the
-  previous one was sent. Only one probe is outstanding at a time. The interval
+- The main-loop hook calls `Network::UpdateConnectionMonitor` on every pass,
+  after `SyncCoordinator::OnFrame`. Frame time stops in the main menu and while
+  the game is paused; the monitor then gets a zero delta, so its timers hold
+  while opening and closing still follow the game and the player's choice. The
+  client sends a probe every 1 second after the previous one was sent. Only
+  one probe is outstanding at a time. The interval
   and timeouts follow the frame-delta rules in `AGENTS.md`.
 - The round trip itself is measured with `std::chrono::steady_clock` from emit to
   ack, so frame rate does not affect the number.
@@ -167,10 +170,49 @@ when it builds `CharEvent`s (checked against 1.7.104).
   the current probe's ack. Acks from abandoned probes or older connections are
   ignored. A disconnect or a new connection generation clears the sample.
 
+## When the client connects
+
+A connection is wanted only in a game and while the player's choice enables
+it. `ConnectionMonitor` owns that decision; nothing else opens or closes the
+client.
+
+- At `kDataLoaded`, `Network::Initialize` only registers the client's listeners.
+  The main menu never connects.
+- A game starts when `PresenceSync` first finds the player placed in the world,
+  and ends when the main menu opens (`GameSession::SetInGame`). Loading
+  screens, including loading another save from in game, keep the game and its
+  connection; `player:exit` and `player:enter` still mark leaving and entering
+  the world.
+- When the monitor sees a game start, the player's choice becomes
+  `[Network] AutoConnect` (default `true`). With it off, the game stays
+  disconnected until Connect.
+- The settings window's buttons (spec 021) change the choice with
+  `Network::SetConnectionEnabled`. It lasts until the game ends, so a save
+  loaded from in game keeps it and the next game from the main menu starts
+  from `AutoConnect` again.
+- Opening skips the reconnect delay and resets the attempt count, then follows
+  the usual attempts below.
+- Closing: `BeginClose` marks the client disconnected at once, forgetting every
+  remote player, and runs `sync_close` on a worker. It shares the worker slot
+  with `BeginReconnect`, so while an attempt's worker is busy the monitor stays
+  in its closing phase and retries each pass. A namespace that still opens
+  after the close was requested is ignored until the next `BeginReconnect`.
+- socket.io-client-cpp 3.1.0 closes a connected namespace by sending
+  `DISCONNECT` and waiting 3 seconds for a reply that a v4 server never sends
+  (`socket::impl::close`). The transport closes within milliseconds, but the
+  worker's `sync_close` returns only after that timer, so a connection requested
+  within 3 seconds of a close starts when it expires.
+- `Network::GetConnectionState` combines whether a connection is wanted with
+  the transport, never running ahead of it: `kConnected` while the namespace is
+  open, `kConnecting` while one is wanted but not open (including the wait
+  above), `kDisconnecting` while none is wanted but the transport is still open,
+  and `kDisconnected` otherwise.
+
 ## Connection loss and recovery
 
 The client is disconnected exactly when the default namespace is not open, and
-the overlay shows that state whichever side ended it. Every loss is recoverable.
+the overlay shows that state whichever side ended it. Every loss while a
+connection is wanted is recoverable.
 
 - Detection, server side: a server restart, an Engine.IO ping timeout, or a
   namespace `DISCONNECT` reaches the client as a namespace close, a transport
@@ -201,7 +243,10 @@ the overlay shows that state whichever side ended it. Every loss is recoverable.
 ## Status panel
 
 The panel sits in the top-right corner, 12 px from both edges before scaling,
-on a translucent background. It takes no input.
+on a translucent background. It takes no input. It is drawn only during a game
+(`GameSession::IsInGame`), so never in the main menu, and only while
+`[UI] StatusPanel` is on (default `true`). A changed setting applies on the next
+frame.
 
 | State | Text | Color |
 | --- | --- | --- |
@@ -238,8 +283,13 @@ Below the ping line, always shown whatever the connection state:
 - Server: `test_app_latency.py` checks that the probe is acknowledged with
   `{"ok": true}` and not relayed, and that a client-supplied `sentAtMs` is
   neither stored nor relayed.
-- In game (pending): the panel shows `Disconnected` before the connection,
-  then a stable ping. Stopping the server shows `Disconnected`, and a restart
+- In game (pending): the main menu stays disconnected, shows no status panel,
+  and the log shows no connection attempt. With `AutoConnect = false`, loading
+  a save stays disconnected until Connect. `StatusPanel = false` hides the panel
+  at once. Loading a save connects once the player is in the world,
+  and the panel then shows a stable ping. A door's loading screen keeps the
+  connection; quitting to the main menu closes it after `player:exit`.
+  Stopping the server shows `Disconnected`, and a restart
   recovers. So do a server-side kick, and a blocked route to the server, which
   is noticed after the 5-second probe timeout. The overlay scales at 1080p and
   4K, and nothing new appears in the log apart from the state-change lines.

@@ -52,6 +52,30 @@ players, and a new spawn rate applies on the next pass.
   failed one.
 - The window uses the mouse (`Window::UsesMouse`); see spec 010 for the cursor.
 
+## Server connection
+
+The `[Network]` tab's `ServerEndpoint` row ends with `ConnectionControls`, on
+the same line as the text field:
+
+- An indicator circle: green while the client is connected, red otherwise.
+  Hovering it shows `Connected, ping N ms` (`Connected` before the first
+  sample), `Connecting...`, `Disconnecting...`, or `Disconnected`.
+- A button that follows `Network::GetConnectionState` (spec 010), so its label
+  never claims a state the transport has not reached. It keeps its width and
+  identity when the label changes.
+
+  | State | Button | Press |
+  | --- | --- | --- |
+  | Connected | `Disconnect` | stops wanting a connection |
+  | Connecting | `Cancel` | stops wanting a connection |
+  | Disconnecting | `Disconnecting...`, disabled | — |
+  | Disconnected | `Connect` | wants a connection again |
+
+  Not wanting a connection closes it and removes every remote player until
+  Connect; see spec 010 for when the client connects.
+- The button acts on the live endpoint. An edited endpoint has to be applied
+  first, and applying one while connected moves the connection to it.
+
 ## Configuration changes
 
 `Config::Get()` returns a `shared_ptr` to an immutable snapshot, stored in an
@@ -69,6 +93,8 @@ revision before taking a snapshot never misses a change.
 | `ConnectionMonitor` | main loop | when the latest attempt went to another endpoint: abandoning a live connection and starting a reconnect at once, with the attempt count reset |
 | `SocketIOClient` | transport, worker | reading the endpoint for each attempt; logs name the attempt's endpoint |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
+| `ConnectionMonitor` | main loop | reading `AutoConnect` when a game starts; a change applies from the next game |
+| `StatusPanel` | overlay | reading `StatusPanel` on each frame |
 
 ## Saving
 
@@ -91,7 +117,11 @@ revision before taking a snapshot never misses a change.
   input until it closes. Changing `SpawnsPerSecond` takes effect without a
   restart. Clearing a fallback removes it from remote players who used it, and
   setting one dresses them. A new endpoint disconnects, removes remote players,
-  and connects to the new server; the status panel follows. A new
+  and connects to the new server; the status panel follows. The indicator
+  turns green once connected and red on Disconnect, which removes remote
+  players and keeps them away through a save load until Connect. Pressing
+  Connect right after Disconnect shows `Cancel` until the connection opens,
+  about 3 seconds later, and never `Disconnect` while disconnected. A new
   `SettingsKey` opens the window and the old one no longer does. The file keeps
   hand-written comments after Apply. Chat still opens with Enter and gets no
   cursor.
