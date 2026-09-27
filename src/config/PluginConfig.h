@@ -22,13 +22,14 @@ namespace Config
     // empty reference means no fallback.
     struct EquipmentFallbackSettings
     {
-        // Biped slots 30..61, indexed from slot 30 like the slot mask bits.
-        static constexpr std::size_t kArmorSlotCount = 32;
+        // Indexed like Multiplayer::kSyncedArmorSlots.
+        static constexpr std::size_t kArmorSlotCount = Multiplayer::kSyncedArmorSlots.size();
         static constexpr std::size_t kArmorTypeCount = 3;
 
         struct ArmorSlot
         {
-            // Indexed by Multiplayer::EquipmentArmorType.
+            // Indexed by Multiplayer::EquipmentArmorType. Empty for slots without
+            // typed keys.
             std::array<Multiplayer::FormReference, kArmorTypeCount> byArmorType;
             // Used when the armor type's own entry is empty.
             Multiplayer::FormReference anyArmorType;

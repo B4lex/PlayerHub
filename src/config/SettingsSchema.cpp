@@ -15,15 +15,17 @@ namespace Config
         using KeyboardKey = RE::BSKeyboardDevice::Key;
 
         constexpr std::string_view kDefaultServerEndpoint = "https://8fa21dsv.lmfao.pp.ua";
-        constexpr std::uint32_t kFirstArmorSlot = 30;
-        // Head, Hair, LongHair, and Circlet. Helmets and hoods cover different ones
-        // of these depending on the mod, so any of them fits a head slot's fallback.
-        constexpr std::uint32_t kHeadSlotMask = (1U << 0) | (1U << 1) | (1U << 11) | (1U << 12);
+        // Head, Hair, and Circlet. Helmets and hoods cover different ones of these
+        // depending on the mod, so any of them fits a head slot's fallback.
+        constexpr std::uint32_t kHeadSlotMask = (1U << 0) | (1U << 1) | (1U << 12);
 
-        // Creation Kit names of biped slots 30..43. Later slots have no vanilla
-        // meaning and are named by number.
-        constexpr std::array<std::string_view, 14> kArmorSlotNames{ "Head", "Hair", "Body", "Hands", "Forearms",
-            "Amulet", "Ring", "Feet", "Calves", "Shield", "Tail", "LongHair", "Circlet", "Ears" };
+        // Creation Kit slot names, indexed like Multiplayer::kSyncedArmorSlots.
+        constexpr std::array<std::string_view, EquipmentFallbackSettings::kArmorSlotCount> kArmorSlotNames{ "Head",
+            "Hair", "Body", "Hands", "Amulet", "Feet", "Shield", "Circlet" };
+        // Jewelry looks the same whatever its armor type, so Amulet and Circlet
+        // have only the any-type key.
+        constexpr std::array<bool, EquipmentFallbackSettings::kArmorSlotCount> kTypedArmorSlots{ true, true, true,
+            true, false, true, true, false };
         // Indexed by Multiplayer::EquipmentArmorType.
         constexpr std::array<std::string_view, EquipmentFallbackSettings::kArmorTypeCount> kArmorTypeNames{ "Light",
             "Heavy", "Clothing" };
@@ -93,24 +95,13 @@ namespace Config
         void DescribeEquipmentFallback(EquipmentFallbackSettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("EquipmentFallback",
-                "Items shown on remote players in place of equipment this game does not have,\n"
-                "for example armor or weapons from a mod that is not installed here.\n"
-                "Values are Plugin|FormID: the plugin that defines the item and the item's\n"
-                "hexadecimal form ID without the load order prefix. An empty value means no fallback.");
+                "Equipment items shown on remote players in place of missing mod items.");
             a_visitor.Bool("Enabled", a_settings.enabled, "Set to false to leave missing items off entirely.");
 
-            a_visitor.Comment(
-                "Armor, by biped slot: <Slot>.Light, <Slot>.Heavy, <Slot>.Clothing, or <Slot> for any\n"
-                "armor type without its own value. A missing item gets the fallback of every slot it\n"
-                "covers, unless that fallback would take a slot another shown item already uses.\n"
-                "Slots: Head, Hair, Body, Hands, Forearms, Amulet, Ring, Feet, Calves, Shield, Tail,\n"
-                "LongHair, Circlet, Ears, and Slot44 through Slot61. Vanilla helmets and hoods use Hair.\n"
-                "A fallback must cover its slot, or any head slot for Head, Hair, LongHair, and Circlet,\n"
-                "and have the key's armor type.");
             for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)
             {
                 auto& entry = a_settings.armor[slot];
-                for (std::size_t type = 0; type < entry.byArmorType.size(); ++type)
+                for (std::size_t type = 0; kTypedArmorSlots[slot] && type < entry.byArmorType.size(); ++type)
                 {
                     const auto armorType = static_cast<Multiplayer::EquipmentArmorType>(type);
                     a_visitor.Form(GetArmorFallbackKey(slot, armorType), entry.byArmorType[type],
@@ -121,8 +112,7 @@ namespace Config
             }
 
             a_visitor.Comment(
-                "Weapons, by weapon type. The fallback must have the same type. TwoHandAxe also covers\n"
-                "warhammers.");
+                "Weapons, by weapon type. The fallback must have the same type.");
             for (std::size_t type = Multiplayer::PlayerEquipment::kMinimumWeaponType; type < a_settings.weapons.size();
                 ++type)
             {
@@ -149,8 +139,7 @@ namespace Config
         {
             a_visitor.Section("UI", "In-game overlay.");
             a_visitor.Key("SettingsKey", a_settings.settingsKey,
-                "Opens the settings window during gameplay: F1 to F12, Insert, Delete, Home, End,\n"
-                "PageUp, PageDown, Pause, or ScrollLock.");
+                "Opens the settings window.");
             a_visitor.Bool("ItemPreview", a_settings.itemPreview,
                 "Shows a 3D model of the hovered item in item lists. Set to false if the preview\n"
                 "shows wrong images or disturbs the game.");
@@ -160,7 +149,6 @@ namespace Config
         {
             struct DefaultArmor
             {
-                std::uint32_t slot;
                 std::uint32_t light;
                 std::uint32_t heavy;
                 std::uint32_t clothing;
@@ -168,26 +156,26 @@ namespace Config
             };
             // Hide (light), iron (heavy), and farm clothes. The helmets and hood also
             // cover Circlet, and Hair is tried first, so the circlet only stands in
-            // for missing circlet-only items.
-            constexpr std::array<DefaultArmor, 9> kDefaults{ {
-                { .slot = 30, .light = 0x013913, .heavy = 0x012E4D, .clothing = 0x0D3DE8, .any = 0 },
-                { .slot = 31, .light = 0x013913, .heavy = 0x012E4D, .clothing = 0x0D3DE8, .any = 0 },
-                { .slot = 32, .light = 0x013911, .heavy = 0x012E49, .clothing = 0x01BE1A, .any = 0 },
-                { .slot = 33, .light = 0x013912, .heavy = 0x012E46, .clothing = 0, .any = 0 },
-                { .slot = 35, .light = 0, .heavy = 0, .clothing = 0, .any = 0x0877D5 },
-                { .slot = 36, .light = 0, .heavy = 0, .clothing = 0, .any = 0x01CF2B },
-                { .slot = 37, .light = 0x013910, .heavy = 0x012E4B, .clothing = 0x01BE1B, .any = 0 },
-                { .slot = 39, .light = 0x013914, .heavy = 0x012EB6, .clothing = 0, .any = 0 },
-                { .slot = 42, .light = 0, .heavy = 0, .clothing = 0, .any = 0x0166D6 },
+            // for missing circlet-only items. Indexed like kArmorSlotNames.
+            constexpr std::array<DefaultArmor, EquipmentFallbackSettings::kArmorSlotCount> kDefaults{ {
+                { .light = 0x013913, .heavy = 0x012E4D, .clothing = 0x0D3DE8, .any = 0 },
+                { .light = 0x013913, .heavy = 0x012E4D, .clothing = 0x0D3DE8, .any = 0 },
+                { .light = 0x013911, .heavy = 0x012E49, .clothing = 0x01BE1A, .any = 0 },
+                { .light = 0x013912, .heavy = 0x012E46, .clothing = 0, .any = 0 },
+                { .light = 0, .heavy = 0, .clothing = 0, .any = 0x0877D5 },
+                { .light = 0x013910, .heavy = 0x012E4B, .clothing = 0x01BE1B, .any = 0 },
+                { .light = 0x013914, .heavy = 0x012EB6, .clothing = 0, .any = 0 },
+                { .light = 0, .heavy = 0, .clothing = 0, .any = 0x0166D6 },
             } };
 
             const auto skyrim = [](std::uint32_t a_localFormID) {
                 return a_localFormID == 0 ? FormReference{}
                                           : FormReference{ .plugin = "Skyrim.esm", .localFormID = a_localFormID };
             };
-            for (const auto& entry : kDefaults)
+            for (std::size_t index = 0; index < kDefaults.size(); ++index)
             {
-                auto& slot = a_settings.armor[entry.slot - kFirstArmorSlot];
+                const auto& entry = kDefaults[index];
+                auto& slot = a_settings.armor[index];
                 slot.byArmorType[static_cast<std::size_t>(Multiplayer::EquipmentArmorType::kLight)]
                     = skyrim(entry.light);
                 slot.byArmorType[static_cast<std::size_t>(Multiplayer::EquipmentArmorType::kHeavy)]
@@ -324,8 +312,7 @@ namespace Config
 
     std::string GetArmorFallbackKey(std::size_t a_slotIndex, std::optional<Multiplayer::EquipmentArmorType> a_armorType)
     {
-        auto key = a_slotIndex < kArmorSlotNames.size() ? std::string{ kArmorSlotNames[a_slotIndex] }
-                                                        : std::format("Slot{}", kFirstArmorSlot + a_slotIndex);
+        std::string key{ a_slotIndex < kArmorSlotNames.size() ? kArmorSlotNames[a_slotIndex] : "Unknown" };
         if (a_armorType)
         {
             const auto type = static_cast<std::size_t>(*a_armorType);
@@ -343,7 +330,9 @@ namespace Config
     Forms::ItemFilter GetArmorFallbackFilter(
         std::size_t a_slotIndex, std::optional<Multiplayer::EquipmentArmorType> a_armorType)
     {
-        const auto slotBit = a_slotIndex < EquipmentFallbackSettings::kArmorSlotCount ? 1U << a_slotIndex : 0U;
+        const auto slotBit = a_slotIndex < Multiplayer::kSyncedArmorSlots.size()
+                                 ? 1U << Multiplayer::kSyncedArmorSlots[a_slotIndex]
+                                 : 0U;
         return Forms::ItemFilter{ .kind = Forms::ItemKind::kArmor,
             .slotMask = (slotBit & kHeadSlotMask) != 0 ? kHeadSlotMask : slotBit,
             .armorType = a_armorType };

@@ -76,9 +76,10 @@ because it differs between modpacks. An empty value means no fallback.
 | `OneHandSword` … `Crossbow` | weapon for that Creation Kit weapon type |
 | `Torch`, `Arrow`, `Bolt` | carried torch and ammunition |
 
-Slots use the Creation Kit names of slots 30 to 43 (`Head`, `Hair`, `Body`,
-`Hands`, `Forearms`, `Amulet`, `Ring`, `Feet`, `Calves`, `Shield`, `Tail`,
-`LongHair`, `Circlet`, `Ears`) and `Slot44` to `Slot61` for the rest.
+Slots are the synced slots of spec 007, by Creation Kit name: `Head`, `Hair`,
+`Body`, `Hands`, `Amulet`, `Feet`, `Shield`, and `Circlet`. Jewelry looks the
+same whatever its armor type, so `Amulet` and `Circlet` have only the `<Slot>`
+key.
 
 Defaults, all from `Skyrim.esm` unless noted, by editor ID:
 
@@ -90,7 +91,6 @@ Defaults, all from `Skyrim.esm` unless noted, by editor ID:
 | Feet | `ArmorHideBoots` | `ArmorIronBoots` | `ClothesFarmBoots01` | |
 | Shield | `ArmorHideShield` | `ArmorIronShield` | | |
 | Amulet | | | | `JewelryNecklaceGold` |
-| Ring | | | | `JewelryRingGold` |
 | Circlet | | | | `ClothesCirclet01` |
 
 | Key | Default |
@@ -123,7 +123,7 @@ regardless of peer order.
 At `kDataLoaded`, and again whenever the settings window changes
 `[EquipmentFallback]`, every configured form is resolved and checked with the
 key's item filter (spec 022): armor of the key's armor type covering the key's
-slot, where Head, Hair, LongHair, and Circlet count as one group; a
+slot, where Head, Hair, and Circlet count as one group; a
 `TESObjectWEAP` of exactly the key's weapon type; a carriable `TESObjectLIGH` for
 the torch; and a `TESAmmo` that is or is not a bolt. A form that is missing or
 does not fit is logged with its key and treated as unset. After that, a lookup is
@@ -136,8 +136,7 @@ Spec 007's resolution filter is unchanged. Its drop branch now selects fallbacks
 1. All resolvable armor is resolved first, and the union of its slot masks
    becomes the occupied slots.
 2. For each unresolved entry, the slots of its `slotMask` are visited in
-   priority order: Body, Head, Hair, Hands, Feet, Shield, then the rest by slot
-   number. For a slot that is not occupied yet, the fallback is the key for the
+   priority order: Body, Head, Hair, Hands, Feet, Shield, Amulet, Circlet. For a slot that is not occupied yet, the fallback is the key for the
    entry's armor type, or else the slot's any-type key.
 3. A fallback whose own slot mask overlaps an occupied slot is skipped, because
    equipping it would unequip an item already shown. Otherwise it is added, and

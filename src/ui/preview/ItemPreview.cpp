@@ -62,7 +62,7 @@ namespace UI::ItemPreview
         bool running{ false };
         // Set once for the session when a requirement fails.
         bool unavailable{ false };
-        // The first capture of each start logs its contents and render targets.
+        // The first capture of each start is logged.
         bool captureLogged{ false };
         std::uint32_t loadedFormID{ 0 };
         std::chrono::steady_clock::time_point loadedSince;
@@ -209,104 +209,27 @@ namespace UI::ItemPreview
             context->ClearView(&a_target, color, &rect, 1);
         }
 
-        struct BoundTarget
-        {
-            bool backBuffer{ false };
-            bool depth{ false };
-        };
-
-        BoundTarget GetBoundTarget(REX::W32::ID3D11DeviceContext& a_context, REX::W32::ID3D11Resource* a_backBuffer)
-        {
-            ComPtr<REX::W32::ID3D11RenderTargetView> target;
-            ComPtr<REX::W32::ID3D11DepthStencilView> depth;
-            a_context.OMGetRenderTargets(1, target.GetAddressOf(), depth.GetAddressOf());
-            ComPtr<REX::W32::ID3D11Resource> resource;
-            if (target.Get())
-            {
-                target->GetResource(resource.GetAddressOf());
-            }
-            return BoundTarget{ .backBuffer = resource.Get() == a_backBuffer, .depth = depth.Get() != nullptr };
-        }
-
-        // Diagnostic: how many captured pixels differ from the cleared corner, and
-        // the high byte (alpha in 8-bit formats) of those that do. Stalls on a
-        // readback, so it runs once per start.
-        void LogCaptureContents(REX::W32::ID3D11Device& a_device, REX::W32::ID3D11DeviceContext& a_context,
-            const CaptureBox& a_box, BoundTarget a_before, BoundTarget a_after)
-        {
-            REX::W32::D3D11_TEXTURE2D_DESC description{};
-            description.width = a_box.width;
-            description.height = a_box.height;
-            description.mipLevels = 1;
-            description.arraySize = 1;
-            description.format = textures.format;
-            description.sampleDesc.count = 1;
-            description.usage = REX::W32::D3D11_USAGE_STAGING;
-            description.cpuAccessFlags = REX::W32::D3D11_CPU_ACCESS_READ;
-            ComPtr<REX::W32::ID3D11Texture2D> staging;
-            REX::W32::D3D11_MAPPED_SUBRESOURCE mapped{};
-            const REX::W32::D3D11_BOX box{
-                .left = 0, .top = 0, .front = 0, .right = a_box.width, .bottom = a_box.height, .back = 1
-            };
-            if (a_device.CreateTexture2D(&description, nullptr, staging.GetAddressOf()) < 0)
-            {
-                logs::debug("Item preview capture check skipped: no staging texture");
-                return;
-            }
-            a_context.CopySubresourceRegion(staging.Get(), 0, 0, 0, 0, textures.image.Get(), 0, &box);
-            if (a_context.Map(staging.Get(), 0, REX::W32::D3D11_MAP_READ, 0, &mapped) < 0 || !mapped.data)
-            {
-                logs::debug("Item preview capture check skipped: map failed");
-                return;
-            }
-
-            const auto* bytes = static_cast<const std::uint8_t*>(mapped.data);
-            const auto background = *reinterpret_cast<const std::uint32_t*>(bytes);
-            std::uint64_t differing = 0;
-            std::uint32_t minimumHighByte = 0xFF;
-            std::uint32_t maximumHighByte = 0;
-            for (std::uint32_t y = 0; y < a_box.height; ++y)
-            {
-                const auto* row = reinterpret_cast<const std::uint32_t*>(bytes + y * mapped.rowPitch);
-                for (std::uint32_t x = 0; x < a_box.width; ++x)
-                {
-                    if (row[x] != background)
-                    {
-                        ++differing;
-                        const auto highByte = row[x] >> 24;
-                        minimumHighByte = (std::min)(minimumHighByte, highByte);
-                        maximumHighByte = (std::max)(maximumHighByte, highByte);
-                    }
-                }
-            }
-            a_context.Unmap(staging.Get(), 0);
-            logs::debug(
-                "Item preview capture check: format={} background={:08X} differingPixels={}/{} highByte={}..{} "
-                "targetBefore={} depthBefore={} targetAfter={} depthAfter={}",
-                static_cast<int>(textures.format), background, differing,
-                static_cast<std::uint64_t>(a_box.width) * a_box.height, differing ? minimumHighByte : 0,
-                maximumHighByte, a_before.backBuffer ? "back-buffer" : "other", a_before.depth,
-                a_after.backBuffer ? "back-buffer" : "other", a_after.depth);
-        }
-
-        // The 1.7.104 scene render behind Inventory3DManager::Render (ID 52727)
-        // draws nothing unless UI::numDisablePauseMenu is positive, as it is while
-        // an inventory menu is open. The overlay is not a menu, so it raises the
-        // count for the call. Main-loop thread, like the menus that change it.
-        class PauseMenuDisabledScope
+        // Inventory3DManager::Render attaches a finished load, then calls the scene
+        // render (1.7.104 ID 52727), which draws only while UI::numDisablePauseMenu
+        // is positive, as it is while an inventory menu is open. The overlay is not a
+        // menu, so it sets the count for the call and restores it. Main-loop thread,
+        // like the menus that change it.
+        class PauseMenuDisabledCountScope
         {
         public:
-            explicit PauseMenuDisabledScope(RE::UI& a_ui)
+            PauseMenuDisabledCountScope(RE::UI& a_ui, std::uint32_t a_count)
                 : ui(a_ui)
+                , previous(a_ui.numDisablePauseMenu)
             {
-                ++ui.numDisablePauseMenu;
+                ui.numDisablePauseMenu = a_count;
             }
-            ~PauseMenuDisabledScope() { --ui.numDisablePauseMenu; }
-            PauseMenuDisabledScope(const PauseMenuDisabledScope&) = delete;
-            PauseMenuDisabledScope& operator=(const PauseMenuDisabledScope&) = delete;
+            ~PauseMenuDisabledCountScope() { ui.numDisablePauseMenu = previous; }
+            PauseMenuDisabledCountScope(const PauseMenuDisabledCountScope&) = delete;
+            PauseMenuDisabledCountScope& operator=(const PauseMenuDisabledCountScope&) = delete;
 
         private:
             RE::UI& ui;
+            std::uint32_t previous;
         };
 
         // Diagnostic for a model that has not appeared a second after loading
@@ -330,8 +253,16 @@ namespace UI::ItemPreview
 
         // Renders the loaded model onto the finished frame, copies it into the
         // image texture, and restores the frame. False until the model is loaded.
-        bool CaptureModel(RE::Inventory3DManager& a_manager)
+        bool CaptureModel(RE::Inventory3DManager& a_manager, RE::UI& a_ui)
         {
+            // A model that loaded in the background is attached only by Render.
+            // With the count at zero, the scene render draws nothing.
+            if (a_manager.GetRuntimeData().loadedModels.empty())
+            {
+                const PauseMenuDisabledCountScope attachOnly{ a_ui, 0 };
+                a_manager.Render();
+            }
+
             const auto& models = a_manager.GetRuntimeData().loadedModels;
             auto* scene = RE::UI3DSceneManager::GetSingleton();
             auto* renderer = RE::BSGraphics::Renderer::GetSingleton();
@@ -380,16 +311,12 @@ namespace UI::ItemPreview
                 .left = 0, .top = 0, .front = 0, .right = box->width, .bottom = box->height, .back = 1
             };
             auto& context = *data.context;
-            const bool check = !captureLogged;
-            const auto before = check ? GetBoundTarget(context, backBuffer.Get()) : BoundTarget{};
             context.CopySubresourceRegion(textures.saved.Get(), 0, 0, 0, 0, backBuffer.Get(), 0, &screenBox);
             ClearBackground(context, *target, *box);
-            if (auto* ui = RE::UI::GetSingleton())
             {
-                const PauseMenuDisabledScope pauseMenuDisabled{ *ui };
+                const PauseMenuDisabledCountScope draw{ a_ui, (std::max)(a_ui.numDisablePauseMenu, 1U) };
                 a_manager.Render();
             }
-            const auto after = check ? GetBoundTarget(context, backBuffer.Get()) : BoundTarget{};
             context.CopySubresourceRegion(textures.image.Get(), 0, 0, 0, 0, backBuffer.Get(), 0, &screenBox);
             context.CopySubresourceRegion(
                 backBuffer.Get(), 0, box->left, box->top, 0, textures.saved.Get(), 0, &textureBox);
@@ -401,7 +328,6 @@ namespace UI::ItemPreview
                 logs::debug("Item preview captured: formID={:08X} box=({}, {}, {}x{}) screen={}x{} radius={}",
                     loadedFormID, box->left, box->top, box->width, box->height, description.width, description.height,
                     model->worldBound.radius);
-                LogCaptureContents(*data.forwarder, context, *box, before, after);
             }
             return true;
         }
@@ -527,7 +453,7 @@ namespace UI::ItemPreview
                 }
             }
         }
-        if (loadedFormID != 0 && CaptureModel(*manager))
+        if (loadedFormID != 0 && CaptureModel(*manager, *ui))
         {
             capturedFormID = loadedFormID;
         }

@@ -4,7 +4,6 @@
 #include "forms/FormLookup.h"
 #include "forms/ItemForms.h"
 
-#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -18,30 +17,16 @@ namespace EquipmentFallback
         using Settings = Config::EquipmentFallbackSettings;
         using Multiplayer::FormReference;
 
-        // Slot indices from slot 30. When the fallbacks of one missing item
-        // overlap, the earlier slot wins, so the most visible pieces go first.
-        constexpr auto kArmorSlotOrder = [] {
-            constexpr std::array<std::uint32_t, 6> kMainSlots{ 2, 0, 1, 3, 7, 9 }; // Body Head Hair Hands Feet Shield
-            std::array<std::uint32_t, Settings::kArmorSlotCount> order{};
-            std::size_t next = 0;
-            for (const auto slot : kMainSlots)
-            {
-                order[next++] = slot;
-            }
-            for (std::uint32_t slot = 0; slot < Settings::kArmorSlotCount; ++slot)
-            {
-                if (std::ranges::find(kMainSlots, slot) == kMainSlots.end())
-                {
-                    order[next++] = slot;
-                }
-            }
-            return order;
-        }();
+        // Indices into Multiplayer::kSyncedArmorSlots. When the fallbacks of one
+        // missing item overlap, the earlier slot wins, so the most visible pieces
+        // go first: Body, Head, Hair, Hands, Feet, Shield, Amulet, Circlet.
+        constexpr std::array<std::size_t, Settings::kArmorSlotCount> kArmorSlotOrder{ 2, 0, 1, 3, 5, 6, 4, 7 };
 
         struct ResolvedFallbacks
         {
-            // Indexed by slot from 30, then by Multiplayer::EquipmentArmorType, with
-            // the slot's any-type item already applied to empty types.
+            // Indexed like Multiplayer::kSyncedArmorSlots, then by
+            // Multiplayer::EquipmentArmorType, with the slot's any-type item
+            // already applied to empty types.
             std::array<std::array<RE::TESObjectARMO*, Settings::kArmorTypeCount>, Settings::kArmorSlotCount> armor{};
             std::array<RE::TESObjectWEAP*, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> weapons{};
             RE::TESObjectLIGH* torch{ nullptr };
@@ -155,7 +140,7 @@ namespace EquipmentFallback
         }
         for (const auto slot : kArmorSlotOrder)
         {
-            const auto slotBit = 1U << slot;
+            const auto slotBit = 1U << Multiplayer::kSyncedArmorSlots[slot];
             if ((a_entry.slotMask & slotBit) == 0 || (a_occupiedSlots & slotBit) != 0)
             {
                 continue;
