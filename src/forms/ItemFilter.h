@@ -1,9 +1,6 @@
 #pragma once
 
-#include "protocol/EquipmentState.h"
-
 #include <cstdint>
-#include <optional>
 
 namespace Forms
 {
@@ -21,7 +18,6 @@ namespace Forms
         ItemKind kind{ ItemKind::kArmor };
         // Armor: biped slots, bit 0 being slot 30.
         std::uint32_t slotMask{ 0 };
-        Multiplayer::EquipmentArmorType armorType{ Multiplayer::EquipmentArmorType::kClothing };
         // Weapon: RE::WEAPON_TYPE, from PlayerEquipment::kMinimumWeaponType.
         std::uint8_t weaponType{ 0 };
         // Ammunition: a bolt rather than an arrow.
@@ -36,8 +32,6 @@ namespace Forms
         ItemKind kind{ ItemKind::kArmor };
         // Armor: the item covers at least one of these slots.
         std::uint32_t slotMask{ 0 };
-        // Armor: nullopt accepts every armor type.
-        std::optional<Multiplayer::EquipmentArmorType> armorType{};
         std::uint8_t weaponType{ 0 };
         bool bolt{ false };
 
@@ -50,7 +44,7 @@ namespace Forms
             switch (kind)
             {
                 case ItemKind::kArmor:
-                    return (a_traits.slotMask & slotMask) != 0 && (!armorType || a_traits.armorType == *armorType);
+                    return (a_traits.slotMask & slotMask) != 0;
                 case ItemKind::kWeapon:
                     return a_traits.weaponType == weaponType;
                 case ItemKind::kAmmo:

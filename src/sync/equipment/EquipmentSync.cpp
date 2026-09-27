@@ -2,7 +2,6 @@
 #include "actor/ActorAnimation.h"
 #include "actor/RemoteActor.h"
 #include "forms/FormLookup.h"
-#include "forms/ItemForms.h"
 #include "network/SocketIOClient.h"
 #include "runtime/Profiling.h"
 #include "sync/equipment/EquipmentFallback.h"
@@ -205,8 +204,7 @@ namespace EquipmentSync
                     ++a_skipped;
                     continue;
                 }
-                equipment.armor.push_back(EquipmentArmor{
-                    .form = *reference, .slotMask = slotMask, .armorType = Forms::GetArmorType(*armor) });
+                equipment.armor.push_back(EquipmentArmor{ .form = *reference, .slotMask = slotMask });
             }
 
             equipment.rightHand = CaptureHand(a_player.GetEquippedObject(false), false, a_skipped);

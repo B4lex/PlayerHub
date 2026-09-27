@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
 #include "ui/WindowManager.h"
+#include "ui/settings/ConnectionControls.h"
 #include "ui/widgets/ItemPicker.h"
 
 #include <imgui.h>
@@ -23,6 +24,9 @@ namespace UI
         // In font sizes, so the layout follows the overlay scale.
         constexpr ImVec2 kSizeFonts{ 44.0F, 32.0F };
         constexpr float kLabelWidthFonts = 11.0F;
+        // The row that ConnectionControls follows.
+        constexpr std::string_view kConnectionSection = "Network";
+        constexpr std::string_view kConnectionKey = "ServerEndpoint";
 
         constexpr float kBackgroundAlpha = 0.94F;
         constexpr ImVec4 kNoteColor{ 0.70F, 0.70F, 0.70F, 1.0F };
@@ -45,16 +49,6 @@ namespace UI
                     a_result += ' ';
                 }
                 a_result += a_name[index];
-            }
-        }
-
-        void FormatFormKey(std::string_view a_key, std::string& a_result)
-        {
-            a_result.assign(a_key);
-            if (const auto dot = a_result.find('.'); dot != std::string::npos)
-            {
-                a_result.replace(dot, 1, " (");
-                a_result += ')';
             }
         }
 
@@ -106,6 +100,7 @@ namespace UI
             void Section(std::string_view a_name, std::string_view a_comment) override
             {
                 EndSection();
+                sectionName = a_name;
                 FormatDisplayName(a_name, label);
                 ImGui::PushID(a_name.data(), a_name.data() + a_name.size());
                 if (!ImGui::BeginTabItem(label.c_str()))
@@ -163,6 +158,11 @@ namespace UI
                     return;
                 }
                 auto& field = GetField([&a_value] { return a_value; });
+                const bool connectionRow = sectionName == kConnectionSection && a_key == kConnectionKey;
+                if (connectionRow)
+                {
+                    ImGui::SetNextItemWidth(-(ConnectionControls::GetWidth() + ImGui::GetStyle().ItemSpacing.x));
+                }
                 if (DrawTextField(field))
                 {
                     field.valid = a_isValid(field.text);
@@ -170,6 +170,11 @@ namespace UI
                     {
                         a_value = field.text;
                     }
+                }
+                if (connectionRow)
+                {
+                    ImGui::SameLine();
+                    ConnectionControls::Draw();
                 }
                 EndRow(a_comment);
             }
@@ -232,7 +237,7 @@ namespace UI
                 sectionOpen = false;
             }
 
-            // Form keys keep the file's names, with the armor type in brackets.
+            // Form keys keep the file's names.
             bool BeginRow(std::string_view a_key, bool a_displayName)
             {
                 if (!sectionOpen)
@@ -246,7 +251,7 @@ namespace UI
                 }
                 else
                 {
-                    FormatFormKey(a_key, label);
+                    label.assign(a_key);
                 }
                 ImGui::AlignTextToFramePadding();
                 ImGui::TextUnformatted(label.c_str(), label.c_str() + label.size());
@@ -292,6 +297,8 @@ namespace UI
             // Reused so drawing formats labels and notes without allocating.
             std::string label;
             std::string note;
+            // Describe passes literals, so the view outlives the pass.
+            std::string_view sectionName;
             float footerHeight{ 0.0F };
             bool sectionOpen{ false };
         };

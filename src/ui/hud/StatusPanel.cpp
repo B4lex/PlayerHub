@@ -1,6 +1,8 @@
 #include "ui/hud/StatusPanel.h"
+#include "config/PluginConfig.h"
 #include "network/ConnectionMonitor.h"
 #include "network/SocketIOClient.h"
+#include "runtime/GameSession.h"
 #include "runtime/PluginTime.h"
 #include "ui/Layout.h"
 
@@ -64,6 +66,11 @@ namespace UI
 
     void StatusPanel::Draw(const WindowInput&)
     {
+        if (!GameSession::IsInGame() || !Config::Get()->ui.statusPanel)
+        {
+            return;
+        }
+
         SetNextWindowCorner(kCorner, kMarginPixels);
         ImGui::SetNextWindowBgAlpha(kBackgroundAlpha);
         if (!ImGui::Begin("##StatusPanel", nullptr, kWindowFlags))

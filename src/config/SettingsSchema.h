@@ -2,7 +2,6 @@
 
 #include "config/PluginConfig.h"
 #include "forms/ItemFilter.h"
-#include "protocol/EquipmentState.h"
 #include "protocol/FormReference.h"
 
 #include <cstddef>
@@ -62,14 +61,11 @@ namespace Config
     // Empty for a scan code that GetBindableKeys does not list.
     [[nodiscard]] std::string_view FormatKey(std::uint32_t a_scanCode);
 
-    // [EquipmentFallback] key names, so diagnostics name what to edit. No armor
-    // type means the slot's any-type key.
-    [[nodiscard]] std::string GetArmorFallbackKey(
-        std::size_t a_slotIndex, std::optional<Multiplayer::EquipmentArmorType> a_armorType);
+    // [EquipmentFallback] key names, so diagnostics name what to edit.
+    [[nodiscard]] std::string_view GetArmorFallbackKey(std::size_t a_slotIndex);
     [[nodiscard]] std::string_view GetWeaponFallbackKey(std::size_t a_weaponType);
 
     // The items each [EquipmentFallback] key accepts.
-    [[nodiscard]] Forms::ItemFilter GetArmorFallbackFilter(
-        std::size_t a_slotIndex, std::optional<Multiplayer::EquipmentArmorType> a_armorType);
+    [[nodiscard]] Forms::ItemFilter GetArmorFallbackFilter(std::size_t a_slotIndex);
     [[nodiscard]] Forms::ItemFilter GetWeaponFallbackFilter(std::size_t a_weaponType);
 }

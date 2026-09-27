@@ -54,12 +54,16 @@ namespace Network
         bool connected = false;
     };
 
-    // Starts the Socket.IO client. Safe to call more than once. The client never
-    // retries by itself; ConnectionMonitor drives every recovery through
-    // BeginReconnect.
+    // Prepares the Socket.IO client without connecting. Safe to call more than
+    // once. The client never connects or retries by itself; ConnectionMonitor
+    // opens every connection through BeginReconnect.
     void Initialize();
 
     [[nodiscard]] bool IsConnected();
+
+    // Whether the Engine.IO transport is open. It outlasts IsConnected while a
+    // close is in progress. Safe to call from any thread.
+    [[nodiscard]] bool IsTransportOpen();
 
     // Advances every time the default namespace opens, including automatic
     // reconnects. The server forgets per-connection state, so latest-wins
@@ -109,14 +113,22 @@ namespace Network
 
     // Closes whatever is left of the old transport and opens a new one on a
     // worker thread, whether the loss was ours, the server's, or a failed
-    // attempt. Returns false while a previous call is still working.
+    // attempt. Returns false while a previous BeginReconnect or BeginClose is
+    // still working.
     [[nodiscard]] bool BeginReconnect();
 
-    // Whether the latest attempt, from Initialize or BeginReconnect, went to an
-    // endpoint other than the configured one. False before Initialize.
+    // Reports the client disconnected at once, forgetting every remote player,
+    // and closes the connection or pending attempt on a worker thread. Until the
+    // next BeginReconnect, a namespace that still opens is not reported as
+    // connected. Returns false while a previous BeginReconnect or BeginClose is
+    // still working; the caller retries. Main-loop thread.
+    [[nodiscard]] bool BeginClose();
+
+    // Whether the latest attempt went to an endpoint other than the configured
+    // one. False before the first attempt.
     [[nodiscard]] bool IsEndpointOutdated();
 
-    // Whether the latest attempt, from Initialize or BeginReconnect, has been
+    // Whether the latest attempt from BeginReconnect has been
     // handed to the transport and then failed or closed before the namespace
     // opened.
     [[nodiscard]] bool DidReconnectAttemptFail();

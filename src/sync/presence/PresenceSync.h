@@ -4,7 +4,8 @@
 
 // Whether the local player is placed in the game world, as opposed to the main
 // menu or a loading screen. Peers keep a remote actor only while its player is
-// in the world, and the server accepts checkpoints only then.
+// in the world, and the server accepts checkpoints only then. Also starts and
+// ends the GameSession.
 namespace PresenceSync
 {
     // Registers the menu sink that reports leaving the world as soon as a

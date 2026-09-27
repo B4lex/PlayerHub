@@ -8,7 +8,7 @@ which has not been run in game yet. On Linux,
 `ItemCatalog.cpp`, `ItemPicker.cpp`, `SettingsWindow.cpp`, `SettingsSchema.cpp`,
 and `PluginConfig.cpp` were compiled against Dear ImGui 1.92.9 and SimpleIni with
 stubbed SKSE headers, and run headless with a fake catalog and a stand-in
-`ItemPreview`. The checks covered: filters per key (the head slot group, armor type,
+`ItemPreview`. The checks covered: filters per key (the head slot group,
 weapon type, arrows and bolts), multi-word search, case-insensitive lookup, a
 list that shows only matching items, the preview following the hovered row, Enter
 picking the first match, None clearing a value, Escape closing the list before the
@@ -38,7 +38,7 @@ for example) can pick items the same way.
 src/forms/
   ItemFilter.h              # ItemTraits, ItemFilter (plain data, no engine types)
   ItemCatalog.h/.cpp        # immutable, searchable list of named items
-  ItemForms.h/.cpp          # engine side: GetItemTraits, GetArmorType, BuildItemCatalog
+  ItemForms.h/.cpp          # engine side: GetItemTraits, BuildItemCatalog
 src/ui/
   widgets/ItemPicker.h/.cpp # the dropdown widget
   preview/ItemPreview.h/.cpp  # Inventory3DManager capture into an ImGui texture
@@ -47,7 +47,7 @@ src/ui/
 ## Item filter
 
 `Forms::ItemTraits` is what decides whether an item can stand in for another: its
-kind, and its slot mask and armor type, weapon type, or bolt flag.
+kind, and its slot mask, weapon type, or bolt flag.
 `Forms::GetItemTraits` reads them from a form. `Forms::ItemFilter::Matches` checks
 them against what a setting accepts.
 
@@ -60,9 +60,8 @@ so the list and the live behavior never disagree.
 
 | Key | Accepts |
 | --- | --- |
-| `<Slot>.Light`, `.Heavy`, `.Clothing` (not for `Amulet` and `Circlet`) | armor of that armor type covering the slot |
-| `<Slot>` | armor of any armor type covering the slot |
-| `Head`, `Hair`, `Circlet`, and their types | armor covering any of these three slots |
+| `<Slot>` | armor covering the slot |
+| `Head`, `Circlet` | armor covering Head, Hair, or Circlet |
 | weapon keys | a weapon of exactly that weapon type |
 | `Torch` | a carriable light |
 | `Arrow`, `Bolt` | ammunition that is not, or is, a bolt |

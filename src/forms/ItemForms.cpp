@@ -1,6 +1,7 @@
 #include "forms/ItemForms.h"
 #include "forms/FormLookup.h"
 #include "forms/ItemCatalog.h"
+#include "protocol/EquipmentState.h"
 #include "runtime/Profiling.h"
 
 #include <cstdint>
@@ -65,7 +66,7 @@ namespace Forms
             {
                 return std::nullopt;
             }
-            return ItemTraits{ .kind = ItemKind::kArmor, .slotMask = slotMask, .armorType = GetArmorType(*armor) };
+            return ItemTraits{ .kind = ItemKind::kArmor, .slotMask = slotMask };
         }
         if (const auto* weapon = a_form.As<RE::TESObjectWEAP>())
         {
@@ -86,19 +87,6 @@ namespace Forms
             return ItemTraits{ .kind = ItemKind::kAmmo, .bolt = ammo->IsBolt() };
         }
         return std::nullopt;
-    }
-
-    Multiplayer::EquipmentArmorType GetArmorType(const RE::TESObjectARMO& a_armor)
-    {
-        switch (a_armor.GetArmorType())
-        {
-            case RE::BIPED_MODEL::ArmorType::kLightArmor:
-                return Multiplayer::EquipmentArmorType::kLight;
-            case RE::BIPED_MODEL::ArmorType::kHeavyArmor:
-                return Multiplayer::EquipmentArmorType::kHeavy;
-            default:
-                return Multiplayer::EquipmentArmorType::kClothing;
-        }
     }
 
     void BuildItemCatalog()
