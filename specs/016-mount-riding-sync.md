@@ -252,6 +252,20 @@ such as the mount interaction's and idles, still pass. The network gait
 bypasses the firewall, as for every remote actor. A 2 s gait sample per role
 logs `Speed` and `HorseSpeedSampled`.
 
+While a clip holds the mount, the network gait is not applied, and the
+firewall still blocks the stop Skyrim sends into the mount's graph. A dismount
+received right after a galloping checkpoint therefore started over running
+locomotion. The mount ran on its root motion against the dismount clip: it
+shook, jumped up to 50 units between samples, lost support, and the dismount
+timed out. This happened with the local player 400 to 900 units away. Once the
+clip plays, the mount's graph rejects `moveStop`, so stopping it then is too
+late. A received dismount therefore holds the mount first, drives its gait and
+the rider's to a stop (speed 0, `moveStop`, reconciled every 0.25 s), and
+starts once the mount's `IsMoving` clears, or after 1 s. A pending exit does
+not expire during that wait, and a pending enter does not expire while the
+previous dismount plays. The dismount's log reports `haltWait` and
+`mountMoving`.
+
 The rider's registration is marked mounted while it is seated. Like furniture
 ownership, that lets the firewall admit every native graph event on the rider,
 because the mount interaction drives the rider's graph.
@@ -261,6 +275,21 @@ its character body is out of every collision while it is on its mount. The
 mount skips the movement update, with its body out of collision, while the
 network places it, and runs it while a clip holds it
 (`specs/017-remote-actor-world-isolation.md`).
+
+A seated rider's bone and weapon bodies are on `kBipedNoCC`, which the local
+player's proxy controller collides with, and they hang at the mount's flanks,
+so the rider blocked the player even with its character body isolated. The
+pass-through hook therefore lets the player's movement update ignore every
+remote character and skeleton body its phantom (a caching shape phantom)
+overlaps, only for that update.
+
+The mount's character body collides while a clip holds it, and a seated
+rider's bones overlap it. While the rider is on its mount, its skeleton bodies
+therefore also have the no-collision bit. Skyrim rewrote the rider's character body filter
+around seating, and a rebuilt 3D brings new bodies, so the rider update
+reasserts the bit every half second. It is cleared once the rider is off the
+mount or dies. `Remote actor skeleton collision disabled`, `reasserted`, and
+`restored` log each change with the number of bodies changed.
 
 ## Engine assumptions
 
@@ -316,6 +345,11 @@ To verify in game, from `latest.log`:
 - An animated dismount logs `Starting remote player … dismount … started=true`,
   `finished its dismount`, and `Removed remote player … mount … after actor …
   dismounted`. The actor walks on from where it got off, without a respawn.
+- An enter received while the previous dismount still plays waits for it
+  instead of expiring (no `did not start within`). If the checkpoint rides
+  again when the dismount ends, the actor logs `mounts … again after its
+  dismount` and plays the mount animation on the same horse
+  (`animated=true`).
 - A player killed, or leaving the space, during either clip logs
   `Deferring removal` and then `Removed … after their mount clip ended`, without
   a crash.
@@ -326,6 +360,13 @@ To verify in game, from `latest.log`:
 - The rider and its horse log `Remote actor character body collision
   disabled`, and the rider `restored` after its dismount. The local player
   walks through both, whether on foot or riding.
+- The local player walks through a seated rider's legs while it rides.
+- A seated rider logs `Remote actor skeleton collision disabled` with a
+  non-zero body count, and `restored` after its dismount.
+- A dismount started right after galloping logs `Remote mount gait changed:
+  … moving=false accepted=true`, then `Starting … dismount` with a non-zero
+  `haltWait` and `mountMoving=false`. During mount and dismount clips the horse
+  holds still, and no dismount times out.
 - Removing the seated pair on a dismount and on death does not crash
   (`Recycling ... after the player dismounted: seated=true transition=false`).
 

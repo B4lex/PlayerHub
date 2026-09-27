@@ -35,7 +35,8 @@ namespace ActorRuntime
         // Kept on its target transform without a gait, until its rider is first
         // seated. A new mount beside its rider can be pushed off its spot.
         kPlaced,
-        // A mount or dismount clip owns its graph and placement.
+        // Skyrim moves it with its gait stopped: a mount or dismount clip owns its
+        // graph and placement, or a received dismount waits for it to halt.
         kHeld
     };
 

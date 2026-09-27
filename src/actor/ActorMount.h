@@ -53,6 +53,8 @@ namespace ActorMount
     // Either actor is getting on or off a mount, so a paired clip may link their
     // graphs.
     [[nodiscard]] bool IsInTransition(const RemoteActor& a_rider, const RemoteActor* a_mount);
+    // The mount's graph is still in its locomotion state.
+    [[nodiscard]] bool IsGraphMoving(const RemoteActor& a_mount);
     // The rider's sit state, for diagnostics.
     [[nodiscard]] std::uint32_t GetSitSleepState(const RemoteActor& a_rider);
 

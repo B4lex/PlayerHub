@@ -207,6 +207,14 @@ namespace ActorMount
             || (mountPtr && IsGettingOnOrOff(*mountPtr));
     }
 
+    bool IsGraphMoving(const RemoteActor& a_mount)
+    {
+        static const RE::BSFixedString isMovingVariable{ "IsMoving" };
+        auto mountPtr = a_mount.handle.get();
+        bool moving = false;
+        return mountPtr && mountPtr->GetGraphVariableBool(isMovingVariable, moving) && moving;
+    }
+
     std::uint32_t GetSitSleepState(const RemoteActor& a_rider)
     {
         auto riderPtr = a_rider.handle.get();

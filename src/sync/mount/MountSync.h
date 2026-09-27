@@ -40,9 +40,9 @@ namespace MountSync
         bool seated{ false };
         // The last seat played the mount animation.
         bool animatedSeat{ false };
-        // The rider was seated once. From then on it is never driven on foot
-        // again, even while it is being seated anew: its graph is in the riding
-        // state, and only a respawn or an animated dismount returns it to
+        // The rider was seated. Until an animated dismount clears this, it is
+        // never driven on foot, even while it is being seated anew: its graph is
+        // in the riding state, and only a respawn or that dismount returns it to
         // locomotion.
         bool carriesRider{ false };
         // A mount or dismount clip was playing in this pass.
@@ -52,6 +52,8 @@ namespace MountSync
         // An animated dismount started, and the seconds since.
         bool exiting{ false };
         float exitElapsed{ 0.0F };
+        // Seconds a received dismount has waited for the mount to halt.
+        float haltElapsed{ 0.0F };
         // The animated dismount ended with the rider standing beside its mount,
         // and the seconds since. The mount is removed once the newest checkpoint no
         // longer rides.
