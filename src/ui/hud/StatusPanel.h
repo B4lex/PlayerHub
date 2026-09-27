@@ -1,9 +1,12 @@
 #pragma once
 
-namespace UI::StatusPanel
+#include "ui/Window.h"
+
+#include <memory>
+
+namespace UI
 {
-    // Draws the connection state, round-trip latency, and the plugin's average
-    // frame time in a screen corner.
-    // Call between ImGui::NewFrame and ImGui::Render.
-    void Draw();
+    // Shows the connection state, round-trip latency, and the plugin's average
+    // frame time in a screen corner. Display only.
+    [[nodiscard]] std::unique_ptr<Window> CreateStatusPanel();
 }

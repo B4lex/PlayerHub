@@ -79,6 +79,13 @@ to `http://127.0.0.1:3000` for local testing.
   and forget all of its state. The server pings every client every 5 seconds
   and disconnects one that does not answer within 10 more, so a crashed or
   unreachable player is removed within 10 seconds.
+- `chat:send` carries `{"text": ...}` typed by the player. Surrounding spaces
+  are trimmed; empty text, control characters, or more than 512 UTF-8 bytes are
+  rejected with `{"ok": false, "error": "invalid chat message"}`, and more than
+  5 messages in 5 seconds from one player with `"rate limited"`. An accepted
+  message is relayed as `chat:message` with `playerId` and the sender's
+  character `name` to every player, the sender included, and is not recorded.
+  See `specs/020-player-chat.md`.
 - `latency:probe` is acknowledged immediately with `{"ok": true, "serverTimeMs": ...}`
   and never relayed. The plugin sends one per second, shows the acknowledgement
   round trip as its ping, and uses `serverTimeMs` to estimate the server clock.

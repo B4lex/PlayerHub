@@ -9,7 +9,7 @@
 #include <chrono>
 #include <optional>
 
-namespace UI::StatusPanel
+namespace UI
 {
     namespace
     {
@@ -54,9 +54,15 @@ namespace UI::StatusPanel
             const std::chrono::duration<double, std::milli> milliseconds = *a_average;
             ImGui::TextColored(kMutedColor, "Plugin %.2f ms", milliseconds.count());
         }
+
+        class StatusPanel final : public Window
+        {
+        public:
+            void Draw(const WindowInput&) override;
+        };
     }
 
-    void Draw()
+    void StatusPanel::Draw(const WindowInput&)
     {
         SetNextWindowCorner(kCorner, kMarginPixels);
         ImGui::SetNextWindowBgAlpha(kBackgroundAlpha);
@@ -77,5 +83,10 @@ namespace UI::StatusPanel
         DrawPluginTime(PluginTime::GetAverageFrameTime());
 
         ImGui::End();
+    }
+
+    std::unique_ptr<Window> CreateStatusPanel()
+    {
+        return std::make_unique<StatusPanel>();
     }
 }

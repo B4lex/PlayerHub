@@ -29,19 +29,65 @@ ImGui settings screen without changing the network side.
 
 ```text
 src/ui/
-  Overlay.h/.cpp            # renderer hook, ImGui context/backends, frame order
+  Overlay.h/.cpp            # renderer hook, ImGui context/backends, window registration
+  Fonts.h/.cpp              # system fonts with fallbacks for non-Latin scripts
+  Window.h                  # interface every overlay window implements
+  WindowManager.h/.cpp      # registered windows, draw order, input focus
+  InputCapture.h/.cpp       # input dispatch hook: focus keys, routing to ImGui
   Layout.h                  # shared placement helpers (screen corners)
   hud/StatusPanel.h/.cpp    # always-on connection, ping, and plugin time widget
+  chat/ChatWindow.h/.cpp    # global chat, see specs/020-player-chat.md
 src/network/
   ConnectionMonitor.h/.cpp  # probe cadence, timeout, latest sample, reconnect schedule
 src/runtime/
   PluginTime.h/.cpp         # plugin time per main-loop pass, averaged each second
 ```
 
-`ui/` reads state and never changes the game or the network. `Overlay::DrawFrame`
-calls each widget in a fixed order. Like `SyncCoordinator`, it uses no widget
-registry or virtual interface. Add later screens as siblings, for example
-`ui/menu/SettingsMenu`.
+`ui/` never changes the game; it reaches the network only through the feature
+modules it presents, such as `ChatSync`. Every screen is an independent
+`UI::Window`: `Overlay::Install` registers each one with `WindowManager` at
+startup, and `Overlay::DrawFrame` draws them all in registration order. Windows
+never reference each other. A window's header exposes only a factory, such as
+`CreateChatWindow`, so its state stays in its own `.cpp`. Add later screens as
+siblings, for example `ui/menu/SettingsMenu`, and register them in
+`Overlay::Install`.
+
+## Input focus
+
+At most one window holds input focus. While one does, Dear ImGui receives the
+keyboard and the game receives no keyboard or mouse input.
+
+- A window names its focus keys with `Window::IsFocusKey` (DirectInput scan
+  codes). `InputCapture` gives it focus when such a key is pressed during
+  gameplay with no window focused, and the game never sees that press. The key
+  is inert until the overlay has drawn once.
+- Gameplay means the game is not paused and `kGameplay` is the active input
+  context, the last entry of `ControlMap::contextPriorityStack`: 1.7.104's
+  `PushInputContext` appends, keeping the console on top. Any menu, the console,
+  dialogue, or a loading screen therefore blocks focus keys, and taking over
+  input while a window is focused releases its focus.
+- A window gives focus back with `WindowManager::ReleaseFocus(*this)`.
+- `InputCapture` replaces the `call` at `+0x7B` in
+  `BSInputDeviceManager::PollInputDevices` (IDs 67315/68617), which is
+  `BSTEventSource<InputEvent*>::SendEvent(this, &head)` on 1.7.104 and feeds the
+  menu and player-control sinks. The engine calls `ClearInputQueue` right after,
+  and `PushOntoInputQueue` resets each event's `next`, so the thunk relinks the
+  list to drop the events the game must not see. SE uses the same offset as
+  other public ImGui overlays but has not been checked here; the detour refuses
+  to patch anything but a `call`.
+- Every event of a key or button press goes where its press went. A key held
+  while a window takes focus is still released to the game, and a key that
+  closed a window is not released to it.
+- Keyboard presses and releases become ImGui key events: editing and navigation
+  keys, modifiers, and the letters used by editing shortcuts (scan codes are
+  physical positions). Typed text comes from Skyrim's `CharEvent`s. Tab is not
+  forwarded, so it cannot move keyboard focus off a text field. Mouse movement
+  and buttons are swallowed; wheel notches are handed to the focused window.
+  Gamepad input always reaches the game.
+- Events are queued under a lock and applied in `Overlay::DrawFrame` before
+  `ImGui::NewFrame`, since the renderer hook is not guaranteed to run on the
+  main-loop thread. Losing focus sends `AddFocusEvent(false)`, which releases
+  every key ImGui holds.
 
 ## Rendering
 
@@ -55,12 +101,44 @@ registry or virtual interface. Add later screens as siblings, for example
   overlay turns itself off for the session and logs an error.
 - `io.DisplaySize` comes from the swap chain's back buffer, not the window's
   client rectangle. Sizes and fonts are written for 1080p and scaled by
-  `backBufferHeight / 1080` (at least 0.5) with the scalable default vector font.
+  `backBufferHeight / 1080` (at least 0.5). Dear ImGui 1.92 rasterizes glyphs
+  on demand at the size they are drawn, so the fonts below need no glyph ranges.
+
+## Fonts
+
+`Fonts::Load` reads from the system fonts folder (`FOLDERID_Fonts`, which is
+`C:\windows\Fonts` in a Wine or Proton prefix) the files in this order: the
+first one found is the main font, and each later one is merged and only
+supplies glyphs the earlier ones lack.
+
+| Files | Adds |
+| --- | --- |
+| `segoeui.ttf`, `arial.ttf` | Latin, Greek, Cyrillic |
+| `tahoma.ttf`, `micross.ttf` | Arabic, Hebrew, Thai |
+| `Nirmala.ttc`, `nirmala.ttf` | Indic scripts |
+| `msyh.ttc`, `msyh.ttf` | Chinese, also kana and Hangul in Proton's copy |
+| `YuGothM.ttc`, `msgothic.ttc` | Japanese |
+| `malgun.ttf` | Korean |
+| `seguisym.ttf` | Symbols |
+
+Windows has Segoe UI; Proton prefixes have Arial and the rest except
+Segoe UI, Yu Gothic, and Segoe UI Symbol. Missing files are skipped. Each file
+is memory-mapped read-only and handed to the atlas with
+`FontDataOwnedByAtlas = false`, which since 1.92 means the atlas reads it in
+place for its whole lifetime, so the views are never unmapped. Only the pages
+holding drawn glyphs are read, so the CJK fonts cost address space rather than
+memory. If no file loads, the overlay uses Dear ImGui's default vector font,
+which covers Latin only. The log lists the fonts that loaded.
+
+Han characters take the Chinese forms of Microsoft YaHei, since it comes before
+the Japanese fonts. Characters outside the Basic Multilingual Plane, such as
+emoji, never reach a window: Skyrim keeps only single-unit `ToUnicode` results
+when it builds `CharEvent`s (checked against 1.7.104).
 - The DX11 backend does not save or restore the output merger. The overlay binds
   the swap chain's render target view, draws, and then restores the previous
   targets.
-- `ImGuiConfigFlags_NoMouse`, `NoMouseCursorChange`, and `NoKeyboard` are set, and
-  `imgui.ini` is disabled.
+- `ImGuiConfigFlags_NoMouse` and `NoMouseCursorChange` are set, and `imgui.ini`
+  is disabled. The keyboard reaches ImGui only through `InputCapture`.
 
 ## Latency measurement
 
@@ -146,11 +224,9 @@ Below the ping line, always shown whatever the connection state:
 
 ## Future work: settings screen
 
-- Input: Skyrim reads keyboard and mouse through DirectInput, so window messages
-  alone do not reach ImGui reliably. An interactive menu must feed ImGui from the
-  `BSInputDeviceManager` input event stream, block those events from the game
-  while the menu is open, and show a cursor. When that input is scaled, it must
-  use the same back-buffer size as `io.DisplaySize`.
+- Mouse: `InputCapture` already routes the keyboard. A mouse-driven menu also
+  needs an absolute cursor built from DirectInput's relative motion, drawn by
+  ImGui and scaled to the same back-buffer size as `io.DisplaySize`.
 - Settings storage: add one settings module that loads and saves a file under
   `Data/SKSE/Plugins/` and is read by the game thread. The server endpoint file
   and `StatusPanel::kCorner` are the first candidates to move there.

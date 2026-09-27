@@ -460,3 +460,25 @@ def parse_player_equipment(data: Any) -> dict[str, Any] | None:
         "leftHand": left_hand,
         "ammo": ammo,
     }
+
+
+MAXIMUM_CHAT_TEXT_BYTES = 512
+
+
+def parse_chat_message(data: Any) -> dict[str, str] | None:
+    """Validate a chat line typed by a player. Surrounding spaces are trimmed."""
+    if not isinstance(data, dict):
+        return None
+    text = data.get("text")
+    if not isinstance(text, str):
+        return None
+    text = text.strip(" ")
+    if not text or any(ord(c) < 0x20 or ord(c) == 0x7F for c in text):
+        return None
+    try:
+        encoded = text.encode("utf-8")
+    except UnicodeEncodeError:
+        return None
+    if len(encoded) > MAXIMUM_CHAT_TEXT_BYTES:
+        return None
+    return {"text": text}

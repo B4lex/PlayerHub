@@ -1,6 +1,9 @@
 #include "ui/Overlay.h"
 #include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
+#include "ui/Fonts.h"
+#include "ui/WindowManager.h"
+#include "ui/chat/ChatWindow.h"
 #include "ui/hud/StatusPanel.h"
 
 #include <backends/imgui_impl_dx11.h>
@@ -40,14 +43,12 @@ namespace UI::Overlay
             auto& io = ImGui::GetIO();
             io.IniFilename = nullptr;
             io.LogFilename = nullptr;
-            // Display only for now: Skyrim reads input through DirectInput, so an
-            // interactive menu needs its own input routing before these are lifted.
-            io.ConfigFlags
-                |= ImGuiConfigFlags_NoMouse | ImGuiConfigFlags_NoMouseCursorChange | ImGuiConfigFlags_NoKeyboard;
+            // Skyrim reads the mouse through DirectInput as relative motion, so
+            // windows are keyboard-only. The keyboard reaches ImGui only through
+            // InputCapture, while a window has focus.
+            io.ConfigFlags |= ImGuiConfigFlags_NoMouse | ImGuiConfigFlags_NoMouseCursorChange;
 
-            ImFontConfig fontConfig;
-            fontConfig.SizePixels = kBaseFontSize;
-            io.Fonts->AddFontDefaultVector(&fontConfig);
+            Fonts::Load(*io.Fonts, kBaseFontSize);
 
             ImGui::StyleColorsDark();
             auto& style = ImGui::GetStyle();
@@ -129,9 +130,10 @@ namespace UI::Overlay
             io.DisplaySize = ImVec2{ static_cast<float>(swapChainDesc.bufferDesc.width),
                 static_cast<float>(swapChainDesc.bufferDesc.height) };
             ApplyScale(io.DisplaySize.y);
+            const auto wheelSteps = InputCapture::ForwardToImGui();
 
             ImGui::NewFrame();
-            StatusPanel::Draw();
+            WindowManager::DrawAll(wheelSteps);
             ImGui::Render();
 
             // The DX11 backend restores the pipeline state it changes, except the
@@ -180,6 +182,10 @@ namespace UI::Overlay
             logs::warn("UI overlay is not supported in Skyrim VR; renderer hook not installed");
             return;
         }
+
+        WindowManager::Register(CreateStatusPanel());
+        WindowManager::Register(CreateChatWindow());
+        InputCapture::Install();
 
         REL::Relocation<std::uintptr_t> rendererEndTimerCall{ RELOCATION_ID(75461, 77246), 0x9 };
         RendererEndHook::_original

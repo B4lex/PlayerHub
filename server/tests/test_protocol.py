@@ -1,6 +1,12 @@
 import unittest
 
-from server.protocol import parse_animation_action, parse_mount_transition, parse_player_update
+from server.protocol import (
+    MAXIMUM_CHAT_TEXT_BYTES,
+    parse_animation_action,
+    parse_chat_message,
+    parse_mount_transition,
+    parse_player_update,
+)
 
 
 class ParsePlayerUpdateTests(unittest.TestCase):
@@ -627,3 +633,24 @@ class ParseMountTransitionTests(unittest.TestCase):
 
         self.assertIsNone(parse_mount_transition(None))
         self.assertIsNone(parse_mount_transition({"graphEpoch": 2, "checkpointSequence": 18}))
+
+
+class ParseChatMessageTests(unittest.TestCase):
+    def test_accepts_text_and_trims_surrounding_spaces(self) -> None:
+        self.assertEqual(parse_chat_message({"text": "  Hello, Whiterun  "}), {"text": "Hello, Whiterun"})
+        self.assertEqual(parse_chat_message({"text": "Привіт"}), {"text": "Привіт"})
+
+    def test_accepts_text_up_to_the_byte_limit(self) -> None:
+        # Two UTF-8 bytes per character.
+        text = "é" * (MAXIMUM_CHAT_TEXT_BYTES // 2)
+        self.assertEqual(parse_chat_message({"text": text}), {"text": text})
+        self.assertIsNone(parse_chat_message({"text": text + "é"}))
+
+    def test_rejects_invalid_text(self) -> None:
+        for text in (None, 7, True, "", "   ", "line\nbreak", "tab\there", "bell\x07", "del\x7f", "\ud800"):
+            with self.subTest(text=text):
+                self.assertIsNone(parse_chat_message({"text": text}))
+
+        self.assertIsNone(parse_chat_message(None))
+        self.assertIsNone(parse_chat_message("hello"))
+        self.assertIsNone(parse_chat_message({}))
