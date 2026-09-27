@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
 #include "forms/FormLookup.h"
+#include "forms/ItemForms.h"
 
 #include <algorithm>
 #include <array>
@@ -54,43 +55,26 @@ namespace EquipmentFallback
         std::uint64_t resolvedConfigRevision{ 0 };
         std::uint64_t generation{ 0 };
 
-        // Resolves one configured item, or logs why it cannot be used. a_accept
-        // returns the typed form, or null for a form of the wrong kind.
-        template <class T, class Accept>
-        T* ResolveConfigured(
-            const FormReference& a_reference, std::string_view a_label, std::uint32_t& a_unusable, Accept a_accept)
+        // Resolves one configured item, or logs why it cannot be used. The
+        // settings window offers only items a_filter matches.
+        template <class T>
+        T* ResolveConfigured(const FormReference& a_reference, std::string_view a_label,
+            const Forms::ItemFilter& a_filter, std::uint32_t& a_unusable)
         {
             if (a_reference.IsEmpty())
             {
                 return nullptr;
             }
             auto* form = FormLookup::ResolveForm(a_reference);
-            T* accepted = form ? a_accept(*form) : nullptr;
+            const auto traits = form ? Forms::GetItemTraits(*form) : std::nullopt;
+            T* accepted = traits && a_filter.Matches(*traits) ? form->As<T>() : nullptr;
             if (!accepted)
             {
                 ++a_unusable;
                 logs::warn("Equipment fallback ignored [EquipmentFallback] {}: item={}|{:06X} reason={}", a_label,
-                    a_reference.plugin, a_reference.localFormID, form ? "wrong-type" : "missing");
+                    a_reference.plugin, a_reference.localFormID, form ? "does-not-fit" : "missing");
             }
             return accepted;
-        }
-
-        RE::TESObjectARMO* ResolveArmor(
-            const FormReference& a_reference, std::string_view a_label, std::uint32_t& a_unusable)
-        {
-            return ResolveConfigured<RE::TESObjectARMO>(a_reference, a_label, a_unusable, [](RE::TESForm& a_form) {
-                auto* armor = a_form.As<RE::TESObjectARMO>();
-                return armor && armor->GetSlotMask().underlying() != 0 ? armor : nullptr;
-            });
-        }
-
-        RE::TESAmmo* ResolveAmmo(
-            const FormReference& a_reference, std::string_view a_label, bool a_bolt, std::uint32_t& a_unusable)
-        {
-            return ResolveConfigured<RE::TESAmmo>(a_reference, a_label, a_unusable, [a_bolt](RE::TESForm& a_form) {
-                auto* ammo = a_form.As<RE::TESAmmo>();
-                return ammo && ammo->IsBolt() == a_bolt ? ammo : nullptr;
-            });
         }
     }
 
@@ -111,12 +95,15 @@ namespace EquipmentFallback
         for (std::size_t slot = 0; slot < settings.armor.size(); ++slot)
         {
             const auto& configured = settings.armor[slot];
-            auto* anyType
-                = ResolveArmor(configured.anyArmorType, Config::GetArmorFallbackKey(slot, std::nullopt), unusable);
+            auto* anyType = ResolveConfigured<RE::TESObjectARMO>(configured.anyArmorType,
+                Config::GetArmorFallbackKey(slot, std::nullopt), Config::GetArmorFallbackFilter(slot, std::nullopt),
+                unusable);
             for (std::size_t type = 0; type < configured.byArmorType.size(); ++type)
             {
-                auto* armor = ResolveArmor(configured.byArmorType[type],
-                    Config::GetArmorFallbackKey(slot, static_cast<Multiplayer::EquipmentArmorType>(type)), unusable);
+                const auto armorType = static_cast<Multiplayer::EquipmentArmorType>(type);
+                auto* armor = ResolveConfigured<RE::TESObjectARMO>(configured.byArmorType[type],
+                    Config::GetArmorFallbackKey(slot, armorType), Config::GetArmorFallbackFilter(slot, armorType),
+                    unusable);
                 resolved.armor[slot][type] = armor ? armor : anyType;
             }
         }
@@ -124,19 +111,12 @@ namespace EquipmentFallback
         for (std::size_t type = Multiplayer::PlayerEquipment::kMinimumWeaponType; type < settings.weapons.size();
             ++type)
         {
-            resolved.weapons[type] = ResolveConfigured<RE::TESObjectWEAP>(
-                settings.weapons[type], Config::GetWeaponFallbackKey(type), unusable, [type](RE::TESForm& a_form) {
-                    auto* weapon = a_form.As<RE::TESObjectWEAP>();
-                    return weapon && static_cast<std::size_t>(weapon->GetWeaponType()) == type ? weapon : nullptr;
-                });
+            resolved.weapons[type] = ResolveConfigured<RE::TESObjectWEAP>(settings.weapons[type],
+                Config::GetWeaponFallbackKey(type), Config::GetWeaponFallbackFilter(type), unusable);
         }
-        resolved.torch
-            = ResolveConfigured<RE::TESObjectLIGH>(settings.torch, "Torch", unusable, [](RE::TESForm& a_form) {
-                  auto* light = a_form.As<RE::TESObjectLIGH>();
-                  return light && light->CanBeCarried() ? light : nullptr;
-              });
-        resolved.arrow = ResolveAmmo(settings.arrow, "Arrow", false, unusable);
-        resolved.bolt = ResolveAmmo(settings.bolt, "Bolt", true, unusable);
+        resolved.torch = ResolveConfigured<RE::TESObjectLIGH>(settings.torch, "Torch", Forms::kTorchFilter, unusable);
+        resolved.arrow = ResolveConfigured<RE::TESAmmo>(settings.arrow, "Arrow", Forms::kArrowFilter, unusable);
+        resolved.bolt = ResolveConfigured<RE::TESAmmo>(settings.bolt, "Bolt", Forms::kBoltFilter, unusable);
 
         logs::info("Equipment fallback initialized: unusableItems={} generation={}", unusable,
             static_cast<unsigned long long>(generation));

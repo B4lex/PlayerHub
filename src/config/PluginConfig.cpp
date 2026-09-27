@@ -117,7 +117,7 @@ namespace Config
                 WarnInvalid(a_key, *value, a_value);
             }
 
-            void Form(std::string_view a_key, FormReference& a_value) override
+            void Form(std::string_view a_key, FormReference& a_value, const Forms::ItemFilter&) override
             {
                 const auto value = Take(a_key);
                 if (!value)
@@ -214,7 +214,7 @@ namespace Config
                 Text(a_key, a_value, a_comment);
             }
 
-            void Form(std::string_view a_key, FormReference& a_value) override
+            void Form(std::string_view a_key, FormReference& a_value, const Forms::ItemFilter&) override
             {
                 Text(a_key, FormatFormReference(a_value), {});
             }

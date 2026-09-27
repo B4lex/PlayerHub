@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
 #include "ui/WindowManager.h"
+#include "ui/widgets/ItemPicker.h"
 
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
@@ -11,11 +12,9 @@
 #include <cfloat>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <utility>
 
 namespace UI
 {
@@ -33,7 +32,6 @@ namespace UI
         // Only each tab's content scrolls, so the tabs and buttons stay in view.
         constexpr ImGuiWindowFlags kWindowFlags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse
             | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-        constexpr std::string_view kFormHint = "Plugin.esp|0x000000";
 
         // "SpawnsPerSecond" becomes "Spawns Per Second". Reuses a_result's storage.
         void FormatDisplayName(std::string_view a_name, std::string& a_result)
@@ -73,7 +71,11 @@ namespace UI
         {
         public:
             // Fields show the configuration's values again on the next draw.
-            void Reset() { fields.clear(); }
+            void Reset()
+            {
+                fields.clear();
+                itemPicker.Reset();
+            }
 
             [[nodiscard]] bool HasInvalidFields() const
             {
@@ -151,7 +153,7 @@ namespace UI
                     return;
                 }
                 auto& field = GetField([&a_value] { return a_value; });
-                if (DrawTextField(field, {}))
+                if (DrawTextField(field))
                 {
                     field.valid = a_isValid(field.text);
                     if (field.valid)
@@ -162,24 +164,14 @@ namespace UI
                 EndRow(a_comment);
             }
 
-            void Form(std::string_view a_key, Multiplayer::FormReference& a_value) override
+            void Form(
+                std::string_view a_key, Multiplayer::FormReference& a_value, const Forms::ItemFilter& a_filter) override
             {
                 if (!BeginRow(a_key, false))
                 {
                     return;
                 }
-                auto& field = GetField([&a_value] { return Config::FormatFormReference(a_value); });
-                if (DrawTextField(field, kFormHint))
-                {
-                    auto parsed = field.text.find_first_not_of(" \t") == std::string::npos
-                        ? std::optional{ Multiplayer::FormReference{} }
-                        : Config::ParseFormReference(field.text);
-                    field.valid = parsed.has_value();
-                    if (parsed)
-                    {
-                        a_value = std::move(*parsed);
-                    }
-                }
+                itemPicker.Draw("##value", a_value, a_filter);
                 EndRow({});
             }
 
@@ -272,15 +264,13 @@ namespace UI
             }
 
             // Returns whether the text changed.
-            static bool DrawTextField(TextField& a_field, std::string_view a_hint)
+            static bool DrawTextField(TextField& a_field)
             {
                 if (!a_field.valid)
                 {
                     ImGui::PushStyleColor(ImGuiCol_Text, kErrorColor);
                 }
-                const bool changed = a_hint.empty()
-                    ? ImGui::InputText("##value", &a_field.text)
-                    : ImGui::InputTextWithHint("##value", a_hint.data(), &a_field.text);
+                const bool changed = ImGui::InputText("##value", &a_field.text);
                 if (!a_field.valid)
                 {
                     ImGui::PopStyleColor();
@@ -289,6 +279,7 @@ namespace UI
             }
 
             std::unordered_map<ImGuiID, TextField> fields;
+            ItemPicker itemPicker;
             // Reused so drawing formats labels and notes without allocating.
             std::string label;
             std::string note;

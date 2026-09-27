@@ -20,8 +20,6 @@ players, and a new spawn rate applies on the next pass.
 
 ## Non-goals
 
-- Picking fallback items from a list of loaded forms. Values are typed as in
-  the file, `Plugin|FormID`.
 - Pausing the game. The window captures input like the chat (spec 020); the
   world keeps running and peers keep seeing the player.
 - Watching the file for external edits. Those still apply on restart.
@@ -44,8 +42,8 @@ players, and a new spawn rate applies on the next pass.
   scrolls; the buttons stay below it.
 - The widgets come from the same `Config::Describe` visitor that reads and
   writes the file, so a new setting appears without UI code: a checkbox for a
-  bool, a clamped number field for an unsigned value, a text field for a string
-  or form, and a combo for a key. Section and group comments are shown as notes.
+  bool, a clamped number field for an unsigned value, a text field for a string,
+  an item picker for a form (spec 022), and a combo for a key. Section and group comments are shown as notes.
 - Text that does not parse turns red and leaves the setting at its last valid
   value. Apply stays disabled while any field is red.
 - Apply is enabled when the edited settings differ from the live ones. Revert

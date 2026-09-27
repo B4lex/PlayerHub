@@ -5,6 +5,7 @@
 #include "ui/WindowManager.h"
 #include "ui/chat/ChatWindow.h"
 #include "ui/hud/StatusPanel.h"
+#include "ui/preview/ItemPreview.h"
 #include "ui/settings/SettingsWindow.h"
 
 #include <backends/imgui_impl_dx11.h>
@@ -123,6 +124,9 @@ namespace UI::Overlay
             {
                 return;
             }
+
+            // Renders onto the finished frame, so it goes before the overlay draws.
+            ItemPreview::Update();
 
             ImGui_ImplDX11_NewFrame();
             ImGui_ImplWin32_NewFrame();

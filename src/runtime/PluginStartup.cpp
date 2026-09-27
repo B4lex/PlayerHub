@@ -6,6 +6,7 @@
 #include "actor/ScenePackageSuppression.h"
 #include "actor/SurvivalPolicy.h"
 #include "config/PluginConfig.h"
+#include "forms/ItemForms.h"
 #include "network/SocketIOClient.h"
 #include "runtime/FurnitureActivationHook.h"
 #include "runtime/MainLoopHook.h"
@@ -36,6 +37,7 @@ namespace PluginStartup
         void OnDataLoaded()
         {
             SurvivalPolicy::RegisterEventSinks();
+            Forms::BuildItemCatalog();
             EquipmentFallback::Initialize();
             EquipmentSync::RegisterEventSinks();
             PresenceSync::RegisterEventSinks();

@@ -38,6 +38,8 @@ src/ui/
   hud/StatusPanel.h/.cpp    # always-on connection, ping, and plugin time widget
   chat/ChatWindow.h/.cpp    # global chat, see specs/020-player-chat.md
   settings/SettingsWindow.h/.cpp  # plugin settings, see specs/021-in-game-settings.md
+  widgets/ItemPicker.h/.cpp  # reusable item dropdown, see specs/022-item-picker-and-preview.md
+  preview/ItemPreview.h/.cpp # 3D item model capture for windows
 src/network/
   ConnectionMonitor.h/.cpp  # probe cadence, timeout, latest sample, reconnect schedule
 src/runtime/

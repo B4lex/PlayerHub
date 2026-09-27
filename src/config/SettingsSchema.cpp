@@ -16,6 +16,9 @@ namespace Config
 
         constexpr std::string_view kDefaultServerEndpoint = "https://8fa21dsv.lmfao.pp.ua";
         constexpr std::uint32_t kFirstArmorSlot = 30;
+        // Head, Hair, LongHair, and Circlet. Helmets and hoods cover different ones
+        // of these depending on the mod, so any of them fits a head slot's fallback.
+        constexpr std::uint32_t kHeadSlotMask = (1U << 0) | (1U << 1) | (1U << 11) | (1U << 12);
 
         // Creation Kit names of biped slots 30..43. Later slots have no vanilla
         // meaning and are named by number.
@@ -101,16 +104,20 @@ namespace Config
                 "armor type without its own value. A missing item gets the fallback of every slot it\n"
                 "covers, unless that fallback would take a slot another shown item already uses.\n"
                 "Slots: Head, Hair, Body, Hands, Forearms, Amulet, Ring, Feet, Calves, Shield, Tail,\n"
-                "LongHair, Circlet, Ears, and Slot44 through Slot61. Vanilla helmets and hoods use Hair.");
+                "LongHair, Circlet, Ears, and Slot44 through Slot61. Vanilla helmets and hoods use Hair.\n"
+                "A fallback must cover its slot, or any head slot for Head, Hair, LongHair, and Circlet,\n"
+                "and have the key's armor type.");
             for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)
             {
                 auto& entry = a_settings.armor[slot];
                 for (std::size_t type = 0; type < entry.byArmorType.size(); ++type)
                 {
-                    a_visitor.Form(GetArmorFallbackKey(slot, static_cast<Multiplayer::EquipmentArmorType>(type)),
-                        entry.byArmorType[type]);
+                    const auto armorType = static_cast<Multiplayer::EquipmentArmorType>(type);
+                    a_visitor.Form(GetArmorFallbackKey(slot, armorType), entry.byArmorType[type],
+                        GetArmorFallbackFilter(slot, armorType));
                 }
-                a_visitor.Form(GetArmorFallbackKey(slot, std::nullopt), entry.anyArmorType);
+                a_visitor.Form(GetArmorFallbackKey(slot, std::nullopt), entry.anyArmorType,
+                    GetArmorFallbackFilter(slot, std::nullopt));
             }
 
             a_visitor.Comment(
@@ -119,13 +126,13 @@ namespace Config
             for (std::size_t type = Multiplayer::PlayerEquipment::kMinimumWeaponType; type < a_settings.weapons.size();
                 ++type)
             {
-                a_visitor.Form(GetWeaponFallbackKey(type), a_settings.weapons[type]);
+                a_visitor.Form(GetWeaponFallbackKey(type), a_settings.weapons[type], GetWeaponFallbackFilter(type));
             }
 
             a_visitor.Comment("Torch, and the ammunition shown with a bow (Arrow) or crossbow (Bolt).");
-            a_visitor.Form("Torch", a_settings.torch);
-            a_visitor.Form("Arrow", a_settings.arrow);
-            a_visitor.Form("Bolt", a_settings.bolt);
+            a_visitor.Form("Torch", a_settings.torch, Forms::kTorchFilter);
+            a_visitor.Form("Arrow", a_settings.arrow, Forms::kArrowFilter);
+            a_visitor.Form("Bolt", a_settings.bolt, Forms::kBoltFilter);
         }
 
         void DescribePerformance(PerformanceSettings& a_settings, SettingsVisitor& a_visitor)
@@ -144,6 +151,9 @@ namespace Config
             a_visitor.Key("SettingsKey", a_settings.settingsKey,
                 "Opens the settings window during gameplay: F1 to F12, Insert, Delete, Home, End,\n"
                 "PageUp, PageDown, Pause, or ScrollLock.");
+            a_visitor.Bool("ItemPreview", a_settings.itemPreview,
+                "Shows a 3D model of the hovered item in item lists. Set to false if the preview\n"
+                "shows wrong images or disturbs the game.");
         }
 
         void SetDefaultArmorFallbacks(EquipmentFallbackSettings& a_settings)
@@ -328,5 +338,20 @@ namespace Config
     std::string_view GetWeaponFallbackKey(std::size_t a_weaponType)
     {
         return a_weaponType < kWeaponTypeNames.size() ? kWeaponTypeNames[a_weaponType] : "Unknown";
+    }
+
+    Forms::ItemFilter GetArmorFallbackFilter(
+        std::size_t a_slotIndex, std::optional<Multiplayer::EquipmentArmorType> a_armorType)
+    {
+        const auto slotBit = a_slotIndex < EquipmentFallbackSettings::kArmorSlotCount ? 1U << a_slotIndex : 0U;
+        return Forms::ItemFilter{ .kind = Forms::ItemKind::kArmor,
+            .slotMask = (slotBit & kHeadSlotMask) != 0 ? kHeadSlotMask : slotBit,
+            .armorType = a_armorType };
+    }
+
+    Forms::ItemFilter GetWeaponFallbackFilter(std::size_t a_weaponType)
+    {
+        return Forms::ItemFilter{ .kind = Forms::ItemKind::kWeapon,
+            .weaponType = static_cast<std::uint8_t>(a_weaponType) };
     }
 }

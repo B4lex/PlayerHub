@@ -59,6 +59,7 @@ namespace Config
     {
         // DirectInput scan code that opens the settings window.
         std::uint32_t settingsKey{ 0 };
+        bool itemPreview{ true };
 
         bool operator==(const UISettings&) const = default;
     };
