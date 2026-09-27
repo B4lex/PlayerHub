@@ -2,6 +2,7 @@
 #include "actor/ActorAnimation.h"
 #include "actor/RemoteActor.h"
 #include "forms/FormLookup.h"
+#include "forms/ItemForms.h"
 #include "network/SocketIOClient.h"
 #include "runtime/Profiling.h"
 #include "sync/equipment/EquipmentFallback.h"
@@ -39,7 +40,6 @@ namespace EquipmentSync
         constexpr std::int32_t kSynchronizedAmmoCount = 20;
 
         using Multiplayer::EquipmentArmor;
-        using Multiplayer::EquipmentArmorType;
         using Multiplayer::EquipmentHand;
         using Multiplayer::EquipmentHandKind;
         using EquipmentData = Multiplayer::PlayerEquipment;
@@ -93,19 +93,6 @@ namespace EquipmentSync
         constexpr bool IsSynchronizedWeaponType(RE::WEAPON_TYPE a_type)
         {
             return a_type >= RE::WEAPON_TYPE::kOneHandSword && a_type <= RE::WEAPON_TYPE::kCrossbow;
-        }
-
-        EquipmentArmorType GetArmorType(const RE::TESObjectARMO& a_armor)
-        {
-            switch (a_armor.GetArmorType())
-            {
-                case RE::BIPED_MODEL::ArmorType::kLightArmor:
-                    return EquipmentArmorType::kLight;
-                case RE::BIPED_MODEL::ArmorType::kHeavyArmor:
-                    return EquipmentArmorType::kHeavy;
-                default:
-                    return EquipmentArmorType::kClothing;
-            }
         }
 
         std::optional<EquipmentHand> CaptureHand(RE::TESForm* a_form, bool a_leftHand, std::uint32_t& a_skipped)
@@ -214,8 +201,8 @@ namespace EquipmentSync
                     ++a_skipped;
                     continue;
                 }
-                equipment.armor.push_back(
-                    EquipmentArmor{ .form = *reference, .slotMask = slotMask, .armorType = GetArmorType(*armor) });
+                equipment.armor.push_back(EquipmentArmor{
+                    .form = *reference, .slotMask = slotMask, .armorType = Forms::GetArmorType(*armor) });
             }
 
             equipment.rightHand = CaptureHand(a_player.GetEquippedObject(false), false, a_skipped);

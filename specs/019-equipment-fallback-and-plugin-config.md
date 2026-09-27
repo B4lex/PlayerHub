@@ -121,11 +121,13 @@ regardless of peer order.
 ### Resolving the configuration
 
 At `kDataLoaded`, and again whenever the settings window changes
-`[EquipmentFallback]`, every configured form is resolved and checked:
-`TESObjectARMO` with a slot mask for armor, a `TESObjectWEAP` of exactly the key's
-weapon type, a carriable `TESObjectLIGH` for the torch, and a `TESAmmo` that is
-or is not a bolt. A form that is missing or of the wrong kind is logged with its
-key and treated as unset. After that, a lookup is an array index.
+`[EquipmentFallback]`, every configured form is resolved and checked with the
+key's item filter (spec 022): armor of the key's armor type covering the key's
+slot, where Head, Hair, LongHair, and Circlet count as one group; a
+`TESObjectWEAP` of exactly the key's weapon type; a carriable `TESObjectLIGH` for
+the torch; and a `TESAmmo` that is or is not a bolt. A form that is missing or
+does not fit is logged with its key and treated as unset. After that, a lookup is
+an array index.
 
 ### Armor
 
