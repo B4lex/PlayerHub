@@ -89,6 +89,12 @@ namespace Forms
         {
             return ItemTraits{ .kind = ItemKind::kAmmo, .bolt = ammo->IsBolt(), .baseGame = baseGame };
         }
+        if (const auto* race = a_form.As<RE::TESRace>())
+        {
+            return race->data.flags.all(RE::RACE_DATA::Flag::kPlayable)
+                ? std::optional{ ItemTraits{ .kind = ItemKind::kRace, .baseGame = baseGame } }
+                : std::nullopt;
+        }
         return std::nullopt;
     }
 
@@ -107,6 +113,7 @@ namespace Forms
         AppendNamedItems<RE::TESObjectWEAP>(*dataHandler, items);
         AppendNamedItems<RE::TESObjectLIGH>(*dataHandler, items);
         AppendNamedItems<RE::TESAmmo>(*dataHandler, items);
+        AppendNamedItems<RE::TESRace>(*dataHandler, items);
 
         std::vector<std::string_view> plugins;
         const auto appendPlugins = [&plugins](const RE::TESFile* const* a_files, std::size_t a_count) {

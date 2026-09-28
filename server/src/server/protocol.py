@@ -350,6 +350,13 @@ def parse_player_appearance(data: Any) -> dict[str, Any] | None:
             return None
         tints.append(tint)
 
+    # Recordings made before default races have none.
+    default_race = None
+    if data.get("defaultRace") is not None:
+        default_race = _parse_default_race(data["defaultRace"])
+        if default_race is None:
+            return None
+
     return {
         "revision": revision,
         "name": name,
@@ -365,7 +372,19 @@ def parse_player_appearance(data: Any) -> dict[str, Any] | None:
         "faceMorphs": list(face_morphs),
         "faceParts": list(face_parts),
         "tints": tints,
+        "defaultRace": default_race,
     }
+
+
+def _parse_default_race(data: Any) -> dict[str, Any] | None:
+    """Validate the base-game race and sex that stand in for the source's race."""
+    if not isinstance(data, dict):
+        return None
+    race = _parse_form_reference(data.get("race"))
+    female = data.get("female")
+    if race is None or not _is_base_game_item(race) or not isinstance(female, bool):
+        return None
+    return {"race": race, "female": female}
 
 
 MAXIMUM_ARMOR_ENTRIES = 32
@@ -377,7 +396,8 @@ MAXIMUM_OUTFIT_ARMOR_ENTRIES = 8
 MAXIMUM_OUTFIT_HANDS = 2
 # Plugins every Anniversary Edition install ships with: the Skyrim Special
 # Edition masters and the Creation Club plugins its Skyrim.ccc lists. Default
-# outfit items must come from them. Mirrors Multiplayer::IsBaseGamePlugin.
+# outfit items and races must come from them. Mirrors
+# Multiplayer::IsBaseGamePlugin.
 BASE_GAME_PLUGINS = frozenset(
     {
         "_resourcepack.esl",

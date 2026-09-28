@@ -73,6 +73,7 @@ def appearance(revision: int = 1, name: str = "Lydia Stormblade") -> dict[str, A
         "faceMorphs": [0.0] * 19,
         "faceParts": [0, 1, -1, 2],
         "tints": [],
+        "defaultRace": None,
     }
 
 

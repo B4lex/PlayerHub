@@ -43,7 +43,7 @@ player on peers, and a new spawn rate applies on the next pass.
 - The widgets come from the same `Config::Describe` visitor that reads and
   writes the file, so a new setting appears without UI code: a checkbox for a
   bool, a clamped number field for an unsigned value, a text field for a string,
-  an item picker for a form (spec 022), and a combo for a key. Section and group comments are shown as notes.
+  an item picker for a form (spec 022), and a combo for a choice or a key. Section and group comments are shown as notes.
 - Text that does not parse turns red and leaves the setting at its last valid
   value. Apply stays disabled while any field is red.
 - Apply is enabled when the edited settings differ from the live ones. Revert
@@ -90,6 +90,7 @@ revision before taking a snapshot never misses a change.
 | `ActorLifecycle` | main loop | reading `SpawnsPerSecond` once per pass in `RefillSpawnAllowance` |
 | `DefaultOutfit` | main loop | `Refresh`, run first in `SyncCoordinator::OnFrame`: resolves every item again when `[DefaultOutfit]` differs |
 | `EquipmentSync` | main loop | the next local capture selecting from the new outfit, which differs from the published equipment and so publishes a new revision |
+| `AppearanceSync` | main loop | the next local capture taking the new default race and sex, which, for a modded race, differs from the published appearance and so publishes a new revision |
 | `ConnectionMonitor` | main loop | when the latest attempt went to another endpoint: abandoning a live connection and starting a reconnect at once, with the attempt count reset |
 | `SocketIOClient` | transport, worker | reading the endpoint for each attempt; logs name the attempt's endpoint |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |

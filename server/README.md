@@ -71,7 +71,9 @@ to `http://127.0.0.1:3000` for local testing.
   are verified.
 - `player:appearance` carries the player's latest character name, level, and
   appearance (race, sex, weight, head parts, hair color, face morphs, and tints)
-  with an increasing revision. It is relayed to other players with `playerId`
+  with an increasing revision. `defaultRace` carries the base-game race and sex
+  peers show when they cannot resolve a modded race, or `null`; when absent it
+  is stored and relayed as `null`. It is relayed to other players with `playerId`
   and a `nameIndex` that tells apart players with the same name. The
   server stores the latest appearance per connection and sends every stored
   appearance to a newly connected client. See

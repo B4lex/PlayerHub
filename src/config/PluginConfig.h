@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace Config
 {
@@ -20,10 +21,15 @@ namespace Config
         bool operator==(const NetworkSettings&) const = default;
     };
 
-    // Base-game items, including Anniversary Edition content, peers show in place of the local player's equipment from
-    // plugins they do not have. An empty reference means nothing is shown.
+    // A base-game race and items, including Anniversary Edition content, peers show in place of the local player's
+    // race and equipment from plugins they do not have. An empty reference means nothing is shown.
     struct DefaultOutfitSettings
     {
+        // Indices of kSexNames, which match RE::SEXES.
+        static constexpr std::uint32_t kMale = 0;
+        static constexpr std::uint32_t kFemale = 1;
+        static constexpr std::array<std::string_view, 2> kSexNames{ "Male", "Female" };
+
         // The biped slots, bit 0 being slot 30, that each armor piece stands in
         // for: Head (with Hair), Body, Hands, Amulet, Feet, Shield, Circlet, and
         // Backpack. Anniversary Edition's backpacks and most mods' use slot 47.
@@ -32,6 +38,8 @@ namespace Config
         static constexpr std::size_t kArmorSlotCount = kArmorSlotMasks.size();
         static_assert(kArmorSlotCount <= Multiplayer::DefaultOutfit::kMaximumArmor);
 
+        Multiplayer::FormReference race;
+        std::uint32_t sex{ kMale };
         // Indexed like kArmorSlotMasks.
         std::array<Multiplayer::FormReference, kArmorSlotCount> armor;
         // Indexed by RE::WEAPON_TYPE; hand-to-hand is unused.

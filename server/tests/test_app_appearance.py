@@ -26,7 +26,15 @@ def valid_appearance(revision: int = 1) -> dict[str, object]:
         "faceMorphs": [0.0] * 18 + [3.4028234663852886e38],
         "faceParts": [0, 1, -1, 2],
         "tints": [{"index": 44, "type": 6, "r": 222, "g": 188, "b": 170, "alpha": 1.0}],
+        "defaultRace": None,
     }
+
+
+def modded_race_appearance() -> dict[str, object]:
+    payload = valid_appearance()
+    payload["race"] = {"plugin": "Lykaios Race.esp", "formId": 0xD62}
+    payload["defaultRace"] = {"race": {"plugin": "Skyrim.esm", "formId": 0x13745}, "female": False}
+    return payload
 
 
 class ParsePlayerAppearanceTests(unittest.TestCase):
@@ -69,6 +77,34 @@ class ParsePlayerAppearanceTests(unittest.TestCase):
         self.assertEqual(parse_player_appearance(missing), expected)
         self.assertEqual(parse_player_appearance(null), expected)
         self.assertEqual(parse_player_appearance(expected), expected)
+
+    def test_accepts_base_game_default_race(self) -> None:
+        payload = modded_race_appearance()
+        self.assertEqual(parse_player_appearance(payload), payload)
+
+        payload["defaultRace"]["race"]["plugin"] = "SKYRIM.ESM"
+        self.assertEqual(parse_player_appearance(payload), payload)
+
+    def test_missing_default_race_is_none(self) -> None:
+        payload = valid_appearance()
+        payload.pop("defaultRace")
+
+        self.assertEqual(parse_player_appearance(payload), valid_appearance())
+
+    def test_rejects_invalid_default_race(self) -> None:
+        mutations = {
+            "not an object": lambda p: p.update(defaultRace=True),
+            "missing race": lambda p: p["defaultRace"].pop("race"),
+            "null race": lambda p: p["defaultRace"].update(race=None),
+            "modded race": lambda p: p["defaultRace"]["race"].update(plugin="Lykaios Race.esp"),
+            "missing female": lambda p: p["defaultRace"].pop("female"),
+            "non-boolean female": lambda p: p["defaultRace"].update(female=1),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name):
+                payload = modded_race_appearance()
+                mutate(payload)
+                self.assertIsNone(parse_player_appearance(payload))
 
     def test_drops_unknown_fields(self) -> None:
         payload = valid_appearance()

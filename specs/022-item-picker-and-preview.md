@@ -26,8 +26,8 @@ for example) can pick items the same way.
 
 ## Non-goals
 
-- Spells, actors, and races. The catalog holds armor, weapons, torches, and
-  ammunition; `ItemKind` is where more kinds would be added.
+- Spells and actors. The catalog holds armor, weapons, torches, ammunition,
+  and playable races; `ItemKind` is where more kinds would be added.
 - Rotating or zooming the model.
 - Typing a form by hand in the window. A value for a plugin that is not loaded can
   still be written to `skyrim-mp.ini`; the picker shows it as not loaded.
@@ -48,15 +48,17 @@ src/ui/
 
 `Forms::ItemTraits` is what decides whether an item can stand in for another: its
 kind, its slot mask, weapon type, or bolt flag, and whether a base-game plugin
-defines it.
+defines it. A playable race is kind `kRace`, so the `[DefaultOutfit] Race` key
+is picked the same way.
 `Forms::GetItemTraits` reads them from a form. `Forms::ItemFilter::Matches` checks
 them against what a setting accepts.
 
 `Config::SettingsVisitor::Form` now takes the setting's filter.
 `GetOutfitArmorFilter` and `GetOutfitWeaponFilter` build the filters for
 `[DefaultOutfit]` keys, and `Config::kOutfitTorchFilter`, `kOutfitArrowFilter`,
-and `kOutfitBoltFilter` cover the rest. All of them accept only base-game items
-(spec 019), which include Anniversary Edition's Creation Club content. The
+`kOutfitBoltFilter`, and `kOutfitRaceFilter` cover the rest. All of them accept
+only base-game forms (spec 019), which include Anniversary Edition's Creation
+Club content. The
 settings window lists only matching items, and `DefaultOutfit`
 resolves configured items with the same filters, so the list and the live
 behavior never disagree.
@@ -70,6 +72,7 @@ Every key accepts only base-game items, and:
 | weapon keys | a weapon of exactly that weapon type |
 | `Torch` | a carriable light |
 | `Arrow`, `Bolt` | ammunition that is not, or is, a bolt |
+| `Race` | a playable race |
 
 Head slots form one group because helmets and hoods use different ones: vanilla
 helmets cover Hair and Circlet, yet they are the default `Head` pieces.
@@ -78,7 +81,8 @@ helmets cover Hair and Circlet, yet they are the default `Head` pieces.
 
 - `Forms::BuildItemCatalog` runs at `kDataLoaded`, before `DefaultOutfit`
   resolves anything. It collects every `TESObjectARMO`, `TESObjectWEAP`,
-  `TESObjectLIGH`, and `TESAmmo` with a name, traits, and a plugin-local reference.
+  `TESObjectLIGH`, `TESAmmo`, and `TESRace` with a name, traits, and a
+  plugin-local reference.
   Enchanted variants (`templateArmor`, `templateWeapon`) are left out, since they
   look like their template, which is listed.
 - The catalog is sorted by name. Plugin names compare without case, as the game's
@@ -111,7 +115,8 @@ changes, and only one list can be open.
   default item.
 - With `[UI] ItemPreview`, a 13-font-size square panel to the right shows the
   hovered item's model, or the current value's when no row is hovered, with its
-  name and `Plugin|0xID` below.
+  name and `Plugin|0xID` below. Race lists have no panel, since the inventory
+  renderer shows only items (`Forms::HasModel`).
 
 ## 3D preview
 

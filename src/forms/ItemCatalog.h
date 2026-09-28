@@ -21,8 +21,8 @@ namespace Forms
         ItemTraits traits;
     };
 
-    // Named item forms from every loaded plugin, sorted by name. Immutable, so any
-    // thread may read it.
+    // Named item forms and playable races from every loaded plugin, sorted by
+    // name. Immutable, so any thread may read it.
     class ItemCatalog
     {
     public:

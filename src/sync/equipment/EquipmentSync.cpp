@@ -4,7 +4,7 @@
 #include "forms/FormLookup.h"
 #include "network/SocketIOClient.h"
 #include "runtime/Profiling.h"
-#include "sync/equipment/DefaultOutfit.h"
+#include "sync/outfit/DefaultOutfit.h"
 
 #include <algorithm>
 #include <atomic>
