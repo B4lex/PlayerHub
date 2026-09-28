@@ -37,6 +37,9 @@ FACE_PART_COUNT = 4
 MAXIMUM_NAME_BYTES = 128
 MAXIMUM_LEVEL = 0xFFFF
 MAXIMUM_FLOAT32 = 3.4028234663852886e38
+# Bound on a carrier's pitch, in radians. Skyrim clamps a controller's pitch
+# well inside it.
+MAXIMUM_PITCH = math.pi / 2
 
 
 def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None:
@@ -57,6 +60,16 @@ def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None
         if field == "direction" and not 0 <= value <= 1:
             return None
         values[field] = value
+
+    # Front-to-back tilt of the carrier's character controller, such as a horse
+    # on a slope. Recordings made before pitch synchronization have none, which
+    # means level.
+    pitch = data.get("pitch", 0.0)
+    if isinstance(pitch, bool) or not isinstance(pitch, (int, float)):
+        return None
+    if not math.isfinite(pitch) or abs(pitch) > MAXIMUM_PITCH:
+        return None
+    values["pitch"] = pitch
 
     movement_state = data.get("movementState")
     if movement_state not in MOVEMENT_STATES:

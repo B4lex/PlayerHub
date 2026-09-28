@@ -7,12 +7,20 @@
 
 namespace Network
 {
+    // Bound on a carrier's pitch, in radians. Skyrim clamps a controller's pitch
+    // well inside it.
+    inline constexpr float kMaximumPitch = 1.57079632679489661923F;
+
     struct PlayerTransform
     {
         float x{ 0.0F };
         float y{ 0.0F };
         float z{ 0.0F };
         float heading{ 0.0F };
+        // Front-to-back body tilt of the carrier's character controller in
+        // radians, which Skyrim eases toward the ground's slope for a race that
+        // pitches, such as a horse, and keeps at zero otherwise.
+        float pitch{ 0.0F };
         // Measured translation speed in Skyrim world units per second.
         float speed{ 0.0F };
         // Travel direction relative to heading, in graph `Direction` units [0, 1).

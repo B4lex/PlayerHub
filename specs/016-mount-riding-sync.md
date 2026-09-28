@@ -41,6 +41,12 @@ mount from them, and Skyrim carries the rider on the mount. The server validates
 recordings replay on foot. Every relayed `player:state` includes it, and the
 client requires it.
 
+`pitch` carries the front-to-back tilt of the carrier's character controller in
+radians (`pitchAngle`). It is non-zero only for a race that pitches to the
+ground, such as a horse. Both the server and the client reject a non-finite
+value or one beyond π/2. The server defaults a missing value to 0, so older
+recordings ride level.
+
 ## Source capture
 
 `MountSync::SampleLocalMount` reads the local player's mount once per published
@@ -167,6 +173,37 @@ The rider's registration is marked mounted while it is seated. Like furniture
 ownership, that lets the firewall admit every native graph event on the rider,
 because the mount interaction drives the rider's graph.
 
+### Terrain pitch
+
+A horse leans to the slope it stands on. Skyrim keeps that tilt in the
+controller's `pitchAngle` and `rollAngle`, and every frame the actor's 3D update
+(ID 37364, reached from the animation update) builds the body's rotation from
+them and the heading. A seated rider is placed from its mount's 3D, so it tilts
+with it. The angles come from the ground only in the movement update, which
+network placement skips, so a remote mount used to stay level.
+
+The source samples its carrier's pitch once per checkpoint. Its horse is
+simulated normally, so the pitch already follows its own ground. On a peer, the
+mount update eases its controller's pitch toward the checkpoint's with a 0.1 s
+time constant, to hide the 50 ms steps between checkpoints. Only a controller
+with `kCanPitch` is pitched, as in Skyrim, where it comes from the race flag
+`kTiltFrontBack` (ID 78305). Roll is not synchronized: the vanilla horse every
+remote mount is spawned from does not roll, and in the first run the source's
+roll stayed at zero on every slope.
+
+Verified in game: a remote horse on a slope leaned with it, and the mount gait
+samples showed its `pitch` following `targetPitch`.
+
+Traced in the 1.7.104 binary:
+
+- The biped orientation controller (vfunc 8, ID 79327) moves each angle toward
+  the support normal in the controller's frame, clamped to 47°, by `pitchMult`
+  every physics step. Pathing (ID 38308) and placement (ID 37314) set them from
+  the navmesh normal instead.
+- `Actor::SetPosition` (ID 37309) and `SetHeading` (ID 37230) leave them alone.
+  The move-finish sink (ID 37996) overwrites them from the character body's
+  rotation, but `kNoSim` suppresses it for a network-placed actor.
+
 The rider is always left to Skyrim's movement update, which carries it, and
 its character body is out of every collision while it is on its mount. The
 mount skips the movement update, with its body out of collision, since the
@@ -233,6 +270,8 @@ To verify in game, from `latest.log`:
 - The local player walks through a seated rider's legs while it rides.
 - A seated rider logs `Remote actor skeleton collision disabled` with a
   non-zero body count.
+- A remote horse on a slope leans with it, and levels out on flat ground, and
+  its rider leans with it. Its gait samples show `pitch` near `targetPitch`.
 - Removing the seated pair on a dismount and on death does not crash
   (`Recycling ... after the player dismounted: seated=true transition=false`).
 

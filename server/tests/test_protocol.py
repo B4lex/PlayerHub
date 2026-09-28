@@ -15,6 +15,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2,
             "z": -3.5,
             "heading": 0.25,
+            "pitch": 0.0,
             "speed": 550.0,
             "direction": 0.0,
             "movementState": "sprinting",
@@ -42,6 +43,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.25,
+            "pitch": 0.0,
             "speed": 200.0,
             "direction": 0.0,
             "movementState": "running",
@@ -69,6 +71,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.25,
+            "pitch": 0.0,
             "speed": 200.0,
             "direction": 0.0,
             "movementState": "running",
@@ -89,6 +92,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.25,
+            "pitch": 0.0,
             "speed": 0.0,
             "direction": 0.0,
             "movementState": "idle",
@@ -109,6 +113,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.0,
+            "pitch": 0.0,
             "speed": 0.0,
             "direction": 0.0,
             "movementState": "idle",
@@ -129,6 +134,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.0,
+            "pitch": 0.0,
             "speed": 125.0,
             "direction": 0.0,
             "movementState": "walking",
@@ -149,6 +155,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.0,
+            "pitch": 0.0,
             "speed": 125.0,
             "direction": 0.0,
             "movementState": "flying",
@@ -169,6 +176,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.0,
+            "pitch": 0.0,
             "speed": 0.0,
             "direction": 0.0,
             "movementState": "idle",
@@ -189,6 +197,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.0,
+            "pitch": 0.0,
             "speed": 0.0,
             "direction": 0.0,
             "movementState": "idle",
@@ -209,6 +218,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.0,
+            "pitch": 0.0,
             "speed": 0.0,
             "direction": 0.0,
             "movementState": "idle",
@@ -228,6 +238,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.0,
+            "pitch": 0.0,
             "speed": 150.0,
             "direction": 0.5,
             "movementState": "walking",
@@ -256,6 +267,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 "y": 2.0,
                 "z": 3.0,
                 "heading": 0.0,
+                "pitch": 0.0,
                 "speed": 150.0,
                 "direction": direction,
                 "movementState": "walking",
@@ -277,6 +289,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.0,
+            "pitch": 0.0,
             "speed": -1.0,
             "direction": 0.0,
             "movementState": "walking",
@@ -297,6 +310,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.0,
+            "pitch": 0.0,
             "speed": 0.0,
             "direction": 0.0,
             "movementState": "idle",
@@ -329,6 +343,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.0,
+            "pitch": 0.0,
             "speed": 0.0,
             "direction": 0.0,
             "movementState": "idle",
@@ -357,6 +372,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 "y": 2.0,
                 "z": 3.0,
                 "heading": 0.0,
+                "pitch": 0.0,
                 "speed": 0.0,
                 "direction": 0.0,
                 "movementState": "idle",
@@ -379,6 +395,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "y": 2.0,
             "z": 3.0,
             "heading": 0.0,
+            "pitch": 0.0,
             "speed": 700.0,
             "direction": 0.0,
             "movementState": "running",
@@ -407,6 +424,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 "y": 2.0,
                 "z": 3.0,
                 "heading": 0.0,
+                "pitch": 0.0,
                 "speed": 0.0,
                 "direction": 0.0,
                 "movementState": "idle",
@@ -423,12 +441,88 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             with self.subTest(mounted=mounted):
                 self.assertIsNone(parse_player_update(payload))
 
+    def test_accepts_pitched_mount(self) -> None:
+        payload = {
+            "x": 1.0,
+            "y": 2.0,
+            "z": 3.0,
+            "heading": 0.0,
+            "pitch": 0.35,
+            "speed": 450.0,
+            "direction": 0.0,
+            "movementState": "running",
+            "jumping": False,
+            "weaponDrawn": False,
+            "bowDrawn": False,
+            "castingLeft": False,
+            "castingRight": False,
+            "blocking": False,
+            "dead": False,
+            "mounted": True,
+            "swimming": False,
+            "cellId": 1,
+            "worldspaceId": 60,
+            "furnitureRefId": 0,
+            "graphEpoch": 1,
+            "sequence": 1,
+        }
+
+        self.assertEqual(parse_player_update(payload), payload)
+
+    def test_defaults_missing_pitch_to_level(self) -> None:
+        payload = {
+            "x": 1.0,
+            "y": 2.0,
+            "z": 3.0,
+            "heading": 0.0,
+            "speed": 0.0,
+            "direction": 0.0,
+            "movementState": "idle",
+            "jumping": False,
+            "weaponDrawn": False,
+            "cellId": 1,
+            "worldspaceId": 60,
+            "furnitureRefId": 0,
+            "graphEpoch": 1,
+            "sequence": 1,
+        }
+
+        parsed = parse_player_update(payload)
+
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual(parsed["pitch"], 0.0)
+
+    def test_rejects_invalid_pitch(self) -> None:
+        for pitch in (True, "0.1", None, float("nan"), float("inf"), 1.6, -1.6):
+            payload = {
+                "x": 1.0,
+                "y": 2.0,
+                "z": 3.0,
+                "heading": 0.0,
+                "pitch": pitch,
+                "speed": 0.0,
+                "direction": 0.0,
+                "movementState": "idle",
+                "jumping": False,
+                "weaponDrawn": False,
+                "cellId": 1,
+                "worldspaceId": 60,
+                "furnitureRefId": 0,
+                "graphEpoch": 1,
+                "sequence": 1,
+            }
+
+            with self.subTest(pitch=pitch):
+                self.assertIsNone(parse_player_update(payload))
+
     def test_accepts_swimming_player(self) -> None:
         payload = {
             "x": 1.0,
             "y": 2.0,
             "z": -40.0,
             "heading": 0.0,
+            "pitch": 0.0,
             "speed": 150.0,
             "direction": 0.0,
             "movementState": "running",
@@ -457,6 +551,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 "y": 2.0,
                 "z": 3.0,
                 "heading": 0.0,
+                "pitch": 0.0,
                 "speed": 0.0,
                 "direction": 0.0,
                 "movementState": "idle",
@@ -480,6 +575,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 "y": 2.0,
                 "z": 3.0,
                 "heading": 0.0,
+                "pitch": 0.0,
                 "speed": 0.0,
                 "direction": 0.0,
                 "movementState": "idle",
