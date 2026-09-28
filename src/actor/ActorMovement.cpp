@@ -36,6 +36,9 @@ namespace ActorMovement
         constexpr float kTwoPi = 6.28318530717958647692F;
         constexpr float kHeadingDeadZone = 0.00872664625997164788F;
         constexpr float kMaximumHeadingRate = kTwoPi;
+        // The source's controller already eases its pitch every physics step, so
+        // this only has to hide the 50 ms steps between checkpoints.
+        constexpr float kPitchSmoothingSeconds = 0.1F;
 
         void ApplySmoothedHeading(RE::Actor& a_actor, float a_targetHeading, float a_deltaTime)
         {
@@ -67,10 +70,11 @@ namespace ActorMovement
     }
 
     void SetTargetTransform(RemoteActor& a_remote, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
-        float a_translationSpeed, float a_direction, bool a_swimming)
+        float a_targetPitch, float a_translationSpeed, float a_direction, bool a_swimming)
     {
         a_remote.movement.targetPosition = a_targetPosition;
         a_remote.movement.targetHeading = a_targetHeading;
+        a_remote.movement.targetPitch = a_targetPitch;
         a_remote.movement.sourceSwimming = a_swimming;
         if (std::isfinite(a_translationSpeed) && a_translationSpeed >= 0.0F)
         {
@@ -184,5 +188,22 @@ namespace ActorMovement
         // Passing true keeps the actor's character controller in sync with its
         // reference transform, which is essential for a network-controlled remote actor.
         a_actor.SetPosition(nextPosition, true);
+    }
+
+    void ApplyPitch(RE::Actor& a_actor, const RemoteActor& a_remote, float a_deltaTime)
+    {
+        auto* controller = a_actor.GetCharController();
+        const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        // Skyrim pitches only a controller with this flag, which comes from the
+        // race's kTiltFrontBack.
+        if (!controller || deltaTime <= 0.0F || controller->flags.none(RE::CHARACTER_FLAGS::kCanPitch))
+        {
+            return;
+        }
+
+        const float target = a_remote.movement.targetPitch;
+        float& pitch = controller->pitchAngle;
+        const float blend = 1.0F - std::exp(-deltaTime / kPitchSmoothingSeconds);
+        pitch = std::isfinite(pitch) ? pitch + (target - pitch) * blend : target;
     }
 }

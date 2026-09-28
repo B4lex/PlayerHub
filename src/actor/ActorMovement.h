@@ -14,6 +14,9 @@ namespace ActorMovement
     {
         RE::NiPoint3 targetPosition{};
         float targetHeading{ 0.0F };
+        // Pitch of the source's carrier, applied only where the actor's own
+        // controller pitches.
+        float targetPitch{ 0.0F };
         // Network translation speed is intentionally independent from animation.
         float translationSpeed{ 550.0F };
         // Speed from the same network sample as targetPosition and movement state.
@@ -31,7 +34,7 @@ namespace ActorMovement
     };
 
     void SetTargetTransform(RemoteActor& a_remote, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
-        float a_translationSpeed, float a_direction, bool a_swimming);
+        float a_targetPitch, float a_translationSpeed, float a_direction, bool a_swimming);
 
     // Holds a grounded checkpoint's landing while the airborne actor travels on to
     // where the source landed, for a bounded time, so the landing does not have to
@@ -42,4 +45,11 @@ namespace ActorMovement
     // translation: smooths heading and moves toward the target transform.
     void ApplyTranslation(
         RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime, Multiplayer::AnimationState a_translationState);
+
+    // Actor-module internal, called by ActorRuntime for a network-placed actor
+    // whose race pitches to the ground, such as a mount: eases its controller's
+    // pitch toward the target pitch. Skyrim's movement update, which would derive
+    // it from the ground, is skipped for such an actor, and its per-frame 3D
+    // update builds the body's rotation from it.
+    void ApplyPitch(RE::Actor& a_actor, const RemoteActor& a_remote, float a_deltaTime);
 }

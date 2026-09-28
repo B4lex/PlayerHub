@@ -333,6 +333,7 @@ namespace Network
             double y = 0.0;
             double z = 0.0;
             double heading = 0.0;
+            double pitch = 0.0;
             double speed = 0.0;
             double direction = 0.0;
             Multiplayer::MovementState movementState{ Multiplayer::MovementState::kIdle };
@@ -349,6 +350,7 @@ namespace Network
             std::uint64_t sequence = 0;
             if (!ReadString(values, "playerId", a_result.playerID) || !ReadNumber(values, "x", x)
                 || !ReadNumber(values, "y", y) || !ReadNumber(values, "z", z) || !ReadNumber(values, "heading", heading)
+                || !ReadNumber(values, "pitch", pitch) || std::abs(pitch) > kMaximumPitch
                 || !ReadNumber(values, "speed", speed) || speed < 0.0 || speed > (std::numeric_limits<float>::max)()
                 || !ReadNumber(values, "direction", direction) || direction < 0.0 || direction > 1.0
                 || !ReadMovementState(values, movementState) || !ReadBool(values, "jumping", jumping)
@@ -374,6 +376,7 @@ namespace Network
                 .y = static_cast<float>(y),
                 .z = static_cast<float>(z),
                 .heading = static_cast<float>(heading),
+                .pitch = static_cast<float>(pitch),
                 .speed = static_cast<float>(speed),
                 .direction = Multiplayer::NormalizeMovementDirection(static_cast<float>(direction)),
                 .animationState = Multiplayer::AnimationState{ .movementState = movementState,
@@ -1244,6 +1247,7 @@ namespace Network
         values["y"] = sio::double_message::create(a_transform.y);
         values["z"] = sio::double_message::create(a_transform.z);
         values["heading"] = sio::double_message::create(a_transform.heading);
+        values["pitch"] = sio::double_message::create(a_transform.pitch);
         values["speed"] = sio::double_message::create(a_transform.speed);
         values["direction"] = sio::double_message::create(a_transform.direction);
         values["movementState"]

@@ -1,7 +1,9 @@
 #include "sync/movement/MovementSync.h"
 #include "actor/ActorMovement.h"
 #include "actor/RemoteActor.h"
+#include "protocol/PlayerState.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace MovementSync
@@ -15,6 +17,11 @@ namespace MovementSync
         RE::FormID s_previousCellID = 0;
         RE::FormID s_previousWorldspaceID = 0;
         bool s_hasPreviousPosition = false;
+
+        float SanitizePitch(float a_angle)
+        {
+            return std::isfinite(a_angle) ? std::clamp(a_angle, -Network::kMaximumPitch, Network::kMaximumPitch) : 0.0F;
+        }
     }
 
     std::uint32_t GetWorldspaceID(const RE::TESObjectREFR& a_reference)
@@ -72,9 +79,15 @@ namespace MovementSync
         s_previousWorldspaceID = worldspaceID;
         s_hasPreviousPosition = true;
 
+        // The carrier's own movement update eases it toward the ground, and its
+        // per-frame 3D update turns it into the body's rotation.
+        const auto* controller = a_carrier.GetCharController();
+        const float pitch = controller ? SanitizePitch(controller->pitchAngle) : 0.0F;
+
         const auto* actorState = a_carrier.AsActorState();
         return LocalSample{ .position = position,
             .heading = heading,
+            .pitch = pitch,
             .speed = speed,
             .direction = direction,
             .swimming = actorState && actorState->IsSwimming(),
@@ -97,7 +110,8 @@ namespace MovementSync
 
         const RE::NiPoint3 targetPosition{ a_remote.checkpoint.x, a_remote.checkpoint.y, a_remote.checkpoint.z };
         ActorMovement::SetTargetTransform(a_actor, targetPosition, a_remote.checkpoint.heading,
-            a_remote.checkpoint.speed, a_remote.checkpoint.direction, a_remote.checkpoint.swimming);
+            a_remote.checkpoint.pitch, a_remote.checkpoint.speed, a_remote.checkpoint.direction,
+            a_remote.checkpoint.swimming);
         a_appliedSequence = a_remote.lastSequence;
     }
 }

@@ -238,6 +238,7 @@ namespace ActorRuntime
         const Multiplayer::AnimationState translationState{ .movementState
             = a_gait.moving ? Multiplayer::MovementState::kRunning : Multiplayer::MovementState::kIdle };
         ActorMovement::ApplyTranslation(*actor, a_remote, a_deltaTime, translationState);
+        ActorMovement::ApplyPitch(*actor, a_remote, a_deltaTime);
         return true;
     }
 }

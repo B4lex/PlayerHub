@@ -63,6 +63,7 @@ namespace CheckpointPublisher
             .y = movement.position.y,
             .z = movement.position.z,
             .heading = movement.heading,
+            .pitch = movement.pitch,
             .speed = movement.speed,
             .direction = movement.direction,
             .animationState = animationState,

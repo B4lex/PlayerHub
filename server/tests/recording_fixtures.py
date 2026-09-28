@@ -20,6 +20,7 @@ def checkpoint(sequence: int = 1, **overrides: Any) -> dict[str, Any]:
         "y": 2.0,
         "z": 3.0,
         "heading": 0.0,
+        "pitch": 0.0,
         "speed": 400.0,
         "direction": 0.0,
         "movementState": "running",

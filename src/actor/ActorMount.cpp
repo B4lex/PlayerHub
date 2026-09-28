@@ -275,11 +275,13 @@ namespace ActorMount
         if (a_gait.diagnosticElapsed >= kGaitDiagnosticSeconds)
         {
             a_gait.diagnosticElapsed = 0.0F;
+            const auto* controller = a_actor.GetCharController();
             logs::debug(
                 "Remote {} gait sample: actor={:08X} speed={:.1f} graphSpeed={:.1f} horseSpeedSampled={:.1f} "
-                "sprinting={}",
+                "sprinting={} pitch={:.3f} targetPitch={:.3f}",
                 a_role, a_actor.GetHandle().native_handle(), a_speed, GetGraphFloat(a_actor, speedVariable),
-                GetGraphFloat(a_actor, horseSpeedSampledVariable), a_gait.sprinting);
+                GetGraphFloat(a_actor, horseSpeedSampledVariable), a_gait.sprinting,
+                controller ? controller->pitchAngle : 0.0F, a_remote.movement.targetPitch);
         }
     }
 }

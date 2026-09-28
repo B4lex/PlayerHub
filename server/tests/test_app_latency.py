@@ -10,6 +10,7 @@ def valid_state(sequence: int = 1) -> dict[str, bool | int | float | str]:
         "y": 2.0,
         "z": 3.0,
         "heading": 0.0,
+        "pitch": 0.0,
         "speed": 125.0,
         "direction": 0.0,
         "movementState": "walking",

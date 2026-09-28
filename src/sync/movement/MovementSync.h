@@ -42,6 +42,7 @@ namespace MovementSync
     {
         RE::NiPoint3 position{};
         float heading{ 0.0F };
+        float pitch{ 0.0F };
         float speed{ 0.0F };
         float direction{ 0.0F };
         bool swimming{ false };
