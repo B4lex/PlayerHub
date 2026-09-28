@@ -65,7 +65,7 @@ namespace SyncCoordinator
 
             for (auto& [playerID, peer] : a_peers)
             {
-                ActorLifecycle::RemoveActor(playerID, peer);
+                ActorLifecycle::RemoveActor(peer);
             }
             logs::debug(
                 "Removed {} remote player actors after losing the server connection: connected={} "
@@ -80,12 +80,11 @@ namespace SyncCoordinator
 
         // The player left the world. Only its appearance and equipment stay valid;
         // its next checkpoint places it again as if it had just joined.
-        void ForgetWorldState(const std::string& a_playerID, PeerState& a_peer)
+        void ForgetWorldState(PeerState& a_peer)
         {
-            ActorLifecycle::RemoveActor(a_playerID, a_peer);
+            ActorLifecycle::RemoveActor(a_peer);
             a_peer.lifecycle = {};
             a_peer.combat = {};
-            a_peer.mounting = {};
             a_peer.latestCheckpoint = {};
             a_peer.lastSequence = 0;
             a_peer.appliedSequence = 0;
@@ -110,7 +109,7 @@ namespace SyncCoordinator
                 }
 
                 const bool hadActor = peer->second.lifecycle.actor.has_value();
-                ForgetWorldState(playerID, peer->second);
+                ForgetWorldState(peer->second);
                 logs::debug("Removed remote player {} from the world after server player:exit: hadActor={}", playerID,
                     hadActor);
             }
@@ -123,7 +122,7 @@ namespace SyncCoordinator
                     continue;
                 }
 
-                ActorLifecycle::RemoveActor(playerID, peer->second);
+                ActorLifecycle::RemoveActor(peer->second);
                 a_peers.erase(peer);
                 logs::debug("Removed remote player actor {} after server player:disconnect", playerID);
             }
@@ -179,15 +178,6 @@ namespace SyncCoordinator
                 const bool known = peer != a_peers.end();
                 CombatSync::AcceptRemoteAction(known ? &peer->second.combat : nullptr,
                     known ? &peer->second.latestCheckpoint : nullptr, std::move(action));
-            }
-
-            for (const auto& transition : changes.mountTransitions)
-            {
-                const auto peer = a_peers.find(transition.playerID);
-                const bool known = peer != a_peers.end();
-                MountSync::AcceptRemoteTransition(known ? &peer->second.mounting : nullptr,
-                    known ? &peer->second.latestCheckpoint : nullptr, known ? peer->second.lastSequence : 0,
-                    transition);
             }
         }
 
@@ -262,7 +252,6 @@ namespace SyncCoordinator
             {
                 ActorLifecycle::SetExcludedFromSaves(peer, false);
             }
-            ActorLifecycle::SetDeferredRemovalsExcludedFromSaves(false);
             s_actorsExcludedFromSaves = false;
         }
 
@@ -287,10 +276,8 @@ namespace SyncCoordinator
                     CombatSync::DiscardLocalAttacks();
                     break;
                 case CheckpointPublisher::Status::kPublished:
-                    // player:update always precedes the animation:action and
-                    // mount:transition it anchors.
+                    // player:update always precedes the animation:action it anchors.
                     CombatSync::PublishLocalAttacks(publication.checkpoint);
-                    MountSync::PublishLocalTransition(publication.checkpoint);
                     break;
                 default:
                     break;
@@ -361,8 +348,8 @@ namespace SyncCoordinator
 
             if (lifecycle.actor && MountSync::SyncMount(remote, a_peer, a_delta))
             {
-                // The mount owns the actor: it carries it, or plays its entry or
-                // dismount. Only its equipment and look are kept.
+                // The mount carries the actor, and the mount interaction owns its
+                // graph; only its equipment and look are kept.
                 auto& actor = *lifecycle.actor;
                 CombatSync::ClearRemoteActions(a_peer.combat);
                 EquipmentSync::SyncEquipment(a_peer.equipment, a_playerID, actor, a_delta);
@@ -432,7 +419,6 @@ namespace SyncCoordinator
         RestoreSaveEligibility(s_peers);
         EquipmentFallback::Refresh();
         ApplyNetworkChanges(s_peers);
-        ActorLifecycle::UpdateDeferredRemovals(a_delta);
         ActorLifecycle::RefillSpawnAllowance(a_delta);
         if (!a_player)
         {
@@ -489,7 +475,6 @@ namespace SyncCoordinator
                 ++excluded;
             }
         }
-        ActorLifecycle::SetDeferredRemovalsExcludedFromSaves(true);
         // Every peer is restored, so an actor spawned after this is unaffected.
         s_actorsExcludedFromSaves = true;
         logs::debug("Excluded {} remote player actors from game save", excluded);

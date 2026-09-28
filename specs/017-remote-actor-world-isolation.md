@@ -47,8 +47,7 @@ so recordings made before this change replay as not swimming. Every relayed
 - An on-foot actor is network-placed once it is ready, except while
   `ActorFurniture::AdvanceFurnitureInteraction` reports that native furniture
   owns it.
-- A mount is network-placed while it is driven or placed, and released to
-  Skyrim while a mount or dismount clip holds it.
+- A mount is network-placed once it is ready.
 - A rider is always left to Skyrim, which carries it with its mount.
 - A dead actor is left to Skyrim's death and ragdoll: `ActorDeath::Kill`
   releases it (`owner=death`) before the kill, since a dead actor is never
@@ -135,7 +134,7 @@ bodies, and triggers local volumes.
 
 `RemoteCollision` sets Havok's no-collision filter bit on that body while the
 network places the actor, or while its mount carries it, and clears it whenever
-Skyrim moves the actor, so a seated, dismounting, or dying actor still stands
+Skyrim moves the actor, so a seated or dying actor still stands
 on the world. Each pass reasserts it, since a rebuilt controller collides again.
 `Remote actor character body collision disabled` and `restored` log each
 change, with the owner and the controller type.
@@ -203,8 +202,8 @@ From `latest.log` and in game:
    locomotion speed matches the player's.
 5. A remote actor sits in, uses, and leaves furniture (`owner=furniture`, then
    `owner=network`).
-6. A remote player mounts, rides, and dismounts (`owner=mount clip`,
-   `owner=mount`, `owner=network`), and its horse follows the network path.
+6. A remote player mounts, rides, and dismounts (`owner=mount`,
+   `owner=network`), and its horse follows the network path.
 7. A dying remote actor still ragdolls onto the local ground.
 8. A remote actor walking onto a pressure plate does not trigger the trap.
 

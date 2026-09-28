@@ -97,9 +97,6 @@ class _RenamedPublisher:
     async def action(self, payload: dict[str, Any]) -> None:
         await self._inner.action(payload)
 
-    async def mount_transition(self, payload: dict[str, Any]) -> None:
-        await self._inner.mount_transition(payload)
-
     async def appearance(self, payload: dict[str, Any]) -> None:
         await self._inner.appearance({**payload, "name": self._name})
 

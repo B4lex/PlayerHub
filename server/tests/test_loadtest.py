@@ -115,13 +115,12 @@ class ClientPublisherTests(unittest.IsolatedAsyncioTestCase):
         publisher = ClientPublisher(client)  # type: ignore[arg-type]
 
         await publisher.action({"actionSequence": 1})
-        await publisher.mount_transition({"transition": "enter"})
         await publisher.appearance({"revision": 1})
         await publisher.equipment({"revision": 1})
 
         self.assertEqual(
             [event for event, _ in client.emitted],
-            ["animation:action", "mount:transition", "player:appearance", "player:equipment"],
+            ["animation:action", "player:appearance", "player:equipment"],
         )
 
     async def test_a_lost_connection_fails_the_replay(self) -> None:

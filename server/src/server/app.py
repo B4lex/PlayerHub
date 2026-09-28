@@ -22,7 +22,6 @@ from server.playback import PlaybackManager, Publisher, SocketPublisher
 from server.protocol import (
     parse_animation_action,
     parse_chat_message,
-    parse_mount_transition,
     parse_player_appearance,
     parse_player_equipment,
     parse_player_update,
@@ -52,7 +51,6 @@ registry = PlayerRegistry()
 # The handlers and their tests address the registry's tables directly.
 player_states = registry.states
 player_action_sequences = registry.action_sequences
-player_mount_transition_sequences = registry.mount_transition_sequences
 player_appearances = registry.appearances
 player_equipment = registry.equipment
 chat_throttle = ChatThrottle()
@@ -294,40 +292,6 @@ async def animation_action(sid: str, data: Any) -> dict[str, bool | str]:
     outbound = {"playerId": sid, **action}
     logger.debug("Socket.IO TX player:action source=%s payload=%s", sid, outbound)
     await sio.emit("player:action", outbound, skip_sid=sid)
-    return {"ok": True}
-
-
-@sio.on("mount:transition")
-async def mount_transition(sid: str, data: Any) -> dict[str, bool | str]:
-    logger.debug("Socket.IO RX mount:transition sid=%s payload=%s", sid, data)
-    transition = parse_mount_transition(data)
-    if transition is None:
-        logger.warning("Rejected malformed mount:transition from %s", sid)
-        return {"ok": False, "error": "invalid mount transition"}
-
-    # Both transitions start while the player is reported riding: the checkpoint
-    # turns mounted when the mount animation starts, and back once the dismount
-    # animation has ended.
-    checkpoint = player_states.get(sid)
-    if (
-        checkpoint is None
-        or transition["graphEpoch"] != checkpoint["graphEpoch"]
-        or transition["checkpointSequence"] > checkpoint["sequence"]
-        or not checkpoint["mounted"]
-        or checkpoint["dead"]
-    ):
-        return {"ok": False, "error": "incompatible mount checkpoint"}
-
-    previous_sequence = player_mount_transition_sequences.get(sid)
-    if previous_sequence is not None and transition["checkpointSequence"] <= previous_sequence:
-        return {"ok": False, "error": "stale mount transition"}
-
-    player_mount_transition_sequences[sid] = transition["checkpointSequence"]
-    captures.record(sid, "mount:transition", transition)
-    await checkpoints.flush_player(sid)
-    outbound = {"playerId": sid, **transition}
-    logger.info("Socket.IO TX player:mount source=%s payload=%s", sid, outbound)
-    await sio.emit("player:mount", outbound, skip_sid=sid)
     return {"ok": True}
 
 

@@ -21,7 +21,6 @@ from typing import Any
 
 from server.protocol import (
     parse_animation_action,
-    parse_mount_transition,
     parse_player_appearance,
     parse_player_equipment,
     parse_player_update,
@@ -42,7 +41,6 @@ PAYLOAD_PARSERS: dict[str, Callable[[Any], dict[str, Any] | None]] = {
     "player:appearance": parse_player_appearance,
     "player:equipment": parse_player_equipment,
     "animation:action": parse_animation_action,
-    "mount:transition": parse_mount_transition,
 }
 
 

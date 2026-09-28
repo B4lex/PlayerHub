@@ -307,15 +307,9 @@ namespace ActorRegistry
     {
         std::scoped_lock lock{ s_mutex };
         const auto registration = s_registrations.find(a_remote.animationGraphHolder);
-        if (registration == s_registrations.end())
+        if (registration != s_registrations.end())
         {
-            return;
-        }
-        registration->second.mounted = a_mounted;
-        if (!a_mounted && registration->second.gaitDriven)
-        {
-            registration->second.gaitDriven = false;
-            s_gaitDrivenCount.fetch_sub(1, std::memory_order_relaxed);
+            registration->second.mounted = a_mounted;
         }
     }
 

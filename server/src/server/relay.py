@@ -23,9 +23,9 @@ class CheckpointRelay:
     their own entry by the ID the server sends them in ``session:welcome``.
 
     Receivers keep only a player's latest checkpoint, so a newer one replaces
-    an unsent one. Messages that name a checkpoint sequence (actions, mount
-    transitions) must not overtake it: call ``flush_player`` before relaying
-    them, and ``discard`` before telling peers the player has left.
+    an unsent one. Messages that name a checkpoint sequence (actions) must not
+    overtake it: call ``flush_player`` before relaying them, and ``discard``
+    before telling peers the player has left.
     """
 
     def __init__(self, emit: Emit, interval: float = TICK_INTERVAL_SECONDS) -> None:

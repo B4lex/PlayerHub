@@ -4,7 +4,6 @@ from server.protocol import (
     MAXIMUM_CHAT_TEXT_BYTES,
     parse_animation_action,
     parse_chat_message,
-    parse_mount_transition,
     parse_player_update,
 )
 
@@ -599,40 +598,6 @@ class ParseAnimationActionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class ParseMountTransitionTests(unittest.TestCase):
-    def test_accepts_enter_and_exit(self) -> None:
-        for transition in ("enter", "exit"):
-            with self.subTest(transition=transition):
-                payload = {"transition": transition, "graphEpoch": 2, "checkpointSequence": 18}
-
-                self.assertEqual(parse_mount_transition(payload), payload)
-
-    def test_drops_unknown_fields(self) -> None:
-        payload = {"transition": "enter", "graphEpoch": 2, "checkpointSequence": 18, "side": "left"}
-
-        self.assertEqual(
-            parse_mount_transition(payload),
-            {"transition": "enter", "graphEpoch": 2, "checkpointSequence": 18},
-        )
-
-    def test_rejects_invalid_fields(self) -> None:
-        valid = {"transition": "exit", "graphEpoch": 2, "checkpointSequence": 18}
-        for field, value in (
-            ("transition", "HorseEnter"),
-            ("transition", None),
-            ("graphEpoch", 0),
-            ("graphEpoch", True),
-            ("checkpointSequence", 0),
-            ("checkpointSequence", 1.5),
-            ("checkpointSequence", 0x8000000000000000),
-        ):
-            with self.subTest(field=field, value=value):
-                self.assertIsNone(parse_mount_transition({**valid, field: value}))
-
-        self.assertIsNone(parse_mount_transition(None))
-        self.assertIsNone(parse_mount_transition({"graphEpoch": 2, "checkpointSequence": 18}))
 
 
 class ParseChatMessageTests(unittest.TestCase):

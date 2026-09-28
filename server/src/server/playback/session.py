@@ -361,8 +361,6 @@ class PlaybackSession:
                     await self._publisher.equipment(payload)
             case "animation:action":
                 await self._publisher.action(self._virtual.action(message.payload))
-            case "mount:transition":
-                await self._publisher.mount_transition(self._virtual.mount_transition(message.payload))
 
     async def _emit_hold(self) -> None:
         if self._last_update is not None:

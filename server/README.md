@@ -59,8 +59,8 @@ to `http://127.0.0.1:3000` for local testing.
   merges two of a player's updates into one tick. The batch goes to every
   client unchanged, including the players it contains, because an identical
   broadcast is encoded once; clients skip their own entry. A player's unsent
-  checkpoint is sent on its own before a `player:action` or `player:mount` that
-  names it, and dropped when the player exits or disconnects.
+  checkpoint is sent on its own before a `player:action` that names it, and
+  dropped when the player exits or disconnects.
 - `animation:action` carries a validated, ordered semantic action. The
   vocabulary is `attack/normal`, `attack/left`, `attack/dual`, and `attack/bash`.
   Every attack carries a boolean `power`. A power attack or power bash also
@@ -69,12 +69,6 @@ to `http://127.0.0.1:3000` for local testing.
 - `player:action` relays that action to every other connected player after its
   graph epoch, drawn-weapon, and unoccupied-furniture checkpoint prerequisites
   are verified.
-- `mount:transition` carries the start of an animated mount (`enter`) or
-  dismount (`exit`), with the `graphEpoch` and `checkpointSequence` of the
-  `player:update` sent right before it. It is accepted only against a mounted,
-  living latest checkpoint of that epoch, and each transition must be anchored
-  to a newer checkpoint than the previous one. `player:mount` relays it to every
-  other connected player. See `specs/016-mount-riding-sync.md`.
 - `player:appearance` carries the player's latest character name, level, and
   appearance (race, sex, weight, head parts, hair color, face morphs, and tints)
   with an increasing revision. It is relayed to other players with `playerId`
@@ -142,10 +136,10 @@ and runs until stopped. Nothing is recorded by default. Starting a capture write
 the player's current appearance, equipment, and latest checkpoint first (preceded
 by `player:exit` when the player is out of the world), so a recording that begins
 mid-session replays on its own. After that every accepted `player:enter`,
-`player:exit`, `player:update`, `player:appearance`, `player:equipment`,
-`animation:action`, and `mount:transition` of that player is appended. A capture
-also ends when the player disconnects or the server shuts down, and a failing
-disk ends only the capture, never the relay.
+`player:exit`, `player:update`, `player:appearance`, `player:equipment`, and
+`animation:action` of that player is appended. A capture also ends when the
+player disconnects or the server shuts down, and a failing disk ends only the
+capture, never the relay.
 
 A recording is one append-only JSON Lines file, `recordings/<id>.jsonl`, with the
 ID `YYYYMMDD-HHMMSS-xxxxxx`. It has a `header` line (label, player, start time),
@@ -171,8 +165,8 @@ last line is ignored. Recordings are ignored by Git.
 
 A replay runs inside the server as a **virtual player** (`replay:<id>`). Every
 connected client sees it as another peer: it is relayed in `player:states`, as
-`player:action`, `player:mount`, `player:appearance`, `player:equipment`,
-`player:exit`, and `player:disconnect`, and clients that join mid-replay receive
+`player:action`, `player:appearance`, `player:equipment`, `player:exit`, and
+`player:disconnect`, and clients that join mid-replay receive
 its appearance and equipment. While the recorded player was out of the world,
 the virtual player exits too and sends no checkpoints. Nothing in the
 plugin distinguishes it from a real player.

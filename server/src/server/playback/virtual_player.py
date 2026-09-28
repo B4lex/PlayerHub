@@ -85,11 +85,6 @@ class VirtualPlayer:
             "checkpointSequence": self._sequence,
         }
 
-    def mount_transition(self, recorded: PlayerPayload) -> PlayerPayload:
-        if self._sequence == 0:
-            raise ValueError("a mount transition needs a checkpoint to follow")
-        return {**recorded, "graphEpoch": self._epoch, "checkpointSequence": self._sequence}
-
     def appearance(self, recorded: PlayerPayload) -> PlayerPayload | None:
         # Receivers rebuild the actor for a new appearance, so an unchanged one
         # (for example after seeking within the same look) is not resent.
