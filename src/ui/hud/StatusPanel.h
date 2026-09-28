@@ -6,8 +6,8 @@
 
 namespace UI
 {
-    // Shows the connection state, round-trip latency, and the plugin's average
-    // frame time in a screen corner during a game, when [UI] StatusPanel is on.
-    // Display only.
+    // Shows the connection state, round-trip latency, estimated download and
+    // upload rates, and the plugin's average frame time in a screen corner
+    // during a game, when [UI] StatusPanel is on. Display only.
     [[nodiscard]] std::unique_ptr<Window> CreateStatusPanel();
 }

@@ -12,10 +12,10 @@ uv run server
 ```
 
 Per-message Socket.IO diagnostics are emitted at the normal service log level:
-received `player:update` payloads and relayed `player:state` / `player:exit` /
-`player:disconnect` payloads. The game console logs its transmitted
-`player:update` and received `player:state` / `player:exit` /
-`player:disconnect` messages. At the default 20 Hz update rate this
+received `player:update` payloads, relayed `player:states` batch sizes, and
+relayed `player:exit` / `player:disconnect` payloads. The game console logs its
+transmitted `player:update` and received `player:exit` / `player:disconnect`
+messages. At the default 20 Hz update rate this
 is intentionally verbose.
 
 The server listens on port `3000` on all interfaces. The SKSE plugin defaults
@@ -23,6 +23,9 @@ to `http://127.0.0.1:3000` for local testing.
 
 - `GET /health` returns a basic health check.
 - `GET /poc` returns a human-readable proof-of-concept response.
+- `session:welcome` is the first message a client receives after connecting. It
+  carries the client's own `playerId`, which the client uses to skip its own
+  entry in `player:states`.
 - `player:enter` and `player:exit` carry no payload and mark whether the player
   is placed in the game world. A client connects out of the world (main menu),
   enters once its character is in a loaded cell, and exits when a loading screen
@@ -31,7 +34,7 @@ to `http://127.0.0.1:3000` for local testing.
   exit, but keeps its appearance and equipment.
 - `player:exit` is relayed to peers with `playerId`, telling them to remove the
   player's actor while keeping its appearance and equipment. `player:enter` is
-  not relayed: the next `player:state` places the player again.
+  not relayed: the next `player:states` entry places the player again.
 - `player:update` carries the local player's position, heading, measured speed,
   explicit movement-animation state, jump phase, bow draw and per-hand spell
   casting (`bowDrawn`, `castingLeft`, `castingRight`, optional and defaulting to
@@ -48,7 +51,14 @@ to `http://127.0.0.1:3000` for local testing.
   occupied furniture reference FormID, graph epoch, and monotonically increasing
   checkpoint sequence number. It is rejected with `not in world` outside
   `player:enter` and `player:exit`.
-- `player:state` relays a validated transform to every other connected player.
+- `player:states` relays validated transforms as `{"states": [...]}`, each entry
+  a checkpoint with its `playerId`. The server keeps only each player's newest
+  unsent checkpoint and broadcasts them all every 50 ms, so a client receives
+  one message per tick rather than one per peer update. The batch goes to every
+  client unchanged, including the players it contains, because an identical
+  broadcast is encoded once; clients skip their own entry. A player's unsent
+  checkpoint is sent on its own before a `player:action` or `player:mount` that
+  names it, and dropped when the player exits or disconnects.
 - `animation:action` carries a validated, ordered semantic action. The
   vocabulary is `attack/normal`, `attack/left`, `attack/dual`, and `attack/bash`.
   Every attack carries a boolean `power`. A power attack or power bash also
@@ -92,7 +102,7 @@ to `http://127.0.0.1:3000` for local testing.
   and never relayed. The plugin sends one per second, shows the acknowledgement
   round trip as its ping, and uses `serverTimeMs` to estimate the server clock.
 - `player:update` may carry an optional `sentAtMs`: the source's emit time on the
-  server clock. It is relayed on `player:state` but never stored or recorded, and
+  server clock. It is relayed on `player:states` but never stored or recorded, and
   a missing or invalid value is dropped without rejecting the checkpoint. Peers
   use it to show the remote packet delay.
 
@@ -158,7 +168,7 @@ last line is ignored. Recordings are ignored by Git.
 ## Replaying a recording
 
 A replay runs inside the server as a **virtual player** (`replay:<id>`). Every
-connected client sees it as another peer: it is relayed as `player:state`,
+connected client sees it as another peer: it is relayed in `player:states`, as
 `player:action`, `player:mount`, `player:appearance`, `player:equipment`,
 `player:exit`, and `player:disconnect`, and clients that join mid-replay receive
 its appearance and equipment. While the recorded player was out of the world,

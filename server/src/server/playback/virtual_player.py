@@ -1,6 +1,6 @@
 """Turns recorded payloads into the live message stream of one synthetic peer.
 
-Receivers accept a peer's ``player:state`` only with a rising ``sequence`` and a
+Receivers accept a peer's checkpoint only with a rising ``sequence`` and a
 non-decreasing ``graphEpoch``, its actions only with contiguous
 ``actionSequence`` values, and appearance or equipment only with rising
 revisions. A recording's own numbers stop satisfying that as soon as playback

@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "network/ConnectionMonitor.h"
 #include "network/SocketIOClient.h"
+#include "network/TrafficMeter.h"
 #include "runtime/GameSession.h"
 #include "runtime/PluginTime.h"
 #include "ui/Layout.h"
@@ -20,6 +21,10 @@ namespace UI
         constexpr float kBackgroundAlpha = 0.35F;
         constexpr long long kGoodLatencyMilliseconds = 80;
         constexpr long long kFairLatencyMilliseconds = 150;
+        constexpr double kBytesPerKilobyte = 1000.0;
+        // UTF-8 for the arrows, since the build does not set the source charset.
+        constexpr const char* kDownloadArrow = "\xE2\x86\x93";
+        constexpr const char* kUploadArrow = "\xE2\x86\x91";
 
         constexpr ImVec4 kGoodColor{ 0.45F, 0.85F, 0.45F, 1.0F };
         constexpr ImVec4 kFairColor{ 0.95F, 0.80F, 0.30F, 1.0F };
@@ -43,6 +48,21 @@ namespace UI
                 : milliseconds <= kFairLatencyMilliseconds               ? kFairColor
                                                                          : kPoorColor;
             ImGui::TextColored(color, "Ping %lld ms", milliseconds);
+        }
+
+        void DrawTraffic(std::optional<Network::TrafficRates> a_rates)
+        {
+            if (!a_rates)
+            {
+                ImGui::TextColored(kMutedColor, "%s -- KB/s", kDownloadArrow);
+                ImGui::TextColored(kMutedColor, "%s -- KB/s", kUploadArrow);
+                return;
+            }
+
+            ImGui::TextColored(
+                kMutedColor, "%s %.1f KB/s", kDownloadArrow, a_rates->receivedBytesPerSecond / kBytesPerKilobyte);
+            ImGui::TextColored(
+                kMutedColor, "%s %.1f KB/s", kUploadArrow, a_rates->sentBytesPerSecond / kBytesPerKilobyte);
         }
 
         void DrawPluginTime(std::optional<std::chrono::nanoseconds> a_average)
@@ -86,6 +106,7 @@ namespace UI
         else
         {
             DrawPing(Network::GetLatency());
+            DrawTraffic(Network::GetTrafficRates());
         }
         DrawPluginTime(PluginTime::GetAverageFrameTime());
 

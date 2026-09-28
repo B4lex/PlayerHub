@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, call, patch
 
 import server.app as server_app
 
@@ -39,10 +39,10 @@ class AnimationActionRelayTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         server_app.player_states.clear()
         server_app.player_action_sequences.clear()
+        server_app.checkpoints._pending.clear()
 
     def tearDown(self) -> None:
-        server_app.player_states.clear()
-        server_app.player_action_sequences.clear()
+        self.setUp()
 
     async def test_relays_ordered_attack_against_checkpoint(self) -> None:
         emit = AsyncMock()
@@ -57,6 +57,27 @@ class AnimationActionRelayTests(unittest.IsolatedAsyncioTestCase):
             {"playerId": "player-1", **valid_action()},
             skip_sid="player-1",
         )
+
+    async def test_sends_the_unsent_checkpoint_before_the_action_naming_it(self) -> None:
+        emit = AsyncMock()
+        server_app.registry.enter("player-1")
+        self.addCleanup(server_app.registry.in_world.discard, "player-1")
+        server_app.checkpoints.publish("player-2", {"playerId": "player-2"})
+
+        with patch.object(server_app.sio, "emit", new=emit):
+            await server_app.player_update("player-1", valid_state())
+            result = await server_app.animation_action("player-1", valid_action())
+
+        self.assertEqual(result, {"ok": True})
+        checkpoint = {"playerId": "player-1", **server_app.player_states["player-1"]}
+        self.assertEqual(
+            emit.await_args_list,
+            [
+                call("player:states", {"states": [checkpoint]}),
+                call("player:action", {"playerId": "player-1", **valid_action()}, skip_sid="player-1"),
+            ],
+        )
+        self.assertEqual(server_app.checkpoints._pending, {"player-2": {"playerId": "player-2"}})
 
     async def test_relays_off_hand_attacks_and_bash_in_order(self) -> None:
         emit = AsyncMock()

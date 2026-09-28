@@ -104,6 +104,7 @@ class PlayerCaptureThroughHandlersTests(unittest.IsolatedAsyncioTestCase):
             patch.object(server_app.captures._by_player["player-1"].writer, "write", side_effect=OSError("disk full")),
         ):
             result = await server_app.player_update("player-1", valid_payload(1))
+            await server_app.checkpoints.flush()
 
         self.assertEqual(result, {"ok": True})
         emit.assert_awaited_once()

@@ -1,5 +1,7 @@
 #include "network/SocketIOClient.h"
 #include "config/PluginConfig.h"
+#include "network/PacketSize.h"
+#include "network/TrafficMeter.h"
 #include "runtime/Profiling.h"
 
 #include <sio_client.h>
@@ -42,7 +44,13 @@ namespace Network
         std::deque<RemoteMountTransition> pendingMountTransitions;
         std::unordered_set<std::string> pendingExits;
         std::unordered_set<std::string> pendingDisconnects;
+        // Our own sid on the current connection, from session:welcome. Checkpoint
+        // batches go to every client unchanged, so they include our own entry.
+        std::string localPlayerID;
         std::uint64_t localActionSequence = 0;
+
+        // Bounds the work one untrusted batch can cause.
+        constexpr std::size_t kMaximumRemoteTransformsPerBatch = 4096;
 
         // Bounds memory while nothing drains chat, for example without the overlay.
         constexpr std::size_t kMaximumPendingChatMessages = 128;
@@ -84,6 +92,24 @@ namespace Network
         sio::socket::ptr GetSocket()
         {
             return GetClient().socket();
+        }
+
+        // Every emit goes through here so the traffic meter sees it and its
+        // acknowledgement.
+        void Emit(const std::string& a_event, const sio::message::list& a_arguments = nullptr,
+            std::function<void(sio::message::list const&)> a_onAcknowledged = nullptr)
+        {
+            CountSentBytes(EstimateEventPacketSize(a_event, a_arguments, JsonWriter::kClient));
+            if (!a_onAcknowledged)
+            {
+                GetSocket()->emit(a_event, a_arguments);
+                return;
+            }
+            GetSocket()->emit(a_event, a_arguments,
+                [onAcknowledged = std::move(a_onAcknowledged)](sio::message::list const& a_acknowledgement) {
+                    CountReceivedBytes(EstimateAcknowledgementPacketSize(a_acknowledgement, JsonWriter::kServer));
+                    onAcknowledged(a_acknowledgement);
+                });
         }
 
         bool ReadString(
@@ -804,30 +830,22 @@ namespace Network
             return Multiplayer::IsValidEquipment(equipment) ? nullptr : "value ranges";
         }
 
-        void OnRemoteTransform(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
+        // Requires remoteChangesLock.
+        void AcceptRemoteTransformLocked(RemotePlayerTransform&& a_update)
         {
-            PROFILE_FUNCTION();
-            RemotePlayerTransform update;
-            if (!ParseRemoteTransform(a_data, update))
-            {
-                logs::warn("Ignored malformed Socket.IO player:state payload");
-                return;
-            }
-
-            const auto playerID = update.playerID;
-            std::scoped_lock lock{ remoteChangesLock };
+            const auto playerID = a_update.playerID;
             pendingDisconnects.erase(playerID);
 
             const auto latest = latestReceivedTransforms.find(playerID);
             if (latest != latestReceivedTransforms.end()
-                && (update.transform.sequence <= latest->second.sequence
-                    || update.transform.graphEpoch < latest->second.graphEpoch))
+                && (a_update.transform.sequence <= latest->second.sequence
+                    || a_update.transform.graphEpoch < latest->second.graphEpoch))
             {
                 logs::debug(
                     "Animation sync ignored stale network snapshot: player={} sequence={} state={} newestSequence={} "
                     "newestState={}",
-                    playerID, static_cast<unsigned long long>(update.transform.sequence),
-                    Multiplayer::GetMovementStateName(update.transform.animationState.movementState),
+                    playerID, static_cast<unsigned long long>(a_update.transform.sequence),
+                    Multiplayer::GetMovementStateName(a_update.transform.animationState.movementState),
                     static_cast<unsigned long long>(latest->second.sequence),
                     Multiplayer::GetMovementStateName(latest->second.animationState.movementState));
                 return;
@@ -835,8 +853,46 @@ namespace Network
             // Transform, locomotion, jump state, and combat stance are one latest-wins
             // checkpoint. Transient graph events are consequences of changing between
             // checkpoints; retaining them separately can replay obsolete transitions.
-            latestReceivedTransforms.insert_or_assign(playerID, update.transform);
-            pendingTransforms.insert_or_assign(playerID, std::move(update));
+            latestReceivedTransforms.insert_or_assign(playerID, a_update.transform);
+            pendingTransforms.insert_or_assign(playerID, std::move(a_update));
+        }
+
+        void OnRemoteTransforms(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
+        {
+            PROFILE_FUNCTION();
+            const std::vector<sio::message::ptr>* entries = nullptr;
+            if (!a_data || a_data->get_flag() != sio::message::flag_object
+                || !ReadArray(a_data->get_map(), "states", kMaximumRemoteTransformsPerBatch, entries))
+            {
+                logs::warn("Ignored malformed Socket.IO player:states payload");
+                return;
+            }
+
+            // Parsed before taking the lock the main loop drains under.
+            std::vector<RemotePlayerTransform> updates;
+            updates.reserve(entries->size());
+            std::size_t malformed = 0;
+            for (const auto& entry : *entries)
+            {
+                if (!ParseRemoteTransform(entry, updates.emplace_back()))
+                {
+                    updates.pop_back();
+                    ++malformed;
+                }
+            }
+            if (malformed != 0)
+            {
+                logs::warn("Ignored {} malformed Socket.IO player:states entries", malformed);
+            }
+
+            std::scoped_lock lock{ remoteChangesLock };
+            for (auto& update : updates)
+            {
+                if (update.playerID != localPlayerID)
+                {
+                    AcceptRemoteTransformLocked(std::move(update));
+                }
+            }
         }
 
         void OnRemoteAnimationAction(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
@@ -1093,20 +1149,46 @@ namespace Network
             pendingDisconnects.insert(std::move(playerID));
         }
 
+        void OnSessionWelcome(std::string const&, sio::message::ptr const& a_data, bool, sio::message::list&)
+        {
+            std::string playerID;
+            if (!ReadPlayerID(a_data, playerID))
+            {
+                logs::warn("Ignored malformed Socket.IO session:welcome payload");
+                return;
+            }
+
+            logs::info("Socket.IO session identified as player {}", playerID);
+            std::scoped_lock lock{ remoteChangesLock };
+            localPlayerID = std::move(playerID);
+        }
+
+        using EventHandler = void (*)(std::string const&, sio::message::ptr const&, bool, sio::message::list&);
+
+        sio::socket::event_listener_aux CountingTraffic(EventHandler a_handler)
+        {
+            return [a_handler](std::string const& a_event, sio::message::ptr const& a_data, bool a_needsAck,
+                       sio::message::list& a_acknowledgement) {
+                CountReceivedBytes(EstimateEventPacketSize(a_event, sio::message::list(a_data), JsonWriter::kServer));
+                a_handler(a_event, a_data, a_needsAck, a_acknowledgement);
+            };
+        }
+
         // The client discards the socket object, with its handlers, when the
         // server closes the namespace, so every attempt registers them again on
         // whichever object it is about to open.
         void RegisterSocketHandlers()
         {
             const auto socket = GetSocket();
-            socket->on("player:state", sio::socket::event_listener_aux(OnRemoteTransform));
-            socket->on("player:action", sio::socket::event_listener_aux(OnRemoteAnimationAction));
-            socket->on("player:mount", sio::socket::event_listener_aux(OnRemoteMountTransition));
-            socket->on("player:appearance", sio::socket::event_listener_aux(OnRemoteAppearance));
-            socket->on("player:equipment", sio::socket::event_listener_aux(OnRemoteEquipment));
-            socket->on("player:exit", sio::socket::event_listener_aux(OnRemoteExit));
-            socket->on("player:disconnect", sio::socket::event_listener_aux(OnRemoteDisconnect));
-            socket->on("chat:message", sio::socket::event_listener_aux(OnRemoteChatMessage));
+            socket->on("session:welcome", CountingTraffic(OnSessionWelcome));
+            socket->on("player:states", CountingTraffic(OnRemoteTransforms));
+            socket->on("player:action", CountingTraffic(OnRemoteAnimationAction));
+            socket->on("player:mount", CountingTraffic(OnRemoteMountTransition));
+            socket->on("player:appearance", CountingTraffic(OnRemoteAppearance));
+            socket->on("player:equipment", CountingTraffic(OnRemoteEquipment));
+            socket->on("player:exit", CountingTraffic(OnRemoteExit));
+            socket->on("player:disconnect", CountingTraffic(OnRemoteDisconnect));
+            socket->on("chat:message", CountingTraffic(OnRemoteChatMessage));
         }
     }
 
@@ -1145,6 +1227,8 @@ namespace Network
                         return;
                     }
                     ForgetRemotePlayersLocked();
+                    // The server names every connection anew and sends it in session:welcome.
+                    localPlayerID.clear();
                     generation = connectionGeneration.fetch_add(1, std::memory_order_acq_rel) + 1;
                     wasConnected = connected.exchange(true, std::memory_order_acq_rel);
                 }
@@ -1189,7 +1273,7 @@ namespace Network
     {
         if (IsConnected())
         {
-            GetSocket()->emit("player:enter");
+            Emit("player:enter");
         }
     }
 
@@ -1197,7 +1281,7 @@ namespace Network
     {
         if (IsConnected())
         {
-            GetSocket()->emit("player:exit");
+            Emit("player:exit");
         }
     }
 
@@ -1234,7 +1318,7 @@ namespace Network
         values["graphEpoch"] = sio::int_message::create(static_cast<std::int64_t>(a_transform.graphEpoch));
         values["sequence"] = sio::int_message::create(static_cast<std::int64_t>(a_transform.sequence));
 
-        GetSocket()->emit("player:update", payload);
+        Emit("player:update", payload);
     }
 
     void PublishLocalAppearance(const Multiplayer::PlayerAppearance& a_appearance)
@@ -1302,7 +1386,7 @@ namespace Network
         values["faceParts"] = std::move(faceParts);
         values["tints"] = std::move(tints);
 
-        GetSocket()->emit("player:appearance", payload);
+        Emit("player:appearance", payload);
     }
 
     void PublishLocalEquipment(const Multiplayer::PlayerEquipment& a_equipment)
@@ -1352,7 +1436,7 @@ namespace Network
         values["leftHand"] = createHand(a_equipment.leftHand);
         values["ammo"] = CreateFormReference(a_equipment.ammo);
 
-        GetSocket()->emit("player:equipment", payload);
+        Emit("player:equipment", payload);
     }
 
     void PublishLocalAttack(const Attack& a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence)
@@ -1391,7 +1475,7 @@ namespace Network
             GetAttackActionName(a_attack.action), a_attack.power, GetPowerAttackDirectionName(a_attack.direction),
             static_cast<unsigned long long>(localActionSequence), static_cast<unsigned long long>(a_graphEpoch),
             static_cast<unsigned long long>(a_checkpointSequence));
-        GetSocket()->emit("animation:action", payload);
+        Emit("animation:action", payload);
     }
 
     void PublishLocalMountTransition(
@@ -1412,7 +1496,7 @@ namespace Network
         logs::debug("Mount sync publishing transition: transition={} graphEpoch={} checkpointSequence={}",
             GetMountTransitionName(a_transition), static_cast<unsigned long long>(a_graphEpoch),
             static_cast<unsigned long long>(a_checkpointSequence));
-        GetSocket()->emit("mount:transition", payload);
+        Emit("mount:transition", payload);
     }
 
     bool PublishChatMessage(std::string_view a_text, std::function<void(std::string_view)> a_onRejected)
@@ -1424,7 +1508,7 @@ namespace Network
 
         auto payload = sio::object_message::create();
         payload->get_map()["text"] = sio::string_message::create(std::string{ a_text });
-        GetSocket()->emit("chat:send", payload,
+        Emit("chat:send", payload,
             [onRejected = std::move(a_onRejected)](sio::message::list const& a_acknowledgement) {
                 const auto& result = a_acknowledgement.size() > 0 ? a_acknowledgement[0] : sio::message::ptr{};
                 if (!result || result->get_flag() != sio::message::flag_object)
@@ -1451,7 +1535,7 @@ namespace Network
             return;
         }
 
-        GetSocket()->emit("latency:probe", nullptr,
+        Emit("latency:probe", nullptr,
             [onAcknowledged = std::move(a_onAcknowledged)](sio::message::list const&) { onAcknowledged(); });
     }
 

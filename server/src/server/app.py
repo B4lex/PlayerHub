@@ -29,6 +29,7 @@ from server.protocol import (
 )
 from server.recording import CaptureManager, RecordingStore
 from server.registry import PlayerRegistry
+from server.relay import CheckpointRelay
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -55,6 +56,8 @@ player_mount_transition_sequences = registry.mount_transition_sequences
 player_appearances = registry.appearances
 player_equipment = registry.equipment
 chat_throttle = ChatThrottle()
+# ``sio.emit`` is looked up per call, like in ``_replay_publisher`` below.
+checkpoints = CheckpointRelay(lambda event, payload: sio.emit(event, payload))
 
 
 def _notify_admin() -> None:
@@ -103,15 +106,17 @@ def _replay_publisher(player_id: str) -> Publisher:
     async def emit(event: str, payload: dict[str, Any]) -> None:
         await sio.emit(event, payload)
 
-    return SocketPublisher(player_id, emit, registry)
+    return SocketPublisher(player_id, emit, registry, checkpoints)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    checkpoints.start()
     yield
     captures.stop_all("shutdown")
     await playbacks.close_all()
     await batches.close_all()
+    await checkpoints.stop()
 
 
 api = FastAPI(title="Skyrim Multiplayer Server", lifespan=lifespan)
@@ -130,7 +135,7 @@ async def poc() -> dict[str, str]:
     return {
         "message": "Skyrim Multiplayer synchronization server is ready",
         "clientEvent": "player:update",
-        "serverEvent": "player:state",
+        "serverEvent": "player:states",
     }
 
 
@@ -140,6 +145,8 @@ async def connect(sid: str, environ: dict[str, Any]) -> None:
     logger.info("Socket.IO client connected: %s", sid)
     registry.add(sid)
     _notify_admin()
+    # Sent first, so the client can skip its own entry in every checkpoint batch.
+    await sio.emit("session:welcome", {"playerId": sid}, to=sid)
     # Appearance only changes rarely, so late joiners receive the stored state.
     for player_id in list(player_appearances):
         if player_id == sid:
@@ -156,6 +163,7 @@ async def connect(sid: str, environ: dict[str, Any]) -> None:
 async def disconnect(sid: str, reason: str) -> None:
     captures.stop_player(sid, "disconnected")
     registry.remove(sid)
+    checkpoints.discard(sid)
     chat_throttle.forget(sid)
     _notify_admin()
     outbound = {"playerId": sid}
@@ -182,6 +190,7 @@ async def player_exit(sid: str, data: Any = None) -> dict[str, bool]:
         return {"ok": True}
     logger.info("Socket.IO player left the world: %s", sid)
     captures.record(sid, "player:exit", {})
+    checkpoints.discard(sid)
     _notify_admin()
     outbound = {"playerId": sid}
     logger.info("Socket.IO TX player:exit payload=%s", outbound)
@@ -208,9 +217,7 @@ async def player_update(sid: str, data: Any) -> dict[str, bool | str]:
     player_states[sid] = state
     captures.record(sid, "player:update", state)
     _notify_admin()
-    outbound: dict[str, bool | int | float | str] = {"playerId": sid, **state}
-    logger.debug("Socket.IO TX player:state source=%s payload=%s", sid, outbound)
-    await sio.emit("player:state", outbound, skip_sid=sid)
+    checkpoints.publish(sid, {"playerId": sid, **state})
     return {"ok": True}
 
 
@@ -283,6 +290,7 @@ async def animation_action(sid: str, data: Any) -> dict[str, bool | str]:
 
     player_action_sequences[sid] = action["actionSequence"]
     captures.record(sid, "animation:action", action)
+    await checkpoints.flush_player(sid)
     outbound = {"playerId": sid, **action}
     logger.debug("Socket.IO TX player:action source=%s payload=%s", sid, outbound)
     await sio.emit("player:action", outbound, skip_sid=sid)
@@ -316,6 +324,7 @@ async def mount_transition(sid: str, data: Any) -> dict[str, bool | str]:
 
     player_mount_transition_sequences[sid] = transition["checkpointSequence"]
     captures.record(sid, "mount:transition", transition)
+    await checkpoints.flush_player(sid)
     outbound = {"playerId": sid, **transition}
     logger.info("Socket.IO TX player:mount source=%s payload=%s", sid, outbound)
     await sio.emit("player:mount", outbound, skip_sid=sid)

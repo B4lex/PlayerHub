@@ -11,6 +11,7 @@ class MountTransitionRelayTests(unittest.IsolatedAsyncioTestCase):
         server_app.player_states.clear()
         server_app.player_mount_transition_sequences.clear()
         server_app.registry.in_world.clear()
+        server_app.checkpoints._pending.clear()
 
     def tearDown(self) -> None:
         self.setUp()

@@ -48,6 +48,7 @@ class WorldPresenceTests(unittest.IsolatedAsyncioTestCase):
         server_app.registry.action_sequences.clear()
         server_app.registry.appearances.clear()
         server_app.registry.equipment.clear()
+        server_app.checkpoints._pending.clear()
 
     async def test_rejects_checkpoints_before_entering_the_world(self) -> None:
         emit = AsyncMock()
@@ -66,9 +67,10 @@ class WorldPresenceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await server_app.player_enter("player-1"), {"ok": True})
             self.assertEqual(await server_app.player_enter("player-1", {}), {"ok": True})
             result = await server_app.player_update("player-1", valid_state())
+            await server_app.checkpoints.flush()
 
         self.assertEqual(result, {"ok": True})
-        self.assertEqual([call.args[0] for call in emit.await_args_list], ["player:state"])
+        self.assertEqual([call.args[0] for call in emit.await_args_list], ["player:states"])
 
     async def test_exiting_relays_and_forgets_world_state_but_keeps_the_look(self) -> None:
         emit = AsyncMock()
@@ -85,6 +87,7 @@ class WorldPresenceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, {"ok": True})
         emit.assert_awaited_once_with("player:exit", {"playerId": "player-1"}, skip_sid="player-1")
+        self.assertNotIn("player-1", server_app.checkpoints._pending)
         self.assertNotIn("player-1", server_app.player_states)
         self.assertNotIn("player-1", server_app.player_action_sequences)
         self.assertIn("player-1", server_app.player_appearances)
@@ -131,9 +134,17 @@ class WorldPresenceTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(server_app.sio, "emit", new=emit):
             await server_app.connect("player-1", {})
             await server_app.player_enter("player-1")
+            await server_app.player_update("player-1", valid_state())
             await server_app.disconnect("player-1", "transport close")
+            await server_app.checkpoints.flush()
 
-        emit.assert_awaited_once_with("player:disconnect", {"playerId": "player-1"})
+        self.assertEqual(
+            [call.args for call in emit.await_args_list],
+            [
+                ("session:welcome", {"playerId": "player-1"}),
+                ("player:disconnect", {"playerId": "player-1"}),
+            ],
+        )
         self.assertNotIn("player-1", server_app.registry.in_world)
 
     async def test_records_presence_changes_of_a_captured_player(self) -> None:
