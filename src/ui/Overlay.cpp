@@ -22,7 +22,7 @@ namespace UI::Overlay
         // Sizes are authored for a 1080p back buffer and scaled to the real one.
         constexpr float kReferenceScreenHeight = 1080.0F;
         constexpr float kMinimumScale = 0.5F;
-        constexpr float kBaseFontSize = 18.0F;
+        constexpr float kBaseFontSize = 16.0F;
 
         bool initialized = false;
         bool initializationFailed = false;

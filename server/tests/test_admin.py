@@ -22,6 +22,7 @@ from server.loadtest import BatchManager
 from server.playback import PlaybackManager, SocketPublisher
 from server.recording import CaptureManager, RecordingStore
 from server.registry import PlayerRegistry
+from server.relay import CheckpointRelay
 
 RECORDING_ID = "20260921-101500-abc123"
 
@@ -34,6 +35,7 @@ class AdminApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.registry = PlayerRegistry()
         self.emit = AsyncMock()
+        self.checkpoints = CheckpointRelay(self.emit)
         self.changes = 0
 
         def on_change() -> None:
@@ -43,12 +45,12 @@ class AdminApiTests(unittest.IsolatedAsyncioTestCase):
         self.captures = CaptureManager(store, on_change=on_change)
         self.playbacks = PlaybackManager(
             store,
-            lambda player_id: SocketPublisher(player_id, self.emit, self.registry),
+            lambda player_id: SocketPublisher(player_id, self.emit, self.registry, self.checkpoints),
             on_change=on_change,
         )
         self.batches = BatchManager(
             store,
-            lambda player_id: SocketPublisher(player_id, self.emit, self.registry),
+            lambda player_id: SocketPublisher(player_id, self.emit, self.registry, self.checkpoints),
             on_change=on_change,
         )
         self.context = AdminContext(
@@ -213,8 +215,9 @@ class AdminApiTests(unittest.IsolatedAsyncioTestCase):
         players = build_state(self.context).players
         self.assertEqual([(p.id, p.virtual, p.playback_id) for p in players], [(playback["playerId"], True, playback["id"])])
         await asyncio.sleep(0.05)  # let the run loop spawn the actor
+        await self.checkpoints.flush()
         events = [call.args[0] for call in self.emit.await_args_list]
-        self.assertIn("player:state", events)
+        self.assertIn("player:states", events)
         self.assertIn(playback["playerId"], self.registry.appearances)
 
         removed = await self.client.delete(base)
@@ -396,12 +399,14 @@ class SocketPublisherTests(unittest.IsolatedAsyncioTestCase):
     async def test_relays_as_a_peer_and_registers_late_join_state(self) -> None:
         emit = AsyncMock()
         registry = PlayerRegistry()
-        publisher = SocketPublisher("replay:1", emit, registry)
+        checkpoints = CheckpointRelay(emit)
+        publisher = SocketPublisher("replay:1", emit, registry, checkpoints)
 
         await publisher.appearance({"revision": 1, "name": "Lydia"})
         await publisher.equipment({"revision": 1, "armor": []})
         await publisher.checkpoint({"sequence": 1})
         await publisher.action({"actionSequence": 1})
+        await publisher.checkpoint({"sequence": 2})
 
         self.assertEqual(registry.appearances["replay:1"], {"revision": 1, "name": "Lydia"})
         self.assertEqual(registry.equipment["replay:1"], {"revision": 1, "armor": []})
@@ -413,12 +418,13 @@ class SocketPublisherTests(unittest.IsolatedAsyncioTestCase):
                     {"playerId": "replay:1", "revision": 1, "name": "Lydia", "nameIndex": 1},
                 ),
                 ("player:equipment", {"playerId": "replay:1", "revision": 1, "armor": []}),
-                ("player:state", {"playerId": "replay:1", "sequence": 1}),
+                ("player:states", {"states": [{"playerId": "replay:1", "sequence": 1}]}),
                 ("player:action", {"playerId": "replay:1", "actionSequence": 1}),
             ],
         )
 
         await publisher.left()
+        await checkpoints.flush()
 
         emit.assert_awaited_with("player:disconnect", {"playerId": "replay:1"})
         self.assertNotIn("replay:1", registry.appearances)

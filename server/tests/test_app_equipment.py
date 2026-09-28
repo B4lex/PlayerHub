@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, call, patch
 
 import server.app as server_app
 from server.protocol import parse_player_equipment
@@ -149,10 +149,12 @@ class PlayerEquipmentRelayTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(server_app.sio, "emit", new=emit):
             await server_app.connect("player-2", {})
 
-        emit.assert_awaited_once_with(
-            "player:equipment",
-            {"playerId": "player-1", **valid_equipment(3)},
-            to="player-2",
+        self.assertEqual(
+            emit.await_args_list,
+            [
+                call("session:welcome", {"playerId": "player-2"}, to="player-2"),
+                call("player:equipment", {"playerId": "player-1", **valid_equipment(3)}, to="player-2"),
+            ],
         )
 
     async def test_forgets_equipment_on_disconnect(self) -> None:
