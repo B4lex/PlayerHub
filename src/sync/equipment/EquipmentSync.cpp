@@ -182,13 +182,9 @@ namespace EquipmentSync
                 }
 
                 armor = GetTemplateRoot(armor, &RE::TESObjectARMO::templateArmor);
-                const auto slotMask = armor->GetSlotMask().underlying() & Multiplayer::kSyncedArmorSlotMask;
-                if (slotMask == 0)
-                {
-                    continue;
-                }
                 const auto reference = FormLookup::MakeFormReference(armor);
-                if (!reference)
+                const auto slotMask = armor->GetSlotMask().underlying();
+                if (!reference || slotMask == 0)
                 {
                     ++a_skipped;
                     continue;

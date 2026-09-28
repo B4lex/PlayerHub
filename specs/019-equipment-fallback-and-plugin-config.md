@@ -73,8 +73,11 @@ because it differs between modpacks. An empty value means no fallback.
 | `OneHandSword` … `Crossbow` | weapon for that Creation Kit weapon type |
 | `Torch`, `Arrow`, `Bolt` | carried torch and ammunition |
 
-Slots are the synced slots of spec 007, by Creation Kit name, with `Hair`
-folded into `Head`: `Head`, `Body`, `Hands`, `Amulet`, `Feet`, `Shield`, and `Circlet`.
+Every biped slot is synced (spec 007), but only the most visible ones have a
+fallback key. By Creation Kit name, with `Hair` folded into `Head`: `Head`,
+`Body`, `Hands`, `Amulet`, `Feet`, `Shield`, and `Circlet`, plus `Backpack` for
+slot 47, which mods conventionally use for backpacks. A missing item that covers
+none of these slots, such as a ring or another mod slot, is left off.
 
 Defaults, all from `Skyrim.esm` unless noted, by editor ID:
 
@@ -87,6 +90,7 @@ Defaults, all from `Skyrim.esm` unless noted, by editor ID:
 | Shield | `ArmorHideShield` |
 | Amulet | `JewelryNecklaceGold` |
 | Circlet | `ClothesCirclet01` |
+| Backpack | none; vanilla has no backpacks |
 
 | Key | Default |
 | --- | --- |
@@ -131,7 +135,7 @@ Spec 007's resolution filter is unchanged. Its drop branch now selects fallbacks
    becomes the occupied slots.
 2. For each unresolved entry, the slots of its `slotMask` are visited in
    priority order: Body, Head (for Head or Hair), Hands, Feet, Shield, Amulet,
-   Circlet. For a slot the entry covers that is not fully occupied yet, the
+   Circlet, Backpack. For a slot the entry covers that is not fully occupied yet, the
    fallback is the slot's key.
 3. A fallback whose own slot mask overlaps an occupied slot is skipped, because
    equipping it would unequip an item already shown. Otherwise it is added, and

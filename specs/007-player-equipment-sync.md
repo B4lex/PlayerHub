@@ -75,7 +75,7 @@ the entry, or shows a fallback for it (spec 019).
 | --- | --- | --- |
 | `revision` | Source-local monotonic counter | integer `1..2^63-1`, strictly increasing per connection |
 | `armor` | Worn playable `TESObjectARMO`s, including shields | at most 32 entries; form references unique |
-| `armor[].slotMask` | `BGSBipedObjectForm` slot mask, bit 0 = slot 30, limited to the synced slots | non-zero; only bits of the synced slots |
+| `armor[].slotMask` | `BGSBipedObjectForm` slot mask, bit 0 = slot 30 | non-zero 32-bit unsigned integer |
 | `rightHand` | Right-hand object, or `null` | hand entry |
 | `leftHand` | Left-hand object, or `null` | hand entry |
 | `hand.kind` | `weapon` or `torch` | enum; `torch` only in `leftHand` |
@@ -131,9 +131,6 @@ On the main-loop thread, from the player:
 - `armor`: every worn inventory entry (`ExtraWorn` or `ExtraWornLeft`) whose
   object is a `TESObjectARMO` without the non-playable flag. Skin armor never
   appears in inventory. Deduplicate by reference after enchantment reduction.
-  Only the synced slots count: Head (30), Hair (31), Body (32), Hands (33),
-  Amulet (35), Feet (37), Shield (39), and Circlet (42). `slotMask` keeps only
-  those bits, and armor covering none of them is not sent.
 - `rightHand` and `leftHand`: `Actor::GetEquippedObject(false/true)`.
   - `TESObjectWEAP` with a type other than hand-to-hand → `weapon` with its
     `weaponType`.

@@ -8,7 +8,9 @@ from typing import Any
 
 logger = logging.getLogger("uvicorn.error")
 
-TICK_INTERVAL_SECONDS = 0.05
+# Twice the clients' 20 Hz checkpoint rate, so an update waits at most one
+# short tick and two consecutive updates of a player rarely share a tick.
+TICK_INTERVAL_SECONDS = 0.025
 
 Emit = Callable[[str, dict[str, Any]], Awaitable[Any]]
 
