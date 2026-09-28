@@ -79,7 +79,10 @@ to `http://127.0.0.1:3000` for local testing.
 - `player:equipment` carries the player's latest equipped items (worn armor,
   right- and left-hand weapon or torch, and equipped `ammo`) as load-order
   independent `{plugin, formId}` references with an increasing revision. A hand
-  holding a spell is `{"kind": "spell"}` without a reference. It uses the same
+  holding a spell is `{"kind": "spell"}` without a reference. `defaultOutfit`
+  carries the base-game and Anniversary Edition items peers show in place of the player's items they
+  cannot resolve (`specs/019-equipment-fallback-and-plugin-config.md`); when
+  absent it is stored and relayed as empty. It uses the same
   relay, storage, and late-join lifecycle as `player:appearance`. See
   `specs/007-player-equipment-sync.md`.
 - `player:disconnect` tells peers to remove the disconnected player's actor

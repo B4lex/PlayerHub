@@ -27,10 +27,11 @@ namespace UI
     class ItemPicker
     {
     public:
-        // Draws the field for a_value at the cursor, with a button that clears it,
-        // together as wide as the next ImGui item. Returns true when the user
-        // picked an item or None.
-        bool Draw(const char* a_id, Multiplayer::FormReference& a_value, const Forms::ItemFilter& a_filter);
+        // Draws the field for a_value at the cursor, with a button that resets it
+        // to a_default, together as wide as the next ImGui item. Returns true when
+        // the user picked an item or reset it.
+        bool Draw(const char* a_id, Multiplayer::FormReference& a_value, const Multiplayer::FormReference& a_default,
+            const Forms::ItemFilter& a_filter);
 
         // Forgets cached field labels, for example when the window reopens.
         void Reset();
@@ -69,7 +70,6 @@ namespace UI
         std::string query;
         std::vector<std::uint32_t> matches;
         const Forms::CatalogItem* current{ nullptr };
-        bool currentIsNone{ false };
         // The list row of the field's value, or -1 when the search hides it.
         int currentRow{ -1 };
         bool scrollToCurrent{ false };

@@ -25,10 +25,11 @@ namespace UI
         constexpr ImVec4 kWarningColor{ 0.95F, 0.70F, 0.35F, 1.0F };
         constexpr ImGuiTableFlags kListFlags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg;
         constexpr const char* kNoneText = "None";
-        constexpr const char* kClearText = "Clear";
+        constexpr const char* kResetText = "Reset";
     }
 
-    bool ItemPicker::Draw(const char* a_id, FormReference& a_value, const Forms::ItemFilter& a_filter)
+    bool ItemPicker::Draw(
+        const char* a_id, FormReference& a_value, const FormReference& a_default, const Forms::ItemFilter& a_filter)
     {
         if (!catalog)
         {
@@ -39,8 +40,8 @@ namespace UI
         const auto& label = GetLabel(ImGui::GetID("##item"), a_value, a_filter);
         const auto fontSize = ImGui::GetFontSize();
         const auto& style = ImGui::GetStyle();
-        const auto clearWidth = ImGui::CalcTextSize(kClearText).x + style.FramePadding.x * 2.0F;
-        const auto comboWidth = (std::max)(ImGui::CalcItemWidth() - clearWidth - style.ItemSpacing.x, fontSize);
+        const auto resetWidth = ImGui::CalcTextSize(kResetText).x + style.FramePadding.x * 2.0F;
+        const auto comboWidth = (std::max)(ImGui::CalcItemWidth() - resetWidth - style.ItemSpacing.x, fontSize);
         ImGui::SetNextItemWidth(comboWidth);
         ImGui::SetNextWindowSize(
             ImVec2{ (std::max)(comboWidth, kPopupWidthFonts * fontSize), kPopupHeightFonts * fontSize });
@@ -85,16 +86,16 @@ namespace UI
         }
 
         ImGui::SameLine();
-        ImGui::BeginDisabled(a_value.IsEmpty());
-        if (ImGui::Button(kClearText))
+        ImGui::BeginDisabled(a_value == a_default);
+        if (ImGui::Button(kResetText))
         {
-            a_value = {};
+            a_value = a_default;
             changed = true;
         }
         ImGui::EndDisabled();
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip))
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip | ImGuiHoveredFlags_AllowWhenDisabled))
         {
-            ImGui::SetTooltip("Set to None.");
+            ImGui::SetTooltip("Default: %s", GetLabel(ImGui::GetID("##default"), a_default, a_filter).text.c_str());
         }
         ImGui::PopID();
         return changed;
@@ -154,7 +155,6 @@ namespace UI
         {
             query.clear();
             current = catalog->Find(a_value);
-            currentIsNone = a_value.IsEmpty();
             Search(a_filter);
             scrollToCurrent = true;
             ImGui::SetKeyboardFocusHere();
@@ -189,9 +189,8 @@ namespace UI
             ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn("Plugin", ImGuiTableColumnFlags_WidthFixed, kPluginColumnWidthFonts * fontSize);
 
-            // Row 0 is None; row n is matches[n - 1].
             ImGuiListClipper clipper;
-            clipper.Begin(static_cast<int>(matches.size()) + 1);
+            clipper.Begin(static_cast<int>(matches.size()));
             if (scrollToCurrent && currentRow >= 0)
             {
                 clipper.IncludeItemByIndex(currentRow);
@@ -200,15 +199,14 @@ namespace UI
             {
                 for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
                 {
-                    const auto* item = row == 0 ? nullptr : &items[matches[static_cast<std::size_t>(row - 1)]];
+                    const auto* item = &items[matches[static_cast<std::size_t>(row)]];
                     const bool selected = row == currentRow;
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
                     ImGui::PushID(row);
-                    if (ImGui::Selectable(
-                            item ? item->name.c_str() : kNoneText, selected, ImGuiSelectableFlags_SpanAllColumns))
+                    if (ImGui::Selectable(item->name.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns))
                     {
-                        a_value = item ? item->reference : FormReference{};
+                        a_value = item->reference;
                         changed = true;
                         // The table's scrolling child is not the popup, so the
                         // selectable does not close it.
@@ -223,11 +221,8 @@ namespace UI
                         ImGui::SetScrollHereY(0.5F);
                     }
                     ImGui::PopID();
-                    if (item)
-                    {
-                        ImGui::TableNextColumn();
-                        ImGui::TextDisabled("%s", item->reference.plugin.c_str());
-                    }
+                    ImGui::TableNextColumn();
+                    ImGui::TextDisabled("%s", item->reference.plugin.c_str());
                 }
             }
             scrollToCurrent = false;
@@ -268,6 +263,6 @@ namespace UI
         const auto items = catalog->GetItems();
         const auto match = std::ranges::find_if(
             matches, [this, items](std::uint32_t a_index) { return &items[a_index] == current; });
-        currentRow = match != matches.end() ? static_cast<int>(match - matches.begin()) + 1 : (currentIsNone ? 0 : -1);
+        currentRow = match != matches.end() ? static_cast<int>(match - matches.begin()) : -1;
     }
 }

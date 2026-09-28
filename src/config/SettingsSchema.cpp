@@ -16,12 +16,12 @@ namespace Config
 
         constexpr std::string_view kDefaultServerEndpoint = "https://8fa21dsv.lmfao.pp.ua";
         // Head, Hair, and Circlet. Helmets and hoods cover different ones of these
-        // depending on the mod, so any of them fits a head slot's fallback.
+        // depending on the mod, so any of them fits the Head piece.
         constexpr std::uint32_t kHeadSlotMask = (1U << 0) | (1U << 1) | (1U << 12);
 
-        // Creation Kit slot names, indexed like EquipmentFallbackSettings::kArmorSlotMasks.
-        constexpr std::array<std::string_view, EquipmentFallbackSettings::kArmorSlotCount> kArmorSlotNames{ "Head",
-            "Body", "Hands", "Amulet", "Feet", "Shield", "Circlet" };
+        // Creation Kit slot names, indexed like DefaultOutfitSettings::kArmorSlotMasks.
+        constexpr std::array<std::string_view, DefaultOutfitSettings::kArmorSlotCount> kArmorSlotNames{ "Head", "Body",
+            "Hands", "Amulet", "Feet", "Shield", "Circlet", "Backpack" };
         // Creation Kit weapon animation types, indexed by RE::WEAPON_TYPE.
         constexpr std::array<std::string_view, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> kWeaponTypeNames{
             "HandToHandMelee", "OneHandSword", "OneHandDagger", "OneHandAxe", "OneHandMace", "TwoHandSword",
@@ -87,28 +87,32 @@ namespace Config
                 "");
         }
 
-        void DescribeEquipmentFallback(EquipmentFallbackSettings& a_settings, SettingsVisitor& a_visitor)
+        void DescribeDefaultOutfit(DefaultOutfitSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("EquipmentFallback",
-                "Equipment items shown on remote players in place of missing mod items.");
+            a_visitor.Section("DefaultOutfit",
+                "Base game and Anniversary Edition items other players see in place of your equipment\n"
+                "from mods they do not have.");
+            const auto& defaults = GetDefaultConfig().defaultOutfit;
 
             a_visitor.Comment("Apparel");
             for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)
             {
-                a_visitor.Form(GetArmorFallbackKey(slot), a_settings.armor[slot], GetArmorFallbackFilter(slot));
+                a_visitor.Form(
+                    GetOutfitArmorKey(slot), a_settings.armor[slot], defaults.armor[slot], GetOutfitArmorFilter(slot));
             }
 
             a_visitor.Comment("Weapons");
             for (std::size_t type = Multiplayer::PlayerEquipment::kMinimumWeaponType; type < a_settings.weapons.size();
                 ++type)
             {
-                a_visitor.Form(GetWeaponFallbackKey(type), a_settings.weapons[type], GetWeaponFallbackFilter(type));
+                a_visitor.Form(GetOutfitWeaponKey(type), a_settings.weapons[type], defaults.weapons[type],
+                    GetOutfitWeaponFilter(type));
             }
 
             a_visitor.Comment("Miscellaneous");
-            a_visitor.Form("Torch", a_settings.torch, Forms::kTorchFilter);
-            a_visitor.Form("Arrow", a_settings.arrow, Forms::kArrowFilter);
-            a_visitor.Form("Bolt", a_settings.bolt, Forms::kBoltFilter);
+            a_visitor.Form("Torch", a_settings.torch, defaults.torch, kOutfitTorchFilter);
+            a_visitor.Form("Arrow", a_settings.arrow, defaults.arrow, kOutfitArrowFilter);
+            a_visitor.Form("Bolt", a_settings.bolt, defaults.bolt, kOutfitBoltFilter);
         }
 
         void DescribePerformance(PerformanceSettings& a_settings, SettingsVisitor& a_visitor)
@@ -132,49 +136,57 @@ namespace Config
                 "Displays the in-game status panel.");
         }
 
+        PluginConfig MakeDefaultConfig()
+        {
+            PluginConfig config;
+            config.network.serverEndpoint = kDefaultServerEndpoint;
+            config.ui.settingsKey = KeyboardKey::kF10;
+
+            auto& outfit = config.defaultOutfit;
+            const auto skyrim = [](std::uint32_t a_localFormID) {
+                return FormReference{ .plugin = "Skyrim.esm", .localFormID = a_localFormID };
+            };
+            const auto dawnguard = [](std::uint32_t a_localFormID) {
+                return FormReference{ .plugin = "Dawnguard.esm", .localFormID = a_localFormID };
+            };
+            // Hide armor, a gold necklace, a circlet, and Anniversary Edition's basic
+            // backpack, which vanilla lacks. The hide helmet also covers Circlet, and
+            // Head is tried first, so the circlet only stands in for circlet-only
+            // items. Indexed like kArmorSlotNames.
+            outfit.armor = { skyrim(0x013913), skyrim(0x013911), skyrim(0x013912), skyrim(0x0877D5), skyrim(0x013910),
+                skyrim(0x013914), skyrim(0x0166D6),
+                FormReference{ .plugin = "ccFSVSSE001-Backpacks.esl", .localFormID = 0x000801 } };
+            // Iron weapons, the hunting bow, an unenchanted staff, and the Dawnguard
+            // crossbow.
+            outfit.weapons[1] = skyrim(0x012EB7);
+            outfit.weapons[2] = skyrim(0x01397E);
+            outfit.weapons[3] = skyrim(0x013790);
+            outfit.weapons[4] = skyrim(0x013982);
+            outfit.weapons[5] = skyrim(0x01359D);
+            outfit.weapons[6] = skyrim(0x013980);
+            outfit.weapons[7] = skyrim(0x013985);
+            outfit.weapons[8] = skyrim(0x0BE11F);
+            outfit.weapons[9] = dawnguard(0x000801);
+            outfit.torch = skyrim(0x01D4EC);
+            outfit.arrow = skyrim(0x01397D);
+            outfit.bolt = dawnguard(0x000BB3);
+            return config;
+        }
+
     }
 
     void Describe(PluginConfig& a_config, SettingsVisitor& a_visitor)
     {
         DescribeNetwork(a_config.network, a_visitor);
-        DescribeEquipmentFallback(a_config.equipmentFallback, a_visitor);
+        DescribeDefaultOutfit(a_config.defaultOutfit, a_visitor);
         DescribePerformance(a_config.performance, a_visitor);
         DescribeUI(a_config.ui, a_visitor);
     }
 
-    PluginConfig MakeDefaultConfig()
+    const PluginConfig& GetDefaultConfig()
     {
-        PluginConfig config;
-        config.network.serverEndpoint = kDefaultServerEndpoint;
-        config.ui.settingsKey = KeyboardKey::kF10;
-
-        auto& fallback = config.equipmentFallback;
-        const auto skyrim = [](std::uint32_t a_localFormID) {
-            return FormReference{ .plugin = "Skyrim.esm", .localFormID = a_localFormID };
-        };
-        const auto dawnguard = [](std::uint32_t a_localFormID) {
-            return FormReference{ .plugin = "Dawnguard.esm", .localFormID = a_localFormID };
-        };
-        // Hide armor, a gold necklace, and a circlet. The hide helmet also covers
-        // Circlet, and Head is tried first, so the circlet only stands in for
-        // missing circlet-only items. Indexed like kArmorSlotNames.
-        fallback.armor = { skyrim(0x013913), skyrim(0x013911), skyrim(0x013912), skyrim(0x0877D5), skyrim(0x013910),
-            skyrim(0x013914), skyrim(0x0166D6) };
-        // Iron weapons, the hunting bow, an unenchanted staff, and the Dawnguard
-        // crossbow.
-        fallback.weapons[1] = skyrim(0x012EB7);
-        fallback.weapons[2] = skyrim(0x01397E);
-        fallback.weapons[3] = skyrim(0x013790);
-        fallback.weapons[4] = skyrim(0x013982);
-        fallback.weapons[5] = skyrim(0x01359D);
-        fallback.weapons[6] = skyrim(0x013980);
-        fallback.weapons[7] = skyrim(0x013985);
-        fallback.weapons[8] = skyrim(0x0BE11F);
-        fallback.weapons[9] = dawnguard(0x000801);
-        fallback.torch = skyrim(0x01D4EC);
-        fallback.arrow = skyrim(0x01397D);
-        fallback.bolt = dawnguard(0x000BB3);
-        return config;
+        static const PluginConfig defaults = MakeDefaultConfig();
+        return defaults;
     }
 
     std::span<const BindableKey> GetBindableKeys()
@@ -261,28 +273,30 @@ namespace Config
         return key == kBindableKeys.end() ? std::string_view{} : key->name;
     }
 
-    std::string_view GetArmorFallbackKey(std::size_t a_slotIndex)
+    std::string_view GetOutfitArmorKey(std::size_t a_slotIndex)
     {
         return a_slotIndex < kArmorSlotNames.size() ? kArmorSlotNames[a_slotIndex] : "Unknown";
     }
 
-    std::string_view GetWeaponFallbackKey(std::size_t a_weaponType)
+    std::string_view GetOutfitWeaponKey(std::size_t a_weaponType)
     {
         return a_weaponType < kWeaponTypeNames.size() ? kWeaponTypeNames[a_weaponType] : "Unknown";
     }
 
-    Forms::ItemFilter GetArmorFallbackFilter(std::size_t a_slotIndex)
+    Forms::ItemFilter GetOutfitArmorFilter(std::size_t a_slotIndex)
     {
-        const auto slotMask = a_slotIndex < EquipmentFallbackSettings::kArmorSlotCount
-                                  ? EquipmentFallbackSettings::kArmorSlotMasks[a_slotIndex]
+        const auto slotMask = a_slotIndex < DefaultOutfitSettings::kArmorSlotCount
+                                  ? DefaultOutfitSettings::kArmorSlotMasks[a_slotIndex]
                                   : 0U;
         return Forms::ItemFilter{ .kind = Forms::ItemKind::kArmor,
-            .slotMask = (slotMask & kHeadSlotMask) != 0 ? kHeadSlotMask : slotMask };
+            .slotMask = (slotMask & kHeadSlotMask) != 0 ? kHeadSlotMask : slotMask,
+            .baseGameOnly = true };
     }
 
-    Forms::ItemFilter GetWeaponFallbackFilter(std::size_t a_weaponType)
+    Forms::ItemFilter GetOutfitWeaponFilter(std::size_t a_weaponType)
     {
         return Forms::ItemFilter{ .kind = Forms::ItemKind::kWeapon,
-            .weaponType = static_cast<std::uint8_t>(a_weaponType) };
+            .weaponType = static_cast<std::uint8_t>(a_weaponType),
+            .baseGameOnly = true };
     }
 }

@@ -179,14 +179,14 @@ namespace UI
                 EndRow(a_comment);
             }
 
-            void Form(
-                std::string_view a_key, Multiplayer::FormReference& a_value, const Forms::ItemFilter& a_filter) override
+            void Form(std::string_view a_key, Multiplayer::FormReference& a_value,
+                const Multiplayer::FormReference& a_default, const Forms::ItemFilter& a_filter) override
             {
                 if (!BeginRow(a_key, false))
                 {
                     return;
                 }
-                itemPicker.Draw("##value", a_value, a_filter);
+                itemPicker.Draw("##value", a_value, a_default, a_filter);
                 EndRow({});
             }
 
@@ -307,7 +307,7 @@ namespace UI
         {
         public:
             SettingsWindow()
-                : defaults(Config::MakeDefaultConfig())
+                : defaults(Config::GetDefaultConfig())
             {
             }
 

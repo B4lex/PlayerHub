@@ -18,6 +18,17 @@ def valid_equipment(revision: int = 1) -> dict[str, object]:
         "rightHand": {"plugin": "Skyrim.esm", "formId": 0x12EB7, "kind": "weapon", "weaponType": 1},
         "leftHand": {"plugin": "Skyrim.esm", "formId": 0x1D4EC, "kind": "torch"},
         "ammo": {"plugin": "Skyrim.esm", "formId": 0x1397D},
+        "defaultOutfit": {
+            "armor": [
+                {"plugin": "Skyrim.esm", "formId": 0x13911, "slotMask": 4},
+                {"plugin": "Skyrim.esm", "formId": 0x13913, "slotMask": 3},
+            ],
+            "hands": [
+                {"plugin": "Skyrim.esm", "formId": 0x1359D, "kind": "weapon", "weaponType": 5},
+                {"plugin": "Skyrim.esm", "formId": 0x1D4EC, "kind": "torch"},
+            ],
+            "ammo": {"plugin": "Dawnguard.esm", "formId": 0xBB3},
+        },
     }
 
 
@@ -26,7 +37,14 @@ class ParsePlayerEquipmentTests(unittest.TestCase):
         self.assertEqual(parse_player_equipment(valid_equipment()), valid_equipment())
 
     def test_accepts_empty_equipment(self) -> None:
-        payload = {"revision": 1, "armor": [], "rightHand": None, "leftHand": None, "ammo": None}
+        payload = {
+            "revision": 1,
+            "armor": [],
+            "rightHand": None,
+            "leftHand": None,
+            "ammo": None,
+            "defaultOutfit": {"armor": [], "hands": [], "ammo": None},
+        }
 
         self.assertEqual(parse_player_equipment(payload), payload)
 
@@ -59,11 +77,37 @@ class ParsePlayerEquipmentTests(unittest.TestCase):
 
         self.assertEqual(parse_player_equipment(payload), {**payload, "ammo": None})
 
+    def test_defaults_missing_default_outfit(self) -> None:
+        payload = valid_equipment()
+        del payload["defaultOutfit"]
+
+        self.assertEqual(
+            parse_player_equipment(payload),
+            {**payload, "defaultOutfit": {"armor": [], "hands": [], "ammo": None}},
+        )
+
+    def test_accepts_base_game_plugin_names_in_any_case(self) -> None:
+        payload = valid_equipment()
+        payload["defaultOutfit"]["armor"][0]["plugin"] = "SKYRIM.ESM"
+        payload["defaultOutfit"]["ammo"]["plugin"] = "dawnguard.esm"
+
+        self.assertEqual(parse_player_equipment(payload), payload)
+
+    def test_accepts_anniversary_edition_backpack(self) -> None:
+        payload = valid_equipment()
+        payload["defaultOutfit"]["armor"].append(
+            {"plugin": "ccFSVSSE001-Backpacks.esl", "formId": 0x801, "slotMask": 1 << 17}
+        )
+
+        self.assertEqual(parse_player_equipment(payload), payload)
+
     def test_drops_unknown_fields(self) -> None:
         payload = valid_equipment()
         payload["extra"] = True
         payload["armor"][0]["extra"] = 1
         payload["leftHand"]["weaponType"] = 3
+        payload["defaultOutfit"]["extra"] = True
+        payload["defaultOutfit"]["hands"][1]["weaponType"] = 3
 
         self.assertEqual(parse_player_equipment(payload), valid_equipment())
 
@@ -96,6 +140,33 @@ class ParsePlayerEquipmentTests(unittest.TestCase):
                 leftHand={"plugin": "Skyrim.esm", "formId": 1, "kind": "weapon", "weaponType": 5}
             ),
             "two-handed with left hand": lambda p: p["rightHand"].update(weaponType=6),
+            "default outfit not an object": lambda p: p.update(defaultOutfit=[]),
+            "default outfit armor not a list": lambda p: p["defaultOutfit"].update(armor={}),
+            "too many default outfit armor pieces": lambda p: p["defaultOutfit"].update(
+                armor=[
+                    {"plugin": "Skyrim.esm", "formId": i, "slotMask": 1}
+                    for i in range(9)
+                ]
+            ),
+            "modded default outfit armor": lambda p: p["defaultOutfit"]["armor"][0].update(
+                plugin="Some Mod.esp"
+            ),
+            "zero default outfit slot mask": lambda p: p["defaultOutfit"]["armor"][0].update(slotMask=0),
+            "default outfit hands not a list": lambda p: p["defaultOutfit"].update(hands=None),
+            "too many default outfit hands": lambda p: p["defaultOutfit"]["hands"].append(
+                {"plugin": "Skyrim.esm", "formId": 0x12EB7, "kind": "weapon", "weaponType": 1}
+            ),
+            "modded default outfit hand": lambda p: p["defaultOutfit"]["hands"][0].update(
+                plugin="Some Mod.esp"
+            ),
+            "default outfit spell": lambda p: p["defaultOutfit"]["hands"][0].update(kind="spell"),
+            "default outfit weapon type": lambda p: p["defaultOutfit"]["hands"][0].update(weaponType=0),
+            "duplicate default outfit hand": lambda p: p["defaultOutfit"]["hands"][1].update(
+                kind="weapon", weaponType=5
+            ),
+            "modded default outfit ammo": lambda p: p["defaultOutfit"]["ammo"].update(
+                plugin="Some Mod.esp"
+            ),
         }
         for name, mutate in mutations.items():
             with self.subTest(name):

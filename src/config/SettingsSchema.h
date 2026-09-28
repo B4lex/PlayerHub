@@ -29,16 +29,17 @@ namespace Config
         virtual void String(std::string_view a_key, std::string& a_value, std::string_view a_comment,
             bool (*a_isValid)(std::string_view)) = 0;
         // Grouped under a preceding Comment, so a form entry has none of its own.
-        // Only an item a_filter matches is used.
-        virtual void Form(
-            std::string_view a_key, Multiplayer::FormReference& a_value, const Forms::ItemFilter& a_filter) = 0;
+        // Never empty; a_default is what a reset or an invalid value takes. Only
+        // an item a_filter matches is used.
+        virtual void Form(std::string_view a_key, Multiplayer::FormReference& a_value,
+            const Multiplayer::FormReference& a_default, const Forms::ItemFilter& a_filter) = 0;
         // A DirectInput scan code from GetBindableKeys.
         virtual void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment) = 0;
     };
 
     void Describe(PluginConfig& a_config, SettingsVisitor& a_visitor);
 
-    [[nodiscard]] PluginConfig MakeDefaultConfig();
+    [[nodiscard]] const PluginConfig& GetDefaultConfig();
 
     struct BindableKey
     {
@@ -61,11 +62,17 @@ namespace Config
     // Empty for a scan code that GetBindableKeys does not list.
     [[nodiscard]] std::string_view FormatKey(std::uint32_t a_scanCode);
 
-    // [EquipmentFallback] key names, so diagnostics name what to edit.
-    [[nodiscard]] std::string_view GetArmorFallbackKey(std::size_t a_slotIndex);
-    [[nodiscard]] std::string_view GetWeaponFallbackKey(std::size_t a_weaponType);
+    // [DefaultOutfit] key names, so diagnostics name what to edit.
+    [[nodiscard]] std::string_view GetOutfitArmorKey(std::size_t a_slotIndex);
+    [[nodiscard]] std::string_view GetOutfitWeaponKey(std::size_t a_weaponType);
 
-    // The items each [EquipmentFallback] key accepts.
-    [[nodiscard]] Forms::ItemFilter GetArmorFallbackFilter(std::size_t a_slotIndex);
-    [[nodiscard]] Forms::ItemFilter GetWeaponFallbackFilter(std::size_t a_weaponType);
+    // The items each [DefaultOutfit] key accepts: base-game items only, which
+    // every peer can resolve.
+    [[nodiscard]] Forms::ItemFilter GetOutfitArmorFilter(std::size_t a_slotIndex);
+    [[nodiscard]] Forms::ItemFilter GetOutfitWeaponFilter(std::size_t a_weaponType);
+    inline constexpr Forms::ItemFilter kOutfitTorchFilter{ .kind = Forms::ItemKind::kTorch, .baseGameOnly = true };
+    inline constexpr Forms::ItemFilter kOutfitArrowFilter{ .kind = Forms::ItemKind::kAmmo, .baseGameOnly = true };
+    inline constexpr Forms::ItemFilter kOutfitBoltFilter{
+        .kind = Forms::ItemKind::kAmmo, .bolt = true, .baseGameOnly = true
+    };
 }

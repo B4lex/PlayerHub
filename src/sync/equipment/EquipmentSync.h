@@ -38,12 +38,10 @@ namespace EquipmentSync
     struct RemoteState
     {
         std::optional<Multiplayer::PlayerEquipment> latest;
-        // Local forms for resolvedRevision, with fallbacks for unresolved entries.
-        // Revision zero means no equipment was received, which reconciles to an
-        // empty inventory.
+        // Local forms for resolvedRevision, with the source's default outfit for
+        // unresolved entries. Revision zero means no equipment was received,
+        // which reconciles to an empty inventory.
         std::uint64_t resolvedRevision{ 0 };
-        // EquipmentFallback::GetGeneration the forms were resolved with.
-        std::uint64_t resolvedFallbackGeneration{ 0 };
         bool resolved{ false };
         std::vector<RE::TESObjectARMO*> armor;
         ResolvedHand rightHand;

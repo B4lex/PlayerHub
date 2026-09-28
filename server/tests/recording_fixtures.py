@@ -85,6 +85,7 @@ def equipment(revision: int = 1, armor_form_id: int = 0x12E49) -> dict[str, Any]
         "rightHand": {"plugin": "Skyrim.esm", "formId": 0x12EB7, "kind": "weapon", "weaponType": 1},
         "leftHand": None,
         "ammo": None,
+        "defaultOutfit": {"armor": [], "hands": [], "ammo": None},
     }
 
 

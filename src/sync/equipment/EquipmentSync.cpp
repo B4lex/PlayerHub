@@ -4,7 +4,7 @@
 #include "forms/FormLookup.h"
 #include "network/SocketIOClient.h"
 #include "runtime/Profiling.h"
-#include "sync/equipment/EquipmentFallback.h"
+#include "sync/equipment/DefaultOutfit.h"
 
 #include <algorithm>
 #include <atomic>
@@ -220,6 +220,7 @@ namespace EquipmentSync
                     ++a_skipped;
                 }
             }
+            DefaultOutfit::Select(equipment);
             return equipment;
         }
 
@@ -232,7 +233,7 @@ namespace EquipmentSync
 
         // The single receive policy: resolve an entry to a local form of the
         // expected type, or return why it is unresolved. Any plugin the receiver
-        // has loaded resolves. An unresolved entry gets a configured fallback.
+        // has loaded resolves. An unresolved entry gets the source's default outfit.
         Resolution<RE::TESObjectARMO> ResolveArmor(const EquipmentArmor& a_entry)
         {
             auto* form = FormLookup::ResolveForm(a_entry.form);
@@ -296,7 +297,7 @@ namespace EquipmentSync
             return { .form = weapon };
         }
 
-        std::string FormatFallback(std::span<RE::TESObjectARMO* const> a_forms)
+        std::string FormatStandIn(std::span<RE::TESObjectARMO* const> a_forms)
         {
             std::string text;
             for (const auto* form : a_forms)
@@ -306,23 +307,23 @@ namespace EquipmentSync
             return text.empty() ? "none" : text;
         }
 
-        std::string FormatFallback(const RE::TESForm* a_form)
+        std::string FormatStandIn(const RE::TESForm* a_form)
         {
             return a_form ? std::format("{:08X}", a_form->GetFormID()) : "none";
         }
 
         void LogUnresolvedEntry(const std::string& a_playerID, std::uint64_t a_revision, std::string_view a_slot,
-            const Multiplayer::FormReference& a_form, std::string_view a_reason, std::string_view a_fallback)
+            const Multiplayer::FormReference& a_form, std::string_view a_reason, std::string_view a_standIn)
         {
             logs::warn(
                 "Equipment sync could not resolve remote item: player={} revision={} slot={} item={}|{:06X} "
-                "reason={} fallback={}",
+                "reason={} standIn={}",
                 a_playerID, static_cast<unsigned long long>(a_revision), a_slot, a_form.plugin, a_form.localFormID,
-                a_reason, a_fallback);
+                a_reason, a_standIn);
         }
 
         ResolvedHand ResolveHandEntry(const std::string& a_playerID, std::uint64_t a_revision, std::string_view a_slot,
-            const std::optional<EquipmentHand>& a_entry)
+            const std::optional<EquipmentHand>& a_entry, const Multiplayer::DefaultOutfit& a_outfit)
         {
             if (!a_entry)
             {
@@ -333,9 +334,9 @@ namespace EquipmentSync
             auto* object = resolution.form;
             if (!object)
             {
-                object = EquipmentFallback::FindHand(*a_entry);
+                object = DefaultOutfit::FindHand(a_outfit, *a_entry);
                 LogUnresolvedEntry(a_playerID, a_revision, a_slot, spell ? kPlaceholderSpell : a_entry->form,
-                    resolution.dropReason, FormatFallback(object));
+                    resolution.dropReason, FormatStandIn(object));
                 if (!object)
                 {
                     return {};
@@ -364,16 +365,13 @@ namespace EquipmentSync
         void EnsureResolved(RemoteState& a_remote, const std::string& a_playerID)
         {
             const auto revision = a_remote.latest ? a_remote.latest->revision : 0;
-            const auto fallbackGeneration = EquipmentFallback::GetGeneration();
-            if (a_remote.resolved && a_remote.resolvedRevision == revision
-                && a_remote.resolvedFallbackGeneration == fallbackGeneration)
+            if (a_remote.resolved && a_remote.resolvedRevision == revision)
             {
                 return;
             }
 
             a_remote.resolved = true;
             a_remote.resolvedRevision = revision;
-            a_remote.resolvedFallbackGeneration = fallbackGeneration;
             a_remote.armor.clear();
             a_remote.rightHand = {};
             a_remote.leftHand = {};
@@ -389,7 +387,7 @@ namespace EquipmentSync
             }
 
             const auto& equipment = *a_remote.latest;
-            // Resolved items take their slots first; fallbacks only fill what is left.
+            // Resolved items take their slots first; the outfit only fills what is left.
             std::uint32_t occupiedSlots = 0;
             std::vector<std::pair<const EquipmentArmor*, std::string_view>> unresolved;
             for (const auto& entry : equipment.armor)
@@ -408,13 +406,15 @@ namespace EquipmentSync
             }
             for (const auto& [entry, reason] : unresolved)
             {
-                const auto firstFallback = a_remote.armor.size();
-                EquipmentFallback::AppendArmor(*entry, occupiedSlots, a_remote.armor);
+                const auto firstStandIn = a_remote.armor.size();
+                DefaultOutfit::AppendArmor(equipment.defaultOutfit, *entry, occupiedSlots, a_remote.armor);
                 LogUnresolvedEntry(a_playerID, revision, "armor", entry->form, reason,
-                    FormatFallback(std::span{ a_remote.armor }.subspan(firstFallback)));
+                    FormatStandIn(std::span{ a_remote.armor }.subspan(firstStandIn)));
             }
-            a_remote.rightHand = ResolveHandEntry(a_playerID, revision, "rightHand", equipment.rightHand);
-            a_remote.leftHand = ResolveHandEntry(a_playerID, revision, "leftHand", equipment.leftHand);
+            a_remote.rightHand
+                = ResolveHandEntry(a_playerID, revision, "rightHand", equipment.rightHand, equipment.defaultOutfit);
+            a_remote.leftHand
+                = ResolveHandEntry(a_playerID, revision, "leftHand", equipment.leftHand, equipment.defaultOutfit);
             if (a_remote.rightHand.twoHanded && a_remote.leftHand.object)
             {
                 logs::warn(
@@ -430,12 +430,9 @@ namespace EquipmentSync
                 a_remote.ammo = resolution.form;
                 if (!a_remote.ammo)
                 {
-                    // Ammo carries no type hint. The source's crossbow implies bolts.
-                    const bool bolt = equipment.rightHand && equipment.rightHand->kind == EquipmentHandKind::kWeapon
-                        && equipment.rightHand->weaponType == static_cast<std::uint8_t>(RE::WEAPON_TYPE::kCrossbow);
-                    a_remote.ammo = EquipmentFallback::FindAmmo(bolt);
+                    a_remote.ammo = DefaultOutfit::FindAmmo(equipment.defaultOutfit);
                     LogUnresolvedEntry(a_playerID, revision, "ammo", equipment.ammo, resolution.dropReason,
-                        FormatFallback(a_remote.ammo));
+                        FormatStandIn(a_remote.ammo));
                 }
             }
 
@@ -678,7 +675,7 @@ namespace EquipmentSync
 
         logs::debug(
             "Equipment sync publishing local equipment: revision={} armor={} rightHand={}:{}|{:06X} "
-            "leftHand={}:{}|{:06X} ammo={}|{:06X} skipped={} flush={}",
+            "leftHand={}:{}|{:06X} ammo={}|{:06X} outfit={}/{}/{} skipped={} flush={}",
             static_cast<unsigned long long>(pending->revision), pending->armor.size(),
             pending->rightHand ? Multiplayer::GetEquipmentHandKindName(pending->rightHand->kind) : "none",
             pending->rightHand ? pending->rightHand->form.plugin : "",
@@ -686,7 +683,9 @@ namespace EquipmentSync
             pending->leftHand ? Multiplayer::GetEquipmentHandKindName(pending->leftHand->kind) : "none",
             pending->leftHand ? pending->leftHand->form.plugin : "",
             pending->leftHand ? pending->leftHand->form.localFormID : 0,
-            pending->ammo.IsEmpty() ? "<none>" : pending->ammo.plugin, pending->ammo.localFormID, skipped, a_flush);
+            pending->ammo.IsEmpty() ? "<none>" : pending->ammo.plugin, pending->ammo.localFormID,
+            pending->defaultOutfit.armor.size(), pending->defaultOutfit.hands.size(),
+            !pending->defaultOutfit.ammo.IsEmpty(), skipped, a_flush);
         Network::PublishLocalEquipment(*pending);
         published = std::move(pending);
         pending.reset();
