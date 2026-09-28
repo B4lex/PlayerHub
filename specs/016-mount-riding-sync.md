@@ -8,11 +8,6 @@ recorded speed. Dismounting and death removed the horse without a crash. The
 gallop is a known limitation; see [Known limitations](#known-limitations).
 Horse jumps are out of scope.
 
-The mount and dismount animations ([Transitions](#transitions)) are implemented
-and covered by server tests. In game, replayed riders played both animations on
-their horse's spot, repeatedly and without a crash, and walked on after each
-dismount without a respawn.
-
 ## Goal
 
 When a player rides a mount, peers see the remote actor sitting on a horse that
@@ -25,10 +20,15 @@ leaving the world, disconnect, timeout, and any retirement of the actor.
 - The mount's appearance. Every remote mount is the vanilla
   `EncHorseSaddledBrown` (`Skyrim.esm:023AB2`), whatever the player rides, so it
   exists in every modpack.
+- Mount and dismount animations. Both transitions are instant on peers: a rider
+  appears already seated, and a dismount respawns the actor on foot. An earlier
+  version played Skyrim's paired `HorseEnter` and `HorseExit` clips, announced by
+  a separate `mount:transition` event. The clips link both actors' graphs, so
+  every removal, halt, and retry around them needed its own handling, and it was
+  dropped.
 - Combat on horseback: drawn weapons, attacks, bows, and spells. Attacks queued
   for a riding player are dropped, and hand presentation is not applied.
-- Horse jumps, and a mount left standing after a dismount: the horse is removed
-  once the dismount animation ends and the player no longer rides.
+- Horse jumps, and a mount left standing after a dismount.
 - The mount's approach. A peer's horse appears when its player starts to mount.
 
 ## Protocol
@@ -41,18 +41,6 @@ mount from them, and Skyrim carries the rider on the mount. The server validates
 recordings replay on foot. Every relayed `player:state` includes it, and the
 client requires it.
 
-Getting on and off with an animation are separate events, since a checkpoint
-field would only say that the player rides, not how it started. The client emits
-`mount:transition` with `transition` (`enter` or `exit`), `graphEpoch`, and
-`checkpointSequence`, right after the `player:update` it is anchored to. The
-server accepts it only against the player's latest checkpoint: the same graph
-epoch, an anchor no newer than that checkpoint, which must be mounted and alive,
-and an anchor newer than the previous transition's. Both transitions start while
-the checkpoint rides: `mounted` turns true when the mount animation starts, and
-false once the dismount animation has ended. It relays the transition as
-`player:mount` with `playerId`, and records it. A replay anchors it to its own
-latest checkpoint, and a seek never replays one it skips.
-
 ## Source capture
 
 `MountSync::SampleLocalMount` reads the local player's mount once per published
@@ -62,14 +50,6 @@ instead of the player. Speed is still measured against the previous published
 sample, so mounting and dismounting cost one speed sample across the offset
 between rider and mount. The player is reported mounted for the whole
 interaction, including its mount and dismount animations.
-
-The same sample observes the transitions from the player's sit state while it
-is on a mount. The rider graph's `HorseEnter` sets `kWaitingForSitAnim`,
-`HorseExit` sets `kWantToStand`, and both return to `kRidingMount` or `kNormal`
-once their clip ends (ID 39004). A mount whose first samples are `kWantToSit` or
-`kWaitingForSitAnim` publishes `enter`. A later `kWantToStand` publishes `exit`.
-An instant seat, such as a loaded save, goes straight to riding and publishes
-nothing.
 
 ## Receiver
 
@@ -84,104 +64,35 @@ actor checks, and before every stage that drives the actor on foot:
 2. The mount takes each new checkpoint as its target transform. Once ready,
    `ActorRuntime::UpdateMount` reasserts its policy, drives its gait, and
    translates it with the actor translation code. Its graph is never firewalled.
-3. Once both actor and mount are ready, `ActorMount::Seat` seats the actor,
-   retrying every 0.5 s. It plays the mount animation for a received `enter`
-   (see [Transitions](#transitions)), and is instant otherwise. From the first
-   seat on, the mount carries the actor: it is never driven on foot again.
-   `ActorRuntime::UpdateRider` only keeps its policy, equipment and appearance
-   are still reconciled, and queued attacks are dropped.
+3. Once both actor and mount are ready, `ActorMount::Seat` seats the actor
+   instantly, retrying every 0.5 s. From the first seat on, the mount carries
+   the actor: it is never driven on foot again. `ActorRuntime::UpdateRider` only
+   keeps its policy, equipment and appearance are still reconciled, and queued
+   attacks are dropped.
 4. The seat is checked every 0.5 s, since the check looks up the rider's
    interaction. A rider found off its mount is logged and seated again.
-5. When the checkpoint no longer rides without an animated dismount, the actor
-   and its mount are retired together, and the actor respawns on foot. The
-   actor is not taken off the mount first (see below). A new seat also waits
-   while either actor is getting on or off a mount.
+5. When the checkpoint no longer rides, the actor and its mount are retired
+   together, and the actor respawns on foot. The actor is never taken off the
+   mount first (see below). A new seat also waits while either actor is getting
+   on or off a mount (`kGettingOnOffMount`).
 6. A mount whose handle is lost retires its actor. Both are rebuilt while the
    player still rides.
 
 `ActorLifecycle` owns the mount beside the actor. Every retirement and removal
 of the actor also removes the mount in the same pass, rider first, while the
-rider is still seated. A pair that a mount or dismount clip links is removed
-once the clip ends instead (see [Transitions](#transitions)). That covers appearance, coordinate space, fast travel,
+rider is still seated. That covers appearance, coordinate space, fast travel,
 revival, a lost actor handle, `player:exit`, `player:disconnect`, and a lost
 connection. Mounts are excluded from saves like their riders. When a riding
 player dies, `DeathSync` retires the actor and its mount the same way. The actor
 respawns on foot, and is then killed where it stands like any actor spawned for
 a dead player.
 
-Skyrim's dismount (ID 38705) is only used for an animated dismount. Even in
-mode 1, which sets the quick-mount process flag, it starts the paired
-`pa_HorseExit` clip, a `BSSynchronizedClipGenerator` that links the mount's
-graph to the rider's. Removing both actors in the pass that started it crashed
-on the next graph event: execution jumped into freed memory from
-`NotifyAnimationGraph`, with the mount and its `pa_HorseExit` clip on the stack.
-
-## Transitions
-
-A received transition waits in the peer's `MountSync::RemoteState`. One that
-cannot start within 1 s of arriving, for example because the actor or its mount
-is still loading, is dropped, and the transition is presented instantly as
-above. A peer that joins, or enters the space, mid-ride never sees one.
-
-Enter:
-
-1. While an `enter` waits and the checkpoint rides, the actor is held where the
-   player started mounting, rather than following the mount's transform on
-   foot, and the mount is spawned. The enter is sent right after the checkpoint
-   that starts riding, but may arrive in a later pass: in the first run the
-   mount was ready 6 ms after that checkpoint, and the enter arrived 43 ms after
-   it, so the rider was seated instantly. A new mount therefore waits 0.25 s for
-   the enter before an instant seat, and the actor is held meanwhile.
-2. Until the rider is first seated, the mount is sent no gait events, but is
-   kept on its target transform with an idle translation, which places it
-   there at once. In the first run, the relocation sample (1147 units/s)
-   started the new mount's locomotion in the pass the mount animation started.
-   In the next, the mount was held in place instead, and was sometimes pushed
-   off its spot by the rider standing beside it: the mount animation then
-   played there, and the mount slid back to its target once it ended. Kept on
-   its target, the mount stood within 2 units of it whenever the animation
-   started.
-3. The animated seat waits until the mount has been ready for 0.25 s. The first
-   run started it in the pass the mount was created, while its package was
-   still being taken back, and the rider was off the mount within 0.5 s.
-4. `ActorMount::Seat` then starts the same interaction as the instant seat, but
-   not quick: Skyrim performs the mount action on the rider's
-   graph, which plays the paired `HorseEnter` clip and picks the side itself.
-   A graph that rejects it ends the interaction at once, so the next seat check
-   finds the rider off its mount and seats it instantly.
-5. While the clip plays, and for 0.1 s after it ends, the mount is neither
-   translated nor sent gait events, and the rider's riding gait is not driven
-   during the clip. In the pass the enter clip ended, the mount's graph rejected
-   `moveStart`, so a player riding off at once had its mount slide until the
-   gait was corrected 0.25 s later. `Remote player … mount clip
-   started` and `ended` log each clip, and a lost seat logs whether it was
-   animated, how long it lasted, and the rider's sit state.
-
-Exit:
-
-1. An `exit` starts once the rider is seated, both actors are ready, and no
-   clip plays. `ActorMount::Dismount` calls the dismount in mode 0, the AI
-   dismount procedure's, which plays `HorseExit` and ends the interaction when
-   the clip does. It is started even when the checkpoint that no longer rides
-   arrived first.
-2. The mount is held while the clip plays. The dismount ends once no clip plays
-   and the rider is off its mount. After 5 s it is treated as failed, and the
-   actor and mount are retired.
-3. The actor then stands beside the mount until the checkpoint no longer rides.
-   In the next pass that sees it, the mount is removed alone. The actor is
-   released to on-foot control: its registration is no longer mounted or
-   gait-driven, and its locomotion dispatch is rebuilt from the checkpoint. A
-   player that still rides 2 s after the dismount ended is seated again at once.
-
-A clip is playing while either actor has `kGettingOnOffMount`, or while the
-rider is on a mount with a `kWantToSit`, `kWaitingForSitAnim`, or `kWantToStand`
-sit state. Any retirement or removal of an actor in that state, whether for
-death, a coordinate-space change, `player:exit`, a disconnect, or a dismount
-without the animation, hands the actor and its mount to a deferred removal.
-They stay registered and undriven, and are removed once the clip ends. After
-5 s they are removed anyway, which logs a warning. The player's new actor is not
-spawned until then, so it never appears twice. Deferred actors are excluded from
-saves like live ones.
+Skyrim's dismount (ID 38705) is never used. Even in mode 1, which sets the
+quick-mount process flag, it starts the paired `pa_HorseExit` clip, a
+`BSSynchronizedClipGenerator` that links the mount's graph to the rider's.
+Removing both actors in the pass that started it crashed on the next graph
+event: execution jumped into freed memory from `NotifyAnimationGraph`, with the
+mount and its `pa_HorseExit` clip on the stack.
 
 The mount's gait comes from the checkpoint speed. Vanilla horse movement types
 are walk 125, run 450 (`Horse_Default_MT`), and sprint 600
@@ -252,29 +163,14 @@ such as the mount interaction's and idles, still pass. The network gait
 bypasses the firewall, as for every remote actor. A 2 s gait sample per role
 logs `Speed` and `HorseSpeedSampled`.
 
-While a clip holds the mount, the network gait is not applied, and the
-firewall still blocks the stop Skyrim sends into the mount's graph. A dismount
-received right after a galloping checkpoint therefore started over running
-locomotion. The mount ran on its root motion against the dismount clip: it
-shook, jumped up to 50 units between samples, lost support, and the dismount
-timed out. This happened with the local player 400 to 900 units away. Once the
-clip plays, the mount's graph rejects `moveStop`, so stopping it then is too
-late. A received dismount therefore holds the mount first, drives its gait and
-the rider's to a stop (speed 0, `moveStop`, reconciled every 0.25 s), and
-starts once the mount's `IsMoving` clears, or after 1 s. A pending exit does
-not expire during that wait, and a pending enter does not expire while the
-previous dismount plays. The dismount's log reports `haltWait` and
-`mountMoving`.
-
 The rider's registration is marked mounted while it is seated. Like furniture
 ownership, that lets the firewall admit every native graph event on the rider,
 because the mount interaction drives the rider's graph.
 
 The rider is always left to Skyrim's movement update, which carries it, and
 its character body is out of every collision while it is on its mount. The
-mount skips the movement update, with its body out of collision, while the
-network places it, and runs it while a clip holds it
-(`specs/017-remote-actor-world-isolation.md`).
+mount skips the movement update, with its body out of collision, since the
+network places it (`specs/017-remote-actor-world-isolation.md`).
 
 A seated rider's bone and weapon bodies are on `kBipedNoCC`, which the local
 player's proxy controller collides with, and they hang at the mount's flanks,
@@ -283,13 +179,13 @@ pass-through hook therefore lets the player's movement update ignore every
 remote character and skeleton body its phantom (a caching shape phantom)
 overlaps, only for that update.
 
-The mount's character body collides while a clip holds it, and a seated
-rider's bones overlap it. While the rider is on its mount, its skeleton bodies
-therefore also have the no-collision bit. Skyrim rewrote the rider's character body filter
-around seating, and a rebuilt 3D brings new bodies, so the rider update
-reasserts the bit every half second. It is cleared once the rider is off the
-mount or dies. `Remote actor skeleton collision disabled`, `reasserted`, and
-`restored` log each change with the number of bodies changed.
+A seated rider's bones also overlap its mount's body, so while the rider is on
+its mount, its skeleton bodies have the no-collision bit too. Skyrim rewrote
+the rider's character body filter around seating, and a rebuilt 3D brings new
+bodies, so the rider update reasserts the bit every half second. It is cleared
+once the rider is off the mount or dies. `Remote actor skeleton collision
+disabled`, `reasserted`, and `restored` log each change with the number of
+bodies changed.
 
 ## Engine assumptions
 
@@ -297,14 +193,6 @@ These were traced in the 1.7.104 binary, and the calls run only on AE:
 
 - A rider and its mount are linked by an `ExtraInteraction` on the rider,
   holding a `MountInteraction`. `Actor::GetMount` and `IsOnMount` read it.
-- The interaction start (ID 41530) passes its quick flag to the
-  `MountInteraction` start (ID 40351). Unquick, that start performs the mount
-  action through a task on the rider; if the task fails, it stops the
-  interaction with mode 2 (ID 41531).
-- The dismount (ID 38705) stops the rider's interaction with its mode
-  (ID 41531). Mode 0 sets no process flag and asks the `MountInteraction` stop
-  (ID 40352) for the animated exit. The interaction is finalized (ID 38696) at
-  once only when that exit does not start.
 - Skyrim's mount entry (ID 38704) builds a `MountInteraction` only on its
   animated branch. Its quick branch, used by `PutActorOnMountQuick`, restarts
   the rider's existing interaction. `ActorMount::Seat` instead builds one the
@@ -336,37 +224,15 @@ ride, running the do-nothing package, and followed the mount's translation.
 
 To verify in game, from `latest.log`:
 
-- An animated mount logs `Observed local player mount transition` and
-  `Mount sync publishing transition` on the source, and
-  `Seating remote player … animated=true started=true` on peers, followed by
-  `mount clip started` and, about two seconds later, `mount clip ended`. The
-  rider plays the mount clip from its side of the horse, without first walking
-  into it, and no later `left its mount locally` follows.
-- An animated dismount logs `Starting remote player … dismount … started=true`,
-  `finished its dismount`, and `Removed remote player … mount … after actor …
-  dismounted`. The actor walks on from where it got off, without a respawn.
-- An enter received while the previous dismount still plays waits for it
-  instead of expiring (no `did not start within`). If the checkpoint rides
-  again when the dismount ends, the actor logs `mounts … again after its
-  dismount` and plays the mount animation on the same horse
-  (`animated=true`).
-- A player killed, or leaving the space, during either clip logs
-  `Deferring removal` and then `Removed … after their mount clip ended`, without
-  a crash.
 - The horse walks at walking pace and gallops only at full speed. After a spawn
   it logs `moving=true` without `sprinting=true`, and few `Corrected remote
   mount graph gait` lines.
 - The rider's gait sample reports a `horseSpeedSampled` near the mount's.
 - The rider and its horse log `Remote actor character body collision
-  disabled`, and the rider `restored` after its dismount. The local player
-  walks through both, whether on foot or riding.
+  disabled`. The local player walks through both, whether on foot or riding.
 - The local player walks through a seated rider's legs while it rides.
 - A seated rider logs `Remote actor skeleton collision disabled` with a
-  non-zero body count, and `restored` after its dismount.
-- A dismount started right after galloping logs `Remote mount gait changed:
-  … moving=false accepted=true`, then `Starting … dismount` with a non-zero
-  `haltWait` and `mountMoving=false`. During mount and dismount clips the horse
-  holds still, and no dismount times out.
+  non-zero body count.
 - Removing the seated pair on a dismount and on death does not crash
   (`Recycling ... after the player dismounted: seated=true transition=false`).
 
@@ -386,10 +252,8 @@ To verify in game, from `latest.log`:
   follows the player's path and walks, runs, and gallops with its speed.
 - A peer who joins, or enters the space, while the player rides sees the actor
   already seated.
-- A dismount plays the dismount animation, then removes the horse and leaves
-  the actor standing where it got off.
-- Mounting plays the mount animation on every peer that has the actor loaded
-  when it starts.
+- A dismount removes the horse and leaves the actor standing where the player
+  got off.
 - A player killed while riding collapses on peers where it died, and the horse
   disappears.
 - A player leaving the world, disconnecting, or timing out removes both the

@@ -5,7 +5,6 @@
 #include "sync/appearance/AppearanceSync.h"
 #include "sync/combat/CombatSync.h"
 #include "sync/equipment/EquipmentSync.h"
-#include "sync/mount/MountSync.h"
 
 #include <cstdint>
 #include <string>
@@ -20,7 +19,6 @@ struct PeerState
     // Checkpoint sequence whose transform the current actor last received.
     std::uint64_t appliedSequence{ 0 };
     CombatSync::RemoteState combat;
-    MountSync::RemoteState mounting;
     ActorLifecycleState lifecycle;
     AppearanceSync::RemoteState appearance;
     EquipmentSync::RemoteState equipment;

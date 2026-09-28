@@ -176,7 +176,7 @@ namespace ActorRuntime
         return true;
     }
 
-    bool UpdateRider(RemoteActor& a_remote, ActorMount::Gait* a_gait, float a_mountSpeed, float a_deltaTime)
+    bool UpdateRider(RemoteActor& a_remote, ActorMount::Gait& a_gait, float a_mountSpeed, float a_deltaTime)
     {
         PROFILE_FUNCTION();
         if (!GameThread::Require("UpdateRemoteRider"))
@@ -202,14 +202,14 @@ namespace ActorRuntime
         {
             RemoteCollision::IsolateCarriedSkeleton(*actor, a_remote, a_deltaTime);
         }
-        if (AdvanceReadiness(*actor, a_remote, a_deltaTime) && a_gait)
+        if (AdvanceReadiness(*actor, a_remote, a_deltaTime))
         {
-            ActorMount::ApplyGait(*actor, a_remote, *a_gait, a_mountSpeed, a_deltaTime, false, "rider");
+            ActorMount::ApplyGait(*actor, a_remote, a_gait, a_mountSpeed, a_deltaTime, false, "rider");
         }
         return true;
     }
 
-    bool UpdateMount(RemoteActor& a_remote, ActorMount::Gait& a_gait, MountControl a_control, float a_deltaTime)
+    bool UpdateMount(RemoteActor& a_remote, ActorMount::Gait& a_gait, float a_deltaTime)
     {
         if (!GameThread::Require("UpdateRemoteMount"))
         {
@@ -230,21 +230,7 @@ namespace ActorRuntime
         {
             return true;
         }
-        if (a_control == MountControl::kHeld)
-        {
-            RemoteCollision::ReleaseToEngine(*actor, a_remote, "mount clip", false);
-            // The firewall blocks the gait events Skyrim sends a mount, so only this
-            // stops a gait the network left running before a clip.
-            ActorMount::ApplyGait(*actor, a_remote, a_gait, 0.0F, a_deltaTime, true, "mount");
-            return true;
-        }
         RemoteCollision::PlaceByNetwork(*actor, a_remote);
-        if (a_control == MountControl::kPlaced)
-        {
-            // An idle translation state places it on the target at once.
-            ActorMovement::ApplyTranslation(*actor, a_remote, a_deltaTime, Multiplayer::AnimationState{});
-            return true;
-        }
 
         // The mount's own graph is never firewalled: only its gait is driven, and
         // the rest of its graph stays native.

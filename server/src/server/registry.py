@@ -23,8 +23,6 @@ class PlayerRegistry:
     in_world: set[str] = field(default_factory=set)
     states: dict[str, PlayerUpdate] = field(default_factory=dict)
     action_sequences: dict[str, int] = field(default_factory=dict)
-    # Checkpoint sequence of the latest relayed mount transition.
-    mount_transition_sequences: dict[str, int] = field(default_factory=dict)
     appearances: dict[str, dict[str, Any]] = field(default_factory=dict)
     # Tells apart players with the same name: the first holder of a name gets 1,
     # later ones the lowest index free among them. It is kept while the name is.
@@ -55,7 +53,6 @@ class PlayerRegistry:
         """Drop the player's world state. False if it was not in the world."""
         self.states.pop(player_id, None)
         self.action_sequences.pop(player_id, None)
-        self.mount_transition_sequences.pop(player_id, None)
         if player_id not in self.in_world:
             return False
         self.in_world.discard(player_id)

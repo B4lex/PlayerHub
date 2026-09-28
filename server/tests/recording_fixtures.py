@@ -56,16 +56,6 @@ def action(sequence: int = 1, checkpoint_sequence: int = 1, **overrides: Any) ->
     return payload
 
 
-def mount_transition(transition: str = "enter", checkpoint_sequence: int = 1, **overrides: Any) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "transition": transition,
-        "graphEpoch": 1,
-        "checkpointSequence": checkpoint_sequence,
-    }
-    payload.update(overrides)
-    return payload
-
-
 def appearance(revision: int = 1, name: str = "Lydia Stormblade") -> dict[str, Any]:
     return {
         "revision": revision,

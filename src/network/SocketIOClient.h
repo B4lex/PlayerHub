@@ -39,7 +39,6 @@ namespace Network
         // Only the newest pending equipment revision per player.
         std::vector<RemotePlayerEquipment> equipment;
         std::vector<AnimationAction> animationActions;
-        std::vector<RemoteMountTransition> mountTransitions;
         // Players that left the world. Their checkpoint and actions are
         // forgotten, while appearance and equipment remain valid. Checkpoints and
         // actions above for the same player arrived after the exit.
@@ -89,11 +88,6 @@ namespace Network
     // Publishes one item in the ordered semantic action stream: the attack's hand
     // and, for a power attack, its direction. Graph event names never cross it.
     void PublishLocalAttack(const Attack& a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
-
-    // Publishes the start of an animated mount or dismount, anchored to the
-    // checkpoint published in the same pass.
-    void PublishLocalMountTransition(
-        MountTransition a_transition, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
 
     // Emits chat:send with already trimmed, valid text. Returns false without
     // sending while disconnected. a_onRejected runs on the transport thread with

@@ -225,7 +225,7 @@ namespace ActorAnimation
     [[nodiscard]] bool IsWeaponTransitionPlaying(const RemoteActor& a_remote);
 
     // Actor-module internals, used by ActorSpawner, ActorRuntime, ActorMovement,
-    // ActorFurniture, and ActorMount.
+    // and ActorFurniture.
     void RequestAnimationUpdate(
         State* a_animationState, Multiplayer::AnimationState a_state, float a_speed, float a_direction);
     void InvalidateAnimationDispatch(State& a_state);

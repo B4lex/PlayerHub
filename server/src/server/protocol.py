@@ -24,9 +24,6 @@ ATTACK_ACTIONS = frozenset({"normal", "left", "dual", "bash"})
 # The movement direction a power attack was started with. Only power attacks
 # carry one.
 POWER_ATTACK_DIRECTIONS = frozenset({"standing", "forward", "backward", "left", "right"})
-# Getting on and off a mount with its animation. A checkpoint that starts or
-# stops riding without one is presented instantly.
-MOUNT_TRANSITIONS = frozenset({"enter", "exit"})
 
 MAXIMUM_INT64 = 0x7FFFFFFFFFFFFFFF
 MAXIMUM_PLUGIN_NAME_LENGTH = 260
@@ -189,28 +186,6 @@ def parse_animation_action(data: Any) -> dict[str, Any] | None:
     if power:
         parsed["direction"] = direction
     return parsed
-
-
-def parse_mount_transition(data: Any) -> dict[str, Any] | None:
-    """Validate the start of an animated mount or dismount."""
-    if not isinstance(data, dict):
-        return None
-
-    transition = data.get("transition")
-    graph_epoch = data.get("graphEpoch")
-    checkpoint_sequence = data.get("checkpointSequence")
-    if (
-        not isinstance(transition, str)
-        or transition not in MOUNT_TRANSITIONS
-        or not _is_integer(graph_epoch, 1, MAXIMUM_INT64)
-        or not _is_integer(checkpoint_sequence, 1, MAXIMUM_INT64)
-    ):
-        return None
-    return {
-        "transition": transition,
-        "graphEpoch": graph_epoch,
-        "checkpointSequence": checkpoint_sequence,
-    }
 
 
 def _is_integer(value: Any, minimum: int, maximum: int) -> bool:

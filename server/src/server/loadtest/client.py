@@ -35,9 +35,6 @@ class ClientPublisher:
     async def action(self, payload: dict[str, Any]) -> None:
         await self._emit("animation:action", payload)
 
-    async def mount_transition(self, payload: dict[str, Any]) -> None:
-        await self._emit("mount:transition", payload)
-
     async def appearance(self, payload: dict[str, Any]) -> None:
         await self._emit("player:appearance", payload)
 
