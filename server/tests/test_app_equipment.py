@@ -13,7 +13,7 @@ def valid_equipment(revision: int = 1) -> dict[str, object]:
         "armor": [
             {"plugin": "Skyrim.esm", "formId": 0x12E49, "slotMask": 4},
             {"plugin": "Dawnguard.esm", "formId": 0x13E7, "slotMask": 512},
-            {"plugin": "Some Mod.esp", "formId": 0x812, "slotMask": 1},
+            {"plugin": "Some Mod.esp", "formId": 0x812, "slotMask": 1 << 31 | 1 << 14},
         ],
         "rightHand": {"plugin": "Skyrim.esm", "formId": 0x12EB7, "kind": "weapon", "weaponType": 1},
         "leftHand": {"plugin": "Skyrim.esm", "formId": 0x1D4EC, "kind": "torch"},
@@ -80,8 +80,6 @@ class ParsePlayerEquipmentTests(unittest.TestCase):
             "duplicate armor": lambda p: p["armor"].append(dict(p["armor"][0])),
             "zero slot mask": lambda p: p["armor"][0].update(slotMask=0),
             "slot mask overflow": lambda p: p["armor"][0].update(slotMask=2**32),
-            "unsynced slot": lambda p: p["armor"][0].update(slotMask=1 << 4),
-            "synced and unsynced slots": lambda p: p["armor"][0].update(slotMask=4 | 1 << 11),
             "empty plugin": lambda p: p["armor"][0].update(plugin=""),
             "form id too large": lambda p: p["rightHand"].update(formId=0x1000000),
             "missing right hand": lambda p: p.pop("rightHand"),

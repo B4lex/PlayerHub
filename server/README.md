@@ -53,8 +53,10 @@ to `http://127.0.0.1:3000` for local testing.
   `player:enter` and `player:exit`.
 - `player:states` relays validated transforms as `{"states": [...]}`, each entry
   a checkpoint with its `playerId`. The server keeps only each player's newest
-  unsent checkpoint and broadcasts them all every 50 ms, so a client receives
-  one message per tick rather than one per peer update. The batch goes to every
+  unsent checkpoint and broadcasts them all every 25 ms, so a client receives
+  one message per tick rather than one per peer update. The tick is twice the
+  20 Hz update rate so batching delays a checkpoint by at most 25 ms and rarely
+  merges two of a player's updates into one tick. The batch goes to every
   client unchanged, including the players it contains, because an identical
   broadcast is encoded once; clients skip their own entry. A player's unsent
   checkpoint is sent on its own before a `player:action` or `player:mount` that

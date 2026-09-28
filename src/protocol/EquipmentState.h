@@ -2,7 +2,6 @@
 
 #include "protocol/FormReference.h"
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -21,22 +20,8 @@ namespace Multiplayer
         kSpell
     };
 
-    // Biped slots synced for worn armor, as slot mask bits from slot 30: Head,
-    // Hair, Body, Hands, Amulet, Feet, Shield, and Circlet. Armor covering none
-    // of them is not synced.
-    inline constexpr std::array<std::uint8_t, 8> kSyncedArmorSlots{ 0, 1, 2, 3, 5, 7, 9, 12 };
-    inline constexpr std::uint32_t kSyncedArmorSlotMask = [] {
-        std::uint32_t mask = 0;
-        for (const auto slot : kSyncedArmorSlots)
-        {
-            mask |= 1U << slot;
-        }
-        return mask;
-    }();
-
-    // Worn armor, clothing, jewelry, or shield. The slot mask, limited to the
-    // synced slots, selects a fallback when the form is unavailable on the
-    // receiver.
+    // Worn armor, clothing, jewelry, or shield. The slot mask selects a fallback
+    // when the form is unavailable on the receiver.
     struct EquipmentArmor
     {
         FormReference form;
@@ -155,8 +140,7 @@ namespace Multiplayer
         for (std::size_t i = 0; i < a_equipment.armor.size(); ++i)
         {
             const auto& entry = a_equipment.armor[i];
-            if (!IsValidFormReference(entry.form, false) || entry.slotMask == 0
-                || (entry.slotMask & ~kSyncedArmorSlotMask) != 0)
+            if (!IsValidFormReference(entry.form, false) || entry.slotMask == 0)
             {
                 return false;
             }

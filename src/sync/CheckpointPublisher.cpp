@@ -9,6 +9,7 @@
 #include "sync/movement/MovementSync.h"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 
 namespace CheckpointPublisher
@@ -22,13 +23,19 @@ namespace CheckpointPublisher
     {
         PROFILE_FUNCTION();
         static float elapsed = kSnapshotInterval;
+        static float scheduleElapsed = kSnapshotInterval;
         static std::uint64_t sequence = 0;
 
-        elapsed += (std::max)(a_delta, 0.0F);
-        if (elapsed < kSnapshotInterval || !Network::IsConnected())
+        const float delta = (std::max)(a_delta, 0.0F);
+        elapsed += delta;
+        scheduleElapsed += delta;
+        if (scheduleElapsed < kSnapshotInterval || !Network::IsConnected())
         {
             return Publication{ .status = Network::IsConnected() ? Status::kNotDue : Status::kDisconnected };
         }
+        // Keeping the remainder holds the average rate when frame times do not
+        // divide the interval; whole missed intervals are dropped, not sent as a burst.
+        scheduleElapsed = std::fmod(scheduleElapsed, kSnapshotInterval);
         const float snapshotElapsed = elapsed;
         elapsed = 0.0F;
 
