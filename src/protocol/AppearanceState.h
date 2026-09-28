@@ -46,6 +46,16 @@ namespace Multiplayer
         bool operator==(const AppearanceTint&) const = default;
     };
 
+    // What peers without the source's race show instead: a playable race from a
+    // base-game plugin, which every peer has, in the given sex.
+    struct DefaultRace
+    {
+        AppearanceFormReference race;
+        bool female{ false };
+
+        bool operator==(const DefaultRace&) const = default;
+    };
+
     // Reconstructable character appearance. Unlike the transform checkpoint it
     // changes rarely, so it is published as its own latest-wins state.
     struct PlayerAppearance
@@ -77,6 +87,8 @@ namespace Multiplayer
         std::array<float, kFaceMorphCount> faceMorphs{};
         std::array<std::int32_t, kFacePartCount> faceParts{};
         std::vector<AppearanceTint> tints;
+        // Only when race is from other than a base-game plugin.
+        std::optional<DefaultRace> defaultRace;
         // Source-local publication counter. Not part of the look itself.
         std::uint64_t revision{ 0 };
         // Assigned by the server to tell apart players with the same name; 1 for the
@@ -89,7 +101,8 @@ namespace Multiplayer
             return race == a_other.race && female == a_other.female && weight == a_other.weight
                 && height == a_other.height && headParts == a_other.headParts && hairColor == a_other.hairColor
                 && faceDetails == a_other.faceDetails && bodyTint == a_other.bodyTint
-                && faceMorphs == a_other.faceMorphs && faceParts == a_other.faceParts && tints == a_other.tints;
+                && faceMorphs == a_other.faceMorphs && faceParts == a_other.faceParts && tints == a_other.tints
+                && defaultRace == a_other.defaultRace;
         }
 
         [[nodiscard]] bool HasSameLabel(const PlayerAppearance& a_other) const
@@ -130,6 +143,12 @@ namespace Multiplayer
             || a_appearance.height > PlayerAppearance::kMaximumHeight
             || a_appearance.headParts.size() > PlayerAppearance::kMaximumHeadParts
             || a_appearance.tints.size() > PlayerAppearance::kMaximumTints)
+        {
+            return false;
+        }
+        if (a_appearance.defaultRace
+            && (!IsValidFormReference(a_appearance.defaultRace->race, false)
+                || !IsBaseGamePlugin(a_appearance.defaultRace->race.plugin)))
         {
             return false;
         }

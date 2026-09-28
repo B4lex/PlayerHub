@@ -133,6 +133,22 @@ namespace Config
                 WarnInvalid(a_key, *value, FormatFormReference(a_value));
             }
 
+            void Choice(std::string_view a_key, std::uint32_t& a_value, std::string_view,
+                std::span<const std::string_view> a_options) override
+            {
+                const auto value = Take(a_key);
+                if (!value)
+                {
+                    return;
+                }
+                if (const auto parsed = ParseChoice(*value, a_options))
+                {
+                    a_value = *parsed;
+                    return;
+                }
+                WarnInvalid(a_key, *value, FormatChoice(a_value, a_options));
+            }
+
             void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view) override
             {
                 const auto value = Take(a_key);
@@ -214,6 +230,12 @@ namespace Config
                 std::string_view a_key, FormReference& a_value, const FormReference&, const Forms::ItemFilter&) override
             {
                 Text(a_key, FormatFormReference(a_value), {});
+            }
+
+            void Choice(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+                std::span<const std::string_view> a_options) override
+            {
+                Text(a_key, FormatChoice(a_value, a_options), a_comment);
             }
 
             void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment) override

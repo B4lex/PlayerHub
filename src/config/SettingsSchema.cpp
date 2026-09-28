@@ -90,9 +90,13 @@ namespace Config
         void DescribeDefaultOutfit(DefaultOutfitSettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("DefaultOutfit",
-                "Base game and Anniversary Edition items other players see in place of your equipment\n"
-                "from mods they do not have.");
+                "Player appearance and equipment shown to others in place of your\n"
+                "modded assets they do not have.");
             const auto& defaults = GetDefaultConfig().defaultOutfit;
+
+            a_visitor.Comment("Character");
+            a_visitor.Form("Race", a_settings.race, defaults.race, kOutfitRaceFilter);
+            a_visitor.Choice("Sex", a_settings.sex, "", DefaultOutfitSettings::kSexNames);
 
             a_visitor.Comment("Apparel");
             for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)
@@ -149,6 +153,8 @@ namespace Config
             const auto dawnguard = [](std::uint32_t a_localFormID) {
                 return FormReference{ .plugin = "Dawnguard.esm", .localFormID = a_localFormID };
             };
+            // NordRace.
+            outfit.race = skyrim(0x013746);
             // Hide armor, a gold necklace, a circlet, and Anniversary Edition's basic
             // backpack, which vanilla lacks. The hide helmet also covers Circlet, and
             // Head is tried first, so the circlet only stands in for circlet-only
@@ -258,6 +264,19 @@ namespace Config
     {
         return a_reference.IsEmpty() ? std::string{}
                                      : std::format("{}|0x{:06X}", a_reference.plugin, a_reference.localFormID);
+    }
+
+    std::optional<std::uint32_t> ParseChoice(std::string_view a_value, std::span<const std::string_view> a_options)
+    {
+        const auto option = std::ranges::find_if(
+            a_options, [a_value](std::string_view a_option) { return EqualsIgnoreCase(a_option, a_value); });
+        return option == a_options.end() ? std::nullopt
+                                         : std::optional{ static_cast<std::uint32_t>(option - a_options.begin()) };
+    }
+
+    std::string_view FormatChoice(std::uint32_t a_value, std::span<const std::string_view> a_options)
+    {
+        return a_value < a_options.size() ? a_options[a_value] : std::string_view{};
     }
 
     std::optional<std::uint32_t> ParseKey(std::string_view a_value)

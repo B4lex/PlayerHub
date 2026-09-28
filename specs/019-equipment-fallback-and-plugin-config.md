@@ -3,8 +3,8 @@
 ## Status
 
 Implemented and run in game as receiver-configured equipment fallbacks. Reworked
-into the sender's default outfit, which is not yet built on Windows or run in
-game. On Linux, `PluginConfig.cpp` was compiled against SimpleIni with stubbed
+into the sender's default outfit, then extended with a default race and sex;
+neither is built on Windows or run in game yet. On Linux, `PluginConfig.cpp` was compiled against SimpleIni with stubbed
 SKSE logging and checked for default-file generation, overrides, invalid values,
 and unknown keys. The default form IDs were checked against `Skyrim.esm` and
 `Dawnguard.esm` records: type, slots, and weapon type.
@@ -15,11 +15,14 @@ A remote player whose equipment comes from a mod the receiver does not have
 still appears dressed and armed. Each unresolvable item is replaced by an item
 for the same slot: a cuirass by a cuirass, a greatsword by a greatsword. Before
 this change, spec 007 dropped such items, which left actors in the race's naked
-skin or unarmed.
+skin or unarmed. Likewise, a player of a modded race the receiver does not have
+appears as a vanilla race and sex of the player's choice, rather than as a
+`NordRace` with the player's own sex (spec 006).
 
 The replacements are the source player's choice, not the receiver's: each player
-configures a default outfit, which peers show in place of that player's items
-they cannot resolve. Default outfit items are limited to base-game plugins: the
+configures a default outfit, which peers show in place of that player's race
+and items they cannot resolve. Default outfit forms are limited to base-game
+plugins: the
 Special Edition masters (`Skyrim.esm`, `Update.esm`, `Dawnguard.esm`,
 `HearthFires.esm`, and `Dragonborn.esm`) and the 74 Creation Club plugins
 Anniversary Edition bundles, as its `Skyrim.ccc` lists them. Every receiver has
@@ -34,6 +37,8 @@ replaces `skyrim-mp-server.txt`.
 
 - Matching the look of the missing item (material, color, style, or armor
   type). An outfit piece only stands in for its slot and weapon type.
+- Keeping the face across races. A default race is shown with its own default
+  look (spec 006).
 - A receiver-side setting. When the source's outfit has no piece for an item,
   or the piece does not resolve, the receiver shows nothing there.
 - Reloading the file while the game runs. Edits to the file apply on restart;
@@ -78,11 +83,13 @@ feature follows a changed snapshot.
 Form values are `Plugin|FormID`: the defining plugin and the hexadecimal form ID
 local to it, as in `Skyrim.esm|0x012E49`. A full load-order form ID is rejected,
 because it differs between modpacks. Every key has a value: an empty or
-malformed value is invalid and keeps the default. Only base-game items,
+malformed value is invalid and keeps the default. Only base-game forms,
 including Anniversary Edition content, are accepted.
 
 | Key | Meaning |
 | --- | --- |
+| `Race` | a playable race; the base-game plugins define only the 10 vanilla ones |
+| `Sex` | `Male` or `Female`, shown with `Race` |
 | `<Slot>` | armor for that biped slot; `Head` also stands in for `Hair` |
 | `OneHandSword` … `Crossbow` | weapon for that Creation Kit weapon type |
 | `Torch`, `Arrow`, `Bolt` | carried torch and ammunition |
@@ -94,7 +101,8 @@ slot 47, which Anniversary Edition's `ccFSVSSE001-Backpacks.esl` and most mods
 use for backpacks. A modded item that covers none of these slots, such as a
 ring or another mod slot, is left off.
 
-Defaults, all from `Skyrim.esm` unless noted, by editor ID:
+Defaults, all from `Skyrim.esm` unless noted, by editor ID: `Race` is
+`NordRace` and `Sex` is `Male`, as spec 006's last resort was.
 
 | Slot | Default |
 | --- | --- |
@@ -136,7 +144,8 @@ regardless of peer order.
 
 At `kDataLoaded`, and again whenever the settings window changes
 `[DefaultOutfit]`, every configured form is resolved and checked with the key's
-item filter (spec 022): a base-game item that is armor covering the key's slot,
+item filter (spec 022): a base-game form that is a playable race, armor
+covering the key's slot,
 where Head, Hair, and Circlet count as one group; a `TESObjectWEAP` of exactly
 the key's weapon type; a carriable `TESObjectLIGH` for the torch; and a
 `TESAmmo` that is or is not a bolt. A form that is missing or does not fit is
@@ -160,6 +169,12 @@ pieces for them and publishes them with the equipment as `defaultOutfit`:
 
 A player whose equipment is all base-game sends an empty outfit. A changed
 outfit or setting changes the next capture, which publishes a new revision.
+
+Each appearance capture (spec 006) likewise sets `defaultRace` to the resolved
+`Race` and the `Sex` when the player's race is from other than a base-game
+plugin, and to `null` otherwise. A changed race or sex changes the next
+capture, which publishes a new appearance revision, so every receiver respawns
+the player once.
 
 ## Receiver
 
@@ -203,6 +218,10 @@ resolved stand-ins as `standIn`, or `none`.
 
 ## Protocol
 
+`player:appearance` carries an optional `defaultRace`,
+`{"race": {"plugin": "Skyrim.esm", "formId": 79685}, "female": true}`, whose
+race must be from a base-game plugin (spec 006).
+
 `player:equipment` carries an optional `defaultOutfit` object:
 
 ```json
@@ -234,15 +253,18 @@ empty; the server always relays one.
    bolts.
 5. A source outfit piece that the source cannot use, even as its default,
    leaves the item off on receivers, as in spec 007.
-6. The settings window lists only base-game items, including Anniversary
+6. A remote player of a race from a plugin the receiver lacks appears as that
+   player's default race and sex, with the race's default look.
+7. The settings window lists only base-game items and races, including
+   Anniversary
    Edition content such as backpacks, for outfit keys. Invalid
    values, unknown keys, and configured forms that do not resolve or are not
    base-game items are logged and fall back to their defaults, or to no piece
    when the default is unusable too.
-7. Changing the outfit in the settings window re-dresses the local player on
+8. Changing the outfit in the settings window re-dresses the local player on
    peers within about a second.
-8. `[Network] ServerEndpoint` sets the server URL. `skyrim-mp-server.txt` is no
+9. `[Network] ServerEndpoint` sets the server URL. `skyrim-mp-server.txt` is no
    longer read.
-9. `[Performance] SpawnsPerSecond` bounds how many remote actors and mounts are
-   spawned per second, so many players arriving at once do not spawn in one
-   frame.
+10. `[Performance] SpawnsPerSecond` bounds how many remote actors and mounts
+    are spawned per second, so many players arriving at once do not spawn in
+    one frame.

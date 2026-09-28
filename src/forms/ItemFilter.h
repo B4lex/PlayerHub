@@ -9,8 +9,16 @@ namespace Forms
         kArmor,
         kWeapon,
         kTorch,
-        kAmmo
+        kAmmo,
+        // A playable race. Not an item, but picked the same way.
+        kRace
     };
+
+    // Whether the inventory renderer can show the kind.
+    [[nodiscard]] constexpr bool HasModel(ItemKind a_kind) noexcept
+    {
+        return a_kind != ItemKind::kRace;
+    }
 
     // What decides whether an item form can stand in for another.
     struct ItemTraits

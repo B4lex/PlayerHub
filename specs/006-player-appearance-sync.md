@@ -59,7 +59,8 @@ The client emits `player:appearance`:
   "faceParts": [0, 0, 0, 0],
   "tints": [
     { "index": 44, "type": 6, "r": 222, "g": 188, "b": 170, "alpha": 1.0 }
-  ]
+  ],
+  "defaultRace": null
 }
 ```
 
@@ -90,6 +91,7 @@ form is missing. Dynamic (`FF`) forms cannot be referenced and are omitted.
 | `faceMorphs` | `FaceData::morphs` | exactly 19 finite numbers |
 | `faceParts` | `FaceData::parts` presets | exactly 4 32-bit integers |
 | `tints` | Face tint layers | at most 64; `index` `0..65535`, `type` `0..14`, `alpha` `0..1` |
+| `defaultRace` | `{race, female}` peers show when they cannot resolve `race` (spec 019), or `null` | `race` is a form reference from a base-game plugin; `female` is a boolean; missing means `null` |
 
 Plugin names are 1..260 characters. Hair color is sent as RGB rather than a
 form, because character editors commonly create dynamic color forms.
@@ -120,6 +122,8 @@ On the game thread, once per second, the client captures from the player:
 - `name`: the actor base full name with control characters removed, cut at a
   UTF-8 code point boundary to 128 bytes.
 - `level`: `Actor::GetLevel`.
+- `defaultRace`: the `[DefaultOutfit]` race and sex (spec 019) when `race` is
+  from other than a base-game plugin, else `null`.
 - `female`, `weight`, `height`, `headParts[0..numHeadParts)`, the hair color
   form's RGB, `faceDetails`, `faceData` morphs/parts.
 - `bodyTint`: `TESNPC::bodyTintColor`; if it is black, the color of the skin
@@ -174,12 +178,18 @@ for a few frames, and the leak is bounded by the source's publish rate.
 
 | Data | Unresolvable case | Fallback |
 | --- | --- | --- |
-| Race | plugin/form missing, not a race, or not playable | `NordRace` (`Skyrim.esm` `013746`) |
+| Race | plugin/form missing, not a race, or not playable | `defaultRace` if it resolves to a playable race, else `NordRace` (`Skyrim.esm` `013746`) |
 | Head part | missing, wrong type, or its valid-race list rejects the race | race default head part of the same type and sex, else omitted |
 | Face head part | none after resolution | race default face part |
 | Hair color | color form creation fails | race default hair color |
 | Face details | missing | race default face details texture set |
 | Tint layer | race has no tint asset with that index and type | layer dropped |
+
+A fallback race takes the sex of `defaultRace`, or the source's own without
+one, and the race's default look for that sex: its default head parts and skin
+tone. The source's head parts, tints, face morphs and presets, face details, and
+hair color belong to its own race and sex, so they are dropped; its name, level,
+weight, and height are kept.
 
 Each fallback is logged once per revision.
 

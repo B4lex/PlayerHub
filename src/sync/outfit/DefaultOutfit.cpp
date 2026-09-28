@@ -1,4 +1,4 @@
-#include "sync/equipment/DefaultOutfit.h"
+#include "sync/outfit/DefaultOutfit.h"
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
 #include "forms/FormLookup.h"
@@ -75,6 +75,8 @@ namespace DefaultOutfit
         local = {};
 
         std::uint32_t unusable = 0;
+        local.race = ResolveConfigured(settings.race, defaults.race, "Race", Config::kOutfitRaceFilter, unusable);
+        local.sex = settings.sex;
         for (std::size_t slot = 0; slot < settings.armor.size(); ++slot)
         {
             local.armor[slot] = ResolveConfigured(settings.armor[slot], defaults.armor[slot],
@@ -161,6 +163,16 @@ namespace DefaultOutfit
         {
             auto* ammo = FormLookup::ResolveForm<RE::TESAmmo>(a_equipment.ammo);
             outfit.ammo = ammo && ammo->IsBolt() ? local.bolt : local.arrow;
+        }
+    }
+
+    void SelectRace(Multiplayer::PlayerAppearance& a_appearance)
+    {
+        a_appearance.defaultRace.reset();
+        if (!IsBaseGameItem(a_appearance.race) && !local.race.IsEmpty())
+        {
+            a_appearance.defaultRace
+                = Multiplayer::DefaultRace{ .race = local.race, .female = local.sex == Settings::kFemale };
         }
     }
 

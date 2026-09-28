@@ -177,7 +177,7 @@ namespace UI
             return true;
         }
 
-        const bool preview = Config::Get()->ui.itemPreview;
+        const bool preview = Config::Get()->ui.itemPreview && Forms::HasModel(a_filter.kind);
         const float previewWidth = preview ? kPreviewWidthFonts * fontSize : 0.0F;
         const auto available = ImGui::GetContentRegionAvail();
         const float listWidth = preview ? available.x - previewWidth - ImGui::GetStyle().ItemSpacing.x : 0.0F;

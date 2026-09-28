@@ -33,6 +33,9 @@ namespace Config
         // an item a_filter matches is used.
         virtual void Form(std::string_view a_key, Multiplayer::FormReference& a_value,
             const Multiplayer::FormReference& a_default, const Forms::ItemFilter& a_filter) = 0;
+        // An index into a_options, which the file stores by name.
+        virtual void Choice(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+            std::span<const std::string_view> a_options) = 0;
         // A DirectInput scan code from GetBindableKeys.
         virtual void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment) = 0;
     };
@@ -58,6 +61,11 @@ namespace Config
     // to it. A full load-order form ID would not match across modpacks.
     [[nodiscard]] std::optional<Multiplayer::FormReference> ParseFormReference(std::string_view a_value);
     [[nodiscard]] std::string FormatFormReference(const Multiplayer::FormReference& a_reference);
+    // The index of the option a_value names, compared without case.
+    [[nodiscard]] std::optional<std::uint32_t> ParseChoice(
+        std::string_view a_value, std::span<const std::string_view> a_options);
+    // Empty for an index past a_options.
+    [[nodiscard]] std::string_view FormatChoice(std::uint32_t a_value, std::span<const std::string_view> a_options);
     [[nodiscard]] std::optional<std::uint32_t> ParseKey(std::string_view a_value);
     // Empty for a scan code that GetBindableKeys does not list.
     [[nodiscard]] std::string_view FormatKey(std::uint32_t a_scanCode);
@@ -66,10 +74,11 @@ namespace Config
     [[nodiscard]] std::string_view GetOutfitArmorKey(std::size_t a_slotIndex);
     [[nodiscard]] std::string_view GetOutfitWeaponKey(std::size_t a_weaponType);
 
-    // The items each [DefaultOutfit] key accepts: base-game items only, which
+    // The forms each [DefaultOutfit] key accepts: base-game forms only, which
     // every peer can resolve.
     [[nodiscard]] Forms::ItemFilter GetOutfitArmorFilter(std::size_t a_slotIndex);
     [[nodiscard]] Forms::ItemFilter GetOutfitWeaponFilter(std::size_t a_weaponType);
+    inline constexpr Forms::ItemFilter kOutfitRaceFilter{ .kind = Forms::ItemKind::kRace, .baseGameOnly = true };
     inline constexpr Forms::ItemFilter kOutfitTorchFilter{ .kind = Forms::ItemKind::kTorch, .baseGameOnly = true };
     inline constexpr Forms::ItemFilter kOutfitArrowFilter{ .kind = Forms::ItemKind::kAmmo, .baseGameOnly = true };
     inline constexpr Forms::ItemFilter kOutfitBoltFilter{

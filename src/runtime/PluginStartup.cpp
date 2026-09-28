@@ -11,8 +11,8 @@
 #include "runtime/FurnitureActivationHook.h"
 #include "runtime/MainLoopHook.h"
 #include "sync/SyncCoordinator.h"
-#include "sync/equipment/DefaultOutfit.h"
 #include "sync/equipment/EquipmentSync.h"
+#include "sync/outfit/DefaultOutfit.h"
 #include "sync/presence/PresenceSync.h"
 #include "ui/Overlay.h"
 

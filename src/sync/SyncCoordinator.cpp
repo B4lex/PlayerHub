@@ -12,11 +12,11 @@
 #include "sync/appearance/AppearanceSync.h"
 #include "sync/combat/CombatSync.h"
 #include "sync/death/DeathSync.h"
-#include "sync/equipment/DefaultOutfit.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/furniture/FurnitureSync.h"
 #include "sync/mount/MountSync.h"
 #include "sync/movement/MovementSync.h"
+#include "sync/outfit/DefaultOutfit.h"
 #include "sync/presence/PresenceSync.h"
 
 #include <cstddef>

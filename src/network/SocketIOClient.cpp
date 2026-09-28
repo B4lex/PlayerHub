@@ -708,6 +708,22 @@ namespace Network
                 appearance.tints.push_back(result);
             }
 
+            // Recordings made before default races have none.
+            if (const auto defaultRace = FindValue(values, "defaultRace"); !IsNullValue(defaultRace))
+            {
+                Multiplayer::DefaultRace result;
+                const auto defaultRaceForm = defaultRace->get_flag() == sio::message::flag_object
+                    ? FindValue(defaultRace->get_map(), "race")
+                    : sio::message::ptr{};
+                if (!defaultRaceForm || defaultRaceForm->get_flag() != sio::message::flag_object
+                    || !ReadFormReference(defaultRaceForm->get_map(), result.race)
+                    || !ReadBool(defaultRace->get_map(), "female", result.female))
+                {
+                    return "defaultRace";
+                }
+                appearance.defaultRace = std::move(result);
+            }
+
             return Multiplayer::IsValidAppearance(appearance) ? nullptr : "value ranges";
         }
 
@@ -1424,6 +1440,18 @@ namespace Network
         values["faceMorphs"] = std::move(faceMorphs);
         values["faceParts"] = std::move(faceParts);
         values["tints"] = std::move(tints);
+        if (a_appearance.defaultRace)
+        {
+            auto defaultRace = sio::object_message::create();
+            auto& defaultValues = defaultRace->get_map();
+            defaultValues["race"] = CreateFormReference(a_appearance.defaultRace->race);
+            defaultValues["female"] = sio::bool_message::create(a_appearance.defaultRace->female);
+            values["defaultRace"] = std::move(defaultRace);
+        }
+        else
+        {
+            values["defaultRace"] = sio::null_message::create();
+        }
 
         Emit("player:appearance", payload);
     }

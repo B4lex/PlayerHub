@@ -1,5 +1,6 @@
 #pragma once
 
+#include "protocol/AppearanceState.h"
 #include "protocol/EquipmentState.h"
 
 #include <RE/Skyrim.h>
@@ -8,9 +9,9 @@
 #include <vector>
 
 // The local player's default outfit, from Config::DefaultOutfitSettings, which
-// peers show in place of its equipment they cannot resolve; and a remote
-// player's outfit, shown in place of its equipment this game cannot resolve.
-// Main-loop thread only.
+// peers show in place of its race and equipment they cannot resolve; and a
+// remote player's outfit, shown in place of its equipment this game cannot
+// resolve. Main-loop thread only.
 namespace DefaultOutfit
 {
     // Resolves the configured items and logs unusable ones. Requires Skyrim's
@@ -24,6 +25,10 @@ namespace DefaultOutfit
     // Replaces a_equipment.defaultOutfit with the local outfit pieces that stand
     // in for its items from other than base-game plugins, which peers may lack.
     void Select(Multiplayer::PlayerEquipment& a_equipment);
+
+    // Replaces a_appearance.defaultRace with the local race and sex when its race
+    // is from other than a base-game plugin.
+    void SelectRace(Multiplayer::PlayerAppearance& a_appearance);
 
     // Appends a_outfit armor for an unresolved entry: the pieces whose stand-in
     // slots the entry covers, skipping any whose slots overlap a_occupiedSlots,

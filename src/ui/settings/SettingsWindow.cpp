@@ -13,6 +13,7 @@
 #include <cfloat>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -188,6 +189,34 @@ namespace UI
                 }
                 itemPicker.Draw("##value", a_value, a_default, a_filter);
                 EndRow({});
+            }
+
+            void Choice(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+                std::span<const std::string_view> a_options) override
+            {
+                if (!BeginRow(a_key, true))
+                {
+                    return;
+                }
+                label.assign(Config::FormatChoice(a_value, a_options));
+                if (ImGui::BeginCombo("##value", label.c_str()))
+                {
+                    for (std::uint32_t index = 0; index < a_options.size(); ++index)
+                    {
+                        label.assign(a_options[index]);
+                        const bool selected = index == a_value;
+                        if (ImGui::Selectable(label.c_str(), selected))
+                        {
+                            a_value = index;
+                        }
+                        if (selected)
+                        {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+                EndRow(a_comment);
             }
 
             void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment) override
@@ -378,7 +407,7 @@ namespace UI
                     ImGui::SetNextWindowFocus();
                     focusWindow = false;
                 }
-                if (ImGui::Begin("Skyrim Multiplayer Settings###Settings", &a_open, kWindowFlags))
+                if (ImGui::Begin("Multiplayer Settings###Settings", &a_open, kWindowFlags))
                 {
                     // The separator and the button row below the tab content.
                     editor.Draw(draft, ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y);
