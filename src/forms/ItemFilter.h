@@ -22,6 +22,8 @@ namespace Forms
         std::uint8_t weaponType{ 0 };
         // Ammunition: a bolt rather than an arrow.
         bool bolt{ false };
+        // Defined by a plugin Multiplayer::IsBaseGamePlugin accepts.
+        bool baseGame{ false };
 
         bool operator==(const ItemTraits&) const = default;
     };
@@ -34,10 +36,11 @@ namespace Forms
         std::uint32_t slotMask{ 0 };
         std::uint8_t weaponType{ 0 };
         bool bolt{ false };
+        bool baseGameOnly{ false };
 
         [[nodiscard]] constexpr bool Matches(const ItemTraits& a_traits) const noexcept
         {
-            if (a_traits.kind != kind)
+            if (a_traits.kind != kind || (baseGameOnly && !a_traits.baseGame))
             {
                 return false;
             }
@@ -57,7 +60,4 @@ namespace Forms
         bool operator==(const ItemFilter&) const = default;
     };
 
-    inline constexpr ItemFilter kTorchFilter{ .kind = ItemKind::kTorch };
-    inline constexpr ItemFilter kArrowFilter{ .kind = ItemKind::kAmmo, .bolt = false };
-    inline constexpr ItemFilter kBoltFilter{ .kind = ItemKind::kAmmo, .bolt = true };
 }

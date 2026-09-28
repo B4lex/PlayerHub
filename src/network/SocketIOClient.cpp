@@ -321,6 +321,32 @@ namespace Network
             return reference;
         }
 
+        sio::message::ptr CreateEquipmentArmor(const Multiplayer::EquipmentArmor& a_armor)
+        {
+            auto reference = CreateFormReference(a_armor.form);
+            reference->get_map()["slotMask"] = sio::int_message::create(a_armor.slotMask);
+            return reference;
+        }
+
+        sio::message::ptr CreateEquipmentHand(const Multiplayer::EquipmentHand& a_hand)
+        {
+            if (a_hand.kind == Multiplayer::EquipmentHandKind::kSpell)
+            {
+                auto hand = sio::object_message::create();
+                hand->get_map()["kind"] = sio::string_message::create("spell");
+                return hand;
+            }
+            auto hand = CreateFormReference(a_hand.form);
+            auto& values = hand->get_map();
+            values["kind"]
+                = sio::string_message::create(std::string{ Multiplayer::GetEquipmentHandKindName(a_hand.kind) });
+            if (a_hand.kind == Multiplayer::EquipmentHandKind::kWeapon)
+            {
+                values["weaponType"] = sio::int_message::create(a_hand.weaponType);
+            }
+            return hand;
+        }
+
         bool ParseRemoteTransform(const sio::message::ptr& a_data, RemotePlayerTransform& a_result)
         {
             if (!a_data || a_data->get_flag() != sio::message::flag_object)
@@ -738,6 +764,72 @@ namespace Network
             return true;
         }
 
+        bool ReadEquipmentArmor(const sio::message::ptr& a_value, Multiplayer::EquipmentArmor& a_result)
+        {
+            std::uint64_t slotMask = 0;
+            if (!a_value || a_value->get_flag() != sio::message::flag_object
+                || !ReadFormReference(a_value->get_map(), a_result.form)
+                || !ReadUnsignedInteger(
+                    a_value->get_map(), "slotMask", (std::numeric_limits<std::uint32_t>::max)(), slotMask))
+            {
+                return false;
+            }
+            a_result.slotMask = static_cast<std::uint32_t>(slotMask);
+            return true;
+        }
+
+        // Returns nullptr on success, otherwise the name of the rejected field.
+        const char* ReadDefaultOutfit(const sio::message::ptr& a_value, Multiplayer::DefaultOutfit& a_result)
+        {
+            // Recordings made before default outfits have none.
+            if (IsNullValue(a_value))
+            {
+                return nullptr;
+            }
+            if (a_value->get_flag() != sio::message::flag_object)
+            {
+                return "defaultOutfit";
+            }
+
+            using Multiplayer::DefaultOutfit;
+            const auto& values = a_value->get_map();
+            const std::vector<sio::message::ptr>* armor = nullptr;
+            if (!ReadArray(values, "armor", DefaultOutfit::kMaximumArmor, armor))
+            {
+                return "defaultOutfit.armor";
+            }
+            for (const auto& entry : *armor)
+            {
+                if (!ReadEquipmentArmor(entry, a_result.armor.emplace_back()))
+                {
+                    return "defaultOutfit.armor[]";
+                }
+            }
+
+            const std::vector<sio::message::ptr>* hands = nullptr;
+            if (!ReadArray(values, "hands", DefaultOutfit::kMaximumHands, hands))
+            {
+                return "defaultOutfit.hands";
+            }
+            for (const auto& entry : *hands)
+            {
+                std::optional<Multiplayer::EquipmentHand> hand;
+                if (!ReadEquipmentHand(entry, hand) || !hand)
+                {
+                    return "defaultOutfit.hands[]";
+                }
+                a_result.hands.push_back(std::move(*hand));
+            }
+
+            if (const auto ammo = FindValue(values, "ammo"); !IsNullValue(ammo)
+                && (ammo->get_flag() != sio::message::flag_object
+                    || !ReadFormReference(ammo->get_map(), a_result.ammo)))
+            {
+                return "defaultOutfit.ammo";
+            }
+            return nullptr;
+        }
+
         // Returns nullptr on success, otherwise the name of the rejected field.
         const char* ParseRemoteEquipment(const sio::message::ptr& a_data, RemotePlayerEquipment& a_result)
         {
@@ -769,17 +861,10 @@ namespace Network
             }
             for (const auto& entry : *armor)
             {
-                Multiplayer::EquipmentArmor result;
-                std::uint64_t slotMask = 0;
-                if (!entry || entry->get_flag() != sio::message::flag_object
-                    || !ReadFormReference(entry->get_map(), result.form)
-                    || !ReadUnsignedInteger(
-                        entry->get_map(), "slotMask", (std::numeric_limits<std::uint32_t>::max)(), slotMask))
+                if (!ReadEquipmentArmor(entry, equipment.armor.emplace_back()))
                 {
                     return "armor[]";
                 }
-                result.slotMask = static_cast<std::uint32_t>(slotMask);
-                equipment.armor.push_back(std::move(result));
             }
 
             const auto rightHand = values.find("rightHand");
@@ -797,6 +882,11 @@ namespace Network
                     || !ReadFormReference(ammo->get_map(), equipment.ammo)))
             {
                 return "ammo";
+            }
+            if (const auto* rejectedField
+                = ReadDefaultOutfit(FindValue(values, "defaultOutfit"), equipment.defaultOutfit))
+            {
+                return rejectedField;
             }
 
             return Multiplayer::IsValidEquipment(equipment) ? nullptr : "value ranges";
@@ -1347,35 +1437,31 @@ namespace Network
         }
 
         const auto createHand = [](const std::optional<Multiplayer::EquipmentHand>& a_hand) {
-            if (!a_hand)
-            {
-                return sio::null_message::create();
-            }
-            if (a_hand->kind == Multiplayer::EquipmentHandKind::kSpell)
-            {
-                auto hand = sio::object_message::create();
-                hand->get_map()["kind"] = sio::string_message::create("spell");
-                return hand;
-            }
-            auto hand = CreateFormReference(a_hand->form);
-            auto& values = hand->get_map();
-            values["kind"]
-                = sio::string_message::create(std::string{ Multiplayer::GetEquipmentHandKindName(a_hand->kind) });
-            if (a_hand->kind == Multiplayer::EquipmentHandKind::kWeapon)
-            {
-                values["weaponType"] = sio::int_message::create(a_hand->weaponType);
-            }
-            return hand;
+            return a_hand ? CreateEquipmentHand(*a_hand) : sio::null_message::create();
         };
 
         auto armor = sio::array_message::create();
         for (const auto& entry : a_equipment.armor)
         {
-            auto reference = CreateFormReference(entry.form);
-            auto& values = reference->get_map();
-            values["slotMask"] = sio::int_message::create(entry.slotMask);
-            armor->get_vector().push_back(std::move(reference));
+            armor->get_vector().push_back(CreateEquipmentArmor(entry));
         }
+
+        const auto& outfit = a_equipment.defaultOutfit;
+        auto outfitArmor = sio::array_message::create();
+        for (const auto& piece : outfit.armor)
+        {
+            outfitArmor->get_vector().push_back(CreateEquipmentArmor(piece));
+        }
+        auto outfitHands = sio::array_message::create();
+        for (const auto& piece : outfit.hands)
+        {
+            outfitHands->get_vector().push_back(CreateEquipmentHand(piece));
+        }
+        auto defaultOutfit = sio::object_message::create();
+        auto& outfitValues = defaultOutfit->get_map();
+        outfitValues["armor"] = std::move(outfitArmor);
+        outfitValues["hands"] = std::move(outfitHands);
+        outfitValues["ammo"] = CreateFormReference(outfit.ammo);
 
         auto payload = sio::object_message::create();
         auto& values = payload->get_map();
@@ -1384,6 +1470,7 @@ namespace Network
         values["rightHand"] = createHand(a_equipment.rightHand);
         values["leftHand"] = createHand(a_equipment.leftHand);
         values["ammo"] = CreateFormReference(a_equipment.ammo);
+        values["defaultOutfit"] = std::move(defaultOutfit);
 
         Emit("player:equipment", payload);
     }

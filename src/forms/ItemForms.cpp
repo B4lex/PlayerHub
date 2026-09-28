@@ -59,6 +59,8 @@ namespace Forms
 
     std::optional<ItemTraits> GetItemTraits(RE::TESForm& a_form)
     {
+        const auto* file = a_form.GetFile(0);
+        const bool baseGame = file && Multiplayer::IsBaseGamePlugin(file->GetFilename());
         if (const auto* armor = a_form.As<RE::TESObjectARMO>())
         {
             const auto slotMask = static_cast<std::uint32_t>(armor->GetSlotMask().underlying());
@@ -66,7 +68,7 @@ namespace Forms
             {
                 return std::nullopt;
             }
-            return ItemTraits{ .kind = ItemKind::kArmor, .slotMask = slotMask };
+            return ItemTraits{ .kind = ItemKind::kArmor, .slotMask = slotMask, .baseGame = baseGame };
         }
         if (const auto* weapon = a_form.As<RE::TESObjectWEAP>())
         {
@@ -76,15 +78,16 @@ namespace Forms
             {
                 return std::nullopt;
             }
-            return ItemTraits{ .kind = ItemKind::kWeapon, .weaponType = type };
+            return ItemTraits{ .kind = ItemKind::kWeapon, .weaponType = type, .baseGame = baseGame };
         }
         if (const auto* light = a_form.As<RE::TESObjectLIGH>())
         {
-            return light->CanBeCarried() ? std::optional{ ItemTraits{ .kind = ItemKind::kTorch } } : std::nullopt;
+            return light->CanBeCarried() ? std::optional{ ItemTraits{ .kind = ItemKind::kTorch, .baseGame = baseGame } }
+                                         : std::nullopt;
         }
         if (auto* ammo = a_form.As<RE::TESAmmo>())
         {
-            return ItemTraits{ .kind = ItemKind::kAmmo, .bolt = ammo->IsBolt() };
+            return ItemTraits{ .kind = ItemKind::kAmmo, .bolt = ammo->IsBolt(), .baseGame = baseGame };
         }
         return std::nullopt;
     }

@@ -5,7 +5,7 @@
 Implemented, pending a Windows build and in-game check. On Linux,
 `SettingsSchema.cpp` and `PluginConfig.cpp` were compiled against SimpleIni
 with stubbed SKSE headers and checked for saving: comments and unknown keys are
-kept, a cleared default form is written empty, and a missing file is recreated
+kept, and a missing file is recreated
 from the commented default. `SettingsWindow.cpp` was run for several frames in
 a headless Dear ImGui 1.92.9 context, with every tab drawn and simulated mouse
 and keyboard input: an invalid endpoint blocks Apply, and a valid one is applied
@@ -15,8 +15,8 @@ re-resolution were not run.
 ## Goal
 
 Players change `skyrim-mp.ini` (spec 019) in game and see the result at once:
-a new server endpoint reconnects, new equipment fallbacks re-dress remote
-players, and a new spawn rate applies on the next pass.
+a new server endpoint reconnects, a new default outfit re-dresses the local
+player on peers, and a new spawn rate applies on the next pass.
 
 ## Non-goals
 
@@ -88,8 +88,8 @@ revision before taking a snapshot never misses a change.
 | Consumer | Thread | Follows a change by |
 | --- | --- | --- |
 | `ActorLifecycle` | main loop | reading `SpawnsPerSecond` once per pass in `RefillSpawnAllowance` |
-| `EquipmentFallback` | main loop | `Refresh`, run first in `SyncCoordinator::OnFrame`: resolves every item again when `[EquipmentFallback]` differs and advances its generation |
-| `EquipmentSync` | main loop | resolving remote equipment again when the fallback generation differs from the one it resolved with, which restarts reconciliation as a new revision would |
+| `DefaultOutfit` | main loop | `Refresh`, run first in `SyncCoordinator::OnFrame`: resolves every item again when `[DefaultOutfit]` differs |
+| `EquipmentSync` | main loop | the next local capture selecting from the new outfit, which differs from the published equipment and so publishes a new revision |
 | `ConnectionMonitor` | main loop | when the latest attempt went to another endpoint: abandoning a live connection and starting a reconnect at once, with the attempt count reset |
 | `SocketIOClient` | transport, worker | reading the endpoint for each attempt; logs name the attempt's endpoint |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
@@ -103,8 +103,7 @@ revision before taking a snapshot never misses a change.
   key with its description comment at the end of its section, and a missing
   section with its comment. Entries no setting reads are kept.
 - A setting that is absent from the file and equal to its default stays absent,
-  so a removed line keeps meaning "default". A cleared form whose default is set
-  is written as an empty value.
+  so a removed line keeps meaning "default".
 - A missing or unreadable file is recreated from the commented default file.
 - The text goes to `skyrim-mp.ini.tmp` and is renamed over the file, so a failed
   write never truncates it. A failed save is logged and reported in the window;
@@ -115,8 +114,8 @@ revision before taking a snapshot never misses a change.
 - Linux (done): the config round trip and headless window checks in Status.
 - In game (pending): F10 opens the window with a cursor, and the game receives no
   input until it closes. Changing `SpawnsPerSecond` takes effect without a
-  restart. Clearing a fallback removes it from remote players who used it, and
-  setting one dresses them. A new endpoint disconnects, removes remote players,
+  restart. Picking or resetting a default outfit piece dresses the local
+  player with it on peers. A new endpoint disconnects, removes remote players,
   and connects to the new server; the status panel follows. The indicator
   turns green once connected and red on Disconnect, which removes remote
   players and keeps them away through a save load until Connect. Pressing

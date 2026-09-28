@@ -1,29 +1,41 @@
-# Equipment Fallback and Plugin Configuration
+# Default Outfit and Plugin Configuration
 
 ## Status
 
-Implemented and run in game. On Linux, `PluginConfig.cpp` was compiled against
-SimpleIni with stubbed SKSE logging and checked for default-file generation,
-overrides, invalid values, and unknown keys. The default fallback form IDs were checked
-against `Skyrim.esm` and `Dawnguard.esm` records: type, slots, and weapon type.
+Implemented and run in game as receiver-configured equipment fallbacks. Reworked
+into the sender's default outfit, which is not yet built on Windows or run in
+game. On Linux, `PluginConfig.cpp` was compiled against SimpleIni with stubbed
+SKSE logging and checked for default-file generation, overrides, invalid values,
+and unknown keys. The default form IDs were checked against `Skyrim.esm` and
+`Dawnguard.esm` records: type, slots, and weapon type.
 
 ## Goal
 
 A remote player whose equipment comes from a mod the receiver does not have
-still appears dressed and armed. Each unresolvable item is replaced by a local
-item for the same slot: a cuirass by a cuirass, a greatsword by a greatsword. Before this change, spec 007 dropped such items, which left actors
-in the race's naked skin or unarmed.
+still appears dressed and armed. Each unresolvable item is replaced by an item
+for the same slot: a cuirass by a cuirass, a greatsword by a greatsword. Before
+this change, spec 007 dropped such items, which left actors in the race's naked
+skin or unarmed.
 
-The replacements are configured in an INI file next to the plugin DLL. That file
-is the plugin's general configuration and also holds the server endpoint, which
+The replacements are the source player's choice, not the receiver's: each player
+configures a default outfit, which peers show in place of that player's items
+they cannot resolve. Default outfit items are limited to base-game plugins: the
+Special Edition masters (`Skyrim.esm`, `Update.esm`, `Dawnguard.esm`,
+`HearthFires.esm`, and `Dragonborn.esm`) and the 74 Creation Club plugins
+Anniversary Edition bundles, as its `Skyrim.ccc` lists them. Every receiver has
+the masters. A Special Edition receiver without the Anniversary upgrade lacks
+the Creation Club plugins and shows nothing for pieces from them.
+
+The outfit is configured in an INI file next to the plugin DLL. That file is the
+plugin's general configuration and also holds the server endpoint, which
 replaces `skyrim-mp-server.txt`.
 
 ## Non-goals
 
 - Matching the look of the missing item (material, color, style, or armor
-  type). A fallback only stands in for its slot and weapon type.
-- Protocol changes. The fallback uses the hints spec 007 already sends:
-  `slotMask` for armor, `kind` and `weaponType` for hands.
+  type). An outfit piece only stands in for its slot and weapon type.
+- A receiver-side setting. When the source's outfit has no piece for an item,
+  or the piece does not resolve, the receiver shows nothing there.
 - Reloading the file while the game runs. Edits to the file apply on restart;
   the in-game settings window of spec 021 applies its changes at once.
 
@@ -61,11 +73,13 @@ feature follows a changed snapshot.
 | `ServerEndpoint` | Server URL, starting with `http://` or `https://` | the public server |
 | `AutoConnect` | Whether each game connects when it loads; otherwise the settings window's Connect button does | `true` |
 
-### `[EquipmentFallback]`
+### `[DefaultOutfit]`
 
 Form values are `Plugin|FormID`: the defining plugin and the hexadecimal form ID
 local to it, as in `Skyrim.esm|0x012E49`. A full load-order form ID is rejected,
-because it differs between modpacks. An empty value means no fallback.
+because it differs between modpacks. Every key has a value: an empty or
+malformed value is invalid and keeps the default. Only base-game items,
+including Anniversary Edition content, are accepted.
 
 | Key | Meaning |
 | --- | --- |
@@ -73,11 +87,12 @@ because it differs between modpacks. An empty value means no fallback.
 | `OneHandSword` … `Crossbow` | weapon for that Creation Kit weapon type |
 | `Torch`, `Arrow`, `Bolt` | carried torch and ammunition |
 
-Every biped slot is synced (spec 007), but only the most visible ones have a
-fallback key. By Creation Kit name, with `Hair` folded into `Head`: `Head`,
+Every biped slot is synced (spec 007), but only the most visible ones have an
+outfit key. By Creation Kit name, with `Hair` folded into `Head`: `Head`,
 `Body`, `Hands`, `Amulet`, `Feet`, `Shield`, and `Circlet`, plus `Backpack` for
-slot 47, which mods conventionally use for backpacks. A missing item that covers
-none of these slots, such as a ring or another mod slot, is left off.
+slot 47, which Anniversary Edition's `ccFSVSSE001-Backpacks.esl` and most mods
+use for backpacks. A modded item that covers none of these slots, such as a
+ring or another mod slot, is left off.
 
 Defaults, all from `Skyrim.esm` unless noted, by editor ID:
 
@@ -90,7 +105,7 @@ Defaults, all from `Skyrim.esm` unless noted, by editor ID:
 | Shield | `ArmorHideShield` |
 | Amulet | `JewelryNecklaceGold` |
 | Circlet | `ClothesCirclet01` |
-| Backpack | none; vanilla has no backpacks |
+| Backpack | `ccFSVSSE001_Backpack_Basic` (`ccFSVSSE001-Backpacks.esl`, Anniversary Edition; vanilla has no backpacks) |
 
 | Key | Default |
 | --- | --- |
@@ -115,67 +130,119 @@ than its own share. A due spawn waits until it has waited as long as the
 longest spawn held back in the previous pass, so the oldest waits go first
 regardless of peer order.
 
-## Receiver
+## Source
 
 ### Resolving the configuration
 
 At `kDataLoaded`, and again whenever the settings window changes
-`[EquipmentFallback]`, every configured form is resolved and checked with the
-key's item filter (spec 022): armor covering the key's slot, where Head, Hair, and Circlet count as one group; a
-`TESObjectWEAP` of exactly the key's weapon type; a carriable `TESObjectLIGH` for
-the torch; and a `TESAmmo` that is or is not a bolt. A form that is missing or
-does not fit is logged with its key and treated as unset. After that, a lookup is
-an array index.
+`[DefaultOutfit]`, every configured form is resolved and checked with the key's
+item filter (spec 022): a base-game item that is armor covering the key's slot,
+where Head, Hair, and Circlet count as one group; a `TESObjectWEAP` of exactly
+the key's weapon type; a carriable `TESObjectLIGH` for the torch; and a
+`TESAmmo` that is or is not a bolt. A form that is missing or does not fit is
+logged with its key and replaced by the key's default, or treated as unset
+when the default is unusable too, such as the Anniversary Edition backpack on
+a Special Edition install without the upgrade.
+
+### Selecting the pieces
+
+Items from base-game plugins are expected to resolve on receivers, so only the
+other items need a stand-in. Each equipment capture (spec 007) selects the outfit
+pieces for them and publishes them with the equipment as `defaultOutfit`:
+
+- `armor`: the piece of every outfit slot that a modded worn item covers, in
+  priority order: Body, Head (for Head or Hair), Hands, Feet, Shield, Amulet,
+  Circlet, Backpack. Each piece carries the slot mask of the outfit slot it stands in
+  for, not its own slots.
+- `hands`: the weapon for the weapon type of each modded hand weapon, and the
+  torch for a modded torch, each at most once.
+- `ammo`: the `Bolt` or `Arrow` piece for modded bolts or arrows.
+
+A player whose equipment is all base-game sends an empty outfit. A changed
+outfit or setting changes the next capture, which publishes a new revision.
+
+## Receiver
+
+The received outfit is part of the equipment revision, so a new outfit resolves
+the equipment again as any new revision does. The receiver has no outfit of its
+own: when the source's outfit has no piece for an unresolved item, or the piece
+does not resolve to an item of the expected type, nothing is shown there.
 
 ### Armor
 
-Spec 007's resolution filter is unchanged. Its drop branch now selects fallbacks:
+Spec 007's resolution filter is unchanged. Its drop branch now selects outfit
+pieces:
 
 1. All resolvable armor is resolved first, and the union of its slot masks
    becomes the occupied slots.
-2. For each unresolved entry, the slots of its `slotMask` are visited in
-   priority order: Body, Head (for Head or Hair), Hands, Feet, Shield, Amulet,
-   Circlet, Backpack. For a slot the entry covers that is not fully occupied yet, the
-   fallback is the slot's key.
-3. A fallback whose own slot mask overlaps an occupied slot is skipped, because
+2. For each unresolved entry, the outfit pieces are visited in their order. A
+   piece stands in when the entry covers a slot of the piece's slot mask that
+   is not fully occupied yet.
+3. A piece whose own slot mask overlaps an occupied slot is skipped, because
    equipping it would unequip an item already shown. Otherwise it is added, and
    its slots become occupied.
 
 So a missing cuirass with built-in gauntlets and boots gets a body, hands, and
-feet fallback, except where the player shows real gauntlets or boots. When the
-fallbacks of one missing item overlap, the earlier slot wins, so the most
-visible pieces go first. A missing helmet or hood, whether it covers Head, Hair,
-or both, gets the one Head fallback.
+feet piece, except where the player shows real gauntlets or boots. When the
+pieces for one missing item overlap, the earlier slot wins, so the most visible
+pieces go first. A missing helmet or hood, whether it covers Head, Hair, or
+both, gets the one Head piece.
 
 ### Hands and ammunition
 
-An unresolved weapon uses the fallback for its `weaponType`, so the actor keeps
-the source's attack animations. An unresolved torch uses `Torch`. A two-handed
-fallback still clears the left hand, as in spec 007.
-
-Ammunition carries no type hint. When it is unresolved, the fallback is `Bolt`
-if the source's right hand is a crossbow, and `Arrow` otherwise.
+An unresolved weapon uses the outfit weapon of its `weaponType`, so the actor
+keeps the source's attack animations. An unresolved torch uses the outfit torch.
+A two-handed stand-in still clears the left hand, as in spec 007. Unresolved
+ammunition uses the outfit ammunition, which the source picked by its own ammo
+type.
 
 ### Logging
 
-Each unresolved entry is logged once per revision, with the resolved fallback
-form IDs, or `none`.
+Each unresolved entry is logged once per revision, with the form IDs of the
+resolved stand-ins as `standIn`, or `none`.
+
+## Protocol
+
+`player:equipment` carries an optional `defaultOutfit` object:
+
+```json
+{
+  "armor": [{ "plugin": "Skyrim.esm", "formId": 80145, "slotMask": 4 }],
+  "hands": [{ "plugin": "Skyrim.esm", "formId": 77495, "kind": "weapon", "weaponType": 1 }],
+  "ammo": null
+}
+```
+
+At most 8 armor pieces with a nonzero slot mask, and at most 2 hands, each a
+`weapon` with a weapon type from 1 to 9 or a `torch`, with no two for the same
+kind and weapon type. Every reference must be from a base-game plugin, compared
+without case: `Multiplayer::IsBaseGamePlugin` and the server's
+`BASE_GAME_PLUGINS` hold the same list. The server and the client reject equipment whose outfit breaks
+these rules. An absent outfit, as in recordings made before this change, is
+empty; the server always relays one.
 
 ## Acceptance criteria
 
 1. With no INI file, the first launch writes `skyrim-mp.ini` next to the DLL
    with the defaults. Later launches never overwrite it.
-2. A remote player wearing armor from a plugin the receiver lacks shows vanilla
-   armor in the covered slots, without displacing items
-   that did resolve.
-3. A missing weapon shows the fallback of the same weapon type in the same hand,
-   and attacks use that type's animations.
-4. A missing torch or ammunition shows the configured torch, arrows, or bolts.
-5. An empty value leaves the item off as in spec 007.
-6. Invalid values, unknown keys, and configured forms that do not resolve are
-   logged and fall back to their defaults or to no fallback.
-7. `[Network] ServerEndpoint` sets the server URL. `skyrim-mp-server.txt` is no
+2. A remote player wearing armor from a plugin the receiver lacks shows that
+   player's default outfit armor in the covered slots, without displacing
+   items that did resolve.
+3. A missing weapon shows the source's outfit weapon of the same weapon type in
+   the same hand, and attacks use that type's animations.
+4. A missing torch or ammunition shows the source's outfit torch, arrows, or
+   bolts.
+5. A source outfit piece that the source cannot use, even as its default,
+   leaves the item off on receivers, as in spec 007.
+6. The settings window lists only base-game items, including Anniversary
+   Edition content such as backpacks, for outfit keys. Invalid
+   values, unknown keys, and configured forms that do not resolve or are not
+   base-game items are logged and fall back to their defaults, or to no piece
+   when the default is unusable too.
+7. Changing the outfit in the settings window re-dresses the local player on
+   peers within about a second.
+8. `[Network] ServerEndpoint` sets the server URL. `skyrim-mp-server.txt` is no
    longer read.
-8. `[Performance] SpawnsPerSecond` bounds how many remote actors and mounts are
+9. `[Performance] SpawnsPerSecond` bounds how many remote actors and mounts are
    spawned per second, so many players arriving at once do not spawn in one
    frame.

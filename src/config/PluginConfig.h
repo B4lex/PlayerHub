@@ -20,17 +20,17 @@ namespace Config
         bool operator==(const NetworkSettings&) const = default;
     };
 
-    // Local items shown in place of remote equipment this game cannot resolve. An
-    // empty reference means no fallback.
-    struct EquipmentFallbackSettings
+    // Base-game items, including Anniversary Edition content, peers show in place of the local player's equipment from
+    // plugins they do not have. An empty reference means nothing is shown.
+    struct DefaultOutfitSettings
     {
-        // The biped slots, bit 0 being slot 30, that each armor fallback
-        // stands in for: Head (with Hair), Body, Hands, Amulet, Feet, Shield,
-        // Circlet, and Backpack. Vanilla has no backpacks; mods conventionally
-        // put them in slot 47.
-        static constexpr std::array<std::uint32_t, 8> kArmorSlotMasks{ (1U << 0) | (1U << 1), 1U << 2, 1U << 3,
-            1U << 5, 1U << 7, 1U << 9, 1U << 12, 1U << 17 };
+        // The biped slots, bit 0 being slot 30, that each armor piece stands in
+        // for: Head (with Hair), Body, Hands, Amulet, Feet, Shield, Circlet, and
+        // Backpack. Anniversary Edition's backpacks and most mods' use slot 47.
+        static constexpr std::array<std::uint32_t, 8> kArmorSlotMasks{ (1U << 0) | (1U << 1), 1U << 2, 1U << 3, 1U << 5,
+            1U << 7, 1U << 9, 1U << 12, 1U << 17 };
         static constexpr std::size_t kArmorSlotCount = kArmorSlotMasks.size();
+        static_assert(kArmorSlotCount <= Multiplayer::DefaultOutfit::kMaximumArmor);
 
         // Indexed like kArmorSlotMasks.
         std::array<Multiplayer::FormReference, kArmorSlotCount> armor;
@@ -40,7 +40,7 @@ namespace Config
         Multiplayer::FormReference arrow;
         Multiplayer::FormReference bolt;
 
-        bool operator==(const EquipmentFallbackSettings&) const = default;
+        bool operator==(const DefaultOutfitSettings&) const = default;
     };
 
     struct PerformanceSettings
@@ -64,7 +64,7 @@ namespace Config
     struct PluginConfig
     {
         NetworkSettings network;
-        EquipmentFallbackSettings equipmentFallback;
+        DefaultOutfitSettings defaultOutfit;
         PerformanceSettings performance;
         UISettings ui;
 

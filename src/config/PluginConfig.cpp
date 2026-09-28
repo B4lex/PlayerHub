@@ -117,16 +117,12 @@ namespace Config
                 WarnInvalid(a_key, *value, a_value);
             }
 
-            void Form(std::string_view a_key, FormReference& a_value, const Forms::ItemFilter&) override
+            void Form(
+                std::string_view a_key, FormReference& a_value, const FormReference&, const Forms::ItemFilter&) override
             {
                 const auto value = Take(a_key);
                 if (!value)
                 {
-                    return;
-                }
-                if (value->empty())
-                {
-                    a_value = {};
                     return;
                 }
                 if (auto parsed = ParseFormReference(*value))
@@ -214,7 +210,8 @@ namespace Config
                 Text(a_key, a_value, a_comment);
             }
 
-            void Form(std::string_view a_key, FormReference& a_value, const Forms::ItemFilter&) override
+            void Form(
+                std::string_view a_key, FormReference& a_value, const FormReference&, const Forms::ItemFilter&) override
             {
                 Text(a_key, FormatFormReference(a_value), {});
             }
@@ -405,7 +402,7 @@ namespace Config
 
         std::optional<std::string> MakeDefaultFileText()
         {
-            auto defaults = MakeDefaultConfig();
+            auto defaults = GetDefaultConfig();
             DefaultFileWriter writer;
             Describe(defaults, writer);
             return writer.Save();
@@ -438,7 +435,7 @@ namespace Config
                 }
             }
 
-            auto defaults = MakeDefaultConfig();
+            auto defaults = GetDefaultConfig();
             ValueCollector defaultValues;
             Describe(defaults, defaultValues);
             FileUpdater updater{ file, defaultValues.values };
@@ -449,7 +446,7 @@ namespace Config
         }
 
         std::atomic<std::shared_ptr<const PluginConfig>> s_config{ std::make_shared<const PluginConfig>(
-            MakeDefaultConfig()) };
+            GetDefaultConfig()) };
         std::atomic_uint64_t s_revision{ 0 };
 
         // Serializes file access and Apply, so the live configuration and the file
@@ -461,7 +458,7 @@ namespace Config
     void Load()
     {
         const std::scoped_lock lock{ s_fileLock };
-        auto config = MakeDefaultConfig();
+        auto config = GetDefaultConfig();
         s_path = GetPluginDirectory() / kFileName;
         const auto& path = s_path;
 

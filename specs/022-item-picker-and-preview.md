@@ -18,7 +18,7 @@ CommonLibSSE-NG, so they were only checked in game.
 
 ## Goal
 
-Choosing an equipment fallback no longer means typing `Plugin|FormID`. The
+Choosing a default outfit item no longer means typing `Plugin|FormID`. The
 settings window shows each form setting as a dropdown of the loaded items that
 fit it, searchable by name or plugin, with the hovered item's 3D model beside the
 list. The pieces are reusable, so later windows (appearance or outfit editors,
@@ -47,16 +47,21 @@ src/ui/
 ## Item filter
 
 `Forms::ItemTraits` is what decides whether an item can stand in for another: its
-kind, and its slot mask, weapon type, or bolt flag.
+kind, its slot mask, weapon type, or bolt flag, and whether a base-game plugin
+defines it.
 `Forms::GetItemTraits` reads them from a form. `Forms::ItemFilter::Matches` checks
 them against what a setting accepts.
 
 `Config::SettingsVisitor::Form` now takes the setting's filter.
-`GetArmorFallbackFilter` and `GetWeaponFallbackFilter` build the filters for
-`[EquipmentFallback]` keys, and `Forms::kTorchFilter`, `kArrowFilter`, and
-`kBoltFilter` cover the rest. The settings window lists only matching items, and
-`EquipmentFallback` resolves configured items with the same filters (spec 019),
-so the list and the live behavior never disagree.
+`GetOutfitArmorFilter` and `GetOutfitWeaponFilter` build the filters for
+`[DefaultOutfit]` keys, and `Config::kOutfitTorchFilter`, `kOutfitArrowFilter`,
+and `kOutfitBoltFilter` cover the rest. All of them accept only base-game items
+(spec 019), which include Anniversary Edition's Creation Club content. The
+settings window lists only matching items, and `DefaultOutfit`
+resolves configured items with the same filters, so the list and the live
+behavior never disagree.
+
+Every key accepts only base-game items, and:
 
 | Key | Accepts |
 | --- | --- |
@@ -67,11 +72,11 @@ so the list and the live behavior never disagree.
 | `Arrow`, `Bolt` | ammunition that is not, or is, a bolt |
 
 Head slots form one group because helmets and hoods use different ones: vanilla
-helmets cover Hair and Circlet, yet they are the default `Head` fallbacks.
+helmets cover Hair and Circlet, yet they are the default `Head` pieces.
 
 ## Catalog
 
-- `Forms::BuildItemCatalog` runs at `kDataLoaded`, before `EquipmentFallback`
+- `Forms::BuildItemCatalog` runs at `kDataLoaded`, before `DefaultOutfit`
   resolves anything. It collects every `TESObjectARMO`, `TESObjectWEAP`,
   `TESObjectLIGH`, and `TESAmmo` with a name, traits, and a plugin-local reference.
   Enchanted variants (`templateArmor`, `templateWeapon`) are left out, since they
@@ -92,17 +97,18 @@ helmets cover Hair and Circlet, yet they are the default `Head` fallbacks.
 picker for all its fields: the picker caches each field's label until the value
 changes, and only one list can be open.
 
-- The closed field shows the item's name. It shows `None` dimmed for an empty
-  value, `Plugin|0xID (not loaded)` in amber for a missing plugin, and the name in
+- The closed field shows the item's name. It shows `Plugin|0xID (not loaded)` in amber for a missing plugin, and the name in
   amber for an item the filter rejects; a tooltip explains each case.
 - The open list is 40 × 22 font sizes. It has a search field, which takes keyboard
-  focus, and a two-column table of name and plugin. `None` is the first row. Only
+  focus, and a two-column table of name and plugin. There is no `None` row: a
+  form setting always has an item. Only
   visible rows are drawn (`ImGuiListClipper`), and the current value is scrolled
   into view.
-- Clicking a row or `None` picks it. Enter picks the first match. Escape closes the
+- Clicking a row picks it. Enter picks the first match. Escape closes the
   list; the settings window already leaves Escape to an open popup.
-- A `Clear` button beside the field sets it to `None`; it is disabled while the
-  value is already empty.
+- A `Reset` button beside the field sets it to the setting's default; it is
+  disabled while the value already is the default, and its tooltip names the
+  default item.
 - With `[UI] ItemPreview`, a 13-font-size square panel to the right shows the
   hovered item's model, or the current value's when no row is hovered, with its
   name and `Plugin|0xID` below.
@@ -163,8 +169,8 @@ renderer. The approach follows `Item3DPreview` in ModExplorerMenu.
   after loading started. It gives the models `Inventory3DManager` holds, its load
   task state, and the manager's and scene's light schemes.
 - `Item preview unavailable: <reason>` once.
-- `Equipment fallback ignored ... reason=does-not-fit` for a configured item its
-  key's filter rejects.
+- `Default outfit item ignored ... reason=does-not-fit` for a configured item its
+  key's filter rejects, including one that is not a base-game item.
 
 ## Verification
 

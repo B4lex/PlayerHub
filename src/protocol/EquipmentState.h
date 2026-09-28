@@ -20,8 +20,8 @@ namespace Multiplayer
         kSpell
     };
 
-    // Worn armor, clothing, jewelry, or shield. The slot mask selects a fallback
-    // when the form is unavailable on the receiver.
+    // Worn armor, clothing, jewelry, or shield. The slot mask selects a default
+    // outfit piece when the form is unavailable on the receiver.
     struct EquipmentArmor
     {
         FormReference form;
@@ -40,6 +40,25 @@ namespace Multiplayer
         bool operator==(const EquipmentHand&) const = default;
     };
 
+    // The parts of the source's default outfit that stand in for its equipped
+    // items from other than base-game plugins, for receivers without them. Every
+    // item is from a base-game plugin.
+    struct DefaultOutfit
+    {
+        static constexpr std::size_t kMaximumArmor = 8;
+        static constexpr std::size_t kMaximumHands = 2;
+
+        // In priority order. The slot mask is the slots a piece stands in for,
+        // not the piece's own slots.
+        std::vector<EquipmentArmor> armor;
+        // A weapon per weapon type, or a torch. Never a spell.
+        std::vector<EquipmentHand> hands;
+        // Stands in for the equipped arrows or bolts. Empty form means none.
+        FormReference ammo;
+
+        bool operator==(const DefaultOutfit&) const = default;
+    };
+
     // Reconstructable equipped-item state. Like appearance, it is published as
     // its own latest-wins state rather than in every transform checkpoint.
     struct PlayerEquipment
@@ -53,13 +72,14 @@ namespace Multiplayer
         std::optional<EquipmentHand> leftHand;
         // Equipped arrows or bolts. Empty form means none.
         FormReference ammo;
+        DefaultOutfit defaultOutfit;
         // Source-local publication counter. Not part of the equipped state itself.
         std::uint64_t revision{ 0 };
 
         [[nodiscard]] bool HasSameItems(const PlayerEquipment& a_other) const
         {
             if (rightHand != a_other.rightHand || leftHand != a_other.leftHand || ammo != a_other.ammo
-                || armor.size() != a_other.armor.size())
+                || defaultOutfit != a_other.defaultOutfit || armor.size() != a_other.armor.size())
             {
                 return false;
             }
@@ -125,6 +145,49 @@ namespace Multiplayer
             && !(a_leftHand && IsTwoHandedWeaponType(a_hand.weaponType));
     }
 
+    [[nodiscard]] inline bool IsValidDefaultOutfit(const DefaultOutfit& a_outfit)
+    {
+        const auto isBaseGameItem = [](const FormReference& a_form) {
+            return !a_form.IsEmpty() && IsValidFormReference(a_form, false) && IsBaseGamePlugin(a_form.plugin);
+        };
+        if (a_outfit.armor.size() > DefaultOutfit::kMaximumArmor || a_outfit.hands.size() > DefaultOutfit::kMaximumHands
+            || (!a_outfit.ammo.IsEmpty() && !isBaseGameItem(a_outfit.ammo)))
+        {
+            return false;
+        }
+        for (const auto& piece : a_outfit.armor)
+        {
+            if (!isBaseGameItem(piece.form) || piece.slotMask == 0)
+            {
+                return false;
+            }
+        }
+        for (std::size_t i = 0; i < a_outfit.hands.size(); ++i)
+        {
+            const auto& hand = a_outfit.hands[i];
+            if (!isBaseGameItem(hand.form))
+            {
+                return false;
+            }
+            const bool validKind = hand.kind == EquipmentHandKind::kTorch
+                ? hand.weaponType == 0
+                : hand.kind == EquipmentHandKind::kWeapon && hand.weaponType >= PlayerEquipment::kMinimumWeaponType
+                    && hand.weaponType <= PlayerEquipment::kMaximumWeaponType;
+            if (!validKind)
+            {
+                return false;
+            }
+            for (std::size_t j = 0; j < i; ++j)
+            {
+                if (a_outfit.hands[j].kind == hand.kind && a_outfit.hands[j].weaponType == hand.weaponType)
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     // Shared by capture and by the network parser so both sides enforce the same
     // bounds as the server.
     [[nodiscard]] inline bool IsValidEquipment(const PlayerEquipment& a_equipment)
@@ -132,7 +195,7 @@ namespace Multiplayer
         if (a_equipment.revision == 0
             || a_equipment.revision > static_cast<std::uint64_t>((std::numeric_limits<std::int64_t>::max)())
             || a_equipment.armor.size() > PlayerEquipment::kMaximumArmor
-            || !IsValidFormReference(a_equipment.ammo, true))
+            || !IsValidFormReference(a_equipment.ammo, true) || !IsValidDefaultOutfit(a_equipment.defaultOutfit))
         {
             return false;
         }

@@ -373,6 +373,95 @@ HAND_KINDS = frozenset({"weapon", "torch", "spell"})
 MINIMUM_WEAPON_TYPE = 1
 MAXIMUM_WEAPON_TYPE = 9
 TWO_HANDED_WEAPON_TYPES = frozenset({5, 6, 7, 9})
+MAXIMUM_OUTFIT_ARMOR_ENTRIES = 8
+MAXIMUM_OUTFIT_HANDS = 2
+# Plugins every Anniversary Edition install ships with: the Skyrim Special
+# Edition masters and the Creation Club plugins its Skyrim.ccc lists. Default
+# outfit items must come from them. Mirrors Multiplayer::IsBaseGamePlugin.
+BASE_GAME_PLUGINS = frozenset(
+    {
+        "_resourcepack.esl",
+        "ccafdsse001-dwesanctuary.esm",
+        "ccasvsse001-almsivi.esm",
+        "ccbgssse001-fish.esm",
+        "ccbgssse002-exoticarrows.esl",
+        "ccbgssse003-zombies.esl",
+        "ccbgssse004-ruinsedge.esl",
+        "ccbgssse005-goldbrand.esl",
+        "ccbgssse006-stendarshammer.esl",
+        "ccbgssse007-chrysamere.esl",
+        "ccbgssse008-wraithguard.esl",
+        "ccbgssse010-petdwarvenarmoredmudcrab.esl",
+        "ccbgssse011-hrsarmrelvn.esl",
+        "ccbgssse012-hrsarmrstl.esl",
+        "ccbgssse013-dawnfang.esl",
+        "ccbgssse014-spellpack01.esl",
+        "ccbgssse016-umbra.esm",
+        "ccbgssse018-shadowrend.esl",
+        "ccbgssse019-staffofsheogorath.esl",
+        "ccbgssse020-graycowl.esl",
+        "ccbgssse021-lordsmail.esl",
+        "ccbgssse025-advdsgs.esm",
+        "ccbgssse031-advcyrus.esm",
+        "ccbgssse034-mntuni.esl",
+        "ccbgssse035-petnhound.esl",
+        "ccbgssse036-petbwolf.esl",
+        "ccbgssse037-curios.esl",
+        "ccbgssse038-bowofshadows.esl",
+        "ccbgssse040-advobgobs.esl",
+        "ccbgssse041-netchleather.esl",
+        "ccbgssse043-crosselv.esl",
+        "ccbgssse045-hasedoki.esl",
+        "ccbgssse050-ba_daedric.esl",
+        "ccbgssse051-ba_daedricmail.esl",
+        "ccbgssse052-ba_iron.esl",
+        "ccbgssse053-ba_leather.esl",
+        "ccbgssse054-ba_orcish.esl",
+        "ccbgssse055-ba_orcishscaled.esl",
+        "ccbgssse056-ba_silver.esl",
+        "ccbgssse057-ba_stalhrim.esl",
+        "ccbgssse058-ba_steel.esl",
+        "ccbgssse059-ba_dragonplate.esl",
+        "ccbgssse060-ba_dragonscale.esl",
+        "ccbgssse061-ba_dwarven.esl",
+        "ccbgssse062-ba_dwarvenmail.esl",
+        "ccbgssse063-ba_ebony.esl",
+        "ccbgssse064-ba_elven.esl",
+        "ccbgssse066-staves.esl",
+        "ccbgssse067-daedinv.esm",
+        "ccbgssse068-bloodfall.esl",
+        "ccbgssse069-contest.esl",
+        "cccbhsse001-gaunt.esl",
+        "ccedhsse001-norjewel.esl",
+        "ccedhsse002-splkntset.esl",
+        "ccedhsse003-redguard.esl",
+        "cceejsse001-hstead.esm",
+        "cceejsse002-tower.esl",
+        "cceejsse003-hollow.esl",
+        "cceejsse004-hall.esl",
+        "cceejsse005-cave.esm",
+        "ccffbsse001-imperialdragon.esl",
+        "ccffbsse002-crossbowpack.esl",
+        "ccfsvsse001-backpacks.esl",
+        "cckrtsse001_altar.esl",
+        "ccmtysse001-knightsofthenine.esl",
+        "ccmtysse002-ve.esl",
+        "ccpewsse002-armsofchaos.esl",
+        "ccqdrsse001-survivalmode.esl",
+        "ccqdrsse002-firewood.esl",
+        "ccrmssse001-necrohouse.esl",
+        "cctwbsse001-puzzledungeon.esm",
+        "ccvsvsse001-winter.esl",
+        "ccvsvsse002-pets.esl",
+        "ccvsvsse003-necroarts.esl",
+        "ccvsvsse004-beafarmer.esl",
+        "dawnguard.esm",
+        "dragonborn.esm",
+        "hearthfires.esm",
+        "skyrim.esm",
+        "update.esm",
+    }
+)
 
 
 def _parse_hand(data: Any, left_hand: bool) -> dict[str, Any] | None:
@@ -395,6 +484,63 @@ def _parse_hand(data: Any, left_hand: bool) -> dict[str, Any] | None:
     return reference
 
 
+def _parse_armor_entry(data: Any) -> dict[str, Any] | None:
+    entry = _parse_form_reference(data, ("slotMask",))
+    if entry is None or not _is_integer(entry["slotMask"], 1, 0xFFFFFFFF):
+        return None
+    return entry
+
+
+def _is_base_game_item(reference: dict[str, Any]) -> bool:
+    return reference["plugin"].lower() in BASE_GAME_PLUGINS
+
+
+def _parse_default_outfit(data: Any) -> dict[str, Any] | None:
+    """Validate the base-game items that stand in for the source's own items."""
+    if not isinstance(data, dict):
+        return None
+
+    raw_armor = data.get("armor")
+    if not isinstance(raw_armor, list) or len(raw_armor) > MAXIMUM_OUTFIT_ARMOR_ENTRIES:
+        return None
+    armor = []
+    for raw_entry in raw_armor:
+        entry = _parse_armor_entry(raw_entry)
+        if entry is None or not _is_base_game_item(entry):
+            return None
+        armor.append(entry)
+
+    raw_hands = data.get("hands")
+    if not isinstance(raw_hands, list) or len(raw_hands) > MAXIMUM_OUTFIT_HANDS:
+        return None
+    hands = []
+    seen_hands: set[tuple[str, int]] = set()
+    for raw_hand in raw_hands:
+        # Not tied to a hand, so the hand placement rules do not apply.
+        hand = _parse_form_reference(raw_hand, ("kind",))
+        if hand is None or hand["kind"] not in ("weapon", "torch") or not _is_base_game_item(hand):
+            return None
+        if hand["kind"] == "weapon":
+            weapon_type = raw_hand.get("weaponType")
+            if not _is_integer(weapon_type, MINIMUM_WEAPON_TYPE, MAXIMUM_WEAPON_TYPE):
+                return None
+            hand["weaponType"] = weapon_type
+        key = (hand["kind"], hand.get("weaponType", 0))
+        if key in seen_hands:
+            return None
+        seen_hands.add(key)
+        hands.append(hand)
+
+    ammo = None
+    if data.get("ammo") is not None:
+        ammo = _parse_form_reference(data["ammo"])
+        if ammo is None or not _is_base_game_item(ammo):
+            return None
+
+    return {"armor": armor, "hands": hands, "ammo": ammo}
+
+
+
 def parse_player_equipment(data: Any) -> dict[str, Any] | None:
     """Validate latest-wins equipped item state."""
     if not isinstance(data, dict):
@@ -410,8 +556,8 @@ def parse_player_equipment(data: Any) -> dict[str, Any] | None:
     armor = []
     seen_armor: set[tuple[str, int]] = set()
     for raw_entry in raw_armor:
-        entry = _parse_form_reference(raw_entry, ("slotMask",))
-        if entry is None or not _is_integer(entry["slotMask"], 1, 0xFFFFFFFF):
+        entry = _parse_armor_entry(raw_entry)
+        if entry is None:
             return None
         key = (entry["plugin"], entry["formId"])
         if key in seen_armor:
@@ -446,12 +592,20 @@ def parse_player_equipment(data: Any) -> dict[str, Any] | None:
         if ammo is None:
             return None
 
+    # Recordings made before default outfits have none.
+    default_outfit: dict[str, Any] | None = {"armor": [], "hands": [], "ammo": None}
+    if data.get("defaultOutfit") is not None:
+        default_outfit = _parse_default_outfit(data["defaultOutfit"])
+        if default_outfit is None:
+            return None
+
     return {
         "revision": revision,
         "armor": armor,
         "rightHand": right_hand,
         "leftHand": left_hand,
         "ammo": ammo,
+        "defaultOutfit": default_outfit,
     }
 
 

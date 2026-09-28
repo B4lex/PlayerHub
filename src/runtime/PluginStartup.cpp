@@ -11,7 +11,7 @@
 #include "runtime/FurnitureActivationHook.h"
 #include "runtime/MainLoopHook.h"
 #include "sync/SyncCoordinator.h"
-#include "sync/equipment/EquipmentFallback.h"
+#include "sync/equipment/DefaultOutfit.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/presence/PresenceSync.h"
 #include "ui/Overlay.h"
@@ -38,7 +38,7 @@ namespace PluginStartup
         {
             SurvivalPolicy::RegisterEventSinks();
             Forms::BuildItemCatalog();
-            EquipmentFallback::Initialize();
+            DefaultOutfit::Initialize();
             EquipmentSync::RegisterEventSinks();
             PresenceSync::RegisterEventSinks();
             RE::ConsoleLog::GetSingleton()->Print("Skyrim Multiplayer initialized.");

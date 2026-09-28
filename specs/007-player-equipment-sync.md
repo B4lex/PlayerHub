@@ -31,8 +31,8 @@ Before this change actors had no synchronized equipment. `weaponDrawn`
   items are reduced to their unenchanted base item (see
   [Enchanted and crafted items](#enchanted-and-crafted-items)).
 - Items whose defining plugin the receiver does not have. They are dropped
-  here. Spec 019 replaces them with configured fallback items, using the hints
-  the protocol already carries.
+  here. Spec 019 replaces them with the source's default outfit, which it
+  sends as `defaultOutfit` with the equipment.
 - Equipment while transformed (werewolf, vampire lord). As in spec 006, peers
   keep the last equipment captured in a playable race.
 - Equip and unequip sounds and animations on the actor.
@@ -67,7 +67,7 @@ reduced to a referenceable base item, the entry is omitted.
 The **sender publishes every referenceable equipped item, vanilla or not**. All
 filtering happens on the receiver, which resolves an item from any plugin it has
 loaded. Peers that share a mod see its items; a peer missing the plugin drops
-the entry, or shows a fallback for it (spec 019).
+the entry, or shows the source's default outfit piece for it (spec 019).
 
 ### Fields
 
@@ -83,7 +83,7 @@ the entry, or shows a fallback for it (spec 019).
 
 Plugin names are 1..260 characters and `formId` is `0..0xFFFFFF`, as in
 spec 006. The hint fields `slotMask` and `weaponType` do not
-affect resolution. They select the fallback of spec 019. A receiver
+affect resolution. They select the default outfit piece of spec 019. A receiver
 still validates them, but the locally resolved form is authoritative for how an
 item is equipped.
 
@@ -190,8 +190,8 @@ when a local mod overrides its record, and the receiver sees its own version of
 that item.
 
 The filter is a single policy function that takes an entry and returns a
-resolved form or a drop reason. The fallback of spec 019 replaces the drop
-branch without touching capture, protocol, or reconciliation.
+resolved form or a drop reason. The default outfit of spec 019 replaces the
+drop branch without touching reconciliation.
 
 Consequences in this phase, all accepted:
 
