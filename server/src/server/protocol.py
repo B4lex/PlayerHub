@@ -42,12 +42,12 @@ MAXIMUM_FLOAT32 = 3.4028234663852886e38
 MAXIMUM_PITCH = math.pi / 2
 
 
-def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None:
+def parse_player_update(data: Any) -> dict[str, Any] | None:
     if not isinstance(data, dict):
         return None
 
     numeric_fields = ("x", "y", "z", "heading", "speed", "direction")
-    values: dict[str, bool | int | float | str] = {}
+    values: dict[str, Any] = {}
     for field in numeric_fields:
         value = data.get(field)
         if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -115,9 +115,18 @@ def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None
         return None
     values["swimming"] = swimming
 
+    # The occupied placed furniture reference, by plugin name so peers with
+    # different load orders agree on it. Recordings made before plugin-qualified
+    # references have none.
+    furniture = None
+    if data.get("furniture") is not None:
+        furniture = _parse_form_reference(data["furniture"])
+        if furniture is None:
+            return None
+    values["furniture"] = furniture
+
     cell_id = data.get("cellId")
     worldspace_id = data.get("worldspaceId")
-    furniture_ref_id = data.get("furnitureRefId")
     graph_epoch = data.get("graphEpoch")
     sequence = data.get("sequence")
     if (
@@ -127,9 +136,6 @@ def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None
         or isinstance(worldspace_id, bool)
         or not isinstance(worldspace_id, int)
         or not 0 <= worldspace_id <= 0xFFFFFFFF
-        or isinstance(furniture_ref_id, bool)
-        or not isinstance(furniture_ref_id, int)
-        or not 0 <= furniture_ref_id <= 0xFFFFFFFF
         or isinstance(graph_epoch, bool)
         or not isinstance(graph_epoch, int)
         or not 1 <= graph_epoch <= 0x7FFFFFFFFFFFFFFF
@@ -141,7 +147,6 @@ def parse_player_update(data: Any) -> dict[str, bool | int | float | str] | None
 
     values["cellId"] = cell_id
     values["worldspaceId"] = worldspace_id
-    values["furnitureRefId"] = furniture_ref_id
     values["graphEpoch"] = graph_epoch
     values["sequence"] = sequence
     return values

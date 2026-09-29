@@ -81,7 +81,7 @@ carries every field, and the client requires them.
 | `mounted` | Riding | boolean; missing is `false` |
 | `swimming` | The carrier swims | boolean; missing is `false` |
 | `cellId`, `worldspaceId` | Coordinate space; worldspace `0` is an interior | `0..2^32-1` |
-| `furnitureRefId` | Occupied placed reference, `0` for none | `0..2^32-1` |
+| `furniture` | Occupied placed reference as a [form reference](#form-references), `null` for none | form reference or `null`; missing is `null` |
 | `graphEpoch` | Source graph continuity for actions | `1..2^63-1`, never decreasing |
 | `sequence` | Checkpoint order | `0..2^63-1`, strictly increasing |
 
@@ -91,8 +91,9 @@ The meaning of each field is in its owning system: movement and locomotion in
 [Native interactions](native-interactions.md), and swimming in
 [Remote actor](remote-actor.md#swimming).
 
-Cell, worldspace, and furniture IDs are load-order FormIDs and need the same
-plugins in the same order on every peer.
+Cell and worldspace IDs are load-order FormIDs and need the same plugins in
+the same order on every peer. Furniture is plugin-qualified, so modded furniture
+is shared by peers that load its plugin at any index.
 
 ## Actions
 
@@ -140,8 +141,9 @@ resolution, and fallbacks are in
 
 ### Form references
 
-Items, races, and head parts are `{plugin, formId}`: the file that defines the
-form and its file-local ID (the low 24 bits, or 12 for a light plugin). They do
+Items, races, head parts, and checkpoint furniture are `{plugin, formId}`: the
+file that defines the form and its file-local ID (the low 24 bits, or 12 for a
+light plugin). They do
 not need matching load orders; a receiver resolves by plugin name. Plugin names
 are 1..260 characters and `formId` is `0..0xFFFFFF`. Dynamic (`FF`) forms
 cannot be referenced and are omitted.

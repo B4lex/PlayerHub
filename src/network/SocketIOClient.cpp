@@ -347,6 +347,19 @@ namespace Network
             return hand;
         }
 
+        bool ReadFurnitureReference(
+            const std::map<std::string, sio::message::ptr>& a_values, Multiplayer::FormReference& a_result)
+        {
+            const auto furniture = FindValue(a_values, "furniture");
+            if (IsNullValue(furniture))
+            {
+                return true;
+            }
+            return furniture->get_flag() == sio::message::flag_object
+                && ReadFormReference(furniture->get_map(), a_result)
+                && Multiplayer::IsValidFormReference(a_result, false);
+        }
+
         bool ParseRemoteTransform(const sio::message::ptr& a_data, RemotePlayerTransform& a_result)
         {
             if (!a_data || a_data->get_flag() != sio::message::flag_object)
@@ -371,7 +384,7 @@ namespace Network
             bool swimming = false;
             std::uint64_t cellID = 0;
             std::uint64_t worldspaceID = 0;
-            std::uint64_t furnitureRefID = 0;
+            Multiplayer::FormReference furniture;
             std::uint64_t graphEpoch = 0;
             std::uint64_t sequence = 0;
             if (!ReadString(values, "playerId", a_result.playerID) || !ReadNumber(values, "x", x)
@@ -389,8 +402,7 @@ namespace Network
                 || !ReadUnsignedInteger(values, "cellId", (std::numeric_limits<std::uint32_t>::max)(), cellID)
                 || !ReadUnsignedInteger(
                     values, "worldspaceId", (std::numeric_limits<std::uint32_t>::max)(), worldspaceID)
-                || !ReadUnsignedInteger(
-                    values, "furnitureRefId", (std::numeric_limits<std::uint32_t>::max)(), furnitureRefID)
+                || !ReadFurnitureReference(values, furniture)
                 || !ReadUnsignedInteger(values, "graphEpoch", (std::numeric_limits<std::int64_t>::max)(), graphEpoch)
                 || graphEpoch == 0
                 || !ReadUnsignedInteger(values, "sequence", (std::numeric_limits<std::int64_t>::max)(), sequence))
@@ -414,7 +426,7 @@ namespace Network
                 .swimming = swimming,
                 .cellID = static_cast<std::uint32_t>(cellID),
                 .worldspaceID = static_cast<std::uint32_t>(worldspaceID),
-                .furnitureRefID = static_cast<std::uint32_t>(furnitureRefID),
+                .furniture = std::move(furniture),
                 .graphEpoch = graphEpoch,
                 .sequence = sequence };
             return true;
@@ -1369,7 +1381,7 @@ namespace Network
         values["swimming"] = sio::bool_message::create(a_transform.swimming);
         values["cellId"] = sio::int_message::create(a_transform.cellID);
         values["worldspaceId"] = sio::int_message::create(a_transform.worldspaceID);
-        values["furnitureRefId"] = sio::int_message::create(a_transform.furnitureRefID);
+        values["furniture"] = CreateFormReference(a_transform.furniture);
         values["graphEpoch"] = sio::int_message::create(static_cast<std::int64_t>(a_transform.graphEpoch));
         values["sequence"] = sio::int_message::create(static_cast<std::int64_t>(a_transform.sequence));
 

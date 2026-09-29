@@ -85,6 +85,7 @@ namespace SyncCoordinator
             ActorLifecycle::RemoveActor(a_peer);
             a_peer.lifecycle = {};
             a_peer.combat = {};
+            a_peer.furniture = {};
             a_peer.latestCheckpoint = {};
             a_peer.lastSequence = 0;
             a_peer.appliedSequence = 0;
@@ -149,11 +150,11 @@ namespace SyncCoordinator
                     .previous = state.latestCheckpoint,
                     .previousSequence = state.lastSequence,
                     .checkpoint = update.transform };
-                FurnitureSync::OnCheckpointAccepted(checkpointUpdate);
+                FurnitureSync::OnCheckpointAccepted(state.furniture, checkpointUpdate);
                 AnimationSync::OnCheckpointAccepted(checkpointUpdate);
                 CombatSync::OnCheckpointAccepted(state.combat, checkpointUpdate);
-                state.latestCheckpoint = update.transform;
                 state.lastSequence = update.transform.sequence;
+                state.latestCheckpoint = std::move(update.transform);
             }
 
             for (auto& update : changes.appearances)
@@ -213,9 +214,10 @@ namespace SyncCoordinator
                     {
                         continue;
                     }
-                    const RemoteFrame remote{
-                        .playerID = playerID, .checkpoint = peer.latestCheckpoint, .lastSequence = peer.lastSequence
-                    };
+                    const RemoteFrame remote{ .playerID = playerID,
+                        .checkpoint = peer.latestCheckpoint,
+                        .lastSequence = peer.lastSequence,
+                        .furnitureRefID = peer.furniture.refID };
                     ActorLifecycle::YieldFurniture(remote, peer, activation.furnitureRefID, "local activation");
                     ++yielded;
                 }
@@ -291,9 +293,10 @@ namespace SyncCoordinator
             float a_delta)
         {
             PROFILE_FUNCTION();
-            const RemoteFrame remote{
-                .playerID = a_playerID, .checkpoint = a_peer.latestCheckpoint, .lastSequence = a_peer.lastSequence
-            };
+            const RemoteFrame remote{ .playerID = a_playerID,
+                .checkpoint = a_peer.latestCheckpoint,
+                .lastSequence = a_peer.lastSequence,
+                .furnitureRefID = a_peer.furniture.refID };
             auto& lifecycle = a_peer.lifecycle;
 
             const bool isInLocalSpace = MovementSync::IsInLocalSpace(remote, a_localCellID, a_localWorldspaceID);
@@ -337,12 +340,12 @@ namespace SyncCoordinator
                 // detected by displacement instead. The actor respawns below.
                 ActorLifecycle::RetireWhenStranded(remote, a_peer, a_delta);
             }
-            if (lifecycle.yieldedFurnitureRefID != remote.checkpoint.furnitureRefID)
+            if (lifecycle.yieldedFurnitureRefID != remote.furnitureRefID)
             {
                 if (const auto* reason = FurnitureSync::FindFurnitureYieldReason(
                         a_local, remote, a_localFurniture, lifecycle.actor ? &*lifecycle.actor : nullptr))
                 {
-                    ActorLifecycle::YieldFurniture(remote, a_peer, remote.checkpoint.furnitureRefID, reason);
+                    ActorLifecycle::YieldFurniture(remote, a_peer, remote.furnitureRefID, reason);
                 }
             }
 
@@ -402,8 +405,7 @@ namespace SyncCoordinator
             {
                 return;
             }
-            if (lifecycle.yieldedFurnitureRefID != 0
-                && lifecycle.yieldedFurnitureRefID == remote.checkpoint.furnitureRefID
+            if (lifecycle.yieldedFurnitureRefID != 0 && lifecycle.yieldedFurnitureRefID == remote.furnitureRefID
                 && FurnitureSync::IsVacated(a_local, lifecycle.yieldedFurnitureRefID))
             {
                 ActorLifecycle::EndFurnitureYield(remote, a_peer);

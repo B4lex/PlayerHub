@@ -200,7 +200,8 @@ pass:
 3. `player:disconnect` removes the actor and all state.
 4. Checkpoints are latest-wins by sequence. A stale one is logged and ignored.
    An accepted one is shown to furniture, animation, and combat
-   (`OnCheckpointAccepted`) before it replaces the previous one.
+   (`OnCheckpointAccepted`) before it replaces the previous one. Furniture
+   resolves its reference into the local load order there, once per change.
 5. Appearance and equipment are latest-wins by revision and may arrive before
    any checkpoint. Neither alone spawns an actor.
 6. Actions are ordered and bounded by the combat system.
@@ -270,7 +271,7 @@ readiness across passes) or for log throttling, with a comment saying so.
 
 ## Known limitations
 
-- Cell, worldspace, and furniture form IDs require matching load orders.
+- Cell and worldspace form IDs require matching load orders.
 - Interior and worldspace changes despawn and respawn the actor; there is no
   presentation through loading screens.
 - Transforms chase the newest checkpoint. There is no timestamped

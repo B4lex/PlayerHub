@@ -2,6 +2,11 @@
 #include "actor/ActorAnimation.h"
 #include "actor/ActorFurniture.h"
 #include "actor/RemoteActor.h"
+#include "forms/FormLookup.h"
+
+#include <format>
+#include <string>
+#include <utility>
 
 namespace FurnitureSync
 {
@@ -13,6 +18,12 @@ namespace FurnitureSync
             return furniture ? furniture->GetFormID() : 0;
         }
 
+        std::string FormatReference(const Multiplayer::FormReference& a_reference)
+        {
+            return a_reference.IsEmpty() ? std::string{ "<none>" }
+                                         : std::format("{}|{:06X}", a_reference.plugin, a_reference.localFormID);
+        }
+
         RE::SIT_SLEEP_STATE GetSitSleepState(const RE::Actor& a_actor)
         {
             // AsActorState relocates the ActorState base, which moved on AE.
@@ -21,9 +32,10 @@ namespace FurnitureSync
         }
     }
 
-    RE::FormID SampleLocalFurniture(const LocalFrame& a_local, std::uint64_t a_sequence)
+    Multiplayer::FormReference SampleLocalFurniture(const LocalFrame& a_local, std::uint64_t a_sequence)
     {
         static RE::FormID previousFurnitureRefID = 0;
+        static Multiplayer::FormReference furniture;
         static bool hasPreviousFurnitureRefID = false;
         static RE::SIT_SLEEP_STATE previousSitSleepState = RE::SIT_SLEEP_STATE::kNormal;
 
@@ -35,20 +47,26 @@ namespace FurnitureSync
         const bool exiting = sitSleepState == RE::SIT_SLEEP_STATE::kWantToStand
             || sitSleepState == RE::SIT_SLEEP_STATE::kWantToWake;
         const auto furnitureRefID = exiting ? 0 : GetOccupiedFurnitureRefID(a_local.player);
-        if (!hasPreviousFurnitureRefID || furnitureRefID != previousFurnitureRefID
-            || sitSleepState != previousSitSleepState)
+        const bool furnitureChanged = !hasPreviousFurnitureRefID || furnitureRefID != previousFurnitureRefID;
+        if (furnitureChanged)
+        {
+            furniture
+                = FormLookup::MakeFormReference(furnitureRefID ? RE::TESForm::LookupByID(furnitureRefID) : nullptr)
+                      .value_or(Multiplayer::FormReference{});
+        }
+        if (furnitureChanged || sitSleepState != previousSitSleepState)
         {
             logs::debug(
                 "Animation sync publishing local furniture state: sequence={} previous={:08X} furniture={:08X} "
-                "occupied={:08X} sitSleepState={}",
+                "reference={} occupied={:08X} sitSleepState={}",
                 static_cast<unsigned long long>(a_sequence), previousFurnitureRefID, furnitureRefID,
-                GetOccupiedFurnitureRefID(a_local.player),
+                FormatReference(furniture), GetOccupiedFurnitureRefID(a_local.player),
                 static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(sitSleepState));
             previousFurnitureRefID = furnitureRefID;
             previousSitSleepState = sitSleepState;
             hasPreviousFurnitureRefID = true;
         }
-        return furnitureRefID;
+        return furniture;
     }
 
     bool IsHeldByLocalPlayer(const LocalFrame& a_local, RE::TESObjectREFR& a_furniture)
@@ -67,7 +85,7 @@ namespace FurnitureSync
     const char* FindFurnitureYieldReason(const LocalFrame& a_local, const RemoteFrame& a_remote,
         RE::TESObjectREFR* a_localFurniture, RemoteActor* a_actor)
     {
-        const auto furnitureRefID = a_remote.checkpoint.furnitureRefID;
+        const auto furnitureRefID = a_remote.furnitureRefID;
         if (furnitureRefID == 0)
         {
             return nullptr;
@@ -109,31 +127,44 @@ namespace FurnitureSync
 
     void OnActorSpawned(const RemoteFrame& a_remote, RemoteActor& a_actor)
     {
-        ActorFurniture::ResumeFurniture(a_actor, a_remote.checkpoint.furnitureRefID);
+        ActorFurniture::ResumeFurniture(a_actor, a_remote.furnitureRefID);
     }
 
-    void OnCheckpointAccepted(const CheckpointUpdate& a_update)
+    void OnCheckpointAccepted(RemoteState& a_state, const CheckpointUpdate& a_update)
     {
-        if (a_update.previous.furnitureRefID != a_update.checkpoint.furnitureRefID)
+        const auto& furniture = a_update.checkpoint.furniture;
+        if (a_update.previous.furniture == furniture)
         {
-            logs::debug(
-                "Animation sync accepted main-loop furniture target: player={} sequence={} previous={:08X} "
-                "furniture={:08X}",
-                a_update.playerID, static_cast<unsigned long long>(a_update.checkpoint.sequence),
-                a_update.previous.furnitureRefID, a_update.checkpoint.furnitureRefID);
+            return;
         }
+
+        const auto previousRefID = std::exchange(a_state.refID, FormLookup::ResolveFormID(furniture));
+        if (!furniture.IsEmpty() && a_state.refID == 0)
+        {
+            logs::warn(
+                "Animation sync could not resolve remote furniture: player={} sequence={} furniture={}; it is not "
+                "in the local load order",
+                a_update.playerID, static_cast<unsigned long long>(a_update.checkpoint.sequence),
+                FormatReference(furniture));
+            return;
+        }
+        logs::debug(
+            "Animation sync accepted main-loop furniture target: player={} sequence={} previous={:08X} "
+            "furniture={:08X} reference={}",
+            a_update.playerID, static_cast<unsigned long long>(a_update.checkpoint.sequence), previousRefID,
+            a_state.refID, FormatReference(furniture));
     }
 
     bool SyncFurniture(const RemoteFrame& a_remote, RemoteActor& a_actor)
     {
         bool furniturePlaying = ActorFurniture::IsFurnitureInteractionPlaying(a_actor);
-        if (ActorFurniture::GetTargetFurniture(a_actor) != a_remote.checkpoint.furnitureRefID
-            && (a_remote.checkpoint.furnitureRefID == 0 || furniturePlaying))
+        if (ActorFurniture::GetTargetFurniture(a_actor) != a_remote.furnitureRefID
+            && (a_remote.furnitureRefID == 0 || furniturePlaying))
         {
             // Exit and direct furniture-to-furniture changes must update the
             // authoritative target immediately. The native lifecycle exits the
             // old marker before entering a replacement.
-            ActorFurniture::SetFurnitureState(a_actor, a_remote.checkpoint.furnitureRefID);
+            ActorFurniture::SetFurnitureState(a_actor, a_remote.furnitureRefID);
             furniturePlaying = ActorFurniture::IsFurnitureInteractionPlaying(a_actor);
         }
         return furniturePlaying;
@@ -142,14 +173,14 @@ namespace FurnitureSync
     bool SyncFurnitureEntry(
         const RemoteFrame& a_remote, RemoteActor& a_actor, bool a_attackPlaying, bool a_furniturePlaying)
     {
-        if (a_remote.checkpoint.furnitureRefID != 0
-            && ActorFurniture::GetTargetFurniture(a_actor) != a_remote.checkpoint.furnitureRefID && !a_attackPlaying
-            && !ActorAnimation::GetTargetState(a_actor).jumping && ActorAnimation::IsAnimationStateSettled(a_actor))
+        if (a_remote.furnitureRefID != 0 && ActorFurniture::GetTargetFurniture(a_actor) != a_remote.furnitureRefID
+            && !a_attackPlaying && !ActorAnimation::GetTargetState(a_actor).jumping
+            && ActorAnimation::IsAnimationStateSettled(a_actor))
         {
             // First entry waits until the checkpoint's grounded locomotion and
             // weapon presentation have settled. Once assigned, furniture owns
             // graph and transform progression until exit completes.
-            ActorFurniture::SetFurnitureState(a_actor, a_remote.checkpoint.furnitureRefID);
+            ActorFurniture::SetFurnitureState(a_actor, a_remote.furnitureRefID);
             return ActorFurniture::IsFurnitureInteractionPlaying(a_actor);
         }
         return a_furniturePlaying;

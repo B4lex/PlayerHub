@@ -211,7 +211,7 @@ namespace ActorLifecycle
         logs::debug(
             "Hiding remote player actor {} actor {:08X} while furniture {:08X} is in use: reason={} "
             "checkpointFurniture={:08X} sequence={}",
-            a_remote.playerID, actorHandle, a_furnitureRefID, a_reason, a_remote.checkpoint.furnitureRefID,
+            a_remote.playerID, actorHandle, a_furnitureRefID, a_reason, a_remote.furnitureRefID,
             static_cast<unsigned long long>(a_remote.lastSequence));
     }
 
@@ -273,7 +273,7 @@ namespace ActorLifecycle
         auto& lifecycle = a_peer.lifecycle;
         if (lifecycle.yieldedFurnitureRefID != 0)
         {
-            if (a_remote.checkpoint.furnitureRefID == lifecycle.yieldedFurnitureRefID)
+            if (a_remote.furnitureRefID == lifecycle.yieldedFurnitureRefID)
             {
                 return;
             }
@@ -319,7 +319,7 @@ namespace ActorLifecycle
             a_remote.playerID, lifecycle.actor->handle.native_handle(),
             static_cast<unsigned long long>(a_peer.appliedSequence),
             Multiplayer::GetMovementStateName(a_remote.checkpoint.animationState.movementState),
-            a_remote.checkpoint.animationState.jumping ? "jumping" : "grounded", a_remote.checkpoint.furnitureRefID,
+            a_remote.checkpoint.animationState.jumping ? "jumping" : "grounded", a_remote.furnitureRefID,
             allowanceWait);
 
         if (auto* console = RE::ConsoleLog::GetSingleton())

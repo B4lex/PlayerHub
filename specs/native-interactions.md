@@ -10,7 +10,9 @@
   1.7.104 from replay captures of a chair, a bench, and two tables: each played
   its exit idle and then its locomotion, including when the source stood up
   right after sitting down. Beds, crafting stations, and modded exit idles are
-  not verified.
+  not verified. Plugin-qualified furniture references
+  ([Resolution](#source)) are covered by server tests only; peers with
+  different load orders have not been run in game.
 - **Mounts:** implemented and run in game: a replayed rider was seated on its
   horse, which walked, trotted, and ran with the recorded speed and leaned on
   slopes; dismount and death removed the horse without a crash. The gallop is a
@@ -26,7 +28,7 @@ The server side of all three is covered by unit tests.
 Some things the actor does are Skyrim's to perform: sitting in furniture,
 riding, and dying. For these the receiver hands the actor to a native engine
 path and takes it back afterwards, while no animation, idle, or event name
-crosses the wire. Only reconstructable checkpoint state does: `furnitureRefId`,
+crosses the wire. Only reconstructable checkpoint state does: `furniture`,
 `mounted`, and `dead` ([Network](network.md#checkpoint)).
 
 While an interaction owns the actor, it owns its graph and placement:
@@ -57,15 +59,29 @@ remote actor is hidden instead.
 
 ### Source
 
-`furnitureRefId` is the FormID of `Actor::GetOccupiedFurniture()`, which Skyrim
-sets when the player activates the furniture, before walking to the entry point
-and playing the entry idle. It is published as zero once the player's sit/sleep
+`furniture` is the [form reference](network.md#form-references) of
+`Actor::GetOccupiedFurniture()`, which Skyrim sets when the player activates the
+furniture, before walking to the entry point and playing the entry idle. It is
+published as `null` once the player's sit/sleep
 state is WantToStand or WantToWake: the occupancy itself clears only when the
 player's exit clip ends (1.1 s for a chair, 3.3 s for a table), and peers start
 their own exit clip only when the furniture leaves the checkpoint, so they would
 otherwise stay seated for the source's whole exit. The server rejects attacks whose checkpoint uses
-furniture, and a furniture checkpoint discards the source's queued attacks.
-Reference FormIDs need matching load orders.
+furniture, and a furniture checkpoint discards the source's queued attacks. A
+reference created at runtime (`FF`) has no form reference and is published as
+`null`.
+
+**Resolution.** A raw FormID named different references on peers whose load
+orders differ, such as furniture a light plugin adds to a replaced interior, so
+the reference carries its plugin name. `FurnitureSync::OnCheckpointAccepted`
+resolves it once per change with `FormLookup::ResolveFormID`, and the receiver
+works with that local FormID (`RemoteFrame::furnitureRefID`). The ID is computed
+from the plugin's local compile index without looking the reference up, so a
+reference in a cell that has not loaded yet still resolves, and entry waits for
+it to load. A light plugin's `formId` above `0xFFF` is refused rather than
+carried into the compile index. A reference whose plugin is not loaded here
+resolves to zero and is logged once per change: the actor stays standing at its
+source's seat, while combat still treats the source as seated.
 
 ### Entry
 
@@ -539,36 +555,39 @@ Furniture:
    message; the actor is hidden while its source stays or the player keeps the
    last free marker, and returns seated once it is vacated. Two actors never
    stack on one marker.
-5. Recordings without the field replay as `furnitureRefId: 0`. A remote actor
-   still uses furniture after being hit.
+5. Recordings without the field, including ones made with the load-order
+   `furnitureRefId`, replay without furniture. A remote actor still uses
+   furniture after being hit.
+6. Peers whose load orders differ but that both load the furniture's plugin
+   see each other use it, including furniture a light plugin adds.
 
 Mounts:
 
-6. A mounting player appears seated on every peer, including for peers who join
+7. A mounting player appears seated on every peer, including for peers who join
    or enter the space while it rides. The horse follows its path and walks,
    runs, and gallops with its speed (`moving=true` without `sprinting=true`
    after a spawn, few `Corrected remote mount graph gait` lines), and the rider's
    `horseSpeedSampled` is near the mount's.
-7. A dismount removes the horse and leaves the actor standing where the player
+8. A dismount removes the horse and leaves the actor standing where the player
    got off. Death, leaving the world, disconnecting, or timing out removes both
    without a crash
    (`Recycling ... after the player dismounted: seated=true transition=false`).
-8. The horse cannot be ridden, looted, or harmed locally, and no local actor
+9. The horse cannot be ridden, looted, or harmed locally, and no local actor
    treats it as hostile. The local player walks through a rider and its horse,
    on foot or riding (`Remote actor character body collision disabled`), and a
    seated rider logs `Remote actor skeleton collision disabled` with a non-zero
    count.
-9. A horse on a slope leans with it and levels out on flat ground, and its rider
-   leans with it (`pitch` near `targetPitch`).
+10. A horse on a slope leans with it and levels out on flat ground, and its rider
+    leans with it (`pitch` near `targetPitch`).
 
 Death:
 
-10. A player killed by an enemy collapses into a ragdoll on every peer, and the
+11. A player killed by an enemy collapses into a ragdoll on every peer, and the
     body disappears when its game loads. A peer entering the cell during the
     death camera sees it collapse where the player died.
-11. The body cannot be looted, and the local player gains no kill, bounty, or
+12. The body cannot be looted, and the local player gains no kill, bounty, or
     quest progress.
-12. A player revived with `resurrect` stands up again as a fresh actor. A player
+13. A player revived with `resurrect` stands up again as a fresh actor. A player
     in bleedout (essential) stays standing.
 
 ## Known limitations
@@ -586,8 +605,9 @@ Death:
 - Furniture: crafting menus, recipes, ingredients, output, skill progression,
   sleep and wait UI, ownership and crime, arbitrary activators, doors,
   containers, scripted furniture, paired idles, and killmoves are not
-  synchronized; there is no global reservation across clients; FormIDs are not
-  translated between load orders.
+  synchronized; there is no global reservation across clients; a peer without
+  the furniture's plugin shows the actor standing, with no substitute furniture
+  or seated idle.
 - Mounts: the source's mount appearance, mount and dismount animations, combat
   on horseback (drawn weapons, attacks, bows, spells), horse jumps, a mount left
   standing after a dismount, and the mount's approach are not shown.

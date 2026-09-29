@@ -22,6 +22,9 @@ struct RemoteFrame
     // The newest accepted checkpoint and its sequence.
     const Network::PlayerTransform& checkpoint;
     std::uint64_t lastSequence;
+    // The checkpoint's furniture in the local load order: zero for none, or when
+    // its plugin is not loaded here.
+    RE::FormID furnitureRefID;
 };
 
 // A newer checkpoint accepted from the network, before it replaces the previous

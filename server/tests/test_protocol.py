@@ -30,7 +30,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "swimming": False,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
-            "furnitureRefId": 0xA729,
+            "furniture": {"plugin": "Skyrim.esm", "formId": 0xA729},
             "graphEpoch": 1,
             "sequence": 7,
         }
@@ -58,7 +58,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "swimming": False,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 8,
         }
@@ -79,7 +79,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "weaponDrawn": False,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 8,
         }
@@ -100,7 +100,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "weaponDrawn": 1,
             "cellId": 0x1234,
             "worldspaceId": 0x3C,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 8,
         }
@@ -121,7 +121,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "weaponDrawn": False,
             "cellId": 1,
             "worldspaceId": 0,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 1,
         }
@@ -142,7 +142,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "weaponDrawn": False,
             "cellId": 0x1_0000_0000,
             "worldspaceId": 0,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 1,
         }
@@ -163,7 +163,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "weaponDrawn": False,
             "cellId": 1,
             "worldspaceId": 0,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 1,
         }
@@ -184,35 +184,14 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "weaponDrawn": False,
             "cellId": 1,
             "worldspaceId": 0x1_0000_0000,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 1,
         }
 
         self.assertIsNone(parse_player_update(payload))
 
-    def test_rejects_out_of_range_furniture_reference_id(self) -> None:
-        payload = {
-            "x": 1.0,
-            "y": 2.0,
-            "z": 3.0,
-            "heading": 0.0,
-            "pitch": 0.0,
-            "speed": 0.0,
-            "direction": 0.0,
-            "movementState": "idle",
-            "jumping": False,
-            "weaponDrawn": False,
-            "cellId": 1,
-            "worldspaceId": 0,
-            "furnitureRefId": 0x1_0000_0000,
-            "graphEpoch": 1,
-            "sequence": 1,
-        }
-
-        self.assertIsNone(parse_player_update(payload))
-
-    def test_rejects_missing_furniture_reference_id(self) -> None:
+    def test_rejects_malformed_furniture_reference(self) -> None:
         payload = {
             "x": 1.0,
             "y": 2.0,
@@ -230,7 +209,42 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "sequence": 1,
         }
 
-        self.assertIsNone(parse_player_update(payload))
+        for furniture in (
+            0xA729,
+            {"plugin": "", "formId": 0xA729},
+            {"plugin": "Skyrim.esm", "formId": 0x100_0000},
+            {"plugin": "Skyrim.esm", "formId": -1},
+            {"plugin": "Skyrim.esm", "formId": True},
+            {"plugin": "Skyrim.esm"},
+            {"plugin": "x" * 261, "formId": 1},
+        ):
+            with self.subTest(furniture=furniture):
+                self.assertIsNone(parse_player_update({**payload, "furniture": furniture}))
+
+    def test_missing_furniture_means_none(self) -> None:
+        payload = {
+            "x": 1.0,
+            "y": 2.0,
+            "z": 3.0,
+            "heading": 0.0,
+            "pitch": 0.0,
+            "speed": 0.0,
+            "direction": 0.0,
+            "movementState": "idle",
+            "jumping": False,
+            "weaponDrawn": False,
+            "cellId": 1,
+            "worldspaceId": 0,
+            "furnitureRefId": 0xA729,
+            "graphEpoch": 1,
+            "sequence": 1,
+        }
+
+        parsed = parse_player_update(payload)
+
+        self.assertIsNotNone(parsed)
+        self.assertIsNone(parsed["furniture"])
+        self.assertNotIn("furnitureRefId", parsed)
 
     def test_accepts_backward_direction(self) -> None:
         payload = {
@@ -253,7 +267,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "swimming": False,
             "cellId": 1,
             "worldspaceId": 0,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 1,
         }
@@ -275,7 +289,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 "weaponDrawn": False,
                 "cellId": 1,
                 "worldspaceId": 0,
-                "furnitureRefId": 0,
+                "furniture": None,
                 "graphEpoch": 1,
                 "sequence": 1,
             }
@@ -297,7 +311,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "weaponDrawn": False,
             "cellId": 1,
             "worldspaceId": 0,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 1,
         }
@@ -318,7 +332,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "weaponDrawn": True,
             "cellId": 1,
             "worldspaceId": 0,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 1,
         }
@@ -358,7 +372,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "swimming": False,
             "cellId": 1,
             "worldspaceId": 0,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 1,
         }
@@ -381,7 +395,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 "dead": dead,
                 "cellId": 1,
                 "worldspaceId": 0,
-                "furnitureRefId": 0,
+                "furniture": None,
                 "graphEpoch": 1,
                 "sequence": 1,
             }
@@ -410,7 +424,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "swimming": False,
             "cellId": 1,
             "worldspaceId": 60,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 1,
         }
@@ -433,7 +447,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 "mounted": mounted,
                 "cellId": 1,
                 "worldspaceId": 60,
-                "furnitureRefId": 0,
+                "furniture": None,
                 "graphEpoch": 1,
                 "sequence": 1,
             }
@@ -462,7 +476,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "swimming": False,
             "cellId": 1,
             "worldspaceId": 60,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 1,
         }
@@ -482,7 +496,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "weaponDrawn": False,
             "cellId": 1,
             "worldspaceId": 60,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 1,
         }
@@ -508,7 +522,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 "weaponDrawn": False,
                 "cellId": 1,
                 "worldspaceId": 60,
-                "furnitureRefId": 0,
+                "furniture": None,
                 "graphEpoch": 1,
                 "sequence": 1,
             }
@@ -537,7 +551,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
             "swimming": True,
             "cellId": 1,
             "worldspaceId": 60,
-            "furnitureRefId": 0,
+            "furniture": None,
             "graphEpoch": 1,
             "sequence": 1,
         }
@@ -560,7 +574,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 "swimming": swimming,
                 "cellId": 1,
                 "worldspaceId": 60,
-                "furnitureRefId": 0,
+                "furniture": None,
                 "graphEpoch": 1,
                 "sequence": 1,
             }
@@ -584,7 +598,7 @@ class ParsePlayerUpdateTests(unittest.TestCase):
                 field: 1,
                 "cellId": 1,
                 "worldspaceId": 0,
-                "furnitureRefId": 0,
+                "furniture": None,
                 "graphEpoch": 1,
                 "sequence": 1,
             }

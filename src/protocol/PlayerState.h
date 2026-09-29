@@ -1,5 +1,6 @@
 #pragma once
 
+#include "protocol/FormReference.h"
 #include "protocol/MovementState.h"
 
 #include <cstdint>
@@ -43,9 +44,9 @@ namespace Network
         // Non-zero for exterior cells. Interior cells use zero and must match by
         // cell ID because their local coordinates are not globally comparable.
         std::uint32_t worldspaceID{ 0 };
-        // Placed TESFurniture reference currently occupied by the source. Zero means
-        // no furniture interaction. Form IDs require matching peer load orders.
-        std::uint32_t furnitureRefID{ 0 };
+        // Placed TESFurniture reference currently occupied by the source. Empty
+        // means no furniture interaction.
+        Multiplayer::FormReference furniture;
         // Identifies the source animation-graph lifetime represented by this
         // checkpoint. Transient actions are only valid against the same epoch.
         std::uint64_t graphEpoch{ 1 };
