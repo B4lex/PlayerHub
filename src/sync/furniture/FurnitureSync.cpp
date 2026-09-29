@@ -12,19 +12,40 @@ namespace FurnitureSync
             auto furniture = a_actor.GetOccupiedFurniture().get();
             return furniture ? furniture->GetFormID() : 0;
         }
+
+        RE::SIT_SLEEP_STATE GetSitSleepState(const RE::Actor& a_actor)
+        {
+            // AsActorState relocates the ActorState base, which moved on AE.
+            const auto* actorState = a_actor.AsActorState();
+            return actorState ? actorState->GetSitSleepState() : RE::SIT_SLEEP_STATE::kNormal;
+        }
     }
 
     RE::FormID SampleLocalFurniture(const LocalFrame& a_local, std::uint64_t a_sequence)
     {
         static RE::FormID previousFurnitureRefID = 0;
         static bool hasPreviousFurnitureRefID = false;
+        static RE::SIT_SLEEP_STATE previousSitSleepState = RE::SIT_SLEEP_STATE::kNormal;
 
-        const auto furnitureRefID = GetOccupiedFurnitureRefID(a_local.player);
-        if (!hasPreviousFurnitureRefID || furnitureRefID != previousFurnitureRefID)
+        // The occupancy clears only when the player's exit clip ends, 1.1 s after
+        // standing up from a chair and 3.3 s from a table. Peers play their own
+        // exit clip once the furniture is gone from the checkpoint, so it is
+        // dropped when the exit starts and both clips play side by side.
+        const auto sitSleepState = GetSitSleepState(a_local.player);
+        const bool exiting = sitSleepState == RE::SIT_SLEEP_STATE::kWantToStand
+            || sitSleepState == RE::SIT_SLEEP_STATE::kWantToWake;
+        const auto furnitureRefID = exiting ? 0 : GetOccupiedFurnitureRefID(a_local.player);
+        if (!hasPreviousFurnitureRefID || furnitureRefID != previousFurnitureRefID
+            || sitSleepState != previousSitSleepState)
         {
-            logs::debug("Animation sync publishing local furniture state: sequence={} previous={:08X} furniture={:08X}",
-                static_cast<unsigned long long>(a_sequence), previousFurnitureRefID, furnitureRefID);
+            logs::debug(
+                "Animation sync publishing local furniture state: sequence={} previous={:08X} furniture={:08X} "
+                "occupied={:08X} sitSleepState={}",
+                static_cast<unsigned long long>(a_sequence), previousFurnitureRefID, furnitureRefID,
+                GetOccupiedFurnitureRefID(a_local.player),
+                static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(sitSleepState));
             previousFurnitureRefID = furnitureRefID;
+            previousSitSleepState = sitSleepState;
             hasPreviousFurnitureRefID = true;
         }
         return furnitureRefID;

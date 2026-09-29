@@ -16,6 +16,16 @@ namespace ActorFurniture
         kMarkerDistance
     };
 
+    enum class ExitPhase : std::uint8_t
+    {
+        kNone,
+        // The native get-up was accepted. Its exit idle holds the graph and
+        // transform until the clip ends and the engine releases the furniture.
+        kNative,
+        // No native exit idle played; the furniture graph node is left outright.
+        kForced
+    };
+
     // Skyrim-native sit/sleep lifecycle of one remote actor.
     struct State
     {
@@ -38,10 +48,18 @@ namespace ActorFurniture
         // These gates hold an entry back on every pass without an engine refusal
         // to report, so each is logged once when it starts holding the request.
         EntryGate loggedEntryGate{ EntryGate::kNone };
-        // IdleFurnitureExit leaves the furniture graph node outright. Nothing
-        // drives an exit animation for a remote actor, so it is sent on the first
-        // pass of an exit, and tracked here so it is sent once per exit.
+        // IdleFurnitureExit leaves the furniture graph node outright. It is the
+        // fallback when no native exit idle plays, sent once per exit.
         bool furnitureExitGraphForced{ false };
+        // Kept across target changes like the elapsed time, so a source returning
+        // to its seat waits for the exit instead of restarting it.
+        ExitPhase exitPhase{ ExitPhase::kNone };
+        // Time since the engine released the furniture while the exit clip still
+        // drives the actor.
+        float exitReleaseElapsed{ 0.0F };
+        // The graph left the furniture node (IdleFurnitureExit); only the clip's
+        // get-up settle remains.
+        bool exitClipEnded{ false };
         // The marker probe refused the target while another live actor holds a
         // marker reservation on it, so entering would stack both actors on it.
         bool targetHeldByOtherActor{ false };

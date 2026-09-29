@@ -80,6 +80,7 @@ namespace AnimationFirewall
                 {
                     return RE::BSEventNotifyControl::kContinue;
                 }
+                ActorRegistry::ObserveFurnitureExitGraphOutput(a_event->holder, eventName);
                 const std::string_view eventView{ eventName };
                 const bool isJumpLandEnd = eventView == "JumpLandEnd";
                 const bool isWeaponTransitionEnd
