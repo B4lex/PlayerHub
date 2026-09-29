@@ -21,6 +21,16 @@ namespace ActorFurniture
         constexpr float kFurnitureRetryInterval = 1.0F;
         constexpr float kFurnitureEntryFallbackSeconds = 10.0F;
         constexpr float kFurnitureExitFallbackSeconds = 10.0F;
+        // The engine releases the furniture when a native exit clip ends: about 1.1
+        // seconds for a chair and 3.3 for a table in vanilla. Past this, the exit
+        // idle is taken as refused by the graph.
+        constexpr float kNativeExitReleaseSeconds = 5.0F;
+        // A table's exit releases the furniture about 0.2 seconds before its clip
+        // stops driving the actor.
+        constexpr float kNativeExitClipTailSeconds = 2.0F;
+        // How far the source must have moved on for the get-up settle after an
+        // exit clip to be cut rather than played out.
+        constexpr float kExitSettleCutDistance = 32.0F;
         // A started entry that never records occupancy is a refusal Skyrim reported
         // as success; it is retried long before the budget for an entry that was
         // seated and then dropped.
@@ -348,6 +358,54 @@ namespace ActorFurniture
             func(std::addressof(a_actor));
         }
 
+        bool IsAnimationDriven(RE::Actor& a_actor)
+        {
+            static const RE::BSFixedString animationDriven{ "bAnimationDriven" };
+            bool value = false;
+            return a_actor.GetGraphVariableBool(animationDriven, value) && value;
+        }
+
+        // ID 39865 is the get-up NPC package procedures run, which the do-nothing
+        // package never reaches. From IsSitting or IsSleeping it performs
+        // ActionActivate on the occupied furniture, so the exit idle is chosen from
+        // the local idle records by their GetSitting/GetSleeping and
+        // IsFurnitureEntryType conditions, then it sets WantToStand or WantToWake.
+        // Setting that state directly skips the idle selection.
+        bool StartNativeFurnitureExit(RE::Actor& a_actor, RemoteActor& a_remote, RE::SIT_SLEEP_STATE a_sitSleepState,
+            RE::FormID a_occupiedFurnitureRefID)
+        {
+            auto* process = a_actor.GetActorRuntimeData().currentProcess;
+            if (!REL::Module::IsAE() || !process || !process->middleHigh)
+            {
+                return false;
+            }
+
+            const auto seatedIdle = GetFurnitureIdleFormID(a_actor);
+            (void)ActorRegistry::ConsumeFurnitureExitClipEnds(a_remote);
+            using StandUp = bool(RE::AIProcess*, RE::Actor*);
+            static REL::Relocation<StandUp> standUp{ REL::ID(39865) };
+            const bool result = standUp(process, std::addressof(a_actor));
+            const auto sitSleepState = GetActorSitSleepState(a_actor);
+            const bool started = sitSleepState == RE::SIT_SLEEP_STATE::kWantToStand
+                || sitSleepState == RE::SIT_SLEEP_STATE::kWantToWake;
+            a_remote.furniture.exitPhase = started ? ExitPhase::kNative : ExitPhase::kForced;
+            if (started)
+            {
+                a_remote.furniture.furnitureTransitionElapsed = 0.0F;
+                ActorRegistry::SetNativeFurnitureExit(a_remote, true);
+            }
+            logs::debug(
+                "Animation sync started native furniture exit: actor={:08X} furniture={:08X} started={} result={} "
+                "previousSitSleepState={} sitSleepState={} occupied={:08X} marker={} seatedIdle={:08X} "
+                "furnitureIdle={:08X} animationDriven={}",
+                a_remote.handle.native_handle(), a_occupiedFurnitureRefID, started, result,
+                static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(a_sitSleepState),
+                static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(sitSleepState),
+                GetOccupiedFurnitureRefID(a_actor), process->middleHigh->currentFurnitureMarkerID, seatedIdle,
+                GetFurnitureIdleFormID(a_actor), IsAnimationDriven(a_actor));
+            return started;
+        }
+
         void ResetFurnitureRequest(RemoteActor& a_remote)
         {
             a_remote.furniture.requestedFurnitureRefID = 0;
@@ -355,6 +413,13 @@ namespace ActorFurniture
             a_remote.furniture.furnitureTransitionElapsed = 0.0F;
             a_remote.furniture.occupancyObserved = false;
             a_remote.furniture.furnitureExitGraphForced = false;
+            if (a_remote.furniture.exitPhase != ExitPhase::kNone)
+            {
+                ActorRegistry::SetNativeFurnitureExit(a_remote, false);
+                a_remote.furniture.exitPhase = ExitPhase::kNone;
+            }
+            a_remote.furniture.exitReleaseElapsed = 0.0F;
+            a_remote.furniture.exitClipEnded = false;
         }
 
         bool AdvanceDeferredFurnitureEntry(RE::Actor& a_actor, RemoteActor& a_remote, RE::AIProcess& a_process,
@@ -577,9 +642,15 @@ namespace ActorFurniture
             UpdateNativeSitSleepState(a_actor);
         }
 
+        // A source returning to its seat mid-exit still holds the occupancy there,
+        // and later none at all once the exit clip has released it. Both would
+        // read as a seated or dropped entry below, so an exit runs to completion
+        // before the target is entered again.
+        const bool exiting = a_remote.furniture.exitPhase != ExitPhase::kNone;
+
         // Entry, use, and the furniture graph are driven natively once the target
         // is occupied.
-        if (targetFurnitureRefID != 0 && occupiedFurnitureRefID == targetFurnitureRefID)
+        if (!exiting && targetFurnitureRefID != 0 && occupiedFurnitureRefID == targetFurnitureRefID)
         {
             SetFurnitureAnimationOwnership(a_remote, true);
             a_remote.furniture.requestedFurnitureRefID = targetFurnitureRefID;
@@ -609,7 +680,7 @@ namespace ActorFurniture
             return true;
         }
 
-        if (targetFurnitureRefID != 0 && a_remote.furniture.requestedFurnitureRefID == targetFurnitureRefID
+        if (!exiting && targetFurnitureRefID != 0 && a_remote.furniture.requestedFurnitureRefID == targetFurnitureRefID
             && occupiedFurnitureRefID == 0)
         {
             // Skyrim dropped a started entry, or never recorded the occupancy the
@@ -675,9 +746,64 @@ namespace ActorFurniture
                     static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(sitSleepState));
             }
             SetFurnitureAnimationOwnership(a_remote, true);
-            if (occupiedFurnitureRefID == 0 && GetActorSitSleepState(a_actor) == RE::SIT_SLEEP_STATE::kNormal)
+            const auto exitPhase = a_remote.furniture.exitPhase;
+            const bool nativeExit = exitPhase == ExitPhase::kNative;
+            if (nativeExit && !a_remote.furniture.exitClipEnded
+                && ActorRegistry::ConsumeFurnitureExitClipEnds(a_remote) != 0)
             {
+                a_remote.furniture.exitClipEnded = true;
+            }
+            // The clip ends about 0.2 s before the engine's get-up settle does, and
+            // locomotion only plays after that settle. Once the source has moved on,
+            // the settle is cut so the actor follows it without the pause.
+            const bool cutExitSettle = nativeExit && a_remote.furniture.exitClipEnded
+                && a_actor.GetPosition().GetDistance(a_remote.movement.targetPosition) > kExitSettleCutDistance;
+            // A native exit counts as released once the state is Normal, even with
+            // occupancy left: cancelling that as an incomplete entry would force the
+            // default graph state over the exit clip.
+            if (cutExitSettle
+                || ((occupiedFurnitureRefID == 0 || nativeExit)
+                    && GetActorSitSleepState(a_actor) == RE::SIT_SLEEP_STATE::kNormal))
+            {
+                if (nativeExit && !cutExitSettle && IsAnimationDriven(a_actor)
+                    && a_remote.furniture.exitReleaseElapsed < kNativeExitClipTailSeconds)
+                {
+                    // A table's exit returns the actor to Normal while the tail of its
+                    // clip still moves it. Locomotion dispatched then is accepted
+                    // and never played, until a sprint or jump forces a transition.
+                    a_remote.furniture.furnitureTransitionElapsed += deltaTime;
+                    a_remote.furniture.exitReleaseElapsed += deltaTime;
+                    return true;
+                }
+                if (nativeExit && !cutExitSettle && a_remote.furniture.exitReleaseElapsed >= kNativeExitClipTailSeconds)
+                {
+                    logs::warn(
+                        "Animation sync furniture exit clip still animation-driven after release: actor={:08X} "
+                        "furniture={:08X} releaseElapsed={:.3f}",
+                        a_remote.handle.native_handle(), a_remote.furniture.requestedFurnitureRefID,
+                        a_remote.furniture.exitReleaseElapsed);
+                }
                 const auto exitedFurnitureRefID = a_remote.furniture.requestedFurnitureRefID;
+                const auto exitElapsed = a_remote.furniture.furnitureTransitionElapsed + deltaTime;
+                const auto exitReleaseElapsed = a_remote.furniture.exitReleaseElapsed;
+                std::uint32_t releasedMarkerCount = 0;
+                if (auto occupiedFurniture = a_actor.GetOccupiedFurniture().get())
+                {
+                    releasedMarkerCount = ReleaseFurnitureMarkerReservations(a_actor, *occupiedFurniture);
+                    if (auto* process = a_actor.GetActorRuntimeData().currentProcess)
+                    {
+                        process->ClearFurniture();
+                    }
+                }
+                const auto cutSitSleepState = GetActorSitSleepState(a_actor);
+                bool settleCutAccepted = false;
+                if (cutExitSettle)
+                {
+                    // The engine may not have released the furniture yet; its exit
+                    // handler ignores an actor that is already Normal.
+                    (void)SetActorSitSleepState(a_actor, RE::SIT_SLEEP_STATE::kNormal);
+                    settleCutAccepted = AnimationFirewall::ForceDefaultGraphState(a_actor);
+                }
                 SurvivalPolicy::AssertDoNothingPackage(a_actor);
                 ResetFurnitureRequest(a_remote);
                 SetFurnitureAnimationOwnership(a_remote, false);
@@ -700,9 +826,25 @@ namespace ActorFurniture
                     ActorAnimation::SetAnimationState(a_remote, sheathedState);
                 }
                 logs::debug(
-                    "Animation sync completed furniture exit: actor={:08X} furniture={:08X} nextFurniture={:08X}",
-                    a_remote.handle.native_handle(), exitedFurnitureRefID, targetFurnitureRefID);
+                    "Animation sync completed furniture exit: actor={:08X} furniture={:08X} nextFurniture={:08X} "
+                    "exitPhase={} leftoverOccupied={:08X} releasedMarkers={} animationDriven={} elapsed={:.3f} "
+                    "releaseElapsed={:.3f} settleCut={} settleCutAccepted={} sitSleepStateAtCut={}",
+                    a_remote.handle.native_handle(), exitedFurnitureRefID, targetFurnitureRefID,
+                    static_cast<std::underlying_type_t<ExitPhase>>(exitPhase), occupiedFurnitureRefID,
+                    releasedMarkerCount, IsAnimationDriven(a_actor), exitElapsed, exitReleaseElapsed, cutExitSettle,
+                    settleCutAccepted, static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(cutSitSleepState));
                 return false;
+            }
+
+            if (sitSleepState == RE::SIT_SLEEP_STATE::kWaitingForSitAnim && occupiedFurnitureRefID != 0
+                && occupiedFurnitureRefID == a_remote.furniture.requestedFurnitureRefID
+                && a_remote.furniture.furnitureTransitionElapsed < kFurnitureEntryFallbackSeconds)
+            {
+                // A source stands only once seated, so an exit arriving mid-entry means
+                // the entry clip here started later or runs longer. Cancelling it would
+                // snap the actor upright; it is finished and followed by the native exit.
+                a_remote.furniture.furnitureTransitionElapsed += deltaTime;
+                return true;
             }
 
             if (occupiedFurnitureRefID != 0 && !IsFurnitureEntryComplete(sitSleepState))
@@ -758,6 +900,28 @@ namespace ActorFurniture
             }
 
             a_remote.furniture.furnitureTransitionElapsed += deltaTime;
+            if (a_remote.furniture.exitPhase == ExitPhase::kNone && occupiedFurnitureRefID != 0
+                && (sitSleepState == RE::SIT_SLEEP_STATE::kIsSitting
+                    || sitSleepState == RE::SIT_SLEEP_STATE::kIsSleeping)
+                && StartNativeFurnitureExit(a_actor, a_remote, sitSleepState, occupiedFurnitureRefID))
+            {
+                return true;
+            }
+            if (a_remote.furniture.exitPhase == ExitPhase::kNative)
+            {
+                if (a_remote.furniture.furnitureTransitionElapsed < kNativeExitReleaseSeconds)
+                {
+                    return true;
+                }
+                logs::warn(
+                    "Animation sync native furniture exit never released the furniture: actor={:08X} "
+                    "occupied={:08X} sitSleepState={} furnitureIdle={:08X} elapsed={:.3f}",
+                    a_remote.handle.native_handle(), occupiedFurnitureRefID,
+                    static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(sitSleepState),
+                    GetFurnitureIdleFormID(a_actor), a_remote.furniture.furnitureTransitionElapsed);
+            }
+            a_remote.furniture.exitPhase = ExitPhase::kForced;
+
             const bool standingUp = sitSleepState == RE::SIT_SLEEP_STATE::kWantToStand
                 || sitSleepState == RE::SIT_SLEEP_STATE::kWantToWake;
             if (a_remote.furniture.furnitureRetryRemaining <= 0.0F)
@@ -786,10 +950,8 @@ namespace ActorFurniture
 
             if (!a_remote.furniture.furnitureExitGraphForced)
             {
-                // Nothing plays an exit animation for a remote actor, so there is
-                // nothing to wait for: the graph node is left on the first pass. A
-                // source sitting and standing repeatedly cycles in about a second,
-                // and an exit delayed past that restarts instead of completing.
+                // No native exit idle is playing, so there is nothing to wait for:
+                // the graph node is left on the first forced pass.
                 a_remote.furniture.furnitureExitGraphForced = true;
                 static const RE::BSFixedString furnitureExitEvent{ "IdleFurnitureExit" };
                 const bool eventAccepted = AnimationFirewall::NotifyNetworkAnimationGraph(a_actor, furnitureExitEvent);

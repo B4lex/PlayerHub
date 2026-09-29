@@ -29,6 +29,13 @@ namespace ActorRegistry
     // player's activation, which Skyrim runs on a worker thread.
     void SetHeldFurniture(const RemoteActor& a_remote, RE::FormID a_furnitureRefID);
     [[nodiscard]] bool IsFurnitureHeld(RE::FormID a_furnitureRefID);
+    // While set, the graph leaving the actor's furniture node (IdleFurnitureExit)
+    // is counted, to tell when a native exit clip has ended.
+    void SetNativeFurnitureExit(const RemoteActor& a_remote, bool a_exiting);
+    // Safe to call from animation worker threads; takes no lock while no native
+    // exit runs.
+    void ObserveFurnitureExitGraphOutput(const RE::TESObjectREFR* a_holder, std::string_view a_eventName);
+    [[nodiscard]] std::uint32_t ConsumeFurnitureExitClipEnds(const RemoteActor& a_remote);
 
     void SetCastAnimationOwned(const RemoteActor& a_remote, bool a_owned);
     [[nodiscard]] bool IsCastAnimationOwned(const RE::Actor* a_actor);

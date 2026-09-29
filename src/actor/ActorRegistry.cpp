@@ -43,6 +43,7 @@ namespace ActorRegistry
             std::atomic<std::uint32_t> pendingSwimStops{ 0 };
             std::atomic<std::uint32_t> pendingWeaponTransitionEnds{ 0 };
             std::atomic<std::uint32_t> pendingBashExits{ 0 };
+            std::atomic<std::uint32_t> pendingFurnitureExitClipEnds{ 0 };
             std::uint32_t hitObservationCount{ 0 };
             // Main-loop thread only.
             std::uint32_t combatSanitizationCount{ 0 };
@@ -57,6 +58,7 @@ namespace ActorRegistry
             bool authoritativeWeaponDrawn{ false };
             bool animationFirewallEnabled{ false };
             bool furnitureAnimationOwned{ false };
+            bool nativeFurnitureExit{ false };
             bool castAnimationOwned{ false };
             bool dead{ false };
             bool mounted{ false };
@@ -83,6 +85,9 @@ namespace ActorRegistry
         // Lets the movement update of every local actor skip the lock while no
         // remote actor is network-placed.
         std::atomic<std::size_t> s_networkPlacedCount{ 0 };
+        // Lets graph output events of every actor skip the lock while no remote
+        // actor runs a native furniture exit.
+        std::atomic<std::size_t> s_nativeFurnitureExitCount{ 0 };
 
         // Called with s_mutex held.
         void EraseRegistration(const RE::IAnimationGraphManagerHolder* a_holder)
@@ -91,6 +96,10 @@ namespace ActorRegistry
             if (registration == s_registrations.end())
             {
                 return;
+            }
+            if (registration->second.nativeFurnitureExit)
+            {
+                s_nativeFurnitureExitCount.fetch_sub(1, std::memory_order_relaxed);
             }
             if (registration->second.gaitDriven)
             {
@@ -269,6 +278,48 @@ namespace ActorRegistry
         std::scoped_lock lock{ s_mutex };
         return std::ranges::any_of(s_registrations,
             [a_furnitureRefID](const auto& a_entry) { return a_entry.second.heldFurnitureRefID == a_furnitureRefID; });
+    }
+
+    void SetNativeFurnitureExit(const RemoteActor& a_remote, bool a_exiting)
+    {
+        std::scoped_lock lock{ s_mutex };
+        const auto registration = s_registrations.find(a_remote.animationGraphHolder);
+        if (registration == s_registrations.end() || registration->second.nativeFurnitureExit == a_exiting)
+        {
+            return;
+        }
+        registration->second.nativeFurnitureExit = a_exiting;
+        if (a_exiting)
+        {
+            s_nativeFurnitureExitCount.fetch_add(1, std::memory_order_relaxed);
+        }
+        else
+        {
+            s_nativeFurnitureExitCount.fetch_sub(1, std::memory_order_relaxed);
+        }
+    }
+
+    void ObserveFurnitureExitGraphOutput(const RE::TESObjectREFR* a_holder, std::string_view a_eventName)
+    {
+        if (!a_holder || s_nativeFurnitureExitCount.load(std::memory_order_relaxed) == 0
+            || !AnimationEvents::EqualsIgnoringCase(a_eventName, "IdleFurnitureExit"))
+        {
+            return;
+        }
+
+        std::scoped_lock lock{ s_mutex };
+        const auto registration = s_registrations.find(static_cast<const RE::IAnimationGraphManagerHolder*>(a_holder));
+        if (registration != s_registrations.end() && registration->second.nativeFurnitureExit)
+        {
+            ++registration->second.pendingFurnitureExitClipEnds;
+        }
+    }
+
+    std::uint32_t ConsumeFurnitureExitClipEnds(const RemoteActor& a_remote)
+    {
+        const auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        return registration ? registration->pendingFurnitureExitClipEnds.exchange(0) : 0;
     }
 
     void SetCastAnimationOwned(const RemoteActor& a_remote, bool a_owned)
