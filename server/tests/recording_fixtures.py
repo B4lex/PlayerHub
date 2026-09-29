@@ -35,7 +35,7 @@ def checkpoint(sequence: int = 1, **overrides: Any) -> dict[str, Any]:
         "swimming": False,
         "cellId": 1,
         "worldspaceId": 60,
-        "furnitureRefId": 0,
+        "furniture": None,
         "graphEpoch": 1,
         "sequence": sequence,
     }

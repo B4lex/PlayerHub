@@ -18,7 +18,7 @@ def valid_state(sequence: int = 1) -> dict[str, bool | int | float | str]:
         "weaponDrawn": True,
         "cellId": 1,
         "worldspaceId": 60,
-        "furnitureRefId": 0,
+        "furniture": None,
         "graphEpoch": 1,
         "sequence": sequence,
     }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "protocol/FormReference.h"
 #include "sync/SyncFrame.h"
 
 #include <RE/Skyrim.h>
@@ -10,9 +11,17 @@ struct RemoteActor;
 
 namespace FurnitureSync
 {
+    struct RemoteState
+    {
+        // The latest checkpoint's furniture in the local load order, zero for
+        // none or when its plugin is not loaded here.
+        RE::FormID refID{ 0 };
+    };
+
     // Local stage, called by CheckpointPublisher once per published checkpoint.
-    // Furniture and cell FormIDs require matching peer load orders.
-    [[nodiscard]] RE::FormID SampleLocalFurniture(const LocalFrame& a_local, std::uint64_t a_sequence);
+    // Empty for none, and for a reference created at runtime, which peers
+    // cannot resolve.
+    [[nodiscard]] Multiplayer::FormReference SampleLocalFurniture(const LocalFrame& a_local, std::uint64_t a_sequence);
 
     // Local stage: whether the local player occupies or has reserved a marker on
     // the furniture, which means its activation was accepted.
@@ -42,8 +51,9 @@ namespace FurnitureSync
     // finished its entry before the actor existed, so the actor resumes seated.
     void OnActorSpawned(const RemoteFrame& a_remote, RemoteActor& a_actor);
 
-    // Receive stage: records a newer checkpoint's furniture target.
-    void OnCheckpointAccepted(const CheckpointUpdate& a_update);
+    // Receive stage: resolves a newer checkpoint's furniture target by plugin
+    // name, so peers with different load orders agree on the reference.
+    void OnCheckpointAccepted(RemoteState& a_state, const CheckpointUpdate& a_update);
 
     // Remote stage, before animation staging: applies an exit or a direct
     // furniture-to-furniture change immediately. Returns whether native furniture

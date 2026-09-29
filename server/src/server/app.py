@@ -278,7 +278,7 @@ async def animation_action(sid: str, data: Any) -> dict[str, bool | str]:
         or action["graphEpoch"] != checkpoint["graphEpoch"]
         or action["checkpointSequence"] > checkpoint["sequence"]
         or not checkpoint["weaponDrawn"]
-        or checkpoint["furnitureRefId"] != 0
+        or checkpoint["furniture"] is not None
     ):
         return {"ok": False, "error": "incompatible animation checkpoint"}
 

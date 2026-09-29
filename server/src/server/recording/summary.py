@@ -56,8 +56,8 @@ def summarize_markers(recording: Recording) -> list[Marker]:
                 if payload["weaponDrawn"] != previous["weaponDrawn"]:
                     label = "Weapon drawn" if payload["weaponDrawn"] else "Weapon sheathed"
                     markers.append(Marker(message.t_ms, "weapon", label))
-                if (payload["furnitureRefId"] != 0) != (previous["furnitureRefId"] != 0):
-                    label = "Started using furniture" if payload["furnitureRefId"] else "Left furniture"
+                if (payload["furniture"] is None) != (previous["furniture"] is None):
+                    label = "Left furniture" if payload["furniture"] is None else "Started using furniture"
                     markers.append(Marker(message.t_ms, "furniture", label))
                 if _area_key(payload) != _area_key(previous):
                     kind, area_id = _area_key(payload)

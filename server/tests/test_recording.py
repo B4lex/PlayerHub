@@ -317,7 +317,7 @@ class SummarizeMarkersTests(unittest.TestCase):
             message(200, "animation:action", action(2, 2, action="bash")),
             message(300, "player:equipment", equipment(2, armor_form_id=0x999)),
             message(400, "player:appearance", appearance(2, name="Renamed")),
-            message(500, "player:update", checkpoint(3, weaponDrawn=True, furnitureRefId=0xABC)),
+            message(500, "player:update", checkpoint(3, weaponDrawn=True, furniture={"plugin": "Skyrim.esm", "formId": 0xABC})),
             message(600, "player:update", checkpoint(4, weaponDrawn=False, cellId=9, worldspaceId=0)),
             message(700, "player:update", checkpoint(5, cellId=9, worldspaceId=0)),  # same interior
             message(800, "player:update", checkpoint(6, cellId=2, worldspaceId=0)),

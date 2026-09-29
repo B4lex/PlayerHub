@@ -5,6 +5,7 @@
 #include "sync/appearance/AppearanceSync.h"
 #include "sync/combat/CombatSync.h"
 #include "sync/equipment/EquipmentSync.h"
+#include "sync/furniture/FurnitureSync.h"
 
 #include <cstdint>
 #include <string>
@@ -22,6 +23,7 @@ struct PeerState
     ActorLifecycleState lifecycle;
     AppearanceSync::RemoteState appearance;
     EquipmentSync::RemoteState equipment;
+    FurnitureSync::RemoteState furniture;
 };
 
 using Peers = std::unordered_map<std::string, PeerState>;

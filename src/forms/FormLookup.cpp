@@ -32,14 +32,27 @@ namespace FormLookup
             = a_form->GetFormID() & (file->IsLight() ? kLightPluginLocalFormIDMask : kPluginLocalFormIDMask) };
     }
 
-    RE::TESForm* ResolveForm(const Multiplayer::FormReference& a_reference)
+    RE::FormID ResolveFormID(const Multiplayer::FormReference& a_reference)
     {
         if (a_reference.IsEmpty())
         {
-            return nullptr;
+            return 0;
         }
 
         auto* dataHandler = RE::TESDataHandler::GetSingleton();
-        return dataHandler ? dataHandler->LookupForm(a_reference.localFormID, a_reference.plugin) : nullptr;
+        const auto* file = dataHandler ? dataHandler->LookupModByName(a_reference.plugin) : nullptr;
+        // A light plugin's local IDs are 12 bits; a wider one would carry into
+        // the compile index and name another plugin's form.
+        if (!file || (file->IsLight() && a_reference.localFormID > kLightPluginLocalFormIDMask))
+        {
+            return 0;
+        }
+        return dataHandler->LookupFormID(a_reference.localFormID, a_reference.plugin);
+    }
+
+    RE::TESForm* ResolveForm(const Multiplayer::FormReference& a_reference)
+    {
+        const auto formID = ResolveFormID(a_reference);
+        return formID ? RE::TESForm::LookupByID(formID) : nullptr;
     }
 }

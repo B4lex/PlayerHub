@@ -327,7 +327,7 @@ namespace CombatSync
 
     void PublishLocalAttacks(const Network::PlayerTransform& a_checkpoint)
     {
-        if (a_checkpoint.furnitureRefID != 0)
+        if (!a_checkpoint.furniture.IsEmpty())
         {
             s_pendingAttacks.clear();
         }
@@ -358,12 +358,13 @@ namespace CombatSync
                     a_update.playerID, static_cast<unsigned long long>(newEpoch), removed);
             }
         }
-        if (a_update.checkpoint.furnitureRefID != 0 && !a_state.pendingAnimationActions.empty())
+        if (const auto& furniture = a_update.checkpoint.furniture;
+            !furniture.IsEmpty() && !a_state.pendingAnimationActions.empty())
         {
             logs::debug(
-                "Animation sync discarded queued attacks at furniture checkpoint: player={} furniture={:08X} "
+                "Animation sync discarded queued attacks at furniture checkpoint: player={} furniture={}|{:06X} "
                 "rejected={}",
-                a_update.playerID, a_update.checkpoint.furnitureRefID, a_state.pendingAnimationActions.size());
+                a_update.playerID, furniture.plugin, furniture.localFormID, a_state.pendingAnimationActions.size());
             a_state.pendingAnimationActions.clear();
         }
     }
@@ -372,7 +373,7 @@ namespace CombatSync
         RemoteState* a_state, const Network::PlayerTransform* a_checkpoint, Network::AnimationAction&& a_action)
     {
         if (!a_state || !a_checkpoint || a_action.graphEpoch < a_checkpoint->graphEpoch
-            || a_checkpoint->furnitureRefID != 0)
+            || !a_checkpoint->furniture.IsEmpty())
         {
             logs::debug(
                 "Animation sync rejected action without a compatible checkpoint: player={} actionSequence={} "
@@ -458,7 +459,7 @@ namespace CombatSync
         }
 
         if (action.graphEpoch != a_remote.checkpoint.graphEpoch || action.checkpointSequence > a_remote.lastSequence
-            || a_remote.checkpoint.animationState.jumping || a_remote.checkpoint.furnitureRefID != 0
+            || a_remote.checkpoint.animationState.jumping || !a_remote.checkpoint.furniture.IsEmpty()
             || !a_remote.checkpoint.animationState.weaponDrawn ||
             // A weapon swap published before the attack must reach the hands first.
             !a_handsSettled || (!playing && !ActorAnimation::CanDispatchAttack(a_actor, action.attack)))
@@ -509,7 +510,7 @@ namespace CombatSync
         // it), so a sheathe or jump first releases the draw, stops channelling, and
         // lowers the block.
         const bool stanceAllows = checkpoint.animationState.weaponDrawn && !checkpoint.animationState.jumping
-            && checkpoint.furnitureRefID == 0;
+            && checkpoint.furniture.IsEmpty();
         // A spell or bow swap published before the presentation reaches the hands
         // first, so the draw does not start on the previous weapon.
         const bool mayStart = a_handsSettled && !ActorAnimation::IsAnimationActionPlaying(a_actor);

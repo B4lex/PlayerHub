@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
 
 namespace CheckpointPublisher
 {
@@ -55,7 +56,7 @@ namespace CheckpointPublisher
         const auto movement
             = MovementSync::SampleLocalMovement(a_local, mount ? *mount : a_local.player, *cell, snapshotElapsed);
         const auto animationState = AnimationSync::SampleLocalAnimation(a_local, sequence, movement);
-        const auto furnitureRefID = FurnitureSync::SampleLocalFurniture(a_local, sequence);
+        auto furniture = FurnitureSync::SampleLocalFurniture(a_local, sequence);
         const auto handPresentation = CombatSync::SampleLocalHandPresentation();
         const bool dead = DeathSync::SampleLocalDeath(a_local, sequence);
 
@@ -73,7 +74,7 @@ namespace CheckpointPublisher
             .swimming = movement.swimming,
             .cellID = movement.cellID,
             .worldspaceID = movement.worldspaceID,
-            .furnitureRefID = furnitureRefID,
+            .furniture = std::move(furniture),
             .graphEpoch = a_graphEpoch,
             .sequence = sequence };
         Network::PublishLocalPlayerTransform(checkpoint);

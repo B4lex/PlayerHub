@@ -18,7 +18,7 @@ def valid_state(sequence: int = 10) -> dict[str, bool | int | float | str]:
         "weaponDrawn": True,
         "cellId": 1,
         "worldspaceId": 60,
-        "furnitureRefId": 0,
+        "furniture": None,
         "graphEpoch": 2,
         "sequence": sequence,
     }
@@ -133,7 +133,7 @@ class AnimationActionRelayTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_rejects_attack_while_checkpoint_uses_furniture(self) -> None:
         checkpoint = valid_state()
-        checkpoint["furnitureRefId"] = 0xA729
+        checkpoint["furniture"] = {"plugin": "Skyrim.esm", "formId": 0xA729}
         server_app.player_states["player-1"] = checkpoint
 
         result = await server_app.animation_action("player-1", valid_action())
