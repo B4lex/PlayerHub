@@ -21,6 +21,46 @@ a peer does not have a matching modded asset or behavior.
 - Prefer cohesive modules with narrow interfaces. Extract code when it has a
   distinct responsibility, rather than creating a new file for every helper.
 
+## Specs
+- `specs/<system>.md` is a retroactive summary of the implementation,
+  organized by system, so humans and agents can pick up context quickly. A
+  system is a part of the project with its own state, responsibilities, and
+  interfaces, such as the remote actor, the sync pipeline, the network, or the
+  UI overlay. It usually maps to one or a few source domains. `specs/README.md`
+  lists the systems and maps each feature to the specs that describe it.
+- A system spec describes its components and their responsibilities, its
+  interfaces and data flow with other systems, its ordering and invariants, and
+  the features it implements. A feature that spans systems is described in each
+  system's spec for that system's part only. The system that owns the feature's
+  behavior holds its goal, non-goals, and acceptance criteria and links to the
+  other parts. Every wire message and field, with its validation, lives in
+  `specs/network.md`; for example, chat's messages and relay are there, and its
+  window is in `specs/ui-overlay.md`.
+- Read the specs of the systems you change before changing them. The code is
+  the authority when a spec disagrees with it; fix the spec when you notice the
+  difference.
+- Keep specs current in the same change as the code. Update every system spec
+  whose described behavior the change affects, and `specs/README.md` when a
+  system or feature is added, split, or removed. Add a spec only for a new
+  system; a new feature extends the specs of the systems it touches.
+- Describe the current state, not its history. Replace outdated sections rather
+  than appending changes. Mention a dropped approach only where it explains a
+  decision, such as a non-goal, and briefly say why it was dropped.
+- Structure a system spec as `Status`, `Scope` (what the system owns, what it
+  leaves to other systems, and how they connect), `Components` (modules and
+  their responsibilities), one section per feature or concern,
+  `Engine assumptions`, `Acceptance criteria`, and `Known limitations` (with
+  non-goals). Keep only sections with content.
+- `Status` states what was actually verified and how: server unit tests, Linux
+  compile or headless checks, Windows build, in game and on which runtime. Give
+  a feature its own status where it differs from the system's. Keep unverified
+  engine behavior under `Engine assumptions`.
+- Keep specs precise and to the point. Name wire fields, validation rules and
+  defaults, code symbols, config keys, form IDs, and engine functions; state
+  decisions with their reasons. Leave out line numbers, code listings, and
+  details that are obvious from the code. Link to another spec's section rather
+  than repeating it.
+
 ## Code style guidelines
 - Minimize adding new comments. Comment only genuinely non-obvious constraints 
   or "why" decisions, not self-evident "what".
