@@ -38,15 +38,15 @@ to `http://127.0.0.1:3000` for local testing.
 - `player:update` carries the local player's position, heading, measured speed,
   explicit movement-animation state, jump phase, bow draw and per-hand spell
   casting (`bowDrawn`, `castingLeft`, `castingRight`, optional and defaulting to
-  `false`; see `specs/011-bow-and-spell-presentation-sync.md`), blocking
+  `false`; see `specs/combat-presentation.md`), blocking
   (`blocking`, optional and defaulting to `false`; see
-  `specs/012-off-hand-block-and-bash-sync.md`), whether the player is dying or
+  `specs/combat-presentation.md`), whether the player is dying or
   dead (`dead`, optional and defaulting to `false`; see
-  `specs/015-player-death-sync.md`), whether the player rides a mount
+  `specs/native-interactions.md`), whether the player rides a mount
   (`mounted`, optional and defaulting to `false`; the position fields then
-  describe the mount; see `specs/016-mount-riding-sync.md`), whether that
+  describe the mount; see `specs/native-interactions.md`), whether that
   player or its mount swims (`swimming`, optional and defaulting to `false`;
-  see `specs/017-remote-actor-world-isolation.md`), cell and worldspace form
+  see `specs/remote-actor.md`), cell and worldspace form
   IDs,
   occupied furniture reference FormID, graph epoch, and monotonically increasing
   checkpoint sequence number. It is rejected with `not in world` outside
@@ -65,7 +65,7 @@ to `http://127.0.0.1:3000` for local testing.
   vocabulary is `attack/normal`, `attack/left`, `attack/dual`, and `attack/bash`.
   Every attack carries a boolean `power`. A power attack or power bash also
   carries a `direction` (`standing`, `forward`, `backward`, `left`, or `right`),
-  which a plain attack must not. See `specs/013-power-attack-sync.md`.
+  which a plain attack must not. See `specs/combat-presentation.md`.
 - `player:action` relays that action to every other connected player after its
   graph epoch, drawn-weapon, and unoccupied-furniture checkpoint prerequisites
   are verified.
@@ -77,16 +77,16 @@ to `http://127.0.0.1:3000` for local testing.
   and a `nameIndex` that tells apart players with the same name. The
   server stores the latest appearance per connection and sends every stored
   appearance to a newly connected client. See
-  `specs/006-player-appearance-sync.md`.
+  `specs/appearance-and-equipment.md`.
 - `player:equipment` carries the player's latest equipped items (worn armor,
   right- and left-hand weapon or torch, and equipped `ammo`) as load-order
   independent `{plugin, formId}` references with an increasing revision. A hand
   holding a spell is `{"kind": "spell"}` without a reference. `defaultOutfit`
   carries the base-game and Anniversary Edition items peers show in place of the player's items they
-  cannot resolve (`specs/019-equipment-fallback-and-plugin-config.md`); when
+  cannot resolve (`specs/appearance-and-equipment.md`); when
   absent it is stored and relayed as empty. It uses the same
   relay, storage, and late-join lifecycle as `player:appearance`. See
-  `specs/007-player-equipment-sync.md`.
+  `specs/appearance-and-equipment.md`.
 - `player:disconnect` tells peers to remove the disconnected player's actor
   and forget all of its state. The server pings every client every 5 seconds
   and disconnects one that does not answer within 10 more, so a crashed or
@@ -98,7 +98,7 @@ to `http://127.0.0.1:3000` for local testing.
   message is relayed as `chat:message` with `playerId` and the sender's
   character `name`, `nameIndex`, and `level` to every player, the sender
   included, and is not recorded.
-  See `specs/020-player-chat.md`.
+  See `specs/network.md`.
 - `latency:probe` is acknowledged immediately with `{"ok": true, "serverTimeMs": ...}`
   and never relayed. The plugin sends one per second, shows the acknowledgement
   round trip as its ping, and uses `serverTimeMs` to estimate the server clock.
