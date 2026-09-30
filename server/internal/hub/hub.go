@@ -20,7 +20,6 @@ import (
 var (
 	ErrUnknownPlayer = errors.New("unknown player")
 	ErrRateLimited   = errors.New("rate limited")
-	ErrUnexpected    = errors.New("unexpected message")
 )
 
 // Recorder receives every accepted client message of every player, so it can
@@ -177,7 +176,7 @@ func (h *Hub) Handle(slot uint32, message *pb.ClientMessage) error {
 	case *pb.ClientMessage_Chat:
 		return h.chat(m, body.Chat)
 	default:
-		return ErrUnexpected
+		return validate.ErrUnexpected
 	}
 	return nil
 }

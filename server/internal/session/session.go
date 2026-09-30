@@ -150,7 +150,7 @@ func (s *Server) read(ctx context.Context, conn *websocket.Conn, slot uint32, ou
 				Result: &pb.Result{RequestId: ping.GetRequestId(), Ok: true}}}))
 			continue
 		}
-		if err := Validate(message); err != nil {
+		if err := validate.Message(message); err != nil {
 			rejections.note(err.Error())
 			continue
 		}
@@ -159,28 +159,6 @@ func (s *Server) read(ctx context.Context, conn *websocket.Conn, slot uint32, ou
 				rejections.note(err.Error())
 			}
 		})
-	}
-}
-
-// Validate checks a client message's fields. The hub checks ordering.
-func Validate(message *pb.ClientMessage) error {
-	switch body := message.Message.(type) {
-	case *pb.ClientMessage_Enter, *pb.ClientMessage_Exit, *pb.ClientMessage_Chat:
-		return nil
-	case *pb.ClientMessage_Checkpoint:
-		// Set by the server on relayed entries only.
-		body.Checkpoint.Player = 0
-		return validate.Checkpoint(body.Checkpoint)
-	case *pb.ClientMessage_Context:
-		return validate.Context(body.Context)
-	case *pb.ClientMessage_Action:
-		return validate.Action(body.Action)
-	case *pb.ClientMessage_Appearance:
-		return validate.Appearance(body.Appearance)
-	case *pb.ClientMessage_Equipment:
-		return validate.Equipment(body.Equipment)
-	default:
-		return hub.ErrUnexpected
 	}
 }
 

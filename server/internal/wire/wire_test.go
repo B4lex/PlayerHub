@@ -48,3 +48,17 @@ func TestEntryMatchesGeneratedEncoding(t *testing.T) {
 		t.Fatalf("hand-written %x, generated %x", got, generated)
 	}
 }
+
+func TestQuantize(t *testing.T) {
+	c := Quantize(Sample{X: 1.5, Y: -1.5, Z: 0.4, Heading: -0.0001, Pitch: 2, Speed: -1, Direction: 0.999,
+		MovementState: pb.MovementState_MOVEMENT_STATE_SNEAKING_RUNNING,
+		Flags:         pb.CheckpointFlag_CHECKPOINT_FLAG_MOUNTED}, 3)
+	want := &pb.Checkpoint{Sequence: 3, X: 2, Y: -2, Z: 0, Heading: 0, Pitch: 1609, Speed: 0, Direction: 0,
+		Flags: 6 | 1024}
+	if !proto.Equal(c, want) {
+		t.Fatalf("got %v, want %v", c, want)
+	}
+	if got := Quantize(Sample{Heading: 3.14159265, Direction: 0.25}, 1); got.Heading != 2048 || got.Direction != 64 {
+		t.Fatalf("got %v", got)
+	}
+}

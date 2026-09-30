@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Listen              string   `toml:"listen"`
 	RecordingsDirectory string   `toml:"recordings_directory"`
+	AdminUIDirectory    string   `toml:"admin_ui_directory"`
 	SendRateHz          float64  `toml:"send_rate_hz"`
 	Limits              Limits   `toml:"limits"`
 	Liveness            Liveness `toml:"liveness"`
@@ -36,6 +37,7 @@ func Default() Config {
 	return Config{
 		Listen:              "0.0.0.0:3000",
 		RecordingsDirectory: "recordings",
+		AdminUIDirectory:    "admin-ui/dist",
 		SendRateHz:          40,
 		Limits: Limits{
 			MessagesPerSecond:   120,

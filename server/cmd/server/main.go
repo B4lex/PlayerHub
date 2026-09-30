@@ -13,8 +13,12 @@ import (
 	"syscall"
 	"time"
 
+	"skyrim-mp/server/internal/admin"
 	"skyrim-mp/server/internal/config"
 	"skyrim-mp/server/internal/hub"
+	"skyrim-mp/server/internal/loadtest"
+	"skyrim-mp/server/internal/playback"
+	"skyrim-mp/server/internal/recording"
 	"skyrim-mp/server/internal/session"
 )
 
@@ -48,15 +52,36 @@ func main() {
 }
 
 func run(ctx context.Context, c config.Config, log *slog.Logger) error {
+	// The feed is built from everything below, so changes reach it late.
+	var feed *admin.Feed
+	changed := func() {
+		if feed != nil {
+			feed.Changed()
+		}
+	}
+
+	store := recording.NewStore(c.RecordingsDirectory, log)
+	captures := recording.NewCaptures(store, log, changed)
 	h := hub.New(hub.Options{
 		ActionsPerSecond: c.Limits.ActionsPerSecond,
 		ActionBurst:      c.Limits.ActionBurst,
+		Recorder:         captures,
 		Logger:           log,
+		OnChange:         changed,
 	})
 	loop := hub.NewLoop(h, c.SendRateHz)
 	loopContext, stopLoop := context.WithCancel(context.Background())
 	defer stopLoop()
 	go loop.Run(loopContext)
+
+	playbacks := playback.NewManager(store, loop, log, changed)
+	batches := loadtest.NewManager(store, loop, log, changed)
+	adminContext := &admin.Context{
+		Loop: loop, Store: store, Captures: captures, Playbacks: playbacks, Batches: batches,
+		StartedAt: time.Now(), OnChange: changed,
+	}
+	feed = admin.NewFeed(adminContext.State)
+	go feed.Run(loopContext)
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /ws", session.NewServer(loop, c, log))
@@ -64,13 +89,17 @@ func run(ctx context.Context, c config.Config, log *slog.Logger) error {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
+	adminContext.Routes(mux)
+	mux.Handle("GET /api/events", feed)
+	mux.Handle("GET /admin/", admin.UI(c.AdminUIDirectory))
+	mux.Handle("GET /admin", http.RedirectHandler("/admin/", http.StatusMovedPermanently))
 
 	server := &http.Server{
 		Addr:              c.Listen,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
-		// Shutdown does not close WebSocket connections; cancelling their
-		// request context does.
+		// Shutdown does not close WebSocket or event-stream connections;
+		// cancelling their request context does.
 		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 	serveErr := make(chan error, 1)
@@ -82,6 +111,9 @@ func run(ctx context.Context, c config.Config, log *slog.Logger) error {
 		return err
 	case <-ctx.Done():
 	}
+	captures.StopAll("shutdown")
+	playbacks.CloseAll()
+	batches.CloseAll()
 	shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := server.Shutdown(shutdown)

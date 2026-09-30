@@ -103,6 +103,8 @@ func (p *Player) SetCheckpoint(c *pb.Checkpoint) error {
 	if p.Checkpoint != nil && c.GetSequence() <= p.Checkpoint.GetSequence() {
 		return ErrStaleSequence
 	}
+	// The sender's slot, as every relayed copy carries it.
+	c.Player = p.Slot
 	p.Checkpoint = c
 	p.Entry = wire.AppendEntry(nil, p.Slot, c)
 	return nil

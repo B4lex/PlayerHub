@@ -51,6 +51,29 @@ var (
 	ErrChat       = errors.New("invalid chat message")
 )
 
+var ErrUnexpected = errors.New("unexpected message")
+
+// Message checks the fields of a client message that the hub handles. Hello
+// and Ping are answered by the session and are unexpected here.
+func Message(m *pb.ClientMessage) error {
+	switch body := m.Message.(type) {
+	case *pb.ClientMessage_Enter, *pb.ClientMessage_Exit, *pb.ClientMessage_Chat:
+		return nil
+	case *pb.ClientMessage_Checkpoint:
+		return Checkpoint(body.Checkpoint)
+	case *pb.ClientMessage_Context:
+		return Context(body.Context)
+	case *pb.ClientMessage_Action:
+		return Action(body.Action)
+	case *pb.ClientMessage_Appearance:
+		return Appearance(body.Appearance)
+	case *pb.ClientMessage_Equipment:
+		return Equipment(body.Equipment)
+	default:
+		return ErrUnexpected
+	}
+}
+
 func Checkpoint(c *pb.Checkpoint) error {
 	if c.GetHeading() > MaximumHeading || c.GetPitch() > MaximumPitch || c.GetPitch() < -MaximumPitch ||
 		c.GetSpeed() > MaximumSpeed || c.GetDirection() > MaximumDirection ||
