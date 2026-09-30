@@ -57,8 +57,10 @@ a field existed replay with its documented default.
 | `chat:message` | server → every client | `{playerId, name, nameIndex, level, text}` |
 | `latency:probe` | client → server | No arguments; acknowledged with `{"ok": true}` |
 
-Every client event is acknowledged with `{"ok": true}` or
-`{"ok": false, "error": ...}`. Graph event names never cross the network.
+The server answers every client event with `{"ok": true}` or
+`{"ok": false, "error": ...}`, but the client requests an acknowledgement only
+for `chat:send` and `latency:probe`, so only those answers are sent. Graph event
+names never cross the network.
 
 ## Checkpoint
 

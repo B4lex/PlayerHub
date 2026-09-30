@@ -1,0 +1,11 @@
+# nanopb static sizes. They mirror the validation limits in specs/network.md,
+# plus one byte for a string's terminator.
+skyrimmp.v1.FormRef.plugin max_size:261
+skyrimmp.v1.Appearance.name max_size:129
+skyrimmp.v1.Appearance.head_parts max_count:16
+skyrimmp.v1.Appearance.face_morphs max_count:19
+skyrimmp.v1.Appearance.face_parts max_count:4
+skyrimmp.v1.Appearance.tints max_count:64
+skyrimmp.v1.Equipment.armor max_count:32
+skyrimmp.v1.DefaultOutfit.armor max_count:8
+skyrimmp.v1.DefaultOutfit.hands max_count:2

@@ -99,13 +99,12 @@ to `http://127.0.0.1:3000` for local testing.
   character `name`, `nameIndex`, and `level` to every player, the sender
   included, and is not recorded.
   See `specs/network.md`.
-- `latency:probe` is acknowledged immediately with `{"ok": true, "serverTimeMs": ...}`
-  and never relayed. The plugin sends one per second, shows the acknowledgement
-  round trip as its ping, and uses `serverTimeMs` to estimate the server clock.
-- `player:update` may carry an optional `sentAtMs`: the source's emit time on the
-  server clock. It is relayed on `player:states` but never stored or recorded, and
-  a missing or invalid value is dropped without rejecting the checkpoint. Peers
-  use it to show the remote packet delay.
+- `latency:probe` is acknowledged immediately with `{"ok": true}` and never
+  relayed. The plugin sends one per second and shows the acknowledgement round
+  trip as its ping.
+- Only `chat:send` and `latency:probe` are emitted with an acknowledgement ID.
+  The other client events are sent without one, so the server's result for
+  them is never delivered.
 
 Attacks are intentionally not another field in `player:update`: a snapshot
 field would collapse repeated attacks. The plugin emits one separate
