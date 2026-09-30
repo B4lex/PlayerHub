@@ -15,7 +15,9 @@
   a loadgen bot as the peer: connect, hello and welcome, enter, context,
   checkpoints, an attack, appearance, equipment, chat and its rejection,
   latency probes, traffic counting, and closing were checked. The Windows
-  xmake build, TLS, and in-game behavior are not verified.
+  xmake build and a `wss://`
+  connection through a Cloudflare tunnel to the Go server were verified in
+  game under wine; other in-game behavior is not verified.
 - Not verified in game: the connection policy and recovery
   ([Connection](#connection)), and whether quantization shows as jitter.
 
@@ -56,6 +58,20 @@ refused at the handshake ([Transport](#transport)).
 - `[Network] ServerEndpoint` keeps its `http://` or `https://` form; the client
   maps it to `ws://` or `wss://` and appends `/ws` when the endpoint has no
   path. TLS is terminated by a reverse proxy in front of the server.
+- The client's TLS is IXWebSocket 12 on mbedtls, pinned to 3.6 in `xmake.lua`,
+  and verifies the server against the Windows certificate store. mbedtls 4
+  returns `MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET` from `mbedtls_ssl_read`
+  for every TLS 1.3 session ticket (Cloudflare sends two), which IXWebSocket's
+  `SocketMbedTLS::recv` treats as a failed read, so the handshake failed with
+  "Failed reading HTTP status line". mbedtls 3.6 ignores tickets unless the
+  client opts in. The `package.librarydeps.strict_compatibility` policy
+  rebuilds IXWebSocket when mbedtls changes, because IXWebSocket selects the
+  mbedtls API at compile time; a stale build linked against 3.6 failed with
+  "SSL setup failed".
+- The nanopb runtime is built from the `lib/nanopb` submodule at tag `0.4.9`,
+  the generator version `proto/generate.sh` pins: the xmake `nanopb` package
+  depends on `protoc`, whose install test fails under wine
+  (`STATUS_DLL_NOT_FOUND`).
 - The first client message must be `Hello{protocol_version, view_radius}` within
   `limits.hello_timeout_seconds` (5). A version other than
   `Protocol.PROTOCOL_VERSION` (1) is closed with status 4001 and reason
@@ -363,13 +379,8 @@ window, and are empty after a long gap. The status panel shows them.
 
 ## Engine assumptions
 
-Not verified on Windows:
-
-1. IXWebSocket 12 with mbedtls loads the Windows system certificate store for
-   `wss://` (`caFile = "SYSTEM"`), and its thread starts and stops cleanly
-   inside the game process.
-2. The nanopb package builds under xmake with wine; its recipe depends on
-   `protoc`, which the generated code does not need.
+- IXWebSocket's thread stops cleanly inside the game process at exit; only
+  starting it and closing a connection on request were observed.
 
 ## Acceptance criteria
 

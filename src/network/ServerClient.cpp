@@ -533,7 +533,8 @@ namespace Network
                 case ix::WebSocketMessageType::Error:
                     transportOpen.store(false, std::memory_order_release);
                     MarkDisconnected();
-                    logs::warn("Could not connect to {}: {}", GetAttemptEndpoint(), a_message->errorInfo.reason);
+                    logs::warn("Could not connect to {}: {} (http status {})", GetAttemptEndpoint(),
+                        a_message->errorInfo.reason, a_message->errorInfo.http_status);
                     break;
                 default:
                     break;
