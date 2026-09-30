@@ -138,8 +138,11 @@ func (LeaveReason) EnumDescriptor() ([]byte, []int) {
 type Hello struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	ProtocolVersion uint32                 `protobuf:"varint,1,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// The radius, in game units, within which this client wants peers; zero
+	// for the server's. The server clamps it to its own range.
+	ViewRadius    uint32 `protobuf:"varint,2,opt,name=view_radius,json=viewRadius,proto3" json:"view_radius,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Hello) Reset() {
@@ -175,6 +178,13 @@ func (*Hello) Descriptor() ([]byte, []int) {
 func (x *Hello) GetProtocolVersion() uint32 {
 	if x != nil {
 		return x.ProtocolVersion
+	}
+	return 0
+}
+
+func (x *Hello) GetViewRadius() uint32 {
+	if x != nil {
+		return x.ViewRadius
 	}
 	return 0
 }
@@ -1354,9 +1364,11 @@ var File_skyrimmp_v1_messages_proto protoreflect.FileDescriptor
 
 const file_skyrimmp_v1_messages_proto_rawDesc = "" +
 	"\n" +
-	"\x1askyrimmp/v1/messages.proto\x12\vskyrimmp.v1\x1a\x17skyrimmp/v1/state.proto\"2\n" +
+	"\x1askyrimmp/v1/messages.proto\x12\vskyrimmp.v1\x1a\x17skyrimmp/v1/state.proto\"S\n" +
 	"\x05Hello\x12)\n" +
-	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\"\a\n" +
+	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12\x1f\n" +
+	"\vview_radius\x18\x02 \x01(\rR\n" +
+	"viewRadius\"\a\n" +
 	"\x05Enter\"\x06\n" +
 	"\x04Exit\"=\n" +
 	"\bChatSend\x12\x1d\n" +

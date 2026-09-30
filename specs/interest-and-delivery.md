@@ -18,8 +18,36 @@ load generator:
 | Scenario | Spread | Server CPU | Egress | p50 / p99 |
 | --- | --- | --- | --- | --- |
 | Sparse | ±100000 | 27% | 0.22 MB/s | 14 / 26 ms |
-| Dense, all within one radius | ±3000 | 63% | 34 MB/s | 22 / 42 ms |
+| Dense, all within one radius, no cap | ±3000 | 63–71% | 34 MB/s | 22 / 42 ms |
 | Churn, 2000 units/s | ±20000 | 40% | 5 MB/s | 18 / 31 ms |
+
+With the defaults (cap 64, far peers at 10 Hz) and idle suppression, "near
+p99" counting only peers within 4096 units:
+
+| Scenario | Spread | Server CPU | Egress | p50 / p99, near p99 |
+| --- | --- | --- | --- | --- |
+| Dense, all moving | ±3000 | 56% | 9.0 MB/s | 16 / 36 ms, 35 ms |
+| Dense, 54% of bots idle | ±3000 | 50% | 4.1 MB/s | 18 / 31 ms, 31 ms |
+| Wide, 54% idle | ±12000 | 48% | 2.4 MB/s | 21 / 58 ms, 34 ms |
+
+With the cap and far rate off, idle suppression alone took the dense layout
+with 54% idle bots from 34 to 15.7 MB/s. A far peer's latency includes its
+deliberate hold of up to 100 ms.
+
+With the budget for a 50 Mbit/s uplink (`budget.enabled`, 6250000 bytes/s),
+all bots moving, "near" within 1024 units, and "gap" the longest time a
+visible peer went without an update:
+
+| Scenario | Cap | Server CPU | Egress | p50 / p99, near p99 | Gap p99 / max |
+| --- | --- | --- | --- | --- | --- |
+| Dense ±3000 | 64 | 68% | 4.45 MB/s | 27 / 68 ms, 68 ms | 274 / 576 ms |
+| Dense ±3000 | 32 | 59% | 4.37 MB/s | 21 / 54 ms, 54 ms | 102 / 178 ms |
+| Wide ±12000 | 64 | 64% | 4.35 MB/s | 27 / 57 ms, 52 ms | 223 / 327 ms |
+| Dense ±3000, no cap or far rate | none | 104% | 4.89 MB/s | 36 / 80 ms | 602 ms / 1.2 s |
+
+Egress stays under the 5 MB/s the budget allows. With 64 peers in view, the
+nearest peers' p99 misses 60 ms by 8 ms because the budget is below demand; a
+cap of 32 meets it, so the homelab example uses 32.
 
 ## Scope
 
@@ -39,7 +67,8 @@ client applies them is in [Sync pipeline](sync-pipeline.md#receive-state).
 | `interest.Hidden`, `interest.Pairs` | The admin exclusion rules |
 | `hub.Hub` | All world state; subscriptions; turns accepted messages into outbox traffic. Methods run on one goroutine and take an injectable clock |
 | `hub.Loop` | Runs a hub: submitted work in order, a tick at `send_rate_hz`, and the interest pass at `interest.update_hz` |
-| `delivery.Outbox` | One recipient's pending traffic: latest-wins checkpoints, ordered messages, latest-wins presentation |
+| `delivery.Outbox` | One recipient's pending traffic: latest-wins checkpoints, ordered messages, latest-wins presentation; rate classes and the budget's choice of checkpoints |
+| `delivery.Budget` | The uplink shared by every recipient |
 | `delivery.Batch` | One drain of an outbox, written as WebSocket messages |
 | `session` writer | Waits for its outbox, drains it, and writes |
 
@@ -64,6 +93,17 @@ rule here.
      grid. A target enters within `interest.enter_radius` (8192) and leaves
      beyond `interest.leave_radius` (9830), but not before
      `interest.min_dwell_seconds` (1) in view, so it does not flap at the edge.
+     A client may ask for a smaller radius in `Hello.view_radius`
+     (`[Network] ViewRadius` in [Configuration](configuration.md)): it is
+     clamped to `interest.minimum_view_radius` (1024) and the server's enter
+     radius, and its leave radius keeps the server's ratio.
+  4. The cap: a viewer receives at most `interest.max_visible` (64) peers,
+     nearest first. A peer in view keeps its place unless a candidate is
+     `interest.cap_hysteresis` (1024) nearer, and one within its minimum time
+     in view is never evicted (evictions leave with `OUT_OF_RANGE`). The
+     periodic pass ranks; an event that would overfill a view waits for it.
+     The default is provisional: it should come from measuring the client's
+     frame cost with many remote actors in game.
 - Rules 1 and 2 are hard: they take effect at once, whatever the time in view.
   Distance is applied by the periodic pass, at `interest.update_hz` (5), which
   reevaluates each placed viewer's subscriptions and the players in the 3×3
@@ -114,6 +154,46 @@ includes them only when newer, which matches the client, which keeps
 presentation until `PeerLeave(DISCONNECTED)`. The record is dropped on that
 leave and when the recipient disconnects.
 
+## Rate classes and idle suppression
+
+- A peer farther than `interest.near_distance` (4096) is written to the viewer
+  at most `interest.far_rate_hz` (10) times a second; nearer peers get every
+  checkpoint. The periodic pass sets each pair's class
+  (`Outbox.SetInterval`). A far peer's newer checkpoint waits in the outbox
+  until due and is never lost; the writer's timer fires one tick after the due
+  time, so a tick's batch usually carries it without a separate write. An
+  ordered message about the peer still takes its pending checkpoint along at
+  once.
+- A checkpoint equal to the last one handed to subscribers, except for its
+  sequence, is not distributed, so an idle player costs nothing on the wire.
+  The stored checkpoint still advances, so `PeerEnter` and action anchors carry
+  the newest. The checkpoint after a context change is always distributed,
+  since clients apply a context with the next checkpoint they receive.
+
+## Budget
+
+Optional (`budget.enabled`), for an uplink that cannot carry the unbudgeted
+traffic, such as a 50 Mbit/s homelab. The router's upload buffer must never be
+what limits the rate, or every player's latency rises.
+
+- The server sends at most 80% of `budget.uplink_bytes_per_second` (default
+  6250000, 50 Mbit/s): a global token bucket with 0.1 s of burst. The rest is
+  left for TCP acknowledgements, retransmits, and pings.
+- Each recipient's share is the global rate divided by the connected
+  recipients, capped by `budget.per_recipient_bytes_per_second` (0, no cap),
+  with 0.2 s of burst. What an idle recipient does not use stays in the global
+  bucket for the others.
+- Every drain charges its ordered messages, which are always sent, to both,
+  and 60 bytes per WebSocket message for IP, TCP, and WebSocket headers. The
+  latest-wins checkpoints then go in order of priority until the allowance is
+  spent: waiting time, starting at one tick (0.025 s), times the pair's
+  weight, which is 1 within 1024 units and falls as 1024 / distance, in
+  eighths, to 1/8. A checkpoint that does not fit waits with its waiting time,
+  so every peer is eventually sent; the writer retries after 25 ms.
+- New subscriptions are spread: a viewer gets at most
+  `budget.enters_per_second` (20) new peers per second, nearest first, so
+  entering a crowd does not send dozens of appearances in one burst.
+
 ## Batching
 
 - A checkpoint accepted by the hub is encoded once as a `PeerStates` entry
@@ -163,8 +243,10 @@ written, a sign of a slow link), and every exclusion.
 
 ## Known limitations
 
-- There is no cap on visible peers or rate class yet, so a crowd within one
-  radius costs bandwidth with the square of its size.
+- The budget counts WebSocket payload plus an estimated 60 bytes of headers
+  per message; TLS adds about 22 bytes more per record.
+- The cap's default is provisional until the client's frame cost with many
+  remote actors is measured in game.
 - Exclusions and hiding last only for a connection; product rules such as
   block lists, parties, or instances need a persistent identity.
 - Spaces compare by load-order form IDs, like the client.

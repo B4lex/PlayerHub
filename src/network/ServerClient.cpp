@@ -481,7 +481,7 @@ namespace Network
                     logs::info("WebSocket connected to {}", GetAttemptEndpoint());
                     if (const auto current = GetSocket())
                     {
-                        const auto hello = Wire::EncodeHello();
+                        const auto hello = Wire::EncodeHello(Config::Get()->network.viewRadius);
                         if (const auto info = current->sendBinary(hello); info.success)
                         {
                             CountSentBytes(info.wireSize);

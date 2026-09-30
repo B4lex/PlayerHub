@@ -42,10 +42,22 @@ type Server struct {
 	loop   *hub.Loop
 	config config.Config
 	log    *slog.Logger
+	// Nil without an egress budget.
+	budget *delivery.Budget
 }
 
 func NewServer(loop *hub.Loop, c config.Config, log *slog.Logger) *Server {
 	return &Server{loop: loop, config: c, log: log}
+}
+
+// UseBudget makes every connection's writes share b. Call before serving.
+func (s *Server) UseBudget(b *delivery.Budget) {
+	s.budget = b
+}
+
+// SetLoop sets the hub connections join. Call before serving.
+func (s *Server) SetLoop(loop *hub.Loop) {
+	s.loop = loop
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -66,14 +78,21 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address str
 	defer cancel()
 	defer conn.CloseNow()
 
-	if err := s.readHello(ctx, conn); err != nil {
+	hello, err := s.readHello(ctx, conn)
+	if err != nil {
 		s.log.Info("player refused", "address", address, "error", err)
 		return
 	}
 
 	outbox := delivery.NewOutbox(s.config.Limits.OrderedBacklog)
+	if s.budget != nil {
+		outbox.UseBudget(s.budget)
+	}
 	var slot uint32
-	if !s.loop.Call(func(h *hub.Hub) { slot = h.Connect(world.KindClient, outbox) }) {
+	if !s.loop.Call(func(h *hub.Hub) {
+		slot = h.Connect(world.KindClient, outbox)
+		h.SetViewRadius(slot, float64(hello.GetViewRadius()))
+	}) {
 		conn.Close(websocket.StatusGoingAway, "server stopping")
 		return
 	}
@@ -91,7 +110,7 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address str
 	}()
 	go s.keepAlive(ctx, conn, cancel)
 
-	err := s.read(ctx, conn, slot, outbox, log)
+	err = s.read(ctx, conn, slot, outbox, log)
 	if errors.Is(err, errRateLimited) {
 		conn.Close(StatusRateLimited, "rate limited")
 	}
@@ -104,24 +123,25 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address str
 	log.Info("player disconnected", "reason", err)
 }
 
-func (s *Server) readHello(ctx context.Context, conn *websocket.Conn) error {
+func (s *Server) readHello(ctx context.Context, conn *websocket.Conn) (*pb.Hello, error) {
 	timeout := time.Duration(s.config.Limits.HelloTimeoutSeconds * float64(time.Second))
 	helloContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	typ, data, err := conn.Read(helloContext)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var message pb.ClientMessage
 	if typ != websocket.MessageBinary || proto.Unmarshal(data, &message) != nil || message.GetHello() == nil {
 		conn.Close(websocket.StatusPolicyViolation, "expected hello")
-		return errors.New("first message is not a hello")
+		return nil, errors.New("first message is not a hello")
 	}
-	if version := message.GetHello().GetProtocolVersion(); version != uint32(pb.Protocol_PROTOCOL_VERSION) {
+	hello := message.GetHello()
+	if version := hello.GetProtocolVersion(); version != uint32(pb.Protocol_PROTOCOL_VERSION) {
 		conn.Close(StatusProtocolMismatch, fmt.Sprintf("protocol %d", pb.Protocol_PROTOCOL_VERSION))
-		return fmt.Errorf("protocol %d, server has %d", version, pb.Protocol_PROTOCOL_VERSION)
+		return nil, fmt.Errorf("protocol %d, server has %d", version, pb.Protocol_PROTOCOL_VERSION)
 	}
-	return nil
+	return hello, nil
 }
 
 var (
@@ -165,28 +185,45 @@ func (s *Server) read(ctx context.Context, conn *websocket.Conn, slot uint32, ou
 func (s *Server) write(ctx context.Context, conn *websocket.Conn, outbox *delivery.Outbox) error {
 	var batch delivery.Batch
 	timeout := time.Duration(s.config.Liveness.TimeoutSeconds * float64(time.Second))
+	tick := time.Duration(float64(time.Second) / s.config.SendRateHz)
+	var writeContext context.Context
 	send := func(frame []byte) error {
-		writeContext, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
 		if err := conn.Write(writeContext, websocket.MessageBinary, frame); err != nil {
 			return err
 		}
 		outbox.AddWritten(len(frame))
 		return nil
 	}
+	// Wakes the writer for checkpoints of far peers deferred by their rate. It
+	// fires a tick late, so a tick's batch usually carries them first and no
+	// separate write is needed.
+	deferred := time.NewTimer(time.Hour)
+	deferred.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-outbox.Ready():
+		case <-deferred.C:
 		}
-		if !outbox.Drain(&batch) {
+		ok, next := outbox.Drain(&batch, time.Now())
+		if !ok {
 			if ctx.Err() == nil {
 				return errBacklog
 			}
 			return ctx.Err()
 		}
-		if err := batch.Write(send); err != nil {
+		if !next.IsZero() {
+			deferred.Reset(time.Until(next) + tick)
+		}
+		if batch.Empty() {
+			continue
+		}
+		var cancel context.CancelFunc
+		writeContext, cancel = context.WithTimeout(ctx, timeout)
+		err := batch.Write(send)
+		cancel()
+		if err != nil {
 			return err
 		}
 	}

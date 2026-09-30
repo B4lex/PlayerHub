@@ -34,6 +34,9 @@ typedef enum _skyrimmp_v1_LeaveReason {
 /* Struct definitions */
 typedef struct _skyrimmp_v1_Hello {
     uint32_t protocol_version;
+    /* The radius, in game units, within which this client wants peers; zero
+ for the server's. The server clamps it to its own range. */
+    uint32_t view_radius;
 } skyrimmp_v1_Hello;
 
 typedef struct _skyrimmp_v1_Enter {
@@ -191,7 +194,7 @@ extern "C" {
 
 
 /* Initializer values for message structs */
-#define skyrimmp_v1_Hello_init_default           {0}
+#define skyrimmp_v1_Hello_init_default           {0, 0}
 #define skyrimmp_v1_Enter_init_default           {0}
 #define skyrimmp_v1_Exit_init_default            {0}
 #define skyrimmp_v1_ChatSend_init_default        {0, ""}
@@ -208,7 +211,7 @@ extern "C" {
 #define skyrimmp_v1_PeerEquipment_init_default   {0, false, skyrimmp_v1_Equipment_init_default}
 #define skyrimmp_v1_ChatMessage_init_default     {0, "", 0, 0, ""}
 #define skyrimmp_v1_ServerMessage_init_default   {0, {skyrimmp_v1_Welcome_init_default}}
-#define skyrimmp_v1_Hello_init_zero              {0}
+#define skyrimmp_v1_Hello_init_zero              {0, 0}
 #define skyrimmp_v1_Enter_init_zero              {0}
 #define skyrimmp_v1_Exit_init_zero               {0}
 #define skyrimmp_v1_ChatSend_init_zero           {0, ""}
@@ -228,6 +231,7 @@ extern "C" {
 
 /* Field tags (for use in manual encoding/decoding) */
 #define skyrimmp_v1_Hello_protocol_version_tag   1
+#define skyrimmp_v1_Hello_view_radius_tag        2
 #define skyrimmp_v1_ChatSend_request_id_tag      1
 #define skyrimmp_v1_ChatSend_text_tag            2
 #define skyrimmp_v1_Ping_request_id_tag          1
@@ -281,7 +285,8 @@ extern "C" {
 
 /* Struct field encoding specification for nanopb */
 #define skyrimmp_v1_Hello_FIELDLIST(X, a) \
-X(a, STATIC,   SINGULAR, UINT32,   protocol_version,   1)
+X(a, STATIC,   SINGULAR, UINT32,   protocol_version,   1) \
+X(a, STATIC,   SINGULAR, UINT32,   view_radius,       2)
 #define skyrimmp_v1_Hello_CALLBACK NULL
 #define skyrimmp_v1_Hello_DEFAULT NULL
 
@@ -476,7 +481,7 @@ extern const pb_msgdesc_t skyrimmp_v1_ServerMessage_msg;
 #define skyrimmp_v1_ClientMessage_size           12933
 #define skyrimmp_v1_Enter_size                   0
 #define skyrimmp_v1_Exit_size                    0
-#define skyrimmp_v1_Hello_size                   6
+#define skyrimmp_v1_Hello_size                   12
 #define skyrimmp_v1_PeerAction_size              47
 #define skyrimmp_v1_PeerAppearance_size          8147
 #define skyrimmp_v1_PeerContext_size             304

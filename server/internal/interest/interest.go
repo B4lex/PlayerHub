@@ -19,10 +19,22 @@ type Config struct {
 	MinDwellSeconds float64
 	// How often the periodic pass reevaluates every pair.
 	UpdateHz float64
+	// Peers a viewer receives at most, nearest first; zero is no cap.
+	MaxVisible int
+	// A peer already in view keeps its place under the cap unless a newcomer
+	// is this much nearer.
+	CapHysteresis float64
+	// Peers farther than NearDistance get checkpoints at most FarRateHz; zero
+	// sends every checkpoint.
+	NearDistance float64
+	FarRateHz    float64
+	// Clients may ask for a smaller radius, down to this.
+	MinimumViewRadius float64
 }
 
 func DefaultConfig() Config {
-	return Config{EnterRadius: 8192, LeaveRadius: 9830, MinDwellSeconds: 1, UpdateHz: 5}
+	return Config{EnterRadius: 8192, LeaveRadius: 9830, MinDwellSeconds: 1, UpdateHz: 5, MaxVisible: 64,
+		CapHysteresis: 1024, NearDistance: 4096, FarRateHz: 10, MinimumViewRadius: 1024}
 }
 
 // Space is a coordinate space. Exteriors of one worldspace share
@@ -45,6 +57,9 @@ type View struct {
 	Slot  uint32
 	Space Space
 	X, Y  float64
+	// The enter radius this player asked for as a viewer; zero is the
+	// server's.
+	Radius float64
 }
 
 // Distance is horizontal: Skyrim loads cells as a horizontal grid, so height
@@ -90,13 +105,34 @@ func (r *Rules) Decide(viewer, target *View, subscribedAt, now time.Time) Verdic
 		}
 	}
 	distance := Distance(viewer, target)
+	enter, leave := r.Radii(viewer)
 	if subscribedAt.IsZero() {
-		return Verdict{Visible: distance <= r.config.EnterRadius}
+		return Verdict{Visible: distance <= enter}
 	}
-	if distance <= r.config.LeaveRadius || now.Sub(subscribedAt).Seconds() < r.config.MinDwellSeconds {
+	if distance <= leave || now.Sub(subscribedAt).Seconds() < r.config.MinDwellSeconds {
 		return Verdict{Visible: true}
 	}
 	return Verdict{Reason: pb.LeaveReason_LEAVE_REASON_OUT_OF_RANGE}
+}
+
+// Radii returns the viewer's enter and leave radius: its own request clamped
+// to the server's, with the server's ratio between them.
+func (r *Rules) Radii(viewer *View) (enter, leave float64) {
+	enter, leave = r.config.EnterRadius, r.config.LeaveRadius
+	if viewer.Radius > 0 && viewer.Radius < enter {
+		requested := max(viewer.Radius, r.config.MinimumViewRadius)
+		leave *= requested / enter
+		enter = requested
+	}
+	return enter, leave
+}
+
+// Interval is the least time between checkpoints of a target at distance.
+func (r *Rules) Interval(distance float64) time.Duration {
+	if r.config.FarRateHz <= 0 || distance <= r.config.NearDistance {
+		return 0
+	}
+	return time.Duration(float64(time.Second) / r.config.FarRateHz)
 }
 
 // Hidden is the admin rule that hides players from everyone: spectators and

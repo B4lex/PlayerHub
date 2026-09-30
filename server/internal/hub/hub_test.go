@@ -10,6 +10,7 @@ import (
 
 	"skyrim-mp/server/internal/clock"
 	"skyrim-mp/server/internal/delivery"
+	"skyrim-mp/server/internal/interest"
 	"skyrim-mp/server/internal/validate"
 	"skyrim-mp/server/internal/wire/pb"
 	"skyrim-mp/server/internal/world"
@@ -112,7 +113,7 @@ func (f *fixture) placeAt(slot uint32, sequence uint64, x int32) {
 func (f *fixture) received(slot uint32) []string {
 	f.t.Helper()
 	var b delivery.Batch
-	if !f.boxes[slot].Drain(&b) {
+	if ok, _ := f.boxes[slot].Drain(&b, f.clock.Now()); !ok {
 		f.t.Fatal("outbox closed")
 	}
 	var lines []string
@@ -446,4 +447,106 @@ func TestSpaceChangeLeavesAtOnceAndPlacesAgain(t *testing.T) {
 	expect(t, f.received(c), "enter 1 state 2")
 	expect(t, f.received(a), "enter 3 state 1")
 	f.reject(a, checkpointAt(2, 60), world.ErrStaleSequence)
+}
+
+func TestIdleCheckpointsAreSuppressedButAnchorsAreNot(t *testing.T) {
+	f := newFixture(t)
+	a, b := f.connect(), f.connect()
+	f.placeAt(b, 1, 0)
+	f.placeAt(a, 1, 10)
+	f.received(b)
+	f.send(a, checkpointAt(2, 10))
+	f.send(a, checkpointAt(3, 10))
+	f.hub.Tick()
+	expect(t, f.received(b))
+	f.send(a, action(1, 3))
+	expect(t, f.received(b), "states 1:3", "action 1:1")
+	f.send(a, checkpointAt(4, 10))
+	f.hub.Tick()
+	expect(t, f.received(b))
+	// A context change is applied by clients with the next checkpoint.
+	f.send(a, contextMessage(1, true))
+	f.send(a, checkpointAt(5, 10))
+	f.hub.Tick()
+	expect(t, f.received(b), "context 1 epoch 1", "states 1:5")
+	f.send(a, checkpointAt(6, 11))
+	f.hub.Tick()
+	expect(t, f.received(b), "states 1:6")
+}
+
+func newFixtureWith(t *testing.T, change func(*interest.Config)) *fixture {
+	c := clock.NewFake()
+	config := interest.DefaultConfig()
+	change(&config)
+	return &fixture{t: t, clock: c, hub: New(Options{Clock: c, Interest: config}), boxes: make(map[uint32]*delivery.Outbox)}
+}
+
+func TestCapKeepsTheNearestWithHysteresis(t *testing.T) {
+	f := newFixtureWith(t, func(c *interest.Config) { c.MaxVisible = 2 })
+	viewer := f.connect()
+	f.placeAt(viewer, 1, 0)
+	near, middle, far := f.connect(), f.connect(), f.connect()
+	f.placeAt(far, 1, 3000)
+	f.placeAt(middle, 1, 2000)
+	f.placeAt(near, 1, 1000)
+	f.hub.UpdateInterest()
+	// The first two fill the view at once; the third waits for the pass, and
+	// the dwell keeps both incumbents meanwhile.
+	expect(t, f.received(viewer), "welcome 1", "enter 4 state 1", "enter 3 state 1")
+	f.clock.Advance(1.5)
+	f.hub.UpdateInterest()
+	// The newcomer at 1000 is not 1024 nearer than the incumbent at 2000 - 1024,
+	// but it is than the one at 3000.
+	expect(t, f.received(viewer), "leave 4 OUT_OF_RANGE", "enter 2 state 1")
+	f.send(far, checkpointAt(2, 1500))
+	f.clock.Advance(1.5)
+	f.hub.UpdateInterest()
+	expect(t, f.received(viewer))
+	f.send(far, checkpointAt(3, 100))
+	f.hub.UpdateInterest()
+	expect(t, f.received(viewer), "leave 3 OUT_OF_RANGE", "enter 4 state 3")
+}
+
+func TestFarPeersAreWrittenAtTheirRate(t *testing.T) {
+	f := newFixture(t)
+	viewer, peer := f.connect(), f.connect()
+	f.placeAt(viewer, 1, 0)
+	f.placeAt(peer, 1, 6000)
+	f.received(viewer)
+	f.send(peer, checkpointAt(2, 6001))
+	f.hub.Tick()
+	expect(t, f.received(viewer), "states 2:2")
+	f.clock.Advance(0.05)
+	f.send(peer, checkpointAt(3, 6002))
+	f.hub.Tick()
+	expect(t, f.received(viewer))
+	f.clock.Advance(0.06)
+	expect(t, f.received(viewer), "states 2:3")
+	f.send(peer, checkpointAt(4, 3000))
+	f.hub.UpdateInterest()
+	f.hub.Tick()
+	expect(t, f.received(viewer), "states 2:4")
+	f.send(peer, checkpointAt(5, 3001))
+	f.hub.Tick()
+	expect(t, f.received(viewer), "states 2:5")
+}
+
+func TestEntersAreSpreadNearestFirst(t *testing.T) {
+	c := clock.NewFake()
+	f := &fixture{t: t, clock: c, boxes: make(map[uint32]*delivery.Outbox),
+		hub: New(Options{Clock: c, EntersPerSecond: 2})}
+	var peers []uint32
+	for i := range 4 {
+		p := f.connect()
+		f.placeAt(p, 1, int32(1000*(4-i)))
+		peers = append(peers, p)
+	}
+	viewer := f.connect()
+	f.placeAt(viewer, 1, 0)
+	expect(t, f.received(viewer), "welcome 5", "enter 4 state 1", "enter 3 state 1")
+	f.hub.UpdateInterest()
+	expect(t, f.received(viewer))
+	c.Advance(1)
+	f.hub.UpdateInterest()
+	expect(t, f.received(viewer), "enter 2 state 1", "enter 1 state 1")
 }

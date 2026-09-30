@@ -6,6 +6,7 @@ package hub
 import (
 	"errors"
 	"log/slog"
+	"math"
 	"slices"
 	"time"
 
@@ -38,8 +39,10 @@ type Options struct {
 	ActionBurst      float64
 	// Zero means interest.DefaultConfig.
 	Interest interest.Config
-	Recorder Recorder
-	Logger   *slog.Logger
+	// New subscriptions per viewer and second, nearest first; zero is no limit.
+	EntersPerSecond float64
+	Recorder        Recorder
+	Logger          *slog.Logger
 	// Called whenever something the admin panel shows changes.
 	OnChange func()
 }
@@ -50,22 +53,47 @@ type member struct {
 	outbox *delivery.Outbox
 	// Where the player is, while placed.
 	view interest.View
+	// The enter radius the client asked for, zero for the server's.
+	viewRadius float64
 
 	// Recipients subscribed to this player.
 	subscribers []*member
-	// Peers this player receives, with when each subscription began, and the
-	// presentation revisions it holds.
-	subscribed     map[uint32]time.Time
+	// Peers this player receives, and the presentation revisions it holds.
+	subscribed     map[uint32]*subscription
 	heldAppearance map[uint32]uint64
 	heldEquipment  map[uint32]uint64
 
 	// A checkpoint arrived since the last tick.
 	changed bool
+	// The last checkpoint handed to subscribers, to skip identical ones.
+	distributed *pb.Checkpoint
+	// The next checkpoint is distributed even if identical: it follows a
+	// context change, which clients only apply with a checkpoint.
+	forceNext bool
 	// The outbox received checkpoints this tick.
 	touched bool
 
 	actions limit.TokenBucket
 	chat    chatThrottle
+	// New subscriptions of this viewer, when limited.
+	enters limit.TokenBucket
+}
+
+type subscription struct {
+	since time.Time
+	// The least time between written checkpoints and the budget weight: the
+	// pair's rate class.
+	interval time.Duration
+	weight   float64
+}
+
+// candidate is a peer a viewer may receive in this interest pass.
+type candidate struct {
+	peer      *member
+	distance  float64
+	incumbent bool
+	// Still within its minimum time in view, so the cap cannot evict it.
+	pinned bool
 }
 
 type Hub struct {
@@ -81,6 +109,8 @@ type Hub struct {
 	grid   *interest.Grid
 	hidden interest.Hidden
 	pairs  interest.Pairs
+	// Reused by every interest pass.
+	candidates []candidate
 }
 
 func New(opts Options) *Hub {
@@ -114,7 +144,7 @@ func (h *Hub) Connect(kind world.Kind, outbox *delivery.Outbox) uint32 {
 	m := &member{
 		Player:         &world.Player{Slot: h.nextSlot, Kind: kind, ConnectedAt: h.opts.Clock.Now()},
 		outbox:         outbox,
-		subscribed:     make(map[uint32]time.Time),
+		subscribed:     make(map[uint32]*subscription),
 		heldAppearance: make(map[uint32]uint64),
 		heldEquipment:  make(map[uint32]uint64),
 	}
@@ -231,6 +261,14 @@ func (h *Hub) UpdateInterest() {
 		if r.Placed() {
 			h.evaluateViewer(r, now)
 		}
+	}
+}
+
+// SetViewRadius sets the enter radius a client asked for; the rules clamp it.
+func (h *Hub) SetViewRadius(slot uint32, radius float64) {
+	if m, ok := h.members[slot]; ok {
+		m.viewRadius = radius
+		m.view.Radius = radius
 	}
 }
 
@@ -372,6 +410,7 @@ func (h *Hub) setContext(m *member, c *pb.Context, message *pb.ClientMessage) er
 	}
 	h.record(m.Slot, message)
 	h.opts.OnChange()
+	m.forceNext = true
 	if change == world.ContextMoved {
 		// The stored position belonged to the old space; the next checkpoint
 		// places the player in the new one.
@@ -400,12 +439,20 @@ func (h *Hub) setCheckpoint(m *member, c *pb.Checkpoint, message *pb.ClientMessa
 	}
 	h.record(m.Slot, message)
 	h.opts.OnChange()
-	m.view = interest.View{Slot: m.Slot, Space: interest.SpaceOf(m.Context), X: float64(c.X), Y: float64(c.Y)}
+	m.view = interest.View{Slot: m.Slot, Space: interest.SpaceOf(m.Context), X: float64(c.X), Y: float64(c.Y),
+		Radius: m.viewRadius}
 	h.grid.Update(&m.view)
 	if !wasPlaced {
+		// PeerEnter carries this checkpoint.
+		m.distributed, m.forceNext = c, false
 		now := h.opts.Clock.Now()
 		h.evaluateTarget(m, now)
 		h.evaluateViewer(m, now)
+		return nil
+	}
+	// An idle player repeats the same sample; subscribers already hold it. An
+	// action still sends its anchor (AppendAnchored).
+	if !m.forceNext && sameSample(m.distributed, c) {
 		return nil
 	}
 	if !m.changed {
@@ -502,22 +549,147 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 }
 
 // evaluateViewer reevaluates the viewer's subscriptions and the players near
-// it.
+// it, applies the cap, and sets each pair's rate class.
 func (h *Hub) evaluateViewer(r *member, now time.Time) {
 	if r.outbox == nil {
 		return
 	}
-	for peer := range r.subscribed {
-		h.evaluatePair(r, h.members[peer], now)
-	}
-	if !r.Placed() {
-		return
-	}
-	h.grid.Near(&r.view, func(slot uint32) {
-		if _, subscribed := r.subscribed[slot]; !subscribed && slot != r.Slot {
-			h.evaluatePair(r, h.members[slot], now)
+	dwell := time.Duration(h.opts.Interest.MinDwellSeconds * float64(time.Second))
+	candidates := h.candidates[:0]
+	for slot, sub := range r.subscribed {
+		peer := h.members[slot]
+		if !h.keep(r, peer, sub, now) {
+			continue
 		}
+		candidates = append(candidates, candidate{peer: peer, distance: interest.Distance(&r.view, &peer.view),
+			incumbent: true, pinned: now.Sub(sub.since) < dwell})
+	}
+	if r.Placed() {
+		h.grid.Near(&r.view, func(slot uint32) {
+			if _, subscribed := r.subscribed[slot]; subscribed || slot == r.Slot {
+				return
+			}
+			peer := h.members[slot]
+			if peer.Placed() && h.rules.Decide(&r.view, &peer.view, time.Time{}, now).Visible {
+				candidates = append(candidates, candidate{peer: peer, distance: interest.Distance(&r.view, &peer.view)})
+			}
+		})
+	}
+	candidates = h.applyCap(r, candidates)
+	if h.opts.EntersPerSecond > 0 {
+		// Entering a crowd sends many appearances at once; the nearest go first
+		// and the rest follow over the next passes.
+		slices.SortStableFunc(candidates, func(a, b candidate) int {
+			switch {
+			case a.distance < b.distance:
+				return -1
+			case a.distance > b.distance:
+				return 1
+			}
+			return 0
+		})
+	}
+	for _, c := range candidates {
+		if !c.incumbent {
+			if !h.allowEnter(r, now) {
+				continue
+			}
+			h.subscribe(r, c.peer, now)
+		}
+		h.setRateClass(r, c.peer, c.distance)
+	}
+	clear(candidates)
+	h.candidates = candidates[:0]
+}
+
+// allowEnter spends one of the viewer's new subscriptions, when they are
+// limited.
+func (h *Hub) allowEnter(r *member, now time.Time) bool {
+	rate := h.opts.EntersPerSecond
+	return rate <= 0 || r.enters.Allow(now, rate, max(rate, 1))
+}
+
+// keep applies the rules to one existing subscription and ends it when they
+// say so.
+func (h *Hub) keep(r, peer *member, sub *subscription, now time.Time) bool {
+	if !r.Placed() || !peer.Placed() {
+		reason := pb.LeaveReason_LEAVE_REASON_EXITED
+		if !r.Placed() {
+			reason = pb.LeaveReason_LEAVE_REASON_VIEWER_UNPLACED
+		}
+		h.unsubscribe(r, peer, reason)
+		return false
+	}
+	if verdict := h.rules.Decide(&r.view, &peer.view, sub.since, now); !verdict.Visible {
+		h.unsubscribe(r, peer, verdict.Reason)
+		return false
+	}
+	return true
+}
+
+// applyCap keeps at most MaxVisible candidates, nearest first. Peers still
+// within their minimum time in view are never evicted, and a peer already in
+// view keeps its place unless a newcomer is CapHysteresis nearer.
+func (h *Hub) applyCap(r *member, candidates []candidate) []candidate {
+	limit := h.opts.Interest.MaxVisible
+	if limit <= 0 || len(candidates) <= limit {
+		return candidates
+	}
+	hysteresis := h.opts.Interest.CapHysteresis
+	key := func(c candidate) float64 {
+		if c.incumbent {
+			return c.distance - hysteresis
+		}
+		return c.distance
+	}
+	slices.SortFunc(candidates, func(a, b candidate) int {
+		if a.pinned != b.pinned {
+			if a.pinned {
+				return -1
+			}
+			return 1
+		}
+		switch ka, kb := key(a), key(b); {
+		case ka < kb:
+			return -1
+		case ka > kb:
+			return 1
+		}
+		return int(a.peer.Slot) - int(b.peer.Slot)
 	})
+	pinned := 0
+	for _, c := range candidates {
+		if c.pinned {
+			pinned++
+		}
+	}
+	limit = max(limit, pinned)
+	for _, c := range candidates[limit:] {
+		if c.incumbent {
+			h.unsubscribe(r, c.peer, pb.LeaveReason_LEAVE_REASON_OUT_OF_RANGE)
+		}
+	}
+	return candidates[:limit]
+}
+
+// Within this distance a waiting checkpoint has full priority under the
+// budget; beyond it the priority falls with distance, so the nearest peers
+// stay smooth when the budget is short.
+const fullPriorityDistance = 1024
+
+// setRateClass sets the pair's rate and, for the budget, the weight of its
+// waiting checkpoints, in eighths so it changes rarely.
+func (h *Hub) setRateClass(r, peer *member, distance float64) {
+	sub := r.subscribed[peer.Slot]
+	interval := h.rules.Interval(distance)
+	weight := 1.0
+	if distance > fullPriorityDistance {
+		weight = max(math.Round(fullPriorityDistance/distance*8), 1) / 8
+	}
+	if interval != sub.interval || weight != sub.weight {
+		sub.interval, sub.weight = interval, weight
+		r.outbox.SetClass(peer.Slot, interval, weight)
+	}
 }
 
 // evaluateTarget reevaluates the target's subscribers and the viewers near
@@ -543,28 +715,23 @@ func (h *Hub) evaluatePair(r, peer *member, now time.Time) {
 	if r.outbox == nil || r == peer {
 		return
 	}
-	subscribedAt, subscribed := r.subscribed[peer.Slot]
-	if !r.Placed() || !peer.Placed() {
-		if subscribed {
-			reason := pb.LeaveReason_LEAVE_REASON_EXITED
-			if !r.Placed() {
-				reason = pb.LeaveReason_LEAVE_REASON_VIEWER_UNPLACED
-			}
-			h.unsubscribe(r, peer, reason)
-		}
+	if sub, subscribed := r.subscribed[peer.Slot]; subscribed {
+		h.keep(r, peer, sub, now)
 		return
 	}
-	verdict := h.rules.Decide(&r.view, &peer.view, subscribedAt, now)
-	switch {
-	case verdict.Visible && !subscribed:
+	// A full view is left to the periodic pass, which ranks by distance.
+	if !r.Placed() || !peer.Placed() ||
+		(h.opts.Interest.MaxVisible > 0 && len(r.subscribed) >= h.opts.Interest.MaxVisible) {
+		return
+	}
+	if h.rules.Decide(&r.view, &peer.view, time.Time{}, now).Visible && h.allowEnter(r, now) {
 		h.subscribe(r, peer, now)
-	case !verdict.Visible && subscribed:
-		h.unsubscribe(r, peer, verdict.Reason)
+		h.setRateClass(r, peer, interest.Distance(&r.view, &peer.view))
 	}
 }
 
 func (h *Hub) subscribe(r, peer *member, now time.Time) {
-	r.subscribed[peer.Slot] = now
+	r.subscribed[peer.Slot] = &subscription{since: now, weight: 1}
 	peer.subscribers = append(peer.subscribers, r)
 	enter := &pb.PeerEnter{Slot: peer.Slot, Context: peer.Context, State: peer.Checkpoint}
 	if a := peer.Appearance; a != nil && a.GetRevision() > r.heldAppearance[peer.Slot] {
@@ -602,9 +769,11 @@ func (h *Hub) distribute(m *member) {
 		return
 	}
 	m.changed = false
+	m.distributed, m.forceNext = m.Checkpoint, false
 	sequence := m.Checkpoint.GetSequence()
+	now := h.opts.Clock.Now()
 	for _, r := range m.subscribers {
-		r.outbox.SetCheckpoint(m.Slot, sequence, m.Entry)
+		r.outbox.SetCheckpoint(m.Slot, sequence, m.Entry, now)
 		if !r.touched {
 			r.touched = true
 			h.touched = append(h.touched, r)
@@ -616,6 +785,12 @@ func (h *Hub) record(slot uint32, message *pb.ClientMessage) {
 	if h.opts.Recorder != nil {
 		h.opts.Recorder.Record(slot, message)
 	}
+}
+
+// sameSample compares everything but the sequence.
+func sameSample(a, b *pb.Checkpoint) bool {
+	return a != nil && a.X == b.X && a.Y == b.Y && a.Z == b.Z && a.Heading == b.Heading && a.Pitch == b.Pitch &&
+		a.Speed == b.Speed && a.Direction == b.Direction && a.Flags == b.Flags
 }
 
 func leaveMessage(slot uint32, reason pb.LeaveReason) []byte {

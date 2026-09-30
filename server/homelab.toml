@@ -1,0 +1,10 @@
+# A server on a 50 Mbit/s upload: egress stays under 80% of the link, and 32
+# visible peers keep the nearest ones smooth when 250 players crowd together.
+# Run with: go run ./cmd/server --config homelab.toml
+
+[interest]
+max_visible = 32
+
+[budget]
+enabled = true
+uplink_bytes_per_second = 6250000

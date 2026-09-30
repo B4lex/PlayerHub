@@ -50,7 +50,25 @@ enter_radius = 8192         # game units, horizontal
 leave_radius = 9830
 min_dwell_seconds = 1       # time in view before a peer can leave for range
 update_hz = 5               # periodic reevaluation; hard rules apply at once
+max_visible = 64            # peers per client, nearest first; 0 is no cap
+cap_hysteresis = 1024       # a newcomer must be this much nearer to displace a peer in view
+near_distance = 4096        # peers beyond it get far_rate_hz
+far_rate_hz = 10            # 0 sends every checkpoint to every peer
+minimum_view_radius = 1024  # the smallest radius a client may ask for
+
+[budget]
+enabled = false             # true for an uplink that cannot carry everything
+uplink_bytes_per_second = 6250000   # the link; 80% of it is used
+per_recipient_bytes_per_second = 0  # caps one client's share; 0 is an equal share only
+enters_per_second = 20      # new peers per client and second, nearest first
 ```
+
+For a homelab with a 50 Mbit/s upload, see `homelab.toml`: the budget on and
+32 visible peers, which keeps the nearest peers' p99 under 60 ms with 250
+players in one crowd.
+
+`--pprof` serves `net/http/pprof` under `/debug/pprof/` for profiling under
+loadgen.
 
 Unknown keys are an error, so a typo does not silently keep a default.
 
@@ -64,11 +82,12 @@ go run ./cmd/convert-recordings recordings
 ```
 
 - `cmd/loadgen` connects bots as real WebSocket clients, walking in a square
-  (`--spread`, `--speed`) or replaying a recording (`--recording`). Each bot
+  (`--spread`, `--speed`, `--idle` for a share standing still, `--view-radius`)
+  or replaying a recording (`--recording`). Each bot
   sends its send time in microseconds as the checkpoint sequence, so receivers
   on the same host measure latency across processes. It reports entries and
-  bytes received per second, latency percentiles, and with `--server-pid` the
-  server's CPU.
+  bytes received per second, latency percentiles overall and for peers within
+  `--near` (4096), and with `--server-pid` the server's CPU.
 - `cmd/convert-recordings` converts version 2 recordings, from the Python
   server, to version 3 in place and keeps each original as `<id>.v2`.
 - `../proto/generate.sh` regenerates `internal/wire/pb` and the plugin's

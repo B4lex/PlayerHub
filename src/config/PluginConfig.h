@@ -17,6 +17,9 @@ namespace Config
         std::string serverEndpoint;
         // Whether each game starts connected, rather than waiting for Connect.
         bool autoConnect{ true };
+        // Game units within which peers are wanted; zero leaves it to the
+        // server. Sent when connecting.
+        std::uint32_t viewRadius{ 0 };
 
         bool operator==(const NetworkSettings&) const = default;
     };

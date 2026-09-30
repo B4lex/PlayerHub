@@ -45,6 +45,9 @@ type options struct {
 	report     time.Duration
 	serverPID  int
 	worldspace uint32
+	idle       float64
+	viewRadius uint
+	near       float64
 }
 
 func main() {
@@ -60,6 +63,9 @@ func main() {
 	flag.Uint64Var(&o.seed, "seed", 1, "layout seed")
 	flag.DurationVar(&o.report, "report", 5*time.Second, "report interval")
 	flag.IntVar(&o.serverPID, "server-pid", 0, "report this local process's CPU use (Linux)")
+	flag.Float64Var(&o.idle, "idle", 0, "share of walking bots that stand still, repeating one checkpoint")
+	flag.UintVar(&o.viewRadius, "view-radius", 0, "view radius the bots ask for; 0 is the server's")
+	flag.Float64Var(&o.near, "near", 4096, "peers within this distance are reported as near")
 	flag.Parse()
 	o.worldspace = 60
 
@@ -114,20 +120,23 @@ func run(ctx context.Context, o options) error {
 	ticker := time.NewTicker(o.report)
 	defer ticker.Stop()
 	cpu := newCPUSampler(o.serverPID)
-	var total histogram
+	var total, totalNear histogram
 	for {
 		select {
 		case <-ctx.Done():
 			wg.Wait()
 			window, seconds := stats.take()
 			total.merge(&window.latency)
+			totalNear.merge(&window.near)
 			fmt.Println(stats.line(window, seconds, cpu.sample()))
-			fmt.Printf("total: latency p50 %s p99 %s max %s over %d entries\n",
-				total.quantile(0.5), total.quantile(0.99), total.max(), total.count)
+			fmt.Printf("total: latency p50 %s p99 %s max %s over %d entries; near p50 %s p99 %s over %d\n",
+				total.quantile(0.5), total.quantile(0.99), total.max(), total.count,
+				totalNear.quantile(0.5), totalNear.quantile(0.99), totalNear.count)
 			return nil
 		case <-ticker.C:
 			window, seconds := stats.take()
 			total.merge(&window.latency)
+			totalNear.merge(&window.near)
 			fmt.Println(stats.line(window, seconds, cpu.sample()))
 		}
 	}
@@ -142,6 +151,8 @@ type bot struct {
 	// The last sequence sent, and the virtual player's number it replaced.
 	lastSent    uint64
 	lastVirtual uint64
+	// The bot's own last position, to tell near peers from far ones.
+	x, y atomic.Int32
 }
 
 func (b *bot) connect(ctx context.Context) error {
@@ -153,7 +164,7 @@ func (b *bot) connect(ctx context.Context) error {
 	b.conn = conn
 	b.stats.connected.Add(1)
 	if err := b.send(ctx, &pb.ClientMessage{Message: &pb.ClientMessage_Hello{Hello: &pb.Hello{
-		ProtocolVersion: uint32(pb.Protocol_PROTOCOL_VERSION)}}}); err != nil {
+		ProtocolVersion: uint32(pb.Protocol_PROTOCOL_VERSION), ViewRadius: uint32(b.o.viewRadius)}}}); err != nil {
 		return err
 	}
 	go b.receive(ctx)
@@ -177,11 +188,15 @@ func (b *bot) stamp(c *pb.Checkpoint) {
 	b.lastVirtual = c.Sequence
 	b.lastSent = max(uint64(time.Now().UnixMicro()), b.lastSent+1)
 	c.Sequence = b.lastSent
+	b.x.Store(c.X)
+	b.y.Store(c.Y)
 }
 
 func (b *bot) receive(ctx context.Context) {
 	defer b.stats.connected.Add(-1)
-	var window histogram
+	var window, near, gaps histogram
+	// When each peer was last updated, to find the longest wait.
+	lastUpdate := make(map[uint32]time.Time)
 	flush := time.Now()
 	for {
 		_, data, err := b.conn.Read(ctx)
@@ -194,16 +209,31 @@ func (b *bot) receive(ctx context.Context) {
 		if proto.Unmarshal(data, &m) != nil {
 			continue
 		}
+		received := time.Now()
+		if enter := m.GetPeerEnter(); enter != nil {
+			lastUpdate[enter.Slot] = received
+		}
+		if leave := m.GetPeerLeave(); leave != nil {
+			delete(lastUpdate, leave.Slot)
+		}
 		for _, state := range m.GetPeerStates().GetStates() {
 			// Only stamped sequences are times; virtual players count from 1.
+			if last, ok := lastUpdate[state.Player]; ok {
+				gaps.add(received.Sub(last))
+			}
+			lastUpdate[state.Player] = received
 			if state.Sequence > 1_000_000_000_000_000 && state.Sequence <= now {
-				window.add(time.Duration(now-state.Sequence) * time.Microsecond)
+				latency := time.Duration(now-state.Sequence) * time.Microsecond
+				window.add(latency)
+				if math.Hypot(float64(state.X-b.x.Load()), float64(state.Y-b.y.Load())) <= b.o.near {
+					near.add(latency)
+				}
 			}
 		}
 		b.stats.entries.Add(int64(len(m.GetPeerStates().GetStates())))
 		if time.Since(flush) > 200*time.Millisecond {
-			b.stats.merge(&window)
-			window = histogram{}
+			b.stats.merge(&window, &near, &gaps)
+			window, near, gaps = histogram{}, histogram{}, histogram{}
 			flush = time.Now()
 		}
 	}
@@ -240,23 +270,28 @@ func (b *bot) walk(ctx context.Context) error {
 	interval := time.Duration(float64(time.Second) / b.o.rateHz)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	idle := float64(b.index%100) < b.o.idle*100
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
 		}
-		// Turn a little each step and away from the edge of the square.
-		heading += (random.Float64() - 0.5) * 0.3
-		step := b.o.speed * interval.Seconds()
-		nx, ny := x+math.Sin(heading)*step, y+math.Cos(heading)*step
-		if math.Abs(nx) > b.o.spread || math.Abs(ny) > b.o.spread {
-			heading += math.Pi
-			nx, ny = x, y
+		sample := wire.Sample{X: x, Y: y, Heading: heading, MovementState: pb.MovementState_MOVEMENT_STATE_IDLE}
+		if !idle {
+			// Turn a little each step and away from the edge of the square.
+			heading += (random.Float64() - 0.5) * 0.3
+			step := b.o.speed * interval.Seconds()
+			nx, ny := x+math.Sin(heading)*step, y+math.Cos(heading)*step
+			if math.Abs(nx) > b.o.spread || math.Abs(ny) > b.o.spread {
+				heading += math.Pi
+				nx, ny = x, y
+			}
+			x, y = nx, ny
+			sample = wire.Sample{X: x, Y: y, Heading: heading, Speed: b.o.speed,
+				MovementState: pb.MovementState_MOVEMENT_STATE_RUNNING}
 		}
-		x, y = nx, ny
-		c := wire.Quantize(wire.Sample{X: x, Y: y, Heading: heading, Speed: b.o.speed,
-			MovementState: pb.MovementState_MOVEMENT_STATE_RUNNING}, 0)
+		c := wire.Quantize(sample, 0)
 		b.stamp(c)
 		if err := b.send(ctx, &pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: c}}); err != nil {
 			return err
@@ -325,29 +360,34 @@ type stats struct {
 
 	mu      sync.Mutex
 	latency histogram
+	near    histogram
+	gaps    histogram
 	since   time.Time
 }
 
 type window struct {
 	sent, entries, bytes int64
-	latency              histogram
+	latency, near, gaps  histogram
 }
 
 func newStats() *stats {
 	return &stats{since: time.Now()}
 }
 
-func (s *stats) merge(h *histogram) {
+func (s *stats) merge(all, near, gaps *histogram) {
 	s.mu.Lock()
-	s.latency.merge(h)
+	s.latency.merge(all)
+	s.near.merge(near)
+	s.gaps.merge(gaps)
 	s.mu.Unlock()
 }
 
 func (s *stats) take() (window, float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	w := window{sent: s.sent.Swap(0), entries: s.entries.Swap(0), bytes: s.bytes.Swap(0), latency: s.latency}
-	s.latency = histogram{}
+	w := window{sent: s.sent.Swap(0), entries: s.entries.Swap(0), bytes: s.bytes.Swap(0), latency: s.latency,
+		near: s.near, gaps: s.gaps}
+	s.latency, s.near, s.gaps = histogram{}, histogram{}, histogram{}
 	seconds := time.Since(s.since).Seconds()
 	s.since = time.Now()
 	return w, seconds
@@ -359,6 +399,9 @@ func (s *stats) line(w window, seconds float64, cpu string) string {
 		fmt.Sprintf("sent %.0f/s", float64(w.sent)/seconds),
 		fmt.Sprintf("received %.0f entries/s %.2f MB/s", float64(w.entries)/seconds, float64(w.bytes)/seconds/1e6),
 		fmt.Sprintf("latency p50 %s p99 %s max %s", w.latency.quantile(0.5), w.latency.quantile(0.99), w.latency.max()),
+		fmt.Sprintf("near p99 %s", w.near.quantile(0.99)),
+		// The histogram saturates at 2 s.
+		fmt.Sprintf("update gap p99 %s max %s", w.gaps.quantile(0.99), w.gaps.max()),
 	}
 	if cpu != "" {
 		parts = append(parts, "server CPU "+cpu)

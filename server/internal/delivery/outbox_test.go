@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -35,7 +36,7 @@ func appearance(peer uint32, revision uint64) []byte {
 func written(t *testing.T, o *Outbox) []string {
 	t.Helper()
 	var b Batch
-	if !o.Drain(&b) {
+	if ok, _ := o.Drain(&b, time.Now()); !ok {
 		t.Fatal("drain refused")
 	}
 	var lines []string
@@ -90,20 +91,25 @@ func expect(t *testing.T, got []string, want ...string) {
 	}
 }
 
+// set gives the outbox the peer's checkpoint with that sequence.
+func set(o *Outbox, peer uint32, sequence uint64) {
+	o.SetCheckpoint(peer, sequence, entry(peer, sequence), time.Now())
+}
+
 func TestLatestWinsCheckpointsShareOneBatch(t *testing.T) {
 	o := NewOutbox(16)
-	o.SetCheckpoint(1, 1, entry(1, 1))
-	o.SetCheckpoint(1, 2, entry(1, 2))
-	o.SetCheckpoint(2, 5, entry(2, 5))
+	set(o, 1, 1)
+	set(o, 1, 2)
+	set(o, 2, 5)
 	expect(t, written(t, o), "states A:2 B:5")
 }
 
 func TestOrderedMessageIsNotOvertakenByItsPeersCheckpoint(t *testing.T) {
 	o := NewOutbox(16)
-	o.SetCheckpoint(1, 3, entry(1, 3))
-	o.SetCheckpoint(2, 4, entry(2, 4))
+	set(o, 1, 3)
+	set(o, 2, 4)
 	o.AppendAnchored(1, 3, 3, entry(1, 3), action(1, 1))
-	o.SetCheckpoint(1, 5, entry(1, 5))
+	set(o, 1, 5)
 	expect(t, written(t, o), "states A:3", "action A:1", "states A:5 B:4")
 }
 
@@ -118,7 +124,7 @@ func TestAnchorIsForcedWhenTheRecipientHoldsAnOlderCheckpoint(t *testing.T) {
 
 func TestLeaveDiscardsThePendingCheckpoint(t *testing.T) {
 	o := NewOutbox(16)
-	o.SetCheckpoint(1, 3, entry(1, 3))
+	set(o, 1, 3)
 	o.Leave(1, leave(1))
 	expect(t, written(t, o), "leave A")
 	if o.Queued(1) != 0 {
@@ -149,14 +155,14 @@ func TestOverflowRefusesTheDrain(t *testing.T) {
 		o.AppendGlobal(action(1, i+1))
 	}
 	var b Batch
-	if o.Drain(&b) {
+	if ok, _ := o.Drain(&b, time.Now()); ok {
 		t.Fatal("overflowed outbox drained")
 	}
 }
 
 func TestSignalOnlyForOrderedTraffic(t *testing.T) {
 	o := NewOutbox(4)
-	o.SetCheckpoint(1, 1, entry(1, 1))
+	set(o, 1, 1)
 	select {
 	case <-o.Ready():
 		t.Fatal("checkpoint signalled")

@@ -402,9 +402,9 @@ namespace Network::Wire
         }
     }
 
-    std::string EncodeHello()
+    std::string EncodeHello(std::uint32_t a_viewRadius)
     {
-        skyrimmp_v1_Hello hello{ skyrimmp_v1_Protocol_PROTOCOL_VERSION };
+        skyrimmp_v1_Hello hello{ skyrimmp_v1_Protocol_PROTOCOL_VERSION, a_viewRadius };
         return EncodeClientMessage(skyrimmp_v1_ClientMessage_hello_tag, skyrimmp_v1_Hello_fields, &hello);
     }
 

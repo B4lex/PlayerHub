@@ -56,7 +56,7 @@ refused at the handshake ([Transport](#transport)).
 - `[Network] ServerEndpoint` keeps its `http://` or `https://` form; the client
   maps it to `ws://` or `wss://` and appends `/ws` when the endpoint has no
   path. TLS is terminated by a reverse proxy in front of the server.
-- The first client message must be `Hello{protocol_version}` within
+- The first client message must be `Hello{protocol_version, view_radius}` within
   `limits.hello_timeout_seconds` (5). A version other than
   `Protocol.PROTOCOL_VERSION` (1) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008.
@@ -77,7 +77,7 @@ refused at the handshake ([Transport](#transport)).
 
 | Message | Handling |
 | --- | --- |
-| `Hello` | Handshake, above |
+| `Hello` | Handshake, above. `view_radius` is the client's `[Network] ViewRadius` in game units, 0 for the server's ([Interest and delivery](interest-and-delivery.md#subscriptions)) |
 | `Enter`, `Exit` | World presence. `Exit` when not in the world does nothing |
 | `Context` | A checkpoint's space and graph epoch ([below](#checkpoint-and-context)) |
 | `Checkpoint` | One quantized sample |

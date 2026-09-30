@@ -23,7 +23,7 @@
 // does, so nothing invalid reaches the queues.
 namespace Network::Wire
 {
-    [[nodiscard]] std::string EncodeHello();
+    [[nodiscard]] std::string EncodeHello(std::uint32_t a_viewRadius);
     [[nodiscard]] std::string EncodeEnter();
     [[nodiscard]] std::string EncodeExit();
     [[nodiscard]] std::string EncodeContext(const CheckpointContext& a_context);

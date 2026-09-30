@@ -60,6 +60,7 @@ takes the setting's item filter
 | --- | --- | --- |
 | `ServerEndpoint` | Server URL starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; replaces `skyrim-mp-server.txt`, which is no longer read | the public server |
 | `AutoConnect` | Whether each game connects when it loads; otherwise the settings window's Connect does | `true` |
+| `ViewRadius` | Game units within which other players are shown, `0..100000`; sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection | `0`, the server's range |
 
 ### `[DefaultOutfit]`
 

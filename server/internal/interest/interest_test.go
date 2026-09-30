@@ -99,3 +99,22 @@ func TestGridFindsNeighboursOnly(t *testing.T) {
 		t.Fatalf("after moves %v", near)
 	}
 }
+
+func TestViewerRadiusAndRateClasses(t *testing.T) {
+	rules := NewRules(DefaultConfig())
+	now := time.Unix(100, 0)
+	viewer := &View{Slot: 1, Space: Space{Worldspace: 60}, Radius: 2048}
+	target := &View{Slot: 2, Space: Space{Worldspace: 60}, X: 3000}
+	if rules.Decide(viewer, target, time.Time{}, now).Visible {
+		t.Fatal("entered beyond the viewer's own radius")
+	}
+	if enter, leave := rules.Radii(&View{Radius: 100}); enter != 1024 || leave != 9830.0/8192*1024 {
+		t.Fatalf("radius not clamped: %v %v", enter, leave)
+	}
+	if enter, _ := rules.Radii(&View{Radius: 50000}); enter != 8192 {
+		t.Fatalf("radius above the server's: %v", enter)
+	}
+	if rules.Interval(4000) != 0 || rules.Interval(5000) != 100*time.Millisecond {
+		t.Fatal("rate classes")
+	}
+}

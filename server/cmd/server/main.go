@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,6 +16,7 @@ import (
 
 	"skyrim-mp/server/internal/admin"
 	"skyrim-mp/server/internal/config"
+	"skyrim-mp/server/internal/delivery"
 	"skyrim-mp/server/internal/hub"
 	"skyrim-mp/server/internal/interest"
 	"skyrim-mp/server/internal/loadtest"
@@ -27,6 +29,7 @@ func main() {
 	configPath := flag.String("config", "", "TOML configuration file; defaults apply when omitted")
 	listen := flag.String("listen", "", "address to listen on, overriding the configuration")
 	verbose := flag.Bool("verbose", false, "log debug messages")
+	profile := flag.Bool("pprof", false, "serve net/http/pprof under /debug/pprof/")
 	flag.Parse()
 
 	level := slog.LevelInfo
@@ -46,13 +49,13 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, c, log); err != nil {
+	if err := run(ctx, c, log, *profile); err != nil {
 		log.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, c config.Config, log *slog.Logger) error {
+func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) error {
 	// The feed is built from everything below, so changes reach it late.
 	var feed *admin.Feed
 	changed := func() {
@@ -63,14 +66,26 @@ func run(ctx context.Context, c config.Config, log *slog.Logger) error {
 
 	store := recording.NewStore(c.RecordingsDirectory, log)
 	captures := recording.NewCaptures(store, log, changed)
+	sessions := session.NewServer(nil, c, log)
+	var entersPerSecond float64
+	if c.Budget.Enabled {
+		sessions.UseBudget(delivery.NewBudget(c.Budget.UplinkBytesPerSecond, c.Budget.PerRecipientBytesPerSecond))
+		entersPerSecond = c.Budget.EntersPerSecond
+	}
 	h := hub.New(hub.Options{
+		EntersPerSecond:  entersPerSecond,
 		ActionsPerSecond: c.Limits.ActionsPerSecond,
 		ActionBurst:      c.Limits.ActionBurst,
 		Interest: interest.Config{
-			EnterRadius:     c.Interest.EnterRadius,
-			LeaveRadius:     c.Interest.LeaveRadius,
-			MinDwellSeconds: c.Interest.MinDwellSeconds,
-			UpdateHz:        c.Interest.UpdateHz,
+			EnterRadius:       c.Interest.EnterRadius,
+			LeaveRadius:       c.Interest.LeaveRadius,
+			MinDwellSeconds:   c.Interest.MinDwellSeconds,
+			UpdateHz:          c.Interest.UpdateHz,
+			MaxVisible:        c.Interest.MaxVisible,
+			CapHysteresis:     c.Interest.CapHysteresis,
+			NearDistance:      c.Interest.NearDistance,
+			FarRateHz:         c.Interest.FarRateHz,
+			MinimumViewRadius: c.Interest.MinimumViewRadius,
 		},
 		Recorder: captures,
 		Logger:   log,
@@ -91,7 +106,8 @@ func run(ctx context.Context, c config.Config, log *slog.Logger) error {
 	go feed.Run(loopContext)
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /ws", session.NewServer(loop, c, log))
+	sessions.SetLoop(loop)
+	mux.Handle("GET /ws", sessions)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
@@ -100,6 +116,10 @@ func run(ctx context.Context, c config.Config, log *slog.Logger) error {
 	mux.Handle("GET /api/events", feed)
 	mux.Handle("GET /admin/", admin.UI(c.AdminUIDirectory))
 	mux.Handle("GET /admin", http.RedirectHandler("/admin/", http.StatusMovedPermanently))
+	if profile {
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	}
 
 	server := &http.Server{
 		Addr:              c.Listen,

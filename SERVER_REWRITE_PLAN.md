@@ -1,7 +1,8 @@
 # Server rewrite plan: interest-filtered delivery
 
-Status: phases 0–2 implemented 2026-09-30 and awaiting the Windows build and
-the in-game checks. Phase 3 in progress. Written 2026-09-29 from
+Status: phases 0–4 implemented 2026-09-30 and verified on Linux (server tests,
+loadgen, the plugin's network layer against the server); the Windows build and
+the in-game checks of every phase remain. Written 2026-09-29 from
 code review and benchmarks run that day; [gaps](#gaps-resolved-before-execution)
 found in a second review on 2026-09-30 are resolved below and folded into the
 phases. This file is a work plan, not a spec: when a phase
@@ -568,6 +569,9 @@ Checks:
 
 ### Phase 3: caps, idle suppression, view radius
 
+Implemented 2026-09-30 and described in `specs/interest-and-delivery.md`. The
+cap's default (64) is provisional until the in-game frame-cost measurement.
+
 - `interest.max_visible`, nearest first. The default comes from measuring
   client frame cost in game with many remote actors, not from bandwidth.
 - Idle suppression: the hub skips an entry whose quantized bytes, apart from
@@ -586,6 +590,11 @@ Checks:
   delayed, and far peers still move smoothly at the lower rate.
 
 ### Phase 4: budget scheduler
+
+Implemented 2026-09-30 (`[budget]`, `server/homelab.toml`) and measured with
+loadgen; see `specs/interest-and-delivery.md#budget`. With 64 visible peers the
+nearest peers' p99 is 68 ms at 250 players in one crowd; the homelab example
+uses 32, which gives 54 ms.
 
 Required on the homelab at 250 players; a safety net on 1 Gbit/s.
 
