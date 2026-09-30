@@ -1,11 +1,9 @@
-// Wire types of the server's admin API (server/src/server/admin/schemas.py).
+// Wire types of the server's admin API (server/internal/admin).
 
 export type RecordingStatus = "recording" | "complete" | "interrupted";
 export type PlaybackStatus = "playing" | "paused" | "ended";
 export type BatchStatus = "starting" | "running" | "paused";
 export type BotStatus = "pending" | "playing" | "paused" | "failed";
-/** `virtual`: replayed inside the server. `socket`: a loopback Socket.IO client per bot. */
-export type BatchTransport = "virtual" | "socket";
 export type MarkerKind = "attack" | "appearance" | "equipment" | "weapon" | "furniture" | "area";
 
 export interface Position {
@@ -26,6 +24,8 @@ export interface Player {
   worldspaceId: number | null;
   position: Position | null;
   movementState: string | null;
+  /** Peers this player receives. */
+  visible: number;
   /** The recording being captured from this player, if any. */
   recordingId: string | null;
   /** The replay this virtual player belongs to. */
@@ -66,7 +66,8 @@ export interface Playback {
 
 export interface BatchSettings {
   players: number;
-  transport: BatchTransport;
+  /** Bots are always replayed inside the server; cmd/loadgen runs networked ones. */
+  transport: "virtual";
   seed: number;
   /** Share of the spacing between bots that each may be moved by, 0 to 1. */
   jitter: number;
@@ -142,7 +143,6 @@ export interface PlaybackSettings {
 export interface CreateBatchRequest {
   recordingId: string;
   players: number;
-  transport?: BatchTransport;
   /** Omit for a random one; the batch reports the seed it used. */
   seed?: number;
   jitter?: number;

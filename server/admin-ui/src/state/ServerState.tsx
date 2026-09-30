@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { connectAdminSocket, type ConnectionStatus } from "../api/socket";
+import { connectAdminFeed, type ConnectionStatus } from "../api/feed";
 import type { AdminState, Batch, Player, Playback, Recording, ServerInfo } from "../api/types";
 import { newerPlayback } from "../lib/playbackClock";
 
@@ -50,7 +50,7 @@ export function ServerStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(
     () =>
-      connectAdminSocket({
+      connectAdminFeed({
         onStatus: setConnection,
         onState: (state) => {
           const receivedAt = performance.now();
