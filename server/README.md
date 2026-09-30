@@ -44,6 +44,12 @@ hello_timeout_seconds = 5
 [liveness]
 ping_interval_seconds = 5   # WebSocket pings, answered by the client's transport thread
 timeout_seconds = 10
+
+[interest]
+enter_radius = 8192         # game units, horizontal
+leave_radius = 9830
+min_dwell_seconds = 1       # time in view before a peer can leave for range
+update_hz = 5               # periodic reevaluation; hard rules apply at once
 ```
 
 Unknown keys are an error, so a typo does not silently keep a default.
@@ -77,6 +83,7 @@ go run ./cmd/convert-recordings recordings
 | `internal/session` | WebSocket accept, hello, reader, writer, liveness, limits |
 | `internal/validate` | Field validation of client messages |
 | `internal/hub` | The one goroutine that owns world state, subscriptions, and delivery order |
+| `internal/interest` | Interest rules, exclusions, spatial grid |
 | `internal/world` | Player state and ordering rules, name indexes |
 | `internal/delivery` | Per-recipient outboxes and batch writing |
 | `internal/wire` | Hand-written encoding of hot messages, quantization, generated `pb` |
@@ -105,6 +112,8 @@ snapshot on connect and after changes, at most twice a second.
 | `POST /api/playbacks/{id}/seek` `{positionMs}` | Jump to a time |
 | `PATCH /api/playbacks/{id}` `{rate?, loop?}` | Speed (0.1 to 4) and looping |
 | `DELETE /api/playbacks/{id}` | Stop a replay and remove its virtual player |
+| `PUT /api/players/{id}/hidden` `{hidden}` | Hide a player from everyone, or show it again |
+| `POST /api/exclusions`, `DELETE /api/exclusions` `{viewerId, targetId}` | Add or lift a directed exclusion |
 | `POST /api/batches` `{recordingId, players, seed?, jitter?, rateSpread?, rampUpSeconds?}` | Start a batch of in-server bots (1 to 500) |
 | `POST /api/batches/{id}/pause`, `/resume` | Pause or resume every bot |
 | `DELETE /api/batches/{id}` | Stop a batch and remove its bots |

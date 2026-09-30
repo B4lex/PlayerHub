@@ -1,7 +1,7 @@
 # Server rewrite plan: interest-filtered delivery
 
-Status: phases 0 and 1 implemented 2026-09-30; phase 1 awaits the Windows
-build and the in-game checks. Phase 2 in progress. Written 2026-09-29 from
+Status: phases 0–2 implemented 2026-09-30 and awaiting the Windows build and
+the in-game checks. Phase 3 in progress. Written 2026-09-29 from
 code review and benchmarks run that day; [gaps](#gaps-resolved-before-execution)
 found in a second review on 2026-09-30 are resolved below and folded into the
 phases. This file is a work plan, not a spec: when a phase
@@ -534,6 +534,9 @@ Checks:
   quantization causes no visible jitter in position or heading.
 
 ### Phase 2: interest and exclusions
+
+Implemented 2026-09-30 and described in `specs/interest-and-delivery.md`; hub
+tests and the loadgen scenarios below ran on Linux. In-game checks remain.
 
 - `interest` with the rule interface, the [first exclusion rules](#rule-interface),
   distance with separate enter and leave radii (defaults 8192 enter, 9830 leave,

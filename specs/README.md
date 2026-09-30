@@ -10,7 +10,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | --- | --- | --- |
 | [sync-pipeline.md](sync-pipeline.md) | Main-loop pass, game thread, peer receive state, checkpoint publishing, world presence, actor lifecycle | `src/runtime/`, `src/sync/` (top level, `presence/`) |
 | [network.md](network.md) | Wire protocol, client transport and connection, server sessions and validation | `proto/`, `src/protocol/`, `src/network/`, `server/internal/{session,validate,wire,world}` |
-| [interest-and-delivery.md](interest-and-delivery.md) | Which peers each client receives, per-recipient outboxes, ordering, batching | `server/internal/{hub,delivery}` |
+| [interest-and-delivery.md](interest-and-delivery.md) | Which peers each client receives, exclusions, per-recipient outboxes, ordering, batching | `server/internal/{interest,hub,delivery}` |
 | [remote-actor.md](remote-actor.md) | Spawn, update order, registry, animation firewall, graph recovery, survival, combat and reaction isolation, world isolation | `src/actor/` |
 | [locomotion.md](locomotion.md) | Transform, movement state, direction, turning, jumps, swimming | `sync/movement/`, `sync/animation/`, `actor/ActorMovement`, `actor/ActorAnimation` |
 | [combat-presentation.md](combat-presentation.md) | Weapon stance, attack action stream, power attacks, bashes, blocking, bow draws, spell casts | `sync/combat/`, `actor/ActorAnimation` |
@@ -41,7 +41,7 @@ criteria.
 | Combat and reaction isolation | [remote-actor](remote-actor.md#combat-isolation) |
 | World isolation and collision | [remote-actor](remote-actor.md#world-isolation), [native-interactions](native-interactions.md#collision) |
 | Connection, latency, traffic | [network](network.md#connection), [ui-overlay](ui-overlay.md#status-panel) |
-| Late join, peer enter and leave, batching | [interest-and-delivery](interest-and-delivery.md), [network](network.md#server-messages), [sync-pipeline](sync-pipeline.md#receive-state) |
+| Proximity, exclusions, late join, peer enter and leave, batching | [interest-and-delivery](interest-and-delivery.md), [network](network.md#server-messages), [sync-pipeline](sync-pipeline.md#receive-state) |
 | Chat | [ui-overlay](ui-overlay.md#chat), [network](network.md#chat) |
 | Settings | [ui-overlay](ui-overlay.md#settings-window), [configuration](configuration.md) |
 | Item picker and preview | [ui-overlay](ui-overlay.md#item-picker), [appearance-and-equipment](appearance-and-equipment.md#item-filter-and-catalog) |
