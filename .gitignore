@@ -22,3 +22,7 @@ deploy_dirs/*
 
 *.log
 scripts/
+
+# Go server binaries
+/server/server
+/server/*.exe
