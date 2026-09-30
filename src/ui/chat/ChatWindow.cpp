@@ -35,7 +35,9 @@ namespace UI
         constexpr float kOpenBackgroundAlpha = 0.6F;
         constexpr float kRecentBackgroundAlpha = 0.25F;
 
-        constexpr ImVec4 kSenderColor{ 0.95F, 0.80F, 0.45F, 1.0F };
+        constexpr ImVec4 kGlobalSenderColor{ 0.95F, 0.80F, 0.45F, 1.0F };
+        constexpr ImVec4 kLocalSenderColor{ 0.60F, 0.95F, 0.35F, 1.0F };
+        constexpr ImVec4 kWhisperSenderColor{ 0.78F, 0.56F, 1.0F, 1.0F };
         constexpr ImVec4 kTextColor{ 0.92F, 0.92F, 0.92F, 1.0F };
         constexpr ImVec4 kNoticeColor{ 0.95F, 0.55F, 0.40F, 1.0F };
 
@@ -47,6 +49,7 @@ namespace UI
         struct HistoryLine
         {
             ChatSync::LineKind kind{ ChatSync::LineKind::kPlayer };
+            Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kGlobal };
             // The sender and a colon; empty for notices.
             std::string label;
             std::string text;
@@ -65,11 +68,25 @@ namespace UI
             return static_cast<float>(std::clamp(remaining / kRecentFadeSeconds, 0.0, 1.0));
         }
 
+        const ImVec4& GetSenderColor(Multiplayer::ChatChannel a_channel)
+        {
+            switch (a_channel)
+            {
+                case Multiplayer::ChatChannel::kLocal:
+                    return kLocalSenderColor;
+                case Multiplayer::ChatChannel::kWhisper:
+                    return kWhisperSenderColor;
+                case Multiplayer::ChatChannel::kGlobal:
+                    break;
+            }
+            return kGlobalSenderColor;
+        }
+
         void DrawLine(const HistoryLine& a_line, float a_alpha)
         {
             if (a_line.kind == ChatSync::LineKind::kPlayer)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, WithAlpha(kSenderColor, a_alpha));
+                ImGui::PushStyleColor(ImGuiCol_Text, WithAlpha(GetSenderColor(a_line.channel), a_alpha));
                 ImGui::TextUnformatted(a_line.label.c_str(), a_line.label.c_str() + a_line.label.size());
                 ImGui::PopStyleColor();
                 ImGui::SameLine();
@@ -133,6 +150,7 @@ namespace UI
                     }
                     const bool fromPlayer = line.kind == ChatSync::LineKind::kPlayer;
                     history.push_back(HistoryLine{ .kind = line.kind,
+                        .channel = line.channel,
                         .label = fromPlayer ? std::move(line.sender) + ":" : std::string{},
                         .text = std::move(line.text),
                         .receivedAt = a_now });

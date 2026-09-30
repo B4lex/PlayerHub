@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http/httptest"
@@ -167,7 +168,7 @@ func TestProtocolMismatchIsRefused(t *testing.T) {
 	c := dial(t, s)
 	c.send(hello(99))
 	code, reason := closeStatus(t, c)
-	if code != StatusProtocolMismatch || reason != "protocol 1" {
+	if want := fmt.Sprintf("protocol %d", pb.Protocol_PROTOCOL_VERSION); code != StatusProtocolMismatch || reason != want {
 		t.Fatalf("got %d %q", code, reason)
 	}
 }

@@ -74,7 +74,7 @@ refused at the handshake ([Transport](#transport)).
   (`STATUS_DLL_NOT_FOUND`).
 - The first client message must be `Hello{protocol_version, view_radius}` within
   `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (1) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (2) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008.
 - The server answers a hello with `Welcome{slot}`. Slots are `uint32` from a
   counter that only rises and are never reused within a server run, so a slot
@@ -99,7 +99,7 @@ refused at the handshake ([Transport](#transport)).
 | `Checkpoint` | One quantized sample |
 | `Action` | One attack ([Actions](#actions)) |
 | `Appearance`, `Equipment` | Latest-wins presentation ([below](#appearance-and-equipment)) |
-| `ChatSend` | `{request_id, text}`, answered with a `Result` |
+| `ChatSend` | `{request_id, text, channel}`, answered with a `Result` ([Chat](#chat)) |
 | `Ping` | `{request_id}`, answered with `Result{ok}` by the session at once; the latency probe |
 
 A rejected message is dropped and logged on the server (at most one summary
@@ -235,7 +235,7 @@ same list.
 | `PeerContext` | `slot`, `context` |
 | `PeerLeave` | `slot`, `reason`: `OUT_OF_RANGE`, `EXCLUDED`, `EXITED`, `DISCONNECTED`, `VIEWER_UNPLACED` |
 | `PeerAction`, `PeerAppearance` (with `name_index`), `PeerEquipment` | `slot` and the message |
-| `ChatMessage` | `slot`, `name`, `name_index`, `level`, `text` |
+| `ChatMessage` | `channel`, `sender`, `recipient` (whisper only), `text`; a `ChatSpeaker` is `slot`, `name`, `name_index`, `level` |
 
 When each is sent and in what order is
 [Interest and delivery](interest-and-delivery.md#ordering).
@@ -264,16 +264,36 @@ in the label.
 
 ### Chat
 
-- The server trims surrounding spaces and rejects empty text, control
-  characters, and more than 512 UTF-8 bytes (`invalid chat message`); protobuf
-  already guarantees valid UTF-8.
-- 5 accepted messages per player in any 5 s (`rate limited`); rejected messages
-  do not count, and a disconnect forgets the history.
-- `ChatMessage` goes to every connected client, the sender included, so
-  everyone sees one order and the sender's own line confirms delivery. `name`,
-  `name_index`, and `level` come from the sender's latest appearance (empty,
-  `1`, and `0` before one).
-- Chat does not require being in the world, ignores interest rules, keeps no
+`ChatChannel` is `GLOBAL` (0), `LOCAL`, or `WHISPER`.
+
+- The server trims surrounding spaces and rejects an unknown channel, empty
+  text, control characters, and more than 512 UTF-8 bytes
+  (`invalid chat message`); protobuf already guarantees valid UTF-8.
+- `GLOBAL` goes to every connected client.
+- `LOCAL` needs a placed sender (`not in world` otherwise) and goes to every
+  placed client in the same space: in a worldspace within `chat.local_radius`
+  (8192, horizontal like interest), and in an interior to the whole cell. It
+  ignores exclusions, hiding, and the visible cap, which govern presentation
+  only. Recipients are found by a scan of connected clients, which the rate
+  limit keeps cheap; the interest grid does not bound an interior.
+- `WHISPER` text starts with the recipient: `world.Names.Find` takes the
+  longest name of a connected player, compared case-insensitively and followed
+  by a space or the end, then an optional ` #N` for its
+  [name index](#name-index) (1 without one). Longest-first lets names contain
+  spaces. No match, a missing index, or a replay or bot is
+  `unknown recipient`; nothing after the name is `empty whisper`. The relayed
+  `text` is the message after the name, and the whisper goes to the sender and
+  the recipient (once when they are the same).
+- 5 accepted messages per player in any 5 s over all channels
+  (`rate limited`); rejected messages do not count, and a disconnect forgets
+  the history.
+- Every channel includes the sender, so everyone sees one order and the
+  sender's own line confirms delivery. A `ChatSpeaker` comes from the player's
+  latest appearance (empty name, index `1`, and level `0` before one).
+- The client rejects a `ChatMessage` without a sender, with an unknown channel,
+  or with a recipient present exactly when the channel is not `WHISPER`, and
+  validates speakers like appearance names and text like `ChatSend`.
+- Chat does not require being in the world except for `LOCAL`, keeps no
   history, and is not recorded. The client side is in
   [UI overlay](ui-overlay.md#chat).
 
@@ -297,7 +317,9 @@ in the label.
   context, checkpoint, and action stream; with `DISCONNECTED` it also forgets
   its presentation. Actions are queued in order and a gap is rejected.
 - `ChatMessage` payloads are queued, at most 128, dropping the oldest, and
-  kept across a lost connection.
+  kept across a lost connection. The transport marks a message `outgoing` when
+  its sender is the connection's own slot, so a whisper can show its
+  direction.
 
 ### Latest-wins publishers
 

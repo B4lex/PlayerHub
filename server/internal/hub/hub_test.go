@@ -91,7 +91,15 @@ func equipment(revision uint64) *pb.ClientMessage {
 }
 
 func chat(id uint32, text string) *pb.ClientMessage {
-	return &pb.ClientMessage{Message: &pb.ClientMessage_Chat{Chat: &pb.ChatSend{RequestId: id, Text: text}}}
+	return chatOn(pb.ChatChannel_CHAT_CHANNEL_GLOBAL, id, text)
+}
+
+func chatOn(channel pb.ChatChannel, id uint32, text string) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Chat{Chat: &pb.ChatSend{RequestId: id, Text: text, Channel: channel}}}
+}
+
+func interior(epoch uint64, cell uint32) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{CellId: cell, GraphEpoch: epoch}}}
 }
 
 // place puts the player in the world with a context and a checkpoint.
@@ -166,7 +174,12 @@ func describe(m *pb.ServerMessage) string {
 		return fmt.Sprintf("equipment %d:%d", body.PeerEquipment.Slot, body.PeerEquipment.Equipment.Revision)
 	case *pb.ServerMessage_ChatMessage:
 		c := body.ChatMessage
-		return fmt.Sprintf("chat %d %s#%d: %s", c.Slot, c.Name, c.NameIndex, c.Text)
+		channel := strings.ToLower(strings.TrimPrefix(c.Channel.String(), "CHAT_CHANNEL_"))
+		s := fmt.Sprintf("chat %s %d %s#%d", channel, c.Sender.Slot, c.Sender.Name, c.Sender.NameIndex)
+		if c.Recipient != nil {
+			s += fmt.Sprintf(" to %d %s#%d", c.Recipient.Slot, c.Recipient.Name, c.Recipient.NameIndex)
+		}
+		return s + ": " + c.Text
 	}
 	return "unknown"
 }
@@ -366,8 +379,8 @@ func TestChat(t *testing.T) {
 	f.received(a)
 	f.received(b)
 	f.send(b, chat(7, "  hi  "))
-	expect(t, f.received(b), "result 7 true ", "chat 2 lydia#2: hi")
-	expect(t, f.received(a), "chat 2 lydia#2: hi")
+	expect(t, f.received(b), "result 7 true ", "chat global 2 lydia#2: hi")
+	expect(t, f.received(a), "chat global 2 lydia#2: hi")
 	f.reject(b, chat(8, "\x01"), validate.ErrChat)
 	for i := range uint32(4) {
 		f.send(b, chat(9+i, "again"))
@@ -375,6 +388,74 @@ func TestChat(t *testing.T) {
 	f.reject(b, chat(20, "too many"), ErrRateLimited)
 	f.clock.Advance(5.1)
 	f.send(b, chat(21, "later"))
+}
+
+func TestLocalChat(t *testing.T) {
+	f := newFixture(t)
+	a, b, c, d := f.connect(), f.connect(), f.connect(), f.connect()
+	f.placeAt(a, 1, 0)
+	f.placeAt(b, 1, 8192)
+	f.placeAt(c, 1, -8193)
+	for _, slot := range []uint32{a, b, c, d} {
+		f.received(slot)
+	}
+	local := func(id uint32, text string) *pb.ClientMessage {
+		return chatOn(pb.ChatChannel_CHAT_CHANNEL_LOCAL, id, text)
+	}
+	f.send(a, local(7, "near"))
+	expect(t, f.received(a), "result 7 true ", "chat local 1 #1: near")
+	expect(t, f.received(b), "chat local 1 #1: near")
+	expect(t, f.received(c))
+	expect(t, f.received(d))
+	f.reject(d, local(8, "unplaced"), ErrNotPlaced)
+	expect(t, f.received(d), "result 8 false not in world")
+
+	// An interior is heard whole; another space is not.
+	for _, slot := range []uint32{a, c} {
+		f.send(slot, interior(2, 70))
+	}
+	f.send(a, checkpointAt(2, 0))
+	f.send(c, checkpointAt(2, 50000))
+	f.received(a)
+	f.received(b)
+	f.received(c)
+	f.send(c, local(9, "echo"))
+	expect(t, f.received(c), "result 9 true ", "chat local 3 #1: echo")
+	expect(t, f.received(a), "chat local 3 #1: echo")
+	expect(t, f.received(b))
+}
+
+func TestWhisper(t *testing.T) {
+	f := newFixture(t)
+	a, b, c := f.connect(), f.connect(), f.connect()
+	f.send(a, appearance(1, "Ulfric"))
+	f.send(b, appearance(1, "Ulfric Stormcloak"))
+	f.send(c, appearance(1, "ulfric"))
+	v := f.hub.Connect(world.KindReplay, nil)
+	f.send(v, appearance(1, "Ghost"))
+	for _, slot := range []uint32{a, b, c} {
+		f.received(slot)
+	}
+	whisper := func(id uint32, text string) *pb.ClientMessage {
+		return chatOn(pb.ChatChannel_CHAT_CHANNEL_WHISPER, id, text)
+	}
+	f.send(c, whisper(7, "ulfric stormcloak  for Skyrim"))
+	expect(t, f.received(c), "result 7 true ", "chat whisper 3 ulfric#2 to 2 Ulfric Stormcloak#1: for Skyrim")
+	expect(t, f.received(b), "chat whisper 3 ulfric#2 to 2 Ulfric Stormcloak#1: for Skyrim")
+	expect(t, f.received(a))
+	f.send(a, whisper(8, "Ulfric #2 hi"))
+	expect(t, f.received(a), "result 8 true ", "chat whisper 1 Ulfric#1 to 3 ulfric#2: hi")
+	expect(t, f.received(c), "chat whisper 1 Ulfric#1 to 3 ulfric#2: hi")
+	f.send(a, whisper(9, "Ulfric note to self"))
+	expect(t, f.received(a), "result 9 true ", "chat whisper 1 Ulfric#1 to 1 Ulfric#1: note to self")
+	f.reject(a, whisper(10, "Ulfric #3 hi"), ErrUnknownRecipient)
+	f.reject(a, whisper(11, "Ghost boo"), ErrUnknownRecipient)
+	f.reject(a, whisper(12, "Ulfric Stormcloak"), ErrEmptyWhisper)
+	expect(t, f.received(a), "result 10 false unknown recipient", "result 11 false unknown recipient", "result 12 false empty whisper")
+	f.hub.Disconnect(b)
+	f.received(a)
+	f.send(a, whisper(13, "Ulfric Stormcloak hi"))
+	expect(t, f.received(a), "result 13 true ", "chat whisper 1 Ulfric#1 to 1 Ulfric#1: Stormcloak hi")
 }
 
 func TestRangeHysteresisAndDwell(t *testing.T) {

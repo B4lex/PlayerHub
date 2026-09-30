@@ -51,10 +51,15 @@ PB_BIND(skyrimmp_v1_PeerAppearance, skyrimmp_v1_PeerAppearance, 4)
 PB_BIND(skyrimmp_v1_PeerEquipment, skyrimmp_v1_PeerEquipment, 4)
 
 
+PB_BIND(skyrimmp_v1_ChatSpeaker, skyrimmp_v1_ChatSpeaker, AUTO)
+
+
 PB_BIND(skyrimmp_v1_ChatMessage, skyrimmp_v1_ChatMessage, 2)
 
 
 PB_BIND(skyrimmp_v1_ServerMessage, skyrimmp_v1_ServerMessage, 4)
+
+
 
 
 

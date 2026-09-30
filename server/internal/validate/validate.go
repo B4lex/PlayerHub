@@ -186,10 +186,12 @@ func Equipment(e *pb.Equipment) error {
 	return nil
 }
 
-// ChatText trims surrounding spaces and returns the text to relay.
-func ChatText(text string) (string, error) {
-	text = strings.Trim(text, " ")
-	if text == "" || len(text) > MaximumChatTextByte || !utf8.ValidString(text) || hasControl(text) {
+// Chat checks the channel, trims surrounding spaces, and returns the text,
+// which for a whisper still starts with the recipient.
+func Chat(c *pb.ChatSend) (string, error) {
+	text := strings.Trim(c.GetText(), " ")
+	if _, known := pb.ChatChannel_name[int32(c.GetChannel())]; !known ||
+		text == "" || len(text) > MaximumChatTextByte || !utf8.ValidString(text) || hasControl(text) {
 		return "", ErrChat
 	}
 	return text, nil

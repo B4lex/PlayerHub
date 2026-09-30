@@ -1,7 +1,7 @@
 # nanopb static sizes; see state.options.
 skyrimmp.v1.ChatSend.text max_size:513
 skyrimmp.v1.Result.error max_size:64
-skyrimmp.v1.ChatMessage.name max_size:129
+skyrimmp.v1.ChatSpeaker.name max_size:129
 skyrimmp.v1.ChatMessage.text max_size:513
 # A batch is decoded entry by entry, so its size is not bounded by a static array.
 skyrimmp.v1.PeerStates.states type:FT_CALLBACK

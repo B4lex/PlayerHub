@@ -209,16 +209,22 @@ func TestEquipment(t *testing.T) {
 	}
 }
 
-func TestChatText(t *testing.T) {
-	if text, err := ChatText("  hello there "); err != nil || text != "hello there" {
+func TestChat(t *testing.T) {
+	send := func(text string, channel pb.ChatChannel) *pb.ChatSend {
+		return &pb.ChatSend{Text: text, Channel: channel}
+	}
+	if text, err := Chat(send("  hello there ", pb.ChatChannel_CHAT_CHANNEL_LOCAL)); err != nil || text != "hello there" {
 		t.Fatalf("got %q, %v", text, err)
 	}
-	if _, err := ChatText(strings.Repeat("é", 256)); err != nil {
+	if _, err := Chat(send(strings.Repeat("é", 256), pb.ChatChannel_CHAT_CHANNEL_WHISPER)); err != nil {
 		t.Fatal("text at the byte limit rejected")
 	}
 	for _, text := range []string{"", "   ", "tab\there", "bell\x07", strings.Repeat("a", 513), "\xff"} {
-		if _, err := ChatText(text); err == nil {
+		if _, err := Chat(send(text, pb.ChatChannel_CHAT_CHANNEL_GLOBAL)); err == nil {
 			t.Errorf("%q accepted", text)
 		}
+	}
+	if _, err := Chat(send("hi", pb.ChatChannel(3))); err == nil {
+		t.Error("unknown channel accepted")
 	}
 }

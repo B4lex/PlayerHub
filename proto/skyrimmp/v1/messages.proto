@@ -12,7 +12,7 @@ option go_package = "skyrim-mp/server/internal/wire/pb;pb";
 enum Protocol {
   PROTOCOL_UNSPECIFIED = 0;
   // Bumped on every incompatible change. Client and server must match.
-  PROTOCOL_VERSION = 1;
+  PROTOCOL_VERSION = 2;
 }
 
 message Hello {
@@ -26,9 +26,21 @@ message Enter {}
 
 message Exit {}
 
+enum ChatChannel {
+  // Every connected player.
+  CHAT_CHANNEL_GLOBAL = 0;
+  // Placed players near the sender, or in the same interior.
+  CHAT_CHANNEL_LOCAL = 1;
+  // One player, addressed by name at the start of the text.
+  CHAT_CHANNEL_WHISPER = 2;
+}
+
 message ChatSend {
   uint32 request_id = 1;
+  // For a whisper, the recipient's name, optionally " #N" for its name index,
+  // then a space and the message.
   string text = 2;
+  ChatChannel channel = 3;
 }
 
 message Ping {
@@ -120,12 +132,20 @@ message PeerEquipment {
   Equipment equipment = 2;
 }
 
-message ChatMessage {
+// A player as chat shows it, from its latest appearance.
+message ChatSpeaker {
   uint32 slot = 1;
   string name = 2;
   uint32 name_index = 3;
   uint32 level = 4;
-  string text = 5;
+}
+
+message ChatMessage {
+  ChatChannel channel = 1;
+  ChatSpeaker sender = 2;
+  // Only for a whisper.
+  ChatSpeaker recipient = 3;
+  string text = 4;
 }
 
 message ServerMessage {

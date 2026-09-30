@@ -353,6 +353,45 @@ namespace Network::Wire
             return Multiplayer::IsValidEquipment(a_result) ? nullptr : "value ranges";
         }
 
+        bool ReadChatSpeaker(const skyrimmp_v1_ChatSpeaker& a_speaker, Multiplayer::ChatSpeaker& a_result)
+        {
+            a_result = Multiplayer::ChatSpeaker{ .playerID = a_speaker.slot,
+                .name = a_speaker.name,
+                .nameIndex = a_speaker.name_index,
+                .level = static_cast<std::uint16_t>(a_speaker.level) };
+            return a_speaker.slot != 0 && a_speaker.name_index != 0
+                && a_speaker.level <= (std::numeric_limits<std::uint16_t>::max)()
+                && Multiplayer::IsValidAppearanceName(a_result.name);
+        }
+
+        std::optional<Multiplayer::ChatChannel> ReadChatChannel(skyrimmp_v1_ChatChannel a_channel)
+        {
+            switch (a_channel)
+            {
+                case skyrimmp_v1_ChatChannel_CHAT_CHANNEL_GLOBAL:
+                    return Multiplayer::ChatChannel::kGlobal;
+                case skyrimmp_v1_ChatChannel_CHAT_CHANNEL_LOCAL:
+                    return Multiplayer::ChatChannel::kLocal;
+                case skyrimmp_v1_ChatChannel_CHAT_CHANNEL_WHISPER:
+                    return Multiplayer::ChatChannel::kWhisper;
+            }
+            return std::nullopt;
+        }
+
+        skyrimmp_v1_ChatChannel WriteChatChannel(Multiplayer::ChatChannel a_channel)
+        {
+            switch (a_channel)
+            {
+                case Multiplayer::ChatChannel::kLocal:
+                    return skyrimmp_v1_ChatChannel_CHAT_CHANNEL_LOCAL;
+                case Multiplayer::ChatChannel::kWhisper:
+                    return skyrimmp_v1_ChatChannel_CHAT_CHANNEL_WHISPER;
+                case Multiplayer::ChatChannel::kGlobal:
+                    break;
+            }
+            return skyrimmp_v1_ChatChannel_CHAT_CHANNEL_GLOBAL;
+        }
+
         std::expected<ServerMessage, std::string> DecodePeerStates(pb_istream_t& a_stream)
         {
             PeerStates states;
@@ -595,10 +634,11 @@ namespace Network::Wire
         return EncodeClientMessage(skyrimmp_v1_ClientMessage_equipment_tag, skyrimmp_v1_Equipment_fields, equipment.get());
     }
 
-    std::string EncodeChat(std::uint32_t a_requestID, std::string_view a_text)
+    std::string EncodeChat(std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel, std::string_view a_text)
     {
         skyrimmp_v1_ChatSend chat = skyrimmp_v1_ChatSend_init_zero;
         chat.request_id = a_requestID;
+        chat.channel = WriteChatChannel(a_channel);
         if (!CopyString(chat.text, a_text))
         {
             return {};
@@ -791,17 +831,17 @@ namespace Network::Wire
             case skyrimmp_v1_ServerMessage_chat_message_tag:
             {
                 const auto& chat = message.message.chat_message;
-                Multiplayer::ChatMessage result{ .playerID = chat.slot,
-                    .senderName = chat.name,
-                    .senderNameIndex = chat.name_index,
-                    .senderLevel = static_cast<std::uint16_t>(
-                        (std::min)(chat.level, static_cast<std::uint32_t>((std::numeric_limits<std::uint16_t>::max)()))),
-                    .text = chat.text };
-                if (chat.slot == 0 || chat.name_index == 0 || chat.level > (std::numeric_limits<std::uint16_t>::max)()
-                    || !Multiplayer::IsValidAppearanceName(result.senderName) || !Multiplayer::IsValidChatText(result.text))
+                Multiplayer::ChatMessage result{ .text = chat.text };
+                const auto channel = ReadChatChannel(chat.channel);
+                const bool whisper = channel == Multiplayer::ChatChannel::kWhisper;
+                if (!channel || !chat.has_sender || !ReadChatSpeaker(chat.sender, result.sender)
+                    || chat.has_recipient != whisper
+                    || (whisper && !ReadChatSpeaker(chat.recipient, result.recipient))
+                    || !Multiplayer::IsValidChatText(result.text))
                 {
                     return std::unexpected("chat message");
                 }
+                result.channel = *channel;
                 return result;
             }
             default:

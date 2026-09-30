@@ -23,6 +23,10 @@ import (
 var (
 	ErrUnknownPlayer = errors.New("unknown player")
 	ErrRateLimited   = errors.New("rate limited")
+	// Local chat needs the sender's position.
+	ErrNotPlaced        = errors.New("not in world")
+	ErrUnknownRecipient = errors.New("unknown recipient")
+	ErrEmptyWhisper     = errors.New("empty whisper")
 )
 
 // Recorder receives every accepted client message of every player, so it can
@@ -41,6 +45,8 @@ type Options struct {
 	Interest interest.Config
 	// New subscriptions per viewer and second, nearest first; zero is no limit.
 	EntersPerSecond float64
+	// How far local chat reaches in a worldspace; zero is 8192.
+	ChatLocalRadius float64
 	Recorder        Recorder
 	Logger          *slog.Logger
 	// Called whenever something the admin panel shows changes.
@@ -128,6 +134,9 @@ func New(opts Options) *Hub {
 	}
 	if opts.Interest == (interest.Config{}) {
 		opts.Interest = interest.DefaultConfig()
+	}
+	if opts.ChatLocalRadius == 0 {
+		opts.ChatLocalRadius = 8192
 	}
 	h := &Hub{
 		opts: opts, members: make(map[uint32]*member), names: world.NewNames(),
@@ -518,11 +527,29 @@ func (h *Hub) setEquipment(m *member, e *pb.Equipment, message *pb.ClientMessage
 	return nil
 }
 
-// chat relays a line to every connected client, the sender included, so
+// speaker returns the player as chat shows it.
+func (h *Hub) speaker(m *member) *pb.ChatSpeaker {
+	name, index := h.Name(m.Slot)
+	return &pb.ChatSpeaker{Slot: m.Slot, Name: name, NameIndex: index, Level: m.Appearance.GetLevel()}
+}
+
+// chat relays a line to its channel's recipients, the sender included, so
 // everyone sees one order and the sender's own line confirms delivery. Chat
-// is global and never recorded.
+// is never recorded.
 func (h *Hub) chat(m *member, request *pb.ChatSend) error {
-	text, err := validate.ChatText(request.GetText())
+	line := &pb.ChatMessage{Channel: request.GetChannel()}
+	text, err := validate.Chat(request)
+	var recipient *member
+	if err == nil {
+		switch line.Channel {
+		case pb.ChatChannel_CHAT_CHANNEL_LOCAL:
+			if !m.Placed() {
+				err = ErrNotPlaced
+			}
+		case pb.ChatChannel_CHAT_CHANNEL_WHISPER:
+			recipient, text, err = h.addressee(text)
+		}
+	}
 	if err == nil && !m.chat.allow(h.opts.Clock.Now()) {
 		err = ErrRateLimited
 	}
@@ -536,16 +563,60 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 	if err != nil {
 		return err
 	}
-	name, index := h.Name(m.Slot)
-	line := &pb.ChatMessage{Slot: m.Slot, Name: name, NameIndex: index, Text: text}
-	if m.Appearance != nil {
-		line.Level = m.Appearance.GetLevel()
+	line.Sender, line.Text = h.speaker(m), text
+	if recipient != nil {
+		line.Recipient = h.speaker(recipient)
 	}
 	bytes := wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_ChatMessage{ChatMessage: line}})
-	for _, r := range h.recipients {
-		r.outbox.AppendGlobal(bytes)
+	switch line.Channel {
+	case pb.ChatChannel_CHAT_CHANNEL_LOCAL:
+		// Chat is rate limited, so a scan costs less than keeping an index of
+		// interiors, which the grid does not bound.
+		for _, r := range h.recipients {
+			if h.hearsLocally(r, m) {
+				r.outbox.AppendGlobal(bytes)
+			}
+		}
+	case pb.ChatChannel_CHAT_CHANNEL_WHISPER:
+		if m.outbox != nil {
+			m.outbox.AppendGlobal(bytes)
+		}
+		if recipient != m {
+			recipient.outbox.AppendGlobal(bytes)
+		}
+	default:
+		for _, r := range h.recipients {
+			r.outbox.AppendGlobal(bytes)
+		}
 	}
 	return nil
+}
+
+// addressee resolves the connected player a whisper names and returns the
+// message after the name.
+func (h *Hub) addressee(text string) (*member, string, error) {
+	slot, message, found := h.names.Find(text, validate.MaximumNameBytes)
+	if !found {
+		return nil, "", ErrUnknownRecipient
+	}
+	recipient := h.members[slot]
+	if recipient == nil || recipient.outbox == nil {
+		return nil, "", ErrUnknownRecipient
+	}
+	if message == "" {
+		return nil, "", ErrEmptyWhisper
+	}
+	return recipient, message, nil
+}
+
+// hearsLocally reports whether r receives local chat from sender: both placed
+// in the same space and, in a worldspace, within the local radius. An
+// interior is heard whole.
+func (h *Hub) hearsLocally(r, sender *member) bool {
+	if !r.Placed() || r.view.Space != sender.view.Space {
+		return false
+	}
+	return r.view.Space.Worldspace == 0 || interest.Distance(&r.view, &sender.view) <= h.opts.ChatLocalRadius
 }
 
 // evaluateViewer reevaluates the viewer's subscriptions and the players near

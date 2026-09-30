@@ -96,12 +96,13 @@ namespace Network
     // and, for a power attack, its direction. Graph event names never cross it.
     void PublishLocalAttack(const Attack& a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
 
-    // Sends a chat line with already trimmed, valid text. Returns false without
-    // sending while disconnected. a_onRejected runs on the transport thread with
-    // the server's reason if it refuses the message; accepted messages come back
-    // through DrainChatMessages like everyone else's.
-    [[nodiscard]] bool PublishChatMessage(
-        std::string_view a_text, std::function<void(std::string_view)> a_onRejected);
+    // Sends a chat line with already trimmed, valid text; a whisper's text starts
+    // with the recipient's name. Returns false without sending while
+    // disconnected. a_onRejected runs on the transport thread with the server's
+    // reason if it refuses the message; accepted messages come back through
+    // DrainChatMessages like everyone else's.
+    [[nodiscard]] bool PublishChatMessage(Multiplayer::ChatChannel a_channel, std::string_view a_text,
+        std::function<void(std::string_view)> a_onRejected);
 
     // Sends a Ping. a_onAcknowledged runs on the transport thread when the
     // server answers it; it never runs if the connection drops first.

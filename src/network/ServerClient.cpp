@@ -405,6 +405,8 @@ namespace Network
 
         void OnChatMessage(Multiplayer::ChatMessage&& a_message)
         {
+            // Compared here, since the slot belongs to the connection the message arrived on.
+            a_message.outgoing = a_message.sender.playerID == localSlot;
             std::scoped_lock lock{ chatMessagesLock };
             if (pendingChatMessages.size() >= kMaximumPendingChatMessages)
             {
@@ -699,7 +701,8 @@ namespace Network
         Send(Wire::EncodeAction(actionSequence, a_graphEpoch, a_checkpointSequence, a_attack));
     }
 
-    bool PublishChatMessage(std::string_view a_text, std::function<void(std::string_view)> a_onRejected)
+    bool PublishChatMessage(Multiplayer::ChatChannel a_channel, std::string_view a_text,
+        std::function<void(std::string_view)> a_onRejected)
     {
         if (!IsConnected())
         {
@@ -713,7 +716,7 @@ namespace Network
             logs::info("Server rejected chat message: {}", a_result.error.empty() ? "<no reason>" : a_result.error);
             onRejected(a_result.error);
         });
-        Send(Wire::EncodeChat(requestID, a_text));
+        Send(Wire::EncodeChat(requestID, a_channel, a_text));
         return true;
     }
 

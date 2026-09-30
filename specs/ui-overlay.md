@@ -8,7 +8,12 @@
   library. SE 1.5.97 uses the same IDs and offsets as other public ImGui
   overlays but was not checked here. Skyrim VR is not supported: the hooks are
   not installed and a warning is logged.
-- **Chat:** implemented; the in-game check is pending.
+- **Chat:** implemented; the in-game check is pending. Channels: server unit
+  tests cover routing and whisper addressing; on Linux, `ChatSync.cpp` and
+  `WireCodec.cpp` ran headless against stubbed transport functions, decoding
+  Go-encoded messages of each channel, rejecting malformed ones, and mapping
+  typed prefixes, whisper labels, and rejection notices. `ChatWindow.cpp`
+  colors were not run.
 - **Settings window:** run in game. On Linux, `SettingsWindow.cpp` ran for
   several frames in a headless Dear ImGui 1.92.9 context with every tab drawn
   and simulated mouse and keyboard input: an invalid endpoint blocks Apply and a
@@ -53,12 +58,12 @@ src/ui/
   InputCapture.h/.cpp         # input dispatch hook: focus keys, routing to ImGui
   Layout.h                    # placement helpers (screen corners)
   hud/StatusPanel             # connection, ping, traffic, plugin time
-  chat/ChatWindow             # global chat
+  chat/ChatWindow             # chat history and input
   settings/SettingsWindow     # plugin settings
   settings/ConnectionControls # connection indicator and button
   widgets/ItemPicker          # item dropdown
   preview/ItemPreview         # 3D item capture
-src/sync/chat/ChatSync        # send, rejections as notices, lines to display
+src/sync/chat/ChatSync        # channel prefixes, send, rejections as notices, lines to display
 src/runtime/PluginTime        # plugin time per pass
 ```
 
@@ -189,13 +194,29 @@ Tracy (`xmake f --tracy=y`, `runtime/Profiling.h`).
 
 ## Chat
 
-Players talk in plain text. Chat is global and presentation only. The wire and
-server rules are in [Network](network.md#chat).
+Players talk in plain text on three channels. Chat is presentation only. The
+wire, routing, and server rules are in [Network](network.md#chat).
 
-- `Network::PublishChatMessage` sends `ChatSend` with a request ID; a
-  rejecting `Result` runs its callback on the transport thread. `ChatSync::SendLocalMessage` trims and
-  validates the text (`protocol/ChatMessage.h`, shared with the parser), and
-  turns being disconnected or a server rejection into a local notice line.
+Goal: talk to everyone, to players nearby, or to one player, and tell the three
+apart at a glance. Non-goals: chat history for late joiners, switching
+channels other than by prefix, replying to the last whisper.
+
+| Typed | Channel | Reaches |
+| --- | --- | --- |
+| `!text` | global | every connected player |
+| `text` | local | placed players within `chat.local_radius` (8192) in the same worldspace, or in the same interior |
+| `@Name text`, `@Name #2 text` | whisper | one player, by name and optional index |
+
+- `ChatSync::SendLocalMessage` trims the line, takes the channel from its first
+  character, drops the prefix, and trims again. An empty line sends nothing,
+  `@` alone adds a notice. It validates the text (`protocol/ChatMessage.h`,
+  shared with the parser), and `Network::PublishChatMessage` sends `ChatSend`
+  with the channel and a request ID; a rejecting `Result` runs its callback on
+  the transport thread. Being disconnected and each server rejection
+  (`rate limited`, `not in world`, `unknown recipient`, `empty whisper`) become
+  a local notice line.
+- A whisper's sender reads `To <recipient>` for the local player's own whisper
+  and `From <sender>` otherwise; other channels show the sender's label.
   `ChatSync::DrainLines` returns received messages and notices. Neither needs
   the game thread.
 - `ChatWindow` keeps the latest 100 lines, each stamped with `ImGui::GetTime()`
@@ -214,8 +235,9 @@ server rules are in [Network](network.md#chat).
   Up/Down a page. New lines scroll down unless the history was scrolled back.
 - Closed, the newest lines (at most 6) show for 10 s on a faint background and
   fade out over the last 2; with nothing recent nothing is drawn.
-- Sender names are gold, text light grey, notices orange. The chat has no mouse
-  cursor.
+- Sender names take the channel's color: gold for global, lime for local, and
+  violet for whispers. Text is light grey and notices orange. The chat has no
+  mouse cursor.
 
 ## Settings window
 
@@ -346,14 +368,19 @@ or zoomed.
    open the journal; a menu that opens by itself closes the chat; recent lines
    fade after 10 s; the wheel and Page Up/Down scroll; sending while disconnected
    shows a notice.
-3. `F10` opens the settings window with a cursor, and the game receives no input
+3. `!hi` reaches every player with a gold name; `hi` reaches players within
+   8192 units or in the same interior with a lime name, and not a player
+   farther away; `@Name hi` reaches only that player, reading `To Name` for the
+   sender and `From Sender` for the recipient in violet; an unknown name shows
+   a notice.
+4. `F10` opens the settings window with a cursor, and the game receives no input
    until it closes. A new `SettingsKey` opens it and the old one no longer does.
    Chat still opens with Enter and gets no cursor.
-4. The connection indicator turns green once connected and red on Disconnect,
+5. The connection indicator turns green once connected and red on Disconnect,
    which removes remote players and keeps them away through a save load until
    Connect. Connect right after Disconnect shows `Cancel` until the connection
    opens, never `Disconnect` while disconnected.
-5. The picker lists only matching base-game items and races. Hovering rows
+6. The picker lists only matching base-game items and races. Hovering rows
    switches the model without flicker on the world behind; background loads
    appear after the attach pass (a stall logs `Item preview waiting`); nothing is
    left on screen after the list closes; the inventory shows its own models
@@ -366,5 +393,7 @@ or zoomed.
   typed.
 - Editing shortcut letters (Ctrl+A/C/V/X/Y/Z) follow physical QWERTY positions,
   not the keyboard layout. Chat text cannot be selected with the mouse.
+- A whisper cannot address `Ulf` with a message starting with `Stone` while a
+  player named `Ulf Stone` is online, since the longest name wins.
 - The picker covers armor, weapons, torches, ammunition, and races, not spells
   or actors; `ItemKind` is where more kinds would go.

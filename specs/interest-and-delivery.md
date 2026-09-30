@@ -8,7 +8,8 @@ Implemented in `server/internal/interest`, `server/internal/hub`, and
 first, enter order, an unplaced viewer, a paused sender seen by a newcomer,
 batching, the action anchor, context order, range hysteresis and time in view,
 exclusions taking effect at once, a space change, presentation kept across exit
-and re-enter, disconnect reaching presentation holders, virtual players, chat),
+and re-enter, disconnect reaching presentation holders, virtual players, chat
+on each channel),
 outbox tests, and black-box tests over a real WebSocket, including the admin
 hide and exclusion endpoints. Not checked in game.
 
@@ -57,6 +58,8 @@ accepted message, subscriptions between recipients and peers, the per-pair
 record of presentation revisions, and the per-recipient outbox that batches
 checkpoints. Wire messages and validation are in [Network](network.md); how a
 client applies them is in [Sync pipeline](sync-pipeline.md#receive-state).
+Local chat compares the same spaces and horizontal distance but is routed
+without subscriptions ([Network](network.md#chat)).
 
 ## Components
 

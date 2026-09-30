@@ -33,7 +33,8 @@ namespace Network::Wire
     // Empty when the value cannot be encoded, which validation prevents.
     [[nodiscard]] std::string EncodeAppearance(const Multiplayer::PlayerAppearance& a_appearance);
     [[nodiscard]] std::string EncodeEquipment(const Multiplayer::PlayerEquipment& a_equipment);
-    [[nodiscard]] std::string EncodeChat(std::uint32_t a_requestID, std::string_view a_text);
+    [[nodiscard]] std::string EncodeChat(
+        std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel, std::string_view a_text);
     [[nodiscard]] std::string EncodePing(std::uint32_t a_requestID);
 
     struct Welcome

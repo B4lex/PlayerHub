@@ -9,15 +9,32 @@
 
 namespace Multiplayer
 {
-    struct ChatMessage
+    enum class ChatChannel : std::uint8_t
+    {
+        kGlobal,
+        kLocal,
+        kWhisper
+    };
+
+    struct ChatSpeaker
     {
         PeerSlot playerID{ 0 };
-        // The sender's character name, empty until its appearance is known.
-        std::string senderName;
+        // The character name, empty until its appearance is known.
+        std::string name;
         // As in PlayerAppearance; the level is zero until known.
-        std::uint32_t senderNameIndex{ 1 };
-        std::uint16_t senderLevel{ 0 };
+        std::uint32_t nameIndex{ 1 };
+        std::uint16_t level{ 0 };
+    };
+
+    struct ChatMessage
+    {
+        ChatChannel channel{ ChatChannel::kGlobal };
+        ChatSpeaker sender;
+        // Only for a whisper.
+        ChatSpeaker recipient;
         std::string text;
+        // Set by the transport: the local player sent it.
+        bool outgoing{ false };
     };
 
     // UTF-8 bytes, matching the server's MAXIMUM_CHAT_TEXT_BYTES.

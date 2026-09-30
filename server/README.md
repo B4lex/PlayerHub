@@ -61,6 +61,9 @@ enabled = false             # true for an uplink that cannot carry everything
 uplink_bytes_per_second = 6250000   # the link; 80% of it is used
 per_recipient_bytes_per_second = 0  # caps one client's share; 0 is an equal share only
 enters_per_second = 20      # new peers per client and second, nearest first
+
+[chat]
+local_radius = 8192         # game units, horizontal; an interior is heard whole
 ```
 
 For a homelab with a 50 Mbit/s upload, see `homelab.toml`: the budget on and

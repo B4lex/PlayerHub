@@ -19,6 +19,13 @@ type Config struct {
 	Liveness            Liveness `toml:"liveness"`
 	Interest            Interest `toml:"interest"`
 	Budget              Budget   `toml:"budget"`
+	Chat                Chat     `toml:"chat"`
+}
+
+type Chat struct {
+	// How far local chat reaches in a worldspace, horizontally; an interior is
+	// heard whole.
+	LocalRadius float64 `toml:"local_radius"`
 }
 
 // Budget bounds egress below the uplink, which a homelab needs: the router's
@@ -78,6 +85,7 @@ func Default() Config {
 			CapHysteresis: 1024, NearDistance: 4096, FarRateHz: 10, MinimumViewRadius: 1024},
 		// A 50 Mbit/s homelab upload.
 		Budget: Budget{UplinkBytesPerSecond: 6_250_000, EntersPerSecond: 20},
+		Chat:   Chat{LocalRadius: 8192},
 	}
 }
 
@@ -125,6 +133,8 @@ func (c Config) validate() error {
 		return errors.New("budget.uplink_bytes_per_second must be at least 10000 when the budget is enabled")
 	case c.Budget.PerRecipientBytesPerSecond < 0 || c.Budget.EntersPerSecond < 0:
 		return errors.New("budget.per_recipient_bytes_per_second and enters_per_second must be >= 0")
+	case c.Chat.LocalRadius <= 0:
+		return errors.New("chat.local_radius must be positive")
 	}
 	return nil
 }
