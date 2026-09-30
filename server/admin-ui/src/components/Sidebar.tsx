@@ -41,8 +41,8 @@ export function Sidebar({ pages }: { pages: readonly PageDefinition[] }) {
           <span className={styles.dot} aria-hidden="true" />
           {connectionLabel[connection]}
         </div>
-        <a className={styles.docs} href="/docs" target="_blank" rel="noreferrer">
-          API reference
+        <a className={styles.docs} href="/api/state" target="_blank" rel="noreferrer">
+          State as JSON
         </a>
       </div>
     </aside>

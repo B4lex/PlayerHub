@@ -1,11 +1,11 @@
 #pragma once
 
+#include "protocol/PeerSlot.h"
 #include "protocol/PlayerState.h"
 
 #include <RE/Skyrim.h>
 
 #include <cstdint>
-#include <string>
 
 // Short-lived views for one main-loop synchronization pass. They borrow state
 // owned by SyncCoordinator and must not outlive the pass. Cross-feature results
@@ -18,7 +18,7 @@ struct LocalFrame
 
 struct RemoteFrame
 {
-    const std::string& playerID;
+    Multiplayer::PeerSlot playerID;
     // The newest accepted checkpoint and its sequence.
     const Network::PlayerTransform& checkpoint;
     std::uint64_t lastSequence;
@@ -31,7 +31,7 @@ struct RemoteFrame
 // one. inserted marks the first message ever received for the player.
 struct CheckpointUpdate
 {
-    const std::string& playerID;
+    Multiplayer::PeerSlot playerID;
     bool inserted;
     const Network::PlayerTransform& previous;
     std::uint64_t previousSequence;

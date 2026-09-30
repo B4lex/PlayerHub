@@ -7,7 +7,7 @@
 
 // The single local checkpoint publisher. It owns the 20 Hz cadence and the
 // sequence, and samples position, heading, speed, direction, animation state,
-// occupied furniture, death, and mount for one coherent player:update.
+// occupied furniture, death, and mount for one coherent checkpoint.
 namespace CheckpointPublisher
 {
     enum class Status

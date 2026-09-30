@@ -1,6 +1,7 @@
 import type {
   Batch,
   CreateBatchRequest,
+  Exclusion,
   OpenPlaybackRequest,
   Playback,
   PlaybackSettings,
@@ -57,6 +58,16 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 const enc = encodeURIComponent;
 
 export const api = {
+  players: {
+    /** Hide a player from everyone else, or show it again. */
+    setHidden: (id: string, hidden: boolean) =>
+      request<{ hidden: boolean }>("PUT", `/api/players/${enc(id)}/hidden`, { hidden }),
+  },
+  exclusions: {
+    /** The viewer stops receiving the target. */
+    add: (exclusion: Exclusion) => request<Exclusion>("POST", "/api/exclusions", exclusion),
+    remove: (exclusion: Exclusion) => request<Exclusion>("DELETE", "/api/exclusions", exclusion),
+  },
   recordings: {
     get: (id: string) => request<RecordingDetail>("GET", `/api/recordings/${enc(id)}`),
     /** Start capturing a connected player until stopped. */

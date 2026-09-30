@@ -1,0 +1,130 @@
+// Package config loads the server's TOML configuration. Link-dependent limits
+// live here so the homelab and a remote server differ only in this file.
+package config
+
+import (
+	"errors"
+	"fmt"
+	"os"
+
+	"github.com/BurntSushi/toml"
+)
+
+type Config struct {
+	Listen              string   `toml:"listen"`
+	RecordingsDirectory string   `toml:"recordings_directory"`
+	AdminUIDirectory    string   `toml:"admin_ui_directory"`
+	SendRateHz          float64  `toml:"send_rate_hz"`
+	Limits              Limits   `toml:"limits"`
+	Liveness            Liveness `toml:"liveness"`
+	Interest            Interest `toml:"interest"`
+	Budget              Budget   `toml:"budget"`
+}
+
+// Budget bounds egress below the uplink, which a homelab needs: the router's
+// upload buffer must never be what limits the rate.
+type Budget struct {
+	Enabled bool `toml:"enabled"`
+	// The link rate; the budget uses 80% of it.
+	UplinkBytesPerSecond float64 `toml:"uplink_bytes_per_second"`
+	// Caps one client's share; zero leaves only the equal share of the uplink.
+	PerRecipientBytesPerSecond float64 `toml:"per_recipient_bytes_per_second"`
+	// New peers a client receives per second, nearest first.
+	EntersPerSecond float64 `toml:"enters_per_second"`
+}
+
+type Interest struct {
+	EnterRadius       float64 `toml:"enter_radius"`
+	LeaveRadius       float64 `toml:"leave_radius"`
+	MinDwellSeconds   float64 `toml:"min_dwell_seconds"`
+	UpdateHz          float64 `toml:"update_hz"`
+	MaxVisible        int     `toml:"max_visible"`
+	CapHysteresis     float64 `toml:"cap_hysteresis"`
+	NearDistance      float64 `toml:"near_distance"`
+	FarRateHz         float64 `toml:"far_rate_hz"`
+	MinimumViewRadius float64 `toml:"minimum_view_radius"`
+}
+
+type Limits struct {
+	MessagesPerSecond   float64 `toml:"messages_per_second"`
+	MessageBurst        float64 `toml:"message_burst"`
+	ActionsPerSecond    float64 `toml:"actions_per_second"`
+	ActionBurst         float64 `toml:"action_burst"`
+	OrderedBacklog      int     `toml:"ordered_backlog"`
+	HelloTimeoutSeconds float64 `toml:"hello_timeout_seconds"`
+}
+
+type Liveness struct {
+	PingIntervalSeconds float64 `toml:"ping_interval_seconds"`
+	TimeoutSeconds      float64 `toml:"timeout_seconds"`
+}
+
+func Default() Config {
+	return Config{
+		Listen:              "0.0.0.0:3000",
+		RecordingsDirectory: "recordings",
+		AdminUIDirectory:    "admin-ui/dist",
+		SendRateHz:          40,
+		Limits: Limits{
+			MessagesPerSecond:   120,
+			MessageBurst:        240,
+			ActionsPerSecond:    10,
+			ActionBurst:         10,
+			OrderedBacklog:      4096,
+			HelloTimeoutSeconds: 5,
+		},
+		Liveness: Liveness{PingIntervalSeconds: 5, TimeoutSeconds: 10},
+		Interest: Interest{EnterRadius: 8192, LeaveRadius: 9830, MinDwellSeconds: 1, UpdateHz: 5, MaxVisible: 64,
+			CapHysteresis: 1024, NearDistance: 4096, FarRateHz: 10, MinimumViewRadius: 1024},
+		// A 50 Mbit/s homelab upload.
+		Budget: Budget{UplinkBytesPerSecond: 6_250_000, EntersPerSecond: 20},
+	}
+}
+
+// Load reads path over the defaults. An empty path means defaults only.
+func Load(path string) (Config, error) {
+	c := Default()
+	if path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return c, err
+		}
+		meta, err := toml.Decode(string(data), &c)
+		if err != nil {
+			return c, err
+		}
+		if undecoded := meta.Undecoded(); len(undecoded) > 0 {
+			return c, fmt.Errorf("unknown configuration keys: %v", undecoded)
+		}
+	}
+	return c, c.validate()
+}
+
+func (c Config) validate() error {
+	switch {
+	case c.SendRateHz < 1 || c.SendRateHz > 240:
+		return errors.New("send_rate_hz must be within 1..240")
+	case c.Limits.MessagesPerSecond <= 0 || c.Limits.MessageBurst < 1:
+		return errors.New("limits.messages_per_second and message_burst must be positive")
+	case c.Limits.ActionsPerSecond <= 0 || c.Limits.ActionBurst < 1:
+		return errors.New("limits.actions_per_second and action_burst must be positive")
+	case c.Limits.OrderedBacklog < 64:
+		return errors.New("limits.ordered_backlog must be at least 64")
+	case c.Limits.HelloTimeoutSeconds <= 0:
+		return errors.New("limits.hello_timeout_seconds must be positive")
+	case c.Liveness.PingIntervalSeconds <= 0 || c.Liveness.TimeoutSeconds <= 0:
+		return errors.New("liveness intervals must be positive")
+	case c.Interest.EnterRadius <= 0 || c.Interest.LeaveRadius < c.Interest.EnterRadius:
+		return errors.New("interest.enter_radius must be positive and at most interest.leave_radius")
+	case c.Interest.MinDwellSeconds < 0 || c.Interest.UpdateHz < 0.5 || c.Interest.UpdateHz > 60:
+		return errors.New("interest.min_dwell_seconds must be >= 0 and interest.update_hz within 0.5..60")
+	case c.Interest.MaxVisible < 0 || c.Interest.CapHysteresis < 0 || c.Interest.NearDistance < 0 ||
+		c.Interest.FarRateHz < 0 || c.Interest.MinimumViewRadius < 0:
+		return errors.New("interest.max_visible, cap_hysteresis, near_distance, far_rate_hz, and minimum_view_radius must be >= 0")
+	case c.Budget.Enabled && c.Budget.UplinkBytesPerSecond < 10_000:
+		return errors.New("budget.uplink_bytes_per_second must be at least 10000 when the budget is enabled")
+	case c.Budget.PerRecipientBytesPerSecond < 0 || c.Budget.EntersPerSecond < 0:
+		return errors.New("budget.per_recipient_bytes_per_second and enters_per_second must be >= 0")
+	}
+	return nil
+}

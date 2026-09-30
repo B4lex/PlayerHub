@@ -166,6 +166,7 @@ on the next frame.
 
 | State | Text | Color |
 | --- | --- | --- |
+| Refused by the server (protocol mismatch) | `Server version differs` | red |
 | Not connected | `Disconnected` | red |
 | Connected, no sample yet or timed out | `Ping -- ms` | grey |
 | ≤ 80 ms / ≤ 150 ms / > 150 ms | `Ping N ms` | green / yellow / red |
@@ -191,8 +192,8 @@ Tracy (`xmake f --tracy=y`, `runtime/Profiling.h`).
 Players talk in plain text. Chat is global and presentation only. The wire and
 server rules are in [Network](network.md#chat).
 
-- `Network::PublishChatMessage` emits `chat:send`; a rejecting ack runs its
-  callback on the transport thread. `ChatSync::SendLocalMessage` trims and
+- `Network::PublishChatMessage` sends `ChatSend` with a request ID; a
+  rejecting `Result` runs its callback on the transport thread. `ChatSync::SendLocalMessage` trims and
   validates the text (`protocol/ChatMessage.h`, shared with the parser), and
   turns being disconnected or a server rejection into a local notice line.
   `ChatSync::DrainLines` returns received messages and notices. Neither needs
@@ -243,7 +244,8 @@ peers keep seeing the player.
 
 `ConnectionControls` ends the `ServerEndpoint` row: an indicator circle, green
 while connected and red otherwise, whose tooltip shows `Connected, ping N ms`
-(`Connected` before a sample), `Connecting...`, `Disconnecting...`, or
+(`Connected` before a sample), `Connecting...` (or the server's refusal while
+it refuses this client's protocol version), `Disconnecting...`, or
 `Disconnected`; and a button that follows `Network::GetConnectionState`, so its
 label never claims a state the transport has not reached, keeping its width and
 identity when the label changes:
@@ -350,7 +352,7 @@ or zoomed.
 4. The connection indicator turns green once connected and red on Disconnect,
    which removes remote players and keeps them away through a save load until
    Connect. Connect right after Disconnect shows `Cancel` until the connection
-   opens about 3 s later, never `Disconnect` while disconnected.
+   opens, never `Disconnect` while disconnected.
 5. The picker lists only matching base-game items and races. Hovering rows
    switches the model without flicker on the world behind; background loads
    appear after the attach pass (a stall logs `Item preview waiting`); nothing is

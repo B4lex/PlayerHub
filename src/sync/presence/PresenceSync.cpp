@@ -1,5 +1,5 @@
 #include "sync/presence/PresenceSync.h"
-#include "network/SocketIOClient.h"
+#include "network/ServerClient.h"
 #include "runtime/GameSession.h"
 #include "runtime/Profiling.h"
 

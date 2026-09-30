@@ -2,3 +2,7 @@
 	path = lib/commonlibsse-ng
 	url = https://github.com/alandtse/CommonLibSSE-NG.git
 	branch = ng
+
+[submodule "lib/nanopb"]
+	path = lib/nanopb
+	url = https://github.com/nanopb/nanopb.git

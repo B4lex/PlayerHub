@@ -1,6 +1,6 @@
 #include "sync/appearance/AppearanceSync.h"
 #include "forms/FormLookup.h"
-#include "network/SocketIOClient.h"
+#include "network/ServerClient.h"
 #include "runtime/Profiling.h"
 #include "sync/PlayerLabel.h"
 #include "sync/outfit/DefaultOutfit.h"
@@ -381,7 +381,7 @@ namespace AppearanceSync
             bool own{ false };
         };
 
-        ResolvedRace ResolveRace(const std::string& a_playerID, const AppearanceData& a_appearance)
+        ResolvedRace ResolveRace(Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance)
         {
             auto* race = ResolveForm<RE::TESRace>(a_appearance.race);
             if (IsPlayableRace(race))
@@ -420,7 +420,7 @@ namespace AppearanceSync
             return nullptr;
         }
 
-        std::vector<RE::BGSHeadPart*> ResolveHeadParts(const std::string& a_playerID,
+        std::vector<RE::BGSHeadPart*> ResolveHeadParts(Multiplayer::PeerSlot a_playerID,
             const AppearanceData& a_appearance, RE::TESRace& a_race, FaceRelatedData* a_faceData)
         {
             std::vector<RE::BGSHeadPart*> headParts;
@@ -504,7 +504,7 @@ namespace AppearanceSync
         // packages, factions, inventory, or outfits, and points faceData at a shared
         // engine default that must be replaced rather than written.
         RE::TESNPC* BuildActorBase(
-            const std::string& a_playerID, const AppearanceData& a_appearance, RE::TESRace& a_race)
+            Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance, RE::TESRace& a_race)
         {
             auto* factory = RE::IFormFactory::GetConcreteFormFactoryByType<RE::TESNPC>();
             auto* npc = factory ? factory->Create() : nullptr;
@@ -640,7 +640,7 @@ namespace AppearanceSync
             return appearance;
         }
 
-        RE::TESNPC* CreateActorBase(const std::string& a_playerID, const AppearanceData& a_appearance)
+        RE::TESNPC* CreateActorBase(Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance)
         {
             const auto resolved = ResolveRace(a_playerID, a_appearance);
             if (!resolved.race)
@@ -667,7 +667,7 @@ namespace AppearanceSync
         }
 
         // The look of a remote player whose appearance never arrived.
-        RE::TESNPC* CreateDefaultActorBase(const std::string& a_playerID)
+        RE::TESNPC* CreateDefaultActorBase(Multiplayer::PeerSlot a_playerID)
         {
             auto* race = LookupFallbackRace();
             if (!race)
@@ -841,7 +841,7 @@ namespace AppearanceSync
     }
 
     void AcceptRemoteAppearance(
-        RemoteState& a_remote, const std::string& a_playerID, Multiplayer::PlayerAppearance&& a_appearance)
+        RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, Multiplayer::PlayerAppearance&& a_appearance)
     {
         if (a_remote.latest && a_appearance.revision <= a_remote.latest->revision)
         {
@@ -886,7 +886,7 @@ namespace AppearanceSync
         a_remote.respawnCooldown = (std::max)(a_remote.respawnCooldown - delta, 0.0F);
     }
 
-    RE::TESNPC* GetSpawnBase(RemoteState& a_remote, const std::string& a_playerID)
+    RE::TESNPC* GetSpawnBase(RemoteState& a_remote, Multiplayer::PeerSlot a_playerID)
     {
         if (!a_remote.latest && a_remote.appearanceWaitElapsed < kFirstAppearanceWaitSeconds)
         {
@@ -932,7 +932,7 @@ namespace AppearanceSync
     }
 
     void ApplyActorPresentation(
-        RemoteState& a_remote, const std::string& a_playerID, RE::Actor& a_actor, bool a_actorReady)
+        RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RE::Actor& a_actor, bool a_actorReady)
     {
         PROFILE_FUNCTION();
         if (!a_actorReady || !a_actor.Is3DLoaded() || !a_remote.spawnedBase || a_remote.spawnedBase != a_remote.base

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "protocol/PeerSlot.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -9,7 +11,7 @@ namespace Multiplayer
 {
     struct ChatMessage
     {
-        std::string playerID;
+        PeerSlot playerID{ 0 };
         // The sender's character name, empty until its appearance is known.
         std::string senderName;
         // As in PlayerAppearance; the level is zero until known.

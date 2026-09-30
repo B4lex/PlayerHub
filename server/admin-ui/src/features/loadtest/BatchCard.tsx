@@ -9,11 +9,6 @@ import { formatDateTime, formatTimestamp, plural, shortId } from "../../lib/form
 import { useAction } from "../../state/useAction";
 import styles from "./BatchCard.module.css";
 
-const transportLabels = {
-  virtual: { label: "In-server", title: "Bots are replayed inside the server and relayed to every client" },
-  socket: { label: "Socket clients", title: "Each bot is a loopback Socket.IO client that goes through the player ingestion path" },
-} as const;
-
 const botStatusLabels: Record<BotStatus, string> = {
   pending: "Waiting to join",
   playing: "Playing",
@@ -97,7 +92,6 @@ export function BatchCard({ batch, elapsedMs }: { batch: Batch; elapsedMs: numbe
   const { settings } = batch;
   const joined = batch.bots.filter((bot) => bot.playerId !== null).length;
   const failed = batch.bots.filter((bot) => bot.status === "failed");
-  const transport = transportLabels[settings.transport];
   const spacingMs = batch.durationMs / settings.players;
   const paused = batch.status === "paused";
 
@@ -110,7 +104,6 @@ export function BatchCard({ batch, elapsedMs }: { batch: Batch; elapsedMs: numbe
           <h3 className={styles.label}>{batch.label}</h3>
           <div className={styles.meta}>
             <span>{plural(settings.players, "bot")}</span>
-            <span title={transport.title}>{transport.label}</span>
             <span>
               seed <span className="mono">{settings.seed}</span>
             </span>

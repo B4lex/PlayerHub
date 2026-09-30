@@ -1,161 +1,127 @@
 # Skyrim Multiplayer server
 
-Local FastAPI and Socket.IO synchronization server for the SKSE plugin.
+Go server for the SKSE plugin: binary WebSocket with protobuf messages for
+players, a REST API and event feed for the admin panel. The wire protocol and
+its validation are in `../specs/network.md`; recordings, replays, and load
+testing in `../specs/recording-and-replay.md`.
 
 ## Run
 
-From this directory:
+From this directory, with Go 1.24 or newer:
 
-```powershell
-uv sync
-uv run server
+```sh
+go run ./cmd/server                       # listens on 0.0.0.0:3000
+go run ./cmd/server --listen 127.0.0.1:3100 --config server.toml --verbose
 ```
 
-Per-message Socket.IO diagnostics are emitted at the normal service log level:
-received `player:update` payloads, relayed `player:states` batch sizes, and
-relayed `player:exit` / `player:disconnect` payloads. The game console logs its
-transmitted `player:update` and received `player:exit` / `player:disconnect`
-messages. At the default 20 Hz update rate this
-is intentionally verbose.
+`--verbose` logs every rejected message and virtual-player detail at debug
+level. The plugin defaults to `http://127.0.0.1:3000` and connects to `/ws`.
 
-The server listens on port `3000` on all interfaces. The SKSE plugin defaults
-to `http://127.0.0.1:3000` for local testing.
+- `GET /ws` is the player WebSocket.
+- `GET /health` returns `{"status":"ok"}`.
+- `/admin/` serves the built admin panel; `/api` is its API.
 
-- `GET /health` returns a basic health check.
-- `GET /poc` returns a human-readable proof-of-concept response.
-- `session:welcome` is the first message a client receives after connecting. It
-  carries the client's own `playerId`, which the client uses to skip its own
-  entry in `player:states`.
-- `player:enter` and `player:exit` carry no payload and mark whether the player
-  is placed in the game world. A client connects out of the world (main menu),
-  enters once its character is in a loaded cell, and exits when a loading screen
-  or the main menu opens. Both are acknowledged with `{"ok": true}` and are
-  idempotent. The server forgets the player's checkpoint and action stream on
-  exit, but keeps its appearance and equipment.
-- `player:exit` is relayed to peers with `playerId`, telling them to remove the
-  player's actor while keeping its appearance and equipment. `player:enter` is
-  not relayed: the next `player:states` entry places the player again.
-- `player:update` carries the local player's position, heading, measured speed,
-  explicit movement-animation state, jump phase, bow draw and per-hand spell
-  casting (`bowDrawn`, `castingLeft`, `castingRight`, optional and defaulting to
-  `false`; see `specs/combat-presentation.md`), blocking
-  (`blocking`, optional and defaulting to `false`; see
-  `specs/combat-presentation.md`), whether the player is dying or
-  dead (`dead`, optional and defaulting to `false`; see
-  `specs/native-interactions.md`), whether the player rides a mount
-  (`mounted`, optional and defaulting to `false`; the position fields then
-  describe the mount; see `specs/native-interactions.md`), whether that
-  player or its mount swims (`swimming`, optional and defaulting to `false`;
-  see `specs/remote-actor.md`), cell and worldspace form
-  IDs,
-  occupied furniture reference FormID, graph epoch, and monotonically increasing
-  checkpoint sequence number. It is rejected with `not in world` outside
-  `player:enter` and `player:exit`.
-- `player:states` relays validated transforms as `{"states": [...]}`, each entry
-  a checkpoint with its `playerId`. The server keeps only each player's newest
-  unsent checkpoint and broadcasts them all every 25 ms, so a client receives
-  one message per tick rather than one per peer update. The tick is twice the
-  20 Hz update rate so batching delays a checkpoint by at most 25 ms and rarely
-  merges two of a player's updates into one tick. The batch goes to every
-  client unchanged, including the players it contains, because an identical
-  broadcast is encoded once; clients skip their own entry. A player's unsent
-  checkpoint is sent on its own before a `player:action` that names it, and
-  dropped when the player exits or disconnects.
-- `animation:action` carries a validated, ordered semantic action. The
-  vocabulary is `attack/normal`, `attack/left`, `attack/dual`, and `attack/bash`.
-  Every attack carries a boolean `power`. A power attack or power bash also
-  carries a `direction` (`standing`, `forward`, `backward`, `left`, or `right`),
-  which a plain attack must not. See `specs/combat-presentation.md`.
-- `player:action` relays that action to every other connected player after its
-  graph epoch, drawn-weapon, and unoccupied-furniture checkpoint prerequisites
-  are verified.
-- `player:appearance` carries the player's latest character name, level, and
-  appearance (race, sex, weight, head parts, hair color, face morphs, and tints)
-  with an increasing revision. `defaultRace` carries the base-game race and sex
-  peers show when they cannot resolve a modded race, or `null`; when absent it
-  is stored and relayed as `null`. It is relayed to other players with `playerId`
-  and a `nameIndex` that tells apart players with the same name. The
-  server stores the latest appearance per connection and sends every stored
-  appearance to a newly connected client. See
-  `specs/appearance-and-equipment.md`.
-- `player:equipment` carries the player's latest equipped items (worn armor,
-  right- and left-hand weapon or torch, and equipped `ammo`) as load-order
-  independent `{plugin, formId}` references with an increasing revision. A hand
-  holding a spell is `{"kind": "spell"}` without a reference. `defaultOutfit`
-  carries the base-game and Anniversary Edition items peers show in place of the player's items they
-  cannot resolve (`specs/appearance-and-equipment.md`); when
-  absent it is stored and relayed as empty. It uses the same
-  relay, storage, and late-join lifecycle as `player:appearance`. See
-  `specs/appearance-and-equipment.md`.
-- `player:disconnect` tells peers to remove the disconnected player's actor
-  and forget all of its state. The server pings every client every 5 seconds
-  and disconnects one that does not answer within 10 more, so a crashed or
-  unreachable player is removed within 10 seconds.
-- `chat:send` carries `{"text": ...}` typed by the player. Surrounding spaces
-  are trimmed; empty text, control characters, or more than 512 UTF-8 bytes are
-  rejected with `{"ok": false, "error": "invalid chat message"}`, and more than
-  5 messages in 5 seconds from one player with `"rate limited"`. An accepted
-  message is relayed as `chat:message` with `playerId` and the sender's
-  character `name`, `nameIndex`, and `level` to every player, the sender
-  included, and is not recorded.
-  See `specs/network.md`.
-- `latency:probe` is acknowledged immediately with `{"ok": true, "serverTimeMs": ...}`
-  and never relayed. The plugin sends one per second, shows the acknowledgement
-  round trip as its ping, and uses `serverTimeMs` to estimate the server clock.
-- `player:update` may carry an optional `sentAtMs`: the source's emit time on the
-  server clock. It is relayed on `player:states` but never stored or recorded, and
-  a missing or invalid value is dropped without rejecting the checkpoint. Peers
-  use it to show the remote packet delay.
+## Configuration
 
-Attacks are intentionally not another field in `player:update`: a snapshot
-field would collapse repeated attacks. The plugin emits one separate
-`animation:action` message for every observed melee attack or bash and receives it as
-`player:action` on peers.
+Every key is optional. Link-dependent limits live here, so a homelab and a
+remote server differ only in this file.
 
-The plugin publishes at 20 Hz. Peers in different exterior cells of the same
-worldspace remain synchronized; interiors require an exact cell match. The
-server retains each connection's latest sequence number so stale or reordered
-updates are rejected.
+```toml
+listen = "0.0.0.0:3000"
+recordings_directory = "recordings"
+admin_ui_directory = "admin-ui/dist"
+# Batches per second to each client. 40 keeps batching under 25 ms.
+send_rate_hz = 40
+
+[limits]
+messages_per_second = 120   # per connection; exceeding it closes the connection
+message_burst = 240
+actions_per_second = 10     # per player; extra attacks are rejected
+action_burst = 10
+ordered_backlog = 4096      # unsent ordered messages before a slow client is dropped
+hello_timeout_seconds = 5
+
+[liveness]
+ping_interval_seconds = 5   # WebSocket pings, answered by the client's transport thread
+timeout_seconds = 10
+
+[interest]
+enter_radius = 8192         # game units, horizontal
+leave_radius = 9830
+min_dwell_seconds = 1       # time in view before a peer can leave for range
+update_hz = 5               # periodic reevaluation; hard rules apply at once
+max_visible = 64            # peers per client, nearest first; 0 is no cap
+cap_hysteresis = 1024       # a newcomer must be this much nearer to displace a peer in view
+near_distance = 4096        # peers beyond it get far_rate_hz
+far_rate_hz = 10            # 0 sends every checkpoint to every peer
+minimum_view_radius = 1024  # the smallest radius a client may ask for
+
+[budget]
+enabled = false             # true for an uplink that cannot carry everything
+uplink_bytes_per_second = 6250000   # the link; 80% of it is used
+per_recipient_bytes_per_second = 0  # caps one client's share; 0 is an equal share only
+enters_per_second = 20      # new peers per client and second, nearest first
+```
+
+For a homelab with a 50 Mbit/s upload, see `homelab.toml`: the budget on and
+32 visible peers, which keeps the nearest peers' p99 under 60 ms with 250
+players in one crowd.
+
+`--pprof` serves `net/http/pprof` under `/debug/pprof/` for profiling under
+loadgen.
+
+Unknown keys are an error, so a typo does not silently keep a default.
+
+## Tests and tools
+
+```sh
+go test ./...                             # unit and black-box WebSocket tests
+go test -race ./...
+go run ./cmd/loadgen --bots 250 --server-pid <pid>
+go run ./cmd/convert-recordings recordings
+```
+
+- `cmd/loadgen` connects bots as real WebSocket clients, walking in a square
+  (`--spread`, `--speed`, `--idle` for a share standing still, `--view-radius`)
+  or replaying a recording (`--recording`). Each bot
+  sends its send time in microseconds as the checkpoint sequence, so receivers
+  on the same host measure latency across processes. It reports entries and
+  bytes received per second, latency percentiles overall and for peers within
+  `--near` (4096), and with `--server-pid` the server's CPU.
+- `cmd/convert-recordings` converts version 2 recordings, from the Python
+  server, to version 3 in place and keeps each original as `<id>.v2`.
+- `../proto/generate.sh` regenerates `internal/wire/pb` and the plugin's
+  nanopb code from `../proto/`.
+
+## Layout
+
+| Package | Responsibility |
+| --- | --- |
+| `cmd/server` | Entry point and wiring |
+| `internal/config` | TOML configuration and defaults |
+| `internal/session` | WebSocket accept, hello, reader, writer, liveness, limits |
+| `internal/validate` | Field validation of client messages |
+| `internal/hub` | The one goroutine that owns world state, subscriptions, and delivery order |
+| `internal/interest` | Interest rules, exclusions, spatial grid |
+| `internal/world` | Player state and ordering rules, name indexes |
+| `internal/delivery` | Per-recipient outboxes and batch writing |
+| `internal/wire` | Hand-written encoding of hot messages, quantization, generated `pb` |
+| `internal/recording` | Format version 3, store, captures, v2 converter, timeline markers |
+| `internal/playback` | Virtual players and replay sessions |
+| `internal/loadtest` | In-server bot batches |
+| `internal/admin` | REST API, event feed, panel files |
 
 ## Admin panel
 
-The server hosts a web admin panel at `http://127.0.0.1:3000/admin/`, with a
-**Dashboard** (connected players, active captures and replays, stored
-recordings, uptime), **Replay management** (capture, replay, delete), and
-**Load testing** (many bots replaying one recording; see below). It is a
-React and TypeScript app in `admin-ui/`; see `admin-ui/README.md` to build it or
-run it in development. Until it is built, `/admin/` explains how, and the REST
-API below works regardless.
-
-The panel talks to the server in two ways. Commands are REST calls under `/api`
-(documented at `/docs`). Live state is a full snapshot pushed over the `/admin`
-Socket.IO namespace on connect and after every change, at most twice a second.
-The namespace is separate from the player namespace, so an open panel is never
-counted as a player. There is no authentication: like the rest of this POC, do
-not expose the port to the public Internet.
-
-## Recordings
-
-Recording is controlled from the panel (or `POST /api/recordings`), per player,
-and runs until stopped. Nothing is recorded by default. Starting a capture writes
-the player's current appearance, equipment, and latest checkpoint first (preceded
-by `player:exit` when the player is out of the world), so a recording that begins
-mid-session replays on its own. After that every accepted `player:enter`,
-`player:exit`, `player:update`, `player:appearance`, `player:equipment`, and
-`animation:action` of that player is appended. A capture also ends when the
-player disconnects or the server shuts down, and a failing disk ends only the
-capture, never the relay.
-
-A recording is one append-only JSON Lines file, `recordings/<id>.jsonl`, with the
-ID `YYYYMMDD-HHMMSS-xxxxxx`. It has a `header` line (label, player, start time),
-one `message` line per event (`t` in milliseconds from the start, the event name,
-and the validated payload exactly as relayed), and an `end` line with the reason.
-A file without an `end` line is an interrupted capture and still replays; a torn
-last line is ignored. Recordings are ignored by Git.
+The panel (`admin-ui/`, see its README) shows connected players, captures,
+replays, and load-test batches. Commands are REST calls under `/api`; live
+state is a server-sent event stream at `/api/events` that pushes a full
+snapshot on connect and after changes, at most twice a second.
 
 | Endpoint | |
 | --- | --- |
-| `GET /api/state` | Everything the panel shows: players, recordings, playbacks, batches |
+| `GET /api/state` | Everything the panel shows |
+| `GET /api/events` | Event stream of the same snapshot |
 | `GET /api/recordings/{id}` | One recording with its timeline markers |
 | `POST /api/recordings` `{playerId, label?}` | Start capturing a connected player |
 | `POST /api/recordings/{id}/stop` | Stop a capture |
@@ -165,95 +131,25 @@ last line is ignored. Recordings are ignored by Git.
 | `POST /api/playbacks/{id}/seek` `{positionMs}` | Jump to a time |
 | `PATCH /api/playbacks/{id}` `{rate?, loop?}` | Speed (0.1 to 4) and looping |
 | `DELETE /api/playbacks/{id}` | Stop a replay and remove its virtual player |
-
-## Replaying a recording
-
-A replay runs inside the server as a **virtual player** (`replay:<id>`). Every
-connected client sees it as another peer: it is relayed in `player:states`, as
-`player:action`, `player:appearance`, `player:equipment`, `player:exit`, and
-`player:disconnect`, and clients that join mid-replay receive
-its appearance and equipment. While the recorded player was out of the world,
-the virtual player exits too and sends no checkpoints. Nothing in the
-plugin distinguishes it from a real player.
-
-Clients accept a peer's state only with a rising `sequence`, a non-decreasing
-`graphEpoch`, contiguous `actionSequence` values, and rising appearance and
-equipment revisions. A replay that pauses, seeks backwards, or loops cannot reuse
-a recording's own numbers, so the virtual player numbers everything itself and
-only takes the recording's content (`server/playback/virtual_player.py`):
-
-- **Seek** does not replay what it skips. It sends the appearance, equipment, and
-  checkpoint in effect at the target, and starts a new graph epoch so clients drop
-  attack actions queued for the old position. Appearance and equipment are resent
-  only if they differ from what clients already show.
-- **Pause** freezes the timeline and holds the actor in place: its last checkpoint
-  is repeated four times a second with locomotion stopped (idle, speed zero, not
-  jumping), so it stands still instead of running in place and late joiners still
-  see it. Playing from the end starts over.
-- **Speed** scales the timeline; the recorded animation speed is not adjusted, so
-  motion at other than 1x looks faster or slower than the animation implies.
-
-FastAPI's interactive HTTP documentation is available at
-`http://127.0.0.1:3000/docs`.
-
-## Load testing
-
-A **batch** replays one recording with many bots at once, for load testing and
-comparing builds. Bot `i` of `N` starts at `i × duration / N`, moved by up to
-`jitter / 2` of that spacing either way, so the bots do different things at any
-moment. Every bot loops. A **seed** fixes the layout: the same seed and settings
-give the same start positions and speeds, so runs can be repeated across
-builds. Optional settings:
-
-- **Ramp-up**: bots join one by one over this time instead of all at once. A bot
-  that joins later starts further along, so the spacing is kept.
-- **Speed variation**: each bot plays at `1 ± rateSpread`, so the spacing drifts
-  instead of repeating exactly every loop.
-- **Connection**: `virtual` bots (`bot:<batch>-<n>`) are replayed inside the
-  server like a panel replay. `socket` bots are loopback Socket.IO clients that
-  go through the player ingestion path (validation, relay, per-connection
-  delivery). They run in the server's own process and event loop, so their
-  client-side work counts against the server's CPU.
-
-Bots are named after the recorded player with a number (`Lydia #3`). They are
-left out of the snapshot's `players` list and appear only under their batch.
-Batches exist only while the server runs.
-
-| Endpoint | |
-| --- | --- |
-| `POST /api/batches` `{recordingId, players, transport?, seed?, jitter?, rateSpread?, rampUpSeconds?}` | Start a batch (1 to 500 bots) |
+| `PUT /api/players/{id}/hidden` `{hidden}` | Hide a player from everyone, or show it again |
+| `POST /api/exclusions`, `DELETE /api/exclusions` `{viewerId, targetId}` | Add or lift a directed exclusion |
+| `POST /api/batches` `{recordingId, players, seed?, jitter?, rateSpread?, rampUpSeconds?}` | Start a batch of in-server bots (1 to 500) |
 | `POST /api/batches/{id}/pause`, `/resume` | Pause or resume every bot |
 | `DELETE /api/batches/{id}` | Stop a batch and remove its bots |
 
-## Replay from the command line
-
-`replay` is a Socket.IO test client that connects like a player and sends a
-recording through the real ingestion path (validation, relay, and capture
-included). Unlike a panel replay, it is a real connection with its own session
-ID. Start the server, then in another terminal run:
-
-```powershell
-uv run replay recordings/20260921-101500-a1b2c3.jsonl
-```
-
-It reads the same `.jsonl` files the server writes, and numbers its messages
-itself, so `--loop` keeps working past the first pass. Useful options include
-`--url http://192.168.1.20:3000`, `--speed 2` to replay twice as fast,
-`--no-timing` to send as fast as acknowledgements allow, and `--loop` for
-continuous playback. The client waits for the server acknowledgement by default
-and stops if the server rejects a message.
+Errors answer `{"detail": "..."}`. Player IDs are slots as decimal strings.
 
 ## Connecting from another computer
 
-On the remote player's machine, edit `skyrim-mp.ini` next to `skyrim-mp.dll`
-(the plugin writes it with defaults on the first launch) and set the shared
-server's reachable URL, for example:
+On the remote player's machine, set the server's reachable URL in
+`skyrim-mp.ini` next to `skyrim-mp.dll`:
 
 ```ini
 [Network]
 ServerEndpoint = http://192.168.1.20:3000
 ```
 
-Allow inbound TCP port `3000` through the server machine's firewall. This POC
-has no authentication or encryption, so do not expose it directly to the public
-Internet.
+Allow inbound TCP port 3000 through the server machine's firewall. There is
+no authentication, so do not expose the port to the public Internet. For a
+remote server, terminate TLS in a reverse proxy and use an `https://`
+endpoint; the plugin connects with `wss://`.

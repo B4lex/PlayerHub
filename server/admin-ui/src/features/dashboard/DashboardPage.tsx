@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
+import { api } from "../../api/client";
 import type { Player } from "../../api/types";
 import { Badge } from "../../components/Badge";
+import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import { PageHeader } from "../../components/PageHeader";
 import { Panel } from "../../components/Panel";
@@ -8,7 +10,9 @@ import { StatTile } from "../../components/StatTile";
 import { formatBytes, formatFormId, formatTimestamp, plural, shortId } from "../../lib/format";
 import { useTicker } from "../../lib/useTicker";
 import { useServerState } from "../../state/ServerState";
+import { useAction } from "../../state/useAction";
 import styles from "./DashboardPage.module.css";
+import { ExclusionsPanel } from "./ExclusionsPanel";
 
 /** "sneakingIdle" -> "sneaking idle". */
 function humanize(name: string): string {
@@ -28,7 +32,14 @@ function describePosition(player: Player): string {
   return [x, y, z].map((value) => Math.round(value)).join(", ");
 }
 
+function describeTraffic(player: Player): string {
+  if (player.virtual) return "—";
+  const kilobytes = player.bytesPerSecond / 1000;
+  return `${kilobytes < 10 ? kilobytes.toFixed(1) : Math.round(kilobytes)} KB/s`;
+}
+
 function PlayerRow({ player }: { player: Player }) {
+  const [run, busy] = useAction();
   return (
     <tr>
       <td>
@@ -40,8 +51,29 @@ function PlayerRow({ player }: { player: Player }) {
       <td>{describeLocation(player)}</td>
       <td className={`${styles.position} mono tabular`}>{describePosition(player)}</td>
       <td className={styles.muted}>{player.movementState ? humanize(player.movementState) : "—"}</td>
+      <td className="tabular">
+        {player.virtual ? (
+          "—"
+        ) : (
+          <>
+            <div title="Peers this player receives">{plural(player.visible, "peer")}</div>
+            <div
+              className={styles.muted}
+              title={`${player.replacedPerSecond.toFixed(1)} checkpoints/s replaced before they were sent`}
+            >
+              {describeTraffic(player)}
+              {player.replacedPerSecond >= 1 && ` · ${Math.round(player.replacedPerSecond)} dropped/s`}
+            </div>
+          </>
+        )}
+      </td>
       <td>
         <div className={styles.badges}>
+          {player.hidden && (
+            <Badge tone="neutral" title="Hidden from every other player">
+              Hidden
+            </Badge>
+          )}
           {player.virtual && (
             <Badge tone="info" title="A replay's virtual player">
               Replay
@@ -59,6 +91,13 @@ function PlayerRow({ player }: { player: Player }) {
             </Badge>
           )}
         </div>
+      </td>
+      <td>
+        {!player.virtual && (
+          <Button size="sm" variant="ghost" busy={busy} onClick={() => run(() => api.players.setHidden(player.id, !player.hidden))}>
+            {player.hidden ? "Show" : "Hide"}
+          </Button>
+        )}
       </td>
     </tr>
   );
@@ -132,7 +171,11 @@ export function DashboardPage() {
                 <th scope="col">Location</th>
                 <th scope="col">Position</th>
                 <th scope="col">Doing</th>
+                <th scope="col">Receives</th>
                 <th scope="col">Status</th>
+                <th scope="col">
+                  <span className="visually-hidden">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -143,6 +186,10 @@ export function DashboardPage() {
           </table>
         )}
       </Panel>
+
+      <div className={styles.section}>
+        <ExclusionsPanel />
+      </div>
     </>
   );
 }

@@ -11,9 +11,9 @@ namespace Network
         double sentBytesPerSecond = 0.0;
     };
 
-    // Adds the estimated size of one Socket.IO packet. WebSocket framing, TLS,
-    // and Engine.IO heartbeats are not visible to the client, so they are not
-    // counted. Safe to call from any thread.
+    // Adds the size of one WebSocket message as IXWebSocket reports it on the
+    // wire. TLS, TCP, and ping frames are not counted. Safe to call from any
+    // thread.
     void CountReceivedBytes(std::size_t a_bytes);
     void CountSentBytes(std::size_t a_bytes);
 

@@ -17,8 +17,14 @@ vs*/
 compile_commands.json
 CMakeLists.txt
 
+# development utility
 deploy_dirs/*
-!.gitkeep
-
 *.log
 scripts/
+plans/
+
+# Go server binaries
+/server/server
+/server/*.exe
+
+!.gitkeep

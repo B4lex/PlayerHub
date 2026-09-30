@@ -14,7 +14,7 @@ a peer does not have a matching modded asset or behavior.
   engine hooks and startup, `src/protocol/` for shared state and wire types,
   `src/network/` for transport, `src/sync/<feature>/` for synchronization logic,
   `src/actor/` for Skyrim actor behavior, and `src/ui/` for presentation. Keep
-  server-side behavior in `server/`.
+  server-side behavior in `server/` (Go) and the wire schema in `proto/`.
 - Split a feature across the domains it touches, with each responsibility in its
   owning module. Keep coordination and entry points focused on ordering and
   delegation; avoid growing them into feature implementations.
@@ -100,15 +100,20 @@ a peer does not have a matching modded asset or behavior.
 - Backward compatibility between protocol or server versions is not a priority:
   every client release is supplied with its required server update. Prefer clear,
   direct protocol evolution over compatibility shims for older client versions.
-- A wire change usually spans `src/protocol/`, serialization and parsing in
-  `src/network/`, validation and relay in `server/src/server/`, and the owning
-  `src/sync/` feature. Check all of these and update the matching server tests.
+- A wire change usually spans the schema in `proto/skyrimmp/v1/`, plain values
+  and quantization in `src/protocol/`, encoding and parsing in
+  `src/network/WireCodec`, validation in `server/internal/validate`, ordering
+  and relay in `server/internal/hub`, and the owning `src/sync/` feature. Check
+  all of these and update the matching server tests.
+- After editing a `.proto` or `.options` file, run `proto/generate.sh` from a
+  Linux or Windows shell (never under wine) and commit the regenerated Go and
+  nanopb code with the change.
 - Validate untrusted network fields at the boundary, including types, finite
   numbers, ranges, sequence or revision ordering, and form references.
-- For server changes, run the relevant test module from `server/` with
-  `uv run python -m unittest discover -s tests -p 'test_<module>.py'`.
-  Run the full suite with `uv run python -m unittest discover -s tests` when
-  protocol behavior changes.
+- For server changes, run `go vet ./...` and the relevant package's tests from
+  `server/` with `go test ./internal/<package>`. Run `go test -race ./...` when
+  protocol or concurrency behavior changes, and `cmd/loadgen` against a local
+  server (port 3100) when a change may affect throughput or latency.
   For plugin changes on Linux, report that the Windows XMake build and in-game
   behavior were not verified, and describe any checks that were possible.
 

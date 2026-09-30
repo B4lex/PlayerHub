@@ -1,5 +1,5 @@
 #include "sync/chat/ChatSync.h"
-#include "network/SocketIOClient.h"
+#include "network/ServerClient.h"
 #include "protocol/ChatMessage.h"
 #include "sync/PlayerLabel.h"
 

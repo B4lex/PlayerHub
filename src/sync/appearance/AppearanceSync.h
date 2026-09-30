@@ -37,7 +37,7 @@ namespace AppearanceSync
     };
 
     void AcceptRemoteAppearance(
-        RemoteState& a_remote, const std::string& a_playerID, Multiplayer::PlayerAppearance&& a_appearance);
+        RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, Multiplayer::PlayerAppearance&& a_appearance);
 
     // Remote frame stage: advances first-appearance wait and respawn cooldown.
     void SyncAppearance(RemoteState& a_remote, float a_delta);
@@ -46,7 +46,7 @@ namespace AppearanceSync
     // base for the latest revision if needed. Returns nullptr while a first
     // appearance is still expected; afterwards builds a default look. A revision
     // that cannot be built keeps the previously built base, if any.
-    [[nodiscard]] RE::TESNPC* GetSpawnBase(RemoteState& a_remote, const std::string& a_playerID);
+    [[nodiscard]] RE::TESNPC* GetSpawnBase(RemoteState& a_remote, Multiplayer::PeerSlot a_playerID);
 
     void OnActorSpawned(RemoteState& a_remote, RE::TESNPC* a_spawnedBase);
 
@@ -56,5 +56,5 @@ namespace AppearanceSync
     // Applies post-3D presentation: hair and skin color once per spawned actor, and
     // the face tint render whenever the actor's head gets a new tint texture.
     void ApplyActorPresentation(
-        RemoteState& a_remote, const std::string& a_playerID, RE::Actor& a_actor, bool a_actorReady);
+        RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RE::Actor& a_actor, bool a_actorReady);
 }

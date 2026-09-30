@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <optional>
+#include <string>
 
 namespace Network
 {
@@ -33,6 +34,11 @@ namespace Network
     // so it never shows a connection as open or closed before it is. Safe to
     // call from any thread.
     [[nodiscard]] ConnectionState GetConnectionState();
+
+    // Why the server refused this client, while a connection is wanted but will
+    // not be retried: another protocol version. Empty otherwise. Safe to call
+    // from any thread.
+    [[nodiscard]] std::optional<std::string> GetConnectionRefusal();
 
     // Round trip of the latest acknowledged probe. Empty while disconnected or
     // before the first acknowledgement of this connection. Safe to call from any

@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from "react";
 import { api } from "../../api/client";
-import type { BatchTransport } from "../../api/types";
 import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import { Panel } from "../../components/Panel";
@@ -10,24 +9,11 @@ import { useServerState } from "../../state/ServerState";
 import { useAction } from "../../state/useAction";
 import styles from "./NewBatchPanel.module.css";
 
-// Mirrors the server's limits (server/src/server/loadtest/plan.py).
+// Mirrors the server's limits (server/internal/loadtest/plan.go).
 const MAXIMUM_BOTS = 500;
 const MAXIMUM_RAMP_UP_SECONDS = 600;
 const MAXIMUM_RATE_SPREAD_PERCENT = 50;
 const MAXIMUM_SEED = 2 ** 31 - 1;
-
-const transports: { value: BatchTransport; label: string; description: string }[] = [
-  {
-    value: "virtual",
-    label: "In-server",
-    description: "Replayed inside the server. Lightest; loads the game clients and the server's fan-out.",
-  },
-  {
-    value: "socket",
-    label: "Socket clients",
-    description: "One loopback Socket.IO connection per bot, through the same ingestion path as real players.",
-  },
-];
 
 function parseInteger(text: string, minimum: number, maximum: number): number | null {
   if (!/^\d+$/.test(text.trim())) return null;
@@ -43,7 +29,6 @@ export function NewBatchPanel() {
 
   const [chosenId, setRecordingId] = useState("");
   const [players, setPlayers] = useState("10");
-  const [transport, setTransport] = useState<BatchTransport>("virtual");
   const [rampUp, setRampUp] = useState("0");
   const [jitterPercent, setJitterPercent] = useState(50);
   const [spreadPercent, setSpreadPercent] = useState(0);
@@ -63,7 +48,6 @@ export function NewBatchPanel() {
       api.batches.create({
         recordingId: recording.id,
         players: playerCount,
-        transport,
         seed: seedValue,
         jitter: jitterPercent / 100,
         rateSpread: spreadPercent / 100,
@@ -124,25 +108,6 @@ export function NewBatchPanel() {
             />
           </label>
         </div>
-
-        <fieldset className={styles.transports}>
-          <legend>Connection</legend>
-          {transports.map((option) => (
-            <label key={option.value} className={styles.transport}>
-              <input
-                type="radio"
-                name="transport"
-                value={option.value}
-                checked={transport === option.value}
-                onChange={() => setTransport(option.value)}
-              />
-              <span>
-                <span className={styles.transportLabel}>{option.label}</span>
-                <span className={styles.hint}>{option.description}</span>
-              </span>
-            </label>
-          ))}
-        </fieldset>
 
         <label className={styles.field}>
           <span>

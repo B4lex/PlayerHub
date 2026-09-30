@@ -50,53 +50,6 @@
   font-weight: 400;
 }
 
-.transports {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.transports legend {
-  margin-bottom: 0.35rem;
-  padding: 0;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  font-weight: 550;
-}
-
-.transport {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.transport:has(input:checked) {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-}
-
-.transport input {
-  margin: 0.2rem 0 0;
-  accent-color: var(--accent);
-}
-
-.transport > span {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
-.transportLabel {
-  font-weight: 600;
-}
-
 .summary {
   padding: 0.6rem 0.75rem;
   color: var(--text-muted);

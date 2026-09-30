@@ -58,8 +58,9 @@ takes the setting's item filter
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `ServerEndpoint` | Server URL starting with `http://` or `https://`; replaces `skyrim-mp-server.txt`, which is no longer read | the public server |
+| `ServerEndpoint` | Server URL starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; replaces `skyrim-mp-server.txt`, which is no longer read | the public server |
 | `AutoConnect` | Whether each game connects when it loads; otherwise the settings window's Connect does | `true` |
+| `ViewRadius` | Game units within which other players are shown, `0..100000`; sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection | `0`, the server's range |
 
 ### `[DefaultOutfit]`
 
@@ -135,7 +136,7 @@ revision before the snapshot never misses a change.
 | `EquipmentSync` | main loop | the next capture selecting from the new outfit and publishing a new revision |
 | `AppearanceSync` | main loop | the next capture taking the new default race and sex, which for a modded race publishes a new revision |
 | `ConnectionMonitor` | main loop | reconnecting at once when the latest attempt went to another endpoint; reading `AutoConnect` when a game starts |
-| `SocketIOClient` | transport, worker | reading the endpoint for each attempt |
+| `ServerClient` | transport, worker | reading the endpoint for each attempt |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
 | `StatusPanel`, item pickers | overlay | reading `StatusPanel` and `ItemPreview` each frame |
 

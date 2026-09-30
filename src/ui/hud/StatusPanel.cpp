@@ -1,7 +1,7 @@
 #include "ui/hud/StatusPanel.h"
 #include "config/PluginConfig.h"
 #include "network/ConnectionMonitor.h"
-#include "network/SocketIOClient.h"
+#include "network/ServerClient.h"
 #include "network/TrafficMeter.h"
 #include "runtime/GameSession.h"
 #include "runtime/PluginTime.h"
@@ -99,7 +99,11 @@ namespace UI
             return;
         }
 
-        if (!Network::IsConnected())
+        if (Network::GetConnectionRefusal())
+        {
+            ImGui::TextColored(kPoorColor, "Server version differs");
+        }
+        else if (!Network::IsConnected())
         {
             ImGui::TextColored(kPoorColor, "Disconnected");
         }

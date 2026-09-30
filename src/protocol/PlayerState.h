@@ -2,9 +2,9 @@
 
 #include "protocol/FormReference.h"
 #include "protocol/MovementState.h"
+#include "protocol/PeerSlot.h"
 
 #include <cstdint>
-#include <string>
 
 namespace Network
 {
@@ -120,7 +120,7 @@ namespace Network
 
     struct AnimationAction
     {
-        std::string playerID;
+        Multiplayer::PeerSlot playerID{ 0 };
         Attack attack{};
         std::uint64_t actionSequence{ 0 };
         std::uint64_t graphEpoch{ 0 };

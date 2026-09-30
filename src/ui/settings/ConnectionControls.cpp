@@ -72,7 +72,14 @@ namespace UI::ConnectionControls
                     }
                     break;
                 case ConnectionState::kConnecting:
-                    ImGui::SetTooltip("Connecting...");
+                    if (const auto refusal = Network::GetConnectionRefusal())
+                    {
+                        ImGui::SetTooltip("%s", refusal->c_str());
+                    }
+                    else
+                    {
+                        ImGui::SetTooltip("Connecting...");
+                    }
                     break;
                 case ConnectionState::kDisconnecting:
                     ImGui::SetTooltip("Disconnecting...");

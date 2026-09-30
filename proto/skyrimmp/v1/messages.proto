@@ -1,0 +1,144 @@
+// One binary WebSocket message carries exactly one ClientMessage or
+// ServerMessage. Messages and their validation are described in
+// specs/network.md.
+syntax = "proto3";
+
+package skyrimmp.v1;
+
+import "skyrimmp/v1/state.proto";
+
+option go_package = "skyrim-mp/server/internal/wire/pb;pb";
+
+enum Protocol {
+  PROTOCOL_UNSPECIFIED = 0;
+  // Bumped on every incompatible change. Client and server must match.
+  PROTOCOL_VERSION = 1;
+}
+
+message Hello {
+  uint32 protocol_version = 1;
+  // The radius, in game units, within which this client wants peers; zero
+  // for the server's. The server clamps it to its own range.
+  uint32 view_radius = 2;
+}
+
+message Enter {}
+
+message Exit {}
+
+message ChatSend {
+  uint32 request_id = 1;
+  string text = 2;
+}
+
+message Ping {
+  uint32 request_id = 1;
+}
+
+message ClientMessage {
+  oneof message {
+    Hello hello = 1;
+    Enter enter = 2;
+    Exit exit = 3;
+    Checkpoint checkpoint = 4;
+    Context context = 5;
+    Action action = 6;
+    Appearance appearance = 7;
+    Equipment equipment = 8;
+    ChatSend chat = 9;
+    Ping ping = 10;
+  }
+}
+
+message Welcome {
+  // The client's own slot. Slots are never reused within a server run.
+  uint32 slot = 1;
+}
+
+// Answers a request that carries a request_id: ChatSend and Ping.
+message Result {
+  uint32 request_id = 1;
+  bool ok = 2;
+  string error = 3;
+}
+
+// Latest checkpoints of peers the recipient subscribes to. The server builds a
+// batch by concatenating entries encoded once per sender.
+message PeerStates {
+  repeated Checkpoint states = 1;
+}
+
+// Starts a subscription. Nothing else about the peer precedes it. Appearance
+// and equipment are present only when newer than what the recipient holds.
+message PeerEnter {
+  uint32 slot = 1;
+  Appearance appearance = 2;
+  uint32 name_index = 3;
+  Equipment equipment = 4;
+  Context context = 5;
+  Checkpoint state = 6;
+}
+
+message PeerContext {
+  uint32 slot = 1;
+  Context context = 2;
+}
+
+enum LeaveReason {
+  LEAVE_REASON_UNSPECIFIED = 0;
+  LEAVE_REASON_OUT_OF_RANGE = 1;
+  LEAVE_REASON_EXCLUDED = 2;
+  // The peer left the world: loading screen, main menu, or save load.
+  LEAVE_REASON_EXITED = 3;
+  // The peer's connection closed. The recipient forgets its appearance and
+  // equipment too.
+  LEAVE_REASON_DISCONNECTED = 4;
+  // The recipient itself has no position the server can compare: it left the
+  // world or has not sent a Context and Checkpoint since entering.
+  LEAVE_REASON_VIEWER_UNPLACED = 5;
+}
+
+// Ends a subscription and the peer's action stream.
+message PeerLeave {
+  uint32 slot = 1;
+  LeaveReason reason = 2;
+}
+
+message PeerAction {
+  uint32 slot = 1;
+  Action action = 2;
+}
+
+message PeerAppearance {
+  uint32 slot = 1;
+  uint32 name_index = 2;
+  Appearance appearance = 3;
+}
+
+message PeerEquipment {
+  uint32 slot = 1;
+  Equipment equipment = 2;
+}
+
+message ChatMessage {
+  uint32 slot = 1;
+  string name = 2;
+  uint32 name_index = 3;
+  uint32 level = 4;
+  string text = 5;
+}
+
+message ServerMessage {
+  oneof message {
+    Welcome welcome = 1;
+    Result result = 2;
+    PeerStates peer_states = 3;
+    PeerEnter peer_enter = 4;
+    PeerContext peer_context = 5;
+    PeerLeave peer_leave = 6;
+    PeerAction peer_action = 7;
+    PeerAppearance peer_appearance = 8;
+    PeerEquipment peer_equipment = 9;
+    ChatMessage chat_message = 10;
+  }
+}

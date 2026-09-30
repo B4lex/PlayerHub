@@ -85,6 +85,11 @@ namespace Config
                 "Server URL, starting with http:// or https://.", IsValidServerEndpoint);
             a_visitor.Bool("AutoConnect", a_settings.autoConnect,
                 "");
+            a_visitor.Unsigned("ViewRadius", a_settings.viewRadius,
+                "Game units within which other players are shown. The server caps it; 0 uses\n"
+                "the server's range. A smaller radius saves frame time and bandwidth. Applies\n"
+                "on the next connection.",
+                100000);
         }
 
         void DescribeDefaultOutfit(DefaultOutfitSettings& a_settings, SettingsVisitor& a_visitor)

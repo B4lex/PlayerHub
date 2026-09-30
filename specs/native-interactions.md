@@ -18,7 +18,7 @@
   slopes; dismount and death removed the horse without a crash. The gallop is a
   [known limitation](#known-limitations).
 - **Death:** implemented and run in game: a replayed player's deaths, standing
-  and seated, collapsed the actor into a ragdoll that the next `player:exit`
+  and seated, collapsed the actor into a ragdoll that the next world exit
   removed. The remaining assumptions and criteria are not checked individually.
 
 The server side of all three is covered by unit tests.
@@ -29,7 +29,7 @@ Some things the actor does are Skyrim's to perform: sitting in furniture,
 riding, and dying. For these the receiver hands the actor to a native engine
 path and takes it back afterwards, while no animation, idle, or event name
 crosses the wire. Only reconstructable checkpoint state does: `furniture`,
-`mounted`, and `dead` ([Network](network.md#checkpoint)).
+`mounted`, and `dead` ([Network](network.md#checkpoint-and-context)).
 
 While an interaction owns the actor, it owns its graph and placement:
 translation, heading, locomotion, stance, and attacks wait, the firewall admits
@@ -62,14 +62,15 @@ remote actor is hidden instead.
 `furniture` is the [form reference](network.md#form-references) of
 `Actor::GetOccupiedFurniture()`, which Skyrim sets when the player activates the
 furniture, before walking to the entry point and playing the entry idle. It is
-published as `null` once the player's sit/sleep
+published as none once the player's sit/sleep
 state is WantToStand or WantToWake: the occupancy itself clears only when the
 player's exit clip ends (1.1 s for a chair, 3.3 s for a table), and peers start
 their own exit clip only when the furniture leaves the checkpoint, so they would
-otherwise stay seated for the source's whole exit. The server rejects attacks whose checkpoint uses
-furniture, and a furniture checkpoint discards the source's queued attacks. A
+otherwise stay seated for the source's whole exit. Furniture travels in the
+checkpoint's `Context`, so a change sends a context before the checkpoint. The
+server rejects attacks whose context has furniture, and a furniture checkpoint discards the source's queued attacks. A
 reference created at runtime (`FF`) has no form reference and is published as
-`null`.
+none.
 
 **Resolution.** A raw FormID named different references on peers whose load
 orders differ, such as furniture a light plugin adds to a replaced interior, so
@@ -444,7 +445,7 @@ with the body count.
 
 When a player dies, peers see the actor die like a vanilla NPC: it collapses
 into a ragdoll where physics leaves it. Vanilla death ends in a load (the last
-save or the main menu), whose `player:exit` removes the body, so peers see it for
+save or the main menu), whose world exit (`PeerLeave` with `EXITED`) removes the body, so peers see it for
 the few seconds of the death camera.
 
 ### Source
@@ -452,7 +453,7 @@ the few seconds of the death camera.
 `DeathSync::SampleLocalDeath` reads the player's `ACTOR_LIFE_STATE` once per
 checkpoint. `kDying` and `kDead` publish `dead`; every other state, including
 `kBleedout` and `kEssentialDown`, publishes alive. Checkpoints keep flowing while
-dead, until the load's `player:exit`. `dead` is checkpoint state, not an action,
+dead, until the load's world exit. `dead` is checkpoint state, not an action,
 so a peer that joins, respawns the actor, or re-enters the space during the death
 camera still sees a body.
 
