@@ -64,14 +64,14 @@ namespace EquipmentSync
     };
 
     void AcceptRemoteEquipment(
-        RemoteState& a_remote, const std::string& a_playerID, Multiplayer::PlayerEquipment&& a_equipment);
+        RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, Multiplayer::PlayerEquipment&& a_equipment);
 
     // A new reference starts with an unknown inventory.
     void OnActorSpawned(RemoteState& a_remote);
 
     // Remote frame stage: makes the actor's inventory and equipment equal the
     // resolved set.
-    void SyncEquipment(RemoteState& a_remote, const std::string& a_playerID, RemoteActor& a_remoteActor, float a_delta);
+    void SyncEquipment(RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RemoteActor& a_remoteActor, float a_delta);
 
     // True when the hands have reached the latest equipment, or reconciliation
     // gave up on that revision. Attacks and weapon draws wait for this.

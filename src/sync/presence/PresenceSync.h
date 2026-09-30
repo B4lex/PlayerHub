@@ -16,9 +16,9 @@ namespace PresenceSync
     // Called when a save starts loading, before the engine tears down the world.
     void OnGameLoadStarted();
 
-    // Local frame stage, before any other local publication, so player:enter
+    // Local frame stage, before any other local publication, so Enter
     // precedes the checkpoint it admits. Publishes the transitions, including a
-    // new player:enter after every reconnect, and returns whether the local
+    // new Enter after every reconnect, and returns whether the local
     // player is in the world.
     [[nodiscard]] bool SyncPresence(const LocalFrame& a_local);
 }

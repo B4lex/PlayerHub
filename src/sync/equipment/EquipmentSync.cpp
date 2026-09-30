@@ -2,7 +2,7 @@
 #include "actor/ActorAnimation.h"
 #include "actor/RemoteActor.h"
 #include "forms/FormLookup.h"
-#include "network/SocketIOClient.h"
+#include "network/ServerClient.h"
 #include "runtime/Profiling.h"
 #include "sync/outfit/DefaultOutfit.h"
 
@@ -312,7 +312,7 @@ namespace EquipmentSync
             return a_form ? std::format("{:08X}", a_form->GetFormID()) : "none";
         }
 
-        void LogUnresolvedEntry(const std::string& a_playerID, std::uint64_t a_revision, std::string_view a_slot,
+        void LogUnresolvedEntry(Multiplayer::PeerSlot a_playerID, std::uint64_t a_revision, std::string_view a_slot,
             const Multiplayer::FormReference& a_form, std::string_view a_reason, std::string_view a_standIn)
         {
             logs::warn(
@@ -322,7 +322,7 @@ namespace EquipmentSync
                 a_reason, a_standIn);
         }
 
-        ResolvedHand ResolveHandEntry(const std::string& a_playerID, std::uint64_t a_revision, std::string_view a_slot,
+        ResolvedHand ResolveHandEntry(Multiplayer::PeerSlot a_playerID, std::uint64_t a_revision, std::string_view a_slot,
             const std::optional<EquipmentHand>& a_entry, const Multiplayer::DefaultOutfit& a_outfit)
         {
             if (!a_entry)
@@ -362,7 +362,7 @@ namespace EquipmentSync
             a_remote.handsDeferred = false;
         }
 
-        void EnsureResolved(RemoteState& a_remote, const std::string& a_playerID)
+        void EnsureResolved(RemoteState& a_remote, Multiplayer::PeerSlot a_playerID)
         {
             const auto revision = a_remote.latest ? a_remote.latest->revision : 0;
             if (a_remote.resolved && a_remote.resolvedRevision == revision)
@@ -693,7 +693,7 @@ namespace EquipmentSync
     }
 
     void AcceptRemoteEquipment(
-        RemoteState& a_remote, const std::string& a_playerID, Multiplayer::PlayerEquipment&& a_equipment)
+        RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, Multiplayer::PlayerEquipment&& a_equipment)
     {
         if (a_remote.latest && a_equipment.revision <= a_remote.latest->revision)
         {
@@ -711,7 +711,7 @@ namespace EquipmentSync
         ResetReconciliation(a_remote);
     }
 
-    void SyncEquipment(RemoteState& a_remote, const std::string& a_playerID, RemoteActor& a_remoteActor, float a_delta)
+    void SyncEquipment(RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RemoteActor& a_remoteActor, float a_delta)
     {
         PROFILE_FUNCTION();
         const float delta = std::isfinite(a_delta) ? (std::max)(a_delta, 0.0F) : 0.0F;

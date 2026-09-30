@@ -1,5 +1,5 @@
 #include "sync/CheckpointPublisher.h"
-#include "network/SocketIOClient.h"
+#include "network/ServerClient.h"
 #include "runtime/Profiling.h"
 #include "sync/animation/AnimationSync.h"
 #include "sync/combat/CombatSync.h"

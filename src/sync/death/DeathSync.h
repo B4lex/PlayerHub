@@ -8,7 +8,7 @@ struct PeerState;
 
 // A dying or dead player is presented by killing its remote actor into a local
 // ragdoll. The body is then left to Skyrim, so where it comes to rest is local.
-// Vanilla death ends in a load, whose player:exit removes the body.
+// Vanilla death ends in a load, whose world exit removes the body.
 namespace DeathSync
 {
     // Local stage, called by CheckpointPublisher once per published checkpoint.

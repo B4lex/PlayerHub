@@ -1,6 +1,6 @@
 #include "network/ConnectionMonitor.h"
 #include "config/PluginConfig.h"
-#include "network/SocketIOClient.h"
+#include "network/ServerClient.h"
 #include "runtime/GameSession.h"
 #include "runtime/Profiling.h"
 
@@ -15,8 +15,8 @@ namespace Network
     namespace
     {
         constexpr float kProbeIntervalSeconds = 1.0F;
-        // Socket.IO with Engine.IO v4 never notices a silent server on its own,
-        // and never fails a pending ack, so an unanswered probe means the
+        // The transport notices a closed connection, but not a server that stops
+        // answering while the socket stays open, so an unanswered probe means the
         // connection is dead.
         constexpr float kProbeTimeoutSeconds = 5.0F;
         constexpr float kReconnectDelaySeconds = 1.0F;
@@ -40,6 +40,9 @@ namespace Network
             kConnected,
             kWaitingToReconnect,
             kReconnecting,
+            // The server refused this client, for example for another protocol
+            // version.
+            kRefused,
         };
 
         std::atomic_int64_t latencyMilliseconds{ kNoLatency };
@@ -231,6 +234,18 @@ namespace Network
 
         void UpdateDisconnected(float a_deltaSeconds)
         {
+            // A refused client stays down until the endpoint changes or the
+            // player connects again, since retrying cannot help.
+            if (const auto refusal = GetRefusal())
+            {
+                if (phase != Phase::kRefused)
+                {
+                    logs::error("Not reconnecting: {}", *refusal);
+                    ForgetLatency();
+                    EnterPhase(Phase::kRefused);
+                }
+                return;
+            }
             if (phase == Phase::kConnected)
             {
                 ForgetLatency();
@@ -304,6 +319,15 @@ namespace Network
                                                       : ConnectionState::kDisconnected;
         }
         return IsConnected() ? ConnectionState::kConnected : ConnectionState::kConnecting;
+    }
+
+    std::optional<std::string> GetConnectionRefusal()
+    {
+        if (!GameSession::IsInGame() || !connectionEnabled.load(std::memory_order_acquire))
+        {
+            return std::nullopt;
+        }
+        return GetRefusal();
     }
 
     std::optional<std::chrono::milliseconds> GetLatency()

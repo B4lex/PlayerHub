@@ -1,7 +1,7 @@
 #include "sync/SyncCoordinator.h"
 #include "actor/ActorAnimation.h"
 #include "actor/ActorRuntime.h"
-#include "network/SocketIOClient.h"
+#include "network/ServerClient.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
 #include "sync/ActorLifecycle.h"
@@ -45,9 +45,9 @@ namespace SyncCoordinator
         std::mutex s_localFurnitureActivationsLock;
         std::vector<LocalFurnitureActivation> s_localFurnitureActivations;
 
-        // Remote player IDs are the server's per-connection sids, so a closed or
-        // replaced connection leaves no peer that the server will update or
-        // report as left. Reconnecting rebuilds every peer from resent state.
+        // Slots belong to one server connection, so a closed or replaced
+        // connection leaves no peer that the server will update or report as
+        // left. Reconnecting rebuilds every peer from resent state.
         void RemovePeersFromLostConnection(Peers& a_peers, const Network::RemotePlayerChanges& a_changes)
         {
             if (a_changes.connected && a_changes.connectionGeneration == s_peersConnectionGeneration)
@@ -111,7 +111,7 @@ namespace SyncCoordinator
 
                 const bool hadActor = peer->second.lifecycle.actor.has_value();
                 ForgetWorldState(peer->second);
-                logs::debug("Removed remote player {} from the world after server player:exit: hadActor={}", playerID,
+                logs::debug("Removed remote player {} from the world after PeerLeave: hadActor={}", playerID,
                     hadActor);
             }
 
@@ -125,7 +125,7 @@ namespace SyncCoordinator
 
                 ActorLifecycle::RemoveActor(peer->second);
                 a_peers.erase(peer);
-                logs::debug("Removed remote player actor {} after server player:disconnect", playerID);
+                logs::debug("Removed remote player actor {} after its disconnect", playerID);
             }
 
             for (auto& update : changes.transforms)
@@ -278,7 +278,7 @@ namespace SyncCoordinator
                     CombatSync::DiscardLocalAttacks();
                     break;
                 case CheckpointPublisher::Status::kPublished:
-                    // player:update always precedes the animation:action it anchors.
+                    // The checkpoint always precedes the action it anchors.
                     CombatSync::PublishLocalAttacks(publication.checkpoint);
                     break;
                 default:
@@ -288,7 +288,7 @@ namespace SyncCoordinator
         }
 
         // Remote stages for one peer.
-        void SyncPeer(const std::string& a_playerID, PeerState& a_peer, const LocalFrame& a_local,
+        void SyncPeer(Multiplayer::PeerSlot a_playerID, PeerState& a_peer, const LocalFrame& a_local,
             RE::FormID a_localCellID, RE::FormID a_localWorldspaceID, RE::TESObjectREFR* a_localFurniture,
             float a_delta)
         {

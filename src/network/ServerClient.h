@@ -3,10 +3,12 @@
 #include "protocol/AppearanceState.h"
 #include "protocol/ChatMessage.h"
 #include "protocol/EquipmentState.h"
+#include "protocol/PeerSlot.h"
 #include "protocol/PlayerState.h"
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -15,19 +17,20 @@ namespace Network
 {
     struct RemotePlayerTransform
     {
-        std::string playerID;
+        Multiplayer::PeerSlot playerID{ 0 };
+        // Merged with the peer's context at the time it arrived.
         PlayerTransform transform;
     };
 
     struct RemotePlayerAppearance
     {
-        std::string playerID;
+        Multiplayer::PeerSlot playerID{ 0 };
         Multiplayer::PlayerAppearance appearance;
     };
 
     struct RemotePlayerEquipment
     {
-        std::string playerID;
+        Multiplayer::PeerSlot playerID{ 0 };
         Multiplayer::PlayerEquipment equipment;
     };
 
@@ -39,44 +42,48 @@ namespace Network
         // Only the newest pending equipment revision per player.
         std::vector<RemotePlayerEquipment> equipment;
         std::vector<AnimationAction> animationActions;
-        // Players that left the world. Their checkpoint and actions are
-        // forgotten, while appearance and equipment remain valid. Checkpoints and
-        // actions above for the same player arrived after the exit.
-        std::vector<std::string> exitedPlayerIDs;
-        std::vector<std::string> disconnectedPlayerIDs;
-        // Connection state when these changes were drained. Remote player IDs
-        // are the server's per-connection sids, so while disconnected, or once
-        // the generation advances, every previously known remote player is gone.
-        // Receive history is reset with each connection change, so the changes
-        // above always belong to this generation.
+        // Peers this client no longer receives: out of range, excluded, or out
+        // of the world. Their checkpoint and actions are forgotten, while
+        // appearance and equipment remain valid. Checkpoints and actions above
+        // for the same player arrived after the leave.
+        std::vector<Multiplayer::PeerSlot> exitedPlayerIDs;
+        // Peers whose connection closed: forget everything.
+        std::vector<Multiplayer::PeerSlot> disconnectedPlayerIDs;
+        // Connection state when these changes were drained. Slots are
+        // per-connection, so while disconnected, or once the generation
+        // advances, every previously known remote player is gone. Receive
+        // history is reset with each connection change, so the changes above
+        // always belong to this generation.
         std::uint64_t connectionGeneration = 0;
         bool connected = false;
     };
 
-    // Prepares the Socket.IO client without connecting. Safe to call more than
-    // once. The client never connects or retries by itself; ConnectionMonitor
-    // opens every connection through BeginReconnect.
+    // Prepares the client without connecting. Safe to call more than once. The
+    // client never connects or retries by itself; ConnectionMonitor opens every
+    // connection through BeginReconnect.
     void Initialize();
 
+    // Whether the server welcomed this connection.
     [[nodiscard]] bool IsConnected();
 
-    // Whether the Engine.IO transport is open. It outlasts IsConnected while a
-    // close is in progress. Safe to call from any thread.
+    // Whether the WebSocket is open. It outlasts IsConnected while a close is
+    // in progress. Safe to call from any thread.
     [[nodiscard]] bool IsTransportOpen();
 
-    // Advances every time the default namespace opens, including automatic
-    // reconnects. The server forgets per-connection state, so latest-wins
-    // publishers republish whenever this changes.
+    // Advances every time the server welcomes a connection. The server forgets
+    // per-connection state, so latest-wins publishers republish whenever this
+    // changes.
     [[nodiscard]] std::uint64_t GetConnectionGeneration();
 
-    // The server accepts checkpoints only between player:enter and player:exit,
+    // The server accepts context and checkpoints only between Enter and Exit,
     // and forgets the checkpoint and action stream on exit. Both are ordered
     // with the checkpoint stream; safe to call from any thread.
     void PublishLocalWorldEnter();
     void PublishLocalWorldExit();
 
-    // Called from the game thread. socket.io-client-cpp queues the emit for its
-    // transport thread; no Skyrim objects cross the network boundary.
+    // Called from the game thread. Sends the checkpoint's context first when it
+    // differs from the last one sent since entering the world, then the
+    // quantized checkpoint.
     void PublishLocalPlayerTransform(const PlayerTransform& a_transform);
 
     // Publishes the latest-wins appearance state. The caller owns revisions.
@@ -89,15 +96,15 @@ namespace Network
     // and, for a power attack, its direction. Graph event names never cross it.
     void PublishLocalAttack(const Attack& a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
 
-    // Emits chat:send with already trimmed, valid text. Returns false without
+    // Sends a chat line with already trimmed, valid text. Returns false without
     // sending while disconnected. a_onRejected runs on the transport thread with
     // the server's reason if it refuses the message; accepted messages come back
     // through DrainChatMessages like everyone else's.
     [[nodiscard]] bool PublishChatMessage(
         std::string_view a_text, std::function<void(std::string_view)> a_onRejected);
 
-    // Emits latency:probe. a_onAcknowledged runs on the transport thread when the
-    // server acknowledges it; it never runs if the connection drops first.
+    // Sends a Ping. a_onAcknowledged runs on the transport thread when the
+    // server answers it; it never runs if the connection drops first.
     void EmitLatencyProbe(std::function<void()> a_onAcknowledged);
 
     // Declares the current connection dead because the server stopped
@@ -108,12 +115,12 @@ namespace Network
     // Closes whatever is left of the old transport and opens a new one on a
     // worker thread, whether the loss was ours, the server's, or a failed
     // attempt. Returns false while a previous BeginReconnect or BeginClose is
-    // still working.
+    // still working. Clears a refusal.
     [[nodiscard]] bool BeginReconnect();
 
     // Reports the client disconnected at once, forgetting every remote player,
     // and closes the connection or pending attempt on a worker thread. Until the
-    // next BeginReconnect, a namespace that still opens is not reported as
+    // next BeginReconnect, a connection that still opens is not reported as
     // connected. Returns false while a previous BeginReconnect or BeginClose is
     // still working; the caller retries. Main-loop thread.
     [[nodiscard]] bool BeginClose();
@@ -122,10 +129,14 @@ namespace Network
     // one. False before the first attempt.
     [[nodiscard]] bool IsEndpointOutdated();
 
-    // Whether the latest attempt from BeginReconnect has been
-    // handed to the transport and then failed or closed before the namespace
-    // opened.
+    // Whether the latest attempt from BeginReconnect has been handed to the
+    // transport and then failed or closed before the server welcomed it.
     [[nodiscard]] bool DidReconnectAttemptFail();
+
+    // Why the server refused the latest connection for good, such as a protocol
+    // mismatch; retrying cannot help until the endpoint or the server changes.
+    // Empty otherwise. Safe to call from any thread.
+    [[nodiscard]] std::optional<std::string> GetRefusal();
 
     // Transfers network-thread updates to the caller. The authoritative
     // main-loop frame hook is the only consumer.

@@ -7,7 +7,7 @@
 #include "actor/SurvivalPolicy.h"
 #include "config/PluginConfig.h"
 #include "forms/ItemForms.h"
-#include "network/SocketIOClient.h"
+#include "network/ServerClient.h"
 #include "runtime/FurnitureActivationHook.h"
 #include "runtime/MainLoopHook.h"
 #include "sync/SyncCoordinator.h"

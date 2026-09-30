@@ -1,5 +1,6 @@
 #pragma once
 
+#include "protocol/PeerSlot.h"
 #include "protocol/PlayerState.h"
 #include "sync/ActorLifecycle.h"
 #include "sync/appearance/AppearanceSync.h"
@@ -8,7 +9,6 @@
 #include "sync/furniture/FurnitureSync.h"
 
 #include <cstdint>
-#include <string>
 #include <unordered_map>
 
 // Complete receive state of one network player. Composition only: each feature
@@ -26,4 +26,4 @@ struct PeerState
     FurnitureSync::RemoteState furniture;
 };
 
-using Peers = std::unordered_map<std::string, PeerState>;
+using Peers = std::unordered_map<Multiplayer::PeerSlot, PeerState>;

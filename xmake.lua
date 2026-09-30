@@ -18,7 +18,9 @@ option("tracy")
     set_description("Build with Tracy profiler instrumentation")
 option_end()
 
-add_requires("socket-io-client 3.1.0", { configs = { shared = false, cxxflags = "-DSIO_TLS" } })
+add_requires("ixwebsocket v12.0.1", { configs = { use_tls = true, ssl = "mbedtls" } })
+-- The generated code in src/network/proto comes from proto/generate.sh.
+add_requires("nanopb 0.4.9")
 add_requires("imgui v1.92.9", { configs = { dx11 = true, win32 = true } })
 add_requires("simpleini v4.25", { configs = { convert = "none" } })
 if has_config("tracy") then
@@ -44,12 +46,10 @@ target("skyrim-mp")
     })
 
     -- add src files
-    add_files("src/**.cpp")
+    add_files("src/**.cpp", "src/**.c")
     add_headerfiles("src/**.h")
-    add_includedirs("src")
-    add_packages("socket-io-client", "imgui", "simpleini")
-    -- socket-io-client uses Winsock through standalone Asio on Windows.
-    add_syslinks("ws2_32")
+    add_includedirs("src", "src/network/proto")
+    add_packages("ixwebsocket", "nanopb", "imgui", "simpleini")
     if has_config("tracy") then
         add_packages("tracy")
         -- The package does not export TRACY_ENABLE to consumers.

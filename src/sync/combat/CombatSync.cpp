@@ -2,7 +2,7 @@
 #include "actor/ActorAnimation.h"
 #include "actor/AnimationEvents.h"
 #include "actor/RemoteActor.h"
-#include "network/SocketIOClient.h"
+#include "network/ServerClient.h"
 #include "runtime/Profiling.h"
 
 #include <algorithm>
