@@ -18,7 +18,7 @@ owns weapon stance, attacks, and hand presentation, and hands the actor to
 [Native interactions](native-interactions.md) while furniture, a mount, or
 death owns it. Placement isolation is in
 [Remote actor](remote-actor.md#world-isolation). The checkpoint fields are in
-[Network](network.md#checkpoint).
+[Network](network.md#checkpoint-and-context).
 
 The source's own graph state is authoritative: the receiver never infers an
 animation from speed or distance, and does not validate a transition against

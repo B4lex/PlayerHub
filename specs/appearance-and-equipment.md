@@ -59,7 +59,7 @@ On the game thread, once per second:
   code point boundary to 128 bytes. `level`: `Actor::GetLevel`, so a level-up
   publishes a new revision.
 - `defaultRace`: the configured `[DefaultOutfit]` race and sex when `race` is
-  not from a base-game plugin, else `null`.
+  not from a base-game plugin, else unset.
 - `female`, `weight`, `height`, `headParts[0..numHeadParts)`, the hair color
   form's RGB, `faceDetails`, and `faceData` morphs and parts.
 - `bodyTint`: `TESNPC::bodyTintColor`, or the skin tone mask's color if black.
@@ -183,8 +183,8 @@ Capture, skipped for a non-playable race:
   enchantment reduction. Skin armor never appears in inventory.
 - Hands from `Actor::GetEquippedObject(false/true)`: a `TESObjectWEAP` other
   than hand-to-hand is `weapon` with its type; a carriable `TESObjectLIGH` in the
-  left hand is `torch`; a `SpellItem` or `ScrollItem` is `{"kind": "spell"}`,
-  whose spell is never sent; bare fists or anything else is `null`. A two-handed
+  left hand is `torch`; a `SpellItem` or `ScrollItem` is a `SPELL` hand,
+  whose spell is never sent; bare fists or anything else is an unset hand. A two-handed
   weapon, bow, or crossbow is reported in the right hand only. Dual-wielding one
   weapon sends it in both hands.
 - `ammo`: the worn `TESAmmo` entry, since `Actor::GetCurrentAmmo` returns nothing

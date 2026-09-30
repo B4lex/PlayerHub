@@ -27,7 +27,7 @@ moving. Only animations and hand effects play. Nothing is hit, staggered,
 damaged, spent, or targeted, and no arrow, projectile, or spell effect is
 created.
 
-The wire fields are in [Network](network.md#checkpoint) and
+The wire fields are in [Network](network.md#checkpoint-and-context) and
 [Network](network.md#actions); the synchronized weapons, spell placeholder, and
 ammo are in [Appearance and equipment](appearance-and-equipment.md#equipment);
 isolation of hits is in [Remote actor](remote-actor.md#combat-isolation).

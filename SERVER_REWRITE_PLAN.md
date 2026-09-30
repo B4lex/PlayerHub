@@ -1,6 +1,7 @@
 # Server rewrite plan: interest-filtered delivery
 
-Status: phase 0 done 2026-09-30; phase 1 in progress. Written 2026-09-29 from
+Status: phases 0 and 1 implemented 2026-09-30; phase 1 awaits the Windows
+build and the in-game checks. Phase 2 in progress. Written 2026-09-29 from
 code review and benchmarks run that day; [gaps](#gaps-resolved-before-execution)
 found in a second review on 2026-09-30 are resolved below and folded into the
 phases. This file is a work plan, not a spec: when a phase
@@ -477,6 +478,14 @@ nanopb options, `proto/generate.sh` (`scripts/` is gitignored for local tools), 
   Python generator never runs under wine.
 
 ### Phase 1: Go server and protobuf transport, still sending to everyone
+
+Implemented 2026-09-30 and described in `specs/network.md`,
+`specs/interest-and-delivery.md`, and `specs/recording-and-replay.md`. The
+Python server is removed; the last commit that works with it is `cf53ee2`.
+loadgen at 250 walking bots, everyone receiving everyone, on a 4-core host
+shared with loadgen: server CPU 58–64% of one core, p99 42 ms. Still to do by
+the user: the Windows xmake build (IXWebSocket with mbedtls, nanopb) and the
+in-game checks below.
 
 Goal: change the transport and codec with no change in behavior. Every
 connected client in the world receives every peer, as today, but in protobuf.

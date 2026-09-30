@@ -10,8 +10,8 @@ npm install
 npm run build     # type-checks, then writes dist/, which the server serves at /admin/
 ```
 
-The server reads `dist/` from disk, so rebuilding needs no restart. If `dist/`
-did not exist when the server started, restart the server once so it mounts the panel.
+The server reads `dist/` from disk on every request, so building or rebuilding
+needs no restart.
 
 For development, run the game server, then:
 
@@ -19,7 +19,7 @@ For development, run the game server, then:
 npm run dev       # http://localhost:5173/admin/, with hot reload
 ```
 
-Vite forwards `/api` and `/socket.io` to `http://127.0.0.1:3000`. Point it at a
+Vite forwards `/api`, including the `/api/events` feed, to `http://127.0.0.1:3000`. Point it at a
 server on another port with `ADMIN_SERVER_URL=http://127.0.0.1:3100 npm run dev`.
 
 Other scripts: `npm run typecheck`, `npm test` (Vitest, for the pure logic in
@@ -30,7 +30,7 @@ Other scripts: `npm run typecheck`, `npm test` (Vitest, for the pure logic in
 ```text
 src/
   pages.tsx            the page list: sidebar and routes are both built from it
-  api/                 types.ts (wire types), client.ts (REST), socket.ts (live state)
+  api/                 types.ts (wire types), client.ts (REST), feed.ts (live state)
   state/               ServerState (one live snapshot for every page), useAction (commands)
   components/          shared pieces: Button, Panel, Badge, StatTile, Toasts, Sidebar...
   features/<page>/     one folder per page, with its own components and CSS modules

@@ -34,7 +34,7 @@ each feature's rules to its own system, the transport to
 | `sync/SyncFrame` | `LocalFrame`, `RemoteFrame`, and `CheckpointUpdate` views for one pass |
 | `sync/CheckpointPublisher` | Checkpoint cadence and sequence; calls every feature's local sampler |
 | `sync/ActorLifecycle` | Spawn, retirement, stranded and lost actors, spawn throttling, save exclusion, the mount beside its rider |
-| `sync/presence/PresenceSync` | `player:enter` and `player:exit`, and the game session |
+| `sync/presence/PresenceSync` | `Enter` and `Exit`, and the game session |
 
 `sync/` holds features seen on the wire and their game-thread state; `actor/`
 holds Skyrim actor mechanisms. For example, `CombatSync` decides when a network
@@ -149,16 +149,18 @@ feature never reads another feature's state fields to infer them.
 every 0.05 s of accumulated frame time while connected, keeping the remainder so
 the average rate holds, and drops whole missed intervals instead of sending a
 burst. A pass without a parent cell publishes nothing. The sequence wraps
-before `INT64_MAX`.
+before `INT64_MAX`. `Network::PublishLocalPlayerTransform` sends the sample's
+context (cell, worldspace, graph epoch, furniture) first whenever it differs
+from the last one sent since `Enter`, then the quantized checkpoint
+([Network](network.md#checkpoint-and-context)).
 
 One checkpoint is one coherent sample: `MountSync::SampleLocalMount`,
 `MovementSync::SampleLocalMovement` (from the mount while riding),
 `AnimationSync::SampleLocalAnimation`, `FurnitureSync::SampleLocalFurniture`,
 `CombatSync::SampleLocalHandPresentation`, and `DeathSync::SampleLocalDeath`,
 with the graph epoch observed this pass. No stage publishes a partial
-checkpoint. `player:update` always precedes the `animation:action` anchored to
-it, and a weapon swap is published before the attack or presentation that uses
-it.
+checkpoint. The checkpoint always precedes the `Action` anchored to it, and a
+weapon swap is published before the attack or presentation that uses it.
 
 Appearance and equipment publish on their own schedules and republish on every
 new connection generation ([Network](network.md#latest-wins-publishers)).
@@ -171,8 +173,8 @@ new connection generation ([Network](network.md#latest-wins-publishers)).
   a parent cell and loaded 3D. The first such pass also starts the game session
   (`GameSession::SetInGame(true)`).
 - On each connection generation the player starts out of the world, so
-  `player:enter` is sent again once it is in the world.
-- `player:exit` is sent once when a loading screen or the main menu opens
+  `Enter` is sent again once it is in the world.
+- `Exit` is sent once when a loading screen or the main menu opens
   (menu sink), when a save starts loading (`kPreLoadGame`), or when a pass finds
   the player out of the world. The main menu also ends the game session.
 - Attacks captured while out of the world are discarded, so they cannot anchor
@@ -180,8 +182,8 @@ new connection generation ([Network](network.md#latest-wins-publishers)).
 
 ## Receive state
 
-`SyncCoordinator` owns one `std::unordered_map<std::string, PeerState>` keyed by
-the server's player ID. `PeerState` holds the latest checkpoint, its sequence,
+`SyncCoordinator` owns one `std::unordered_map<Multiplayer::PeerSlot, PeerState>`
+keyed by the server's slot for the peer. `PeerState` holds the latest checkpoint, its sequence,
 the sequence whose transform the current actor last received, and the
 feature-owned `combat`, `lifecycle`, `appearance`, and `equipment` members.
 Movement, animation, and furniture keep their state on the `RemoteActor`
@@ -190,15 +192,19 @@ instead.
 `ApplyNetworkChanges` drains everything the network thread queued, once per
 pass:
 
-1. A lost or replaced connection removes every peer: player IDs are
-   per-connection, so the server will never update or report them again.
-   Reconnecting rebuilds peers from the server's resent state.
-2. `player:exit` removes the actor and forgets the checkpoint, sequence, and
-   combat state, but keeps appearance and equipment until the next checkpoint
-   places the player again. Exits apply first, since changes drained with them
-   arrived after them.
-3. `player:disconnect` removes the actor and all state.
-4. Checkpoints are latest-wins by sequence. A stale one is logged and ignored.
+1. A lost or replaced connection removes every peer: slots belong to one
+   connection, so the server will never update or report them again.
+   Reconnecting rebuilds peers from the server's `PeerEnter` messages.
+2. A `PeerLeave` for any reason but `DISCONNECTED` (the peer left the world,
+   went out of range, or was excluded) removes the actor and forgets the
+   checkpoint, sequence, and combat state, but keeps appearance and equipment
+   until a `PeerEnter` places the player again. Leaves apply first, since
+   changes drained with them arrived after them.
+3. `PeerLeave` with `DISCONNECTED` removes the actor and all state.
+4. Checkpoints are latest-wins by sequence, each already merged with the
+   peer's context on the transport thread. A `PeerEnter` delivers its stored
+   checkpoint the same way, so a paused peer appears at once. A stale one is
+   logged and ignored.
    An accepted one is shown to furniture, animation, and combat
    (`OnCheckpointAccepted`) before it replaces the previous one. Furniture
    resolves its reference into the local load order there, once per change.
@@ -211,7 +217,7 @@ reconstructable; historical attacks are not.
 
 ## Coordinate spaces
 
-A checkpoint carries `cellId` and `worldspaceId`. Exterior checkpoints with the
+A checkpoint's context carries `cell_id` and `worldspace_id`. Exterior checkpoints with the
 same non-zero worldspace share the exterior grid's coordinates and stay in sync
 across cell boundaries. An interior has worldspace zero and needs an exact cell
 match, because its coordinates are local to it. Both need matching load orders
@@ -245,7 +251,7 @@ player rides, its mount ([Native interactions](native-interactions.md#mounts)).
   checkpoint is retired, and so is one without 3D for 2 s whose target location
   is not loaded, since its own cell stayed unloaded and it cannot regain 3D.
 - **A lost handle** schedules a respawn after the retry delay.
-- **Removal** for `player:exit`, `player:disconnect`, or a lost connection
+- **Removal** for a `PeerLeave` or a lost connection
   removes the actor and mount without a respawn.
 - **Removing a reference** releases its furniture occupancy and marker
   reservations first (a reservation that outlives its actor makes Skyrim refuse
