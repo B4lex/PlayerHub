@@ -4,8 +4,10 @@ package admin
 
 import (
 	"strconv"
+	"sync"
 	"time"
 
+	"skyrim-mp/server/internal/delivery"
 	"skyrim-mp/server/internal/hub"
 	"skyrim-mp/server/internal/loadtest"
 	"skyrim-mp/server/internal/playback"
@@ -24,6 +26,56 @@ type Context struct {
 	StartedAt time.Time
 	// Tells open panels that state changed.
 	OnChange func()
+
+	rates rateTracker
+}
+
+// rateTracker turns each recipient's counters into per-second rates between
+// snapshots, which the feed builds at most twice a second.
+type rateTracker struct {
+	mu      sync.Mutex
+	samples map[uint32]rateSample
+}
+
+type rateSample struct {
+	at                        time.Time
+	written, replaced         uint64
+	writtenRate, replacedRate float64
+}
+
+const minimumRateWindowSeconds = 0.25
+
+func (t *rateTracker) rates(slot uint32, now time.Time, written, replaced uint64) (float64, float64) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.samples == nil {
+		t.samples = make(map[uint32]rateSample)
+	}
+	previous, ok := t.samples[slot]
+	if !ok {
+		t.samples[slot] = rateSample{at: now, written: written, replaced: replaced}
+		return 0, 0
+	}
+	elapsed := now.Sub(previous.at).Seconds()
+	if elapsed < minimumRateWindowSeconds {
+		return previous.writtenRate, previous.replacedRate
+	}
+	next := rateSample{at: now, written: written, replaced: replaced,
+		writtenRate:  float64(written-previous.written) / elapsed,
+		replacedRate: float64(replaced-previous.replaced) / elapsed}
+	t.samples[slot] = next
+	return next.writtenRate, next.replacedRate
+}
+
+// forget drops samples of players that are gone.
+func (t *rateTracker) forget(keep map[uint32]bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for slot := range t.samples {
+		if !keep[slot] {
+			delete(t.samples, slot)
+		}
+	}
 }
 
 type Position struct {
@@ -43,9 +95,21 @@ type Player struct {
 	Position      *Position `json:"position"`
 	MovementState *string   `json:"movementState"`
 	// Peers this player receives.
-	Visible     int     `json:"visible"`
-	RecordingID *string `json:"recordingId"`
-	PlaybackID  *string `json:"playbackId"`
+	Visible int `json:"visible"`
+	// Hidden from every other player by an admin.
+	Hidden bool `json:"hidden"`
+	// Bytes per second written to this client, and checkpoints per second
+	// replaced by a newer one before they were written.
+	BytesPerSecond    float64 `json:"bytesPerSecond"`
+	ReplacedPerSecond float64 `json:"replacedPerSecond"`
+	RecordingID       *string `json:"recordingId"`
+	PlaybackID        *string `json:"playbackId"`
+}
+
+// Exclusion is a directed pair: the viewer never sees the target.
+type Exclusion struct {
+	ViewerID string `json:"viewerId"`
+	TargetID string `json:"targetId"`
 }
 
 type Server struct {
@@ -59,6 +123,7 @@ type State struct {
 	Recordings []recording.Info `json:"recordings"`
 	Playbacks  []playback.State `json:"playbacks"`
 	Batches    []loadtest.State `json:"batches"`
+	Exclusions []Exclusion      `json:"exclusions"`
 }
 
 var movementStateNames = []string{"idle", "walking", "running", "sprinting", "sneakingIdle", "sneakingWalking", "sneakingRunning"}
@@ -71,19 +136,30 @@ func optional[T any](value T) *T {
 	return &value
 }
 
-// players lists connected clients. Replays and bots are shown by their
-// playback or batch instead.
-func (c *Context) players() []Player {
+// players lists connected clients, and the excluded pairs. Replays and bots
+// are shown by their playback or batch instead.
+func (c *Context) players() ([]Player, []Exclusion) {
 	var players []Player
+	exclusions := []Exclusion{}
+	now := time.Now()
+	present := make(map[uint32]bool)
 	c.Loop.Call(func(h *hub.Hub) {
-		h.Players(func(p *world.Player, visible int) {
+		for _, pair := range h.Exclusions() {
+			exclusions = append(exclusions, Exclusion{slotID(pair.Viewer), slotID(pair.Target)})
+		}
+		h.Players(func(p *world.Player, visible int, outbox *delivery.Outbox) {
 			if p.Kind != world.KindClient {
 				return
 			}
+			present[p.Slot] = true
 			name, _ := h.Name(p.Slot)
 			player := Player{
-				ID: strconv.FormatUint(uint64(p.Slot), 10), Name: name, InWorld: p.InWorld,
-				ConnectedAtMs: optional(milliseconds(p.ConnectedAt)), Visible: visible,
+				ID: slotID(p.Slot), Name: name, InWorld: p.InWorld,
+				ConnectedAtMs: optional(milliseconds(p.ConnectedAt)), Visible: visible, Hidden: h.Hidden(p.Slot),
+			}
+			if outbox != nil {
+				written, replaced := outbox.Counters()
+				player.BytesPerSecond, player.ReplacedPerSecond = c.rates.rates(p.Slot, now, written, replaced)
 			}
 			if p.Context != nil {
 				player.CellID, player.WorldspaceID = optional(p.Context.CellId), optional(p.Context.WorldspaceId)
@@ -95,13 +171,18 @@ func (c *Context) players() []Player {
 			players = append(players, player)
 		})
 	})
+	c.rates.forget(present)
 	for i := range players {
 		slot, _ := strconv.ParseUint(players[i].ID, 10, 32)
 		if id := c.Captures.RecordingFor(uint32(slot)); id != "" {
 			players[i].RecordingID = &id
 		}
 	}
-	return players
+	return players, exclusions
+}
+
+func slotID(slot uint32) string {
+	return strconv.FormatUint(uint64(slot), 10)
 }
 
 func (c *Context) recordings() []recording.Info {
@@ -116,12 +197,14 @@ func (c *Context) recordings() []recording.Info {
 }
 
 func (c *Context) State() State {
+	players, exclusions := c.players()
 	state := State{
 		Server:     Server{StartedAtMs: milliseconds(c.StartedAt), ServerTimeMs: milliseconds(time.Now())},
-		Players:    c.players(),
+		Players:    players,
 		Recordings: c.recordings(),
 		Playbacks:  []playback.State{},
 		Batches:    []loadtest.State{},
+		Exclusions: exclusions,
 	}
 	for _, s := range c.Playbacks.Sessions() {
 		playbackState := s.State()

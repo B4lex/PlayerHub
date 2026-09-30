@@ -7,9 +7,11 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
+	"time"
 
 	"skyrim-mp/server/internal/clock"
 	"skyrim-mp/server/internal/delivery"
+	"skyrim-mp/server/internal/interest"
 	"skyrim-mp/server/internal/limit"
 	"skyrim-mp/server/internal/validate"
 	"skyrim-mp/server/internal/wire"
@@ -34,8 +36,10 @@ type Options struct {
 	Clock            clock.Clock
 	ActionsPerSecond float64
 	ActionBurst      float64
-	Recorder         Recorder
-	Logger           *slog.Logger
+	// Zero means interest.DefaultConfig.
+	Interest interest.Config
+	Recorder Recorder
+	Logger   *slog.Logger
 	// Called whenever something the admin panel shows changes.
 	OnChange func()
 }
@@ -44,11 +48,14 @@ type member struct {
 	*world.Player
 	// Nil for a virtual player, which receives nothing.
 	outbox *delivery.Outbox
+	// Where the player is, while placed.
+	view interest.View
 
 	// Recipients subscribed to this player.
 	subscribers []*member
-	// Peers this player receives, and the presentation revisions it holds.
-	subscribed     map[uint32]struct{}
+	// Peers this player receives, with when each subscription began, and the
+	// presentation revisions it holds.
+	subscribed     map[uint32]time.Time
 	heldAppearance map[uint32]uint64
 	heldEquipment  map[uint32]uint64
 
@@ -69,6 +76,11 @@ type Hub struct {
 	names      *world.Names
 	changed    []*member
 	touched    []*member
+
+	rules  *interest.Rules
+	grid   *interest.Grid
+	hidden interest.Hidden
+	pairs  interest.Pairs
 }
 
 func New(opts Options) *Hub {
@@ -84,30 +96,34 @@ func New(opts Options) *Hub {
 	if opts.ActionsPerSecond == 0 {
 		opts.ActionsPerSecond, opts.ActionBurst = 10, 10
 	}
-	return &Hub{opts: opts, members: make(map[uint32]*member), names: world.NewNames()}
+	if opts.Interest == (interest.Config{}) {
+		opts.Interest = interest.DefaultConfig()
+	}
+	h := &Hub{
+		opts: opts, members: make(map[uint32]*member), names: world.NewNames(),
+		grid: interest.NewGrid(opts.Interest.LeaveRadius), hidden: interest.Hidden{}, pairs: interest.Pairs{},
+	}
+	h.rules = interest.NewRules(opts.Interest, h.hidden, h.pairs)
+	return h
 }
 
 // Connect adds a player and returns its slot. A player with an outbox is
-// welcomed and receives every placed peer.
+// welcomed; it receives peers once it is placed itself.
 func (h *Hub) Connect(kind world.Kind, outbox *delivery.Outbox) uint32 {
 	h.nextSlot++
 	m := &member{
 		Player:         &world.Player{Slot: h.nextSlot, Kind: kind, ConnectedAt: h.opts.Clock.Now()},
 		outbox:         outbox,
-		subscribed:     make(map[uint32]struct{}),
+		subscribed:     make(map[uint32]time.Time),
 		heldAppearance: make(map[uint32]uint64),
 		heldEquipment:  make(map[uint32]uint64),
 	}
+	m.view.Slot = m.Slot
 	h.members[m.Slot] = m
 	if outbox != nil {
 		h.recipients = append(h.recipients, m)
 		outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Welcome{
 			Welcome: &pb.Welcome{Slot: m.Slot}}}))
-		for _, peer := range h.members {
-			if h.visible(m, peer) {
-				h.subscribe(m, peer)
-			}
-		}
 	}
 	h.opts.OnChange()
 	return m.Slot
@@ -142,6 +158,13 @@ func (h *Hub) Disconnect(slot uint32) {
 	delete(h.members, slot)
 	if m.outbox != nil {
 		h.recipients = remove(h.recipients, m)
+	}
+	h.grid.Remove(slot)
+	delete(h.hidden, slot)
+	for pair := range h.pairs {
+		if pair.Viewer == slot || pair.Target == slot {
+			delete(h.pairs, pair)
+		}
 	}
 	m.changed = false
 	h.names.Forget(slot)
@@ -199,6 +222,74 @@ func (h *Hub) Tick() {
 	h.touched = h.touched[:0]
 }
 
+// UpdateInterest reevaluates every viewer's pairs: the periodic pass that
+// applies distance and time in view. Hard rules take effect at once without
+// it.
+func (h *Hub) UpdateInterest() {
+	now := h.opts.Clock.Now()
+	for _, r := range h.recipients {
+		if r.Placed() {
+			h.evaluateViewer(r, now)
+		}
+	}
+}
+
+// SetHidden hides a player from everyone, or shows it again, at once.
+func (h *Hub) SetHidden(slot uint32, hidden bool) bool {
+	m, ok := h.members[slot]
+	if !ok {
+		return false
+	}
+	if hidden {
+		h.hidden[slot] = true
+	} else {
+		delete(h.hidden, slot)
+	}
+	if m.Placed() {
+		h.evaluateTarget(m, h.opts.Clock.Now())
+	}
+	h.opts.OnChange()
+	return true
+}
+
+// SetExcluded makes viewer never see target, or lifts that, at once.
+func (h *Hub) SetExcluded(viewer, target uint32, excluded bool) bool {
+	r, ok := h.members[viewer]
+	peer, found := h.members[target]
+	if !ok || !found || viewer == target {
+		return false
+	}
+	pair := interest.Pair{Viewer: viewer, Target: target}
+	if excluded {
+		h.pairs[pair] = true
+	} else {
+		delete(h.pairs, pair)
+	}
+	h.evaluatePair(r, peer, h.opts.Clock.Now())
+	h.opts.OnChange()
+	return true
+}
+
+// Hidden reports whether an admin hid the player.
+func (h *Hub) Hidden(slot uint32) bool {
+	return h.hidden[slot]
+}
+
+// Exclusions lists the excluded pairs, ordered by viewer then target.
+func (h *Hub) Exclusions() []interest.Pair {
+	pairs := make([]interest.Pair, 0, len(h.pairs))
+	for pair := range h.pairs {
+		pairs = append(pairs, pair)
+	}
+	slices.SortFunc(pairs, func(a, b interest.Pair) int {
+		if a.Viewer != b.Viewer {
+			return int(a.Viewer) - int(b.Viewer)
+		}
+		return int(a.Target) - int(b.Target)
+	})
+	return pairs
+}
+
 // Player returns a player's state for reading on the hub goroutine.
 func (h *Hub) Player(slot uint32) *world.Player {
 	if m, ok := h.members[slot]; ok {
@@ -207,10 +298,11 @@ func (h *Hub) Player(slot uint32) *world.Player {
 	return nil
 }
 
-// Players calls f for every player.
-func (h *Hub) Players(f func(p *world.Player, subscriptions int)) {
+// Players calls f for every player with the number of peers it receives and
+// its outbox, nil for a virtual player.
+func (h *Hub) Players(f func(p *world.Player, visible int, outbox *delivery.Outbox)) {
 	for _, m := range h.members {
-		f(m.Player, len(m.subscribed))
+		f(m.Player, len(m.subscribed), m.outbox)
 	}
 }
 
@@ -258,17 +350,37 @@ func (h *Hub) exit(m *member, message *pb.ClientMessage) {
 	}
 	m.changed = false
 	h.record(m.Slot, message)
-	h.unsubscribeAll(m, pb.LeaveReason_LEAVE_REASON_EXITED)
+	h.unplace(m, pb.LeaveReason_LEAVE_REASON_EXITED)
 	h.opts.OnChange()
 }
 
+// unplace ends every subscription to and from the player, which has no
+// position any more. Subscribers learn why with reason.
+func (h *Hub) unplace(m *member, reason pb.LeaveReason) {
+	h.grid.Remove(m.Slot)
+	h.unsubscribeAll(m, reason)
+	for peer := range m.subscribed {
+		h.unsubscribe(m, h.members[peer], pb.LeaveReason_LEAVE_REASON_VIEWER_UNPLACED)
+	}
+}
+
 func (h *Hub) setContext(m *member, c *pb.Context, message *pb.ClientMessage) error {
-	changed, err := m.SetContext(c)
-	if err != nil || !changed {
+	wasPlaced := m.Placed()
+	change, err := m.SetContext(c)
+	if err != nil || change == world.ContextUnchanged {
 		return err
 	}
 	h.record(m.Slot, message)
 	h.opts.OnChange()
+	if change == world.ContextMoved {
+		// The stored position belonged to the old space; the next checkpoint
+		// places the player in the new one.
+		m.changed = false
+		if wasPlaced {
+			h.unplace(m, pb.LeaveReason_LEAVE_REASON_OUT_OF_RANGE)
+		}
+		return nil
+	}
 	if !m.Placed() || len(m.subscribers) == 0 {
 		return nil
 	}
@@ -288,12 +400,12 @@ func (h *Hub) setCheckpoint(m *member, c *pb.Checkpoint, message *pb.ClientMessa
 	}
 	h.record(m.Slot, message)
 	h.opts.OnChange()
+	m.view = interest.View{Slot: m.Slot, Space: interest.SpaceOf(m.Context), X: float64(c.X), Y: float64(c.Y)}
+	h.grid.Update(&m.view)
 	if !wasPlaced {
-		for _, r := range h.recipients {
-			if h.visible(r, m) {
-				h.subscribe(r, m)
-			}
-		}
+		now := h.opts.Clock.Now()
+		h.evaluateTarget(m, now)
+		h.evaluateViewer(m, now)
 		return nil
 	}
 	if !m.changed {
@@ -389,17 +501,70 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 	return nil
 }
 
-// visible is the interest rule: a connected client receives every placed
-// peer but itself.
-func (h *Hub) visible(r, peer *member) bool {
-	return r.outbox != nil && r != peer && peer.Placed()
-}
-
-func (h *Hub) subscribe(r, peer *member) {
-	if _, ok := r.subscribed[peer.Slot]; ok {
+// evaluateViewer reevaluates the viewer's subscriptions and the players near
+// it.
+func (h *Hub) evaluateViewer(r *member, now time.Time) {
+	if r.outbox == nil {
 		return
 	}
-	r.subscribed[peer.Slot] = struct{}{}
+	for peer := range r.subscribed {
+		h.evaluatePair(r, h.members[peer], now)
+	}
+	if !r.Placed() {
+		return
+	}
+	h.grid.Near(&r.view, func(slot uint32) {
+		if _, subscribed := r.subscribed[slot]; !subscribed && slot != r.Slot {
+			h.evaluatePair(r, h.members[slot], now)
+		}
+	})
+}
+
+// evaluateTarget reevaluates the target's subscribers and the viewers near
+// it.
+func (h *Hub) evaluateTarget(peer *member, now time.Time) {
+	for _, r := range slices.Clone(peer.subscribers) {
+		h.evaluatePair(r, peer, now)
+	}
+	if !peer.Placed() {
+		return
+	}
+	h.grid.Near(&peer.view, func(slot uint32) {
+		r := h.members[slot]
+		if _, subscribed := r.subscribed[peer.Slot]; !subscribed && r.outbox != nil && r != peer {
+			h.evaluatePair(r, peer, now)
+		}
+	})
+}
+
+// evaluatePair subscribes r to peer or ends the subscription, as the rules
+// decide. Both must be placed to be compared.
+func (h *Hub) evaluatePair(r, peer *member, now time.Time) {
+	if r.outbox == nil || r == peer {
+		return
+	}
+	subscribedAt, subscribed := r.subscribed[peer.Slot]
+	if !r.Placed() || !peer.Placed() {
+		if subscribed {
+			reason := pb.LeaveReason_LEAVE_REASON_EXITED
+			if !r.Placed() {
+				reason = pb.LeaveReason_LEAVE_REASON_VIEWER_UNPLACED
+			}
+			h.unsubscribe(r, peer, reason)
+		}
+		return
+	}
+	verdict := h.rules.Decide(&r.view, &peer.view, subscribedAt, now)
+	switch {
+	case verdict.Visible && !subscribed:
+		h.subscribe(r, peer, now)
+	case !verdict.Visible && subscribed:
+		h.unsubscribe(r, peer, verdict.Reason)
+	}
+}
+
+func (h *Hub) subscribe(r, peer *member, now time.Time) {
+	r.subscribed[peer.Slot] = now
 	peer.subscribers = append(peer.subscribers, r)
 	enter := &pb.PeerEnter{Slot: peer.Slot, Context: peer.Context, State: peer.Checkpoint}
 	if a := peer.Appearance; a != nil && a.GetRevision() > r.heldAppearance[peer.Slot] {
@@ -412,6 +577,12 @@ func (h *Hub) subscribe(r, peer *member) {
 	}
 	r.outbox.Enter(peer.Slot, peer.Checkpoint.GetSequence(),
 		wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_PeerEnter{PeerEnter: enter}}))
+}
+
+func (h *Hub) unsubscribe(r, peer *member, reason pb.LeaveReason) {
+	delete(r.subscribed, peer.Slot)
+	peer.subscribers = remove(peer.subscribers, r)
+	r.outbox.Leave(peer.Slot, leaveMessage(peer.Slot, reason))
 }
 
 func (h *Hub) unsubscribeAll(peer *member, reason pb.LeaveReason) {

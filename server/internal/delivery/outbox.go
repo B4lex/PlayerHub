@@ -4,6 +4,7 @@ package delivery
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 type itemKind uint8
@@ -58,6 +59,11 @@ type Outbox struct {
 	limit      int
 	overflowed bool
 	closed     bool
+
+	// For the admin panel: bytes written, and checkpoints replaced by a newer
+	// one before they were written.
+	written  atomic.Uint64
+	replaced atomic.Uint64
 }
 
 // NewOutbox makes an outbox that overflows beyond limit unsent ordered
@@ -93,8 +99,22 @@ func (o *Outbox) SetCheckpoint(peer uint32, sequence uint64, entry []byte) {
 	if o.closed {
 		return
 	}
+	if _, pending := o.latest[peer]; pending {
+		o.replaced.Add(1)
+	}
 	o.latest[peer] = latestEntry{sequence, entry}
 	o.queued[peer] = sequence
+}
+
+// AddWritten counts bytes the writer sent.
+func (o *Outbox) AddWritten(bytes int) {
+	o.written.Add(uint64(bytes))
+}
+
+// Counters returns the bytes written and the checkpoints replaced before
+// being written, since the outbox was made.
+func (o *Outbox) Counters() (written, replaced uint64) {
+	return o.written.Load(), o.replaced.Load()
 }
 
 // Queued returns the newest checkpoint sequence of the peer that the

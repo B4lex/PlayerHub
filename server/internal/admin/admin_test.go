@@ -131,6 +131,9 @@ func TestCaptureAndReplay(t *testing.T) {
 	s := startStack(t)
 	a := s.join()
 	b := s.join()
+	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})
+	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 1}}})
+	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 1}}})
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Appearance{Appearance: &pb.Appearance{
 		Revision: 1, Name: "Lydia", Race: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 1}, Weight: 50, Height: 1,
 		BodyTint: &pb.Color{}, FaceMorphs: make([]float32, 19), FaceParts: make([]int32, 4)}}})
@@ -149,6 +152,8 @@ func TestCaptureAndReplay(t *testing.T) {
 	if status := s.call("POST", "/api/recordings", map[string]string{"playerId": "1", "label": "walk"}, &info); status != 201 {
 		t.Fatalf("start capture: %d", status)
 	}
+	// Later checkpoints must not share the capture's first millisecond.
+	time.Sleep(20 * time.Millisecond)
 	for sequence := uint64(2); sequence <= 4; sequence++ {
 		a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: sequence, X: int32(sequence) * 10, Speed: 100}}})
 		time.Sleep(20 * time.Millisecond)
@@ -213,5 +218,61 @@ func TestRequestValidation(t *testing.T) {
 		if status := s.call(c.method, c.path, c.body, &body); status != c.status {
 			t.Errorf("%s %s: got %d, want %d (%v)", c.method, c.path, status, c.status, body)
 		}
+	}
+}
+
+func (p *player) place(x int32) {
+	p.send(&pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})
+	p.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 1}}})
+	p.send(&pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 1, X: x}}})
+}
+
+func TestHideAndExclude(t *testing.T) {
+	s := startStack(t)
+	a, b := s.join(), s.join()
+	a.place(0)
+	b.place(10)
+	b.until(func(m *pb.ServerMessage) bool { return m.GetPeerEnter() != nil })
+	a.until(func(m *pb.ServerMessage) bool { return m.GetPeerEnter() != nil })
+
+	id := func(p *player) string { return slotID(p.slot) }
+	if status := s.call("PUT", "/api/players/"+id(a)+"/hidden", map[string]bool{"hidden": true}, nil); status != 200 {
+		t.Fatalf("hide: %d", status)
+	}
+	if leave := b.until(func(m *pb.ServerMessage) bool { return m.GetPeerLeave() != nil }).GetPeerLeave(); leave.Reason != pb.LeaveReason_LEAVE_REASON_EXCLUDED {
+		t.Fatalf("leave: %v", leave)
+	}
+	var state State
+	s.call("GET", "/api/state", nil, &state)
+	hidden := 0
+	for _, p := range state.Players {
+		if p.Hidden {
+			hidden++
+		}
+	}
+	if hidden != 1 {
+		t.Fatalf("hidden players: %+v", state.Players)
+	}
+	s.call("PUT", "/api/players/"+id(a)+"/hidden", map[string]bool{"hidden": false}, nil)
+	b.until(func(m *pb.ServerMessage) bool { return m.GetPeerEnter() != nil })
+
+	exclusion := Exclusion{ViewerID: id(a), TargetID: id(b)}
+	if status := s.call("POST", "/api/exclusions", exclusion, nil); status != 200 {
+		t.Fatalf("exclude: %d", status)
+	}
+	a.until(func(m *pb.ServerMessage) bool { return m.GetPeerLeave() != nil })
+	s.call("GET", "/api/state", nil, &state)
+	if len(state.Exclusions) != 1 || state.Exclusions[0] != exclusion {
+		t.Fatalf("exclusions: %+v", state.Exclusions)
+	}
+	if status := s.call("DELETE", "/api/exclusions", exclusion, nil); status != 200 {
+		t.Fatalf("lift: %d", status)
+	}
+	a.until(func(m *pb.ServerMessage) bool { return m.GetPeerEnter() != nil })
+	if status := s.call("POST", "/api/exclusions", Exclusion{ViewerID: id(a), TargetID: id(a)}, nil); status != 404 {
+		t.Fatalf("self exclusion: %d", status)
+	}
+	if status := s.call("PUT", "/api/players/999/hidden", map[string]bool{"hidden": true}, nil); status != 404 {
+		t.Fatalf("unknown player: %d", status)
 	}
 }

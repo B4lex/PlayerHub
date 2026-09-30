@@ -45,6 +45,9 @@ type Player struct {
 	// Checkpoint encoded once as a PeerStates entry.
 	Entry          []byte
 	ActionSequence uint64
+	// The newest checkpoint sequence since entering, kept when a space change
+	// drops the checkpoint, so sequences still rise.
+	lastSequence uint64
 
 	Appearance *pb.Appearance
 	NameIndex  uint32
@@ -73,24 +76,43 @@ func (p *Player) Exit() bool {
 	p.Checkpoint = nil
 	p.Entry = nil
 	p.ActionSequence = 0
+	p.lastSequence = 0
 	return was
 }
 
-// SetContext reports whether the context differs from the stored one.
-func (p *Player) SetContext(c *pb.Context) (bool, error) {
+// ContextChange says what a new context changed.
+type ContextChange uint8
+
+const (
+	ContextUnchanged ContextChange = iota
+	// Graph epoch or furniture.
+	ContextChanged
+	// Cell or worldspace. The stored checkpoint belonged to the old space, so
+	// it is dropped and the player is unplaced until its next checkpoint.
+	ContextMoved
+)
+
+func (p *Player) SetContext(c *pb.Context) (ContextChange, error) {
 	if !p.InWorld {
-		return false, ErrNotInWorld
+		return ContextUnchanged, ErrNotInWorld
 	}
+	change := ContextChanged
 	if p.Context != nil {
 		if c.GetGraphEpoch() < p.Context.GetGraphEpoch() {
-			return false, ErrStaleGraphEpoch
+			return ContextUnchanged, ErrStaleGraphEpoch
 		}
 		if sameContext(p.Context, c) {
-			return false, nil
+			return ContextUnchanged, nil
+		}
+		if p.Context.GetCellId() != c.GetCellId() && (p.Context.GetWorldspaceId() == 0 || c.GetWorldspaceId() == 0) ||
+			p.Context.GetWorldspaceId() != c.GetWorldspaceId() {
+			change = ContextMoved
+			p.Checkpoint = nil
+			p.Entry = nil
 		}
 	}
 	p.Context = c
-	return true, nil
+	return change, nil
 }
 
 func (p *Player) SetCheckpoint(c *pb.Checkpoint) error {
@@ -100,9 +122,10 @@ func (p *Player) SetCheckpoint(c *pb.Checkpoint) error {
 	if p.Context == nil {
 		return ErrNoContext
 	}
-	if p.Checkpoint != nil && c.GetSequence() <= p.Checkpoint.GetSequence() {
+	if p.lastSequence != 0 && c.GetSequence() <= p.lastSequence {
 		return ErrStaleSequence
 	}
+	p.lastSequence = c.GetSequence()
 	// The sender's slot, as every relayed copy carries it.
 	c.Player = p.Slot
 	p.Checkpoint = c

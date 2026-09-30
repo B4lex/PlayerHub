@@ -17,6 +17,14 @@ type Config struct {
 	SendRateHz          float64  `toml:"send_rate_hz"`
 	Limits              Limits   `toml:"limits"`
 	Liveness            Liveness `toml:"liveness"`
+	Interest            Interest `toml:"interest"`
+}
+
+type Interest struct {
+	EnterRadius     float64 `toml:"enter_radius"`
+	LeaveRadius     float64 `toml:"leave_radius"`
+	MinDwellSeconds float64 `toml:"min_dwell_seconds"`
+	UpdateHz        float64 `toml:"update_hz"`
 }
 
 type Limits struct {
@@ -48,6 +56,7 @@ func Default() Config {
 			HelloTimeoutSeconds: 5,
 		},
 		Liveness: Liveness{PingIntervalSeconds: 5, TimeoutSeconds: 10},
+		Interest: Interest{EnterRadius: 8192, LeaveRadius: 9830, MinDwellSeconds: 1, UpdateHz: 5},
 	}
 }
 
@@ -84,6 +93,10 @@ func (c Config) validate() error {
 		return errors.New("limits.hello_timeout_seconds must be positive")
 	case c.Liveness.PingIntervalSeconds <= 0 || c.Liveness.TimeoutSeconds <= 0:
 		return errors.New("liveness intervals must be positive")
+	case c.Interest.EnterRadius <= 0 || c.Interest.LeaveRadius < c.Interest.EnterRadius:
+		return errors.New("interest.enter_radius must be positive and at most interest.leave_radius")
+	case c.Interest.MinDwellSeconds < 0 || c.Interest.UpdateHz < 0.5 || c.Interest.UpdateHz > 60:
+		return errors.New("interest.min_dwell_seconds must be >= 0 and interest.update_hz within 0.5..60")
 	}
 	return nil
 }

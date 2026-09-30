@@ -49,6 +49,10 @@ func (c *Context) Routes(mux *http.ServeMux) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
+	mux.HandleFunc("PUT /api/players/{id}/hidden", c.setHidden)
+	mux.HandleFunc("POST /api/exclusions", func(w http.ResponseWriter, r *http.Request) { c.setExcluded(w, r, true) })
+	mux.HandleFunc("DELETE /api/exclusions", func(w http.ResponseWriter, r *http.Request) { c.setExcluded(w, r, false) })
+
 	mux.HandleFunc("POST /api/playbacks", c.openPlayback)
 	mux.HandleFunc("POST /api/playbacks/{id}/play", c.withPlayback(func(s *playback.Session, _ *http.Request) error {
 		s.Play()
@@ -170,6 +174,46 @@ func (c *Context) startRecording(w http.ResponseWriter, r *http.Request) {
 	default:
 		reply(w, http.StatusCreated, info)
 	}
+}
+
+func (c *Context) setHidden(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Hidden *bool `json:"hidden"`
+	}
+	if err := decode(r, &request); err != nil || request.Hidden == nil {
+		invalid(w, errInvalid("expected {\"hidden\": true|false}"))
+		return
+	}
+	slot, err := strconv.ParseUint(r.PathValue("id"), 10, 32)
+	found := false
+	if err == nil {
+		c.Loop.Call(func(h *hub.Hub) { found = h.SetHidden(uint32(slot), *request.Hidden) })
+	}
+	if !found {
+		fail(w, http.StatusNotFound, "no player "+r.PathValue("id"))
+		return
+	}
+	reply(w, http.StatusOK, map[string]bool{"hidden": *request.Hidden})
+}
+
+// setExcluded adds or removes the exclusion {viewerId, targetId}.
+func (c *Context) setExcluded(w http.ResponseWriter, r *http.Request, excluded bool) {
+	var request Exclusion
+	if err := decode(r, &request); err != nil {
+		invalid(w, err)
+		return
+	}
+	viewer, viewerErr := strconv.ParseUint(request.ViewerID, 10, 32)
+	target, targetErr := strconv.ParseUint(request.TargetID, 10, 32)
+	found := false
+	if viewerErr == nil && targetErr == nil {
+		c.Loop.Call(func(h *hub.Hub) { found = h.SetExcluded(uint32(viewer), uint32(target), excluded) })
+	}
+	if !found {
+		fail(w, http.StatusNotFound, "both players must be connected and different")
+		return
+	}
+	reply(w, http.StatusOK, request)
 }
 
 func (c *Context) openPlayback(w http.ResponseWriter, r *http.Request) {

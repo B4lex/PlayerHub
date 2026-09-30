@@ -16,6 +16,7 @@ import (
 	"skyrim-mp/server/internal/admin"
 	"skyrim-mp/server/internal/config"
 	"skyrim-mp/server/internal/hub"
+	"skyrim-mp/server/internal/interest"
 	"skyrim-mp/server/internal/loadtest"
 	"skyrim-mp/server/internal/playback"
 	"skyrim-mp/server/internal/recording"
@@ -65,9 +66,15 @@ func run(ctx context.Context, c config.Config, log *slog.Logger) error {
 	h := hub.New(hub.Options{
 		ActionsPerSecond: c.Limits.ActionsPerSecond,
 		ActionBurst:      c.Limits.ActionBurst,
-		Recorder:         captures,
-		Logger:           log,
-		OnChange:         changed,
+		Interest: interest.Config{
+			EnterRadius:     c.Interest.EnterRadius,
+			LeaveRadius:     c.Interest.LeaveRadius,
+			MinDwellSeconds: c.Interest.MinDwellSeconds,
+			UpdateHz:        c.Interest.UpdateHz,
+		},
+		Recorder: captures,
+		Logger:   log,
+		OnChange: changed,
 	})
 	loop := hub.NewLoop(h, c.SendRateHz)
 	loopContext, stopLoop := context.WithCancel(context.Background())

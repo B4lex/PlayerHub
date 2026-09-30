@@ -26,6 +26,12 @@ export interface Player {
   movementState: string | null;
   /** Peers this player receives. */
   visible: number;
+  /** Hidden from every other player by an admin. */
+  hidden: boolean;
+  /** Bytes per second the server writes to this client. */
+  bytesPerSecond: number;
+  /** Checkpoints per second replaced by a newer one before they were written: a slow link. */
+  replacedPerSecond: number;
   /** The recording being captured from this player, if any. */
   recordingId: string | null;
   /** The replay this virtual player belongs to. */
@@ -109,12 +115,19 @@ export interface ServerInfo {
 }
 
 /** Everything the panel shows, replicated as one snapshot. */
+/** A directed pair: the viewer never receives the target. */
+export interface Exclusion {
+  viewerId: string;
+  targetId: string;
+}
+
 export interface AdminState {
   server: ServerInfo;
   players: Player[];
   recordings: Recording[];
   playbacks: Playback[];
   batches: Batch[];
+  exclusions: Exclusion[];
 }
 
 export interface Marker {

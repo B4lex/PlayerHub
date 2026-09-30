@@ -168,7 +168,11 @@ func (s *Server) write(ctx context.Context, conn *websocket.Conn, outbox *delive
 	send := func(frame []byte) error {
 		writeContext, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
-		return conn.Write(writeContext, websocket.MessageBinary, frame)
+		if err := conn.Write(writeContext, websocket.MessageBinary, frame); err != nil {
+			return err
+		}
+		outbox.AddWritten(len(frame))
+		return nil
 	}
 	for {
 		select {

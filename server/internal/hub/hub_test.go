@@ -64,8 +64,16 @@ func contextMessage(epoch uint64, furniture bool) *pb.ClientMessage {
 }
 
 func checkpoint(sequence uint64) *pb.ClientMessage {
+	return checkpointAt(sequence, int32(sequence))
+}
+
+func checkpointAt(sequence uint64, x int32) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{
-		Sequence: sequence, X: int32(sequence), Flags: uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_WEAPON_DRAWN)}}}
+		Sequence: sequence, X: x, Flags: uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_WEAPON_DRAWN)}}}
+}
+
+func worldspace(epoch uint64, worldspace uint32) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: worldspace, GraphEpoch: epoch}}}
 }
 
 func action(sequence, anchor uint64) *pb.ClientMessage {
@@ -90,6 +98,13 @@ func (f *fixture) place(slot uint32, sequence uint64) {
 	f.send(slot, enter())
 	f.send(slot, contextMessage(1, false))
 	f.send(slot, checkpoint(sequence))
+}
+
+// placeAt puts the player in the world in worldspace 60 at x.
+func (f *fixture) placeAt(slot uint32, sequence uint64, x int32) {
+	f.send(slot, enter())
+	f.send(slot, contextMessage(1, false))
+	f.send(slot, checkpointAt(sequence, x))
 }
 
 // received drains the recipient's outbox and describes each message in one
@@ -171,6 +186,7 @@ func TestWelcomeComesFirst(t *testing.T) {
 func TestPeerEnterCarriesPresentationThenState(t *testing.T) {
 	f := newFixture(t)
 	a, b := f.connect(), f.connect()
+	f.place(b, 1)
 	f.received(a)
 	f.received(b)
 	f.send(a, appearance(1, "Lydia"))
@@ -180,7 +196,22 @@ func TestPeerEnterCarriesPresentationThenState(t *testing.T) {
 	expect(t, f.received(b))
 	f.send(a, checkpoint(5))
 	expect(t, f.received(b), "enter 1 state 5 appearance 1 #1 equipment 2")
-	expect(t, f.received(a))
+	expect(t, f.received(a), "enter 2 state 1")
+}
+
+func TestUnplacedViewerSeesNobody(t *testing.T) {
+	f := newFixture(t)
+	a, b := f.connect(), f.connect()
+	f.place(a, 1)
+	expect(t, f.received(b), "welcome 2")
+	f.send(b, enter())
+	f.send(b, contextMessage(1, false))
+	expect(t, f.received(b))
+	f.send(b, checkpoint(1))
+	expect(t, f.received(b), "enter 1 state 1")
+	f.send(b, exit())
+	expect(t, f.received(b), "leave 1 VIEWER_UNPLACED")
+	expect(t, f.received(a), "welcome 1", "enter 2 state 1", "leave 2 EXITED")
 }
 
 func TestPausedPlayerIsSeenByANewcomer(t *testing.T) {
@@ -191,12 +222,14 @@ func TestPausedPlayerIsSeenByANewcomer(t *testing.T) {
 	// A paused game publishes nothing; the newcomer still gets the stored state.
 	f.clock.Advance(60)
 	b := f.connect()
+	f.place(b, 1)
 	expect(t, f.received(b), "welcome 2", "enter 1 state 9")
 }
 
 func TestCheckpointsAreBatchedPerTick(t *testing.T) {
 	f := newFixture(t)
 	a, b, c := f.connect(), f.connect(), f.connect()
+	f.place(c, 1)
 	f.place(a, 1)
 	f.place(b, 1)
 	f.received(c)
@@ -211,6 +244,7 @@ func TestCheckpointsAreBatchedPerTick(t *testing.T) {
 func TestActionIsPrecededByItsCheckpoint(t *testing.T) {
 	f := newFixture(t)
 	a, b := f.connect(), f.connect()
+	f.place(b, 1)
 	f.place(a, 1)
 	f.received(b)
 	f.send(a, checkpoint(2))
@@ -248,6 +282,7 @@ func TestActionsAreRateLimited(t *testing.T) {
 func TestContextChangeKeepsOrder(t *testing.T) {
 	f := newFixture(t)
 	a, b := f.connect(), f.connect()
+	f.place(b, 1)
 	f.place(a, 1)
 	f.received(b)
 	f.send(a, checkpoint(2))
@@ -278,6 +313,7 @@ func TestCheckpointRules(t *testing.T) {
 func TestExitAndReenterKeepPresentation(t *testing.T) {
 	f := newFixture(t)
 	a, b := f.connect(), f.connect()
+	f.place(b, 1)
 	f.send(a, appearance(1, "Lydia"))
 	f.place(a, 1)
 	f.received(b)
@@ -298,6 +334,7 @@ func TestExitAndReenterKeepPresentation(t *testing.T) {
 func TestDisconnectReachesHoldersOfPresentation(t *testing.T) {
 	f := newFixture(t)
 	a, b, c := f.connect(), f.connect(), f.connect()
+	f.place(b, 1)
 	f.send(a, appearance(1, "Lydia"))
 	f.place(a, 1)
 	f.send(a, exit())
@@ -306,7 +343,8 @@ func TestDisconnectReachesHoldersOfPresentation(t *testing.T) {
 	d := f.connect()
 	f.hub.Disconnect(a)
 	expect(t, f.received(b), "leave 1 DISCONNECTED")
-	expect(t, f.received(c), "leave 1 DISCONNECTED")
+	// c was never placed, so it never held a's presentation.
+	expect(t, f.received(c))
 	expect(t, f.received(d), "welcome 4")
 }
 
@@ -336,4 +374,76 @@ func TestChat(t *testing.T) {
 	f.reject(b, chat(20, "too many"), ErrRateLimited)
 	f.clock.Advance(5.1)
 	f.send(b, chat(21, "later"))
+}
+
+func TestRangeHysteresisAndDwell(t *testing.T) {
+	f := newFixture(t)
+	a, b := f.connect(), f.connect()
+	f.placeAt(b, 1, 0)
+	f.placeAt(a, 1, 9000)
+	f.received(a)
+	expect(t, f.received(b), "welcome 2")
+	f.send(a, checkpointAt(2, 8000))
+	f.hub.UpdateInterest()
+	expect(t, f.received(b), "enter 1 state 2")
+	f.send(a, checkpointAt(3, 9500))
+	f.hub.UpdateInterest()
+	f.send(a, checkpointAt(4, 20000))
+	f.hub.UpdateInterest()
+	f.hub.Tick()
+	// Still within the minimum time in view.
+	expect(t, f.received(b), "states 1:4")
+	f.clock.Advance(1.1)
+	f.hub.UpdateInterest()
+	expect(t, f.received(b), "leave 1 OUT_OF_RANGE")
+	expect(t, f.received(a), "enter 2 state 1", "leave 2 OUT_OF_RANGE")
+}
+
+func TestExclusionsTakeEffectAtOnce(t *testing.T) {
+	f := newFixture(t)
+	a, b := f.connect(), f.connect()
+	f.placeAt(a, 1, 0)
+	f.placeAt(b, 1, 100)
+	f.received(a)
+	f.received(b)
+	f.hub.SetHidden(a, true)
+	expect(t, f.received(b), "leave 1 EXCLUDED")
+	expect(t, f.received(a))
+	f.hub.UpdateInterest()
+	expect(t, f.received(b))
+	f.hub.SetHidden(a, false)
+	expect(t, f.received(b), "enter 1 state 1")
+	f.hub.SetExcluded(b, a, true)
+	expect(t, f.received(b), "leave 1 EXCLUDED")
+	expect(t, f.received(a))
+	if len(f.hub.Exclusions()) != 1 || !f.hub.SetExcluded(b, a, false) {
+		t.Fatal("exclusion not listed or not lifted")
+	}
+	expect(t, f.received(b), "enter 1 state 1")
+	f.hub.SetExcluded(b, a, true)
+	f.hub.Disconnect(a)
+	if len(f.hub.Exclusions()) != 0 {
+		t.Fatal("a disconnect kept its exclusions")
+	}
+}
+
+func TestSpaceChangeLeavesAtOnceAndPlacesAgain(t *testing.T) {
+	f := newFixture(t)
+	a, b, c := f.connect(), f.connect(), f.connect()
+	f.placeAt(a, 1, 0)
+	f.placeAt(b, 1, 100)
+	f.send(c, enter())
+	f.send(c, worldspace(1, 61))
+	f.send(c, checkpointAt(1, 0))
+	f.received(a)
+	f.received(b)
+	f.received(c)
+	f.send(a, worldspace(1, 61))
+	expect(t, f.received(b), "leave 1 OUT_OF_RANGE")
+	expect(t, f.received(a), "leave 2 VIEWER_UNPLACED")
+	expect(t, f.received(c))
+	f.send(a, checkpointAt(2, 50))
+	expect(t, f.received(c), "enter 1 state 2")
+	expect(t, f.received(a), "enter 3 state 1")
+	f.reject(a, checkpointAt(2, 60), world.ErrStaleSequence)
 }

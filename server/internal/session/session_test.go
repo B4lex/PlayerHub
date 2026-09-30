@@ -102,6 +102,9 @@ func TestPlayersSeeEachOther(t *testing.T) {
 	s := startServer(t, config.Default())
 	a, slotA := join(t, s)
 	b, _ := join(t, s)
+	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})
+	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 1}}})
+	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 1}}})
 
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 1}}})
@@ -117,6 +120,9 @@ func TestPlayersSeeEachOther(t *testing.T) {
 		t.Fatalf("got %v", states)
 	}
 
+	if enter := a.receive().GetPeerEnter(); enter == nil {
+		t.Fatal("a did not receive b")
+	}
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 5}}})
 	if result := a.receive().GetResult(); result.GetRequestId() != 5 || !result.GetOk() {
 		t.Fatalf("got %v", result)
