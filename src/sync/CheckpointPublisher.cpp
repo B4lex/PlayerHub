@@ -1,5 +1,6 @@
 #include "sync/CheckpointPublisher.h"
 #include "network/ServerClient.h"
+#include "protocol/Quantization.h"
 #include "runtime/Profiling.h"
 #include "sync/animation/AnimationSync.h"
 #include "sync/combat/CombatSync.h"
@@ -9,6 +10,7 @@
 #include "sync/movement/MovementSync.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <utility>
@@ -18,6 +20,15 @@ namespace CheckpointPublisher
     namespace
     {
         constexpr float kSnapshotInterval = 0.05F;
+
+        // Wall time rather than accumulated frame time: receivers compare it with
+        // arrival times, and a paused or hitching game must not stretch it.
+        std::uint32_t GetSampleTime()
+        {
+            const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch());
+            return static_cast<std::uint32_t>(now.count() % Network::kSampleTimeModulus);
+        }
     }
 
     Publication PublishLocalCheckpoint(const LocalFrame& a_local, float a_delta, std::uint64_t a_graphEpoch)
@@ -76,7 +87,8 @@ namespace CheckpointPublisher
             .worldspaceID = movement.worldspaceID,
             .furniture = std::move(furniture),
             .graphEpoch = a_graphEpoch,
-            .sequence = sequence };
+            .sequence = sequence,
+            .sampleTime = GetSampleTime() };
         Network::PublishLocalPlayerTransform(checkpoint);
         return Publication{ .status = Status::kPublished, .checkpoint = checkpoint };
     }

@@ -34,6 +34,10 @@ message Checkpoint {
   uint32 direction = 9;
   // Bits 0-2 movement state, bits 3-11 CheckpointFlag.
   uint32 flags = 10;
+  // Sender's monotonic clock when sampled, milliseconds modulo 16384.
+  // Receivers unwrap it against arrival times to play checkpoints back at
+  // their original spacing.
+  uint32 time = 11;
 }
 
 enum MovementState {

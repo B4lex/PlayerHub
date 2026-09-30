@@ -51,6 +51,9 @@ namespace Network
         // checkpoint. Transient actions are only valid against the same epoch.
         std::uint64_t graphEpoch{ 1 };
         std::uint64_t sequence{ 0 };
+        // The source's monotonic clock when sampled, in milliseconds modulo
+        // kSampleTimeModulus.
+        std::uint32_t sampleTime{ 0 };
     };
 
     // The attack vocabulary of the ordered action stream.

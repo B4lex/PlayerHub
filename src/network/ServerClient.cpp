@@ -201,7 +201,8 @@ namespace Network
         }
 
         // Requires remoteChangesLock.
-        void AcceptCheckpointLocked(PeerSlot a_slot, const QuantizedCheckpoint& a_checkpoint)
+        void AcceptCheckpointLocked(
+            PeerSlot a_slot, const QuantizedCheckpoint& a_checkpoint, std::chrono::steady_clock::time_point a_received)
         {
             const auto context = peerContexts.find(a_slot);
             if (context == peerContexts.end())
@@ -222,8 +223,10 @@ namespace Network
             // changing between checkpoints; retaining them separately can replay
             // obsolete transitions.
             latestReceivedSequences.insert_or_assign(a_slot, a_checkpoint.sequence);
-            pendingTransforms.insert_or_assign(
-                a_slot, RemotePlayerTransform{ .playerID = a_slot, .transform = Dequantize(a_checkpoint, context->second) });
+            pendingTransforms.insert_or_assign(a_slot,
+                RemotePlayerTransform{ .playerID = a_slot,
+                    .transform = Dequantize(a_checkpoint, context->second),
+                    .received = a_received });
         }
 
         // Requires remoteChangesLock.
@@ -295,12 +298,13 @@ namespace Network
 
         void OnPeerStates(const Wire::PeerStates& a_states)
         {
+            const auto received = std::chrono::steady_clock::now();
             std::scoped_lock lock{ remoteChangesLock };
             for (const auto& entry : a_states.entries)
             {
                 if (entry.slot != localSlot)
                 {
-                    AcceptCheckpointLocked(entry.slot, entry.checkpoint);
+                    AcceptCheckpointLocked(entry.slot, entry.checkpoint, received);
                 }
             }
         }
@@ -324,7 +328,7 @@ namespace Network
                 AcceptEquipmentLocked(a_enter.slot, std::move(*a_enter.equipment));
             }
             peerContexts.insert_or_assign(a_enter.slot, a_enter.context);
-            AcceptCheckpointLocked(a_enter.slot, a_enter.state);
+            AcceptCheckpointLocked(a_enter.slot, a_enter.state, std::chrono::steady_clock::now());
         }
 
         void OnPeerContext(const Wire::PeerContext& a_context)

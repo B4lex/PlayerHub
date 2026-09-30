@@ -82,8 +82,8 @@ namespace ActorLifecycle
     bool HasChangedSpawnedSpace(const PeerState& a_peer)
     {
         return a_peer.lifecycle.actor
-            && !MovementSync::IsSameCoordinateSpace(a_peer.latestCheckpoint.cellID,
-                a_peer.latestCheckpoint.worldspaceID, a_peer.lifecycle.spawnedCellID,
+            && !MovementSync::IsSameCoordinateSpace(a_peer.playout.GetPlayed().cellID,
+                a_peer.playout.GetPlayed().worldspaceID, a_peer.lifecycle.spawnedCellID,
                 a_peer.lifecycle.spawnedWorldspaceID);
     }
 
@@ -309,7 +309,7 @@ namespace ActorLifecycle
         AppearanceSync::OnActorSpawned(a_peer.appearance, spawnBase);
         EquipmentSync::OnActorSpawned(a_peer.equipment);
         FurnitureSync::OnActorSpawned(a_remote, *lifecycle.actor);
-        a_peer.appliedSequence = a_peer.lastSequence;
+        a_peer.appliedSequence = a_remote.lastSequence;
         lifecycle.spawnedCellID = a_remote.checkpoint.cellID;
         lifecycle.spawnedWorldspaceID = a_remote.checkpoint.worldspaceID;
 
@@ -358,6 +358,6 @@ namespace ActorLifecycle
             "Allocated remote player {} mount as actor {:08X} for actor {:08X} at transform sequence={}; waiting "
             "for both to be ready before seating",
             a_remote.playerID, lifecycle.mount->actor.handle.native_handle(), lifecycle.actor->handle.native_handle(),
-            static_cast<unsigned long long>(a_peer.lastSequence));
+            static_cast<unsigned long long>(a_remote.lastSequence));
     }
 }

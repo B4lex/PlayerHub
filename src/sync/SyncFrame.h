@@ -16,19 +16,33 @@ struct LocalFrame
     RE::PlayerCharacter& player;
 };
 
+// A peer's transform at its playback time, between the played checkpoint and
+// the next one waiting to play.
+struct RemotePose
+{
+    RE::NiPoint3 position{};
+    float heading{ 0.0F };
+    float pitch{ 0.0F };
+    // Speed along the interpolated path, or the played checkpoint's speed when
+    // there is nothing to interpolate toward.
+    float speed{ 0.0F };
+};
+
 struct RemoteFrame
 {
     Multiplayer::PeerSlot playerID;
-    // The newest accepted checkpoint and its sequence.
+    // The played checkpoint and its sequence. Newer checkpoints may have
+    // arrived and wait for their playback time.
     const Network::PlayerTransform& checkpoint;
     std::uint64_t lastSequence;
+    const RemotePose& pose;
     // The checkpoint's furniture in the local load order: zero for none, or when
     // its plugin is not loaded here.
     RE::FormID furnitureRefID;
 };
 
-// A newer checkpoint accepted from the network, before it replaces the previous
-// one. inserted marks the first message ever received for the player.
+// A checkpoint reaching its playback time, before it replaces the previously
+// played one. inserted marks the first one played since the player entered.
 struct CheckpointUpdate
 {
     Multiplayer::PeerSlot playerID;

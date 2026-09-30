@@ -8,7 +8,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 
 | Spec | System | Sources |
 | --- | --- | --- |
-| [sync-pipeline.md](sync-pipeline.md) | Main-loop pass, game thread, peer receive state, checkpoint publishing, world presence, actor lifecycle | `src/runtime/`, `src/sync/` (top level, `presence/`) |
+| [sync-pipeline.md](sync-pipeline.md) | Main-loop pass, game thread, peer receive state, checkpoint publishing and playout, world presence, actor lifecycle | `src/runtime/`, `src/sync/` (top level, `presence/`) |
 | [network.md](network.md) | Wire protocol, client transport and connection, server sessions and validation | `proto/`, `src/protocol/`, `src/network/`, `server/internal/{session,validate,wire,world}` |
 | [interest-and-delivery.md](interest-and-delivery.md) | Which peers each client receives, exclusions, per-recipient outboxes, ordering, batching | `server/internal/{interest,hub,delivery}` |
 | [remote-actor.md](remote-actor.md) | Spawn, update order, registry, animation firewall, graph recovery, survival, combat and reaction isolation, world isolation | `src/actor/` |
@@ -28,6 +28,7 @@ criteria.
 | Feature | Specs |
 | --- | --- |
 | Movement and locomotion | [locomotion](locomotion.md), [network](network.md#checkpoint-and-context), [sync-pipeline](sync-pipeline.md#local-publishing) |
+| Checkpoint playout (smooth remote movement) | [sync-pipeline](sync-pipeline.md#checkpoint-playout), [locomotion](locomotion.md#coalescing), [network](network.md#checkpoint-and-context), [interest-and-delivery](interest-and-delivery.md#batching) |
 | Swimming | [locomotion](locomotion.md#swimming), [remote-actor](remote-actor.md#swimming) |
 | Weapon stance and attacks | [combat-presentation](combat-presentation.md), [network](network.md#actions) |
 | Bow draws and spell casts | [combat-presentation](combat-presentation.md#hand-presentation), [appearance-and-equipment](appearance-and-equipment.md#equipment) |

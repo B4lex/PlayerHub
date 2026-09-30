@@ -6,6 +6,7 @@
 #include "protocol/PeerSlot.h"
 #include "protocol/PlayerState.h"
 
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -20,6 +21,8 @@ namespace Network
         Multiplayer::PeerSlot playerID{ 0 };
         // Merged with the peer's context at the time it arrived.
         PlayerTransform transform;
+        // When the transport thread decoded it, for the playout clock.
+        std::chrono::steady_clock::time_point received{};
     };
 
     struct RemotePlayerAppearance

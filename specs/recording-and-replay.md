@@ -88,6 +88,7 @@ message itself and never modifies the recorded one:
 | Field | Rule |
 | --- | --- |
 | checkpoint `sequence` | its own counter |
+| checkpoint `time` | when it is due on the replay timeline (the emit time for a seek, hold, or snapshot), so receivers see the recorded spacing even when the timer fires late |
 | context `graph_epoch` | the recording's epoch plus an offset; after a seek or loop the next context starts at `last + 1`; never decreases |
 | action `action_sequence` | its own counter, so skipped actions leave no gap |
 | action `checkpoint_sequence`, `graph_epoch` | the latest emitted checkpoint's and context's |
@@ -143,7 +144,7 @@ once, including from one recording.
   (`--spread` 20000 dense, 100000 sparse) or replay a recording laid out like a
   batch. Each stamps its checkpoint sequence with the send time in
   microseconds, which is strictly rising, so a receiver on the same host
-  measures latency without a wire field; `--server-pid` adds the server's CPU
+  measures latency without a wire field, and its `time` with the send time; `--server-pid` adds the server's CPU
   from `/proc`.
 
 ## Admin API

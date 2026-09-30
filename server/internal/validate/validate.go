@@ -19,6 +19,7 @@ const (
 	MaximumPitch           = 1609
 	MaximumSpeed           = 100000
 	MaximumDirection       = 255
+	MaximumTime            = 16383
 	MaximumMovementState   = 6
 	movementStateMask      = 0x7
 	knownFlags             = 0xFFF
@@ -76,7 +77,7 @@ func Message(m *pb.ClientMessage) error {
 
 func Checkpoint(c *pb.Checkpoint) error {
 	if c.GetHeading() > MaximumHeading || c.GetPitch() > MaximumPitch || c.GetPitch() < -MaximumPitch ||
-		c.GetSpeed() > MaximumSpeed || c.GetDirection() > MaximumDirection ||
+		c.GetSpeed() > MaximumSpeed || c.GetDirection() > MaximumDirection || c.GetTime() > MaximumTime ||
 		c.GetFlags()&^knownFlags != 0 || c.GetFlags()&movementStateMask > MaximumMovementState {
 		return ErrCheckpoint
 	}

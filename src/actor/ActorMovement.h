@@ -12,14 +12,18 @@ namespace ActorMovement
 {
     struct State
     {
+        // The interpolated path point, which moves every pass.
         RE::NiPoint3 targetPosition{};
+        // Where the played checkpoint was sampled.
+        RE::NiPoint3 checkpointPosition{};
         float targetHeading{ 0.0F };
         // Pitch of the source's carrier, applied only where the actor's own
         // controller pitches.
         float targetPitch{ 0.0F };
-        // Network translation speed is intentionally independent from animation.
+        // Speed along the interpolated path, intentionally independent from
+        // animation.
         float translationSpeed{ 550.0F };
-        // Speed from the same network sample as targetPosition and movement state.
+        // Speed from the played checkpoint, with its movement state.
         float animationSpeed{ 550.0F };
         // Graph `Direction` from the same sample: travel relative to heading.
         float animationDirection{ 0.0F };
@@ -33,8 +37,15 @@ namespace ActorMovement
         bool landingApproachEnded{ false };
     };
 
+    // Once per played checkpoint: its position, and the speed, direction, and
+    // swimming its animation follows.
+    void SetTargetMovement(RemoteActor& a_remote, const RE::NiPoint3& a_checkpointPosition, float a_speed,
+        float a_direction, bool a_swimming);
+
+    // Every pass: the interpolated path point, heading, and pitch to follow, and
+    // the path's speed.
     void SetTargetTransform(RemoteActor& a_remote, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
-        float a_targetPitch, float a_translationSpeed, float a_direction, bool a_swimming);
+        float a_targetPitch, float a_pathSpeed);
 
     // Holds a grounded checkpoint's landing while the airborne actor travels on to
     // where the source landed, for a bounded time, so the landing does not have to

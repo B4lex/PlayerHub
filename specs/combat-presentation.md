@@ -147,7 +147,8 @@ The log lines `observed local attack state edge` and
 Actions for a player are accepted only in order, with a matching epoch and a
 known checkpoint, into a bounded FIFO (32). The front action waits until:
 
-- its checkpoint has arrived and its epoch matches the latest checkpoint;
+- its checkpoint has played ([Sync pipeline](sync-pipeline.md#checkpoint-playout))
+  and its epoch matches the played checkpoint;
 - the graph and the applied locomotion state have settled;
 - no jump, landing, draw, equip, recovery, or furniture owns the graph;
 - `ActorState` reports the weapon fully drawn;
@@ -155,7 +156,7 @@ known checkpoint, into a bounded FIFO (32). The front action waits until:
 - no bow draw or cast plays, and a held or lowering block allows only `bash`;
 - the preceding attack has completed or is in its combo window.
 
-A queued action times out after 10 s, a dispatch is retried at most four times,
+A queued action times out after 3 s, a dispatch is retried at most four times,
 and a furniture checkpoint discards the queue. Late join, graph replacement,
 respawn, and hit recovery first restore the current checkpoint; historical
 attacks are never replayed.

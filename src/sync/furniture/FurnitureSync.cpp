@@ -130,7 +130,7 @@ namespace FurnitureSync
         ActorFurniture::ResumeFurniture(a_actor, a_remote.furnitureRefID);
     }
 
-    void OnCheckpointAccepted(RemoteState& a_state, const CheckpointUpdate& a_update)
+    void OnCheckpointPlayed(RemoteState& a_state, const CheckpointUpdate& a_update)
     {
         const auto& furniture = a_update.checkpoint.furniture;
         if (a_update.previous.furniture == furniture)

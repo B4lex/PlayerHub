@@ -188,6 +188,7 @@ func (b *bot) stamp(c *pb.Checkpoint) {
 	b.lastVirtual = c.Sequence
 	b.lastSent = max(uint64(time.Now().UnixMicro()), b.lastSent+1)
 	c.Sequence = b.lastSent
+	c.Time = wire.SampleTime(time.Now())
 	b.x.Store(c.X)
 	b.y.Store(c.Y)
 }

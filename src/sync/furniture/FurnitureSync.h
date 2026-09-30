@@ -51,9 +51,9 @@ namespace FurnitureSync
     // finished its entry before the actor existed, so the actor resumes seated.
     void OnActorSpawned(const RemoteFrame& a_remote, RemoteActor& a_actor);
 
-    // Receive stage: resolves a newer checkpoint's furniture target by plugin
+    // Playout stage: resolves a playing checkpoint's furniture target by plugin
     // name, so peers with different load orders agree on the reference.
-    void OnCheckpointAccepted(RemoteState& a_state, const CheckpointUpdate& a_update);
+    void OnCheckpointPlayed(RemoteState& a_state, const CheckpointUpdate& a_update);
 
     // Remote stage, before animation staging: applies an exit or a direct
     // furniture-to-furniture change immediately. Returns whether native furniture

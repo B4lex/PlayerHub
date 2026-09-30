@@ -347,14 +347,14 @@ namespace AnimationSync
         return animationState;
     }
 
-    void OnCheckpointAccepted(const CheckpointUpdate& a_update)
+    void OnCheckpointPlayed(const CheckpointUpdate& a_update)
     {
         const bool animationStateChanged
             = a_update.inserted || a_update.previous.animationState != a_update.checkpoint.animationState;
         if (animationStateChanged)
         {
             logs::debug(
-                "Animation sync accepted main-loop target: player={} previousSequence={} previous={}/{} sequence={} "
+                "Animation sync played target: player={} previousSequence={} previous={}/{} sequence={} "
                 "state={}/{} position=({:.3f},{:.3f},{:.3f}) speed={:.1f} direction={:.3f}",
                 a_update.playerID, static_cast<unsigned long long>(a_update.previousSequence),
                 a_update.inserted ? "uninitialized"

@@ -397,7 +397,11 @@ type Checkpoint struct {
 	// Graph Direction × 256, 0..255.
 	Direction uint32 `protobuf:"varint,9,opt,name=direction,proto3" json:"direction,omitempty"`
 	// Bits 0-2 movement state, bits 3-11 CheckpointFlag.
-	Flags         uint32 `protobuf:"varint,10,opt,name=flags,proto3" json:"flags,omitempty"`
+	Flags uint32 `protobuf:"varint,10,opt,name=flags,proto3" json:"flags,omitempty"`
+	// Sender's monotonic clock when sampled, milliseconds modulo 16384.
+	// Receivers unwrap it against arrival times to play checkpoints back at
+	// their original spacing.
+	Time          uint32 `protobuf:"varint,11,opt,name=time,proto3" json:"time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -498,6 +502,13 @@ func (x *Checkpoint) GetDirection() uint32 {
 func (x *Checkpoint) GetFlags() uint32 {
 	if x != nil {
 		return x.Flags
+	}
+	return 0
+}
+
+func (x *Checkpoint) GetTime() uint32 {
+	if x != nil {
+		return x.Time
 	}
 	return 0
 }
@@ -1317,7 +1328,7 @@ const file_skyrimmp_v1_state_proto_rawDesc = "" +
 	"\x17skyrimmp/v1/state.proto\x12\vskyrimmp.v1\":\n" +
 	"\aFormRef\x12\x16\n" +
 	"\x06plugin\x18\x01 \x01(\tR\x06plugin\x12\x17\n" +
-	"\aform_id\x18\x02 \x01(\rR\x06formId\"\xe4\x01\n" +
+	"\aform_id\x18\x02 \x01(\rR\x06formId\"\xf8\x01\n" +
 	"\n" +
 	"Checkpoint\x12\x16\n" +
 	"\x06player\x18\x01 \x01(\rR\x06player\x12\x1a\n" +
@@ -1330,7 +1341,8 @@ const file_skyrimmp_v1_state_proto_rawDesc = "" +
 	"\x05speed\x18\b \x01(\rR\x05speed\x12\x1c\n" +
 	"\tdirection\x18\t \x01(\rR\tdirection\x12\x14\n" +
 	"\x05flags\x18\n" +
-	" \x01(\rR\x05flags\"\x9c\x01\n" +
+	" \x01(\rR\x05flags\x12\x12\n" +
+	"\x04time\x18\v \x01(\rR\x04time\"\x9c\x01\n" +
 	"\aContext\x12\x17\n" +
 	"\acell_id\x18\x01 \x01(\rR\x06cellId\x12#\n" +
 	"\rworldspace_id\x18\x02 \x01(\rR\fworldspaceId\x12\x1f\n" +

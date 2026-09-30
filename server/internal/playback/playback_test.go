@@ -122,6 +122,27 @@ func TestPlayNumbersEverythingItself(t *testing.T) {
 	expect(t, p.take(), "cp4/x30 cp5/x40 cp6/x50 action1/e5/cp6")
 }
 
+func TestCheckpointsCarryTheirTimelineTime(t *testing.T) {
+	s, p, clock := newSession(t, timeline(), Options{Autoplay: true, Rate: 2})
+	s.Advance()
+	p.take()
+	// A late timer emits two checkpoints at once; they keep the recorded
+	// spacing, halved by the rate.
+	clock.advance(130)
+	s.Advance()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	var times []uint32
+	for _, m := range p.sent {
+		if c := m.GetCheckpoint(); c != nil {
+			times = append(times, c.Time)
+		}
+	}
+	if fmt.Sprint(times) != "[50 100]" {
+		t.Fatalf("got times %v", times)
+	}
+}
+
 func TestSeekBackStartsANewEpochWithoutResendingPresentation(t *testing.T) {
 	s, p, clock := newSession(t, timeline(), Options{Autoplay: true})
 	s.Advance()

@@ -71,7 +71,7 @@ func Default() Config {
 		Listen:              "0.0.0.0:3000",
 		RecordingsDirectory: "recordings",
 		AdminUIDirectory:    "admin-ui/dist",
-		SendRateHz:          40,
+		SendRateHz:          20,
 		Limits: Limits{
 			MessagesPerSecond:   120,
 			MessageBurst:        240,

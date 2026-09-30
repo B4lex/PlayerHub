@@ -103,15 +103,15 @@ namespace MovementSync
 
     void SyncMovement(const RemoteFrame& a_remote, std::uint64_t& a_appliedSequence, RemoteActor& a_actor)
     {
-        if (a_appliedSequence == a_remote.lastSequence)
+        if (a_appliedSequence != a_remote.lastSequence)
         {
-            return;
+            const RE::NiPoint3 checkpointPosition{ a_remote.checkpoint.x, a_remote.checkpoint.y,
+                a_remote.checkpoint.z };
+            ActorMovement::SetTargetMovement(a_actor, checkpointPosition, a_remote.checkpoint.speed,
+                a_remote.checkpoint.direction, a_remote.checkpoint.swimming);
+            a_appliedSequence = a_remote.lastSequence;
         }
-
-        const RE::NiPoint3 targetPosition{ a_remote.checkpoint.x, a_remote.checkpoint.y, a_remote.checkpoint.z };
-        ActorMovement::SetTargetTransform(a_actor, targetPosition, a_remote.checkpoint.heading,
-            a_remote.checkpoint.pitch, a_remote.checkpoint.speed, a_remote.checkpoint.direction,
-            a_remote.checkpoint.swimming);
-        a_appliedSequence = a_remote.lastSequence;
+        ActorMovement::SetTargetTransform(
+            a_actor, a_remote.pose.position, a_remote.pose.heading, a_remote.pose.pitch, a_remote.pose.speed);
     }
 }

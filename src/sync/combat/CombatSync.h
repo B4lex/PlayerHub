@@ -52,9 +52,10 @@ namespace CombatSync
     // Publishes queued attacks against the checkpoint that was just published.
     void PublishLocalAttacks(const Network::PlayerTransform& a_checkpoint);
 
-    // Receive stage: rejects queued actions that a newer checkpoint invalidates.
-    void OnCheckpointAccepted(RemoteState& a_state, const CheckpointUpdate& a_update);
-    // Receive stage: a_state and a_checkpoint are null for an unknown player.
+    // Playout stage: rejects queued actions that a playing checkpoint invalidates.
+    void OnCheckpointPlayed(RemoteState& a_state, const CheckpointUpdate& a_update);
+    // Receive stage: a_state and a_checkpoint, the newest received, are null for
+    // an unknown player.
     void AcceptRemoteAction(
         RemoteState* a_state, const Network::PlayerTransform* a_checkpoint, Network::AnimationAction&& a_action);
 

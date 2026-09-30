@@ -8,6 +8,15 @@ a behavior-preserving move of the former `FrameUpdate.cpp` and `NPCSpawner.cpp`.
 Spawn throttling (`[Performance] SpawnsPerSecond`) and save exclusion are not
 separately checked in game.
 
+[Checkpoint playout](#checkpoint-playout) is not verified in game or by a
+Windows build. `CheckpointPlayout` compiled on Linux with GCC against stubbed
+engine types and ran in a simulation: a 60 fps source publishing at 20 Hz, a
+server relaying latest-wins at 10, 20, or 40 Hz with idle suppression, network
+jitter with delay spikes, and receivers at 30 to 144 fps. At a 20 Hz tick the
+per-pass speed deviation of a following actor fell from about 23% (chasing the
+newest checkpoint) to about 7%, and passes without movement from 3% to 0.3%,
+for about 50 ms more delay.
+
 ## Scope
 
 The pipeline owns the Skyrim main-loop hook and the game-thread binding, the
@@ -31,7 +40,8 @@ each feature's rules to its own system, the transport to
 | `runtime/PluginTime` | Plugin time per pass, averaged each second ([UI overlay](ui-overlay.md#plugin-time)) |
 | `sync/SyncCoordinator` | One frame entry, the stage order, the single network drain, and the peer map |
 | `sync/PeerState` | A peer's complete receive state, composed of feature-owned members |
-| `sync/SyncFrame` | `LocalFrame`, `RemoteFrame`, and `CheckpointUpdate` views for one pass |
+| `sync/SyncFrame` | `LocalFrame`, `RemoteFrame`, `RemotePose`, and `CheckpointUpdate` views for one pass |
+| `sync/CheckpointPlayout` | A peer's received checkpoints, its playback clock, the played checkpoint, and the interpolated pose |
 | `sync/CheckpointPublisher` | Checkpoint cadence and sequence; calls every feature's local sampler |
 | `sync/ActorLifecycle` | Spawn, retirement, stranded and lost actors, spawn throttling, save exclusion, the mount beside its rider |
 | `sync/presence/PresenceSync` | `Enter` and `Exit`, and the game session |
@@ -95,6 +105,7 @@ write before render ([Remote actor](remote-actor.md#frame-order)).
 restore save eligibility after a save
 DefaultOutfit::Refresh                    # re-resolve a changed [DefaultOutfit]
 ApplyNetworkChanges                       # the one drain
+PlayCheckpoints                           # each peer's due checkpoints play
 ActorLifecycle::RefillSpawnAllowance
 if no player: return
 YieldActivatedFurniture                   # queued local furniture activations
@@ -125,7 +136,7 @@ ActorLifecycle::RetireWhenStranded
 FurnitureSync yield check                  # hide an actor that would block furniture
 MountSync::SyncMount                       # riding: equipment, rider update, look only
 otherwise:
-    MovementSync::SyncMovement             # new transform target
+    MovementSync::SyncMovement             # played checkpoint's movement, then the pose
     EquipmentSync::SyncEquipment           # -> handsSettled, readyForWeaponDraw
     FurnitureSync::SyncFurniture           # exit or target change -> furniturePlaying
     AnimationSync::SyncAnimation           # unless an attack or furniture owns the graph
@@ -183,11 +194,13 @@ new connection generation ([Network](network.md#latest-wins-publishers)).
 ## Receive state
 
 `SyncCoordinator` owns one `std::unordered_map<Multiplayer::PeerSlot, PeerState>`
-keyed by the server's slot for the peer. `PeerState` holds the latest checkpoint, its sequence,
-the sequence whose transform the current actor last received, and the
-feature-owned `combat`, `lifecycle`, `appearance`, and `equipment` members.
-Movement, animation, and furniture keep their state on the `RemoteActor`
-instead.
+keyed by the server's slot for the peer. `PeerState` holds the peer's
+`CheckpointPlayout`, the sequence whose checkpoint the current actor last
+received, and the feature-owned `combat`, `lifecycle`, `appearance`,
+`equipment`, and `furniture` members. Movement and animation keep their state
+on the `RemoteActor` instead. A `RemoteFrame` presents the played checkpoint,
+its sequence, and the interpolated pose; features never see a checkpoint that
+has not played.
 
 `ApplyNetworkChanges` drains everything the network thread queued, once per
 pass:
@@ -196,24 +209,81 @@ pass:
    connection, so the server will never update or report them again.
    Reconnecting rebuilds peers from the server's `PeerEnter` messages.
 2. A `PeerLeave` for any reason but `DISCONNECTED` (the peer left the world,
-   went out of range, or was excluded) removes the actor and forgets the
-   checkpoint, sequence, and combat state, but keeps appearance and equipment
+   went out of range, or was excluded) removes the actor and resets the
+   playout and combat state, but keeps appearance and equipment
    until a `PeerEnter` places the player again. Leaves apply first, since
    changes drained with them arrived after them.
 3. `PeerLeave` with `DISCONNECTED` removes the actor and all state.
-4. Checkpoints are latest-wins by sequence, each already merged with the
-   peer's context on the transport thread. A `PeerEnter` delivers its stored
-   checkpoint the same way, so a paused peer appears at once. A stale one is
-   logged and ignored.
-   An accepted one is shown to furniture, animation, and combat
-   (`OnCheckpointAccepted`) before it replaces the previous one. Furniture
-   resolves its reference into the local load order there, once per change.
+4. Checkpoints, each already merged with the peer's context and stamped with
+   its arrival time on the transport thread, go into the peer's playout with a
+   rising sequence. A stale one is logged and ignored. A `PeerEnter` delivers
+   its stored checkpoint the same way.
 5. Appearance and equipment are latest-wins by revision and may arrive before
    any checkpoint. Neither alone spawns an actor.
-6. Actions are ordered and bounded by the combat system.
+6. Actions are ordered and bounded by the combat system, and accepted against
+   the newest received checkpoint, played or not.
+
+`PlayCheckpoints` then advances every peer's playout. Each checkpoint that
+reaches its playback time is shown, in order, to furniture, animation, and
+combat (`OnCheckpointPlayed`) before it replaces the played one. Furniture
+resolves its reference into the local load order there, once per change.
 
 Furniture occupancy, weapon stance, and every other checkpoint field are
 reconstructable; historical attacks are not.
+
+## Checkpoint playout
+
+Checkpoints leave the source every 0.05 s but arrive unevenly: the server
+batches them once per tick (`send_rate_hz`, 20) and replaces one that a newer
+one overtook, sends far peers at `far_rate_hz`, and suppresses idle repeats
+([Interest and delivery](interest-and-delivery.md#batching)), and the network
+adds jitter. Following the newest checkpoint as it arrived made the actor
+alternate between catching up and waiting. `CheckpointPlayout` instead plays
+each peer's checkpoints back at their sampled spacing, a little behind the
+newest. The whole checkpoint waits, not only its transform, so movement state,
+jumps, stance, hands, furniture, death, and the actions anchored to a
+checkpoint stay with the position they were sampled at: actions dispatch only
+once their anchor checkpoint has played ([Combat
+presentation](combat-presentation.md#receiver-queue)).
+
+- **Sender time.** Each checkpoint carries the source's monotonic clock in
+  milliseconds modulo 16384 (`time`, [Network](network.md#checkpoint-and-context)).
+  The receiver unwraps it into seconds, choosing the number of wraps that best
+  matches the arrival gap.
+- **Estimates**, updated per received checkpoint:
+  - `transitFloor`, arrival minus sender time for the least delayed recent
+    checkpoint: it drops to any lower value at once and rises by at most
+    0.01 s per second of arrivals, so one late checkpoint cannot raise it;
+  - `jitter`, the smoothed delay beyond the floor, rising with factor 0.25 and
+    falling with 0.02, starting at 0.025 s;
+  - `interval`, the smoothed sender-time spacing of gaps up to 0.25 s,
+    starting at 0.05 s.
+- **Delay** is `interval + 2 × jitter + 0.02 s` (a checkpoint arriving just
+  after a drain waits a pass), clamped to 0.05–0.5 s. With a 20 Hz tick it is
+  typically 0.12–0.16 s on top of the network latency.
+- **Playback clock.** The target is `now − transitFloor − delay` on the local
+  `steady_clock`. The clock advances with wall time and converges on the
+  target at most 10% faster or slower than real time, so estimate changes
+  never jump the actor. An error beyond 0.25 s, such as after the local game
+  was paused, is jumped and logged (`Checkpoint playout resynchronized`). The
+  clock starts at the target with the first checkpoint.
+- **Play.** A checkpoint plays once the clock reaches its sender time; the
+  first after a reset plays at once, so a peer appears without delay.
+  Checkpoints played in the same pass each reach `OnCheckpointPlayed` in order.
+  At most 16 wait; beyond that the oldest is dropped.
+- **Pose.** Between the played checkpoint and the next waiting one, position
+  and pitch interpolate linearly and heading along the shorter arc, and
+  `RemotePose.speed` is the segment's distance over its duration. A gap over
+  0.25 s is not one stretch of movement: the player stood still, since idle
+  repeats are not sent, or the connection stalled. The segment then starts
+  only the next checkpoint's distance over its speed before it, at least one
+  `interval` and at most the whole gap. Nothing interpolates across a
+  coordinate-space change, a mount change, or more than 4096 units; the pose
+  holds the played checkpoint until the next one plays. With nothing waiting,
+  the pose holds the played checkpoint too: there is no extrapolation.
+
+Every step is constant work per peer per pass with no allocation after a
+peer's first checkpoint.
 
 ## Coordinate spaces
 
@@ -228,7 +298,7 @@ on every peer.
 `ActorLifecycle` creates and retires the peer's `RemoteActor` and, while the
 player rides, its mount ([Native interactions](native-interactions.md#mounts)).
 
-- **Spawn.** An actor is created directly at the newest checkpoint's position
+- **Spawn.** An actor is created directly at the played checkpoint's position
   and heading once the player is in the local space, the spawn location is
   loaded (`ActorSpawner::IsSpawnLocationLoaded`: an exterior cell containing
   the position, or the local player's interior), and
@@ -273,14 +343,20 @@ same ID, and the load crashed.
 Durations accumulate the clamped frame delta in seconds
 (`ActorConstants::kMaximumFrameTime`) and use `...Seconds` constants. Pass
 counters remain only where the logic means engine update passes (graph
-readiness across passes) or for log throttling, with a comment saying so.
+readiness across passes) or for log throttling, with a comment saying so. The
+checkpoint playout is the exception: it follows the sender's clock, so it
+runs on `steady_clock` and catches up after a local pause instead of replaying
+it.
 
 ## Known limitations
 
 - Cell and worldspace form IDs require matching load orders.
 - Interior and worldspace changes despawn and respawn the actor; there is no
   presentation through loading screens.
-- Transforms chase the newest checkpoint. There is no timestamped
-  interpolation buffer, extrapolation, or latency compensation.
+- Remote players are shown the playout delay behind their network latency,
+  typically 0.1–0.2 s in total. There is no extrapolation or latency
+  compensation; when nothing waits to play, the actor stops at the played
+  checkpoint and drains the gap once the next one arrives.
+- The playout constants were tuned in simulation only.
 - There is no authentication, lobby, persistent identity, or server-authoritative
   movement.

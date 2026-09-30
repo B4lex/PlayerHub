@@ -101,7 +101,7 @@ receiver uses the NPC path. It waits until:
   transition is pending. A completed weapon clip counts as settled while the
   target is idle (after a sheathe, once the default state was forced), though
   its locomotion replay stays armed for later movement;
-- the actor is within 24 units of the latest checkpoint;
+- the actor is within 24 units of its pose;
 - the furniture has an available marker (ID 20162), and one of its markers is
   within 96 units (2D). The distance is to the nearest marker, not the probe's:
   the probe returns the first free index while the native entry picks its own,
@@ -235,7 +235,7 @@ retried.
 When a remote actor would block the local player or share a marker, it is hidden
 locally: retired like any respawn (occupancy and reservations released,
 reference disabled and deleted) while its source keeps using the furniture. A
-hidden actor is not respawned while its newest checkpoint still names that
+hidden actor is not respawned while its played checkpoint still names that
 reference.
 
 **Local player activation.** Skyrim runs the player's furniture activation
@@ -282,7 +282,7 @@ Logs: `Hiding remote player actor ... reason=`,
 - An already playing attack finishes before furniture entry; furniture exit
   finishes before newer locomotion or attacks apply.
 - Respawns and coordinate-space changes discard local furniture progress and
-  reconstruct from the newest checkpoint. Historical enter and exit transitions
+  reconstruct from the played checkpoint. Historical enter and exit transitions
   are not replayed.
 - Shared-furniture resolution runs after coordinate-space and fast-travel
   retirement and before the actor is updated; local activations are resolved
@@ -308,7 +308,7 @@ interaction, including its mount and dismount animations.
 `MountSync::SyncMount` runs after the death and stranded-actor checks and before
 every on-foot stage:
 
-1. While the newest checkpoint rides and the player is alive, a mount is spawned
+1. While the played checkpoint rides and the player is alive, a mount is spawned
    at the checkpoint through `ActorSpawner`, so it is registered like a remote
    actor: survival, combat, magic, hostility, and collision isolation, and
    blocked activation, so it cannot be ridden or stolen. Every remote mount is
@@ -462,7 +462,7 @@ camera still sees a body.
 `DeathSync::SyncDeath` runs after the coordinate-space checks and before every
 stage that drives the actor:
 
-1. A live actor whose newest checkpoint is dead is killed once ready (3D,
+1. A live actor whose played checkpoint is dead is killed once ready (3D,
    controller, graph), so an actor spawned for a dead player stands for the few
    passes of its initialization and then collapses. Queued attacks are dropped.
 2. A killed actor is left alone: movement, animation, furniture, equipment,

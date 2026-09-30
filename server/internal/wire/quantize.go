@@ -2,19 +2,22 @@ package wire
 
 import (
 	"math"
+	"time"
 
 	"skyrim-mp/server/internal/wire/pb"
 )
 
 // Quantization shared with the plugin's src/protocol. Positions are whole
 // game units, heading is 1/4096 of a turn, pitch is 1/1024 radian, speed is
-// whole units per second, and direction is 1/256 of the graph's range.
+// whole units per second, direction is 1/256 of the graph's range, and the
+// sample time is milliseconds modulo TimeModulus.
 const (
 	HeadingSteps   = 4096
 	PitchScale     = 1024
 	DirectionSteps = 256
 	MaximumPitch   = 1609
 	MaximumSpeed   = 100000
+	TimeModulus    = 16384
 )
 
 // Sample is an unquantized checkpoint.
@@ -40,6 +43,11 @@ func Quantize(s Sample, sequence uint64) *pb.Checkpoint {
 		Direction: uint32(math.Round(max(0, s.Direction)*DirectionSteps)) % DirectionSteps,
 		Flags:     uint32(s.MovementState) | uint32(s.Flags),
 	}
+}
+
+// SampleTime is a checkpoint's time field for a sample taken at t.
+func SampleTime(t time.Time) uint32 {
+	return uint32(t.UnixMilli() % TimeModulus)
 }
 
 func roundInt32(v float64) int32 {

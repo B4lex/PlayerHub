@@ -124,6 +124,7 @@ context.
 | `speed` | `uint32`, units per second | `<= 100000` |
 | `direction` | `uint32`, graph `Direction` × 256, wrapping | `0..255` |
 | `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–11 `jumping`, `weaponDrawn`, `bowDrawn`, `castingLeft`, `castingRight`, `blocking`, `dead`, `mounted`, `swimming` | unknown bits rejected |
+| `time` | `uint32`, the sender's `steady_clock` in milliseconds when sampled, modulo 16384 | `0..16383` |
 
 | `Context` field | Validation |
 | --- | --- |
@@ -133,7 +134,15 @@ context.
 
 `protocol/Quantization.h` and `server/internal/wire/quantize.go` hold the same
 rules: positions and speed round to whole units, heading is normalized to
-[0, 2π) first, pitch is clamped, and direction wraps (1.0 is 0). The server
+[0, 2π) first, pitch is clamped, and direction wraps (1.0 is 0). `time` is wall
+time, not accumulated frame time, so a paused or hitching source does not
+stretch it; receivers play checkpoints back at its spacing
+([Sync pipeline](sync-pipeline.md#checkpoint-playout)). Sixteen seconds of range
+keep it within two bytes; receivers recover the wraps from arrival times. The
+server does not interpret it, and idle suppression ignores it with the
+sequence ([Interest and delivery](interest-and-delivery.md#rate-classes-and-idle-suppression)).
+Virtual players and `cmd/loadgen` bots stamp their own
+([Recording and replay](recording-and-replay.md#virtual-player)). The server
 accepts a `Context` or `Checkpoint` only in the world, and a checkpoint only
 after a context since the last `Enter` (`no context`). A context identical to
 the stored one is dropped. The meaning of each field is in its owning system:
@@ -312,7 +321,9 @@ in the label.
   context (no `PeerEnter` yet) is dropped, and so is a context whose epoch
   falls.
 - Only the newest pending checkpoint (by sequence), appearance, and equipment
-  (by revision) per peer are kept until the pass drains them. `PeerEnter`
+  (by revision) per peer are kept until the pass drains them. A checkpoint is
+  stamped with its `steady_clock` arrival, once per `PeerStates` or
+  `PeerEnter`, for the playout clock. `PeerEnter`
   starts a fresh checkpoint and action stream. `PeerLeave` forgets the peer's
   context, checkpoint, and action stream; with `DISCONNECTED` it also forgets
   its presentation. Actions are queued in order and a gap is rejected.

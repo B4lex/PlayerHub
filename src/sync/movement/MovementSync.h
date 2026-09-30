@@ -59,6 +59,7 @@ namespace MovementSync
     [[nodiscard]] bool IsInLocalSpace(
         const RemoteFrame& a_remote, RE::FormID a_localCellID, RE::FormID a_localWorldspaceID);
 
-    // Remote stage: hands a newly accepted checkpoint transform to the actor.
+    // Remote stage: hands a newly played checkpoint's movement to the actor, and
+    // every pass the interpolated pose it follows.
     void SyncMovement(const RemoteFrame& a_remote, std::uint64_t& a_appliedSequence, RemoteActor& a_actor);
 }

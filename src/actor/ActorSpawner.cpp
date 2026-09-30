@@ -111,6 +111,7 @@ namespace ActorSpawner
         RemoteActor remoteActor{ .handle = actor->GetHandle(),
             .animationGraphHolder = nullptr,
             .movement = ActorMovement::State{ .targetPosition = a_targetPosition,
+                .checkpointPosition = a_targetPosition,
                 .targetHeading = a_targetHeading,
                 .translationSpeed = a_speed,
                 .animationSpeed = a_speed,

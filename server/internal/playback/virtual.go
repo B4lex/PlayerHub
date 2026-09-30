@@ -3,8 +3,11 @@
 package playback
 
 import (
+	"time"
+
 	"google.golang.org/protobuf/proto"
 
+	"skyrim-mp/server/internal/wire"
 	"skyrim-mp/server/internal/wire/pb"
 )
 
@@ -49,13 +52,15 @@ func (v *VirtualPlayer) Context(recorded *pb.Context) *pb.Context {
 	return c
 }
 
-// Checkpoint numbers a recorded checkpoint. hold stops all locomotion, which
-// a paused replay shows: its actor stands still instead of running in place,
-// keeping stance and hand state.
-func (v *VirtualPlayer) Checkpoint(recorded *pb.Checkpoint, hold bool) *pb.Checkpoint {
+// Checkpoint numbers a recorded checkpoint and stamps it with sampled, since
+// the recorded time does not follow on across a seek or a loop. hold stops
+// all locomotion, which a paused replay shows: its actor stands still instead
+// of running in place, keeping stance and hand state.
+func (v *VirtualPlayer) Checkpoint(recorded *pb.Checkpoint, hold bool, sampled time.Time) *pb.Checkpoint {
 	c := proto.Clone(recorded).(*pb.Checkpoint)
 	v.sequence++
 	c.Sequence = v.sequence
+	c.Time = wire.SampleTime(sampled)
 	c.Player = 0
 	if hold {
 		state := pb.MovementState(c.Flags & 0x7)

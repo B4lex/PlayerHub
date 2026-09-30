@@ -123,7 +123,7 @@ kept. Each fallback is logged once per revision.
   the label `Unknown`.
 - A newer revision retires the actor at the next pass, at least 2 s after the
   previous respawn for that player. The respawn uses the new base and rebuilds
-  locomotion, stance, and furniture from the newest checkpoint. Coordinate-space
+  locomotion, stance, and furniture from the played checkpoint. Coordinate-space
   respawns reuse the current base.
 - A change of only name, level, or name index rewrites the built base's full
   name in place and adopts the revision without a new base or respawn.

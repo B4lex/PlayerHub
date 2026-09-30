@@ -7,6 +7,11 @@ players: position, heading, directional movement, walk, run, sprint, sneak,
 jumps, and swimming. The behavior-graph facts below were read from the vanilla
 `Skyrim - Animations.bsa` behavior files or observed in game, as noted.
 
+Following the interpolated pose of the [checkpoint
+playout](sync-pipeline.md#checkpoint-playout), and translating without an
+arrival tolerance while moving, is not verified in game or by a Windows build;
+the translation step ran only in the playout's Linux simulation.
+
 ## Scope
 
 Locomotion presents where a player is and how it moves: the transform, the
@@ -69,13 +74,16 @@ At each checkpoint, from the carrier (the player, or its mount while riding):
 
 ### Coalescing
 
-Locomotion and jump phase are current state, not action history. Only the
-newest checkpoint is kept, and position, heading, speed, movement state, and
-jump phase are applied from the same sample. Replaying skipped states would make
-the graph traverse obsolete states while the actor already follows the newest
-target, and pairing a newer transform with an older queued locomotion state was
-an early cause of sliding. Takeoff and landing events are derived only when the
-applied checkpoint changes jump phase; no jump events are queued.
+Locomotion and jump phase are current state, not action history. Checkpoints
+play at their sampled spacing ([Sync pipeline](sync-pipeline.md#checkpoint-playout)),
+and speed, direction, movement state, and jump phase are applied from the
+played checkpoint; when several play in one pass, only the last is applied.
+Position, heading, and pitch follow the pose interpolated from the played
+checkpoint toward the next, so they never run ahead of the movement state
+sampled with them. Replaying skipped states would make the graph traverse
+obsolete states, and pairing a newer transform with an older locomotion state
+was an early cause of sliding. Takeoff and landing events are derived only
+when the applied checkpoint changes jump phase; no jump events are queued.
 
 ### Graph state
 
@@ -105,24 +113,27 @@ applied checkpoint changes jump phase; no jump events are queued.
 - Translation waits for the graph revision that matches the checkpoint and for
   staging to reach it, since translating while the graph request is unavailable
   or rejected is the literal sliding failure.
-- Position approaches the newest target at the checkpoint's measured speed.
-  Grounded movement adds a backlog drain proportional to the remaining distance
-  (about 0.5 s), because a sample's speed covers only its own travel, and a
-  stall or a translation hold would otherwise leave a lag until the idle
-  checkpoint snapped across it. `deltaTime` is clamped and a step never
-  overshoots the target.
-- An idle checkpoint snaps the remaining backlog once the idle graph state
-  settles, rather than translating visibly in idle.
-- Airborne, the rate also derives a bounded catch-up from the positional error,
-  so a standing jump with zero sampled speed still corrects vertically.
+- Position approaches the pose (`ActorMovement::SetTargetTransform`, every
+  pass) at the pose's path speed plus a backlog drain of the remaining distance
+  over about 0.5 s, so an actor on the path follows it exactly and one held
+  behind it, by a translation hold or a pause in arrivals, catches up without
+  a snap. `deltaTime` is clamped and a step never overshoots the pose. While
+  moving there is no arrival tolerance: at a slow walk and a high frame rate
+  the pose advances less than one unit per pass, and a tolerance made the
+  actor move only every other pass.
+- An idle checkpoint snaps the remaining distance, beyond the 1-unit stopping
+  distance and tolerance, once the idle graph state settles, rather than
+  translating visibly in idle. With the playout the pose is already there.
+- Airborne, the rate also derives a bounded catch-up from the positional error
+  over 0.2 s.
 - While a network attack owns the graph, an idle checkpoint never snaps; the
-  actor moves at the greater of the measured speed and the remaining distance
+  actor moves at the greater of the path speed and the remaining distance
   over 0.2 s. A forward power attack's lunge is clip motion, so the source's
   checkpoints say `running` at a low speed while it accelerates and `idle` while
   it still carries forward; without this the actor fell behind and teleported
   on the idle checkpoint.
-- `SetPosition(next, true)` moves the reference and its controller. Heading is
-  applied from the checkpoint.
+- `SetPosition(next, true)` moves the reference and its controller. Heading
+  turns toward the pose's heading at up to one turn per second.
 
 ### Direction
 
@@ -179,9 +190,10 @@ Several state machines re-enter at a standing state chosen from
 - Takeoff restores `bInJumpState` and the jump sample's variables, then sends
   `JumpStandingStart` or `JumpDirectionalStart`.
 - Landing waits for the airborne actor to travel on to the landing checkpoint's
-  position, bounded to 0.25 s (then it lands on the latest checkpoint), aligns
-  the actor there, restores `bInJumpState=false` and the current locomotion
-  variables, and only then sends `JumpLand`.
+  position (`ActorMovement::State::checkpointPosition`), which the pose
+  reaches as that checkpoint plays, bounded to 0.25 s (then it lands on the
+  pose), aligns the actor there, restores `bInJumpState=false` and the current
+  locomotion variables, and only then sends `JumpLand`.
 - The applied jump value is reasserted immediately before and after the normal
   actor update, so the locally grounded controller cannot overwrite it.
 - A graph output-event sink watches for the delayed `JumpLandEnd` annotation.
@@ -228,11 +240,15 @@ support consistent with the source).
 4. Swimming, leaving the water, and jumping into water play swim and land
    locomotion without walking on the riverbed.
 5. Dropped intermediate checkpoints converge to the newest state.
+6. With a 20 Hz server tick, an actor walking, running, sprinting, or sneaking
+   moves at an even pace along its source's path, without periodic stops or
+   surges, including at 30 and 144 fps.
 
 ## Known limitations
 
 - Look and aim direction independent of the body is not replicated.
-- Transforms chase the newest sample, so network jitter affects smoothness even
-  when the state is right.
+- Jitter beyond the playout delay leaves nothing to interpolate toward: the
+  actor stops at the played checkpoint and catches up once the next one plays
+  ([Sync pipeline](sync-pipeline.md#checkpoint-playout)).
 - A mod or behavior-graph mismatch between peers is not detected; missing
   variables and rejected or timed-out events are logged.

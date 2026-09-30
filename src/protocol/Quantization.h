@@ -19,6 +19,8 @@ namespace Network
     inline constexpr std::int32_t kMaximumQuantizedPitch = 1609;
     inline constexpr std::uint32_t kMaximumQuantizedSpeed = 100000;
     inline constexpr std::uint32_t kDirectionSteps = 256;
+    // Checkpoint.time wraps at this many milliseconds.
+    inline constexpr std::uint32_t kSampleTimeModulus = 16384;
 
     // Checkpoint.flags: bits 0-2 hold the movement state.
     namespace CheckpointFlags
@@ -52,6 +54,8 @@ namespace Network
         // 1/256 of the graph's Direction range, 0..255.
         std::uint32_t direction{ 0 };
         std::uint32_t flags{ 0 };
+        // Milliseconds, 0..kSampleTimeModulus - 1.
+        std::uint32_t time{ 0 };
     };
 
     // What a checkpoint's position and actions are relative to. It changes
@@ -129,7 +133,8 @@ namespace Network
             .speed = static_cast<std::uint32_t>(std::clamp(std::round(speed), 0.0F,
                 static_cast<float>(kMaximumQuantizedSpeed))),
             .direction = static_cast<std::uint32_t>(std::lround(direction * kDirectionSteps)) % kDirectionSteps,
-            .flags = flags };
+            .flags = flags,
+            .time = a_transform.sampleTime % kSampleTimeModulus };
     }
 
     // Rejects values outside the server's validation, as the server does.
@@ -138,7 +143,8 @@ namespace Network
         using namespace CheckpointFlags;
         return a_checkpoint.heading < kHeadingSteps && a_checkpoint.pitch >= -kMaximumQuantizedPitch
             && a_checkpoint.pitch <= kMaximumQuantizedPitch && a_checkpoint.speed <= kMaximumQuantizedSpeed
-            && a_checkpoint.direction < kDirectionSteps && (a_checkpoint.flags & ~kKnown) == 0
+            && a_checkpoint.direction < kDirectionSteps && a_checkpoint.time < kSampleTimeModulus
+            && (a_checkpoint.flags & ~kKnown) == 0
             && (a_checkpoint.flags & kMovementStateMask)
                    <= static_cast<std::uint32_t>(Multiplayer::MovementState::kSneakingRunning);
     }
@@ -171,6 +177,7 @@ namespace Network
             .worldspaceID = a_context.worldspaceID,
             .furniture = a_context.furniture,
             .graphEpoch = a_context.graphEpoch,
-            .sequence = a_checkpoint.sequence };
+            .sequence = a_checkpoint.sequence,
+            .sampleTime = a_checkpoint.time };
     }
 }

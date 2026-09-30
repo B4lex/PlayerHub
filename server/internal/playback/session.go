@@ -291,7 +291,7 @@ func (s *Session) Advance() time.Duration {
 	} else if s.holdPending {
 		s.holdPending = false
 		if s.lastCheckpoint != nil && s.inWorld {
-			s.player.Send(checkpointMessage(s.virtual.Checkpoint(s.lastCheckpoint, true)))
+			s.player.Send(checkpointMessage(s.virtual.Checkpoint(s.lastCheckpoint, true, now)))
 		}
 	}
 	return s.nextDelayLocked(now)
@@ -359,7 +359,7 @@ func (s *Session) emitSnapshotLocked(position float64) {
 	// Always sent after a break, to start the new graph epoch.
 	s.sendContextLocked(latestAt(s.contexts, position))
 	s.lastCheckpoint = checkpoint
-	s.player.Send(checkpointMessage(s.virtual.Checkpoint(checkpoint, !s.playing)))
+	s.player.Send(checkpointMessage(s.virtual.Checkpoint(checkpoint, !s.playing, s.now())))
 }
 
 // checkpointAtLocked returns the checkpoint in effect, or nil while the
@@ -397,7 +397,7 @@ func (s *Session) emitLocked(m recording.Message) {
 			s.sendContextLocked(latestAt(s.contexts, float64(m.TMs)))
 		}
 		s.lastCheckpoint = body.Checkpoint
-		s.player.Send(checkpointMessage(s.virtual.Checkpoint(body.Checkpoint, false)))
+		s.player.Send(checkpointMessage(s.virtual.Checkpoint(body.Checkpoint, false, s.timelineTimeLocked(float64(m.TMs)))))
 	case *pb.ClientMessage_Appearance:
 		if numbered := s.virtual.Appearance(body.Appearance); numbered != nil {
 			s.player.Send(&pb.ClientMessage{Message: &pb.ClientMessage_Appearance{Appearance: numbered}})
@@ -473,6 +473,16 @@ func (s *Session) positionLocked(now time.Time) float64 {
 	}
 	elapsedMs := float64(now.Sub(s.anchorTime)) / float64(time.Millisecond) * s.rate
 	return math.Min(float64(s.duration), s.anchorMs+elapsedMs)
+}
+
+// timelineTimeLocked is when a timeline position is due while playing. A
+// recorded checkpoint is stamped with it, so receivers see the recorded
+// spacing even when the timer fires late or emits a burst.
+func (s *Session) timelineTimeLocked(positionMs float64) time.Time {
+	if !s.playing {
+		return s.now()
+	}
+	return s.anchorTime.Add(time.Duration((positionMs - s.anchorMs) / s.rate * float64(time.Millisecond)))
 }
 
 func (s *Session) touchLocked() {

@@ -533,7 +533,7 @@ extern const pb_msgdesc_t skyrimmp_v1_ServerMessage_msg;
 #define skyrimmp_v1_PeerAction_size              47
 #define skyrimmp_v1_PeerAppearance_size          8147
 #define skyrimmp_v1_PeerContext_size             304
-#define skyrimmp_v1_PeerEnter_size               21445
+#define skyrimmp_v1_PeerEnter_size               21451
 #define skyrimmp_v1_PeerEquipment_size           12939
 #define skyrimmp_v1_PeerLeave_size               8
 #define skyrimmp_v1_Ping_size                    6

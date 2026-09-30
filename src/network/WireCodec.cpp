@@ -135,7 +135,8 @@ namespace Network::Wire
                 .pitch = a_checkpoint.pitch,
                 .speed = a_checkpoint.speed,
                 .direction = a_checkpoint.direction,
-                .flags = a_checkpoint.flags };
+                .flags = a_checkpoint.flags,
+                .time = a_checkpoint.time };
         }
 
         std::expected<AnimationAction, std::string> ReadAction(
@@ -483,7 +484,8 @@ namespace Network::Wire
             .pitch = a_checkpoint.pitch,
             .speed = a_checkpoint.speed,
             .direction = a_checkpoint.direction,
-            .flags = a_checkpoint.flags };
+            .flags = a_checkpoint.flags,
+            .time = a_checkpoint.time };
         return EncodeClientMessage(skyrimmp_v1_ClientMessage_checkpoint_tag, skyrimmp_v1_Checkpoint_fields, &checkpoint);
     }
 

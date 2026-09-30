@@ -26,8 +26,8 @@ namespace AnimationSync
     [[nodiscard]] Multiplayer::AnimationState SampleLocalAnimation(
         const LocalFrame& a_local, std::uint64_t a_sequence, const MovementSync::LocalSample& a_movement);
 
-    // Receive stage: records a newer checkpoint's animation target.
-    void OnCheckpointAccepted(const CheckpointUpdate& a_update);
+    // Playout stage: logs a playing checkpoint's animation target.
+    void OnCheckpointPlayed(const CheckpointUpdate& a_update);
 
     // Remote stage: stages the next graph step toward the checkpoint's state.
     // The caller skips it while an attack or furniture owns the graph. A landing

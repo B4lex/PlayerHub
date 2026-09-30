@@ -17,27 +17,27 @@ namespace ActorMovement
         using Multiplayer::IsMoving;
 
         constexpr float kArrivalTolerance = 1.0F;
+        constexpr float kMinimumStep = 0.01F;
         constexpr float kAirborneTransformCatchUpTime = 0.2F;
         // An attack's own motion, such as a forward power attack's lunge, carries the
         // source faster than its last measured speed and on past the end of its
         // movement input. The actor follows it within about this time.
         constexpr float kAttackTransformCatchUpTime = 0.2F;
-        // A sample's speed only covers that sample's own travel, so a network stall
-        // or a translation hold leaves a backlog that speed matching never recovers
-        // while moving, and the idle checkpoint then snaps across it. Drain it over
-        // about this time. A steady backlog of one sample merely arrives early.
+        // The path speed alone never recovers a distance the actor fell behind the
+        // path, such as during a translation hold, and the idle checkpoint would
+        // then snap across it. Drain it over about this time.
         constexpr float kLocomotionBacklogDrainTime = 0.5F;
-        // Checkpoints are 50 ms apart, so an actor following the network path is
-        // normally within one sample of the landing. A larger backlog is snapped by
-        // the landing alignment rather than holding the airborne pose longer.
+        // An actor following the interpolated path reaches the landing as its
+        // checkpoint plays. A larger backlog is snapped by the landing alignment
+        // rather than holding the airborne pose longer.
         constexpr float kLandingApproachSeconds = 0.25F;
-        // Beyond kArrivalTolerance, where translation stops short of its target.
+        // How close to the landing position the airborne actor counts as arrived.
         constexpr float kLandingArrivalTolerance = 2.0F;
         constexpr float kTwoPi = 6.28318530717958647692F;
         constexpr float kHeadingDeadZone = 0.00872664625997164788F;
         constexpr float kMaximumHeadingRate = kTwoPi;
-        // The source's controller already eases its pitch every physics step, so
-        // this only has to hide the 50 ms steps between checkpoints.
+        // The target pitch is already interpolated between checkpoints; this only
+        // eases the quantization steps.
         constexpr float kPitchSmoothingSeconds = 0.1F;
 
         void ApplySmoothedHeading(RE::Actor& a_actor, float a_targetHeading, float a_deltaTime)
@@ -69,21 +69,30 @@ namespace ActorMovement
         }
     }
 
-    void SetTargetTransform(RemoteActor& a_remote, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
-        float a_targetPitch, float a_translationSpeed, float a_direction, bool a_swimming)
+    void SetTargetMovement(RemoteActor& a_remote, const RE::NiPoint3& a_checkpointPosition, float a_speed,
+        float a_direction, bool a_swimming)
     {
-        a_remote.movement.targetPosition = a_targetPosition;
-        a_remote.movement.targetHeading = a_targetHeading;
-        a_remote.movement.targetPitch = a_targetPitch;
+        a_remote.movement.checkpointPosition = a_checkpointPosition;
         a_remote.movement.sourceSwimming = a_swimming;
-        if (std::isfinite(a_translationSpeed) && a_translationSpeed >= 0.0F)
+        if (std::isfinite(a_speed) && a_speed >= 0.0F)
         {
-            a_remote.movement.translationSpeed = a_translationSpeed;
-            a_remote.movement.animationSpeed = a_translationSpeed;
+            a_remote.movement.animationSpeed = a_speed;
             a_remote.movement.animationDirection = Multiplayer::NormalizeMovementDirection(a_direction);
             ActorAnimation::RequestAnimationUpdate(a_remote.animation.get(), a_remote.animation->targetAnimationState,
                 a_remote.movement.animationSpeed, a_remote.movement.animationDirection);
             ActorRegistry::SetAuthoritativeDirection(a_remote);
+        }
+    }
+
+    void SetTargetTransform(RemoteActor& a_remote, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
+        float a_targetPitch, float a_pathSpeed)
+    {
+        a_remote.movement.targetPosition = a_targetPosition;
+        a_remote.movement.targetHeading = a_targetHeading;
+        a_remote.movement.targetPitch = a_targetPitch;
+        if (std::isfinite(a_pathSpeed) && a_pathSpeed >= 0.0F)
+        {
+            a_remote.movement.translationSpeed = a_pathSpeed;
         }
     }
 
@@ -107,7 +116,7 @@ namespace ActorMovement
         }
         else
         {
-            movement.landingPosition = movement.targetPosition;
+            movement.landingPosition = movement.checkpointPosition;
             movement.landingApproachElapsed = 0.0F;
         }
         const auto actor = a_remote.handle.get();
@@ -149,11 +158,6 @@ namespace ActorMovement
         const float distanceSquared = offset.x * offset.x + offset.y * offset.y + offset.z * offset.z;
 
         const float distance = std::sqrt(distanceSquared);
-        const float distanceToTravel = distance - a_remote.movement.stoppingDistance;
-        if (distanceToTravel <= kArrivalTolerance)
-        {
-            return;
-        }
         const bool attackPlaying = ActorAnimation::IsAnimationActionPlaying(a_remote);
         if (!IsMoving(a_translationState.movementState) && !a_translationState.jumping && !attackPlaying)
         {
@@ -161,11 +165,17 @@ namespace ActorMovement
             // visibly walk the remaining interpolation backlog while playing idle. A
             // playing attack is not idle: the source's attack motion may still be
             // carrying it after its movement input ended.
-            a_actor.SetPosition(target, true);
+            if (distance - a_remote.movement.stoppingDistance > kArrivalTolerance)
+            {
+                a_actor.SetPosition(target, true);
+            }
             return;
         }
 
-        if (deltaTime <= 0.0F)
+        // A moving target advances only a little each pass, less than
+        // kArrivalTolerance at a slow walk and a high frame rate, so a moving actor
+        // follows it without an arrival tolerance or it would move every other pass.
+        if (deltaTime <= 0.0F || distance <= kMinimumStep)
         {
             return;
         }
@@ -176,10 +186,10 @@ namespace ActorMovement
         // The drain term also applies with a catch-up time, which alone only
         // shortens a backlog above translationSpeed * catchUpTime and would carry
         // a smaller one through the whole jump into the landing.
-        const float backlogSpeed = a_remote.movement.translationSpeed + distanceToTravel / kLocomotionBacklogDrainTime;
+        const float backlogSpeed = a_remote.movement.translationSpeed + distance / kLocomotionBacklogDrainTime;
         const float interpolationSpeed
-            = catchUpTime > 0.0F ? (std::max)(backlogSpeed, distanceToTravel / catchUpTime) : backlogSpeed;
-        const float step = (std::min)(interpolationSpeed * deltaTime, distanceToTravel);
+            = catchUpTime > 0.0F ? (std::max)(backlogSpeed, distance / catchUpTime) : backlogSpeed;
+        const float step = (std::min)(interpolationSpeed * deltaTime, distance);
         const float interpolation = step / distance;
 
         const RE::NiPoint3 nextPosition{ current.x + offset.x * interpolation, current.y + offset.y * interpolation,

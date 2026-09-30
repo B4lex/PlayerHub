@@ -341,7 +341,7 @@ namespace CombatSync
         }
     }
 
-    void OnCheckpointAccepted(RemoteState& a_state, const CheckpointUpdate& a_update)
+    void OnCheckpointPlayed(RemoteState& a_state, const CheckpointUpdate& a_update)
     {
         if (!a_update.inserted && a_update.previous.graphEpoch != a_update.checkpoint.graphEpoch)
         {

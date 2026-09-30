@@ -45,6 +45,16 @@ namespace SyncCoordinator
         std::mutex s_localFurnitureActivationsLock;
         std::vector<LocalFurnitureActivation> s_localFurnitureActivations;
 
+        RemoteFrame GetRemoteFrame(Multiplayer::PeerSlot a_playerID, const PeerState& a_peer)
+        {
+            const auto& checkpoint = a_peer.playout.GetPlayed();
+            return RemoteFrame{ .playerID = a_playerID,
+                .checkpoint = checkpoint,
+                .lastSequence = checkpoint.sequence,
+                .pose = a_peer.playout.GetPose(),
+                .furnitureRefID = a_peer.furniture.refID };
+        }
+
         // Slots belong to one server connection, so a closed or replaced
         // connection leaves no peer that the server will update or report as
         // left. Reconnecting rebuilds every peer from resent state.
@@ -86,15 +96,15 @@ namespace SyncCoordinator
             a_peer.lifecycle = {};
             a_peer.combat = {};
             a_peer.furniture = {};
-            a_peer.latestCheckpoint = {};
-            a_peer.lastSequence = 0;
+            a_peer.playout.Reset();
             a_peer.appliedSequence = 0;
         }
 
-        // Receive stage. Transforms are latest-wins by sequence, appearance and
-        // equipment by revision; actions are ordered and bounded; a world exit
-        // clears the player's checkpoint state and a disconnect clears everything.
-        // Exits apply first, since changes drained with one arrived after it.
+        // Receive stage. Checkpoints wait in the peer's playout, rising by
+        // sequence; appearance and equipment are latest-wins by revision; actions
+        // are ordered and bounded; a world exit clears the player's checkpoint
+        // state and a disconnect clears everything. Exits apply first, since
+        // changes drained with one arrived after it.
         void ApplyNetworkChanges(Peers& a_peers)
         {
             PROFILE_FUNCTION();
@@ -130,31 +140,15 @@ namespace SyncCoordinator
 
             for (auto& update : changes.transforms)
             {
-                PROFILE_SCOPE("ApplyNetworkChanges transform");
-                auto [peer, inserted] = a_peers.try_emplace(update.playerID);
-                auto& state = peer->second;
-                if (!inserted && update.transform.sequence <= state.lastSequence)
+                auto& playout = a_peers[update.playerID].playout;
+                const auto sequence = update.transform.sequence;
+                if (!playout.Push(std::move(update.transform), update.received))
                 {
-                    logs::debug(
-                        "Animation sync ignored stale main-loop snapshot: player={} sequence={} state={} "
-                        "newestSequence={} newestState={}",
-                        update.playerID, static_cast<unsigned long long>(update.transform.sequence),
-                        Multiplayer::GetMovementStateName(update.transform.animationState.movementState),
-                        static_cast<unsigned long long>(state.lastSequence),
-                        Multiplayer::GetMovementStateName(state.latestCheckpoint.animationState.movementState));
-                    continue;
+                    const auto* newest = playout.GetNewest();
+                    logs::debug("Checkpoint playout ignored stale checkpoint: player={} sequence={} newestSequence={}",
+                        update.playerID, static_cast<unsigned long long>(sequence),
+                        static_cast<unsigned long long>(newest ? newest->sequence : 0));
                 }
-
-                const CheckpointUpdate checkpointUpdate{ .playerID = update.playerID,
-                    .inserted = inserted,
-                    .previous = state.latestCheckpoint,
-                    .previousSequence = state.lastSequence,
-                    .checkpoint = update.transform };
-                FurnitureSync::OnCheckpointAccepted(state.furniture, checkpointUpdate);
-                AnimationSync::OnCheckpointAccepted(checkpointUpdate);
-                CombatSync::OnCheckpointAccepted(state.combat, checkpointUpdate);
-                state.lastSequence = update.transform.sequence;
-                state.latestCheckpoint = std::move(update.transform);
             }
 
             for (auto& update : changes.appearances)
@@ -178,7 +172,24 @@ namespace SyncCoordinator
                 const auto peer = a_peers.find(action.playerID);
                 const bool known = peer != a_peers.end();
                 CombatSync::AcceptRemoteAction(known ? &peer->second.combat : nullptr,
-                    known ? &peer->second.latestCheckpoint : nullptr, std::move(action));
+                    known ? peer->second.playout.GetNewest() : nullptr, std::move(action));
+            }
+        }
+
+        // Playout stage. Features see a checkpoint only once it plays, so the
+        // state it carries and the actions anchored to it stay in step with the
+        // interpolated transform.
+        void PlayCheckpoints(Peers& a_peers)
+        {
+            PROFILE_FUNCTION();
+            const auto now = CheckpointPlayout::Clock::now();
+            for (auto& [playerID, peer] : a_peers)
+            {
+                peer.playout.Advance(playerID, now, [&peer](const CheckpointUpdate& a_update) {
+                    FurnitureSync::OnCheckpointPlayed(peer.furniture, a_update);
+                    AnimationSync::OnCheckpointPlayed(a_update);
+                    CombatSync::OnCheckpointPlayed(peer.combat, a_update);
+                });
             }
         }
 
@@ -214,11 +225,8 @@ namespace SyncCoordinator
                     {
                         continue;
                     }
-                    const RemoteFrame remote{ .playerID = playerID,
-                        .checkpoint = peer.latestCheckpoint,
-                        .lastSequence = peer.lastSequence,
-                        .furnitureRefID = peer.furniture.refID };
-                    ActorLifecycle::YieldFurniture(remote, peer, activation.furnitureRefID, "local activation");
+                    ActorLifecycle::YieldFurniture(
+                        GetRemoteFrame(playerID, peer), peer, activation.furnitureRefID, "local activation");
                     ++yielded;
                 }
                 if (yielded == 0 && !activation.deferred)
@@ -293,10 +301,7 @@ namespace SyncCoordinator
             float a_delta)
         {
             PROFILE_FUNCTION();
-            const RemoteFrame remote{ .playerID = a_playerID,
-                .checkpoint = a_peer.latestCheckpoint,
-                .lastSequence = a_peer.lastSequence,
-                .furnitureRefID = a_peer.furniture.refID };
+            const auto remote = GetRemoteFrame(a_playerID, a_peer);
             auto& lifecycle = a_peer.lifecycle;
 
             const bool isInLocalSpace = MovementSync::IsInLocalSpace(remote, a_localCellID, a_localWorldspaceID);
@@ -421,6 +426,7 @@ namespace SyncCoordinator
         RestoreSaveEligibility(s_peers);
         DefaultOutfit::Refresh();
         ApplyNetworkChanges(s_peers);
+        PlayCheckpoints(s_peers);
         ActorLifecycle::RefillSpawnAllowance(a_delta);
         if (!a_player)
         {

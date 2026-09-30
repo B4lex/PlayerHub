@@ -12,6 +12,7 @@ import (
 	"skyrim-mp/server/internal/delivery"
 	"skyrim-mp/server/internal/interest"
 	"skyrim-mp/server/internal/validate"
+	"skyrim-mp/server/internal/wire"
 	"skyrim-mp/server/internal/wire/pb"
 	"skyrim-mp/server/internal/world"
 )
@@ -68,9 +69,11 @@ func checkpoint(sequence uint64) *pb.ClientMessage {
 	return checkpointAt(sequence, int32(sequence))
 }
 
+// checkpointAt samples 50 ms apart, so an idle repeat differs in its time.
 func checkpointAt(sequence uint64, x int32) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{
-		Sequence: sequence, X: x, Flags: uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_WEAPON_DRAWN)}}}
+		Sequence: sequence, X: x, Flags: uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_WEAPON_DRAWN),
+		Time: uint32(sequence * 50 % wire.TimeModulus)}}}
 }
 
 func worldspace(epoch uint64, worldspace uint32) *pb.ClientMessage {

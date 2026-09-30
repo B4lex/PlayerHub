@@ -29,6 +29,7 @@ func AppendEntry(b []byte, slot uint32, c *pb.Checkpoint) []byte {
 	m = appendVarint(m, 8, uint64(c.GetSpeed()))
 	m = appendVarint(m, 9, uint64(c.GetDirection()))
 	m = appendVarint(m, 10, uint64(c.GetFlags()))
+	m = appendVarint(m, 11, uint64(c.GetTime()))
 	b = protowire.AppendTag(b, peerStatesEntryField, protowire.BytesType)
 	return protowire.AppendBytes(b, m)
 }

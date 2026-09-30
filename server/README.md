@@ -30,8 +30,9 @@ remote server differ only in this file.
 listen = "0.0.0.0:3000"
 recordings_directory = "recordings"
 admin_ui_directory = "admin-ui/dist"
-# Batches per second to each client. 40 keeps batching under 25 ms.
-send_rate_hz = 40
+# Batches per second to each client, at most one tick of batching delay.
+# Clients play checkpoints back at their sampled spacing, so 20 is smooth.
+send_rate_hz = 20
 
 [limits]
 messages_per_second = 120   # per connection; exceeding it closes the connection

@@ -168,7 +168,7 @@ leave and when the recipient disconnects.
   ordered message about the peer still takes its pending checkpoint along at
   once.
 - A checkpoint equal to the last one handed to subscribers, except for its
-  sequence, is not distributed, so an idle player costs nothing on the wire.
+  sequence and time, is not distributed, so an idle player costs nothing on the wire.
   The stored checkpoint still advances, so `PeerEnter` and action anchors carry
   the newest. The checkpoint after a context change is always distributed,
   since clients apply a context with the next checkpoint they receive.
@@ -189,7 +189,7 @@ what limits the rate, or every player's latency rises.
 - Every drain charges its ordered messages, which are always sent, to both,
   and 60 bytes per WebSocket message for IP, TCP, and WebSocket headers. The
   latest-wins checkpoints then go in order of priority until the allowance is
-  spent: waiting time, starting at one tick (0.025 s), times the pair's
+  spent: waiting time, starting at 0.025 s, times the pair's
   weight, which is 1 within 1024 units and falls as 1024 / distance, in
   eighths, to 1/8. A checkpoint that does not fit waits with its waiting time,
   so every peer is eventually sent; the writer retries after 25 ms.
@@ -201,7 +201,7 @@ what limits the rate, or every player's latency rises.
 
 - A checkpoint accepted by the hub is encoded once as a `PeerStates` entry
   (`wire.AppendEntry`) and marked changed. Every tick (`send_rate_hz`, default
-  40), each changed sender's entry is set in its subscribers' outboxes,
+  20), each changed sender's entry is set in its subscribers' outboxes,
   replacing an unsent older one, and each touched outbox is signalled once.
 - The writer drains the outbox and writes: consecutive entries in the ordered
   stream as one `PeerStates`, every ordered message as its own WebSocket
@@ -211,6 +211,11 @@ what limits the rate, or every player's latency rises.
 - Ordered messages wake the writer at once; checkpoints wait for the tick, so
   batching adds at most one tick of delay. The ticker drops missed ticks
   instead of bursting after a stall.
+- At 20 Hz the tick runs at the source's publishing rate, so with frame
+  timing some ticks carry no checkpoint of a sender and the next carries only
+  the newer of two. Clients absorb that spacing with the [checkpoint
+  playout](sync-pipeline.md#checkpoint-playout); 40 Hz halves the batching
+  delay at twice the batch count.
 - A write that takes longer than `liveness.timeout_seconds` closes the
   connection. While a slow client writes, its outbox keeps only the newest
   checkpoint per peer; ordered messages accumulate until

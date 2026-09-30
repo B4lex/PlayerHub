@@ -87,6 +87,10 @@ typedef struct _skyrimmp_v1_Checkpoint {
     uint32_t direction;
     /* Bits 0-2 movement state, bits 3-11 CheckpointFlag. */
     uint32_t flags;
+    /* Sender's monotonic clock when sampled, milliseconds modulo 16384.
+ Receivers unwrap it against arrival times to play checkpoints back at
+ their original spacing. */
+    uint32_t time;
 } skyrimmp_v1_Checkpoint;
 
 /* What a checkpoint's position and actions are relative to. Sent when a field
@@ -252,7 +256,7 @@ extern "C" {
 
 /* Initializer values for message structs */
 #define skyrimmp_v1_FormRef_init_default         {"", 0}
-#define skyrimmp_v1_Checkpoint_init_default      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+#define skyrimmp_v1_Checkpoint_init_default      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define skyrimmp_v1_Context_init_default         {0, 0, 0, false, skyrimmp_v1_FormRef_init_default}
 #define skyrimmp_v1_Action_init_default          {0, 0, 0, _skyrimmp_v1_AttackAction_MIN, 0, _skyrimmp_v1_PowerDirection_MIN}
 #define skyrimmp_v1_Color_init_default           {0, 0, 0}
@@ -265,7 +269,7 @@ extern "C" {
 #define skyrimmp_v1_DefaultOutfit_init_default   {0, {skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default}, 0, {skyrimmp_v1_Hand_init_default, skyrimmp_v1_Hand_init_default}, false, skyrimmp_v1_FormRef_init_default}
 #define skyrimmp_v1_Equipment_init_default       {0, 0, {skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default, skyrimmp_v1_Armor_init_default}, false, skyrimmp_v1_Hand_init_default, false, skyrimmp_v1_Hand_init_default, false, skyrimmp_v1_FormRef_init_default, false, skyrimmp_v1_DefaultOutfit_init_default}
 #define skyrimmp_v1_FormRef_init_zero            {"", 0}
-#define skyrimmp_v1_Checkpoint_init_zero         {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+#define skyrimmp_v1_Checkpoint_init_zero         {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define skyrimmp_v1_Context_init_zero            {0, 0, 0, false, skyrimmp_v1_FormRef_init_zero}
 #define skyrimmp_v1_Action_init_zero             {0, 0, 0, _skyrimmp_v1_AttackAction_MIN, 0, _skyrimmp_v1_PowerDirection_MIN}
 #define skyrimmp_v1_Color_init_zero              {0, 0, 0}
@@ -291,6 +295,7 @@ extern "C" {
 #define skyrimmp_v1_Checkpoint_speed_tag         8
 #define skyrimmp_v1_Checkpoint_direction_tag     9
 #define skyrimmp_v1_Checkpoint_flags_tag         10
+#define skyrimmp_v1_Checkpoint_time_tag          11
 #define skyrimmp_v1_Context_cell_id_tag          1
 #define skyrimmp_v1_Context_worldspace_id_tag    2
 #define skyrimmp_v1_Context_graph_epoch_tag      3
@@ -359,7 +364,8 @@ X(a, STATIC,   SINGULAR, UINT32,   heading,           6) \
 X(a, STATIC,   SINGULAR, SINT32,   pitch,             7) \
 X(a, STATIC,   SINGULAR, UINT32,   speed,             8) \
 X(a, STATIC,   SINGULAR, UINT32,   direction,         9) \
-X(a, STATIC,   SINGULAR, UINT32,   flags,            10)
+X(a, STATIC,   SINGULAR, UINT32,   flags,            10) \
+X(a, STATIC,   SINGULAR, UINT32,   time,             11)
 #define skyrimmp_v1_Checkpoint_CALLBACK NULL
 #define skyrimmp_v1_Checkpoint_DEFAULT NULL
 
@@ -512,7 +518,7 @@ extern const pb_msgdesc_t skyrimmp_v1_Equipment_msg;
 #define skyrimmp_v1_Action_size                  39
 #define skyrimmp_v1_Appearance_size              8132
 #define skyrimmp_v1_Armor_size                   278
-#define skyrimmp_v1_Checkpoint_size              65
+#define skyrimmp_v1_Checkpoint_size              71
 #define skyrimmp_v1_Color_size                   18
 #define skyrimmp_v1_Context_size                 295
 #define skyrimmp_v1_DefaultOutfit_size           3086
