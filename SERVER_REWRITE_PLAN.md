@@ -462,7 +462,7 @@ in-game check by the user.
 ### Phase 0: preparation
 
 Done 2026-09-30: doc mismatches fixed, schema in `proto/skyrimmp/v1/` with
-nanopb options, `scripts/generate-proto.sh`, and the decisions above.
+nanopb options, `proto/generate.sh` (`scripts/` is gitignored for local tools), and the decisions above.
 
 - Fix the doc mismatches listed [above](#premises-corrected-by-the-code-review).
 - Write `proto/skyrimmp/v1/*.proto` from the [draft](#wire-protocol-draft) and
@@ -473,7 +473,7 @@ nanopb options, `scripts/generate-proto.sh`, and the decisions above.
   - the plugin WebSocket library: IXWebSocket or websocketpp. Both are in
     xmake-repo; TLS on Windows must be checked
   - whether the admin feed stays a WebSocket or becomes server-sent events
-- Add a `scripts/` task that regenerates the Go and nanopb code, so nanopb's
+- Add `proto/generate.sh`, which regenerates the Go and nanopb code, so nanopb's
   Python generator never runs under wine.
 
 ### Phase 1: Go server and protobuf transport, still sending to everyone
