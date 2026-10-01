@@ -55,6 +55,17 @@ namespace UI::WindowManager
         return false;
     }
 
+    bool ReleaseFocusByKey(std::uint32_t a_scanCode)
+    {
+        const auto* focused = s_focused.load(std::memory_order_acquire);
+        if (!focused || !focused->IsReleaseKey(a_scanCode))
+        {
+            return false;
+        }
+        ReleaseFocus(*focused);
+        return true;
+    }
+
     void ReleaseFocus(const Window& a_window)
     {
         const Window* expected = &a_window;

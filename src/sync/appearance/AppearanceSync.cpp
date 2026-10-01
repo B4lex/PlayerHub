@@ -1,5 +1,4 @@
 #include "sync/appearance/AppearanceSync.h"
-#include "config/PluginConfig.h"
 #include "forms/FormLookup.h"
 #include "network/ServerClient.h"
 #include "runtime/Profiling.h"
@@ -210,15 +209,6 @@ namespace AppearanceSync
                 LogCaptureFailure("player has no actor base");
                 return std::nullopt;
             }
-            // The connection closes without a nickname, a pass or more after it is
-            // cleared.
-            auto nickname = Config::Get()->general.nickname;
-            if (nickname.empty())
-            {
-                LogCaptureFailure("no nickname is set");
-                return std::nullopt;
-            }
-
             // Transformation races replace the skeleton and behavior graph. Keep the
             // last playable appearance instead of publishing a beast form.
             auto* race = base->race;
@@ -239,8 +229,8 @@ namespace AppearanceSync
                 return std::nullopt;
             }
 
-            AppearanceData appearance{ .name = std::move(nickname),
-                .level = a_player.GetLevel(),
+            // The server names the player after its session.
+            AppearanceData appearance{ .level = a_player.GetLevel(),
                 .race = *raceReference,
                 .female = base->IsFemale(),
                 .weight = std::clamp(base->weight, 0.0F, AppearanceData::kMaximumWeight),
@@ -503,7 +493,7 @@ namespace AppearanceSync
 
             // A remote player is one specific character, never a generic NPC.
             npc->actorData.actorBaseFlags.set(RE::ACTOR_BASE_DATA::Flag::kUnique);
-            npc->fullName = PlayerLabel::Format(a_appearance.name, a_appearance.nameIndex, a_appearance.level);
+            npc->fullName = PlayerLabel::Format(a_appearance.name, a_appearance.level);
             npc->race = &a_race;
             npc->originalRace = &a_race;
             // TESNPC::InitItemImpl completes these only for NPCs loaded from plugins:
@@ -643,7 +633,6 @@ namespace AppearanceSync
             look.weight = a_appearance.weight;
             look.height = a_appearance.height;
             look.revision = a_appearance.revision;
-            look.nameIndex = a_appearance.nameIndex;
             return BuildActorBase(a_playerID, look, *resolved.race);
         }
 
@@ -810,11 +799,10 @@ namespace AppearanceSync
         }
 
         logs::debug(
-            "Appearance sync publishing local appearance: revision={} name=\"{}\" level={} race={}|{:06X} female={} "
-            "headParts={} tints={}",
-            static_cast<unsigned long long>(candidate->revision), candidate->name, candidate->level,
-            candidate->race.plugin, candidate->race.localFormID, candidate->female, candidate->headParts.size(),
-            candidate->tints.size());
+            "Appearance sync publishing local appearance: revision={} level={} race={}|{:06X} female={} headParts={} "
+            "tints={}",
+            static_cast<unsigned long long>(candidate->revision), candidate->level, candidate->race.plugin,
+            candidate->race.localFormID, candidate->female, candidate->headParts.size(), candidate->tints.size());
         Network::PublishLocalAppearance(*candidate);
         published = std::move(candidate);
         candidate.reset();
@@ -831,19 +819,18 @@ namespace AppearanceSync
 
         const bool relabelOnly = a_remote.latest && a_remote.latest->HasSameLook(a_appearance);
         logs::debug(
-            "Appearance sync accepted remote appearance: player={} revision={} name=\"{}\" nameIndex={} level={} "
-            "race={}|{:06X} female={} headParts={} tints={} relabelOnly={}",
-            a_playerID, static_cast<unsigned long long>(a_appearance.revision), a_appearance.name,
-            a_appearance.nameIndex, a_appearance.level, a_appearance.race.plugin, a_appearance.race.localFormID,
-            a_appearance.female, a_appearance.headParts.size(), a_appearance.tints.size(), relabelOnly);
+            "Appearance sync accepted remote appearance: player={} revision={} name=\"{}\" level={} race={}|{:06X} "
+            "female={} headParts={} tints={} relabelOnly={}",
+            a_playerID, static_cast<unsigned long long>(a_appearance.revision), a_appearance.name, a_appearance.level,
+            a_appearance.race.plugin, a_appearance.race.localFormID, a_appearance.female, a_appearance.headParts.size(),
+            a_appearance.tints.size(), relabelOnly);
 
         if (relabelOnly)
         {
             const auto previousRevision = a_remote.latest->revision;
             if (a_remote.base)
             {
-                a_remote.base->fullName
-                    = PlayerLabel::Format(a_appearance.name, a_appearance.nameIndex, a_appearance.level);
+                a_remote.base->fullName = PlayerLabel::Format(a_appearance.name, a_appearance.level);
             }
             if (a_remote.baseRevision == previousRevision)
             {

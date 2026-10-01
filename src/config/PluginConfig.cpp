@@ -514,6 +514,12 @@ namespace Config
         s_config.store(std::make_shared<const PluginConfig>(std::move(config)), std::memory_order_release);
     }
 
+    std::filesystem::path GetDirectory()
+    {
+        const std::scoped_lock lock{ s_fileLock };
+        return s_path.parent_path();
+    }
+
     std::shared_ptr<const PluginConfig> Get()
     {
         return s_config.load(std::memory_order_acquire);

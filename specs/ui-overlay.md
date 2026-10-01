@@ -8,9 +8,13 @@
   library. SE 1.5.97 uses the same IDs and offsets as other public ImGui
   overlays but was not checked here. Skyrim VR is not supported: the hooks are
   not installed and a warning is logged. The nickname requirement's status
-  panel line and disabled Connect are not built on Windows or run in game;
-  `StatusPanel.cpp` and `ConnectionControls.cpp` passed a Linux syntax check
-  against Dear ImGui 1.92.9.
+  panel line and the General tab's connection row are not built on Windows or
+  run in game. On Linux, `StatusPanel.cpp` and `SettingsWindow.cpp` passed a
+  syntax check against Dear ImGui 1.92.9, and `ConnectionControls.cpp` ran in
+  a headless context of that version against stubbed `Network` functions:
+  every state's button, status, and message, the message wrapping inside the
+  window, and clicks reaching `SetConnectionEnabled` only while the button is
+  enabled.
 - **Chat:** implemented; the in-game check is pending. Channels: server unit
   tests cover routing and whisper addressing; on Linux, `ChatSync.cpp` and
   `WireCodec.cpp` ran headless against stubbed transport functions, decoding
@@ -21,7 +25,12 @@
   several frames in a headless Dear ImGui 1.92.9 context with every tab drawn
   and simulated mouse and keyboard input: an invalid endpoint blocks Apply and a
   valid one is applied and saved. The mouse path of `InputCapture` was not run
-  there.
+  there. Closing with `SettingsKey` is not built on Windows or run in game. On
+  Linux, `InputCapture.cpp` and `WindowManager.cpp` ran against stubbed engine
+  input and ImGui IO functions: the key opens and closes the window without the
+  game seeing either press, an editing key bound as `SettingsKey` stays with an
+  active text field, and chat keeps Enter. `SettingsWindow.cpp` passed a syntax
+  check.
 - **Item picker and preview:** built on Windows; in game the picker lists names
   and the preview shows models. The attach pass for models that load in the
   background has not run in game yet. On Linux, `ItemCatalog.cpp`,
@@ -63,7 +72,7 @@ src/ui/
   hud/StatusPanel             # connection, ping, traffic, plugin time
   chat/ChatWindow             # chat history and input
   settings/SettingsWindow     # plugin settings
-  settings/ConnectionControls # connection indicator and button
+  settings/ConnectionControls # connection button, status, and messages
   widgets/ItemPicker          # item dropdown
   preview/ItemPreview         # 3D item capture
 src/sync/chat/ChatSync        # channel prefixes, send, rejections as notices, lines to display
@@ -133,7 +142,12 @@ keyboard and the game receives no keyboard or mouse input.
   `PushInputContext` appends, keeping the console on top. Any menu, the console,
   dialogue, or a loading screen therefore blocks focus keys, and a context taking
   over input releases a focused window.
-- A window gives focus back with `WindowManager::ReleaseFocus(*this)`.
+- A window gives focus back with `WindowManager::ReleaseFocus(*this)`, or names
+  release keys with `Window::IsReleaseKey`: `InputCapture` releases the focused
+  window when such a key is pressed, and neither the window nor the game sees
+  that press. A release key that ImGui also receives, such as Delete or Home,
+  goes to a text field instead while one is active (`io.WantTextInput` as of
+  the overlay's latest frame), so it still edits.
 - `InputCapture` replaces the `call` at `+0x7B` in
   `BSInputDeviceManager::PollInputDevices` (IDs 67315/68617), which is
   `BSTEventSource<InputEvent*>::SendEvent(this, &head)` on 1.7.104 and feeds the
@@ -174,15 +188,19 @@ on the next frame.
 
 | State | Text | Color |
 | --- | --- | --- |
-| Refused by the server (protocol mismatch) | `Server version differs` | red |
 | No nickname set | `Set a nickname (F10)`, with the current `SettingsKey` | red |
-| Not connected | `Disconnected` | red |
+| Not connected, whatever the reason | `Disconnected` | red |
 | Connected, no sample yet or timed out | `Ping -- ms` | grey |
 | ≤ 80 ms / ≤ 150 ms / > 150 ms | `Ping N ms` | green / yellow / red |
 
 While connected, two grey lines follow with the received and sent traffic in
 KB/s ([Network](network.md#traffic)), `--` before the first window. Always
 shown below: `Plugin N.NN ms`, or `Plugin -- ms` before the first window.
+
+The panel does not say why a connection is down or a rename failed: a refusal
+needs a sentence and an action in the settings window, so those messages are
+on its General tab ([Connection row](#connection-row)). The nickname line stays
+because it names the key that opens the window.
 
 ### Plugin time
 
@@ -209,7 +227,7 @@ channels other than by prefix, replying to the last whisper.
 | --- | --- | --- |
 | `!text` | global | every connected player |
 | `text` | local | placed players within `chat.local_radius` (8192) in the same worldspace, or in the same interior |
-| `@Name text`, `@Name #2 text` | whisper | one player, by nickname and optional index |
+| `@Name text` | whisper | one player, by nickname |
 
 - `ChatSync::SendLocalMessage` trims the line, takes the channel from its first
   character, drops the prefix, and trims again. An empty line sends nothing,
@@ -249,16 +267,18 @@ Players change `skyrim-mp.ini` ([Configuration](configuration.md)) in game and
 see the result at once. The game is not paused; the world keeps running and
 peers keep seeing the player.
 
-- `[UI] SettingsKey` opens it during gameplay as a focus key; a changed key
-  applies once applied. The title bar's close button, Close, or Escape closes it;
-  Escape first goes to an active text field or open combo or list. Any menu
-  taking input also closes it.
+- `[UI] SettingsKey` opens it during gameplay as a focus key and closes it again
+  as a release key ([Input focus](#input-focus)); a changed key applies once
+  applied. The title bar's close button or Escape also closes it; Escape first
+  goes to an active text field or open combo or list. Any menu taking input
+  closes it too.
 - Every opening starts from the live configuration; closing discards unapplied
   edits.
 - Centered, 44 × 32 font sizes, one tab per file section in schema order:
-  General, which opens first and holds `Nickname`, then Network, Default Outfit,
-  Performance, and UI. Only a tab's content scrolls; the buttons stay below it.
-  It uses the mouse.
+  General, which opens first and holds `Nickname` and the
+  [connection row](#connection-row), then Network, Default Outfit, Performance,
+  and UI. Only a tab's content scrolls; the buttons stay below it. It uses the
+  mouse.
 - Widgets come from the same `Config::Describe` visitor that reads and writes the
   file, so a new setting appears without UI code: a checkbox for a bool, a
   clamped number field for an unsigned value, a text field for a string, an item
@@ -270,32 +290,42 @@ peers keep seeing the player.
   Defaults to the built-in defaults, without applying. The footer reports
   unapplied changes, a successful save, or a failed one.
 
-`ConnectionControls` ends the Network tab's `ServerEndpoint` row: an indicator
-circle, green while connected and red otherwise, whose tooltip shows
-`Connected, ping N ms`
-(`Connected` before a sample), `Connecting...` (or the server's refusal while
-it refuses this client's protocol version), `Disconnecting...`, or
-`Disconnected`; and a button that follows `Network::GetConnectionState`, so its
-label never claims a state the transport has not reached, keeping its width and
-identity when the label changes:
+### Connection row
 
-| State | Button | Press |
+The General tab ends with a `Connection` row below a separator, after the
+section's settings, drawn by `ConnectionControls`: a button, an indicator
+circle, green while connected and red otherwise, and the status as text. The
+button follows `Network::GetConnectionState`, so its label never claims a state
+the transport has not reached, and keeps its width and identity when the label
+changes, so the status does not move:
+
+| State | Button | Press | Status |
+| --- | --- | --- | --- |
+| Connected | `Disconnect` | stops wanting a connection | `Connected, ping N ms`, or `Connected` before a sample |
+| Connecting | `Cancel` | stops wanting a connection | `Connecting...` |
+| Connecting, refused by the server | `Cancel` | stops wanting a connection | `Not connected` |
+| Disconnecting | `Disconnecting...`, disabled | — | `Disconnecting...` |
+| Disconnected | `Connect` | wants a connection again | `Disconnected` |
+
+A message follows on its own wrapped lines below the row while one applies.
+This is the only place the plugin shows them:
+
+| Condition | Message | Color |
 | --- | --- | --- |
-| Connected | `Disconnect` | stops wanting a connection |
-| Connecting | `Cancel` | stops wanting a connection |
-| Disconnecting | `Disconnecting...`, disabled | — |
-| Disconnected | `Connect` | wants a connection again |
+| The server refused the connection | the sentence of `Network::GetConnectionRefusal` | red |
+| Connected, and the server refused the applied nickname | the sentence of `Network::GetNicknameRejection`; peers still see the previous nickname | red |
+| Disconnected with no applied nickname | `Enter a nickname and apply it to connect.` | grey |
 
-Without an applied nickname, set on the General tab, `Connect` is disabled,
-with the tooltip `Enter a nickname and apply it to connect.`, and the
-indicator's tooltip reads `Disconnected: no nickname is set`. If the player's
-choice already wants a connection, as after `AutoConnect`, applying a nickname
-connects without a press.
+Without an applied nickname `Connect` is disabled. If the player's choice
+already wants a connection, as after `AutoConnect`, applying a nickname
+connects without a press. The same holds after the server refused a nickname:
+applying another one connects. After another refusal, `Cancel` then `Connect`
+retries. The refusals and the rename are in [Network](network.md#connection).
 
 Not wanting a connection closes it and removes every remote player until
-Connect. The button acts on the live endpoint; an edited endpoint must be applied
-first, and applying one while connected moves the connection to it
-([Network](network.md#connection)).
+Connect. The button acts on the live settings; an edited nickname or endpoint
+must be applied first, and applying an endpoint while connected moves the
+connection to it ([Network](network.md#connection)).
 
 ## Item picker
 
@@ -387,12 +417,16 @@ or zoomed.
    sender and `From Sender` for the recipient in violet; an unknown name shows
    a notice.
 4. `F10` opens the settings window with a cursor, and the game receives no input
-   until it closes. A new `SettingsKey` opens it and the old one no longer does.
+   until it closes; `F10` again closes it. A new `SettingsKey` opens and closes
+   it and the old one no longer does.
    Chat still opens with Enter and gets no cursor.
-5. The connection indicator turns green once connected and red on Disconnect,
+5. The General tab's connection row reads `Connected, ping N ms` with a green
+   indicator once connected, and `Disconnected` with a red one on Disconnect,
    which removes remote players and keeps them away through a save load until
    Connect. Connect right after Disconnect shows `Cancel` until the connection
-   opens, never `Disconnect` while disconnected.
+   opens, never `Disconnect` while disconnected. A nickname another player
+   holds shows the refusal's sentence below the row and only `Disconnected` in
+   the status panel; applying another nickname connects and clears it.
 6. The picker lists only matching base-game items and races. Hovering rows
    switches the model without flicker on the world behind; background loads
    appear after the attach pass (a stall logs `Item preview waiting`); nothing is

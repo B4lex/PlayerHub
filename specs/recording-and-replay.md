@@ -53,7 +53,10 @@ One append-only JSON Lines file per capture, `server/recordings/<id>.jsonl`:
 ```
 
 A message line holds a validated `ClientMessage` in protojson, `t` in
-milliseconds from the start. A missing `end` is an interrupted capture, and a
+milliseconds from the start. An appearance is recorded as the server stored
+it, with the player's session nickname as its `name` and the server's revision,
+and a rename during a capture is recorded as one more appearance
+([Network](network.md#renaming)), so a replay shows the name the player had. A missing `end` is an interrupted capture, and a
 torn last line is dropped. Every message is validated on load as the server
 validates a connection's. IDs become file names and URL segments, so they are
 restricted to `[A-Za-z0-9][A-Za-z0-9_-]{0,63}` and checked before any path is
@@ -142,7 +145,11 @@ once, including from one recording.
 - `transport` is always `virtual`. Bots that exercise the network run in
   `cmd/loadgen`: real WebSocket clients that walk randomly in a square
   (`--spread` 20000 dense, 100000 sparse) or replay a recording laid out like a
-  batch. Each stamps its checkpoint sequence with the send time in
+  batch. Each takes a new session ([Network](network.md#sessions)) whose
+  nickname is `Walker`, or the recorded player's name, then six hexadecimal
+  digits picked per run and the bot's number (`Walker 43ae13 #7`), so a later
+  run against the same server does not find its nicknames taken; the sessions
+  stay in the server's database until they expire. Each stamps its checkpoint sequence with the send time in
   microseconds, which is strictly rising, so a receiver on the same host
   measures latency without a wire field, and its `time` with the send time; `--server-pid` adds the server's CPU
   from `/proc`.
@@ -176,8 +183,8 @@ Not checked in game:
 
 ## Known limitations
 
-- No authentication: the admin API deletes recordings and spawns virtual
-  players, so the port must not face the Internet.
+- The admin API has no authentication: it deletes recordings and spawns
+  virtual players, so the port must not face the Internet.
 - A replay reaches every connected client; recordings cannot be edited or
   renamed, and players are not captured automatically.
 - Batches do not survive a server restart.

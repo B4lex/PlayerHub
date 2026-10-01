@@ -6,6 +6,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -96,6 +97,10 @@ namespace Config
     // is none. Absent or invalid values keep their defaults. Call once at plugin
     // load, before anything reads the configuration.
     void Load();
+
+    // The directory skyrim-mp.ini is in, where the plugin keeps its other files.
+    // Empty before Load. Safe from any thread.
+    [[nodiscard]] std::filesystem::path GetDirectory();
 
     // The live configuration. Safe from any thread; a snapshot never changes, so
     // hold it only as long as one consistent view is needed. Per-actor code

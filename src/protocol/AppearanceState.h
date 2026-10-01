@@ -75,7 +75,8 @@ namespace Multiplayer
         static constexpr float kMinimumHeight = 0.25F;
         static constexpr float kMaximumHeight = 4.0F;
 
-        // The player's nickname, from [General] Nickname.
+        // A remote player's nickname, set by the server from the player's
+        // session. Empty on the local player's own appearance.
         std::string name;
         std::uint16_t level{ 0 };
         AppearanceFormReference race;
@@ -91,11 +92,9 @@ namespace Multiplayer
         std::vector<AppearanceTint> tints;
         // Only when race is from other than a base-game plugin.
         std::optional<DefaultRace> defaultRace;
-        // Source-local publication counter. Not part of the look itself.
+        // Publication counter: the local player's own, or the server's for a
+        // remote player, which also counts renames. Not part of the look itself.
         std::uint64_t revision{ 0 };
-        // Assigned by the server to tell apart players with the same name; 1 for the
-        // first of them. Not published by the client.
-        std::uint32_t nameIndex{ 1 };
 
         // Everything the actor base is built from except its label.
         [[nodiscard]] bool HasSameLook(const PlayerAppearance& a_other) const
@@ -109,7 +108,7 @@ namespace Multiplayer
 
         [[nodiscard]] bool HasSameLabel(const PlayerAppearance& a_other) const
         {
-            return name == a_other.name && level == a_other.level && nameIndex == a_other.nameIndex;
+            return name == a_other.name && level == a_other.level;
         }
     };
 

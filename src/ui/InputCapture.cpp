@@ -58,6 +58,8 @@ namespace UI::InputCapture
         // Focus keys stay inert until the overlay draws, so input is never
         // captured for windows that cannot show it.
         std::atomic_bool s_overlayActive{ false };
+        // Whether a text field was active when the overlay last drew.
+        std::atomic_bool s_textFieldActive{ false };
         std::mutex s_capturedLock;
         std::vector<CapturedEvent> s_captured;
         float s_capturedWheelSteps{ 0.0F };
@@ -225,6 +227,17 @@ namespace UI::InputCapture
                 {
                     logs::debug("UI input: a window took focus with scan code {:#04x}", code);
                     a_state.focused = true;
+                    *owner = Owner::kWindow;
+                    return false;
+                }
+                // A release key that also edits text stays with an active text field.
+                const bool editsText
+                    = s_textFieldActive.load(std::memory_order_acquire) && ToImGuiKey(code) != ImGuiKey_None;
+                if (a_state.focused && device == RE::INPUT_DEVICE::kKeyboard && !editsText
+                    && WindowManager::ReleaseFocusByKey(code))
+                {
+                    logs::debug("UI input: a window released focus with scan code {:#04x}", code);
+                    a_state.focused = false;
                     *owner = Owner::kWindow;
                     return false;
                 }
@@ -402,6 +415,7 @@ namespace UI::InputCapture
         auto& io = ImGui::GetIO();
         const bool focused = WindowManager::HasFocus();
         const bool mouse = focused && WindowManager::FocusedWindowUsesMouse();
+        s_textFieldActive.store(focused && io.WantTextInput, std::memory_order_release);
         if (focused != s_imguiFocused)
         {
             // Losing focus also releases every key Dear ImGui still holds.

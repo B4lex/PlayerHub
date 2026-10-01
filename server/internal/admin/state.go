@@ -152,7 +152,7 @@ func (c *Context) players() ([]Player, []Exclusion) {
 				return
 			}
 			present[p.Slot] = true
-			name, _ := h.Name(p.Slot)
+			name := h.Name(p.Slot)
 			player := Player{
 				ID: slotID(p.Slot), Name: name, InWorld: p.InWorld,
 				ConnectedAtMs: optional(milliseconds(p.ConnectedAt)), Visible: visible, Hidden: h.Hidden(p.Slot),

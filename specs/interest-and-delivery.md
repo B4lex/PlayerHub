@@ -9,7 +9,8 @@ first, enter order, an unplaced viewer, a paused sender seen by a newcomer,
 batching, the action anchor, context order, range hysteresis and time in view,
 exclusions taking effect at once, a space change, presentation kept across exit
 and re-enter, disconnect reaching presentation holders, virtual players, chat
-on each channel),
+on each channel, a session's nickname and rename on the relayed appearance, a
+session connecting again),
 outbox tests, and black-box tests over a real WebSocket, including the admin
 hide and exclusion endpoints. Not checked in game.
 
@@ -226,7 +227,8 @@ what limits the rate, or every player's latency rises.
 `PUT /api/players/{id}/hidden {hidden}` hides or shows a player;
 `POST /api/exclusions` and `DELETE /api/exclusions` with `{viewerId, targetId}`
 add or lift a directed exclusion. Both apply at once and last until the
-player disconnects; there is no persistent identity to keep them longer. The
+player disconnects: they are keyed by slot, not by the player's session
+([Network](network.md#sessions)). The
 admin state lists each player's `visible` peers, `hidden`, `bytesPerSecond`
 written to it, and `replacedPerSecond` (checkpoints replaced before they were
 written, a sign of a slow link), and every exclusion.
@@ -255,6 +257,7 @@ written, a sign of a slow link), and every exclusion.
   per message; TLS adds about 22 bytes more per record.
 - The cap's default is provisional until the client's frame cost with many
   remote actors is measured in game.
-- Exclusions and hiding last only for a connection; product rules such as
-  block lists, parties, or instances need a persistent identity.
+- Exclusions and hiding are keyed by slot and last only for a connection;
+  product rules such as block lists, parties, or instances would key them by
+  session.
 - Spaces compare by load-order form IDs, like the client.

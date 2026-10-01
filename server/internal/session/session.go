@@ -1,7 +1,7 @@
 // Package session serves player connections: one binary WebSocket message
-// per protobuf envelope. Each connection decodes and validates on its own
-// reader goroutine, submits accepted messages to the hub, and writes its
-// outbox on a writer goroutine.
+// per protobuf envelope. Each connection authenticates its player's session
+// with the hello, decodes and validates on its own reader goroutine, submits
+// accepted messages to the hub, and writes its outbox on a writer goroutine.
 package session
 
 import (
@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
 	"google.golang.org/protobuf/proto"
 
+	"skyrim-mp/server/internal/auth"
 	"skyrim-mp/server/internal/config"
 	"skyrim-mp/server/internal/delivery"
 	"skyrim-mp/server/internal/hub"
@@ -22,7 +24,6 @@ import (
 	"skyrim-mp/server/internal/validate"
 	"skyrim-mp/server/internal/wire"
 	"skyrim-mp/server/internal/wire/pb"
-	"skyrim-mp/server/internal/world"
 )
 
 // The largest valid ClientMessage is about 12.9 KB.
@@ -36,18 +37,50 @@ const (
 	StatusBacklog websocket.StatusCode = 4002
 	// StatusRateLimited closes a connection that sends too fast.
 	StatusRateLimited websocket.StatusCode = 4003
+	// StatusNicknameTaken closes a connection whose Hello asks for a nickname
+	// another session holds.
+	StatusNicknameTaken websocket.StatusCode = 4004
+	// StatusNicknameInvalid closes a connection whose Hello has no nickname
+	// or one that cannot be a nickname.
+	StatusNicknameInvalid websocket.StatusCode = 4005
+	// StatusReplaced closes a connection whose session connected again.
+	StatusReplaced websocket.StatusCode = 4006
+)
+
+const (
+	// A rename writes to the session store, so it is limited apart from the
+	// message rate.
+	renamesPerSecond = 0.2
+	renameBurst      = 3
+	// How often connected sessions are marked used and expired ones deleted.
+	maintenanceInterval = time.Hour
 )
 
 type Server struct {
 	loop   *hub.Loop
+	store  *auth.Store
 	config config.Config
 	log    *slog.Logger
 	// Nil without an egress budget.
 	budget *delivery.Budget
+
+	mu sync.Mutex
+	// By slot. Set on the hub goroutine as a client connects, so a session
+	// that connects again finds the connection it replaces.
+	connections map[uint32]*connection
 }
 
-func NewServer(loop *hub.Loop, c config.Config, log *slog.Logger) *Server {
-	return &Server{loop: loop, config: c, log: log}
+type connection struct {
+	conn    *websocket.Conn
+	cancel  context.CancelFunc
+	session uint64
+	// The client sent something after its hello, so it received the welcome.
+	// Reader goroutine only.
+	heard bool
+}
+
+func NewServer(loop *hub.Loop, store *auth.Store, c config.Config, log *slog.Logger) *Server {
+	return &Server{loop: loop, store: store, config: c, log: log, connections: make(map[uint32]*connection)}
 }
 
 // UseBudget makes every connection's writes share b. Call before serving.
@@ -84,20 +117,38 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address str
 		return
 	}
 
+	identity, err := s.authenticate(conn, hello)
+	if err != nil {
+		s.log.Info("player refused", "address", address, "nickname", hello.GetNickname(), "error", err)
+		return
+	}
+
 	outbox := delivery.NewOutbox(s.config.Limits.OrderedBacklog)
 	if s.budget != nil {
 		outbox.UseBudget(s.budget)
 	}
+	current := &connection{conn: conn, cancel: cancel, session: identity.Session}
 	var slot uint32
+	var replaced *connection
 	if !s.loop.Call(func(h *hub.Hub) {
-		slot = h.Connect(world.KindClient, outbox)
+		var replacedSlot uint32
+		slot, replacedSlot = h.ConnectClient(outbox, identity)
 		h.SetViewRadius(slot, float64(hello.GetViewRadius()))
+		s.mu.Lock()
+		replaced = s.connections[replacedSlot]
+		s.connections[slot] = current
+		s.mu.Unlock()
 	}) {
 		conn.Close(websocket.StatusGoingAway, "server stopping")
 		return
 	}
-	log := s.log.With("slot", slot)
-	log.Info("player connected", "address", address)
+	log := s.log.With("slot", slot, "session", identity.Session)
+	log.Info("player connected", "address", address, "nickname", identity.Nickname, "new_session", identity.Token != nil)
+	if replaced != nil {
+		log.Info("session connected again; closing its earlier connection")
+		// Closing waits for the peer, which may be gone.
+		go replaced.replace()
+	}
 
 	writerDone := make(chan error, 1)
 	go func() {
@@ -110,12 +161,20 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address str
 	}()
 	go s.keepAlive(ctx, conn, cancel)
 
-	err = s.read(ctx, conn, slot, outbox, log)
+	err = s.read(ctx, current, slot, outbox, log)
 	if errors.Is(err, errRateLimited) {
 		conn.Close(StatusRateLimited, "rate limited")
 	}
 	cancel()
 	s.loop.Submit(func(h *hub.Hub) { h.Disconnect(slot) })
+	s.mu.Lock()
+	delete(s.connections, slot)
+	s.mu.Unlock()
+	// A stopping server closes the store; Maintain marked the session used
+	// within the last interval.
+	if parent.Err() == nil {
+		s.settle(current, identity.Token != nil, log)
+	}
 	outbox.Close()
 	if writeErr := <-writerDone; errors.Is(writeErr, errBacklog) {
 		err = writeErr
@@ -144,19 +203,100 @@ func (s *Server) readHello(ctx context.Context, conn *websocket.Conn) (*pb.Hello
 	return hello, nil
 }
 
+// authenticate resumes or issues the session the hello asks for. A refused
+// connection is closed with the status that tells the client why.
+func (s *Server) authenticate(conn *websocket.Conn, hello *pb.Hello) (hub.Identity, error) {
+	if err := validate.Hello(hello); err != nil {
+		if errors.Is(err, validate.ErrNickname) {
+			conn.Close(StatusNicknameInvalid, err.Error())
+		} else {
+			conn.Close(websocket.StatusPolicyViolation, err.Error())
+		}
+		return hub.Identity{}, err
+	}
+	session, issued, err := s.store.Authenticate(hello.GetSessionToken(), hello.GetNickname(), time.Now())
+	switch {
+	case errors.Is(err, auth.ErrNicknameTaken):
+		conn.Close(StatusNicknameTaken, err.Error())
+		return hub.Identity{}, err
+	case err != nil:
+		s.log.Error("session store failed", "error", err)
+		conn.Close(websocket.StatusInternalError, "session store unavailable")
+		return hub.Identity{}, err
+	}
+	return hub.Identity{Session: session.ID, Nickname: session.Nickname, Token: issued}, nil
+}
+
+// settle ends a connection's use of its session. A client that never
+// received the welcome of a new session cannot present its token, and the
+// session would keep the nickname from its own player until it expired, so it
+// is deleted, unless the token came back on another connection meanwhile.
+func (s *Server) settle(c *connection, issued bool, log *slog.Logger) {
+	if issued && !c.heard {
+		abandoned, err := s.store.Abandon(c.session)
+		if err != nil {
+			log.Error("cannot delete the unused session", "error", err)
+		}
+		if abandoned {
+			log.Info("new session was never used; deleted")
+			return
+		}
+	}
+	if err := s.store.Touch([]uint64{c.session}, time.Now()); err != nil {
+		log.Error("cannot mark the session used", "error", err)
+	}
+}
+
+func (c *connection) replace() {
+	c.conn.Close(StatusReplaced, "session connected elsewhere")
+	c.cancel()
+}
+
+// Maintain keeps the sessions of connected players alive and deletes expired
+// ones, until ctx ends.
+func (s *Server) Maintain(ctx context.Context) {
+	ticker := time.NewTicker(maintenanceInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		s.mu.Lock()
+		sessions := make([]uint64, 0, len(s.connections))
+		for _, c := range s.connections {
+			sessions = append(sessions, c.session)
+		}
+		s.mu.Unlock()
+		now := time.Now()
+		if err := s.store.Touch(sessions, now); err != nil {
+			s.log.Error("cannot mark connected sessions used", "error", err)
+			continue
+		}
+		if purged, err := s.store.Purge(now); err != nil {
+			s.log.Error("cannot delete expired sessions", "error", err)
+		} else if purged > 0 {
+			s.log.Info("expired sessions deleted", "count", purged)
+		}
+	}
+}
+
 var (
 	errBacklog     = errors.New("ordered backlog overflowed")
 	errRateLimited = errors.New("message rate exceeded")
+	errUnavailable = errors.New("session store unavailable")
 )
 
-func (s *Server) read(ctx context.Context, conn *websocket.Conn, slot uint32, outbox *delivery.Outbox, log *slog.Logger) error {
-	var rate limit.TokenBucket
+func (s *Server) read(ctx context.Context, c *connection, slot uint32, outbox *delivery.Outbox, log *slog.Logger) error {
+	var rate, renames limit.TokenBucket
 	rejections := newRejectionLog(log)
 	for {
-		typ, data, err := conn.Read(ctx)
+		typ, data, err := c.conn.Read(ctx)
 		if err != nil {
 			return err
 		}
+		c.heard = true
 		if !rate.Allow(time.Now(), s.config.Limits.MessagesPerSecond, s.config.Limits.MessageBurst) {
 			return errRateLimited
 		}
@@ -170,6 +310,12 @@ func (s *Server) read(ctx context.Context, conn *websocket.Conn, slot uint32, ou
 				Result: &pb.Result{RequestId: ping.GetRequestId(), Ok: true}}}))
 			continue
 		}
+		if rename := message.GetSetNickname(); rename != nil {
+			if err := s.rename(slot, c.session, rename, &renames, outbox); err != nil {
+				rejections.note(err.Error())
+			}
+			continue
+		}
 		if err := validate.Message(message); err != nil {
 			rejections.note(err.Error())
 			continue
@@ -180,6 +326,37 @@ func (s *Server) read(ctx context.Context, conn *websocket.Conn, slot uint32, ou
 			}
 		})
 	}
+}
+
+// rename gives the session another nickname and answers the request. The
+// store decides; the hub then tells the peers.
+func (s *Server) rename(slot uint32, session uint64, request *pb.SetNickname, renames *limit.TokenBucket, outbox *delivery.Outbox) error {
+	nickname := request.GetNickname()
+	now := time.Now()
+	var err error
+	switch {
+	case !renames.Allow(now, renamesPerSecond, renameBurst):
+		err = hub.ErrRateLimited
+	case validate.Nickname(nickname) != nil:
+		err = validate.ErrNickname
+	default:
+		err = s.store.Rename(session, nickname, now)
+	}
+	result := &pb.Result{RequestId: request.GetRequestId(), Ok: err == nil}
+	if err != nil {
+		if !errors.Is(err, hub.ErrRateLimited) && !errors.Is(err, validate.ErrNickname) && !errors.Is(err, auth.ErrNicknameTaken) {
+			s.log.Error("cannot rename a session", "session", session, "error", err)
+			err = errUnavailable
+		}
+		result.Error = err.Error()
+		outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Result{Result: result}}))
+		return err
+	}
+	s.loop.Submit(func(h *hub.Hub) {
+		h.SetNickname(slot, nickname)
+		outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Result{Result: result}}))
+	})
+	return nil
 }
 
 func (s *Server) write(ctx context.Context, conn *websocket.Conn, outbox *delivery.Outbox) error {

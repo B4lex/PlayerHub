@@ -183,8 +183,7 @@ namespace Network::Wire
             return result;
         }
 
-        const char* ReadAppearance(
-            const skyrimmp_v1_Appearance& a_appearance, std::uint32_t a_nameIndex, Multiplayer::PlayerAppearance& a_result)
+        const char* ReadAppearance(const skyrimmp_v1_Appearance& a_appearance, Multiplayer::PlayerAppearance& a_result)
         {
             using Multiplayer::PlayerAppearance;
             a_result.revision = a_appearance.revision;
@@ -194,11 +193,6 @@ namespace Network::Wire
                 return "level";
             }
             a_result.level = static_cast<std::uint16_t>(a_appearance.level);
-            if (a_nameIndex == 0)
-            {
-                return "nameIndex";
-            }
-            a_result.nameIndex = a_nameIndex;
             if (!a_appearance.has_race || !ReadFormReference(a_appearance.race, a_result.race))
             {
                 return "race";
@@ -358,10 +352,8 @@ namespace Network::Wire
         {
             a_result = Multiplayer::ChatSpeaker{ .playerID = a_speaker.slot,
                 .name = a_speaker.name,
-                .nameIndex = a_speaker.name_index,
                 .level = static_cast<std::uint16_t>(a_speaker.level) };
-            return a_speaker.slot != 0 && a_speaker.name_index != 0
-                && a_speaker.level <= (std::numeric_limits<std::uint16_t>::max)()
+            return a_speaker.slot != 0 && a_speaker.level <= (std::numeric_limits<std::uint16_t>::max)()
                 && Multiplayer::IsValidAppearanceName(a_result.name);
         }
 
@@ -442,9 +434,22 @@ namespace Network::Wire
         }
     }
 
-    std::string EncodeHello(std::uint32_t a_viewRadius)
+    std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_nickname,
+        const std::optional<Multiplayer::SessionToken>& a_token)
     {
-        skyrimmp_v1_Hello hello{ skyrimmp_v1_Protocol_PROTOCOL_VERSION, a_viewRadius };
+        skyrimmp_v1_Hello hello = skyrimmp_v1_Hello_init_zero;
+        hello.protocol_version = skyrimmp_v1_Protocol_PROTOCOL_VERSION;
+        hello.view_radius = a_viewRadius;
+        static_assert(sizeof(hello.session_token.bytes) == Multiplayer::kSessionTokenBytes);
+        if (a_token)
+        {
+            hello.session_token.size = static_cast<pb_size_t>(a_token->size());
+            std::ranges::copy(*a_token, hello.session_token.bytes);
+        }
+        if (!CopyString(hello.nickname, a_nickname))
+        {
+            return {};
+        }
         return EncodeClientMessage(skyrimmp_v1_ClientMessage_hello_tag, skyrimmp_v1_Hello_fields, &hello);
     }
 
@@ -654,6 +659,18 @@ namespace Network::Wire
         return EncodeClientMessage(skyrimmp_v1_ClientMessage_ping_tag, skyrimmp_v1_Ping_fields, &ping);
     }
 
+    std::string EncodeSetNickname(std::uint32_t a_requestID, std::string_view a_nickname)
+    {
+        skyrimmp_v1_SetNickname request = skyrimmp_v1_SetNickname_init_zero;
+        request.request_id = a_requestID;
+        if (!CopyString(request.nickname, a_nickname))
+        {
+            return {};
+        }
+        return EncodeClientMessage(
+            skyrimmp_v1_ClientMessage_set_nickname_tag, skyrimmp_v1_SetNickname_fields, &request);
+    }
+
     struct Decoder::Buffer
     {
         skyrimmp_v1_ServerMessage message;
@@ -701,11 +718,32 @@ namespace Network::Wire
         switch (message.which_message)
         {
             case skyrimmp_v1_ServerMessage_welcome_tag:
-                if (message.message.welcome.slot == 0)
+            {
+                const auto& welcome = message.message.welcome;
+                Welcome result{ .slot = welcome.slot, .sessionID = welcome.session_id, .nickname = welcome.nickname };
+                if (result.slot == 0)
                 {
                     return std::unexpected("welcome slot");
                 }
-                return Welcome{ message.message.welcome.slot };
+                if (result.sessionID == 0)
+                {
+                    return std::unexpected("welcome session");
+                }
+                if (result.nickname.empty() || !Multiplayer::IsValidAppearanceName(result.nickname))
+                {
+                    return std::unexpected("welcome nickname");
+                }
+                if (welcome.session_token.size == Multiplayer::kSessionTokenBytes)
+                {
+                    std::copy_n(welcome.session_token.bytes, Multiplayer::kSessionTokenBytes,
+                        result.issuedToken.emplace().begin());
+                }
+                else if (welcome.session_token.size != 0)
+                {
+                    return std::unexpected("welcome session token");
+                }
+                return result;
+            }
             case skyrimmp_v1_ServerMessage_result_tag:
             {
                 const auto& result = message.message.result;
@@ -731,7 +769,7 @@ namespace Network::Wire
                 }
                 if (enter.has_appearance)
                 {
-                    if (const auto* field = ReadAppearance(enter.appearance, enter.name_index, result.appearance.emplace()))
+                    if (const auto* field = ReadAppearance(enter.appearance, result.appearance.emplace()))
                     {
                         return std::unexpected(std::string{ "peer enter appearance " } + field);
                     }
@@ -809,7 +847,7 @@ namespace Network::Wire
                 {
                     return std::unexpected("peer appearance");
                 }
-                if (const auto* field = ReadAppearance(appearance.appearance, appearance.name_index, result.appearance))
+                if (const auto* field = ReadAppearance(appearance.appearance, result.appearance))
                 {
                     return std::unexpected(std::string{ "peer appearance " } + field);
                 }

@@ -22,6 +22,8 @@ type fixture struct {
 	clock *clock.Fake
 	hub   *Hub
 	boxes map[uint32]*delivery.Outbox
+	// The last session a client connected with.
+	session uint64
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -34,6 +36,20 @@ func (f *fixture) connect() uint32 {
 	slot := f.hub.Connect(world.KindClient, box)
 	f.boxes[slot] = box
 	return slot
+}
+
+// connectAs connects a client with a session of its own.
+func (f *fixture) connectAs(nickname string) uint32 {
+	f.session++
+	slot, _ := f.connectSession(f.session, nickname)
+	return slot
+}
+
+func (f *fixture) connectSession(session uint64, nickname string) (slot, replaced uint32) {
+	box := delivery.NewOutbox(1024)
+	slot, replaced = f.hub.ConnectClient(box, Identity{Session: session, Nickname: nickname})
+	f.boxes[slot] = box
+	return slot, replaced
 }
 
 func (f *fixture) send(slot uint32, m *pb.ClientMessage) {
@@ -119,25 +135,35 @@ func (f *fixture) placeAt(slot uint32, sequence uint64, x int32) {
 	f.send(slot, checkpointAt(sequence, x))
 }
 
-// received drains the recipient's outbox and describes each message in one
-// line.
-func (f *fixture) received(slot uint32) []string {
+// messages drains the recipient's outbox.
+func (f *fixture) messages(slot uint32) []*pb.ServerMessage {
 	f.t.Helper()
 	var b delivery.Batch
 	if ok, _ := f.boxes[slot].Drain(&b, f.clock.Now()); !ok {
 		f.t.Fatal("outbox closed")
 	}
-	var lines []string
+	var messages []*pb.ServerMessage
 	err := b.Write(func(frame []byte) error {
-		var m pb.ServerMessage
-		if err := proto.Unmarshal(frame, &m); err != nil {
+		m := &pb.ServerMessage{}
+		if err := proto.Unmarshal(frame, m); err != nil {
 			return err
 		}
-		lines = append(lines, describe(&m))
+		messages = append(messages, m)
 		return nil
 	})
 	if err != nil {
 		f.t.Fatal(err)
+	}
+	return messages
+}
+
+// received drains the recipient's outbox and describes each message in one
+// line.
+func (f *fixture) received(slot uint32) []string {
+	f.t.Helper()
+	var lines []string
+	for _, m := range f.messages(slot) {
+		lines = append(lines, describe(m))
 	}
 	return lines
 }
@@ -159,7 +185,7 @@ func describe(m *pb.ServerMessage) string {
 		e := body.PeerEnter
 		s := fmt.Sprintf("enter %d state %d", e.Slot, e.State.GetSequence())
 		if e.Appearance != nil {
-			s += fmt.Sprintf(" appearance %d #%d", e.Appearance.Revision, e.NameIndex)
+			s += fmt.Sprintf(" appearance %d", e.Appearance.Revision)
 		}
 		if e.Equipment != nil {
 			s += fmt.Sprintf(" equipment %d", e.Equipment.Revision)
@@ -172,15 +198,15 @@ func describe(m *pb.ServerMessage) string {
 	case *pb.ServerMessage_PeerAction:
 		return fmt.Sprintf("action %d:%d", body.PeerAction.Slot, body.PeerAction.Action.ActionSequence)
 	case *pb.ServerMessage_PeerAppearance:
-		return fmt.Sprintf("appearance %d:%d #%d", body.PeerAppearance.Slot, body.PeerAppearance.Appearance.Revision, body.PeerAppearance.NameIndex)
+		return fmt.Sprintf("appearance %d:%d", body.PeerAppearance.Slot, body.PeerAppearance.Appearance.Revision)
 	case *pb.ServerMessage_PeerEquipment:
 		return fmt.Sprintf("equipment %d:%d", body.PeerEquipment.Slot, body.PeerEquipment.Equipment.Revision)
 	case *pb.ServerMessage_ChatMessage:
 		c := body.ChatMessage
 		channel := strings.ToLower(strings.TrimPrefix(c.Channel.String(), "CHAT_CHANNEL_"))
-		s := fmt.Sprintf("chat %s %d %s#%d", channel, c.Sender.Slot, c.Sender.Name, c.Sender.NameIndex)
+		s := fmt.Sprintf("chat %s %d %s", channel, c.Sender.Slot, c.Sender.Name)
 		if c.Recipient != nil {
-			s += fmt.Sprintf(" to %d %s#%d", c.Recipient.Slot, c.Recipient.Name, c.Recipient.NameIndex)
+			s += fmt.Sprintf(" to %d %s", c.Recipient.Slot, c.Recipient.Name)
 		}
 		return s + ": " + c.Text
 	}
@@ -212,7 +238,7 @@ func TestPeerEnterCarriesPresentationThenState(t *testing.T) {
 	f.send(a, contextMessage(1, false))
 	expect(t, f.received(b))
 	f.send(a, checkpoint(5))
-	expect(t, f.received(b), "enter 1 state 5 appearance 1 #1 equipment 2")
+	expect(t, f.received(b), "enter 1 state 5 appearance 1 equipment 2")
 	expect(t, f.received(a), "enter 2 state 1")
 }
 
@@ -345,7 +371,7 @@ func TestExitAndReenterKeepPresentation(t *testing.T) {
 	f.send(a, exit())
 	f.send(a, appearance(4, "Lydia"))
 	f.place(a, 1)
-	expect(t, f.received(b), "appearance 1:3 #1", "leave 1 EXITED", "enter 1 state 1 appearance 4 #1")
+	expect(t, f.received(b), "appearance 1:3", "leave 1 EXITED", "enter 1 state 1 appearance 4")
 }
 
 func TestDisconnectReachesHoldersOfPresentation(t *testing.T) {
@@ -376,14 +402,12 @@ func TestVirtualPlayerIsSeenButReceivesNothing(t *testing.T) {
 
 func TestChat(t *testing.T) {
 	f := newFixture(t)
-	a, b := f.connect(), f.connect()
-	f.send(a, appearance(1, "Lydia"))
-	f.send(b, appearance(1, "lydia"))
+	a, b := f.connectAs("Lydia"), f.connectAs("Serana")
 	f.received(a)
 	f.received(b)
 	f.send(b, chat(7, "  hi  "))
-	expect(t, f.received(b), "result 7 true ", "chat global 2 lydia#2: hi")
-	expect(t, f.received(a), "chat global 2 lydia#2: hi")
+	expect(t, f.received(b), "result 7 true ", "chat global 2 Serana: hi")
+	expect(t, f.received(a), "chat global 2 Serana: hi")
 	f.reject(b, chat(8, "\x01"), validate.ErrChat)
 	for i := range uint32(4) {
 		f.send(b, chat(9+i, "again"))
@@ -406,8 +430,8 @@ func TestLocalChat(t *testing.T) {
 		return chatOn(pb.ChatChannel_CHAT_CHANNEL_LOCAL, id, text)
 	}
 	f.send(a, local(7, "near"))
-	expect(t, f.received(a), "result 7 true ", "chat local 1 #1: near")
-	expect(t, f.received(b), "chat local 1 #1: near")
+	expect(t, f.received(a), "result 7 true ", "chat local 1 : near")
+	expect(t, f.received(b), "chat local 1 : near")
 	expect(t, f.received(c))
 	expect(t, f.received(d))
 	f.reject(d, local(8, "unplaced"), ErrNotPlaced)
@@ -423,17 +447,14 @@ func TestLocalChat(t *testing.T) {
 	f.received(b)
 	f.received(c)
 	f.send(c, local(9, "echo"))
-	expect(t, f.received(c), "result 9 true ", "chat local 3 #1: echo")
-	expect(t, f.received(a), "chat local 3 #1: echo")
+	expect(t, f.received(c), "result 9 true ", "chat local 3 : echo")
+	expect(t, f.received(a), "chat local 3 : echo")
 	expect(t, f.received(b))
 }
 
 func TestWhisper(t *testing.T) {
 	f := newFixture(t)
-	a, b, c := f.connect(), f.connect(), f.connect()
-	f.send(a, appearance(1, "Ulfric"))
-	f.send(b, appearance(1, "Ulfric Stormcloak"))
-	f.send(c, appearance(1, "ulfric"))
+	a, b, c := f.connectAs("Ulfric"), f.connectAs("Ulfric Stormcloak"), f.connectAs("Galmar")
 	v := f.hub.Connect(world.KindReplay, nil)
 	f.send(v, appearance(1, "Ghost"))
 	for _, slot := range []uint32{a, b, c} {
@@ -443,22 +464,132 @@ func TestWhisper(t *testing.T) {
 		return chatOn(pb.ChatChannel_CHAT_CHANNEL_WHISPER, id, text)
 	}
 	f.send(c, whisper(7, "ulfric stormcloak  for Skyrim"))
-	expect(t, f.received(c), "result 7 true ", "chat whisper 3 ulfric#2 to 2 Ulfric Stormcloak#1: for Skyrim")
-	expect(t, f.received(b), "chat whisper 3 ulfric#2 to 2 Ulfric Stormcloak#1: for Skyrim")
+	expect(t, f.received(c), "result 7 true ", "chat whisper 3 Galmar to 2 Ulfric Stormcloak: for Skyrim")
+	expect(t, f.received(b), "chat whisper 3 Galmar to 2 Ulfric Stormcloak: for Skyrim")
 	expect(t, f.received(a))
-	f.send(a, whisper(8, "Ulfric #2 hi"))
-	expect(t, f.received(a), "result 8 true ", "chat whisper 1 Ulfric#1 to 3 ulfric#2: hi")
-	expect(t, f.received(c), "chat whisper 1 Ulfric#1 to 3 ulfric#2: hi")
+	f.send(a, whisper(8, "GALMAR hi"))
+	expect(t, f.received(a), "result 8 true ", "chat whisper 1 Ulfric to 3 Galmar: hi")
+	expect(t, f.received(c), "chat whisper 1 Ulfric to 3 Galmar: hi")
 	f.send(a, whisper(9, "Ulfric note to self"))
-	expect(t, f.received(a), "result 9 true ", "chat whisper 1 Ulfric#1 to 1 Ulfric#1: note to self")
-	f.reject(a, whisper(10, "Ulfric #3 hi"), ErrUnknownRecipient)
+	expect(t, f.received(a), "result 9 true ", "chat whisper 1 Ulfric to 1 Ulfric: note to self")
+	f.reject(a, whisper(10, "Ralof hi"), ErrUnknownRecipient)
 	f.reject(a, whisper(11, "Ghost boo"), ErrUnknownRecipient)
 	f.reject(a, whisper(12, "Ulfric Stormcloak"), ErrEmptyWhisper)
 	expect(t, f.received(a), "result 10 false unknown recipient", "result 11 false unknown recipient", "result 12 false empty whisper")
 	f.hub.Disconnect(b)
 	f.received(a)
 	f.send(a, whisper(13, "Ulfric Stormcloak hi"))
-	expect(t, f.received(a), "result 13 true ", "chat whisper 1 Ulfric#1 to 1 Ulfric#1: Stormcloak hi")
+	expect(t, f.received(a), "result 13 true ", "chat whisper 1 Ulfric to 1 Ulfric: Stormcloak hi")
+}
+
+func TestAppearanceCarriesTheSessionNickname(t *testing.T) {
+	f := newFixture(t)
+	a, b := f.connectAs("Lydia"), f.connectAs("Serana")
+	f.place(b, 1)
+	f.send(a, appearance(7, "Impostor"))
+	f.place(a, 1)
+	f.reject(a, appearance(7, "Lydia"), world.ErrStaleRevision)
+	welcome := f.messages(a)[0].GetWelcome()
+	if welcome.GetSlot() != a || welcome.GetSessionId() != 1 || welcome.GetNickname() != "Lydia" || welcome.GetSessionToken() != nil {
+		t.Fatalf("welcome: %v", welcome)
+	}
+	messages := f.messages(b)
+	enter := messages[len(messages)-1].GetPeerEnter()
+	if enter.GetAppearance().GetName() != "Lydia" || enter.GetAppearance().GetRevision() != 1 {
+		t.Fatalf("enter: %v", enter)
+	}
+
+	// A virtual player has no session and keeps the name it was recorded with.
+	v := f.hub.Connect(world.KindReplay, nil)
+	f.send(v, appearance(1, "Lydia"))
+	f.place(v, 1)
+	messages = f.messages(b)
+	if enter := messages[len(messages)-1].GetPeerEnter(); enter.GetSlot() != v || enter.GetAppearance().GetName() != "Lydia" {
+		t.Fatalf("virtual enter: %v", enter)
+	}
+	if f.hub.Name(a) != "Lydia" || f.hub.Name(v) != "Lydia" || f.hub.Name(99) != "" {
+		t.Fatalf("names: %q %q %q", f.hub.Name(a), f.hub.Name(v), f.hub.Name(99))
+	}
+}
+
+func TestRenameReachesPeers(t *testing.T) {
+	f := newFixture(t)
+	a, b, c := f.connectAs("Lydia"), f.connectAs("Serana"), f.connectAs("Aela")
+	f.send(a, appearance(1, "Lydia"))
+	f.place(a, 1)
+	f.place(b, 1)
+	// c holds a's appearance without receiving a.
+	f.place(c, 1)
+	f.send(c, exit())
+	for _, slot := range []uint32{a, b, c} {
+		f.received(slot)
+	}
+
+	f.hub.SetNickname(a, "Jordis")
+	messages := f.messages(b)
+	if len(messages) != 1 || messages[0].GetPeerAppearance().GetSlot() != a ||
+		messages[0].GetPeerAppearance().GetAppearance().GetName() != "Jordis" ||
+		messages[0].GetPeerAppearance().GetAppearance().GetRevision() != 2 {
+		t.Fatalf("subscriber received %v", messages)
+	}
+	expect(t, f.received(c))
+	f.place(c, 1)
+	messages = f.messages(c)
+	for _, m := range messages {
+		if enter := m.GetPeerEnter(); enter.GetSlot() == a && enter.GetAppearance().GetName() != "Jordis" {
+			t.Fatalf("holder of the old appearance received %v", enter)
+		}
+	}
+
+	// The client's own revisions continue from where it was.
+	f.received(b)
+	f.send(a, appearance(2, ""))
+	expect(t, f.received(b), "appearance 1:3")
+
+	whisper := func(id uint32, text string) *pb.ClientMessage {
+		return chatOn(pb.ChatChannel_CHAT_CHANNEL_WHISPER, id, text)
+	}
+	f.received(a)
+	f.send(b, whisper(1, "jordis hi"))
+	expect(t, f.received(a), "chat whisper 2 Serana to 1 Jordis: hi")
+	f.reject(b, whisper(2, "Lydia hi"), ErrUnknownRecipient)
+
+	// Renaming before any appearance has nothing to relay.
+	f.received(b)
+	f.hub.SetNickname(c, "Mjoll")
+	expect(t, f.received(b))
+	f.send(b, whisper(3, "Mjoll hi"))
+	expect(t, f.received(b), "result 3 true ", "chat whisper 2 Serana to 3 Mjoll: hi")
+}
+
+func TestSessionConnectingAgainReplacesItsConnection(t *testing.T) {
+	f := newFixture(t)
+	first, replaced := f.connectSession(1, "Lydia")
+	if replaced != 0 {
+		t.Fatalf("the first connection replaced %d", replaced)
+	}
+	f.session = 1
+	b := f.connectAs("Serana")
+	f.send(first, appearance(1, ""))
+	f.place(first, 1)
+	f.place(b, 1)
+	f.received(b)
+
+	second, replaced := f.connectSession(1, "Lydia")
+	if replaced != first || second == first {
+		t.Fatalf("connected as %d, replacing %d", second, replaced)
+	}
+	expect(t, f.received(b), "leave 1 DISCONNECTED")
+	f.reject(first, enter(), ErrUnknownPlayer)
+
+	whisper := chatOn(pb.ChatChannel_CHAT_CHANNEL_WHISPER, 1, "Lydia hi")
+	f.send(b, whisper)
+	expect(t, f.received(second), fmt.Sprintf("welcome %d", second), "chat whisper 2 Serana to 3 Lydia: hi")
+
+	// The old connection's own disconnect arrives late and changes nothing.
+	f.hub.Disconnect(first)
+	f.send(b, chatOn(pb.ChatChannel_CHAT_CHANNEL_WHISPER, 2, "Lydia still there"))
+	expect(t, f.received(second), "chat whisper 2 Serana to 3 Lydia: still there")
 }
 
 func TestRangeHysteresisAndDwell(t *testing.T) {

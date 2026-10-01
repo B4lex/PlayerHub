@@ -1,5 +1,6 @@
 #pragma once
 
+#include "network/Refusal.h"
 #include "protocol/AppearanceState.h"
 #include "protocol/ChatMessage.h"
 #include "protocol/EquipmentState.h"
@@ -66,8 +67,14 @@ namespace Network
     // connection through BeginReconnect.
     void Initialize();
 
-    // Whether the server welcomed this connection.
+    // Whether the server welcomed this connection. Every hello presents the
+    // session token kept for the server (SessionStore) and [General] Nickname,
+    // and the welcome names the session it resumed or issued.
     [[nodiscard]] bool IsConnected();
+
+    // The nickname of this connection's session, as peers see it. Empty while
+    // disconnected. Safe to call from any thread.
+    [[nodiscard]] std::string GetSessionNickname();
 
     // Whether the WebSocket is open. It outlasts IsConnected while a close is
     // in progress. Safe to call from any thread.
@@ -107,6 +114,13 @@ namespace Network
     [[nodiscard]] bool PublishChatMessage(Multiplayer::ChatChannel a_channel, std::string_view a_text,
         std::function<void(std::string_view)> a_onRejected);
 
+    // Asks the server to rename this connection's session. Returns false
+    // without sending while disconnected. a_onResult runs on the transport
+    // thread with an empty reason when the session was renamed, or with the
+    // server's reason for refusing; it never runs if the connection drops
+    // first, and the next hello asks for the configured nickname anyway.
+    [[nodiscard]] bool RequestNickname(std::string_view a_nickname, std::function<void(std::string_view)> a_onResult);
+
     // Sends a Ping. a_onAcknowledged runs on the transport thread when the
     // server answers it; it never runs if the connection drops first.
     void EmitLatencyProbe(std::function<void()> a_onAcknowledged);
@@ -137,10 +151,10 @@ namespace Network
     // transport and then failed or closed before the server welcomed it.
     [[nodiscard]] bool DidReconnectAttemptFail();
 
-    // Why the server refused the latest connection for good, such as a protocol
-    // mismatch; retrying cannot help until the endpoint or the server changes.
-    // Empty otherwise. Safe to call from any thread.
-    [[nodiscard]] std::optional<std::string> GetRefusal();
+    // Why the server refused the latest connection for good; retrying cannot
+    // help until what the reason names changes. Empty otherwise. Safe to call
+    // from any thread.
+    [[nodiscard]] std::optional<Refusal> GetRefusal();
 
     // Transfers network-thread updates to the caller. The authoritative
     // main-loop frame hook is the only consumer.

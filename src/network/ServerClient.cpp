@@ -1,5 +1,6 @@
 #include "network/ServerClient.h"
 #include "config/PluginConfig.h"
+#include "network/SessionStore.h"
 #include "network/TrafficMeter.h"
 #include "network/WireCodec.h"
 #include "protocol/Quantization.h"
@@ -28,8 +29,11 @@ namespace Network
     {
         using Multiplayer::PeerSlot;
 
-        // Close status the server uses for a protocol version mismatch.
+        // Close statuses the server refuses a connection with.
         constexpr std::uint16_t kProtocolMismatchCloseCode = 4001;
+        constexpr std::uint16_t kNicknameTakenCloseCode = 4004;
+        constexpr std::uint16_t kNicknameInvalidCloseCode = 4005;
+        constexpr std::uint16_t kSessionReplacedCloseCode = 4006;
         constexpr int kHandshakeTimeoutSeconds = 10;
 
         std::atomic_bool connected{ false };
@@ -74,10 +78,16 @@ namespace Network
         std::optional<CheckpointContext> sentContext;
         std::uint64_t localActionSequence = 0;
 
-        // The endpoint of the latest connection attempt. Empty before Initialize.
+        // The endpoint of the latest connection attempt, empty before the first,
+        // and the nickname its hello asked for.
         std::mutex attemptLock;
         std::string attemptEndpoint;
-        std::optional<std::string> refusal;
+        std::string attemptNickname;
+        std::optional<Refusal> refusal;
+
+        // The nickname of the welcomed connection's session.
+        std::mutex sessionLock;
+        std::string sessionNickname;
 
         // The current socket. Replaced only by the worker, after stopping the old
         // one, so its callbacks never overlap the new socket's.
@@ -139,6 +149,69 @@ namespace Network
             }
         }
 
+        void SetSessionNickname(std::string a_nickname)
+        {
+            const std::scoped_lock lock{ sessionLock };
+            sessionNickname = std::move(a_nickname);
+        }
+
+        // Presents the session kept for the server, or none for the server to
+        // issue one, and the configured nickname. Transport thread.
+        void SendHello(ix::WebSocket& a_socket)
+        {
+            const auto config = Config::Get();
+            const auto server = ToWebSocketUrl(GetAttemptEndpoint());
+            const auto token = SessionStore::Find(server);
+            {
+                const std::scoped_lock lock{ attemptLock };
+                attemptNickname = config->general.nickname;
+            }
+            const auto hello = Wire::EncodeHello(config->network.viewRadius, config->general.nickname, token);
+            if (hello.empty())
+            {
+                logs::error("Could not encode the hello for the server");
+                return;
+            }
+            logs::info("Sending hello: nickname=\"{}\" session={}", config->general.nickname,
+                token ? "kept" : "none, asking for a new one");
+            if (const auto info = a_socket.sendBinary(hello); info.success)
+            {
+                CountSentBytes(info.wireSize);
+            }
+        }
+
+        std::optional<Refusal> MakeRefusal(std::uint16_t a_closeCode, const std::string& a_closeReason)
+        {
+            std::string nickname;
+            {
+                const std::scoped_lock lock{ attemptLock };
+                nickname = attemptNickname;
+            }
+            switch (a_closeCode)
+            {
+                case kProtocolMismatchCloseCode:
+                    return Refusal{ RefusalReason::kProtocolMismatch,
+                        "The server runs another protocol version (" + a_closeReason
+                            + "); update the plugin or the server.",
+                        std::move(nickname) };
+                case kNicknameTakenCloseCode:
+                    return Refusal{ RefusalReason::kNicknameTaken,
+                        "Another player has the nickname \"" + nickname + "\"; choose another one.",
+                        std::move(nickname) };
+                case kNicknameInvalidCloseCode:
+                    return Refusal{ RefusalReason::kNicknameInvalid,
+                        "The server does not accept the nickname \"" + nickname + "\"; choose another one.",
+                        std::move(nickname) };
+                case kSessionReplacedCloseCode:
+                    return Refusal{ RefusalReason::kSessionReplaced,
+                        "Your session connected from another game, which closed this connection. Connect again "
+                        "to take it back.",
+                        std::move(nickname) };
+                default:
+                    return std::nullopt;
+            }
+        }
+
         void ClearRequests()
         {
             const std::scoped_lock lock{ requestsLock };
@@ -184,6 +257,7 @@ namespace Network
                 connected.store(false, std::memory_order_release);
                 attemptFailed.store(true, std::memory_order_release);
                 ForgetRemotePlayersLocked();
+                SetSessionNickname({});
             }
             ClearRequests();
         }
@@ -257,6 +331,12 @@ namespace Network
 
         void OnWelcome(const Wire::Welcome& a_welcome)
         {
+            // Kept even when the connection is closing: the session exists on
+            // the server and holds its nickname either way.
+            if (a_welcome.issuedToken)
+            {
+                SessionStore::Save(ToWebSocketUrl(GetAttemptEndpoint()), *a_welcome.issuedToken);
+            }
             unsigned long long generation;
             {
                 std::scoped_lock lock{ remoteChangesLock };
@@ -269,6 +349,8 @@ namespace Network
                 }
                 ForgetRemotePlayersLocked();
                 localSlot = a_welcome.slot;
+                // Before the generation, which tells readers the nickname is known.
+                SetSessionNickname(a_welcome.nickname);
                 generation = connectionGeneration.fetch_add(1, std::memory_order_acq_rel) + 1;
                 connected.store(true, std::memory_order_release);
             }
@@ -277,7 +359,10 @@ namespace Network
                 sentContext.reset();
                 localActionSequence = 0;
             }
-            logs::info("Server welcomed this client as slot {}: connectionGeneration={}", a_welcome.slot, generation);
+            logs::info(
+                "Server welcomed this client as slot {}: session={} ({}) nickname=\"{}\" connectionGeneration={}",
+                a_welcome.slot, static_cast<unsigned long long>(a_welcome.sessionID),
+                a_welcome.issuedToken ? "new" : "resumed", a_welcome.nickname, generation);
         }
 
         void OnResult(const Wire::Result& a_result)
@@ -487,11 +572,7 @@ namespace Network
                     logs::info("WebSocket connected to {}", GetAttemptEndpoint());
                     if (const auto current = GetSocket())
                     {
-                        const auto hello = Wire::EncodeHello(Config::Get()->network.viewRadius);
-                        if (const auto info = current->sendBinary(hello); info.success)
-                        {
-                            CountSentBytes(info.wireSize);
-                        }
+                        SendHello(*current);
                     }
                     break;
                 }
@@ -520,12 +601,11 @@ namespace Network
                 {
                     transportOpen.store(false, std::memory_order_release);
                     const auto& close = a_message->closeInfo;
-                    if (close.code == kProtocolMismatchCloseCode)
+                    if (auto refused = MakeRefusal(close.code, close.reason))
                     {
+                        logs::error("Server refused this client: code={} reason={}", close.code, close.reason);
                         const std::scoped_lock lock{ attemptLock };
-                        refusal = "The server runs another protocol version (" + close.reason
-                                + "); update the plugin or the server.";
-                        logs::error("Server refused this client: {}", close.reason);
+                        refusal = std::move(refused);
                     }
                     MarkDisconnected();
                     if (auto* console = RE::ConsoleLog::GetSingleton())
@@ -615,6 +695,12 @@ namespace Network
     std::uint64_t GetConnectionGeneration()
     {
         return connectionGeneration.load(std::memory_order_acquire);
+    }
+
+    std::string GetSessionNickname()
+    {
+        const std::scoped_lock lock{ sessionLock };
+        return sessionNickname;
     }
 
     void PublishLocalWorldEnter()
@@ -724,6 +810,30 @@ namespace Network
         return true;
     }
 
+    bool RequestNickname(std::string_view a_nickname, std::function<void(std::string_view)> a_onResult)
+    {
+        if (!IsConnected())
+        {
+            return false;
+        }
+        const auto requestID = RegisterRequest(
+            [nickname = std::string{ a_nickname }, onResult = std::move(a_onResult)](const Wire::Result& a_result) {
+                if (a_result.ok)
+                {
+                    logs::info("Server renamed the session to \"{}\"", nickname);
+                    SetSessionNickname(nickname);
+                    onResult({});
+                    return;
+                }
+                const std::string_view reason = a_result.error.empty() ? "refused" : std::string_view{ a_result.error };
+                logs::info("Server did not rename the session to \"{}\": {}", nickname, reason);
+                onResult(reason);
+            });
+        logs::info("Asking the server to rename the session to \"{}\"", a_nickname);
+        Send(Wire::EncodeSetNickname(requestID, a_nickname));
+        return true;
+    }
+
     void EmitLatencyProbe(std::function<void()> a_onAcknowledged)
     {
         if (!IsConnected())
@@ -806,7 +916,7 @@ namespace Network
         return !reconnectWorkerRunning.load(std::memory_order_acquire) && attemptFailed.load(std::memory_order_acquire);
     }
 
-    std::optional<std::string> GetRefusal()
+    std::optional<Refusal> GetRefusal()
     {
         const std::scoped_lock lock{ attemptLock };
         return refusal;

@@ -6,6 +6,7 @@
 #include "protocol/PeerSlot.h"
 #include "protocol/PlayerState.h"
 #include "protocol/Quantization.h"
+#include "protocol/Session.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -23,7 +24,10 @@
 // does, so nothing invalid reaches the queues.
 namespace Network::Wire
 {
-    [[nodiscard]] std::string EncodeHello(std::uint32_t a_viewRadius);
+    // Without a token the server issues a new session under a_nickname.
+    // Otherwise the token's session is resumed and takes a_nickname.
+    [[nodiscard]] std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_nickname,
+        const std::optional<Multiplayer::SessionToken>& a_token);
     [[nodiscard]] std::string EncodeEnter();
     [[nodiscard]] std::string EncodeExit();
     [[nodiscard]] std::string EncodeContext(const CheckpointContext& a_context);
@@ -36,10 +40,16 @@ namespace Network::Wire
     [[nodiscard]] std::string EncodeChat(
         std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel, std::string_view a_text);
     [[nodiscard]] std::string EncodePing(std::uint32_t a_requestID);
+    [[nodiscard]] std::string EncodeSetNickname(std::uint32_t a_requestID, std::string_view a_nickname);
 
     struct Welcome
     {
         Multiplayer::PeerSlot slot{ 0 };
+        Multiplayer::SessionID sessionID{ 0 };
+        // The session's nickname, as peers see it.
+        std::string nickname;
+        // Only when the server issued the session for this connection.
+        std::optional<Multiplayer::SessionToken> issuedToken;
     };
 
     struct Result
@@ -112,7 +122,6 @@ namespace Network::Wire
     struct PeerAppearance
     {
         Multiplayer::PeerSlot slot{ 0 };
-        // nameIndex is set.
         Multiplayer::PlayerAppearance appearance;
     };
 

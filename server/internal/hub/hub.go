@@ -102,14 +102,25 @@ type candidate struct {
 	pinned bool
 }
 
+// Identity is the session a client connected with.
+type Identity struct {
+	Session  uint64
+	Nickname string
+	// The session's secret when it was issued for this connection. The
+	// welcome carries it once.
+	Token []byte
+}
+
 type Hub struct {
 	opts       Options
 	members    map[uint32]*member
 	recipients []*member
 	nextSlot   uint32
 	names      *world.Names
-	changed    []*member
-	touched    []*member
+	// The connected client of each session.
+	sessions map[uint64]uint32
+	changed  []*member
+	touched  []*member
 
 	rules  *interest.Rules
 	grid   *interest.Grid
@@ -139,19 +150,38 @@ func New(opts Options) *Hub {
 		opts.ChatLocalRadius = 8192
 	}
 	h := &Hub{
-		opts: opts, members: make(map[uint32]*member), names: world.NewNames(),
+		opts: opts, members: make(map[uint32]*member), names: world.NewNames(), sessions: make(map[uint64]uint32),
 		grid: interest.NewGrid(opts.Interest.LeaveRadius), hidden: interest.Hidden{}, pairs: interest.Pairs{},
 	}
 	h.rules = interest.NewRules(opts.Interest, h.hidden, h.pairs)
 	return h
 }
 
-// Connect adds a player and returns its slot. A player with an outbox is
-// welcomed; it receives peers once it is placed itself.
+// Connect adds a player without a session and returns its slot. A player
+// with an outbox is welcomed; it receives peers once it is placed itself.
 func (h *Hub) Connect(kind world.Kind, outbox *delivery.Outbox) uint32 {
+	return h.connect(kind, outbox, Identity{})
+}
+
+// ConnectClient adds a client under its session. A session is connected
+// once, so the client it was connected as before is disconnected first, and
+// its slot is returned as replaced, zero for none, for the caller to close.
+func (h *Hub) ConnectClient(outbox *delivery.Outbox, identity Identity) (slot, replaced uint32) {
+	if previous, ok := h.sessions[identity.Session]; ok {
+		replaced = previous
+		h.Disconnect(previous)
+	}
+	slot = h.connect(world.KindClient, outbox, identity)
+	h.sessions[identity.Session] = slot
+	h.names.Set(slot, identity.Nickname)
+	return slot, replaced
+}
+
+func (h *Hub) connect(kind world.Kind, outbox *delivery.Outbox, identity Identity) uint32 {
 	h.nextSlot++
 	m := &member{
-		Player:         &world.Player{Slot: h.nextSlot, Kind: kind, ConnectedAt: h.opts.Clock.Now()},
+		Player: &world.Player{Slot: h.nextSlot, Kind: kind, ConnectedAt: h.opts.Clock.Now(),
+			Session: identity.Session, Nickname: identity.Nickname},
 		outbox:         outbox,
 		subscribed:     make(map[uint32]*subscription),
 		heldAppearance: make(map[uint32]uint64),
@@ -162,7 +192,8 @@ func (h *Hub) Connect(kind world.Kind, outbox *delivery.Outbox) uint32 {
 	if outbox != nil {
 		h.recipients = append(h.recipients, m)
 		outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Welcome{
-			Welcome: &pb.Welcome{Slot: m.Slot}}}))
+			Welcome: &pb.Welcome{Slot: m.Slot, SessionId: identity.Session, Nickname: identity.Nickname,
+				SessionToken: identity.Token}}}))
 	}
 	h.opts.OnChange()
 	return m.Slot
@@ -207,6 +238,25 @@ func (h *Hub) Disconnect(slot uint32) {
 	}
 	m.changed = false
 	h.names.Forget(slot)
+	if h.sessions[m.Session] == slot {
+		delete(h.sessions, m.Session)
+	}
+	h.opts.OnChange()
+}
+
+// SetNickname renames a client after its session was renamed. Subscribers
+// receive its appearance again, with the new name.
+func (h *Hub) SetNickname(slot uint32, nickname string) {
+	m, ok := h.members[slot]
+	if !ok || m.Nickname == nickname {
+		return
+	}
+	h.names.Set(slot, nickname)
+	if m.Rename(nickname) {
+		// A replay shows the name the player had at each moment.
+		h.record(slot, &pb.ClientMessage{Message: &pb.ClientMessage_Appearance{Appearance: m.Appearance}})
+		h.relayAppearance(m)
+	}
 	h.opts.OnChange()
 }
 
@@ -353,13 +403,12 @@ func (h *Hub) Players(f func(p *world.Player, visible int, outbox *delivery.Outb
 	}
 }
 
-// Name returns the player's name and index, as chat shows them.
-func (h *Hub) Name(slot uint32) (string, uint32) {
-	m, ok := h.members[slot]
-	if !ok || m.Appearance == nil {
-		return "", 1
+// Name returns the player's name, empty for an unknown player.
+func (h *Hub) Name(slot uint32) string {
+	if m, ok := h.members[slot]; ok {
+		return m.Name()
 	}
-	return m.Appearance.GetName(), m.NameIndex
+	return ""
 }
 
 // InitialMessages returns the player's current state as client messages in
@@ -493,21 +542,27 @@ func (h *Hub) relayAction(m *member, a *pb.Action, message *pb.ClientMessage) er
 }
 
 func (h *Hub) setAppearance(m *member, a *pb.Appearance, message *pb.ClientMessage) error {
-	if err := m.SetAppearance(a, h.names); err != nil {
+	if err := m.SetAppearance(a); err != nil {
 		return err
 	}
 	h.record(m.Slot, message)
 	h.opts.OnChange()
+	h.relayAppearance(m)
+	return nil
+}
+
+// relayAppearance hands the player's stored appearance to its subscribers.
+func (h *Hub) relayAppearance(m *member) {
 	if len(m.subscribers) == 0 {
-		return nil
+		return
 	}
+	a := m.Appearance
 	bytes := wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_PeerAppearance{
-		PeerAppearance: &pb.PeerAppearance{Slot: m.Slot, NameIndex: m.NameIndex, Appearance: a}}})
+		PeerAppearance: &pb.PeerAppearance{Slot: m.Slot, Appearance: a}}})
 	for _, r := range m.subscribers {
 		r.heldAppearance[m.Slot] = a.GetRevision()
 		r.outbox.Replace(m.Slot, delivery.ReplaceAppearance, bytes)
 	}
-	return nil
 }
 
 func (h *Hub) setEquipment(m *member, e *pb.Equipment, message *pb.ClientMessage) error {
@@ -529,8 +584,7 @@ func (h *Hub) setEquipment(m *member, e *pb.Equipment, message *pb.ClientMessage
 
 // speaker returns the player as chat shows it.
 func (h *Hub) speaker(m *member) *pb.ChatSpeaker {
-	name, index := h.Name(m.Slot)
-	return &pb.ChatSpeaker{Slot: m.Slot, Name: name, NameIndex: index, Level: m.Appearance.GetLevel()}
+	return &pb.ChatSpeaker{Slot: m.Slot, Name: m.Name(), Level: m.Appearance.GetLevel()}
 }
 
 // chat relays a line to its channel's recipients, the sender included, so
@@ -806,7 +860,7 @@ func (h *Hub) subscribe(r, peer *member, now time.Time) {
 	peer.subscribers = append(peer.subscribers, r)
 	enter := &pb.PeerEnter{Slot: peer.Slot, Context: peer.Context, State: peer.Checkpoint}
 	if a := peer.Appearance; a != nil && a.GetRevision() > r.heldAppearance[peer.Slot] {
-		enter.Appearance, enter.NameIndex = a, peer.NameIndex
+		enter.Appearance = a
 		r.heldAppearance[peer.Slot] = a.GetRevision()
 	}
 	if e := peer.Equipment; e != nil && e.GetRevision() > r.heldEquipment[peer.Slot] {

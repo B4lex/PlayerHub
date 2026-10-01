@@ -25,6 +25,10 @@ namespace UI::WindowManager
     // False if a window already has focus or none uses the key.
     [[nodiscard]] bool FocusByKey(std::uint32_t a_scanCode);
 
+    // Releases focus if the window holding it uses a_scanCode as a release key.
+    // False if no window has focus or the focused one does not use the key.
+    [[nodiscard]] bool ReleaseFocusByKey(std::uint32_t a_scanCode);
+
     // Releases focus if a_window holds it. Safe to call from any thread.
     void ReleaseFocus(const Window& a_window);
 

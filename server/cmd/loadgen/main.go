@@ -1,6 +1,8 @@
 // Command loadgen connects bots to a server as real WebSocket clients and
 // measures peer-to-peer latency. Bots either replay a recording, spread over
-// its timeline like an admin batch, or walk randomly in a square.
+// its timeline like an admin batch, or walk randomly in a square. Every bot
+// takes a new session, named after the run so that runs against one server do
+// not find their nicknames taken.
 //
 // Each bot sends the send time in microseconds since the Unix epoch as its
 // checkpoint sequence, which is strictly rising and needs no wire field, so a
@@ -48,6 +50,8 @@ type options struct {
 	idle       float64
 	viewRadius uint
 	near       float64
+	// Part of every bot's nickname.
+	run string
 }
 
 func main() {
@@ -68,6 +72,7 @@ func main() {
 	flag.Float64Var(&o.near, "near", 4096, "peers within this distance are reported as near")
 	flag.Parse()
 	o.worldspace = 60
+	o.run = fmt.Sprintf("%06x", rand.Uint32()&0xFFFFFF)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -155,7 +160,12 @@ type bot struct {
 	x, y atomic.Int32
 }
 
-func (b *bot) connect(ctx context.Context) error {
+// nickname names the bot's session after base, the run, and its number.
+func (b *bot) nickname(base string) string {
+	return playback.BotName(base+" "+b.o.run, b.index)
+}
+
+func (b *bot) connect(ctx context.Context, nickname string) error {
 	conn, _, err := websocket.Dial(ctx, b.o.url, &websocket.DialOptions{CompressionMode: websocket.CompressionDisabled})
 	if err != nil {
 		return err
@@ -164,7 +174,8 @@ func (b *bot) connect(ctx context.Context) error {
 	b.conn = conn
 	b.stats.connected.Add(1)
 	if err := b.send(ctx, &pb.ClientMessage{Message: &pb.ClientMessage_Hello{Hello: &pb.Hello{
-		ProtocolVersion: uint32(pb.Protocol_PROTOCOL_VERSION), ViewRadius: uint32(b.o.viewRadius)}}}); err != nil {
+		ProtocolVersion: uint32(pb.Protocol_PROTOCOL_VERSION), ViewRadius: uint32(b.o.viewRadius),
+		Nickname: nickname}}}); err != nil {
 		return err
 	}
 	go b.receive(ctx)
@@ -240,10 +251,10 @@ func (b *bot) receive(ctx context.Context) {
 	}
 }
 
-func (b *bot) enter(ctx context.Context, name string, x, y float64) error {
+func (b *bot) enter(ctx context.Context) error {
 	messages := []*pb.ClientMessage{
 		{Message: &pb.ClientMessage_Appearance{Appearance: &pb.Appearance{
-			Revision: 1, Name: name, Race: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 0x13746}, Weight: 50, Height: 1,
+			Revision: 1, Race: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 0x13746}, Weight: 50, Height: 1,
 			BodyTint: &pb.Color{R: 200, G: 170, B: 150}, FaceMorphs: make([]float32, 19), FaceParts: make([]int32, 4)}}},
 		{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}},
 		{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: b.o.worldspace, CellId: 1, GraphEpoch: 1}}},
@@ -257,7 +268,7 @@ func (b *bot) enter(ctx context.Context, name string, x, y float64) error {
 }
 
 func (b *bot) walk(ctx context.Context) error {
-	if err := b.connect(ctx); err != nil {
+	if err := b.connect(ctx, b.nickname("Walker")); err != nil {
 		return err
 	}
 	defer b.conn.CloseNow()
@@ -265,7 +276,7 @@ func (b *bot) walk(ctx context.Context) error {
 	x := (random.Float64()*2 - 1) * b.o.spread
 	y := (random.Float64()*2 - 1) * b.o.spread
 	heading := random.Float64() * 2 * math.Pi
-	if err := b.enter(ctx, playback.BotName("Walker", b.index), x, y); err != nil {
+	if err := b.enter(ctx); err != nil {
 		return err
 	}
 	interval := time.Duration(float64(time.Second) / b.o.rateHz)
@@ -329,17 +340,18 @@ func (p *replayPlayer) Send(m *pb.ClientMessage) {
 func (p *replayPlayer) Leave() {}
 
 func (b *bot) replay(ctx context.Context, r *recording.Recording, plan loadtest.BotPlan) error {
-	if err := b.connect(ctx); err != nil {
-		return err
-	}
-	defer b.conn.CloseNow()
-	player := &replayPlayer{b: b, ctx: ctx}
 	base := r.Header.PlayerName
 	if base == "" {
 		base = "Bot"
 	}
+	if err := b.connect(ctx, b.nickname(base)); err != nil {
+		return err
+	}
+	defer b.conn.CloseNow()
+	player := &replayPlayer{b: b, ctx: ctx}
+	// The server names the bot after its session, whatever was recorded.
 	session, err := playback.NewSession(strconv.Itoa(b.index), "", r, player, playback.Options{
-		Autoplay: true, Rate: plan.Rate, Loop: true, StartMs: plan.StartMs, Name: playback.BotName(base, b.index)})
+		Autoplay: true, Rate: plan.Rate, Loop: true, StartMs: plan.StartMs})
 	if err != nil {
 		return err
 	}

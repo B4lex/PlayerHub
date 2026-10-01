@@ -362,5 +362,4 @@ it.
   checkpoint and drains the gap once the next one arrives.
 - The playout constants were tuned in simulation; in game they were only
   checked on one connection, not under real jitter or a far peer's 10 Hz rate.
-- There is no authentication, lobby, persistent identity, or server-authoritative
-  movement.
+- There is no lobby or server-authoritative movement.

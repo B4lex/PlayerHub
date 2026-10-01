@@ -16,13 +16,16 @@ rm -rf "$go_out" "$nanopb_out"
 mkdir -p "$go_out" "$nanopb_out"
 
 protos="skyrimmp/v1/state.proto skyrimmp/v1/messages.proto"
+# The pinned grpcio-tools has wheels for these Python versions only; on a newer
+# one uv would try to compile it.
+python=">=3.9,<3.14"
 
 cd "$root/proto"
-uv run --no-project --quiet --with grpcio-tools==1.71.0 python -m grpc_tools.protoc \
+uv run --no-project --quiet --python "$python" --with grpcio-tools==1.71.0 python -m grpc_tools.protoc \
     -I . --plugin=protoc-gen-go="$tools/protoc-gen-go" \
     --go_out="$go_out" --go_opt=paths=source_relative $protos
 mv "$go_out"/skyrimmp/v1/*.go "$go_out"
 rm -rf "$go_out/skyrimmp"
 
-uv run --no-project --quiet --with nanopb==0.4.9 --with grpcio-tools==1.71.0 nanopb_generator \
+uv run --no-project --quiet --python "$python" --with nanopb==0.4.9 --with grpcio-tools==1.71.0 nanopb_generator \
     -I . -D "$nanopb_out" $protos

@@ -1,4 +1,9 @@
 # nanopb static sizes; see state.options.
+skyrimmp.v1.Hello.session_token max_size:32
+skyrimmp.v1.Hello.nickname max_size:129
+skyrimmp.v1.SetNickname.nickname max_size:129
+skyrimmp.v1.Welcome.nickname max_size:129
+skyrimmp.v1.Welcome.session_token max_size:32
 skyrimmp.v1.ChatSend.text max_size:513
 skyrimmp.v1.Result.error max_size:64
 skyrimmp.v1.ChatSpeaker.name max_size:129

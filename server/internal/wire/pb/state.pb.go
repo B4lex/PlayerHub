@@ -904,15 +904,19 @@ func (x *DefaultRace) GetFemale() bool {
 }
 
 type Appearance struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
-	Revision  uint64                 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
-	Name      string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Level     uint32                 `protobuf:"varint,3,opt,name=level,proto3" json:"level,omitempty"`
-	Race      *FormRef               `protobuf:"bytes,4,opt,name=race,proto3" json:"race,omitempty"`
-	Female    bool                   `protobuf:"varint,5,opt,name=female,proto3" json:"female,omitempty"`
-	Weight    float32                `protobuf:"fixed32,6,opt,name=weight,proto3" json:"weight,omitempty"`
-	Height    float32                `protobuf:"fixed32,7,opt,name=height,proto3" json:"height,omitempty"`
-	HeadParts []*HeadPart            `protobuf:"bytes,8,rep,name=head_parts,json=headParts,proto3" json:"head_parts,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A client's own counter. On a relayed copy, the server's: it also rises
+	// when the server changes the name.
+	Revision uint64 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	// Set by the server to the session's nickname; a client's value is ignored.
+	// A replayed player keeps its recorded name.
+	Name      string      `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Level     uint32      `protobuf:"varint,3,opt,name=level,proto3" json:"level,omitempty"`
+	Race      *FormRef    `protobuf:"bytes,4,opt,name=race,proto3" json:"race,omitempty"`
+	Female    bool        `protobuf:"varint,5,opt,name=female,proto3" json:"female,omitempty"`
+	Weight    float32     `protobuf:"fixed32,6,opt,name=weight,proto3" json:"weight,omitempty"`
+	Height    float32     `protobuf:"fixed32,7,opt,name=height,proto3" json:"height,omitempty"`
+	HeadParts []*HeadPart `protobuf:"bytes,8,rep,name=head_parts,json=headParts,proto3" json:"head_parts,omitempty"`
 	// Unset for none.
 	HairColor *Color `protobuf:"bytes,9,opt,name=hair_color,json=hairColor,proto3" json:"hair_color,omitempty"`
 	// Unset for none.

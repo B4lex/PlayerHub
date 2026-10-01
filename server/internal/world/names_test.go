@@ -2,36 +2,9 @@ package world
 
 import "testing"
 
-func TestNameIndexes(t *testing.T) {
-	n := NewNames()
-	if got := n.Set(1, "Lydia"); got != 1 {
-		t.Fatalf("first Lydia got %d", got)
-	}
-	if got := n.Set(2, "lydia"); got != 2 {
-		t.Fatalf("second Lydia got %d", got)
-	}
-	if got := n.Set(3, "LYDIA"); got != 3 {
-		t.Fatalf("third Lydia got %d", got)
-	}
-	n.Forget(2)
-	if got := n.Set(4, "Lydia"); got != 2 {
-		t.Fatalf("freed index not reused: %d", got)
-	}
-	if got := n.Set(3, "Lydia"); got != 3 {
-		t.Fatalf("unchanged name renumbered to %d", got)
-	}
-	if got := n.Set(1, "Serana"); got != 1 {
-		t.Fatalf("renamed player got %d", got)
-	}
-	if got := n.Index(9); got != 1 {
-		t.Fatalf("unnamed player got %d", got)
-	}
-}
-
 func TestFindAddressedPlayer(t *testing.T) {
 	n := NewNames()
 	n.Set(1, "Lydia")
-	n.Set(2, "lydia")
 	n.Set(3, "Ulfric")
 	n.Set(4, "Ulfric Stormcloak")
 	n.Set(5, "Serana")
@@ -43,9 +16,8 @@ func TestFindAddressedPlayer(t *testing.T) {
 		found  bool
 	}{
 		{"Lydia hello there", 1, "hello there", true},
-		{"LYDIA #2  hi", 2, "hi", true},
-		{"lydia #3 hi", 0, "", false},
-		{"Lydia #two", 1, "#two", true},
+		{"LYDIA  hi", 1, "hi", true},
+		{"Lydia #2 hi", 1, "#2 hi", true},
 		{"Lydia", 1, "", true},
 		{"Ulfric Stormcloak for Skyrim", 4, "for Skyrim", true},
 		{"Ulfric Stormcloaks", 3, "Stormcloaks", true},
@@ -69,7 +41,16 @@ func TestFindAddressedPlayer(t *testing.T) {
 	if _, _, found := n.Find("Lydia hi", 128); found {
 		t.Error("a forgotten player was found")
 	}
-	if got := n.Set(6, "Lydia"); got != 1 {
-		t.Fatalf("freed index not reused: %d", got)
+}
+
+func TestNameMovesToItsLatestHolder(t *testing.T) {
+	n := NewNames()
+	n.Set(1, "Lydia")
+	// A session that connects again takes its name before the old connection
+	// is forgotten.
+	n.Set(2, "Lydia")
+	n.Forget(1)
+	if player, _, found := n.Find("lydia hi", 128); !found || player != 2 {
+		t.Fatalf("found %d %v", player, found)
 	}
 }

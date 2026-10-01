@@ -25,9 +25,8 @@ namespace UI
         // In font sizes, so the layout follows the overlay scale.
         constexpr ImVec2 kSizeFonts{ 44.0F, 32.0F };
         constexpr float kLabelWidthFonts = 11.0F;
-        // The row that ConnectionControls follows.
-        constexpr std::string_view kConnectionSection = "Network";
-        constexpr std::string_view kConnectionKey = "ServerEndpoint";
+        // The section that ends with ConnectionControls.
+        constexpr std::string_view kConnectionSection = "General";
 
         constexpr float kBackgroundAlpha = 0.94F;
         constexpr ImVec4 kNoteColor{ 0.70F, 0.70F, 0.70F, 1.0F };
@@ -159,11 +158,6 @@ namespace UI
                     return;
                 }
                 auto& field = GetField([&a_value] { return a_value; });
-                const bool connectionRow = sectionName == kConnectionSection && a_key == kConnectionKey;
-                if (connectionRow)
-                {
-                    ImGui::SetNextItemWidth(-(ConnectionControls::GetWidth() + ImGui::GetStyle().ItemSpacing.x));
-                }
                 if (DrawTextField(field))
                 {
                     field.valid = a_isValid(field.text);
@@ -171,11 +165,6 @@ namespace UI
                     {
                         a_value = field.text;
                     }
-                }
-                if (connectionRow)
-                {
-                    ImGui::SameLine();
-                    ConnectionControls::Draw();
                 }
                 EndRow(a_comment);
             }
@@ -260,10 +249,25 @@ namespace UI
                 {
                     return;
                 }
+                if (sectionName == kConnectionSection)
+                {
+                    DrawConnection();
+                }
                 ImGui::EndChild();
                 ImGui::EndTabItem();
                 ImGui::PopID();
                 sectionOpen = false;
+            }
+
+            void DrawConnection()
+            {
+                ImGui::Spacing();
+                ImGui::Separator();
+                if (BeginRow("Connection", true))
+                {
+                    ConnectionControls::Draw();
+                    EndRow({});
+                }
             }
 
             // Form keys keep the file's names.
@@ -343,6 +347,11 @@ namespace UI
             [[nodiscard]] bool IsFocusKey(std::uint32_t a_scanCode) const override
             {
                 return a_scanCode == Config::Get()->ui.settingsKey;
+            }
+
+            [[nodiscard]] bool IsReleaseKey(std::uint32_t a_scanCode) const override
+            {
+                return IsFocusKey(a_scanCode);
             }
 
             [[nodiscard]] bool UsesMouse() const override { return true; }
@@ -448,11 +457,6 @@ namespace UI
                     Replace(defaults);
                 }
                 ImGui::EndDisabled();
-                ImGui::SameLine();
-                if (ImGui::Button("Close"))
-                {
-                    WindowManager::ReleaseFocus(*this);
-                }
 
                 ImGui::SameLine();
                 if (invalid)

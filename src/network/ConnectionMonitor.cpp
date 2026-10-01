@@ -7,8 +7,11 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <format>
+#include <mutex>
 #include <optional>
 #include <random>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -52,6 +55,10 @@ namespace Network
         std::atomic_bool connectionEnabled{ false };
         std::atomic_bool nicknameSet{ false };
 
+        // Written on the transport thread when the server answers a rename.
+        std::mutex nicknameRejectionLock;
+        std::optional<std::string> nicknameRejection;
+
         // Main-loop thread only.
         Phase phase = Phase::kIdle;
         float phaseSeconds = 0.0F;
@@ -62,6 +69,13 @@ namespace Network
         float secondsSinceProbe = kProbeIntervalSeconds;
         std::uint64_t observedConfigRevision = 0;
         std::optional<std::uint64_t> nicknameConfigRevision;
+        // The connection and configuration the session's nickname was last
+        // compared with the configured one for.
+        std::uint64_t renameConnectionGeneration = 0;
+        std::optional<std::uint64_t> renameConfigRevision;
+        // The configuration a refused nickname was last compared with, none
+        // since the refusal.
+        std::optional<std::uint64_t> refusedConfigRevision;
         bool endpointChangePending = false;
         bool observedInGame = false;
 
@@ -90,6 +104,68 @@ namespace Network
                 latencyMilliseconds.store(std::chrono::duration_cast<std::chrono::milliseconds>(roundTrip).count(),
                     std::memory_order_release);
             });
+        }
+
+        void SetNicknameRejection(std::optional<std::string> a_rejection)
+        {
+            const std::scoped_lock lock{ nicknameRejectionLock };
+            nicknameRejection = std::move(a_rejection);
+        }
+
+        // Keeps the session's nickname the configured one. The hello asked for
+        // the nickname configured then, so only a change since needs a request.
+        void FollowSessionNickname()
+        {
+            const auto generation = GetConnectionGeneration();
+            const auto revision = Config::GetRevision();
+            if (generation == renameConnectionGeneration && renameConfigRevision == revision)
+            {
+                return;
+            }
+            const bool newConnection = generation != std::exchange(renameConnectionGeneration, generation);
+            renameConfigRevision = revision;
+            if (newConnection)
+            {
+                SetNicknameRejection(std::nullopt);
+            }
+
+            auto nickname = Config::Get()->general.nickname;
+            // Without one the connection closes instead.
+            if (nickname.empty())
+            {
+                return;
+            }
+            if (nickname == GetSessionNickname())
+            {
+                SetNicknameRejection(std::nullopt);
+                return;
+            }
+            const auto requested = RequestNickname(nickname, [nickname, generation](std::string_view a_reason) {
+                // An answer for a connection that is gone says nothing about this one.
+                if (generation != GetConnectionGeneration())
+                {
+                    return;
+                }
+                if (a_reason.empty())
+                {
+                    SetNicknameRejection(std::nullopt);
+                }
+                else if (a_reason == "nickname taken")
+                {
+                    SetNicknameRejection(
+                        std::format("Another player has the nickname \"{}\"; choose another one.", nickname));
+                }
+                else
+                {
+                    SetNicknameRejection(
+                        std::format("The server did not change the nickname to \"{}\": {}.", nickname, a_reason));
+                }
+            });
+            if (!requested)
+            {
+                // The connection dropped; its replacement is compared again.
+                renameConfigRevision.reset();
+            }
         }
 
         void EnterPhase(Phase a_phase)
@@ -124,6 +200,8 @@ namespace Network
                 EnterPhase(Phase::kConnected);
                 reconnectAttempts = 0;
             }
+
+            FollowSessionNickname();
 
             const auto generation = GetConnectionGeneration();
             if (generation != probeConnectionGeneration)
@@ -264,14 +342,31 @@ namespace Network
         void UpdateDisconnected(float a_deltaSeconds)
         {
             // A refused client stays down until the endpoint changes or the
-            // player connects again, since retrying cannot help.
+            // player connects again, since retrying cannot help. A refused
+            // nickname is the exception: another one may be accepted.
             if (const auto refusal = GetRefusal())
             {
                 if (phase != Phase::kRefused)
                 {
-                    logs::error("Not reconnecting: {}", *refusal);
+                    logs::error("Not reconnecting: {}", refusal->message);
                     ForgetLatency();
                     EnterPhase(Phase::kRefused);
+                    refusedConfigRevision.reset();
+                }
+                const bool nicknameRefused = refusal->reason == RefusalReason::kNicknameTaken
+                    || refusal->reason == RefusalReason::kNicknameInvalid;
+                if (const auto revision = Config::GetRevision(); nicknameRefused && revision != refusedConfigRevision)
+                {
+                    if (Config::Get()->general.nickname == refusal->nickname)
+                    {
+                        refusedConfigRevision = revision;
+                    }
+                    else
+                    {
+                        // Leaves this phase once a previous worker is done; retried
+                        // each pass until then.
+                        Open();
+                    }
                 }
                 return;
             }
@@ -366,13 +461,23 @@ namespace Network
         return IsConnected() ? ConnectionState::kConnected : ConnectionState::kConnecting;
     }
 
-    std::optional<std::string> GetConnectionRefusal()
+    std::optional<Refusal> GetConnectionRefusal()
     {
         if (!IsConnectionWanted())
         {
             return std::nullopt;
         }
         return GetRefusal();
+    }
+
+    std::optional<std::string> GetNicknameRejection()
+    {
+        if (!IsConnected())
+        {
+            return std::nullopt;
+        }
+        const std::scoped_lock lock{ nicknameRejectionLock };
+        return nicknameRejection;
     }
 
     std::optional<std::chrono::milliseconds> GetLatency()

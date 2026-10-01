@@ -27,4 +27,8 @@ plans/
 /server/server
 /server/*.exe
 
+# The server's session database and its write-ahead log
+/server/*.db
+/server/*.db-*
+
 !.gitkeep

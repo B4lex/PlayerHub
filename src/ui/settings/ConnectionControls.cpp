@@ -4,6 +4,8 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <optional>
+#include <string>
 
 namespace UI::ConnectionControls
 {
@@ -13,6 +15,7 @@ namespace UI::ConnectionControls
 
         constexpr ImVec4 kConnectedColor{ 0.45F, 0.85F, 0.45F, 1.0F };
         constexpr ImVec4 kDisconnectedColor{ 0.95F, 0.40F, 0.35F, 1.0F };
+        constexpr ImVec4 kHintColor{ 0.70F, 0.70F, 0.70F, 1.0F };
         // Of the frame height, which is also the indicator's width.
         constexpr float kIndicatorRadius = 0.3F;
         // The label changes, so the ID after ### keeps the button's identity.
@@ -46,71 +49,84 @@ namespace UI::ConnectionControls
             return textWidth + ImGui::GetStyle().FramePadding.x * 2.0F;
         }
 
-        void DrawIndicator(ConnectionState a_state)
+        void DrawIndicator(bool a_connected)
         {
-            const bool connected = a_state == ConnectionState::kConnected;
             const auto size = ImGui::GetFrameHeight();
             const auto position = ImGui::GetCursorScreenPos();
             ImGui::Dummy(ImVec2{ size, size });
             ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2{ position.x + size * 0.5F, position.y + size * 0.5F },
-                size * kIndicatorRadius, ImGui::GetColorU32(connected ? kConnectedColor : kDisconnectedColor));
+                size * kIndicatorRadius, ImGui::GetColorU32(a_connected ? kConnectedColor : kDisconnectedColor));
+        }
 
-            if (!ImGui::IsItemHovered())
-            {
-                return;
-            }
+        void DrawStatus(ConnectionState a_state, bool a_refused)
+        {
             switch (a_state)
             {
                 case ConnectionState::kConnected:
                     if (const auto latency = Network::GetLatency())
                     {
-                        ImGui::SetTooltip("Connected, ping %lld ms", static_cast<long long>(latency->count()));
+                        ImGui::Text("Connected, ping %lld ms", static_cast<long long>(latency->count()));
                     }
                     else
                     {
-                        ImGui::SetTooltip("Connected");
+                        ImGui::TextUnformatted("Connected");
                     }
                     break;
                 case ConnectionState::kConnecting:
-                    if (const auto refusal = Network::GetConnectionRefusal())
-                    {
-                        ImGui::SetTooltip("%s", refusal->c_str());
-                    }
-                    else
-                    {
-                        ImGui::SetTooltip("Connecting...");
-                    }
+                    // A refused connection stays wanted but is not retried.
+                    ImGui::TextUnformatted(a_refused ? "Not connected" : "Connecting...");
                     break;
                 case ConnectionState::kDisconnecting:
-                    ImGui::SetTooltip("Disconnecting...");
+                    ImGui::TextUnformatted("Disconnecting...");
                     break;
                 default:
-                    ImGui::SetTooltip(Network::HasNickname() ? "Disconnected" : "Disconnected: no nickname is set");
+                    ImGui::TextUnformatted("Disconnected");
                     break;
             }
         }
-    }
 
-    float GetWidth()
-    {
-        return ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.x + GetButtonWidth();
+        void DrawMessage(const ImVec4& a_color, const char* a_text)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, a_color);
+            ImGui::PushTextWrapPos(0.0F);
+            ImGui::TextUnformatted(a_text);
+            ImGui::PopTextWrapPos();
+            ImGui::PopStyleColor();
+        }
     }
 
     void Draw()
     {
         const auto state = Network::GetConnectionState();
-        DrawIndicator(state);
-        ImGui::SameLine();
         const bool needsNickname = state == ConnectionState::kDisconnected && !Network::HasNickname();
+        const auto refusal
+            = state == ConnectionState::kConnecting ? Network::GetConnectionRefusal() : std::nullopt;
+
         ImGui::BeginDisabled(state == ConnectionState::kDisconnecting || needsNickname);
         if (ImGui::Button(GetButtonLabel(state), ImVec2{ GetButtonWidth(), 0.0F }))
         {
             Network::SetConnectionEnabled(state == ConnectionState::kDisconnected);
         }
         ImGui::EndDisabled();
-        if (needsNickname && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SameLine();
+        DrawIndicator(state == ConnectionState::kConnected);
+        ImGui::SameLine(0.0F, ImGui::GetStyle().ItemInnerSpacing.x);
+        DrawStatus(state, refusal.has_value());
+
+        if (refusal)
         {
-            ImGui::SetTooltip("Enter a nickname and apply it to connect.");
+            DrawMessage(kDisconnectedColor, refusal->message.c_str());
+        }
+        else if (needsNickname)
+        {
+            DrawMessage(kHintColor, "Enter a nickname and apply it to connect.");
+        }
+        else if (state == ConnectionState::kConnected)
+        {
+            if (const auto rejection = Network::GetNicknameRejection())
+            {
+                DrawMessage(kDisconnectedColor, rejection->c_str());
+            }
         }
     }
 }

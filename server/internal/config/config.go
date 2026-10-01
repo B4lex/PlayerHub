@@ -20,6 +20,15 @@ type Config struct {
 	Interest            Interest `toml:"interest"`
 	Budget              Budget   `toml:"budget"`
 	Chat                Chat     `toml:"chat"`
+	Sessions            Sessions `toml:"sessions"`
+}
+
+type Sessions struct {
+	// The SQLite file that keeps sessions across restarts. Empty keeps them
+	// in memory, so every restart forgets them.
+	Database string `toml:"database"`
+	// How long a session lives after it was last connected.
+	LifetimeDays float64 `toml:"lifetime_days"`
 }
 
 type Chat struct {
@@ -84,8 +93,9 @@ func Default() Config {
 		Interest: Interest{EnterRadius: 8192, LeaveRadius: 9830, MinDwellSeconds: 1, UpdateHz: 5, MaxVisible: 64,
 			CapHysteresis: 1024, NearDistance: 4096, FarRateHz: 10, MinimumViewRadius: 1024},
 		// A 50 Mbit/s homelab upload.
-		Budget: Budget{UplinkBytesPerSecond: 6_250_000, EntersPerSecond: 20},
-		Chat:   Chat{LocalRadius: 8192},
+		Budget:   Budget{UplinkBytesPerSecond: 6_250_000, EntersPerSecond: 20},
+		Chat:     Chat{LocalRadius: 8192},
+		Sessions: Sessions{Database: "sessions.db", LifetimeDays: 30},
 	}
 }
 
@@ -135,6 +145,8 @@ func (c Config) validate() error {
 		return errors.New("budget.per_recipient_bytes_per_second and enters_per_second must be >= 0")
 	case c.Chat.LocalRadius <= 0:
 		return errors.New("chat.local_radius must be positive")
+	case c.Sessions.LifetimeDays <= 0:
+		return errors.New("sessions.lifetime_days must be positive")
 	}
 	return nil
 }

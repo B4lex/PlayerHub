@@ -38,6 +38,10 @@ type Player struct {
 	Slot        uint32
 	Kind        Kind
 	ConnectedAt time.Time
+	// The session a client connected with and its nickname; zero and empty
+	// for a virtual player.
+	Session  uint64
+	Nickname string
 
 	InWorld    bool
 	Context    *pb.Context
@@ -49,9 +53,21 @@ type Player struct {
 	// drops the checkpoint, so sequences still rise.
 	lastSequence uint64
 
+	// As peers receive it: the server sets a client's name and numbers the
+	// revisions.
 	Appearance *pb.Appearance
-	NameIndex  uint32
-	Equipment  *pb.Equipment
+	// The newest revision the player itself sent.
+	sourceAppearanceRevision uint64
+	Equipment                *pb.Equipment
+}
+
+// Name is what peers call the player: a client's nickname, or a virtual
+// player's recorded name.
+func (p *Player) Name() string {
+	if p.Kind == KindClient {
+		return p.Nickname
+	}
+	return p.Appearance.GetName()
 }
 
 func (p *Player) Placed() bool {
@@ -149,13 +165,31 @@ func (p *Player) AcceptAction(a *pb.Action) error {
 	return nil
 }
 
-func (p *Player) SetAppearance(a *pb.Appearance, names *Names) error {
-	if p.Appearance != nil && a.GetRevision() <= p.Appearance.GetRevision() {
+// SetAppearance stores a newer appearance, changing it into what peers
+// receive. The server numbers the revisions, because a rename is one too.
+func (p *Player) SetAppearance(a *pb.Appearance) error {
+	if a.GetRevision() <= p.sourceAppearanceRevision {
 		return ErrStaleRevision
 	}
+	p.sourceAppearanceRevision = a.GetRevision()
+	a.Revision = p.Appearance.GetRevision() + 1
+	if p.Kind == KindClient {
+		a.Name = p.Nickname
+	}
 	p.Appearance = a
-	p.NameIndex = names.Set(p.Slot, a.GetName())
 	return nil
+}
+
+// Rename changes a client's nickname and reports whether it has an
+// appearance, which becomes a newer revision with the new name.
+func (p *Player) Rename(nickname string) bool {
+	p.Nickname = nickname
+	if p.Appearance == nil {
+		return false
+	}
+	p.Appearance.Name = nickname
+	p.Appearance.Revision++
+	return true
 }
 
 func (p *Player) SetEquipment(e *pb.Equipment) error {

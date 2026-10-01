@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"skyrim-mp/server/internal/admin"
+	"skyrim-mp/server/internal/auth"
 	"skyrim-mp/server/internal/config"
 	"skyrim-mp/server/internal/delivery"
 	"skyrim-mp/server/internal/hub"
@@ -64,9 +66,15 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 		}
 	}
 
+	identities, err := auth.Open(c.Sessions.Database, time.Duration(c.Sessions.LifetimeDays*24*float64(time.Hour)))
+	if err != nil {
+		return fmt.Errorf("cannot open the session database %q: %w", c.Sessions.Database, err)
+	}
+	defer identities.Close()
+
 	store := recording.NewStore(c.RecordingsDirectory, log)
 	captures := recording.NewCaptures(store, log, changed)
-	sessions := session.NewServer(nil, c, log)
+	sessions := session.NewServer(nil, identities, c, log)
 	var entersPerSecond float64
 	if c.Budget.Enabled {
 		sessions.UseBudget(delivery.NewBudget(c.Budget.UplinkBytesPerSecond, c.Budget.PerRecipientBytesPerSecond))
@@ -105,6 +113,7 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 	}
 	feed = admin.NewFeed(adminContext.State)
 	go feed.Run(loopContext)
+	go sessions.Maintain(loopContext)
 
 	mux := http.NewServeMux()
 	sessions.SetLoop(loop)
@@ -144,7 +153,7 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 	batches.CloseAll()
 	shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := server.Shutdown(shutdown)
+	err = server.Shutdown(shutdown)
 	if errors.Is(err, context.DeadlineExceeded) {
 		err = nil
 	}

@@ -156,7 +156,7 @@ func (c *Context) startRecording(w http.ResponseWriter, r *http.Request) {
 		c.Loop.Call(func(h *hub.Hub) {
 			if h.Player(uint32(slot)) != nil {
 				connected = true
-				name, _ = h.Name(uint32(slot))
+				name = h.Name(uint32(slot))
 				initial = h.InitialMessages(uint32(slot))
 			}
 		})

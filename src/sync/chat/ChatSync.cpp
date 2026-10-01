@@ -69,7 +69,7 @@ namespace ChatSync
         std::string FormatSender(const Multiplayer::ChatMessage& a_message)
         {
             const auto format = [](const Multiplayer::ChatSpeaker& a_speaker) {
-                return PlayerLabel::Format(a_speaker.name, a_speaker.nameIndex, a_speaker.level);
+                return PlayerLabel::Format(a_speaker.name, a_speaker.level);
             };
             if (a_message.channel != Multiplayer::ChatChannel::kWhisper)
             {

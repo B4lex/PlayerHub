@@ -13,9 +13,11 @@
   `Dawnguard.esm` records (type, slots, weapon type).
 - **Item filter and catalog:** built on Windows; the catalog and picker run in
   game ([UI overlay](ui-overlay.md#item-picker)).
-- **Player labels:** name index, level validation, and chat fields covered by
-  server unit tests; label rendering pending an in-game check. The nickname
-  from `[General] Nickname` is not yet built on Windows or run in game.
+- **Player labels:** level validation and chat fields covered by server unit
+  tests; label rendering pending an in-game check. The nickname, which comes
+  from the player's session ([Network](network.md#sessions)), is not yet built
+  on Windows or run in game, and `AppearanceSync.cpp` was not compiled after
+  the change.
 
 ## Scope
 
@@ -56,8 +58,8 @@ On the game thread, once per second:
 - `race`: the actor base race; if it is not playable, `originalRace` when that
   is playable, otherwise the capture is skipped (transformed). While
   transformed, peers keep the last playable appearance.
-- `name`: the [nickname](#nickname). `level`: `Actor::GetLevel`, so a level-up
-  publishes a new revision.
+- `level`: `Actor::GetLevel`, so a level-up publishes a new revision. `name` is
+  left empty: the server sets the [nickname](#nickname).
 - `defaultRace`: the configured `[DefaultOutfit]` race and sex when `race` is
   not from a base-game plugin, else unset.
 - `female`, `weight`, `height`, `headParts[0..numHeadParts)`, the hair color
@@ -125,8 +127,8 @@ kept. Each fallback is logged once per revision.
   previous respawn for that player. The respawn uses the new base and rebuilds
   locomotion, stance, and furniture from the played checkpoint. Coordinate-space
   respawns reuse the current base.
-- A change of only nickname, level, or name index rewrites the built base's full
-  name in place and adopts the revision without a new base or respawn.
+- A change of only nickname or level rewrites the built base's full name in
+  place and adopts the revision without a new base or respawn.
 - Once the respawned actor is ready with 3D, `Actor::UpdateHairColor` and
   `UpdateSkinColor` run once.
 - The face tint (AE only): `PrepareHeadPartForShaders` (ID 26838) gives a
@@ -146,28 +148,29 @@ A player is known to others by a nickname chosen in the settings,
 every character and save. The character's own name is not read or sent. There
 is no default: the player must enter a nickname before the plugin connects
 ([Network](network.md#connection)), so no peer is shown under a placeholder.
-Each capture copies the nickname from the configuration snapshot into `name`,
-so a change applied in the settings window is published like any other
-appearance change and relabels the actor without a respawn. A capture without
-a nickname is skipped, which covers the passes before the connection closes
-after one is cleared. The configuration only holds a nickname the server
-accepts, so capture does not alter it. Peers with the same nickname are told
-apart by the name index.
+
+The nickname belongs to the player's session, and no two sessions of a server
+share one ([Network](network.md#sessions)). The hello carries it, and the
+server writes the session's nickname into the `name` of the appearance it
+relays, whatever the client sent; the capture leaves `name` empty. A nickname
+applied in the settings window while connected renames the session
+([Network](network.md#connection)); the server then relays the appearance again
+under a new revision, which relabels the actor without a respawn. A replayed
+player keeps the name it was recorded with.
 
 ### Player label
 
-`PlayerLabel::Format` builds `Nickname #N • L lvl`, used for the actor base's
-name and for chat senders:
+`PlayerLabel::Format` builds `Nickname • L lvl`, used for the actor base's name
+and for chat senders:
 
 ```text
 Lydia • 12 lvl
-Lydia #2 • 101 lvl
+Lydia
 ```
 
-An empty name, as before a peer's appearance arrives, shows as `Unknown`. `#N`
-appears only for an index above 1, and
-the level only when known (non-zero). The bullet is U+2022, written as UTF-8
-bytes. The index comes from the server ([Network](network.md#name-index)).
+An empty name, as before a peer's appearance arrives, shows as `Unknown`, and
+the level appears only when known (non-zero). The bullet is U+2022, written as
+UTF-8 bytes.
 
 ## Equipment
 
@@ -406,12 +409,11 @@ To verify in game:
 6. Player-enchanted items appear as their unenchanted base item.
 7. Drawing right after spawn or a swap draws the synchronized weapon, and the
    next attack uses its animation.
-8. Two players with the same nickname show `Name` and `Name #2` over their
-   actors and in chat.
-9. A player's label shows the configured nickname whatever the character is
-   called, and a changed nickname applied in the settings window reaches peers
-   within a few seconds without reconnecting. Without a nickname the player
-   never appears to peers.
+8. A player's label shows the configured nickname whatever the character is
+   called, and whatever name its client put in the appearance. A changed
+   nickname applied in the settings window relabels the actor for peers without
+   reconnecting or respawning. Without a nickname the player never appears to
+   peers.
 
 ## Known limitations
 

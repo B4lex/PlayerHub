@@ -151,8 +151,7 @@ namespace Config
         {
             a_visitor.Section("General", "");
             a_visitor.String("Nickname", a_settings.nickname,
-                "Your name as other players see it, over your character and in chat. Required\n"
-                "to connect. Up to 128 bytes of UTF-8.",
+                "",
                 IsValidNickname);
         }
 
@@ -164,8 +163,7 @@ namespace Config
             a_visitor.Bool("AutoConnect", a_settings.autoConnect,
                 "");
             a_visitor.Unsigned("ViewRadius", a_settings.viewRadius,
-                "Game units within which other players are shown. The server caps it; 0 uses\n"
-                "the server's range. A smaller radius saves frame time and bandwidth. Applies\n"
+                "Game units within which other players are shown. Applies\n"
                 "on the next connection.",
                 100000);
         }

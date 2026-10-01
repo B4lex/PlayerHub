@@ -143,7 +143,11 @@ typedef struct _skyrimmp_v1_DefaultRace {
 } skyrimmp_v1_DefaultRace;
 
 typedef struct _skyrimmp_v1_Appearance {
+    /* A client's own counter. On a relayed copy, the server's: it also rises
+ when the server changes the name. */
     uint64_t revision;
+    /* Set by the server to the session's nickname; a client's value is ignored.
+ A replayed player keeps its recorded name. */
     char name[129];
     uint32_t level;
     bool has_race;

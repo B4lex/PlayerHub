@@ -12,7 +12,8 @@ game (reconnect, equipment re-resolution, spawn rate) is not yet checked.
 same two files were compiled against SimpleIni with stubs and checked for the
 default file's empty `Nickname`, loading it without a warning, saving and
 clearing a nickname, adding one to a file without the key, and rejecting
-overlong, control-character, and malformed UTF-8 values.
+overlong, control-character, and malformed UTF-8 values. `Config::GetDirectory`
+and the changed `Nickname` description were not compiled.
 
 ## Scope
 
@@ -63,7 +64,7 @@ takes the setting's item filter
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `Nickname` | The player's name as peers see it, in the player label over the actor and in chat ([Appearance and equipment](appearance-and-equipment.md#nickname)): at most 128 bytes of well-formed UTF-8 without control characters or surrounding whitespace. Empty means not set, and no connection is opened until it is ([Network](network.md#connection)) | empty |
+| `Nickname` | The player's name as peers see it, in the player label over the actor and in chat ([Appearance and equipment](appearance-and-equipment.md#nickname)): at most 128 bytes of well-formed UTF-8 without control characters or surrounding whitespace. Empty means not set, and no connection is opened until it is ([Network](network.md#connection)). It is the nickname of the player's session, so the server refuses one another player holds ([Network](network.md#sessions)) | empty |
 
 ### `[Network]`
 
@@ -145,10 +146,10 @@ revision before the snapshot never misses a change.
 | `ActorLifecycle` | main loop | reading `SpawnsPerSecond` once per pass in `RefillSpawnAllowance` |
 | `DefaultOutfit` | main loop | `Refresh`, first in `SyncCoordinator::OnFrame`, resolving every item again when `[DefaultOutfit]` differs |
 | `EquipmentSync` | main loop | the next capture selecting from the new outfit and publishing a new revision |
-| `AppearanceSync` | main loop | the next capture taking the new nickname, which publishes a new revision, and the new default race and sex, which do for a modded race |
+| `AppearanceSync` | main loop | the next capture taking the new default race and sex, which publish a new revision for a modded race |
 | `StatusPanel`, `ConnectionControls` | overlay | `Network::HasNickname`, which the monitor updates each pass |
-| `ConnectionMonitor` | main loop | reconnecting at once when the latest attempt went to another endpoint; opening the connection once `Nickname` is set and closing it when cleared; reading `AutoConnect` when a game starts |
-| `ServerClient` | transport, worker | reading the endpoint for each attempt |
+| `ConnectionMonitor` | main loop | reconnecting at once when the latest attempt went to another endpoint; opening the connection once `Nickname` is set and closing it when cleared; asking the server to rename the session when `Nickname` changes while connected, and reconnecting when it changes after the server refused the previous one; reading `AutoConnect` when a game starts |
+| `ServerClient` | transport, worker | reading the endpoint for each attempt and `Nickname` for each hello |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
 | `StatusPanel`, item pickers | overlay | reading `StatusPanel` and `ItemPreview` each frame |
 
@@ -164,6 +165,10 @@ revision before the snapshot never misses a change.
 - The text goes to `skyrim-mp.ini.tmp` and is renamed over the file, so a failed
   write never truncates it. A failed save is logged and reported in the window;
   the applied settings still last until restart.
+
+`Config::GetDirectory` is the directory of `skyrim-mp.ini`, for the plugin's
+other files: the session tokens are kept there in `skyrim-mp.session`, outside
+this file ([Network](network.md#session)).
 
 ## Acceptance criteria
 

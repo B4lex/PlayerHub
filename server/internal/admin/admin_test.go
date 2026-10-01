@@ -15,6 +15,7 @@ import (
 	"github.com/coder/websocket"
 	"google.golang.org/protobuf/proto"
 
+	"skyrim-mp/server/internal/auth"
 	"skyrim-mp/server/internal/config"
 	"skyrim-mp/server/internal/hub"
 	"skyrim-mp/server/internal/loadtest"
@@ -42,7 +43,11 @@ func startStack(t *testing.T) *stack {
 	c := &Context{Loop: loop, Store: store, Captures: captures, Playbacks: playbacks, Batches: batches,
 		StartedAt: time.Now(), OnChange: func() {}}
 	mux := http.NewServeMux()
-	mux.Handle("GET /ws", session.NewServer(loop, config.Default(), log))
+	identities, err := auth.Open("", 30*24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux.Handle("GET /ws", session.NewServer(loop, identities, config.Default(), log))
 	c.Routes(mux)
 	server := httptest.NewServer(mux)
 	t.Cleanup(func() {
@@ -52,6 +57,7 @@ func startStack(t *testing.T) *stack {
 		server.CloseClientConnections()
 		server.Close()
 		cancel()
+		identities.Close()
 	})
 	return &stack{t: t, server: server}
 }
@@ -81,7 +87,7 @@ type player struct {
 	slot uint32
 }
 
-func (s *stack) join() *player {
+func (s *stack) join(nickname string) *player {
 	s.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -91,7 +97,8 @@ func (s *stack) join() *player {
 	}
 	s.t.Cleanup(func() { conn.CloseNow() })
 	p := &player{t: s.t, conn: conn}
-	p.send(&pb.ClientMessage{Message: &pb.ClientMessage_Hello{Hello: &pb.Hello{ProtocolVersion: uint32(pb.Protocol_PROTOCOL_VERSION)}}})
+	p.send(&pb.ClientMessage{Message: &pb.ClientMessage_Hello{Hello: &pb.Hello{
+		ProtocolVersion: uint32(pb.Protocol_PROTOCOL_VERSION), Nickname: nickname}}})
 	p.slot = p.receive().GetWelcome().GetSlot()
 	return p
 }
@@ -129,13 +136,13 @@ func (p *player) until(match func(*pb.ServerMessage) bool) *pb.ServerMessage {
 
 func TestCaptureAndReplay(t *testing.T) {
 	s := startStack(t)
-	a := s.join()
-	b := s.join()
+	a := s.join("Lydia")
+	b := s.join("Serana")
 	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})
 	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 1}}})
 	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 1}}})
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Appearance{Appearance: &pb.Appearance{
-		Revision: 1, Name: "Lydia", Race: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 1}, Weight: 50, Height: 1,
+		Revision: 1, Race: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 1}, Weight: 50, Height: 1,
 		BodyTint: &pb.Color{}, FaceMorphs: make([]float32, 19), FaceParts: make([]int32, 4)}}})
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 3}}})
@@ -144,7 +151,7 @@ func TestCaptureAndReplay(t *testing.T) {
 
 	var state State
 	s.call("GET", "/api/state", nil, &state)
-	if len(state.Players) != 2 || state.Players[0].Name == "" && state.Players[1].Name == "" {
+	if len(state.Players) != 2 || state.Players[0].Name == "" || state.Players[1].Name == "" {
 		t.Fatalf("players: %+v", state.Players)
 	}
 
@@ -176,7 +183,7 @@ func TestCaptureAndReplay(t *testing.T) {
 	enter := b.until(func(m *pb.ServerMessage) bool {
 		return m.GetPeerEnter() != nil && m.GetPeerEnter().Slot != a.slot
 	}).GetPeerEnter()
-	if enter.Appearance.GetName() != "Lydia" || enter.NameIndex != 2 || enter.State.GetX() != 5 || enter.Context.GetWorldspaceId() != 60 {
+	if enter.Appearance.GetName() != "Lydia" || enter.State.GetX() != 5 || enter.Context.GetWorldspaceId() != 60 {
 		t.Fatalf("replayed peer: %v", enter)
 	}
 	if status := s.call("DELETE", "/api/playbacks/"+replay.ID, nil, nil); status != 204 {
@@ -229,7 +236,7 @@ func (p *player) place(x int32) {
 
 func TestHideAndExclude(t *testing.T) {
 	s := startStack(t)
-	a, b := s.join(), s.join()
+	a, b := s.join("Lydia"), s.join("Serana")
 	a.place(0)
 	b.place(10)
 	b.until(func(m *pb.ServerMessage) bool { return m.GetPeerEnter() != nil })

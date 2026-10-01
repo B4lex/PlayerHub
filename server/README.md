@@ -65,7 +65,15 @@ enters_per_second = 20      # new peers per client and second, nearest first
 
 [chat]
 local_radius = 8192         # game units, horizontal; an interior is heard whole
+
+[sessions]
+database = "sessions.db"    # SQLite file of player sessions; "" keeps them in memory
+lifetime_days = 30          # a session unused for this long is gone, with its nickname
 ```
+
+Players are identified by sessions (`../specs/network.md`, Sessions). The
+session database is created on first start, with its write-ahead log next to
+it. Deleting it gives every player a new session and frees every nickname.
 
 For a homelab with a 50 Mbit/s upload, see `homelab.toml`: the budget on and
 32 visible peers, which keeps the nearest peers' p99 under 60 ms with 250
@@ -85,7 +93,8 @@ go run ./cmd/loadgen --bots 250 --server-pid <pid>
 go run ./cmd/convert-recordings recordings
 ```
 
-- `cmd/loadgen` connects bots as real WebSocket clients, walking in a square
+- `cmd/loadgen` connects bots as real WebSocket clients, each with a new
+  session named after the run, walking in a square
   (`--spread`, `--speed`, `--idle` for a share standing still, `--view-radius`)
   or replaying a recording (`--recording`). Each bot
   sends its send time in microseconds as the checkpoint sequence, so receivers
@@ -103,11 +112,12 @@ go run ./cmd/convert-recordings recordings
 | --- | --- |
 | `cmd/server` | Entry point and wiring |
 | `internal/config` | TOML configuration and defaults |
-| `internal/session` | WebSocket accept, hello, reader, writer, liveness, limits |
+| `internal/session` | WebSocket accept, hello and session authentication, reader, writer, liveness, limits |
+| `internal/auth` | Session store: tokens, unique nicknames, expiry |
 | `internal/validate` | Field validation of client messages |
 | `internal/hub` | The one goroutine that owns world state, subscriptions, and delivery order |
 | `internal/interest` | Interest rules, exclusions, spatial grid |
-| `internal/world` | Player state and ordering rules, name indexes |
+| `internal/world` | Player state and ordering rules, nickname lookup |
 | `internal/delivery` | Per-recipient outboxes and batch writing |
 | `internal/wire` | Hand-written encoding of hot messages, quantization, generated `pb` |
 | `internal/recording` | Format version 3, store, captures, v2 converter, timeline markers |
@@ -153,7 +163,8 @@ On the remote player's machine, set the server's reachable URL in
 ServerEndpoint = http://192.168.1.20:3000
 ```
 
-Allow inbound TCP port 3000 through the server machine's firewall. There is
-no authentication, so do not expose the port to the public Internet. For a
+Allow inbound TCP port 3000 through the server machine's firewall. Sessions
+identify players, but the admin API and panel on the same port have no
+authentication, so do not expose the port to the public Internet. For a
 remote server, terminate TLS in a reverse proxy and use an `https://`
 endpoint; the plugin connects with `wss://`.

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "network/Refusal.h"
+
 #include <chrono>
 #include <optional>
 #include <string>
@@ -21,7 +23,8 @@ namespace Network
     // the game is paused. A connection is wanted only in a game
     // (GameSession), while the player's choice enables it, and once
     // [General] Nickname is set. While one is wanted and open, the monitor
-    // probes the server and abandons a connection whose probe goes unanswered;
+    // probes the server and abandons a connection whose probe goes unanswered,
+    // and asks the server to rename the session when the nickname changes;
     // while one is wanted but lost, for any reason, it keeps reopening it.
     // Otherwise it closes the client.
     void UpdateConnectionMonitor(float a_deltaSeconds);
@@ -42,9 +45,15 @@ namespace Network
     [[nodiscard]] ConnectionState GetConnectionState();
 
     // Why the server refused this client, while a connection is wanted but will
-    // not be retried: another protocol version. Empty otherwise. Safe to call
-    // from any thread.
-    [[nodiscard]] std::optional<std::string> GetConnectionRefusal();
+    // not be retried. A refused nickname is retried once another one is applied.
+    // Empty otherwise. Safe to call from any thread.
+    [[nodiscard]] std::optional<Refusal> GetConnectionRefusal();
+
+    // Why the server did not rename the session to [General] Nickname while
+    // connected, as a sentence for the player; peers still see the previous
+    // nickname. Empty once a rename succeeds or the connection ends. Safe to
+    // call from any thread.
+    [[nodiscard]] std::optional<std::string> GetNicknameRejection();
 
     // Round trip of the latest acknowledged probe. Empty while disconnected or
     // before the first acknowledgement of this connection. Safe to call from any

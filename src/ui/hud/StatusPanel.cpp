@@ -100,11 +100,7 @@ namespace UI
             return;
         }
 
-        if (Network::GetConnectionRefusal())
-        {
-            ImGui::TextColored(kPoorColor, "Server version differs");
-        }
-        else if (!Network::HasNickname())
+        if (!Network::HasNickname())
         {
             const auto key = Config::FormatKey(Config::Get()->ui.settingsKey);
             ImGui::TextColored(kPoorColor, "Set a nickname (%.*s)", static_cast<int>(key.size()), key.data());

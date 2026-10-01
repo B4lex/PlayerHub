@@ -26,6 +26,11 @@ namespace UI
         // window focused, gives this window focus. The game never sees that press.
         [[nodiscard]] virtual bool IsFocusKey(std::uint32_t) const { return false; }
 
+        // Whether pressing the scan code while this window holds focus releases
+        // it. Neither the window nor the game sees that press. A key that edits
+        // text goes to an active text field instead.
+        [[nodiscard]] virtual bool IsReleaseKey(std::uint32_t) const { return false; }
+
         // Whether Dear ImGui receives the mouse, with a drawn cursor, while this
         // window holds focus. Otherwise the window is keyboard-only.
         [[nodiscard]] virtual bool UsesMouse() const { return false; }

@@ -9,7 +9,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | Spec | System | Sources |
 | --- | --- | --- |
 | [sync-pipeline.md](sync-pipeline.md) | Main-loop pass, game thread, peer receive state, checkpoint publishing and playout, world presence, actor lifecycle | `src/runtime/`, `src/sync/` (top level, `presence/`) |
-| [network.md](network.md) | Wire protocol, client transport and connection, server sessions and validation | `proto/`, `src/protocol/`, `src/network/`, `server/internal/{session,validate,wire,world}` |
+| [network.md](network.md) | Wire protocol, client transport and connection, server connections, player sessions, and validation | `proto/`, `src/protocol/`, `src/network/`, `server/internal/{session,auth,validate,wire,world}` |
 | [interest-and-delivery.md](interest-and-delivery.md) | Which peers each client receives, exclusions, per-recipient outboxes, ordering, batching | `server/internal/{interest,hub,delivery}` |
 | [remote-actor.md](remote-actor.md) | Spawn, update order, registry, animation firewall, graph recovery, survival, combat and reaction isolation, world isolation | `src/actor/` |
 | [locomotion.md](locomotion.md) | Transform, movement state, direction, turning, jumps, swimming | `sync/movement/`, `sync/animation/`, `actor/ActorMovement`, `actor/ActorAnimation` |
@@ -33,7 +33,8 @@ criteria.
 | Weapon stance and attacks | [combat-presentation](combat-presentation.md), [network](network.md#actions) |
 | Bow draws and spell casts | [combat-presentation](combat-presentation.md#hand-presentation), [appearance-and-equipment](appearance-and-equipment.md#equipment) |
 | Blocking, bashes, power attacks | [combat-presentation](combat-presentation.md) |
-| Appearance, nicknames, and player labels | [appearance-and-equipment](appearance-and-equipment.md#appearance), [network](network.md#name-index), [configuration](configuration.md#general) |
+| Appearance and player labels | [appearance-and-equipment](appearance-and-equipment.md#appearance), [network](network.md#appearance-and-equipment) |
+| Sessions and nicknames | [network](network.md#sessions), [appearance-and-equipment](appearance-and-equipment.md#nickname), [configuration](configuration.md#general), [ui-overlay](ui-overlay.md#status-panel) |
 | Equipment and default outfit | [appearance-and-equipment](appearance-and-equipment.md#equipment), [network](network.md#playerequipment), [configuration](configuration.md#defaultoutfit) |
 | Furniture | [native-interactions](native-interactions.md#furniture), [remote-actor](remote-actor.md#placement-ownership) |
 | Mounts | [native-interactions](native-interactions.md#mounts), [sync-pipeline](sync-pipeline.md#actor-lifecycle) |
