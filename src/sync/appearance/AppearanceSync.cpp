@@ -1,4 +1,5 @@
 #include "sync/appearance/AppearanceSync.h"
+#include "config/PluginConfig.h"
 #include "forms/FormLookup.h"
 #include "network/ServerClient.h"
 #include "runtime/Profiling.h"
@@ -188,33 +189,6 @@ namespace AppearanceSync
             return masks;
         }
 
-        // Removes control characters and cuts an overlong name at a UTF-8 code point
-        // boundary, so an unusual name set by a mod still synchronizes.
-        std::string SanitizeName(std::string_view a_name)
-        {
-            std::string name;
-            for (const auto character : a_name)
-            {
-                const auto byte = static_cast<unsigned char>(character);
-                if (byte >= 0x20 && byte != 0x7F)
-                {
-                    name.push_back(character);
-                }
-            }
-            if (name.size() > AppearanceData::kMaximumNameLength)
-            {
-                auto length = AppearanceData::kMaximumNameLength;
-                // Back up over continuation bytes (10xxxxxx) to the start of the cut
-                // code point.
-                while (length > 0 && (static_cast<unsigned char>(name[length]) & 0xC0) == 0x80)
-                {
-                    --length;
-                }
-                name.resize(length);
-            }
-            return name;
-        }
-
         // Logs a capture failure only when its reason changes, so a persistent
         // failure does not flood the log once per second.
         void LogCaptureFailure(std::string_view a_reason)
@@ -234,6 +208,14 @@ namespace AppearanceSync
             if (!base)
             {
                 LogCaptureFailure("player has no actor base");
+                return std::nullopt;
+            }
+            // The connection closes without a nickname, a pass or more after it is
+            // cleared.
+            auto nickname = Config::Get()->general.nickname;
+            if (nickname.empty())
+            {
+                LogCaptureFailure("no nickname is set");
                 return std::nullopt;
             }
 
@@ -257,8 +239,7 @@ namespace AppearanceSync
                 return std::nullopt;
             }
 
-            const auto* fullName = base->GetFullName();
-            AppearanceData appearance{ .name = SanitizeName(fullName ? fullName : ""),
+            AppearanceData appearance{ .name = std::move(nickname),
                 .level = a_player.GetLevel(),
                 .race = *raceReference,
                 .female = base->IsFemale(),

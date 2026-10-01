@@ -19,7 +19,9 @@
   connection through a Cloudflare tunnel to the Go server were verified in
   game under wine; other in-game behavior is not verified.
 - Not verified in game: the connection policy and recovery
-  ([Connection](#connection)), and whether quantization shows as jitter.
+  ([Connection](#connection)), and whether quantization shows as jitter. The
+  nickname requirement is not built on Windows either; `ConnectionMonitor.cpp`
+  only passed a Linux syntax check with stubbed headers.
 
 ## Scope
 
@@ -193,7 +195,7 @@ match. Plugin names are 1..260 bytes and `form_id` is `0..0xFFFFFF`. Dynamic
 
 | Field | Validation |
 | --- | --- |
-| `name` | at most 128 UTF-8 bytes, no control characters (below U+0020, U+007F); empty allowed |
+| `name` | the player's [nickname](appearance-and-equipment.md#nickname): at most 128 UTF-8 bytes, no control characters (below U+0020, U+007F); empty allowed, though the client never publishes one |
 | `level` | `0..65535`, `0` unknown |
 | `race` | required form reference |
 | `female` | boolean |
@@ -342,8 +344,10 @@ the server's `PeerEnter` messages.
 
 ### Connection
 
-A connection is wanted only in a game, and while the player's choice enables
-it. `ConnectionMonitor` owns that decision; nothing else opens or closes the
+A connection is wanted only in a game, while the player's choice enables it,
+and once `[General] Nickname` is set
+([Appearance and equipment](appearance-and-equipment.md#nickname)).
+`ConnectionMonitor` owns that decision; nothing else opens or closes the
 client.
 
 - At `kDataLoaded`, `Network::Initialize` only initializes the socket library;
@@ -354,6 +358,11 @@ client.
 - At a game start the choice becomes `[Network] AutoConnect` (default `true`).
   The settings window's Connect and Disconnect buttons change it with
   `Network::SetConnectionEnabled` until the game ends.
+- The monitor reads the nickname when the configuration revision changes and
+  publishes `Network::HasNickname` for the UI. With the choice enabled, applying
+  a first nickname opens the connection at once, and applying an empty one
+  closes it like Disconnect. The requirement is the client's: the server still
+  accepts an empty `Appearance.name`.
 - Opening skips the reconnect delay and resets the attempt count. Closing
   (`BeginClose`) marks the client disconnected at once, forgetting every remote
   player, and stops the socket on a worker, which joins the socket's thread. It
@@ -424,6 +433,8 @@ window, and are empty after a long gap. The status panel shows them.
    does not retry until Connect or an endpoint change.
 4. A paused game (menu open) stays connected for minutes.
 5. Quantization shows no visible jitter in position or heading.
+6. A client without a nickname opens no connection, whatever `AutoConnect` and
+   Connect say; applying one connects, and applying an empty one disconnects.
 
 ## Known limitations
 

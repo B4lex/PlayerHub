@@ -7,7 +7,9 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <optional>
 #include <random>
+#include <string_view>
 #include <utility>
 
 namespace Network
@@ -48,6 +50,7 @@ namespace Network
         std::atomic_int64_t latencyMilliseconds{ kNoLatency };
         std::atomic_uint64_t outstandingProbeID{ 0 };
         std::atomic_bool connectionEnabled{ false };
+        std::atomic_bool nicknameSet{ false };
 
         // Main-loop thread only.
         Phase phase = Phase::kIdle;
@@ -58,6 +61,7 @@ namespace Network
         std::uint64_t probeConnectionGeneration = 0;
         float secondsSinceProbe = kProbeIntervalSeconds;
         std::uint64_t observedConfigRevision = 0;
+        std::optional<std::uint64_t> nicknameConfigRevision;
         bool endpointChangePending = false;
         bool observedInGame = false;
 
@@ -185,6 +189,21 @@ namespace Network
             return true;
         }
 
+        void FollowNickname()
+        {
+            const auto revision = Config::GetRevision();
+            if (nicknameConfigRevision == revision)
+            {
+                return;
+            }
+            nicknameConfigRevision = revision;
+            const bool set = !Config::Get()->general.nickname.empty();
+            if (nicknameSet.exchange(set, std::memory_order_acq_rel) != set)
+            {
+                logs::info("Nickname {}", set ? "set" : "cleared; not connecting without one");
+            }
+        }
+
         // Each game starts from [Network] AutoConnect.
         void FollowGameStart(bool a_inGame)
         {
@@ -194,11 +213,22 @@ namespace Network
             }
             const bool autoConnect = Config::Get()->network.autoConnect;
             connectionEnabled.store(autoConnect, std::memory_order_release);
-            logs::info(
-                "Game started; {}", autoConnect ? "connecting automatically" : "waiting for the player to connect");
+            const auto* next = "waiting for the player to connect";
+            if (autoConnect)
+            {
+                next = nicknameSet.load(std::memory_order_acquire) ? "connecting automatically"
+                                                                   : "waiting for a nickname before connecting";
+            }
+            logs::info("Game started; {}", next);
         }
 
-        void Close()
+        bool IsConnectionWanted()
+        {
+            return GameSession::IsInGame() && connectionEnabled.load(std::memory_order_acquire)
+                && nicknameSet.load(std::memory_order_acquire);
+        }
+
+        void Close(std::string_view a_reason)
         {
             if (phase == Phase::kIdle)
             {
@@ -206,8 +236,7 @@ namespace Network
             }
             if (phase != Phase::kClosing)
             {
-                logs::info("Closing the server connection: reason={}",
-                    connectionEnabled.load(std::memory_order_acquire) ? "left the game" : "player disconnected");
+                logs::info("Closing the server connection: reason={}", a_reason);
                 ForgetLatency();
                 EnterPhase(Phase::kClosing);
             }
@@ -278,10 +307,21 @@ namespace Network
         PROFILE_FUNCTION();
         const auto deltaSeconds = std::clamp(a_deltaSeconds, 0.0F, kMaximumFrameTime);
         const bool inGame = GameSession::IsInGame();
+        FollowNickname();
         FollowGameStart(inGame);
-        if (!inGame || !connectionEnabled.load(std::memory_order_acquire))
+        if (!inGame)
         {
-            Close();
+            Close("left the game");
+            return;
+        }
+        if (!connectionEnabled.load(std::memory_order_acquire))
+        {
+            Close("player disconnected");
+            return;
+        }
+        if (!nicknameSet.load(std::memory_order_acquire))
+        {
+            Close("no nickname is set");
             return;
         }
         if (phase == Phase::kIdle || phase == Phase::kClosing)
@@ -311,9 +351,14 @@ namespace Network
         }
     }
 
+    bool HasNickname()
+    {
+        return nicknameSet.load(std::memory_order_acquire);
+    }
+
     ConnectionState GetConnectionState()
     {
-        if (!GameSession::IsInGame() || !connectionEnabled.load(std::memory_order_acquire))
+        if (!IsConnectionWanted())
         {
             return IsConnected() || IsTransportOpen() ? ConnectionState::kDisconnecting
                                                       : ConnectionState::kDisconnected;
@@ -323,7 +368,7 @@ namespace Network
 
     std::optional<std::string> GetConnectionRefusal()
     {
-        if (!GameSession::IsInGame() || !connectionEnabled.load(std::memory_order_acquire))
+        if (!IsConnectionWanted())
         {
             return std::nullopt;
         }

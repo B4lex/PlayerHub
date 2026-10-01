@@ -1,4 +1,5 @@
 #include "config/SettingsSchema.h"
+#include "protocol/AppearanceState.h"
 
 #include <algorithm>
 #include <array>
@@ -76,6 +77,83 @@ namespace Config
         {
             return (a_value.starts_with("http://") || a_value.starts_with("https://"))
                 && a_value.find_first_of(kWhitespace) == std::string_view::npos;
+        }
+
+        // As the server requires of a name: no overlong forms, surrogates, or code
+        // points past U+10FFFF. The file is read as bytes, so it may hold anything.
+        bool IsValidUtf8(std::string_view a_text)
+        {
+            for (std::size_t index = 0; index < a_text.size();)
+            {
+                const auto lead = static_cast<unsigned char>(a_text[index]);
+                if (lead < 0x80)
+                {
+                    ++index;
+                    continue;
+                }
+
+                std::size_t length = 0;
+                std::uint32_t minimum = 0;
+                std::uint32_t codePoint = 0;
+                if ((lead & 0xE0) == 0xC0)
+                {
+                    length = 2;
+                    minimum = 0x80;
+                    codePoint = lead & 0x1F;
+                }
+                else if ((lead & 0xF0) == 0xE0)
+                {
+                    length = 3;
+                    minimum = 0x800;
+                    codePoint = lead & 0x0F;
+                }
+                else if ((lead & 0xF8) == 0xF0)
+                {
+                    length = 4;
+                    minimum = 0x10000;
+                    codePoint = lead & 0x07;
+                }
+                else
+                {
+                    return false;
+                }
+                if (a_text.size() - index < length)
+                {
+                    return false;
+                }
+                for (std::size_t offset = 1; offset < length; ++offset)
+                {
+                    const auto byte = static_cast<unsigned char>(a_text[index + offset]);
+                    if ((byte & 0xC0) != 0x80)
+                    {
+                        return false;
+                    }
+                    codePoint = (codePoint << 6) | (byte & 0x3F);
+                }
+                if (codePoint < minimum || codePoint > 0x10FFFF || (codePoint >= 0xD800 && codePoint <= 0xDFFF))
+                {
+                    return false;
+                }
+                index += length;
+            }
+            return true;
+        }
+
+        // Empty for not set yet, or a name the server accepts and a whisper can
+        // address, so without surrounding whitespace.
+        bool IsValidNickname(std::string_view a_value)
+        {
+            return Trim(a_value).size() == a_value.size() && Multiplayer::IsValidAppearanceName(a_value)
+                && IsValidUtf8(a_value);
+        }
+
+        void DescribeGeneral(GeneralSettings& a_settings, SettingsVisitor& a_visitor)
+        {
+            a_visitor.Section("General", "");
+            a_visitor.String("Nickname", a_settings.nickname,
+                "Your name as other players see it, over your character and in chat. Required\n"
+                "to connect. Up to 128 bytes of UTF-8.",
+                IsValidNickname);
         }
 
         void DescribeNetwork(NetworkSettings& a_settings, SettingsVisitor& a_visitor)
@@ -188,6 +266,7 @@ namespace Config
 
     void Describe(PluginConfig& a_config, SettingsVisitor& a_visitor)
     {
+        DescribeGeneral(a_config.general, a_visitor);
         DescribeNetwork(a_config.network, a_visitor);
         DescribeDefaultOutfit(a_config.defaultOutfit, a_visitor);
         DescribePerformance(a_config.performance, a_visitor);

@@ -8,6 +8,11 @@ with stubbed SKSE headers and checked for default-file generation, overrides,
 invalid values, unknown keys, and saving: comments and unknown keys are kept,
 and a missing file is recreated from the commented default. Applying changes in
 game (reconnect, equipment re-resolution, spawn rate) is not yet checked.
+`[General] Nickname` is not yet built on Windows or run in game. On Linux the
+same two files were compiled against SimpleIni with stubs and checked for the
+default file's empty `Nickname`, loading it without a warning, saving and
+clearing a nickname, adding one to a file without the key, and rejecting
+overlong, control-character, and malformed UTF-8 values.
 
 ## Scope
 
@@ -53,6 +58,12 @@ takes the setting's item filter
 ([Appearance and equipment](appearance-and-equipment.md#item-filter-and-catalog)).
 
 ## Settings
+
+### `[General]`
+
+| Key | Meaning | Default |
+| --- | --- | --- |
+| `Nickname` | The player's name as peers see it, in the player label over the actor and in chat ([Appearance and equipment](appearance-and-equipment.md#nickname)): at most 128 bytes of well-formed UTF-8 without control characters or surrounding whitespace. Empty means not set, and no connection is opened until it is ([Network](network.md#connection)) | empty |
 
 ### `[Network]`
 
@@ -134,8 +145,9 @@ revision before the snapshot never misses a change.
 | `ActorLifecycle` | main loop | reading `SpawnsPerSecond` once per pass in `RefillSpawnAllowance` |
 | `DefaultOutfit` | main loop | `Refresh`, first in `SyncCoordinator::OnFrame`, resolving every item again when `[DefaultOutfit]` differs |
 | `EquipmentSync` | main loop | the next capture selecting from the new outfit and publishing a new revision |
-| `AppearanceSync` | main loop | the next capture taking the new default race and sex, which for a modded race publishes a new revision |
-| `ConnectionMonitor` | main loop | reconnecting at once when the latest attempt went to another endpoint; reading `AutoConnect` when a game starts |
+| `AppearanceSync` | main loop | the next capture taking the new nickname, which publishes a new revision, and the new default race and sex, which do for a modded race |
+| `StatusPanel`, `ConnectionControls` | overlay | `Network::HasNickname`, which the monitor updates each pass |
+| `ConnectionMonitor` | main loop | reconnecting at once when the latest attempt went to another endpoint; opening the connection once `Nickname` is set and closing it when cleared; reading `AutoConnect` when a game starts |
 | `ServerClient` | transport, worker | reading the endpoint for each attempt |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
 | `StatusPanel`, item pickers | overlay | reading `StatusPanel` and `ItemPreview` each frame |
@@ -160,8 +172,9 @@ revision before the snapshot never misses a change.
 2. Invalid values, unknown keys, and configured forms that do not resolve or are
    not base-game items are logged and fall back to their defaults, or to no piece
    when the default is unusable too.
-3. `[Network] ServerEndpoint` sets the server URL.
-   `[Performance] SpawnsPerSecond` bounds spawns, so many players arriving at once do not spawn
-   in one frame.
+3. `[Network] ServerEndpoint` sets the server URL and `[General] Nickname` the
+   name peers see; the default file has an empty `Nickname`, and the plugin
+   stays disconnected until one is entered. `[Performance] SpawnsPerSecond` bounds
+   spawns, so many players arriving at once do not spawn in one frame.
 4. Applying changes takes effect without a restart, and the file keeps
    hand-written comments.

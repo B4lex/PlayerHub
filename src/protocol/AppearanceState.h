@@ -9,6 +9,7 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Multiplayer
@@ -74,6 +75,7 @@ namespace Multiplayer
         static constexpr float kMinimumHeight = 0.25F;
         static constexpr float kMaximumHeight = 4.0F;
 
+        // The player's nickname, from [General] Nickname.
         std::string name;
         std::uint16_t level{ 0 };
         AppearanceFormReference race;
@@ -113,7 +115,7 @@ namespace Multiplayer
 
     // Control characters are rejected, and so are overlong names. Multibyte UTF-8
     // sequences are passed through unchanged.
-    [[nodiscard]] inline bool IsValidAppearanceName(const std::string& a_name)
+    [[nodiscard]] inline bool IsValidAppearanceName(std::string_view a_name)
     {
         if (a_name.size() > PlayerAppearance::kMaximumNameLength)
         {

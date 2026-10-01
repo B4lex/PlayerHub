@@ -33,7 +33,7 @@ criteria.
 | Weapon stance and attacks | [combat-presentation](combat-presentation.md), [network](network.md#actions) |
 | Bow draws and spell casts | [combat-presentation](combat-presentation.md#hand-presentation), [appearance-and-equipment](appearance-and-equipment.md#equipment) |
 | Blocking, bashes, power attacks | [combat-presentation](combat-presentation.md) |
-| Appearance and player labels | [appearance-and-equipment](appearance-and-equipment.md#appearance), [network](network.md#name-index) |
+| Appearance, nicknames, and player labels | [appearance-and-equipment](appearance-and-equipment.md#appearance), [network](network.md#name-index), [configuration](configuration.md#general) |
 | Equipment and default outfit | [appearance-and-equipment](appearance-and-equipment.md#equipment), [network](network.md#playerequipment), [configuration](configuration.md#defaultoutfit) |
 | Furniture | [native-interactions](native-interactions.md#furniture), [remote-actor](remote-actor.md#placement-ownership) |
 | Mounts | [native-interactions](native-interactions.md#mounts), [sync-pipeline](sync-pipeline.md#actor-lifecycle) |

@@ -1,5 +1,6 @@
 #include "ui/hud/StatusPanel.h"
 #include "config/PluginConfig.h"
+#include "config/SettingsSchema.h"
 #include "network/ConnectionMonitor.h"
 #include "network/ServerClient.h"
 #include "network/TrafficMeter.h"
@@ -102,6 +103,11 @@ namespace UI
         if (Network::GetConnectionRefusal())
         {
             ImGui::TextColored(kPoorColor, "Server version differs");
+        }
+        else if (!Network::HasNickname())
+        {
+            const auto key = Config::FormatKey(Config::Get()->ui.settingsKey);
+            ImGui::TextColored(kPoorColor, "Set a nickname (%.*s)", static_cast<int>(key.size()), key.data());
         }
         else if (!Network::IsConnected())
         {

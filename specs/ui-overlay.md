@@ -7,7 +7,10 @@
   context order were checked against the 1.7.104 executable and address
   library. SE 1.5.97 uses the same IDs and offsets as other public ImGui
   overlays but was not checked here. Skyrim VR is not supported: the hooks are
-  not installed and a warning is logged.
+  not installed and a warning is logged. The nickname requirement's status
+  panel line and disabled Connect are not built on Windows or run in game;
+  `StatusPanel.cpp` and `ConnectionControls.cpp` passed a Linux syntax check
+  against Dear ImGui 1.92.9.
 - **Chat:** implemented; the in-game check is pending. Channels: server unit
   tests cover routing and whisper addressing; on Linux, `ChatSync.cpp` and
   `WireCodec.cpp` ran headless against stubbed transport functions, decoding
@@ -172,6 +175,7 @@ on the next frame.
 | State | Text | Color |
 | --- | --- | --- |
 | Refused by the server (protocol mismatch) | `Server version differs` | red |
+| No nickname set | `Set a nickname (F10)`, with the current `SettingsKey` | red |
 | Not connected | `Disconnected` | red |
 | Connected, no sample yet or timed out | `Ping -- ms` | grey |
 | ≤ 80 ms / ≤ 150 ms / > 150 ms | `Ping N ms` | green / yellow / red |
@@ -205,7 +209,7 @@ channels other than by prefix, replying to the last whisper.
 | --- | --- | --- |
 | `!text` | global | every connected player |
 | `text` | local | placed players within `chat.local_radius` (8192) in the same worldspace, or in the same interior |
-| `@Name text`, `@Name #2 text` | whisper | one player, by name and optional index |
+| `@Name text`, `@Name #2 text` | whisper | one player, by nickname and optional index |
 
 - `ChatSync::SendLocalMessage` trims the line, takes the channel from its first
   character, drops the prefix, and trims again. An empty line sends nothing,
@@ -251,8 +255,10 @@ peers keep seeing the player.
   taking input also closes it.
 - Every opening starts from the live configuration; closing discards unapplied
   edits.
-- Centered, 44 × 32 font sizes, one tab per file section. Only a tab's content
-  scrolls; the buttons stay below it. It uses the mouse.
+- Centered, 44 × 32 font sizes, one tab per file section in schema order:
+  General, which opens first and holds `Nickname`, then Network, Default Outfit,
+  Performance, and UI. Only a tab's content scrolls; the buttons stay below it.
+  It uses the mouse.
 - Widgets come from the same `Config::Describe` visitor that reads and writes the
   file, so a new setting appears without UI code: a checkbox for a bool, a
   clamped number field for an unsigned value, a text field for a string, an item
@@ -264,8 +270,9 @@ peers keep seeing the player.
   Defaults to the built-in defaults, without applying. The footer reports
   unapplied changes, a successful save, or a failed one.
 
-`ConnectionControls` ends the `ServerEndpoint` row: an indicator circle, green
-while connected and red otherwise, whose tooltip shows `Connected, ping N ms`
+`ConnectionControls` ends the Network tab's `ServerEndpoint` row: an indicator
+circle, green while connected and red otherwise, whose tooltip shows
+`Connected, ping N ms`
 (`Connected` before a sample), `Connecting...` (or the server's refusal while
 it refuses this client's protocol version), `Disconnecting...`, or
 `Disconnected`; and a button that follows `Network::GetConnectionState`, so its
@@ -278,6 +285,12 @@ identity when the label changes:
 | Connecting | `Cancel` | stops wanting a connection |
 | Disconnecting | `Disconnecting...`, disabled | — |
 | Disconnected | `Connect` | wants a connection again |
+
+Without an applied nickname, set on the General tab, `Connect` is disabled,
+with the tooltip `Enter a nickname and apply it to connect.`, and the
+indicator's tooltip reads `Disconnected: no nickname is set`. If the player's
+choice already wants a connection, as after `AutoConnect`, applying a nickname
+connects without a press.
 
 Not wanting a connection closes it and removes every remote player until
 Connect. The button acts on the live endpoint; an edited endpoint must be applied

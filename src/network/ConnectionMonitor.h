@@ -19,7 +19,8 @@ namespace Network
 
     // Main-loop thread, once per pass with the frame delta, which is zero while
     // the game is paused. A connection is wanted only in a game
-    // (GameSession) and while the player's choice enables it. While one is wanted and open, the monitor
+    // (GameSession), while the player's choice enables it, and once
+    // [General] Nickname is set. While one is wanted and open, the monitor
     // probes the server and abandons a connection whose probe goes unanswered;
     // while one is wanted but lost, for any reason, it keeps reopening it.
     // Otherwise it closes the client.
@@ -29,6 +30,11 @@ namespace Network
     // [Network] AutoConnect, and the choice lasts until the game ends. Safe to
     // call from any thread.
     void SetConnectionEnabled(bool a_enabled);
+
+    // Whether [General] Nickname is set, as of the monitor's latest pass. Without
+    // one no connection is wanted, whatever the player's choice. Safe to call
+    // from any thread.
+    [[nodiscard]] bool HasNickname();
 
     // Whether a connection is wanted combined with what the transport reports,
     // so it never shows a connection as open or closed before it is. Safe to

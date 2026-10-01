@@ -8,11 +8,14 @@ a behavior-preserving move of the former `FrameUpdate.cpp` and `NPCSpawner.cpp`.
 Spawn throttling (`[Performance] SpawnsPerSecond`) and save exclusion are not
 separately checked in game.
 
-[Checkpoint playout](#checkpoint-playout) is not verified in game or by a
-Windows build. `CheckpointPlayout` compiled on Linux with GCC against stubbed
-engine types and ran in a simulation: a 60 fps source publishing at 20 Hz, a
-server relaying latest-wins at 10, 20, or 40 Hz with idle suppression, network
-jitter with delay spikes, and receivers at 30 to 144 fps. At a 20 Hz tick the
+[Checkpoint playout](#checkpoint-playout) was run in game against a server
+with a 20 Hz tick: remote movement showed none of the stutter that tick rate
+caused before. Jumps, attacks, furniture, mounts, a local pause, and a peer
+resuming from idle were not separately checked with it. `CheckpointPlayout`
+also ran in a Linux simulation against stubbed engine types: a 60 fps source
+publishing at 20 Hz, a server relaying latest-wins at 10, 20, or 40 Hz with
+idle suppression, network jitter with delay spikes, and receivers at 30 to
+144 fps. At a 20 Hz tick the
 per-pass speed deviation of a following actor fell from about 23% (chasing the
 newest checkpoint) to about 7%, and passes without movement from 3% to 0.3%,
 for about 50 ms more delay.
@@ -357,6 +360,7 @@ it.
   typically 0.1–0.2 s in total. There is no extrapolation or latency
   compensation; when nothing waits to play, the actor stops at the played
   checkpoint and drains the gap once the next one arrives.
-- The playout constants were tuned in simulation only.
+- The playout constants were tuned in simulation; in game they were only
+  checked on one connection, not under real jitter or a far peer's 10 Hz rate.
 - There is no authentication, lobby, persistent identity, or server-authoritative
   movement.

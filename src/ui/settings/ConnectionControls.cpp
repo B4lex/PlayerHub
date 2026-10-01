@@ -85,7 +85,7 @@ namespace UI::ConnectionControls
                     ImGui::SetTooltip("Disconnecting...");
                     break;
                 default:
-                    ImGui::SetTooltip("Disconnected");
+                    ImGui::SetTooltip(Network::HasNickname() ? "Disconnected" : "Disconnected: no nickname is set");
                     break;
             }
         }
@@ -101,11 +101,16 @@ namespace UI::ConnectionControls
         const auto state = Network::GetConnectionState();
         DrawIndicator(state);
         ImGui::SameLine();
-        ImGui::BeginDisabled(state == ConnectionState::kDisconnecting);
+        const bool needsNickname = state == ConnectionState::kDisconnected && !Network::HasNickname();
+        ImGui::BeginDisabled(state == ConnectionState::kDisconnecting || needsNickname);
         if (ImGui::Button(GetButtonLabel(state), ImVec2{ GetButtonWidth(), 0.0F }))
         {
             Network::SetConnectionEnabled(state == ConnectionState::kDisconnected);
         }
         ImGui::EndDisabled();
+        if (needsNickname && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        {
+            ImGui::SetTooltip("Enter a nickname and apply it to connect.");
+        }
     }
 }

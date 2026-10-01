@@ -12,6 +12,15 @@
 
 namespace Config
 {
+    struct GeneralSettings
+    {
+        // Shown to other players over the local player's actor and in chat.
+        // Empty until the player enters one; no connection is opened without it.
+        std::string nickname;
+
+        bool operator==(const GeneralSettings&) const = default;
+    };
+
     struct NetworkSettings
     {
         std::string serverEndpoint;
@@ -74,6 +83,7 @@ namespace Config
 
     struct PluginConfig
     {
+        GeneralSettings general;
         NetworkSettings network;
         DefaultOutfitSettings defaultOutfit;
         PerformanceSettings performance;

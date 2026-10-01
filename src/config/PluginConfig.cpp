@@ -274,11 +274,6 @@ namespace Config
         protected:
             void Text(std::string_view a_key, std::string_view a_value, std::string_view a_comment) override
             {
-                // Unset forms stay out of the file; the group comment lists the keys.
-                if (a_value.empty())
-                {
-                    return;
-                }
                 const auto comment = TakeComment(a_comment);
                 file.SetValue(section.c_str(), std::string{ a_key }.c_str(), std::string{ a_value }.c_str(),
                     comment.empty() ? nullptr : comment.c_str());

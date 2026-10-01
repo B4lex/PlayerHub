@@ -19,7 +19,7 @@ namespace Multiplayer
     struct ChatSpeaker
     {
         PeerSlot playerID{ 0 };
-        // The character name, empty until its appearance is known.
+        // The nickname, empty until its appearance is known.
         std::string name;
         // As in PlayerAppearance; the level is zero until known.
         std::uint32_t nameIndex{ 1 };
