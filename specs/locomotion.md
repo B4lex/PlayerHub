@@ -8,9 +8,12 @@ jumps, and swimming. The behavior-graph facts below were read from the vanilla
 `Skyrim - Animations.bsa` behavior files or observed in game, as noted.
 
 Following the interpolated pose of the [checkpoint
-playout](sync-pipeline.md#checkpoint-playout), and translating without an
-arrival tolerance while moving, is not verified in game or by a Windows build;
-the translation step ran only in the playout's Linux simulation.
+playout](sync-pipeline.md#checkpoint-playout) was run in game with a 20 Hz
+server tick: walking and running actors moved at an even pace. Following idle
+drift instead of snapping was in the same build and looked better, but was
+not checked separately, nor were slow movement at a high frame rate and the
+slide after a stop. The idle drift figures below were measured from the 13
+server recordings.
 
 ## Scope
 
@@ -121,9 +124,17 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   moving there is no arrival tolerance: at a slow walk and a high frame rate
   the pose advances less than one unit per pass, and a tolerance made the
   actor move only every other pass.
-- An idle checkpoint snaps the remaining distance, beyond the 1-unit stopping
-  distance and tolerance, once the idle graph state settles, rather than
-  translating visibly in idle. With the playout the pose is already there.
+- Idle players still move: in the recordings, 31% of idle checkpoints moved
+  0.5–50 units, mostly a horizontal drift of about 20 units per second, and the
+  first idle checkpoint after a stop carries the deceleration (median 2 units,
+  up to 22). Snapping to the target once it was more than 2 units away (the
+  1-unit stopping distance and tolerance) moved such an actor in hops of 2–3
+  units every ~0.1 s. Once the idle graph state settles, an idle actor instead
+  follows the pose like a moving one, draining a backlog over about 0.2 s. It
+  snaps only a backlog that would need more than 150 units per second to
+  drain, since sliding that far in an idle pose shows more than a jump. It is
+  left alone within the stopping distance and tolerance only while the pose
+  is at rest (below 1 unit per second).
 - Airborne, the rate also derives a bounded catch-up from the positional error
   over 0.2 s.
 - While a network attack owns the graph, an idle checkpoint never snaps; the

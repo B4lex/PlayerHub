@@ -27,6 +27,15 @@ namespace ActorMovement
         // path, such as during a translation hold, and the idle checkpoint would
         // then snap across it. Drain it over about this time.
         constexpr float kLocomotionBacklogDrainTime = 0.5F;
+        // A pose slower than this is at rest, and an idle actor near it is left alone.
+        constexpr float kRestingPathSpeed = 1.0F;
+        // Idle players drift, typically 20 units per second in recordings, and the
+        // first idle checkpoint after a stop still carries the deceleration. An idle
+        // actor follows that path and drains a backlog quickly, since sliding in an
+        // idle pose shows more than while walking. A backlog that would need more
+        // than about walking speed to drain is snapped instead.
+        constexpr float kIdleBacklogDrainTime = 0.2F;
+        constexpr float kMaximumIdleCatchUpSpeed = 150.0F;
         // An actor following the interpolated path reaches the landing as its
         // checkpoint plays. A larger backlog is snapped by the landing alignment
         // rather than holding the airborne pose longer.
@@ -159,24 +168,30 @@ namespace ActorMovement
 
         const float distance = std::sqrt(distanceSquared);
         const bool attackPlaying = ActorAnimation::IsAnimationActionPlaying(a_remote);
-        if (!IsMoving(a_translationState.movementState) && !a_translationState.jumping && !attackPlaying)
-        {
-            // An idle snapshot is a current-state checkpoint, not an instruction to
-            // visibly walk the remaining interpolation backlog while playing idle. A
-            // playing attack is not idle: the source's attack motion may still be
-            // carrying it after its movement input ended.
-            if (distance - a_remote.movement.stoppingDistance > kArrivalTolerance)
-            {
-                a_actor.SetPosition(target, true);
-            }
-            return;
-        }
-
-        // A moving target advances only a little each pass, less than
-        // kArrivalTolerance at a slow walk and a high frame rate, so a moving actor
-        // follows it without an arrival tolerance or it would move every other pass.
+        // A moving target advances only a little each pass, often less than
+        // kArrivalTolerance, so an actor follows it without an arrival tolerance or
+        // it would move in steps.
         if (deltaTime <= 0.0F || distance <= kMinimumStep)
         {
+            return;
+        }
+        // A playing attack is not idle: the source's attack motion may still be
+        // carrying it after its movement input ended.
+        if (!IsMoving(a_translationState.movementState) && !a_translationState.jumping && !attackPlaying)
+        {
+            const float pathSpeed = a_remote.movement.translationSpeed;
+            if (pathSpeed < kRestingPathSpeed && distance - a_remote.movement.stoppingDistance <= kArrivalTolerance)
+            {
+                return;
+            }
+            const float catchUpSpeed = distance / kIdleBacklogDrainTime;
+            if (catchUpSpeed > kMaximumIdleCatchUpSpeed)
+            {
+                a_actor.SetPosition(target, true);
+                return;
+            }
+            const float step = (std::min)((pathSpeed + catchUpSpeed) * deltaTime, distance);
+            a_actor.SetPosition(current + offset * (step / distance), true);
             return;
         }
 
