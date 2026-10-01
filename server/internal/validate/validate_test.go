@@ -233,32 +233,32 @@ func TestChat(t *testing.T) {
 func TestHello(t *testing.T) {
 	token := make([]byte, SessionTokenBytes)
 	for name, h := range map[string]*pb.Hello{
-		"a new session":      {Nickname: "Lydia"},
-		"a resumed session":  {Nickname: "Lydia", SessionToken: token},
-		"spaces inside":      {Nickname: "Ulfric Stormcloak"},
-		"at the byte limit":  {Nickname: strings.Repeat("é", 64)},
-		"a single character": {Nickname: "é"},
+		"a new session":      {DisplayName: "Lydia"},
+		"a resumed session":  {DisplayName: "Lydia", SessionToken: token},
+		"spaces inside":      {DisplayName: "Ulfric Stormcloak"},
+		"at the byte limit":  {DisplayName: strings.Repeat("é", 64)},
+		"a single character": {DisplayName: "é"},
 	} {
 		if err := Hello(h); err != nil {
 			t.Errorf("%s rejected: %v", name, err)
 		}
 	}
 	for name, h := range map[string]*pb.Hello{
-		"no nickname":    {SessionToken: token},
-		"leading space":  {Nickname: " Lydia"},
-		"trailing space": {Nickname: "Lydia "},
-		"only a space":   {Nickname: " "},
-		"control":        {Nickname: "Ly\tdia"},
-		"over the limit": {Nickname: strings.Repeat("a", 129)},
-		"invalid UTF-8":  {Nickname: "\xff"},
-		"short token":    {Nickname: "Lydia", SessionToken: token[:31]},
-		"long token":     {Nickname: "Lydia", SessionToken: make([]byte, 33)},
+		"no display name": {SessionToken: token},
+		"leading space":   {DisplayName: " Lydia"},
+		"trailing space":  {DisplayName: "Lydia "},
+		"only a space":    {DisplayName: " "},
+		"control":         {DisplayName: "Ly\tdia"},
+		"over the limit":  {DisplayName: strings.Repeat("a", 129)},
+		"invalid UTF-8":   {DisplayName: "\xff"},
+		"short token":     {DisplayName: "Lydia", SessionToken: token[:31]},
+		"long token":      {DisplayName: "Lydia", SessionToken: make([]byte, 33)},
 	} {
 		if Hello(h) == nil {
 			t.Errorf("%s accepted", name)
 		}
 	}
-	if NicknameKey("LyDia") != NicknameKey("lydia") || NicknameKey("Lydia") == NicknameKey("Lydia2") {
-		t.Error("nickname keys do not compare without case")
+	if DisplayNameKey("LyDia") != DisplayNameKey("lydia") || DisplayNameKey("Lydia") == DisplayNameKey("Lydia2") {
+		t.Error("display name keys do not compare without case")
 	}
 }

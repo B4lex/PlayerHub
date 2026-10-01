@@ -1,6 +1,5 @@
 #include "ui/hud/StatusPanel.h"
 #include "config/PluginConfig.h"
-#include "config/SettingsSchema.h"
 #include "network/ConnectionMonitor.h"
 #include "network/ServerClient.h"
 #include "network/TrafficMeter.h"
@@ -100,12 +99,7 @@ namespace UI
             return;
         }
 
-        if (!Network::HasNickname())
-        {
-            const auto key = Config::FormatKey(Config::Get()->ui.settingsKey);
-            ImGui::TextColored(kPoorColor, "Set a nickname (%.*s)", static_cast<int>(key.size()), key.data());
-        }
-        else if (!Network::IsConnected())
+        if (!Network::IsConnected())
         {
             ImGui::TextColored(kPoorColor, "Disconnected");
         }

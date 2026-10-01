@@ -434,7 +434,7 @@ namespace Network::Wire
         }
     }
 
-    std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_nickname,
+    std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_displayName,
         const std::optional<Multiplayer::SessionToken>& a_token)
     {
         skyrimmp_v1_Hello hello = skyrimmp_v1_Hello_init_zero;
@@ -446,7 +446,7 @@ namespace Network::Wire
             hello.session_token.size = static_cast<pb_size_t>(a_token->size());
             std::ranges::copy(*a_token, hello.session_token.bytes);
         }
-        if (!CopyString(hello.nickname, a_nickname))
+        if (!CopyString(hello.display_name, a_displayName))
         {
             return {};
         }
@@ -659,18 +659,6 @@ namespace Network::Wire
         return EncodeClientMessage(skyrimmp_v1_ClientMessage_ping_tag, skyrimmp_v1_Ping_fields, &ping);
     }
 
-    std::string EncodeSetNickname(std::uint32_t a_requestID, std::string_view a_nickname)
-    {
-        skyrimmp_v1_SetNickname request = skyrimmp_v1_SetNickname_init_zero;
-        request.request_id = a_requestID;
-        if (!CopyString(request.nickname, a_nickname))
-        {
-            return {};
-        }
-        return EncodeClientMessage(
-            skyrimmp_v1_ClientMessage_set_nickname_tag, skyrimmp_v1_SetNickname_fields, &request);
-    }
-
     struct Decoder::Buffer
     {
         skyrimmp_v1_ServerMessage message;
@@ -720,7 +708,9 @@ namespace Network::Wire
             case skyrimmp_v1_ServerMessage_welcome_tag:
             {
                 const auto& welcome = message.message.welcome;
-                Welcome result{ .slot = welcome.slot, .sessionID = welcome.session_id, .nickname = welcome.nickname };
+                Welcome result{
+                    .slot = welcome.slot, .sessionID = welcome.session_id, .displayName = welcome.display_name
+                };
                 if (result.slot == 0)
                 {
                     return std::unexpected("welcome slot");
@@ -729,9 +719,9 @@ namespace Network::Wire
                 {
                     return std::unexpected("welcome session");
                 }
-                if (result.nickname.empty() || !Multiplayer::IsValidAppearanceName(result.nickname))
+                if (result.displayName.empty() || !Multiplayer::IsValidAppearanceName(result.displayName))
                 {
-                    return std::unexpected("welcome nickname");
+                    return std::unexpected("welcome display name");
                 }
                 if (welcome.session_token.size == Multiplayer::kSessionTokenBytes)
                 {

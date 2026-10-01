@@ -87,7 +87,7 @@ type player struct {
 	slot uint32
 }
 
-func (s *stack) join(nickname string) *player {
+func (s *stack) join(displayName string) *player {
 	s.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -98,7 +98,7 @@ func (s *stack) join(nickname string) *player {
 	s.t.Cleanup(func() { conn.CloseNow() })
 	p := &player{t: s.t, conn: conn}
 	p.send(&pb.ClientMessage{Message: &pb.ClientMessage_Hello{Hello: &pb.Hello{
-		ProtocolVersion: uint32(pb.Protocol_PROTOCOL_VERSION), Nickname: nickname}}})
+		ProtocolVersion: uint32(pb.Protocol_PROTOCOL_VERSION), DisplayName: displayName}}})
 	p.slot = p.receive().GetWelcome().GetSlot()
 	return p
 }

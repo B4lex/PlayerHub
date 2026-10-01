@@ -2,7 +2,7 @@
 // measures peer-to-peer latency. Bots either replay a recording, spread over
 // its timeline like an admin batch, or walk randomly in a square. Every bot
 // takes a new session, named after the run so that runs against one server do
-// not find their nicknames taken.
+// not find their display names taken.
 //
 // Each bot sends the send time in microseconds since the Unix epoch as its
 // checkpoint sequence, which is strictly rising and needs no wire field, so a
@@ -50,7 +50,7 @@ type options struct {
 	idle       float64
 	viewRadius uint
 	near       float64
-	// Part of every bot's nickname.
+	// Part of every bot's display name.
 	run string
 }
 
@@ -160,12 +160,12 @@ type bot struct {
 	x, y atomic.Int32
 }
 
-// nickname names the bot's session after base, the run, and its number.
-func (b *bot) nickname(base string) string {
+// displayName names the bot's session after base, the run, and its number.
+func (b *bot) displayName(base string) string {
 	return playback.BotName(base+" "+b.o.run, b.index)
 }
 
-func (b *bot) connect(ctx context.Context, nickname string) error {
+func (b *bot) connect(ctx context.Context, displayName string) error {
 	conn, _, err := websocket.Dial(ctx, b.o.url, &websocket.DialOptions{CompressionMode: websocket.CompressionDisabled})
 	if err != nil {
 		return err
@@ -175,7 +175,7 @@ func (b *bot) connect(ctx context.Context, nickname string) error {
 	b.stats.connected.Add(1)
 	if err := b.send(ctx, &pb.ClientMessage{Message: &pb.ClientMessage_Hello{Hello: &pb.Hello{
 		ProtocolVersion: uint32(pb.Protocol_PROTOCOL_VERSION), ViewRadius: uint32(b.o.viewRadius),
-		Nickname: nickname}}}); err != nil {
+		DisplayName: displayName}}}); err != nil {
 		return err
 	}
 	go b.receive(ctx)
@@ -268,7 +268,7 @@ func (b *bot) enter(ctx context.Context) error {
 }
 
 func (b *bot) walk(ctx context.Context) error {
-	if err := b.connect(ctx, b.nickname("Walker")); err != nil {
+	if err := b.connect(ctx, b.displayName("Walker")); err != nil {
 		return err
 	}
 	defer b.conn.CloseNow()
@@ -344,7 +344,7 @@ func (b *bot) replay(ctx context.Context, r *recording.Recording, plan loadtest.
 	if base == "" {
 		base = "Bot"
 	}
-	if err := b.connect(ctx, b.nickname(base)); err != nil {
+	if err := b.connect(ctx, b.displayName(base)); err != nil {
 		return err
 	}
 	defer b.conn.CloseNow()

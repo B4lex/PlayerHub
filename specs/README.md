@@ -17,7 +17,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [appearance-and-equipment.md](appearance-and-equipment.md) | Appearance, actor base, player label, equipment, default outfit, item filter and catalog | `sync/appearance/`, `sync/equipment/`, `sync/outfit/`, `src/forms/` |
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
 | [configuration.md](configuration.md) | `skyrim-mp.ini`, schema, snapshots, saving | `src/config/` |
-| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, fonts, status panel, chat, settings window, item picker and preview | `src/ui/`, `sync/chat/` |
+| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, fonts, theme, status panel, chat, settings window, item picker and preview | `src/ui/`, `sync/chat/` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `server/admin-ui/` |
 
 ## Features
@@ -34,7 +34,7 @@ criteria.
 | Bow draws and spell casts | [combat-presentation](combat-presentation.md#hand-presentation), [appearance-and-equipment](appearance-and-equipment.md#equipment) |
 | Blocking, bashes, power attacks | [combat-presentation](combat-presentation.md) |
 | Appearance and player labels | [appearance-and-equipment](appearance-and-equipment.md#appearance), [network](network.md#appearance-and-equipment) |
-| Sessions and nicknames | [network](network.md#sessions), [appearance-and-equipment](appearance-and-equipment.md#nickname), [configuration](configuration.md#general), [ui-overlay](ui-overlay.md#status-panel) |
+| Sessions and display names | [network](network.md#sessions), [appearance-and-equipment](appearance-and-equipment.md#display-name), [configuration](configuration.md#general), [ui-overlay](ui-overlay.md#connection-controls) |
 | Equipment and default outfit | [appearance-and-equipment](appearance-and-equipment.md#equipment), [network](network.md#playerequipment), [configuration](configuration.md#defaultoutfit) |
 | Furniture | [native-interactions](native-interactions.md#furniture), [remote-actor](remote-actor.md#placement-ownership) |
 | Mounts | [native-interactions](native-interactions.md#mounts), [sync-pipeline](sync-pipeline.md#actor-lifecycle) |

@@ -908,8 +908,8 @@ type Appearance struct {
 	// A client's own counter. On a relayed copy, the server's: it also rises
 	// when the server changes the name.
 	Revision uint64 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
-	// Set by the server to the session's nickname; a client's value is ignored.
-	// A replayed player keeps its recorded name.
+	// Set by the server to the session's display name; a client's value is
+	// ignored. A replayed player keeps its recorded name.
 	Name      string      `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Level     uint32      `protobuf:"varint,3,opt,name=level,proto3" json:"level,omitempty"`
 	Race      *FormRef    `protobuf:"bytes,4,opt,name=race,proto3" json:"race,omitempty"`

@@ -12,7 +12,7 @@ option go_package = "skyrim-mp/server/internal/wire/pb;pb";
 enum Protocol {
   PROTOCOL_UNSPECIFIED = 0;
   // Bumped on every incompatible change. Client and server must match.
-  PROTOCOL_VERSION = 3;
+  PROTOCOL_VERSION = 4;
 }
 
 message Hello {
@@ -24,9 +24,9 @@ message Hello {
   // ask for a new session. One that matches no live session is answered with
   // a new session too.
   bytes session_token = 3;
-  // The nickname the player wants: the new session's, or the resumed
+  // The display name the player wants: the new session's, or the resumed
   // session's from now on.
-  string nickname = 4;
+  string display_name = 4;
 }
 
 message Enter {}
@@ -44,19 +44,13 @@ enum ChatChannel {
 
 message ChatSend {
   uint32 request_id = 1;
-  // For a whisper, the recipient's nickname, then a space and the message.
+  // For a whisper, the recipient's display name, then a space and the message.
   string text = 2;
   ChatChannel channel = 3;
 }
 
 message Ping {
   uint32 request_id = 1;
-}
-
-// Renames the connection's session.
-message SetNickname {
-  uint32 request_id = 1;
-  string nickname = 2;
 }
 
 message ClientMessage {
@@ -71,7 +65,6 @@ message ClientMessage {
     Equipment equipment = 8;
     ChatSend chat = 9;
     Ping ping = 10;
-    SetNickname set_nickname = 11;
   }
 }
 
@@ -81,15 +74,14 @@ message Welcome {
   // The session's public identifier, the same for as long as the session
   // lives and never reused.
   uint64 session_id = 2;
-  // The session's nickname, as peers see it.
-  string nickname = 3;
+  // The session's display name, as peers see it.
+  string display_name = 3;
   // Only when the session was issued for this connection: the secret to
   // present in later hellos.
   bytes session_token = 4;
 }
 
-// Answers a request that carries a request_id: ChatSend, Ping, and
-// SetNickname.
+// Answers a request that carries a request_id: ChatSend and Ping.
 message Result {
   uint32 request_id = 1;
   bool ok = 2;
@@ -152,7 +144,7 @@ message PeerEquipment {
   Equipment equipment = 2;
 }
 
-// A player as chat shows it: its nickname and the level of its latest
+// A player as chat shows it: its display name and the level of its latest
 // appearance.
 message ChatSpeaker {
   uint32 slot = 1;

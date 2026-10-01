@@ -27,9 +27,9 @@ namespace UI
     class ItemPicker
     {
     public:
-        // Draws the field for a_value at the cursor, with a button that resets it
-        // to a_default, together as wide as the next ImGui item. Returns true when
-        // the user picked an item or reset it.
+        // Draws the field for a_value at the cursor and, while it differs from
+        // a_default, a button that resets it, together as wide as the next ImGui
+        // item. Returns true when the user picked an item or reset it.
         bool Draw(const char* a_id, Multiplayer::FormReference& a_value, const Multiplayer::FormReference& a_default,
             const Forms::ItemFilter& a_filter);
 

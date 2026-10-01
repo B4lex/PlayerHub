@@ -1,7 +1,7 @@
 // Package auth keeps player sessions. A session is a player's identity on
 // this server: a public ID, a secret token only its client holds, and a
-// nickname no other live session has. It lives for as long as it keeps being
-// used.
+// display name no other live session has. It lives for as long as it keeps
+// being used.
 package auth
 
 import (
@@ -18,19 +18,16 @@ import (
 	"skyrim-mp/server/internal/validate"
 )
 
-var (
-	ErrNicknameTaken  = errors.New("nickname taken")
-	ErrUnknownSession = errors.New("unknown session")
-)
+var ErrDisplayNameTaken = errors.New("display name taken")
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 const schema = `
 CREATE TABLE sessions (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	token_hash BLOB NOT NULL UNIQUE,
-	nickname TEXT NOT NULL,
-	nickname_key TEXT NOT NULL UNIQUE,
+	display_name TEXT NOT NULL,
+	display_name_key TEXT NOT NULL UNIQUE,
 	created_at INTEGER NOT NULL,
 	last_used_at INTEGER NOT NULL,
 	-- The token came back in a hello, so its client holds it.
@@ -39,14 +36,20 @@ CREATE TABLE sessions (
 CREATE INDEX sessions_last_used_at ON sessions (last_used_at);
 `
 
+// Version 1 called the display name a nickname.
+const upgradeFromVersion1 = `
+ALTER TABLE sessions RENAME COLUMN nickname TO display_name;
+ALTER TABLE sessions RENAME COLUMN nickname_key TO display_name_key;
+`
+
 type Session struct {
 	// Never reused, also after the session is gone.
-	ID       uint64
-	Nickname string
+	ID          uint64
+	DisplayName string
 }
 
 // Store is safe for concurrent use; its one connection serializes every
-// transaction, which the nickname checks rely on.
+// transaction, which the display name checks rely on.
 type Store struct {
 	db       *sql.DB
 	lifetime time.Duration
@@ -82,14 +85,19 @@ func (s *Store) migrate() error {
 	if err := s.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		return err
 	}
-	switch {
-	case version == schemaVersion:
+	var statements string
+	switch version {
+	case schemaVersion:
 		return nil
-	case version != 0:
+	case 0:
+		statements = schema
+	case 1:
+		statements = upgradeFromVersion1
+	default:
 		return fmt.Errorf("session database has schema %d, this server knows %d", version, schemaVersion)
 	}
 	return s.transact(func(tx *sql.Tx) error {
-		if _, err := tx.Exec(schema); err != nil {
+		if _, err := tx.Exec(statements); err != nil {
 			return err
 		}
 		_, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaVersion))
@@ -98,11 +106,11 @@ func (s *Store) migrate() error {
 }
 
 // Authenticate resumes the live session the token belongs to, renaming it
-// when nickname differs from its own, or issues a new session when the token
-// is empty or matches none. Only a new session returns its token, which is
-// not stored and cannot be recovered. ErrNicknameTaken leaves everything as
-// it was.
-func (s *Store) Authenticate(token []byte, nickname string, now time.Time) (Session, []byte, error) {
+// when displayName differs from its own, or issues a new session when the
+// token is empty or matches none. Only a new session returns its token, which
+// is not stored and cannot be recovered. ErrDisplayNameTaken leaves everything
+// as it was.
+func (s *Store) Authenticate(token []byte, displayName string, now time.Time) (Session, []byte, error) {
 	var session Session
 	var issued []byte
 	err := s.transact(func(tx *sql.Tx) error {
@@ -112,12 +120,12 @@ func (s *Store) Authenticate(token []byte, nickname string, now time.Time) (Sess
 		if len(token) != 0 {
 			hash := sha256.Sum256(token)
 			var current string
-			err := tx.QueryRow(`SELECT id, nickname FROM sessions WHERE token_hash = ?`, hash[:]).Scan(&session.ID, &current)
+			err := tx.QueryRow(`SELECT id, display_name FROM sessions WHERE token_hash = ?`, hash[:]).Scan(&session.ID, &current)
 			switch {
 			case err == nil:
-				session.Nickname = nickname
-				if current != nickname {
-					if err := rename(tx, session.ID, nickname); err != nil {
+				session.DisplayName = displayName
+				if current != displayName {
+					if err := rename(tx, session.ID, displayName); err != nil {
 						return err
 					}
 				}
@@ -127,7 +135,7 @@ func (s *Store) Authenticate(token []byte, nickname string, now time.Time) (Sess
 				return err
 			}
 		}
-		if err := requireFree(tx, 0, nickname); err != nil {
+		if err := requireFree(tx, 0, displayName); err != nil {
 			return err
 		}
 		issued = make([]byte, validate.SessionTokenBytes)
@@ -136,13 +144,13 @@ func (s *Store) Authenticate(token []byte, nickname string, now time.Time) (Sess
 		}
 		hash := sha256.Sum256(issued)
 		result, err := tx.Exec(
-			`INSERT INTO sessions (token_hash, nickname, nickname_key, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)`,
-			hash[:], nickname, validate.NicknameKey(nickname), now.Unix(), now.Unix())
+			`INSERT INTO sessions (token_hash, display_name, display_name_key, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)`,
+			hash[:], displayName, validate.DisplayNameKey(displayName), now.Unix(), now.Unix())
 		if err != nil {
 			return err
 		}
 		id, err := result.LastInsertId()
-		session = Session{ID: uint64(id), Nickname: nickname}
+		session = Session{ID: uint64(id), DisplayName: displayName}
 		return err
 	})
 	if err != nil {
@@ -151,19 +159,9 @@ func (s *Store) Authenticate(token []byte, nickname string, now time.Time) (Sess
 	return session, issued, nil
 }
 
-// Rename gives the session another nickname, or another spelling of its own.
-func (s *Store) Rename(id uint64, nickname string, now time.Time) error {
-	return s.transact(func(tx *sql.Tx) error {
-		if err := s.purge(tx, now); err != nil {
-			return err
-		}
-		return rename(tx, id, nickname)
-	})
-}
-
 // Abandon deletes a session whose token never came back, which frees its
-// nickname, and reports whether it did. A session that was resumed stays: its
-// client holds the token.
+// display name, and reports whether it did. A session that was resumed stays:
+// its client holds the token.
 func (s *Store) Abandon(id uint64) (bool, error) {
 	result, err := s.db.Exec(`DELETE FROM sessions WHERE id = ? AND resumed = 0`, id)
 	if err != nil {
@@ -189,9 +187,9 @@ func (s *Store) Touch(ids []uint64, now time.Time) error {
 	})
 }
 
-// Purge deletes the sessions that expired, which frees their nicknames, and
-// returns how many. Authenticate and Rename do the same before they compare
-// nicknames, so this only keeps the database small.
+// Purge deletes the sessions that expired, which frees their display names, and
+// returns how many. Authenticate does the same before it compares display
+// names, so this only keeps the database small.
 func (s *Store) Purge(now time.Time) (int64, error) {
 	var purged int64
 	err := s.transact(func(tx *sql.Tx) error {
@@ -226,33 +224,26 @@ func (s *Store) transact(f func(*sql.Tx) error) error {
 	return tx.Commit()
 }
 
-func rename(tx *sql.Tx, id uint64, nickname string) error {
-	if err := requireFree(tx, id, nickname); err != nil {
+func rename(tx *sql.Tx, id uint64, displayName string) error {
+	if err := requireFree(tx, id, displayName); err != nil {
 		return err
 	}
-	result, err := tx.Exec(`UPDATE sessions SET nickname = ?, nickname_key = ? WHERE id = ?`,
-		nickname, validate.NicknameKey(nickname), id)
-	if err != nil {
-		return err
-	}
-	changed, err := result.RowsAffected()
-	if err == nil && changed == 0 {
-		return ErrUnknownSession
-	}
+	_, err := tx.Exec(`UPDATE sessions SET display_name = ?, display_name_key = ? WHERE id = ?`,
+		displayName, validate.DisplayNameKey(displayName), id)
 	return err
 }
 
-// requireFree fails when a session other than own holds the nickname.
-func requireFree(tx *sql.Tx, own uint64, nickname string) error {
+// requireFree fails when a session other than own holds the display name.
+func requireFree(tx *sql.Tx, own uint64, displayName string) error {
 	var holder uint64
-	err := tx.QueryRow(`SELECT id FROM sessions WHERE nickname_key = ?`, validate.NicknameKey(nickname)).Scan(&holder)
+	err := tx.QueryRow(`SELECT id FROM sessions WHERE display_name_key = ?`, validate.DisplayNameKey(displayName)).Scan(&holder)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return nil
 	case err != nil:
 		return err
 	case holder != own:
-		return ErrNicknameTaken
+		return ErrDisplayNameTaken
 	}
 	return nil
 }

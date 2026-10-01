@@ -4,33 +4,67 @@
 
 - **Overlay, input, status panel:** implemented and built on Windows; the
   settings UI runs in game. The renderer and input hook sites and the input
-  context order were checked against the 1.7.104 executable and address
-  library. SE 1.5.97 uses the same IDs and offsets as other public ImGui
-  overlays but was not checked here. Skyrim VR is not supported: the hooks are
-  not installed and a warning is logged. The nickname requirement's status
-  panel line and the General tab's connection row are not built on Windows or
-  run in game. On Linux, `StatusPanel.cpp` and `SettingsWindow.cpp` passed a
-  syntax check against Dear ImGui 1.92.9, and `ConnectionControls.cpp` ran in
-  a headless context of that version against stubbed `Network` functions:
-  every state's button, status, and message, the message wrapping inside the
-  window, and clicks reaching `SetConnectionEnabled` only while the button is
-  enabled.
+  context order were checked against the 1.7.104 executable and address library.
+  SE 1.5.97 uses the same IDs and offsets as other public ImGui overlays but was
+  not checked here. Skyrim VR is not supported: the hooks are not installed and
+  a warning is logged. The status panel reading only `Disconnected` without a
+  display name is not built on Windows or run in game; on Linux,
+  `StatusPanel.cpp` passed a syntax check against Dear ImGui 1.92.9.
 - **Chat:** implemented; the in-game check is pending. Channels: server unit
   tests cover routing and whisper addressing; on Linux, `ChatSync.cpp` and
   `WireCodec.cpp` ran headless against stubbed transport functions, decoding
   Go-encoded messages of each channel, rejecting malformed ones, and mapping
   typed prefixes, whisper labels, and rejection notices. `ChatWindow.cpp`
   colors were not run.
-- **Settings window:** run in game. On Linux, `SettingsWindow.cpp` ran for
-  several frames in a headless Dear ImGui 1.92.9 context with every tab drawn
-  and simulated mouse and keyboard input: an invalid endpoint blocks Apply and a
-  valid one is applied and saved. The mouse path of `InputCapture` was not run
-  there. Closing with `SettingsKey` is not built on Windows or run in game. On
-  Linux, `InputCapture.cpp` and `WindowManager.cpp` ran against stubbed engine
-  input and ImGui IO functions: the key opens and closes the window without the
-  game seeing either press, an editing key bound as `SettingsKey` stays with an
-  active text field, and chat keeps Enter. `SettingsWindow.cpp` passed a syntax
-  check.
+- **Settings window, theme, connection controls:** an earlier layout, with tabs
+  and a title bar, ran in game. The sidebar layout, the display name's line
+  with the connection button, the switches, and the theme are not built on
+  Windows or run in game. On Linux, `SettingsWindow.cpp`,
+  `ConnectionControls.cpp`, `Controls.cpp`, `ItemPicker.cpp`, and `Theme.cpp`
+  ran in a headless Dear ImGui 1.92.9 context against stubbed `Config::Apply`,
+  `Network`, and `ItemPreview` functions and a fake catalog, with simulated
+  mouse and keyboard input and the draw data rasterized to images over a
+  stand-in scene. With General as a row and a button below it:
+  - every section at 1080p, General at 720p and Default Outfit at 4K, the open
+    key, sex, and item lists, a label's tooltip, an invalid field with its
+    footer, and a picked item with its reset button;
+  - typing applies nothing; Enter and a click on another section each apply
+    the text once; Escape puts the previous text back and leaves the window
+    open; invalid text is not applied; a switch and a step button apply at
+    once; an outfit pick applies only on Apply, and stays pending through an
+    edit in another section;
+  - the close button and Escape close the window; a drag on the sidebar or
+    beside the title moves it and one on the lower right corner resizes it.
+
+  General ran the same way at 1080p only, with the real schema and a stand-in
+  item picker. Its layout ran against stubbed `Network` functions, before the
+  field was locked and `Connect` became the only way to connect:
+  - the field and the button share a line in every state; the field has the
+    keyboard when the window opens without a display name and not with one;
+  - invalid or emptied text disables `Connect`, and a click does not connect
+    with it; Escape puts the name back; `Disconnect` and `Cancel` stop wanting
+    a connection, and a press while disconnecting does nothing.
+
+  General as it is now ran with the real `ConnectionMonitor` over a stubbed
+  transport and game state:
+  - typing applies nothing and enables `Connect`; Enter and a click elsewhere
+    each apply the name and do not connect, also in a game started with
+    `AutoConnect` and no display name; one click on `Connect` applies a typed
+    name and connects, once;
+  - while connecting and while connected the field is disabled, a click,
+    typing, and Enter change nothing, and hovering it shows its tooltip;
+    `Disconnect` unlocks it, and a name applied then does not connect;
+  - a refusal for the display name, for the protocol version, and of a
+    replaced session each leave `Connect`, an editable field, and the sentence
+    under it; applying another name keeps the sentence and does not connect;
+    `Connect` clears it and connects.
+
+  ImGui's style-stack checks passed. The mouse path of `InputCapture` was not
+  run there. Closing with `SettingsKey` is not built on Windows or run in game;
+  on Linux, `InputCapture.cpp` and `WindowManager.cpp` ran against stubbed
+  engine input and ImGui IO functions: the key opens and closes the window
+  without the game seeing either press, an editing key bound as `SettingsKey`
+  stays with an active text field, and chat keeps Enter.
 - **Item picker and preview:** built on Windows; in game the picker lists names
   and the preview shows models. The attach pass for models that load in the
   background has not run in game yet. On Linux, `ItemCatalog.cpp`,
@@ -38,7 +72,8 @@
   a stand-in preview: per-key filters, multi-word and case-insensitive search,
   the preview following the hovered row, Enter picking the first match, Escape
   closing the list before the window, Apply saving `Plugin|0xID`, and
-  `ItemPreview = false` hiding the preview. `ItemForms.cpp` and `ItemPreview.cpp`
+  `ItemPreview = false` hiding the preview. The reset button as an icon shown
+  only off the default is not built on Windows or run in game. `ItemForms.cpp` and `ItemPreview.cpp`
   need CommonLibSSE-NG and were only checked in game.
 
 ## Scope
@@ -65,14 +100,16 @@ touching the network side.
 src/ui/
   Overlay.h/.cpp              # renderer hook, ImGui context and backends, window registration
   Fonts.h/.cpp                # system fonts with fallbacks
+  Theme.h/.cpp                # look of the interactive windows: accent, rounded borders
   Window.h                    # interface every window implements
   WindowManager.h/.cpp        # registered windows, draw order, input focus
   InputCapture.h/.cpp         # input dispatch hook: focus keys, routing to ImGui
   Layout.h                    # placement helpers (screen corners)
   hud/StatusPanel             # connection, ping, traffic, plugin time
   chat/ChatWindow             # chat history and input
-  settings/SettingsWindow     # plugin settings
-  settings/ConnectionControls # connection button, status, and messages
+  settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
+  settings/ConnectionControls # connection button, the line under it, one-line summary
+  widgets/Controls            # switch, accent and red buttons, icon buttons
   widgets/ItemPicker          # item dropdown
   preview/ItemPreview         # 3D item capture
 src/sync/chat/ChatSync        # channel prefixes, send, rejections as notices, lines to display
@@ -127,6 +164,45 @@ fonts cost address space, not memory. Dear ImGui 1.92 rasterizes glyphs on
 demand, so no glyph ranges are needed. Without any file, ImGui's default font
 covers Latin only. The log lists the fonts loaded. Han characters take the
 Chinese forms of Microsoft YaHei, since it comes before the Japanese fonts.
+
+### Theme
+
+The overlay's base style is `StyleColorsDark` with 4 px window rounding and no
+border, which the status panel and chat use. `UI::Theme::Scope` gives every
+window and popup begun while it lives the look of the plugin's interactive
+windows, by pushing ImGui style colors and variables and popping them when it
+ends. `SettingsWindow` wraps its window in one, which covers the lists and
+tooltips opened from it, the item picker's included.
+
+- The accent is `Theme::kAccent`, `FF9000`. It marks what the player can act on
+  or has selected: the border of the window and its popups, the selected
+  section, a switch that is on, the selected and hovered list rows, hovered and
+  pressed buttons, fields, and scrollbar grabs, selected text, and the fill of
+  the button a view leads to (`Controls::PrimaryButton`, with
+  `Theme::kOnAccent` text). Body text is never the accent, so amber warnings
+  stay distinct.
+- A state is `Theme::kPositive` (green), `kWarning` (amber), or `kNegative`
+  (red): the connection indicator, the picker's warnings, values that are not
+  applied, refusals, and save results. Red also fills the button that ends
+  what is running (`Controls::DangerButton`, with `Theme::kOnAccent` text).
+- Surfaces are neutral and near black. Fields and buttons are a white tint
+  (`Theme::Tint`) with no border of their own, text is off-white, secondary
+  text is `ImGuiCol_TextDisabled`, and separators are a faint white line.
+  Popups are opaque, so the rows under an open list do not show through it.
+  The resize grip is invisible until hovered.
+- Borders are 1 px rounded lines: 10 px corners on the window, 8 px on popups
+  and cards, and 6 px on fields, buttons, and grabs. Padding is 10 × 6 px in a
+  field and 12 × 10 px in a popup, with 8 × 8 px between items, and the
+  scrollbar is 10 px wide.
+- Those sizes are for the 16 px base font and are stored in font sizes, then
+  floored to whole pixels and kept at 1 px or more, so they follow the overlay
+  scale and a border never disappears at a small one.
+
+`UI::Controls` holds the small widgets the themed windows share, each as high
+as a frame: `Toggle`, a switch whose knob slides over 0.12 s of frame time;
+`PrimaryButton` and `DangerButton`, which differ only in their fill; and
+`IconButton`, whose icons (close, reset) are drawn as lines, so they do not
+depend on a font having the glyph.
 
 ## Input focus
 
@@ -188,7 +264,6 @@ on the next frame.
 
 | State | Text | Color |
 | --- | --- | --- |
-| No nickname set | `Set a nickname (F10)`, with the current `SettingsKey` | red |
 | Not connected, whatever the reason | `Disconnected` | red |
 | Connected, no sample yet or timed out | `Ping -- ms` | grey |
 | ≤ 80 ms / ≤ 150 ms / > 150 ms | `Ping N ms` | green / yellow / red |
@@ -197,10 +272,9 @@ While connected, two grey lines follow with the received and sent traffic in
 KB/s ([Network](network.md#traffic)), `--` before the first window. Always
 shown below: `Plugin N.NN ms`, or `Plugin -- ms` before the first window.
 
-The panel does not say why a connection is down or a rename failed: a refusal
-needs a sentence and an action in the settings window, so those messages are
-on its General tab ([Connection row](#connection-row)). The nickname line stays
-because it names the key that opens the window.
+The panel is a debugging readout, not player guidance. It does not say why a
+connection is down or that a display name is missing: those need a sentence and an action in the settings window, so the messages are
+in its General section ([Connection controls](#connection-controls)).
 
 ### Plugin time
 
@@ -227,7 +301,7 @@ channels other than by prefix, replying to the last whisper.
 | --- | --- | --- |
 | `!text` | global | every connected player |
 | `text` | local | placed players within `chat.local_radius` (8192) in the same worldspace, or in the same interior |
-| `@Name text` | whisper | one player, by nickname |
+| `@Name text` | whisper | one player, by display name |
 
 - `ChatSync::SendLocalMessage` trims the line, takes the channel from its first
   character, drops the prefix, and trims again. An empty line sends nothing,
@@ -269,63 +343,141 @@ peers keep seeing the player.
 
 - `[UI] SettingsKey` opens it during gameplay as a focus key and closes it again
   as a release key ([Input focus](#input-focus)); a changed key applies once
-  applied. The title bar's close button or Escape also closes it; Escape first
-  goes to an active text field or open combo or list. Any menu taking input
-  closes it too.
+  picked. The close button at the page's top right or Escape also closes it;
+  Escape first goes to an active text field or open combo or list. Any menu
+  taking input closes it too.
 - Every opening starts from the live configuration; closing discards unapplied
-  edits.
-- Centered, 44 × 32 font sizes, one tab per file section in schema order:
-  General, which opens first and holds `Nickname` and the
-  [connection row](#connection-row), then Network, Default Outfit, Performance,
-  and UI. Only a tab's content scrolls; the buttons stay below it. It uses the
-  mouse.
+  outfit edits and text still being typed. The section that was open stays
+  open, except that an opening with no display name applied shows General
+  with the keyboard in its field.
+- Centered, 48 × 32 font sizes and at least 40 × 20, in the [theme](#theme),
+  without a title bar: it is dragged by any empty part, resized from its lower
+  right corner, and uses the mouse.
+- A sidebar 11.5 font sizes wide, on a faint panel, lists one item per file
+  section in schema order under the title `Multiplayer`: General, which opens
+  first and is the display name beside the
+  [connection button](#connection-controls), then
+  Network, Default Outfit, Performance, and Interface (`[UI]`). The open
+  section's item has an accent tint and an accent mark on its left. The
+  connection status stays at the sidebar's bottom in every section
+  (`ConnectionControls::DrawSummary`).
+- The page beside it shows the open section: its title, the section's comment
+  as one muted line where the schema has one, and its settings. Only the
+  settings scroll, with the scrollbar along the window's edge; the title and
+  the footer stay in view.
 - Widgets come from the same `Config::Describe` visitor that reads and writes the
-  file, so a new setting appears without UI code: a checkbox for a bool, a
-  clamped number field for an unsigned value, a text field for a string, an item
-  picker for a form, and a combo for a choice or key. Section and group comments
-  are shown as notes.
-- Text that does not parse turns red and leaves the setting at its last valid
-  value; Apply stays disabled while any field is red. Apply is enabled when the
-  edits differ from the live settings. Revert returns to the live settings and
-  Defaults to the built-in defaults, without applying. The footer reports
-  unapplied changes, a successful save, or a failed one.
+  file, so a new setting appears without UI code. A row is the key as words
+  (`SpawnsPerSecond` is `Spawns Per Second`) and, in the right 58% of the row,
+  its control: a switch at the right edge for a bool, a number field with step
+  buttons for an unsigned value, a text field for a string, an item picker for
+  a form, and a combo for a choice or key. Group comments are small muted
+  capitals above their rows. `[General] DisplayName` is the one setting not
+  drawn as a row ([Connection controls](#connection-controls)).
+- A setting's comment is not drawn; it is the tooltip of the row's label, and
+  of a text field while its value is invalid.
+- A number's step buttons move it by a hundredth of its maximum, and typing
+  sets any value up to the maximum. Where the schema names zero
+  ([Configuration](configuration.md#schema)), a zero value shows that name
+  (`Auto`, `Unlimited`) in the empty field, and clearing the field sets zero.
+- Edits in every section but Default Outfit take effect and are saved as they
+  are made, with no button: a switch or combo at once, a number when its field
+  or step button is released, and text when editing ends, on Enter, on a click
+  elsewhere, or on picking another section, so a half-typed endpoint never
+  reconnects. Escape in a text field puts
+  back the text it had when editing started. Text that does not parse turns red
+  and leaves the setting at its last valid value, while other edits still
+  apply. These sections have no footer; a red line appears below the settings
+  only while values in red are not applied or the file could not be saved.
+  The display name reports its own text under its field instead.
+  Their settings have no way back to the built-in defaults other than editing
+  them or removing the line from the file.
+- Default Outfit keeps its edits until Apply, since an outfit is put together
+  from several picks and each apply can publish new equipment and appearance
+  revisions to peers. Its footer has Defaults, enabled while the edits differ
+  from the built-in outfit, then Revert and Apply, enabled while they differ
+  from the live outfit; Apply then has the accent fill. Revert returns to the
+  live outfit and Defaults to the built-in one, without applying. All three
+  leave the other sections alone, and an edit applied in another section leaves
+  pending outfit edits pending. The footer's left reports unapplied changes, a
+  successful save, or a failed one.
+- `SettingsWindow` holds one draft `Config::PluginConfig`. After drawing, it
+  applies the live configuration with the draft's other sections whenever they
+  differ and no number field is active, and Apply does the same with the
+  draft's `defaultOutfit`.
+- The page is drawn before the sidebar, in one `Config::Describe` pass that
+  also collects the section names the sidebar lists. A picked section
+  therefore shows from the next frame, after a text field edited until the
+  press has seen its editing end.
 
-### Connection row
+### Connection controls
 
-The General tab ends with a `Connection` row below a separator, after the
-section's settings, drawn by `ConnectionControls`: a button, an indicator
-circle, green while connected and red otherwise, and the status as text. The
-button follows `Network::GetConnectionState`, so its label never claims a state
-the transport has not reached, and keeps its width and identity when the label
-changes, so the status does not move:
+General is one step: the name peers see, and joining with it. `SettingsWindow`
+draws `[General] DisplayName` as the label `Display Name` over one line of its
+text field and the connection button, as multiplayer clients lay out joining
+a server, and `ConnectionControls` draws the button (`DrawButton`) and one
+line under the two (`DrawNotice`). The section has no status, server name, or
+ping of its own: the sidebar's summary and the status panel show those.
 
-| State | Button | Press | Status |
+- The field takes the page's width less the button, reads
+  `Enter a display name` while empty, and applies like any text setting, when
+  its editing ends. Applying it never connects, on Enter or otherwise.
+- The field is editable only while `Network::GetConnectionState` is
+  `kDisconnected`, because a session takes its display name from the hello
+  ([Network](network.md#sessions)). Otherwise it is disabled, and hovering it
+  shows why (`ConnectionControls::GetDisplayNameLock`):
+  `Cancel the connection to change the display name` while connecting, and
+  `Disconnect to change the display name` while connected or disconnecting.
+- Opening the window with no display name applied puts the keyboard in the
+  field. Escape then leaves the field, and a second press closes the window.
+
+The button is the only control that connects. It follows
+`Network::GetConnectionState`, so its label never claims a state the transport
+has not reached, and keeps its width and identity when the label changes:
+
+| State | Button | Fill | Press |
 | --- | --- | --- | --- |
-| Connected | `Disconnect` | stops wanting a connection | `Connected, ping N ms`, or `Connected` before a sample |
-| Connecting | `Cancel` | stops wanting a connection | `Connecting...` |
-| Connecting, refused by the server | `Cancel` | stops wanting a connection | `Not connected` |
-| Disconnecting | `Disconnecting...`, disabled | — | `Disconnecting...` |
-| Disconnected | `Connect` | wants a connection again | `Disconnected` |
+| Connected | `Disconnect` | red | stops wanting a connection |
+| Connecting | `Cancel` | plain | stops wanting a connection |
+| Disconnecting | `Disconnecting...`, disabled | plain | — |
+| Disconnected, the field holds a display name | `Connect` | accent | wants a connection |
+| Disconnected, the field is empty or its text is invalid | `Connect`, disabled | plain | — |
 
-A message follows on its own wrapped lines below the row while one applies.
-This is the only place the plugin shows them:
+`Connect` goes by the field's text, not by the applied display name: pressing
+it ends the field's editing, which applies the text before the press lands,
+so a name that was only typed connects with one click.
 
-| Condition | Message | Color |
+The line under the field and the button is wrapped at the page's width and
+shows the first of these that holds. It is the only place the plugin shows
+them:
+
+| Condition | Line |
+| --- | --- |
+| The field's text is not a display name | `A display name cannot start or end with a space or be longer than 128 bytes`, red. The page's footer line does not count this field |
+| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`) | the sentence of `Network::GetConnectionRefusal`, red, until `Connect` is pressed |
+| Otherwise | the setting's comment, `Shown to other players above your character and in chat.`, muted |
+
+The sidebar's summary (`ConnectionControls::DrawSummary`) is an indicator and
+the status on one line, with the ping in muted text at the right while
+connected:
+
+| State | Indicator | Status |
 | --- | --- | --- |
-| The server refused the connection | the sentence of `Network::GetConnectionRefusal` | red |
-| Connected, and the server refused the applied nickname | the sentence of `Network::GetNicknameRejection`; peers still see the previous nickname | red |
-| Disconnected with no applied nickname | `Enter a nickname and apply it to connect.` | grey |
+| Connected | green | `Connected` |
+| Connecting | amber, pulsing | `Connecting...` |
+| Disconnecting | grey | `Disconnecting...` |
+| Disconnected, refused by the server | red | `Disconnected` |
+| Disconnected | grey | `Disconnected` |
 
-Without an applied nickname `Connect` is disabled. If the player's choice
-already wants a connection, as after `AutoConnect`, applying a nickname
-connects without a press. The same holds after the server refused a nickname:
-applying another one connects. After another refusal, `Cancel` then `Connect`
-retries. The refusals and the rename are in [Network](network.md#connection).
+A game that starts with `AutoConnect` and a display name connects by itself;
+nothing else connects without a press. A refusal leaves the player
+disconnected with the field editable, and `Connect` then retries with whatever
+is applied, which clears the sentence. The refusals are in
+[Network](network.md#connection).
 
 Not wanting a connection closes it and removes every remote player until
-Connect. The button acts on the live settings; an edited nickname or endpoint
-must be applied first, and applying an endpoint while connected moves the
-connection to it ([Network](network.md#connection)).
+Connect. The button acts on the live settings, which a display name or endpoint
+reaches when its editing ends, and applying an endpoint while connected moves
+the connection to it ([Network](network.md#connection)).
 
 ## Item picker
 
@@ -336,6 +488,9 @@ field's label until the value changes, and only one list can be open. The
 catalog and filters are in
 [Appearance and equipment](appearance-and-equipment.md#item-filter-and-catalog).
 
+- The picker has no colors or sizes of its own: it takes the style of the
+  window that draws it, the [theme](#theme) in the settings window, and the
+  theme's amber for warnings.
 - The closed field shows the item's name, `Plugin|0xID (not loaded)` in amber
   for a missing plugin, or the name in amber for an item the filter rejects,
   each with an explaining tooltip. A value for a plugin that is not loaded can
@@ -345,8 +500,9 @@ catalog and filters are in
   form setting always has an item. Only visible rows are drawn
   (`ImGuiListClipper`), and the current value is scrolled into view.
 - Clicking a row picks it, Enter picks the first match, Escape closes the list.
-- `Reset` beside the field sets the setting's default; it is disabled at the
-  default, and its tooltip names the default item.
+- While the value differs from the setting's default, the field narrows for a
+  reset icon button beside it, which sets the default; its tooltip names the
+  default item.
 - With `[UI] ItemPreview`, a 13-font-size square panel to the right shows the
   hovered item's model, or the current value's, with its name and
   `Plugin|0xID` below. Race lists have no panel, since the inventory renderer
@@ -418,23 +574,56 @@ or zoomed.
    a notice.
 4. `F10` opens the settings window with a cursor, and the game receives no input
    until it closes; `F10` again closes it. A new `SettingsKey` opens and closes
-   it and the old one no longer does.
+   it and the old one no longer does, as soon as it is picked.
    Chat still opens with Enter and gets no cursor.
-5. The General tab's connection row reads `Connected, ping N ms` with a green
-   indicator once connected, and `Disconnected` with a red one on Disconnect,
-   which removes remote players and keeps them away through a save load until
-   Connect. Connect right after Disconnect shows `Cancel` until the connection
-   opens, never `Disconnect` while disconnected. A nickname another player
-   holds shows the refusal's sentence below the row and only `Disconnected` in
-   the status panel; applying another nickname connects and clears it.
-6. The picker lists only matching base-game items and races. Hovering rows
+5. The General section holds the `Display Name` field with one button beside
+   it and a line under them. Opening the window with no display name puts the
+   cursor in the field, `Connect` is disabled, and the status panel reads
+   only `Disconnected`; typing a name and clicking `Connect` once connects,
+   while Enter or a click elsewhere only saves the name. Once connected the
+   button is a red `Disconnect`, the field is greyed out and says on hover to
+   disconnect first, and the sidebar reads `Connected` with a green indicator
+   and the ping; Disconnect makes it an orange `Connect` with the field
+   editable and the sidebar `Disconnected` with a grey indicator, removes
+   remote players, and keeps them away through a save load until Connect.
+   Connect right after Disconnect shows a plain `Cancel` and a pulsing amber
+   indicator until the connection opens, never `Disconnect` while
+   disconnected. A display name another player holds shows a red indicator and
+   the refusal's sentence under the field beside `Connect`, and only
+   `Disconnected` in the status panel; entering another display name and
+   clicking `Connect` connects and clears it. A name ending in a space turns
+   red with the reason under the field and disables `Connect`. The sidebar
+   shows the same status in every section.
+6. General, Network, Performance, and Interface have nothing below their
+   settings. Switching `Status Panel` off hides the panel at once; typing a
+   display name changes nothing until Enter or a click elsewhere, which saves it
+   without connecting; an endpoint without `http://` turns red and the
+   connection stays. `View Radius` reads `Auto` and `+` sets 1000. Each change
+   is in `skyrim-mp.ini` without pressing anything. Default Outfit shows
+   Defaults, Revert, and Apply; a picked item shows a reset icon and reaches
+   peers only on Apply, and Defaults leaves the display name and endpoint as
+   they are.
+7. The picker lists only matching base-game items and races. Hovering rows
    switches the model without flicker on the world behind; background loads
    appear after the attach pass (a stall logs `Item preview waiting`); nothing is
    left on screen after the list closes; the inventory shows its own models
    normally afterwards; FPS stays steady while a list is open;
    `ItemPreview = false` removes the panel.
 
+8. The settings window and the lists it opens have a rounded `FF9000` border
+   and no blue: the open section's sidebar item, switches that are on, `Connect`
+   and a pending `Apply`, and hovered or pressed widgets are orange at 1080p
+   and 4K. Picking a sidebar item shows that section, and the window can be
+   dragged by its sidebar or title. The status panel and chat look as before.
+
 ## Known limitations
+
+- The settings window's frame is a plain rounded line rather than the vanilla
+  menu frame: that art is vector shapes inside the game's SWF files, which the
+  overlay cannot draw.
+- `SettingsKey` is picked from a list rather than by pressing the key:
+  `InputCapture` forwards only editing and navigation keys to ImGui, and the
+  current key closes the window.
 
 - A script none of the system fonts cover shows placeholders; emoji cannot be
   typed.

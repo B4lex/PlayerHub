@@ -38,10 +38,10 @@ type Player struct {
 	Slot        uint32
 	Kind        Kind
 	ConnectedAt time.Time
-	// The session a client connected with and its nickname; zero and empty
+	// The session a client connected with and its display name; zero and empty
 	// for a virtual player.
-	Session  uint64
-	Nickname string
+	Session     uint64
+	DisplayName string
 
 	InWorld    bool
 	Context    *pb.Context
@@ -53,19 +53,16 @@ type Player struct {
 	// drops the checkpoint, so sequences still rise.
 	lastSequence uint64
 
-	// As peers receive it: the server sets a client's name and numbers the
-	// revisions.
+	// As peers receive it: the server sets a client's name.
 	Appearance *pb.Appearance
-	// The newest revision the player itself sent.
-	sourceAppearanceRevision uint64
-	Equipment                *pb.Equipment
+	Equipment  *pb.Equipment
 }
 
-// Name is what peers call the player: a client's nickname, or a virtual
+// Name is what peers call the player: a client's display name, or a virtual
 // player's recorded name.
 func (p *Player) Name() string {
 	if p.Kind == KindClient {
-		return p.Nickname
+		return p.DisplayName
 	}
 	return p.Appearance.GetName()
 }
@@ -166,30 +163,16 @@ func (p *Player) AcceptAction(a *pb.Action) error {
 }
 
 // SetAppearance stores a newer appearance, changing it into what peers
-// receive. The server numbers the revisions, because a rename is one too.
+// receive.
 func (p *Player) SetAppearance(a *pb.Appearance) error {
-	if a.GetRevision() <= p.sourceAppearanceRevision {
+	if p.Appearance != nil && a.GetRevision() <= p.Appearance.GetRevision() {
 		return ErrStaleRevision
 	}
-	p.sourceAppearanceRevision = a.GetRevision()
-	a.Revision = p.Appearance.GetRevision() + 1
 	if p.Kind == KindClient {
-		a.Name = p.Nickname
+		a.Name = p.DisplayName
 	}
 	p.Appearance = a
 	return nil
-}
-
-// Rename changes a client's nickname and reports whether it has an
-// appearance, which becomes a newer revision with the new name.
-func (p *Player) Rename(nickname string) bool {
-	p.Nickname = nickname
-	if p.Appearance == nil {
-		return false
-	}
-	p.Appearance.Name = nickname
-	p.Appearance.Revision++
-	return true
 }
 
 func (p *Player) SetEquipment(e *pb.Equipment) error {

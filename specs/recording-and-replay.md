@@ -53,18 +53,17 @@ One append-only JSON Lines file per capture, `server/recordings/<id>.jsonl`:
 ```
 
 A message line holds a validated `ClientMessage` in protojson, `t` in
-milliseconds from the start. An appearance is recorded as the server stored
-it, with the player's session nickname as its `name` and the server's revision,
-and a rename during a capture is recorded as one more appearance
-([Network](network.md#renaming)), so a replay shows the name the player had. A missing `end` is an interrupted capture, and a
-torn last line is dropped. Every message is validated on load as the server
-validates a connection's. IDs become file names and URL segments, so they are
-restricted to `[A-Za-z0-9][A-Za-z0-9_-]{0,63}` and checked before any path is
-built. Version 2 files, whose lines hold the Socket.IO JSON payloads, are not
-read; `cmd/convert-recordings` converts them in place, splitting each
-checkpoint into a `Context` (written when its space, epoch, or furniture
-changes, and after every enter) and a quantized `Checkpoint`, and keeps the
-original as `<id>.v2`.
+milliseconds from the start. An appearance is recorded as the server stored it,
+with the player's session display name as its `name`
+([Network](network.md#sessions)), so a replay shows the name the player had. A
+missing `end` is an interrupted capture, and a torn last line is dropped. Every
+message is validated on load as the server validates a connection's. IDs become
+file names and URL segments, so they are restricted to
+`[A-Za-z0-9][A-Za-z0-9_-]{0,63}` and checked before any path is built. Version 2
+files, whose lines hold the Socket.IO JSON payloads, are not read;
+`cmd/convert-recordings` converts them in place, splitting each checkpoint into
+a `Context` (written when its space, epoch, or furniture changes, and after
+every enter) and a quantized `Checkpoint`, and keeps the original as `<id>.v2`.
 
 A capture is started per player from the panel and runs until stopped or the
 player disconnects. It starts with the player's presence (`Enter` or `Exit`),
@@ -145,14 +144,14 @@ once, including from one recording.
 - `transport` is always `virtual`. Bots that exercise the network run in
   `cmd/loadgen`: real WebSocket clients that walk randomly in a square
   (`--spread` 20000 dense, 100000 sparse) or replay a recording laid out like a
-  batch. Each takes a new session ([Network](network.md#sessions)) whose
-  nickname is `Walker`, or the recorded player's name, then six hexadecimal
-  digits picked per run and the bot's number (`Walker 43ae13 #7`), so a later
-  run against the same server does not find its nicknames taken; the sessions
-  stay in the server's database until they expire. Each stamps its checkpoint sequence with the send time in
-  microseconds, which is strictly rising, so a receiver on the same host
-  measures latency without a wire field, and its `time` with the send time; `--server-pid` adds the server's CPU
-  from `/proc`.
+  batch. Each takes a new session ([Network](network.md#sessions)) whose display
+  name is `Walker`, or the recorded player's name, then six hexadecimal digits
+  picked per run and the bot's number (`Walker 43ae13 #7`), so a later run
+  against the same server does not find its display names taken; the sessions
+  stay in the server's database until they expire. Each stamps its checkpoint
+  sequence with the send time in microseconds, which is strictly rising, so a
+  receiver on the same host measures latency without a wire field, and its
+  `time` with the send time; `--server-pid` adds the server's CPU from `/proc`.
 
 ## Admin API
 

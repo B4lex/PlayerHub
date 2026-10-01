@@ -85,8 +85,8 @@ namespace Config
                 WarnInvalid(a_key, *value, a_value ? "true" : "false");
             }
 
-            void Unsigned(
-                std::string_view a_key, std::uint32_t& a_value, std::string_view, std::uint32_t a_maximum) override
+            void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view, std::uint32_t a_maximum,
+                std::string_view) override
             {
                 const auto value = Take(a_key);
                 if (!value)
@@ -214,8 +214,8 @@ namespace Config
                 Text(a_key, a_value ? "true" : "false", a_comment);
             }
 
-            void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-                std::uint32_t) override
+            void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t,
+                std::string_view) override
             {
                 Text(a_key, std::format("{}", a_value), a_comment);
             }

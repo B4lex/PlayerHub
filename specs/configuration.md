@@ -8,12 +8,14 @@ with stubbed SKSE headers and checked for default-file generation, overrides,
 invalid values, unknown keys, and saving: comments and unknown keys are kept,
 and a missing file is recreated from the commented default. Applying changes in
 game (reconnect, equipment re-resolution, spawn rate) is not yet checked.
-`[General] Nickname` is not yet built on Windows or run in game. On Linux the
+`[General] DisplayName` is not yet built on Windows or run in game. On Linux the
 same two files were compiled against SimpleIni with stubs and checked for the
-default file's empty `Nickname`, loading it without a warning, saving and
-clearing a nickname, adding one to a file without the key, and rejecting
-overlong, control-character, and malformed UTF-8 values. `Config::GetDirectory`
-and the changed `Nickname` description were not compiled.
+default file's empty `DisplayName` under its comment, loading it without a
+warning, saving a display name, and ignoring a `Nickname` line, which an earlier
+file may hold, as an unknown key. Clearing a display name, adding one to a file
+without the key, and rejecting overlong, control-character, and malformed UTF-8
+values were checked before the key took this name. `Config::GetDirectory` ran
+only through its fallback, since the stubs resolve no DLL path.
 
 ## Scope
 
@@ -57,6 +59,8 @@ reads the file, writes it, and draws the settings window. A new option is a fiel
 in `Config::PluginConfig` plus one line there. `Config::SettingsVisitor::Form`
 takes the setting's item filter
 ([Appearance and equipment](appearance-and-equipment.md#item-filter-and-catalog)).
+`Unsigned` takes a name for zero where zero is not a count, which only the
+settings window shows; the file stores `0`.
 
 ## Settings
 
@@ -64,15 +68,15 @@ takes the setting's item filter
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `Nickname` | The player's name as peers see it, in the player label over the actor and in chat ([Appearance and equipment](appearance-and-equipment.md#nickname)): at most 128 bytes of well-formed UTF-8 without control characters or surrounding whitespace. Empty means not set, and no connection is opened until it is ([Network](network.md#connection)). It is the nickname of the player's session, so the server refuses one another player holds ([Network](network.md#sessions)) | empty |
+| `DisplayName` | The player's name as peers see it, in the player label over the actor and in chat ([Appearance and equipment](appearance-and-equipment.md#display-name)): at most 128 bytes of well-formed UTF-8 without control characters or surrounding whitespace. Empty means not set, and no connection is opened without one ([Network](network.md#connection)). It is the display name of the player's session, so the server refuses one another player holds ([Network](network.md#sessions)), and it reaches the server only when connecting: the settings window locks it while a connection is wanted or open ([UI overlay](ui-overlay.md#connection-controls)) | empty |
 
 ### `[Network]`
 
 | Key | Meaning | Default |
 | --- | --- | --- |
 | `ServerEndpoint` | Server URL starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; replaces `skyrim-mp-server.txt`, which is no longer read | the public server |
-| `AutoConnect` | Whether each game connects when it loads; otherwise the settings window's Connect does | `true` |
-| `ViewRadius` | Game units within which other players are shown, `0..100000`; sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection | `0`, the server's range |
+| `AutoConnect` | Whether each game connects when it loads, which it does only with a `DisplayName` set; otherwise the settings window's Connect does | `true` |
+| `ViewRadius` | Game units within which other players are shown, `0..100000`; sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection | `0`, the server's range, named `Auto` |
 
 ### `[DefaultOutfit]`
 
@@ -122,7 +126,7 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..1000`; `0` is unlimited ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
+| `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..1000`; `0` is unlimited, named `Unlimited` ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
 
 ### `[UI]`
 
@@ -147,9 +151,8 @@ revision before the snapshot never misses a change.
 | `DefaultOutfit` | main loop | `Refresh`, first in `SyncCoordinator::OnFrame`, resolving every item again when `[DefaultOutfit]` differs |
 | `EquipmentSync` | main loop | the next capture selecting from the new outfit and publishing a new revision |
 | `AppearanceSync` | main loop | the next capture taking the new default race and sex, which publish a new revision for a modded race |
-| `StatusPanel`, `ConnectionControls` | overlay | `Network::HasNickname`, which the monitor updates each pass |
-| `ConnectionMonitor` | main loop | reconnecting at once when the latest attempt went to another endpoint; opening the connection once `Nickname` is set and closing it when cleared; asking the server to rename the session when `Nickname` changes while connected, and reconnecting when it changes after the server refused the previous one; reading `AutoConnect` when a game starts |
-| `ServerClient` | transport, worker | reading the endpoint for each attempt and `Nickname` for each hello |
+| `ConnectionMonitor` | main loop | reconnecting at once when the latest attempt went to another endpoint; reading `AutoConnect` and whether `DisplayName` is set when a game starts; ending the player's choice to connect when `DisplayName` is cleared |
+| `ServerClient` | transport, worker | reading the endpoint for each attempt and `DisplayName` for each hello |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
 | `StatusPanel`, item pickers | overlay | reading `StatusPanel` and `ItemPreview` each frame |
 
@@ -177,9 +180,10 @@ this file ([Network](network.md#session)).
 2. Invalid values, unknown keys, and configured forms that do not resolve or are
    not base-game items are logged and fall back to their defaults, or to no piece
    when the default is unusable too.
-3. `[Network] ServerEndpoint` sets the server URL and `[General] Nickname` the
-   name peers see; the default file has an empty `Nickname`, and the plugin
-   stays disconnected until one is entered. `[Performance] SpawnsPerSecond` bounds
-   spawns, so many players arriving at once do not spawn in one frame.
+3. `[Network] ServerEndpoint` sets the server URL and `[General] DisplayName`
+   the name peers see; the default file has an empty `DisplayName`, and the
+   plugin stays disconnected until one is entered and Connect is pressed.
+   `[Performance] SpawnsPerSecond` bounds spawns, so many players arriving at
+   once do not spawn in one frame.
 4. Applying changes takes effect without a restart, and the file keeps
    hand-written comments.

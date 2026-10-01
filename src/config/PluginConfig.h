@@ -17,7 +17,7 @@ namespace Config
     {
         // Shown to other players over the local player's actor and in chat.
         // Empty until the player enters one; no connection is opened without it.
-        std::string nickname;
+        std::string displayName;
 
         bool operator==(const GeneralSettings&) const = default;
     };

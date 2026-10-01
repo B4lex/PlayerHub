@@ -3,16 +3,15 @@
 ## Status
 
 Implemented in `server/internal/interest`, `server/internal/hub`, and
-`server/internal/delivery`. Covered by rule and grid tests
-(`interest_test.go`), hub tests with a fake clock (`hub_test.go`: welcome
-first, enter order, an unplaced viewer, a paused sender seen by a newcomer,
-batching, the action anchor, context order, range hysteresis and time in view,
-exclusions taking effect at once, a space change, presentation kept across exit
-and re-enter, disconnect reaching presentation holders, virtual players, chat
-on each channel, a session's nickname and rename on the relayed appearance, a
-session connecting again),
-outbox tests, and black-box tests over a real WebSocket, including the admin
-hide and exclusion endpoints. Not checked in game.
+`server/internal/delivery`. Covered by rule and grid tests (`interest_test.go`),
+hub tests with a fake clock (`hub_test.go`: welcome first, enter order, an
+unplaced viewer, a paused sender seen by a newcomer, batching, the action
+anchor, context order, range hysteresis and time in view, exclusions taking
+effect at once, a space change, presentation kept across exit and re-enter,
+disconnect reaching presentation holders, virtual players, chat on each channel,
+a session's display name on the relayed appearance, a session connecting
+again), outbox tests, and black-box tests over a real WebSocket,
+including the admin hide and exclusion endpoints. Not checked in game.
 
 `cmd/loadgen` with 250 walking bots at 20 Hz on a 4-core host shared with the
 load generator:

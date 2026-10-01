@@ -104,8 +104,8 @@ type candidate struct {
 
 // Identity is the session a client connected with.
 type Identity struct {
-	Session  uint64
-	Nickname string
+	Session     uint64
+	DisplayName string
 	// The session's secret when it was issued for this connection. The
 	// welcome carries it once.
 	Token []byte
@@ -173,7 +173,7 @@ func (h *Hub) ConnectClient(outbox *delivery.Outbox, identity Identity) (slot, r
 	}
 	slot = h.connect(world.KindClient, outbox, identity)
 	h.sessions[identity.Session] = slot
-	h.names.Set(slot, identity.Nickname)
+	h.names.Set(slot, identity.DisplayName)
 	return slot, replaced
 }
 
@@ -181,7 +181,7 @@ func (h *Hub) connect(kind world.Kind, outbox *delivery.Outbox, identity Identit
 	h.nextSlot++
 	m := &member{
 		Player: &world.Player{Slot: h.nextSlot, Kind: kind, ConnectedAt: h.opts.Clock.Now(),
-			Session: identity.Session, Nickname: identity.Nickname},
+			Session: identity.Session, DisplayName: identity.DisplayName},
 		outbox:         outbox,
 		subscribed:     make(map[uint32]*subscription),
 		heldAppearance: make(map[uint32]uint64),
@@ -192,7 +192,7 @@ func (h *Hub) connect(kind world.Kind, outbox *delivery.Outbox, identity Identit
 	if outbox != nil {
 		h.recipients = append(h.recipients, m)
 		outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Welcome{
-			Welcome: &pb.Welcome{Slot: m.Slot, SessionId: identity.Session, Nickname: identity.Nickname,
+			Welcome: &pb.Welcome{Slot: m.Slot, SessionId: identity.Session, DisplayName: identity.DisplayName,
 				SessionToken: identity.Token}}}))
 	}
 	h.opts.OnChange()
@@ -240,22 +240,6 @@ func (h *Hub) Disconnect(slot uint32) {
 	h.names.Forget(slot)
 	if h.sessions[m.Session] == slot {
 		delete(h.sessions, m.Session)
-	}
-	h.opts.OnChange()
-}
-
-// SetNickname renames a client after its session was renamed. Subscribers
-// receive its appearance again, with the new name.
-func (h *Hub) SetNickname(slot uint32, nickname string) {
-	m, ok := h.members[slot]
-	if !ok || m.Nickname == nickname {
-		return
-	}
-	h.names.Set(slot, nickname)
-	if m.Rename(nickname) {
-		// A replay shows the name the player had at each moment.
-		h.record(slot, &pb.ClientMessage{Message: &pb.ClientMessage_Appearance{Appearance: m.Appearance}})
-		h.relayAppearance(m)
 	}
 	h.opts.OnChange()
 }

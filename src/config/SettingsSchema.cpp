@@ -141,7 +141,7 @@ namespace Config
 
         // Empty for not set yet, or a name the server accepts and a whisper can
         // address, so without surrounding whitespace.
-        bool IsValidNickname(std::string_view a_value)
+        bool IsValidDisplayName(std::string_view a_value)
         {
             return Trim(a_value).size() == a_value.size() && Multiplayer::IsValidAppearanceName(a_value)
                 && IsValidUtf8(a_value);
@@ -150,9 +150,8 @@ namespace Config
         void DescribeGeneral(GeneralSettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("General", "");
-            a_visitor.String("Nickname", a_settings.nickname,
-                "",
-                IsValidNickname);
+            a_visitor.String("DisplayName", a_settings.displayName,
+                "Shown to other players above your character and in chat.", IsValidDisplayName);
         }
 
         void DescribeNetwork(NetworkSettings& a_settings, SettingsVisitor& a_visitor)
@@ -165,7 +164,7 @@ namespace Config
             a_visitor.Unsigned("ViewRadius", a_settings.viewRadius,
                 "Game units within which other players are shown. Applies\n"
                 "on the next connection.",
-                100000);
+                100000, "Auto");
         }
 
         void DescribeDefaultOutfit(DefaultOutfitSettings& a_settings, SettingsVisitor& a_visitor)
@@ -207,7 +206,7 @@ namespace Config
                 "Remote players and mounts spawned per second at most. Many players joining or\n"
                 "arriving at once then appear over a few seconds instead of in one long frame.\n"
                 "0 spawns every due player at once.",
-                1000);
+                1000, "Unlimited");
         }
 
         void DescribeUI(UISettings& a_settings, SettingsVisitor& a_visitor)

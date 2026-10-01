@@ -24,8 +24,10 @@ namespace Config
         virtual void Section(std::string_view a_name, std::string_view a_comment) = 0;
         virtual void Comment(std::string_view a_comment) = 0;
         virtual void Bool(std::string_view a_key, bool& a_value, std::string_view a_comment) = 0;
-        virtual void Unsigned(
-            std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t a_maximum) = 0;
+        // a_zeroName is what zero stands for where it is not a count, such as
+        // Unlimited; the file still stores 0.
+        virtual void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+            std::uint32_t a_maximum, std::string_view a_zeroName) = 0;
         virtual void String(std::string_view a_key, std::string& a_value, std::string_view a_comment,
             bool (*a_isValid)(std::string_view)) = 0;
         // Grouped under a preceding Comment, so a form entry has none of its own.

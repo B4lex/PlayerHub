@@ -6,11 +6,11 @@ import (
 	"skyrim-mp/server/internal/validate"
 )
 
-// Names finds connected players by nickname, which sessions keep unique, for
-// whispers.
+// Names finds connected players by display name, which sessions keep unique,
+// for whispers.
 type Names struct {
 	byPlayer map[uint32]string
-	// Nickname key to its holder.
+	// Display name key to its holder.
 	byName map[string]uint32
 }
 
@@ -18,10 +18,10 @@ func NewNames() *Names {
 	return &Names{byPlayer: make(map[uint32]string), byName: make(map[string]uint32)}
 }
 
-// Set records the player's nickname in place of its previous one.
+// Set records the player's display name in place of its previous one.
 func (n *Names) Set(player uint32, name string) {
 	n.Forget(player)
-	key := validate.NicknameKey(name)
+	key := validate.DisplayNameKey(name)
 	n.byPlayer[player] = key
 	n.byName[key] = player
 }
@@ -46,7 +46,7 @@ func (n *Names) Find(text string, maximumNameBytes int) (uint32, string, bool) {
 		if end > maximumNameBytes {
 			continue
 		}
-		if player, ok := n.byName[validate.NicknameKey(text[:end])]; ok {
+		if player, ok := n.byName[validate.DisplayNameKey(text[:end])]; ok {
 			return player, strings.TrimLeft(text[end:], " "), true
 		}
 	}

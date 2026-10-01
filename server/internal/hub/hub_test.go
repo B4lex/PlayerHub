@@ -39,15 +39,15 @@ func (f *fixture) connect() uint32 {
 }
 
 // connectAs connects a client with a session of its own.
-func (f *fixture) connectAs(nickname string) uint32 {
+func (f *fixture) connectAs(displayName string) uint32 {
 	f.session++
-	slot, _ := f.connectSession(f.session, nickname)
+	slot, _ := f.connectSession(f.session, displayName)
 	return slot
 }
 
-func (f *fixture) connectSession(session uint64, nickname string) (slot, replaced uint32) {
+func (f *fixture) connectSession(session uint64, displayName string) (slot, replaced uint32) {
 	box := delivery.NewOutbox(1024)
-	slot, replaced = f.hub.ConnectClient(box, Identity{Session: session, Nickname: nickname})
+	slot, replaced = f.hub.ConnectClient(box, Identity{Session: session, DisplayName: displayName})
 	f.boxes[slot] = box
 	return slot, replaced
 }
@@ -482,7 +482,7 @@ func TestWhisper(t *testing.T) {
 	expect(t, f.received(a), "result 13 true ", "chat whisper 1 Ulfric to 1 Ulfric: Stormcloak hi")
 }
 
-func TestAppearanceCarriesTheSessionNickname(t *testing.T) {
+func TestAppearanceCarriesTheSessionDisplayName(t *testing.T) {
 	f := newFixture(t)
 	a, b := f.connectAs("Lydia"), f.connectAs("Serana")
 	f.place(b, 1)
@@ -490,12 +490,12 @@ func TestAppearanceCarriesTheSessionNickname(t *testing.T) {
 	f.place(a, 1)
 	f.reject(a, appearance(7, "Lydia"), world.ErrStaleRevision)
 	welcome := f.messages(a)[0].GetWelcome()
-	if welcome.GetSlot() != a || welcome.GetSessionId() != 1 || welcome.GetNickname() != "Lydia" || welcome.GetSessionToken() != nil {
+	if welcome.GetSlot() != a || welcome.GetSessionId() != 1 || welcome.GetDisplayName() != "Lydia" || welcome.GetSessionToken() != nil {
 		t.Fatalf("welcome: %v", welcome)
 	}
 	messages := f.messages(b)
 	enter := messages[len(messages)-1].GetPeerEnter()
-	if enter.GetAppearance().GetName() != "Lydia" || enter.GetAppearance().GetRevision() != 1 {
+	if enter.GetAppearance().GetName() != "Lydia" || enter.GetAppearance().GetRevision() != 7 {
 		t.Fatalf("enter: %v", enter)
 	}
 
@@ -510,56 +510,6 @@ func TestAppearanceCarriesTheSessionNickname(t *testing.T) {
 	if f.hub.Name(a) != "Lydia" || f.hub.Name(v) != "Lydia" || f.hub.Name(99) != "" {
 		t.Fatalf("names: %q %q %q", f.hub.Name(a), f.hub.Name(v), f.hub.Name(99))
 	}
-}
-
-func TestRenameReachesPeers(t *testing.T) {
-	f := newFixture(t)
-	a, b, c := f.connectAs("Lydia"), f.connectAs("Serana"), f.connectAs("Aela")
-	f.send(a, appearance(1, "Lydia"))
-	f.place(a, 1)
-	f.place(b, 1)
-	// c holds a's appearance without receiving a.
-	f.place(c, 1)
-	f.send(c, exit())
-	for _, slot := range []uint32{a, b, c} {
-		f.received(slot)
-	}
-
-	f.hub.SetNickname(a, "Jordis")
-	messages := f.messages(b)
-	if len(messages) != 1 || messages[0].GetPeerAppearance().GetSlot() != a ||
-		messages[0].GetPeerAppearance().GetAppearance().GetName() != "Jordis" ||
-		messages[0].GetPeerAppearance().GetAppearance().GetRevision() != 2 {
-		t.Fatalf("subscriber received %v", messages)
-	}
-	expect(t, f.received(c))
-	f.place(c, 1)
-	messages = f.messages(c)
-	for _, m := range messages {
-		if enter := m.GetPeerEnter(); enter.GetSlot() == a && enter.GetAppearance().GetName() != "Jordis" {
-			t.Fatalf("holder of the old appearance received %v", enter)
-		}
-	}
-
-	// The client's own revisions continue from where it was.
-	f.received(b)
-	f.send(a, appearance(2, ""))
-	expect(t, f.received(b), "appearance 1:3")
-
-	whisper := func(id uint32, text string) *pb.ClientMessage {
-		return chatOn(pb.ChatChannel_CHAT_CHANNEL_WHISPER, id, text)
-	}
-	f.received(a)
-	f.send(b, whisper(1, "jordis hi"))
-	expect(t, f.received(a), "chat whisper 2 Serana to 1 Jordis: hi")
-	f.reject(b, whisper(2, "Lydia hi"), ErrUnknownRecipient)
-
-	// Renaming before any appearance has nothing to relay.
-	f.received(b)
-	f.hub.SetNickname(c, "Mjoll")
-	expect(t, f.received(b))
-	f.send(b, whisper(3, "Mjoll hi"))
-	expect(t, f.received(b), "result 3 true ", "chat whisper 2 Serana to 3 Mjoll: hi")
 }
 
 func TestSessionConnectingAgainReplacesItsConnection(t *testing.T) {

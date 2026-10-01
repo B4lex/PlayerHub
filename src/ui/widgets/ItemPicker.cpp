@@ -2,7 +2,9 @@
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
 #include "forms/ItemCatalog.h"
+#include "ui/Theme.h"
 #include "ui/preview/ItemPreview.h"
+#include "ui/widgets/Controls.h"
 
 #include <misc/cpp/imgui_stdlib.h>
 
@@ -22,10 +24,8 @@ namespace UI
         constexpr float kPreviewWidthFonts = 13.0F;
         constexpr float kPluginColumnWidthFonts = 11.0F;
 
-        constexpr ImVec4 kWarningColor{ 0.95F, 0.70F, 0.35F, 1.0F };
         constexpr ImGuiTableFlags kListFlags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg;
         constexpr const char* kNoneText = "None";
-        constexpr const char* kResetText = "Reset";
     }
 
     bool ItemPicker::Draw(
@@ -40,8 +40,10 @@ namespace UI
         const auto& label = GetLabel(ImGui::GetID("##item"), a_value, a_filter);
         const auto fontSize = ImGui::GetFontSize();
         const auto& style = ImGui::GetStyle();
-        const auto resetWidth = ImGui::CalcTextSize(kResetText).x + style.FramePadding.x * 2.0F;
-        const auto comboWidth = (std::max)(ImGui::CalcItemWidth() - resetWidth - style.ItemSpacing.x, fontSize);
+        // The reset button takes its place only while there is something to reset.
+        const bool resettable = a_value != a_default;
+        const auto resetWidth = resettable ? ImGui::GetFrameHeight() + style.ItemSpacing.x : 0.0F;
+        const auto comboWidth = (std::max)(ImGui::CalcItemWidth() - resetWidth, fontSize);
         ImGui::SetNextItemWidth(comboWidth);
         ImGui::SetNextWindowSize(
             ImVec2{ (std::max)(comboWidth, kPopupWidthFonts * fontSize), kPopupHeightFonts * fontSize });
@@ -51,7 +53,7 @@ namespace UI
         if (warning || dim)
         {
             ImGui::PushStyleColor(
-                ImGuiCol_Text, warning ? kWarningColor : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+                ImGuiCol_Text, warning ? Theme::kWarning : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
         }
         const bool open = ImGui::BeginCombo("##item", label.text.c_str());
         if (warning || dim)
@@ -85,17 +87,19 @@ namespace UI
             ImGui::EndCombo();
         }
 
-        ImGui::SameLine();
-        ImGui::BeginDisabled(a_value == a_default);
-        if (ImGui::Button(kResetText))
+        if (resettable)
         {
-            a_value = a_default;
-            changed = true;
-        }
-        ImGui::EndDisabled();
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip | ImGuiHoveredFlags_AllowWhenDisabled))
-        {
-            ImGui::SetTooltip("Default: %s", GetLabel(ImGui::GetID("##default"), a_default, a_filter).text.c_str());
+            ImGui::SameLine();
+            const bool reset = Controls::IconButton("##reset", Controls::Icon::kReset);
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip))
+            {
+                ImGui::SetTooltip("Reset to %s", GetLabel(ImGui::GetID("##default"), a_default, a_filter).text.c_str());
+            }
+            if (reset)
+            {
+                a_value = a_default;
+                changed = true;
+            }
         }
         ImGui::PopID();
         return changed;

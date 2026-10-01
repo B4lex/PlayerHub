@@ -21,9 +21,6 @@ PB_BIND(skyrimmp_v1_ChatSend, skyrimmp_v1_ChatSend, 2)
 PB_BIND(skyrimmp_v1_Ping, skyrimmp_v1_Ping, AUTO)
 
 
-PB_BIND(skyrimmp_v1_SetNickname, skyrimmp_v1_SetNickname, AUTO)
-
-
 PB_BIND(skyrimmp_v1_ClientMessage, skyrimmp_v1_ClientMessage, 4)
 
 

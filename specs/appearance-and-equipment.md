@@ -14,7 +14,7 @@
 - **Item filter and catalog:** built on Windows; the catalog and picker run in
   game ([UI overlay](ui-overlay.md#item-picker)).
 - **Player labels:** level validation and chat fields covered by server unit
-  tests; label rendering pending an in-game check. The nickname, which comes
+  tests; label rendering pending an in-game check. The display name, which comes
   from the player's session ([Network](network.md#sessions)), is not yet built
   on Windows or run in game, and `AppearanceSync.cpp` was not compiled after
   the change.
@@ -22,15 +22,15 @@
 ## Scope
 
 A remote actor looks like its source player's character, carries the player's
-nickname and the character's level, and wears and wields what the source has
+display name and the character's level, and wears and wields what the source has
 equipped, from any plugin the receiver also has. What the receiver cannot
 resolve falls back to vanilla data or to the source's own default outfit, so
 players with different modpacks still see each other dressed and armed.
 
 The wire format is in [Network](network.md#appearance-and-equipment). How the
-draw and attacks wait for the hands is in
-[Combat presentation](combat-presentation.md). Where the nickname and the outfit
-are configured is in [Configuration](configuration.md#settings).
+draw and attacks wait for the hands is in [Combat
+presentation](combat-presentation.md). Where the display name and the outfit are
+configured is in [Configuration](configuration.md#settings).
 
 ## Components
 
@@ -59,7 +59,7 @@ On the game thread, once per second:
   is playable, otherwise the capture is skipped (transformed). While
   transformed, peers keep the last playable appearance.
 - `level`: `Actor::GetLevel`, so a level-up publishes a new revision. `name` is
-  left empty: the server sets the [nickname](#nickname).
+  left empty: the server sets the [display name](#display-name).
 - `defaultRace`: the configured `[DefaultOutfit]` race and sex when `race` is
   not from a base-game plugin, else unset.
 - `female`, `weight`, `height`, `headParts[0..numHeadParts)`, the hair color
@@ -115,8 +115,8 @@ that cannot be built keeps the previous base.
 A fallback race takes the sex of `defaultRace`, or the source's own without one,
 and the race's default look for that sex: default head parts and skin tone. The
 source's head parts, tints, morphs, presets, face details, and hair color belong
-to its own race and sex and are dropped; nickname, level, weight, and height are
-kept. Each fallback is logged once per revision.
+to its own race and sex and are dropped; display name, level, weight, and height
+are kept. Each fallback is logged once per revision.
 
 ### Spawn and respawn
 
@@ -127,7 +127,7 @@ kept. Each fallback is logged once per revision.
   previous respawn for that player. The respawn uses the new base and rebuilds
   locomotion, stance, and furniture from the played checkpoint. Coordinate-space
   respawns reuse the current base.
-- A change of only nickname or level rewrites the built base's full name in
+- A change of only display name or level rewrites the built base's full name in
   place and adopts the revision without a new base or respawn.
 - Once the respawned actor is ready with 3D, `Actor::UpdateHairColor` and
   `UpdateSkinColor` run once.
@@ -141,27 +141,28 @@ kept. Each fallback is logged once per revision.
   renders again whenever the head gets a new tint texture, such as after a 3D
   reset.
 
-### Nickname
+### Display name
 
-A player is known to others by a nickname chosen in the settings,
-`[General] Nickname` ([Configuration](configuration.md#general)), the same for
-every character and save. The character's own name is not read or sent. There
-is no default: the player must enter a nickname before the plugin connects
-([Network](network.md#connection)), so no peer is shown under a placeholder.
+A player is known to others by a display name chosen in the settings,
+`[General] DisplayName` ([Configuration](configuration.md#general)), the same
+for every character and save. The character's own name is not read or sent.
+There is no default: the player must enter a display name before the plugin
+connects ([Network](network.md#connection)), so no peer is shown under a
+placeholder.
 
-The nickname belongs to the player's session, and no two sessions of a server
-share one ([Network](network.md#sessions)). The hello carries it, and the
-server writes the session's nickname into the `name` of the appearance it
-relays, whatever the client sent; the capture leaves `name` empty. A nickname
-applied in the settings window while connected renames the session
-([Network](network.md#connection)); the server then relays the appearance again
-under a new revision, which relabels the actor without a respawn. A replayed
-player keeps the name it was recorded with.
+The display name belongs to the player's session, and no two sessions of a
+server share one ([Network](network.md#sessions)). The hello carries it, and the
+server writes the session's display name into the `name` of the appearance it
+relays, whatever the client sent; the capture leaves `name` empty. The display
+name holds for the connection: the settings window locks it while a connection
+is wanted or open, and another one takes effect with the next hello
+([Network](network.md#connection)), so peers see the player leave and enter
+under it. A replayed player keeps the name it was recorded with.
 
 ### Player label
 
-`PlayerLabel::Format` builds `Nickname • L lvl`, used for the actor base's name
-and for chat senders:
+`PlayerLabel::Format` builds `Display name • L lvl`, used for the actor base's
+name and for chat senders:
 
 ```text
 Lydia • 12 lvl
@@ -393,10 +394,10 @@ To verify in game:
    face shape, skin and face tints, and its label, and wears the source's armor,
    clothing, jewelry, shield, hand items, and ammo from any plugin the receiver
    has. Late joiners see both without the source changing anything.
-2. An appearance change (barber, RaceMenu) updates the actor within a few seconds
-   with a single respawn, returning to its locomotion and furniture state; a
-   nickname or level change relabels it without a respawn. An equipment change
-   applies within 0.5 s without respawn, animation, or sound.
+2. An appearance change (barber, RaceMenu) updates the actor within a few
+   seconds with a single respawn, returning to its locomotion and furniture
+   state; a level change relabels it without a respawn. An
+   equipment change applies within 0.5 s without respawn, animation, or sound.
 3. The actor's inventory holds exactly the synchronized items, also after a cell
    reload, a respawn, and a hit reaction. The local player's appearance,
    inventory, and equipment never change because of a remote actor.
@@ -409,11 +410,10 @@ To verify in game:
 6. Player-enchanted items appear as their unenchanted base item.
 7. Drawing right after spawn or a swap draws the synchronized weapon, and the
    next attack uses its animation.
-8. A player's label shows the configured nickname whatever the character is
-   called, and whatever name its client put in the appearance. A changed
-   nickname applied in the settings window relabels the actor for peers without
-   reconnecting or respawning. Without a nickname the player never appears to
-   peers.
+8. A player's label shows the configured display name whatever the character is
+   called, and whatever name its client put in the appearance. A display name
+   changed while disconnected shows to peers from the next connection. Without
+   a display name the player never appears to peers.
 
 ## Known limitations
 

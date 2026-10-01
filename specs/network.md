@@ -20,26 +20,34 @@
   game under wine; other in-game behavior is not verified.
 - Not verified in game: the connection policy and recovery
   ([Connection](#connection)), and whether quantization shows as jitter. The
-  nickname requirement is not built on Windows either.
+  display name requirement is not built on Windows either.
 - **Sessions:** not built on Windows or run in game. Server: `go test -race`
-  covers the store (`internal/auth`: issue, resume, unique nicknames, rename,
-  sliding expiry, a reopened database), the hub (the session's nickname on the
-  appearance, a rename reaching subscribers and whispers, a session connecting
-  again), and black-box connections (`internal/session`: issued and resumed
-  sessions, every refusal, the earlier connection closed with 4006, `SetNickname`
-  and its limit, an unused new session deleted and a resumed one kept).
-  `cmd/loadgen` ran 100 bots
-  twice against one database on port 3100 without a refusal. Plugin:
-  `ServerClient`, `WireCodec`, `SessionStore`, and `ConnectionMonitor` were
-  built on Linux against IXWebSocket 12.0.1 and nanopb 0.4.9 with a stubbed
-  configuration and game state, and run against that server: a session issued
-  and saved to `skyrim-mp.session`, resumed by a second process from the file,
-  renamed while connected, a rename to a held nickname rejected with the session
-  kept, a hello with a held nickname refused without retrying and reconnected
-  once another nickname was applied, and a second process with the same token
-  closing the first, which stayed down. `ChatSync.cpp` passed a syntax check;
-  `AppearanceSync.cpp` was not compiled. The UI that shows refusals is in
-  [UI overlay](ui-overlay.md#status).
+  covers the store (`internal/auth`: issue, resume, unique display names, a
+  resumed session renamed by its hello, sliding expiry, a reopened database, a
+  version 1 database upgraded), the hub (the session's display name on the
+  appearance, a session connecting again), and black-box connections
+  (`internal/session`: issued and resumed sessions, a hello renaming a resumed
+  session, every refusal, the earlier connection closed with 4006, an unused
+  new session deleted and a resumed one kept). `cmd/loadgen` ran 100 bots
+  twice against one database on port 3100 without a refusal, and 20 bots
+  against an in-memory store with protocol version 4. Plugin: `ServerClient`,
+  `WireCodec`, `SessionStore`, and `ConnectionMonitor` were built on Linux
+  against IXWebSocket 12.0.1 and nanopb 0.4.9 with a stubbed configuration and
+  game state, and run against that server: a session issued and saved to
+  `skyrim-mp.session`, resumed by a second process from the file, a hello with
+  a held display name refused without retrying, and a second process with the
+  same token closing the first, which stayed down. That run was before the wire
+  fields were named `display_name`, before the display name could change only
+  with a hello, and before a refusal ended the player's choice to connect.
+  Since then `ServerClient.cpp`, `WireCodec.cpp` with the regenerated nanopb
+  code, and `ConnectionMonitor.cpp` passed a syntax check, and
+  `ConnectionMonitor.cpp` ran on Linux under the settings window against a
+  stubbed transport ([UI overlay](ui-overlay.md#status)): a game start with
+  and without a display name and `AutoConnect`, a refusal for the display
+  name, the protocol version, and a replaced session, each leaving the player
+  disconnected without a retry until Connect, and a lost connection reopened.
+  `ChatSync.cpp` passed a syntax check; `AppearanceSync.cpp` was not compiled.
+  The UI that shows refusals is in [UI overlay](ui-overlay.md#status).
 
 ## Scope
 
@@ -64,14 +72,14 @@ refused at the handshake ([Transport](#transport)).
 | `src/protocol/` | Plain wire values and shared validation: `PlayerState.h`, `MovementState.h`, `AppearanceState.h`, `EquipmentState.h`, `FormReference.h`, `ChatMessage.h`, `PeerSlot.h`, `Session.h`, and the quantization rules in `Quantization.h`. No Skyrim headers |
 | `network/WireCodec` | nanopb encoding of client messages and validated decoding of server messages |
 | `network/ServerClient` | IXWebSocket transport: sends, dispatches received messages, merges each peer's context into its checkpoints, and queues per-player changes for `DrainRemotePlayerChanges` |
-| `network/ConnectionMonitor` | When to connect, reconnect schedule, latency probes, refusal, renaming the session, and the connection state |
+| `network/ConnectionMonitor` | When to connect, reconnect schedule, latency probes, refusal, and the connection state |
 | `network/SessionStore` | The session tokens in `skyrim-mp.session`, one per server |
 | `network/Refusal.h` | Why the server refused a connection, for the monitor and the UI |
 | `network/TrafficMeter` | Bytes per second in each direction |
-| `server/internal/session` | WebSocket accept, hello and session authentication, reader and writer goroutines, renames, liveness, per-connection limits |
-| `server/internal/auth` | The session store: tokens, unique nicknames, expiry |
+| `server/internal/session` | WebSocket accept, hello and session authentication, reader and writer goroutines, liveness, per-connection limits |
+| `server/internal/auth` | The session store: tokens, unique display names, expiry |
 | `server/internal/validate` | Field validation of client messages |
-| `server/internal/world` | A player's accepted state and the ordering rules; nickname lookup for whispers |
+| `server/internal/world` | A player's accepted state and the ordering rules; display name lookup for whispers |
 | `server/internal/wire` | Hand-written encoding of checkpoint entries and batches, quantization for tools |
 | `server/internal/hub` | Applies accepted messages on one goroutine ([Interest and delivery](interest-and-delivery.md)) |
 
@@ -97,15 +105,15 @@ refused at the handshake ([Transport](#transport)).
   depends on `protoc`, whose install test fails under wine
   (`STATUS_DLL_NOT_FOUND`).
 - The first client message must be
-  `Hello{protocol_version, view_radius, session_token, nickname}` within
+  `Hello{protocol_version, view_radius, session_token, display_name}` within
   `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (3) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (4) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
-  `Welcome{slot, session_id, nickname, session_token}`. Slots are `uint32` from
-  a counter that only rises and are never reused within a server run, so a slot
-  names one connection. Replays and in-server bots get slots too.
+  `Welcome{slot, session_id, display_name, session_token}`. Slots are `uint32`
+  from a counter that only rises and are never reused within a server run, so a
+  slot names one connection. Replays and in-server bots get slots too.
 - Liveness runs on the transport, not the game: the server pings every
   `liveness.ping_interval_seconds` (5) and closes a connection whose pong does
   not arrive within `liveness.timeout_seconds` (10). IXWebSocket answers pings
@@ -121,8 +129,8 @@ refused at the handshake ([Transport](#transport)).
 | 4001 | Another protocol version | refusal |
 | 4002 | Ordered backlog overflowed | reconnects |
 | 4003 | Message rate exceeded | reconnects |
-| 4004 `nickname taken` | Another session holds the hello's nickname | refusal |
-| 4005 `invalid nickname` | The hello's nickname is missing or not a nickname | refusal |
+| 4004 `display name taken` | Another session holds the hello's display name | refusal |
+| 4005 `invalid display name` | The hello's display name is missing or not a display name | refusal |
 | 4006 `session connected elsewhere` | The session connected again | refusal |
 | 1008 | First message is not a hello, or `invalid session token` | reconnects |
 | 1011 `session store unavailable` | The session store failed | reconnects |
@@ -133,7 +141,7 @@ What a refusal means for the client is in [Connection](#connection).
 
 | Message | Handling |
 | --- | --- |
-| `Hello` | Handshake, above. `view_radius` is the client's `[Network] ViewRadius` in game units, 0 for the server's ([Interest and delivery](interest-and-delivery.md#subscriptions)). `session_token` and `nickname` resume or issue the [session](#sessions) |
+| `Hello` | Handshake, above. `view_radius` is the client's `[Network] ViewRadius` in game units, 0 for the server's ([Interest and delivery](interest-and-delivery.md#subscriptions)). `session_token` and `display_name` resume or issue the [session](#sessions) |
 | `Enter`, `Exit` | World presence. `Exit` when not in the world does nothing |
 | `Context` | A checkpoint's space and graph epoch ([below](#checkpoint-and-context)) |
 | `Checkpoint` | One quantized sample |
@@ -141,11 +149,10 @@ What a refusal means for the client is in [Connection](#connection).
 | `Appearance`, `Equipment` | Latest-wins presentation ([below](#appearance-and-equipment)) |
 | `ChatSend` | `{request_id, text, channel}`, answered with a `Result` ([Chat](#chat)) |
 | `Ping` | `{request_id}`, answered with `Result{ok}` by the connection at once; the latency probe |
-| `SetNickname` | `{request_id, nickname}`, answered with a `Result` ([Renaming](#renaming)) |
 
 A rejected message is dropped and logged on the server (at most one summary
-per connection every 5 s); only `ChatSend`, `Ping`, and `SetNickname` get a
-`Result`. Graph event names never cross the network.
+per connection every 5 s); only `ChatSend` and `Ping` get a `Result`. Graph
+event names never cross the network.
 
 ## Checkpoint and context
 
@@ -222,12 +229,6 @@ latest-wins message with a source-local `revision` (`>= 1`, strictly rising
 per connection). Capture, resolution, and fallbacks are in
 [Appearance and equipment](appearance-and-equipment.md).
 
-The server numbers the appearance it stores and relays itself, from 1 per
-connection, one higher for every accepted appearance and every
-[rename](#renaming): a rename relays the appearance again, and receivers
-accept only a rising revision. The source's own revisions are only compared
-with each other.
-
 ### Form references
 
 Items, races, head parts, and furniture are `FormRef{plugin, form_id}`: the
@@ -240,7 +241,7 @@ match. Plugin names are 1..260 bytes and `form_id` is `0..0xFFFFFF`. Dynamic
 
 | Field | Validation |
 | --- | --- |
-| `name` | at most 128 UTF-8 bytes, no control characters (below U+0020, U+007F). The server replaces a client's with its [session's nickname](#sessions) on the stored and relayed copy, and the client sends none; a replayed player keeps its recorded name |
+| `name` | at most 128 UTF-8 bytes, no control characters (below U+0020, U+007F). The server replaces a client's with its [session's display name](#sessions) on the stored and relayed copy, and the client sends none; a replayed player keeps its recorded name |
 | `level` | `0..65535`, `0` unknown |
 | `race` | required form reference |
 | `female` | boolean |
@@ -283,7 +284,7 @@ same list.
 
 | Message | Fields |
 | --- | --- |
-| `Welcome` | `slot`, `session_id`, `nickname`, and `session_token` only when the session was issued for this connection ([Sessions](#sessions)) |
+| `Welcome` | `slot`, `session_id`, `display_name`, and `session_token` only when the session was issued for this connection ([Sessions](#sessions)) |
 | `Result` | `request_id`, `ok`, `error` |
 | `PeerStates` | `repeated Checkpoint` with `player` set; the concatenation of entries encoded once per sender |
 | `PeerEnter` | `slot`, `appearance` and `equipment` when newer than what the recipient holds, `context`, `state` (the stored checkpoint) |
@@ -304,15 +305,15 @@ When each is sent and in what order is
   capture ends, and every recipient that received it or holds its presentation
   gets `PeerLeave` with `DISCONNECTED`.
 - Messages are decoded and validated on the connection's reader goroutine and
-  applied in arrival order by the hub. `Ping` and `SetNickname` are answered by
-  the connection itself.
+  applied in arrival order by the hub. `Ping` is answered by the connection
+  itself.
 
 ### Sessions
 
 Goal: every connection belongs to a player the server can recognize again. A
 session is that identity on one server: a public ID that later interactions
 between players can refer to whatever the player is called, a secret only the
-player's client holds, and a nickname no other session has. Non-goals:
+player's client holds, and a display name no other session has. Non-goals:
 accounts, passwords, recovering a lost session, roles, bans, and protecting
 the admin API.
 
@@ -320,33 +321,37 @@ the admin API.
 | --- | --- |
 | `session_id` | `uint64` from 1, the row ID of an `AUTOINCREMENT` column, so it is never reused, also after the session is gone. Sent only to its own client, in `Welcome`; the hub keeps it on the player (`world.Player.Session`) |
 | Token | 32 bytes from `crypto/rand`. The store keeps only its SHA-256, so a copy of the database resumes nobody. It is returned once, in the `Welcome` of the connection it was issued for |
-| Nickname | 1..128 UTF-8 bytes, no control characters, no leading or trailing space (`validate.Nickname`), so a whisper can address it. Unique among sessions by `validate.NicknameKey`, its lower case; a session may respell its own |
+| Display name | 1..128 UTF-8 bytes, no control characters, no leading or trailing space (`validate.DisplayName`), so a whisper can address it. Unique among sessions by `validate.DisplayNameKey`, its lower case; a session may respell its own |
 | Last use | Set by every hello, when a connection closes, and hourly for connected sessions (`session.Server.Maintain`) |
 
 - `auth.Store` keeps sessions in SQLite (`modernc.org/sqlite`, pure Go, pinned
   to the newest release that builds with Go 1.24) at `sessions.database`
   (`sessions.db`; empty keeps them in memory, for tests), with a write-ahead
-  log and `user_version` 1. Its one connection serializes transactions, which
-  the nickname checks rely on. Store calls run on a connection's goroutine,
+  log and `user_version` 2. A version 1 database, whose columns are named
+  `nickname` and `nickname_key`, has them renamed when opened and keeps its
+  sessions. Its one connection serializes transactions, which
+  the display name checks rely on. Store calls run on a connection's goroutine,
   never on the hub's.
 - A session lives `sessions.lifetime_days` (30) after its last use, so one that
   keeps connecting never expires and none expires while connected. Expired
-  sessions are deleted before every nickname comparison and hourly, which frees
-  their nicknames; their tokens then match nothing.
+  sessions are deleted before every display name comparison and hourly, which
+  frees their display names; their tokens then match nothing.
 - The hello's `session_token` is empty or 32 bytes, else the connection is
-  closed with 1008 `invalid session token`; a `nickname` that is not one is
-  closed with 4005 `invalid nickname`.
-- A token of a live session resumes it. A nickname other than the session's
+  closed with 1008 `invalid session token`; a `display_name` that is not one is
+  closed with 4005 `invalid display name`.
+- A token of a live session resumes it. A display name other than the session's
   renames it first; one another session holds closes the connection with 4004
-  `nickname taken` and leaves the session as it was.
+  `display name taken` and leaves the session as it was. The hello is the only
+  message that sets a display name, so a session's name is fixed for as long
+  as a connection lasts and changes only by connecting again.
 - No token, or one that matches no live session (unknown or expired), issues a
-  new session under the nickname, or closes with 4004 when it is held. The
+  new session under the display name, or closes with 4004 when it is held. The
   client asks for a session by connecting; there is no separate request.
-- A session issued for a connection that closes before the client sent
-  anything after its hello is deleted (`Store.Abandon`). The welcome may not
-  have reached the client, which then holds no token and would find its own
-  nickname taken until the session expired. A session whose token came back in
-  a later hello is kept: its client holds the token.
+- A session issued for a connection that closes before the client sent anything
+  after its hello is deleted (`Store.Abandon`). The welcome may not have reached
+  the client, which then holds no token and would find its own display name
+  taken until the session expired. A session whose token came back in a later
+  hello is kept: its client holds the token.
 - A session is connected once. When it connects again, `Hub.ConnectClient`
   disconnects the earlier connection's player first, so peers get its
   `PeerLeave` with `DISCONNECTED`, and the earlier socket is closed with 4006
@@ -360,26 +365,7 @@ the admin API.
   and relayed copy, `ChatSpeaker.name`, the admin state, and a recording's
   header. Replays and in-server bots have no session and keep their recorded
   names, which are not compared with anyone's; a replay may show a connected
-  player's nickname.
-
-#### Renaming
-
-`SetNickname{request_id, nickname}` renames the connection's session while
-connected. It is answered on the connection's reader goroutine:
-
-| `Result.error` | When |
-| --- | --- |
-| `rate limited` | more than 0.2 per second, burst 3, per connection; refused requests count |
-| `invalid nickname` | not a nickname |
-| `nickname taken` | another session holds it |
-| `session store unavailable` | the store failed |
-
-On success the hub (`Hub.SetNickname`) moves the nickname lookup to the new
-name and, when the player has an appearance, gives it the name and the next
-revision, relays it as `PeerAppearance` to subscribers, and records it into a
-running capture. A recipient that holds the older revision without receiving
-the player gets the new one with its next `PeerEnter`. The `Result` follows
-the hub's change.
+  player's display name.
 
 ### Chat
 
@@ -395,19 +381,19 @@ the hub's change.
   ignores exclusions, hiding, and the visible cap, which govern presentation
   only. Recipients are found by a scan of connected clients, which the rate
   limit keeps cheap; the interest grid does not bound an interior.
-- `WHISPER` text starts with the recipient: `world.Names.Find` takes the
-  longest nickname of a connected client, compared like session nicknames and
-  followed by a space or the end. Longest-first lets nicknames contain spaces.
-  No match is `unknown recipient`, which includes replays and bots, since only
-  clients are looked up; nothing after the name is `empty whisper`. The relayed
-  `text` is the message after the name, and the whisper goes to the sender and
-  the recipient (once when they are the same).
+- `WHISPER` text starts with the recipient: `world.Names.Find` takes the longest
+  display name of a connected client, compared like session display names and
+  followed by a space or the end. Longest-first lets display names contain
+  spaces. No match is `unknown recipient`, which includes replays and bots,
+  since only clients are looked up; nothing after the name is `empty whisper`.
+  The relayed `text` is the message after the name, and the whisper goes to the
+  sender and the recipient (once when they are the same).
 - 5 accepted messages per player in any 5 s over all channels
   (`rate limited`); rejected messages do not count, and a disconnect forgets
   the history.
 - Every channel includes the sender, so everyone sees one order and the
   sender's own line confirms delivery. A `ChatSpeaker` is the player's
-  nickname and the level of its latest appearance (`0` before one).
+  display name and the level of its latest appearance (`0` before one).
 - The client rejects a `ChatMessage` without a sender, with an unknown channel,
   or with a recipient present exactly when the channel is not `WHISPER`, and
   validates speakers like appearance names and text like `ChatSend`.
@@ -424,7 +410,7 @@ the hub's change.
   `PeerStates` is decoded entry by entry (at most 4096).
 - Nothing before `Welcome` is accepted. `Welcome` advances the connection
   generation and clears all receive history. A `Welcome` without a slot, a
-  session ID, or a valid nickname, or with a token of another length, is
+  session ID, or a valid display name, or with a token of another length, is
   rejected.
 - Per peer, the transport keeps the latest context from `PeerEnter` and
   `PeerContext` and merges it into each checkpoint, so the sync pipeline still
@@ -453,14 +439,13 @@ the hub's change.
   lets a player switch servers and back. The file is read once, on first use,
   and written through `skyrim-mp.session.tmp`. Tokens are never logged.
 - When the socket opens, the transport thread sends the hello with the token
-  kept for the attempt's URL, or none, and `[General] Nickname`.
+  kept for the attempt's URL, or none, and `[General] DisplayName`.
 - A `Welcome` with a token saves it, also when the connection is already being
   closed, since the session exists on the server either way. A failed save is
   logged as an error: the token lasts until the game exits.
-- `Network::GetSessionNickname` is the welcomed session's nickname, empty while
-  disconnected. The session ID is only logged.
-- The client sends no `Appearance.name`; a nickname change is a rename
-  ([Connection](#connection)), not an appearance revision.
+- The welcome's session ID and display name are only logged.
+- The client sends no `Appearance.name`: the hello carries the display name,
+  which holds for the connection ([Connection](#connection)).
 
 ### Latest-wins publishers
 
@@ -473,8 +458,8 @@ the server's `PeerEnter` messages.
 ### Connection
 
 A connection is wanted only in a game, while the player's choice enables it,
-and once `[General] Nickname` is set
-([Appearance and equipment](appearance-and-equipment.md#nickname)).
+and once `[General] DisplayName` is set
+([Appearance and equipment](appearance-and-equipment.md#display-name)).
 `ConnectionMonitor` owns that decision; nothing else opens or closes the
 client.
 
@@ -483,21 +468,18 @@ client.
 - A game starts when `PresenceSync` first finds the player in the world, and
   ends when the main menu opens (`GameSession`). Loading screens keep the game
   and its connection.
-- At a game start the choice becomes `[Network] AutoConnect` (default `true`).
-  The settings window's Connect and Disconnect buttons change it with
+- At a game start the choice becomes `[Network] AutoConnect` (default `true`)
+  if a display name is set, and disabled otherwise. The settings window's
+  Connect, Cancel, and Disconnect change it with
   `Network::SetConnectionEnabled` until the game ends.
-- The monitor reads the nickname when the configuration revision changes and
-  publishes `Network::HasNickname` for the UI. With the choice enabled, applying
-  a first nickname opens the connection at once, and applying an empty one
-  closes it like Disconnect. The server requires one too, in the hello.
-- While connected, the monitor compares the configured nickname with the
-  session's whenever the configuration revision or the connection generation
-  changes, and sends `SetNickname` when they differ. A refusal is kept as a
-  sentence in `Network::GetNicknameRejection` until a rename succeeds, the
-  configured nickname is the session's again, or the connection ends; the
-  session keeps its nickname and the player stays connected. An answer never
-  arrives for a connection that dropped, and the next hello carries the
-  configured nickname anyway.
+- Applying a display name never opens a connection; only the choice does. The
+  monitor reads the display name when the configuration revision changes, and
+  one that becomes empty disables the choice, so entering one again waits for
+  Connect. The server requires one too, in the hello.
+- A connection keeps the display name its hello carried. The settings window
+  locks the field while a connection is wanted or open
+  ([UI overlay](ui-overlay.md#connection-controls)), so the configured display
+  name does not change under one, and the monitor does not compare them.
 - Opening skips the reconnect delay and resets the attempt count. Closing
   (`BeginClose`) marks the client disconnected at once, forgetting every remote
   player, and stops the socket on a worker, which joins the socket's thread. It
@@ -510,15 +492,16 @@ client.
   `kDisconnected` otherwise.
 - An applied endpoint that differs from the latest attempt's abandons a live
   connection and reconnects at once, with the attempt count reset.
-- A close with status 4001, 4004, 4005, or 4006 is a refusal: the monitor
-  stops reconnecting, `Network::GetConnectionRefusal` returns its
-  `Refusal{reason, message, nickname}` for the settings window's
-  [connection row](ui-overlay.md#connection-row), and only an endpoint change
-  or pressing Connect again retries. A refused nickname (4004, 4005) is also
-  retried once a nickname other than the refused one is applied. 4006 is a
-  refusal because retrying would close the connection that replaced this one,
-  and two games holding one token would take the session from each other
-  without end.
+- A close with status 4001, 4004, 4005, or 4006 is a refusal: retrying cannot
+  help, so the monitor disables the player's choice and closes the client,
+  which leaves `kDisconnected`. `Network::GetConnectionRefusal` returns its
+  `Refusal{reason, message}` for the settings window's [connection
+  controls](ui-overlay.md#connection-controls) until the player presses
+  Connect or a game starts or ends. Nothing retries by itself, also not an
+  applied display name or endpoint: the player changes what the refusal names
+  and presses Connect. 4006 is a refusal because retrying would close the
+  connection that replaced this one, and two games holding one token would
+  take the session from each other without end.
 
 The monitor's timers accumulate the clamped frame delta, which is zero in the
 main menu and while paused, so they hold while opening and closing still follow
@@ -569,25 +552,29 @@ window, and are empty after a long gap. The status panel shows them.
 1. Two clients see each other move, attack, sit, ride, die, and change
    appearance and equipment as before the protobuf transport.
 2. A client that joins while a peer's game is paused sees that peer at once.
-3. A client with another protocol version shows `Server version differs` and
-   does not retry until Connect or an endpoint change.
+3. A client with another protocol version shows the server's version in the
+   settings window and stays disconnected until Connect.
 4. A paused game (menu open) stays connected for minutes.
 5. Quantization shows no visible jitter in position or heading.
-6. A client without a nickname opens no connection, whatever `AutoConnect` and
-   Connect say; applying one connects, and applying an empty one disconnects.
+6. A client without a display name opens no connection, whatever `AutoConnect`
+   says, and cannot press Connect; applying one does not connect until Connect
+   is pressed.
 7. A first connection to a server writes its line to `skyrim-mp.session`; later
    games, and reconnects after a loss or a server restart, resume the same
    session.
-8. Two players never show the same nickname, compared without case, also while
-   one of them is offline; a session unused for 30 days frees its nickname.
-9. Connecting with a nickname another session holds shows `Nickname is taken`
-   and does not retry; applying a free nickname connects without pressing
-   Connect.
-10. Applying another nickname while connected relabels the player for peers
-    within a second, without a reconnect or a respawn. Applying a held one
-    keeps the old nickname for peers and shows `Nickname not changed`.
+8. Two players never show the same display name, compared without case, also
+   while one of them is offline; a session unused for 30 days frees its display
+   name.
+9. Connecting with a display name another session holds shows in the settings
+   window that another player has it and leaves the player disconnected;
+   applying a free display name and pressing Connect connects.
+10. The display name cannot be edited while a connection is wanted or open.
+    After Disconnect, applying another one and pressing Connect resumes the
+    same session under it, and peers see the player leave and enter with the
+    new display name.
 11. A second game started with a copy of `skyrim-mp.session` takes the session;
-    the first shows `Connected elsewhere` and stays down until Connect.
+    the first shows that its session connected from another game and stays
+    down until Connect.
 12. A reconnect after a network loss is welcomed at once, without waiting for
     the server to time out the dead connection.
 
@@ -598,12 +585,12 @@ window, and are empty after a long gap. The status panel shows them.
   Internet.
 - A session cannot be recovered: a player who loses `skyrim-mp.session`, or
   whose plugin could not write it, gets a new session, and the old one keeps
-  its nickname until it expires.
-- Nothing limits how many sessions an address may take, so nicknames can be
+  its display name until it expires.
+- Nothing limits how many sessions an address may take, so display names can be
   squatted and the database grown; the message rate limit does not apply before
   the welcome.
-- Nicknames compare by lower case only. Names that differ in Unicode
-  normalization or use look-alike characters are different nicknames.
+- Display names compare by lower case only. Names that differ in Unicode
+  normalization or use look-alike characters are different display names.
 - The token is sent in the hello as it is, so an `http://` endpoint exposes it
   to the network; `https://` endpoints carry it under TLS.
 - The session ID does not reach peers yet, and exclusions and hiding are still

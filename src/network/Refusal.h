@@ -9,9 +9,9 @@ namespace Network
     enum class RefusalReason : std::uint8_t
     {
         kProtocolMismatch,
-        // Another session holds the nickname the hello asked for.
-        kNicknameTaken,
-        kNicknameInvalid,
+        // Another session holds the display name the hello asked for.
+        kDisplayNameTaken,
+        kDisplayNameInvalid,
         // The session connected again from somewhere else, which closed this
         // connection. Retrying would close that one in turn.
         kSessionReplaced
@@ -22,7 +22,5 @@ namespace Network
         RefusalReason reason{ RefusalReason::kProtocolMismatch };
         // For the player, as a sentence.
         std::string message;
-        // The nickname the refused attempt asked for.
-        std::string nickname;
     };
 }

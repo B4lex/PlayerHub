@@ -7,7 +7,7 @@
 namespace Multiplayer
 {
     // A session's public identifier: the same for as long as the session lives,
-    // whatever its nickname, and never reused. Zero is no session.
+    // whatever its display name, and never reused. Zero is no session.
     using SessionID = std::uint64_t;
 
     inline constexpr std::size_t kSessionTokenBytes = 32;

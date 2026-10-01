@@ -68,12 +68,12 @@ local_radius = 8192         # game units, horizontal; an interior is heard whole
 
 [sessions]
 database = "sessions.db"    # SQLite file of player sessions; "" keeps them in memory
-lifetime_days = 30          # a session unused for this long is gone, with its nickname
+lifetime_days = 30          # a session unused for this long is gone, with its display name
 ```
 
 Players are identified by sessions (`../specs/network.md`, Sessions). The
 session database is created on first start, with its write-ahead log next to
-it. Deleting it gives every player a new session and frees every nickname.
+it. Deleting it gives every player a new session and frees every display name.
 
 For a homelab with a 50 Mbit/s upload, see `homelab.toml`: the budget on and
 32 visible peers, which keeps the nearest peers' p99 under 60 ms with 250
@@ -113,11 +113,11 @@ go run ./cmd/convert-recordings recordings
 | `cmd/server` | Entry point and wiring |
 | `internal/config` | TOML configuration and defaults |
 | `internal/session` | WebSocket accept, hello and session authentication, reader, writer, liveness, limits |
-| `internal/auth` | Session store: tokens, unique nicknames, expiry |
+| `internal/auth` | Session store: tokens, unique display names, expiry |
 | `internal/validate` | Field validation of client messages |
 | `internal/hub` | The one goroutine that owns world state, subscriptions, and delivery order |
 | `internal/interest` | Interest rules, exclusions, spatial grid |
-| `internal/world` | Player state and ordering rules, nickname lookup |
+| `internal/world` | Player state and ordering rules, display name lookup |
 | `internal/delivery` | Per-recipient outboxes and batch writing |
 | `internal/wire` | Hand-written encoding of hot messages, quantization, generated `pb` |
 | `internal/recording` | Format version 3, store, captures, v2 converter, timeline markers |

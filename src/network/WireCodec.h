@@ -24,9 +24,9 @@
 // does, so nothing invalid reaches the queues.
 namespace Network::Wire
 {
-    // Without a token the server issues a new session under a_nickname.
-    // Otherwise the token's session is resumed and takes a_nickname.
-    [[nodiscard]] std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_nickname,
+    // Without a token the server issues a new session under a_displayName.
+    // Otherwise the token's session is resumed and takes a_displayName.
+    [[nodiscard]] std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_displayName,
         const std::optional<Multiplayer::SessionToken>& a_token);
     [[nodiscard]] std::string EncodeEnter();
     [[nodiscard]] std::string EncodeExit();
@@ -40,14 +40,13 @@ namespace Network::Wire
     [[nodiscard]] std::string EncodeChat(
         std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel, std::string_view a_text);
     [[nodiscard]] std::string EncodePing(std::uint32_t a_requestID);
-    [[nodiscard]] std::string EncodeSetNickname(std::uint32_t a_requestID, std::string_view a_nickname);
 
     struct Welcome
     {
         Multiplayer::PeerSlot slot{ 0 };
         Multiplayer::SessionID sessionID{ 0 };
-        // The session's nickname, as peers see it.
-        std::string nickname;
+        // The session's display name, as peers see it.
+        std::string displayName;
         // Only when the server issued the session for this connection.
         std::optional<Multiplayer::SessionToken> issuedToken;
     };

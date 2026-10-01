@@ -68,13 +68,9 @@ namespace Network
     void Initialize();
 
     // Whether the server welcomed this connection. Every hello presents the
-    // session token kept for the server (SessionStore) and [General] Nickname,
+    // session token kept for the server (SessionStore) and [General] DisplayName,
     // and the welcome names the session it resumed or issued.
     [[nodiscard]] bool IsConnected();
-
-    // The nickname of this connection's session, as peers see it. Empty while
-    // disconnected. Safe to call from any thread.
-    [[nodiscard]] std::string GetSessionNickname();
 
     // Whether the WebSocket is open. It outlasts IsConnected while a close is
     // in progress. Safe to call from any thread.
@@ -113,13 +109,6 @@ namespace Network
     // DrainChatMessages like everyone else's.
     [[nodiscard]] bool PublishChatMessage(Multiplayer::ChatChannel a_channel, std::string_view a_text,
         std::function<void(std::string_view)> a_onRejected);
-
-    // Asks the server to rename this connection's session. Returns false
-    // without sending while disconnected. a_onResult runs on the transport
-    // thread with an empty reason when the session was renamed, or with the
-    // server's reason for refusing; it never runs if the connection drops
-    // first, and the next hello asks for the configured nickname anyway.
-    [[nodiscard]] bool RequestNickname(std::string_view a_nickname, std::function<void(std::string_view)> a_onResult);
 
     // Sends a Ping. a_onAcknowledged runs on the transport thread when the
     // server answers it; it never runs if the connection drops first.

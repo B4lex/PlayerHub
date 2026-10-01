@@ -45,20 +45,20 @@ const (
 
 // Errors name the rejected message, as the Python server's acknowledgements did.
 var (
-	ErrCheckpoint = errors.New("invalid player transform")
-	ErrContext    = errors.New("invalid player context")
-	ErrAction     = errors.New("invalid animation action")
-	ErrAppearance = errors.New("invalid player appearance")
-	ErrEquipment  = errors.New("invalid player equipment")
-	ErrChat       = errors.New("invalid chat message")
-	ErrNickname   = errors.New("invalid nickname")
-	ErrToken      = errors.New("invalid session token")
+	ErrCheckpoint  = errors.New("invalid player transform")
+	ErrContext     = errors.New("invalid player context")
+	ErrAction      = errors.New("invalid animation action")
+	ErrAppearance  = errors.New("invalid player appearance")
+	ErrEquipment   = errors.New("invalid player equipment")
+	ErrChat        = errors.New("invalid chat message")
+	ErrDisplayName = errors.New("invalid display name")
+	ErrToken       = errors.New("invalid session token")
 )
 
 var ErrUnexpected = errors.New("unexpected message")
 
-// Message checks the fields of a client message that the hub handles. Hello,
-// Ping, and SetNickname are answered by the session and are unexpected here.
+// Message checks the fields of a client message that the hub handles. Hello
+// and Ping are answered by the session and are unexpected here.
 func Message(m *pb.ClientMessage) error {
 	switch body := m.Message.(type) {
 	case *pb.ClientMessage_Enter, *pb.ClientMessage_Exit, *pb.ClientMessage_Chat:
@@ -196,21 +196,21 @@ func Hello(h *pb.Hello) error {
 	if token := h.GetSessionToken(); len(token) != 0 && len(token) != SessionTokenBytes {
 		return ErrToken
 	}
-	return Nickname(h.GetNickname())
+	return DisplayName(h.GetDisplayName())
 }
 
-// Nickname checks a name a session may take: not empty, and addressable by a
+// DisplayName checks a name a session may take: not empty, and addressable by a
 // whisper, so without surrounding spaces.
-func Nickname(n string) error {
+func DisplayName(n string) error {
 	if n == "" || !name(n) || n[0] == ' ' || n[len(n)-1] == ' ' {
-		return ErrNickname
+		return ErrDisplayName
 	}
 	return nil
 }
 
-// NicknameKey is what nicknames are compared by: two that differ only in case
-// are the same.
-func NicknameKey(n string) string {
+// DisplayNameKey is what display names are compared by: two that differ only
+// in case are the same.
+func DisplayNameKey(n string) string {
 	return strings.ToLower(n)
 }
 
