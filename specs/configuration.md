@@ -171,7 +171,9 @@ revision before the snapshot never misses a change.
 
 `Config::GetDirectory` is the directory of `skyrim-mp.ini`, for the plugin's
 other files: the session tokens are kept there in `skyrim-mp.session`, outside
-this file ([Network](network.md#session)).
+this file ([Network](network.md#session)), and the settings window's fonts are
+read from `skyrim-mp/fonts/` under it
+([UI overlay](ui-overlay.md#themed-faces)).
 
 ## Acceptance criteria
 

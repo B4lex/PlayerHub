@@ -1,6 +1,7 @@
 #include "ui/settings/SettingsWindow.h"
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
+#include "ui/Fonts.h"
 #include "ui/Theme.h"
 #include "ui/WindowManager.h"
 #include "ui/settings/ConnectionControls.h"
@@ -233,7 +234,7 @@ namespace UI
                 const auto& style = ImGui::GetStyle();
                 ImGui::SetCursorPos(padding);
                 FormatSectionTitle(a_name, label);
-                ImGui::PushFont(nullptr, style.FontSizeBase * kTitleScale);
+                ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kTitleScale);
                 DrawText(label);
                 ImGui::PopFont();
                 if (!a_comment.empty())
@@ -271,7 +272,7 @@ namespace UI
                 {
                     note += static_cast<char>(std::toupper(static_cast<unsigned char>(character)));
                 }
-                ImGui::PushFont(nullptr, style.FontSizeBase * kGroupScale);
+                ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kGroupScale);
                 DrawMutedText(note);
                 ImGui::PopFont();
             }
@@ -716,7 +717,7 @@ namespace UI
                 {
                     const auto& style = ImGui::GetStyle();
                     ImGui::SetCursorPosX(padding.x + inset);
-                    ImGui::PushFont(nullptr, style.FontSizeBase * kBrandScale);
+                    ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kBrandScale);
                     ImGui::TextUnformatted("Multiplayer");
                     ImGui::PopFont();
                     ImGui::Dummy(ImVec2{ 0.0F, std::floor(style.ItemSpacing.y * 0.5F) });

@@ -26,12 +26,12 @@ namespace UI::Theme
         return ImVec4{ 1.0F, 1.0F, 1.0F, a_alpha };
     }
 
-    // The look of the plugin's interactive windows: dark neutral surfaces,
-    // rounded corners, an accent border around windows and popups, and accent
-    // highlights on widgets. Applies to every window and popup begun while it
-    // lives, so a window wraps its Begin and End in one; the overlay's base
-    // style stays as it is for the others. Overlay thread, between
-    // ImGui::NewFrame and ImGui::Render.
+    // The look of the plugin's interactive windows: the themed text face,
+    // dark neutral surfaces, rounded corners, an accent border around windows
+    // and popups, and accent highlights on widgets. Applies to every window
+    // and popup begun while it lives, so a window wraps its Begin and End in
+    // one; the overlay's base style stays as it is for the others. Overlay
+    // thread, between ImGui::NewFrame and ImGui::Render.
     class Scope
     {
     public:

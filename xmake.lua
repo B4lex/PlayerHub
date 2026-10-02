@@ -80,12 +80,18 @@ after_build(function (target)
 
     local dllfile = target:targetfile()
     local pdbfile = target:symbolfile()
+    -- The fonts keep their license file beside them wherever they are copied.
+    local fontfiles = path.join(os.projectdir(), "assets", "fonts", "*")
     for _, deploy_dir in ipairs(deploy_dirs) do
         os.cp(dllfile, deploy_dir)
 
         if pdbfile and os.isfile(pdbfile) then
             os.cp(pdbfile, deploy_dir)
         end
+
+        local fonts_dir = path.join(deploy_dir, "skyrim-mp", "fonts")
+        os.mkdir(fonts_dir)
+        os.cp(fontfiles, fonts_dir)
 
         print("Deployed to %s", deploy_dir)
     end

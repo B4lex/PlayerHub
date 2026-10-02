@@ -1,4 +1,5 @@
 #include "ui/Theme.h"
+#include "ui/Fonts.h"
 
 #include <algorithm>
 #include <cmath>
@@ -115,6 +116,7 @@ namespace UI::Theme
 
     Scope::Scope()
     {
+        ImGui::PushFont(Fonts::GetText(), 0.0F);
         const auto fontSize = ImGui::GetFontSize();
         for (const auto& color : kColors)
         {
@@ -135,5 +137,6 @@ namespace UI::Theme
     {
         ImGui::PopStyleVar(static_cast<int>(std::size(kSizes) + std::size(kExtents)));
         ImGui::PopStyleColor(static_cast<int>(std::size(kColors)));
+        ImGui::PopFont();
     }
 }

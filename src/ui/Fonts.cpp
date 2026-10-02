@@ -1,4 +1,5 @@
 #include "ui/Fonts.h"
+#include "config/PluginConfig.h"
 
 #include <REX/W32/KERNEL32.h>
 #include <REX/W32/OLE32.h>
@@ -25,7 +26,7 @@ namespace UI::Fonts
         // In lookup order: the first file that loads is the main font, and each
         // later one only supplies glyphs the earlier ones lack. Windows and
         // Proton ship some of them under different names.
-        constexpr std::array<std::wstring_view, 12> kFontFiles{
+        constexpr std::array<std::wstring_view, 12> kSystemFiles{
             L"segoeui.ttf",  // Latin, Greek, Cyrillic, Arabic, Hebrew, Armenian, Georgian
             L"arial.ttf",
             L"tahoma.ttf",  // Arabic, Hebrew, Thai
@@ -39,6 +40,15 @@ namespace UI::Fonts
             L"malgun.ttf",  // Korean
             L"seguisym.ttf",  // Symbols
         };
+
+        // Sovngarde, under the SIL Open Font License beside the files. Relative
+        // to the plugin's directory.
+        constexpr std::wstring_view kShippedDirectory = L"skyrim-mp/fonts";
+        constexpr std::wstring_view kTextFile = L"Sovngarde Light.ttf";
+        constexpr std::wstring_view kHeadingFile = L"Sovngarde Bold.ttf";
+        // Sovngarde's letters are small for its line height. This brings them
+        // to the system font's width without changing the line height.
+        constexpr float kShippedGlyphScale = 1.25F;
 
         // <windows.h> reaches plugin sources through the precompiled header, and
         // its macros hide REX's constants of the same names.
@@ -67,6 +77,9 @@ namespace UI::Fonts
         // The atlas reads glyphs from these views whenever it bakes new ones,
         // and it lives as long as the process.
         std::vector<MappedView> s_views;
+
+        ImFont* s_text = nullptr;
+        ImFont* s_heading = nullptr;
 
         std::optional<std::filesystem::path> GetFontsDirectory()
         {
@@ -115,18 +128,55 @@ namespace UI::Fonts
             s_views.push_back(std::move(view));
             return data;
         }
+
+        // Starts a font with a_data, or adds to the atlas's latest font the
+        // glyphs it lacks. Null if the data is not a font.
+        ImFont* AddSource(ImFontAtlas& a_atlas, float a_sizePixels, std::span<const std::byte> a_data, bool a_merge,
+            float a_glyphScale = 1.0F)
+        {
+            ImFontConfig config;
+            config.SizePixels = a_sizePixels;
+            config.FontDataOwnedByAtlas = false;
+            config.MergeMode = a_merge;
+            config.ExtraSizeScale = a_glyphScale;
+            return a_atlas.AddFontFromMemoryTTF(
+                const_cast<std::byte*>(a_data.data()), static_cast<int>(a_data.size()), a_sizePixels, &config);
+        }
+
+        // A font of its own for a shipped file, with a_fallbacks for what the
+        // file lacks. Null if the file is missing or not a font.
+        ImFont* AddShipped(ImFontAtlas& a_atlas, float a_sizePixels, const std::filesystem::path& a_path,
+            std::span<const std::span<const std::byte>> a_fallbacks)
+        {
+            const auto data = MapFile(a_path);
+            if (data.empty())
+            {
+                logs::warn("UI overlay: could not read font {}; using the system font", a_path.string());
+                return nullptr;
+            }
+            const auto font = AddSource(a_atlas, a_sizePixels, data, false, kShippedGlyphScale);
+            if (!font)
+            {
+                logs::warn("UI overlay: could not load font {}; using the system font", a_path.string());
+                s_views.pop_back();
+                return nullptr;
+            }
+            for (const auto fallback : a_fallbacks)
+            {
+                AddSource(a_atlas, a_sizePixels, fallback, true);
+            }
+            logs::info("UI overlay: font {}", a_path.filename().string());
+            return font;
+        }
     }
 
     void Load(ImFontAtlas& a_atlas, float a_sizePixels)
     {
-        ImFontConfig config;
-        config.SizePixels = a_sizePixels;
-        config.FontDataOwnedByAtlas = false;
-
+        std::vector<std::span<const std::byte>> system;
         std::string loaded;
         if (const auto directory = GetFontsDirectory())
         {
-            for (const auto fileName : kFontFiles)
+            for (const auto fileName : kSystemFiles)
             {
                 const auto path = *directory / fileName;
                 const auto data = MapFile(path);
@@ -134,14 +184,13 @@ namespace UI::Fonts
                 {
                     continue;
                 }
-                config.MergeMode = !loaded.empty();
-                if (!a_atlas.AddFontFromMemoryTTF(const_cast<std::byte*>(data.data()),
-                        static_cast<int>(data.size()), a_sizePixels, &config))
+                if (!AddSource(a_atlas, a_sizePixels, data, !system.empty()))
                 {
                     logs::warn("UI overlay: could not load font {}", path.string());
                     s_views.pop_back();
                     continue;
                 }
+                system.push_back(data);
                 loaded += loaded.empty() ? "" : ", ";
                 loaded += path.filename().string();
             }
@@ -151,15 +200,35 @@ namespace UI::Fonts
             logs::warn("UI overlay: could not resolve the system fonts folder");
         }
 
-        if (!loaded.empty())
+        if (system.empty())
+        {
+            logs::warn("UI overlay: no system font loaded; text is limited to Latin");
+            ImFontConfig defaultConfig;
+            defaultConfig.SizePixels = a_sizePixels;
+            a_atlas.AddFontDefaultVector(&defaultConfig);
+        }
+        else
         {
             logs::info("UI overlay: fonts {}", loaded);
-            return;
         }
 
-        logs::warn("UI overlay: no system font loaded; text is limited to Latin");
-        ImFontConfig defaultConfig;
-        defaultConfig.SizePixels = a_sizePixels;
-        a_atlas.AddFontDefaultVector(&defaultConfig);
+        const auto directory = Config::GetDirectory();
+        if (directory.empty())
+        {
+            return;
+        }
+        const auto shipped = directory / kShippedDirectory;
+        s_text = AddShipped(a_atlas, a_sizePixels, shipped / kTextFile, system);
+        s_heading = AddShipped(a_atlas, a_sizePixels, shipped / kHeadingFile, system);
+    }
+
+    ImFont* GetText()
+    {
+        return s_text;
+    }
+
+    ImFont* GetHeading()
+    {
+        return s_heading;
     }
 }

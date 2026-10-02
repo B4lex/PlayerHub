@@ -65,6 +65,21 @@
   engine input and ImGui IO functions: the key opens and closes the window
   without the game seeing either press, an editing key bound as `SettingsKey`
   stays with an active text field, and chat keeps Enter.
+- **Themed faces (Sovngarde):** not built on Windows or run in game. On Linux,
+  `Fonts.cpp` ran with POSIX stand-ins for its Win32 file calls, with
+  `SettingsWindow.cpp`, `ConnectionControls.cpp`, `Controls.cpp`, and
+  `Theme.cpp`, in a headless Dear ImGui 1.92.9 context against a folder laid
+  out as the deploy step leaves it and stand-in system fonts, the draw data
+  rasterized to images:
+  - every section at 1080p and Default Outfit at 4K, the key list, and a
+    label's tooltip are in Sovngarde with bold headings; a display name with
+    `Ґ`, `ž`, and Han characters shows them from the fallbacks;
+  - without `skyrim-mp/fonts/` the log warns for each file and the window is
+    in the system font; without system fonts both faces still load;
+  - after a frame the font stack is empty and the current font is the
+    overlay's.
+
+  The `xmake.lua` deploy step and a file that is not a font were not run.
 - **Item picker and preview:** built on Windows; in game the picker lists names
   and the preview shows models. The attach pass for models that load in the
   background has not run in game yet. On Linux, `ItemCatalog.cpp`,
@@ -87,7 +102,7 @@ and the configuration through `Config`.
 
 | Option | Result |
 | --- | --- |
-| Dear ImGui on Skyrim's D3D11 device | **Chosen.** One static library with no assets or runtime files. Immediate-mode code keeps a settings screen next to the values it edits, and many SKSE plugins draw this way, so it gets along with ENB, ReShade, and Community Shaders. |
+| Dear ImGui on Skyrim's D3D11 device | **Chosen.** One static library; its only runtime files are the two optional [themed fonts](#themed-faces). Immediate-mode code keeps a settings screen next to the values it edits, and many SKSE plugins draw this way, so it gets along with ENB, ReShade, and Community Shaders. |
 | Scaleform (Flash) menus | Native look, but needs SWF tools, ActionScript, and a Papyrus/ESP or SkyUI MCM for settings: much tooling and cross-language glue for a few widgets. |
 | Chromium Embedded Framework | Any web UI, but a runtime over 100 MB with separate processes, offscreen texture upload, and fragile Wine/Proton behavior. |
 
@@ -99,7 +114,7 @@ touching the network side.
 ```text
 src/ui/
   Overlay.h/.cpp              # renderer hook, ImGui context and backends, window registration
-  Fonts.h/.cpp                # system fonts with fallbacks
+  Fonts.h/.cpp                # system fonts with fallbacks, shipped themed faces
   Theme.h/.cpp                # look of the interactive windows: accent, rounded borders
   Window.h                    # interface every window implements
   WindowManager.h/.cpp        # registered windows, draw order, input focus
@@ -114,6 +129,7 @@ src/ui/
   preview/ItemPreview         # 3D item capture
 src/sync/chat/ChatSync        # channel prefixes, send, rejections as notices, lines to display
 src/runtime/PluginTime        # plugin time per pass
+assets/fonts/                 # Sovngarde Light and Bold with their license, deployed beside the DLL
 ```
 
 Every screen is an independent `UI::Window`. `Overlay::Install` registers each
@@ -165,6 +181,41 @@ demand, so no glyph ranges are needed. Without any file, ImGui's default font
 covers Latin only. The log lists the fonts loaded. Han characters take the
 Chinese forms of Microsoft YaHei, since it comes before the Japanese fonts.
 
+#### Themed faces
+
+The [themed](#theme) windows use Sovngarde 8.9 by mjorka, a serif after
+Skyrim's title lettering, in two more atlas fonts: `Fonts::GetText` is
+`Sovngarde Light.ttf` and `Fonts::GetHeading` is `Sovngarde Bold.ttf`. The
+overlay's own font stays the atlas default, so the status panel and chat keep
+the system font.
+
+- The files are in `assets/fonts/`, unmodified from the
+  [standalone release](https://mjorka.itch.io/sovngarde), with
+  `Sovngarde OFL License.txt`, and are read from `skyrim-mp/fonts/` under
+  `Config::GetDirectory` ([Configuration](configuration.md#file));
+  `xmake.lua` copies the folder to every deploy directory after a build.
+- They are separate files rather than data in the DLL because Sovngarde is
+  under the SIL Open Font License 1.1 and the plugin under GPL-3.0: beside
+  the DLL the font stays a work of its own under its own license. The license
+  asks that its text and the copyright notice go with every copy, so the
+  text file is deployed with the fonts and belongs in any release archive;
+  the notice is also in each font's name table. It has no reserved font name.
+- Each face is a font of its own with the system files that loaded merged
+  after it, in the same order, so a character Sovngarde lacks comes from the
+  system font at the same size. Sovngarde has ASCII, most of Latin-1, the
+  Polish letters, and the Russian alphabet with Ukrainian `Є`, `І`, `Ї`; it
+  lacks `Ґ`, the Turkish and most other Latin Extended-A letters, and `…`,
+  `–`, `—`.
+- Sovngarde's letters are small for its line height: its x-height is 0.36 of
+  ascent plus descent, where Arial's is 0.47. `kShippedGlyphScale`, 1.25,
+  goes on the Sovngarde source as `ImFontConfig::ExtraSizeScale`, which
+  enlarges glyphs and advances and leaves the line height, so text is as wide
+  as in the system font and layouts in font sizes hold. Descenders and
+  accented capitals reach about a pixel outside the line at 16 px.
+- A file that is missing or is not a font logs a warning and leaves its
+  accessor null; `ImGui::PushFont` then keeps the current font, so the
+  window shows in the system font.
+
 ### Theme
 
 The overlay's base style is `StyleColorsDark` with 4 px window rounding and no
@@ -173,6 +224,10 @@ window and popup begun while it lives the look of the plugin's interactive
 windows, by pushing ImGui style colors and variables and popping them when it
 ends. `SettingsWindow` wraps its window in one, which covers the lists and
 tooltips opened from it, the item picker's included.
+
+- Text is `Fonts::GetText`, pushed at the size in effect, so every size given
+  in font sizes is unchanged. Headings push `Fonts::GetHeading` with their own
+  size ([Themed faces](#themed-faces)).
 
 - The accent is `Theme::kAccent`, `FF9000`. It marks what the player can act on
   or has selected: the border of the window and its popups, the selected
@@ -361,6 +416,8 @@ peers keep seeing the player.
   section's item has an accent tint and an accent mark on its left. The
   connection status stays at the sidebar's bottom in every section
   (`ConnectionControls::DrawSummary`).
+- The sidebar's title, the open section's title, and the group names inside a
+  section are in the heading face; everything else is in the text face.
 - The page beside it shows the open section: its title, the section's comment
   as one muted line where the schema has one, and its settings. Only the
   settings scroll, with the scrollbar along the window's edge; the title and
@@ -615,6 +672,12 @@ or zoomed.
    and a pending `Apply`, and hovered or pressed widgets are orange at 1080p
    and 4K. Picking a sidebar item shows that section, and the window can be
    dragged by its sidebar or title. The status panel and chat look as before.
+9. The settings window, its lists, and its tooltips are in Sovngarde, with the
+   sidebar's title, section titles, and group names bold, at 1080p and 4K; the
+   status panel and chat stay in the system font. The log has one
+   `UI overlay: font` line per file. A display name with characters Sovngarde
+   lacks still shows every character. With `skyrim-mp/fonts/` removed, the log
+   warns for each file and the window shows in the system font.
 
 ## Known limitations
 
@@ -627,6 +690,9 @@ or zoomed.
 
 - A script none of the system fonts cover shows placeholders; emoji cannot be
   typed.
+- In a themed window, a character Sovngarde lacks is drawn in the system font,
+  so a word can mix the two faces ([Themed faces](#themed-faces)). Sovngarde's
+  `1` and `l` look alike, which shows in the server endpoint.
 - Editing shortcut letters (Ctrl+A/C/V/X/Y/Z) follow physical QWERTY positions,
   not the keyboard layout. Chat text cannot be selected with the mouse.
 - A whisper cannot address `Ulf` with a message starting with `Stone` while a
