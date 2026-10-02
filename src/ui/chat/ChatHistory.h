@@ -36,7 +36,8 @@ namespace UI
         void DrawFilters(float a_ruleGap);
 
         // The lines of the open chat with their menu, which a_closeMenu
-        // closes. Returns a player picked to whisper.
+        // closes; a_size as a child window takes it. Returns a player picked
+        // to whisper.
         std::optional<Multiplayer::RosterEntry> DrawLines(const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu);
         [[nodiscard]] bool IsMenuOpen() const { return menuOpen; }
 
@@ -78,6 +79,10 @@ namespace UI
 
         bool scrollToLatest{ false };
         bool arrived{ false };
+        // Of the open chat's lines as last drawn: their size, and whether the
+        // latest was in view.
+        ImVec2 shownSize;
+        bool following{ true };
 
         Line menuLine;
         bool menuOpen{ false };

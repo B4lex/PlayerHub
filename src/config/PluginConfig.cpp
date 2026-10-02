@@ -160,6 +160,12 @@ namespace Config
                 WarnInvalid(a_key, *value, FormatKey(a_value));
             }
 
+            void Layout(std::string_view a_key, std::uint32_t& a_value, std::string_view, std::uint32_t a_minimum,
+                std::uint32_t a_maximum) override
+            {
+                ReadUnsigned(a_key, a_value, a_minimum, a_maximum);
+            }
+
             // Every key a setting reads has been removed, so what is left is unknown.
             void ReportUnknownEntries() const
             {
@@ -259,6 +265,12 @@ namespace Config
             void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment) override
             {
                 Text(a_key, FormatKey(a_value), a_comment);
+            }
+
+            void Layout(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t,
+                std::uint32_t) override
+            {
+                Text(a_key, std::format("{}", a_value), a_comment);
             }
 
         protected:

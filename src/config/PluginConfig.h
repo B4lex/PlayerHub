@@ -81,6 +81,11 @@ namespace Config
         // In percent of the size the game draws its menu frame at.
         static constexpr std::uint32_t kMinimumFrameThickness = 50;
         static constexpr std::uint32_t kMaximumFrameThickness = 100;
+        // Of the open chat's lines: font sizes across, and how many show.
+        static constexpr std::uint32_t kMinimumChatWidth = 24;
+        static constexpr std::uint32_t kMaximumChatWidth = 100;
+        static constexpr std::uint32_t kMinimumChatLines = 9;
+        static constexpr std::uint32_t kMaximumChatLines = 40;
 
         // DirectInput scan code that opens the settings window.
         std::uint32_t settingsKey{ 0 };
@@ -88,6 +93,8 @@ namespace Config
         std::uint32_t frameThickness{ 70 };
         bool itemPreview{ true };
         bool statusPanel{ true };
+        std::uint32_t chatWidth{ 30 };
+        std::uint32_t chatLines{ 10 };
 
         bool operator==(const UISettings&) const = default;
     };

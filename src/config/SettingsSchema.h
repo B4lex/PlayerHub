@@ -43,6 +43,11 @@ namespace Config
             std::span<const std::string_view> a_options) = 0;
         // A DirectInput scan code from GetBindableKeys.
         virtual void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment) = 0;
+        // A measure of a window within a_minimum and a_maximum, which the
+        // player sets by dragging that window. The settings window does not
+        // show it.
+        virtual void Layout(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+            std::uint32_t a_minimum, std::uint32_t a_maximum) = 0;
     };
 
     void Describe(PluginConfig& a_config, SettingsVisitor& a_visitor);

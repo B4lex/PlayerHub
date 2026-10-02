@@ -429,6 +429,8 @@ namespace UI
                 EndRow();
             }
 
+            void Layout(std::string_view, std::uint32_t&, std::string_view, std::uint32_t, std::uint32_t) override {}
+
         private:
             struct TextField
             {

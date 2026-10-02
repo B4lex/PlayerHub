@@ -64,12 +64,104 @@ namespace UI
             ImGui::PopStyleColor();
         }
 
+        void DrawWrapped(const std::string& a_text, const ImVec4& a_color)
+        {
+            ImGui::PushTextWrapPos(0.0F);
+            DrawColored(a_text, a_color);
+            ImGui::PopTextWrapPos();
+        }
+
         // Who a line is from, in the heading face.
         void DrawLabel(const std::string& a_label, const ImVec4& a_color)
         {
             ImGui::PushFont(Fonts::GetHeading(), 0.0F);
             DrawColored(a_label, a_color);
             ImGui::PopFont();
+        }
+
+        const char* SkipSpaces(const char* a_text, const char* a_end)
+        {
+            return std::find_if(a_text, a_end, [](char a_character) { return a_character != ' '; });
+        }
+
+        // Where a row of a_width that starts at a_row ends, with a_full the
+        // width of a whole row. Words stay whole, except one wider than a
+        // whole row: no row holds it, so it fills this one and is cut at its
+        // end. A row beside a label, narrower than a whole one, is left empty
+        // by a word that only fits a whole row; any other row takes text.
+        const char* FindRowEnd(const char* a_row, const char* a_end, float a_width, float a_full)
+        {
+            const bool besideLabel = a_width < a_full;
+            if (besideLabel && a_width <= 0.0F)
+            {
+                return a_row;
+            }
+            auto* font = ImGui::GetFont();
+            const auto fontSize = ImGui::GetFontSize();
+            const char* wrapped = font->CalcWordWrapPosition(fontSize, a_row, a_end, a_width);
+            if (wrapped == a_end)
+            {
+                return a_end;
+            }
+
+            // The word the row ends before, or inside: Dear ImGui also breaks
+            // after punctuation and cuts what the row is too narrow for.
+            const char* word = wrapped;
+            if (*word == ' ')
+            {
+                word = SkipSpaces(word, a_end);
+            }
+            else
+            {
+                while (word != a_row && word[-1] != ' ')
+                {
+                    --word;
+                }
+            }
+            if (ImGui::CalcTextSize(word, std::find(word, a_end, ' ')).x <= a_full)
+            {
+                return *wrapped == ' ' || (word == a_row && !besideLabel) ? wrapped : word;
+            }
+            const char* cut = a_row;
+            font->CalcTextSizeA(fontSize, a_width, 0.0F, a_row, a_end, &cut);
+            if (cut == a_row)
+            {
+                return besideLabel ? a_row : wrapped;
+            }
+            return (std::max)(cut, wrapped);
+        }
+
+        // A line's text after its label, the item before it: on the label's
+        // row as far as it fits, then from the left edge under the label.
+        void DrawAfterLabel(const std::string& a_text, const ImVec4& a_color)
+        {
+            const char* row = a_text.c_str();
+            const char* const end = row + a_text.size();
+            const auto& style = ImGui::GetStyle();
+            const auto full = ImGui::GetContentRegionAvail().x;
+            auto width = full - ImGui::GetItemRectSize().x - style.ItemSpacing.x;
+
+            ImGui::PushStyleColor(ImGuiCol_Text, a_color);
+            while (row != end)
+            {
+                const char* const rowEnd = FindRowEnd(row, end, width, full);
+                if (rowEnd != row)
+                {
+                    if (width < full)
+                    {
+                        ImGui::SameLine();
+                    }
+                    else
+                    {
+                        // As close under the row above as wrapped rows are.
+                        ImGui::SetCursorPosY(ImGui::GetCursorPosY() - style.ItemSpacing.y);
+                    }
+                    ImGui::TextUnformatted(row, rowEnd);
+                    row = SkipSpaces(rowEnd, end);
+                }
+                width = full;
+            }
+            ImGui::PopStyleColor();
         }
     }
 
@@ -214,8 +306,16 @@ namespace UI
         std::optional<Multiplayer::RosterEntry> picked;
         if (ImGui::BeginChild("##ChatHistory", a_size))
         {
-            // Before this frame's lines extend it: whether the latest was in view.
-            const bool following = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1.0F;
+            // Before this frame's lines extend it: whether the latest was in
+            // view. A resized chat has another scroll range and rows that wrap
+            // elsewhere, so it keeps what it had and follows again below.
+            const auto size = ImGui::GetWindowSize();
+            const bool resized = size.x != shownSize.x || size.y != shownSize.y;
+            shownSize = size;
+            if (!resized)
+            {
+                following = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1.0F;
+            }
             // The input is active while the player types, which would
             // otherwise keep every other item from being hovered.
             constexpr auto kHover = ImGuiHoveredFlags_AllowWhenBlockedByActiveItem;
@@ -245,11 +345,12 @@ namespace UI
                             picked = line.player;
                         }
                     }
-                    ImGui::SameLine();
+                    DrawAfterLabel(line.text, textColor);
                 }
-                ImGui::PushTextWrapPos(0.0F);
-                DrawColored(line.text, line.kind == ChatSync::LineKind::kPlayer ? textColor : ChatStyle::kNoticeColor);
-                ImGui::PopTextWrapPos();
+                else
+                {
+                    DrawWrapped(line.text, ChatStyle::kNoticeColor);
+                }
                 ImGui::EndGroup();
                 if (ImGui::IsItemHovered(kHover) && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
                 {
@@ -301,7 +402,7 @@ namespace UI
             {
                 ImGui::SetScrollY(std::clamp(scroll, 0.0F, ImGui::GetScrollMaxY()));
             }
-            else if (scrollToLatest || (arrived && following))
+            else if (scrollToLatest || ((arrived || resized) && following))
             {
                 ImGui::SetScrollHereY(1.0F);
             }
@@ -341,13 +442,12 @@ namespace UI
             if (line.kind == ChatSync::LineKind::kPlayer)
             {
                 DrawLabel(line.label, ChatStyle::WithAlpha(ChatStyle::GetChannelColor(line.channel), alpha));
-                ImGui::SameLine();
+                DrawAfterLabel(line.text, ChatStyle::WithAlpha(textColor, alpha));
             }
-            ImGui::PushTextWrapPos(0.0F);
-            DrawColored(line.text,
-                ChatStyle::WithAlpha(
-                    line.kind == ChatSync::LineKind::kPlayer ? textColor : ChatStyle::kNoticeColor, alpha));
-            ImGui::PopTextWrapPos();
+            else
+            {
+                DrawWrapped(line.text, ChatStyle::WithAlpha(ChatStyle::kNoticeColor, alpha));
+            }
         }
         ImGui::PopStyleVar();
     }

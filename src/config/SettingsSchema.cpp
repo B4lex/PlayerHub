@@ -225,6 +225,12 @@ namespace Config
                 "Shows a 3D model of the hovered item in item lists.");
             a_visitor.Bool("StatusPanel", a_settings.statusPanel,
                 "Displays the in-game debug status panel.");
+            a_visitor.Layout("ChatWidth", a_settings.chatWidth,
+                "Width of the chat in font sizes. Dragging the open chat's right edge sets it.",
+                UISettings::kMinimumChatWidth, UISettings::kMaximumChatWidth);
+            a_visitor.Layout("ChatLines", a_settings.chatLines,
+                "Lines of history the open chat shows. Dragging its top edge sets it.",
+                UISettings::kMinimumChatLines, UISettings::kMaximumChatLines);
         }
 
         PluginConfig MakeDefaultConfig()

@@ -16,18 +16,24 @@ file may hold, as an unknown key. Clearing a display name, adding one to a file
 without the key, and rejecting overlong, control-character, and malformed UTF-8
 values were checked before the key took this name. `Config::GetDirectory` ran
 only through its fallback, since the stubs resolve no DLL path.
-`[UI] FrameColor` is not yet built on Windows or run in game. On Linux the same
-two files were checked the same way: the default file has `FrameColor = Vanilla`
+`[UI] BorderColor` is not yet built on Windows or run in game. On Linux the same
+two files were checked the same way: the default file has `BorderColor = Vanilla`
 under its comment, `Accent` and `accent` load as the accent, `Orange` and an
 empty value warn and keep `Vanilla`, a file without the key loads as `Vanilla`,
-and applying `Accent` adds the line, which loads back. `[UI] FrameThickness`
+and applying `Accent` adds the line, which loads back. `[UI] BorderThickness`
 and the limits of a percentage were checked the same way: the default file has
-`FrameThickness = 70`, `50`, `85`, and `100` load, `49`, `101`, `150`, `0`,
+`BorderThickness = 70`, `50`, `85`, and `100` load, `49`, `101`, `150`, `0`,
 `big`, and an empty value warn and keep `70` while `SpawnsPerSecond = 0` and
 `ViewRadius = 100000` still load, and applying `85` adds the line, which loads
 back. `ViewRadius` was checked as a `[Network]` key; reading and saving it in
 `[Performance]` is not yet compiled or run, and a `[Network] ViewRadius` line an
 earlier file holds is ignored as an unknown key.
+`[UI] ChatWidth` and `ChatLines` are not yet built on Windows or run in game.
+On Linux the same two files were checked the same way: the default file has
+`ChatWidth = 30` and `ChatLines = 10` under their comments; `24`, `100`, `9`,
+and `40` load; `23`, `101`, `8`, `41`, `0`, text, and an empty value warn and
+keep the default; applying each adds its line to a file without it, keeping
+the file's comments, and both load back.
 
 ## Scope
 
@@ -75,6 +81,9 @@ takes the setting's item filter
 invalid, and a name for zero where zero is not a count, which only the settings
 window shows; the file stores `0`. `Percent` takes both limits, outside which a
 value in the file is invalid; the file stores the number without a sign.
+`Layout` is a measure of a window that the player sets by dragging that window:
+an unsigned value within both limits, read and saved as any other, which the
+settings window does not show.
 
 ## Settings
 
@@ -147,10 +156,12 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 | Key | Meaning | Default |
 | --- | --- | --- |
 | `SettingsKey` | Opens the settings window: `F1`–`F12`, `Insert`, `Delete`, `Home`, `End`, `PageUp`, `PageDown`, `Pause`, or `ScrollLock` | `F10` |
-| `FrameColor` | Color of the menu frame around the settings window and the open chat ([UI overlay](ui-overlay.md#menu-frame)): `Vanilla`, the grey of the game's menus, or `Accent`, the plugin's orange | `Vanilla` |
-| `FrameThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `50..100` | `70` |
+| `BorderColor` | Color of the menu frame around the settings window and the open chat ([UI overlay](ui-overlay.md#menu-frame)): `Vanilla`, the grey of the game's menus, or `Accent`, the plugin's orange | `Vanilla` |
+| `BorderThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `50..100` | `70` |
 | `StatusPanel` | Shows the status panel | `true` |
 | `ItemPreview` | Shows the 3D item preview in item pickers | `true` |
+| `ChatWidth` | Width of the chat's lines in font sizes, `24..100`; set by dragging the open chat's right edge ([UI overlay](ui-overlay.md#size)) and not shown in the settings window | `30` |
+| `ChatLines` | Lines of history the open chat shows, `9..40`; set by dragging its top edge, and not shown in the settings window | `10` |
 
 ## Snapshots
 
@@ -171,9 +182,13 @@ revision before the snapshot never misses a change.
 | `ServerClient` | transport, worker | reading the endpoint for each attempt, and `DisplayName` and `ViewRadius` for each hello |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
 | `StatusPanel`, item pickers | overlay | reading `StatusPanel` and `ItemPreview` each frame |
-| `Theme`, `MenuFrame` | overlay | reading `FrameColor` and `FrameThickness` for each framed window each frame |
+| `Theme`, `MenuFrame` | overlay | reading `BorderColor` and `BorderThickness` for each framed window each frame |
+| `ChatSize` | overlay | reading `ChatWidth` and `ChatLines` each frame the chat draws, outside a drag |
 
 ## Saving
+
+`Config::Apply` is called by the settings window, and by the chat when a drag
+on its edges ends ([UI overlay](ui-overlay.md#size)).
 
 - The current file is loaded with its comments and each setting written into it.
   SimpleIni keeps an existing key's comment and position, adds a new key with its

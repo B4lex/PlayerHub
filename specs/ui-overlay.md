@@ -27,7 +27,7 @@
     `Theme.cpp`, `MenuFrame.cpp`, and `Fonts.cpp` in a headless Dear ImGui
     1.92.9 context against a folder laid out as the deploy step leaves it,
     with simulated keys and mouse and the draw data rasterized to images, at
-    1080p, at 4K, with `FrameColor = Accent`, and without `skyrim-mp/`:
+    1080p, at 4K, with `BorderColor = Accent`, and without `skyrim-mp/`:
     typing, `!`, Tab, Shift+Tab, and Backspace; the name list by
     keys and by a click; Escape closing the list, then the chat, with the
     text kept and discarded; the command list; Up and Down; each filter
@@ -53,8 +53,28 @@
     wheel and clicks following it; the settings window's cursor in the middle
     at once.
 
-  Not run anywhere: the wheel over the lines with the cursor shown, and the
-  Windows clipboard.
+  - The chat's size and wrapped lines ran in that harness over a stubbed
+    `Config::Apply`, at 720p, 1080p, and 4K, with `BorderColor = Accent`, and
+    without `skyrim-mp/`: a line longer than its row starting beside its
+    label and continuing from the left edge under it, in the open chat and
+    among the closed chat's lines; a first word that only a whole row has
+    room for starting the next row; a word wider than a row, with and
+    without punctuation, after other words, and in Cyrillic, starting beside
+    its label and filling each row to its end; the resize cursor over the top edge, the right
+    edge, and their corner; a drag on each moving the lines by whole lines
+    and font sizes from the lower left corner, saved once on release and not
+    before; a click on an edge saving nothing; a drag inward stopping at 24
+    by 9 with the 8-row name list under the filters, and one past the
+    screen's corner at 100 by 40 with the chat on the screen; the latest line
+    staying in view through each, and scrolled-back lines staying where they
+    were; the keyboard back in the field after a drag; a drag that loses
+    focus saved; the closed chat's box as wide; the chat opening at the saved
+    size. Without the frame's shape the name list reaches 5 px over the
+    filters at the smallest size. `SettingsWindow.cpp` ran with the real
+    schema, and its Interface section has no row for either key.
+
+  Not run anywhere: the wheel over the lines with the cursor shown, the
+  Windows clipboard, and the resize cursors as the overlay draws them in game.
 - **Settings window, theme, connection controls:** an earlier layout, with tabs
   and a title bar, ran in game. The sidebar layout, the display name's line
   with the connection button, the switches, and the theme are not built on
@@ -125,7 +145,7 @@
   `Skyrim - Interface.bsa` of a Steam Special Edition install, build 24914197.
   Its polygons were checked to be simple, apart from each other, inside
   the silhouette, and clockwise. In draw data for 540p to 4K at
-  `FrameThickness` 50, 70, and 100, and at 150, above its limit, read back in
+  `BorderThickness` 50, 70, and 100, and at 150, above its limit, read back in
   double precision, the anti-aliased fill
   overlaps its own triangles on 12 to 750 pixels and differs from the fill
   without anti-aliasing, away from its edges, on at most 8. `MenuFrame.cpp`
@@ -139,9 +159,9 @@
     the footer's buttons, the scrollbars, and the chat's lines and input clear
     of the knots;
   - the frame is grey in both windows with the default configuration; picking
-    `Accent` in the `Frame Color` list applies it and both frames are orange
+    `Accent` in the `Border Color` list applies it and both frames are orange
     from the next frame;
-  - the `Frame Thickness` slider reads `70%` and has no step buttons; a drag
+  - the `Border Thickness` slider reads `70%` and has no step buttons; a drag
     past its right end gives 100 and past its left end 50, one to its middle
     75, and the frame and the content inside it keep the previous value while
     the button is held and follow the new one once it is released, at 1080p
@@ -156,7 +176,7 @@
     count out of range, or with no polygons each warn with the reason and fall
     back the same way; a file with CRLF line ends loads.
 
-  The `xmake.lua` deploy step was not run. `[UI] FrameColor` in the file is
+  The `xmake.lua` deploy step was not run. `[UI] BorderColor` in the file is
   under [Configuration](configuration.md#status).
 - **Item picker and preview:** built on Windows; in game the picker lists names
   and the preview shows models. The attach pass for models that load in the
@@ -203,6 +223,7 @@ src/ui/
   chat/ChatWindow             # open and closed chat, focus, the send target's channel kept shown
   chat/ChatHistory            # lines, channel filters, unread marks, scrolling, the line menu
   chat/ChatInput              # target chip and its menu, text field, name and command list
+  chat/ChatSize               # the open chat's size, the drag that sets it, saving it
   chat/ChatStyle.h            # channel and notice colors
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
   settings/ConnectionControls # connection button, the line under it, one-line summary
@@ -385,7 +406,7 @@ is not part of the plugin.
   pixel inwards, which on pieces this fine turns some triangles over others;
   an opaque color hides the overlap and a translucent one shows it as brighter
   specks.
-- A pixel of the art is 1.5 / 16 of the font size times `[UI] FrameThickness`
+- A pixel of the art is 1.5 / 16 of the font size times `[UI] BorderThickness`
   ([Configuration](configuration.md#ui)), a percentage from 50 to 100 read
   each frame. The game lays its menus out for 720p, so 100 is the size the
   game draws the frame at, at any resolution. The setting has no line weight
@@ -397,7 +418,7 @@ is not part of the plugin.
   content out by. A knot stays inside the square of `corner` at its window
   corner, and cuts across it, so content is clear of it outside that square or
   halfway into it along the diagonal.
-- The line color is `Theme::GetFrameColor`, which follows `[UI] FrameColor`
+- The line color is `Theme::GetFrameColor`, which follows `[UI] BorderColor`
   ([Configuration](configuration.md#ui)) each frame, so a pick in the settings
   window shows at once: `Vanilla`, the default, is the game's `999999` as it
   looks at the 80% opacity of the game's message box over the dark backing,
@@ -509,9 +530,10 @@ Goal: talk to everyone, to players nearby, or to one player; always see where
 the next line goes and change it with a key, a prefix, a command, or a click;
 whisper by a few letters of a name, and keep whispering the same player
 without naming it again; tell the channels apart at a glance, and turn each
-off and on. Non-goals: chat
-history for late joiners, a saved log, an ignore list, moving or resizing the
-chat, and staying open after a line is sent.
+off and on; see as many lines as the player wants, by dragging the chat larger.
+Non-goals: chat
+history for late joiners, a saved log, an ignore list, moving the chat, and
+staying open after a line is sent.
 
 | Channel | Reaches | Color |
 | --- | --- | --- |
@@ -643,6 +665,55 @@ connected players whose names start with what follows, at most 8.
   theme's, in the text face, and notices are orange. Under the cursor a label is underlined; a right click on a line opens
   `Whisper`, `Copy name`, and `Copy message`, the first two only for another
   player's line.
+- A line wider than the chat wraps at words. Its text starts beside its label
+  and continues from the chat's left edge under the label, not from where the
+  text started, so a long name does not narrow every row (`DrawAfterLabel` in
+  `ChatHistory.cpp`), in the open chat and among the closed chat's lines. The
+  rows of one line are a font size apart, closer than two lines are.
+- `FindRowEnd` ends each row where Dear ImGui's word wrap would
+  (`ImFont::CalcWordWrapPosition`), with two differences. A word, text
+  between spaces, that only a whole row has room for starts the next row
+  whole, also when that leaves the label alone on its row; Dear ImGui would
+  cut it beside the label, or break it after punctuation. A word wider than
+  a whole row, such as an address or text without spaces, fits no row, so it
+  starts where the text before it ends, beside the label too, and is cut at
+  each row's end by character (`ImFont::CalcTextSizeA`), leaving no row
+  short. Notices have no label and wrap as Dear ImGui does.
+
+### Size
+
+- The open chat's lines are `[UI] ChatWidth` font sizes wide and `ChatLines`
+  lines high ([Configuration](configuration.md#ui)): 30 by 10 by default,
+  within 24 to 100 and 9 to 40. At 24 the field still has room beside the
+  longest chip, and 9 lines keep the 8-row name list under the filters.
+  Both are in font sizes, so the chat follows the overlay scale.
+- The player drags the open chat's top edge, its right edge, or the corner
+  between them. The chat stays in its lower left corner, so it grows upward
+  and to the right. The grips are the strips the menu frame runs in, the
+  window's padding and the frame's on that side, which hold nothing else to
+  click, and the corner is the knot's square (`MenuFrame::Metrics::corner`).
+  Over them the cursor is the vertical, horizontal, or diagonal resize one;
+  nothing else marks them. `ChatSize::FindEdges` finds them by position:
+  Dear ImGui items there would add to the window's content size.
+- A drag moves in whole steps, a font size across and a line
+  (`ChatHistory::GetLinePitch`) up, to the nearest, so the history ends on a
+  whole line. It stops at the limits and at what the screen has room for
+  with the chat's margin on every side (`GetRoom` in `ChatWindow.cpp`). A
+  configured size the screen has no room for is drawn at that room and stays
+  in the file.
+- Releasing the button applies the size with `Config::Apply`, once and only
+  if it changed, and logs it; a chat that loses focus mid-drag does the same
+  (`ChatSize::Release`). `ChatSize` reads the configuration each frame
+  outside a drag.
+- The window is given its width (`ImGui::SetNextWindowSize` with a zero
+  height) and takes its height from its content. Sized to its content in
+  both, it would never get narrower: the rule and the input row take the
+  width there is. A dragged width therefore shows one frame after a dragged
+  height.
+- While the size changes, the latest line stays in view if it was
+  (`ChatHistory::following`), though rows wrap elsewhere and the scroll range
+  changes; lines scrolled back stay where they are.
+- The closed chat's box is as wide as the lines and still shows at most 6.
 
 ### Window and input
 
@@ -658,9 +729,9 @@ connected players whose names start with what follows, at most 8.
   ([Input focus](#input-focus)), so a player who only types sees none. It
   appears in the middle of the chat. After any click the keyboard returns to
   the field; a click outside the chat does nothing.
-- Open, it sits in the lower-left corner above the magicka bar, 30 font sizes
-  wide with the filter row, 10 lines of history, and the input row, inside the
-  [menu frame](#menu-frame) over a 60% background. The frame adds half of its
+- Open, it sits in the lower-left corner above the magicka bar, with the
+  filter row, the lines at the chat's [size](#size), and the input row,
+  inside the [menu frame](#menu-frame) over a 60% background. The frame adds half of its
   inset and corner to the padding on
   every side, 19 px at 1080p at the default thickness, which keeps the content
   clear of the knots. The wheel scrolls 3 lines per notch and Page
@@ -740,8 +811,10 @@ peers keep seeing the player.
   its control: a switch at the right edge for a bool, a number field with step
   buttons for an unsigned value, a slider for a percentage, a text field for a
   string, an item picker for a form, and a combo for a choice or key. Group comments are small muted
-  capitals above their rows. `[General] DisplayName` is the one setting not
-  drawn as a row ([Connection controls](#connection-controls)).
+  capitals above their rows. `[General] DisplayName` is drawn beside the
+  connection button instead of as a row
+  ([Connection controls](#connection-controls)), and a `Layout` setting, as
+  the chat's [size](#size) is, is not drawn at all.
 - A setting's comment is not drawn; it is the tooltip of the row's label, and
   of a text field while its value is invalid.
 - A number's step buttons move it by a hundredth of its maximum, and typing
@@ -1003,13 +1076,13 @@ or zoomed.
 10. The settings window and the open chat have the game's menu frame in the
     game's grey, with a knot in each corner, at 1080p and 4K; nothing in
     either window touches a knot, and resizing the settings window keeps the
-    knots in its corners. The `Frame Thickness` slider reads `70%`; dragging it
+    knots in its corners. The `Border Thickness` slider reads `70%`; dragging it
     to its right end, 100, makes the frame as large as on a message box of the
     game once released, its left end is 50, and at each the content stays
     inside the lines and clear of the knots.
     Picking
-    `Accent` for `Frame Color` in the Interface section turns both frames
-    `FF9000` at once and writes `FrameColor = Accent` to `skyrim-mp.ini`;
+    `Accent` for `Border Color` in the Interface section turns both frames
+    `FF9000` at once and writes `BorderColor = Accent` to `skyrim-mp.ini`;
     `Vanilla` turns them grey again. Recent chat lines have no frame and do
     not move sideways when the chat opens. The log has one
     `UI overlay: menu frame` line. With `skyrim-mp/frame/` removed, the log
@@ -1049,14 +1122,23 @@ or zoomed.
     and a grey outline when off, and a rule under the filters separates them
     from the lines. The filters, the lines, and the chip start at one column,
     and the rule and the field end at one.
+16. A chat line wider than the chat continues from the left edge under its
+    sender's name, in the open chat and among the closed chat's lines. Over
+    the open chat's top edge, right edge, and upper right knot the cursor is
+    a resize one; a drag grows or shrinks the chat from its lower left
+    corner by whole lines and font sizes, between 24 by 9 and 100 by 40 or
+    what the screen has room for, with the latest line in view. After a drag
+    `skyrim-mp.ini` has `ChatWidth` and `ChatLines`, the closed chat's lines
+    are as wide, the chat has that size after the game restarts, and the
+    Interface section shows neither key.
 
 ## Known limitations
 
 - Lists, tooltips, and recent chat lines have no menu frame: its corners need
   about 65 px of height at 1080p at the default thickness. The settings window's
-  resize grip and edge highlight are not drawn, so only the cursor shows where
-  it resizes.
-- `FrameThickness` sizes the whole frame; thinner lines with knots of the same
+  resize grip and edge highlight and the chat's grips are not drawn, so only
+  the cursor shows where each resizes.
+- `BorderThickness` sizes the whole frame; thinner lines with knots of the same
   size would need another shape. Below about 60 the knots are hard to read at
   1080p.
 - The frame is exported ahead of time from the vanilla `messagebox.swf`, not
@@ -1079,6 +1161,9 @@ or zoomed.
 - `@Ulf Stone cold` typed in full whispers `Ulf Stone` while that player is
   online, since the longest name wins; whispering `Ulf` then takes picking
   the name from the list.
+- The chat is resized with the mouse only and cannot be moved. A word wider
+  than the chat is cut at the row's end wherever that falls, not at a
+  syllable or after punctuation.
 - The chat's filters are toggled with the mouse only. Names in scripts other
   than Latin, Greek, and Cyrillic match only in the case they are written in.
 - A click made before the mouse has moved since the chat opened is dropped.
