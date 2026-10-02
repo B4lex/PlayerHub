@@ -69,11 +69,14 @@ namespace UI::InputCapture
         std::vector<CapturedEvent> s_forwarding;
         bool s_imguiFocused{ false };
         bool s_imguiMouse{ false };
+        // Whether the mouse moved since a window that uses it took focus.
+        bool s_mouseMoved{ false };
         ImVec2 s_cursor{};
 
         // DirectInput scan codes are physical positions, so letters only serve
         // text-editing shortcuts; typed text arrives as character events. Tab is
-        // left out so it cannot move keyboard focus off a text field.
+        // left out so it cannot move keyboard focus off a text field; a window
+        // that uses it gets it in ForwardButton.
         ImGuiKey ToImGuiKey(std::uint32_t a_scanCode)
         {
             switch (a_scanCode)
@@ -175,6 +178,10 @@ namespace UI::InputCapture
                 if (const auto key = ToImGuiKey(a_code); key != ImGuiKey_None)
                 {
                     Capture(CapturedEvent{ .key = key, .down = a_button.IsPressed() });
+                }
+                else if (a_code == KeyboardKey::kTab && WindowManager::FocusedWindowUsesTab())
+                {
+                    Capture(CapturedEvent{ .key = ImGuiKey_Tab, .down = a_button.IsPressed() });
                 }
                 if (const auto [modifier, down] = GetModifier(a_code); modifier != ImGuiKey_None)
                 {
@@ -324,8 +331,9 @@ namespace UI::InputCapture
             return kept;
         }
 
-        // Dear ImGui sees the mouse only while a window that uses it has focus. The
-        // cursor starts in the middle of the screen each time.
+        // Dear ImGui sees the mouse only while a window that uses it has focus
+        // and shows the cursor. The cursor starts where the window asks, or in
+        // the middle of the screen, each time.
         void SetImGuiMouse(ImGuiIO& a_io, bool a_enabled)
         {
             if (a_enabled == s_imguiMouse)
@@ -337,7 +345,9 @@ namespace UI::InputCapture
             if (a_enabled)
             {
                 a_io.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
-                s_cursor = ImVec2{ a_io.DisplaySize.x * 0.5F, a_io.DisplaySize.y * 0.5F };
+                const auto start = WindowManager::GetFocusedCursorStart();
+                s_cursor = start ? ImVec2{ start->x, start->y }
+                                 : ImVec2{ a_io.DisplaySize.x * 0.5F, a_io.DisplaySize.y * 0.5F };
                 return;
             }
             for (int button = 0; button < ImGuiMouseButton_COUNT; ++button)
@@ -414,7 +424,22 @@ namespace UI::InputCapture
 
         auto& io = ImGui::GetIO();
         const bool focused = WindowManager::HasFocus();
-        const bool mouse = focused && WindowManager::FocusedWindowUsesMouse();
+        bool mouse = focused && WindowManager::FocusedWindowUsesMouse();
+        if (mouse && WindowManager::FocusedWindowHidesIdleCursor())
+        {
+            const bool moved = mouseMotion.x != 0.0F || mouseMotion.y != 0.0F;
+            if (!s_mouseMoved && moved)
+            {
+                // The first movement only brings the cursor up where it starts.
+                mouseMotion = ImVec2{};
+                s_mouseMoved = true;
+            }
+            mouse = s_mouseMoved;
+        }
+        else
+        {
+            s_mouseMoved = false;
+        }
         s_textFieldActive.store(focused && io.WantTextInput, std::memory_order_release);
         if (focused != s_imguiFocused)
         {

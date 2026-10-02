@@ -214,12 +214,15 @@ func DisplayNameKey(n string) string {
 	return strings.ToLower(n)
 }
 
-// Chat checks the channel, trims surrounding spaces, and returns the text,
-// which for a whisper still starts with the recipient.
+// Chat checks the channel and that only a whisper names a recipient, trims
+// surrounding spaces, and returns the text.
 func Chat(c *pb.ChatSend) (string, error) {
 	text := strings.Trim(c.GetText(), " ")
 	if _, known := pb.ChatChannel_name[int32(c.GetChannel())]; !known ||
 		text == "" || len(text) > MaximumChatTextByte || !utf8.ValidString(text) || hasControl(text) {
+		return "", ErrChat
+	}
+	if whisper := c.GetChannel() == pb.ChatChannel_CHAT_CHANNEL_WHISPER; whisper != (c.GetRecipient() != 0) {
 		return "", ErrChat
 	}
 	return text, nil

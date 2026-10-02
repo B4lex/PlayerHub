@@ -493,7 +493,7 @@ namespace AppearanceSync
 
             // A remote player is one specific character, never a generic NPC.
             npc->actorData.actorBaseFlags.set(RE::ACTOR_BASE_DATA::Flag::kUnique);
-            npc->fullName = PlayerLabel::Format(a_appearance.name, a_appearance.level);
+            npc->fullName = PlayerLabel::Format(a_appearance.name);
             npc->race = &a_race;
             npc->originalRace = &a_race;
             // TESNPC::InitItemImpl completes these only for NPCs loaded from plugins:
@@ -830,7 +830,7 @@ namespace AppearanceSync
             const auto previousRevision = a_remote.latest->revision;
             if (a_remote.base)
             {
-                a_remote.base->fullName = PlayerLabel::Format(a_appearance.name, a_appearance.level);
+                a_remote.base->fullName = PlayerLabel::Format(a_appearance.name);
             }
             if (a_remote.baseRevision == previousRevision)
             {

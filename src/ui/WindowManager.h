@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 namespace UI::WindowManager
 {
@@ -20,6 +21,13 @@ namespace UI::WindowManager
     // Whether the focused window, if any, uses the mouse. Safe to call from any
     // thread.
     [[nodiscard]] bool FocusedWindowUsesMouse();
+
+    // The focused window's answers to the Window questions of the same names;
+    // false and empty without one. Safe to call from any thread, except
+    // GetFocusedCursorStart, which reads the window's layout: overlay thread.
+    [[nodiscard]] bool FocusedWindowHidesIdleCursor();
+    [[nodiscard]] bool FocusedWindowUsesTab();
+    [[nodiscard]] std::optional<ScreenPoint> GetFocusedCursorStart();
 
     // Gives focus to the first window that uses a_scanCode as its focus key.
     // False if a window already has focus or none uses the key.

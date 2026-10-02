@@ -432,6 +432,62 @@ namespace Network::Wire
             }
             return states;
         }
+
+        std::expected<ServerMessage, std::string> DecodeRoster(pb_istream_t& a_stream)
+        {
+            RosterChange change;
+            pb_istream_t roster;
+            if (!pb_make_string_substream(&a_stream, &roster))
+            {
+                return std::unexpected("roster framing");
+            }
+            while (roster.bytes_left > 0)
+            {
+                pb_wire_type_t wireType;
+                std::uint32_t tag = 0;
+                bool eof = false;
+                if (!pb_decode_tag(&roster, &wireType, &tag, &eof))
+                {
+                    return std::unexpected("roster field tag");
+                }
+                if (tag == skyrimmp_v1_Roster_left_tag && wireType == PB_WT_VARINT)
+                {
+                    if (!pb_decode_varint32(&roster, &change.left))
+                    {
+                        return std::unexpected("roster left");
+                    }
+                    continue;
+                }
+                if (tag != skyrimmp_v1_Roster_joined_tag || wireType != PB_WT_STRING)
+                {
+                    if (!pb_skip_field(&roster, wireType))
+                    {
+                        return std::unexpected("roster field");
+                    }
+                    continue;
+                }
+                if (change.joined.size() >= kMaximumRosterEntries)
+                {
+                    return std::unexpected("roster entry count");
+                }
+                skyrimmp_v1_RosterEntry entry = skyrimmp_v1_RosterEntry_init_zero;
+                if (!pb_decode_ex(&roster, skyrimmp_v1_RosterEntry_fields, &entry, PB_DECODE_DELIMITED))
+                {
+                    return std::unexpected(std::string{ "roster entry: " } + PB_GET_ERROR(&roster));
+                }
+                Multiplayer::RosterEntry player{ .playerID = entry.slot, .name = entry.name };
+                if (player.playerID == 0 || player.name.empty() || !Multiplayer::IsValidAppearanceName(player.name))
+                {
+                    return std::unexpected("roster entry values");
+                }
+                change.joined.push_back(std::move(player));
+            }
+            if (!pb_close_string_substream(&a_stream, &roster))
+            {
+                return std::unexpected("roster framing");
+            }
+            return change;
+        }
     }
 
     std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_displayName,
@@ -641,11 +697,13 @@ namespace Network::Wire
         return EncodeClientMessage(skyrimmp_v1_ClientMessage_equipment_tag, skyrimmp_v1_Equipment_fields, equipment.get());
     }
 
-    std::string EncodeChat(std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel, std::string_view a_text)
+    std::string EncodeChat(std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel,
+        Multiplayer::PeerSlot a_recipient, std::string_view a_text)
     {
         skyrimmp_v1_ChatSend chat = skyrimmp_v1_ChatSend_init_zero;
         chat.request_id = a_requestID;
         chat.channel = WriteChatChannel(a_channel);
+        chat.recipient = a_recipient;
         if (!CopyString(chat.text, a_text))
         {
             return {};
@@ -674,8 +732,9 @@ namespace Network::Wire
     {
         const auto* bytes = reinterpret_cast<const pb_byte_t*>(a_data.data());
 
-        // Batches are the hot path and decoded entry by entry; the generated
-        // decoder would need a callback set per oneof member.
+        // Batches are the hot path and decoded entry by entry, and so is the
+        // roster; the generated decoder would need a callback set per oneof
+        // member.
         {
             pb_istream_t stream = pb_istream_from_buffer(bytes, a_data.size());
             pb_wire_type_t wireType;
@@ -693,6 +752,15 @@ namespace Network::Wire
                     return std::unexpected("trailing envelope fields");
                 }
                 return states;
+            }
+            if (tag == skyrimmp_v1_ServerMessage_roster_tag && wireType == PB_WT_STRING)
+            {
+                auto roster = DecodeRoster(stream);
+                if (roster && stream.bytes_left != 0)
+                {
+                    return std::unexpected("trailing envelope fields");
+                }
+                return roster;
             }
         }
 

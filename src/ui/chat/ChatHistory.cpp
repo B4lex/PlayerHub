@@ -1,0 +1,354 @@
+#include "ui/chat/ChatHistory.h"
+#include "ui/Fonts.h"
+#include "ui/chat/ChatStyle.h"
+
+#include <algorithm>
+#include <cmath>
+#include <utility>
+
+namespace UI
+{
+    namespace
+    {
+        constexpr std::size_t kMaximumLinesPerKind = 100;
+        constexpr std::size_t kNoticeKind = 3;
+        constexpr double kRecentLineSeconds = 10.0;
+        constexpr double kRecentFadeSeconds = 2.0;
+        constexpr float kWheelLines = 3.0F;
+        // In font sizes. Lines stand closer than the theme's items do.
+        constexpr float kLineSpacingFonts = 0.25F;
+        // A filter's chip: around its label, its outline, between chips, and
+        // the unread dot on its corner.
+        constexpr ImVec2 kFilterPaddingFonts{ 0.5F, 0.25F };
+        constexpr float kFilterOutlineFonts = 0.0625F;
+        constexpr float kFilterSpacingFonts = 0.375F;
+        constexpr float kFilterDotFonts = 0.16F;
+        // Of the label's color: the outline, and behind a filter that is off
+        // under the cursor.
+        constexpr float kFilterOutlineAlpha = 0.55F;
+        constexpr float kHoveredOffFilterFillAlpha = 0.08F;
+
+        struct Filter
+        {
+            const char* label;
+            Multiplayer::ChatChannel channel;
+        };
+
+        constexpr std::array kFilters{
+            Filter{ "Local", Multiplayer::ChatChannel::kLocal },
+            Filter{ "Global", Multiplayer::ChatChannel::kGlobal },
+            Filter{ "Whispers", Multiplayer::ChatChannel::kWhisper },
+        };
+
+        std::size_t GetKind(ChatSync::LineKind a_kind, Multiplayer::ChatChannel a_channel)
+        {
+            return a_kind == ChatSync::LineKind::kNotice ? kNoticeKind : static_cast<std::size_t>(a_channel);
+        }
+
+        float GetRecentAlpha(double a_receivedAt, double a_now)
+        {
+            const auto remaining = kRecentLineSeconds - (a_now - a_receivedAt);
+            return static_cast<float>(std::clamp(remaining / kRecentFadeSeconds, 0.0, 1.0));
+        }
+
+        float GetLineSpacing()
+        {
+            return std::floor(kLineSpacingFonts * ImGui::GetFontSize());
+        }
+
+        // Not DrawText, which windows.h makes a macro.
+        void DrawColored(const std::string& a_text, const ImVec4& a_color)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, a_color);
+            ImGui::TextUnformatted(a_text.c_str(), a_text.c_str() + a_text.size());
+            ImGui::PopStyleColor();
+        }
+
+        // Who a line is from, in the heading face.
+        void DrawLabel(const std::string& a_label, const ImVec4& a_color)
+        {
+            ImGui::PushFont(Fonts::GetHeading(), 0.0F);
+            DrawColored(a_label, a_color);
+            ImGui::PopFont();
+        }
+    }
+
+    void ChatHistory::Collect(double a_now, bool a_open)
+    {
+        ChatSync::DrainLines(incoming);
+        for (auto& line : incoming)
+        {
+            const auto kind = GetKind(line.kind, line.channel);
+            if (counts[kind] >= kMaximumLinesPerKind)
+            {
+                Evict(kind);
+            }
+            ++counts[kind];
+
+            const bool fromPlayer = line.kind == ChatSync::LineKind::kPlayer;
+            // Whispering oneself by a click on one's own line would only surprise.
+            const bool whisperable = fromPlayer && !line.player.name.empty()
+                && (line.channel == Multiplayer::ChatChannel::kWhisper || !line.outgoing);
+            lines.push_back(Line{ .kind = line.kind,
+                .channel = line.channel,
+                .label = fromPlayer ? std::move(line.sender) + ":" : std::string{},
+                .text = std::move(line.text),
+                .player = whisperable ? std::move(line.player) : Multiplayer::RosterEntry{},
+                .receivedAt = a_now });
+            // The player's own line stays in view.
+            if (fromPlayer && line.outgoing)
+            {
+                SetShown(line.channel, true);
+            }
+            if (fromPlayer && !(a_open && Shows(line.channel)))
+            {
+                unread[static_cast<std::size_t>(line.channel)] = true;
+            }
+            arrived = true;
+        }
+        incoming.clear();
+    }
+
+    void ChatHistory::Evict(std::size_t a_kind)
+    {
+        const auto oldest = std::ranges::find_if(
+            lines, [a_kind](const Line& a_line) { return GetKind(a_line.kind, a_line.channel) == a_kind; });
+        if (oldest != lines.end())
+        {
+            lines.erase(oldest);
+            --counts[a_kind];
+        }
+    }
+
+    void ChatHistory::SetShown(Multiplayer::ChatChannel a_channel, bool a_shown)
+    {
+        auto& current = shown[static_cast<std::size_t>(a_channel)];
+        if (current != a_shown)
+        {
+            current = a_shown;
+            scrollToLatest = true;
+        }
+    }
+
+    bool ChatHistory::Shows(Multiplayer::ChatChannel a_channel) const
+    {
+        return shown[static_cast<std::size_t>(a_channel)];
+    }
+
+    bool ChatHistory::Shows(const Line& a_line) const
+    {
+        return a_line.kind == ChatSync::LineKind::kNotice || Shows(a_line.channel);
+    }
+
+    float ChatHistory::GetLinePitch()
+    {
+        return ImGui::GetTextLineHeight() + GetLineSpacing();
+    }
+
+    void ChatHistory::DrawFilters(float a_ruleGap)
+    {
+        const auto& style = ImGui::GetStyle();
+        const auto fontSize = ImGui::GetFontSize();
+        const ImVec2 padding{ std::floor(kFilterPaddingFonts.x * fontSize),
+            std::floor(kFilterPaddingFonts.y * fontSize) };
+        const auto outline = (std::max)(std::floor(kFilterOutlineFonts * fontSize), 1.0F);
+        auto* drawList = ImGui::GetWindowDrawList();
+
+        for (std::size_t index = 0; index < kFilters.size(); ++index)
+        {
+            const auto& filter = kFilters[index];
+            const auto channel = static_cast<std::size_t>(filter.channel);
+            if (index > 0)
+            {
+                ImGui::SameLine(0.0F, std::floor(kFilterSpacingFonts * fontSize));
+            }
+            const auto textSize = ImGui::CalcTextSize(filter.label);
+            ImGui::PushID(static_cast<int>(index));
+            if (ImGui::InvisibleButton(
+                    "##ChatFilter", ImVec2{ textSize.x + padding.x * 2.0F, textSize.y + padding.y * 2.0F }))
+            {
+                SetShown(filter.channel, !shown[channel]);
+            }
+            ImGui::PopID();
+            const bool hovered = ImGui::IsItemHovered();
+            if (hovered)
+            {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            }
+            const bool on = shown[channel];
+            if (on)
+            {
+                unread[channel] = false;
+            }
+
+            // On, a chip filled with its channel's color; off, a muted outline.
+            const auto min = ImGui::GetItemRectMin();
+            const auto max = ImGui::GetItemRectMax();
+            const auto& channelColor = ChatStyle::GetChannelColor(filter.channel);
+            const auto& color = on ? channelColor : style.Colors[hovered ? ImGuiCol_Text : ImGuiCol_TextDisabled];
+            const auto fillAlpha = on ? (hovered ? ChatStyle::kHoveredChipFillAlpha : ChatStyle::kChipFillAlpha)
+                                      : (hovered ? kHoveredOffFilterFillAlpha : 0.0F);
+            drawList->AddRectFilled(
+                min, max, ImGui::GetColorU32(ChatStyle::WithAlpha(color, fillAlpha)), style.FrameRounding);
+            drawList->AddRect(min, max, ImGui::GetColorU32(ChatStyle::WithAlpha(color, kFilterOutlineAlpha)),
+                style.FrameRounding, ImDrawFlags_None, outline);
+            drawList->AddText(ImVec2{ min.x + padding.x, min.y + padding.y }, ImGui::GetColorU32(color), filter.label);
+            if (!on && unread[channel])
+            {
+                const auto radius = fontSize * kFilterDotFonts;
+                drawList->AddCircleFilled(
+                    ImVec2{ max.x - radius * 0.5F, min.y + radius * 0.5F }, radius, ImGui::GetColorU32(channelColor));
+            }
+        }
+
+        // A rule between the filters and the lines, as wide as the chat.
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() - style.ItemSpacing.y + a_ruleGap);
+        ImGui::Dummy(ImVec2{ ImGui::GetContentRegionAvail().x, style.WindowBorderSize });
+        drawList->AddRectFilled(
+            ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_Separator));
+    }
+
+    std::optional<Multiplayer::RosterEntry> ChatHistory::DrawLines(
+        const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu)
+    {
+        std::optional<Multiplayer::RosterEntry> picked;
+        if (ImGui::BeginChild("##ChatHistory", a_size))
+        {
+            // Before this frame's lines extend it: whether the latest was in view.
+            const bool following = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1.0F;
+            // The input is active while the player types, which would
+            // otherwise keep every other item from being hovered.
+            constexpr auto kHover = ImGuiHoveredFlags_AllowWhenBlockedByActiveItem;
+            auto* drawList = ImGui::GetWindowDrawList();
+            const auto& textColor = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ ImGui::GetStyle().ItemSpacing.x, GetLineSpacing() });
+            for (const auto& line : lines)
+            {
+                if (!Shows(line))
+                {
+                    continue;
+                }
+                ImGui::BeginGroup();
+                if (line.kind == ChatSync::LineKind::kPlayer)
+                {
+                    DrawLabel(line.label, ChatStyle::GetChannelColor(line.channel));
+                    if (line.player.playerID != 0 && ImGui::IsItemHovered(kHover))
+                    {
+                        const auto min = ImGui::GetItemRectMin();
+                        const auto max = ImGui::GetItemRectMax();
+                        drawList->AddRectFilled(ImVec2{ min.x, max.y - 1.0F }, max,
+                            ImGui::GetColorU32(ChatStyle::GetChannelColor(line.channel)));
+                        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                        {
+                            picked = line.player;
+                        }
+                    }
+                    ImGui::SameLine();
+                }
+                ImGui::PushTextWrapPos(0.0F);
+                DrawColored(line.text, line.kind == ChatSync::LineKind::kPlayer ? textColor : ChatStyle::kNoticeColor);
+                ImGui::PopTextWrapPos();
+                ImGui::EndGroup();
+                if (ImGui::IsItemHovered(kHover) && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+                {
+                    menuLine = line;
+                    ImGui::OpenPopup("##ChatLineMenu");
+                }
+            }
+            ImGui::PopStyleVar();
+
+            menuOpen = ImGui::BeginPopup("##ChatLineMenu");
+            if (menuOpen)
+            {
+                if (a_closeMenu)
+                {
+                    ImGui::CloseCurrentPopup();
+                }
+                if (menuLine.player.playerID != 0)
+                {
+                    if (ImGui::MenuItem("Whisper"))
+                    {
+                        picked = menuLine.player;
+                    }
+                    if (ImGui::MenuItem("Copy name"))
+                    {
+                        ImGui::SetClipboardText(menuLine.player.name.c_str());
+                    }
+                }
+                if (ImGui::MenuItem("Copy message"))
+                {
+                    ImGui::SetClipboardText(menuLine.text.c_str());
+                }
+                ImGui::EndPopup();
+            }
+
+            // The child scrolls by itself under the cursor; elsewhere, and
+            // while the cursor is hidden, the wheel still scrolls the lines.
+            const auto lineHeight = GetLinePitch();
+            const auto wheel = a_input.wheelSteps + (ImGui::IsWindowHovered() ? 0.0F : ImGui::GetIO().MouseWheel);
+            auto scroll = ImGui::GetScrollY() - wheel * kWheelLines * lineHeight;
+            if (ImGui::IsKeyPressed(ImGuiKey_PageUp))
+            {
+                scroll -= a_size.y - lineHeight;
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_PageDown))
+            {
+                scroll += a_size.y - lineHeight;
+            }
+            if (scroll != ImGui::GetScrollY())
+            {
+                ImGui::SetScrollY(std::clamp(scroll, 0.0F, ImGui::GetScrollMaxY()));
+            }
+            else if (scrollToLatest || (arrived && following))
+            {
+                ImGui::SetScrollHereY(1.0F);
+            }
+            scrollToLatest = false;
+            arrived = false;
+        }
+        ImGui::EndChild();
+        return picked;
+    }
+
+    float ChatHistory::FindRecent(double a_now)
+    {
+        recentCount = 0;
+        for (auto line = lines.rbegin(); line != lines.rend() && recentCount < recent.size(); ++line)
+        {
+            if (a_now - line->receivedAt >= kRecentLineSeconds)
+            {
+                break;
+            }
+            if (Shows(*line))
+            {
+                recent[recentCount++] = &*line;
+            }
+        }
+        return recentCount == 0 ? 0.0F : GetRecentAlpha(recent[0]->receivedAt, a_now);
+    }
+
+    void ChatHistory::DrawRecent(double a_now) const
+    {
+        const auto& textColor = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ ImGui::GetStyle().ItemSpacing.x, GetLineSpacing() });
+        // Found newest first.
+        for (auto index = recentCount; index-- > 0;)
+        {
+            const auto& line = *recent[index];
+            const auto alpha = GetRecentAlpha(line.receivedAt, a_now);
+            if (line.kind == ChatSync::LineKind::kPlayer)
+            {
+                DrawLabel(line.label, ChatStyle::WithAlpha(ChatStyle::GetChannelColor(line.channel), alpha));
+                ImGui::SameLine();
+            }
+            ImGui::PushTextWrapPos(0.0F);
+            DrawColored(line.text,
+                ChatStyle::WithAlpha(
+                    line.kind == ChatSync::LineKind::kPlayer ? textColor : ChatStyle::kNoticeColor, alpha));
+            ImGui::PopTextWrapPos();
+        }
+        ImGui::PopStyleVar();
+    }
+}

@@ -9,6 +9,7 @@
 #include <ixwebsocket/IXNetSystem.h>
 #include <ixwebsocket/IXWebSocket.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <deque>
@@ -65,6 +66,12 @@ namespace Network
         constexpr std::size_t kMaximumPendingChatMessages = 128;
         std::mutex chatMessagesLock;
         std::deque<Multiplayer::ChatMessage> pendingChatMessages;
+
+        // The connected clients as the server lists them, empty while
+        // disconnected. The revision advances with every change.
+        std::mutex rosterLock;
+        Multiplayer::Roster roster;
+        std::atomic_uint64_t rosterRevision{ 0 };
 
         // Requests waiting for their Result, by request ID. Cleared with the
         // connection, so a callback never runs for an older one.
@@ -233,6 +240,16 @@ namespace Network
             pendingDisconnects.clear();
         }
 
+        // The roster belongs to one connection too; the server lists it again
+        // after every welcome.
+        void ResetRoster(PeerSlot a_localSlot)
+        {
+            const std::scoped_lock lock{ rosterLock };
+            roster.localPlayerID = a_localSlot;
+            roster.players.clear();
+            rosterRevision.fetch_add(1, std::memory_order_acq_rel);
+        }
+
         // Slots belong to one server connection, so every known remote player is
         // gone once ours closes or is replaced. The connection state changes
         // under the lock Drain uses, so a drain never mixes connections.
@@ -244,6 +261,7 @@ namespace Network
                 attemptFailed.store(true, std::memory_order_release);
                 ForgetRemotePlayersLocked();
             }
+            ResetRoster(0);
             ClearRequests();
         }
 
@@ -337,6 +355,7 @@ namespace Network
                 generation = connectionGeneration.fetch_add(1, std::memory_order_acq_rel) + 1;
                 connected.store(true, std::memory_order_release);
             }
+            ResetRoster(a_welcome.slot);
             {
                 const std::scoped_lock lock{ publishLock };
                 sentContext.reset();
@@ -487,6 +506,30 @@ namespace Network
             pendingChatMessages.push_back(std::move(a_message));
         }
 
+        void OnRosterChange(Wire::RosterChange&& a_change)
+        {
+            logs::debug("Roster changed: joined={} left={}", a_change.joined.size(), a_change.left);
+            const std::scoped_lock lock{ rosterLock };
+            if (a_change.left != 0)
+            {
+                std::erase_if(roster.players,
+                    [&](const Multiplayer::RosterEntry& a_player) { return a_player.playerID == a_change.left; });
+            }
+            for (auto& joined : a_change.joined)
+            {
+                const auto known = std::ranges::find(roster.players, joined.playerID, &Multiplayer::RosterEntry::playerID);
+                if (known != roster.players.end())
+                {
+                    known->name = std::move(joined.name);
+                }
+                else
+                {
+                    roster.players.push_back(std::move(joined));
+                }
+            }
+            rosterRevision.fetch_add(1, std::memory_order_acq_rel);
+        }
+
         void Dispatch(Wire::ServerMessage&& a_message)
         {
             if (const auto* welcome = std::get_if<Wire::Welcome>(&a_message))
@@ -539,6 +582,10 @@ namespace Network
                     else if constexpr (std::is_same_v<T, Multiplayer::ChatMessage>)
                     {
                         OnChatMessage(std::move(a_value));
+                    }
+                    else if constexpr (std::is_same_v<T, Wire::RosterChange>)
+                    {
+                        OnRosterChange(std::move(a_value));
                     }
                 },
                 std::move(a_message));
@@ -768,7 +815,7 @@ namespace Network
         Send(Wire::EncodeAction(actionSequence, a_graphEpoch, a_checkpointSequence, a_attack));
     }
 
-    bool PublishChatMessage(Multiplayer::ChatChannel a_channel, std::string_view a_text,
+    bool PublishChatMessage(Multiplayer::ChatChannel a_channel, PeerSlot a_recipient, std::string_view a_text,
         std::function<void(std::string_view)> a_onRejected)
     {
         if (!IsConnected())
@@ -783,7 +830,7 @@ namespace Network
             logs::info("Server rejected chat message: {}", a_result.error.empty() ? "<no reason>" : a_result.error);
             onRejected(a_result.error);
         });
-        Send(Wire::EncodeChat(requestID, a_channel, a_text));
+        Send(Wire::EncodeChat(requestID, a_channel, a_recipient, a_text));
         return true;
     }
 
@@ -936,5 +983,26 @@ namespace Network
         }
         pendingChatMessages.clear();
         return messages;
+    }
+
+    void CopyNearbyPlayers(std::vector<PeerSlot>& a_players)
+    {
+        const std::scoped_lock lock{ remoteChangesLock };
+        for (const auto& [slot, context] : peerContexts)
+        {
+            a_players.push_back(slot);
+        }
+    }
+
+    bool CopyRosterIfChanged(std::uint64_t& a_revision, Multiplayer::Roster& a_roster)
+    {
+        if (rosterRevision.load(std::memory_order_acquire) == a_revision)
+        {
+            return false;
+        }
+        const std::scoped_lock lock{ rosterLock };
+        a_revision = rosterRevision.load(std::memory_order_acquire);
+        a_roster = roster;
+        return true;
     }
 }

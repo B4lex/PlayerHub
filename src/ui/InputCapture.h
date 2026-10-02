@@ -19,6 +19,7 @@ namespace UI::InputCapture
     // Overlay thread, after io.DisplaySize is set and before ImGui::NewFrame.
     // Forwards the input captured for the focused window to Dear ImGui, moving
     // a drawn cursor for a window that uses the mouse, and returns the mouse
-    // wheel notches captured since the previous call for a keyboard-only one.
+    // wheel notches captured since the previous call for a keyboard-only one
+    // or one whose cursor is still hidden.
     [[nodiscard]] float ForwardToImGui();
 }

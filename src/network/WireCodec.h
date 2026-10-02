@@ -37,8 +37,9 @@ namespace Network::Wire
     // Empty when the value cannot be encoded, which validation prevents.
     [[nodiscard]] std::string EncodeAppearance(const Multiplayer::PlayerAppearance& a_appearance);
     [[nodiscard]] std::string EncodeEquipment(const Multiplayer::PlayerEquipment& a_equipment);
-    [[nodiscard]] std::string EncodeChat(
-        std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel, std::string_view a_text);
+    // a_recipient is the whispered player's slot, and zero on other channels.
+    [[nodiscard]] std::string EncodeChat(std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel,
+        Multiplayer::PeerSlot a_recipient, std::string_view a_text);
     [[nodiscard]] std::string EncodePing(std::uint32_t a_requestID);
 
     struct Welcome
@@ -130,8 +131,17 @@ namespace Network::Wire
         Multiplayer::PlayerEquipment equipment;
     };
 
+    // A change of the connected clients. The first after a welcome lists all
+    // of them.
+    struct RosterChange
+    {
+        std::vector<Multiplayer::RosterEntry> joined;
+        // Zero for none.
+        Multiplayer::PeerSlot left{ 0 };
+    };
+
     using ServerMessage = std::variant<Welcome, Result, PeerStates, PeerEnter, PeerContext, PeerLeave, AnimationAction,
-        PeerAppearance, PeerEquipment, Multiplayer::ChatMessage>;
+        PeerAppearance, PeerEquipment, Multiplayer::ChatMessage, RosterChange>;
 
     // Decodes server messages with one reused buffer; the generated message
     // struct is large. Not thread-safe: one per transport thread.
@@ -153,4 +163,5 @@ namespace Network::Wire
 
     // Bounds the work one untrusted batch can cause.
     inline constexpr std::size_t kMaximumPeerStatesEntries = 4096;
+    inline constexpr std::size_t kMaximumRosterEntries = 4096;
 }

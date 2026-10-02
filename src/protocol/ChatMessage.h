@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace Multiplayer
 {
@@ -36,6 +37,13 @@ namespace Multiplayer
         bool outgoing{ false };
     };
 
+    // A connected client as the roster lists it: whom a whisper can address.
+    struct RosterEntry
+    {
+        PeerSlot playerID{ 0 };
+        std::string name;
+    };
+
     // UTF-8 bytes, matching the server's MAXIMUM_CHAT_TEXT_BYTES.
     inline constexpr std::size_t kMaximumChatTextBytes = 512;
 
@@ -58,6 +66,13 @@ namespace Multiplayer
         }
         return true;
     }
+
+    // The connected clients, the local one included, in no particular order.
+    struct Roster
+    {
+        PeerSlot localPlayerID{ 0 };
+        std::vector<RosterEntry> players;
+    };
 
     [[nodiscard]] inline std::string_view TrimChatText(std::string_view a_text)
     {

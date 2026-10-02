@@ -40,6 +40,24 @@ namespace UI::WindowManager
         return focused && focused->UsesMouse();
     }
 
+    bool FocusedWindowHidesIdleCursor()
+    {
+        const auto* focused = s_focused.load(std::memory_order_acquire);
+        return focused && focused->HidesIdleCursor();
+    }
+
+    bool FocusedWindowUsesTab()
+    {
+        const auto* focused = s_focused.load(std::memory_order_acquire);
+        return focused && focused->UsesTab();
+    }
+
+    std::optional<ScreenPoint> GetFocusedCursorStart()
+    {
+        const auto* focused = s_focused.load(std::memory_order_acquire);
+        return focused ? focused->GetCursorStart() : std::nullopt;
+    }
+
     bool FocusByKey(std::uint32_t a_scanCode)
     {
         for (const auto& window : s_windows)

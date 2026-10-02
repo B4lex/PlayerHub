@@ -15,14 +15,14 @@
   game ([UI overlay](ui-overlay.md#item-picker)).
 - **Player labels:** level validation and chat fields covered by server unit
   tests; label rendering pending an in-game check. The display name, which comes
-  from the player's session ([Network](network.md#sessions)), is not yet built
-  on Windows or run in game, and `AppearanceSync.cpp` was not compiled after
-  the change.
+  from the player's session ([Network](network.md#sessions)), and the label
+  without the level are not yet built on Windows or run in game, and
+  `AppearanceSync.cpp` was not compiled after either change.
 
 ## Scope
 
 A remote actor looks like its source player's character, carries the player's
-display name and the character's level, and wears and wields what the source has
+display name, and wears and wields what the source has
 equipped, from any plugin the receiver also has. What the receiver cannot
 resolve falls back to vanilla data or to the source's own default outfit, so
 players with different modpacks still see each other dressed and armed.
@@ -58,8 +58,9 @@ On the game thread, once per second:
 - `race`: the actor base race; if it is not playable, `originalRace` when that
   is playable, otherwise the capture is skipped (transformed). While
   transformed, peers keep the last playable appearance.
-- `level`: `Actor::GetLevel`, so a level-up publishes a new revision. `name` is
-  left empty: the server sets the [display name](#display-name).
+- `level`: `Actor::GetLevel`, so a level-up publishes a new revision. Peers
+  receive it and show it nowhere yet ([Player label](#player-label)). `name`
+  is left empty: the server sets the [display name](#display-name).
 - `defaultRace`: the configured `[DefaultOutfit]` race and sex when `race` is
   not from a base-game plugin, else unset.
 - `female`, `weight`, `height`, `headParts[0..numHeadParts)`, the hair color
@@ -127,8 +128,8 @@ are kept. Each fallback is logged once per revision.
   previous respawn for that player. The respawn uses the new base and rebuilds
   locomotion, stance, and furniture from the played checkpoint. Coordinate-space
   respawns reuse the current base.
-- A change of only display name or level rewrites the built base's full name in
-  place and adopts the revision without a new base or respawn.
+- A change of only display name or level adopts the revision without a new
+  base or respawn; the built base's full name is rewritten in place.
 - Once the respawned actor is ready with 3D, `Actor::UpdateHairColor` and
   `UpdateSkinColor` run once.
 - The face tint (AE only): `PrepareHeadPartForShaders` (ID 26838) gives a
@@ -161,17 +162,13 @@ under it. A replayed player keeps the name it was recorded with.
 
 ### Player label
 
-`PlayerLabel::Format` builds `Display name • L lvl`, used for the actor base's
-name and for chat senders:
+`PlayerLabel::Format` builds the label used for the actor base's name and for
+chat senders: the display name, or `Unknown` for an empty one, as before a
+peer's appearance arrives.
 
-```text
-Lydia • 12 lvl
-Lydia
-```
-
-An empty name, as before a peer's appearance arrives, shows as `Unknown`, and
-the level appears only when known (non-zero). The bullet is U+2022, written as
-UTF-8 bytes.
+The level is not part of the label. It stays in `Appearance` and `ChatSpeaker`
+([Network](network.md#appearance)), captured, validated, relayed, and parsed
+as before, for a later use.
 
 ## Equipment
 
@@ -396,7 +393,7 @@ To verify in game:
    has. Late joiners see both without the source changing anything.
 2. An appearance change (barber, RaceMenu) updates the actor within a few
    seconds with a single respawn, returning to its locomotion and furniture
-   state; a level change relabels it without a respawn. An
+   state; a level change does not respawn it or change its label. An
    equipment change applies within 0.5 s without respawn, animation, or sound.
 3. The actor's inventory holds exactly the synchronized items, also after a cell
    reload, a respawn, and a hit reaction. The local player's appearance,

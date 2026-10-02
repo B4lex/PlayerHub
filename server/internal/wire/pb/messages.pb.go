@@ -30,18 +30,18 @@ type Protocol int32
 const (
 	Protocol_PROTOCOL_UNSPECIFIED Protocol = 0
 	// Bumped on every incompatible change. Client and server must match.
-	Protocol_PROTOCOL_VERSION Protocol = 4
+	Protocol_PROTOCOL_VERSION Protocol = 5
 )
 
 // Enum value maps for Protocol.
 var (
 	Protocol_name = map[int32]string{
 		0: "PROTOCOL_UNSPECIFIED",
-		4: "PROTOCOL_VERSION",
+		5: "PROTOCOL_VERSION",
 	}
 	Protocol_value = map[string]int32{
 		"PROTOCOL_UNSPECIFIED": 0,
-		"PROTOCOL_VERSION":     4,
+		"PROTOCOL_VERSION":     5,
 	}
 )
 
@@ -79,7 +79,7 @@ const (
 	ChatChannel_CHAT_CHANNEL_GLOBAL ChatChannel = 0
 	// Placed players near the sender, or in the same interior.
 	ChatChannel_CHAT_CHANNEL_LOCAL ChatChannel = 1
-	// One player, addressed by name at the start of the text.
+	// One player, addressed by slot.
 	ChatChannel_CHAT_CHANNEL_WHISPER ChatChannel = 2
 )
 
@@ -337,9 +337,10 @@ func (*Exit) Descriptor() ([]byte, []int) {
 type ChatSend struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	RequestId uint32                 `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	// For a whisper, the recipient's display name, then a space and the message.
-	Text          string      `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
-	Channel       ChatChannel `protobuf:"varint,3,opt,name=channel,proto3,enum=skyrimmp.v1.ChatChannel" json:"channel,omitempty"`
+	Text      string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	Channel   ChatChannel            `protobuf:"varint,3,opt,name=channel,proto3,enum=skyrimmp.v1.ChatChannel" json:"channel,omitempty"`
+	// The recipient's slot, from the roster. Only for a whisper.
+	Recipient     uint32 `protobuf:"varint,4,opt,name=recipient,proto3" json:"recipient,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -393,6 +394,13 @@ func (x *ChatSend) GetChannel() ChatChannel {
 		return x.Channel
 	}
 	return ChatChannel_CHAT_CHANNEL_GLOBAL
+}
+
+func (x *ChatSend) GetRecipient() uint32 {
+	if x != nil {
+		return x.Recipient
+	}
+	return 0
 }
 
 type Ping struct {
@@ -1300,6 +1308,114 @@ func (x *ChatMessage) GetText() string {
 	return ""
 }
 
+// A connected client as others can address it.
+type RosterEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Slot          uint32                 `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RosterEntry) Reset() {
+	*x = RosterEntry{}
+	mi := &file_skyrimmp_v1_messages_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RosterEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RosterEntry) ProtoMessage() {}
+
+func (x *RosterEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_skyrimmp_v1_messages_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RosterEntry.ProtoReflect.Descriptor instead.
+func (*RosterEntry) Descriptor() ([]byte, []int) {
+	return file_skyrimmp_v1_messages_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *RosterEntry) GetSlot() uint32 {
+	if x != nil {
+		return x.Slot
+	}
+	return 0
+}
+
+func (x *RosterEntry) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// A change of the connected clients. The first one after a welcome lists all
+// of them, the recipient included; later ones carry one change each.
+type Roster struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Joined []*RosterEntry         `protobuf:"bytes,1,rep,name=joined,proto3" json:"joined,omitempty"`
+	// The slot of a client that disconnected; zero for none.
+	Left          uint32 `protobuf:"varint,2,opt,name=left,proto3" json:"left,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Roster) Reset() {
+	*x = Roster{}
+	mi := &file_skyrimmp_v1_messages_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Roster) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Roster) ProtoMessage() {}
+
+func (x *Roster) ProtoReflect() protoreflect.Message {
+	mi := &file_skyrimmp_v1_messages_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Roster.ProtoReflect.Descriptor instead.
+func (*Roster) Descriptor() ([]byte, []int) {
+	return file_skyrimmp_v1_messages_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *Roster) GetJoined() []*RosterEntry {
+	if x != nil {
+		return x.Joined
+	}
+	return nil
+}
+
+func (x *Roster) GetLeft() uint32 {
+	if x != nil {
+		return x.Left
+	}
+	return 0
+}
+
 type ServerMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Message:
@@ -1314,6 +1430,7 @@ type ServerMessage struct {
 	//	*ServerMessage_PeerAppearance
 	//	*ServerMessage_PeerEquipment
 	//	*ServerMessage_ChatMessage
+	//	*ServerMessage_Roster
 	Message       isServerMessage_Message `protobuf_oneof:"message"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1321,7 +1438,7 @@ type ServerMessage struct {
 
 func (x *ServerMessage) Reset() {
 	*x = ServerMessage{}
-	mi := &file_skyrimmp_v1_messages_proto_msgTypes[17]
+	mi := &file_skyrimmp_v1_messages_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1333,7 +1450,7 @@ func (x *ServerMessage) String() string {
 func (*ServerMessage) ProtoMessage() {}
 
 func (x *ServerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_messages_proto_msgTypes[17]
+	mi := &file_skyrimmp_v1_messages_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1346,7 +1463,7 @@ func (x *ServerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerMessage.ProtoReflect.Descriptor instead.
 func (*ServerMessage) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_messages_proto_rawDescGZIP(), []int{17}
+	return file_skyrimmp_v1_messages_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ServerMessage) GetMessage() isServerMessage_Message {
@@ -1446,6 +1563,15 @@ func (x *ServerMessage) GetChatMessage() *ChatMessage {
 	return nil
 }
 
+func (x *ServerMessage) GetRoster() *Roster {
+	if x != nil {
+		if x, ok := x.Message.(*ServerMessage_Roster); ok {
+			return x.Roster
+		}
+	}
+	return nil
+}
+
 type isServerMessage_Message interface {
 	isServerMessage_Message()
 }
@@ -1490,6 +1616,10 @@ type ServerMessage_ChatMessage struct {
 	ChatMessage *ChatMessage `protobuf:"bytes,10,opt,name=chat_message,json=chatMessage,proto3,oneof"`
 }
 
+type ServerMessage_Roster struct {
+	Roster *Roster `protobuf:"bytes,11,opt,name=roster,proto3,oneof"`
+}
+
 func (*ServerMessage_Welcome) isServerMessage_Message() {}
 
 func (*ServerMessage_Result) isServerMessage_Message() {}
@@ -1510,6 +1640,8 @@ func (*ServerMessage_PeerEquipment) isServerMessage_Message() {}
 
 func (*ServerMessage_ChatMessage) isServerMessage_Message() {}
 
+func (*ServerMessage_Roster) isServerMessage_Message() {}
+
 var File_skyrimmp_v1_messages_proto protoreflect.FileDescriptor
 
 const file_skyrimmp_v1_messages_proto_rawDesc = "" +
@@ -1522,12 +1654,13 @@ const file_skyrimmp_v1_messages_proto_rawDesc = "" +
 	"\rsession_token\x18\x03 \x01(\fR\fsessionToken\x12!\n" +
 	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\"\a\n" +
 	"\x05Enter\"\x06\n" +
-	"\x04Exit\"q\n" +
+	"\x04Exit\"\x8f\x01\n" +
 	"\bChatSend\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\rR\trequestId\x12\x12\n" +
 	"\x04text\x18\x02 \x01(\tR\x04text\x122\n" +
-	"\achannel\x18\x03 \x01(\x0e2\x18.skyrimmp.v1.ChatChannelR\achannel\"%\n" +
+	"\achannel\x18\x03 \x01(\x0e2\x18.skyrimmp.v1.ChatChannelR\achannel\x12\x1c\n" +
+	"\trecipient\x18\x04 \x01(\rR\trecipient\"%\n" +
 	"\x04Ping\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\rR\trequestId\"\x80\x04\n" +
@@ -1596,7 +1729,13 @@ const file_skyrimmp_v1_messages_proto_rawDesc = "" +
 	"\achannel\x18\x01 \x01(\x0e2\x18.skyrimmp.v1.ChatChannelR\achannel\x120\n" +
 	"\x06sender\x18\x02 \x01(\v2\x18.skyrimmp.v1.ChatSpeakerR\x06sender\x126\n" +
 	"\trecipient\x18\x03 \x01(\v2\x18.skyrimmp.v1.ChatSpeakerR\trecipient\x12\x12\n" +
-	"\x04text\x18\x04 \x01(\tR\x04text\"\xf0\x04\n" +
+	"\x04text\x18\x04 \x01(\tR\x04text\"5\n" +
+	"\vRosterEntry\x12\x12\n" +
+	"\x04slot\x18\x01 \x01(\rR\x04slot\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"N\n" +
+	"\x06Roster\x120\n" +
+	"\x06joined\x18\x01 \x03(\v2\x18.skyrimmp.v1.RosterEntryR\x06joined\x12\x12\n" +
+	"\x04left\x18\x02 \x01(\rR\x04left\"\x9f\x05\n" +
 	"\rServerMessage\x120\n" +
 	"\awelcome\x18\x01 \x01(\v2\x14.skyrimmp.v1.WelcomeH\x00R\awelcome\x12-\n" +
 	"\x06result\x18\x02 \x01(\v2\x13.skyrimmp.v1.ResultH\x00R\x06result\x12:\n" +
@@ -1612,11 +1751,12 @@ const file_skyrimmp_v1_messages_proto_rawDesc = "" +
 	"\x0fpeer_appearance\x18\b \x01(\v2\x1b.skyrimmp.v1.PeerAppearanceH\x00R\x0epeerAppearance\x12C\n" +
 	"\x0epeer_equipment\x18\t \x01(\v2\x1a.skyrimmp.v1.PeerEquipmentH\x00R\rpeerEquipment\x12=\n" +
 	"\fchat_message\x18\n" +
-	" \x01(\v2\x18.skyrimmp.v1.ChatMessageH\x00R\vchatMessageB\t\n" +
+	" \x01(\v2\x18.skyrimmp.v1.ChatMessageH\x00R\vchatMessage\x12-\n" +
+	"\x06roster\x18\v \x01(\v2\x13.skyrimmp.v1.RosterH\x00R\x06rosterB\t\n" +
 	"\amessage*:\n" +
 	"\bProtocol\x12\x18\n" +
 	"\x14PROTOCOL_UNSPECIFIED\x10\x00\x12\x14\n" +
-	"\x10PROTOCOL_VERSION\x10\x04*X\n" +
+	"\x10PROTOCOL_VERSION\x10\x05*X\n" +
 	"\vChatChannel\x12\x17\n" +
 	"\x13CHAT_CHANNEL_GLOBAL\x10\x00\x12\x16\n" +
 	"\x12CHAT_CHANNEL_LOCAL\x10\x01\x12\x18\n" +
@@ -1642,7 +1782,7 @@ func file_skyrimmp_v1_messages_proto_rawDescGZIP() []byte {
 }
 
 var file_skyrimmp_v1_messages_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_skyrimmp_v1_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_skyrimmp_v1_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_skyrimmp_v1_messages_proto_goTypes = []any{
 	(Protocol)(0),          // 0: skyrimmp.v1.Protocol
 	(ChatChannel)(0),       // 1: skyrimmp.v1.ChatChannel
@@ -1664,53 +1804,57 @@ var file_skyrimmp_v1_messages_proto_goTypes = []any{
 	(*PeerEquipment)(nil),  // 17: skyrimmp.v1.PeerEquipment
 	(*ChatSpeaker)(nil),    // 18: skyrimmp.v1.ChatSpeaker
 	(*ChatMessage)(nil),    // 19: skyrimmp.v1.ChatMessage
-	(*ServerMessage)(nil),  // 20: skyrimmp.v1.ServerMessage
-	(*Checkpoint)(nil),     // 21: skyrimmp.v1.Checkpoint
-	(*Context)(nil),        // 22: skyrimmp.v1.Context
-	(*Action)(nil),         // 23: skyrimmp.v1.Action
-	(*Appearance)(nil),     // 24: skyrimmp.v1.Appearance
-	(*Equipment)(nil),      // 25: skyrimmp.v1.Equipment
+	(*RosterEntry)(nil),    // 20: skyrimmp.v1.RosterEntry
+	(*Roster)(nil),         // 21: skyrimmp.v1.Roster
+	(*ServerMessage)(nil),  // 22: skyrimmp.v1.ServerMessage
+	(*Checkpoint)(nil),     // 23: skyrimmp.v1.Checkpoint
+	(*Context)(nil),        // 24: skyrimmp.v1.Context
+	(*Action)(nil),         // 25: skyrimmp.v1.Action
+	(*Appearance)(nil),     // 26: skyrimmp.v1.Appearance
+	(*Equipment)(nil),      // 27: skyrimmp.v1.Equipment
 }
 var file_skyrimmp_v1_messages_proto_depIdxs = []int32{
 	1,  // 0: skyrimmp.v1.ChatSend.channel:type_name -> skyrimmp.v1.ChatChannel
 	3,  // 1: skyrimmp.v1.ClientMessage.hello:type_name -> skyrimmp.v1.Hello
 	4,  // 2: skyrimmp.v1.ClientMessage.enter:type_name -> skyrimmp.v1.Enter
 	5,  // 3: skyrimmp.v1.ClientMessage.exit:type_name -> skyrimmp.v1.Exit
-	21, // 4: skyrimmp.v1.ClientMessage.checkpoint:type_name -> skyrimmp.v1.Checkpoint
-	22, // 5: skyrimmp.v1.ClientMessage.context:type_name -> skyrimmp.v1.Context
-	23, // 6: skyrimmp.v1.ClientMessage.action:type_name -> skyrimmp.v1.Action
-	24, // 7: skyrimmp.v1.ClientMessage.appearance:type_name -> skyrimmp.v1.Appearance
-	25, // 8: skyrimmp.v1.ClientMessage.equipment:type_name -> skyrimmp.v1.Equipment
+	23, // 4: skyrimmp.v1.ClientMessage.checkpoint:type_name -> skyrimmp.v1.Checkpoint
+	24, // 5: skyrimmp.v1.ClientMessage.context:type_name -> skyrimmp.v1.Context
+	25, // 6: skyrimmp.v1.ClientMessage.action:type_name -> skyrimmp.v1.Action
+	26, // 7: skyrimmp.v1.ClientMessage.appearance:type_name -> skyrimmp.v1.Appearance
+	27, // 8: skyrimmp.v1.ClientMessage.equipment:type_name -> skyrimmp.v1.Equipment
 	6,  // 9: skyrimmp.v1.ClientMessage.chat:type_name -> skyrimmp.v1.ChatSend
 	7,  // 10: skyrimmp.v1.ClientMessage.ping:type_name -> skyrimmp.v1.Ping
-	21, // 11: skyrimmp.v1.PeerStates.states:type_name -> skyrimmp.v1.Checkpoint
-	24, // 12: skyrimmp.v1.PeerEnter.appearance:type_name -> skyrimmp.v1.Appearance
-	25, // 13: skyrimmp.v1.PeerEnter.equipment:type_name -> skyrimmp.v1.Equipment
-	22, // 14: skyrimmp.v1.PeerEnter.context:type_name -> skyrimmp.v1.Context
-	21, // 15: skyrimmp.v1.PeerEnter.state:type_name -> skyrimmp.v1.Checkpoint
-	22, // 16: skyrimmp.v1.PeerContext.context:type_name -> skyrimmp.v1.Context
+	23, // 11: skyrimmp.v1.PeerStates.states:type_name -> skyrimmp.v1.Checkpoint
+	26, // 12: skyrimmp.v1.PeerEnter.appearance:type_name -> skyrimmp.v1.Appearance
+	27, // 13: skyrimmp.v1.PeerEnter.equipment:type_name -> skyrimmp.v1.Equipment
+	24, // 14: skyrimmp.v1.PeerEnter.context:type_name -> skyrimmp.v1.Context
+	23, // 15: skyrimmp.v1.PeerEnter.state:type_name -> skyrimmp.v1.Checkpoint
+	24, // 16: skyrimmp.v1.PeerContext.context:type_name -> skyrimmp.v1.Context
 	2,  // 17: skyrimmp.v1.PeerLeave.reason:type_name -> skyrimmp.v1.LeaveReason
-	23, // 18: skyrimmp.v1.PeerAction.action:type_name -> skyrimmp.v1.Action
-	24, // 19: skyrimmp.v1.PeerAppearance.appearance:type_name -> skyrimmp.v1.Appearance
-	25, // 20: skyrimmp.v1.PeerEquipment.equipment:type_name -> skyrimmp.v1.Equipment
+	25, // 18: skyrimmp.v1.PeerAction.action:type_name -> skyrimmp.v1.Action
+	26, // 19: skyrimmp.v1.PeerAppearance.appearance:type_name -> skyrimmp.v1.Appearance
+	27, // 20: skyrimmp.v1.PeerEquipment.equipment:type_name -> skyrimmp.v1.Equipment
 	1,  // 21: skyrimmp.v1.ChatMessage.channel:type_name -> skyrimmp.v1.ChatChannel
 	18, // 22: skyrimmp.v1.ChatMessage.sender:type_name -> skyrimmp.v1.ChatSpeaker
 	18, // 23: skyrimmp.v1.ChatMessage.recipient:type_name -> skyrimmp.v1.ChatSpeaker
-	9,  // 24: skyrimmp.v1.ServerMessage.welcome:type_name -> skyrimmp.v1.Welcome
-	10, // 25: skyrimmp.v1.ServerMessage.result:type_name -> skyrimmp.v1.Result
-	11, // 26: skyrimmp.v1.ServerMessage.peer_states:type_name -> skyrimmp.v1.PeerStates
-	12, // 27: skyrimmp.v1.ServerMessage.peer_enter:type_name -> skyrimmp.v1.PeerEnter
-	13, // 28: skyrimmp.v1.ServerMessage.peer_context:type_name -> skyrimmp.v1.PeerContext
-	14, // 29: skyrimmp.v1.ServerMessage.peer_leave:type_name -> skyrimmp.v1.PeerLeave
-	15, // 30: skyrimmp.v1.ServerMessage.peer_action:type_name -> skyrimmp.v1.PeerAction
-	16, // 31: skyrimmp.v1.ServerMessage.peer_appearance:type_name -> skyrimmp.v1.PeerAppearance
-	17, // 32: skyrimmp.v1.ServerMessage.peer_equipment:type_name -> skyrimmp.v1.PeerEquipment
-	19, // 33: skyrimmp.v1.ServerMessage.chat_message:type_name -> skyrimmp.v1.ChatMessage
-	34, // [34:34] is the sub-list for method output_type
-	34, // [34:34] is the sub-list for method input_type
-	34, // [34:34] is the sub-list for extension type_name
-	34, // [34:34] is the sub-list for extension extendee
-	0,  // [0:34] is the sub-list for field type_name
+	20, // 24: skyrimmp.v1.Roster.joined:type_name -> skyrimmp.v1.RosterEntry
+	9,  // 25: skyrimmp.v1.ServerMessage.welcome:type_name -> skyrimmp.v1.Welcome
+	10, // 26: skyrimmp.v1.ServerMessage.result:type_name -> skyrimmp.v1.Result
+	11, // 27: skyrimmp.v1.ServerMessage.peer_states:type_name -> skyrimmp.v1.PeerStates
+	12, // 28: skyrimmp.v1.ServerMessage.peer_enter:type_name -> skyrimmp.v1.PeerEnter
+	13, // 29: skyrimmp.v1.ServerMessage.peer_context:type_name -> skyrimmp.v1.PeerContext
+	14, // 30: skyrimmp.v1.ServerMessage.peer_leave:type_name -> skyrimmp.v1.PeerLeave
+	15, // 31: skyrimmp.v1.ServerMessage.peer_action:type_name -> skyrimmp.v1.PeerAction
+	16, // 32: skyrimmp.v1.ServerMessage.peer_appearance:type_name -> skyrimmp.v1.PeerAppearance
+	17, // 33: skyrimmp.v1.ServerMessage.peer_equipment:type_name -> skyrimmp.v1.PeerEquipment
+	19, // 34: skyrimmp.v1.ServerMessage.chat_message:type_name -> skyrimmp.v1.ChatMessage
+	21, // 35: skyrimmp.v1.ServerMessage.roster:type_name -> skyrimmp.v1.Roster
+	36, // [36:36] is the sub-list for method output_type
+	36, // [36:36] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_skyrimmp_v1_messages_proto_init() }
@@ -1731,7 +1875,7 @@ func file_skyrimmp_v1_messages_proto_init() {
 		(*ClientMessage_Chat)(nil),
 		(*ClientMessage_Ping)(nil),
 	}
-	file_skyrimmp_v1_messages_proto_msgTypes[17].OneofWrappers = []any{
+	file_skyrimmp_v1_messages_proto_msgTypes[19].OneofWrappers = []any{
 		(*ServerMessage_Welcome)(nil),
 		(*ServerMessage_Result)(nil),
 		(*ServerMessage_PeerStates)(nil),
@@ -1742,6 +1886,7 @@ func file_skyrimmp_v1_messages_proto_init() {
 		(*ServerMessage_PeerAppearance)(nil),
 		(*ServerMessage_PeerEquipment)(nil),
 		(*ServerMessage_ChatMessage)(nil),
+		(*ServerMessage_Roster)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1749,7 +1894,7 @@ func file_skyrimmp_v1_messages_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_skyrimmp_v1_messages_proto_rawDesc), len(file_skyrimmp_v1_messages_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   18,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

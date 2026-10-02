@@ -217,7 +217,7 @@ func TestChat(t *testing.T) {
 	if text, err := Chat(send("  hello there ", pb.ChatChannel_CHAT_CHANNEL_LOCAL)); err != nil || text != "hello there" {
 		t.Fatalf("got %q, %v", text, err)
 	}
-	if _, err := Chat(send(strings.Repeat("é", 256), pb.ChatChannel_CHAT_CHANNEL_WHISPER)); err != nil {
+	if _, err := Chat(send(strings.Repeat("é", 256), pb.ChatChannel_CHAT_CHANNEL_GLOBAL)); err != nil {
 		t.Fatal("text at the byte limit rejected")
 	}
 	for _, text := range []string{"", "   ", "tab\there", "bell\x07", strings.Repeat("a", 513), "\xff"} {
@@ -227,6 +227,21 @@ func TestChat(t *testing.T) {
 	}
 	if _, err := Chat(send("hi", pb.ChatChannel(3))); err == nil {
 		t.Error("unknown channel accepted")
+	}
+	whisper := send("hi", pb.ChatChannel_CHAT_CHANNEL_WHISPER)
+	if _, err := Chat(whisper); err == nil {
+		t.Error("whisper without a recipient accepted")
+	}
+	whisper.Recipient = 7
+	if text, err := Chat(whisper); err != nil || text != "hi" {
+		t.Errorf("whisper: got %q, %v", text, err)
+	}
+	for _, channel := range []pb.ChatChannel{pb.ChatChannel_CHAT_CHANNEL_GLOBAL, pb.ChatChannel_CHAT_CHANNEL_LOCAL} {
+		line := send("hi", channel)
+		line.Recipient = 7
+		if _, err := Chat(line); err == nil {
+			t.Errorf("%v with a recipient accepted", channel)
+		}
 	}
 }
 

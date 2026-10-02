@@ -76,7 +76,17 @@ func (c *client) send(m *pb.ClientMessage) {
 	}
 }
 
+// receive returns the next message that is not a roster change.
 func (c *client) receive() *pb.ServerMessage {
+	c.t.Helper()
+	for {
+		if m := c.receiveAny(); m.GetRoster() == nil {
+			return m
+		}
+	}
+}
+
+func (c *client) receiveAny() *pb.ServerMessage {
 	c.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -182,6 +192,24 @@ func TestPlayersSeeEachOther(t *testing.T) {
 	leave := b.receive().GetPeerLeave()
 	if leave.GetSlot() != slotA || leave.GetReason() != pb.LeaveReason_LEAVE_REASON_DISCONNECTED {
 		t.Fatalf("got %v", leave)
+	}
+}
+
+func TestRosterFollowsConnections(t *testing.T) {
+	s := startServer(t, config.Default())
+	a := dial(t, s)
+	a.send(hello("Lydia", nil))
+	slotA := a.receiveAny().GetWelcome().GetSlot()
+	if joined := a.receiveAny().GetRoster().GetJoined(); len(joined) != 1 || joined[0].GetSlot() != slotA || joined[0].GetName() != "Lydia" {
+		t.Fatalf("got %v", joined)
+	}
+	b, slotB := join(t, s, "Serana")
+	if joined := a.receiveAny().GetRoster().GetJoined(); len(joined) != 1 || joined[0].GetSlot() != slotB || joined[0].GetName() != "Serana" {
+		t.Fatalf("got %v", joined)
+	}
+	b.conn.Close(websocket.StatusNormalClosure, "")
+	if roster := a.receiveAny().GetRoster(); roster.GetLeft() != slotB || len(roster.GetJoined()) != 0 {
+		t.Fatalf("got %v", roster)
 	}
 }
 

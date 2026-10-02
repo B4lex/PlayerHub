@@ -48,6 +48,21 @@
   disconnected without a retry until Connect, and a lost connection reopened.
   `ChatSync.cpp` passed a syntax check; `AppearanceSync.cpp` was not compiled.
   The UI that shows refusals is in [UI overlay](ui-overlay.md#status).
+- **Roster and whispers by slot:** not built on Windows or run in game.
+  Server: `go test -race ./...` covers the roster in the hub (the list after
+  a welcome, a join and a leave reaching every other client once, replays
+  left out, a session connecting again) and over a WebSocket
+  (`internal/session`), whispers by slot (to another client, to oneself, to
+  an unknown slot, a replay, and the slot of a client that left), and the
+  recipient rule of `validate.Chat`. `cmd/loadgen` connected 500 bots within
+  2 s to a server on port 3100 and ran 15 s without a failed bot or a server
+  warning. Plugin: `WireCodec.cpp` with the regenerated nanopb code was built
+  on Linux and decoded Go-encoded rosters (3 and 500 entries, a leave, both
+  at once, none) and a whisper, and rejected entries without a slot, without
+  a name, with a control character, and with a 129-byte name; its `ChatSend`
+  for a whisper and for a local line passed the server's `validate.Chat`, and
+  one with a recipient on another channel or a whisper without one did not.
+  The roster kept in `ServerClient.cpp` passed a syntax check only.
 
 ## Scope
 
@@ -79,7 +94,7 @@ refused at the handshake ([Transport](#transport)).
 | `server/internal/session` | WebSocket accept, hello and session authentication, reader and writer goroutines, liveness, per-connection limits |
 | `server/internal/auth` | The session store: tokens, unique display names, expiry |
 | `server/internal/validate` | Field validation of client messages |
-| `server/internal/world` | A player's accepted state and the ordering rules; display name lookup for whispers |
+| `server/internal/world` | A player's accepted state and the ordering rules |
 | `server/internal/wire` | Hand-written encoding of checkpoint entries and batches, quantization for tools |
 | `server/internal/hub` | Applies accepted messages on one goroutine ([Interest and delivery](interest-and-delivery.md)) |
 
@@ -107,7 +122,7 @@ refused at the handshake ([Transport](#transport)).
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name}` within
   `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (4) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (5) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
@@ -147,7 +162,7 @@ What a refusal means for the client is in [Connection](#connection).
 | `Checkpoint` | One quantized sample |
 | `Action` | One attack ([Actions](#actions)) |
 | `Appearance`, `Equipment` | Latest-wins presentation ([below](#appearance-and-equipment)) |
-| `ChatSend` | `{request_id, text, channel}`, answered with a `Result` ([Chat](#chat)) |
+| `ChatSend` | `{request_id, text, channel, recipient}`, answered with a `Result` ([Chat](#chat)) |
 | `Ping` | `{request_id}`, answered with `Result{ok}` by the connection at once; the latency probe |
 
 A rejected message is dropped and logged on the server (at most one summary
@@ -292,6 +307,7 @@ same list.
 | `PeerLeave` | `slot`, `reason`: `OUT_OF_RANGE`, `EXCLUDED`, `EXITED`, `DISCONNECTED`, `VIEWER_UNPLACED` |
 | `PeerAction`, `PeerAppearance`, `PeerEquipment` | `slot` and the message |
 | `ChatMessage` | `channel`, `sender`, `recipient` (whisper only), `text`; a `ChatSpeaker` is `slot`, `name`, `level` |
+| `Roster` | `joined`, a list of `RosterEntry{slot, name}`, and `left`, a slot or 0 ([Roster](#roster)) |
 
 When each is sent and in what order is
 [Interest and delivery](interest-and-delivery.md#ordering).
@@ -321,7 +337,7 @@ the admin API.
 | --- | --- |
 | `session_id` | `uint64` from 1, the row ID of an `AUTOINCREMENT` column, so it is never reused, also after the session is gone. Sent only to its own client, in `Welcome`; the hub keeps it on the player (`world.Player.Session`) |
 | Token | 32 bytes from `crypto/rand`. The store keeps only its SHA-256, so a copy of the database resumes nobody. It is returned once, in the `Welcome` of the connection it was issued for |
-| Display name | 1..128 UTF-8 bytes, no control characters, no leading or trailing space (`validate.DisplayName`), so a whisper can address it. Unique among sessions by `validate.DisplayNameKey`, its lower case; a session may respell its own |
+| Display name | 1..128 UTF-8 bytes, no control characters, no leading or trailing space (`validate.DisplayName`), so a client can tell a name typed before a message from the message. Unique among sessions by `validate.DisplayNameKey`, its lower case; a session may respell its own |
 | Last use | Set by every hello, when a connection closes, and hourly for connected sessions (`session.Server.Maintain`) |
 
 - `auth.Store` keeps sessions in SQLite (`modernc.org/sqlite`, pure Go, pinned
@@ -372,7 +388,8 @@ the admin API.
 `ChatChannel` is `GLOBAL` (0), `LOCAL`, or `WHISPER`.
 
 - The server trims surrounding spaces and rejects an unknown channel, empty
-  text, control characters, and more than 512 UTF-8 bytes
+  text, control characters, more than 512 UTF-8 bytes, a `WHISPER` without a
+  `recipient`, and a `recipient` on another channel
   (`invalid chat message`); protobuf already guarantees valid UTF-8.
 - `GLOBAL` goes to every connected client.
 - `LOCAL` needs a placed sender (`not in world` otherwise) and goes to every
@@ -381,25 +398,49 @@ the admin API.
   ignores exclusions, hiding, and the visible cap, which govern presentation
   only. Recipients are found by a scan of connected clients, which the rate
   limit keeps cheap; the interest grid does not bound an interior.
-- `WHISPER` text starts with the recipient: `world.Names.Find` takes the longest
-  display name of a connected client, compared like session display names and
-  followed by a space or the end. Longest-first lets display names contain
-  spaces. No match is `unknown recipient`, which includes replays and bots,
-  since only clients are looked up; nothing after the name is `empty whisper`.
-  The relayed `text` is the message after the name, and the whisper goes to the
-  sender and the recipient (once when they are the same).
+- `WHISPER` names its recipient by slot, which the client takes from the
+  [roster](#roster). A slot is one connection, so a whisper never reaches
+  whoever holds the recipient's display name after it left, and names with
+  spaces need no parsing on the server. A slot that is not a connected client
+  is `unknown recipient`, which includes replays and bots, since they receive
+  nothing. The whisper goes to the sender and the recipient (once when they
+  are the same).
 - 5 accepted messages per player in any 5 s over all channels
   (`rate limited`); rejected messages do not count, and a disconnect forgets
   the history.
 - Every channel includes the sender, so everyone sees one order and the
   sender's own line confirms delivery. A `ChatSpeaker` is the player's
-  display name and the level of its latest appearance (`0` before one).
+  display name and the level of its latest appearance (`0` before one); the
+  client does not show the level
+  ([Appearance and equipment](appearance-and-equipment.md#player-label)).
 - The client rejects a `ChatMessage` without a sender, with an unknown channel,
   or with a recipient present exactly when the channel is not `WHISPER`, and
   validates speakers like appearance names and text like `ChatSend`.
 - Chat does not require being in the world except for `LOCAL`, keeps no
   history, and is not recorded. The client side is in
   [UI overlay](ui-overlay.md#chat).
+
+### Roster
+
+Every client knows who is connected, so it can complete a name and address a
+whisper by slot. Proximity does not limit it: a whisper reaches any connected
+player.
+
+- The roster lists the clients that have a session, by slot and session
+  display name. Replays and in-server bots are not listed.
+- `Hub.ConnectClient` sends the new client one `Roster` after its `Welcome`
+  with every listed client in `joined`, itself included, and every other
+  listed client a `Roster` with the new one in `joined`.
+- A listed client that disconnects, also when its session connects again, is
+  sent to every other listed client as `Roster{left}`. A display name changes
+  only with a hello ([Sessions](#sessions)), so a rename is a leave and a
+  join under another slot.
+- Roster messages are ordered with the rest of a client's outbox
+  (`Outbox.AppendGlobal`) and marshalled once per event. A join or a leave
+  writes to every outbox; the full list is 5 to 11 bytes plus the name per
+  client, sent once per connection.
+- The client rejects a `Roster` whose entry has no slot, no name, or an
+  invalid name, or with more than `kMaximumRosterEntries` (4096) entries.
 
 ## Client
 
@@ -428,6 +469,14 @@ the admin API.
   kept across a lost connection. The transport marks a message `outgoing` when
   its sender is the connection's own slot, so a whisper can show its
   direction.
+- The transport keeps the roster: `Roster` is decoded entry by entry, like
+  `PeerStates`, and applied under its own lock, a join replacing an entry
+  with the same slot. A welcome and a disconnect empty it. Every change
+  advances a revision, and `Network::CopyRosterIfChanged` copies the list,
+  with the connection's own slot, only for a caller that holds an older one,
+  so readers pay for a copy when a player joins or leaves and not per frame.
+- `Network::CopyNearbyPlayers` lists the peers with a context, which are the
+  ones the client currently receives; chat orders its name list by it.
 
 ### Session
 
@@ -596,5 +645,7 @@ window, and are empty after a long gap. The status panel shows them.
 - The session ID does not reach peers yet, and exclusions and hiding are still
   keyed by slot ([Interest and delivery](interest-and-delivery.md#admin-controls)).
 - Chat has no history for late joiners.
+- The roster tells every client the display name of every connected player,
+  wherever they are. It carries no level and no session ID.
 - Cell and worldspace IDs need matching load orders.
 - Non-goals: server authority over movement, anti-cheat, and UDP.

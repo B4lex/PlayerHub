@@ -13,7 +13,7 @@ namespace UI::Fonts
     // beside the plugin, each over the same system fallbacks.
     void Load(ImFontAtlas& a_atlas, float a_sizePixels);
 
-    // The faces of the plugin's themed windows, for ImGui::PushFont. Null
+    // The faces of the plugin's themed windows and chat, for ImGui::PushFont. Null
     // before Load and when the shipped file is missing or unreadable;
     // PushFont then keeps the current font. Overlay thread.
     [[nodiscard]] ImFont* GetText();

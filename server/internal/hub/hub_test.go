@@ -117,6 +117,11 @@ func chatOn(channel pb.ChatChannel, id uint32, text string) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Chat{Chat: &pb.ChatSend{RequestId: id, Text: text, Channel: channel}}}
 }
 
+func whisper(id, recipient uint32, text string) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Chat{Chat: &pb.ChatSend{
+		RequestId: id, Text: text, Channel: pb.ChatChannel_CHAT_CHANNEL_WHISPER, Recipient: recipient}}}
+}
+
 func interior(epoch uint64, cell uint32) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{CellId: cell, GraphEpoch: epoch}}}
 }
@@ -209,6 +214,15 @@ func describe(m *pb.ServerMessage) string {
 			s += fmt.Sprintf(" to %d %s", c.Recipient.Slot, c.Recipient.Name)
 		}
 		return s + ": " + c.Text
+	case *pb.ServerMessage_Roster:
+		s := "roster"
+		for _, e := range body.Roster.Joined {
+			s += fmt.Sprintf(" +%d %s", e.Slot, e.Name)
+		}
+		if body.Roster.Left != 0 {
+			s += fmt.Sprintf(" -%d", body.Roster.Left)
+		}
+		return s
 	}
 	return "unknown"
 }
@@ -460,26 +474,59 @@ func TestWhisper(t *testing.T) {
 	for _, slot := range []uint32{a, b, c} {
 		f.received(slot)
 	}
-	whisper := func(id uint32, text string) *pb.ClientMessage {
-		return chatOn(pb.ChatChannel_CHAT_CHANNEL_WHISPER, id, text)
-	}
-	f.send(c, whisper(7, "ulfric stormcloak  for Skyrim"))
+	f.send(c, whisper(7, b, "  for Skyrim "))
 	expect(t, f.received(c), "result 7 true ", "chat whisper 3 Galmar to 2 Ulfric Stormcloak: for Skyrim")
 	expect(t, f.received(b), "chat whisper 3 Galmar to 2 Ulfric Stormcloak: for Skyrim")
 	expect(t, f.received(a))
-	f.send(a, whisper(8, "GALMAR hi"))
-	expect(t, f.received(a), "result 8 true ", "chat whisper 1 Ulfric to 3 Galmar: hi")
-	expect(t, f.received(c), "chat whisper 1 Ulfric to 3 Galmar: hi")
-	f.send(a, whisper(9, "Ulfric note to self"))
-	expect(t, f.received(a), "result 9 true ", "chat whisper 1 Ulfric to 1 Ulfric: note to self")
-	f.reject(a, whisper(10, "Ralof hi"), ErrUnknownRecipient)
-	f.reject(a, whisper(11, "Ghost boo"), ErrUnknownRecipient)
-	f.reject(a, whisper(12, "Ulfric Stormcloak"), ErrEmptyWhisper)
-	expect(t, f.received(a), "result 10 false unknown recipient", "result 11 false unknown recipient", "result 12 false empty whisper")
+	f.send(a, whisper(8, a, "note to self"))
+	expect(t, f.received(a), "result 8 true ", "chat whisper 1 Ulfric to 1 Ulfric: note to self")
+	f.reject(a, whisper(9, 99, "hi"), ErrUnknownRecipient)
+	f.reject(a, whisper(10, v, "boo"), ErrUnknownRecipient)
+	f.reject(a, whisper(11, 0, "nobody"), validate.ErrChat)
+	f.reject(a, whisper(12, b, " "), validate.ErrChat)
+	f.reject(a, &pb.ClientMessage{Message: &pb.ClientMessage_Chat{Chat: &pb.ChatSend{RequestId: 13, Text: "hi", Recipient: b}}},
+		validate.ErrChat)
+	expect(t, f.received(a), "result 9 false unknown recipient", "result 10 false unknown recipient",
+		"result 11 false invalid chat message", "result 12 false invalid chat message",
+		"result 13 false invalid chat message")
+	expect(t, f.received(b))
+
+	// A slot names one connection: the name's next holder is someone else.
 	f.hub.Disconnect(b)
+	again := f.connectAs("Ulfric Stormcloak")
 	f.received(a)
-	f.send(a, whisper(13, "Ulfric Stormcloak hi"))
-	expect(t, f.received(a), "result 13 true ", "chat whisper 1 Ulfric to 1 Ulfric: Stormcloak hi")
+	f.clock.Advance(5.1)
+	f.reject(a, whisper(14, b, "hi"), ErrUnknownRecipient)
+	expect(t, f.received(again), fmt.Sprintf("welcome %d", again), "roster +1 Ulfric +3 Galmar +5 Ulfric Stormcloak")
+}
+
+func TestRoster(t *testing.T) {
+	f := newFixture(t)
+	a := f.connectAs("Lydia")
+	expect(t, f.received(a), "welcome 1", "roster +1 Lydia")
+	// Replays and bots receive nothing, so they are not listed.
+	v := f.hub.Connect(world.KindReplay, nil)
+	f.send(v, appearance(1, "Ghost"))
+	b := f.connectAs("Serana")
+	expect(t, f.received(b), "welcome 3", "roster +1 Lydia +3 Serana")
+	expect(t, f.received(a), "roster +3 Serana")
+
+	f.hub.Disconnect(v)
+	expect(t, f.received(a))
+	f.hub.Disconnect(b)
+	expect(t, f.received(a), "roster -3")
+	f.hub.Disconnect(b)
+	expect(t, f.received(a))
+
+	// A session that connects again leaves and joins under its new slot.
+	c, replaced := f.connectSession(1, "Lydia")
+	if replaced != a {
+		t.Fatalf("replaced %d", replaced)
+	}
+	expect(t, f.received(c), "welcome 4", "roster +4 Lydia")
+	d := f.connectAs("Aela")
+	expect(t, f.received(d), "welcome 5", "roster +4 Lydia +5 Aela")
+	expect(t, f.received(c), "roster +5 Aela")
 }
 
 func TestAppearanceCarriesTheSessionDisplayName(t *testing.T) {
@@ -529,16 +576,16 @@ func TestSessionConnectingAgainReplacesItsConnection(t *testing.T) {
 	if replaced != first || second == first {
 		t.Fatalf("connected as %d, replacing %d", second, replaced)
 	}
-	expect(t, f.received(b), "leave 1 DISCONNECTED")
+	expect(t, f.received(b), "leave 1 DISCONNECTED", "roster -1", "roster +3 Lydia")
 	f.reject(first, enter(), ErrUnknownPlayer)
 
-	whisper := chatOn(pb.ChatChannel_CHAT_CHANNEL_WHISPER, 1, "Lydia hi")
-	f.send(b, whisper)
-	expect(t, f.received(second), fmt.Sprintf("welcome %d", second), "chat whisper 2 Serana to 3 Lydia: hi")
+	f.send(b, whisper(1, second, "hi"))
+	expect(t, f.received(second), fmt.Sprintf("welcome %d", second), "roster +2 Serana +3 Lydia",
+		"chat whisper 2 Serana to 3 Lydia: hi")
 
 	// The old connection's own disconnect arrives late and changes nothing.
 	f.hub.Disconnect(first)
-	f.send(b, chatOn(pb.ChatChannel_CHAT_CHANNEL_WHISPER, 2, "Lydia still there"))
+	f.send(b, whisper(2, second, "still there"))
 	expect(t, f.received(second), "chat whisper 2 Serana to 3 Lydia: still there")
 }
 

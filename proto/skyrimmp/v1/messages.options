@@ -7,5 +7,7 @@ skyrimmp.v1.ChatSend.text max_size:513
 skyrimmp.v1.Result.error max_size:64
 skyrimmp.v1.ChatSpeaker.name max_size:129
 skyrimmp.v1.ChatMessage.text max_size:513
+skyrimmp.v1.RosterEntry.name max_size:129
 # A batch is decoded entry by entry, so its size is not bounded by a static array.
 skyrimmp.v1.PeerStates.states type:FT_CALLBACK
+skyrimmp.v1.Roster.joined type:FT_CALLBACK

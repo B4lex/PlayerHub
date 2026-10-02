@@ -102,13 +102,14 @@ namespace Network
     // and, for a power attack, its direction. Graph event names never cross it.
     void PublishLocalAttack(const Attack& a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
 
-    // Sends a chat line with already trimmed, valid text; a whisper's text starts
-    // with the recipient's name. Returns false without sending while
-    // disconnected. a_onRejected runs on the transport thread with the server's
-    // reason if it refuses the message; accepted messages come back through
-    // DrainChatMessages like everyone else's.
-    [[nodiscard]] bool PublishChatMessage(Multiplayer::ChatChannel a_channel, std::string_view a_text,
-        std::function<void(std::string_view)> a_onRejected);
+    // Sends a chat line with already trimmed, valid text. a_recipient is the
+    // whispered player's slot from the roster, and zero on other channels.
+    // Returns false without sending while disconnected. a_onRejected runs on
+    // the transport thread with the server's reason if it refuses the message;
+    // accepted messages come back through DrainChatMessages like everyone
+    // else's.
+    [[nodiscard]] bool PublishChatMessage(Multiplayer::ChatChannel a_channel, Multiplayer::PeerSlot a_recipient,
+        std::string_view a_text, std::function<void(std::string_view)> a_onRejected);
 
     // Sends a Ping. a_onAcknowledged runs on the transport thread when the
     // server answers it; it never runs if the connection drops first.
@@ -152,4 +153,13 @@ namespace Network
     // Transfers received chat messages, oldest first. Unlike player state, they
     // outlive the connection they arrived on. Safe to call from any thread.
     [[nodiscard]] std::vector<Multiplayer::ChatMessage> DrainChatMessages();
+
+    // Appends the players this client receives, which are the ones near the
+    // local player, virtual ones included. Safe to call from any thread.
+    void CopyNearbyPlayers(std::vector<Multiplayer::PeerSlot>& a_players);
+
+    // Copies the connected clients and sets a_revision when the roster changed
+    // since the revision the caller holds; the first call passes zero. The
+    // roster is empty while disconnected. Safe to call from any thread.
+    [[nodiscard]] bool CopyRosterIfChanged(std::uint64_t& a_revision, Multiplayer::Roster& a_roster);
 }

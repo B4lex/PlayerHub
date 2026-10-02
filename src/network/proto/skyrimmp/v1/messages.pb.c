@@ -57,6 +57,12 @@ PB_BIND(skyrimmp_v1_ChatSpeaker, skyrimmp_v1_ChatSpeaker, AUTO)
 PB_BIND(skyrimmp_v1_ChatMessage, skyrimmp_v1_ChatMessage, 2)
 
 
+PB_BIND(skyrimmp_v1_RosterEntry, skyrimmp_v1_RosterEntry, AUTO)
+
+
+PB_BIND(skyrimmp_v1_Roster, skyrimmp_v1_Roster, AUTO)
+
+
 PB_BIND(skyrimmp_v1_ServerMessage, skyrimmp_v1_ServerMessage, 4)
 
 

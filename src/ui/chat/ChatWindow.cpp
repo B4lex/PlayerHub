@@ -1,34 +1,22 @@
 #include "ui/chat/ChatWindow.h"
-#include "protocol/ChatMessage.h"
-#include "sync/chat/ChatSync.h"
 #include "ui/Layout.h"
 #include "ui/MenuFrame.h"
 #include "ui/Theme.h"
 #include "ui/WindowManager.h"
+#include "ui/chat/ChatHistory.h"
+#include "ui/chat/ChatInput.h"
 
 #include <imgui.h>
 
-#include <algorithm>
-#include <array>
 #include <cfloat>
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
-#include <deque>
-#include <string>
-#include <utility>
-#include <vector>
+#include <optional>
 
 namespace UI
 {
     namespace
     {
-        constexpr std::size_t kMaximumHistoryLines = 100;
-        constexpr std::size_t kMaximumRecentLines = 6;
-        constexpr double kRecentLineSeconds = 10.0;
-        constexpr double kRecentFadeSeconds = 2.0;
-        constexpr float kWheelLines = 3.0F;
-
         // In font sizes, so the layout follows the overlay scale. The bottom margin
         // keeps the chat above the vanilla magicka bar.
         constexpr float kWidthFonts = 30.0F;
@@ -38,12 +26,6 @@ namespace UI
         constexpr float kOpenBackgroundAlpha = 0.6F;
         constexpr float kRecentBackgroundAlpha = 0.25F;
 
-        constexpr ImVec4 kGlobalSenderColor{ 0.95F, 0.80F, 0.45F, 1.0F };
-        constexpr ImVec4 kLocalSenderColor{ 0.60F, 0.95F, 0.35F, 1.0F };
-        constexpr ImVec4 kWhisperSenderColor{ 0.78F, 0.56F, 1.0F, 1.0F };
-        constexpr ImVec4 kTextColor{ 0.92F, 0.92F, 0.92F, 1.0F };
-        constexpr ImVec4 kNoticeColor{ 0.95F, 0.55F, 0.40F, 1.0F };
-
         constexpr ImGuiWindowFlags kWindowFlags
             = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
         // MenuFrame draws the open chat's background.
@@ -51,60 +33,6 @@ namespace UI
             = kWindowFlags | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground;
         constexpr ImGuiWindowFlags kRecentWindowFlags = kWindowFlags | ImGuiWindowFlags_NoInputs
             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize;
-
-        struct HistoryLine
-        {
-            ChatSync::LineKind kind{ ChatSync::LineKind::kPlayer };
-            Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kGlobal };
-            // The sender and a colon; empty for notices.
-            std::string label;
-            std::string text;
-            double receivedAt{ 0.0 };
-        };
-
-        ImVec4 WithAlpha(ImVec4 a_color, float a_alpha)
-        {
-            a_color.w *= a_alpha;
-            return a_color;
-        }
-
-        float GetRecentAlpha(const HistoryLine& a_line, double a_now)
-        {
-            const auto remaining = kRecentLineSeconds - (a_now - a_line.receivedAt);
-            return static_cast<float>(std::clamp(remaining / kRecentFadeSeconds, 0.0, 1.0));
-        }
-
-        const ImVec4& GetSenderColor(Multiplayer::ChatChannel a_channel)
-        {
-            switch (a_channel)
-            {
-                case Multiplayer::ChatChannel::kLocal:
-                    return kLocalSenderColor;
-                case Multiplayer::ChatChannel::kWhisper:
-                    return kWhisperSenderColor;
-                case Multiplayer::ChatChannel::kGlobal:
-                    break;
-            }
-            return kGlobalSenderColor;
-        }
-
-        void DrawLine(const HistoryLine& a_line, float a_alpha)
-        {
-            if (a_line.kind == ChatSync::LineKind::kPlayer)
-            {
-                ImGui::PushStyleColor(ImGuiCol_Text, WithAlpha(GetSenderColor(a_line.channel), a_alpha));
-                ImGui::TextUnformatted(a_line.label.c_str(), a_line.label.c_str() + a_line.label.size());
-                ImGui::PopStyleColor();
-                ImGui::SameLine();
-            }
-
-            const auto& textColor = a_line.kind == ChatSync::LineKind::kPlayer ? kTextColor : kNoticeColor;
-            ImGui::PushStyleColor(ImGuiCol_Text, WithAlpha(textColor, a_alpha));
-            ImGui::PushTextWrapPos(0.0F);
-            ImGui::TextUnformatted(a_line.text.c_str(), a_line.text.c_str() + a_line.text.size());
-            ImGui::PopTextWrapPos();
-            ImGui::PopStyleColor();
-        }
 
         // What the open chat's frame takes on each side. A knot cuts across
         // its corner, so halfway into it is clear.
@@ -131,15 +59,22 @@ namespace UI
                     || a_scanCode == RE::BSKeyboardDevice::Key::kKP_Enter;
             }
 
+            [[nodiscard]] bool UsesMouse() const override { return true; }
+            // Most of the time the chat is opened to type a line and closed again.
+            [[nodiscard]] bool HidesIdleCursor() const override { return true; }
+            [[nodiscard]] std::optional<ScreenPoint> GetCursorStart() const override { return cursorStart; }
+            [[nodiscard]] bool UsesTab() const override { return true; }
+
             void Draw(const WindowInput& a_input) override
             {
                 const auto now = ImGui::GetTime();
-                CollectLines(now);
+                history.Collect(now, a_input.focused);
 
                 if (a_input.focused && !wasFocused)
                 {
                     focusInput = true;
-                    scrollToLatest = true;
+                    history.ScrollToLatest();
+                    input.OnOpened();
                 }
                 wasFocused = a_input.focused;
 
@@ -154,61 +89,35 @@ namespace UI
             }
 
         private:
-            void CollectLines(double a_now)
+            void DrawRecent(double a_now)
             {
-                ChatSync::DrainLines(incoming);
-                for (auto& line : incoming)
-                {
-                    if (history.size() >= kMaximumHistoryLines)
-                    {
-                        history.pop_front();
-                    }
-                    const bool fromPlayer = line.kind == ChatSync::LineKind::kPlayer;
-                    history.push_back(HistoryLine{ .kind = line.kind,
-                        .channel = line.channel,
-                        .label = fromPlayer ? std::move(line.sender) + ":" : std::string{},
-                        .text = std::move(line.text),
-                        .receivedAt = a_now });
-                    scrollToLatest = scrollToLatest || followingLatest;
-                }
-                incoming.clear();
-            }
-
-            void DrawRecent(double a_now) const
-            {
-                std::size_t visible = 0;
-                for (auto line = history.rbegin(); line != history.rend() && visible < kMaximumRecentLines; ++line)
-                {
-                    if (a_now - line->receivedAt >= kRecentLineSeconds)
-                    {
-                        break;
-                    }
-                    ++visible;
-                }
-                if (visible == 0)
+                const auto alpha = history.FindRecent(a_now);
+                if (alpha <= 0.0F)
                 {
                     return;
                 }
 
+                const Theme::Scope theme;
                 const auto width = kWidthFonts * ImGui::GetFontSize();
                 // Inside where the open chat's frame would be, so the lines
                 // stay in their column when it opens.
                 SetNextChatWindowPosition(GetFramePadding());
                 ImGui::SetNextWindowSizeConstraints(ImVec2{ width, 0.0F }, ImVec2{ width, FLT_MAX });
-                ImGui::SetNextWindowBgAlpha(kRecentBackgroundAlpha * GetRecentAlpha(history.back(), a_now));
-                if (ImGui::Begin("##ChatRecent", nullptr, kRecentWindowFlags))
+                ImGui::SetNextWindowBgAlpha(kRecentBackgroundAlpha * alpha);
+                // The theme's border is for windows the player acts on.
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
+                const bool visible = ImGui::Begin("##ChatRecent", nullptr, kRecentWindowFlags);
+                ImGui::PopStyleVar();
+                if (visible)
                 {
-                    const auto first = history.end() - static_cast<std::ptrdiff_t>(visible);
-                    for (auto line = first; line != history.end(); ++line)
-                    {
-                        DrawLine(*line, GetRecentAlpha(*line, a_now));
-                    }
+                    history.DrawRecent(a_now);
                 }
                 ImGui::End();
             }
 
             void DrawOpen(const WindowInput& a_input)
             {
+                const Theme::Scope theme;
                 SetNextChatWindowPosition(0.0F);
                 if (focusInput)
                 {
@@ -229,82 +138,56 @@ namespace UI
                 background.w = kOpenBackgroundAlpha;
                 MenuFrame::Draw(ImGui::GetColorU32(Theme::GetFrameColor()), ImGui::GetColorU32(background));
 
+                // An open menu takes Escape before the name list and the chat do.
+                const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+                const bool menuOpen = history.IsMenuOpen() || input.IsMenuOpen();
+                const bool closeMenu = escape && menuOpen;
+
+                auto& composer = input.GetComposer();
+                // Changed since the previous frame by a key, a prefix, or a click.
+                if (!(composer.GetTarget() == shownTarget))
+                {
+                    shownTarget = composer.GetTarget();
+                    history.SetShown(shownTarget.channel, true);
+                }
+                // As far from the rule under them as from the frame's line above.
+                history.DrawFilters(padding.y + framePadding - MenuFrame::GetMetrics().inset);
+
                 const ImVec2 historySize{ kWidthFonts * ImGui::GetFontSize(),
-                    kHistoryLines * ImGui::GetTextLineHeightWithSpacing() };
-                DrawHistory(a_input, historySize);
-
-                // Keyboard focus applies on a later frame, so it is requested until taken.
-                if (focusInput || !inputActive)
+                    kHistoryLines * ChatHistory::GetLinePitch() };
+                if (const auto player = history.DrawLines(a_input, historySize, closeMenu))
                 {
-                    ImGui::SetKeyboardFocusHere();
+                    composer.SetTarget(
+                        ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kWhisper, .player = *player });
                 }
+
+                input.DrawListing();
+                const auto outcome = input.Draw(ChatInput::Frame{
+                    .focus = focusInput, .escape = escape && !menuOpen, .closeMenu = closeMenu, .menuOpen = menuOpen });
                 focusInput = false;
-                ImGui::SetNextItemWidth(-FLT_MIN);
-                const bool submitted = ImGui::InputText(
-                    "##ChatInput", draft.data(), draft.size(), ImGuiInputTextFlags_EnterReturnsTrue);
-                inputActive = ImGui::IsItemActive();
+                if (outcome != ChatInput::Outcome::kNone)
+                {
+                    history.ScrollToLatest();
+                }
+                if (outcome == ChatInput::Outcome::kClose)
+                {
+                    WindowManager::ReleaseFocus(*this);
+                }
 
-                if (submitted)
-                {
-                    // Accepted messages come back from the server like everyone else's.
-                    ChatSync::SendLocalMessage(draft.data());
-                    draft[0] = '\0';
-                    followingLatest = true;
-                    scrollToLatest = true;
-                    WindowManager::ReleaseFocus(*this);
-                }
-                else if (ImGui::IsItemDeactivated())
-                {
-                    // Escape reverts the draft and deactivates the input.
-                    WindowManager::ReleaseFocus(*this);
-                }
+                const auto position = ImGui::GetWindowPos();
+                const auto size = ImGui::GetWindowSize();
+                cursorStart = ScreenPoint{ position.x + size.x * 0.5F, position.y + size.y * 0.5F };
                 ImGui::End();
             }
 
-            void DrawHistory(const WindowInput& a_input, ImVec2 a_size)
-            {
-                if (ImGui::BeginChild("##ChatHistory", a_size))
-                {
-                    for (const auto& line : history)
-                    {
-                        DrawLine(line, 1.0F);
-                    }
-
-                    const auto lineHeight = ImGui::GetTextLineHeightWithSpacing();
-                    auto scroll = ImGui::GetScrollY() - a_input.wheelSteps * kWheelLines * lineHeight;
-                    if (ImGui::IsKeyPressed(ImGuiKey_PageUp))
-                    {
-                        scroll -= a_size.y - lineHeight;
-                    }
-                    if (ImGui::IsKeyPressed(ImGuiKey_PageDown))
-                    {
-                        scroll += a_size.y - lineHeight;
-                    }
-                    if (scroll != ImGui::GetScrollY())
-                    {
-                        ImGui::SetScrollY(std::clamp(scroll, 0.0F, ImGui::GetScrollMaxY()));
-                        followingLatest = scroll >= ImGui::GetScrollMaxY();
-                    }
-                    if (scrollToLatest)
-                    {
-                        ImGui::SetScrollHereY(1.0F);
-                        scrollToLatest = false;
-                        followingLatest = true;
-                    }
-                }
-                ImGui::EndChild();
-            }
-
-            std::deque<HistoryLine> history;
-            // Reused so draining an empty queue allocates nothing.
-            std::vector<ChatSync::ChatLine> incoming;
-            std::array<char, Multiplayer::kMaximumChatTextBytes + 1> draft{};
+            ChatHistory history;
+            ChatInput input;
+            // The target whose channel was last turned on.
+            ChatSync::ChatTarget shownTarget;
+            // The middle of the open chat as it was last drawn.
+            std::optional<ScreenPoint> cursorStart;
             bool wasFocused{ false };
             bool focusInput{ false };
-            bool inputActive{ false };
-            // Whether new lines scroll the history down; false while scrolled back.
-            bool followingLatest{ true };
-            bool scrollToLatest{ false };
         };
     }
 

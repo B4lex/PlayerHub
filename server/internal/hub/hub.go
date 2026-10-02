@@ -26,7 +26,6 @@ var (
 	// Local chat needs the sender's position.
 	ErrNotPlaced        = errors.New("not in world")
 	ErrUnknownRecipient = errors.New("unknown recipient")
-	ErrEmptyWhisper     = errors.New("empty whisper")
 )
 
 // Recorder receives every accepted client message of every player, so it can
@@ -116,7 +115,6 @@ type Hub struct {
 	members    map[uint32]*member
 	recipients []*member
 	nextSlot   uint32
-	names      *world.Names
 	// The connected client of each session.
 	sessions map[uint64]uint32
 	changed  []*member
@@ -150,7 +148,7 @@ func New(opts Options) *Hub {
 		opts.ChatLocalRadius = 8192
 	}
 	h := &Hub{
-		opts: opts, members: make(map[uint32]*member), names: world.NewNames(), sessions: make(map[uint64]uint32),
+		opts: opts, members: make(map[uint32]*member), sessions: make(map[uint64]uint32),
 		grid: interest.NewGrid(opts.Interest.LeaveRadius), hidden: interest.Hidden{}, pairs: interest.Pairs{},
 	}
 	h.rules = interest.NewRules(opts.Interest, h.hidden, h.pairs)
@@ -166,6 +164,8 @@ func (h *Hub) Connect(kind world.Kind, outbox *delivery.Outbox) uint32 {
 // ConnectClient adds a client under its session. A session is connected
 // once, so the client it was connected as before is disconnected first, and
 // its slot is returned as replaced, zero for none, for the caller to close.
+// The client receives the roster after its welcome, and every other client
+// the new entry.
 func (h *Hub) ConnectClient(outbox *delivery.Outbox, identity Identity) (slot, replaced uint32) {
 	if previous, ok := h.sessions[identity.Session]; ok {
 		replaced = previous
@@ -173,8 +173,37 @@ func (h *Hub) ConnectClient(outbox *delivery.Outbox, identity Identity) (slot, r
 	}
 	slot = h.connect(world.KindClient, outbox, identity)
 	h.sessions[identity.Session] = slot
-	h.names.Set(slot, identity.DisplayName)
+	m := h.members[slot]
+	roster := &pb.Roster{}
+	for _, r := range h.recipients {
+		if r.listed() {
+			roster.Joined = append(roster.Joined, &pb.RosterEntry{Slot: r.Slot, Name: r.DisplayName})
+		}
+	}
+	outbox.AppendGlobal(rosterMessage(roster))
+	h.announce(m, &pb.Roster{Joined: []*pb.RosterEntry{{Slot: slot, Name: identity.DisplayName}}})
 	return slot, replaced
+}
+
+// listed reports whether the roster names the player: a client with a
+// session. Replays and in-server bots receive nothing, so nobody can whisper
+// them.
+func (m *member) listed() bool {
+	return m.outbox != nil && m.Session != 0
+}
+
+func rosterMessage(roster *pb.Roster) []byte {
+	return wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Roster{Roster: roster}})
+}
+
+// announce sends a roster change about m to every other listed client.
+func (h *Hub) announce(m *member, roster *pb.Roster) {
+	bytes := rosterMessage(roster)
+	for _, r := range h.recipients {
+		if r != m && r.listed() {
+			r.outbox.AppendGlobal(bytes)
+		}
+	}
 }
 
 func (h *Hub) connect(kind world.Kind, outbox *delivery.Outbox, identity Identity) uint32 {
@@ -237,9 +266,11 @@ func (h *Hub) Disconnect(slot uint32) {
 		}
 	}
 	m.changed = false
-	h.names.Forget(slot)
 	if h.sessions[m.Session] == slot {
 		delete(h.sessions, m.Session)
+	}
+	if m.listed() {
+		h.announce(m, &pb.Roster{Left: slot})
 	}
 	h.opts.OnChange()
 }
@@ -585,7 +616,12 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 				err = ErrNotPlaced
 			}
 		case pb.ChatChannel_CHAT_CHANNEL_WHISPER:
-			recipient, text, err = h.addressee(text)
+			// A slot names one connection, so a whisper never reaches whoever
+			// took the recipient's display name after it left.
+			recipient = h.members[request.GetRecipient()]
+			if recipient == nil || recipient.outbox == nil {
+				err = ErrUnknownRecipient
+			}
 		}
 	}
 	if err == nil && !m.chat.allow(h.opts.Clock.Now()) {
@@ -628,23 +664,6 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 		}
 	}
 	return nil
-}
-
-// addressee resolves the connected player a whisper names and returns the
-// message after the name.
-func (h *Hub) addressee(text string) (*member, string, error) {
-	slot, message, found := h.names.Find(text, validate.MaximumNameBytes)
-	if !found {
-		return nil, "", ErrUnknownRecipient
-	}
-	recipient := h.members[slot]
-	if recipient == nil || recipient.outbox == nil {
-		return nil, "", ErrUnknownRecipient
-	}
-	if message == "" {
-		return nil, "", ErrEmptyWhisper
-	}
-	return recipient, message, nil
 }
 
 // hearsLocally reports whether r receives local chat from sender: both placed
