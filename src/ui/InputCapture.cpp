@@ -9,6 +9,7 @@
 #include <array>
 #include <atomic>
 #include <cfloat>
+#include <cstddef>
 #include <cstdint>
 #include <mutex>
 #include <utility>
@@ -370,6 +371,15 @@ namespace UI::InputCapture
 
         struct InputDispatchHook
         {
+            // A plugin that detours the same call after this one runs first and
+            // acts on keys a focused window owns. The thunk then detours the call
+            // again, which leaves it on both sides of that plugin: its outermost
+            // call routes the events, and the nested ones pass them on.
+            static constexpr std::size_t kMaximumDetours = 8;
+            static constexpr std::ptrdiff_t kCallOffset = 0x7B;
+
+            static REL::ID GetCallerID() { return REL::ID(RELOCATION_ID(67315, 68617)); }
+
             // Replaces the call in BSInputDeviceManager::PollInputDevices that sends
             // the frame's events to the input sinks, menus and player controls among
             // them. The engine clears the event queue right after, and pushing an
@@ -377,22 +387,73 @@ namespace UI::InputCapture
             // list can be relinked for this dispatch only.
             static void Thunk(RE::BSTEventSource<RE::InputEvent*>* a_source, RE::InputEvent* const* a_events)
             {
-                if (!a_events || (!*a_events && !WindowManager::HasFocus()))
+                // The detours nest newest first, so the depth of a call tells
+                // which one it came through.
+                const auto level = (std::min)(_depth, _detours - 1);
+                const auto previous = _previous[_detours - 1 - level];
+                ++_depth;
+                if (level > 0 || !a_events || (!*a_events && !WindowManager::HasFocus()))
                 {
-                    _original(a_source, a_events);
-                    return;
+                    previous(a_source, a_events);
                 }
-
-                RE::InputEvent* events = nullptr;
+                else
                 {
-                    const PluginTime::Scope timing;
-                    PROFILE_SCOPE("InputCapture");
-                    events = Route(*a_events);
+                    RE::InputEvent* events = nullptr;
+                    {
+                        const PluginTime::Scope timing;
+                        PROFILE_SCOPE("InputCapture");
+                        events = Route(*a_events);
+                    }
+                    previous(a_source, &events);
                 }
-                _original(a_source, &events);
+                --_depth;
+                if (_depth == 0)
+                {
+                    StayOutermost();
+                }
             }
 
-            static inline REL::Relocation<decltype(Thunk)> _original;
+            static bool Detour()
+            {
+                const auto previous = CodeDetour::WriteCallDetour(
+                    GetCallerID(), kCallOffset, reinterpret_cast<std::uintptr_t>(&Thunk), "input dispatch");
+                if (previous == 0)
+                {
+                    return false;
+                }
+                _previous[_detours++] = previous;
+                _target = CodeDetour::ReadCallTarget(_site);
+                return true;
+            }
+
+            // Runs on the thread that executes the call, between two dispatches.
+            static void StayOutermost()
+            {
+                if (!_watching || CodeDetour::ReadCallTarget(_site) == _target)
+                {
+                    return;
+                }
+                if (_detours == _previous.size() || !Detour())
+                {
+                    _watching = false;
+                    logs::warn("UI input: another plugin detoured input dispatch after this one, and it could not be "
+                               "detoured again after {} detours; that plugin sees the keys of a focused window",
+                        _detours);
+                    return;
+                }
+                logs::info("UI input: another plugin detoured input dispatch after this one; detoured it again "
+                           "({} of {})",
+                    _detours, _previous.size());
+            }
+
+            static inline std::uintptr_t _site{ 0 };
+            // Where the call goes while this hook is the outermost one.
+            static inline std::uintptr_t _target{ 0 };
+            // Oldest first.
+            static inline std::array<REL::Relocation<decltype(Thunk)>, kMaximumDetours> _previous;
+            static inline std::size_t _detours{ 0 };
+            static inline std::size_t _depth{ 0 };
+            static inline bool _watching{ true };
         };
     }
 
@@ -404,9 +465,9 @@ namespace UI::InputCapture
             return;
         }
 
-        InputDispatchHook::_original = CodeDetour::WriteCallDetour(REL::ID(RELOCATION_ID(67315, 68617)), 0x7B,
-            reinterpret_cast<std::uintptr_t>(&InputDispatchHook::Thunk), "input dispatch");
-        logs::debug("UI input capture hook installed={}", InputDispatchHook::_original.address() != 0);
+        InputDispatchHook::_site = REL::Relocation<std::uintptr_t>{ InputDispatchHook::GetCallerID() }.address()
+            + InputDispatchHook::kCallOffset;
+        logs::debug("UI input capture hook installed={}", InputDispatchHook::Detour());
     }
 
     float ForwardToImGui()

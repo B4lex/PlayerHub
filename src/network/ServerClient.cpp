@@ -599,7 +599,7 @@ namespace Network
                 {
                     PROFILE_THREAD_NAME("Server connection");
                     transportOpen.store(true, std::memory_order_release);
-                    logs::info("WebSocket connected to {}", GetAttemptEndpoint());
+                    logs::info("WebSocket connected.");
                     if (const auto current = GetSocket())
                     {
                         SendHello(*current);
@@ -696,7 +696,7 @@ namespace Network
                 const std::scoped_lock lock{ socketLock };
                 socket = next;
             }
-            logs::info("Opening WebSocket connection to {}", ToWebSocketUrl(endpoint));
+            logs::info("Opening WebSocket connection.");
             next->start();
         }
     }

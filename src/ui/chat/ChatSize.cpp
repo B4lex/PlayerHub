@@ -129,6 +129,6 @@ namespace UI
         config.ui.chatWidth = size.width;
         config.ui.chatLines = size.lines;
         const bool saved = Config::Apply(std::move(config));
-        logs::info("Chat resized to {} font sizes by {} lines{}", size.width, size.lines, saved ? "" : "; not saved");
+        logs::debug("Chat resized to {} font sizes by {} lines{}", size.width, size.lines, saved ? "" : "; not saved");
     }
 }

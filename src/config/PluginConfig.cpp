@@ -573,7 +573,7 @@ namespace Config
                 ToUtf8(s_path));
             return false;
         }
-        logs::info("Config applied revision {} and saved {}", revision, ToUtf8(s_path));
+        logs::debug("Config applied revision {} and saved {}", revision, ToUtf8(s_path));
         return true;
     }
 }
