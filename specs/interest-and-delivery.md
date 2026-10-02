@@ -97,7 +97,7 @@ rule here.
      beyond `interest.leave_radius` (9830), but not before
      `interest.min_dwell_seconds` (1) in view, so it does not flap at the edge.
      A client may ask for a smaller radius in `Hello.view_radius`
-     (`[Network] ViewRadius` in [Configuration](configuration.md)): it is
+     (`[Performance] ViewRadius` in [Configuration](configuration.md)): it is
      clamped to `interest.minimum_view_radius` (1024) and the server's enter
      radius, and its leave radius keeps the server's ratio.
   4. The cap: a viewer receives at most `interest.max_visible` (64) peers,

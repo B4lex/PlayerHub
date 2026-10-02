@@ -161,10 +161,6 @@ namespace Config
                 "Server URL, starting with http:// or https://.", IsValidServerEndpoint);
             a_visitor.Bool("AutoConnect", a_settings.autoConnect,
                 "");
-            a_visitor.Unsigned("ViewRadius", a_settings.viewRadius,
-                "Game units within which other players are shown. Applies\n"
-                "on the next connection.",
-                100000, "Auto");
         }
 
         void DescribeDefaultOutfit(DefaultOutfitSettings& a_settings, SettingsVisitor& a_visitor)
@@ -201,7 +197,12 @@ namespace Config
 
         void DescribePerformance(PerformanceSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("Performance", "Limits that trade how quickly remote players appear for frame time.");
+            a_visitor.Section(
+                "Performance", "");
+            a_visitor.Unsigned("ViewRadius", a_settings.viewRadius,
+                "Game units within which other players are shown. Applies\n"
+                "on the next connection.",
+                100000, "Auto");
             a_visitor.Unsigned("SpawnsPerSecond", a_settings.spawnsPerSecond,
                 "Remote players and mounts spawned per second at most. Many players joining or\n"
                 "arriving at once then appear over a few seconds instead of in one long frame.\n"
@@ -211,13 +212,19 @@ namespace Config
 
         void DescribeUI(UISettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("UI", "In-game overlay.");
+            a_visitor.Section("UI", "");
             a_visitor.Key("SettingsKey", a_settings.settingsKey,
                 "Opens the settings window.");
+            a_visitor.Choice("BorderColor", a_settings.frameColor,
+                "Color of the frame around the settings window and the chat.",
+                UISettings::kFrameColorNames);
+            a_visitor.Percent("BorderThickness", a_settings.frameThickness,
+                "Thickness of the frame around the settings window and the chat.",
+                UISettings::kMinimumFrameThickness, UISettings::kMaximumFrameThickness);
             a_visitor.Bool("ItemPreview", a_settings.itemPreview,
                 "Shows a 3D model of the hovered item in item lists.");
             a_visitor.Bool("StatusPanel", a_settings.statusPanel,
-                "Displays the in-game status panel.");
+                "Displays the in-game debug status panel.");
         }
 
         PluginConfig MakeDefaultConfig()

@@ -2,6 +2,8 @@
 #include "protocol/ChatMessage.h"
 #include "sync/chat/ChatSync.h"
 #include "ui/Layout.h"
+#include "ui/MenuFrame.h"
+#include "ui/Theme.h"
 #include "ui/WindowManager.h"
 
 #include <imgui.h>
@@ -9,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -43,6 +46,9 @@ namespace UI
 
         constexpr ImGuiWindowFlags kWindowFlags
             = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
+        // MenuFrame draws the open chat's background.
+        constexpr ImGuiWindowFlags kOpenWindowFlags
+            = kWindowFlags | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground;
         constexpr ImGuiWindowFlags kRecentWindowFlags = kWindowFlags | ImGuiWindowFlags_NoInputs
             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize;
 
@@ -100,11 +106,20 @@ namespace UI
             ImGui::PopStyleColor();
         }
 
-        void SetNextChatWindowPosition()
+        // What the open chat's frame takes on each side. A knot cuts across
+        // its corner, so halfway into it is clear.
+        float GetFramePadding()
+        {
+            const auto frame = MenuFrame::GetMetrics();
+            return std::floor((frame.inset + frame.corner) * 0.5F);
+        }
+
+        // a_inset in from the chat's corner on both axes.
+        void SetNextChatWindowPosition(float a_inset)
         {
             const auto fontSize = ImGui::GetFontSize();
-            SetNextWindowCorner(
-                ScreenCorner::kBottomLeft, ImVec2{ kMarginFonts.x * fontSize, kMarginFonts.y * fontSize });
+            SetNextWindowCorner(ScreenCorner::kBottomLeft,
+                ImVec2{ kMarginFonts.x * fontSize + a_inset, kMarginFonts.y * fontSize + a_inset });
         }
 
         class ChatWindow final : public Window
@@ -176,7 +191,9 @@ namespace UI
                 }
 
                 const auto width = kWidthFonts * ImGui::GetFontSize();
-                SetNextChatWindowPosition();
+                // Inside where the open chat's frame would be, so the lines
+                // stay in their column when it opens.
+                SetNextChatWindowPosition(GetFramePadding());
                 ImGui::SetNextWindowSizeConstraints(ImVec2{ width, 0.0F }, ImVec2{ width, FLT_MAX });
                 ImGui::SetNextWindowBgAlpha(kRecentBackgroundAlpha * GetRecentAlpha(history.back(), a_now));
                 if (ImGui::Begin("##ChatRecent", nullptr, kRecentWindowFlags))
@@ -192,17 +209,25 @@ namespace UI
 
             void DrawOpen(const WindowInput& a_input)
             {
-                SetNextChatWindowPosition();
-                ImGui::SetNextWindowBgAlpha(kOpenBackgroundAlpha);
+                SetNextChatWindowPosition(0.0F);
                 if (focusInput)
                 {
                     ImGui::SetNextWindowFocus();
                 }
-                if (!ImGui::Begin("##Chat", nullptr, kWindowFlags | ImGuiWindowFlags_AlwaysAutoResize))
+                const auto framePadding = GetFramePadding();
+                const auto& padding = ImGui::GetStyle().WindowPadding;
+                ImGui::PushStyleVar(
+                    ImGuiStyleVar_WindowPadding, ImVec2{ padding.x + framePadding, padding.y + framePadding });
+                const bool visible = ImGui::Begin("##Chat", nullptr, kOpenWindowFlags);
+                ImGui::PopStyleVar();
+                if (!visible)
                 {
                     ImGui::End();
                     return;
                 }
+                auto background = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
+                background.w = kOpenBackgroundAlpha;
+                MenuFrame::Draw(ImGui::GetColorU32(Theme::GetFrameColor()), ImGui::GetColorU32(background));
 
                 const ImVec2 historySize{ kWidthFonts * ImGui::GetFontSize(),
                     kHistoryLines * ImGui::GetTextLineHeightWithSpacing() };

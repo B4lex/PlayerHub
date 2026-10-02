@@ -141,7 +141,7 @@ What a refusal means for the client is in [Connection](#connection).
 
 | Message | Handling |
 | --- | --- |
-| `Hello` | Handshake, above. `view_radius` is the client's `[Network] ViewRadius` in game units, 0 for the server's ([Interest and delivery](interest-and-delivery.md#subscriptions)). `session_token` and `display_name` resume or issue the [session](#sessions) |
+| `Hello` | Handshake, above. `view_radius` is the client's `[Performance] ViewRadius` in game units, 0 for the server's ([Interest and delivery](interest-and-delivery.md#subscriptions)). `session_token` and `display_name` resume or issue the [session](#sessions) |
 | `Enter`, `Exit` | World presence. `Exit` when not in the world does nothing |
 | `Context` | A checkpoint's space and graph epoch ([below](#checkpoint-and-context)) |
 | `Checkpoint` | One quantized sample |

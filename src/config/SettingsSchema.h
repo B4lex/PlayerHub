@@ -28,6 +28,9 @@ namespace Config
         // Unlimited; the file still stores 0.
         virtual void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
             std::uint32_t a_maximum, std::string_view a_zeroName) = 0;
+        // A percentage within a_minimum and a_maximum.
+        virtual void Percent(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+            std::uint32_t a_minimum, std::uint32_t a_maximum) = 0;
         virtual void String(std::string_view a_key, std::string& a_value, std::string_view a_comment,
             bool (*a_isValid)(std::string_view)) = 0;
         // Grouped under a preceding Comment, so a form entry has none of its own.

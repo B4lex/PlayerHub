@@ -88,17 +88,13 @@ namespace Config
             void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view, std::uint32_t a_maximum,
                 std::string_view) override
             {
-                const auto value = Take(a_key);
-                if (!value)
-                {
-                    return;
-                }
-                if (const auto parsed = ParseUnsigned(*value); parsed && *parsed <= a_maximum)
-                {
-                    a_value = *parsed;
-                    return;
-                }
-                WarnInvalid(a_key, *value, std::format("{}", a_value));
+                ReadUnsigned(a_key, a_value, 0, a_maximum);
+            }
+
+            void Percent(std::string_view a_key, std::uint32_t& a_value, std::string_view, std::uint32_t a_minimum,
+                std::uint32_t a_maximum) override
+            {
+                ReadUnsigned(a_key, a_value, a_minimum, a_maximum);
             }
 
             void String(std::string_view a_key, std::string& a_value, std::string_view,
@@ -195,6 +191,22 @@ namespace Config
                 return result;
             }
 
+            void ReadUnsigned(
+                std::string_view a_key, std::uint32_t& a_value, std::uint32_t a_minimum, std::uint32_t a_maximum)
+            {
+                const auto value = Take(a_key);
+                if (!value)
+                {
+                    return;
+                }
+                if (const auto parsed = ParseUnsigned(*value); parsed && *parsed >= a_minimum && *parsed <= a_maximum)
+                {
+                    a_value = *parsed;
+                    return;
+                }
+                WarnInvalid(a_key, *value, std::format("{}", a_value));
+            }
+
             void WarnInvalid(std::string_view a_key, std::string_view a_value, std::string_view a_default) const
             {
                 logs::warn("Config {}: invalid value `{}` for [{}] {}; using `{}`", kFileName, a_value, section, a_key,
@@ -216,6 +228,12 @@ namespace Config
 
             void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t,
                 std::string_view) override
+            {
+                Text(a_key, std::format("{}", a_value), a_comment);
+            }
+
+            void Percent(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t,
+                std::uint32_t) override
             {
                 Text(a_key, std::format("{}", a_value), a_comment);
             }

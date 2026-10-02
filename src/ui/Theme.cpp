@@ -1,4 +1,5 @@
 #include "ui/Theme.h"
+#include "config/PluginConfig.h"
 #include "ui/Fonts.h"
 
 #include <algorithm>
@@ -12,6 +13,12 @@ namespace UI::Theme
         constexpr ImVec4 kSurface{ 0.065F, 0.065F, 0.07F, 1.0F };
         constexpr ImVec4 kRaisedSurface{ 0.09F, 0.09F, 0.095F, 1.0F };
         constexpr ImVec4 kTransparent{ 0.0F, 0.0F, 0.0F, 0.0F };
+
+        // The game's 999999 at the 80% it draws its message box with, and the
+        // accent at 85%, as each looks over the dark backing. MenuFrame needs
+        // them opaque.
+        constexpr ImVec4 kVanillaFrame{ 0.49F, 0.49F, 0.49F, 1.0F };
+        constexpr ImVec4 kAccentFrame{ 0.86F, 0.49F, 0.01F, 1.0F };
 
         struct Color
         {
@@ -112,6 +119,11 @@ namespace UI::Theme
         {
             return (std::max)(std::floor(a_fonts * a_fontSize), 1.0F);
         }
+    }
+
+    ImVec4 GetFrameColor()
+    {
+        return Config::Get()->ui.frameColor == Config::UISettings::kAccentFrame ? kAccentFrame : kVanillaFrame;
     }
 
     Scope::Scope()

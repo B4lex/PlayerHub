@@ -2,6 +2,7 @@
 #include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "ui/Fonts.h"
+#include "ui/MenuFrame.h"
 #include "ui/WindowManager.h"
 #include "ui/chat/ChatWindow.h"
 #include "ui/hud/StatusPanel.h"
@@ -52,6 +53,7 @@ namespace UI::Overlay
             io.ConfigFlags |= ImGuiConfigFlags_NoMouse | ImGuiConfigFlags_NoMouseCursorChange;
 
             Fonts::Load(*io.Fonts, kBaseFontSize);
+            MenuFrame::Load();
 
             ImGui::StyleColorsDark();
             auto& style = ImGui::GetStyle();

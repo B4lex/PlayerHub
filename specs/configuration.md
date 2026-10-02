@@ -16,6 +16,18 @@ file may hold, as an unknown key. Clearing a display name, adding one to a file
 without the key, and rejecting overlong, control-character, and malformed UTF-8
 values were checked before the key took this name. `Config::GetDirectory` ran
 only through its fallback, since the stubs resolve no DLL path.
+`[UI] FrameColor` is not yet built on Windows or run in game. On Linux the same
+two files were checked the same way: the default file has `FrameColor = Vanilla`
+under its comment, `Accent` and `accent` load as the accent, `Orange` and an
+empty value warn and keep `Vanilla`, a file without the key loads as `Vanilla`,
+and applying `Accent` adds the line, which loads back. `[UI] FrameThickness`
+and the limits of a percentage were checked the same way: the default file has
+`FrameThickness = 70`, `50`, `85`, and `100` load, `49`, `101`, `150`, `0`,
+`big`, and an empty value warn and keep `70` while `SpawnsPerSecond = 0` and
+`ViewRadius = 100000` still load, and applying `85` adds the line, which loads
+back. `ViewRadius` was checked as a `[Network]` key; reading and saving it in
+`[Performance]` is not yet compiled or run, and a `[Network] ViewRadius` line an
+earlier file holds is ignored as an unknown key.
 
 ## Scope
 
@@ -59,8 +71,10 @@ reads the file, writes it, and draws the settings window. A new option is a fiel
 in `Config::PluginConfig` plus one line there. `Config::SettingsVisitor::Form`
 takes the setting's item filter
 ([Appearance and equipment](appearance-and-equipment.md#item-filter-and-catalog)).
-`Unsigned` takes a name for zero where zero is not a count, which only the
-settings window shows; the file stores `0`.
+`Unsigned` takes the setting's maximum, above which a value in the file is
+invalid, and a name for zero where zero is not a count, which only the settings
+window shows; the file stores `0`. `Percent` takes both limits, outside which a
+value in the file is invalid; the file stores the number without a sign.
 
 ## Settings
 
@@ -76,7 +90,6 @@ settings window shows; the file stores `0`.
 | --- | --- | --- |
 | `ServerEndpoint` | Server URL starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; replaces `skyrim-mp-server.txt`, which is no longer read | the public server |
 | `AutoConnect` | Whether each game connects when it loads, which it does only with a `DisplayName` set; otherwise the settings window's Connect does | `true` |
-| `ViewRadius` | Game units within which other players are shown, `0..100000`; sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection | `0`, the server's range, named `Auto` |
 
 ### `[DefaultOutfit]`
 
@@ -126,6 +139,7 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
+| `ViewRadius` | Game units within which other players are shown, `0..100000`; sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection. It is here rather than in `[Network]` because it bounds how many remote actors the client draws | `0`, the server's range, named `Auto` |
 | `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..1000`; `0` is unlimited, named `Unlimited` ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
 
 ### `[UI]`
@@ -133,6 +147,8 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 | Key | Meaning | Default |
 | --- | --- | --- |
 | `SettingsKey` | Opens the settings window: `F1`–`F12`, `Insert`, `Delete`, `Home`, `End`, `PageUp`, `PageDown`, `Pause`, or `ScrollLock` | `F10` |
+| `FrameColor` | Color of the menu frame around the settings window and the open chat ([UI overlay](ui-overlay.md#menu-frame)): `Vanilla`, the grey of the game's menus, or `Accent`, the plugin's orange | `Vanilla` |
+| `FrameThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `50..100` | `70` |
 | `StatusPanel` | Shows the status panel | `true` |
 | `ItemPreview` | Shows the 3D item preview in item pickers | `true` |
 
@@ -152,9 +168,10 @@ revision before the snapshot never misses a change.
 | `EquipmentSync` | main loop | the next capture selecting from the new outfit and publishing a new revision |
 | `AppearanceSync` | main loop | the next capture taking the new default race and sex, which publish a new revision for a modded race |
 | `ConnectionMonitor` | main loop | reconnecting at once when the latest attempt went to another endpoint; reading `AutoConnect` and whether `DisplayName` is set when a game starts; ending the player's choice to connect when `DisplayName` is cleared |
-| `ServerClient` | transport, worker | reading the endpoint for each attempt and `DisplayName` for each hello |
+| `ServerClient` | transport, worker | reading the endpoint for each attempt, and `DisplayName` and `ViewRadius` for each hello |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
 | `StatusPanel`, item pickers | overlay | reading `StatusPanel` and `ItemPreview` each frame |
+| `Theme`, `MenuFrame` | overlay | reading `FrameColor` and `FrameThickness` for each framed window each frame |
 
 ## Saving
 
@@ -171,9 +188,9 @@ revision before the snapshot never misses a change.
 
 `Config::GetDirectory` is the directory of `skyrim-mp.ini`, for the plugin's
 other files: the session tokens are kept there in `skyrim-mp.session`, outside
-this file ([Network](network.md#session)), and the settings window's fonts are
-read from `skyrim-mp/fonts/` under it
-([UI overlay](ui-overlay.md#themed-faces)).
+this file ([Network](network.md#session)), and the settings window's fonts and
+the menu frame's shape are read from `skyrim-mp/fonts/` and `skyrim-mp/frame/`
+under it ([UI overlay](ui-overlay.md#themed-faces)).
 
 ## Acceptance criteria
 

@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
 #include "ui/Fonts.h"
+#include "ui/MenuFrame.h"
 #include "ui/Theme.h"
 #include "ui/WindowManager.h"
 #include "ui/settings/ConnectionControls.h"
@@ -68,8 +69,9 @@ namespace UI
         // Only a section's settings scroll, so the navigation, the title, and the
         // buttons stay in view.
         constexpr ImGuiWindowFlags kFixedFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+        // MenuFrame draws the background.
         constexpr ImGuiWindowFlags kWindowFlags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse
-            | ImGuiWindowFlags_NoTitleBar | kFixedFlags;
+            | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBackground | kFixedFlags;
 
         // "SpawnsPerSecond" becomes "Spawns Per Second". Reuses a_result's storage.
         void FormatDisplayName(std::string_view a_name, std::string& a_result)
@@ -315,6 +317,20 @@ namespace UI
                         ImGui::GetColorU32(ImGuiCol_TextDisabled), a_zeroName.data(),
                         a_zeroName.data() + a_zeroName.size());
                 }
+                EndRow();
+            }
+
+            void Percent(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+                std::uint32_t a_minimum, std::uint32_t a_maximum) override
+            {
+                if (!BeginRow(a_key, a_comment))
+                {
+                    return;
+                }
+                ImGui::SliderScalar("##value", ImGuiDataType_U32, &a_value, &a_minimum, &a_maximum, "%u%%",
+                    ImGuiSliderFlags_AlwaysClamp);
+                // Applied on release: a frame resized under the cursor would move the slider.
+                editing = editing || ImGui::IsItemActive();
                 EndRow();
             }
 
@@ -661,46 +677,53 @@ namespace UI
                     ImVec2{ kSizeFonts.x * fontSize, kSizeFonts.y * fontSize }, ImGuiCond_Appearing);
                 ImGui::SetNextWindowSizeConstraints(
                     ImVec2{ kMinimumSizeFonts.x * fontSize, kMinimumSizeFonts.y * fontSize }, display);
-                ImGui::SetNextWindowBgAlpha(kBackgroundAlpha);
                 if (focusWindow)
                 {
                     ImGui::SetNextWindowFocus();
                     focusWindow = false;
                 }
-                // The sidebar and the page reach the window's edges and pad themselves.
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0.0F, 0.0F });
+                // The sidebar and the page reach the frame's lines and pad themselves.
+                frame = MenuFrame::GetMetrics();
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ frame.inset, frame.inset });
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, frame.rounding);
+                // Begin draws the window edge under the cursor in these, over the frame.
+                ImGui::PushStyleColor(ImGuiCol_SeparatorHovered, IM_COL32_BLACK_TRANS);
+                ImGui::PushStyleColor(ImGuiCol_SeparatorActive, IM_COL32_BLACK_TRANS);
                 const bool visible = ImGui::Begin("Multiplayer Settings###Settings", nullptr, kWindowFlags);
-                ImGui::PopStyleVar();
+                ImGui::PopStyleColor(2);
+                ImGui::PopStyleVar(2);
                 if (visible)
                 {
+                    MenuFrame::Draw(ImGui::GetColorU32(Theme::GetFrameColor()),
+                        ImGui::GetColorU32(ImGuiCol_WindowBg, kBackgroundAlpha));
                     const auto sidebarWidth = std::floor(kSidebarWidthFonts * fontSize);
                     DrawSidebarBackground(sidebarWidth);
                     // The page first: it finds the sections the sidebar lists.
-                    ImGui::SetCursorPos(ImVec2{ sidebarWidth, 0.0F });
+                    ImGui::SetCursorPos(ImVec2{ frame.inset + sidebarWidth, frame.inset });
                     if (ImGui::BeginChild("##Page", ImVec2{ 0.0F, 0.0F }, ImGuiChildFlags_None, kFixedFlags))
                     {
                         DrawPage(a_open);
                     }
                     ImGui::EndChild();
-                    ImGui::SetCursorPos(ImVec2{ 0.0F, 0.0F });
+                    ImGui::SetCursorPos(ImVec2{ frame.inset, frame.inset });
                     DrawSidebar(sidebarWidth);
                 }
                 ImGui::End();
             }
 
-            // A faint panel over the window's left side, inside its border.
-            static void DrawSidebarBackground(float a_width)
+            // A faint panel over the left side of what the frame encloses.
+            void DrawSidebarBackground(float a_width) const
             {
-                const auto& style = ImGui::GetStyle();
-                const auto border = style.WindowBorderSize;
                 const auto position = ImGui::GetWindowPos();
-                const auto bottom = position.y + ImGui::GetWindowHeight() - border;
+                const auto left = position.x + frame.inset;
+                const auto top = position.y + frame.inset;
+                const auto bottom = position.y + ImGui::GetWindowHeight() - frame.inset;
                 auto& list = *ImGui::GetWindowDrawList();
-                list.AddRectFilled(ImVec2{ position.x + border, position.y + border },
-                    ImVec2{ position.x + a_width, bottom }, ImGui::GetColorU32(Theme::Tint(0.03F)),
-                    style.WindowRounding - border, ImDrawFlags_RoundCornersLeft);
-                list.AddLine(ImVec2{ position.x + a_width, position.y + border },
-                    ImVec2{ position.x + a_width, bottom }, ImGui::GetColorU32(ImGuiCol_Separator), border);
+                list.AddRectFilled(ImVec2{ left, top }, ImVec2{ left + a_width, bottom },
+                    ImGui::GetColorU32(Theme::Tint(0.03F)), (std::max)(frame.rounding - frame.inset, 0.0F),
+                    ImDrawFlags_RoundCornersLeft);
+                list.AddLine(ImVec2{ left + a_width, top }, ImVec2{ left + a_width, bottom },
+                    ImGui::GetColorU32(ImGuiCol_Separator), ImGui::GetStyle().WindowBorderSize);
             }
 
             void DrawSidebar(float a_width)
@@ -739,7 +762,9 @@ namespace UI
                 const auto footerGap = std::floor(kFooterGapFonts * fontSize);
                 const auto footerHeight = ImGui::GetFrameHeight() + footerGap * 2.0F;
                 const auto* liveError = GetLiveError();
-                editor.DrawPage(draft, padding, footerHeight, liveError ? footerHeight : padding.y);
+                // What a knot takes of the page's right corners.
+                const auto knot = frame.corner - frame.inset;
+                editor.DrawPage(draft, padding, footerHeight, liveError ? footerHeight : (std::max)(padding.y, knot));
                 ApplyLiveSections();
 
                 const bool staged = editor.IsStagedSectionOpen();
@@ -763,7 +788,8 @@ namespace UI
                 }
 
                 const auto inset = std::floor(kCloseInsetFonts * fontSize);
-                ImGui::SetCursorPos(ImVec2{ ImGui::GetWindowWidth() - inset - ImGui::GetFrameHeight(), inset });
+                ImGui::SetCursorPos(
+                    ImVec2{ ImGui::GetWindowWidth() - (std::max)(inset, knot) - ImGui::GetFrameHeight(), inset });
                 if (Controls::IconButton("##Close", Controls::Icon::kClose))
                 {
                     a_open = false;
@@ -847,6 +873,8 @@ namespace UI
             std::shared_ptr<const Config::PluginConfig> live;
             Config::PluginConfig draft;
             SettingsEditor editor;
+            // As of the last DrawWindow.
+            MenuFrame::Metrics frame;
             // The staged section was applied and has not been edited since.
             bool stagedApplied{ false };
             // The latest Apply could not write the file.

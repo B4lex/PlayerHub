@@ -82,6 +82,9 @@ after_build(function (target)
     local pdbfile = target:symbolfile()
     -- The fonts keep their license file beside them wherever they are copied.
     local fontfiles = path.join(os.projectdir(), "assets", "fonts", "*")
+    -- The menu frame's shape and the note on where it is from, without the
+    -- script that made it.
+    local framefiles = path.join(os.projectdir(), "assets", "frame", "*")
     for _, deploy_dir in ipairs(deploy_dirs) do
         os.cp(dllfile, deploy_dir)
 
@@ -92,6 +95,10 @@ after_build(function (target)
         local fonts_dir = path.join(deploy_dir, "skyrim-mp", "fonts")
         os.mkdir(fonts_dir)
         os.cp(fontfiles, fonts_dir)
+
+        local frame_dir = path.join(deploy_dir, "skyrim-mp", "frame")
+        os.mkdir(frame_dir)
+        os.cp(framefiles, frame_dir)
 
         print("Deployed to %s", deploy_dir)
     end

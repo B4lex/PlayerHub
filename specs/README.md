@@ -17,7 +17,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [appearance-and-equipment.md](appearance-and-equipment.md) | Appearance, actor base, player label, equipment, default outfit, item filter and catalog | `sync/appearance/`, `sync/equipment/`, `sync/outfit/`, `src/forms/` |
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
 | [configuration.md](configuration.md) | `skyrim-mp.ini`, schema, snapshots, saving | `src/config/` |
-| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, fonts, theme, status panel, chat, settings window, item picker and preview | `src/ui/`, `sync/chat/` |
+| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, fonts, theme, menu frame, status panel, chat, settings window, item picker and preview | `src/ui/`, `sync/chat/`, `assets/` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `server/admin-ui/` |
 
 ## Features

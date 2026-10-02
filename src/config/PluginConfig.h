@@ -27,9 +27,6 @@ namespace Config
         std::string serverEndpoint;
         // Whether each game starts connected, rather than waiting for Connect.
         bool autoConnect{ true };
-        // Game units within which peers are wanted; zero leaves it to the
-        // server. Sent when connecting.
-        std::uint32_t viewRadius{ 0 };
 
         bool operator==(const NetworkSettings&) const = default;
     };
@@ -66,6 +63,9 @@ namespace Config
 
     struct PerformanceSettings
     {
+        // Game units within which peers are wanted; zero leaves it to the
+        // server. Sent when connecting.
+        std::uint32_t viewRadius{ 0 };
         // Remote actors and mounts spawned per second at most. Zero is unlimited.
         std::uint32_t spawnsPerSecond{ 20 };
 
@@ -74,8 +74,18 @@ namespace Config
 
     struct UISettings
     {
+        // Indices of kFrameColorNames.
+        static constexpr std::uint32_t kVanillaFrame = 0;
+        static constexpr std::uint32_t kAccentFrame = 1;
+        static constexpr std::array<std::string_view, 2> kFrameColorNames{ "Vanilla", "Accent" };
+        // In percent of the size the game draws its menu frame at.
+        static constexpr std::uint32_t kMinimumFrameThickness = 50;
+        static constexpr std::uint32_t kMaximumFrameThickness = 100;
+
         // DirectInput scan code that opens the settings window.
         std::uint32_t settingsKey{ 0 };
+        std::uint32_t frameColor{ kVanillaFrame };
+        std::uint32_t frameThickness{ 70 };
         bool itemPreview{ true };
         bool statusPanel{ true };
 

@@ -156,7 +156,7 @@ namespace Network
                 const std::scoped_lock lock{ attemptLock };
                 attemptDisplayName = config->general.displayName;
             }
-            const auto hello = Wire::EncodeHello(config->network.viewRadius, config->general.displayName, token);
+            const auto hello = Wire::EncodeHello(config->performance.viewRadius, config->general.displayName, token);
             if (hello.empty())
             {
                 logs::error("Could not encode the hello for the server");
