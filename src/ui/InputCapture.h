@@ -13,7 +13,9 @@ namespace UI::InputCapture
     // window has focus, the keyboard goes to Dear ImGui, and so does the mouse
     // if the window uses it; the game receives no keyboard or mouse input,
     // except the rest of presses it received before. Focus is released as soon
-    // as a menu takes over input. Requires kTrampolineSize trampoline bytes.
+    // as a menu takes over input. The hook stays ahead of other plugins that
+    // detour the same call, so they do not see a focused window's input either.
+    // Requires kTrampolineSize trampoline bytes.
     void Install();
 
     // Overlay thread, after io.DisplaySize is set and before ImGui::NewFrame.

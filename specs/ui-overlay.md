@@ -10,6 +10,16 @@
   a warning is logged. The status panel reading only `Disconnected` without a
   display name is not built on Windows or run in game; on Linux,
   `StatusPanel.cpp` passed a syntax check against Dear ImGui 1.92.9.
+- **Input ahead of other plugins:** not built on Windows or run in game. That
+  Modex 3.0.0 and Open Animation Replacer 3.2.1 detour the same call was read
+  from their binaries, and that Modex does it after this plugin from
+  `skse64.log`. On Linux, `InputCapture.cpp` and `WindowManager.cpp` ran
+  against stubbed engine input and a stand-in call site with plugins detouring
+  it before and after the hook: a later plugin sees only the dispatch it took
+  over; after that neither plugin nor the game sees the focus key or keys
+  typed into the chat, and each sees an unfocused key once; a later plugin
+  that swallows input still does; the ninth detour is refused with one
+  warning.
 - **Chat:** not built on Windows or run in game. Server unit tests cover
   routing, the roster, and whisper addressing ([Network](network.md#status)).
   On Linux, with g++ 16 and a logging stub:
@@ -60,18 +70,29 @@
     among the closed chat's lines; a first word that only a whole row has
     room for starting the next row; a word wider than a row, with and
     without punctuation, after other words, and in Cyrillic, starting beside
-    its label and filling each row to its end; the resize cursor over the top edge, the right
-    edge, and their corner; a drag on each moving the lines by whole lines
-    and font sizes from the lower left corner, saved once on release and not
+    its label and filling each row to its end; the resize cursor over the
+    top edge, the right edge, and their corner; a drag on each, a few pixels
+    a frame, changing the window's size from its lower left corner in every
+    frame, with the dragged edge as far from the cursor as when it was
+    pressed, the field and the chip where they were in the window, and the
+    latest line at the lines' bottom while rows wrap elsewhere; a release
+    between steps settling on whole lines and font sizes, saved once and not
     before; a click on an edge saving nothing; a drag inward stopping at 24
     by 9 with the 8-row name list under the filters, and one past the
     screen's corner at 100 by 40 with the chat on the screen; the latest line
-    staying in view through each, and scrolled-back lines staying where they
-    were; the keyboard back in the field after a drag; a drag that loses
-    focus saved; the closed chat's box as wide; the chat opening at the saved
-    size. Without the frame's shape the name list reaches 5 px over the
-    filters at the smallest size. `SettingsWindow.cpp` ran with the real
-    schema, and its Interface section has no row for either key.
+    staying in view through each, a line that arrives in the frame after
+    the rows got fewer scrolled to, and scrolled-back lines staying where
+    they were; the keyboard back in the field after a drag; a drag that
+    loses focus saved; the closed chat's box as wide; the chat opening at
+    the saved size, and a new chat having it from the first frame it shows.
+    Without the frame's shape the name list reaches 5 px over the filters at
+    the smallest size. `SettingsWindow.cpp` ran with the real schema, and
+    its Interface section has no row for either key.
+  - An earlier drag ran in game, runtime not recorded: it moved in whole
+    font sizes and lines with the window as high as its content, and the
+    player saw it resize at a lower frame rate than the settings window,
+    with the field and the chip flickering. The drag described under
+    [Size](#size) is not built on Windows or run in game.
 
   Not run anywhere: the wheel over the lines with the cursor shown, the
   Windows clipboard, and the resize cursors as the overlay draws them in game.
@@ -457,6 +478,18 @@ keyboard and the game receives no keyboard or mouse input.
   and `PushOntoInputQueue` resets each event's `next`, so the thunk relinks the
   list to drop the events the game must not see. It refuses to patch anything
   but a `call`.
+- Other plugins with ImGui menus, such as Modex and Open Animation Replacer,
+  detour the same `call`, and whichever detours last runs first. A plugin
+  running before the hook would act on keys a focused window owns, such as
+  opening its menu on Delete typed into the chat. After each dispatch the
+  thunk therefore compares the call's destination with its own
+  (`CodeDetour::ReadCallTarget`) and detours the call again when it differs.
+  That leaves the thunk on both sides of the other plugin: its outermost
+  call routes the events and the nested ones pass them on, each to the
+  destination its detour replaced. Detouring again reuses the trampoline
+  entry, so it needs no more trampoline bytes. After 8 detours, or if the
+  instruction is no longer a `call`, it stops and logs a warning. The plugin
+  that took the call over sees that one dispatch.
 - Every event of a key or button goes where its press went: a key held while a
   window takes focus is still released to the game, and a key that closed a
   window is not.
@@ -695,24 +728,43 @@ connected players whose names start with what follows, at most 8.
   Over them the cursor is the vertical, horizontal, or diagonal resize one;
   nothing else marks them. `ChatSize::FindEdges` finds them by position:
   Dear ImGui items there would add to the window's content size.
-- A drag moves in whole steps, a font size across and a line
-  (`ChatHistory::GetLinePitch`) up, to the nearest, so the history ends on a
-  whole line. It stops at the limits and at what the screen has room for
-  with the chat's margin on every side (`GetRoom` in `ChatWindow.cpp`). A
+- During a drag the size follows the cursor by the pixel, as the settings
+  window's does, so the top row of the lines may show in part. A drag in
+  whole steps was dropped: at a font size a step it looked like a low frame
+  rate. The size stops at the limits and at what the screen has room for
+  with the chat's margin on every side (`GetUnits` in `ChatWindow.cpp`). A
   configured size the screen has no room for is drawn at that room and stays
   in the file.
-- Releasing the button applies the size with `Config::Apply`, once and only
-  if it changed, and logs it; a chat that loses focus mid-drag does the same
+- Releasing the button settles the size on the nearest whole font size
+  across and line (`ChatHistory::GetLinePitch`) up, so the history ends on a
+  whole line again, and applies it with `Config::Apply`, once and only if
+  it changed, and logs it; a chat that loses focus mid-drag does the same
   (`ChatSize::Release`). `ChatSize` reads the configuration each frame
   outside a drag.
-- The window is given its width (`ImGui::SetNextWindowSize` with a zero
-  height) and takes its height from its content. Sized to its content in
-  both, it would never get narrower: the rule and the input row take the
-  width there is. A dragged width therefore shows one frame after a dragged
-  height.
-- While the size changes, the latest line stays in view if it was
-  (`ChatHistory::following`), though rows wrap elsewhere and the scroll range
-  changes; lines scrolled back stay where they are.
+- The window has the dragged size in the frame the cursor moved.
+  `ChatSize::Follow` runs before `ImGui::Begin`, and the window is given
+  both its width and its height (`ImGui::SetNextWindowSize`): the lines'
+  plus what is around them, the filters above and the input row below
+  with the padding, as measured in the previous frame
+  (`ChatWindow::aroundHeight`). The lines take what the window leaves above
+  the input row, so the row stays at the window's bottom. A window as high
+  as its content would follow a frame late with the input row off its place
+  meanwhile, and one as wide as its content would never get narrower: the
+  rule and the input row take the width there is. Only a new chat is as
+  high as its content, for the one frame Dear ImGui hides a new window.
+  `ChatSize::Grab` starts a drag after `Begin`, where the window's place is
+  known.
+- While the size changes, the latest line stays at the lines' bottom if it
+  was in view (`ChatHistory::following`), though rows wrap elsewhere; lines
+  scrolled back stay where they are. Dear ImGui scrolls by what the lines
+  took a frame ago, which would put the latest line off the bottom for a
+  frame each time the rows change. In such a frame `ChatHistory::DrawLines`
+  lays the lines out twice: once under an empty clip rectangle, which draws
+  nothing and takes no click, to find what they take now, and then from
+  where that scrolls them to. It passes that height to the next frame
+  (`ImGui::SetNextWindowContentSize`), where Dear ImGui would otherwise
+  count how far from their place the lines were drawn and the chat would
+  stop following. The second layout runs only in frames whose size changed.
 - The closed chat's box is as wide as the lines and still shows at most 6.
 
 ### Window and input
@@ -1023,6 +1075,10 @@ or zoomed.
    until it closes; `F10` again closes it. A new `SettingsKey` opens and closes
    it and the old one no longer does, as soon as it is picked.
    Chat still opens with Enter and shows no cursor until the mouse moves.
+   With Modex installed and bound to Delete, Delete and letters typed into the
+   chat or a settings field do not open its menu, and Delete opens it once
+   the window is closed; `skyrim-mp.log` has one line about detouring input
+   dispatch again.
 5. The General section holds the `Display Name` field with one button beside
    it and a line under them. Opening the window with no display name puts the
    cursor in the field, `Connect` is disabled, and the status panel reads
@@ -1126,8 +1182,11 @@ or zoomed.
     sender's name, in the open chat and among the closed chat's lines. Over
     the open chat's top edge, right edge, and upper right knot the cursor is
     a resize one; a drag grows or shrinks the chat from its lower left
-    corner by whole lines and font sizes, between 24 by 9 and 100 by 40 or
-    what the screen has room for, with the latest line in view. After a drag
+    corner with the cursor, as smoothly as a drag resizes the settings
+    window, between 24 by 9 and 100 by 40 or what the screen has room for.
+    Throughout, the filters, the field, and the chip keep their place in the
+    window without flickering and the latest line stays at the bottom. On
+    release the chat settles on whole lines and font sizes. After a drag
     `skyrim-mp.ini` has `ChatWidth` and `ChatLines`, the closed chat's lines
     are as wide, the chat has that size after the game restarts, and the
     Interface section shows neither key.
@@ -1147,6 +1206,12 @@ or zoomed.
 - `SettingsKey` is picked from a list rather than by pressing the key:
   `InputCapture` forwards only editing and navigation keys to ImGui, and the
   current key closes the window.
+- A focused window keeps its keys only from plugins that take them from the
+  input dispatch call. One that reads the keyboard another way, such as
+  `GetAsyncKeyState`, the window procedure, or DirectInput, still sees them.
+- Another plugin's menu that neither pauses the game nor pushes an input
+  context does not block focus keys, so a focus key typed there opens the
+  window over it.
 
 - A script none of the system fonts cover shows placeholders; emoji cannot be
   typed.

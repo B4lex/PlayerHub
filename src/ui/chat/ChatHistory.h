@@ -83,6 +83,10 @@ namespace UI
         // latest was in view.
         ImVec2 shownSize;
         bool following{ true };
+        // What the lines of a resized chat took, for the next frame: Dear
+        // ImGui would also count how far they were drawn from their place.
+        // Negative when there is nothing to pass on.
+        float resizedHeight{ -1.0F };
 
         Line menuLine;
         bool menuOpen{ false };

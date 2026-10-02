@@ -37,4 +37,8 @@ namespace CodeDetour
     // without patching if the instruction there is not a relative call.
     [[nodiscard]] std::uintptr_t WriteCallDetour(
         REL::ID a_id, std::ptrdiff_t a_offset, std::uintptr_t a_thunk, std::string_view a_name);
+
+    // The destination of the 5-byte relative call at a_site, or 0 if the
+    // instruction there is not one.
+    [[nodiscard]] std::uintptr_t ReadCallTarget(std::uintptr_t a_site);
 }

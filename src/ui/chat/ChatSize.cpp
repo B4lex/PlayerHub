@@ -26,10 +26,20 @@ namespace UI
             };
         }
 
-        // a_origin moved by a_steps, to the nearest whole one.
-        std::uint32_t Move(std::uint32_t a_origin, float a_steps)
+        ImVec2 ToPixels(const ChatSize::Extent& a_size, const ImVec2& a_step)
         {
-            return static_cast<std::uint32_t>((std::max)(static_cast<float>(a_origin) + std::round(a_steps), 0.0F));
+            return ImVec2{ static_cast<float>(a_size.width) * a_step.x, static_cast<float>(a_size.lines) * a_step.y };
+        }
+
+        // To the nearest whole font size and line.
+        ChatSize::Extent ToExtent(const ImVec2& a_size, const ChatSize::Units& a_units)
+        {
+            const auto count = [](float a_pixels, float a_step) {
+                return static_cast<std::uint32_t>((std::max)(std::round(a_pixels / a_step), 0.0F));
+            };
+            return Limit(
+                ChatSize::Extent{ .width = count(a_size.x, a_units.step.x), .lines = count(a_size.y, a_units.step.y) },
+                a_units.maximum);
         }
     }
 
@@ -40,14 +50,15 @@ namespace UI
                                               : ImGuiMouseCursor_ResizeNESW);
     }
 
-    ChatSize::Extent ChatSize::Get(const Extent& a_maximum) const
+    ImVec2 ChatSize::Get(const Units& a_units) const
     {
         if (edges != kNone)
         {
-            return Limit(size, a_maximum);
+            return size;
         }
         const auto config = Config::Get();
-        return Limit(Extent{ .width = config->ui.chatWidth, .lines = config->ui.chatLines }, a_maximum);
+        return ToPixels(Limit(Extent{ .width = config->ui.chatWidth, .lines = config->ui.chatLines }, a_units.maximum),
+            a_units.step);
     }
 
     std::uint8_t ChatSize::FindEdges(const Grip& a_grip)
@@ -74,25 +85,12 @@ namespace UI
         return onTop ? kTop : kRight;
     }
 
-    void ChatSize::Drag(const Grip& a_grip)
+    void ChatSize::Follow(const Units& a_units)
     {
         if (edges == kNone)
         {
-            const auto hovered = FindEdges(a_grip);
-            if (hovered == kNone)
-            {
-                return;
-            }
-            ShowResizeCursor(hovered);
-            if (!ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-            {
-                return;
-            }
-            origin = Get(a_grip.maximum);
-            size = origin;
-            edges = hovered;
+            return;
         }
-
         if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
             Release();
@@ -100,16 +98,42 @@ namespace UI
         }
         ShowResizeCursor(edges);
         const auto delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0.0F);
-        Extent moved = origin;
+        const auto smallest = ToPixels(Limit(Extent{}, a_units.maximum), a_units.step);
+        const auto largest
+            = ToPixels(Limit(Extent{ .width = UISettings::kMaximumChatWidth, .lines = UISettings::kMaximumChatLines },
+                           a_units.maximum),
+                a_units.step);
         if ((edges & kRight) != 0)
         {
-            moved.width = Move(origin.width, delta.x / a_grip.step.x);
+            size.x = std::clamp(origin.x + delta.x, smallest.x, largest.x);
         }
         if ((edges & kTop) != 0)
         {
-            moved.lines = Move(origin.lines, -delta.y / a_grip.step.y);
+            size.y = std::clamp(origin.y - delta.y, smallest.y, largest.y);
         }
-        size = Limit(moved, a_grip.maximum);
+        settled = ToExtent(size, a_units);
+    }
+
+    void ChatSize::Grab(const Grip& a_grip, const Units& a_units)
+    {
+        if (edges != kNone)
+        {
+            return;
+        }
+        const auto hovered = FindEdges(a_grip);
+        if (hovered == kNone)
+        {
+            return;
+        }
+        ShowResizeCursor(hovered);
+        if (!ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            return;
+        }
+        origin = Get(a_units);
+        size = origin;
+        settled = ToExtent(size, a_units);
+        edges = hovered;
     }
 
     void ChatSize::Release()
@@ -121,14 +145,15 @@ namespace UI
         edges = kNone;
 
         const auto live = Config::Get();
-        if (size == Extent{ .width = live->ui.chatWidth, .lines = live->ui.chatLines })
+        if (settled == Extent{ .width = live->ui.chatWidth, .lines = live->ui.chatLines })
         {
             return;
         }
         auto config = *live;
-        config.ui.chatWidth = size.width;
-        config.ui.chatLines = size.lines;
+        config.ui.chatWidth = settled.width;
+        config.ui.chatLines = settled.lines;
         const bool saved = Config::Apply(std::move(config));
-        logs::debug("Chat resized to {} font sizes by {} lines{}", size.width, size.lines, saved ? "" : "; not saved");
+        logs::debug(
+            "Chat resized to {} font sizes by {} lines{}", settled.width, settled.lines, saved ? "" : "; not saved");
     }
 }

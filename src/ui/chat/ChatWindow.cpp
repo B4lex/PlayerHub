@@ -47,16 +47,19 @@ namespace UI
             return (ImGui::GetStyle().WindowPadding.x + GetFramePadding()) * 2.0F;
         }
 
-        // The lines the screen has room for, with the chat's margin from every
-        // edge and a_around of the open chat around them.
-        ChatSize::Extent GetRoom(const ImVec2& a_around)
+        // What the chat's size is measured in, and the lines the screen has
+        // room for with the chat's margin from every edge and a_around of the
+        // open chat around them.
+        ChatSize::Units GetUnits(const ImVec2& a_around)
         {
             const auto& display = ImGui::GetIO().DisplaySize;
             const auto fontSize = ImGui::GetFontSize();
+            const ImVec2 step{ fontSize, ChatHistory::GetLinePitch() };
             const auto width = display.x - kMarginFonts.x * fontSize * 2.0F - a_around.x;
             const auto height = display.y - (kMarginFonts.x + kMarginFonts.y) * fontSize - a_around.y;
-            return ChatSize::Extent{ .width = static_cast<std::uint32_t>((std::max)(width / fontSize, 0.0F)),
-                .lines = static_cast<std::uint32_t>((std::max)(height / ChatHistory::GetLinePitch(), 0.0F)) };
+            return ChatSize::Units{ .step = step,
+                .maximum = { .width = static_cast<std::uint32_t>((std::max)(width / step.x, 0.0F)),
+                    .lines = static_cast<std::uint32_t>((std::max)(height / step.y, 0.0F)) } };
         }
 
         // a_inset in from the chat's corner on both axes.
@@ -109,11 +112,7 @@ namespace UI
         private:
             // Of the lines, in pixels: as wide as configured or dragged, and no
             // wider than the screen has room for.
-            [[nodiscard]] float GetLinesWidth() const
-            {
-                return static_cast<float>(size.Get(GetRoom(ImVec2{ GetSidePadding(), 0.0F })).width)
-                    * ImGui::GetFontSize();
-            }
+            [[nodiscard]] float GetLinesWidth() const { return size.Get(GetUnits(ImVec2{ GetSidePadding(), 0.0F })).x; }
 
             void DrawRecent(double a_now)
             {
@@ -144,10 +143,20 @@ namespace UI
             void DrawOpen(const WindowInput& a_input)
             {
                 const Theme::Scope theme;
+                const auto sidePadding = GetSidePadding();
+                const auto units = GetUnits(ImVec2{ sidePadding, aroundHeight });
+                size.Follow(units);
+                const auto linesSize = size.Get(units);
                 SetNextChatWindowPosition(0.0F);
-                // As high as its content. Not as wide: the rule and the input
-                // row take the width there is, so it would never get narrower.
-                ImGui::SetNextWindowSize(ImVec2{ GetLinesWidth() + GetSidePadding(), 0.0F });
+                // Both given, so the window has the size in the frame a drag
+                // moves it. As high as its content it would follow a frame
+                // late, with the input row off its place meanwhile; as wide as
+                // its content it would never get narrower, since the rule and
+                // the input row take the width there is. Only a new window is
+                // as high as its content, before aroundHeight is measured, and
+                // Dear ImGui hides it for that frame.
+                ImGui::SetNextWindowSize(
+                    ImVec2{ linesSize.x + sidePadding, aroundHeight > 0.0F ? linesSize.y + aroundHeight : 0.0F });
                 if (focusInput)
                 {
                     ImGui::SetNextWindowFocus();
@@ -182,21 +191,16 @@ namespace UI
                 // As far from the rule under them as from the frame's line above.
                 history.DrawFilters(padding.y + framePadding - MenuFrame::GetMetrics().inset);
 
-                // Around the lines: the padding beside them, the filters above,
-                // and the input row below.
-                const auto room = GetRoom(ImVec2{ GetSidePadding(),
-                    ImGui::GetCursorScreenPos().y - ImGui::GetWindowPos().y + ImGui::GetStyle().ItemSpacing.y
-                        + ImGui::GetFrameHeight() + padding.y + framePadding });
-                const ImVec2 step{ ImGui::GetFontSize(), ChatHistory::GetLinePitch() };
+                const auto inputRowHeight = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeight();
+                aroundHeight = ImGui::GetCursorScreenPos().y - ImGui::GetWindowPos().y + inputRowHeight + padding.y
+                    + framePadding;
                 // The strips the frame runs in, which hold nothing to click.
                 const ImVec2 grip{ padding.x + framePadding, padding.y + framePadding };
-                size.Drag(ChatSize::Grip{ .depth = grip,
-                    .corner = (std::max)({ MenuFrame::GetMetrics().corner, grip.x, grip.y }),
-                    .step = step,
-                    .maximum = room });
-                // A dragged width shows from the next frame, with the window's.
-                const ImVec2 historySize{ 0.0F, static_cast<float>(size.Get(room).lines) * step.y };
-                if (const auto player = history.DrawLines(a_input, historySize, closeMenu))
+                size.Grab(ChatSize::Grip{ .depth = grip,
+                              .corner = (std::max)({ MenuFrame::GetMetrics().corner, grip.x, grip.y }) },
+                    units);
+                // The lines take what the window leaves above the input row.
+                if (const auto player = history.DrawLines(a_input, ImVec2{ 0.0F, -inputRowHeight }, closeMenu))
                 {
                     composer.SetTarget(
                         ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kWhisper, .player = *player });
@@ -215,15 +219,19 @@ namespace UI
                     WindowManager::ReleaseFocus(*this);
                 }
 
-                const auto position = ImGui::GetWindowPos();
-                const auto size = ImGui::GetWindowSize();
-                cursorStart = ScreenPoint{ position.x + size.x * 0.5F, position.y + size.y * 0.5F };
+                const auto windowPos = ImGui::GetWindowPos();
+                const auto windowSize = ImGui::GetWindowSize();
+                cursorStart = ScreenPoint{ windowPos.x + windowSize.x * 0.5F, windowPos.y + windowSize.y * 0.5F };
                 ImGui::End();
             }
 
             ChatHistory history;
             ChatInput input;
             ChatSize size;
+            // Of the open chat as last drawn, around its lines: the filters
+            // above and the input row below, with the padding. Zero before it
+            // is drawn.
+            float aroundHeight{ 0.0F };
             // The target whose channel was last turned on.
             ChatSync::ChatTarget shownTarget;
             // The middle of the open chat as it was last drawn.

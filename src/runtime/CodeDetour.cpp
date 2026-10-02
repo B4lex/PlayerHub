@@ -45,4 +45,15 @@ namespace CodeDetour
         }
         return SKSE::GetTrampoline().write_call<5>(site, a_thunk);
     }
+
+    std::uintptr_t ReadCallTarget(std::uintptr_t a_site)
+    {
+        if (*reinterpret_cast<const std::uint8_t*>(a_site) != 0xE8)
+        {
+            return 0;
+        }
+        std::int32_t displacement = 0;
+        std::memcpy(&displacement, reinterpret_cast<const void*>(a_site + 1), sizeof(displacement));
+        return a_site + kBranchSize + displacement;
+    }
 }

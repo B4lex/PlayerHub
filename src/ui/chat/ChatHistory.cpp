@@ -304,6 +304,11 @@ namespace UI
         const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu)
     {
         std::optional<Multiplayer::RosterEntry> picked;
+        if (resizedHeight >= 0.0F)
+        {
+            ImGui::SetNextWindowContentSize(ImVec2{ 0.0F, resizedHeight });
+            resizedHeight = -1.0F;
+        }
         if (ImGui::BeginChild("##ChatHistory", a_size))
         {
             // Before this frame's lines extend it: whether the latest was in
@@ -322,43 +327,64 @@ namespace UI
             auto* drawList = ImGui::GetWindowDrawList();
             const auto& textColor = ImGui::GetStyleColorVec4(ImGuiCol_Text);
 
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ ImGui::GetStyle().ItemSpacing.x, GetLineSpacing() });
-            for (const auto& line : lines)
-            {
-                if (!Shows(line))
+            const auto lineSpacing = GetLineSpacing();
+            const auto drawLines = [&] {
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ ImGui::GetStyle().ItemSpacing.x, lineSpacing });
+                for (const auto& line : lines)
                 {
-                    continue;
-                }
-                ImGui::BeginGroup();
-                if (line.kind == ChatSync::LineKind::kPlayer)
-                {
-                    DrawLabel(line.label, ChatStyle::GetChannelColor(line.channel));
-                    if (line.player.playerID != 0 && ImGui::IsItemHovered(kHover))
+                    if (!Shows(line))
                     {
-                        const auto min = ImGui::GetItemRectMin();
-                        const auto max = ImGui::GetItemRectMax();
-                        drawList->AddRectFilled(ImVec2{ min.x, max.y - 1.0F }, max,
-                            ImGui::GetColorU32(ChatStyle::GetChannelColor(line.channel)));
-                        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-                        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-                        {
-                            picked = line.player;
-                        }
+                        continue;
                     }
-                    DrawAfterLabel(line.text, textColor);
+                    ImGui::BeginGroup();
+                    if (line.kind == ChatSync::LineKind::kPlayer)
+                    {
+                        DrawLabel(line.label, ChatStyle::GetChannelColor(line.channel));
+                        if (line.player.playerID != 0 && ImGui::IsItemHovered(kHover))
+                        {
+                            const auto min = ImGui::GetItemRectMin();
+                            const auto max = ImGui::GetItemRectMax();
+                            drawList->AddRectFilled(ImVec2{ min.x, max.y - 1.0F }, max,
+                                ImGui::GetColorU32(ChatStyle::GetChannelColor(line.channel)));
+                            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                            {
+                                picked = line.player;
+                            }
+                        }
+                        DrawAfterLabel(line.text, textColor);
+                    }
+                    else
+                    {
+                        DrawWrapped(line.text, ChatStyle::kNoticeColor);
+                    }
+                    ImGui::EndGroup();
+                    if (ImGui::IsItemHovered(kHover) && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+                    {
+                        menuLine = line;
+                        ImGui::OpenPopup("##ChatLineMenu");
+                    }
                 }
-                else
-                {
-                    DrawWrapped(line.text, ChatStyle::kNoticeColor);
-                }
-                ImGui::EndGroup();
-                if (ImGui::IsItemHovered(kHover) && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
-                {
-                    menuLine = line;
-                    ImGui::OpenPopup("##ChatLineMenu");
-                }
+                ImGui::PopStyleVar();
+            };
+
+            // Dear ImGui scrolls by what the lines took a frame ago, so in a
+            // resized chat the latest line would be off the bottom for a
+            // frame, each frame of a drag. There the lines are first laid out
+            // clipped, which draws nothing and takes no click, to find what
+            // they take now, and then drawn where that scrolls them to.
+            float latestScroll = -1.0F;
+            if (resized && following)
+            {
+                const auto top = ImGui::GetCursorPosY();
+                ImGui::PushClipRect(ImVec2{}, ImVec2{}, false);
+                drawLines();
+                ImGui::PopClipRect();
+                resizedHeight = (std::max)(ImGui::GetCursorPosY() - top - lineSpacing, 0.0F);
+                latestScroll = (std::max)(resizedHeight - size.y, 0.0F);
+                ImGui::SetCursorPosY(top + ImGui::GetScrollY() - latestScroll);
             }
-            ImGui::PopStyleVar();
+            drawLines();
 
             menuOpen = ImGui::BeginPopup("##ChatLineMenu");
             if (menuOpen)
@@ -392,17 +418,21 @@ namespace UI
             auto scroll = ImGui::GetScrollY() - wheel * kWheelLines * lineHeight;
             if (ImGui::IsKeyPressed(ImGuiKey_PageUp))
             {
-                scroll -= a_size.y - lineHeight;
+                scroll -= size.y - lineHeight;
             }
             if (ImGui::IsKeyPressed(ImGuiKey_PageDown))
             {
-                scroll += a_size.y - lineHeight;
+                scroll += size.y - lineHeight;
             }
             if (scroll != ImGui::GetScrollY())
             {
                 ImGui::SetScrollY(std::clamp(scroll, 0.0F, ImGui::GetScrollMaxY()));
             }
-            else if (scrollToLatest || ((arrived || resized) && following))
+            else if (latestScroll >= 0.0F)
+            {
+                ImGui::SetScrollY(latestScroll);
+            }
+            else if (scrollToLatest || (arrived && following))
             {
                 ImGui::SetScrollHereY(1.0F);
             }
