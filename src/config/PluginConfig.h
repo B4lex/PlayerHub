@@ -46,6 +46,11 @@ namespace Config
         static constexpr std::array<std::uint32_t, 8> kArmorSlotMasks{ (1U << 0) | (1U << 1), 1U << 2, 1U << 3, 1U << 5,
             1U << 7, 1U << 9, 1U << 12, 1U << 17 };
         static constexpr std::size_t kArmorSlotCount = kArmorSlotMasks.size();
+        // Indices into kArmorSlotMasks, most visible first: Body, Head, Hands,
+        // Feet, Shield, Amulet, Circlet, Backpack. An item's main slot is the
+        // first it covers. Receivers apply pieces in this order, and when the
+        // pieces for one missing item overlap, the earlier slot wins.
+        static constexpr std::array<std::size_t, kArmorSlotCount> kArmorSlotPrecedence{ 1, 0, 2, 4, 5, 3, 6, 7 };
         static_assert(kArmorSlotCount <= Multiplayer::DefaultOutfit::kMaximumArmor);
 
         Multiplayer::FormReference race;

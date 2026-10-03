@@ -42,6 +42,8 @@ namespace Forms
         ItemKind kind{ ItemKind::kArmor };
         // Armor: the item covers at least one of these slots.
         std::uint32_t slotMask{ 0 };
+        // Armor: the item covers none of these slots.
+        std::uint32_t excludedSlotMask{ 0 };
         std::uint8_t weaponType{ 0 };
         bool bolt{ false };
         bool baseGameOnly{ false };
@@ -55,7 +57,7 @@ namespace Forms
             switch (kind)
             {
                 case ItemKind::kArmor:
-                    return (a_traits.slotMask & slotMask) != 0;
+                    return (a_traits.slotMask & slotMask) != 0 && (a_traits.slotMask & excludedSlotMask) == 0;
                 case ItemKind::kWeapon:
                     return a_traits.weaponType == weaponType;
                 case ItemKind::kAmmo:

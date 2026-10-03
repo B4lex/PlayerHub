@@ -12,7 +12,9 @@
   game. The default form IDs were checked against `Skyrim.esm` and
   `Dawnguard.esm` records (type, slots, weapon type).
 - **Item filter and catalog:** built on Windows; the catalog and picker run in
-  game ([UI overlay](ui-overlay.md#item-picker)).
+  game ([UI overlay](ui-overlay.md#item-picker)). The main-slot armor filter is
+  checked only in a standalone Linux test of `ItemFilter`, not yet built on
+  Windows or run in game.
 - **Player labels:** level validation and chat fields covered by server unit
   tests; label rendering pending an in-game check. The display name, which comes
   from the player's session ([Network](network.md#sessions)), and the label
@@ -293,9 +295,10 @@ too, such as the Anniversary backpack on a Special Edition install.
 Each equipment capture selects pieces only for items not from base-game
 plugins:
 
-- `armor`: the piece of each outfit slot a modded worn item covers, in priority
-  Body, Head (for Head or Hair), Hands, Feet, Shield, Amulet, Circlet, Backpack.
-  Each piece carries the slot mask of the outfit slot it stands in for.
+- `armor`: the piece of each outfit slot a modded worn item covers, in the
+  order of `DefaultOutfitSettings::kArmorSlotPrecedence`: Body, Head (for Head
+  or Hair), Hands, Feet, Shield, Amulet, Circlet, Backpack. Each piece carries
+  the slot mask of the outfit slot it stands in for.
 - `hands`: the weapon of each modded hand weapon's type and the torch for a
   modded torch, each at most once.
 - `ammo`: the `Bolt` or `Arrow` piece for modded bolts or arrows.
@@ -337,8 +340,8 @@ the same filters, so the list and the live behavior never disagree.
 
 | Key | Accepts (base-game only) |
 | --- | --- |
-| `<Slot>` | armor covering the slot |
-| `Head`, `Circlet` | armor covering Head, Hair, or Circlet, because vanilla helmets cover Hair and Circlet yet are the default Head pieces |
+| `<Slot>` | armor whose main slot it is: armor covering the slot and no slot earlier in `kArmorSlotPrecedence`, so each item fits one key and a hooded robe is a `Body` piece, not a `Head` one |
+| `Head` | the same, with Head or Hair as the slot; vanilla helmets cover Hair and Circlet, so they fit `Head` and only circlet-only items fit `Circlet` |
 | weapon keys | a weapon of exactly that type |
 | `Torch` | a carriable light |
 | `Arrow`, `Bolt` | ammunition that is not, or is, a bolt |

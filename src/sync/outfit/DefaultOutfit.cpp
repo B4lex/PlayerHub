@@ -18,12 +18,6 @@ namespace DefaultOutfit
         using Multiplayer::EquipmentHandKind;
         using Multiplayer::FormReference;
 
-        // Indices into Settings::kArmorSlotMasks. Receivers apply pieces in this
-        // order, and when the pieces for one missing item overlap, the earlier
-        // slot wins, so the most visible pieces go first: Body, Head, Hands,
-        // Feet, Shield, Amulet, Circlet, Backpack.
-        constexpr std::array<std::size_t, Settings::kArmorSlotCount> kArmorSlotOrder{ 1, 0, 2, 4, 5, 3, 6, 7 };
-
         // The configured items that resolved and fit their key, else the key's
         // default if that does, else empty.
         Settings local;
@@ -126,7 +120,7 @@ namespace DefaultOutfit
                 standInSlots |= entry.slotMask;
             }
         }
-        for (const auto slot : kArmorSlotOrder)
+        for (const auto slot : Settings::kArmorSlotPrecedence)
         {
             const auto slotMask = Settings::kArmorSlotMasks[slot];
             if ((standInSlots & slotMask) != 0 && !local.armor[slot].IsEmpty())

@@ -16,9 +16,6 @@ namespace Config
         using KeyboardKey = RE::BSKeyboardDevice::Key;
 
         constexpr std::string_view kDefaultServerEndpoint = "https://8fa21dsv.lmfao.pp.ua";
-        // Head, Hair, and Circlet. Helmets and hoods cover different ones of these
-        // depending on the mod, so any of them fits the Head piece.
-        constexpr std::uint32_t kHeadSlotMask = (1U << 0) | (1U << 1) | (1U << 12);
 
         // Creation Kit slot names, indexed like DefaultOutfitSettings::kArmorSlotMasks.
         constexpr std::array<std::string_view, DefaultOutfitSettings::kArmorSlotCount> kArmorSlotNames{ "Head", "Body",
@@ -250,8 +247,8 @@ namespace Config
             outfit.race = skyrim(0x013746);
             // Hide armor, a gold necklace, a circlet, and Anniversary Edition's basic
             // backpack, which vanilla lacks. The hide helmet also covers Circlet, and
-            // Head is tried first, so the circlet only stands in for circlet-only
-            // items. Indexed like kArmorSlotNames.
+            // Head comes first in kArmorSlotPrecedence, so the circlet only stands in
+            // for circlet-only items. Indexed like kArmorSlotNames.
             outfit.armor = { skyrim(0x013913), skyrim(0x013911), skyrim(0x013912), skyrim(0x0877D5), skyrim(0x013910),
                 skyrim(0x013914), skyrim(0x0166D6),
                 FormReference{ .plugin = "ccFSVSSE001-Backpacks.esl", .localFormID = 0x000801 } };
@@ -398,11 +395,24 @@ namespace Config
 
     Forms::ItemFilter GetOutfitArmorFilter(std::size_t a_slotIndex)
     {
-        const auto slotMask = a_slotIndex < DefaultOutfitSettings::kArmorSlotCount
-                                  ? DefaultOutfitSettings::kArmorSlotMasks[a_slotIndex]
-                                  : 0U;
+        if (a_slotIndex >= DefaultOutfitSettings::kArmorSlotCount)
+        {
+            return Forms::ItemFilter{ .kind = Forms::ItemKind::kArmor, .baseGameOnly = true };
+        }
+        // Only items whose main slot this is, so a hooded robe is a Body piece
+        // and not a Head one.
+        std::uint32_t excludedSlotMask = 0;
+        for (const auto slot : DefaultOutfitSettings::kArmorSlotPrecedence)
+        {
+            if (slot == a_slotIndex)
+            {
+                break;
+            }
+            excludedSlotMask |= DefaultOutfitSettings::kArmorSlotMasks[slot];
+        }
         return Forms::ItemFilter{ .kind = Forms::ItemKind::kArmor,
-            .slotMask = (slotMask & kHeadSlotMask) != 0 ? kHeadSlotMask : slotMask,
+            .slotMask = DefaultOutfitSettings::kArmorSlotMasks[a_slotIndex],
+            .excludedSlotMask = excludedSlotMask,
             .baseGameOnly = true };
     }
 
