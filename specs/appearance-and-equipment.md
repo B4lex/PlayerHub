@@ -299,8 +299,9 @@ plugins:
   order of `DefaultOutfitSettings::kArmorSlotPrecedence`: Body, Head (for Head
   or Hair), Hands, Feet, Shield, Amulet, Circlet, Backpack. Each piece carries
   the slot mask of the outfit slot it stands in for.
-- `hands`: the weapon of each modded hand weapon's type and the torch for a
-  modded torch, each at most once.
+- `hands`: the weapon of each modded hand weapon's type and `Torch01` for a
+  modded torch, each at most once. The torch is not configurable, since it is
+  the only carriable base-game torch besides test items.
 - `ammo`: the `Bolt` or `Arrow` piece for modded bolts or arrows.
 
 An all-base-game player sends an empty outfit. A changed outfit or setting
@@ -329,12 +330,12 @@ The receiver treats the outfit as part of the equipment revision:
 ## Item filter and catalog
 
 `Forms::ItemTraits` decides whether an item can stand in for another: its kind
-(armor, weapon, light, ammo, or a playable race as `kRace`), slot mask, weapon
+(armor, weapon, ammo, or a playable race as `kRace`), slot mask, weapon
 type, bolt flag, and whether a base-game plugin defines it.
 `Forms::GetItemTraits` reads them from a form, and `Forms::ItemFilter::Matches`
 checks them against what a setting accepts. `GetOutfitArmorFilter`,
-`GetOutfitWeaponFilter`, and `Config::kOutfitTorchFilter`, `kOutfitArrowFilter`,
-`kOutfitBoltFilter`, `kOutfitRaceFilter` build every `[DefaultOutfit]` filter.
+`GetOutfitWeaponFilter`, and `Config::kOutfitArrowFilter`, `kOutfitBoltFilter`,
+`kOutfitRaceFilter` build every `[DefaultOutfit]` filter.
 The settings window lists only matching items and `DefaultOutfit` resolves with
 the same filters, so the list and the live behavior never disagree.
 
@@ -343,7 +344,6 @@ the same filters, so the list and the live behavior never disagree.
 | `<Slot>` | armor whose main slot it is: armor covering the slot and no slot earlier in `kArmorSlotPrecedence`, so each item fits one key and a hooded robe is a `Body` piece, not a `Head` one |
 | `Head` | the same, with Head or Hair as the slot; vanilla helmets cover Hair and Circlet, so they fit `Head` and only circlet-only items fit `Circlet` |
 | weapon keys | a weapon of exactly that type |
-| `Torch` | a carriable light |
 | `Arrow`, `Bolt` | ammunition that is not, or is, a bolt |
 | `Race` | a playable race |
 

@@ -59,7 +59,6 @@ namespace Config
         std::array<Multiplayer::FormReference, kArmorSlotCount> armor;
         // Indexed by RE::WEAPON_TYPE; hand-to-hand is unused.
         std::array<Multiplayer::FormReference, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> weapons;
-        Multiplayer::FormReference torch;
         Multiplayer::FormReference arrow;
         Multiplayer::FormReference bolt;
 

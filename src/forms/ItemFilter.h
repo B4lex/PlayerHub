@@ -8,7 +8,6 @@ namespace Forms
     {
         kArmor,
         kWeapon,
-        kTorch,
         kAmmo,
         // A playable race. Not an item, but picked the same way.
         kRace

@@ -1365,5 +1365,5 @@ or zoomed.
 - A click made before the mouse has moved since the chat opened is dropped.
 - The send target, the filters, the whisper partners, and the sent lines last
   until the game exits.
-- The picker covers armor, weapons, torches, ammunition, and races, not spells
+- The picker covers armor, weapons, ammunition, and races, not torches, spells,
   or actors; `ItemKind` is where more kinds would go.

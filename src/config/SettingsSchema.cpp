@@ -187,7 +187,6 @@ namespace Config
             }
 
             a_visitor.Comment("Miscellaneous");
-            a_visitor.Form("Torch", a_settings.torch, defaults.torch, kOutfitTorchFilter);
             a_visitor.Form("Arrow", a_settings.arrow, defaults.arrow, kOutfitArrowFilter);
             a_visitor.Form("Bolt", a_settings.bolt, defaults.bolt, kOutfitBoltFilter);
         }
@@ -263,7 +262,6 @@ namespace Config
             outfit.weapons[7] = skyrim(0x013985);
             outfit.weapons[8] = skyrim(0x0BE11F);
             outfit.weapons[9] = dawnguard(0x000801);
-            outfit.torch = skyrim(0x01D4EC);
             outfit.arrow = skyrim(0x01397D);
             outfit.bolt = dawnguard(0x000BB3);
             return config;

@@ -80,11 +80,6 @@ namespace Forms
             }
             return ItemTraits{ .kind = ItemKind::kWeapon, .weaponType = type, .baseGame = baseGame };
         }
-        if (const auto* light = a_form.As<RE::TESObjectLIGH>())
-        {
-            return light->CanBeCarried() ? std::optional{ ItemTraits{ .kind = ItemKind::kTorch, .baseGame = baseGame } }
-                                         : std::nullopt;
-        }
         if (auto* ammo = a_form.As<RE::TESAmmo>())
         {
             return ItemTraits{ .kind = ItemKind::kAmmo, .bolt = ammo->IsBolt(), .baseGame = baseGame };
@@ -111,7 +106,6 @@ namespace Forms
         std::vector<CatalogItem> items;
         AppendNamedItems<RE::TESObjectARMO>(*dataHandler, items);
         AppendNamedItems<RE::TESObjectWEAP>(*dataHandler, items);
-        AppendNamedItems<RE::TESObjectLIGH>(*dataHandler, items);
         AppendNamedItems<RE::TESAmmo>(*dataHandler, items);
         AppendNamedItems<RE::TESRace>(*dataHandler, items);
 

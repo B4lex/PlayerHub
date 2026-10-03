@@ -116,7 +116,7 @@ are accepted.
 | `Sex` | `Male` or `Female`, shown with `Race` |
 | `<Slot>` | armor for that biped slot; `Head` also stands in for `Hair` |
 | `OneHandSword` … `Crossbow` | the weapon for that Creation Kit weapon type |
-| `Torch`, `Arrow`, `Bolt` | carried torch and ammunition |
+| `Arrow`, `Bolt` | ammunition |
 
 Every biped slot is synchronized, but only the most visible have an outfit key:
 `Head`, `Body`, `Hands`, `Amulet`, `Feet`, `Shield`, `Circlet`, and `Backpack`
@@ -139,7 +139,7 @@ Defaults, from `Skyrim.esm` unless noted: `Race` `NordRace`, `Sex` `Male`.
 | `TwoHandSword`, `TwoHandAxe` | `IronGreatsword`, `IronBattleaxe` |
 | `Bow`, `Staff` | `HuntingBow`, `StaffTemplateDestruction` (unenchanted) |
 | `Crossbow` | `DLC1CrossBow` (`Dawnguard.esm`) |
-| `Torch`, `Arrow` | `Torch01`, `IronArrow` |
+| `Arrow` | `IronArrow` |
 | `Bolt` | `DLC1BoltSteel` (`Dawnguard.esm`) |
 
 Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.

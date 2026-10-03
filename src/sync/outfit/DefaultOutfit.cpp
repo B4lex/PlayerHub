@@ -18,6 +18,10 @@ namespace DefaultOutfit
         using Multiplayer::EquipmentHandKind;
         using Multiplayer::FormReference;
 
+        // Torch01, the only carriable base-game torch besides test items, so it
+        // is not configurable.
+        const FormReference kTorch{ .plugin = "Skyrim.esm", .localFormID = 0x01D4EC };
+
         // The configured items that resolved and fit their key, else the key's
         // default if that does, else empty.
         Settings local;
@@ -82,7 +86,6 @@ namespace DefaultOutfit
             local.weapons[type] = ResolveConfigured(settings.weapons[type], defaults.weapons[type],
                 Config::GetOutfitWeaponKey(type), Config::GetOutfitWeaponFilter(type), unusable);
         }
-        local.torch = ResolveConfigured(settings.torch, defaults.torch, "Torch", Config::kOutfitTorchFilter, unusable);
         local.arrow = ResolveConfigured(settings.arrow, defaults.arrow, "Arrow", Config::kOutfitArrowFilter, unusable);
         local.bolt = ResolveConfigured(settings.bolt, defaults.bolt, "Bolt", Config::kOutfitBoltFilter, unusable);
 
@@ -139,7 +142,7 @@ namespace DefaultOutfit
             {
                 return;
             }
-            const auto& form = torch ? local.torch : local.weapons[a_hand->weaponType];
+            const auto& form = torch ? kTorch : local.weapons[a_hand->weaponType];
             const bool duplicate
                 = std::ranges::any_of(outfit.hands, [&a_hand](const Multiplayer::EquipmentHand& a_piece) {
                       return a_piece.kind == a_hand->kind && a_piece.weaponType == a_hand->weaponType;

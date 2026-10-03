@@ -89,7 +89,6 @@ namespace Config
     [[nodiscard]] Forms::ItemFilter GetOutfitArmorFilter(std::size_t a_slotIndex);
     [[nodiscard]] Forms::ItemFilter GetOutfitWeaponFilter(std::size_t a_weaponType);
     inline constexpr Forms::ItemFilter kOutfitRaceFilter{ .kind = Forms::ItemKind::kRace, .baseGameOnly = true };
-    inline constexpr Forms::ItemFilter kOutfitTorchFilter{ .kind = Forms::ItemKind::kTorch, .baseGameOnly = true };
     inline constexpr Forms::ItemFilter kOutfitArrowFilter{ .kind = Forms::ItemKind::kAmmo, .baseGameOnly = true };
     inline constexpr Forms::ItemFilter kOutfitBoltFilter{
         .kind = Forms::ItemKind::kAmmo, .bolt = true, .baseGameOnly = true
