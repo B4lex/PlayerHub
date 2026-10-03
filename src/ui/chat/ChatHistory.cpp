@@ -304,10 +304,10 @@ namespace UI
         const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu)
     {
         std::optional<Multiplayer::RosterEntry> picked;
-        if (resizedHeight >= 0.0F)
+        if (rewrappedHeight >= 0.0F)
         {
-            ImGui::SetNextWindowContentSize(ImVec2{ 0.0F, resizedHeight });
-            resizedHeight = -1.0F;
+            ImGui::SetNextWindowContentSize(ImVec2{ 0.0F, rewrappedHeight });
+            rewrappedHeight = -1.0F;
         }
         if (ImGui::BeginChild("##ChatHistory", a_size))
         {
@@ -317,6 +317,10 @@ namespace UI
             const auto size = ImGui::GetWindowSize();
             const bool resized = size.x != shownSize.x || size.y != shownSize.y;
             shownSize = size;
+            // Less the scrollbar while it shows.
+            const auto width = ImGui::GetContentRegionAvail().x;
+            const bool rewrapped = width != shownWidth;
+            shownWidth = width;
             if (!resized)
             {
                 following = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1.0F;
@@ -368,20 +372,23 @@ namespace UI
                 ImGui::PopStyleVar();
             };
 
-            // Dear ImGui scrolls by what the lines took a frame ago, so in a
-            // resized chat the latest line would be off the bottom for a
-            // frame, each frame of a drag. There the lines are first laid out
-            // clipped, which draws nothing and takes no click, to find what
-            // they take now, and then drawn where that scrolls them to.
+            // Dear ImGui scrolls by what the lines took a frame ago. When they
+            // wrap at another width, rows above the view change too, which
+            // would leave the latest line off the bottom for a frame, each
+            // frame of a drag. There the lines are first laid out clipped,
+            // which draws nothing and takes no click, to find what they take
+            // now, and then drawn where that scrolls them to. A new height
+            // needs none of it: the scroll set from the end of the lines is
+            // applied at the height of the frame it lands in.
             float latestScroll = -1.0F;
-            if (resized && following)
+            if (rewrapped && following)
             {
                 const auto top = ImGui::GetCursorPosY();
                 ImGui::PushClipRect(ImVec2{}, ImVec2{}, false);
                 drawLines();
                 ImGui::PopClipRect();
-                resizedHeight = (std::max)(ImGui::GetCursorPosY() - top - lineSpacing, 0.0F);
-                latestScroll = (std::max)(resizedHeight - size.y, 0.0F);
+                rewrappedHeight = (std::max)(ImGui::GetCursorPosY() - top - lineSpacing, 0.0F);
+                latestScroll = (std::max)(rewrappedHeight - size.y, 0.0F);
                 ImGui::SetCursorPosY(top + ImGui::GetScrollY() - latestScroll);
             }
             drawLines();
@@ -432,7 +439,7 @@ namespace UI
             {
                 ImGui::SetScrollY(latestScroll);
             }
-            else if (scrollToLatest || (arrived && following))
+            else if (scrollToLatest || ((arrived || resized) && following))
             {
                 ImGui::SetScrollHereY(1.0F);
             }

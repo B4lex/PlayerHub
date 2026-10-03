@@ -79,14 +79,15 @@ namespace UI
 
         bool scrollToLatest{ false };
         bool arrived{ false };
-        // Of the open chat's lines as last drawn: their size, and whether the
-        // latest was in view.
+        // Of the open chat's lines as last drawn: their size, the width they
+        // wrapped at, and whether the latest was in view.
         ImVec2 shownSize;
+        float shownWidth{ 0.0F };
         bool following{ true };
-        // What the lines of a resized chat took, for the next frame: Dear
-        // ImGui would also count how far they were drawn from their place.
-        // Negative when there is nothing to pass on.
-        float resizedHeight{ -1.0F };
+        // What the lines took after wrapping at another width, for the next
+        // frame: Dear ImGui would also count how far from their place they
+        // were drawn. Negative when there is nothing to pass on.
+        float rewrappedHeight{ -1.0F };
 
         Line menuLine;
         bool menuOpen{ false };

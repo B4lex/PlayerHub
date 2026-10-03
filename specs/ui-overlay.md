@@ -75,19 +75,32 @@
     a frame, changing the window's size from its lower left corner in every
     frame, with the dragged edge as far from the cursor as when it was
     pressed, the field and the chip where they were in the window, and the
-    latest line at the lines' bottom while rows wrap elsewhere; a release
+    latest line at the lines' bottom while rows wrap elsewhere, after the
+    first frame of a drag that shrinks it; a release
     between steps settling on whole lines and font sizes, saved once and not
     before; a click on an edge saving nothing; a drag inward stopping at 24
     by 9 with the 8-row name list under the filters, and one past the
     screen's corner at 100 by 40 with the chat on the screen; the latest line
     staying in view through each, a line that arrives in the frame after
-    the rows got fewer scrolled to, and scrolled-back lines staying where
-    they were; the keyboard back in the field after a drag; a drag that
+    the rows got fewer or after a drag's first frame scrolled to, lines
+    arriving until the scrollbar shows keeping the latest in view, and
+    scrolled-back lines staying where they were; the keyboard back in the field after a drag; a drag that
     loses focus saved; the closed chat's box as wide; the chat opening at
     the saved size, and a new chat having it from the first frame it shows.
     Without the frame's shape the name list reaches 5 px over the filters at
     the smallest size. `SettingsWindow.cpp` ran with the real schema, and
     its Interface section has no row for either key.
+  - Limiting the second layout of the lines to a new wrap width
+    ([Size](#size)) ran in a smaller harness at 1080p, with Dear ImGui's
+    default font, the real menu frame, and the chat's sources, the bullet
+    above having run before it: per frame of a drag up, down, wider,
+    narrower, and from the knot, the edge following the cursor and the
+    field, the chip, and the latest line still, after a shrinking drag's
+    first frame, where the latest line was 3 px low; lines arriving after
+    such frames and until the scrollbar shows scrolled to; scrolled-back
+    lines kept. With 300 lines, a frame took about 135 µs idle, 138 µs
+    dragging the height, and 231 µs dragging the width, against 238 µs and
+    230 µs for both drags before.
   - An earlier drag ran in game, runtime not recorded: it moved in whole
     font sizes and lines with the window as high as its content, and the
     player saw it resize at a lower frame rate than the settings window,
@@ -757,14 +770,26 @@ connected players whose names start with what follows, at most 8.
 - While the size changes, the latest line stays at the lines' bottom if it
   was in view (`ChatHistory::following`), though rows wrap elsewhere; lines
   scrolled back stay where they are. Dear ImGui scrolls by what the lines
-  took a frame ago, which would put the latest line off the bottom for a
-  frame each time the rows change. In such a frame `ChatHistory::DrawLines`
-  lays the lines out twice: once under an empty clip rectangle, which draws
-  nothing and takes no click, to find what they take now, and then from
-  where that scrolls them to. It passes that height to the next frame
-  (`ImGui::SetNextWindowContentSize`), where Dear ImGui would otherwise
-  count how far from their place the lines were drawn and the chat would
-  stop following. The second layout runs only in frames whose size changed.
+  took a frame ago. When they wrap at another width, rows above the view
+  change too, which would put the latest line off the bottom for a frame
+  each time the rows change. In a frame whose wrap width differs, by a drag
+  or by the scrollbar showing or going (`ChatHistory::shownWidth`),
+  `ChatHistory::DrawLines` therefore lays the lines out twice: once under
+  an empty clip rectangle, which draws nothing and takes no click, to find
+  what they take now, and then from where that scrolls them to. It passes
+  that height to the next frame (`ImGui::SetNextWindowContentSize`), where
+  Dear ImGui would otherwise count how far from their place the lines were
+  drawn and the chat would stop following.
+- A new height alone needs no second layout: the scroll to the end of the
+  lines (`ImGui::SetScrollHereY`) is applied at the height of the frame it
+  lands in, so through a drag the latest line stays at the bottom. Only in
+  the first frame of a drag that shrinks the chat is it below the bottom,
+  by the cursor's first move. Estimating the height from Dear ImGui's last
+  count instead was dropped: a line arriving or the scrollbar showing in
+  that frame makes it wrong, and the chat would stop following.
+- So a drag that changes the width costs about one more layout of the lines
+  a frame, about 230 µs against 135 µs idle with 300 lines held in a
+  Linux benchmark, and one that changes only the height costs nothing more.
 - The closed chat's box is as wide as the lines and still shows at most 6.
 
 ### Window and input
