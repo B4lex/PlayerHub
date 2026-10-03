@@ -12,9 +12,10 @@ game (reconnect, equipment re-resolution, spawn rate) is not yet checked.
 same two files were compiled against SimpleIni with stubs and checked for the
 default file's empty `DisplayName` under its comment, loading it without a
 warning, saving a display name, and ignoring a `Nickname` line, which an earlier
-file may hold, as an unknown key. Clearing a display name, adding one to a file
-without the key, and rejecting overlong, control-character, and malformed UTF-8
-values were checked before the key took this name. `Config::GetDirectory` ran
+file may hold, as an unknown key. Clearing a display name and adding one to a
+file without the key were checked before the key took this name. The current
+character rule was checked by compile-time assertions only; `SettingsSchema.cpp`
+with it was not compiled. `Config::GetDirectory` ran
 only through its fallback, since the stubs resolve no DLL path.
 `[UI] BorderColor` is not yet built on Windows or run in game. On Linux the same
 two files were checked the same way: the default file has `BorderColor = Vanilla`
@@ -91,7 +92,7 @@ settings window does not show.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `DisplayName` | The player's name as peers see it, in the player label over the actor and in chat ([Appearance and equipment](appearance-and-equipment.md#display-name)): at most 128 bytes of well-formed UTF-8 without control characters or surrounding whitespace. Empty means not set, and no connection is opened without one ([Network](network.md#connection)). It is the display name of the player's session, so the server refuses one another player holds ([Network](network.md#sessions)), and it reaches the server only when connecting: the settings window locks it while a connection is wanted or open ([UI overlay](ui-overlay.md#connection-controls)) | empty |
+| `DisplayName` | The player's name as peers see it, in the player label over the actor and in chat ([Appearance and equipment](appearance-and-equipment.md#display-name)): 3..15 ASCII letters, digits, and underscores, as the server accepts (`Multiplayer::IsValidDisplayName`, [Network](network.md#sessions)). A file value that breaks the rule loads as not set. Empty means not set, and no connection is opened without one ([Network](network.md#connection)). It is the display name of the player's session, so the server refuses one another player holds ([Network](network.md#sessions)), and it reaches the server only when connecting: the settings window locks it while a connection is wanted or open ([UI overlay](ui-overlay.md#connection-controls)) | empty |
 
 ### `[Network]`
 

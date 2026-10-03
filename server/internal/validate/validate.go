@@ -25,16 +25,18 @@ const (
 	movementStateMask      = 0x7
 	knownFlags             = 0xFFF
 
-	MaximumNameBytes    = 128
-	SessionTokenBytes   = 32
-	MaximumLevel        = 0xFFFF
-	MaximumHeadParts    = 16
-	MaximumHeadPartType = 6
-	FaceMorphCount      = 19
-	FacePartCount       = 4
-	MaximumTints        = 64
-	MaximumTintIndex    = 0xFFFF
-	MaximumTintType     = 14
+	MaximumNameBytes        = 128
+	MinimumDisplayNameBytes = 3
+	MaximumDisplayNameBytes = 15
+	SessionTokenBytes       = 32
+	MaximumLevel            = 0xFFFF
+	MaximumHeadParts        = 16
+	MaximumHeadPartType     = 6
+	FaceMorphCount          = 19
+	FacePartCount           = 4
+	MaximumTints            = 64
+	MaximumTintIndex        = 0xFFFF
+	MaximumTintType         = 14
 
 	MaximumArmor        = 32
 	MaximumOutfitArmor  = 8
@@ -213,11 +215,16 @@ func Hello(h *pb.Hello) error {
 	return DisplayName(h.GetDisplayName())
 }
 
-// DisplayName checks a name a session may take: not empty, and addressable by a
-// whisper, so without surrounding spaces.
+// DisplayName checks a name a session may take:
+// MinimumDisplayNameBytes..MaximumDisplayNameBytes ASCII letters, digits, and underscores.
 func DisplayName(n string) error {
-	if n == "" || !name(n) || n[0] == ' ' || n[len(n)-1] == ' ' {
+	if len(n) < MinimumDisplayNameBytes || len(n) > MaximumDisplayNameBytes {
 		return ErrDisplayName
+	}
+	for i := range len(n) {
+		if c := n[i]; !('a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9' || c == '_') {
+			return ErrDisplayName
+		}
 	}
 	return nil
 }

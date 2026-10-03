@@ -248,13 +248,13 @@ func TestChat(t *testing.T) {
 func TestHello(t *testing.T) {
 	token := make([]byte, SessionTokenBytes)
 	for name, h := range map[string]*pb.Hello{
-		"a new session":      {DisplayName: "Lydia"},
-		"a resumed session":  {DisplayName: "Lydia", SessionToken: token},
-		"spaces inside":      {DisplayName: "Ulfric Stormcloak"},
-		"at the byte limit":  {DisplayName: strings.Repeat("é", 64)},
-		"a single character": {DisplayName: "é"},
-		"vanished players":   {DisplayName: "Lydia", Vanished: []uint64{2, 3}},
-		"vanished at limit":  {DisplayName: "Lydia", Vanished: sessions(MaximumVanished)},
+		"a new session":     {DisplayName: "Lydia"},
+		"a resumed session": {DisplayName: "Lydia", SessionToken: token},
+		"every class":       {DisplayName: "Ulfric_Storm_99"},
+		"at the limit":      {DisplayName: strings.Repeat("a", MaximumDisplayNameBytes)},
+		"at the minimum":    {DisplayName: "_a1"},
+		"vanished players":  {DisplayName: "Lydia", Vanished: []uint64{2, 3}},
+		"vanished at limit": {DisplayName: "Lydia", Vanished: sessions(MaximumVanished)},
 	} {
 		if err := Hello(h); err != nil {
 			t.Errorf("%s rejected: %v", name, err)
@@ -262,11 +262,13 @@ func TestHello(t *testing.T) {
 	}
 	for name, h := range map[string]*pb.Hello{
 		"no display name": {SessionToken: token},
-		"leading space":   {DisplayName: " Lydia"},
-		"trailing space":  {DisplayName: "Lydia "},
+		"a space":         {DisplayName: "Ulfric Stormclk"},
 		"only a space":    {DisplayName: " "},
+		"under the limit": {DisplayName: "Ly"},
+		"punctuation":     {DisplayName: "Lydia-2"},
+		"non-Latin":       {DisplayName: "Lydiä"},
 		"control":         {DisplayName: "Ly\tdia"},
-		"over the limit":  {DisplayName: strings.Repeat("a", 129)},
+		"over the limit":  {DisplayName: strings.Repeat("a", MaximumDisplayNameBytes+1)},
 		"invalid UTF-8":   {DisplayName: "\xff"},
 		"short token":     {DisplayName: "Lydia", SessionToken: token[:31]},
 		"long token":      {DisplayName: "Lydia", SessionToken: make([]byte, 33)},

@@ -160,9 +160,10 @@ type bot struct {
 	x, y atomic.Int32
 }
 
-// displayName names the bot's session after base, the run, and its number.
-func (b *bot) displayName(base string) string {
-	return playback.BotName(base+" "+b.o.run, b.index)
+// displayName names the bot's session after its kind, the run, and its
+// number, within the display name rules for up to 99999 bots.
+func (b *bot) displayName(kind string) string {
+	return fmt.Sprintf("%s%s_%d", kind, b.o.run, b.index+1)
 }
 
 func (b *bot) connect(ctx context.Context, displayName string) error {
@@ -268,7 +269,7 @@ func (b *bot) enter(ctx context.Context) error {
 }
 
 func (b *bot) walk(ctx context.Context) error {
-	if err := b.connect(ctx, b.displayName("Walker")); err != nil {
+	if err := b.connect(ctx, b.displayName("W")); err != nil {
 		return err
 	}
 	defer b.conn.CloseNow()
@@ -340,11 +341,7 @@ func (p *replayPlayer) Send(m *pb.ClientMessage) {
 func (p *replayPlayer) Leave() {}
 
 func (b *bot) replay(ctx context.Context, r *recording.Recording, plan loadtest.BotPlan) error {
-	base := r.Header.PlayerName
-	if base == "" {
-		base = "Bot"
-	}
-	if err := b.connect(ctx, b.displayName(base)); err != nil {
+	if err := b.connect(ctx, b.displayName("R")); err != nil {
 		return err
 	}
 	defer b.conn.CloseNow()

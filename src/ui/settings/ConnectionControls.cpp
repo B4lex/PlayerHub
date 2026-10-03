@@ -27,8 +27,7 @@ namespace UI::ConnectionControls
         constexpr const char* kCancelLabel = "Cancel###Connection";
         constexpr const char* kDisconnectLabel = "Disconnect###Connection";
         constexpr const char* kDisconnectingLabel = "Disconnecting...###Connection";
-        constexpr const char* kInvalidDisplayNameText
-            = "A display name cannot start or end with a space or be longer than 128 bytes";
+        constexpr const char* kInvalidDisplayNameText = "Invalid display name.";
         constexpr const char* kDisconnectToRenameText = "Disconnect to change the display name";
         constexpr const char* kCancelToRenameText = "Cancel the connection to change the display name";
 

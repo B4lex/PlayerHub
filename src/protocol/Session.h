@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 
 namespace Multiplayer
 {
@@ -17,4 +18,26 @@ namespace Multiplayer
 
     // Sessions one client may vanish on a server, as the server accepts.
     inline constexpr std::size_t kMaximumVanishedSessions = 1024;
+
+    inline constexpr std::size_t kMinimumDisplayNameLength = 3;
+    inline constexpr std::size_t kMaximumDisplayNameLength = 15;
+
+    // A name a session may take, as the server accepts: 3..15 ASCII letters,
+    // digits, and underscores.
+    [[nodiscard]] constexpr bool IsValidDisplayName(std::string_view a_name)
+    {
+        if (a_name.size() < kMinimumDisplayNameLength || a_name.size() > kMaximumDisplayNameLength)
+        {
+            return false;
+        }
+        for (const char character : a_name)
+        {
+            if (!((character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z')
+                    || (character >= '0' && character <= '9') || character == '_'))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 }

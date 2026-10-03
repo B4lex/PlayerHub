@@ -807,7 +807,7 @@ namespace Network::Wire
                 {
                     return std::unexpected("welcome session");
                 }
-                if (result.displayName.empty() || !Multiplayer::IsValidAppearanceName(result.displayName))
+                if (!Multiplayer::IsValidDisplayName(result.displayName))
                 {
                     return std::unexpected("welcome display name");
                 }

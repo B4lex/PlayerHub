@@ -319,9 +319,11 @@ func TestHelloIsRefused(t *testing.T) {
 		"taken by a new session":     {"lydia", nil, StatusDisplayNameTaken, "display name taken"},
 		"taken by a resumed session": {"Lydia", serana.GetSessionToken(), StatusDisplayNameTaken, "display name taken"},
 		"no display name":            {"", lydia.GetSessionToken(), StatusDisplayNameInvalid, "invalid display name"},
-		"surrounding space":          {" Aela", nil, StatusDisplayNameInvalid, "invalid display name"},
+		"a space":                    {"Aela Huntress", nil, StatusDisplayNameInvalid, "invalid display name"},
+		"not Latin":                  {"Аела", nil, StatusDisplayNameInvalid, "invalid display name"},
 		"control character":          {"Ae\x07la", nil, StatusDisplayNameInvalid, "invalid display name"},
-		"too long":                   {strings.Repeat("a", 129), nil, StatusDisplayNameInvalid, "invalid display name"},
+		"too short":                  {"Ae", nil, StatusDisplayNameInvalid, "invalid display name"},
+		"too long":                   {strings.Repeat("a", 16), nil, StatusDisplayNameInvalid, "invalid display name"},
 		"short token":                {"Aela", []byte{1, 2, 3}, websocket.StatusPolicyViolation, "invalid session token"},
 	} {
 		if code, reason := refused(t, s, c.displayName, c.token); code != c.code || reason != c.reason {

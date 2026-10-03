@@ -149,7 +149,8 @@ are kept. Each fallback is logged once per revision.
 
 A player is known to others by a display name chosen in the settings,
 `[General] DisplayName` ([Configuration](configuration.md#general)), the same
-for every character and save. The character's own name is not read or sent.
+for every character and save: 3 to 15 Latin letters, digits, and underscores
+([Network](network.md#sessions)). The character's own name is not read or sent.
 There is no default: the player must enter a display name before the plugin
 connects ([Network](network.md#connection)), so no peer is shown under a
 placeholder.

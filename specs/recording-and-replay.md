@@ -145,8 +145,8 @@ once, including from one recording.
   `cmd/loadgen`: real WebSocket clients that walk randomly in a square
   (`--spread` 20000 dense, 100000 sparse) or replay a recording laid out like a
   batch. Each takes a new session ([Network](network.md#sessions)) whose display
-  name is `Walker`, or the recorded player's name, then six hexadecimal digits
-  picked per run and the bot's number (`Walker 43ae13 #7`), so a later run
+  name is `W` for a walker or `R` for a replay, then six hexadecimal digits
+  picked per run, `_`, and the bot's number (`W43ae13_7`), so a later run
   against the same server does not find its display names taken; the sessions
   stay in the server's database until they expire. Each stamps its checkpoint
   sequence with the send time in microseconds, which is strictly rising, so a

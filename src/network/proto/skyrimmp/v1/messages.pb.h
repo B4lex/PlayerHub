@@ -53,7 +53,7 @@ typedef struct _skyrimmp_v1_Hello {
     skyrimmp_v1_Hello_session_token_t session_token;
     /* The display name the player wants: the new session's, or the resumed
  session's from now on. */
-    char display_name[129];
+    char display_name[16];
     /* The sessions whose players this client vanished: the server never sends
  it their presentation. At most 1024, none zero. */
     pb_callback_t vanished;
@@ -112,7 +112,7 @@ typedef struct _skyrimmp_v1_Welcome {
  lives and never reused. */
     uint64_t session_id;
     /* The session's display name, as peers see it. */
-    char display_name[129];
+    char display_name[16];
     /* Only when the session was issued for this connection: the secret to
  present in later hellos. */
     skyrimmp_v1_Welcome_session_token_t session_token;
@@ -645,7 +645,7 @@ extern const pb_msgdesc_t skyrimmp_v1_ServerMessage_msg;
 #define skyrimmp_v1_Result_size                  73
 #define skyrimmp_v1_RosterEntry_size             148
 #define skyrimmp_v1_Vanish_size                  13
-#define skyrimmp_v1_Welcome_size                 182
+#define skyrimmp_v1_Welcome_size                 68
 
 #ifdef __cplusplus
 } /* extern "C" */

@@ -46,6 +46,10 @@
   and without a display name and `AutoConnect`, a refusal for the display
   name, the protocol version, and a replaced session, each leaving the player
   disconnected without a retry until Connect, and a lost connection reopened.
+  The display name rule is covered by `internal/validate` and
+  `internal/session` tests; the client's `Multiplayer::IsValidDisplayName` was
+  checked by compile-time assertions on Linux, and `WireCodec.cpp` passed a
+  syntax check with the regenerated nanopb code.
   `ChatSync.cpp` passed a syntax check; `AppearanceSync.cpp` was not compiled.
   The UI that shows refusals is in [UI overlay](ui-overlay.md#status).
 - **Roster and whispers by slot:** not built on Windows or run in game.
@@ -356,7 +360,7 @@ the admin API.
 | --- | --- |
 | `session_id` | `uint64` from 1, the row ID of an `AUTOINCREMENT` column, so it is never reused, also after the session is gone. Sent to its own client in `Welcome`, and to every client on roster entries and chat speakers, which is how a client mutes or vanishes a player whatever slot or name it connects with. The hub keeps it on the player (`world.Player.Session`) |
 | Token | 32 bytes from `crypto/rand`. The store keeps only its SHA-256, so a copy of the database resumes nobody. It is returned once, in the `Welcome` of the connection it was issued for |
-| Display name | 1..128 UTF-8 bytes, no control characters, no leading or trailing space (`validate.DisplayName`), so a client can tell a name typed before a message from the message. Unique among sessions by `validate.DisplayNameKey`, its lower case; a session may respell its own |
+| Display name | 3..15 (`validate.MinimumDisplayNameBytes`, `validate.MaximumDisplayNameBytes`) ASCII letters, digits, and underscores (`validate.DisplayName`; the client's `Multiplayer::IsValidDisplayName` in `src/protocol/Session.h` is the same rule). Without spaces, a name typed before a whisper's message is told from the message. `Hello.display_name` and `Welcome.display_name` are nanopb buffers of 16 bytes. Unique among sessions by `validate.DisplayNameKey`, its lower case; a session may respell its own |
 | Last use | Set by every hello, when a connection closes, and hourly for connected sessions (`session.Server.Maintain`) |
 
 - `auth.Store` keeps sessions in SQLite (`modernc.org/sqlite`, pure Go, pinned
@@ -500,8 +504,8 @@ is the client's alone and has no wire message.
   `PeerStates` is decoded entry by entry (at most 4096).
 - Nothing before `Welcome` is accepted. `Welcome` advances the connection
   generation and clears all receive history. A `Welcome` without a slot, a
-  session ID, or a valid display name, or with a token of another length, is
-  rejected.
+  session ID, or a valid display name (`Multiplayer::IsValidDisplayName`), or
+  with a token of another length, is rejected.
 - Per peer, the transport keeps the latest context from `PeerEnter` and
   `PeerContext` and merges it into each checkpoint, so the sync pipeline still
   receives complete `PlayerTransform` values. A checkpoint of a peer without a
@@ -711,8 +715,12 @@ window, and are empty after a long gap. The status panel shows them.
 - Nothing limits how many sessions an address may take, so display names can be
   squatted and the database grown; the message rate limit does not apply before
   the welcome.
-- Display names compare by lower case only. Names that differ in Unicode
-  normalization or use look-alike characters are different display names.
+- Display names compare by lower case only, so look-alikes such as `l` and
+  `I` or `0` and `O` are different display names.
+- Non-goal: display names in other scripts, with spaces, or with punctuation
+  besides `_`. The narrow rule keeps names typeable in a whisper, renderable by
+  every font, and comparable without Unicode case folding. Sessions stored
+  before the rule keep their names until they expire or a hello renames them.
 - The token is sent in the hello as it is, so an `http://` endpoint exposes it
   to the network; `https://` endpoints carry it under TLS.
 - Admin exclusions and hiding are still keyed by slot

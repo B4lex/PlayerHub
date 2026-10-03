@@ -1187,7 +1187,7 @@ them:
 
 | Condition | Line |
 | --- | --- |
-| The field's text is not a display name | `A display name cannot start or end with a space or be longer than 128 bytes`, red. The page's footer line does not count this field |
+| The field's text is not a display name ([Network](network.md#sessions)) | `Invalid display name.`, red. The page's footer line does not count this field |
 | Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`) | the sentence of `Network::GetConnectionRefusal`, red, until `Connect` is pressed |
 | Otherwise | the setting's comment, `Shown to other players above your character and in chat.`, muted |
 
