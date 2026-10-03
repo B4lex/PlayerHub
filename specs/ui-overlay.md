@@ -101,6 +101,31 @@
     lines kept. With 300 lines, a frame took about 135 µs idle, 138 µs
     dragging the height, and 231 µs dragging the width, against 238 µs and
     230 µs for both drags before.
+  - The [player list](#player-list) ran in that smaller harness with
+    `ChatRoster.cpp` over a stubbed transport, at 1080p and 4K, in Dear
+    ImGui's default font and in Sovngarde, the draw data rasterized to
+    images: the button on the filters' row, as high as the filters and
+    ending at the field's column with 5 and with 500 players; the list beside
+    the chat and as high, its search field on the filters' row and its rows
+    a line apart; the local player last, picking nobody; a click on a name
+    and `Whisper` in a row's menu whispering that player, with typing
+    reaching the chat's field after either; `Copy name`; Escape closing a
+    row's menu only; the search matching without case, the row for no
+    match, Backspace, Tab kept in the field, and nothing typed there
+    reaching the chat; Enter there giving the keyboard back to the chat's
+    field; the button closing the list and clearing its search; Escape in
+    the search or in the chat's field closing the chat and the list, which
+    stays closed when the chat opens, and Escape with a row's menu open
+    closing only the menu; after Enter closes the chat, the list showing
+    again when it opens; with 500 players only the rows in view
+    drawn, the wheel over the list scrolling it and not the lines, and
+    players nearby copied every half second; a chat dragged to the screen's
+    right edge leaving the list room; `Not connected to the server.` without
+    a roster. The resize checks of the bullet above passed again. With 300
+    lines and 500 players a frame took about 97 µs with the list closed and
+    100 µs with it open, against 127 µs for the chat before it and the
+    [menu frame](#menu-frame)'s kept triangles; a join or leave in every
+    frame, 150 µs.
   - An earlier drag ran in game, runtime not recorded: it moved in whole
     font sizes and lines with the window as high as its content, and the
     player saw it resize at a lower frame rate than the settings window,
@@ -108,7 +133,8 @@
     [Size](#size) is not built on Windows or run in game.
 
   Not run anywhere: the wheel over the lines with the cursor shown, the
-  Windows clipboard, and the resize cursors as the overlay draws them in game.
+  Windows clipboard, the resize cursors as the overlay draws them in game,
+  and the player list with a real roster and players nearby.
 - **Settings window, theme, connection controls:** an earlier layout, with tabs
   and a title bar, ran in game. The sidebar layout, the display name's line
   with the connection button, the switches, and the theme are not built on
@@ -210,6 +236,10 @@
     count out of range, or with no polygons each warn with the reason and fall
     back the same way; a file with CRLF line ends loads.
 
+  Keeping a frame's triangles ran in the chat's harness at 1080p and 4K:
+  images with and without it are the same but for one pixel's rounding,
+  through opening, hovering, menus, searching, and a drag; the open chat
+  took about 97 µs a frame instead of 127 µs, and drags as long as before.
   The `xmake.lua` deploy step was not run. `[UI] BorderColor` in the file is
   under [Configuration](configuration.md#status).
 - **Item picker and preview:** built on Windows; in game the picker lists names
@@ -258,14 +288,15 @@ src/ui/
   chat/ChatHistory            # lines, channel filters, unread marks, scrolling, the line menu
   chat/ChatInput              # target chip and its menu, text field, name and command list
   chat/ChatSize               # the open chat's size, the drag that sets it, saving it
-  chat/ChatStyle.h            # channel and notice colors
+  chat/ChatPlayers            # the players online: the button on the filters' row, the list beside the chat
+  chat/ChatStyle.h            # channel and notice colors, the chips' frame, the rule under the filters
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
   settings/ConnectionControls # connection button, the line under it, one-line summary
   widgets/Controls            # switch, accent and red buttons, icon buttons
   widgets/ItemPicker          # item dropdown
   preview/ItemPreview         # 3D item capture
 src/sync/chat/ChatSync        # send to a target, rejections as notices, lines to display
-src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners
+src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners, the list's copy
 src/sync/chat/ChatDraft       # syntax of prefixes and commands
 src/sync/chat/ChatComposer    # send target, name and command list, sent lines
 src/runtime/PluginTime        # plugin time per pass
@@ -433,9 +464,16 @@ is not part of the plugin.
   silhouette in the backing color, then the pieces in the line color, each with
   `ImDrawList::PathFillConcave`, which anti-aliases the edges. The window is
   begun with `ImGuiWindowFlags_NoBackground`, and the clip rectangle is the
-  whole window, since a window's own leaves out part of its padding. It costs
-  526 points and 21 small triangulations per framed window per frame and
-  allocates nothing once the draw list has grown.
+  whole window, since a window's own leaves out part of its padding.
+- Triangulating the 21 concave pieces is most of what a frame costs, about
+  30 µs in a Linux benchmark, so `Draw` keeps the triangles of the 4 frames
+  it drew last, keyed by everything that shapes them: the window's size, the
+  scale, both colors, the font atlas's white pixel, and the draw list's
+  anti-aliasing flags and fringe. A window drawn again with the same key
+  copies them, moved to its corner; a drag that resizes it triangulates in
+  every frame, as before. A frame during which the draw list started its
+  vertices over is not kept. Nothing is allocated once the draw list and the
+  kept frames have grown.
 - The line color must be opaque. The anti-aliased fill moves each point half a
   pixel inwards, which on pieces this fine turns some triangles over others;
   an opaque color hides the overlap and a translucent one shows it as brighter
@@ -575,7 +613,7 @@ wire, the roster, routing, and server rules are in [Network](network.md#chat).
 Goal: talk to everyone, to players nearby, or to one player; always see where
 the next line goes and change it with a key, a prefix, a command, or a click;
 whisper by a few letters of a name, and keep whispering the same player
-without naming it again; tell the channels apart at a glance, and turn each
+without naming it again; see who is online and whisper one from a list; tell the channels apart at a glance, and turn each
 off and on; see as many lines as the player wants, by dragging the chat larger.
 Non-goals: chat
 history for late joiners, a saved log, an ignore list, moving the chat, and
@@ -602,14 +640,14 @@ the name cut at 12 font sizes. The empty field reads
 
 | Input | Effect |
 | --- | --- |
-| Tab, Shift+Tab | The next or previous of Local, Global, and the 3 latest whisper partners, most recent first. A whisper target that is not among them yet stands after Global |
+| Tab, Shift+Tab | The next or previous of Global, Local, and the 3 latest whisper partners, most recent first. A whisper target that is not among them yet stands after Local |
 | `!` as the first character | Global |
 | `@` as the first character | Opens the [name list](#name-list) |
 | `/l`, `/g` (`/local`, `/global`) | Local, Global |
 | `/w <name>` (`/whisper`) | As `@` |
 | `/r` (`/reply`) | The sender of the latest received whisper; `Nobody has whispered you yet.` without one |
 | Backspace in the empty field | From a whisper back to the channel it replaced |
-| A click on the chip | A menu of Local, Global, and the 5 latest partners |
+| A click on the chip | A menu of Global, Local, and the 5 latest partners |
 | A click on a sender's name, or `Whisper` in a line's menu | A whisper to that player |
 
 - A prefix or a command is removed from the text when it is complete: `!` and
@@ -682,7 +720,7 @@ connected players whose names start with what follows, at most 8.
 - `ChatHistory` keeps the latest 100 lines of each channel and 100 notices,
   each stamped with `ImGui::GetTime()` when it arrived, so a busy channel only
   pushes out its own lines.
-- A row above the lines has a filter for each channel: `Local`, `Global`, and
+- A row above the lines has a filter for each channel: `Global`, `Local`, and
   `Whispers`. Each is a toggle of its own: a click turns its channel's lines
   off or on, in the open chat and among the closed chat's lines, and changes
   no other filter. All are on at first and any number may be off; notices
@@ -726,6 +764,52 @@ connected players whose names start with what follows, at most 8.
   each row's end by character (`ImFont::CalcTextSizeA`), leaving no row
   short. Notices have no label and wrap as Dear ImGui does.
 
+### Player list
+
+- The filters' row ends, at the field's column, with a button: a person
+  drawn as shapes, from the top of the digits to their baseline as the
+  font's `0` glyph has them, and the number of connected players, the local
+  one included (`ChatRoster::GetPlayerCount`, as `/who` counts them), or
+  `Offline` in the muted text color without a roster. It is a chip as the
+  filters are (`ChatStyle::DrawChipFrame`): closed, an outline in the
+  theme's text color with the 8% fill under the cursor; open, in the accent
+  with the chip fill. A click opens the list or closes it. The label is
+  formatted only when the number changes.
+- The list is a window of its own, half a font size right of the open chat
+  and as high, with 13 font sizes of content, in the chat's menu frame and
+  background. `ChatWindow` places and begins it as it begins the chat
+  (`BeginFramed`), after the chat, so it has the chat's size from the same
+  frame; `ChatPlayers` draws what is inside.
+- A search field stands on the filters' row, as high as the filters, with
+  a rule under it as far as the chat's is, so the two line up. It reads
+  `Find a player` while empty and keeps names that contain its text, both
+  folded as the [name list](#name-list) folds them. Tab stays in the field;
+  Enter gives the keyboard back to the chat's field.
+- The names follow, a chat line apart, in the order `ChatRoster` sorts
+  them (by folded name), in the heading face and the whisper color. The
+  local player is last, muted, with ` (you)`, and takes no click. A name
+  wider than the list is cut at its edge. A dot in the Local color on the
+  right marks a player the client receives (`ChatRoster::CopyNearbyPlayers`),
+  with the tooltip `Near you`. With nothing matching the list reads
+  `No player with that name is online`, and without a roster
+  `Not connected to the server.`
+- A name acts as a sender's name does in the lines: under the cursor it is
+  underlined and the cursor is a hand, a click whispers the player, and a
+  right click opens `Whisper` and `Copy name`. The keyboard then returns to
+  the chat's field.
+- Escape that closes the chat closes the list with it, also from the
+  search field; a chat closed by Enter, or by a menu that opens by itself,
+  shows the list again when it opens. The button closes it too. Closing
+  empties the search, and nothing of the list is saved.
+- The wheel over the list scrolls the list only: `ChatHistory::DrawLines`
+  leaves the wheel to it while `ChatPlayers::IsHovered`.
+- Closed, the list costs the count. Open, `ChatRoster::CopyPlayersIfChanged`
+  copies the roster only when its revision changes, and the search is
+  matched then and on an edit; players nearby are copied every half second
+  (`kNearbySeconds`); `ImGuiListClipper` draws only the rows in view; and
+  its frame is copied from the [menu frame](#menu-frame)'s kept triangles,
+  so the list adds a few microseconds to the chat at any number of players.
+
 ### Size
 
 - The open chat's lines are `[UI] ChatWidth` font sizes wide and `ChatLines`
@@ -745,7 +829,8 @@ connected players whose names start with what follows, at most 8.
   window's does, so the top row of the lines may show in part. A drag in
   whole steps was dropped: at a font size a step it looked like a low frame
   rate. The size stops at the limits and at what the screen has room for
-  with the chat's margin on every side (`GetUnits` in `ChatWindow.cpp`). A
+  with the chat's margin on every side (`GetUnits` in `ChatWindow.cpp`) and,
+  while it is open, the [player list](#player-list) beside it. A
   configured size the screen has no room for is drawn at that room and stays
   in the file.
 - Releasing the button settles the size on the nearest whole font size
@@ -798,21 +883,24 @@ connected players whose names start with what follows, at most 8.
   Typing goes only to the chat; the character does not move or look around, and
   keys already held keep acting until released.
 - Escape closes an open menu, else hides the name or command list, else
-  discards the text typed since opening and closes the chat. Every key,
+  discards the text typed since opening and closes the chat and the
+  [player list](#player-list). Every key,
   console and menu keys included, goes to the chat while it is open, but a
   menu that opens by itself, such as dialogue an NPC starts or a loading
   screen, closes it and keeps the text.
 - The chat uses the mouse, with the cursor hidden until the mouse moves
   ([Input focus](#input-focus)), so a player who only types sees none. It
   appears in the middle of the chat. After any click the keyboard returns to
-  the field; a click outside the chat does nothing.
+  the field, except one in the player list's search field; a click outside
+  the chat and the list does nothing.
 - Open, it sits in the lower-left corner above the magicka bar, with the
   filter row, the lines at the chat's [size](#size), and the input row,
   inside the [menu frame](#menu-frame) over a 60% background. The frame adds half of its
   inset and corner to the padding on
   every side, 19 px at 1080p at the default thickness, which keeps the content
   clear of the knots. The wheel scrolls 3 lines per notch and Page
-  Up/Down a page; under the shown cursor the lines scroll as Dear ImGui does.
+  Up/Down a page; under the shown cursor the lines scroll as Dear ImGui does,
+  and over the player list the list scrolls instead.
   New lines scroll down unless the history was scrolled back.
 - Closed, the newest lines (at most 6) show for 10 s on a faint background and
   fade out over the last 2; with nothing recent nothing is drawn. They follow
@@ -830,7 +918,8 @@ connected players whose names start with what follows, at most 8.
   with the popup's background, so it looks the same. Text is Sovngarde Light
   ([Themed faces](#themed-faces)).
 - The filters, the lines, the chip, the list, and the recent lines start at one
-  column, and the rule, the scrollbar, the list, and the field end at one.
+  column, and the player button, the rule, the scrollbar, the list, and the
+  field end at one.
   Lines are a quarter of a font size apart (`ChatHistory::GetLinePitch`),
   closer than the theme's items. The recent lines' box has the theme's 10 px
   corners and no border.
@@ -1184,9 +1273,9 @@ or zoomed.
     chat, and the character does not turn or attack. A click on another
     player's name turns the chip to that player; a right click on a line and
     `Copy message` puts its text on the clipboard; a click on the chip lists
-    Local, Global, and the latest partners. Typing continues after each click,
+    Global, Local, and the latest partners. Typing continues after each click,
     and a click outside the chat changes nothing.
-14. The filters `Local`, `Global`, and `Whispers` are all on at first. A
+14. The filters `Global`, `Local`, and `Whispers` are all on at first. A
     click on `Global` turns its chip grey and leaves the other two and the
     send target as they were; a global line then shows neither in the open
     chat nor among the closed chat's lines, and `Global` gets a dot on its
@@ -1215,6 +1304,19 @@ or zoomed.
     `skyrim-mp.ini` has `ChatWidth` and `ChatLines`, the closed chat's lines
     are as wide, the chat has that size after the game restarts, and the
     Interface section shows neither key.
+17. The open chat's filter row ends with a chip showing a person and the
+    number of players online, or `Offline` while disconnected. A click opens
+    a framed list right of the chat and as high, with a search field on the
+    filters' row and the players by name, the local player last and muted,
+    and a green dot by the ones nearby. A click on a name turns the chip to
+    `To <name>` and typing continues in the field; a right click offers
+    `Whisper` and `Copy name`. Typing `ul` in the search leaves the names
+    containing it, and Escape there closes the chat and the list, which stay
+    closed until the chat and the button open them. After Enter closes the
+    chat, the list shows again when it opens. The wheel over the list
+    scrolls it and not the lines, and with the chat dragged to the screen's
+    right edge the list is still on the screen. With hundreds of players
+    online the frame rate with the list open is the same as with it closed.
 
 ## Known limitations
 
@@ -1254,6 +1356,10 @@ or zoomed.
 - The chat is resized with the mouse only and cannot be moved. A word wider
   than the chat is cut at the row's end wherever that falls, not at a
   syllable or after punctuation.
+- The player list sorts by folded bytes, so `Aela 194` comes before
+  `Aela 2`, cuts a long name without an ellipsis, and is picked from with
+  the mouse only. It shows names and who is nearby, not levels or places,
+  which the roster does not carry.
 - The chat's filters are toggled with the mouse only. Names in scripts other
   than Latin, Greek, and Cyrillic match only in the case they are written in.
 - A click made before the mouse has moved since the chat opened is dropped.

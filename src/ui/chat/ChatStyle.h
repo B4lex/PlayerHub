@@ -4,8 +4,12 @@
 
 #include <imgui.h>
 
-// Colors the chat adds to the theme it is drawn in. A channel has one color
-// wherever it shows: a sender's name, its filter, and the send target.
+#include <algorithm>
+#include <cmath>
+
+// Colors and marks the chat adds to the theme it is drawn in. A channel has
+// one color wherever it shows: a sender's name, its filter, and the send
+// target.
 namespace UI::ChatStyle
 {
     inline constexpr ImVec4 kGlobalColor{ 0.95F, 0.80F, 0.45F, 1.0F };
@@ -16,6 +20,13 @@ namespace UI::ChatStyle
     // Of a channel's color, behind the text of a chip in it.
     inline constexpr float kChipFillAlpha = 0.18F;
     inline constexpr float kHoveredChipFillAlpha = 0.30F;
+    // Of the text color, behind a chip that is off under the cursor.
+    inline constexpr float kHoveredOffChipFillAlpha = 0.08F;
+    // Of the label's color, a chip's outline.
+    inline constexpr float kChipOutlineAlpha = 0.55F;
+    // In font sizes: around a chip's label, and its outline.
+    inline constexpr ImVec2 kChipPaddingFonts{ 0.5F, 0.25F };
+    inline constexpr float kChipOutlineFonts = 0.0625F;
 
     [[nodiscard]] constexpr const ImVec4& GetChannelColor(Multiplayer::ChatChannel a_channel)
     {
@@ -35,5 +46,35 @@ namespace UI::ChatStyle
     {
         a_color.w *= a_alpha;
         return a_color;
+    }
+
+    [[nodiscard]] inline ImVec2 GetChipPadding()
+    {
+        const auto fontSize = ImGui::GetFontSize();
+        return ImVec2{ std::floor(kChipPaddingFonts.x * fontSize), std::floor(kChipPaddingFonts.y * fontSize) };
+    }
+
+    // The last item as a chip in a_color: its fill, a_fillAlpha of the
+    // color, and its outline, with the field's corners.
+    inline void DrawChipFrame(const ImVec4& a_color, float a_fillAlpha)
+    {
+        const auto& style = ImGui::GetStyle();
+        const auto min = ImGui::GetItemRectMin();
+        const auto max = ImGui::GetItemRectMax();
+        const auto outline = (std::max)(std::floor(kChipOutlineFonts * ImGui::GetFontSize()), 1.0F);
+        auto* drawList = ImGui::GetWindowDrawList();
+        drawList->AddRectFilled(min, max, ImGui::GetColorU32(WithAlpha(a_color, a_fillAlpha)), style.FrameRounding);
+        drawList->AddRect(min, max, ImGui::GetColorU32(WithAlpha(a_color, kChipOutlineAlpha)), style.FrameRounding,
+            ImDrawFlags_None, outline);
+    }
+
+    // A rule as wide as the window under a row of chips, a_gap under them.
+    inline void DrawRule(float a_gap)
+    {
+        const auto& style = ImGui::GetStyle();
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() - style.ItemSpacing.y + a_gap);
+        ImGui::Dummy(ImVec2{ ImGui::GetContentRegionAvail().x, style.WindowBorderSize });
+        ImGui::GetWindowDrawList()->AddRectFilled(
+            ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_Separator));
     }
 }

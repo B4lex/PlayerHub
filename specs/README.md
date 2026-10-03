@@ -45,6 +45,7 @@ criteria.
 | Connection, latency, traffic | [network](network.md#connection), [ui-overlay](ui-overlay.md#status-panel) |
 | Proximity, exclusions, late join, peer enter and leave, batching | [interest-and-delivery](interest-and-delivery.md), [network](network.md#server-messages), [sync-pipeline](sync-pipeline.md#receive-state) |
 | Chat | [ui-overlay](ui-overlay.md#chat), [network](network.md#chat) |
+| Players online list | [ui-overlay](ui-overlay.md#player-list), [network](network.md#roster) |
 | Settings | [ui-overlay](ui-overlay.md#settings-window), [configuration](configuration.md) |
 | Item picker and preview | [ui-overlay](ui-overlay.md#item-picker), [appearance-and-equipment](appearance-and-equipment.md#item-filter-and-catalog) |
 | Replay and load testing | [recording-and-replay](recording-and-replay.md) |

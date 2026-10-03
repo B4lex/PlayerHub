@@ -15,11 +15,7 @@ namespace ChatRoster
     {
         constexpr std::size_t kMaximumPartners = 8;
 
-        struct Entry
-        {
-            Player player;
-            std::string folded;
-        };
+        using Entry = ListedPlayer;
 
         std::mutex s_lock;
         std::uint64_t s_revision = 0;
@@ -208,8 +204,7 @@ namespace ChatRoster
         const std::scoped_lock lock{ s_lock };
         RefreshLocked();
         s_nearby.clear();
-        Network::CopyNearbyPlayers(s_nearby);
-        std::ranges::sort(s_nearby);
+        CopyNearbyPlayers(s_nearby);
 
         const auto first = a_players.size();
         const auto full = [&] { return a_players.size() - first >= a_maximum; };
@@ -265,6 +260,33 @@ namespace ChatRoster
         const std::scoped_lock lock{ s_lock };
         RefreshLocked();
         return s_entries.size();
+    }
+
+    bool CopyPlayersIfChanged(
+        std::uint64_t& a_revision, std::vector<ListedPlayer>& a_players, Multiplayer::PeerSlot& a_localPlayer)
+    {
+        const std::scoped_lock lock{ s_lock };
+        RefreshLocked();
+        if (a_revision == s_revision)
+        {
+            return false;
+        }
+        a_revision = s_revision;
+        a_players = s_entries;
+        a_localPlayer = s_roster.localPlayerID;
+        return true;
+    }
+
+    std::string FoldName(std::string_view a_name)
+    {
+        return Fold(a_name);
+    }
+
+    void CopyNearbyPlayers(std::vector<Multiplayer::PeerSlot>& a_players)
+    {
+        const auto first = a_players.size();
+        Network::CopyNearbyPlayers(a_players);
+        std::sort(a_players.begin() + static_cast<std::ptrdiff_t>(first), a_players.end());
     }
 
     void NoteWhisper(const Player& a_player, bool a_incoming)

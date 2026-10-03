@@ -17,16 +17,9 @@ namespace UI
         constexpr float kWheelLines = 3.0F;
         // In font sizes. Lines stand closer than the theme's items do.
         constexpr float kLineSpacingFonts = 0.25F;
-        // A filter's chip: around its label, its outline, between chips, and
-        // the unread dot on its corner.
-        constexpr ImVec2 kFilterPaddingFonts{ 0.5F, 0.25F };
-        constexpr float kFilterOutlineFonts = 0.0625F;
+        // Between filters, and the unread dot on a filter's corner.
         constexpr float kFilterSpacingFonts = 0.375F;
         constexpr float kFilterDotFonts = 0.16F;
-        // Of the label's color: the outline, and behind a filter that is off
-        // under the cursor.
-        constexpr float kFilterOutlineAlpha = 0.55F;
-        constexpr float kHoveredOffFilterFillAlpha = 0.08F;
 
         struct Filter
         {
@@ -35,8 +28,8 @@ namespace UI
         };
 
         constexpr std::array kFilters{
-            Filter{ "Local", Multiplayer::ChatChannel::kLocal },
             Filter{ "Global", Multiplayer::ChatChannel::kGlobal },
+            Filter{ "Local", Multiplayer::ChatChannel::kLocal },
             Filter{ "Whispers", Multiplayer::ChatChannel::kWhisper },
         };
 
@@ -237,13 +230,11 @@ namespace UI
         return ImGui::GetTextLineHeight() + GetLineSpacing();
     }
 
-    void ChatHistory::DrawFilters(float a_ruleGap)
+    void ChatHistory::DrawFilters()
     {
         const auto& style = ImGui::GetStyle();
         const auto fontSize = ImGui::GetFontSize();
-        const ImVec2 padding{ std::floor(kFilterPaddingFonts.x * fontSize),
-            std::floor(kFilterPaddingFonts.y * fontSize) };
-        const auto outline = (std::max)(std::floor(kFilterOutlineFonts * fontSize), 1.0F);
+        const auto padding = ChatStyle::GetChipPadding();
         auto* drawList = ImGui::GetWindowDrawList();
 
         for (std::size_t index = 0; index < kFilters.size(); ++index)
@@ -279,11 +270,8 @@ namespace UI
             const auto& channelColor = ChatStyle::GetChannelColor(filter.channel);
             const auto& color = on ? channelColor : style.Colors[hovered ? ImGuiCol_Text : ImGuiCol_TextDisabled];
             const auto fillAlpha = on ? (hovered ? ChatStyle::kHoveredChipFillAlpha : ChatStyle::kChipFillAlpha)
-                                      : (hovered ? kHoveredOffFilterFillAlpha : 0.0F);
-            drawList->AddRectFilled(
-                min, max, ImGui::GetColorU32(ChatStyle::WithAlpha(color, fillAlpha)), style.FrameRounding);
-            drawList->AddRect(min, max, ImGui::GetColorU32(ChatStyle::WithAlpha(color, kFilterOutlineAlpha)),
-                style.FrameRounding, ImDrawFlags_None, outline);
+                                      : (hovered ? ChatStyle::kHoveredOffChipFillAlpha : 0.0F);
+            ChatStyle::DrawChipFrame(color, fillAlpha);
             drawList->AddText(ImVec2{ min.x + padding.x, min.y + padding.y }, ImGui::GetColorU32(color), filter.label);
             if (!on && unread[channel])
             {
@@ -292,16 +280,10 @@ namespace UI
                     ImVec2{ max.x - radius * 0.5F, min.y + radius * 0.5F }, radius, ImGui::GetColorU32(channelColor));
             }
         }
-
-        // A rule between the filters and the lines, as wide as the chat.
-        ImGui::SetCursorPosY(ImGui::GetCursorPosY() - style.ItemSpacing.y + a_ruleGap);
-        ImGui::Dummy(ImVec2{ ImGui::GetContentRegionAvail().x, style.WindowBorderSize });
-        drawList->AddRectFilled(
-            ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_Separator));
     }
 
     std::optional<Multiplayer::RosterEntry> ChatHistory::DrawLines(
-        const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu)
+        const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu, bool a_wheelElsewhere)
     {
         std::optional<Multiplayer::RosterEntry> picked;
         if (rewrappedHeight >= 0.0F)
@@ -421,7 +403,8 @@ namespace UI
             // The child scrolls by itself under the cursor; elsewhere, and
             // while the cursor is hidden, the wheel still scrolls the lines.
             const auto lineHeight = GetLinePitch();
-            const auto wheel = a_input.wheelSteps + (ImGui::IsWindowHovered() ? 0.0F : ImGui::GetIO().MouseWheel);
+            const auto wheel = a_input.wheelSteps
+                + (ImGui::IsWindowHovered() || a_wheelElsewhere ? 0.0F : ImGui::GetIO().MouseWheel);
             auto scroll = ImGui::GetScrollY() - wheel * kWheelLines * lineHeight;
             if (ImGui::IsKeyPressed(ImGuiKey_PageUp))
             {

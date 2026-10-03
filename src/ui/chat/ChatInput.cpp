@@ -173,8 +173,8 @@ namespace UI
             }
             ImGui::PopID();
         };
-        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kLocal }, "Local", 0);
-        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kGlobal }, "Global", 1);
+        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kGlobal }, "Global", 0);
+        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kLocal }, "Local", 1);
         partners.clear();
         ChatRoster::GetRecentPartners(partners, kMaximumMenuPartners);
         if (!partners.empty())

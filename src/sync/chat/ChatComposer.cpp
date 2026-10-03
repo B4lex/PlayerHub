@@ -60,8 +60,8 @@ namespace ChatSync
 
     void Composer::CycleTarget(int a_direction)
     {
-        std::vector<ChatTarget> targets{ ChatTarget{ .channel = Multiplayer::ChatChannel::kLocal },
-            ChatTarget{ .channel = Multiplayer::ChatChannel::kGlobal } };
+        std::vector<ChatTarget> targets{ ChatTarget{ .channel = Multiplayer::ChatChannel::kGlobal },
+            ChatTarget{ .channel = Multiplayer::ChatChannel::kLocal } };
         players.clear();
         ChatRoster::GetRecentPartners(players, kMaximumCycledPartners);
         // A player picked from the list is not a partner before the first whisper.

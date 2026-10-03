@@ -31,14 +31,15 @@ namespace UI
         // From one line of the open chat to the next, at the current font size.
         [[nodiscard]] static float GetLinePitch();
 
-        // The filter row of the open chat: a toggle per channel, and a rule
-        // a_ruleGap under them.
-        void DrawFilters(float a_ruleGap);
+        // The filters of the open chat: a toggle per channel, starting a row.
+        void DrawFilters();
 
         // The lines of the open chat with their menu, which a_closeMenu
-        // closes; a_size as a child window takes it. Returns a player picked
-        // to whisper.
-        std::optional<Multiplayer::RosterEntry> DrawLines(const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu);
+        // closes; a_size as a child window takes it. The wheel scrolls them
+        // unless a_wheelElsewhere, when another window is under the cursor.
+        // Returns a player picked to whisper.
+        std::optional<Multiplayer::RosterEntry> DrawLines(
+            const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu, bool a_wheelElsewhere);
         [[nodiscard]] bool IsMenuOpen() const { return menuOpen; }
 
         // Finds the lines the closed chat still shows and returns how opaque

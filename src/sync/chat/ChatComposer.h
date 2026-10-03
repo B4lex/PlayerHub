@@ -43,7 +43,7 @@ namespace ChatSync
 
         [[nodiscard]] const ChatTarget& GetTarget() const { return target; }
         void SetTarget(const ChatTarget& a_target);
-        // Local, Global, then the latest whisper partners; a_direction is 1 or -1.
+        // Global, Local, then the latest whisper partners; a_direction is 1 or -1.
         void CycleTarget(int a_direction);
         // Returns a whisper target to the channel it replaced. False on a channel.
         bool LeaveWhisper();

@@ -1,6 +1,8 @@
 #include "ui/MenuFrame.h"
 #include "config/PluginConfig.h"
 
+#include <algorithm>
+#include <array>
 #include <charconv>
 #include <cmath>
 #include <cstddef>
@@ -59,8 +61,43 @@ namespace UI::MenuFrame
             float corner{ 0.0F };
         };
 
+        // What decides the triangles of a window's frame apart from where
+        // the window is.
+        struct FrameKey
+        {
+            ImVec2 size;
+            float scale{ 0.0F };
+            ImU32 line{ 0 };
+            ImU32 backing{ 0 };
+            ImVec2 whitePixel;
+            ImDrawListFlags flags{ ImDrawListFlags_None };
+            float fringe{ 0.0F };
+
+            bool operator==(const FrameKey& a_other) const
+            {
+                return size.x == a_other.size.x && size.y == a_other.size.y && scale == a_other.scale
+                    && line == a_other.line && backing == a_other.backing && whitePixel.x == a_other.whitePixel.x
+                    && whitePixel.y == a_other.whitePixel.y && flags == a_other.flags && fringe == a_other.fringe;
+            }
+        };
+
+        // A frame as last triangulated, which is most of what drawing one
+        // costs: vertices from the window's corner and indices from the first
+        // vertex. A window drawn again with the same key copies them.
+        struct DrawnFrame
+        {
+            FrameKey key;
+            std::vector<ImDrawVert> vertices;
+            std::vector<ImDrawIdx> indices;
+            int usedFrame{ -1 };
+        };
+
+        // One per framed window, and one more for a window that comes and goes.
+        constexpr std::size_t kDrawnFrames = 4;
+
         // Empty until Load reads a shape.
         Shape s_shape;
+        std::array<DrawnFrame, kDrawnFrames> s_drawn;
 
         std::string_view NextWord(std::string_view& a_line)
         {
@@ -189,6 +226,61 @@ namespace UI::MenuFrame
         {
             return ImGui::GetFontSize() * kArtPixelFonts * static_cast<float>(Config::Get()->ui.frameThickness) * 0.01F;
         }
+
+        void Copy(const DrawnFrame& a_frame, ImDrawList& a_list, const ImVec2& a_min)
+        {
+            a_list.PrimReserve(static_cast<int>(a_frame.indices.size()), static_cast<int>(a_frame.vertices.size()));
+            // After the reserve, which may start the vertices over.
+            const auto first = a_list._VtxCurrentIdx;
+            for (const auto index : a_frame.indices)
+            {
+                a_list.PrimWriteIdx(static_cast<ImDrawIdx>(first + index));
+            }
+            for (const auto& vertex : a_frame.vertices)
+            {
+                a_list.PrimWriteVtx(ImVec2{ a_min.x + vertex.pos.x, a_min.y + vertex.pos.y }, vertex.uv, vertex.col);
+            }
+        }
+
+        // Draws the frame and keeps its triangles in a_frame for the next
+        // frames, unless the list started its vertices over meanwhile.
+        void Triangulate(DrawnFrame& a_frame, ImDrawList& a_list, const ImVec2& a_min, const ImVec2& a_max)
+        {
+            const auto firstVertex = a_list.VtxBuffer.Size;
+            const auto firstIndex = a_list.IdxBuffer.Size;
+            const auto first = a_list._VtxCurrentIdx;
+            const auto vertexOffset = a_list._CmdHeader.VtxOffset;
+
+            const auto scale = a_frame.key.scale;
+            const auto* point = s_shape.points.data();
+            for (const auto& polygon : s_shape.polygons)
+            {
+                for (auto left = polygon.pointCount; left > 0; --left, ++point)
+                {
+                    const auto x = point->offset.x * scale;
+                    const auto y = point->offset.y * scale;
+                    a_list.PathLineTo(ImVec2{ point->fromRight ? a_max.x - x : a_min.x + x,
+                        point->fromBottom ? a_max.y - y : a_min.y + y });
+                }
+                a_list.PathFillConcave(polygon.backing ? a_frame.key.backing : a_frame.key.line);
+            }
+
+            if (a_list._CmdHeader.VtxOffset != vertexOffset)
+            {
+                a_frame.key = FrameKey{};
+                return;
+            }
+            a_frame.vertices.assign(a_list.VtxBuffer.Data + firstVertex, a_list.VtxBuffer.Data + a_list.VtxBuffer.Size);
+            for (auto& vertex : a_frame.vertices)
+            {
+                vertex.pos = ImVec2{ vertex.pos.x - a_min.x, vertex.pos.y - a_min.y };
+            }
+            a_frame.indices.assign(a_list.IdxBuffer.Data + firstIndex, a_list.IdxBuffer.Data + a_list.IdxBuffer.Size);
+            for (auto& index : a_frame.indices)
+            {
+                index = static_cast<ImDrawIdx>(index - first);
+            }
+        }
     }
 
     void Load()
@@ -251,19 +343,25 @@ namespace UI::MenuFrame
         }
         else
         {
-            const auto scale = GetScale();
-            const auto* point = s_shape.points.data();
-            for (const auto& polygon : s_shape.polygons)
+            const FrameKey key{ .size = size,
+                .scale = GetScale(),
+                .line = a_line,
+                .backing = a_backing,
+                .whitePixel = ImGui::GetFontTexUvWhitePixel(),
+                .flags = list.Flags,
+                .fringe = list._FringeScale };
+            auto drawn = std::ranges::find(s_drawn, key, &DrawnFrame::key);
+            if (drawn != s_drawn.end())
             {
-                for (auto left = polygon.pointCount; left > 0; --left, ++point)
-                {
-                    const auto x = point->offset.x * scale;
-                    const auto y = point->offset.y * scale;
-                    list.PathLineTo(
-                        ImVec2{ point->fromRight ? max.x - x : min.x + x, point->fromBottom ? max.y - y : min.y + y });
-                }
-                list.PathFillConcave(polygon.backing ? a_backing : a_line);
+                Copy(*drawn, list, min);
             }
+            else
+            {
+                drawn = std::ranges::min_element(s_drawn, {}, &DrawnFrame::usedFrame);
+                drawn->key = key;
+                Triangulate(*drawn, list, min, max);
+            }
+            drawn->usedFrame = ImGui::GetFrameCount();
         }
         list.PopClipRect();
     }

@@ -422,7 +422,8 @@ the admin API.
 
 ### Roster
 
-Every client knows who is connected, so it can complete a name and address a
+Every client knows who is connected, so it can complete a name, list the
+players in chat ([UI overlay](ui-overlay.md#player-list)), and address a
 whisper by slot. Proximity does not limit it: a whisper reaches any connected
 player.
 

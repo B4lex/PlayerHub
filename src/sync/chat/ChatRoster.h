@@ -3,7 +3,9 @@
 #include "protocol/ChatMessage.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -13,6 +15,13 @@
 namespace ChatRoster
 {
     using Player = Multiplayer::RosterEntry;
+
+    struct ListedPlayer
+    {
+        Player player;
+        // As names are compared.
+        std::string folded;
+    };
 
     struct Addressee
     {
@@ -39,6 +48,18 @@ namespace ChatRoster
 
     // Connected players, the local one included; zero while disconnected.
     [[nodiscard]] std::size_t GetPlayerCount();
+
+    // Copies the connected players, sorted by folded name, and the local
+    // player's slot when they changed since a_revision; the first call passes
+    // zero.
+    [[nodiscard]] bool CopyPlayersIfChanged(
+        std::uint64_t& a_revision, std::vector<ListedPlayer>& a_players, Multiplayer::PeerSlot& a_localPlayer);
+
+    // a_name as names are compared, for matching against ListedPlayer::folded.
+    [[nodiscard]] std::string FoldName(std::string_view a_name);
+
+    // The slots of the players near the local one, sorted.
+    void CopyNearbyPlayers(std::vector<Multiplayer::PeerSlot>& a_players);
 
     // Records a whisper with a_player, received when a_incoming.
     void NoteWhisper(const Player& a_player, bool a_incoming);
