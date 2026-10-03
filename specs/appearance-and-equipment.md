@@ -8,9 +8,10 @@
 - **Equipment:** run in game, including an earlier receiver-configured
   fallback. The items under [Engine assumptions](#engine-assumptions) are not
   individually checked.
-- **Default outfit:** the sender's outfit is not yet built on Windows or run in
-  game. The default form IDs were checked against `Skyrim.esm` and
-  `Dawnguard.esm` records (type, slots, weapon type).
+- **Default outfit:** the sender's outfit and the receiver's ranked armor
+  selection (`SelectArmor`) are not yet built on Windows or run in game. The
+  default form IDs were checked against `Skyrim.esm` and `Dawnguard.esm` records
+  (type, slots, weapon type).
 - **Item filter and catalog:** built on Windows; the catalog and picker run in
   game ([UI overlay](ui-overlay.md#item-picker)). The main-slot armor filter is
   checked only in a standalone Linux test of `ItemFilter`, not yet built on
@@ -311,15 +312,20 @@ player once).
 
 The receiver treats the outfit as part of the equipment revision:
 
-1. All resolvable armor is resolved first, and the union of its slot masks
-   becomes the occupied slots.
-2. For each unresolved armor entry, the pieces are visited in order. A piece
-   stands in when the entry covers a slot of the piece's mask that is not yet
-   fully occupied, and it is skipped when its own mask overlaps an occupied slot,
-   since equipping it would unequip an item already shown. Added pieces occupy
-   their slots. So a missing cuirass with built-in gauntlets gets body and hands
-   pieces except where real gauntlets show, and a missing helmet or hood, on Head,
-   Hair, or both, gets the one Head piece.
+1. The union of the unresolved armor entries' slot masks becomes the missing
+   slots. A piece is a candidate when its stand-in mask covers a missing slot
+   and it resolves to armor with slots.
+2. `DefaultOutfit::SelectArmor` takes the resolved armor and the candidate
+   pieces by rank: the position in `kArmorSlotPrecedence` of their main slot,
+   the resolved item's own slots or the piece's stand-in slots. A resolved item
+   comes before a piece of the same rank. A piece is skipped once every missing
+   slot it stands in for is taken, and any item whose slots overlap one already
+   taken is left out, since equipping it would unequip that item. So a missing
+   cuirass with built-in gauntlets gets body and hands pieces except where real
+   gauntlets show, a missing helmet or hood, on Head, Hair, or both, gets the
+   one Head piece, and a hooded Body piece wins over the Head piece and over a
+   resolved helmet rather than leave the body bare. A resolved item left out is
+   logged as `left out resolved armor overlapping a higher slot`.
 3. An unresolved weapon uses the outfit weapon of its `weaponType`, so attacks
    keep their animations; a two-handed stand-in still clears the left hand. An
    unresolved torch uses the outfit torch, and unresolved ammo the outfit ammo.
@@ -404,9 +410,10 @@ To verify in game:
 4. A peer missing a race or head part plugin sees a vanilla fallback, or the
    source's default race and sex with the race's default look, and no crash.
 5. Armor from a missing plugin shows the source's outfit armor in the covered
-   slots without displacing items that resolved; a missing weapon, torch, or
-   ammunition shows the outfit's of the same type, and attacks use that type's
-   animations. Without a usable piece the item is left off.
+   slots without displacing resolved items of the same or a higher slot in
+   `kArmorSlotPrecedence`, and a body piece is never left out for a head piece
+   or a resolved helmet; a missing weapon, torch, or ammunition shows the
+   outfit's of the same type, and attacks use that type's animations. Without a usable piece the item is left off.
 6. Player-enchanted items appear as their unenchanted base item.
 7. Drawing right after spawn or a swap draws the synchronized weapon, and the
    next attack uses its animation.

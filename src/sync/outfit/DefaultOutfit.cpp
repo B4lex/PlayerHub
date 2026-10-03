@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string_view>
 
@@ -61,6 +62,21 @@ namespace DefaultOutfit
         bool IsBaseGameItem(const FormReference& a_reference)
         {
             return Multiplayer::IsBaseGamePlugin(a_reference.plugin);
+        }
+
+        // The position in kArmorSlotPrecedence of the first outfit slot that
+        // a_slotMask covers, which is an item's main slot; kArmorSlotCount when
+        // it covers none.
+        std::size_t GetSlotRank(std::uint32_t a_slotMask)
+        {
+            for (std::size_t rank = 0; rank < Settings::kArmorSlotCount; ++rank)
+            {
+                if ((a_slotMask & Settings::kArmorSlotMasks[Settings::kArmorSlotPrecedence[rank]]) != 0)
+                {
+                    return rank;
+                }
+            }
+            return Settings::kArmorSlotCount;
         }
     }
 
@@ -173,30 +189,72 @@ namespace DefaultOutfit
         }
     }
 
-    void AppendArmor(const Multiplayer::DefaultOutfit& a_outfit, const Multiplayer::EquipmentArmor& a_entry,
-        std::uint32_t& a_occupiedSlots, std::vector<RE::TESObjectARMO*>& a_armor)
+    std::array<RE::TESObjectARMO*, Multiplayer::DefaultOutfit::kMaximumArmor> SelectArmor(
+        const Multiplayer::DefaultOutfit& a_outfit, std::span<RE::TESObjectARMO* const> a_resolved,
+        std::uint32_t a_missingSlots, std::vector<RE::TESObjectARMO*>& a_armor)
     {
-        for (const auto& piece : a_outfit.armor)
+        struct Candidate
         {
-            const auto covered = a_entry.slotMask & piece.slotMask;
-            if (covered == 0 || (covered & ~a_occupiedSlots) == 0)
+            std::size_t rank{ 0 };
+            // Index into a_outfit.armor, or kNoPiece for a resolved item, which
+            // sorts it before the pieces of its rank.
+            std::size_t piece{ 0 };
+            RE::TESObjectARMO* armor{ nullptr };
+        };
+        constexpr auto kNoPiece = (std::numeric_limits<std::size_t>::max)();
+
+        std::vector<Candidate> candidates;
+        candidates.reserve(a_resolved.size() + a_outfit.armor.size());
+        for (auto* armor : a_resolved)
+        {
+            candidates.push_back(Candidate{ .rank = GetSlotRank(armor->GetSlotMask().underlying()),
+                .piece = kNoPiece,
+                .armor = armor });
+        }
+        const auto pieceCount = (std::min)(a_outfit.armor.size(), Multiplayer::DefaultOutfit::kMaximumArmor);
+        for (std::size_t index = 0; index < pieceCount; ++index)
+        {
+            const auto& piece = a_outfit.armor[index];
+            if ((piece.slotMask & a_missingSlots) == 0)
             {
                 continue;
             }
             auto* armor = FormLookup::ResolveForm<RE::TESObjectARMO>(piece.form);
-            if (!armor)
+            if (armor && armor->GetSlotMask().underlying() != 0)
             {
-                continue;
+                candidates.push_back(Candidate{ .rank = GetSlotRank(piece.slotMask), .piece = index, .armor = armor });
             }
-            // Equipping over an occupied slot would unequip the item shown there.
-            const auto armorSlots = armor->GetSlotMask().underlying();
-            if (armorSlots == 0 || (armorSlots & a_occupiedSlots) != 0)
-            {
-                continue;
-            }
-            a_occupiedSlots |= armorSlots;
-            a_armor.push_back(armor);
         }
+        std::ranges::stable_sort(candidates, [](const Candidate& a_left, const Candidate& a_right) {
+            return a_left.rank != a_right.rank ? a_left.rank < a_right.rank
+                                               : (a_left.piece == kNoPiece && a_right.piece != kNoPiece);
+        });
+
+        std::array<RE::TESObjectARMO*, Multiplayer::DefaultOutfit::kMaximumArmor> standIns{};
+        a_armor.clear();
+        std::uint32_t occupiedSlots = 0;
+        for (const auto& candidate : candidates)
+        {
+            const bool standIn = candidate.piece != kNoPiece;
+            // A piece is needed only while a slot it stands in for is still bare.
+            if (standIn && (a_outfit.armor[candidate.piece].slotMask & a_missingSlots & ~occupiedSlots) == 0)
+            {
+                continue;
+            }
+            // Equipping over an occupied slot would unequip the item taken there.
+            const auto armorSlots = candidate.armor->GetSlotMask().underlying();
+            if ((armorSlots & occupiedSlots) != 0)
+            {
+                continue;
+            }
+            occupiedSlots |= armorSlots;
+            a_armor.push_back(candidate.armor);
+            if (standIn)
+            {
+                standIns[candidate.piece] = candidate.armor;
+            }
+        }
+        return standIns;
     }
 
     RE::TESBoundObject* FindHand(const Multiplayer::DefaultOutfit& a_outfit, const Multiplayer::EquipmentHand& a_entry)

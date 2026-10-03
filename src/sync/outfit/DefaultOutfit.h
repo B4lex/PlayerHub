@@ -5,7 +5,9 @@
 
 #include <RE/Skyrim.h>
 
+#include <array>
 #include <cstdint>
+#include <span>
 #include <vector>
 
 // The local player's default outfit, from Config::DefaultOutfitSettings, which
@@ -30,11 +32,17 @@ namespace DefaultOutfit
     // is from other than a base-game plugin.
     void SelectRace(Multiplayer::PlayerAppearance& a_appearance);
 
-    // Appends a_outfit armor for an unresolved entry: the pieces whose stand-in
-    // slots the entry covers, skipping any whose slots overlap a_occupiedSlots,
-    // which then gains the appended armor's slots.
-    void AppendArmor(const Multiplayer::DefaultOutfit& a_outfit, const Multiplayer::EquipmentArmor& a_entry,
-        std::uint32_t& a_occupiedSlots, std::vector<RE::TESObjectARMO*>& a_armor);
+    // Fills a_armor with a_resolved, a remote player's armor that resolved, and
+    // the a_outfit pieces standing in for a_missingSlots, the slots its
+    // unresolved armor covers. Items are taken by the rank of their main slot
+    // in kArmorSlotPrecedence, a resolved item before a piece of the same rank,
+    // and an item overlapping one already taken is left out, so a hooded body
+    // piece wins over a head piece or a resolved helmet rather than leave the
+    // body bare. Returns the armor taken for each a_outfit piece, null for the
+    // pieces left out.
+    [[nodiscard]] std::array<RE::TESObjectARMO*, Multiplayer::DefaultOutfit::kMaximumArmor> SelectArmor(
+        const Multiplayer::DefaultOutfit& a_outfit, std::span<RE::TESObjectARMO* const> a_resolved,
+        std::uint32_t a_missingSlots, std::vector<RE::TESObjectARMO*>& a_armor);
 
     // A weapon of the same weapon type, or a torch. Null when a_outfit has none
     // that resolves.

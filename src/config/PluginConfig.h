@@ -48,8 +48,8 @@ namespace Config
         static constexpr std::size_t kArmorSlotCount = kArmorSlotMasks.size();
         // Indices into kArmorSlotMasks, most visible first: Body, Head, Hands,
         // Feet, Shield, Amulet, Circlet, Backpack. An item's main slot is the
-        // first it covers. Receivers apply pieces in this order, and when the
-        // pieces for one missing item overlap, the earlier slot wins.
+        // first it covers. Receivers take resolved armor and stand-in pieces in
+        // the order of their main slots, so the earlier slot wins an overlap.
         static constexpr std::array<std::size_t, kArmorSlotCount> kArmorSlotPrecedence{ 1, 0, 2, 4, 5, 3, 6, 7 };
         static_assert(kArmorSlotCount <= Multiplayer::DefaultOutfit::kMaximumArmor);
 

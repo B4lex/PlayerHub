@@ -7,6 +7,7 @@
 #include "sync/outfit/DefaultOutfit.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <format>
@@ -387,8 +388,8 @@ namespace EquipmentSync
             }
 
             const auto& equipment = *a_remote.latest;
-            // Resolved items take their slots first; the outfit only fills what is left.
-            std::uint32_t occupiedSlots = 0;
+            std::vector<RE::TESObjectARMO*> resolvedArmor;
+            std::uint32_t missingSlots = 0;
             std::vector<std::pair<const EquipmentArmor*, std::string_view>> unresolved;
             for (const auto& entry : equipment.armor)
             {
@@ -396,20 +397,38 @@ namespace EquipmentSync
                 if (!resolution.form)
                 {
                     unresolved.emplace_back(&entry, resolution.dropReason);
+                    missingSlots |= entry.slotMask;
                     continue;
                 }
-                if (std::ranges::find(a_remote.armor, resolution.form) == a_remote.armor.end())
+                if (std::ranges::find(resolvedArmor, resolution.form) == resolvedArmor.end())
                 {
-                    a_remote.armor.push_back(resolution.form);
-                    occupiedSlots |= resolution.form->GetSlotMask().underlying();
+                    resolvedArmor.push_back(resolution.form);
                 }
             }
+            const auto standIns
+                = DefaultOutfit::SelectArmor(equipment.defaultOutfit, resolvedArmor, missingSlots, a_remote.armor);
             for (const auto& [entry, reason] : unresolved)
             {
-                const auto firstStandIn = a_remote.armor.size();
-                DefaultOutfit::AppendArmor(equipment.defaultOutfit, *entry, occupiedSlots, a_remote.armor);
+                std::array<RE::TESObjectARMO*, Multiplayer::DefaultOutfit::kMaximumArmor> entryStandIns{};
+                std::size_t entryStandInCount = 0;
+                for (std::size_t piece = 0; piece < standIns.size(); ++piece)
+                {
+                    if (standIns[piece] && (equipment.defaultOutfit.armor[piece].slotMask & entry->slotMask) != 0)
+                    {
+                        entryStandIns[entryStandInCount++] = standIns[piece];
+                    }
+                }
                 LogUnresolvedEntry(a_playerID, revision, "armor", entry->form, reason,
-                    FormatStandIn(std::span{ a_remote.armor }.subspan(firstStandIn)));
+                    FormatStandIn(std::span{ entryStandIns }.first(entryStandInCount)));
+            }
+            for (const auto* armor : resolvedArmor)
+            {
+                if (std::ranges::find(a_remote.armor, armor) == a_remote.armor.end())
+                {
+                    logs::warn("Equipment sync left out resolved armor overlapping a higher slot: player={} "
+                               "revision={} armor={:08X}",
+                        a_playerID, static_cast<unsigned long long>(revision), armor->GetFormID());
+                }
             }
             a_remote.rightHand
                 = ResolveHandEntry(a_playerID, revision, "rightHand", equipment.rightHand, equipment.defaultOutfit);
