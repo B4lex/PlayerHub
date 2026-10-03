@@ -1,6 +1,7 @@
 #include "runtime/PluginStartup.h"
 #include "actor/AnimationFirewall.h"
 #include "actor/CombatIsolation.h"
+#include "actor/JumpSound.h"
 #include "actor/ReactionSuppression.h"
 #include "actor/RemoteCollision.h"
 #include "actor/ScenePackageSuppression.h"
@@ -28,10 +29,12 @@ namespace PluginStartup
             ReactionSuppression::InstallHooks();
             RemoteCollision::InstallHooks();
             ScenePackageSuppression::InstallHooks();
+            JumpSound::InstallHooks();
 
             logs::info(
                 "Installed remote-replica actor policy, damage/kill firewall, magic firewall, animation firewall, "
-                "alias and scene package suppression, reaction suppression, and pass-through collision");
+                "alias and scene package suppression, reaction suppression, pass-through collision, and jump sound "
+                "attenuation");
         }
 
         void OnDataLoaded()
@@ -55,7 +58,7 @@ namespace PluginStartup
         // so allocate first.
         SKSE::AllocTrampoline(14 + CombatIsolation::kTrampolineSize + ReactionSuppression::kTrampolineSize
             + RemoteCollision::kTrampolineSize + ScenePackageSuppression::kTrampolineSize
-            + UI::Overlay::kTrampolineSize);
+            + JumpSound::kTrampolineSize + UI::Overlay::kTrampolineSize);
         InstallRemoteActorHooks();
         MainLoopHook::Install();
         FurnitureActivationHook::Install();

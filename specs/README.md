@@ -12,7 +12,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [network.md](network.md) | Wire protocol, client transport and connection, server connections, player sessions, and validation | `proto/`, `src/protocol/`, `src/network/`, `server/internal/{session,auth,validate,wire,world}` |
 | [interest-and-delivery.md](interest-and-delivery.md) | Which peers each client receives, exclusions, per-recipient outboxes, ordering, batching | `server/internal/{interest,hub,delivery}` |
 | [remote-actor.md](remote-actor.md) | Spawn, update order, registry, animation firewall, graph recovery, survival, combat and reaction isolation, world isolation | `src/actor/` |
-| [locomotion.md](locomotion.md) | Transform, movement state, direction, turning, jumps, swimming | `sync/movement/`, `sync/animation/`, `actor/ActorMovement`, `actor/ActorAnimation` |
+| [locomotion.md](locomotion.md) | Transform, movement state, direction, turning, jumps, swimming | `sync/movement/`, `sync/animation/`, `actor/ActorMovement`, `actor/ActorAnimation`, `actor/JumpSound` |
 | [combat-presentation.md](combat-presentation.md) | Weapon stance, attack action stream, power attacks, bashes, blocking, bow draws, spell casts | `sync/combat/`, `actor/ActorAnimation` |
 | [appearance-and-equipment.md](appearance-and-equipment.md) | Appearance, actor base, player label, equipment, default outfit, item filter and catalog | `sync/appearance/`, `sync/equipment/`, `sync/outfit/`, `src/forms/` |
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |

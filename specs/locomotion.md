@@ -15,6 +15,10 @@ not checked separately, nor were slow movement at a high frame rate and the
 slide after a stop. The idle drift figures below were measured from the 13
 server recordings.
 
+Jump sound attenuation: hook sites traced in the 1.7.104 executable and the
+sound records read from `Skyrim.esm`; Windows build and in-game behavior not
+yet verified. Other runtimes skip it with a warning.
+
 ## Scope
 
 Locomotion presents where a player is and how it moves: the transform, the
@@ -41,6 +45,7 @@ graphs may slide or miss transitions.
 | `sync/animation/AnimationSync` | Source movement state, jump, stance, and graph epoch; receiver staging and the translation gate |
 | `actor/ActorMovement` | Direct translation and heading on the actor |
 | `actor/ActorAnimation` | The actor's graph state machine: variables, events, staging, retries, landing, swim, weapon and presentation transitions, recovery |
+| `actor/JumpSound` | Distance attenuation of the actor's takeoff and landing footstep sounds |
 
 `ActorAnimation` is one controller on purpose: landing, draw and sheathe, swim,
 recovery, and attack transitions share one graph lifecycle.
@@ -216,6 +221,37 @@ Several state machines re-enter at a standing state chosen from
   actor at swim depth while its source still wades, and a jump there would play
   in `Swim_State`.
 
+### Jump sounds
+
+The vanilla jump states emit the `JumpUp` and `JumpDown` graph events, which
+Skyrim plays as footstep sounds of the actor's footstep set
+(`DefaultFootstepJumpUpImpact` 0x5A288, `DefaultFootstepJumpDownImpact`
+0x12F0E), picked by ground material. A non-player actor gets each impact's
+first sound at its position through a shared handle pool. Every takeoff sound
+and the stone-like landing sounds use `SOMMono01400Player1st` (0xB4058), a
+fixed-speaker output model that does not attenuate, so without a fix every
+remote jump is heard at full volume anywhere. Vanilla NPCs rarely jump.
+
+`JumpSound` fixes this for remote actors only; the local player's sounds and
+the shared records are untouched:
+
+- The footstep sink (ID 36209) marks a registered actor's `JumpUp` or
+  `JumpDown` event for the thread dispatching it. Other footsteps only pay a
+  pooled-string comparison.
+- Its call to `PlayImpactDataSounds` (ID 36209 + 0x53D) leaves the sound alone
+  unless the selected sound's `BGSStandardSoundDef` output model lacks
+  `kAttenuatesWithDistance`. Otherwise it scales the volume by the distance
+  from the audio listener (`BSAudio::audioListener`) to the sound position,
+  with the curve of `SOMMono01800`, the model of vanilla NPC landings on soft
+  ground: full volume to 150 units, then 100, 50, 20, 5, and 0 % evenly to
+  1800 units. Beyond that the sound is not played.
+- The pool's call to `BSSoundHandle::Play` (ID 36208 + 0x182) sets that volume
+  on the pooled handle just before play.
+
+The volume is fixed when the sound starts. The play hook is installed first and
+the others only if it succeeded, so a nearby jump is never routed without its
+volume.
+
 ### Swimming
 
 Skyrim manages the swim transitions locally; the firewall admits `SwimStart` and
@@ -240,6 +276,19 @@ support consistent with the source).
   arrives after `SwimStart` sends no `JumpLand`. Otherwise the actor walked on
   the riverbed.
 
+## Engine assumptions
+
+Read from the 1.7.104 executable and `Skyrim.esm`, not yet checked in game:
+
+1. The footstep sink plays a non-player actor's impact sound through
+   `ImpactSoundData::pool` and its first sound only; the player takes the
+   second sound and no pool.
+2. `BSSoundHandle::SetVolume` before `Play` scales a sound with a
+   non-attenuating output model, and its message reaches the audio thread
+   before the play message.
+3. An output model's five curve values are evenly spaced from its minimum to
+   its maximum distance.
+
 ## Acceptance criteria
 
 1. A remote actor follows its source's path, walking, running, sprinting, and
@@ -254,6 +303,9 @@ support consistent with the source).
 6. With a 20 Hz server tick, an actor walking, running, sprinting, or sneaking
    moves at an even pace along its source's path, without periodic stops or
    surges, including at 30 and 144 fps.
+7. A remote jump is heard near the actor, fades with distance, and is silent
+   beyond about 1800 units on stone, dirt, grass, snow, wood, and water. The
+   local player's own jump sounds are unchanged.
 
 ## Known limitations
 
@@ -263,3 +315,5 @@ support consistent with the source).
   ([Sync pipeline](sync-pipeline.md#checkpoint-playout)).
 - A mod or behavior-graph mismatch between peers is not detected; missing
   variables and rejected or timed-out events are logged.
+- An attenuated jump sound keeps its fixed-speaker output: it fades with
+  distance but has no direction.
