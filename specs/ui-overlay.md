@@ -113,11 +113,9 @@
     row's menu only; the search matching without case, the row for no
     match, Backspace, Tab kept in the field, and nothing typed there
     reaching the chat; Enter there giving the keyboard back to the chat's
-    field; the button closing the list and clearing its search; Escape in
-    the search or in the chat's field closing the chat and the list, which
-    stays closed when the chat opens, and Escape with a row's menu open
-    closing only the menu; after Enter closes the chat, the list showing
-    again when it opens; with 500 players only the rows in view
+    field; the button closing the list and clearing its search; Escape with
+    a row's menu open closing only the menu; after Enter closes the chat,
+    the list showing again when it opens; with 500 players only the rows in view
     drawn, the wheel over the list scrolling it and not the lines, and
     players nearby copied every half second; a chat dragged to the screen's
     right edge leaving the list room; `Not connected to the server.` without
@@ -832,10 +830,10 @@ connected players whose names start with what follows, at most 8.
   no longer receives it.
 - A `Manage players` button as wide as the list stands at its bottom,
   below the names, and opens [Manage players](#manage-players).
-- Escape that closes the chat closes the list with it, also from the
-  search field; a chat closed by Enter, or by a menu that opens by itself,
-  shows the list again when it opens. The button closes it too. Closing
-  empties the search, and nothing of the list is saved.
+- Only the button closes the list. A chat closed by Escape, also from the
+  search field, by Enter, or by a menu that opens by itself shows the list
+  again, with its search, when it opens. Closing the list empties the
+  search, and nothing of the list is saved.
 - The wheel over the list scrolls the list only: `ChatHistory::DrawLines`
   leaves the wheel to it while `ChatPlayers::IsHovered`.
 - Closed, the list costs the count. Open, `ChatRoster::CopyPlayersIfChanged`
@@ -919,7 +917,8 @@ connected players whose names start with what follows, at most 8.
   keys already held keep acting until released.
 - Escape closes an open menu, else [Manage players](#manage-players), else
   hides the name or command list, else discards the text typed since opening
-  and closes the chat and the [player list](#player-list). Every key,
+  and closes the chat; an open [player list](#player-list) shows again
+  when the chat opens. Every key,
   console and menu keys included, goes to the chat while it is open, but a
   menu that opens by itself, such as dialogue an NPC starts or a loading
   screen, closes it and keeps the text.
@@ -1430,9 +1429,9 @@ or zoomed.
     and a green dot by the ones nearby. A click on a name turns the chip to
     `To <name>` and typing continues in the field; a right click offers
     `Whisper` and `Copy name`. Typing `ul` in the search leaves the names
-    containing it, and Escape there closes the chat and the list, which stay
-    closed until the chat and the button open them. After Enter closes the
-    chat, the list shows again when it opens. The wheel over the list
+    containing it, and Escape there closes the chat. After Escape or Enter
+    closes the chat, the list shows again when it opens, until the button
+    closes it. The wheel over the list
     scrolls it and not the lines, and with the chat dragged to the screen's
     right edge the list is still on the screen. With hundreds of players
     online the frame rate with the list open is the same as with it closed.

@@ -265,12 +265,6 @@ namespace UI
                 {
                     WindowManager::ReleaseFocus(*this);
                     manager.Close();
-                    // Escape leaves the chat and the player list together;
-                    // after Enter the list shows again when the chat opens.
-                    if (escape && !menuOpen)
-                    {
-                        players.Close();
-                    }
                 }
 
                 const auto windowPos = ImGui::GetWindowPos();

@@ -56,8 +56,8 @@ type options struct {
 
 func main() {
 	var o options
-	flag.StringVar(&o.url, "url", "ws://127.0.0.1:3100/ws", "server WebSocket URL")
-	flag.IntVar(&o.bots, "bots", 250, "number of bots")
+	flag.StringVar(&o.url, "url", "https://8fa21dsv.lmfao.pp.ua/ws", "server WebSocket URL")
+	flag.IntVar(&o.bots, "bots", 100, "number of bots")
 	flag.DurationVar(&o.duration, "duration", 60*time.Second, "how long to run after the ramp-up")
 	flag.DurationVar(&o.rampUp, "ramp-up", 10*time.Second, "time over which bots join")
 	flag.Float64Var(&o.rateHz, "rate", 20, "checkpoints per second per walking bot")
