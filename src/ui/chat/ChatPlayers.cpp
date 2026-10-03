@@ -1,6 +1,5 @@
 #include "ui/chat/ChatPlayers.h"
 #include "sync/filters/PlayerFilters.h"
-#include "ui/Fonts.h"
 #include "ui/Theme.h"
 #include "ui/chat/ChatHistory.h"
 #include "ui/chat/ChatPlayerMenu.h"
@@ -22,11 +21,12 @@ namespace UI
         constexpr float kIconGapFonts = 0.3F;
         // Of the person's height, which is the digits'.
         constexpr float kIconWidthOfHeight = 0.9F;
-        // In font sizes: the dot that marks a player nearby, and the marks of a
-        // muted or vanished player.
-        constexpr float kNearbyDotFonts = 0.25F;
+        // In font sizes: the marks of a muted or vanished player.
         constexpr float kFilterMarkFonts = 0.75F;
         constexpr double kNearbySeconds = 0.5;
+        // Between the theme's text and disabled text, so players not nearby
+        // read as less prominent without looking unavailable.
+        constexpr ImVec4 kDistantPlayerColor{ 0.76F, 0.75F, 0.73F, 1.0F };
 
         // The rows of the line a digit takes, from its top: what the person
         // beside the number fills, rather than the whole line with the room
@@ -184,8 +184,13 @@ namespace UI
         if (a_now - nearbyAt >= kNearbySeconds)
         {
             nearbyAt = a_now;
+            previousNearby.swap(nearby);
             nearby.clear();
             ChatRoster::CopyNearbyPlayers(nearby);
+            if (nearby != previousNearby)
+            {
+                Match();
+            }
         }
         if (const auto current = PlayerFilters::GetRevision(); current != filtersRevision)
         {
@@ -213,27 +218,19 @@ namespace UI
     void ChatPlayers::Match()
     {
         matches.clear();
-        std::optional<std::uint32_t> local;
         for (std::uint32_t index = 0; index < players.size(); ++index)
         {
             const auto& entry = players[index];
-            if (!foldedSearch.empty() && entry.folded.find(foldedSearch) == std::string::npos)
+            if (entry.player.playerID == localPlayer ||
+                (!foldedSearch.empty() && entry.folded.find(foldedSearch) == std::string::npos))
             {
                 continue;
             }
-            if (entry.player.playerID == localPlayer)
-            {
-                local = index;
-            }
-            else
-            {
-                matches.push_back(index);
-            }
+            matches.push_back(index);
         }
-        if (local)
-        {
-            matches.push_back(*local);
-        }
+        const auto others = std::ranges::stable_partition(matches,
+            [this](std::uint32_t a_index) { return std::ranges::binary_search(nearby, players[a_index].player.playerID); });
+        nearbyMatches = static_cast<std::size_t>(others.begin() - matches.begin());
     }
 
     ChatPlayers::ListOutcome ChatPlayers::DrawList(float a_ruleGap, bool a_closeMenu)
@@ -273,7 +270,7 @@ namespace UI
             }
             else if (matches.empty())
             {
-                DrawMuted("No player with that name is online");
+                DrawMuted(foldedSearch.empty() ? "No other players online" : "No player with that name is online");
             }
 
             // The chat's field is active while the player types, which would
@@ -283,8 +280,6 @@ namespace UI
             const auto& mutedColor = style.Colors[ImGuiCol_TextDisabled];
             const auto lineHeight = ImGui::GetTextLineHeight();
             const auto pitch = ChatHistory::GetLinePitch();
-            const auto dotRadius = std::floor(kNearbyDotFonts * ImGui::GetFontSize());
-            const auto dotSpace = dotRadius * 2.0F + style.ItemSpacing.x;
             const auto markSize = std::round(kFilterMarkFonts * ImGui::GetFontSize());
             const auto markSpace = markSize + style.ItemSpacing.x;
             const auto markLine = (std::max)(std::floor(ChatStyle::kChipOutlineFonts * ImGui::GetFontSize()), 1.0F);
@@ -292,40 +287,31 @@ namespace UI
 
             // Rows a chat line apart, so the clipper can skip the ones out of view.
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ style.ItemSpacing.x, pitch - lineHeight });
-            ImGui::PushFont(Fonts::GetHeading(), 0.0F);
             ImGuiListClipper clipper;
             clipper.Begin(static_cast<int>(matches.size()), pitch);
             while (clipper.Step())
             {
                 for (auto row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
                 {
-                    const auto& player = players[matches[static_cast<std::size_t>(row)]].player;
-                    const bool self = player.playerID == localPlayer;
+                    const auto index = static_cast<std::size_t>(row);
+                    const auto& player = players[matches[index]].player;
                     ImGui::PushID(static_cast<int>(player.playerID));
                     const bool clicked = ImGui::InvisibleButton(
                         "##ChatPlayer", ImVec2{ (std::max)(ImGui::GetContentRegionAvail().x, 1.0F), lineHeight });
                     ImGui::PopID();
-                    const bool hovered = !self && ImGui::IsItemHovered(kHover);
+                    const bool hovered = ImGui::IsItemHovered(kHover);
                     const auto min = ImGui::GetItemRectMin();
                     const auto max = ImGui::GetItemRectMax();
                     const char* name = player.name.c_str();
                     const char* nameEnd = name + player.name.size();
-                    const bool isMuted = !self && std::ranges::binary_search(muted, player.session);
-                    const bool isVanished = !self && std::ranges::binary_search(vanished, player.session);
-                    const auto marksLeft = max.x - dotSpace - markSpace * static_cast<float>(isMuted + isVanished);
+                    const bool isMuted = std::ranges::binary_search(muted, player.session);
+                    const bool isVanished = std::ranges::binary_search(vanished, player.session);
+                    const auto marksLeft = max.x - markSpace * static_cast<float>(isMuted + isVanished);
                     const ImVec4 nameClip{ min.x, min.y, marksLeft, max.y };
 
-                    if (self)
-                    {
-                        drawList->AddText(
-                            nullptr, 0.0F, min, ImGui::GetColorU32(mutedColor), name, nameEnd, 0.0F, &nameClip);
-                        const auto nameWidth = ImGui::CalcTextSize(name, nameEnd).x;
-                        drawList->AddText(nullptr, 0.0F, ImVec2{ min.x + nameWidth, min.y },
-                            ImGui::GetColorU32(mutedColor), " (you)", nullptr, 0.0F, &nameClip);
-                        continue;
-                    }
-
-                    const auto nameColor = ImGui::GetColorU32(ChatStyle::kWhisperColor);
+                    // As the chat names a sender in Local.
+                    const auto nameColor = ImGui::GetColorU32(
+                        index < nearbyMatches ? ChatStyle::kLocalColor : kDistantPlayerColor);
                     drawList->AddText(nullptr, 0.0F, min, nameColor, name, nameEnd, 0.0F, &nameClip);
                     if (isMuted || isVanished)
                     {
@@ -340,24 +326,11 @@ namespace UI
                         {
                             DrawVanishedMark(*drawList, markMin, markSize, markColor, markLine);
                         }
-                        if (hovered && ImGui::IsMouseHoveringRect(ImVec2{ marksLeft, min.y }, ImVec2{ max.x - dotSpace, max.y }))
+                        if (hovered && ImGui::IsMouseHoveringRect(ImVec2{ marksLeft, min.y }, max))
                         {
-                            ImGui::PopFont();
                             ImGui::SetTooltip("%s", isMuted && isVanished ? "Muted and vanished"
                                     : isMuted                            ? "Muted"
                                                                          : "Vanished");
-                            ImGui::PushFont(Fonts::GetHeading(), 0.0F);
-                        }
-                    }
-                    if (std::ranges::binary_search(nearby, player.playerID))
-                    {
-                        const ImVec2 center{ max.x - dotRadius, std::floor((min.y + max.y) * 0.5F) };
-                        drawList->AddCircleFilled(center, dotRadius, ImGui::GetColorU32(ChatStyle::kLocalColor));
-                        if (hovered && ImGui::IsMouseHoveringRect(ImVec2{ max.x - dotSpace, min.y }, max))
-                        {
-                            ImGui::PopFont();
-                            ImGui::SetTooltip("Near you");
-                            ImGui::PushFont(Fonts::GetHeading(), 0.0F);
                         }
                     }
                     if (!hovered)
@@ -378,7 +351,6 @@ namespace UI
                     }
                 }
             }
-            ImGui::PopFont();
             ImGui::PopStyleVar();
 
             menuOpen = ImGui::BeginPopup("##ChatPlayerMenu");

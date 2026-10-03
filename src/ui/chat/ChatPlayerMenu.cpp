@@ -19,14 +19,13 @@ namespace UI::ChatPlayerMenu
             PlayerFilters::SetMuted(a_player, !muted);
         }
         ImGui::SetItemTooltip(
-            "%s", muted ? "Show their messages again." : "Hide their messages in every channel. They are not told.");
+            "%s", muted ? "Show their messages again." : "Hide their messages in every channel.");
         const bool vanished = PlayerFilters::IsVanished(a_player.session);
         if (ImGui::MenuItem(vanished ? "Unvanish" : "Vanish"))
         {
             PlayerFilters::SetVanished(a_player, !vanished);
         }
         ImGui::SetItemTooltip("%s", vanished ? "Show their character in your world again."
-                                             : "Remove their character from your world. They still see you and are "
-                                               "not told.");
+                                             : "Remove their character from your world.");
     }
 }

@@ -107,7 +107,9 @@
     images: the button on the filters' row, as high as the filters and
     ending at the field's column with 5 and with 500 players; the list beside
     the chat and as high, its search field on the filters' row and its rows
-    a line apart; the local player last, picking nobody; a click on a name
+    a line apart; players nearby first and in the Local color, moving back
+    among the others when no longer nearby; the local player left out, and
+    `No other players online` when alone; a click on a name
     and `Whisper` in a row's menu whispering that player, with typing
     reaching the chat's field after either; `Copy name`; Escape closing a
     row's menu only; the search matching without case, the row for no
@@ -809,23 +811,24 @@ connected players whose names start with what follows, at most 8.
   `Search` while empty and keeps names that contain its text, both
   folded as the [name list](#name-list) folds them. Tab stays in the field;
   Enter gives the keyboard back to the chat's field.
-- The names follow, a chat line apart, in the order `ChatRoster` sorts
-  them (by folded name), in the heading face and the whisper color. The
-  local player is last, muted, with ` (you)`, and takes no click. A name
-  wider than the list is cut at its edge. A dot in the Local color on the
-  right marks a player the client receives (`ChatRoster::CopyNearbyPlayers`),
-  with the tooltip `Near you`. With nothing matching the list reads
-  `No player with that name is online`, and without a roster
-  `Not connected to the server.`
+- The names follow, a chat line apart, in the text face. Players
+  nearby, the ones the client receives (`ChatRoster::CopyNearbyPlayers`),
+  come first in the Local color, as the chat names a sender in Local; the
+  others follow in a light gray (`kDistantPlayerColor`), between the
+  theme's text and disabled text; each group keeps the order
+  `ChatRoster` sorts them in (by folded name). The local player is left
+  out; the chip's count still includes it. A name wider than the list is
+  cut at its edge. With nothing matching the list reads
+  `No player with that name is online`, or `No other players online`
+  without a search, and without a roster `Not connected to the server.`
 - A name acts as a sender's name does in the lines: under the cursor it is
   underlined and the cursor is a hand, a click whispers the player, and a
   right click opens `Whisper` and `Copy name`, then `Mute` and `Vanish`
   ([Mute and vanish](#mute-and-vanish)). The keyboard then returns to the
   chat's field.
-- A muted or vanished player has a mark right of its name, before the
-  nearby dot's place, in the muted text color, three quarters of a font size
-  square: a speech bubble struck through for muted, an eye struck through
-  for vanished, both when both. Hovering them shows `Muted`, `Vanished`, or
+- A muted or vanished player has a mark at the list's right edge, in the
+  muted text color, three quarters of a font size square: a speech bubble
+  struck through for muted, an eye struck through for vanished, both when both. Hovering them shows `Muted`, `Vanished`, or
   `Muted and vanished`. A vanished player is never nearby, since the client
   no longer receives it.
 - A `Manage players` button as wide as the list stands at its bottom,
@@ -838,8 +841,9 @@ connected players whose names start with what follows, at most 8.
   leaves the wheel to it while `ChatPlayers::IsHovered`.
 - Closed, the list costs the count. Open, `ChatRoster::CopyPlayersIfChanged`
   copies the roster only when its revision changes, and the search is
-  matched then and on an edit; players nearby are copied every half second
-  (`kNearbySeconds`); `ImGuiListClipper` draws only the rows in view; and
+  matched then, on an edit, and when the players nearby change; those are
+  copied every half second (`kNearbySeconds`); `ImGuiListClipper` draws
+  only the rows in view; and
   its frame is copied from the [menu frame](#menu-frame)'s kept triangles,
   so the list adds a few microseconds to the chat at any number of players.
 
@@ -1425,18 +1429,18 @@ or zoomed.
 17. The open chat's filter row ends with a chip showing a person and the
     number of players online, or `Offline` while disconnected. A click opens
     a framed list right of the chat and as high, with a search field on the
-    filters' row and the players by name, the local player last and muted,
-    and a green dot by the ones nearby. A click on a name turns the chip to
-    `To <name>` and typing continues in the field; a right click offers
-    `Whisper` and `Copy name`. Typing `ul` in the search leaves the names
-    containing it, and Escape there closes the chat. After Escape or Enter
+    filters' row and the other players by name, the ones nearby first and
+    in the Local color. A click on a name turns the chip to `To <name>` and
+    typing continues in the field; a right click offers `Whisper` and
+    `Copy name`. Typing `ul` in the search leaves the names containing it,
+    and Escape there closes the chat. After Escape or Enter
     closes the chat, the list shows again when it opens, until the button
     closes it. The wheel over the list
     scrolls it and not the lines, and with the chat dragged to the screen's
     right edge the list is still on the screen. With hundreds of players
     online the frame rate with the list open is the same as with it closed.
 18. A right click on another player's name in the list or on its chat line
-    offers `Mute` and `Vanish`; on the local player's name, neither. After
+    offers `Mute` and `Vanish`; on the local player's line, neither. After
     `Mute` no notice shows, the player's lines vanish from the open and
     closed chat, earlier ones included, and its new lines and whispers do
     not show; `/r` still answers whoever whispered before. After `Vanish`

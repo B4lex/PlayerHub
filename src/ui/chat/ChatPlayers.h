@@ -62,10 +62,13 @@ namespace UI
         std::uint64_t revision{ 0 };
         std::vector<ChatRoster::ListedPlayer> players;
         Multiplayer::PeerSlot localPlayer{ 0 };
-        // Indices into players that the search matches, the local player last.
+        // Indices into players other than the local one that the search
+        // matches: the first nearbyMatches nearby, then the others.
         std::vector<std::uint32_t> matches;
+        std::size_t nearbyMatches{ 0 };
         // Sorted, refreshed every kNearbySeconds while the list shows.
         std::vector<Multiplayer::PeerSlot> nearby;
+        std::vector<Multiplayer::PeerSlot> previousNearby;
         double nearbyAt{ -1.0e9 };
         // Sorted, copied when PlayerFilters changes while the list shows.
         std::optional<std::uint64_t> filtersRevision;
