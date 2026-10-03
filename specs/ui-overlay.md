@@ -90,6 +90,16 @@
     Without the frame's shape the name list reaches 5 px over the filters at
     the smallest size. `SettingsWindow.cpp` ran with the real schema, and
     its Interface section has no row for either key.
+  - `[UI] CloseChatOnSend` ran in a smaller harness with the chat's sources
+    and simulated keys: on, Enter sending and closing and Enter in an empty
+    field closing without sending; off, Enter sending with the chat open and
+    the field keeping the keyboard for the next line, Enter in an empty or
+    blank field and a command leaving it open without sending, Escape
+    closing it, Escape after sending a draft kept from the last opening not
+    bringing it back, which fails without that rule, and Up recalling the
+    line sent; turned on while open, the next Enter closing it.
+    `SettingsWindow.cpp` ran with the real schema: Interface has a `Close
+    Chat On Send` switch, and clicking it applies and saves each value.
   - Limiting the second layout of the lines to a new wrap width
     ([Size](#size)) ran in a smaller harness at 1080p, with Dear ImGui's
     default font, the real menu frame, and the chat's sources, the bullet
@@ -774,7 +784,14 @@ connected players whose names start with what follows, at most 8.
 ### Sending
 
 - Enter sends the text to the target and closes the chat; Enter in the empty
-  field only closes. `ChatSync::Send` trims the text, validates it
+  field only closes. With `[UI] CloseChatOnSend = false`
+  ([Configuration](configuration.md#ui)), Enter sends and the chat stays
+  open with the field emptied, the target kept, and the keyboard back in the
+  field, and Enter in an empty field does nothing; Escape is then the way to
+  close it. A send that keeps the chat open becomes what Escape returns to, so
+  Escape never brings back a line already sent. `ChatInput` reads the setting
+  only on such an Enter, so a change applies to the open chat's next one.
+  `ChatSync::Send` trims the text, validates it
   (`protocol/ChatMessage.h`, shared with the parser), and
   `Network::PublishChatMessage` sends `ChatSend` with the channel, the
   recipient's slot for a whisper, and a request ID.
@@ -980,7 +997,7 @@ connected players whose names start with what follows, at most 8.
   keys already held keep acting until released.
 - Escape closes an open menu, else [Manage players](#manage-players), else
   hides the name or command list, else discards the text typed since opening
-  and closes the chat; an open [player list](#player-list) shows again
+  or since the last line sent ([Sending](#sending)) and closes the chat; an open [player list](#player-list) shows again
   when the chat opens. Every key,
   console and menu keys included, goes to the chat while it is open, but a
   menu that opens by itself, such as dialogue an NPC starts or a loading
@@ -1255,8 +1272,8 @@ window, the open chat, and their lists can match a modpack's look.
 `Config::UISettings::kAccentSwatches` with it.
 
 - The row `Accent Color` has, across the control, the eight swatches, amber
-  `FF9000` (the default), gold `F2C14E`, red `E5484D`, pink `E0559C`, violet
-  `9B6CF0`, blue `4F8EF7`, teal `2EC4B6`, and grey `909090`, then a custom
+  `FF9000` (the default), grey `909090`, gold `F2C14E`, red `E5484D`, pink
+  `E0559C`, violet `9B6CF0`, blue `4F8EF7`, and teal `2EC4B6`, then a custom
   swatch. The grey is the one whose `Accent` [frame](#menu-frame) is the
   `Vanilla` frame's `7D7D7D`, so the widgets can match the game's grey
   frame. Each is a square no wider than a frame is high, shrinking so the
@@ -1431,7 +1448,9 @@ or zoomed.
    `StatusPanel = false` hides it at once.
 2. Enter opens the chat only with no menu open; the character stands still while
    typing, and W held from before keeps running until released. Enter sends and
-   the line appears for both players; Escape closes without sending and does not
+   the line appears for both players, and closes the chat, or with
+   `CloseChatOnSend = false` keeps it open for the next line, where Enter in
+   an empty field does nothing; Escape closes without sending and does not
    open the journal; a menu that opens by itself closes the chat; recent lines
    fade after 10 s; the wheel and Page Up/Down scroll; sending while disconnected
    shows a notice and keeps the chat open with the text.

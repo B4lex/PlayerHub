@@ -102,6 +102,7 @@ namespace Config
         std::uint32_t frameThickness{ 70 };
         bool itemPreview{ true };
         bool statusPanel{ true };
+        bool closeChatOnSend{ true };
         std::uint32_t chatWidth{ 30 };
         std::uint32_t chatLines{ 10 };
 

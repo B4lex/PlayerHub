@@ -163,6 +163,9 @@ namespace Config
                 "Shows a 3D model of the hovered item in item lists.");
             a_visitor.Bool("StatusPanel", a_settings.statusPanel,
                 "Displays the in-game debug status panel.");
+            a_visitor.Bool("CloseChatOnSend", a_settings.closeChatOnSend,
+                "Closes the chat when Enter sends a line. Otherwise Enter only sends, and an\n"
+                "empty line does nothing.");
             a_visitor.Layout("ChatWidth", a_settings.chatWidth,
                 "Width of the chat in font sizes. Dragging the open chat's right edge sets it.",
                 UISettings::kMinimumChatWidth, UISettings::kMaximumChatWidth);

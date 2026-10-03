@@ -1,4 +1,5 @@
 #include "ui/chat/ChatInput.h"
+#include "config/PluginConfig.h"
 #include "sync/chat/ChatRoster.h"
 #include "ui/chat/ChatStyle.h"
 
@@ -284,8 +285,17 @@ namespace UI
 
         if (entered)
         {
-            return composer.Submit(draft) == ChatSync::Composer::SubmitResult::kClose ? Outcome::kClose
-                                                                                      : Outcome::kSubmitted;
+            if (composer.Submit(draft) != ChatSync::Composer::SubmitResult::kClose)
+            {
+                return Outcome::kSubmitted;
+            }
+            if (Config::Get()->ui.closeChatOnSend)
+            {
+                return Outcome::kClose;
+            }
+            // Escape would otherwise bring back a draft that was just sent.
+            draftWhenOpened = draft;
+            return Outcome::kSubmitted;
         }
         if (a_frame.escape)
         {

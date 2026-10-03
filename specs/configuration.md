@@ -44,6 +44,12 @@ loads; `orange` warns and keeps `FF9000`; `ParseColor` takes `FF9000`,
 digits, `GG0000`, a sign, a space, `0x9000`, `##FF9000`, and a trailing
 comment; applying a color from the window saves it, and applying `FF9000`
 again keeps the line with that value.
+`[UI] CloseChatOnSend` is not yet built on Windows or run in game. On Linux
+the same two files ran with the settings window's harness: the default file
+has `CloseChatOnSend = true` under its comment, between `StatusPanel` and
+`ChatWidth`; `false` loads; `maybe` warns and keeps `true`; a file without
+the key loads as `true`; switching it off and on in the window saves each
+value.
 
 ## Scope
 
@@ -174,6 +180,7 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 | `BorderThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `50..100` | `70` |
 | `StatusPanel` | Shows the status panel | `true` |
 | `ItemPreview` | Shows the 3D item preview in item pickers | `true` |
+| `CloseChatOnSend` | Closes the chat when Enter sends a line; when `false`, the chat stays open and Enter in an empty field does nothing ([UI overlay](ui-overlay.md#sending)) | `true` |
 | `ChatWidth` | Width of the chat's lines in font sizes, `24..100`; set by dragging the open chat's right edge ([UI overlay](ui-overlay.md#size)) and not shown in the settings window | `30` |
 | `ChatLines` | Lines of history the open chat shows, `9..40`; set by dragging its top edge, and not shown in the settings window | `10` |
 
@@ -196,6 +203,7 @@ revision before the snapshot never misses a change.
 | `ServerClient` | transport, worker | reading the endpoint for each attempt, and `DisplayName` and `ViewRadius` for each hello |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
 | `StatusPanel`, item pickers | overlay | reading `StatusPanel` and `ItemPreview` each frame |
+| `ChatInput` | overlay | reading `CloseChatOnSend` on each Enter that sends or finds the field empty |
 | `Theme` | overlay | working out the accent and frame colors from `AccentColor` and `BorderColor` when the revision changes |
 | `MenuFrame` | overlay | reading `BorderThickness` for each framed window each frame |
 | `ChatSize` | overlay | reading `ChatWidth` and `ChatLines` each frame the chat draws, outside a drag |

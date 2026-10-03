@@ -22,7 +22,8 @@ namespace UI
             kNone,
             // Enter was handled and the chat stays open.
             kSubmitted,
-            // A line was sent, an empty one entered, or the draft abandoned.
+            // A line was sent or an empty one entered, with [UI] CloseChatOnSend,
+            // or the draft was abandoned.
             kClose
         };
 
