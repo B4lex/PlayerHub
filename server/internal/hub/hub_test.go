@@ -122,6 +122,10 @@ func whisper(id, recipient uint32, text string) *pb.ClientMessage {
 		RequestId: id, Text: text, Channel: pb.ChatChannel_CHAT_CHANNEL_WHISPER, Recipient: recipient}}}
 }
 
+func vanish(session uint64, vanished bool) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Vanish{Vanish: &pb.Vanish{SessionId: session, Vanished: vanished}}}
+}
+
 func interior(epoch uint64, cell uint32) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{CellId: cell, GraphEpoch: epoch}}}
 }
@@ -638,6 +642,74 @@ func TestExclusionsTakeEffectAtOnce(t *testing.T) {
 	if len(f.hub.Exclusions()) != 0 {
 		t.Fatal("a disconnect kept its exclusions")
 	}
+}
+
+func TestRosterAndChatCarrySessions(t *testing.T) {
+	f := newFixture(t)
+	a, b := f.connectAs("Lydia"), f.connectAs("Serana")
+	if joined := f.messages(a)[2].GetRoster().GetJoined(); len(joined) != 1 || joined[0].GetSessionId() != 2 {
+		t.Fatalf("join: %v", joined)
+	}
+	roster := f.messages(b)[1].GetRoster().GetJoined()
+	if len(roster) != 2 || roster[0].GetSessionId() != 1 || roster[1].GetSessionId() != 2 {
+		t.Fatalf("roster: %v", roster)
+	}
+	f.send(a, whisper(1, b, "hi"))
+	line := f.messages(b)[0].GetChatMessage()
+	if line.GetSender().GetSessionId() != 1 || line.GetRecipient().GetSessionId() != 2 {
+		t.Fatalf("whisper: %v", line)
+	}
+}
+
+func TestVanishFollowsTheSessionAtOnce(t *testing.T) {
+	f := newFixture(t)
+	a, b := f.connectAs("Lydia"), f.connectAs("Serana")
+	f.placeAt(a, 1, 0)
+	f.placeAt(b, 1, 100)
+	f.received(a)
+	f.received(b)
+
+	// One-way: b no longer receives a, and a still receives b.
+	f.send(b, vanish(1, true))
+	expect(t, f.received(b), "leave 1 EXCLUDED")
+	f.send(b, checkpointAt(2, 120))
+	f.send(a, checkpointAt(2, 20))
+	f.hub.Tick()
+	f.hub.UpdateInterest()
+	expect(t, f.received(a), "states 2:2")
+	expect(t, f.received(b))
+	f.send(b, vanish(1, true))
+
+	// The session stays vanished under the slot it connects again with.
+	again, _ := f.connectSession(1, "Lydia")
+	f.placeAt(again, 1, 0)
+	f.hub.UpdateInterest()
+	expect(t, f.received(b), "roster -1", "roster +3 Lydia")
+	expect(t, f.received(again), "welcome 3", "roster +2 Serana +3 Lydia", "enter 2 state 2")
+
+	f.send(b, vanish(1, false))
+	expect(t, f.received(b), "enter 3 state 1")
+	f.send(b, vanish(1, false))
+	f.send(b, vanish(99, true))
+	expect(t, f.received(b))
+
+	// A hello's vanished sessions apply before the client is placed.
+	c, _ := f.connectSession(4, "Aela")
+	f.hub.SetVanished(c, []uint64{1})
+	f.placeAt(c, 1, 50)
+	f.hub.UpdateInterest()
+	expect(t, f.received(c), "welcome 4", "roster +2 Serana +3 Lydia +4 Aela", "enter 2 state 2")
+}
+
+func TestVanishedSessionsAreBounded(t *testing.T) {
+	f := newFixture(t)
+	a := f.connectAs("Lydia")
+	for session := range uint64(validate.MaximumVanished) {
+		f.send(a, vanish(session+100, true))
+	}
+	f.reject(a, vanish(1, true), ErrTooManyVanished)
+	f.send(a, vanish(100, false))
+	f.send(a, vanish(1, true))
 }
 
 func TestSpaceChangeLeavesAtOnceAndPlacesAgain(t *testing.T) {

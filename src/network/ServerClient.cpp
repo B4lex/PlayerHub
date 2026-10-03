@@ -1,5 +1,6 @@
 #include "network/ServerClient.h"
 #include "config/PluginConfig.h"
+#include "network/PlayerFilterStore.h"
 #include "network/SessionStore.h"
 #include "network/TrafficMeter.h"
 #include "network/WireCodec.h"
@@ -91,6 +92,16 @@ namespace Network
         std::string attemptEndpoint;
         std::string attemptDisplayName;
         std::optional<Refusal> refusal;
+        // The server of the latest welcome, as a WebSocket URL; empty before the
+        // first.
+        std::string welcomedServer;
+
+        // The server the current socket sent its hello to; empty before it. The
+        // hello carries every vanished session and a Vanish sent before it
+        // would not be a hello, so a change is sent only after it; both happen
+        // under the lock.
+        std::mutex vanishLock;
+        std::string helloServer;
 
         // The current socket. Replaced only by the worker, after stopping the old
         // one, so its callbacks never overlap the new socket's.
@@ -153,7 +164,8 @@ namespace Network
         }
 
         // Presents the session kept for the server, or none for the server to
-        // issue one, and the configured display name. Transport thread.
+        // issue one, the configured display name, and the players vanished on
+        // that server. Transport thread.
         void SendHello(ix::WebSocket& a_socket)
         {
             const auto config = Config::Get();
@@ -163,14 +175,25 @@ namespace Network
                 const std::scoped_lock lock{ attemptLock };
                 attemptDisplayName = config->general.displayName;
             }
-            const auto hello = Wire::EncodeHello(config->performance.viewRadius, config->general.displayName, token);
+            const std::scoped_lock lock{ vanishLock };
+            helloServer = server;
+            std::vector<Multiplayer::SessionID> vanished;
+            PlayerFilterStore::CopyVanished(server, vanished);
+            if (vanished.size() > Multiplayer::kMaximumVanishedSessions)
+            {
+                logs::warn("Vanished {} players on {}; the server accepts {}, so the rest are shown", vanished.size(),
+                    server, Multiplayer::kMaximumVanishedSessions);
+                vanished.resize(Multiplayer::kMaximumVanishedSessions);
+            }
+            const auto hello
+                = Wire::EncodeHello(config->performance.viewRadius, config->general.displayName, token, vanished);
             if (hello.empty())
             {
                 logs::error("Could not encode the hello for the server");
                 return;
             }
-            logs::info("Sending hello: displayName=\"{}\" session={}", config->general.displayName,
-                token ? "kept" : "none, asking for a new one");
+            logs::info("Sending hello: displayName=\"{}\" session={} vanished={}", config->general.displayName,
+                token ? "kept" : "none, asking for a new one", vanished.size());
             if (const auto info = a_socket.sendBinary(hello); info.success)
             {
                 CountSentBytes(info.wireSize);
@@ -336,9 +359,16 @@ namespace Network
         {
             // Kept even when the connection is closing: the session exists on
             // the server and holds its display name either way.
+            auto server = ToWebSocketUrl(GetAttemptEndpoint());
             if (a_welcome.issuedToken)
             {
-                SessionStore::Save(ToWebSocketUrl(GetAttemptEndpoint()), *a_welcome.issuedToken);
+                SessionStore::Save(server, *a_welcome.issuedToken);
+            }
+            {
+                // Before the generation advances, which tells readers the
+                // server may have changed.
+                const std::scoped_lock lock{ attemptLock };
+                welcomedServer = std::move(server);
             }
             unsigned long long generation;
             {
@@ -661,6 +691,10 @@ namespace Network
         // reported afterwards. Worker thread only.
         void StopSocket()
         {
+            {
+                const std::scoped_lock lock{ vanishLock };
+                helloServer.clear();
+            }
             std::shared_ptr<ix::WebSocket> old;
             {
                 const std::scoped_lock lock{ socketLock };
@@ -832,6 +866,27 @@ namespace Network
         });
         Send(Wire::EncodeChat(requestID, a_channel, a_recipient, a_text));
         return true;
+    }
+
+    void PublishVanish(std::string_view a_server, Multiplayer::SessionID a_session, bool a_vanished)
+    {
+        const std::scoped_lock lock{ vanishLock };
+        if (!helloServer.empty() && helloServer == a_server)
+        {
+            Send(Wire::EncodeVanish(a_session, a_vanished));
+        }
+    }
+
+    std::string GetServerAddress()
+    {
+        {
+            const std::scoped_lock lock{ attemptLock };
+            if (!welcomedServer.empty())
+            {
+                return welcomedServer;
+            }
+        }
+        return ToWebSocketUrl(Config::Get()->network.serverEndpoint);
     }
 
     void EmitLatencyProbe(std::function<void()> a_onAcknowledged)

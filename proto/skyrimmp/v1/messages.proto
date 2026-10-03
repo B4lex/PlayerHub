@@ -12,7 +12,7 @@ option go_package = "skyrim-mp/server/internal/wire/pb;pb";
 enum Protocol {
   PROTOCOL_UNSPECIFIED = 0;
   // Bumped on every incompatible change. Client and server must match.
-  PROTOCOL_VERSION = 5;
+  PROTOCOL_VERSION = 6;
 }
 
 message Hello {
@@ -27,6 +27,9 @@ message Hello {
   // The display name the player wants: the new session's, or the resumed
   // session's from now on.
   string display_name = 4;
+  // The sessions whose players this client vanished: the server never sends
+  // it their presentation. At most 1024, none zero.
+  repeated uint64 vanished = 5;
 }
 
 message Enter {}
@@ -54,6 +57,14 @@ message Ping {
   uint32 request_id = 1;
 }
 
+// Vanishes a session's player from this client's world, or brings it back,
+// at once and for as long as this connection lasts. The client presents the
+// whole set again in its next hello.
+message Vanish {
+  uint64 session_id = 1;
+  bool vanished = 2;
+}
+
 message ClientMessage {
   oneof message {
     Hello hello = 1;
@@ -66,6 +77,7 @@ message ClientMessage {
     Equipment equipment = 8;
     ChatSend chat = 9;
     Ping ping = 10;
+    Vanish vanish = 11;
   }
 }
 
@@ -151,6 +163,8 @@ message ChatSpeaker {
   uint32 slot = 1;
   string name = 2;
   uint32 level = 4;
+  // The player's session, which a client mutes it by.
+  uint64 session_id = 5;
 }
 
 message ChatMessage {
@@ -165,6 +179,8 @@ message ChatMessage {
 message RosterEntry {
   uint32 slot = 1;
   string name = 2;
+  // The session's public identifier, as Welcome gives a client its own.
+  uint64 session_id = 3;
 }
 
 // A change of the connected clients. The first one after a welcome lists all

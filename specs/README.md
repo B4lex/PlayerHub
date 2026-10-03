@@ -17,7 +17,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [appearance-and-equipment.md](appearance-and-equipment.md) | Appearance, actor base, player label, equipment, default outfit, item filter and catalog | `sync/appearance/`, `sync/equipment/`, `sync/outfit/`, `src/forms/` |
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
 | [configuration.md](configuration.md) | `skyrim-mp.ini`, schema, snapshots, saving | `src/config/` |
-| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, fonts, theme, menu frame, status panel, chat, settings window, item picker and preview | `src/ui/`, `sync/chat/`, `assets/` |
+| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, fonts, theme, menu frame, status panel, chat, mute and vanish, settings window, item picker and preview | `src/ui/`, `sync/chat/`, `sync/filters/`, `assets/` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `server/admin-ui/` |
 
 ## Features
@@ -46,6 +46,7 @@ criteria.
 | Proximity, exclusions, late join, peer enter and leave, batching | [interest-and-delivery](interest-and-delivery.md), [network](network.md#server-messages), [sync-pipeline](sync-pipeline.md#receive-state) |
 | Chat | [ui-overlay](ui-overlay.md#chat), [network](network.md#chat) |
 | Players online list | [ui-overlay](ui-overlay.md#player-list), [network](network.md#roster) |
+| Mute and vanish | [ui-overlay](ui-overlay.md#mute-and-vanish), [network](network.md#vanish), [interest-and-delivery](interest-and-delivery.md#subscriptions) |
 | Settings | [ui-overlay](ui-overlay.md#settings-window), [configuration](configuration.md) |
 | Item picker and preview | [ui-overlay](ui-overlay.md#item-picker), [appearance-and-equipment](appearance-and-equipment.md#item-filter-and-catalog) |
 | Replay and load testing | [recording-and-replay](recording-and-replay.md) |

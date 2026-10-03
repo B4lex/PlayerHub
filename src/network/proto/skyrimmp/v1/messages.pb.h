@@ -14,7 +14,7 @@
 typedef enum _skyrimmp_v1_Protocol {
     skyrimmp_v1_Protocol_PROTOCOL_UNSPECIFIED = 0,
     /* Bumped on every incompatible change. Client and server must match. */
-    skyrimmp_v1_Protocol_PROTOCOL_VERSION = 5
+    skyrimmp_v1_Protocol_PROTOCOL_VERSION = 6
 } skyrimmp_v1_Protocol;
 
 typedef enum _skyrimmp_v1_ChatChannel {
@@ -54,6 +54,9 @@ typedef struct _skyrimmp_v1_Hello {
     /* The display name the player wants: the new session's, or the resumed
  session's from now on. */
     char display_name[129];
+    /* The sessions whose players this client vanished: the server never sends
+ it their presentation. At most 1024, none zero. */
+    pb_callback_t vanished;
 } skyrimmp_v1_Hello;
 
 typedef struct _skyrimmp_v1_Enter {
@@ -76,6 +79,14 @@ typedef struct _skyrimmp_v1_Ping {
     uint32_t request_id;
 } skyrimmp_v1_Ping;
 
+/* Vanishes a session's player from this client's world, or brings it back,
+ at once and for as long as this connection lasts. The client presents the
+ whole set again in its next hello. */
+typedef struct _skyrimmp_v1_Vanish {
+    uint64_t session_id;
+    bool vanished;
+} skyrimmp_v1_Vanish;
+
 typedef struct _skyrimmp_v1_ClientMessage {
     pb_size_t which_message;
     union {
@@ -89,6 +100,7 @@ typedef struct _skyrimmp_v1_ClientMessage {
         skyrimmp_v1_Equipment equipment;
         skyrimmp_v1_ChatSend chat;
         skyrimmp_v1_Ping ping;
+        skyrimmp_v1_Vanish vanish;
     } message;
 } skyrimmp_v1_ClientMessage;
 
@@ -169,6 +181,8 @@ typedef struct _skyrimmp_v1_ChatSpeaker {
     uint32_t slot;
     char name[129];
     uint32_t level;
+    /* The player's session, which a client mutes it by. */
+    uint64_t session_id;
 } skyrimmp_v1_ChatSpeaker;
 
 typedef struct _skyrimmp_v1_ChatMessage {
@@ -185,6 +199,8 @@ typedef struct _skyrimmp_v1_ChatMessage {
 typedef struct _skyrimmp_v1_RosterEntry {
     uint32_t slot;
     char name[129];
+    /* The session's public identifier, as Welcome gives a client its own. */
+    uint64_t session_id;
 } skyrimmp_v1_RosterEntry;
 
 /* A change of the connected clients. The first one after a welcome lists all
@@ -242,6 +258,7 @@ extern "C" {
 
 
 
+
 #define skyrimmp_v1_PeerLeave_reason_ENUMTYPE skyrimmp_v1_LeaveReason
 
 
@@ -255,11 +272,12 @@ extern "C" {
 
 
 /* Initializer values for message structs */
-#define skyrimmp_v1_Hello_init_default           {0, 0, {0, {0}}, ""}
+#define skyrimmp_v1_Hello_init_default           {0, 0, {0, {0}}, "", {{NULL}, NULL}}
 #define skyrimmp_v1_Enter_init_default           {0}
 #define skyrimmp_v1_Exit_init_default            {0}
 #define skyrimmp_v1_ChatSend_init_default        {0, "", _skyrimmp_v1_ChatChannel_MIN, 0}
 #define skyrimmp_v1_Ping_init_default            {0}
+#define skyrimmp_v1_Vanish_init_default          {0, 0}
 #define skyrimmp_v1_ClientMessage_init_default   {0, {skyrimmp_v1_Hello_init_default}}
 #define skyrimmp_v1_Welcome_init_default         {0, 0, "", {0, {0}}}
 #define skyrimmp_v1_Result_init_default          {0, 0, ""}
@@ -270,16 +288,17 @@ extern "C" {
 #define skyrimmp_v1_PeerAction_init_default      {0, false, skyrimmp_v1_Action_init_default}
 #define skyrimmp_v1_PeerAppearance_init_default  {0, false, skyrimmp_v1_Appearance_init_default}
 #define skyrimmp_v1_PeerEquipment_init_default   {0, false, skyrimmp_v1_Equipment_init_default}
-#define skyrimmp_v1_ChatSpeaker_init_default     {0, "", 0}
+#define skyrimmp_v1_ChatSpeaker_init_default     {0, "", 0, 0}
 #define skyrimmp_v1_ChatMessage_init_default     {_skyrimmp_v1_ChatChannel_MIN, false, skyrimmp_v1_ChatSpeaker_init_default, false, skyrimmp_v1_ChatSpeaker_init_default, ""}
-#define skyrimmp_v1_RosterEntry_init_default     {0, ""}
+#define skyrimmp_v1_RosterEntry_init_default     {0, "", 0}
 #define skyrimmp_v1_Roster_init_default          {{{NULL}, NULL}, 0}
 #define skyrimmp_v1_ServerMessage_init_default   {0, {skyrimmp_v1_Welcome_init_default}}
-#define skyrimmp_v1_Hello_init_zero              {0, 0, {0, {0}}, ""}
+#define skyrimmp_v1_Hello_init_zero              {0, 0, {0, {0}}, "", {{NULL}, NULL}}
 #define skyrimmp_v1_Enter_init_zero              {0}
 #define skyrimmp_v1_Exit_init_zero               {0}
 #define skyrimmp_v1_ChatSend_init_zero           {0, "", _skyrimmp_v1_ChatChannel_MIN, 0}
 #define skyrimmp_v1_Ping_init_zero               {0}
+#define skyrimmp_v1_Vanish_init_zero             {0, 0}
 #define skyrimmp_v1_ClientMessage_init_zero      {0, {skyrimmp_v1_Hello_init_zero}}
 #define skyrimmp_v1_Welcome_init_zero            {0, 0, "", {0, {0}}}
 #define skyrimmp_v1_Result_init_zero             {0, 0, ""}
@@ -290,9 +309,9 @@ extern "C" {
 #define skyrimmp_v1_PeerAction_init_zero         {0, false, skyrimmp_v1_Action_init_zero}
 #define skyrimmp_v1_PeerAppearance_init_zero     {0, false, skyrimmp_v1_Appearance_init_zero}
 #define skyrimmp_v1_PeerEquipment_init_zero      {0, false, skyrimmp_v1_Equipment_init_zero}
-#define skyrimmp_v1_ChatSpeaker_init_zero        {0, "", 0}
+#define skyrimmp_v1_ChatSpeaker_init_zero        {0, "", 0, 0}
 #define skyrimmp_v1_ChatMessage_init_zero        {_skyrimmp_v1_ChatChannel_MIN, false, skyrimmp_v1_ChatSpeaker_init_zero, false, skyrimmp_v1_ChatSpeaker_init_zero, ""}
-#define skyrimmp_v1_RosterEntry_init_zero        {0, ""}
+#define skyrimmp_v1_RosterEntry_init_zero        {0, "", 0}
 #define skyrimmp_v1_Roster_init_zero             {{{NULL}, NULL}, 0}
 #define skyrimmp_v1_ServerMessage_init_zero      {0, {skyrimmp_v1_Welcome_init_zero}}
 
@@ -301,11 +320,14 @@ extern "C" {
 #define skyrimmp_v1_Hello_view_radius_tag        2
 #define skyrimmp_v1_Hello_session_token_tag      3
 #define skyrimmp_v1_Hello_display_name_tag       4
+#define skyrimmp_v1_Hello_vanished_tag           5
 #define skyrimmp_v1_ChatSend_request_id_tag      1
 #define skyrimmp_v1_ChatSend_text_tag            2
 #define skyrimmp_v1_ChatSend_channel_tag         3
 #define skyrimmp_v1_ChatSend_recipient_tag       4
 #define skyrimmp_v1_Ping_request_id_tag          1
+#define skyrimmp_v1_Vanish_session_id_tag        1
+#define skyrimmp_v1_Vanish_vanished_tag          2
 #define skyrimmp_v1_ClientMessage_hello_tag      1
 #define skyrimmp_v1_ClientMessage_enter_tag      2
 #define skyrimmp_v1_ClientMessage_exit_tag       3
@@ -316,6 +338,7 @@ extern "C" {
 #define skyrimmp_v1_ClientMessage_equipment_tag  8
 #define skyrimmp_v1_ClientMessage_chat_tag       9
 #define skyrimmp_v1_ClientMessage_ping_tag       10
+#define skyrimmp_v1_ClientMessage_vanish_tag     11
 #define skyrimmp_v1_Welcome_slot_tag             1
 #define skyrimmp_v1_Welcome_session_id_tag       2
 #define skyrimmp_v1_Welcome_display_name_tag     3
@@ -342,12 +365,14 @@ extern "C" {
 #define skyrimmp_v1_ChatSpeaker_slot_tag         1
 #define skyrimmp_v1_ChatSpeaker_name_tag         2
 #define skyrimmp_v1_ChatSpeaker_level_tag        4
+#define skyrimmp_v1_ChatSpeaker_session_id_tag   5
 #define skyrimmp_v1_ChatMessage_channel_tag      1
 #define skyrimmp_v1_ChatMessage_sender_tag       2
 #define skyrimmp_v1_ChatMessage_recipient_tag    3
 #define skyrimmp_v1_ChatMessage_text_tag         4
 #define skyrimmp_v1_RosterEntry_slot_tag         1
 #define skyrimmp_v1_RosterEntry_name_tag         2
+#define skyrimmp_v1_RosterEntry_session_id_tag   3
 #define skyrimmp_v1_Roster_joined_tag            1
 #define skyrimmp_v1_Roster_left_tag              2
 #define skyrimmp_v1_ServerMessage_welcome_tag    1
@@ -367,8 +392,9 @@ extern "C" {
 X(a, STATIC,   SINGULAR, UINT32,   protocol_version,   1) \
 X(a, STATIC,   SINGULAR, UINT32,   view_radius,       2) \
 X(a, STATIC,   SINGULAR, BYTES,    session_token,     3) \
-X(a, STATIC,   SINGULAR, STRING,   display_name,      4)
-#define skyrimmp_v1_Hello_CALLBACK NULL
+X(a, STATIC,   SINGULAR, STRING,   display_name,      4) \
+X(a, CALLBACK, REPEATED, UINT64,   vanished,          5)
+#define skyrimmp_v1_Hello_CALLBACK pb_default_field_callback
 #define skyrimmp_v1_Hello_DEFAULT NULL
 
 #define skyrimmp_v1_Enter_FIELDLIST(X, a) \
@@ -394,6 +420,12 @@ X(a, STATIC,   SINGULAR, UINT32,   request_id,        1)
 #define skyrimmp_v1_Ping_CALLBACK NULL
 #define skyrimmp_v1_Ping_DEFAULT NULL
 
+#define skyrimmp_v1_Vanish_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT64,   session_id,        1) \
+X(a, STATIC,   SINGULAR, BOOL,     vanished,          2)
+#define skyrimmp_v1_Vanish_CALLBACK NULL
+#define skyrimmp_v1_Vanish_DEFAULT NULL
+
 #define skyrimmp_v1_ClientMessage_FIELDLIST(X, a) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,hello,message.hello),   1) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,enter,message.enter),   2) \
@@ -404,7 +436,8 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,action,message.action),   6) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,appearance,message.appearance),   7) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,equipment,message.equipment),   8) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,chat,message.chat),   9) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,ping,message.ping),  10)
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,ping,message.ping),  10) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,vanish,message.vanish),  11)
 #define skyrimmp_v1_ClientMessage_CALLBACK NULL
 #define skyrimmp_v1_ClientMessage_DEFAULT NULL
 #define skyrimmp_v1_ClientMessage_message_hello_MSGTYPE skyrimmp_v1_Hello
@@ -417,6 +450,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,ping,message.ping),  10)
 #define skyrimmp_v1_ClientMessage_message_equipment_MSGTYPE skyrimmp_v1_Equipment
 #define skyrimmp_v1_ClientMessage_message_chat_MSGTYPE skyrimmp_v1_ChatSend
 #define skyrimmp_v1_ClientMessage_message_ping_MSGTYPE skyrimmp_v1_Ping
+#define skyrimmp_v1_ClientMessage_message_vanish_MSGTYPE skyrimmp_v1_Vanish
 
 #define skyrimmp_v1_Welcome_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   slot,              1) \
@@ -489,7 +523,8 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  equipment,         2)
 #define skyrimmp_v1_ChatSpeaker_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   slot,              1) \
 X(a, STATIC,   SINGULAR, STRING,   name,              2) \
-X(a, STATIC,   SINGULAR, UINT32,   level,             4)
+X(a, STATIC,   SINGULAR, UINT32,   level,             4) \
+X(a, STATIC,   SINGULAR, UINT64,   session_id,        5)
 #define skyrimmp_v1_ChatSpeaker_CALLBACK NULL
 #define skyrimmp_v1_ChatSpeaker_DEFAULT NULL
 
@@ -505,7 +540,8 @@ X(a, STATIC,   SINGULAR, STRING,   text,              4)
 
 #define skyrimmp_v1_RosterEntry_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   slot,              1) \
-X(a, STATIC,   SINGULAR, STRING,   name,              2)
+X(a, STATIC,   SINGULAR, STRING,   name,              2) \
+X(a, STATIC,   SINGULAR, UINT64,   session_id,        3)
 #define skyrimmp_v1_RosterEntry_CALLBACK NULL
 #define skyrimmp_v1_RosterEntry_DEFAULT NULL
 
@@ -547,6 +583,7 @@ extern const pb_msgdesc_t skyrimmp_v1_Enter_msg;
 extern const pb_msgdesc_t skyrimmp_v1_Exit_msg;
 extern const pb_msgdesc_t skyrimmp_v1_ChatSend_msg;
 extern const pb_msgdesc_t skyrimmp_v1_Ping_msg;
+extern const pb_msgdesc_t skyrimmp_v1_Vanish_msg;
 extern const pb_msgdesc_t skyrimmp_v1_ClientMessage_msg;
 extern const pb_msgdesc_t skyrimmp_v1_Welcome_msg;
 extern const pb_msgdesc_t skyrimmp_v1_Result_msg;
@@ -569,6 +606,7 @@ extern const pb_msgdesc_t skyrimmp_v1_ServerMessage_msg;
 #define skyrimmp_v1_Exit_fields &skyrimmp_v1_Exit_msg
 #define skyrimmp_v1_ChatSend_fields &skyrimmp_v1_ChatSend_msg
 #define skyrimmp_v1_Ping_fields &skyrimmp_v1_Ping_msg
+#define skyrimmp_v1_Vanish_fields &skyrimmp_v1_Vanish_msg
 #define skyrimmp_v1_ClientMessage_fields &skyrimmp_v1_ClientMessage_msg
 #define skyrimmp_v1_Welcome_fields &skyrimmp_v1_Welcome_msg
 #define skyrimmp_v1_Result_fields &skyrimmp_v1_Result_msg
@@ -586,17 +624,17 @@ extern const pb_msgdesc_t skyrimmp_v1_ServerMessage_msg;
 #define skyrimmp_v1_ServerMessage_fields &skyrimmp_v1_ServerMessage_msg
 
 /* Maximum encoded size of messages (where known) */
+/* skyrimmp_v1_Hello_size depends on runtime parameters */
+/* skyrimmp_v1_ClientMessage_size depends on runtime parameters */
 /* skyrimmp_v1_PeerStates_size depends on runtime parameters */
 /* skyrimmp_v1_Roster_size depends on runtime parameters */
 /* skyrimmp_v1_ServerMessage_size depends on runtime parameters */
 #define SKYRIMMP_V1_SKYRIMMP_V1_MESSAGES_PB_H_MAX_SIZE skyrimmp_v1_PeerEnter_size
-#define skyrimmp_v1_ChatMessage_size             809
+#define skyrimmp_v1_ChatMessage_size             831
 #define skyrimmp_v1_ChatSend_size                529
-#define skyrimmp_v1_ChatSpeaker_size             143
-#define skyrimmp_v1_ClientMessage_size           12933
+#define skyrimmp_v1_ChatSpeaker_size             154
 #define skyrimmp_v1_Enter_size                   0
 #define skyrimmp_v1_Exit_size                    0
-#define skyrimmp_v1_Hello_size                   177
 #define skyrimmp_v1_PeerAction_size              47
 #define skyrimmp_v1_PeerAppearance_size          8141
 #define skyrimmp_v1_PeerContext_size             304
@@ -605,7 +643,8 @@ extern const pb_msgdesc_t skyrimmp_v1_ServerMessage_msg;
 #define skyrimmp_v1_PeerLeave_size               8
 #define skyrimmp_v1_Ping_size                    6
 #define skyrimmp_v1_Result_size                  73
-#define skyrimmp_v1_RosterEntry_size             137
+#define skyrimmp_v1_RosterEntry_size             148
+#define skyrimmp_v1_Vanish_size                  13
 #define skyrimmp_v1_Welcome_size                 182
 
 #ifdef __cplusplus

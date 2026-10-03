@@ -17,7 +17,9 @@ namespace UI
 {
     // The players online: a button at the end of the open chat's filter row
     // with their number, and the list it opens beside the chat, where a click
-    // on a name whispers the player as a click on a sender's name does.
+    // on a name whispers the player as a click on a sender's name does,
+    // marks show who is muted or vanished, and a button at the bottom opens
+    // Manage players.
     class ChatPlayers
     {
     public:
@@ -32,10 +34,18 @@ namespace UI
         // Of the list's content, in pixels.
         [[nodiscard]] static float GetWidth();
 
+        struct ListOutcome
+        {
+            // A player picked to whisper.
+            std::optional<Multiplayer::RosterEntry> whisper;
+            // Manage players was pressed.
+            bool manage{ false };
+        };
+
         // The list in the current window: a search field, a rule a_ruleGap
-        // under it, and the names, with a menu that a_closeMenu closes.
-        // Returns a player picked to whisper.
-        std::optional<Multiplayer::RosterEntry> DrawList(float a_ruleGap, bool a_closeMenu);
+        // under it, the names, with a menu that a_closeMenu closes, and the
+        // Manage players button at the bottom.
+        ListOutcome DrawList(float a_ruleGap, bool a_closeMenu);
 
         [[nodiscard]] bool IsMenuOpen() const { return menuOpen; }
         // Whether the cursor is over the list as it was last drawn.
@@ -57,6 +67,10 @@ namespace UI
         // Sorted, refreshed every kNearbySeconds while the list shows.
         std::vector<Multiplayer::PeerSlot> nearby;
         double nearbyAt{ -1.0e9 };
+        // Sorted, copied when PlayerFilters changes while the list shows.
+        std::optional<std::uint64_t> filtersRevision;
+        std::vector<Multiplayer::SessionID> muted;
+        std::vector<Multiplayer::SessionID> vanished;
 
         std::array<char, Multiplayer::PlayerAppearance::kMaximumNameLength + 1> search{};
         std::string foldedSearch;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol/PeerSlot.h"
+#include "protocol/Session.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -24,6 +25,7 @@ namespace Multiplayer
         std::string name;
         // Zero until the player's appearance is known.
         std::uint16_t level{ 0 };
+        SessionID session{ 0 };
     };
 
     struct ChatMessage
@@ -42,6 +44,9 @@ namespace Multiplayer
     {
         PeerSlot playerID{ 0 };
         std::string name;
+        // What mutes and vanishes follow: the same while the session lives,
+        // whatever slot or name it connects with.
+        SessionID session{ 0 };
     };
 
     // UTF-8 bytes, matching the server's MAXIMUM_CHAT_TEXT_BYTES.

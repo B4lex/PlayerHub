@@ -2,6 +2,7 @@
 #include "network/ServerClient.h"
 #include "sync/PlayerLabel.h"
 #include "sync/chat/ChatRoster.h"
+#include "sync/filters/PlayerFilters.h"
 
 #include <mutex>
 #include <utility>
@@ -100,10 +101,12 @@ namespace ChatSync
                 .channel = message.channel,
                 .sender = FormatSender(message),
                 .text = std::move(message.text),
-                .player = { .playerID = other.playerID, .name = other.name },
+                .player = { .playerID = other.playerID, .name = other.name, .session = other.session },
                 .outgoing = message.outgoing };
-            // A note to oneself is not a conversation.
-            if (whisper && message.sender.playerID != message.recipient.playerID)
+            // A note to oneself is not a conversation, and a muted player's
+            // whispers are hidden, so they do not change /r.
+            if (whisper && message.sender.playerID != message.recipient.playerID
+                && (message.outgoing || !PlayerFilters::IsMuted(message.sender.session)))
             {
                 ChatRoster::NoteWhisper(line.player, !message.outgoing);
             }

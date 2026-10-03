@@ -203,7 +203,9 @@ on its edges ends ([UI overlay](ui-overlay.md#size)).
 
 `Config::GetDirectory` is the directory of `skyrim-mp.ini`, for the plugin's
 other files: the session tokens are kept there in `skyrim-mp.session`, outside
-this file ([Network](network.md#session)), and the settings window's fonts and
+this file ([Network](network.md#session)), the muted and vanished players in
+`skyrim-mp.players` ([Network](network.md#player-filters)), and the settings
+window's fonts and
 the menu frame's shape are read from `skyrim-mp/fonts/` and `skyrim-mp/frame/`
 under it ([UI overlay](ui-overlay.md#themed-faces)).
 

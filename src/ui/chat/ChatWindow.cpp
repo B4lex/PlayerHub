@@ -5,6 +5,7 @@
 #include "ui/WindowManager.h"
 #include "ui/chat/ChatHistory.h"
 #include "ui/chat/ChatInput.h"
+#include "ui/chat/ChatPlayerManager.h"
 #include "ui/chat/ChatPlayers.h"
 #include "ui/chat/ChatSize.h"
 #include "ui/chat/ChatStyle.h"
@@ -28,12 +29,19 @@ namespace UI
         constexpr float kPlayerListGapFonts = 0.5F;
 
         constexpr float kOpenBackgroundAlpha = 0.6F;
+        // Over the chat and the game, Manage players needs to stand out.
+        constexpr float kManagerBackgroundAlpha = 0.9F;
         constexpr float kRecentBackgroundAlpha = 0.25F;
 
         constexpr ImGuiWindowFlags kWindowFlags
             = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
-        // MenuFrame draws the open chat's background.
-        constexpr ImGuiWindowFlags kOpenWindowFlags = kWindowFlags | ImGuiWindowFlags_NoBackground;
+        // MenuFrame draws the open chat's background. A click in the chat or
+        // the player list leaves Manage players in front of them.
+        constexpr ImGuiWindowFlags kOpenWindowFlags
+            = kWindowFlags | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoBringToFrontOnFocus;
+        // Manage players is dragged by any empty part.
+        constexpr ImGuiWindowFlags kManagerWindowFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
+            | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
         constexpr ImGuiWindowFlags kRecentWindowFlags = kWindowFlags | ImGuiWindowFlags_NoInputs
             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize;
 
@@ -79,18 +87,19 @@ namespace UI
 
         // A window of the open chat: inside the menu frame, which keeps the
         // content clear of its knots, over the chat's background.
-        bool BeginFramed(const char* a_name)
+        bool BeginFramed(const char* a_name, ImGuiWindowFlags a_flags = kOpenWindowFlags,
+            float a_backgroundAlpha = kOpenBackgroundAlpha)
         {
             const auto framePadding = GetFramePadding();
             const auto& padding = ImGui::GetStyle().WindowPadding;
             ImGui::PushStyleVar(
                 ImGuiStyleVar_WindowPadding, ImVec2{ padding.x + framePadding, padding.y + framePadding });
-            const bool visible = ImGui::Begin(a_name, nullptr, kOpenWindowFlags);
+            const bool visible = ImGui::Begin(a_name, nullptr, a_flags);
             ImGui::PopStyleVar();
             if (visible)
             {
                 auto background = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
-                background.w = kOpenBackgroundAlpha;
+                background.w = a_backgroundAlpha;
                 MenuFrame::Draw(ImGui::GetColorU32(Theme::GetFrameColor()), ImGui::GetColorU32(background));
             }
             return visible;
@@ -139,6 +148,8 @@ namespace UI
                 else
                 {
                     size.Release();
+                    // A menu that opens by itself closes the chat without Enter or Escape.
+                    manager.Close();
                     DrawRecent(now);
                 }
             }
@@ -205,10 +216,12 @@ namespace UI
                 const auto framePadding = GetFramePadding();
                 const auto& padding = ImGui::GetStyle().WindowPadding;
 
-                // An open menu takes Escape before the name list and the chat do.
+                // An open menu takes Escape first, then Manage players, then
+                // the name list and the chat.
                 const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false);
                 const bool menuOpen = history.IsMenuOpen() || input.IsMenuOpen() || players.IsMenuOpen();
                 const bool closeMenu = escape && menuOpen;
+                const bool closeManager = escape && !menuOpen && manager.IsOpen();
 
                 auto& composer = input.GetComposer();
                 // Changed since the previous frame by a key, a prefix, or a click.
@@ -233,14 +246,14 @@ namespace UI
                     units);
                 // The lines take what the window leaves above the input row.
                 if (const auto player = history.DrawLines(
-                        a_input, ImVec2{ 0.0F, -inputRowHeight }, closeMenu, players.IsHovered()))
+                        a_input, ImVec2{ 0.0F, -inputRowHeight }, closeMenu, players.IsHovered() || manager.IsHovered()))
                 {
                     Whisper(*player);
                 }
 
                 input.DrawListing();
                 const auto outcome = input.Draw(ChatInput::Frame{ .focus = focusInput,
-                    .escape = escape && !menuOpen,
+                    .escape = escape && !menuOpen && !closeManager,
                     .closeMenu = closeMenu,
                     .menuOpen = menuOpen });
                 focusInput = false;
@@ -251,6 +264,7 @@ namespace UI
                 if (outcome == ChatInput::Outcome::kClose)
                 {
                     WindowManager::ReleaseFocus(*this);
+                    manager.Close();
                     // Escape leaves the chat and the player list together;
                     // after Enter the list shows again when the chat opens.
                     if (escape && !menuOpen)
@@ -268,6 +282,35 @@ namespace UI
                 {
                     DrawPlayerList(windowPos, windowSize, ruleGap, closeMenu);
                 }
+                if (closeManager)
+                {
+                    manager.Close();
+                }
+                if (manager.IsOpen())
+                {
+                    DrawPlayerManager();
+                }
+            }
+
+            // In the middle of the screen when it opens, then where the
+            // player drags it, in front of the chat.
+            void DrawPlayerManager()
+            {
+                const auto& display = ImGui::GetIO().DisplaySize;
+                const auto content = ChatPlayerManager::GetSize();
+                const auto around = GetSidePadding();
+                ImGui::SetNextWindowPos(
+                    ImVec2{ display.x * 0.5F, display.y * 0.5F }, ImGuiCond_Appearing, ImVec2{ 0.5F, 0.5F });
+                ImGui::SetNextWindowSize(ImVec2{ content.x + around, content.y + around });
+                if (manager.TakeFocusRequest())
+                {
+                    ImGui::SetNextWindowFocus();
+                }
+                if (BeginFramed("##ChatPlayerManager", kManagerWindowFlags, kManagerBackgroundAlpha))
+                {
+                    manager.Draw();
+                }
+                ImGui::End();
             }
 
             // Right of the open chat and as high, so its rule lines up with
@@ -278,9 +321,14 @@ namespace UI
                 ImGui::SetNextWindowSize(ImVec2{ GetPlayerListWidth(), a_chatSize.y });
                 if (BeginFramed("##ChatPlayers"))
                 {
-                    if (const auto player = players.DrawList(a_ruleGap, a_closeMenu))
+                    const auto outcome = players.DrawList(a_ruleGap, a_closeMenu);
+                    if (outcome.whisper)
                     {
-                        Whisper(*player);
+                        Whisper(*outcome.whisper);
+                    }
+                    if (outcome.manage)
+                    {
+                        manager.Open();
                     }
                 }
                 ImGui::End();
@@ -295,6 +343,7 @@ namespace UI
             ChatHistory history;
             ChatInput input;
             ChatPlayers players;
+            ChatPlayerManager manager;
             ChatSize size;
             // Of the open chat as last drawn, around its lines: the filters
             // above and the input row below, with the padding. Zero before it

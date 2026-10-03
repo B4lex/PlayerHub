@@ -26,6 +26,7 @@ var (
 	// Local chat needs the sender's position.
 	ErrNotPlaced        = errors.New("not in world")
 	ErrUnknownRecipient = errors.New("unknown recipient")
+	ErrTooManyVanished  = errors.New("too many vanished players")
 )
 
 // Recorder receives every accepted client message of every player, so it can
@@ -56,10 +57,8 @@ type member struct {
 	*world.Player
 	// Nil for a virtual player, which receives nothing.
 	outbox *delivery.Outbox
-	// Where the player is, while placed.
+	// Where the player is, while placed, and what it asked for as a viewer.
 	view interest.View
-	// The enter radius the client asked for, zero for the server's.
-	viewRadius float64
 
 	// Recipients subscribed to this player.
 	subscribers []*member
@@ -151,7 +150,7 @@ func New(opts Options) *Hub {
 		opts: opts, members: make(map[uint32]*member), sessions: make(map[uint64]uint32),
 		grid: interest.NewGrid(opts.Interest.LeaveRadius), hidden: interest.Hidden{}, pairs: interest.Pairs{},
 	}
-	h.rules = interest.NewRules(opts.Interest, h.hidden, h.pairs)
+	h.rules = interest.NewRules(opts.Interest, h.hidden, h.pairs, interest.Vanished{})
 	return h
 }
 
@@ -177,11 +176,12 @@ func (h *Hub) ConnectClient(outbox *delivery.Outbox, identity Identity) (slot, r
 	roster := &pb.Roster{}
 	for _, r := range h.recipients {
 		if r.listed() {
-			roster.Joined = append(roster.Joined, &pb.RosterEntry{Slot: r.Slot, Name: r.DisplayName})
+			roster.Joined = append(roster.Joined, &pb.RosterEntry{Slot: r.Slot, Name: r.DisplayName, SessionId: r.Session})
 		}
 	}
 	outbox.AppendGlobal(rosterMessage(roster))
-	h.announce(m, &pb.Roster{Joined: []*pb.RosterEntry{{Slot: slot, Name: identity.DisplayName}}})
+	h.announce(m, &pb.Roster{Joined: []*pb.RosterEntry{{Slot: slot, Name: identity.DisplayName,
+		SessionId: identity.Session}}})
 	return slot, replaced
 }
 
@@ -216,7 +216,7 @@ func (h *Hub) connect(kind world.Kind, outbox *delivery.Outbox, identity Identit
 		heldAppearance: make(map[uint32]uint64),
 		heldEquipment:  make(map[uint32]uint64),
 	}
-	m.view.Slot = m.Slot
+	m.view.Slot, m.view.Session = m.Slot, identity.Session
 	h.members[m.Slot] = m
 	if outbox != nil {
 		h.recipients = append(h.recipients, m)
@@ -302,6 +302,8 @@ func (h *Hub) Handle(slot uint32, message *pb.ClientMessage) error {
 		return h.setEquipment(m, body.Equipment, message)
 	case *pb.ClientMessage_Chat:
 		return h.chat(m, body.Chat)
+	case *pb.ClientMessage_Vanish:
+		return h.vanish(m, body.Vanish)
 	default:
 		return validate.ErrUnexpected
 	}
@@ -341,9 +343,45 @@ func (h *Hub) UpdateInterest() {
 // SetViewRadius sets the enter radius a client asked for; the rules clamp it.
 func (h *Hub) SetViewRadius(slot uint32, radius float64) {
 	if m, ok := h.members[slot]; ok {
-		m.viewRadius = radius
 		m.view.Radius = radius
 	}
+}
+
+// SetVanished sets the sessions a client vanished when it connected, before
+// it is placed.
+func (h *Hub) SetVanished(slot uint32, sessions []uint64) {
+	m, ok := h.members[slot]
+	if !ok || len(sessions) == 0 {
+		return
+	}
+	m.view.Vanished = make(map[uint64]bool, len(sessions))
+	for _, session := range sessions {
+		m.view.Vanished[session] = true
+	}
+}
+
+// vanish hides a session's player from m, or shows it again, at once. It is
+// m's own view, so it is not recorded.
+func (h *Hub) vanish(m *member, v *pb.Vanish) error {
+	session, vanished := v.GetSessionId(), v.GetVanished()
+	if m.view.Vanished[session] == vanished {
+		return nil
+	}
+	if vanished {
+		if len(m.view.Vanished) >= validate.MaximumVanished {
+			return ErrTooManyVanished
+		}
+		if m.view.Vanished == nil {
+			m.view.Vanished = make(map[uint64]bool)
+		}
+		m.view.Vanished[session] = true
+	} else {
+		delete(m.view.Vanished, session)
+	}
+	if slot, ok := h.sessions[session]; ok {
+		h.evaluatePair(m, h.members[slot], h.opts.Clock.Now())
+	}
+	return nil
 }
 
 // SetHidden hides a player from everyone, or shows it again, at once.
@@ -512,8 +550,7 @@ func (h *Hub) setCheckpoint(m *member, c *pb.Checkpoint, message *pb.ClientMessa
 	}
 	h.record(m.Slot, message)
 	h.opts.OnChange()
-	m.view = interest.View{Slot: m.Slot, Space: interest.SpaceOf(m.Context), X: float64(c.X), Y: float64(c.Y),
-		Radius: m.viewRadius}
+	m.view.Space, m.view.X, m.view.Y = interest.SpaceOf(m.Context), float64(c.X), float64(c.Y)
 	h.grid.Update(&m.view)
 	if !wasPlaced {
 		// PeerEnter carries this checkpoint.
@@ -599,7 +636,7 @@ func (h *Hub) setEquipment(m *member, e *pb.Equipment, message *pb.ClientMessage
 
 // speaker returns the player as chat shows it.
 func (h *Hub) speaker(m *member) *pb.ChatSpeaker {
-	return &pb.ChatSpeaker{Slot: m.Slot, Name: m.Name(), Level: m.Appearance.GetLevel()}
+	return &pb.ChatSpeaker{Slot: m.Slot, Name: m.Name(), Level: m.Appearance.GetLevel(), SessionId: m.Session}
 }
 
 // chat relays a line to its channel's recipients, the sender included, so

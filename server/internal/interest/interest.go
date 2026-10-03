@@ -60,6 +60,10 @@ type View struct {
 	// The enter radius this player asked for as a viewer; zero is the
 	// server's.
 	Radius float64
+	// The player's session; zero for a replay or bot.
+	Session uint64
+	// The sessions this player vanished as a viewer.
+	Vanished map[uint64]bool
 }
 
 // Distance is horizontal: Skyrim loads cells as a horizontal grid, so height
@@ -153,4 +157,12 @@ type Pairs map[Pair]bool
 
 func (p Pairs) Excludes(viewer, target *View) bool {
 	return p[Pair{viewer.Slot, target.Slot}]
+}
+
+// Vanished is the players' own rule: a viewer never sees the sessions it
+// vanished, under whichever slot they connect.
+type Vanished struct{}
+
+func (Vanished) Excludes(viewer, target *View) bool {
+	return target.Session != 0 && viewer.Vanished[target.Session]
 }

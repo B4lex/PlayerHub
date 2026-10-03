@@ -11,3 +11,5 @@ skyrimmp.v1.RosterEntry.name max_size:129
 # A batch is decoded entry by entry, so its size is not bounded by a static array.
 skyrimmp.v1.PeerStates.states type:FT_CALLBACK
 skyrimmp.v1.Roster.joined type:FT_CALLBACK
+# Up to 1024 sessions, encoded from the client's own list.
+skyrimmp.v1.Hello.vanished type:FT_CALLBACK

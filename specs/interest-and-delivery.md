@@ -10,7 +10,7 @@ anchor, context order, range hysteresis and time in view, exclusions taking
 effect at once, a space change, presentation kept across exit and re-enter,
 disconnect reaching presentation holders, virtual players, chat on each channel,
 a session's display name on the relayed appearance, a session connecting
-again), outbox tests, and black-box tests over a real WebSocket,
+again, a player's vanish following the session), outbox tests, and black-box tests over a real WebSocket,
 including the admin hide and exclusion endpoints. Not checked in game.
 
 `cmd/loadgen` with 250 walking bots at 20 Hz on a 4-core host shared with the
@@ -91,7 +91,11 @@ rule here.
   1. Different coordinate spaces never see each other. A worldspace compares
      by worldspace ID; an interior (worldspace 0) by exact cell ID.
   2. Exclusions: a player hidden by an admin is seen by nobody (it still sees
-     others), and an excluded directed pair never sees.
+     others), an excluded directed pair never sees, and a viewer never sees a
+     session it vanished (`interest.Vanished`, from `View.Vanished`, matched
+     against the target's `View.Session`;
+     [Network](network.md#vanish)). Only the vanish follows a session across
+     its connections; the admin rules are keyed by slot.
   3. Distance is horizontal (x, y), since Skyrim loads cells as a horizontal
      grid. A target enters within `interest.enter_radius` (8192) and leaves
      beyond `interest.leave_radius` (9830), but not before
@@ -114,7 +118,11 @@ rule here.
   within it is found.
 - Events evaluate the affected pairs at once instead of waiting for the pass:
   a player becoming placed (as viewer and as target), hiding or showing a
-  player, and adding or lifting an exclusion.
+  player, adding or lifting an exclusion, and a `Vanish`, which evaluates the
+  viewer against the session's connected player, if any. A lifted vanish
+  that finds the view full waits for the pass, as any newcomer does.
+- A checkpoint moves the player's view (`Space`, `X`, `Y`) in place; its slot,
+  session, radius, and vanished sessions are set on connect and by the hello.
 - A context that changes the space unplaces the player until its next
   checkpoint, since the stored position belongs to the old space: its
   subscribers get `PeerLeave(OUT_OF_RANGE)`, its own subscriptions end with

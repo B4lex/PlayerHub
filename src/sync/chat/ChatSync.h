@@ -25,7 +25,7 @@ namespace ChatSync
         std::string sender;
         std::string text;
         // The other player of the line: its sender, or the recipient of the
-        // local player's own whisper. No slot for a notice.
+        // local player's own whisper. No slot or session for a notice.
         Multiplayer::RosterEntry player;
         // The local player sent it.
         bool outgoing{ false };

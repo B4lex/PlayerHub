@@ -431,3 +431,32 @@ func TestNewSessionResumedBeforeItWasUsedIsKept(t *testing.T) {
 		t.Fatalf("resumed %v after %v", again, issued)
 	}
 }
+
+func TestHelloVanishesPlayers(t *testing.T) {
+	s := startServer(t, config.Default())
+	a, lydia := resume(t, s, "Lydia", nil)
+	b := dial(t, s)
+	vanishing := hello("Serana", nil)
+	vanishing.GetHello().Vanished = []uint64{lydia.GetSessionId()}
+	b.send(vanishing)
+	if b.receive().GetWelcome() == nil {
+		t.Fatal("no welcome")
+	}
+	place(b, 0)
+	place(a, 10)
+	if enter := a.receive().GetPeerEnter(); enter == nil {
+		t.Fatal("the vanished player did not receive the other")
+	}
+	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 5}}})
+	if result := b.receive().GetResult(); result.GetRequestId() != 5 {
+		t.Fatalf("received the vanished player: %v", result)
+	}
+
+	c := dial(t, s)
+	refusing := hello("Aela", nil)
+	refusing.GetHello().Vanished = []uint64{0}
+	c.send(refusing)
+	if code, reason := closeStatus(t, c); code != websocket.StatusPolicyViolation || reason != "invalid vanish" {
+		t.Fatalf("got %d %q", code, reason)
+	}
+}

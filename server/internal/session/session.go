@@ -128,6 +128,7 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address str
 		var replacedSlot uint32
 		slot, replacedSlot = h.ConnectClient(outbox, identity)
 		h.SetViewRadius(slot, float64(hello.GetViewRadius()))
+		h.SetVanished(slot, hello.GetVanished())
 		s.mu.Lock()
 		replaced = s.connections[replacedSlot]
 		s.connections[slot] = current

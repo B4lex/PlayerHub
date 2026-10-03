@@ -25,9 +25,10 @@
 namespace Network::Wire
 {
     // Without a token the server issues a new session under a_displayName.
-    // Otherwise the token's session is resumed and takes a_displayName.
+    // Otherwise the token's session is resumed and takes a_displayName. The
+    // server never sends this client the players of a_vanished.
     [[nodiscard]] std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_displayName,
-        const std::optional<Multiplayer::SessionToken>& a_token);
+        const std::optional<Multiplayer::SessionToken>& a_token, std::span<const Multiplayer::SessionID> a_vanished);
     [[nodiscard]] std::string EncodeEnter();
     [[nodiscard]] std::string EncodeExit();
     [[nodiscard]] std::string EncodeContext(const CheckpointContext& a_context);
@@ -41,6 +42,7 @@ namespace Network::Wire
     [[nodiscard]] std::string EncodeChat(std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel,
         Multiplayer::PeerSlot a_recipient, std::string_view a_text);
     [[nodiscard]] std::string EncodePing(std::uint32_t a_requestID);
+    [[nodiscard]] std::string EncodeVanish(Multiplayer::SessionID a_session, bool a_vanished);
 
     struct Welcome
     {

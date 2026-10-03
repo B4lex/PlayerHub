@@ -63,6 +63,24 @@
   for a whisper and for a local line passed the server's `validate.Chat`, and
   one with a recipient on another channel or a whisper without one did not.
   The roster kept in `ServerClient.cpp` passed a syntax check only.
+- **Session IDs to peers and vanish:** not built on Windows or run in game.
+  Server: `go test -race ./...` covers the session ID on roster entries and
+  chat speakers, a vanish that takes effect at once and one way, that holds
+  when the vanished session connects again under another slot, that is lifted
+  at once, a hello's vanished sessions applied before the client is placed,
+  the 1024 limit (`internal/hub`), the hello and `Vanish` rules
+  (`internal/validate`), and over a WebSocket a hello that vanishes a player
+  and one refused with `invalid vanish` (`internal/session`). `cmd/loadgen`
+  with 250 bots within ±3000 units on port 3100 measured the same server CPU
+  (36–37%) and latency (p50 30 ms, p99 52 ms) as the server before. Plugin:
+  `WireCodec.cpp` with the regenerated nanopb code was built on Linux; its
+  hello with three vanished sessions and its `Vanish` decoded in Go and passed
+  validation, it encodes no hello with 1025, and it decoded a Go-encoded
+  roster and whisper with session IDs and rejected both without one.
+  `PlayerFilterStore.cpp` ran on Linux under the chat harness
+  ([UI overlay](ui-overlay.md#status)). The vanish handling in
+  `ServerClient.cpp` (the hello's list, a `Vanish` held back until the hello
+  went to the same server) was not compiled.
 
 ## Scope
 
@@ -120,9 +138,9 @@ refused at the handshake ([Transport](#transport)).
   depends on `protoc`, whose install test fails under wine
   (`STATUS_DLL_NOT_FOUND`).
 - The first client message must be
-  `Hello{protocol_version, view_radius, session_token, display_name}` within
-  `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (5) is closed with status 4001 and reason
+  `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
+  within `limits.hello_timeout_seconds` (5). A version other than
+  `Protocol.PROTOCOL_VERSION` (6) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
@@ -156,7 +174,7 @@ What a refusal means for the client is in [Connection](#connection).
 
 | Message | Handling |
 | --- | --- |
-| `Hello` | Handshake, above. `view_radius` is the client's `[Performance] ViewRadius` in game units, 0 for the server's ([Interest and delivery](interest-and-delivery.md#subscriptions)). `session_token` and `display_name` resume or issue the [session](#sessions) |
+| `Hello` | Handshake, above. `view_radius` is the client's `[Performance] ViewRadius` in game units, 0 for the server's ([Interest and delivery](interest-and-delivery.md#subscriptions)). `session_token` and `display_name` resume or issue the [session](#sessions). `vanished` lists the sessions the player [vanished](#vanish) on this server |
 | `Enter`, `Exit` | World presence. `Exit` when not in the world does nothing |
 | `Context` | A checkpoint's space and graph epoch ([below](#checkpoint-and-context)) |
 | `Checkpoint` | One quantized sample |
@@ -164,6 +182,7 @@ What a refusal means for the client is in [Connection](#connection).
 | `Appearance`, `Equipment` | Latest-wins presentation ([below](#appearance-and-equipment)) |
 | `ChatSend` | `{request_id, text, channel, recipient}`, answered with a `Result` ([Chat](#chat)) |
 | `Ping` | `{request_id}`, answered with `Result{ok}` by the connection at once; the latency probe |
+| `Vanish` | `{session_id, vanished}`: stop or resume receiving a session's player ([Vanish](#vanish)) |
 
 A rejected message is dropped and logged on the server (at most one summary
 per connection every 5 s); only `ChatSend` and `Ping` get a `Result`. Graph
@@ -306,8 +325,8 @@ same list.
 | `PeerContext` | `slot`, `context` |
 | `PeerLeave` | `slot`, `reason`: `OUT_OF_RANGE`, `EXCLUDED`, `EXITED`, `DISCONNECTED`, `VIEWER_UNPLACED` |
 | `PeerAction`, `PeerAppearance`, `PeerEquipment` | `slot` and the message |
-| `ChatMessage` | `channel`, `sender`, `recipient` (whisper only), `text`; a `ChatSpeaker` is `slot`, `name`, `level` |
-| `Roster` | `joined`, a list of `RosterEntry{slot, name}`, and `left`, a slot or 0 ([Roster](#roster)) |
+| `ChatMessage` | `channel`, `sender`, `recipient` (whisper only), `text`; a `ChatSpeaker` is `slot`, `name`, `level`, `session_id` |
+| `Roster` | `joined`, a list of `RosterEntry{slot, name, session_id}`, and `left`, a slot or 0 ([Roster](#roster)) |
 
 When each is sent and in what order is
 [Interest and delivery](interest-and-delivery.md#ordering).
@@ -335,7 +354,7 @@ the admin API.
 
 | Part | |
 | --- | --- |
-| `session_id` | `uint64` from 1, the row ID of an `AUTOINCREMENT` column, so it is never reused, also after the session is gone. Sent only to its own client, in `Welcome`; the hub keeps it on the player (`world.Player.Session`) |
+| `session_id` | `uint64` from 1, the row ID of an `AUTOINCREMENT` column, so it is never reused, also after the session is gone. Sent to its own client in `Welcome`, and to every client on roster entries and chat speakers, which is how a client mutes or vanishes a player whatever slot or name it connects with. The hub keeps it on the player (`world.Player.Session`) |
 | Token | 32 bytes from `crypto/rand`. The store keeps only its SHA-256, so a copy of the database resumes nobody. It is returned once, in the `Welcome` of the connection it was issued for |
 | Display name | 1..128 UTF-8 bytes, no control characters, no leading or trailing space (`validate.DisplayName`), so a client can tell a name typed before a message from the message. Unique among sessions by `validate.DisplayNameKey`, its lower case; a session may respell its own |
 | Last use | Set by every hello, when a connection closes, and hourly for connected sessions (`session.Server.Maintain`) |
@@ -410,12 +429,13 @@ the admin API.
   the history.
 - Every channel includes the sender, so everyone sees one order and the
   sender's own line confirms delivery. A `ChatSpeaker` is the player's
-  display name and the level of its latest appearance (`0` before one); the
-  client does not show the level
+  display name, its session ID, and the level of its latest appearance (`0`
+  before one); the client does not show the level
   ([Appearance and equipment](appearance-and-equipment.md#player-label)).
 - The client rejects a `ChatMessage` without a sender, with an unknown channel,
   or with a recipient present exactly when the channel is not `WHISPER`, and
-  validates speakers like appearance names and text like `ChatSend`.
+  validates speakers like appearance names, with a slot and a session ID, and
+  text like `ChatSend`.
 - Chat does not require being in the world except for `LOCAL`, keeps no
   history, and is not recorded. The client side is in
   [UI overlay](ui-overlay.md#chat).
@@ -427,8 +447,8 @@ players in chat ([UI overlay](ui-overlay.md#player-list)), and address a
 whisper by slot. Proximity does not limit it: a whisper reaches any connected
 player.
 
-- The roster lists the clients that have a session, by slot and session
-  display name. Replays and in-server bots are not listed.
+- The roster lists the clients that have a session, by slot, session display
+  name, and session ID. Replays and in-server bots are not listed.
 - `Hub.ConnectClient` sends the new client one `Roster` after its `Welcome`
   with every listed client in `joined`, itself included, and every other
   listed client a `Roster` with the new one in `joined`.
@@ -440,8 +460,36 @@ player.
   (`Outbox.AppendGlobal`) and marshalled once per event. A join or a leave
   writes to every outbox; the full list is 5 to 11 bytes plus the name per
   client, sent once per connection.
-- The client rejects a `Roster` whose entry has no slot, no name, or an
-  invalid name, or with more than `kMaximumRosterEntries` (4096) entries.
+- The client rejects a `Roster` whose entry has no slot, no session ID, no
+  name, or an invalid name, or with more than `kMaximumRosterEntries` (4096)
+  entries.
+
+### Vanish
+
+A client can stop receiving a player: its character leaves that client's
+world and nothing of it is sent there. It is the server's half of vanishing a
+player ([UI overlay](ui-overlay.md#mute-and-vanish)); the rule that applies it
+is in [Interest and delivery](interest-and-delivery.md#subscriptions). Muting
+is the client's alone and has no wire message.
+
+- A client names a player by session ID, not slot, so the player stays
+  vanished when it connects again; a session ID names one player on one
+  server only.
+- `Hello.vanished` holds at most `validate.MaximumVanished` (1024) session
+  IDs, none zero; otherwise the connection is closed with 1008
+  `invalid vanish`. `session.Server.serve` hands them to `Hub.SetVanished`
+  with the view radius, before the client can be placed.
+- `Vanish{session_id, vanished}` adds or removes one. A zero session is
+  dropped as `invalid vanish`, one more than 1024 as
+  `too many vanished players`, and a change to what is already so does
+  nothing. Neither gets a `Result`, and an unknown session is accepted: the
+  player may connect later.
+- The set belongs to the connection (`interest.View.Vanished`), lasts until
+  it closes, and is not recorded, since it is the receiver's choice rather
+  than the player's presentation. The client presents its whole set again in
+  every hello.
+- The vanished player is not told and still receives the client, and chat is
+  unaffected.
 
 ## Client
 
@@ -493,9 +541,33 @@ player.
 - A `Welcome` with a token saves it, also when the connection is already being
   closed, since the session exists on the server either way. A failed save is
   logged as an error: the token lasts until the game exits.
-- The welcome's session ID and display name are only logged.
+- The welcome's session ID and display name are only logged; the roster
+  carries the local player's session ID too.
 - The client sends no `Appearance.name`: the hello carries the display name,
   which holds for the connection ([Connection](#connection)).
+
+### Player filters
+
+- `PlayerFilterStore` keeps the players the local player muted or vanished in
+  `skyrim-mp.players`, next to `skyrim-mp.session`: a line per player and
+  server, `m`, `v`, or `mv`, the session ID, the WebSocket URL, and the name
+  when last muted or vanished, separated by tabs, which neither a display
+  name nor a URL holds; lines starting with `;` are comments, and a line
+  without a session, a server, a name, or a known flag is skipped with a
+  warning. It is read once, on first use, and written through
+  `skyrim-mp.players.tmp` on every change; a failed write lasts until the
+  game exits. A player neither muted nor vanished has no line.
+- The hello carries the sessions vanished on the attempt's URL, at most 1024
+  with a warning for the rest. `Network::PublishVanish` sends a change only
+  when the current socket's hello went to the server the change belongs to,
+  under the lock the hello is sent under: a `Vanish` before the hello would
+  end the connection, and the hello reads the file, which the caller updates
+  before publishing, so a change made meanwhile is in one or the other.
+- `Network::GetServerAddress` is the URL of the latest welcomed connection, or
+  of the configured endpoint before the first: the server whose session IDs
+  the roster and chat lines carry. `PlayerFilters` reads the file for it again
+  whenever the connection generation changes
+  ([UI overlay](ui-overlay.md#mute-and-vanish)).
 
 ### Latest-wins publishers
 
@@ -643,10 +715,11 @@ window, and are empty after a long gap. The status panel shows them.
   normalization or use look-alike characters are different display names.
 - The token is sent in the hello as it is, so an `http://` endpoint exposes it
   to the network; `https://` endpoints carry it under TLS.
-- The session ID does not reach peers yet, and exclusions and hiding are still
-  keyed by slot ([Interest and delivery](interest-and-delivery.md#admin-controls)).
+- Admin exclusions and hiding are still keyed by slot
+  ([Interest and delivery](interest-and-delivery.md#admin-controls)); only a
+  player's own vanish follows the session.
 - Chat has no history for late joiners.
 - The roster tells every client the display name of every connected player,
-  wherever they are. It carries no level and no session ID.
+  wherever they are, and its session ID. It carries no level.
 - Cell and worldspace IDs need matching load orders.
 - Non-goals: server authority over movement, anti-cheat, and UDP.

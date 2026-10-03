@@ -1,7 +1,9 @@
 #include "ui/chat/ChatPlayers.h"
+#include "sync/filters/PlayerFilters.h"
 #include "ui/Fonts.h"
 #include "ui/Theme.h"
 #include "ui/chat/ChatHistory.h"
+#include "ui/chat/ChatPlayerMenu.h"
 #include "ui/chat/ChatStyle.h"
 
 #include <algorithm>
@@ -20,8 +22,10 @@ namespace UI
         constexpr float kIconGapFonts = 0.3F;
         // Of the person's height, which is the digits'.
         constexpr float kIconWidthOfHeight = 0.9F;
-        // In font sizes: the dot that marks a player nearby.
+        // In font sizes: the dot that marks a player nearby, and the marks of a
+        // muted or vanished player.
         constexpr float kNearbyDotFonts = 0.25F;
+        constexpr float kFilterMarkFonts = 0.75F;
         constexpr double kNearbySeconds = 0.5;
 
         // The rows of the line a digit takes, from its top: what the person
@@ -52,6 +56,31 @@ namespace UI
             a_list.PathArcTo(ImVec2{ middle, a_min.y + a_size.y }, a_size.x * 0.5F, std::numbers::pi_v<float>,
                 std::numbers::pi_v<float> * 2.0F);
             a_list.PathFillConvex(a_color);
+        }
+
+        // A speech bubble, struck through, in a square of a_size.
+        void DrawMutedMark(ImDrawList& a_list, const ImVec2& a_min, float a_size, ImU32 a_color, float a_thickness)
+        {
+            const ImVec2 bubbleMax{ a_min.x + a_size, a_min.y + a_size * 0.7F };
+            a_list.AddRect(ImVec2{ a_min.x, a_min.y + a_size * 0.05F }, bubbleMax, a_color, a_size * 0.2F,
+                ImDrawFlags_None, a_thickness);
+            a_list.AddTriangleFilled(ImVec2{ a_min.x + a_size * 0.2F, bubbleMax.y },
+                ImVec2{ a_min.x + a_size * 0.5F, bubbleMax.y }, ImVec2{ a_min.x + a_size * 0.15F, a_min.y + a_size },
+                a_color);
+            a_list.AddLine(ImVec2{ a_min.x, a_min.y + a_size }, ImVec2{ a_min.x + a_size, a_min.y }, a_color, a_thickness);
+        }
+
+        // An eye, struck through, in a square of a_size.
+        void DrawVanishedMark(ImDrawList& a_list, const ImVec2& a_min, float a_size, ImU32 a_color, float a_thickness)
+        {
+            const ImVec2 center{ a_min.x + a_size * 0.5F, a_min.y + a_size * 0.5F };
+            a_list.PathLineTo(ImVec2{ a_min.x, center.y });
+            a_list.PathBezierQuadraticCurveTo(ImVec2{ center.x, a_min.y - a_size * 0.1F }, ImVec2{ a_min.x + a_size, center.y });
+            a_list.PathBezierQuadraticCurveTo(ImVec2{ center.x, a_min.y + a_size * 1.1F }, ImVec2{ a_min.x, center.y });
+            a_list.PathStroke(a_color, ImDrawFlags_Closed, a_thickness);
+            a_list.AddCircleFilled(center, a_size * 0.16F, a_color);
+            a_list.AddLine(ImVec2{ a_min.x + a_size * 0.1F, a_min.y + a_size * 0.95F },
+                ImVec2{ a_min.x + a_size * 0.9F, a_min.y + a_size * 0.05F }, a_color, a_thickness);
         }
 
         // Tab would move the keyboard to the rows; the field keeps it.
@@ -158,6 +187,27 @@ namespace UI
             nearby.clear();
             ChatRoster::CopyNearbyPlayers(nearby);
         }
+        if (const auto current = PlayerFilters::GetRevision(); current != filtersRevision)
+        {
+            filtersRevision = current;
+            std::vector<PlayerFilters::Entry> entries;
+            PlayerFilters::Copy(entries);
+            muted.clear();
+            vanished.clear();
+            for (const auto& entry : entries)
+            {
+                if (entry.muted)
+                {
+                    muted.push_back(entry.session);
+                }
+                if (entry.vanished)
+                {
+                    vanished.push_back(entry.session);
+                }
+            }
+            std::ranges::sort(muted);
+            std::ranges::sort(vanished);
+        }
     }
 
     void ChatPlayers::Match()
@@ -186,7 +236,7 @@ namespace UI
         }
     }
 
-    std::optional<Multiplayer::RosterEntry> ChatPlayers::DrawList(float a_ruleGap, bool a_closeMenu)
+    ChatPlayers::ListOutcome ChatPlayers::DrawList(float a_ruleGap, bool a_closeMenu)
     {
         Refresh(ImGui::GetTime());
 
@@ -202,18 +252,20 @@ namespace UI
         ImGui::PopStyleVar();
         ChatStyle::DrawRule(a_ruleGap);
 
-        std::optional<Multiplayer::RosterEntry> picked;
-        DrawRows(picked, a_closeMenu);
+        ListOutcome outcome;
+        DrawRows(outcome.whisper, a_closeMenu);
+        outcome.manage = ImGui::Button("Manage players", ImVec2{ -FLT_MIN, 0.0F });
 
         shownMin = ImGui::GetWindowPos();
         const auto size = ImGui::GetWindowSize();
         shownMax = ImVec2{ shownMin.x + size.x, shownMin.y + size.y };
-        return picked;
+        return outcome;
     }
 
     void ChatPlayers::DrawRows(std::optional<Multiplayer::RosterEntry>& a_picked, bool a_closeMenu)
     {
-        if (ImGui::BeginChild("##ChatPlayerRows"))
+        // The Manage players button stays below the rows.
+        if (ImGui::BeginChild("##ChatPlayerRows", ImVec2{ 0.0F, -ImGui::GetFrameHeightWithSpacing() }))
         {
             if (players.empty())
             {
@@ -233,6 +285,9 @@ namespace UI
             const auto pitch = ChatHistory::GetLinePitch();
             const auto dotRadius = std::floor(kNearbyDotFonts * ImGui::GetFontSize());
             const auto dotSpace = dotRadius * 2.0F + style.ItemSpacing.x;
+            const auto markSize = std::round(kFilterMarkFonts * ImGui::GetFontSize());
+            const auto markSpace = markSize + style.ItemSpacing.x;
+            const auto markLine = (std::max)(std::floor(ChatStyle::kChipOutlineFonts * ImGui::GetFontSize()), 1.0F);
             auto* drawList = ImGui::GetWindowDrawList();
 
             // Rows a chat line apart, so the clipper can skip the ones out of view.
@@ -255,7 +310,10 @@ namespace UI
                     const auto max = ImGui::GetItemRectMax();
                     const char* name = player.name.c_str();
                     const char* nameEnd = name + player.name.size();
-                    const ImVec4 nameClip{ min.x, min.y, max.x - dotSpace, max.y };
+                    const bool isMuted = !self && std::ranges::binary_search(muted, player.session);
+                    const bool isVanished = !self && std::ranges::binary_search(vanished, player.session);
+                    const auto marksLeft = max.x - dotSpace - markSpace * static_cast<float>(isMuted + isVanished);
+                    const ImVec4 nameClip{ min.x, min.y, marksLeft, max.y };
 
                     if (self)
                     {
@@ -269,6 +327,28 @@ namespace UI
 
                     const auto nameColor = ImGui::GetColorU32(ChatStyle::kWhisperColor);
                     drawList->AddText(nullptr, 0.0F, min, nameColor, name, nameEnd, 0.0F, &nameClip);
+                    if (isMuted || isVanished)
+                    {
+                        const auto markColor = ImGui::GetColorU32(mutedColor);
+                        ImVec2 markMin{ marksLeft + style.ItemSpacing.x, std::floor((min.y + max.y - markSize) * 0.5F) };
+                        if (isMuted)
+                        {
+                            DrawMutedMark(*drawList, markMin, markSize, markColor, markLine);
+                            markMin.x += markSpace;
+                        }
+                        if (isVanished)
+                        {
+                            DrawVanishedMark(*drawList, markMin, markSize, markColor, markLine);
+                        }
+                        if (hovered && ImGui::IsMouseHoveringRect(ImVec2{ marksLeft, min.y }, ImVec2{ max.x - dotSpace, max.y }))
+                        {
+                            ImGui::PopFont();
+                            ImGui::SetTooltip("%s", isMuted && isVanished ? "Muted and vanished"
+                                    : isMuted                            ? "Muted"
+                                                                         : "Vanished");
+                            ImGui::PushFont(Fonts::GetHeading(), 0.0F);
+                        }
+                    }
                     if (std::ranges::binary_search(nearby, player.playerID))
                     {
                         const ImVec2 center{ max.x - dotRadius, std::floor((min.y + max.y) * 0.5F) };
@@ -316,6 +396,7 @@ namespace UI
                 {
                     ImGui::SetClipboardText(menuPlayer.name.c_str());
                 }
+                ChatPlayerMenu::DrawFilterItems(menuPlayer);
                 ImGui::EndPopup();
             }
         }

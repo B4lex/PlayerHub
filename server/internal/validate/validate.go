@@ -6,6 +6,7 @@ package validate
 import (
 	"errors"
 	"math"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -41,6 +42,9 @@ const (
 	MinimumWeaponType   = 1
 	MaximumWeaponType   = 9
 	MaximumChatTextByte = 512
+
+	// Sessions one client may vanish at once.
+	MaximumVanished = 1024
 )
 
 // Errors name the rejected message, as the Python server's acknowledgements did.
@@ -53,6 +57,7 @@ var (
 	ErrChat        = errors.New("invalid chat message")
 	ErrDisplayName = errors.New("invalid display name")
 	ErrToken       = errors.New("invalid session token")
+	ErrVanish      = errors.New("invalid vanish")
 )
 
 var ErrUnexpected = errors.New("unexpected message")
@@ -73,6 +78,11 @@ func Message(m *pb.ClientMessage) error {
 		return Appearance(body.Appearance)
 	case *pb.ClientMessage_Equipment:
 		return Equipment(body.Equipment)
+	case *pb.ClientMessage_Vanish:
+		if body.Vanish.GetSessionId() == 0 {
+			return ErrVanish
+		}
+		return nil
 	default:
 		return ErrUnexpected
 	}
@@ -190,11 +200,15 @@ func Equipment(e *pb.Equipment) error {
 	return nil
 }
 
-// Hello checks the session fields; the protocol version is the session's to
-// compare. A token is absent, to ask for a new session, or whole.
+// Hello checks the session fields and the vanished sessions; the protocol
+// version is the session's to compare. A token is absent, to ask for a new
+// session, or whole.
 func Hello(h *pb.Hello) error {
 	if token := h.GetSessionToken(); len(token) != 0 && len(token) != SessionTokenBytes {
 		return ErrToken
+	}
+	if vanished := h.GetVanished(); len(vanished) > MaximumVanished || slices.Contains(vanished, 0) {
+		return ErrVanish
 	}
 	return DisplayName(h.GetDisplayName())
 }

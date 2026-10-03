@@ -6,6 +6,7 @@
 #include "protocol/EquipmentState.h"
 #include "protocol/PeerSlot.h"
 #include "protocol/PlayerState.h"
+#include "protocol/Session.h"
 
 #include <chrono>
 #include <cstdint>
@@ -110,6 +111,19 @@ namespace Network
     // else's.
     [[nodiscard]] bool PublishChatMessage(Multiplayer::ChatChannel a_channel, Multiplayer::PeerSlot a_recipient,
         std::string_view a_text, std::function<void(std::string_view)> a_onRejected);
+
+    // Tells a_server to stop sending the player of a_session, or to send it
+    // again, at once. Nothing is sent unless the current connection's hello
+    // went to a_server, since a session ID names a player on one server only;
+    // until then the next hello carries every vanished session from
+    // PlayerFilterStore, which the caller updates first. Safe to call from any
+    // thread.
+    void PublishVanish(std::string_view a_server, Multiplayer::SessionID a_session, bool a_vanished);
+
+    // The server of the latest welcomed connection, as a WebSocket URL, or of
+    // the configured endpoint before the first: the server whose sessions the
+    // roster and chat lines name, which per-server files are keyed by.
+    [[nodiscard]] std::string GetServerAddress();
 
     // Sends a Ping. a_onAcknowledged runs on the transport thread when the
     // server answers it; it never runs if the connection drops first.

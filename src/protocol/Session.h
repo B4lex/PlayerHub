@@ -14,4 +14,7 @@ namespace Multiplayer
 
     // A session's secret. Whoever presents it to the server is that player.
     using SessionToken = std::array<std::uint8_t, kSessionTokenBytes>;
+
+    // Sessions one client may vanish on a server, as the server accepts.
+    inline constexpr std::size_t kMaximumVanishedSessions = 1024;
 }

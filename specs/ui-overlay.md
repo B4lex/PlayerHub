@@ -242,6 +242,28 @@
   took about 97 µs a frame instead of 127 µs, and drags as long as before.
   The `xmake.lua` deploy step was not run. `[UI] BorderColor` in the file is
   under [Configuration](configuration.md#status).
+- **Mute and vanish:** not built on Windows or run in game; the server side is
+  under [Network](network.md#status). On Linux, in the chat's headless Dear
+  ImGui 1.92.9 harness with a stubbed transport and a deploy folder,
+  `PlayerFilterStore.cpp`, `PlayerFilters.cpp`, `ChatSync.cpp`,
+  `ChatRoster.cpp`, and every `ui/chat/` file ran: a kept mute loads for its
+  server only and malformed lines are skipped; vanishing publishes once and
+  writes `v`, muting too writes `mv`, undoing both removes the line, another
+  server's list follows a new connection, and the 1025th vanish is refused; a
+  mute hides the player's earlier lines and new ones on every channel, in the
+  open and the closed chat, without a notice, and its whisper does not become
+  `/r`; unmuting shows them all again. In the player list a muted player's
+  menu offers `Unmute` and `Vanish`, another's `Mute` and `Vanish`, the local
+  player has no menu, and the marks show (rasterized). `Manage players` sits
+  at the list's bottom and opens a window in the middle of the screen over the
+  chat, on Friends; Muted lists this server's muted players with an offline
+  one and `Online` by those connected; `Unmute` and `Unvanish` remove their
+  row at once; the search filters the tab shown and stays across tabs; Friends
+  is empty; Escape closes the window and leaves the chat open, a second one
+  closes the chat; Enter closing the chat closes the window; its close button
+  closes only it; dragged and reopened, it is in the middle again and on
+  Friends (rasterized). With 500 players and 300 lines the open chat took the
+  same time as before, about 107 µs a frame.
 - **Item picker and preview:** built on Windows; in game the picker lists names
   and the preview shows models. The attach pass for models that load in the
   background has not run in game yet. On Linux, `ItemCatalog.cpp`,
@@ -290,6 +312,8 @@ src/ui/
   chat/ChatSize               # the open chat's size, the drag that sets it, saving it
   chat/ChatPlayers            # the players online: the button on the filters' row, the list beside the chat
   chat/ChatStyle.h            # channel and notice colors, the chips' frame, the rule under the filters
+  chat/ChatPlayerMenu         # Mute and Vanish, or their undoing, in a player's menu
+  chat/ChatPlayerManager      # Manage players: Friends, Muted, and Vanished tabs over the chat
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
   settings/ConnectionControls # connection button, the line under it, one-line summary
   widgets/Controls            # switch, accent and red buttons, icon buttons
@@ -299,6 +323,7 @@ src/sync/chat/ChatSync        # send to a target, rejections as notices, lines t
 src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners, the list's copy
 src/sync/chat/ChatDraft       # syntax of prefixes and commands
 src/sync/chat/ChatComposer    # send target, name and command list, sent lines
+src/sync/filters/PlayerFilters # muted and vanished players of the current server, publishing
 src/runtime/PluginTime        # plugin time per pass
 assets/fonts/                 # Sovngarde Light and Bold with their license, deployed beside the DLL
 assets/frame/                 # the menu frame's shape, deployed beside the DLL
@@ -616,7 +641,7 @@ whisper by a few letters of a name, and keep whispering the same player
 without naming it again; see who is online and whisper one from a list; tell the channels apart at a glance, and turn each
 off and on; see as many lines as the player wants, by dragging the chat larger.
 Non-goals: chat
-history for late joiners, a saved log, an ignore list, moving the chat, and
+history for late joiners, a saved log, moving the chat, and
 staying open after a line is sent.
 
 | Channel | Reaches | Color |
@@ -748,7 +773,8 @@ connected players whose names start with what follows, at most 8.
   color and the heading face ([Themed faces](#themed-faces)). Text is the
   theme's, in the text face, and notices are orange. Under the cursor a label is underlined; a right click on a line opens
   `Whisper`, `Copy name`, and `Copy message`, the first two only for another
-  player's line.
+  player's line, and then `Mute` and `Vanish` for the line's other player
+  ([Mute and vanish](#mute-and-vanish)).
 - A line wider than the chat wraps at words. Its text starts beside its label
   and continues from the chat's left edge under the label, not from where the
   text started, so a long name does not narrow every row (`DrawAfterLabel` in
@@ -782,7 +808,7 @@ connected players whose names start with what follows, at most 8.
   frame; `ChatPlayers` draws what is inside.
 - A search field stands on the filters' row, as high as the filters, with
   a rule under it as far as the chat's is, so the two line up. It reads
-  `Find a player` while empty and keeps names that contain its text, both
+  `Search` while empty and keeps names that contain its text, both
   folded as the [name list](#name-list) folds them. Tab stays in the field;
   Enter gives the keyboard back to the chat's field.
 - The names follow, a chat line apart, in the order `ChatRoster` sorts
@@ -795,8 +821,17 @@ connected players whose names start with what follows, at most 8.
   `Not connected to the server.`
 - A name acts as a sender's name does in the lines: under the cursor it is
   underlined and the cursor is a hand, a click whispers the player, and a
-  right click opens `Whisper` and `Copy name`. The keyboard then returns to
-  the chat's field.
+  right click opens `Whisper` and `Copy name`, then `Mute` and `Vanish`
+  ([Mute and vanish](#mute-and-vanish)). The keyboard then returns to the
+  chat's field.
+- A muted or vanished player has a mark right of its name, before the
+  nearby dot's place, in the muted text color, three quarters of a font size
+  square: a speech bubble struck through for muted, an eye struck through
+  for vanished, both when both. Hovering them shows `Muted`, `Vanished`, or
+  `Muted and vanished`. A vanished player is never nearby, since the client
+  no longer receives it.
+- A `Manage players` button as wide as the list stands at its bottom,
+  below the names, and opens [Manage players](#manage-players).
 - Escape that closes the chat closes the list with it, also from the
   search field; a chat closed by Enter, or by a menu that opens by itself,
   shows the list again when it opens. The button closes it too. Closing
@@ -882,9 +917,9 @@ connected players whose names start with what follows, at most 8.
 - Enter or keypad Enter during gameplay opens the chat and focuses its field.
   Typing goes only to the chat; the character does not move or look around, and
   keys already held keep acting until released.
-- Escape closes an open menu, else hides the name or command list, else
-  discards the text typed since opening and closes the chat and the
-  [player list](#player-list). Every key,
+- Escape closes an open menu, else [Manage players](#manage-players), else
+  hides the name or command list, else discards the text typed since opening
+  and closes the chat and the [player list](#player-list). Every key,
   console and menu keys included, goes to the chat while it is open, but a
   menu that opens by itself, such as dialogue an NPC starts or a loading
   screen, closes it and keeps the text.
@@ -932,6 +967,90 @@ connected players whose names start with what follows, at most 8.
   the field is refilled from the composer's text. Keyboard focus is requested
   again whenever the field is not active, except while a menu is open or the
   mouse holds an item, whose click it would otherwise take.
+
+## Mute and vanish
+
+Goal: a player can stop seeing another player without leaving: mute hides
+what it says, vanish removes its character from this world. Either is chosen
+from a player's menu, in the chat's lines or the
+[player list](#player-list), shows as a mark in the list, can be undone
+there or in [Manage players](#manage-players), also while the player is
+offline, and lasts across games on the same server. Non-goals: telling the
+player, a mutual vanish (a vanished player still sees the one who vanished
+it), muting or vanishing by name, a vanished player's Local chat (mute
+covers chat), and admin moderation.
+
+- `PlayerFilters` (`sync/filters/`) holds the current server's entries by
+  session ID: a name, `muted`, and `vanished`. It reads them from
+  `Network::PlayerFilterStore` for `Network::GetServerAddress` and again
+  whenever the connection generation changes, so a session is never looked
+  up on another server's list ([Network](network.md#player-filters)). A
+  revision, the sum of its own change count and the generation, tells
+  readers when to copy again; it is two atomic loads.
+- `SetMuted` and `SetVanished` change one flag and save the entry, without a
+  chat notice: the menu item, the list's marks, and the hidden lines or
+  character already show the change. `SetVanished` then publishes it
+  ([Network](network.md#vanish)). A player without a session cannot be
+  either. At 1024 vanished players on a server another vanish is refused
+  with `You can vanish at most 1024 players on a server.` A failed save adds
+  a notice that the change lasts until the game exits.
+- `ChatPlayerMenu::DrawFilterItems` adds a separator, `Mute` or `Unmute`,
+  and `Vanish` or `Unvanish` to a player's menu, each with a tooltip saying
+  what it does and that the player is not told. The local player
+  (`ChatRoster::GetLocalSession`) and a player without a session get none.
+- Muting hides the player's lines on every channel, whispers included, in
+  the open chat and the closed chat's recent lines, and what it said before
+  the mute too; unmuting shows every line still held. `ChatHistory` keeps a
+  `muted` flag per line from the sender's session (zero for the local
+  player's own lines and notices), set when a line arrives and recomputed
+  for all lines only when `PlayerFilters`' revision changes. A muted line
+  marks no filter unread. A muted player's whisper does not become a whisper
+  partner or `/r` (`ChatSync::DrainLines`).
+- Vanishing is the server's: the client stops receiving the player
+  ([Interest and delivery](interest-and-delivery.md#subscriptions)), so its
+  remote actor leaves as for any `EXCLUDED` peer and returns, if in range,
+  when the vanish is undone. It does not hide the player's chat.
+
+### Manage players
+
+Where the muted and vanished players of the current server are listed,
+offline ones included, and undone; and where friends will be.
+
+- `ChatPlayerManager` draws it and `ChatWindow` places and begins it
+  (`BeginFramed`) after the chat and the player list, in the menu frame
+  over 90% of the theme's background, with 26 × 22 font sizes of content.
+  It opens in the middle of the screen (`ImGuiCond_Appearing`) and can be
+  dragged by any empty part while it is open; every opening starts in the
+  middle again. The open chat's windows
+  have `ImGuiWindowFlags_NoBringToFrontOnFocus`, so a click in the chat or
+  the list leaves it in front. `Manage players` while it is open brings it
+  to the front.
+- It holds the title `Manage players` in the heading face with a close
+  button at the right, the tabs `Friends`, `Muted`, and `Vanished` as chips
+  (the one shown in the accent with the chip fill, the others outlines that
+  brighten under the cursor), and a rule. Every opening shows Friends;
+  nothing of the window is kept once it closes.
+- Friends is empty: a placeholder for friends.
+- Muted and Vanished have a search field, `Search` while empty, that keeps
+  the names containing its text, folded as the [name list](#name-list)
+  folds them. The search stays across tabs and empties when the window
+  closes; Tab stays in the field. Then a row per player of the tab, sorted
+  by folded name: the name, cut before the rest of the row, the roster's
+  while the player is online and as kept otherwise; `Online` in the muted
+  color while it is connected; and an `Unmute` or `Unvanish` button, which
+  undoes it as the menu does and removes the row at once. With nobody the
+  tab reads `You have not muted anyone on this server.` or
+  `You have not vanished anyone on this server.`, and with nothing matching
+  `No player with that name`. `ImGuiListClipper` draws only the rows in
+  view.
+- It copies the roster and `PlayerFilters` only when their revisions
+  change, and rebuilds the tab's rows then and when the tab changes.
+- Escape closes it before the chat, from any field. Its close button closes
+  it alone. Closing the chat, by Escape, Enter, or a menu that opens by
+  itself, closes it too, and it does not show again until `Manage players`
+  is pressed. The wheel over it scrolls it and not the chat's lines
+  (`ChatPlayerManager::IsHovered`). After a click the keyboard returns to
+  the chat's field, except in its search field.
 
 ## Settings window
 
@@ -1317,6 +1436,24 @@ or zoomed.
     scrolls it and not the lines, and with the chat dragged to the screen's
     right edge the list is still on the screen. With hundreds of players
     online the frame rate with the list open is the same as with it closed.
+18. A right click on another player's name in the list or on its chat line
+    offers `Mute` and `Vanish`; on the local player's name, neither. After
+    `Mute` no notice shows, the player's lines vanish from the open and
+    closed chat, earlier ones included, and its new lines and whispers do
+    not show; `/r` still answers whoever whispered before. After `Vanish`
+    its character disappears at once while the other player still sees this
+    one and is told nothing, and it stays gone after either game reconnects
+    or restarts. The list marks the player with a struck bubble or eye.
+    `Unmute` shows every held line again, and `Unvanish` brings the
+    character back where the player stands, if it is in range.
+19. `Manage players` at the bottom of the player list opens a framed window
+    in the middle of the screen over the open chat, with the tabs Friends,
+    Muted, and Vanished. Friends is empty. Muted and Vanished list the
+    connected server's players, offline ones included, with `Online` by
+    those connected and a search field; `Unmute` or `Unvanish` removes the
+    row at once and has the effect the menu has. Escape closes the window
+    and leaves the chat open; closing the chat closes it too. Connecting to
+    another server lists only that server's players.
 
 ## Known limitations
 
@@ -1365,5 +1502,12 @@ or zoomed.
 - A click made before the mouse has moved since the chat opened is dropped.
 - The send target, the filters, the whisper partners, and the sent lines last
   until the game exits.
+- An offline player in Manage players shows the name it had when last
+  muted or vanished; online, the roster's. The window lists the last
+  server that welcomed the client, or the configured endpoint's before the
+  first connection of a game, so an endpoint changed while disconnected
+  shows its list only once connected. It opens only from the open chat.
+- Mutes and vanishes are kept per server URL, so the same server reached
+  under another address starts with none.
 - The picker covers armor, weapons, ammunition, and races, not torches, spells,
   or actors; `ItemKind` is where more kinds would go.

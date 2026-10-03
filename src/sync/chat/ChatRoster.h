@@ -49,6 +49,10 @@ namespace ChatRoster
     // Connected players, the local one included; zero while disconnected.
     [[nodiscard]] std::size_t GetPlayerCount();
 
+    // The local player's session as the roster lists it; zero while
+    // disconnected.
+    [[nodiscard]] Multiplayer::SessionID GetLocalSession();
+
     // Copies the connected players, sorted by folded name, and the local
     // player's slot when they changed since a_revision; the first call passes
     // zero.

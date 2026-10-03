@@ -1,5 +1,7 @@
 #include "ui/chat/ChatHistory.h"
+#include "sync/filters/PlayerFilters.h"
 #include "ui/Fonts.h"
+#include "ui/chat/ChatPlayerMenu.h"
 #include "ui/chat/ChatStyle.h"
 
 #include <algorithm>
@@ -160,6 +162,17 @@ namespace UI
 
     void ChatHistory::Collect(double a_now, bool a_open)
     {
+        // Muting hides what a player said before too, and unmuting shows it again.
+        if (const auto revision = PlayerFilters::GetRevision(); revision != filtersRevision)
+        {
+            filtersRevision = revision;
+            for (auto& line : lines)
+            {
+                line.muted = line.sender != 0 && PlayerFilters::IsMuted(line.sender);
+            }
+            arrived = true;
+        }
+
         ChatSync::DrainLines(incoming);
         for (auto& line : incoming)
         {
@@ -171,6 +184,8 @@ namespace UI
             ++counts[kind];
 
             const bool fromPlayer = line.kind == ChatSync::LineKind::kPlayer;
+            const auto sender = fromPlayer && !line.outgoing ? line.player.session : 0;
+            const bool muted = sender != 0 && PlayerFilters::IsMuted(sender);
             // Whispering oneself by a click on one's own line would only surprise.
             const bool whisperable = fromPlayer && !line.player.name.empty()
                 && (line.channel == Multiplayer::ChatChannel::kWhisper || !line.outgoing);
@@ -179,13 +194,15 @@ namespace UI
                 .label = fromPlayer ? std::move(line.sender) + ":" : std::string{},
                 .text = std::move(line.text),
                 .player = whisperable ? std::move(line.player) : Multiplayer::RosterEntry{},
+                .sender = sender,
+                .muted = muted,
                 .receivedAt = a_now });
             // The player's own line stays in view.
             if (fromPlayer && line.outgoing)
             {
                 SetShown(line.channel, true);
             }
-            if (fromPlayer && !(a_open && Shows(line.channel)))
+            if (fromPlayer && !muted && !(a_open && Shows(line.channel)))
             {
                 unread[static_cast<std::size_t>(line.channel)] = true;
             }
@@ -222,7 +239,7 @@ namespace UI
 
     bool ChatHistory::Shows(const Line& a_line) const
     {
-        return a_line.kind == ChatSync::LineKind::kNotice || Shows(a_line.channel);
+        return a_line.kind == ChatSync::LineKind::kNotice || (Shows(a_line.channel) && !a_line.muted);
     }
 
     float ChatHistory::GetLinePitch()
@@ -396,6 +413,10 @@ namespace UI
                 if (ImGui::MenuItem("Copy message"))
                 {
                     ImGui::SetClipboardText(menuLine.text.c_str());
+                }
+                if (menuLine.player.playerID != 0)
+                {
+                    ChatPlayerMenu::DrawFilterItems(menuLine.player);
                 }
                 ImGui::EndPopup();
             }

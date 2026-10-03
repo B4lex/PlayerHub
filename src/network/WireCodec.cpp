@@ -352,8 +352,10 @@ namespace Network::Wire
         {
             a_result = Multiplayer::ChatSpeaker{ .playerID = a_speaker.slot,
                 .name = a_speaker.name,
-                .level = static_cast<std::uint16_t>(a_speaker.level) };
-            return a_speaker.slot != 0 && a_speaker.level <= (std::numeric_limits<std::uint16_t>::max)()
+                .level = static_cast<std::uint16_t>(a_speaker.level),
+                .session = a_speaker.session_id };
+            return a_speaker.slot != 0 && a_speaker.session_id != 0
+                && a_speaker.level <= (std::numeric_limits<std::uint16_t>::max)()
                 && Multiplayer::IsValidAppearanceName(a_result.name);
         }
 
@@ -475,8 +477,9 @@ namespace Network::Wire
                 {
                     return std::unexpected(std::string{ "roster entry: " } + PB_GET_ERROR(&roster));
                 }
-                Multiplayer::RosterEntry player{ .playerID = entry.slot, .name = entry.name };
-                if (player.playerID == 0 || player.name.empty() || !Multiplayer::IsValidAppearanceName(player.name))
+                Multiplayer::RosterEntry player{ .playerID = entry.slot, .name = entry.name, .session = entry.session_id };
+                if (player.playerID == 0 || player.session == 0 || player.name.empty()
+                    || !Multiplayer::IsValidAppearanceName(player.name))
                 {
                     return std::unexpected("roster entry values");
                 }
@@ -491,7 +494,7 @@ namespace Network::Wire
     }
 
     std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_displayName,
-        const std::optional<Multiplayer::SessionToken>& a_token)
+        const std::optional<Multiplayer::SessionToken>& a_token, std::span<const Multiplayer::SessionID> a_vanished)
     {
         skyrimmp_v1_Hello hello = skyrimmp_v1_Hello_init_zero;
         hello.protocol_version = skyrimmp_v1_Protocol_PROTOCOL_VERSION;
@@ -502,10 +505,21 @@ namespace Network::Wire
             hello.session_token.size = static_cast<pb_size_t>(a_token->size());
             std::ranges::copy(*a_token, hello.session_token.bytes);
         }
-        if (!CopyString(hello.display_name, a_displayName))
+        if (!CopyString(hello.display_name, a_displayName) || a_vanished.size() > Multiplayer::kMaximumVanishedSessions)
         {
             return {};
         }
+        hello.vanished.arg = &a_vanished;
+        hello.vanished.funcs.encode = [](pb_ostream_t* a_stream, const pb_field_t* a_field, void* const* a_arg) {
+            for (const auto session : *static_cast<const std::span<const Multiplayer::SessionID>*>(*a_arg))
+            {
+                if (!pb_encode_tag_for_field(a_stream, a_field) || !pb_encode_varint(a_stream, session))
+                {
+                    return false;
+                }
+            }
+            return true;
+        };
         return EncodeClientMessage(skyrimmp_v1_ClientMessage_hello_tag, skyrimmp_v1_Hello_fields, &hello);
     }
 
@@ -715,6 +729,12 @@ namespace Network::Wire
     {
         skyrimmp_v1_Ping ping{ a_requestID };
         return EncodeClientMessage(skyrimmp_v1_ClientMessage_ping_tag, skyrimmp_v1_Ping_fields, &ping);
+    }
+
+    std::string EncodeVanish(Multiplayer::SessionID a_session, bool a_vanished)
+    {
+        skyrimmp_v1_Vanish vanish{ a_session, a_vanished };
+        return EncodeClientMessage(skyrimmp_v1_ClientMessage_vanish_tag, skyrimmp_v1_Vanish_fields, &vanish);
     }
 
     struct Decoder::Buffer

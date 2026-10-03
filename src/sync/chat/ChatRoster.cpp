@@ -22,6 +22,7 @@ namespace ChatRoster
         Multiplayer::Roster s_roster;
         // Sorted by folded name.
         std::vector<Entry> s_entries;
+        Multiplayer::SessionID s_localSession = 0;
         std::deque<Player> s_partners;
         std::optional<Player> s_lastWhisperer;
         // Reused by Complete.
@@ -143,9 +144,14 @@ namespace ChatRoster
             }
             s_entries.clear();
             s_entries.reserve(s_roster.players.size());
+            s_localSession = 0;
             for (const auto& player : s_roster.players)
             {
                 s_entries.push_back(Entry{ .player = player, .folded = Fold(player.name) });
+                if (player.playerID == s_roster.localPlayerID)
+                {
+                    s_localSession = player.session;
+                }
             }
             std::ranges::sort(s_entries, {}, &Entry::folded);
         }
@@ -260,6 +266,13 @@ namespace ChatRoster
         const std::scoped_lock lock{ s_lock };
         RefreshLocked();
         return s_entries.size();
+    }
+
+    Multiplayer::SessionID GetLocalSession()
+    {
+        const std::scoped_lock lock{ s_lock };
+        RefreshLocked();
+        return s_localSession;
     }
 
     bool CopyPlayersIfChanged(

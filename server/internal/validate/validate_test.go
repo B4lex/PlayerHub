@@ -253,6 +253,8 @@ func TestHello(t *testing.T) {
 		"spaces inside":      {DisplayName: "Ulfric Stormcloak"},
 		"at the byte limit":  {DisplayName: strings.Repeat("é", 64)},
 		"a single character": {DisplayName: "é"},
+		"vanished players":   {DisplayName: "Lydia", Vanished: []uint64{2, 3}},
+		"vanished at limit":  {DisplayName: "Lydia", Vanished: sessions(MaximumVanished)},
 	} {
 		if err := Hello(h); err != nil {
 			t.Errorf("%s rejected: %v", name, err)
@@ -268,6 +270,8 @@ func TestHello(t *testing.T) {
 		"invalid UTF-8":   {DisplayName: "\xff"},
 		"short token":     {DisplayName: "Lydia", SessionToken: token[:31]},
 		"long token":      {DisplayName: "Lydia", SessionToken: make([]byte, 33)},
+		"vanished zero":   {DisplayName: "Lydia", Vanished: []uint64{2, 0}},
+		"vanished many":   {DisplayName: "Lydia", Vanished: sessions(MaximumVanished + 1)},
 	} {
 		if Hello(h) == nil {
 			t.Errorf("%s accepted", name)
@@ -275,5 +279,25 @@ func TestHello(t *testing.T) {
 	}
 	if DisplayNameKey("LyDia") != DisplayNameKey("lydia") || DisplayNameKey("Lydia") == DisplayNameKey("Lydia2") {
 		t.Error("display name keys do not compare without case")
+	}
+}
+
+func sessions(count int) []uint64 {
+	result := make([]uint64, count)
+	for i := range result {
+		result[i] = uint64(i + 1)
+	}
+	return result
+}
+
+func TestVanish(t *testing.T) {
+	vanish := func(session uint64) *pb.ClientMessage {
+		return &pb.ClientMessage{Message: &pb.ClientMessage_Vanish{Vanish: &pb.Vanish{SessionId: session, Vanished: true}}}
+	}
+	if err := Message(vanish(7)); err != nil {
+		t.Errorf("vanish rejected: %v", err)
+	}
+	if Message(vanish(0)) != ErrVanish {
+		t.Error("vanish without a session accepted")
 	}
 }

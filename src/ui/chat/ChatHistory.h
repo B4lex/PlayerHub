@@ -8,6 +8,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <optional>
 #include <string>
@@ -57,6 +58,11 @@ namespace UI
             std::string text;
             // Whom a click on the label whispers; no slot when nobody.
             Multiplayer::RosterEntry player;
+            // The session of another player who sent it; zero for the local
+            // player's own lines and for notices.
+            Multiplayer::SessionID sender{ 0 };
+            // The sender is muted, so it shows nowhere.
+            bool muted{ false };
             double receivedAt{ 0.0 };
         };
 
@@ -77,6 +83,9 @@ namespace UI
         std::array<bool, 3> shown{ true, true, true };
         // By channel: lines arrived that the open chat has not shown.
         std::array<bool, 3> unread{};
+
+        // PlayerFilters' revision the lines' muted flags follow.
+        std::uint64_t filtersRevision{ 0 };
 
         bool scrollToLatest{ false };
         bool arrived{ false };
