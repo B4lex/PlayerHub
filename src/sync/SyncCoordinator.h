@@ -18,4 +18,8 @@ namespace SyncCoordinator
     // pass hides remote actors that leave it no free marker, then activates it
     // again when that hid an actor or Skyrim's activation was deferred.
     void QueueLocalFurnitureActivation(RE::FormID a_furnitureRefID, bool a_deferred);
+
+    // Thread-safe; called when the local player activates a remote actor or its
+    // mount. The next pass opens that player's menu.
+    void QueueLocalActorActivation(RE::FormID a_actorID);
 }

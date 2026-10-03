@@ -64,7 +64,9 @@ survives ordinary exterior cell unloads within one worldspace.
   [Appearance and equipment](appearance-and-equipment.md#actor-base) builds.
   `PlayerBase` (`00000007`) is refused: `CreateReferenceAtLocation` returns a
   reference for it that never completes actor and 3D initialization.
-- Activation is blocked, so the local player cannot interact with it.
+- Activation is blocked, so Skyrim starts no dialogue or other interaction
+  with it. Activating it still sends `TESActivateEvent`, which opens its
+  player's menu ([UI overlay](ui-overlay.md#player-menu-in-the-world)).
 - AI stays enabled for the actor's whole life. The graph and character
   controller only finish initializing and keep updating while the actor stays
   in Skyrim's normal processing; disabling it clears `kProcessMe`, zeroes the
@@ -472,33 +474,42 @@ Verified against the 1.7.104 executable:
 4. ID 37577 takes the actor in `rcx` and returns in `al`. ID 42704 has one
    caller, takes the knowledge in `rcx` and a `DetectionState` in `rdx`, and
    matches CommonLib's `ActorKnowledge`.
+5. ID 19796 (`TESObjectREFR::ActivateRef`) sends `TESActivateEvent` through
+   `ScriptEventSourceHolder` (+0x58) before it tests the reference's blocked
+   activation, except for default processing only. For the player it returns
+   earlier, without the event, when the base's full name is empty and the
+   reference is neither water nor a door; `PlayerLabel::Format` never leaves a
+   remote actor's base unnamed, and the vanilla horse is named.
 
 Verified in game:
 
-5. Every hit on a remote actor reaches 39643 and is blocked there (topic
+6. Every hit on a remote actor reaches 39643 and is blocked there (topic
    `00013EBB` and its hit-line infos).
-6. With its movement update skipped and `kNoSim` set, a network-placed actor,
+7. With its movement update skipped and `kNoSim` set, a network-placed actor,
    on foot or a mount, stays exactly where the network transform puts it, and
    its 3D follows `SetPosition(..., true)`. A temporary per-pass position check
    found no other writer across replayed mounts and dismounts.
 
 Not yet checked in game:
 
-7. No combat path adds a remote actor to a local combat group's targets without
+8. No combat path adds a remote actor to a local combat group's targets without
    passing 37532/37534 or `StartCombat`.
-8. Clearing `kPlayerTeammate` does not make the local player's hits start a
+9. Clearing `kPlayerTeammate` does not make the local player's hits start a
    crime or assault reaction. The runtime base has no factions.
-9. Bashes and unarmed attacks land through 38603.
-10. Every other bark starts through 39642/39643. If one still plays, voice
+10. Bashes and unarmed attacks land through 38603.
+11. Every other bark starts through 39642/39643. If one still plays, voice
     playback (ID 37542) is the fallback.
-11. Suppressing the actor's detection has no visible side effect, such as
+12. Suppressing the actor's detection has no visible side effect, such as
     unreplicated head tracking.
-12. A locomotion graph driven by the published Speed plays at the same speed as
+13. A locomotion graph driven by the published Speed plays at the same speed as
     before; `kSupport` set outside `Move` is not overwritten while `Move` is
     skipped; trigger volumes detect actors only through the character body.
-13. Death items (ID 37198) were ruled out when remote actors could not die;
+14. Death items (ID 37198) were ruled out when remote actors could not die;
     with death synchronized this is unchecked. Damage (ID 37335) is covered by
     the `HandleHealthDamage` guard.
+15. The local player's Activate on a remote actor or mount, from the
+    crosshair, reaches ID 19796 with the player as the activator, so the
+    event above is sent.
 
 ## Acceptance criteria
 

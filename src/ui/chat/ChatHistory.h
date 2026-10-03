@@ -99,7 +99,8 @@ namespace UI
         // were drawn. Negative when there is nothing to pass on.
         float rewrappedHeight{ -1.0F };
 
-        Line menuLine;
+        // Whose line's menu is open.
+        Multiplayer::RosterEntry menuPlayer;
         bool menuOpen{ false };
 
         std::array<const Line*, kMaximumRecentLines> recent{};

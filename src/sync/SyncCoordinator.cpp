@@ -10,6 +10,7 @@
 #include "sync/SyncFrame.h"
 #include "sync/animation/AnimationSync.h"
 #include "sync/appearance/AppearanceSync.h"
+#include "sync/chat/PlayerActivation.h"
 #include "sync/combat/CombatSync.h"
 #include "sync/death/DeathSync.h"
 #include "sync/equipment/EquipmentSync.h"
@@ -19,6 +20,7 @@
 #include "sync/outfit/DefaultOutfit.h"
 #include "sync/presence/PresenceSync.h"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
@@ -44,6 +46,8 @@ namespace SyncCoordinator
         // handled by the next main-loop pass.
         std::mutex s_localFurnitureActivationsLock;
         std::vector<LocalFurnitureActivation> s_localFurnitureActivations;
+        // The latest remote actor the local player activated; zero when none.
+        std::atomic<RE::FormID> s_localActorActivation{ 0 };
 
         RemoteFrame GetRemoteFrame(Multiplayer::PeerSlot a_playerID, const PeerState& a_peer)
         {
@@ -244,6 +248,29 @@ namespace SyncCoordinator
             }
         }
 
+        // Opens the menu of the player whose actor or mount the local player
+        // activated. Activations are rare, so a scan over the peers will do.
+        void OpenActivatedPlayerMenu(const Peers& a_peers)
+        {
+            const auto actorID = s_localActorActivation.exchange(0, std::memory_order_acq_rel);
+            auto* actor = actorID != 0 ? RE::TESForm::LookupByID<RE::Actor>(actorID) : nullptr;
+            if (!actor)
+            {
+                return;
+            }
+            const auto handle = actor->GetHandle().native_handle();
+            for (const auto& [playerID, peer] : a_peers)
+            {
+                const auto& lifecycle = peer.lifecycle;
+                if ((lifecycle.actor && lifecycle.actor->handle.native_handle() == handle)
+                    || (lifecycle.mount && lifecycle.mount->actor.handle.native_handle() == handle))
+                {
+                    PlayerActivation::Activate(playerID);
+                    return;
+                }
+            }
+        }
+
         void RestoreSaveEligibility(Peers& a_peers)
         {
             if (!s_actorsExcludedFromSaves)
@@ -434,6 +461,7 @@ namespace SyncCoordinator
         }
 
         YieldActivatedFurniture(s_peers, *a_player);
+        OpenActivatedPlayerMenu(s_peers);
         if (PresenceSync::SyncPresence(LocalFrame{ .player = *a_player }))
         {
             SyncLocalPlayer(*a_player, a_delta);
@@ -464,6 +492,11 @@ namespace SyncCoordinator
     {
         const std::scoped_lock lock{ s_localFurnitureActivationsLock };
         s_localFurnitureActivations.push_back({ .furnitureRefID = a_furnitureRefID, .deferred = a_deferred });
+    }
+
+    void QueueLocalActorActivation(RE::FormID a_actorID)
+    {
+        s_localActorActivation.store(a_actorID, std::memory_order_release);
     }
 
     void OnGameSave()

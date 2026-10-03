@@ -1,4 +1,5 @@
 #include "ui/chat/ChatWindow.h"
+#include "sync/chat/PlayerActivation.h"
 #include "ui/Layout.h"
 #include "ui/MenuFrame.h"
 #include "ui/Theme.h"
@@ -130,6 +131,14 @@ namespace UI
 
             void Draw(const WindowInput& a_input) override
             {
+                // Whisper in a player's menu in the world; the chat opens with
+                // the next frame.
+                if (const auto player = PlayerActivation::TakeWhisperRequest();
+                    player && (a_input.focused || WindowManager::Focus(*this)))
+                {
+                    Whisper(*player);
+                }
+
                 const auto now = ImGui::GetTime();
                 history.Collect(now, a_input.focused);
 

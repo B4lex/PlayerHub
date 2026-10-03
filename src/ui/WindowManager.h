@@ -33,6 +33,11 @@ namespace UI::WindowManager
     // False if a window already has focus or none uses the key.
     [[nodiscard]] bool FocusByKey(std::uint32_t a_scanCode);
 
+    // Gives a_window focus, for a window that opens without a key. False if a
+    // window already has focus. Overlay thread; the input hook releases it
+    // again if a menu holds input.
+    [[nodiscard]] bool Focus(const Window& a_window);
+
     // Releases focus if the window holding it uses a_scanCode as a release key.
     // False if no window has focus or the focused one does not use the key.
     [[nodiscard]] bool ReleaseFocusByKey(std::uint32_t a_scanCode);

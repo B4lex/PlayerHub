@@ -40,6 +40,7 @@ each feature's rules to its own system, the transport to
 | `runtime/MainLoopHook` | The one main-loop detour; binds the game thread and runs a pass |
 | `runtime/GameThread` | `Bind`, `IsAuthoritative`, `Require`: the engine-mutation thread guard |
 | `runtime/GameSession` | Whether a game is loaded, set by `PresenceSync` |
+| `runtime/RemoteActorActivation` | The local player's activation of a remote actor or mount, on its worker thread ([UI overlay](ui-overlay.md#player-menu-in-the-world)) |
 | `runtime/PluginTime` | Plugin time per pass, averaged each second ([UI overlay](ui-overlay.md#plugin-time)) |
 | `sync/SyncCoordinator` | One frame entry, the stage order, the single network drain, and the peer map |
 | `sync/PeerState` | A peer's complete receive state, composed of feature-owned members |
@@ -112,6 +113,7 @@ PlayCheckpoints                           # each peer's due checkpoints play
 ActorLifecycle::RefillSpawnAllowance
 if no player: return
 YieldActivatedFurniture                   # queued local furniture activations
+OpenActivatedPlayerMenu                   # the latest activated remote actor's player menu
 if PresenceSync::SyncPresence (in world):
     CombatSync::CaptureLocalAttack
     CombatSync::CaptureLocalHandPresentation

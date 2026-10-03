@@ -45,7 +45,7 @@
     closed chat's lines, with the send target unchanged; the unread dots; a
     target and the player's own line turning a channel back on; every filter
     off leaving the notices; a click on a sender's name; the chip's menu; a
-    line's menu and the clipboard; a click outside; a whisper to a player who
+    line's menu; a click outside; a whisper to a player who
     left; scrolling by the wheel while the cursor is hidden and a line
     arriving while scrolled back; the closed chat's lines with every channel
     on, with Global off, and with Whispers off. In the images the field, the
@@ -111,7 +111,7 @@
     among the others when no longer nearby; the local player left out, and
     `No other players online` when alone; a click on a name
     and `Whisper` in a row's menu whispering that player, with typing
-    reaching the chat's field after either; `Copy name`; Escape closing a
+    reaching the chat's field after either; Escape closing a
     row's menu only; the search matching without case, the row for no
     match, Backspace, Tab kept in the field, and nothing typed there
     reaching the chat; Enter there giving the keyboard back to the chat's
@@ -264,6 +264,20 @@
   closes only it; dragged and reopened, it is in the middle again and on
   Friends (rasterized). With 500 players and 300 lines the open chat took the
   same time as before, about 107 µs a frame.
+- **Player menu in the world:** not built on Windows or run in game.
+  `RemoteActorActivation.cpp` and the `SyncCoordinator` step need
+  CommonLibSSE-NG and were not compiled; the event they rely on was read from
+  the 1.7.104 executable ([Remote actor](remote-actor.md#engine-assumptions)).
+  On Linux, in the chat's headless Dear ImGui 1.92.9 harness with the real
+  `WindowManager.cpp`, `PlayerActivation.cpp`, `ChatRoster.cpp`,
+  `PlayerFilters.cpp`, and every `ui/chat/` file: an activated player's menu
+  takes focus with the mouse and opens at the middle of the screen with
+  `Whisper`, `Mute`, and `Vanish`, the chat closed (rasterized); a player
+  the roster does not list opens nothing; `Mute` and `Unmute` act and close
+  it; Escape, E, a remapped Activate key (E then no
+  longer), a left or right click outside, and focus lost to a menu close it;
+  `Whisper` opens the chat and its line goes to that player; an activation
+  while the chat is open opens nothing and is not kept.
 - **Item picker and preview:** built on Windows; in game the picker lists names
   and the preview shows models. The attach pass for models that load in the
   background has not run in game yet. On Linux, `ItemCatalog.cpp`,
@@ -314,6 +328,7 @@ src/ui/
   chat/ChatStyle.h            # channel and notice colors, the chips' frame, the rule under the filters
   chat/ChatPlayerMenu         # Mute and Vanish, or their undoing, in a player's menu
   chat/ChatPlayerManager      # Manage players: Friends, Muted, and Vanished tabs over the chat
+  chat/WorldPlayerMenu        # a player's menu at the crosshair, opened by activating its character
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
   settings/ConnectionControls # connection button, the line under it, one-line summary
   widgets/Controls            # switch, accent and red buttons, icon buttons
@@ -324,6 +339,7 @@ src/sync/chat/ChatRoster      # connected players by name, completion, whisper p
 src/sync/chat/ChatDraft       # syntax of prefixes and commands
 src/sync/chat/ChatComposer    # send target, name and command list, sent lines
 src/sync/filters/PlayerFilters # muted and vanished players of the current server, publishing
+src/sync/chat/PlayerActivation # the activated player, and a whisper picked in its menu
 src/runtime/PluginTime        # plugin time per pass
 assets/fonts/                 # Sovngarde Light and Bold with their license, deployed beside the DLL
 assets/frame/                 # the menu frame's shape, deployed beside the DLL
@@ -541,6 +557,11 @@ keyboard and the game receives no keyboard or mouse input.
   `PushInputContext` appends, keeping the console on top. Any menu, the console,
   dialogue, or a loading screen therefore blocks focus keys, and a context taking
   over input releases a focused window.
+- A window that opens without a key, the [player menu in the
+  world](#player-menu-in-the-world) and the chat it opens to whisper, takes
+  focus with `WindowManager::Focus` from the overlay thread, only while no
+  window holds it. The next dispatch releases it if gameplay is not the active
+  context.
 - A window gives focus back with `WindowManager::ReleaseFocus(*this)`, or names
   release keys with `Window::IsReleaseKey`: `InputCapture` releases the focused
   window when such a key is pressed, and neither the window nor the game sees
@@ -771,10 +792,10 @@ connected players whose names start with what follows, at most 8.
   lines of its channel arrived that the open chat has not shown.
 - A line's label, everything up to and with its colon, takes the channel's
   color and the heading face ([Themed faces](#themed-faces)). Text is the
-  theme's, in the text face, and notices are orange. Under the cursor a label is underlined; a right click on a line opens
-  `Whisper`, `Copy name`, and `Copy message`, the first two only for another
-  player's line, and then `Mute` and `Vanish` for the line's other player
-  ([Mute and vanish](#mute-and-vanish)).
+  theme's, in the text face, and notices are orange. Under the cursor a label is underlined; a right click on a line with
+  another player, its sender or the recipient of one's own whisper, opens
+  `Whisper`, then `Mute` and `Vanish` ([Mute and vanish](#mute-and-vanish)).
+  One's own other lines and notices have no menu.
 - A line wider than the chat wraps at words. Its text starts beside its label
   and continues from the chat's left edge under the label, not from where the
   text started, so a long name does not narrow every row (`DrawAfterLabel` in
@@ -823,7 +844,7 @@ connected players whose names start with what follows, at most 8.
   without a search, and without a roster `Not connected to the server.`
 - A name acts as a sender's name does in the lines: under the cursor it is
   underlined and the cursor is a hand, a click whispers the player, and a
-  right click opens `Whisper` and `Copy name`, then `Mute` and `Vanish`
+  right click opens `Whisper`, then `Mute` and `Vanish`
   ([Mute and vanish](#mute-and-vanish)). The keyboard then returns to the
   chat's field.
 - A muted or vanished player has a mark at the list's right edge, in the
@@ -917,6 +938,8 @@ connected players whose names start with what follows, at most 8.
 ### Window and input
 
 - Enter or keypad Enter during gameplay opens the chat and focuses its field.
+  `Whisper` in the [player menu in the world](#player-menu-in-the-world)
+  opens it too, with that player as the send target.
   Typing goes only to the chat; the character does not move or look around, and
   keys already held keep acting until released.
 - Escape closes an open menu, else [Manage players](#manage-players), else
@@ -1054,6 +1077,46 @@ offline ones included, and undone; and where friends will be.
   is pressed. The wheel over it scrolls it and not the chat's lines
   (`ChatPlayerManager::IsHovered`). After a click the keyboard returns to
   the chat's field, except in its search field.
+
+## Player menu in the world
+
+Goal: activating another player's character, or the mount it rides, with
+Skyrim's Activate key (E by default) opens that player's menu, the one a
+right click on its name in the chat opens: `Whisper` and
+[mute and vanish](#mute-and-vanish). Non-goals: the player's name as a
+heading (the chat's menus have none, and the label is above the
+character), another crosshair prompt (Skyrim's `Talk` and the label stay),
+and gamepad navigation.
+
+- `RemoteActorActivation` (`runtime/`) is a `TESActivateEvent` sink on
+  `ScriptEventSourceHolder`, registered once data is loaded. Remote actors
+  keep their blocked activation, so Skyrim starts no dialogue, but the event
+  is still sent ([Remote actor](remote-actor.md#spawn)). It keeps the local
+  player's activations of a registered remote actor
+  (`ActorRegistry::IsRegistered`) and stores the actor's form ID with
+  `SyncCoordinator::QueueLocalActorActivation`, the latest one winning, since
+  Skyrim activates on a worker thread.
+- The next pass finds the peer whose actor or mount has that handle
+  ([Sync pipeline](sync-pipeline.md#frame-sequence)) and gives its slot to
+  `PlayerActivation::Activate`, which looks the player up with
+  `ChatRoster::Find`. A player the roster does not list opens nothing.
+- `WorldPlayerMenu`, registered after the chat, takes the request when no
+  window holds focus and takes focus with `WindowManager::Focus`; otherwise
+  the request is dropped. With focus the cursor comes up in the middle of the
+  screen ([Input focus](#input-focus)), and the menu, a theme popup, opens
+  with its corner there, over the crosshair. Its items are
+  `Whisper` and `ChatPlayerMenu::DrawFilterItems`, as in the player list; the chat stays closed.
+- Picking an item, a click of either button outside the menu, Escape, and
+  the keyboard key mapped to Activate (`ControlMap::GetMappedKey`) close it
+  and give input back to the game, as does a menu taking over input. Escape
+  and Activate are release keys, so neither the game nor the menu sees them:
+  Escape does not open the journal, and Activate does not activate again.
+- `Whisper` releases focus and leaves the player with
+  `PlayerActivation::RequestWhisper`. The chat takes it the next frame, takes
+  focus, and opens with the whisper as its [send target](#send-target), its
+  cursor hidden as when Enter opens it.
+- Without an activation the menu and the chat each take one uncontended lock
+  a frame for their request; nothing scales with the number of remote actors.
 
 ## Settings window
 
@@ -1393,8 +1456,8 @@ or zoomed.
     nothing.
 13. Moving the mouse in the open chat shows a cursor in the middle of the
     chat, and the character does not turn or attack. A click on another
-    player's name turns the chip to that player; a right click on a line and
-    `Copy message` puts its text on the clipboard; a click on the chip lists
+    player's name turns the chip to that player; a right click on its line
+    offers `Whisper`, `Mute`, and `Vanish`; a click on the chip lists
     Global, Local, and the latest partners. Typing continues after each click,
     and a click outside the chat changes nothing.
 14. The filters `Global`, `Local`, and `Whispers` are all on at first. A
@@ -1431,8 +1494,7 @@ or zoomed.
     a framed list right of the chat and as high, with a search field on the
     filters' row and the other players by name, the ones nearby first and
     in the Local color. A click on a name turns the chip to `To <name>` and
-    typing continues in the field; a right click offers `Whisper` and
-    `Copy name`. Typing `ul` in the search leaves the names containing it,
+    typing continues in the field; a right click offers `Whisper`. Typing `ul` in the search leaves the names containing it,
     and Escape there closes the chat. After Escape or Enter
     closes the chat, the list shows again when it opens, until the button
     closes it. The wheel over the list
@@ -1457,6 +1519,13 @@ or zoomed.
     row at once and has the effect the menu has. Escape closes the window
     and leaves the chat open; closing the chat closes it too. Connecting to
     another server lists only that server's players.
+20. Pressing E on another player's character, or the horse it rides,
+    shows a cursor and a menu at the crosshair with `Whisper`, `Mute`, and
+    `Vanish`, and no dialogue starts. `Mute` and `Vanish` act as
+    in the chat's menu. `Whisper` opens the chat with the chip whispering
+    that player. Escape, E again, or a click outside closes the menu without
+    opening the journal or activating anything, and the character moves
+    again at once.
 
 ## Known limitations
 
@@ -1488,8 +1557,8 @@ or zoomed.
   than Latin or Russian and Ukrainian Cyrillic. Sovngarde's `1` and `l` look
   alike, which shows in the server endpoint.
 - Editing shortcut letters (Ctrl+A/C/V/X/Y/Z) follow physical QWERTY positions,
-  not the keyboard layout. Chat lines cannot be selected with the mouse; a
-  line's menu copies its text or its sender's name.
+  not the keyboard layout. Chat lines and player names cannot be selected
+  or copied.
 - `@Ulf Stone cold` typed in full whispers `Ulf Stone` while that player is
   online, since the longest name wins; whispering `Ulf` then takes picking
   the name from the list.
@@ -1512,5 +1581,7 @@ or zoomed.
   shows its list only once connected. It opens only from the open chat.
 - Mutes and vanishes are kept per server URL, so the same server reached
   under another address starts with none.
+- A gamepad's Activate opens the player menu as E does, but the menu takes
+  the mouse and keyboard only, while gamepad input keeps reaching the game.
 - The picker covers armor, weapons, ammunition, and races, not torches, spells,
   or actors; `ItemKind` is where more kinds would go.

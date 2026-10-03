@@ -73,6 +73,13 @@ namespace UI::WindowManager
         return false;
     }
 
+    bool Focus(const Window& a_window)
+    {
+        const Window* expected = nullptr;
+        return s_focused.compare_exchange_strong(
+            expected, &a_window, std::memory_order_acq_rel, std::memory_order_acquire);
+    }
+
     bool ReleaseFocusByKey(std::uint32_t a_scanCode)
     {
         const auto* focused = s_focused.load(std::memory_order_acquire);

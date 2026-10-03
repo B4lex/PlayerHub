@@ -11,6 +11,7 @@
 #include "network/ServerClient.h"
 #include "runtime/FurnitureActivationHook.h"
 #include "runtime/MainLoopHook.h"
+#include "runtime/RemoteActorActivation.h"
 #include "sync/SyncCoordinator.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/outfit/DefaultOutfit.h"
@@ -44,6 +45,7 @@ namespace PluginStartup
             DefaultOutfit::Initialize();
             EquipmentSync::RegisterEventSinks();
             PresenceSync::RegisterEventSinks();
+            RemoteActorActivation::RegisterEventSink();
             RE::ConsoleLog::GetSingleton()->Print("Skyrim Multiplayer initialized.");
             // ConnectionMonitor connects once the player enters the world.
             Network::Initialize();

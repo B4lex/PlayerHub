@@ -41,6 +41,9 @@ namespace ChatRoster
     // again has another slot.
     [[nodiscard]] std::optional<Player> Resolve(const Player& a_player);
 
+    // The connected player in a_playerID's slot.
+    [[nodiscard]] std::optional<Player> Find(Multiplayer::PeerSlot a_playerID);
+
     // Appends at most a_maximum other players whose names start with a_prefix:
     // the player named exactly that, then recent whisper partners, then
     // players nearby, then the rest by name.

@@ -203,6 +203,16 @@ namespace ChatRoster
         return std::nullopt;
     }
 
+    std::optional<Player> Find(Multiplayer::PeerSlot a_playerID)
+    {
+        const std::scoped_lock lock{ s_lock };
+        RefreshLocked();
+        const auto known = std::ranges::find(s_entries, a_playerID, [](const Entry& a_entry) {
+            return a_entry.player.playerID;
+        });
+        return known != s_entries.end() ? std::optional{ known->player } : std::nullopt;
+    }
+
     void Complete(std::string_view a_prefix, std::vector<Player>& a_players, std::size_t a_maximum)
     {
         const auto prefix = Fold(a_prefix);

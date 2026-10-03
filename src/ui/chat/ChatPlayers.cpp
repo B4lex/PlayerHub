@@ -364,10 +364,6 @@ namespace UI
                 {
                     a_picked = menuPlayer;
                 }
-                if (ImGui::MenuItem("Copy name"))
-                {
-                    ImGui::SetClipboardText(menuPlayer.name.c_str());
-                }
                 ChatPlayerMenu::DrawFilterItems(menuPlayer);
                 ImGui::EndPopup();
             }

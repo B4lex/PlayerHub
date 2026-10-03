@@ -362,9 +362,10 @@ namespace UI
                         DrawWrapped(line.text, ChatStyle::kNoticeColor);
                     }
                     ImGui::EndGroup();
-                    if (ImGui::IsItemHovered(kHover) && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+                    if (line.player.playerID != 0 && ImGui::IsItemHovered(kHover)
+                        && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
                     {
-                        menuLine = line;
+                        menuPlayer = line.player;
                         ImGui::OpenPopup("##ChatLineMenu");
                     }
                 }
@@ -399,25 +400,11 @@ namespace UI
                 {
                     ImGui::CloseCurrentPopup();
                 }
-                if (menuLine.player.playerID != 0)
+                if (ImGui::MenuItem("Whisper"))
                 {
-                    if (ImGui::MenuItem("Whisper"))
-                    {
-                        picked = menuLine.player;
-                    }
-                    if (ImGui::MenuItem("Copy name"))
-                    {
-                        ImGui::SetClipboardText(menuLine.player.name.c_str());
-                    }
+                    picked = menuPlayer;
                 }
-                if (ImGui::MenuItem("Copy message"))
-                {
-                    ImGui::SetClipboardText(menuLine.text.c_str());
-                }
-                if (menuLine.player.playerID != 0)
-                {
-                    ChatPlayerMenu::DrawFilterItems(menuLine.player);
-                }
+                ChatPlayerMenu::DrawFilterItems(menuPlayer);
                 ImGui::EndPopup();
             }
 
