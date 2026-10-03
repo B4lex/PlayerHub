@@ -49,5 +49,6 @@ criteria.
 | Mute and vanish | [ui-overlay](ui-overlay.md#mute-and-vanish), [network](network.md#vanish), [interest-and-delivery](interest-and-delivery.md#subscriptions) |
 | Player menu in the world (Activate on a player) | [ui-overlay](ui-overlay.md#player-menu-in-the-world), [remote-actor](remote-actor.md#spawn), [sync-pipeline](sync-pipeline.md#frame-sequence) |
 | Settings | [ui-overlay](ui-overlay.md#settings-window), [configuration](configuration.md) |
+| Accent color | [ui-overlay](ui-overlay.md#accent-color), [configuration](configuration.md#ui) |
 | Item picker and preview | [ui-overlay](ui-overlay.md#item-picker), [appearance-and-equipment](appearance-and-equipment.md#item-filter-and-catalog) |
 | Replay and load testing | [recording-and-replay](recording-and-replay.md) |

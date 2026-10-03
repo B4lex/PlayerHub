@@ -242,6 +242,30 @@
   took about 97 µs a frame instead of 127 µs, and drags as long as before.
   The `xmake.lua` deploy step was not run. `[UI] BorderColor` in the file is
   under [Configuration](configuration.md#status).
+- **Accent color:** not built on Windows or run in game. On Linux,
+  `SettingsWindow.cpp`, `ConnectionControls.cpp`, `Controls.cpp`, `Theme.cpp`,
+  and `MenuFrame.cpp` ran with the real `PluginConfig.cpp` and
+  `SettingsSchema.cpp` (saving to a scratch folder) in a headless Dear ImGui
+  1.92.9 context with stubbed `Network`, fonts, and item picker, simulated
+  mouse and keyboard input, and the draw data rasterized to images at 1080p:
+  - the default accent, its text color, and the `Accent` frame are the
+    `FF9000`, `kOnState`, and `DB7D03` the theme had before;
+  - Interface shows eight swatches and the custom swatch evenly across the
+    control, ending at its right edge, no wider than the row is high, and
+    still apart at the window's minimum width;
+  - a click on the blue swatch applies and saves `4F8EF7` in one apply, and
+    the frame, sidebar mark, switches, and slider turn blue from the next
+    frame;
+  - the custom swatch opens the picker below it, right-aligned; a drag across
+    its square applies nothing until release and then once; typing in its hex
+    field applies nothing until Enter, and `203040` gives light text on the
+    accent; Escape first leaves the hex field with the color kept, then
+    closes the picker, then the window.
+
+  ImGui's style-stack checks passed. The chat files that use the accent
+  (`ChatPlayers.cpp`, `ChatPlayerManager.cpp`, `ChatWindow.cpp`) passed a
+  syntax check only. `[UI] AccentColor` in the file is under
+  [Configuration](configuration.md#status).
 - **Mute and vanish:** not built on Windows or run in game; the server side is
   under [Network](network.md#status). On Linux, in the chat's headless Dear
   ImGui 1.92.9 harness with a stubbed transport and a deploy folder,
@@ -445,16 +469,27 @@ background and border.
   in font sizes is unchanged. Headings push `Fonts::GetHeading` with their own
   size ([Themed faces](#themed-faces)).
 
-- The accent is `Theme::kAccent`, `FF9000`. It marks what the player can act on
-  or has selected: the border of the window's popups, the selected section, a
-  switch that is on, the selected and hovered list rows, hovered and pressed
-  buttons, fields, and scrollbar grabs, selected text, and the fill of the
-  button a view leads to (`Controls::PrimaryButton`, with `Theme::kOnAccent`
-  text). Body text is never the accent, so amber warnings stay distinct.
+- The accent is `[UI] AccentColor` ([Accent color](#accent-color)), `FF9000`
+  by default, given by `Theme::GetAccent` and, at an alpha, `Theme::Accent`.
+  It marks what the player can act on or has selected: the border of the
+  window's popups, the selected section, a switch that is on, the selected
+  and hovered list rows, hovered and pressed buttons, fields, and scrollbar
+  grabs, selected text, the chat's player list button and Manage players tab
+  while shown, and the fill of the button a view leads to
+  (`Controls::PrimaryButton`, 14% darker while pressed). Body text is never
+  the accent, so amber warnings stay distinct.
+- Text on the accent fill is `Theme::GetOnAccent`: the near-black
+  `Theme::kOnState` or the body text color, whichever has the higher WCAG
+  contrast with the accent, so a dark accent takes light text.
+- `Theme` works out the accent, its text color, and the
+  [frame color](#menu-frame) again only when `Config::GetRevision` changes, so
+  a call costs one atomic load. These calls and `Scope` are for the overlay
+  thread. `Scope` pushes the accent at each accent style color's alpha.
 - A state is `Theme::kPositive` (green), `kWarning` (amber), or `kNegative`
   (red): the connection indicator, the picker's warnings, values that are not
   applied, refusals, and save results. Red also fills the button that ends
-  what is running (`Controls::DangerButton`, with `Theme::kOnAccent` text).
+  what is running (`Controls::DangerButton`, with `Theme::kOnState` text).
+  States do not follow the accent.
 - Surfaces are neutral and near black. Fields and buttons are a white tint
   (`Theme::Tint`) with no border of their own, text is off-white, secondary
   text is `ImGuiCol_TextDisabled`, and separators are a faint white line.
@@ -535,9 +570,10 @@ is not part of the plugin.
   ([Configuration](configuration.md#ui)) each frame, so a pick in the settings
   window shows at once: `Vanilla`, the default, is the game's `999999` as it
   looks at the 80% opacity of the game's message box over the dark backing,
-  `7D7D7D`, and `Accent` is `FF9000` as it looks at 85%, `DB7D03`. The backing
-  is the window's own background color, and a window's popups keep their
-  accent border with either.
+  `7D7D7D`, and `Accent` is the [accent](#theme) as it looks at 85% over the
+  theme's surface color, `DB7D03` for the default `FF9000`, so it follows
+  `[UI] AccentColor` too. The backing is the window's own background color,
+  and a window's popups keep their accent border with either.
 - Without a shape, `Draw` fills the style's rounded rectangle and, where the
   style has a window border, outlines it in the line color; the metrics are
   then the style's border width and rounding, so a window lays itself out the
@@ -1161,7 +1197,8 @@ peers keep seeing the player.
   (`SpawnsPerSecond` is `Spawns Per Second`) and, in the right 58% of the row,
   its control: a switch at the right edge for a bool, a number field with step
   buttons for an unsigned value, a slider for a percentage, a text field for a
-  string, an item picker for a form, and a combo for a choice or key. Group comments are small muted
+  string, an item picker for a form, a combo for a choice or key, and swatches
+  for a color ([Accent color](#accent-color)). Group comments are small muted
   capitals above their rows. `[General] DisplayName` is drawn beside the
   connection button instead of as a row
   ([Connection controls](#connection-controls)), and a `Layout` setting, as
@@ -1176,9 +1213,11 @@ peers keep seeing the player.
   percent sign. Ctrl and a click turn it into a field, and a typed value is
   clamped to the limits.
 - Edits in every section but Default Outfit take effect and are saved as they
-  are made, with no button: a switch or combo at once, a number when its field
-  or step button is released, a percentage when its slider is released, so the
-  frame does not resize the window's content under the cursor mid-drag, and
+  are made, with no button: a switch, combo, or swatch at once, a number when
+  its field or step button is released, a percentage when its slider is
+  released, so the frame does not resize the window's content under the cursor
+  mid-drag, a color from the picker when it is released or its hex field's
+  editing ends, so a drag does not save the file in every frame, and
   text when editing ends, on Enter, on a click
   elsewhere, or on picking another section, so a half-typed endpoint never
   reconnects. Escape in a text field puts
@@ -1200,12 +1239,43 @@ peers keep seeing the player.
   successful save, or a failed one.
 - `SettingsWindow` holds one draft `Config::PluginConfig`. After drawing, it
   applies the live configuration with the draft's other sections whenever they
-  differ and no number field or slider is active, and Apply does the same with the
-  draft's `defaultOutfit`.
+  differ and no number field, slider, or color picker is active, and Apply does
+  the same with the draft's `defaultOutfit`.
 - The page is drawn before the sidebar, in one `Config::Describe` pass that
   also collects the section names the sidebar lists. A picked section
   therefore shows from the next frame, after a text field edited until the
   press has seen its editing end.
+
+### Accent color
+
+The player picks the [theme](#theme)'s accent in Interface, so the settings
+window, the open chat, and their lists can match a modpack's look.
+`[UI] AccentColor` ([Configuration](configuration.md#ui)) holds it, and
+`Config::SettingsVisitor::Color` passes the swatches
+`Config::UISettings::kAccentSwatches` with it.
+
+- The row `Accent Color` has, across the control, the eight swatches, amber
+  `FF9000` (the default), gold `F2C14E`, red `E5484D`, pink `E0559C`, violet
+  `9B6CF0`, blue `4F8EF7`, teal `2EC4B6`, and grey `909090`, then a custom
+  swatch. The grey is the one whose `Accent` [frame](#menu-frame) is the
+  `Vanilla` frame's `7D7D7D`, so the widgets can match the game's grey
+  frame. Each is a square no wider than a frame is high, shrinking so the
+  nine keep at least a quarter of a font size between them; the first starts
+  at the control's left edge and the custom swatch ends at its right.
+- The swatch of the current color has a ring in the text color around it.
+  The custom swatch shows a plus on the button fill while the color is a
+  swatch's and, otherwise, that color with the ring. Hovering a swatch shows
+  its `#RRGGBB`, and the custom swatch `Custom color` with the color when it
+  is custom.
+- A click on a swatch applies its color. A click on the custom swatch opens a
+  picker below it, right-aligned: a saturation and value square, a hue bar,
+  and a hex field, without alpha. A drag or a typed color shows in the custom
+  swatch at once and applies on release or when the hex field's editing ends.
+  Escape leaves an active hex field first, then closes the picker, then the
+  window; a click outside also closes it.
+- The new accent shows everywhere from the next frame, including the
+  `Accent` [frame](#menu-frame). The status panel and state colors stay as
+  they are.
 
 ### Connection controls
 
@@ -1412,10 +1482,10 @@ or zoomed.
    normally afterwards; FPS stays steady while a list is open;
    `ItemPreview = false` removes the panel.
 
-8. The settings window has no blue: the open section's sidebar item, switches
-   that are on, `Connect` and a pending `Apply`, and hovered or pressed widgets
-   are orange at 1080p and 4K, and the lists it opens have a rounded `FF9000`
-   border. Picking a sidebar item shows that section, and the window can be
+8. With the default accent the settings window has no blue: the open
+   section's sidebar item, switches that are on, `Connect` and a pending
+   `Apply`, and hovered or pressed widgets are orange at 1080p and 4K, and the
+   lists it opens have a rounded `FF9000` border. Picking a sidebar item shows that section, and the window can be
    dragged by its sidebar or title. The status panel looks as before.
 9. The settings window, its lists, and its tooltips are in Sovngarde, with the
    sidebar's title, section titles, and group names bold, at 1080p and 4K. The
@@ -1437,7 +1507,7 @@ or zoomed.
     inside the lines and clear of the knots.
     Picking
     `Accent` for `Border Color` in the Interface section turns both frames
-    `FF9000` at once and writes `BorderColor = Accent` to `skyrim-mp.ini`;
+    the accent at once and writes `BorderColor = Accent` to `skyrim-mp.ini`;
     `Vanilla` turns them grey again. Recent chat lines have no frame and do
     not move sideways when the chat opens. The log has one
     `UI overlay: menu frame` line. With `skyrim-mp/frame/` removed, the log
@@ -1469,7 +1539,8 @@ or zoomed.
     channel again with the lines that arrived meanwhile. With `Global` off,
     typing `!` turns it on, and so does the player's own global line coming
     back. With all three off only notices show.
-15. The open chat has no blue and no square corners, at 1080p and 4K: the
+15. With the default accent the open chat has no blue and no square corners,
+    at 1080p and 4K: the
     field is a faint rounded tint, the chip is rounded in its channel's
     color, the name list and both menus have a rounded `FF9000` border with
     orange hovered and selected rows, and the scrollbar is thin. Each filter
@@ -1526,8 +1597,24 @@ or zoomed.
     that player. Escape, E again, or a click outside closes the menu without
     opening the journal or activating anything, and the character moves
     again at once.
+21. In Interface, a click on the blue swatch turns the settings window's
+    sidebar mark, switches, slider, and hovered widgets blue at once, and
+    with `Border Color` at `Accent` its frame and the open chat's too; the
+    open chat's player list button and lists follow. `skyrim-mp.ini` then
+    has `AccentColor = 4F8EF7`, which the next game loads. The custom swatch
+    opens a picker; dragging in it changes only the custom swatch until
+    release, then the whole window, and a typed hex color applies on Enter.
+    A dark custom color gives `Connect` light text. Amber returns the
+    default look. The status panel stays as it was.
 
 ## Known limitations
+
+- Any accent is accepted, so a very dark one or one close to the surfaces
+  makes selection and hover marks hard to see; picking amber restores the
+  default. Live sections have no reset button
+  ([Settings window](#settings-window)).
+- The accent follows a picker drag only on release, since each apply saves
+  the file; the custom swatch shows the color meanwhile.
 
 - Lists, tooltips, and recent chat lines have no menu frame: its corners need
   about 65 px of height at 1080p at the default thickness. The settings window's

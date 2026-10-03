@@ -212,8 +212,8 @@ namespace UI
 
             // The tab shown is a chip in the accent, as the player list's
             // button is while the list shows; the others are outlines.
-            const auto& color
-                = selected ? Theme::kAccent : style.Colors[hovered ? ImGuiCol_Text : ImGuiCol_TextDisabled];
+            const auto color
+                = selected ? Theme::GetAccent() : style.Colors[hovered ? ImGuiCol_Text : ImGuiCol_TextDisabled];
             const auto fillAlpha = selected ? (hovered ? ChatStyle::kHoveredChipFillAlpha : ChatStyle::kChipFillAlpha)
                                             : (hovered ? ChatStyle::kHoveredOffChipFillAlpha : 0.0F);
             ChatStyle::DrawChipFrame(color, fillAlpha);

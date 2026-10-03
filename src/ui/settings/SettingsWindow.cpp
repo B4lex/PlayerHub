@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -43,6 +44,10 @@ namespace UI
         constexpr float kFooterGapFonts = 0.75F;
         constexpr float kFooterButtonWidthFonts = 5.5F;
         constexpr float kTooltipWidthFonts = 22.0F;
+        constexpr float kSwatchGapFonts = 0.25F;
+        constexpr float kSwatchRingFonts = 0.125F;
+        constexpr float kSwatchIconFonts = 0.09375F;
+        constexpr float kPickerWidthFonts = 13.0F;
         // Of the base font size.
         constexpr float kTitleScale = 1.375F;
         constexpr float kBrandScale = 1.125F;
@@ -134,12 +139,73 @@ namespace UI
                 const auto width = std::floor(kNavigationMarkFonts * fontSize);
                 const auto inset = std::floor(size.y * 0.28F);
                 list.AddRectFilled(ImVec2{ position.x, position.y + inset },
-                    ImVec2{ position.x + width, end.y - inset }, ImGui::GetColorU32(Theme::kAccent), width * 0.5F);
+                    ImVec2{ position.x + width, end.y - inset }, ImGui::GetColorU32(Theme::GetAccent()), width * 0.5F);
             }
             list.AddText(ImVec2{ position.x + std::floor(kNavigationInsetFonts * fontSize),
                              position.y + std::floor((size.y - fontSize) * 0.5F) },
                 ImGui::GetColorU32(ImGuiCol_Text, a_selected || hovered ? 1.0F : kNavigationIdleAlpha),
                 a_label.c_str());
+            return pressed;
+        }
+
+        std::uint32_t ToRgb(const float (&a_color)[3])
+        {
+            const auto channel = [](float a_value) {
+                return static_cast<std::uint32_t>(std::lround(std::clamp(a_value, 0.0F, 1.0F) * 255.0F));
+            };
+            return (channel(a_color[0]) << 16) | (channel(a_color[1]) << 8) | channel(a_color[2]);
+        }
+
+        // A square a_size wide, centered in a frame-high item at the cursor:
+        // a_color, ringed in the text color while selected, or a plus on the
+        // button fill where there is no color. Returns whether it was pressed.
+        bool DrawSwatch(const char* a_id, const ImVec4* a_color, float a_size, bool a_selected)
+        {
+            const auto frameHeight = ImGui::GetFrameHeight();
+            const auto position = ImGui::GetCursorScreenPos();
+            const bool pressed = ImGui::InvisibleButton(a_id, ImVec2{ a_size, frameHeight });
+            const bool hovered = ImGui::IsItemHovered();
+            if (hovered)
+            {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            }
+
+            auto& list = *ImGui::GetWindowDrawList();
+            const auto fontSize = ImGui::GetFontSize();
+            const auto rounding = ImGui::GetStyle().FrameRounding;
+            const ImVec2 min{ position.x, position.y + std::floor((frameHeight - a_size) * 0.5F) };
+            const ImVec2 max{ min.x + a_size, min.y + a_size };
+            const auto ring = (std::max)(std::floor(kSwatchRingFonts * fontSize), 1.0F);
+            const auto fill
+                = a_color ? *a_color : ImGui::GetStyleColorVec4(hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
+            if (a_selected)
+            {
+                // The ring, a gap of the backing, then the color.
+                const auto inset = ring * 2.0F;
+                list.AddRect(min, max, ImGui::GetColorU32(ImGuiCol_Text), rounding, ImDrawFlags_None, ring);
+                list.AddRectFilled(ImVec2{ min.x + inset, min.y + inset }, ImVec2{ max.x - inset, max.y - inset },
+                    ImGui::GetColorU32(fill), (std::max)(rounding - inset, 0.0F));
+            }
+            else
+            {
+                list.AddRectFilled(min, max, ImGui::GetColorU32(fill), rounding);
+                if (hovered && a_color)
+                {
+                    list.AddRect(
+                        min, max, ImGui::GetColorU32(Theme::Tint(0.60F)), rounding, ImDrawFlags_None, ring * 0.5F);
+                }
+            }
+            if (!a_color)
+            {
+                const auto reach = std::floor(a_size * 0.25F);
+                const auto thickness = (std::max)(kSwatchIconFonts * fontSize, 1.0F);
+                const ImVec2 center{ std::floor((min.x + max.x) * 0.5F), std::floor((min.y + max.y) * 0.5F) };
+                const auto color = ImGui::GetColorU32(hovered ? ImGuiCol_Text : ImGuiCol_TextDisabled);
+                list.AddLine(
+                    ImVec2{ center.x - reach, center.y }, ImVec2{ center.x + reach, center.y }, color, thickness);
+                list.AddLine(
+                    ImVec2{ center.x, center.y - reach }, ImVec2{ center.x, center.y + reach }, color, thickness);
+            }
             return pressed;
         }
 
@@ -401,6 +467,78 @@ namespace UI
                 EndRow();
             }
 
+            // The swatches, then one more that opens a picker for any other
+            // color and shows that color once picked, spread across the control.
+            void Color(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+                std::span<const std::uint32_t> a_swatches) override
+            {
+                if (!BeginRow(a_key, a_comment))
+                {
+                    return;
+                }
+                const auto count = static_cast<float>(a_swatches.size() + 1);
+                const auto minimumGap = std::floor(kSwatchGapFonts * ImGui::GetFontSize());
+                const auto size = std::floor(
+                    (std::min)(ImGui::GetFrameHeight(), (controlWidth - minimumGap * (count - 1.0F)) / count));
+                const auto gap = (controlWidth - size * count) / (count - 1.0F);
+                const auto left = ImGui::GetCursorPosX();
+                bool custom = true;
+                for (std::size_t index = 0; index < a_swatches.size(); ++index)
+                {
+                    const bool selected = a_swatches[index] == a_value;
+                    custom = custom && !selected;
+                    const auto color = Theme::FromRgb(a_swatches[index]);
+                    ImGui::SetCursorPosX(std::floor(left + static_cast<float>(index) * (size + gap)));
+                    ImGui::PushID(static_cast<int>(index));
+                    if (DrawSwatch("##swatch", &color, size, selected))
+                    {
+                        a_value = a_swatches[index];
+                    }
+                    DrawColorTooltip({}, a_swatches[index]);
+                    ImGui::PopID();
+                    ImGui::SameLine();
+                }
+
+                ImGui::SetCursorPosX(left + controlWidth - size);
+                const auto color = Theme::FromRgb(a_value);
+                if (DrawSwatch("##custom", custom ? &color : nullptr, size, custom))
+                {
+                    ImGui::OpenPopup("##picker");
+                }
+                if (!ImGui::IsPopupOpen("##picker"))
+                {
+                    DrawColorTooltip("Custom color", custom ? std::optional{ a_value } : std::nullopt);
+                }
+                const auto anchor = ImGui::GetItemRectMax();
+                ImGui::SetNextWindowPos(ImVec2{ anchor.x, anchor.y + ImGui::GetStyle().ItemSpacing.y },
+                    ImGuiCond_Appearing, ImVec2{ 1.0F, 0.0F });
+                if (ImGui::BeginPopup("##picker"))
+                {
+                    constexpr ImGuiColorEditFlags kPickerFlags = ImGuiColorEditFlags_NoAlpha
+                        | ImGuiColorEditFlags_NoOptions | ImGuiColorEditFlags_NoLabel
+                        | ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoSmallPreview
+                        | ImGuiColorEditFlags_PickerHueBar | ImGuiColorEditFlags_DisplayHex
+                        | ImGuiColorEditFlags_InputRGB | ImGuiColorEditFlags_Uint8;
+                    // What was active last frame takes Escape first.
+                    const bool escapeClaimed = ImGui::IsAnyItemActive();
+                    float rgb[3]{ color.x, color.y, color.z };
+                    ImGui::SetNextItemWidth(std::floor(kPickerWidthFonts * ImGui::GetFontSize()));
+                    if (ImGui::ColorPicker3("##value", rgb, kPickerFlags))
+                    {
+                        a_value = ToRgb(rgb);
+                    }
+                    // Applied on release or when the hex field's editing ends,
+                    // so a drag does not save the file in every frame.
+                    editing = editing || ImGui::IsItemActive();
+                    if (!escapeClaimed && ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+                    {
+                        ImGui::CloseCurrentPopup();
+                    }
+                    ImGui::EndPopup();
+                }
+                EndRow();
+            }
+
             void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment) override
             {
                 if (!BeginRow(a_key, a_comment))
@@ -543,6 +681,22 @@ namespace UI
                 DrawText(note);
                 ImGui::PopTextWrapPos();
                 ImGui::EndTooltip();
+            }
+
+            // a_label, then the color as #RRGGBB where there is one.
+            void DrawColorTooltip(std::string_view a_label, std::optional<std::uint32_t> a_color)
+            {
+                if (!ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip))
+                {
+                    return;
+                }
+                label.assign(a_label);
+                if (a_color)
+                {
+                    label += label.empty() ? "#" : " #";
+                    label += Config::FormatColor(*a_color);
+                }
+                DrawTooltip(label);
             }
 
             template <class Format>

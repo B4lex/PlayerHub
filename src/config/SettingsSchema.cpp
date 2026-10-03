@@ -149,6 +149,10 @@ namespace Config
             a_visitor.Section("UI", "");
             a_visitor.Key("SettingsKey", a_settings.settingsKey,
                 "Opens the settings window.");
+            a_visitor.Color("AccentColor", a_settings.accentColor,
+                "Color that marks what can be selected or is selected in the settings window and\n"
+                "the chat, as hexadecimal RRGGBB.",
+                UISettings::kAccentSwatches);
             a_visitor.Choice("BorderColor", a_settings.frameColor,
                 "Color of the frame around the settings window and the chat.",
                 UISettings::kFrameColorNames);
@@ -304,6 +308,27 @@ namespace Config
     std::string_view FormatChoice(std::uint32_t a_value, std::span<const std::string_view> a_options)
     {
         return a_value < a_options.size() ? a_options[a_value] : std::string_view{};
+    }
+
+    std::optional<std::uint32_t> ParseColor(std::string_view a_value)
+    {
+        if (a_value.starts_with('#'))
+        {
+            a_value.remove_prefix(1);
+        }
+        constexpr std::size_t kDigits = 6;
+        std::uint32_t color = 0;
+        const auto [end, error] = std::from_chars(a_value.data(), a_value.data() + a_value.size(), color, 16);
+        if (a_value.size() != kDigits || error != std::errc{} || end != a_value.data() + a_value.size())
+        {
+            return std::nullopt;
+        }
+        return color;
+    }
+
+    std::string FormatColor(std::uint32_t a_color)
+    {
+        return std::format("{:06X}", a_color & 0xFFFFFF);
     }
 
     std::optional<std::uint32_t> ParseKey(std::string_view a_value)

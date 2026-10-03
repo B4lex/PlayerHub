@@ -21,7 +21,9 @@ namespace UI::Controls
         constexpr float kResetHead = 0.15F;
 
         constexpr ImVec4 kToggleOffKnob{ 0.72F, 0.71F, 0.69F, 1.0F };
-        constexpr ImVec4 kPrimaryPressed{ 0.86F, 0.48F, 0.0F, 1.0F };
+        constexpr ImVec4 kBlack{ 0.0F, 0.0F, 0.0F, 1.0F };
+        // How much darker the accent fill is while pressed.
+        constexpr float kPrimaryPressedShade = 0.14F;
         constexpr ImVec4 kDangerPressed{ 0.80F, 0.30F, 0.26F, 1.0F };
 
         constexpr ImVec4 Mix(const ImVec4& a_from, const ImVec4& a_to, float a_amount)
@@ -30,12 +32,13 @@ namespace UI::Controls
                 a_from.z + (a_to.z - a_from.z) * a_amount, a_from.w + (a_to.w - a_from.w) * a_amount };
         }
 
-        bool FilledButton(const char* a_label, const ImVec2& a_size, const ImVec4& a_fill, const ImVec4& a_pressed)
+        bool FilledButton(const char* a_label, const ImVec2& a_size, const ImVec4& a_fill, const ImVec4& a_pressed,
+            const ImVec4& a_text)
         {
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ a_fill.x, a_fill.y, a_fill.z, 0.90F });
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, a_fill);
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, a_pressed);
-            ImGui::PushStyleColor(ImGuiCol_Text, Theme::kOnAccent);
+            ImGui::PushStyleColor(ImGuiCol_Text, a_text);
             const bool pressed = ImGui::Button(a_label, a_size);
             ImGui::PopStyleColor(4);
             return pressed;
@@ -99,7 +102,7 @@ namespace UI::Controls
         const ImVec2 trackMax{ trackMin.x + size.x, trackMin.y + size.y };
         const float radius = size.y * 0.5F;
         const auto offTrack = Theme::Tint(hovered ? 0.20F : 0.13F);
-        const auto onTrack = hovered ? Theme::kAccent : Theme::Accent(0.88F);
+        const auto onTrack = hovered ? Theme::GetAccent() : Theme::Accent(0.88F);
         auto& list = *ImGui::GetWindowDrawList();
         list.AddRectFilled(trackMin, trackMax, ImGui::GetColorU32(Mix(offTrack, onTrack, place)), radius);
         list.AddCircleFilled(ImVec2{ trackMin.x + radius + (size.x - size.y) * place, trackMin.y + radius },
@@ -110,12 +113,13 @@ namespace UI::Controls
 
     bool PrimaryButton(const char* a_label, const ImVec2& a_size)
     {
-        return FilledButton(a_label, a_size, Theme::kAccent, kPrimaryPressed);
+        const auto accent = Theme::GetAccent();
+        return FilledButton(a_label, a_size, accent, Mix(accent, kBlack, kPrimaryPressedShade), Theme::GetOnAccent());
     }
 
     bool DangerButton(const char* a_label, const ImVec2& a_size)
     {
-        return FilledButton(a_label, a_size, Theme::kNegative, kDangerPressed);
+        return FilledButton(a_label, a_size, Theme::kNegative, kDangerPressed, Theme::kOnState);
     }
 
     bool IconButton(const char* a_id, Icon a_icon)

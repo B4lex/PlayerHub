@@ -41,6 +41,10 @@ namespace Config
         // An index into a_options, which the file stores by name.
         virtual void Choice(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
             std::span<const std::string_view> a_options) = 0;
+        // An opaque 0xRRGGBB color, which the file stores as six hexadecimal
+        // digits. a_swatches are colors to offer.
+        virtual void Color(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+            std::span<const std::uint32_t> a_swatches) = 0;
         // A DirectInput scan code from GetBindableKeys.
         virtual void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment) = 0;
         // A measure of a window within a_minimum and a_maximum, which the
@@ -76,6 +80,9 @@ namespace Config
         std::string_view a_value, std::span<const std::string_view> a_options);
     // Empty for an index past a_options.
     [[nodiscard]] std::string_view FormatChoice(std::uint32_t a_value, std::span<const std::string_view> a_options);
+    // `FF9000`, with or without a leading `#`.
+    [[nodiscard]] std::optional<std::uint32_t> ParseColor(std::string_view a_value);
+    [[nodiscard]] std::string FormatColor(std::uint32_t a_color);
     [[nodiscard]] std::optional<std::uint32_t> ParseKey(std::string_view a_value);
     // Empty for a scan code that GetBindableKeys does not list.
     [[nodiscard]] std::string_view FormatKey(std::uint32_t a_scanCode);

@@ -160,7 +160,7 @@ namespace UI
 
         // Open, a chip in the accent, as a filter that is on is in its
         // channel's color; closed, an outline in the text color.
-        const auto& color = open ? Theme::kAccent : style.Colors[online ? ImGuiCol_Text : ImGuiCol_TextDisabled];
+        const auto color = open ? Theme::GetAccent() : style.Colors[online ? ImGuiCol_Text : ImGuiCol_TextDisabled];
         const auto fillAlpha = open ? (hovered ? ChatStyle::kHoveredChipFillAlpha : ChatStyle::kChipFillAlpha)
                                     : (hovered ? ChatStyle::kHoveredOffChipFillAlpha : 0.0F);
         ChatStyle::DrawChipFrame(color, fillAlpha);

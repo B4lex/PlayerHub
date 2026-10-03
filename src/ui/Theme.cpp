@@ -4,7 +4,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <iterator>
+#include <optional>
 
 namespace UI::Theme
 {
@@ -13,12 +15,13 @@ namespace UI::Theme
         constexpr ImVec4 kSurface{ 0.065F, 0.065F, 0.07F, 1.0F };
         constexpr ImVec4 kRaisedSurface{ 0.09F, 0.09F, 0.095F, 1.0F };
         constexpr ImVec4 kTransparent{ 0.0F, 0.0F, 0.0F, 0.0F };
+        constexpr ImVec4 kText{ 0.93F, 0.92F, 0.90F, 1.0F };
 
-        // The game's 999999 at the 80% it draws its message box with, and the
-        // accent at 85%, as each looks over the dark backing. MenuFrame needs
-        // them opaque.
+        // The game's 999999 at the 80% it draws its message box with, as it
+        // looks over the dark backing. The accent frame is the accent at 85%
+        // over it. MenuFrame needs them opaque.
         constexpr ImVec4 kVanillaFrame{ 0.49F, 0.49F, 0.49F, 1.0F };
-        constexpr ImVec4 kAccentFrame{ 0.86F, 0.49F, 0.01F, 1.0F };
+        constexpr float kAccentFrameOpacity = 0.85F;
 
         struct Color
         {
@@ -27,52 +30,111 @@ namespace UI::Theme
         };
 
         constexpr Color kColors[]{
-            { ImGuiCol_Text, ImVec4{ 0.93F, 0.92F, 0.90F, 1.0F } },
+            { ImGuiCol_Text, kText },
             { ImGuiCol_TextDisabled, ImVec4{ 0.56F, 0.55F, 0.53F, 1.0F } },
             { ImGuiCol_WindowBg, kSurface },
             { ImGuiCol_PopupBg, kRaisedSurface },
-            { ImGuiCol_Border, Accent(0.65F) },
             { ImGuiCol_FrameBg, Tint(0.07F) },
-            { ImGuiCol_FrameBgHovered, Accent(0.20F) },
-            { ImGuiCol_FrameBgActive, Accent(0.32F) },
             { ImGuiCol_TitleBg, kRaisedSurface },
             { ImGuiCol_TitleBgActive, kRaisedSurface },
             { ImGuiCol_TitleBgCollapsed, kRaisedSurface },
             { ImGuiCol_ScrollbarBg, kTransparent },
             { ImGuiCol_ScrollbarGrab, Tint(0.18F) },
-            { ImGuiCol_ScrollbarGrabHovered, Accent(0.60F) },
-            { ImGuiCol_ScrollbarGrabActive, Accent(0.90F) },
-            { ImGuiCol_CheckMark, kAccent },
-            { ImGuiCol_CheckboxSelectedBg, Accent(0.20F) },
-            { ImGuiCol_SliderGrab, Accent(0.80F) },
-            { ImGuiCol_SliderGrabActive, kAccent },
             { ImGuiCol_Button, Tint(0.10F) },
-            { ImGuiCol_ButtonHovered, Accent(0.40F) },
-            { ImGuiCol_ButtonActive, Accent(0.60F) },
-            { ImGuiCol_Header, Accent(0.25F) },
-            { ImGuiCol_HeaderHovered, Accent(0.35F) },
-            { ImGuiCol_HeaderActive, Accent(0.50F) },
             { ImGuiCol_Separator, Tint(0.12F) },
-            { ImGuiCol_SeparatorHovered, Accent(0.60F) },
-            { ImGuiCol_SeparatorActive, kAccent },
             { ImGuiCol_ResizeGrip, kTransparent },
-            { ImGuiCol_ResizeGripHovered, Accent(0.60F) },
-            { ImGuiCol_ResizeGripActive, kAccent },
             { ImGuiCol_Tab, Tint(0.06F) },
-            { ImGuiCol_TabHovered, Accent(0.40F) },
-            { ImGuiCol_TabSelected, Accent(0.28F) },
-            { ImGuiCol_TabSelectedOverline, kAccent },
             { ImGuiCol_TabDimmed, Tint(0.06F) },
-            { ImGuiCol_TabDimmedSelected, Accent(0.28F) },
-            { ImGuiCol_TabDimmedSelectedOverline, kAccent },
             { ImGuiCol_TableBorderStrong, Tint(0.16F) },
             { ImGuiCol_TableBorderLight, Tint(0.10F) },
             { ImGuiCol_TableRowBg, kTransparent },
             { ImGuiCol_TableRowBgAlt, Tint(0.03F) },
-            { ImGuiCol_TextLink, kAccent },
-            { ImGuiCol_TextSelectedBg, Accent(0.40F) },
-            { ImGuiCol_NavCursor, kAccent },
         };
+
+        // The accent at an alpha.
+        struct AccentColor
+        {
+            ImGuiCol index;
+            float alpha;
+        };
+
+        constexpr AccentColor kAccentColors[]{
+            { ImGuiCol_Border, 0.65F },
+            { ImGuiCol_FrameBgHovered, 0.20F },
+            { ImGuiCol_FrameBgActive, 0.32F },
+            { ImGuiCol_ScrollbarGrabHovered, 0.60F },
+            { ImGuiCol_ScrollbarGrabActive, 0.90F },
+            { ImGuiCol_CheckMark, 1.0F },
+            { ImGuiCol_CheckboxSelectedBg, 0.20F },
+            { ImGuiCol_SliderGrab, 0.80F },
+            { ImGuiCol_SliderGrabActive, 1.0F },
+            { ImGuiCol_ButtonHovered, 0.40F },
+            { ImGuiCol_ButtonActive, 0.60F },
+            { ImGuiCol_Header, 0.25F },
+            { ImGuiCol_HeaderHovered, 0.35F },
+            { ImGuiCol_HeaderActive, 0.50F },
+            { ImGuiCol_SeparatorHovered, 0.60F },
+            { ImGuiCol_SeparatorActive, 1.0F },
+            { ImGuiCol_ResizeGripHovered, 0.60F },
+            { ImGuiCol_ResizeGripActive, 1.0F },
+            { ImGuiCol_TabHovered, 0.40F },
+            { ImGuiCol_TabSelected, 0.28F },
+            { ImGuiCol_TabSelectedOverline, 1.0F },
+            { ImGuiCol_TabDimmedSelected, 0.28F },
+            { ImGuiCol_TabDimmedSelectedOverline, 1.0F },
+            { ImGuiCol_TextLink, 1.0F },
+            { ImGuiCol_TextSelectedBg, 0.40F },
+            { ImGuiCol_NavCursor, 1.0F },
+        };
+
+        // The colors that follow the configuration, worked out once per change.
+        struct Palette
+        {
+            ImVec4 accent;
+            ImVec4 onAccent;
+            ImVec4 frame;
+        };
+
+        ImVec4 Mix(const ImVec4& a_from, const ImVec4& a_to, float a_amount)
+        {
+            return ImVec4{ a_from.x + (a_to.x - a_from.x) * a_amount, a_from.y + (a_to.y - a_from.y) * a_amount,
+                a_from.z + (a_to.z - a_from.z) * a_amount, a_from.w + (a_to.w - a_from.w) * a_amount };
+        }
+
+        // WCAG relative luminance and contrast ratio.
+        float GetLuminance(const ImVec4& a_color)
+        {
+            const auto linear = [](float a_channel) {
+                return a_channel <= 0.04045F ? a_channel / 12.92F : std::pow((a_channel + 0.055F) / 1.055F, 2.4F);
+            };
+            return 0.2126F * linear(a_color.x) + 0.7152F * linear(a_color.y) + 0.0722F * linear(a_color.z);
+        }
+
+        float GetContrast(const ImVec4& a_first, const ImVec4& a_second)
+        {
+            const auto [darker, lighter] = std::minmax({ GetLuminance(a_first), GetLuminance(a_second) });
+            return (lighter + 0.05F) / (darker + 0.05F);
+        }
+
+        const Palette& GetPalette()
+        {
+            static Palette palette;
+            static std::optional<std::uint64_t> revision;
+            // The revision before the snapshot, so a change is never missed.
+            const auto current = Config::GetRevision();
+            if (revision != current)
+            {
+                revision = current;
+                const auto config = Config::Get();
+                palette.accent = FromRgb(config->ui.accentColor);
+                palette.onAccent
+                    = GetContrast(palette.accent, kOnState) >= GetContrast(palette.accent, kText) ? kOnState : kText;
+                palette.frame = config->ui.frameColor == Config::UISettings::kAccentFrame
+                    ? Mix(kSurface, palette.accent, kAccentFrameOpacity)
+                    : kVanillaFrame;
+            }
+            return palette;
+        }
 
         // Sizes are in font sizes, so they follow the overlay scale.
         struct Size
@@ -121,9 +183,32 @@ namespace UI::Theme
         }
     }
 
+    ImVec4 FromRgb(std::uint32_t a_rgb)
+    {
+        constexpr float kChannel = 1.0F / 255.0F;
+        return ImVec4{ static_cast<float>((a_rgb >> 16) & 0xFF) * kChannel,
+            static_cast<float>((a_rgb >> 8) & 0xFF) * kChannel, static_cast<float>(a_rgb & 0xFF) * kChannel, 1.0F };
+    }
+
+    ImVec4 GetAccent()
+    {
+        return GetPalette().accent;
+    }
+
+    ImVec4 Accent(float a_alpha)
+    {
+        const auto& accent = GetPalette().accent;
+        return ImVec4{ accent.x, accent.y, accent.z, a_alpha };
+    }
+
+    ImVec4 GetOnAccent()
+    {
+        return GetPalette().onAccent;
+    }
+
     ImVec4 GetFrameColor()
     {
-        return Config::Get()->ui.frameColor == Config::UISettings::kAccentFrame ? kAccentFrame : kVanillaFrame;
+        return GetPalette().frame;
     }
 
     Scope::Scope()
@@ -133,6 +218,10 @@ namespace UI::Theme
         for (const auto& color : kColors)
         {
             ImGui::PushStyleColor(color.index, color.value);
+        }
+        for (const auto& color : kAccentColors)
+        {
+            ImGui::PushStyleColor(color.index, Accent(color.alpha));
         }
         for (const auto& size : kSizes)
         {
@@ -148,7 +237,7 @@ namespace UI::Theme
     Scope::~Scope()
     {
         ImGui::PopStyleVar(static_cast<int>(std::size(kSizes) + std::size(kExtents)));
-        ImGui::PopStyleColor(static_cast<int>(std::size(kColors)));
+        ImGui::PopStyleColor(static_cast<int>(std::size(kColors) + std::size(kAccentColors)));
         ImGui::PopFont();
     }
 }

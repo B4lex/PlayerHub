@@ -145,6 +145,22 @@ namespace Config
                 WarnInvalid(a_key, *value, FormatChoice(a_value, a_options));
             }
 
+            void Color(std::string_view a_key, std::uint32_t& a_value, std::string_view,
+                std::span<const std::uint32_t>) override
+            {
+                const auto value = Take(a_key);
+                if (!value)
+                {
+                    return;
+                }
+                if (const auto parsed = ParseColor(*value))
+                {
+                    a_value = *parsed;
+                    return;
+                }
+                WarnInvalid(a_key, *value, FormatColor(a_value));
+            }
+
             void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view) override
             {
                 const auto value = Take(a_key);
@@ -260,6 +276,12 @@ namespace Config
                 std::span<const std::string_view> a_options) override
             {
                 Text(a_key, FormatChoice(a_value, a_options), a_comment);
+            }
+
+            void Color(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+                std::span<const std::uint32_t>) override
+            {
+                Text(a_key, FormatColor(a_value), a_comment);
             }
 
             void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment) override

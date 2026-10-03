@@ -82,6 +82,10 @@ namespace Config
         static constexpr std::uint32_t kVanillaFrame = 0;
         static constexpr std::uint32_t kAccentFrame = 1;
         static constexpr std::array<std::string_view, 2> kFrameColorNames{ "Vanilla", "Accent" };
+        // 0xRRGGBB. The first swatch is the default. The grey makes the Accent
+        // frame the same as the Vanilla one.
+        static constexpr std::array<std::uint32_t, 8> kAccentSwatches{ 0xFF9000, 0x909090, 0xF2C14E, 0xE5484D, 0xE0559C, 0x9B6CF0,
+            0x4F8EF7, 0x2EC4B6 };
         // In percent of the size the game draws its menu frame at.
         static constexpr std::uint32_t kMinimumFrameThickness = 50;
         static constexpr std::uint32_t kMaximumFrameThickness = 100;
@@ -93,6 +97,7 @@ namespace Config
 
         // DirectInput scan code that opens the settings window.
         std::uint32_t settingsKey{ 0 };
+        std::uint32_t accentColor{ kAccentSwatches[0] };
         std::uint32_t frameColor{ kVanillaFrame };
         std::uint32_t frameThickness{ 70 };
         bool itemPreview{ true };

@@ -35,6 +35,15 @@ On Linux the same two files were checked the same way: the default file has
 and `40` load; `23`, `101`, `8`, `41`, `0`, text, and an empty value warn and
 keep the default; applying each adds its line to a file without it, keeping
 the file's comments, and both load back.
+`[UI] AccentColor` is not yet built on Windows or run in game. On Linux the
+same two files ran with the settings window's harness
+([UI overlay](ui-overlay.md#status)): the default file has
+`AccentColor = FF9000` under its comment, before `BorderColor`; `#4f8ef7`
+loads; `orange` warns and keeps `FF9000`; `ParseColor` takes `FF9000`,
+`#4f8ef7`, and `000000` and rejects an empty value, `#`, five or seven
+digits, `GG0000`, a sign, a space, `0x9000`, `##FF9000`, and a trailing
+comment; applying a color from the window saves it, and applying `FF9000`
+again keeps the line with that value.
 
 ## Scope
 
@@ -82,6 +91,9 @@ takes the setting's item filter
 invalid, and a name for zero where zero is not a count, which only the settings
 window shows; the file stores `0`. `Percent` takes both limits, outside which a
 value in the file is invalid; the file stores the number without a sign.
+`Color` is an opaque `0xRRGGBB` value that the file stores as six hexadecimal
+digits (`FormatColor`, upper case); reading also takes lower case and a leading
+`#` (`ParseColor`). It takes swatches, the colors the settings window offers.
 `Layout` is a measure of a window that the player sets by dragging that window:
 an unsigned value within both limits, read and saved as any other, which the
 settings window does not show.
@@ -157,7 +169,8 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 | Key | Meaning | Default |
 | --- | --- | --- |
 | `SettingsKey` | Opens the settings window: `F1`–`F12`, `Insert`, `Delete`, `Home`, `End`, `PageUp`, `PageDown`, `Pause`, or `ScrollLock` | `F10` |
-| `BorderColor` | Color of the menu frame around the settings window and the open chat ([UI overlay](ui-overlay.md#menu-frame)): `Vanilla`, the grey of the game's menus, or `Accent`, the plugin's orange | `Vanilla` |
+| `AccentColor` | Color of the theme's accent in the settings window and the chat, as `RRGGBB` ([UI overlay](ui-overlay.md#accent-color)) | `FF9000` |
+| `BorderColor` | Color of the menu frame around the settings window and the open chat ([UI overlay](ui-overlay.md#menu-frame)): `Vanilla`, the grey of the game's menus, or `Accent`, the accent | `Vanilla` |
 | `BorderThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `50..100` | `70` |
 | `StatusPanel` | Shows the status panel | `true` |
 | `ItemPreview` | Shows the 3D item preview in item pickers | `true` |
@@ -183,7 +196,8 @@ revision before the snapshot never misses a change.
 | `ServerClient` | transport, worker | reading the endpoint for each attempt, and `DisplayName` and `ViewRadius` for each hello |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
 | `StatusPanel`, item pickers | overlay | reading `StatusPanel` and `ItemPreview` each frame |
-| `Theme`, `MenuFrame` | overlay | reading `BorderColor` and `BorderThickness` for each framed window each frame |
+| `Theme` | overlay | working out the accent and frame colors from `AccentColor` and `BorderColor` when the revision changes |
+| `MenuFrame` | overlay | reading `BorderThickness` for each framed window each frame |
 | `ChatSize` | overlay | reading `ChatWidth` and `ChatLines` each frame the chat draws, outside a drag |
 
 ## Saving
