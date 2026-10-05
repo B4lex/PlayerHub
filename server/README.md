@@ -10,16 +10,24 @@ testing in `../specs/recording-and-replay.md`.
 From this directory, with Go 1.24 or newer:
 
 ```sh
-go run ./cmd/server                       # listens on 0.0.0.0:3000
-go run ./cmd/server --listen 127.0.0.1:3100 --config server.toml --verbose
+go run ./cmd/server                       # players on 0.0.0.0:3000, admin on 127.0.0.1:3001
+go run ./cmd/server --listen 127.0.0.1:3100 --admin-listen 127.0.0.1:3101 --config server.toml --verbose
 ```
 
 `--verbose` logs every rejected message and virtual-player detail at debug
 level. The plugin defaults to `http://127.0.0.1:3000` and connects to `/ws`.
 
-- `GET /ws` is the player WebSocket.
+On `listen`:
+
+- `GET /ws` is the player WebSocket. Upgrades from web pages are refused: an
+  `Origin` header must be absent or name a `ws://` or `wss://` origin, as the
+  plugin's does.
 - `GET /health` returns `{"status":"ok"}`.
+
+On `admin_listen` only:
+
 - `/admin/` serves the built admin panel; `/api` is its API.
+- `/debug/pprof/` with `--pprof`.
 
 ## Configuration
 
@@ -28,6 +36,7 @@ remote server differ only in this file.
 
 ```toml
 listen = "0.0.0.0:3000"
+admin_listen = "127.0.0.1:3001"   # admin panel, API, and pprof; "" serves none of them
 recordings_directory = "recordings"
 admin_ui_directory = "admin-ui/dist"
 # Batches per second to each client, at most one tick of batching delay.
@@ -79,8 +88,8 @@ For a homelab with a 50 Mbit/s upload, see `homelab.toml`: the budget on and
 32 visible peers, which keeps the nearest peers' p99 under 60 ms with 250
 players in one crowd.
 
-`--pprof` serves `net/http/pprof` under `/debug/pprof/` for profiling under
-loadgen.
+`--pprof` serves `net/http/pprof` under `/debug/pprof/` on the admin address
+for profiling under loadgen.
 
 Unknown keys are an error, so a typo does not silently keep a default.
 
@@ -164,7 +173,8 @@ ServerEndpoint = http://192.168.1.20:3000
 ```
 
 Allow inbound TCP port 3000 through the server machine's firewall. Sessions
-identify players, but the admin API and panel on the same port have no
-authentication, so do not expose the port to the public Internet. For a
-remote server, terminate TLS in a reverse proxy and use an `https://`
+identify players. The admin panel and API have no authentication and listen
+on `admin_listen`, `127.0.0.1:3001` by default, apart from players; keep that
+address off the public Internet and reach it through an SSH tunnel if needed.
+For a remote server, terminate TLS in a reverse proxy and use an `https://`
 endpoint; the plugin connects with `wss://`.

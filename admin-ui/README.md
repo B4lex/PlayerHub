@@ -1,7 +1,9 @@
 # Skyrim MP admin panel
 
 React and TypeScript front end for the game server's admin API. The server
-hosts the built app at `/admin/`; see `../README.md` for the API it talks to.
+hosts the built app at `/admin/` on its admin address (`admin_listen`,
+`http://127.0.0.1:3001/admin/` by default); see `../README.md` for the API it
+talks to.
 
 ## Build and run
 
@@ -19,8 +21,8 @@ For development, run the game server, then:
 npm run dev       # http://localhost:5173/admin/, with hot reload
 ```
 
-Vite forwards `/api`, including the `/api/events` feed, to `http://127.0.0.1:3000`. Point it at a
-server on another port with `ADMIN_SERVER_URL=http://127.0.0.1:3100 npm run dev`.
+Vite forwards `/api`, including the `/api/events` feed, to `http://127.0.0.1:3001`. Point it at a
+server on another admin address with `ADMIN_SERVER_URL=http://127.0.0.1:3101 npm run dev`.
 
 Other scripts: `npm run typecheck`, `npm test` (Vitest, for the pure logic in
 `src/lib/`).

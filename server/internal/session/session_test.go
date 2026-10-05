@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -460,5 +461,43 @@ func TestHelloVanishesPlayers(t *testing.T) {
 	c.send(refusing)
 	if code, reason := closeStatus(t, c); code != websocket.StatusPolicyViolation || reason != "invalid vanish" {
 		t.Fatalf("got %d %q", code, reason)
+	}
+}
+
+func TestBrowsersCannotJoin(t *testing.T) {
+	s := startServer(t, config.Default())
+	for _, tc := range []struct {
+		origin string
+		joins  bool
+	}{
+		{"", true},
+		{"ws://127.0.0.1:3000", true},
+		{"wss://play.example.com:443", true},
+		{"https://evil.example.com", false},
+		{"http://127.0.0.1:3000", false},
+		{"null", false},
+		{"chrome-extension://abcdef", false},
+	} {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		options := &websocket.DialOptions{HTTPHeader: http.Header{}}
+		if tc.origin != "" {
+			options.HTTPHeader.Set("Origin", tc.origin)
+		}
+		conn, response, err := websocket.Dial(ctx, s.url, options)
+		cancel()
+		if tc.joins {
+			if err != nil {
+				t.Fatalf("origin %q: %v", tc.origin, err)
+			}
+			conn.CloseNow()
+			continue
+		}
+		if err == nil {
+			conn.CloseNow()
+			t.Fatalf("origin %q joined", tc.origin)
+		}
+		if response == nil || response.StatusCode != http.StatusForbidden {
+			t.Fatalf("origin %q: got %v, want 403", tc.origin, err)
+		}
 	}
 }

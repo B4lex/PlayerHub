@@ -11,7 +11,11 @@ import (
 )
 
 type Config struct {
-	Listen              string   `toml:"listen"`
+	Listen string `toml:"listen"`
+	// The admin panel, its API, and profiling are served only here, apart
+	// from players, so a proxy that exposes the game port cannot expose them.
+	// Empty serves none of them.
+	AdminListen         string   `toml:"admin_listen"`
 	RecordingsDirectory string   `toml:"recordings_directory"`
 	AdminUIDirectory    string   `toml:"admin_ui_directory"`
 	SendRateHz          float64  `toml:"send_rate_hz"`
@@ -78,6 +82,7 @@ type Liveness struct {
 func Default() Config {
 	return Config{
 		Listen:              "0.0.0.0:3000",
+		AdminListen:         "127.0.0.1:3001",
 		RecordingsDirectory: "recordings",
 		AdminUIDirectory:    "admin-ui/dist",
 		SendRateHz:          20,
@@ -115,11 +120,15 @@ func Load(path string) (Config, error) {
 			return c, fmt.Errorf("unknown configuration keys: %v", undecoded)
 		}
 	}
-	return c, c.validate()
+	return c, c.Validate()
 }
 
-func (c Config) validate() error {
+// Validate reports the first setting out of range. Load calls it; call it
+// again after overriding settings.
+func (c Config) Validate() error {
 	switch {
+	case c.AdminListen != "" && c.AdminListen == c.Listen:
+		return errors.New("admin_listen must differ from listen")
 	case c.SendRateHz < 1 || c.SendRateHz > 240:
 		return errors.New("send_rate_hz must be within 1..240")
 	case c.Limits.MessagesPerSecond <= 0 || c.Limits.MessageBurst < 1:

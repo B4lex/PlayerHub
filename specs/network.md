@@ -5,7 +5,11 @@
 - Server: implemented in Go. `go test -race ./...` in `server/` covers
   validation (`internal/validate`), hub ordering and relay (`internal/hub`),
   outboxes (`internal/delivery`), and black-box sessions over a real WebSocket
-  (`internal/session`, `internal/admin`). `cmd/loadgen` measured 250 walking
+  (`internal/session`, `internal/admin`), including the `Origin` rule. A
+  local server answered `/ws` and `/health` only on `listen`, `/api`,
+  `/admin/`, and `/debug/pprof/` only on `admin_listen`, and refused a
+  WebSocket upgrade with an `https://` origin while accepting `ws://` and
+  none. `cmd/loadgen` measured 250 walking
   bots, every one receiving every other, on a 4-core Linux host shared with
   the load generator: 1.24M entries/s, server CPU 58–64% of one core, latency
   p50 22 ms and p99 42 ms from sending a checkpoint to a peer receiving it.
@@ -123,7 +127,17 @@ refused at the handshake ([Transport](#transport)).
 ## Transport
 
 - One binary WebSocket message carries one `ClientMessage` or `ServerMessage`,
-  each a protobuf `oneof`. The server listens at `/ws`.
+  each a protobuf `oneof`. The server listens at `/ws` on `listen`; the admin
+  panel and API are served only on `admin_listen`
+  ([Recording and replay](recording-and-replay.md#admin-api)).
+- The server refuses with 403 an upgrade whose `Origin` scheme is not `ws` or
+  `wss` (`session.playerOrigin`), so a web page cannot make its visitors'
+  browsers join: a browser always sends the page's origin, which is never
+  `ws` or `wss`. IXWebSocket sends `Origin: ws://host:port` or
+  `wss://host:port`, and Go clients such as `cmd/loadgen` send none, so both
+  join. A bare reject of any `Origin` would refuse the plugin. The origin's
+  host is not compared with `Host`, since behind a proxy the plugin names the
+  public host and port.
 - `[Network] ServerEndpoint` keeps its `http://` or `https://` form; the client
   maps it to `ws://` or `wss://` and appends `/ws` when the endpoint has no
   path. TLS is terminated by a reverse proxy in front of the server.
@@ -707,8 +721,10 @@ window, and are empty after a long gap. The status panel shows them.
 ## Known limitations
 
 - Sessions authenticate players only. The admin API can delete recordings and
-  spawn virtual players without one, so the server port must not face the
-  Internet.
+  spawn virtual players without one; it is served only on `admin_listen`,
+  which must not face the Internet.
+- The `Origin` rule stops browsers only. Any other program can open
+  connections and send hellos from its own address.
 - A session cannot be recovered: a player who loses `skyrim-mp.session`, or
   whose plugin could not write it, gets a new session, and the old one keeps
   its display name until it expires.

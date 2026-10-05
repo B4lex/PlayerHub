@@ -30,8 +30,9 @@ import (
 func main() {
 	configPath := flag.String("config", "", "TOML configuration file; defaults apply when omitted")
 	listen := flag.String("listen", "", "address to listen on, overriding the configuration")
+	adminListen := flag.String("admin-listen", "", "address of the admin panel and API, overriding the configuration")
 	verbose := flag.Bool("verbose", false, "log debug messages")
-	profile := flag.Bool("pprof", false, "serve net/http/pprof under /debug/pprof/")
+	profile := flag.Bool("pprof", false, "serve net/http/pprof under /debug/pprof/ on the admin address")
 	flag.Parse()
 
 	level := slog.LevelInfo
@@ -47,6 +48,17 @@ func main() {
 	}
 	if *listen != "" {
 		c.Listen = *listen
+	}
+	if *adminListen != "" {
+		c.AdminListen = *adminListen
+	}
+	if err := c.Validate(); err != nil {
+		log.Error("invalid configuration", "error", err)
+		os.Exit(2)
+	}
+	if *profile && c.AdminListen == "" {
+		log.Error("invalid configuration", "error", "--pprof needs admin_listen")
+		os.Exit(2)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -115,33 +127,33 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 	go feed.Run(loopContext)
 	go sessions.Maintain(loopContext)
 
-	mux := http.NewServeMux()
+	game := http.NewServeMux()
 	sessions.SetLoop(loop)
-	mux.Handle("GET /ws", sessions)
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+	game.Handle("GET /ws", sessions)
+	game.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
-	adminContext.Routes(mux)
-	mux.Handle("GET /api/events", feed)
-	mux.Handle("GET /admin/", admin.UI(c.AdminUIDirectory))
-	mux.Handle("GET /admin", http.RedirectHandler("/admin/", http.StatusMovedPermanently))
-	if profile {
-		mux.HandleFunc("/debug/pprof/", pprof.Index)
-		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	servers := []*http.Server{newServer(ctx, c.Listen, game)}
+
+	if c.AdminListen != "" {
+		panel := http.NewServeMux()
+		adminContext.Routes(panel)
+		panel.Handle("GET /api/events", feed)
+		panel.Handle("GET /admin/", admin.UI(c.AdminUIDirectory))
+		panel.Handle("GET /admin", http.RedirectHandler("/admin/", http.StatusMovedPermanently))
+		if profile {
+			panel.HandleFunc("/debug/pprof/", pprof.Index)
+			panel.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		}
+		servers = append(servers, newServer(ctx, c.AdminListen, panel))
 	}
 
-	server := &http.Server{
-		Addr:              c.Listen,
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-		// Shutdown does not close WebSocket or event-stream connections;
-		// cancelling their request context does.
-		BaseContext: func(net.Listener) context.Context { return ctx },
+	serveErr := make(chan error, len(servers))
+	for _, server := range servers {
+		go func() { serveErr <- server.ListenAndServe() }()
 	}
-	serveErr := make(chan error, 1)
-	go func() { serveErr <- server.ListenAndServe() }()
-	log.Info("listening", "address", c.Listen, "send_rate_hz", c.SendRateHz)
+	log.Info("listening", "address", c.Listen, "admin_address", c.AdminListen, "send_rate_hz", c.SendRateHz)
 
 	select {
 	case err := <-serveErr:
@@ -153,9 +165,22 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 	batches.CloseAll()
 	shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err = server.Shutdown(shutdown)
-	if errors.Is(err, context.DeadlineExceeded) {
-		err = nil
+	var errs []error
+	for _, server := range servers {
+		if err := server.Shutdown(shutdown); !errors.Is(err, context.DeadlineExceeded) {
+			errs = append(errs, err)
+		}
 	}
-	return err
+	return errors.Join(errs...)
+}
+
+func newServer(ctx context.Context, address string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              address,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		// Shutdown does not close WebSocket or event-stream connections;
+		// cancelling their request context does.
+		BaseContext: func(net.Listener) context.Context { return ctx },
+	}
 }

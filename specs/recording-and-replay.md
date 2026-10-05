@@ -155,6 +155,11 @@ once, including from one recording.
 
 ## Admin API
 
+The panel at `/admin/`, the API, and `--pprof` profiling are served only on
+`admin_listen` (default `127.0.0.1:3001`; empty serves none of them), never on
+the player address `listen`, so a reverse proxy that forwards the game port
+cannot expose them. `--admin-listen` overrides the setting, which must differ
+from `listen`, and `--pprof` needs it.
 Commands are REST under `/api` ([server README](../server/README.md#admin-panel));
 errors answer `{"detail": ...}`, and player IDs are slots as decimal strings.
 Live state is one full snapshot pushed as a server-sent event (`event: state`)
@@ -183,7 +188,9 @@ Not checked in game:
 ## Known limitations
 
 - The admin API has no authentication: it deletes recordings and spawns
-  virtual players, so the port must not face the Internet.
+  virtual players, so `admin_listen` must not face the Internet. It does not
+  check `Content-Type` or `Host` either, so a web page the operator visits can
+  send it simple cross-origin POSTs even on localhost.
 - A replay reaches every connected client; recordings cannot be edited or
   renamed, and players are not captured automatically.
 - Batches do not survive a server restart.

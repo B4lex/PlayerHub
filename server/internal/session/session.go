@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -88,9 +89,15 @@ func (s *Server) SetLoop(loop *hub.Loop) {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !playerOrigin(r) {
+		s.log.Debug("browser refused", "address", r.RemoteAddr, "origin", r.Header.Get("Origin"))
+		http.Error(w, "browsers cannot join", http.StatusForbidden)
+		return
+	}
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
-		// Game clients send no Origin; browsers are not players.
+		// playerOrigin checked the origin. Behind a proxy the plugin's origin
+		// names the public host and port, which need not match Host.
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
@@ -98,6 +105,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	conn.SetReadLimit(readLimitBytes)
 	s.serve(r.Context(), conn, r.RemoteAddr)
+}
+
+// playerOrigin refuses WebSocket upgrades from web pages, so a page cannot
+// make its visitors' browsers join. A browser always sends the page's origin,
+// whose scheme is never ws or wss. IXWebSocket, the plugin's transport, sends
+// ws://host:port or wss://host:port, and Go tools send none.
+func playerOrigin(r *http.Request) bool {
+	for _, origin := range r.Header.Values("Origin") {
+		u, err := url.Parse(origin)
+		if err != nil || (u.Scheme != "ws" && u.Scheme != "wss") {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Server) serve(parent context.Context, conn *websocket.Conn, address string) {
