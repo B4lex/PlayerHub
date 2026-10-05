@@ -32,7 +32,11 @@
   appearance, a session connecting again), and black-box connections
   (`internal/session`: issued and resumed sessions, a hello renaming a resumed
   session, every refusal, the earlier connection closed with 4006, an unused
-  new session deleted and a resumed one kept). `cmd/loadgen` ran 100 bots
+  new session deleted and a resumed one kept, a full server refusing a new
+  session but admitting a connected one, the per-address allowance by peer
+  and by forwarded address, and the pending hello cap); `internal/admission`
+  covers the gate and `X-Forwarded-For` parsing. The plugin's 4007 and 4008
+  refusals are not compiled or run. `cmd/loadgen` ran 100 bots
   twice against one database on port 3100 without a refusal, and 20 bots
   against an in-memory store with protocol version 4. Plugin: `ServerClient`,
   `WireCodec`, `SessionStore`, and `ConnectionMonitor` were built on Linux
@@ -119,6 +123,7 @@ refused at the handshake ([Transport](#transport)).
 | `network/TrafficMeter` | Bytes per second in each direction |
 | `server/internal/session` | WebSocket accept, hello and session authentication, reader and writer goroutines, liveness, per-connection limits |
 | `server/internal/auth` | The session store: tokens, unique display names, expiry |
+| `server/internal/admission` | Caps on players, pending hellos, and new sessions per address; the client address behind trusted proxies |
 | `server/internal/validate` | Field validation of client messages |
 | `server/internal/world` | A player's accepted state and the ordering rules |
 | `server/internal/wire` | Hand-written encoding of checkpoint entries and batches, quantization for tools |
@@ -183,10 +188,15 @@ refused at the handshake ([Transport](#transport)).
 | 4004 `display name taken` | Another session holds the hello's display name | refusal |
 | 4005 `invalid display name` | The hello's display name is missing or not a display name | refusal |
 | 4006 `session connected elsewhere` | The session connected again | refusal |
+| 4007 `server full` | `limits.max_players` sessions are connected | refusal |
+| 4008 `too many new sessions` | The hello needs a new session and its address took its allowance | refusal |
 | 1008 | First message is not a hello, or `invalid session token` | reconnects |
 | 1011 `session store unavailable` | The session store failed | reconnects |
 
-What a refusal means for the client is in [Connection](#connection).
+An upgrade refused before the WebSocket exists answers HTTP 403 for a browser
+([Transport](#transport)) or 503 while too many connections wait for their
+hello ([Admission](#admission)); the client treats both as a failed attempt and
+retries. What a refusal means for the client is in [Connection](#connection).
 
 ## Client messages
 
@@ -414,11 +424,47 @@ the admin API.
   with one of them connected in the hub and open.
 - A store failure closes the hello's connection with 1011
   `session store unavailable`.
+- A new session is issued only when its address may take one
+  ([Admission](#admission)); the check runs after the display name is found
+  free, so a taken name does not spend the allowance.
 - A client is named by its session everywhere: `Appearance.name` on the stored
   and relayed copy, `ChatSpeaker.name`, the admin state, and a recording's
   header. Replays and in-server bots have no session and keep their recorded
   names, which are not compared with anyone's; a replay may show a connected
   player's display name.
+
+### Admission
+
+Goal: bound what connections cost before a player is admitted, so a flood of
+connections or hellos cannot crowd out real players or squat display names.
+`admission.Gate` decides; `session.Server` asks it. Admin replays and
+in-server bots do not pass through it and do not count.
+
+- `limits.max_pending_hellos` (64) caps connections between the upgrade and
+  the end of their hello, which bounds the hellos queued on the store's one
+  connection. Over it, the upgrade answers HTTP 503 before a WebSocket exists.
+- `limits.max_players` (100; 0 is no cap) caps connected sessions. A hello
+  without a token on a full server is closed with 4007 `server full` before
+  the store is touched. Otherwise the session is admitted after it
+  authenticates, unless the server is full and the session is not connected
+  already: a session replacing its own connection is always admitted, so a
+  reconnect never waits for its dead connection's timeout. A new session
+  issued in the race between that check and admission is deleted again. The
+  cap also bounds the roster every client receives.
+- `limits.new_sessions_per_address_per_hour` (5; 0 is no limit) is a token
+  bucket per address with that burst, refilled at that many per hour.
+  Resuming a session never spends it. An IPv6 address counts with its /64,
+  which one subscriber usually holds whole. `Server.Maintain` prunes refilled
+  buckets hourly.
+- The address is the TCP peer's, unless the peer is in `trusted_proxies`
+  (addresses or CIDR prefixes, empty by default). Then it is the rightmost
+  `X-Forwarded-For` hop not in `trusted_proxies`: each proxy appends the
+  address it received from, so earlier hops may be forged by the client. A
+  hop that does not parse stops the walk at the last trusted address. Behind
+  a proxy without `trusted_proxies`, every player shares the proxy's
+  allowance.
+- Upgrades refused for the hello cap are logged as a throttled summary
+  (`refused connections`), since a flood would repeat them.
 
 ### Chat
 
@@ -632,8 +678,8 @@ client.
   `kDisconnected` otherwise.
 - An applied endpoint that differs from the latest attempt's abandons a live
   connection and reconnects at once, with the attempt count reset.
-- A close with status 4001, 4004, 4005, or 4006 is a refusal: retrying cannot
-  help, so the monitor disables the player's choice and closes the client,
+- A close with status 4001, 4004, 4005, 4006, 4007, or 4008 is a refusal:
+  retrying at once cannot help, so the monitor disables the player's choice and closes the client,
   which leaves `kDisconnected`. `Network::GetConnectionRefusal` returns its
   `Refusal{reason, message}` for the settings window's [connection
   controls](ui-overlay.md#connection-controls) until the player presses
@@ -717,6 +763,12 @@ window, and are empty after a long gap. The status panel shows them.
     down until Connect.
 12. A reconnect after a network loss is welcomed at once, without waiting for
     the server to time out the dead connection.
+13. On a server with `max_players` connected players, a new player sees that
+    the server is full and stays disconnected until Connect, while a connected
+    player whose network dropped reconnects.
+14. A web page cannot open a player connection, and players behind a
+    configured reverse proxy are limited by their own address, not the
+    proxy's.
 
 ## Known limitations
 
@@ -728,9 +780,11 @@ window, and are empty after a long gap. The status panel shows them.
 - A session cannot be recovered: a player who loses `skyrim-mp.session`, or
   whose plugin could not write it, gets a new session, and the old one keeps
   its display name until it expires.
-- Nothing limits how many sessions an address may take, so display names can be
-  squatted and the database grown; the message rate limit does not apply before
-  the welcome.
+- Display names can still be squatted from many addresses, slowly from one
+  (`limits.new_sessions_per_address_per_hour`), or by a program, which the
+  `Origin` rule does not stop. Resumed hellos are not limited per address.
+- A full server or an exhausted allowance leaves the player disconnected until
+  Connect; nothing retries when a place frees.
 - Display names compare by lower case only, so look-alikes such as `l` and
   `I` or `0` and `O` are different display names.
 - Non-goal: display names in other scripts, with spaces, or with punctuation

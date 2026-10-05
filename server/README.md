@@ -37,6 +37,7 @@ remote server differ only in this file.
 ```toml
 listen = "0.0.0.0:3000"
 admin_listen = "127.0.0.1:3001"   # admin panel, API, and pprof; "" serves none of them
+trusted_proxies = []        # e.g. ["127.0.0.1"] behind a local proxy; X-Forwarded-For then names the player
 recordings_directory = "recordings"
 admin_ui_directory = "admin-ui/dist"
 # Batches per second to each client, at most one tick of batching delay.
@@ -50,6 +51,9 @@ actions_per_second = 10     # per player; extra attacks are rejected
 action_burst = 10
 ordered_backlog = 4096      # unsent ordered messages before a slow client is dropped
 hello_timeout_seconds = 5
+max_players = 100           # connected at once; 0 is no cap; replays and bots do not count
+max_pending_hellos = 64     # connections still waiting for their hello; over it, upgrades answer 503
+new_sessions_per_address_per_hour = 5  # IPv6 per /64; 0 is no limit; resuming is never limited
 
 [liveness]
 ping_interval_seconds = 5   # WebSocket pings, answered by the client's transport thread
@@ -102,6 +106,9 @@ go run ./cmd/loadgen --bots 250 --server-pid <pid>
 go run ./cmd/convert-recordings recordings
 ```
 
+- `cmd/loadgen` needs a server without the join limits, since every bot is a
+  new session from one address: set `max_players = 0` and
+  `new_sessions_per_address_per_hour = 0` under `[limits]`.
 - `cmd/loadgen` connects bots as real WebSocket clients, each with a new
   session named after the run, walking in a square
   (`--spread`, `--speed`, `--idle` for a share standing still, `--view-radius`)
@@ -123,6 +130,7 @@ go run ./cmd/convert-recordings recordings
 | `internal/config` | TOML configuration and defaults |
 | `internal/session` | WebSocket accept, hello and session authentication, reader, writer, liveness, limits |
 | `internal/auth` | Session store: tokens, unique display names, expiry |
+| `internal/admission` | Player cap, pending hello cap, new sessions per address, client address behind proxies |
 | `internal/validate` | Field validation of client messages |
 | `internal/hub` | The one goroutine that owns world state, subscriptions, and delivery order |
 | `internal/interest` | Interest rules, exclusions, spatial grid |
@@ -177,4 +185,6 @@ identify players. The admin panel and API have no authentication and listen
 on `admin_listen`, `127.0.0.1:3001` by default, apart from players; keep that
 address off the public Internet and reach it through an SSH tunnel if needed.
 For a remote server, terminate TLS in a reverse proxy and use an `https://`
-endpoint; the plugin connects with `wss://`.
+endpoint; the plugin connects with `wss://`. Add the proxy's address to
+`trusted_proxies` (`127.0.0.1` for `cloudflared` or nginx on the same host),
+or every player shares the proxy's allowance of new sessions per hour.

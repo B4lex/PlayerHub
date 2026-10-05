@@ -1338,7 +1338,7 @@ them:
 | Condition | Line |
 | --- | --- |
 | The field's text is not a display name ([Network](network.md#sessions)) | `Invalid display name.`, red. The page's footer line does not count this field |
-| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`) | the sentence of `Network::GetConnectionRefusal`, red, until `Connect` is pressed |
+| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`) | the sentence of `Network::GetConnectionRefusal`, red, until `Connect` is pressed |
 | Otherwise | the setting's comment, `Shown to other players above your character and in chat.`, muted |
 
 The sidebar's summary (`ConnectionControls::DrawSummary`) is an indicator and

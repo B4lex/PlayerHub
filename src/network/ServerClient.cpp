@@ -36,6 +36,8 @@ namespace Network
         constexpr std::uint16_t kDisplayNameTakenCloseCode = 4004;
         constexpr std::uint16_t kDisplayNameInvalidCloseCode = 4005;
         constexpr std::uint16_t kSessionReplacedCloseCode = 4006;
+        constexpr std::uint16_t kServerFullCloseCode = 4007;
+        constexpr std::uint16_t kTooManyNewSessionsCloseCode = 4008;
         constexpr int kHandshakeTimeoutSeconds = 10;
 
         std::atomic_bool connected{ false };
@@ -223,6 +225,11 @@ namespace Network
                     return Refusal{ RefusalReason::kSessionReplaced,
                         "Your session connected from another game, which closed this connection. Connect again "
                         "to take it back." };
+                case kServerFullCloseCode:
+                    return Refusal{ RefusalReason::kServerFull, "The server is full; connect again later." };
+                case kTooManyNewSessionsCloseCode:
+                    return Refusal{ RefusalReason::kTooManyNewSessions,
+                        "Too many new players joined this server from your address recently; connect again later." };
                 default:
                     return std::nullopt;
             }

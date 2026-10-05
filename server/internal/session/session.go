@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/coder/websocket"
 	"google.golang.org/protobuf/proto"
 
+	"skyrim-mp/server/internal/admission"
 	"skyrim-mp/server/internal/auth"
 	"skyrim-mp/server/internal/config"
 	"skyrim-mp/server/internal/delivery"
@@ -46,6 +48,12 @@ const (
 	StatusDisplayNameInvalid websocket.StatusCode = 4005
 	// StatusReplaced closes a connection whose session connected again.
 	StatusReplaced websocket.StatusCode = 4006
+	// StatusServerFull closes a connection whose session would exceed
+	// limits.max_players.
+	StatusServerFull websocket.StatusCode = 4007
+	// StatusTooManyNewSessions closes a connection whose hello needs a new
+	// session when its address took limits.new_sessions_per_address_per_hour.
+	StatusTooManyNewSessions websocket.StatusCode = 4008
 )
 
 // How often connected sessions are marked used and expired ones deleted.
@@ -57,7 +65,11 @@ type Server struct {
 	config config.Config
 	log    *slog.Logger
 	// Nil without an egress budget.
-	budget *delivery.Budget
+	budget  *delivery.Budget
+	gate    *admission.Gate
+	trusted []netip.Prefix
+	// Joins refused before a WebSocket exists, which a flood would repeat.
+	refusals *rejectionLog
 
 	mu sync.Mutex
 	// By slot. Set on the hub goroutine as a client connects, so a session
@@ -75,7 +87,15 @@ type connection struct {
 }
 
 func NewServer(loop *hub.Loop, store *auth.Store, c config.Config, log *slog.Logger) *Server {
-	return &Server{loop: loop, store: store, config: c, log: log, connections: make(map[uint32]*connection)}
+	// config.Load validated the prefixes.
+	trusted, _ := c.TrustedProxyPrefixes()
+	gate := admission.NewGate(admission.Limits{
+		MaxPlayers:                   c.Limits.MaxPlayers,
+		MaxPendingHellos:             c.Limits.MaxPendingHellos,
+		NewSessionsPerAddressPerHour: c.Limits.NewSessionsPerAddressPerHour,
+	})
+	return &Server{loop: loop, store: store, config: c, log: log, gate: gate, trusted: trusted,
+		refusals: newRejectionLog(log, "refused connections"), connections: make(map[uint32]*connection)}
 }
 
 // UseBudget makes every connection's writes share b. Call before serving.
@@ -94,6 +114,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "browsers cannot join", http.StatusForbidden)
 		return
 	}
+	if !s.gate.BeginHello() {
+		s.refusals.note("too many connections waiting for their hello")
+		http.Error(w, "too many players are joining; try again", http.StatusServiceUnavailable)
+		return
+	}
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
 		// playerOrigin checked the origin. Behind a proxy the plugin's origin
@@ -101,10 +126,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
+		s.gate.EndHello()
 		return
 	}
 	conn.SetReadLimit(readLimitBytes)
-	s.serve(r.Context(), conn, r.RemoteAddr)
+	s.serve(r.Context(), conn, admission.ClientAddress(r, s.trusted))
 }
 
 // playerOrigin refuses WebSocket upgrades from web pages, so a page cannot
@@ -121,22 +147,17 @@ func playerOrigin(r *http.Request) bool {
 	return true
 }
 
-func (s *Server) serve(parent context.Context, conn *websocket.Conn, address string) {
+func (s *Server) serve(parent context.Context, conn *websocket.Conn, address netip.Addr) {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	defer conn.CloseNow()
 
-	hello, err := s.readHello(ctx, conn)
-	if err != nil {
-		s.log.Info("player refused", "address", address, "error", err)
-		return
-	}
-
-	identity, err := s.authenticate(conn, hello)
+	hello, identity, err := s.join(ctx, conn, address)
 	if err != nil {
 		s.log.Info("player refused", "address", address, "display_name", hello.GetDisplayName(), "error", err)
 		return
 	}
+	defer s.gate.Leave(identity.Session)
 
 	outbox := delivery.NewOutbox(s.config.Limits.OrderedBacklog)
 	if s.budget != nil {
@@ -219,9 +240,40 @@ func (s *Server) readHello(ctx context.Context, conn *websocket.Conn) (*pb.Hello
 	return hello, nil
 }
 
+var errServerFull = errors.New("server full")
+
+// join reads the hello and admits its session. A refused connection is closed
+// with the status that tells the client why; the hello is nil when none came.
+func (s *Server) join(ctx context.Context, conn *websocket.Conn, address netip.Addr) (*pb.Hello, hub.Identity, error) {
+	defer s.gate.EndHello()
+	hello, err := s.readHello(ctx, conn)
+	if err != nil {
+		return nil, hub.Identity{}, err
+	}
+	// Spares a full server the session it would issue and then delete.
+	if len(hello.GetSessionToken()) == 0 && s.gate.Full() {
+		conn.Close(StatusServerFull, errServerFull.Error())
+		return hello, hub.Identity{}, errServerFull
+	}
+	identity, err := s.authenticate(conn, hello, address)
+	if err != nil {
+		return hello, hub.Identity{}, err
+	}
+	if !s.gate.Admit(identity.Session) {
+		conn.Close(StatusServerFull, errServerFull.Error())
+		if identity.Token != nil {
+			if _, err := s.store.Abandon(identity.Session); err != nil {
+				s.log.Error("cannot delete the unused session", "error", err)
+			}
+		}
+		return hello, hub.Identity{}, errServerFull
+	}
+	return hello, identity, nil
+}
+
 // authenticate resumes or issues the session the hello asks for. A refused
 // connection is closed with the status that tells the client why.
-func (s *Server) authenticate(conn *websocket.Conn, hello *pb.Hello) (hub.Identity, error) {
+func (s *Server) authenticate(conn *websocket.Conn, hello *pb.Hello, address netip.Addr) (hub.Identity, error) {
 	if err := validate.Hello(hello); err != nil {
 		if errors.Is(err, validate.ErrDisplayName) {
 			conn.Close(StatusDisplayNameInvalid, err.Error())
@@ -230,10 +282,15 @@ func (s *Server) authenticate(conn *websocket.Conn, hello *pb.Hello) (hub.Identi
 		}
 		return hub.Identity{}, err
 	}
-	session, issued, err := s.store.Authenticate(hello.GetSessionToken(), hello.GetDisplayName(), time.Now())
+	now := time.Now()
+	mayIssue := func() bool { return s.gate.MayIssue(address, now) }
+	session, issued, err := s.store.Authenticate(hello.GetSessionToken(), hello.GetDisplayName(), now, mayIssue)
 	switch {
 	case errors.Is(err, auth.ErrDisplayNameTaken):
 		conn.Close(StatusDisplayNameTaken, err.Error())
+		return hub.Identity{}, err
+	case errors.Is(err, auth.ErrIssueRefused):
+		conn.Close(StatusTooManyNewSessions, err.Error())
 		return hub.Identity{}, err
 	case err != nil:
 		s.log.Error("session store failed", "error", err)
@@ -287,6 +344,7 @@ func (s *Server) Maintain(ctx context.Context) {
 		}
 		s.mu.Unlock()
 		now := time.Now()
+		s.gate.Prune(now)
 		if err := s.store.Touch(sessions, now); err != nil {
 			s.log.Error("cannot mark connected sessions used", "error", err)
 			continue
@@ -306,7 +364,7 @@ var (
 
 func (s *Server) read(ctx context.Context, c *connection, slot uint32, outbox *delivery.Outbox, log *slog.Logger) error {
 	var rate limit.TokenBucket
-	rejections := newRejectionLog(log)
+	rejections := newRejectionLog(log, "rejected player messages")
 	for {
 		typ, data, err := c.conn.Read(ctx)
 		if err != nil {

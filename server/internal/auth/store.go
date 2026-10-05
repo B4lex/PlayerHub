@@ -18,7 +18,11 @@ import (
 	"skyrim-mp/server/internal/validate"
 )
 
-var ErrDisplayNameTaken = errors.New("display name taken")
+var (
+	ErrDisplayNameTaken = errors.New("display name taken")
+	// The hello needs a new session and mayIssue refused it.
+	ErrIssueRefused = errors.New("too many new sessions")
+)
 
 const schemaVersion = 2
 
@@ -108,9 +112,10 @@ func (s *Store) migrate() error {
 // Authenticate resumes the live session the token belongs to, renaming it
 // when displayName differs from its own, or issues a new session when the
 // token is empty or matches none. Only a new session returns its token, which
-// is not stored and cannot be recovered. ErrDisplayNameTaken leaves everything
-// as it was.
-func (s *Store) Authenticate(token []byte, displayName string, now time.Time) (Session, []byte, error) {
+// is not stored and cannot be recovered. A new session is issued only once its
+// display name is known to be free and mayIssue, when not nil, allows it.
+// ErrDisplayNameTaken and ErrIssueRefused leave everything as it was.
+func (s *Store) Authenticate(token []byte, displayName string, now time.Time, mayIssue func() bool) (Session, []byte, error) {
 	var session Session
 	var issued []byte
 	err := s.transact(func(tx *sql.Tx) error {
@@ -137,6 +142,9 @@ func (s *Store) Authenticate(token []byte, displayName string, now time.Time) (S
 		}
 		if err := requireFree(tx, 0, displayName); err != nil {
 			return err
+		}
+		if mayIssue != nil && !mayIssue() {
+			return ErrIssueRefused
 		}
 		issued = make([]byte, validate.SessionTokenBytes)
 		if _, err := rand.Read(issued); err != nil {

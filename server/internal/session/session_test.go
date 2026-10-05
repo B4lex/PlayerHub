@@ -54,9 +54,14 @@ type client struct {
 
 func dial(t *testing.T, s *testServer) *client {
 	t.Helper()
+	return dialWith(t, s, nil)
+}
+
+func dialWith(t *testing.T, s *testServer, header http.Header) *client {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	conn, _, err := websocket.Dial(ctx, s.url, nil)
+	conn, _, err := websocket.Dial(ctx, s.url, &websocket.DialOptions{HTTPHeader: header})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,4 +505,96 @@ func TestBrowsersCannotJoin(t *testing.T) {
 			t.Fatalf("origin %q: got %v, want 403", tc.origin, err)
 		}
 	}
+}
+
+func TestFullServerRefusesNewPlayers(t *testing.T) {
+	c := config.Default()
+	c.Limits.MaxPlayers = 1
+	s := startServer(t, c)
+	first, lydia := resume(t, s, "Lydia", nil)
+	if code, reason := refused(t, s, "Serana", nil); code != StatusServerFull || reason != "server full" {
+		t.Fatalf("got %d %q", code, reason)
+	}
+	// A connected session may replace its connection on a full server.
+	second, _ := resume(t, s, "Lydia", lydia.GetSessionToken())
+	if code, _ := closeStatus(t, first); code != StatusReplaced {
+		t.Fatalf("got %d", code)
+	}
+	second.conn.Close(websocket.StatusNormalClosure, "")
+
+	// Leaving frees the place.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		c := dial(t, s)
+		c.send(hello("Serana", nil))
+		m, err := c.tryReceive()
+		if err == nil && m.GetWelcome() != nil {
+			break
+		}
+		if websocket.CloseStatus(err) != StatusServerFull || time.Now().After(deadline) {
+			t.Fatalf("got %v, %v", m, err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestNewSessionsPerAddressAreLimited(t *testing.T) {
+	c := config.Default()
+	c.Limits.NewSessionsPerAddressPerHour = 2
+	s := startServer(t, c)
+	first, lydia := resume(t, s, "Lydia", nil)
+	join(t, s, "Serana")
+	if code, reason := refused(t, s, "Aela", nil); code != StatusTooManyNewSessions || reason != "too many new sessions" {
+		t.Fatalf("got %d %q", code, reason)
+	}
+	// A taken display name is refused for that, without the limit.
+	if code, _ := refused(t, s, "lydia", nil); code != StatusDisplayNameTaken {
+		t.Fatalf("got %d", code)
+	}
+	// Resuming takes no new session.
+	first.conn.Close(websocket.StatusNormalClosure, "")
+	resume(t, s, "Lydia", lydia.GetSessionToken())
+}
+
+func TestNewSessionsAreLimitedByForwardedAddress(t *testing.T) {
+	c := config.Default()
+	c.Limits.NewSessionsPerAddressPerHour = 1
+	c.TrustedProxies = []string{"127.0.0.0/8", "::1"}
+	s := startServer(t, c)
+	joinFrom := func(address, displayName string) *client {
+		c := dialWith(t, s, http.Header{"X-Forwarded-For": {address}})
+		c.send(hello(displayName, nil))
+		return c
+	}
+	if joinFrom("203.0.113.1", "Lydia").receive().GetWelcome() == nil {
+		t.Fatal("no welcome")
+	}
+	if joinFrom("203.0.113.2", "Serana").receive().GetWelcome() == nil {
+		t.Fatal("another address shares the limit")
+	}
+	if code, _ := closeStatus(t, joinFrom("1.2.3.4, 203.0.113.1", "Aela")); code != StatusTooManyNewSessions {
+		t.Fatalf("a forged hop escaped the limit: %d", code)
+	}
+}
+
+func TestPendingHellosAreCapped(t *testing.T) {
+	c := config.Default()
+	c.Limits.MaxPendingHellos = 1
+	s := startServer(t, c)
+	waiting := dial(t, s)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, response, err := websocket.Dial(ctx, s.url, nil)
+	if err == nil {
+		conn.CloseNow()
+		t.Fatal("connected beyond the cap")
+	}
+	if response == nil || response.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("got %v, want 503", err)
+	}
+	waiting.send(hello("Lydia", nil))
+	if waiting.receive().GetWelcome() == nil {
+		t.Fatal("no welcome")
+	}
+	join(t, s, "Serana")
 }

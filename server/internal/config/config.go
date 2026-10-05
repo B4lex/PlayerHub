@@ -5,6 +5,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 
 	"github.com/BurntSushi/toml"
@@ -15,7 +16,10 @@ type Config struct {
 	// The admin panel, its API, and profiling are served only here, apart
 	// from players, so a proxy that exposes the game port cannot expose them.
 	// Empty serves none of them.
-	AdminListen         string   `toml:"admin_listen"`
+	AdminListen string `toml:"admin_listen"`
+	// Proxies, as addresses or CIDR prefixes, whose X-Forwarded-For names
+	// the player's address for the per-address limits.
+	TrustedProxies      []string `toml:"trusted_proxies"`
 	RecordingsDirectory string   `toml:"recordings_directory"`
 	AdminUIDirectory    string   `toml:"admin_ui_directory"`
 	SendRateHz          float64  `toml:"send_rate_hz"`
@@ -72,6 +76,13 @@ type Limits struct {
 	ActionBurst         float64 `toml:"action_burst"`
 	OrderedBacklog      int     `toml:"ordered_backlog"`
 	HelloTimeoutSeconds float64 `toml:"hello_timeout_seconds"`
+	// Players connected at once; zero is no cap.
+	MaxPlayers int `toml:"max_players"`
+	// Connections that have not sent their hello yet.
+	MaxPendingHellos int `toml:"max_pending_hellos"`
+	// New sessions one address may take per hour, an IPv6 address with its
+	// /64; zero is no limit.
+	NewSessionsPerAddressPerHour float64 `toml:"new_sessions_per_address_per_hour"`
 }
 
 type Liveness struct {
@@ -87,12 +98,15 @@ func Default() Config {
 		AdminUIDirectory:    "admin-ui/dist",
 		SendRateHz:          20,
 		Limits: Limits{
-			MessagesPerSecond:   120,
-			MessageBurst:        240,
-			ActionsPerSecond:    10,
-			ActionBurst:         10,
-			OrderedBacklog:      4096,
-			HelloTimeoutSeconds: 5,
+			MessagesPerSecond:            120,
+			MessageBurst:                 240,
+			ActionsPerSecond:             10,
+			ActionBurst:                  10,
+			OrderedBacklog:               4096,
+			HelloTimeoutSeconds:          5,
+			MaxPlayers:                   100,
+			MaxPendingHellos:             64,
+			NewSessionsPerAddressPerHour: 5,
 		},
 		Liveness: Liveness{PingIntervalSeconds: 5, TimeoutSeconds: 10},
 		Interest: Interest{EnterRadius: 8192, LeaveRadius: 9830, MinDwellSeconds: 1, UpdateHz: 5, MaxVisible: 64,
@@ -139,6 +153,10 @@ func (c Config) Validate() error {
 		return errors.New("limits.ordered_backlog must be at least 64")
 	case c.Limits.HelloTimeoutSeconds <= 0:
 		return errors.New("limits.hello_timeout_seconds must be positive")
+	case c.Limits.MaxPlayers < 0 || c.Limits.NewSessionsPerAddressPerHour < 0:
+		return errors.New("limits.max_players and new_sessions_per_address_per_hour must be >= 0")
+	case c.Limits.MaxPendingHellos < 1:
+		return errors.New("limits.max_pending_hellos must be at least 1")
 	case c.Liveness.PingIntervalSeconds <= 0 || c.Liveness.TimeoutSeconds <= 0:
 		return errors.New("liveness intervals must be positive")
 	case c.Interest.EnterRadius <= 0 || c.Interest.LeaveRadius < c.Interest.EnterRadius:
@@ -157,5 +175,24 @@ func (c Config) Validate() error {
 	case c.Sessions.LifetimeDays <= 0:
 		return errors.New("sessions.lifetime_days must be positive")
 	}
-	return nil
+	_, err := c.TrustedProxyPrefixes()
+	return err
+}
+
+// TrustedProxyPrefixes parses trusted_proxies; an address is its own prefix.
+func (c Config) TrustedProxyPrefixes() ([]netip.Prefix, error) {
+	prefixes := make([]netip.Prefix, 0, len(c.TrustedProxies))
+	for _, proxy := range c.TrustedProxies {
+		if address, err := netip.ParseAddr(proxy); err == nil {
+			address = address.Unmap()
+			prefixes = append(prefixes, netip.PrefixFrom(address, address.BitLen()))
+			continue
+		}
+		prefix, err := netip.ParsePrefix(proxy)
+		if err != nil {
+			return nil, fmt.Errorf("trusted_proxies: %q is not an address or a CIDR prefix", proxy)
+		}
+		prefixes = append(prefixes, prefix.Masked())
+	}
+	return prefixes, nil
 }

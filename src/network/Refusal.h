@@ -5,7 +5,7 @@
 
 namespace Network
 {
-    // Why the server closed a connection in a way that retrying cannot fix.
+    // Why the server closed a connection in a way that retrying at once cannot fix.
     enum class RefusalReason : std::uint8_t
     {
         kProtocolMismatch,
@@ -14,7 +14,12 @@ namespace Network
         kDisplayNameInvalid,
         // The session connected again from somewhere else, which closed this
         // connection. Retrying would close that one in turn.
-        kSessionReplaced
+        kSessionReplaced,
+        // The server has as many players as it allows.
+        kServerFull,
+        // The player's address took as many new sessions as the server allows
+        // per hour.
+        kTooManyNewSessions
     };
 
     struct Refusal
