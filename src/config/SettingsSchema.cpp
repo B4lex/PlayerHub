@@ -26,7 +26,7 @@ namespace Config
             "TwoHandAxe", "Bow", "Staff", "Crossbow"
         };
 
-        constexpr std::array<BindableKey, 20> kBindableKeys{ {
+        constexpr std::array<BindableKey, 56> kBindableKeys{ {
             { "F1", KeyboardKey::kF1 },
             { "F2", KeyboardKey::kF2 },
             { "F3", KeyboardKey::kF3 },
@@ -47,6 +47,42 @@ namespace Config
             { "PageDown", KeyboardKey::kPageDown },
             { "Pause", KeyboardKey::kPause },
             { "ScrollLock", KeyboardKey::kScrollLock },
+            { "A", KeyboardKey::kA },
+            { "B", KeyboardKey::kB },
+            { "C", KeyboardKey::kC },
+            { "D", KeyboardKey::kD },
+            { "E", KeyboardKey::kE },
+            { "F", KeyboardKey::kF },
+            { "G", KeyboardKey::kG },
+            { "H", KeyboardKey::kH },
+            { "I", KeyboardKey::kI },
+            { "J", KeyboardKey::kJ },
+            { "K", KeyboardKey::kK },
+            { "L", KeyboardKey::kL },
+            { "M", KeyboardKey::kM },
+            { "N", KeyboardKey::kN },
+            { "O", KeyboardKey::kO },
+            { "P", KeyboardKey::kP },
+            { "Q", KeyboardKey::kQ },
+            { "R", KeyboardKey::kR },
+            { "S", KeyboardKey::kS },
+            { "T", KeyboardKey::kT },
+            { "U", KeyboardKey::kU },
+            { "V", KeyboardKey::kV },
+            { "W", KeyboardKey::kW },
+            { "X", KeyboardKey::kX },
+            { "Y", KeyboardKey::kY },
+            { "Z", KeyboardKey::kZ },
+            { "0", KeyboardKey::kNum0 },
+            { "1", KeyboardKey::kNum1 },
+            { "2", KeyboardKey::kNum2 },
+            { "3", KeyboardKey::kNum3 },
+            { "4", KeyboardKey::kNum4 },
+            { "5", KeyboardKey::kNum5 },
+            { "6", KeyboardKey::kNum6 },
+            { "7", KeyboardKey::kNum7 },
+            { "8", KeyboardKey::kNum8 },
+            { "9", KeyboardKey::kNum9 },
         } };
 
         constexpr std::string_view kWhitespace = " \t\r\n";
@@ -155,6 +191,11 @@ namespace Config
             a_visitor.Section("UI", "");
             a_visitor.Key("SettingsKey", a_settings.settingsKey,
                 "Opens the settings window.");
+            a_visitor.Key("TradeAcceptKey", a_settings.tradeAcceptKey,
+                "Accepts another player's trade offer while it waits for an answer.");
+            a_visitor.Key("TradeDeclineKey", a_settings.tradeDeclineKey,
+                "Declines another player's trade offer, or withdraws your own, while it waits\n"
+                "for an answer.");
             a_visitor.Color("AccentColor", a_settings.accentColor,
                 "Color that marks what can be selected or is selected in the settings window and\n"
                 "the chat, as hexadecimal RRGGBB.",
@@ -184,6 +225,8 @@ namespace Config
         {
             PluginConfig config;
             config.ui.settingsKey = KeyboardKey::kF10;
+            config.ui.tradeAcceptKey = KeyboardKey::kY;
+            config.ui.tradeDeclineKey = KeyboardKey::kN;
 
             auto& outfit = config.defaultOutfit;
             const auto skyrim = [](std::uint32_t a_localFormID) {

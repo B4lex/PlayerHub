@@ -57,6 +57,9 @@ namespace Network
         std::deque<AnimationAction> pendingAnimationActions;
         std::unordered_map<PeerSlot, std::uint64_t> latestReceivedActionSequences;
         std::unordered_map<PeerSlot, Multiplayer::PlayerInspection> pendingInspections;
+        constexpr std::size_t kMaximumPendingTradeEvents = 256;
+        std::deque<Multiplayer::TradeEvent> pendingTradeEvents;
+        bool tradeEventsLost = false;
         std::unordered_set<PeerSlot> pendingExits;
         std::unordered_set<PeerSlot> pendingDisconnects;
         PeerSlot localSlot = 0;
@@ -237,6 +240,8 @@ namespace Network
             pendingAnimationActions.clear();
             latestReceivedActionSequences.clear();
             pendingInspections.clear();
+            pendingTradeEvents.clear();
+            tradeEventsLost = false;
             pendingExits.clear();
             pendingDisconnects.clear();
         }
@@ -492,6 +497,24 @@ namespace Network
             pendingChatMessages.push_back(std::move(a_message));
         }
 
+        void OnTradeEvent(Multiplayer::TradeEvent&& a_event)
+        {
+            std::scoped_lock lock{ remoteChangesLock };
+            if (auto* invite = std::get_if<Multiplayer::TradeInvite>(&a_event))
+            {
+                // Compared here, since the slot belongs to the connection the message arrived on.
+                invite->outgoing = invite->sender.playerID == localSlot;
+            }
+            if (pendingTradeEvents.size() >= kMaximumPendingTradeEvents)
+            {
+                // A trade's messages only make sense in order, so the trade ends instead.
+                logs::warn("Dropped {} queued trade messages", pendingTradeEvents.size());
+                pendingTradeEvents.clear();
+                tradeEventsLost = true;
+            }
+            pendingTradeEvents.push_back(std::move(a_event));
+        }
+
         void OnRosterChange(Wire::RosterChange&& a_change)
         {
             logs::debug("Roster changed: joined={} left={}", a_change.joined.size(), a_change.left);
@@ -576,6 +599,10 @@ namespace Network
                     {
                         std::scoped_lock lock{ remoteChangesLock };
                         pendingInspections.insert_or_assign(a_value.playerID, std::move(a_value));
+                    }
+                    else if constexpr (std::is_same_v<T, Multiplayer::TradeEvent>)
+                    {
+                        OnTradeEvent(std::move(a_value));
                     }
                 },
                 std::move(a_message));
@@ -837,6 +864,56 @@ namespace Network
         return true;
     }
 
+    bool PublishTradeRequest(PeerSlot a_playerID)
+    {
+        if (!IsConnected())
+        {
+            return false;
+        }
+        Send(Wire::EncodeTradeRequest(a_playerID));
+        return true;
+    }
+
+    void PublishTradeAnswer(Multiplayer::TradeID a_trade, bool a_accept)
+    {
+        if (IsConnected())
+        {
+            Send(Wire::EncodeTradeAnswer(a_trade, a_accept));
+        }
+    }
+
+    void PublishTradeOffer(const Multiplayer::TradeOffer& a_offer)
+    {
+        if (IsConnected())
+        {
+            Send(Wire::EncodeTradeOffer(a_offer));
+        }
+    }
+
+    void PublishTradeReport(const Multiplayer::TradeReport& a_report)
+    {
+        if (IsConnected())
+        {
+            Send(Wire::EncodeTradeReport(a_report));
+        }
+    }
+
+    void PublishTradeAccept(const Multiplayer::TradeAcceptance& a_acceptance)
+    {
+        if (IsConnected())
+        {
+            Send(Wire::EncodeTradeAccept(a_acceptance));
+        }
+    }
+
+    void PublishTradeCancel(Multiplayer::TradeID a_trade, Multiplayer::TradeCloseReason a_reason)
+    {
+        if (IsConnected())
+        {
+            Send(Wire::EncodeTradeCancel(a_trade, a_reason));
+        }
+    }
+
     std::string GetServerAddress()
     {
         {
@@ -993,6 +1070,14 @@ namespace Network
             changes.inspections.push_back(std::move(entry.second));
         }
         pendingInspections.clear();
+
+        changes.tradeEvents.reserve(pendingTradeEvents.size());
+        for (auto& event : pendingTradeEvents)
+        {
+            changes.tradeEvents.push_back(std::move(event));
+        }
+        pendingTradeEvents.clear();
+        changes.tradeEventsLost = std::exchange(tradeEventsLost, false);
 
         changes.exitedPlayerIDs.assign(pendingExits.begin(), pendingExits.end());
         pendingExits.clear();

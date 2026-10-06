@@ -20,6 +20,7 @@
 #include "sync/movement/MovementSync.h"
 #include "sync/outfit/DefaultOutfit.h"
 #include "sync/presence/PresenceSync.h"
+#include "sync/trade/TradeSync.h"
 
 #include <atomic>
 #include <cstddef>
@@ -160,6 +161,7 @@ namespace SyncCoordinator
             }
 
             PlayerDetails::Accept(changes.inspections);
+            TradeSync::QueueNetworkChanges(changes);
         }
 
         void PlayCheckpoints(Peers& a_peers)
@@ -435,7 +437,8 @@ namespace SyncCoordinator
 
         YieldActivatedFurniture(s_peers, *a_player);
         OpenActivatedPlayerMenu(s_peers);
-        if (PresenceSync::SyncPresence(LocalFrame{ .player = *a_player }))
+        const bool inWorld = PresenceSync::SyncPresence(LocalFrame{ .player = *a_player });
+        if (inWorld)
         {
             SyncLocalPlayer(*a_player, a_delta);
         }
@@ -444,6 +447,7 @@ namespace SyncCoordinator
             // Attacks captured before leaving would otherwise anchor to the first checkpoint after returning.
             CombatSync::DiscardLocalAttacks();
         }
+        TradeSync::Sync(*a_player, inWorld, a_delta);
 
         auto* localCell = a_player->GetParentCell();
         if (!localCell)

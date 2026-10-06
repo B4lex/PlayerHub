@@ -155,8 +155,10 @@ rule here.
    action after a new `PeerEnter` starts a new boundary.
 6. Appearance and equipment are latest-wins per (recipient, peer): a newer one
    drops the unsent one and is queued at the end, keeping the true order.
-7. Chat, results, roster changes, and inspections are ordered with
-   everything else in the outbox.
+7. Chat, results, roster changes, inspections, and trade messages are
+   ordered with everything else in the outbox, so a player receives the
+   other player's report before its acceptance and both before a commit
+   ([Trade](trade.md#commit)).
 
 ## Records per pair
 

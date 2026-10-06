@@ -7,6 +7,7 @@
 #include "protocol/PeerSlot.h"
 #include "protocol/PlayerState.h"
 #include "protocol/Session.h"
+#include "protocol/TradeState.h"
 
 #include <chrono>
 #include <cstdint>
@@ -44,6 +45,8 @@ namespace Network
         std::vector<RemotePlayerEquipment> equipment;
         std::vector<AnimationAction> animationActions;
         std::vector<Multiplayer::PlayerInspection> inspections;
+        std::vector<Multiplayer::TradeEvent> tradeEvents;
+        bool tradeEventsLost = false;
         std::vector<Multiplayer::PeerSlot> exitedPlayerIDs;
         std::vector<Multiplayer::PeerSlot> disconnectedPlayerIDs;
         std::uint64_t connectionGeneration = 0;
@@ -75,6 +78,13 @@ namespace Network
     void PublishVanish(std::string_view a_server, Multiplayer::SessionID a_session, bool a_vanished);
 
     [[nodiscard]] bool RequestInspection(Multiplayer::PeerSlot a_playerID);
+
+    [[nodiscard]] bool PublishTradeRequest(Multiplayer::PeerSlot a_playerID);
+    void PublishTradeAnswer(Multiplayer::TradeID a_trade, bool a_accept);
+    void PublishTradeOffer(const Multiplayer::TradeOffer& a_offer);
+    void PublishTradeReport(const Multiplayer::TradeReport& a_report);
+    void PublishTradeAccept(const Multiplayer::TradeAcceptance& a_acceptance);
+    void PublishTradeCancel(Multiplayer::TradeID a_trade, Multiplayer::TradeCloseReason a_reason);
 
     [[nodiscard]] std::string GetServerAddress();
 

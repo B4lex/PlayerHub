@@ -3,6 +3,7 @@
 #include "runtime/GameThread.h"
 #include "sync/PeerState.h"
 #include "sync/appearance/AppearanceSync.h"
+#include "sync/trade/TradeSync.h"
 
 #include <mutex>
 #include <utility>
@@ -15,6 +16,21 @@ namespace PlayerDetails
         Multiplayer::PeerSlot s_requested = 0;
         bool s_untaken = false;
         std::optional<Details> s_details;
+
+        bool IsNearby(const PeerState& a_peer)
+        {
+            const auto actor = a_peer.lifecycle.actor ? a_peer.lifecycle.actor->handle.get() : nullptr;
+            auto* player = RE::PlayerCharacter::GetSingleton();
+            const auto* cell = player ? player->GetParentCell() : nullptr;
+            // Exterior cells meet at borders, while an interior's coordinates are its own.
+            if (!actor || !cell || (cell->IsInteriorCell() && actor->GetParentCell() != cell))
+            {
+                return false;
+            }
+            // Horizontal, as the server measures.
+            const auto offset = actor->GetPosition() - player->GetPosition();
+            return offset.x * offset.x + offset.y * offset.y <= TradeSync::kRequestRadius * TradeSync::kRequestRadius;
+        }
 
         void Publish(Multiplayer::PeerSlot a_playerID, Details&& a_details)
         {
@@ -62,7 +78,8 @@ namespace PlayerDetails
             logs::debug("Player details from the remote actor: player={} level={}", a_playerID, appearance.level);
             Publish(a_playerID,
                 Details{ .race = AppearanceSync::GetRaceName(a_playerID, appearance.race, appearance.defaultRace),
-                    .level = appearance.level });
+                    .level = appearance.level,
+                    .nearby = IsNearby(*a_peer) });
             return;
         }
         const bool requested = Network::RequestInspection(a_playerID);

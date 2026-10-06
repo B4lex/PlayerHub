@@ -108,14 +108,15 @@ write before render ([Remote actor](remote-actor.md#frame-order)).
 ```text
 restore save eligibility after a save
 DefaultOutfit::Refresh                    # re-resolve a changed [DefaultOutfit]
-ApplyNetworkChanges                       # the one drain
+ApplyNetworkChanges                       # the one drain; trade events queued
 ServePlayerDetails                        # the open player menu's race and level
 PlayCheckpoints                           # each peer's due checkpoints play
 ActorLifecycle::RefillSpawnAllowance
 if no player: return
 YieldActivatedFurniture                   # queued local furniture activations
 OpenActivatedPlayerMenu                   # the latest activated remote actor's player menu
-if PresenceSync::SyncPresence (in world):
+inWorld = PresenceSync::SyncPresence
+if inWorld:
     CombatSync::CaptureLocalAttack
     CombatSync::CaptureLocalHandPresentation
     AnimationSync::ObserveLocalGraphEpoch
@@ -126,6 +127,7 @@ if PresenceSync::SyncPresence (in world):
         published: CombatSync::PublishLocalAttacks after the checkpoint
     AppearanceSync::SyncAppearance
 else: discard captured attacks
+TradeSync::Sync                           # trade events, overlay commands, cancels, offers, a commit
 if no local cell: return
 for each peer: SyncPeer
 ```
@@ -233,6 +235,10 @@ pass:
    the newest received checkpoint, played or not.
 7. Inspections go to `PlayerDetails::Accept`
    ([UI overlay](ui-overlay.md#player-menu)).
+8. Trade events go to `TradeSync::QueueNetworkChanges`, which ends a trade
+   whose connection was lost or whose events were dropped, and keeps the
+   rest for `TradeSync::Sync` later in the pass, which needs the player
+   ([Trade](trade.md)).
 
 `PlayCheckpoints` then advances every peer's playout. Each checkpoint that
 reaches its playback time is shown, in order, to furniture, animation, and

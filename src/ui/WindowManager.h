@@ -24,6 +24,9 @@ namespace UI::WindowManager
 
     [[nodiscard]] bool Focus(const Window& a_window);
 
+    // Takes focus from any other window, as a window the player must see now does.
+    bool TakeFocus(const Window& a_window);
+
     [[nodiscard]] bool ReleaseFocusByKey(std::uint32_t a_scanCode);
 
     void ReleaseFocus(const Window& a_window);

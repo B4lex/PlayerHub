@@ -64,6 +64,10 @@ without a warning as the official server with that URL kept;
 loads without a warning as no endpoint, and `ftp://bad` warns and keeps it
 empty; applying the switch off and a URL adds both lines under a
 hand-written comment, and switching on keeps the URL.
+`[UI] TradeAcceptKey` and `TradeDeclineKey`, and the letters and digits
+added to the keys a key setting takes, are not yet built on Windows or run
+in game; `SettingsSchema.cpp` passed a g++ syntax check only
+([Trade](trade.md#status)).
 `[UI] CloseChatOnSend` is not yet built on Windows or run in game. On Linux
 the same two files ran with the settings window's harness: the default file
 has `CloseChatOnSend = true` under its comment, between `StatusPanel` and
@@ -231,7 +235,9 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `SettingsKey` | Opens the settings window: `F1`–`F12`, `Insert`, `Delete`, `Home`, `End`, `PageUp`, `PageDown`, `Pause`, or `ScrollLock` | `F10` |
+| `SettingsKey` | Opens the settings window: `F1`–`F12`, `Insert`, `Delete`, `Home`, `End`, `PageUp`, `PageDown`, `Pause`, `ScrollLock`, a letter `A`–`Z`, or a digit `0`–`9` | `F10` |
+| `TradeAcceptKey` | Accepts another player's trade invitation while it waits for an answer ([Trade](trade.md#invitation)); the same keys as `SettingsKey`. It is the game's only while no invitation waits | `Y` |
+| `TradeDeclineKey` | Declines another player's trade invitation, or withdraws the player's own, while it waits | `N` |
 | `AccentColor` | Color of the theme's accent in the settings window and the chat, as `RRGGBB` ([UI overlay](ui-overlay.md#accent-color)) | `FF9000` |
 | `BorderColor` | Color of the menu frame around the settings window and the open chat ([UI overlay](ui-overlay.md#menu-frame)): `Vanilla`, the grey of the game's menus, or `Accent`, the accent | `Vanilla` |
 | `BorderThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `50..100` | `70` |
@@ -260,6 +266,8 @@ revision before the snapshot never misses a change.
 | `ServerClient` | transport, worker | reading `Config::GetServerEndpoint` for each attempt, and `DisplayName` and `ViewRadius` for each hello |
 | `ConnectionControls` | overlay | reading whether `Config::GetServerEndpoint` is empty each frame the General section draws |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
+| `TradePrompt` | overlay, input | reading `TradeAcceptKey` and `TradeDeclineKey` on each focus key press and each frame it draws |
+| `TradeSync` | main loop | reading the trade keys for the invitation's notice |
 | `StatusPanel`, item pickers | overlay | reading `StatusPanel` and `ItemPreview` each frame |
 | `ChatInput` | overlay | reading `CloseChatOnSend` on each Enter that sends or finds the field empty |
 | `Theme` | overlay | working out the accent and frame colors from `AccentColor` and `BorderColor` when the revision changes |

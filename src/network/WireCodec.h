@@ -7,6 +7,7 @@
 #include "protocol/PlayerState.h"
 #include "protocol/Quantization.h"
 #include "protocol/Session.h"
+#include "protocol/TradeState.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -36,6 +37,12 @@ namespace Network::Wire
     [[nodiscard]] std::string EncodePing(std::uint32_t a_requestID);
     [[nodiscard]] std::string EncodeVanish(Multiplayer::SessionID a_session, bool a_vanished);
     [[nodiscard]] std::string EncodeInspect(Multiplayer::PeerSlot a_slot);
+    [[nodiscard]] std::string EncodeTradeRequest(Multiplayer::PeerSlot a_slot);
+    [[nodiscard]] std::string EncodeTradeAnswer(Multiplayer::TradeID a_trade, bool a_accept);
+    [[nodiscard]] std::string EncodeTradeOffer(const Multiplayer::TradeOffer& a_offer);
+    [[nodiscard]] std::string EncodeTradeReport(const Multiplayer::TradeReport& a_report);
+    [[nodiscard]] std::string EncodeTradeAccept(const Multiplayer::TradeAcceptance& a_acceptance);
+    [[nodiscard]] std::string EncodeTradeCancel(Multiplayer::TradeID a_trade, Multiplayer::TradeCloseReason a_reason);
 
     struct Welcome
     {
@@ -130,7 +137,8 @@ namespace Network::Wire
     };
 
     using ServerMessage = std::variant<Welcome, Result, PeerStates, PeerEnter, PeerContext, PeerLeave, AnimationAction,
-        PeerAppearance, PeerEquipment, Multiplayer::ChatMessage, RosterChange, Multiplayer::PlayerInspection>;
+        PeerAppearance, PeerEquipment, Multiplayer::ChatMessage, RosterChange, Multiplayer::PlayerInspection,
+        Multiplayer::TradeEvent>;
 
     class Decoder
     {

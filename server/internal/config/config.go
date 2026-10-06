@@ -21,12 +21,19 @@ type Config struct {
 	Interest            Interest `toml:"interest"`
 	Budget              Budget   `toml:"budget"`
 	Chat                Chat     `toml:"chat"`
+	Trade               Trade    `toml:"trade"`
 	Sessions            Sessions `toml:"sessions"`
 }
 
 type Sessions struct {
 	Database     string  `toml:"database"`
 	LifetimeDays float64 `toml:"lifetime_days"`
+}
+
+type Trade struct {
+	RequestRadius float64 `toml:"request_radius"`
+	KeepRadius    float64 `toml:"keep_radius"`
+	InviteSeconds float64 `toml:"invite_seconds"`
 }
 
 type Chat struct {
@@ -92,6 +99,7 @@ func Default() Config {
 			CapHysteresis: 1024, NearDistance: 4096, FarRateHz: 10, MinimumViewRadius: 1024},
 		Budget:   Budget{UplinkBytesPerSecond: 6_250_000, EntersPerSecond: 20},
 		Chat:     Chat{LocalRadius: 8192},
+		Trade:    Trade{RequestRadius: 400, KeepRadius: 1000, InviteSeconds: 30},
 		Sessions: Sessions{Database: "sessions.db", LifetimeDays: 30},
 	}
 }
@@ -147,6 +155,10 @@ func (c Config) Validate() error {
 		return errors.New("budget.per_recipient_bytes_per_second and enters_per_second must be >= 0")
 	case c.Chat.LocalRadius <= 0:
 		return errors.New("chat.local_radius must be positive")
+	case c.Trade.RequestRadius <= 0 || c.Trade.KeepRadius < c.Trade.RequestRadius:
+		return errors.New("trade.request_radius must be positive and at most trade.keep_radius")
+	case c.Trade.InviteSeconds <= 0:
+		return errors.New("trade.invite_seconds must be positive")
 	case c.Sessions.LifetimeDays <= 0:
 		return errors.New("sessions.lifetime_days must be positive")
 	}

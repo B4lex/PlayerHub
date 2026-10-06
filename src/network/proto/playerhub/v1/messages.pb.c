@@ -27,6 +27,33 @@ PB_BIND(playerhub_v1_Vanish, playerhub_v1_Vanish, AUTO)
 PB_BIND(playerhub_v1_Inspect, playerhub_v1_Inspect, AUTO)
 
 
+PB_BIND(playerhub_v1_TradeRequest, playerhub_v1_TradeRequest, AUTO)
+
+
+PB_BIND(playerhub_v1_TradeAnswer, playerhub_v1_TradeAnswer, AUTO)
+
+
+PB_BIND(playerhub_v1_TradeEffect, playerhub_v1_TradeEffect, 2)
+
+
+PB_BIND(playerhub_v1_TradeItem, playerhub_v1_TradeItem, 2)
+
+
+PB_BIND(playerhub_v1_TradeOffer, playerhub_v1_TradeOffer, AUTO)
+
+
+PB_BIND(playerhub_v1_TradeSkip, playerhub_v1_TradeSkip, 2)
+
+
+PB_BIND(playerhub_v1_TradeReport, playerhub_v1_TradeReport, 4)
+
+
+PB_BIND(playerhub_v1_TradeAccept, playerhub_v1_TradeAccept, AUTO)
+
+
+PB_BIND(playerhub_v1_TradeCancel, playerhub_v1_TradeCancel, AUTO)
+
+
 PB_BIND(playerhub_v1_ClientMessage, playerhub_v1_ClientMessage, 4)
 
 
@@ -72,7 +99,23 @@ PB_BIND(playerhub_v1_Roster, playerhub_v1_Roster, AUTO)
 PB_BIND(playerhub_v1_Inspection, playerhub_v1_Inspection, 2)
 
 
+PB_BIND(playerhub_v1_TradeInvite, playerhub_v1_TradeInvite, 2)
+
+
+PB_BIND(playerhub_v1_TradeOpen, playerhub_v1_TradeOpen, AUTO)
+
+
+PB_BIND(playerhub_v1_TradeCommit, playerhub_v1_TradeCommit, AUTO)
+
+
+PB_BIND(playerhub_v1_TradeClose, playerhub_v1_TradeClose, AUTO)
+
+
 PB_BIND(playerhub_v1_ServerMessage, playerhub_v1_ServerMessage, 4)
+
+
+
+
 
 
 

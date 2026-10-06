@@ -16,6 +16,7 @@
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/outfit/DefaultOutfit.h"
 #include "sync/presence/PresenceSync.h"
+#include "sync/trade/TradeSync.h"
 #include "ui/Overlay.h"
 
 namespace PluginStartup
@@ -46,6 +47,7 @@ namespace PluginStartup
             EquipmentSync::RegisterEventSinks();
             PresenceSync::RegisterEventSinks();
             RemoteActorActivation::RegisterEventSink();
+            TradeSync::RegisterEventSinks();
             Network::Initialize();
         }
     }

@@ -17,11 +17,13 @@ namespace UI
 
     private:
         void DrawHeading();
+        void DrawTradeItems() const;
         void DrawFilterItems() const;
 
         Multiplayer::RosterEntry player;
         std::string details;
         float waited{ 0.0F };
         bool pending{ false };
+        bool nearby{ false };
     };
 }

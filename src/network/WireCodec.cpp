@@ -382,6 +382,149 @@ namespace Network::Wire
             return playerhub_v1_ChatChannel_CHAT_CHANNEL_GLOBAL;
         }
 
+        bool WriteTradeItem(const Multiplayer::TradeItem& a_item, playerhub_v1_TradeItem& a_result)
+        {
+            if (!Multiplayer::IsValidTradeItem(a_item))
+            {
+                return false;
+            }
+            a_result = playerhub_v1_TradeItem_init_zero;
+            a_result.has_item = true;
+            a_result.count = a_item.count;
+            a_result.maximum_charge = a_item.maximumCharge;
+            a_result.charge = a_item.charge;
+            a_result.health = a_item.health;
+            a_result.soul = a_item.soul;
+            bool written = WriteFormReference(a_item.item, a_result.item)
+                && WriteOptionalFormReference(a_item.enchantment, a_result.has_enchantment, a_result.enchantment)
+                && CopyString(a_result.name, a_item.name);
+            a_result.effects_count = static_cast<pb_size_t>(a_item.effects.size());
+            for (std::size_t i = 0; i < a_item.effects.size(); ++i)
+            {
+                const auto& effect = a_item.effects[i];
+                auto& result = a_result.effects[i];
+                result.has_effect = true;
+                result.magnitude = effect.magnitude;
+                result.area = effect.area;
+                result.duration = effect.duration;
+                result.cost = effect.cost;
+                written = written && WriteFormReference(effect.effect, result.effect);
+            }
+            return written;
+        }
+
+        bool ReadTradeItem(const playerhub_v1_TradeItem& a_item, Multiplayer::TradeItem& a_result)
+        {
+            if (!a_item.has_item || !ReadFormReference(a_item.item, a_result.item)
+                || !ReadOptionalFormReference(a_item.has_enchantment, a_item.enchantment, a_result.enchantment)
+                || a_item.maximum_charge > Multiplayer::TradeItem::kMaximumCharge
+                || a_item.soul > Multiplayer::TradeItem::kMaximumSoul)
+            {
+                return false;
+            }
+            a_result.count = a_item.count;
+            a_result.maximumCharge = static_cast<std::uint16_t>(a_item.maximum_charge);
+            a_result.charge = a_item.charge;
+            a_result.health = a_item.health;
+            a_result.name = a_item.name;
+            a_result.soul = static_cast<std::uint8_t>(a_item.soul);
+            a_result.effects.clear();
+            for (pb_size_t i = 0; i < a_item.effects_count; ++i)
+            {
+                const auto& effect = a_item.effects[i];
+                auto& result = a_result.effects.emplace_back();
+                if (!effect.has_effect || !ReadFormReference(effect.effect, result.effect))
+                {
+                    return false;
+                }
+                result.magnitude = effect.magnitude;
+                result.area = effect.area;
+                result.duration = effect.duration;
+                result.cost = effect.cost;
+            }
+            return Multiplayer::IsValidTradeItem(a_result);
+        }
+
+        std::optional<Multiplayer::TradeCloseReason> ReadTradeCloseReason(playerhub_v1_TradeCloseReason a_reason)
+        {
+            if (a_reason < playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_DECLINED
+                || a_reason > playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_UNAVAILABLE)
+            {
+                return std::nullopt;
+            }
+            static_assert(static_cast<int>(Multiplayer::TradeCloseReason::kUnavailable)
+                == playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_UNAVAILABLE);
+            return static_cast<Multiplayer::TradeCloseReason>(a_reason);
+        }
+
+        std::expected<ServerMessage, std::string> DecodeTradeOffer(pb_istream_t& a_stream)
+        {
+            Multiplayer::TradeOffer offer;
+            pb_istream_t message;
+            if (!pb_make_string_substream(&a_stream, &message))
+            {
+                return std::unexpected("trade offer framing");
+            }
+            while (message.bytes_left > 0)
+            {
+                pb_wire_type_t wireType;
+                std::uint32_t tag = 0;
+                bool eof = false;
+                if (!pb_decode_tag(&message, &wireType, &tag, &eof))
+                {
+                    return std::unexpected("trade offer field tag");
+                }
+                if (tag == playerhub_v1_TradeOffer_trade_id_tag && wireType == PB_WT_VARINT)
+                {
+                    if (!pb_decode_varint32(&message, &offer.id))
+                    {
+                        return std::unexpected("trade offer id");
+                    }
+                    continue;
+                }
+                if (tag == playerhub_v1_TradeOffer_revision_tag && wireType == PB_WT_VARINT)
+                {
+                    if (!pb_decode_varint(&message, &offer.revision))
+                    {
+                        return std::unexpected("trade offer revision");
+                    }
+                    continue;
+                }
+                if (tag != playerhub_v1_TradeOffer_items_tag || wireType != PB_WT_STRING)
+                {
+                    if (!pb_skip_field(&message, wireType))
+                    {
+                        return std::unexpected("trade offer field");
+                    }
+                    continue;
+                }
+                if (offer.items.size() >= Multiplayer::kMaximumTradeItems)
+                {
+                    return std::unexpected("trade offer item count");
+                }
+                // About 2 KB; kept off the stack of the transport thread.
+                static thread_local playerhub_v1_TradeItem item;
+                item = playerhub_v1_TradeItem_init_zero;
+                if (!pb_decode_ex(&message, playerhub_v1_TradeItem_fields, &item, PB_DECODE_DELIMITED))
+                {
+                    return std::unexpected(std::string{ "trade offer item: " } + PB_GET_ERROR(&message));
+                }
+                if (!ReadTradeItem(item, offer.items.emplace_back()))
+                {
+                    return std::unexpected("trade offer item values");
+                }
+            }
+            if (!pb_close_string_substream(&a_stream, &message))
+            {
+                return std::unexpected("trade offer framing");
+            }
+            if (offer.id == 0 || offer.revision == 0)
+            {
+                return std::unexpected("trade offer");
+            }
+            return Multiplayer::TradeEvent{ std::move(offer) };
+        }
+
         std::expected<ServerMessage, std::string> DecodePeerStates(pb_istream_t& a_stream)
         {
             PeerStates states;
@@ -738,6 +881,82 @@ namespace Network::Wire
         return EncodeClientMessage(playerhub_v1_ClientMessage_inspect_tag, playerhub_v1_Inspect_fields, &inspect);
     }
 
+    std::string EncodeTradeRequest(Multiplayer::PeerSlot a_slot)
+    {
+        playerhub_v1_TradeRequest request{ a_slot };
+        return EncodeClientMessage(playerhub_v1_ClientMessage_trade_request_tag, playerhub_v1_TradeRequest_fields, &request);
+    }
+
+    std::string EncodeTradeAnswer(Multiplayer::TradeID a_trade, bool a_accept)
+    {
+        playerhub_v1_TradeAnswer answer{ a_trade, a_accept };
+        return EncodeClientMessage(playerhub_v1_ClientMessage_trade_answer_tag, playerhub_v1_TradeAnswer_fields, &answer);
+    }
+
+    std::string EncodeTradeOffer(const Multiplayer::TradeOffer& a_offer)
+    {
+        if (a_offer.items.size() > Multiplayer::kMaximumTradeItems
+            || !std::ranges::all_of(a_offer.items, Multiplayer::IsValidTradeItem))
+        {
+            return {};
+        }
+        playerhub_v1_TradeOffer offer = playerhub_v1_TradeOffer_init_zero;
+        offer.trade_id = a_offer.id;
+        offer.revision = a_offer.revision;
+        offer.items.arg = const_cast<std::vector<Multiplayer::TradeItem>*>(&a_offer.items);
+        offer.items.funcs.encode = [](pb_ostream_t* a_stream, const pb_field_t* a_field, void* const* a_arg) {
+            auto item = std::make_unique<playerhub_v1_TradeItem>();
+            for (const auto& entry : *static_cast<const std::vector<Multiplayer::TradeItem>*>(*a_arg))
+            {
+                if (!WriteTradeItem(entry, *item) || !pb_encode_tag_for_field(a_stream, a_field)
+                    || !pb_encode_submessage(a_stream, playerhub_v1_TradeItem_fields, item.get()))
+                {
+                    return false;
+                }
+            }
+            return true;
+        };
+        return EncodeClientMessage(playerhub_v1_ClientMessage_trade_offer_tag, playerhub_v1_TradeOffer_fields, &offer);
+    }
+
+    std::string EncodeTradeReport(const Multiplayer::TradeReport& a_report)
+    {
+        if (!Multiplayer::IsValidTradeSkips(a_report.skipped))
+        {
+            return {};
+        }
+        // About 9 KB; kept off the stack.
+        auto report = std::make_unique<playerhub_v1_TradeReport>();
+        *report = playerhub_v1_TradeReport_init_zero;
+        report->trade_id = a_report.id;
+        report->revision = a_report.revision;
+        report->skipped_count = static_cast<pb_size_t>(a_report.skipped.size());
+        for (std::size_t i = 0; i < a_report.skipped.size(); ++i)
+        {
+            const auto& skip = a_report.skipped[i];
+            auto& result = report->skipped[i];
+            result.index = skip.index;
+            result.reason = static_cast<playerhub_v1_TradeSkipReason>(skip.reason);
+            if (!CopyString(result.plugin, skip.plugin))
+            {
+                return {};
+            }
+        }
+        return EncodeClientMessage(playerhub_v1_ClientMessage_trade_report_tag, playerhub_v1_TradeReport_fields, report.get());
+    }
+
+    std::string EncodeTradeAccept(const Multiplayer::TradeAcceptance& a_acceptance)
+    {
+        playerhub_v1_TradeAccept accept{ a_acceptance.id, a_acceptance.ownRevision, a_acceptance.peerRevision };
+        return EncodeClientMessage(playerhub_v1_ClientMessage_trade_accept_tag, playerhub_v1_TradeAccept_fields, &accept);
+    }
+
+    std::string EncodeTradeCancel(Multiplayer::TradeID a_trade, Multiplayer::TradeCloseReason a_reason)
+    {
+        playerhub_v1_TradeCancel cancel{ a_trade, static_cast<playerhub_v1_TradeCloseReason>(a_reason) };
+        return EncodeClientMessage(playerhub_v1_ClientMessage_trade_cancel_tag, playerhub_v1_TradeCancel_fields, &cancel);
+    }
+
     struct Decoder::Buffer
     {
         playerhub_v1_ServerMessage message;
@@ -780,6 +999,15 @@ namespace Network::Wire
                     return std::unexpected("trailing envelope fields");
                 }
                 return roster;
+            }
+            if (tag == playerhub_v1_ServerMessage_trade_offer_tag && wireType == PB_WT_STRING)
+            {
+                auto offer = DecodeTradeOffer(stream);
+                if (offer && stream.bytes_left != 0)
+                {
+                    return std::unexpected("trailing envelope fields");
+                }
+                return offer;
             }
         }
 
@@ -986,6 +1214,79 @@ namespace Network::Wire
                     }
                 }
                 return result;
+            }
+            case playerhub_v1_ServerMessage_trade_invite_tag:
+            {
+                const auto& invite = message.message.trade_invite;
+                Multiplayer::TradeInvite result{ .id = invite.trade_id };
+                if (invite.trade_id == 0 || !invite.has_sender || !ReadChatSpeaker(invite.sender, result.sender)
+                    || !invite.has_recipient || !ReadChatSpeaker(invite.recipient, result.recipient))
+                {
+                    return std::unexpected("trade invite");
+                }
+                return Multiplayer::TradeEvent{ std::move(result) };
+            }
+            case playerhub_v1_ServerMessage_trade_open_tag:
+            {
+                const auto& open = message.message.trade_open;
+                if (open.trade_id == 0)
+                {
+                    return std::unexpected("trade open");
+                }
+                return Multiplayer::TradeEvent{ Multiplayer::TradeOpen{ .id = open.trade_id } };
+            }
+            case playerhub_v1_ServerMessage_trade_report_tag:
+            {
+                const auto& report = message.message.trade_report;
+                Multiplayer::TradeReport result{ .id = report.trade_id, .revision = report.revision };
+                for (pb_size_t i = 0; i < report.skipped_count; ++i)
+                {
+                    const auto& skip = report.skipped[i];
+                    if (skip.index >= Multiplayer::kMaximumTradeItems)
+                    {
+                        return std::unexpected("trade report index");
+                    }
+                    result.skipped.push_back(Multiplayer::TradeSkip{ .index = static_cast<std::uint8_t>(skip.index),
+                        .reason = static_cast<Multiplayer::TradeSkipReason>(skip.reason),
+                        .plugin = skip.plugin });
+                }
+                if (result.id == 0 || result.revision == 0 || !Multiplayer::IsValidTradeSkips(result.skipped))
+                {
+                    return std::unexpected("trade report");
+                }
+                return Multiplayer::TradeEvent{ std::move(result) };
+            }
+            case playerhub_v1_ServerMessage_trade_accept_tag:
+            {
+                const auto& accept = message.message.trade_accept;
+                if (accept.trade_id == 0)
+                {
+                    return std::unexpected("trade accept");
+                }
+                return Multiplayer::TradeEvent{ Multiplayer::TradeAcceptance{ .id = accept.trade_id,
+                    .ownRevision = accept.own_revision,
+                    .peerRevision = accept.peer_revision } };
+            }
+            case playerhub_v1_ServerMessage_trade_commit_tag:
+            {
+                const auto& commit = message.message.trade_commit;
+                if (commit.trade_id == 0)
+                {
+                    return std::unexpected("trade commit");
+                }
+                return Multiplayer::TradeEvent{ Multiplayer::TradeCommit{ .id = commit.trade_id,
+                    .ownRevision = commit.own_revision,
+                    .peerRevision = commit.peer_revision } };
+            }
+            case playerhub_v1_ServerMessage_trade_close_tag:
+            {
+                const auto& close = message.message.trade_close;
+                const auto reason = ReadTradeCloseReason(close.reason);
+                if (!reason)
+                {
+                    return std::unexpected("trade close reason");
+                }
+                return Multiplayer::TradeEvent{ Multiplayer::TradeClose{ .id = close.trade_id, .reason = *reason } };
             }
             default:
                 return std::unexpected("unknown message");

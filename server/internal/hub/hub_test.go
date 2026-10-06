@@ -224,6 +224,30 @@ func describe(m *pb.ServerMessage) string {
 			s += fmt.Sprintf(" default %s|%X", i.DefaultRace.Race.GetPlugin(), i.DefaultRace.Race.GetFormId())
 		}
 		return s
+	case *pb.ServerMessage_TradeInvite:
+		i := body.TradeInvite
+		return fmt.Sprintf("trade invite %d %d>%d", i.TradeId, i.Sender.GetSlot(), i.Recipient.GetSlot())
+	case *pb.ServerMessage_TradeOpen:
+		return fmt.Sprintf("trade open %d", body.TradeOpen.TradeId)
+	case *pb.ServerMessage_TradeOffer:
+		o := body.TradeOffer
+		return fmt.Sprintf("trade offer %d rev %d items %d", o.TradeId, o.Revision, len(o.Items))
+	case *pb.ServerMessage_TradeReport:
+		r := body.TradeReport
+		s := fmt.Sprintf("trade report %d rev %d skipped", r.TradeId, r.Revision)
+		for _, skip := range r.Skipped {
+			s += fmt.Sprintf(" %d", skip.Index)
+		}
+		return s
+	case *pb.ServerMessage_TradeAccept:
+		a := body.TradeAccept
+		return fmt.Sprintf("trade accept %d own %d peer %d", a.TradeId, a.OwnRevision, a.PeerRevision)
+	case *pb.ServerMessage_TradeCommit:
+		c := body.TradeCommit
+		return fmt.Sprintf("trade commit %d own %d peer %d", c.TradeId, c.OwnRevision, c.PeerRevision)
+	case *pb.ServerMessage_TradeClose:
+		c := body.TradeClose
+		return fmt.Sprintf("trade close %d %s", c.TradeId, strings.TrimPrefix(c.Reason.String(), "TRADE_CLOSE_REASON_"))
 	case *pb.ServerMessage_Roster:
 		s := "roster"
 		for _, e := range body.Roster.Joined {

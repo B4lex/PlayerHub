@@ -81,6 +81,11 @@ enters_per_second = 20      # new peers per client and second, nearest first
 [chat]
 local_radius = 8192         # game units, horizontal; an interior is heard whole
 
+[trade]
+request_radius = 400        # game units, horizontal; both players for an invitation
+keep_radius = 1000          # an invited or open trade closes beyond it
+invite_seconds = 30         # an unanswered invitation expires
+
 [sessions]
 database = "sessions.db"    # SQLite file of player sessions; "" keeps them in memory
 lifetime_days = 30          # a session unused for this long is gone, with its display name

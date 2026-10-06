@@ -4,6 +4,8 @@ independent world and sees other players as remote actors. The plugin shares
 player presentation: position, movement and animations, actions, appearance,
 and equipped items. Remote players' actions should not change another player's
 world. Loot, quests, enemies, and other world state are outside the sync scope.
+The one exception is an item trade both players accept, which changes only each
+player's own inventory (`specs/trade.md`).
 
 Players should be able to use different modpacks. Treat vanilla animations,
 behaviors, and capabilities as the common baseline, and fall back to them when

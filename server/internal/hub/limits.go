@@ -8,6 +8,11 @@ const (
 
 	inspectsPerSecond = 2.0
 	inspectBurst      = 5.0
+
+	tradeRequestsPerSecond = 0.5
+	tradeRequestBurst      = 3.0
+	tradeOffersPerSecond   = 10.0
+	tradeOfferBurst        = 20.0
 )
 
 type chatThrottle struct {

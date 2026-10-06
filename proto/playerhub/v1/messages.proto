@@ -8,7 +8,7 @@ option go_package = "playerhub/server/internal/wire/pb;pb";
 
 enum Protocol {
   PROTOCOL_UNSPECIFIED = 0;
-  PROTOCOL_VERSION = 7;
+  PROTOCOL_VERSION = 8;
 }
 
 message Hello {
@@ -49,6 +49,91 @@ message Inspect {
   uint32 slot = 1;
 }
 
+message TradeRequest {
+  uint32 slot = 1;
+}
+
+message TradeAnswer {
+  uint32 trade_id = 1;
+  bool accept = 2;
+}
+
+message TradeEffect {
+  FormRef effect = 1;
+  float magnitude = 2;
+  uint32 area = 3;
+  uint32 duration = 4;
+  float cost = 5;
+}
+
+message TradeItem {
+  FormRef item = 1;
+  uint32 count = 2;
+  FormRef enchantment = 3;
+  repeated TradeEffect effects = 4;
+  uint32 maximum_charge = 5;
+  float charge = 6;
+  float health = 7;
+  string name = 8;
+  uint32 soul = 9;
+}
+
+// From a client: its own offer. From the server: the peer's offer.
+message TradeOffer {
+  uint32 trade_id = 1;
+  uint64 revision = 2;
+  repeated TradeItem items = 3;
+}
+
+enum TradeSkipReason {
+  TRADE_SKIP_REASON_UNSPECIFIED = 0;
+  TRADE_SKIP_REASON_MISSING_ITEM = 1;
+  TRADE_SKIP_REASON_WRONG_TYPE = 2;
+  TRADE_SKIP_REASON_MISSING_EFFECT = 3;
+  TRADE_SKIP_REASON_BAD_ENCHANTMENT = 4;
+}
+
+message TradeSkip {
+  uint32 index = 1;
+  TradeSkipReason reason = 2;
+  string plugin = 3;
+}
+
+// From a client: the items of the peer's offer revision it cannot receive. From the
+// server: the peer's report on this client's offer.
+message TradeReport {
+  uint32 trade_id = 1;
+  uint64 revision = 2;
+  repeated TradeSkip skipped = 3;
+}
+
+// From a client: it accepts its own and the peer's offer revisions. From the server:
+// the peer's acceptance, so own_revision is the peer's.
+message TradeAccept {
+  uint32 trade_id = 1;
+  uint64 own_revision = 2;
+  uint64 peer_revision = 3;
+}
+
+enum TradeCloseReason {
+  TRADE_CLOSE_REASON_UNSPECIFIED = 0;
+  TRADE_CLOSE_REASON_DECLINED = 1;
+  TRADE_CLOSE_REASON_EXPIRED = 2;
+  TRADE_CLOSE_REASON_CANCELLED = 3;
+  TRADE_CLOSE_REASON_BUSY = 4;
+  TRADE_CLOSE_REASON_OUT_OF_RANGE = 5;
+  TRADE_CLOSE_REASON_COMBAT = 6;
+  TRADE_CLOSE_REASON_MENU = 7;
+  TRADE_CLOSE_REASON_DISCONNECTED = 8;
+  TRADE_CLOSE_REASON_FAILED = 9;
+  TRADE_CLOSE_REASON_UNAVAILABLE = 10;
+}
+
+message TradeCancel {
+  uint32 trade_id = 1;
+  TradeCloseReason reason = 2;
+}
+
 message ClientMessage {
   oneof message {
     Hello hello = 1;
@@ -63,6 +148,12 @@ message ClientMessage {
     Ping ping = 10;
     Vanish vanish = 11;
     Inspect inspect = 12;
+    TradeRequest trade_request = 13;
+    TradeAnswer trade_answer = 14;
+    TradeOffer trade_offer = 15;
+    TradeReport trade_report = 16;
+    TradeAccept trade_accept = 17;
+    TradeCancel trade_cancel = 18;
   }
 }
 
@@ -157,6 +248,29 @@ message Inspection {
   DefaultRace default_race = 4;
 }
 
+message TradeInvite {
+  uint32 trade_id = 1;
+  ChatSpeaker sender = 2;
+  ChatSpeaker recipient = 3;
+}
+
+message TradeOpen {
+  uint32 trade_id = 1;
+}
+
+// own_revision is the recipient's.
+message TradeCommit {
+  uint32 trade_id = 1;
+  uint64 own_revision = 2;
+  uint64 peer_revision = 3;
+}
+
+// trade_id 0 refuses a TradeRequest.
+message TradeClose {
+  uint32 trade_id = 1;
+  TradeCloseReason reason = 2;
+}
+
 message ServerMessage {
   oneof message {
     Welcome welcome = 1;
@@ -171,5 +285,12 @@ message ServerMessage {
     ChatMessage chat_message = 10;
     Roster roster = 11;
     Inspection inspection = 12;
+    TradeInvite trade_invite = 13;
+    TradeOpen trade_open = 14;
+    TradeOffer trade_offer = 15;
+    TradeReport trade_report = 16;
+    TradeAccept trade_accept = 17;
+    TradeCommit trade_commit = 18;
+    TradeClose trade_close = 19;
   }
 }

@@ -61,6 +61,9 @@ var (
 var ErrUnexpected = errors.New("unexpected message")
 
 func Message(m *pb.ClientMessage) error {
+	if handled, err := trade(m); handled {
+		return err
+	}
 	switch body := m.Message.(type) {
 	case *pb.ClientMessage_Enter, *pb.ClientMessage_Exit, *pb.ClientMessage_Chat:
 		return nil

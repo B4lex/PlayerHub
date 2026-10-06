@@ -105,6 +105,11 @@
   slot, one with a level over 65535, and one whose default race is not from a
   base game plugin; its `Inspect` for slot 7 encodes as the server's schema
   reads it. The queue in `ServerClient.cpp` was not compiled.
+- **Trade:** not built on Windows or run in game. Server: `go test -race`
+  covers the trade messages' validation (`internal/validate`) and the hub's
+  trades (`internal/hub`). Plugin: `WireCodec.cpp` decoded Go-encoded trade
+  messages and its encoded ones passed `validate.Message`; the details are in
+  [Trade](trade.md#status).
 - **Official and custom server:** not built on Windows or run in game.
   `ConnectionMonitor.cpp` ran on Linux under the settings window's harness
   with the real configuration and a stubbed transport
@@ -188,7 +193,7 @@ refused at the handshake ([Transport](#transport)).
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
   within `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (7) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (8) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
@@ -237,10 +242,12 @@ retries. What a refusal means for the client is in [Connection](#connection).
 | `Ping` | `{request_id}`, answered with `Result{ok}` by the connection at once; the latency probe |
 | `Vanish` | `{session_id, vanished}`: stop or resume receiving a session's player ([Vanish](#vanish)) |
 | `Inspect` | `{slot}`: ask for a player's level and race, answered with an `Inspection` ([Inspection](#inspection)) |
+| `TradeRequest`, `TradeAnswer`, `TradeOffer`, `TradeReport`, `TradeAccept`, `TradeCancel` | A trade between two players ([Trade](#trade)) |
 
 A rejected message is dropped and logged on the server (at most one summary
-per connection every 5 s); only `ChatSend` and `Ping` get a `Result`, and an
-accepted `Inspect` gets an `Inspection`. Graph
+per connection every 5 s); only `ChatSend` and `Ping` get a `Result`, an
+accepted `Inspect` gets an `Inspection`, and a refused `TradeRequest` a
+`TradeClose`. Graph
 event names never cross the network.
 
 ## Checkpoint and context
@@ -383,6 +390,7 @@ same list.
 | `ChatMessage` | `channel`, `sender`, `recipient` (whisper only), `text`; a `ChatSpeaker` is `slot`, `name`, `level`, `session_id` |
 | `Roster` | `joined`, a list of `RosterEntry{slot, name, session_id}`, and `left`, a slot or 0 ([Roster](#roster)) |
 | `Inspection` | `slot`, `level`, `race`, `default_race` of the player an `Inspect` named ([Inspection](#inspection)) |
+| `TradeInvite`, `TradeOpen`, `TradeOffer`, `TradeReport`, `TradeAccept`, `TradeCommit`, `TradeClose` | A trade's progress ([Trade](#trade)) |
 
 When each is sent and in what order is
 [Interest and delivery](interest-and-delivery.md#ordering).
@@ -615,6 +623,62 @@ appearance, so it answers for the others.
   name is already on the roster and the race and level show on the label of
   any character in range.
 
+### Trade
+
+The server's half of [Trade](trade.md): it pairs two players, relays their
+offers in order, checks range, and tells both when to apply the exchange. It
+never sees an inventory and does not check what an offer holds beyond its
+form.
+
+Client messages:
+
+| Message | Fields | Validation and handling |
+| --- | --- | --- |
+| `TradeRequest` | `slot` | `slot` non-zero. Only a client with a session asks; replays and bots are ignored. Refused with `TradeClose{0, reason}`: `UNAVAILABLE` for an unlisted slot, oneself, a player the requester vanished, or over the rate limit (0.5 per s, burst 3, `tradeRequestsPerSecond`, `tradeRequestBurst`); `BUSY` when either player is in a trade; `OUT_OF_RANGE` unless both are placed in the same space within `trade.request_radius`, horizontally (`interest.Distance`). Otherwise both get `TradeInvite`, except that a target who vanished the requester is not told |
+| `TradeAnswer` | `trade_id`, `accept` | `trade_id` non-zero; only the invited player, while invited (`unknown trade`, `stale trade message`). Declining closes with `DECLINED`; accepting opens the trade, or closes it with `OUT_OF_RANGE` when the players are over `trade.keep_radius` apart |
+| `TradeOffer` | `trade_id`, `revision`, `items` | `trade_id` and `revision` non-zero, at most 32 items, each a valid `TradeItem`; only while open, with a revision above the player's last. 10 per s, burst 20 (`tradeOffersPerSecond`, `tradeOfferBurst`). Clears both acceptances and is relayed to the other player as it is |
+| `TradeReport` | `trade_id`, `revision`, `skipped` | `trade_id` and `revision` non-zero, at most 32 `TradeSkip`s with unique `index` `0..31`, a known `reason`, and `plugin` of at most 260 bytes without control characters. Only while open, for the other player's current revision, once per revision, with indices below that offer's item count. Relayed to the other player |
+| `TradeAccept` | `trade_id`, `own_revision`, `peer_revision` | `trade_id` non-zero; only while open, with both revisions current and this player's report on the other's revision received. Relayed to the other player, or, when that player's acceptance stands, both get `TradeCommit` and the trade ends |
+| `TradeCancel` | `trade_id`, `reason` | `trade_id` non-zero, `reason` one of `CANCELLED`, `COMBAT`, `MENU`, `FAILED`; either player, invited or open. Both get `TradeClose` with the reason |
+
+`TradeItem`:
+
+| Field | Validation |
+| --- | --- |
+| `item` | required form reference |
+| `count` | `1..2^31-1`; at most 1000 (`validate.MaximumTradeInstances`) for an item with an enchantment, effects, health, a name, or a soul, since a receiver creates each such unit alone |
+| `enchantment` | form reference, unset for none; a plugin enchantment |
+| `effects` | at most 4, exclusive with `enchantment`: a player enchantment's `{effect, magnitude, area, duration, cost}`, `effect` a required form reference, `magnitude` finite `0..1e6`, `area` and `duration` `0..1e6`, `cost` finite `0..1e7` |
+| `maximum_charge`, `charge` | `0..65535`, `charge` finite; both zero without an enchantment or effects |
+| `health` | finite `0..100`, `0` untempered |
+| `name` | a name the player gave the item, at most 128 UTF-8 bytes, no control characters |
+| `soul` | `0..5`, `SOUL_LEVEL` |
+
+Server messages:
+
+| Message | Fields |
+| --- | --- |
+| `TradeInvite` | `trade_id`, `sender` and `recipient` as `ChatSpeaker`s; sent to both players |
+| `TradeOpen` | `trade_id`; to both |
+| `TradeOffer`, `TradeReport`, `TradeAccept` | The other player's message as it sent it, so `TradeAccept.own_revision` is that player's |
+| `TradeCommit` | `trade_id`, `own_revision` (the recipient's), `peer_revision` |
+| `TradeClose` | `trade_id`, 0 for a refused request; `reason`: `DECLINED`, `EXPIRED`, `CANCELLED`, `BUSY`, `OUT_OF_RANGE`, `COMBAT`, `MENU`, `DISCONNECTED`, `FAILED`, `UNAVAILABLE` |
+
+- Trade IDs are a `uint32` counter per server run, never 0. A trade is held
+  by the hub (`trade`, `member.trade`), and each player's pointer is set
+  only while it knows of it, so an invitation hidden by a vanish leaves the
+  invited player free.
+- Each checkpoint, a context that moves to another space, and `Exit` of a
+  player in a trade check the distance to the other player; over
+  `trade.keep_radius`, in another space, or unplaced closes it with
+  `OUT_OF_RANGE`. A disconnect closes it with `DISCONNECTED`.
+- `Hub.UpdateInterest` expires invitations older than
+  `trade.invite_seconds` with `EXPIRED`.
+- A commit is logged (`trade completed`, both slots and item counts).
+  Trades are not recorded or replayed.
+- `[trade]` in the server's configuration: `request_radius` (400),
+  `keep_radius` (1000, at least `request_radius`), `invite_seconds` (30).
+
 ## Client
 
 - `ServerClient` runs its callbacks on the IXWebSocket thread. `WireCodec`
@@ -655,6 +719,16 @@ appearance, so it answers for the others.
   names a server goes through it, so players can share a log without the
   official URL: a failed or abandoned connection, vanishes over the limit,
   saving a session, and muting or vanishing a player.
+- Trade messages are decoded like the rest, a `TradeOffer` entry by entry
+  as for `PeerStates`, and validated as the server does, plus a
+  `TradeClose` with an unknown reason, a `TradeInvite` without both
+  speakers, and a report index over 31 are rejected. `TradeInvite` is marked
+  `outgoing` when its sender is the connection's own slot. The events are
+  queued in arrival order and drained as
+  `RemotePlayerChanges::tradeEvents`; over 256 waiting they are dropped and
+  `tradeEventsLost` is set, so the trade ends rather than skip a message.
+  The queue empties with a lost connection. `Network::PublishTrade*` send
+  while connected; `PublishTradeRequest` reports whether it did.
 - `Network::RequestInspection` sends `Inspect` while connected and reports
   whether it did. An `Inspection` without a slot, with a level above 65535,
   with an invalid race, or with a default race that is invalid or not from a

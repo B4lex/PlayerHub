@@ -385,11 +385,31 @@
   `ItemPreview = false` hiding the preview. The reset button as an icon shown
   only off the default is not built on Windows or run in game. `ItemForms.cpp` and `ItemPreview.cpp`
   need CommonLibSSE-NG and were only checked in game.
+- **Trade window and prompt:** not built on Windows or run in game. On
+  Linux, `TradeWindow.cpp`, `TradePrompt.cpp`, `ChatPlayerMenu.cpp`,
+  `WindowManager.cpp`, and `Controls.cpp` ran in a headless Dear ImGui
+  1.92.9 context with a stubbed `TradeSync`, configuration, theme, frame,
+  and preview (47 checks): nothing drawn without a trade; the prompt for an
+  invitation, its name, keys, and countdown, taking no input; `Y` and `N`
+  answering through `OnFocusKey` and giving input back, other keys left to
+  the game, and only `N` taken while the player's own invitation waits; the
+  window taking focus from another window, its three lists, a click adding a
+  stack, a right click one more, a blocked row adding nothing, the hovered
+  row's preview and notes, a skipped line, Accept disabled with its blocker
+  and while accepted, Escape cancelling, focus lost to a menu cancelling
+  with `MENU`, a window kept from focus giving up with `FAILED` after 2 s but
+  not at 1.8 s, a trade closed by the server releasing focus; `Trade`
+  disabled for a far player and while another invitation waits, `Accept
+  trade` and `Decline trade` for the inviting player, no entry for the local
+  player. The window and prompt were rasterized at 1080p in Dear ImGui's
+  default style, which found and fixed a heading hint that pushed the lists
+  past the window. The real theme, fonts, and frame were not drawn.
 
 ## Scope
 
-The plugin's own UI layer: a status panel, chat, the settings window, and the
-reusable item picker with a 3D preview. `ui/` never changes the game; it reaches
+The plugin's own UI layer: a status panel, chat, the settings window, the
+[trade window and prompt](#trade-window), and the reusable item picker with a
+3D preview. `ui/` never changes the game; it reaches
 the network only through the feature modules it presents, such as `ChatSync`,
 and the configuration through `Config`.
 
@@ -423,9 +443,11 @@ src/ui/
   chat/ChatSize               # the open chat's size, the drag that sets it, saving it
   chat/ChatPlayers            # the players online: the button on the filters' row, the list beside the chat
   chat/ChatStyle.h            # channel and notice colors, the chips' frame, the rule under the filters
-  chat/ChatPlayerMenu         # a player's menu: heading, Whisper, Add friend, Mute and Vanish or their undoing
+  chat/ChatPlayerMenu         # a player's menu: heading, Whisper, Trade, Add friend, Mute and Vanish or their undoing
   chat/ChatPlayerManager      # Manage players: Friends, Muted, and Vanished tabs over the chat
   chat/WorldPlayerMenu        # a player's menu at the crosshair, opened by activating its character
+  trade/TradePrompt           # a trade invitation waiting for an answer, answered by its keys
+  trade/TradeWindow           # the open trade: own items, both offers, Accept and Cancel
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
   settings/ConnectionControls # connection button, the line under it, one-line summary
   widgets/Controls            # switch, accent and red buttons, icon buttons
@@ -696,11 +718,16 @@ keyboard and the game receives no keyboard or mouse input.
   `PushInputContext` appends, keeping the console on top. Any menu, the console,
   dialogue, or a loading screen therefore blocks focus keys, and a context taking
   over input releases a focused window.
+- `WindowManager::FocusByKey` tells the window which of its focus keys gave
+  it focus (`Window::OnFocusKey`, on the input thread), for a window with
+  several, such as the [trade prompt](#trade-window).
 - A window that opens without a key, the [player menu in the
   world](#player-menu-in-the-world) and the chat it opens to whisper, takes
   focus with `WindowManager::Focus` from the overlay thread, only while no
-  window holds it. The next dispatch releases it if gameplay is not the active
-  context.
+  window holds it. The [trade window](#trade-window), which the player must
+  see when the other player accepts, takes it from any window with
+  `WindowManager::TakeFocus`. The next dispatch releases either if gameplay
+  is not the active context.
 - A window gives focus back with `WindowManager::ReleaseFocus(*this)`, or names
   release keys with `Window::IsReleaseKey`: `InputCapture` releases the focused
   window when such a key is pressed, and neither the window nor the game sees
@@ -1276,7 +1303,8 @@ Goal: wherever another player's menu opens, a right click on its name in
 the chat's lines or the [player list](#player-list) or Activate on its
 character ([below](#player-menu-in-the-world)), it looks the same and says
 who the player is: its name, race, and level, then `Whisper`,
-[`Add friend`](#friends), and [mute and vanish](#mute-and-vanish). Non-goals: the real name of a modded
+[`Trade`](#trade-window), [`Add friend`](#friends), and
+[mute and vanish](#mute-and-vanish). Non-goals: the real name of a modded
 race the local game lacks (a race's name is not on the wire; the race the
 local game resolves it to is named, as on its character), and following a
 level-up while the menu is open.
@@ -1305,6 +1333,9 @@ level-up while the menu is open.
   [fallback](appearance-and-equipment.md#resolution-and-fallback) a spawned
   character gets. The level is `Appearance.level`, zero before the player
   sent an appearance.
+- The local answer also says whether the player's character is near
+  enough to trade (`Details::nearby`, [Trade](trade.md#invitation)); a
+  server answer never is, since a player without a character is not near.
 - `PlayerDetails` keeps only the latest request and its answer, under one
   lock; an answer for another slot is dropped. While the answer is due the
   menu reads it once a frame and holds an empty line of the text's height,
@@ -1349,6 +1380,69 @@ prompt (Skyrim's `Talk` and the label stay) and gamepad navigation.
   cursor hidden as when Enter opens it.
 - Without an activation the menu and the chat each take one uncontended lock
   a frame for their request; nothing scales with the number of remote actors.
+
+## Trade window
+
+Goal: the overlay half of [Trade](trade.md): an invitation shows without
+taking control from the player, and an open trade is one window with the
+player's items and both offers. Non-goals: gamepad navigation, weights and
+values, sorting the peer's offer.
+
+The windows read `TradeSync::View`, copied when its revision changes, and
+send commands (`RequestTrade`, `AnswerInvitation`, `Cancel`,
+`SetOfferCount`, `Accept`) that the next pass applies on the game thread;
+neither touches an engine object.
+
+### Prompt
+
+- `TradePrompt`, registered before the settings window so its keys come
+  first, draws while a trade is requested, invited, or inviting: a framed
+  panel at the top center, 4.5 font sizes down, under the compass. It has
+  no inputs and never takes focus to show.
+- Invited: the inviting player's name in the accent, `wants to trade`, then
+  `[Y] Accept`, `[N] Decline` with the configured keys
+  ([Configuration](configuration.md#ui)) and the seconds left. Inviting:
+  `Waiting for <name> to answer your trade offer`, `[N] Withdraw`, and the
+  seconds left. Requesting: `Offering a trade to <name>...`.
+- `IsFocusKey` takes `TradeAcceptKey` while invited and `TradeDeclineKey`
+  while invited or inviting, and nothing otherwise, so the keys stay the
+  game's. The key that gave focus answers, and the prompt gives focus back
+  in the same frame, so neither the game nor another window sees it.
+
+### Window
+
+- `TradeWindow` takes focus with `TakeFocus` once the view is open, also
+  from the chat or the player menu, and centers a framed window of 62 × 32
+  font sizes (at least 48 × 22). The cursor shows. A window kept from focus
+  by a game menu retries each frame and gives the trade up with `FAILED`
+  after `kFocusWaitSeconds` (2) of frame time, each frame counting at most
+  0.1 s; one that had focus and loses it cancels with `MENU`.
+- The title is `Trade with <name>`, the name in the accent, with a close
+  button. Three equal lists follow:
+  - Your items: a search field (case-insensitive, by name) and a category
+    (`All`, `Weapons`, `Apparel`, `Ammunition`, `Potions`, `Ingredients`,
+    `Books`, `Scrolls`, `Soul gems`, `Keys`, `Miscellaneous`), matched again
+    only when either or the inventory changes; rows clipped to the visible
+    ones, with counts above one. A click offers the whole stack, a right
+    click one more; offered rows are highlighted; rows that cannot be offered
+    are disabled.
+  - Your offer: each line's name, a count field for stacks with steps of one
+    (clamped to what the player holds), and a remove button. A line the peer
+    cannot receive is amber. Empty, it says how to add items.
+  - `<name>'s offer`: names as the local game resolves them, or
+    `Plugin|0xID` (or the given name) for what it lacks, in amber, with
+    counts.
+- Hovering a row shows one tooltip after the lists: the 3D preview with
+  `[UI] ItemPreview`, and the row's notes: enchanted, equipped (giving it
+  takes it off), favorite, why it cannot be offered, or why it is skipped
+  and that it stays with its owner.
+- The footer shows `<name> accepted.` and `You accepted; waiting for
+  <name>.` in green, else why Accept is unavailable, else that changing
+  either offer takes both acceptances back; then Accept, disabled while
+  blocked or accepted, and Cancel. Escape, when no field or popup claims
+  it, cancels as Cancel and the close button do.
+- A trade that ends releases focus; a window that cancelled waits for the
+  view to close without taking focus again.
 
 ## Settings window
 
@@ -1851,6 +1945,15 @@ or zoomed.
     Switching `Connect To Official Server` on while connected moves the
     connection back to the official server at once, and off again moves it
     to the kept URL.
+
+25. Activating a nearby player and picking `Trade` shows both players a
+    notice and the other the prompt at the top, which `Y` and `N` answer
+    without moving the character or opening a game menu. Accepting opens
+    the trade window on both screens with the cursor, also over an open
+    chat. A click offers a stack, the count field changes it, and the other
+    window shows it within a moment; a modded item the other game lacks is
+    amber in both with a tooltip naming the plugin. Escape, Cancel, and a
+    message box or dialogue a script opens each close both windows.
 
 ## Known limitations
 

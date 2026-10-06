@@ -9,6 +9,8 @@
 #include "ui/hud/StatusPanel.h"
 #include "ui/preview/ItemPreview.h"
 #include "ui/settings/SettingsWindow.h"
+#include "ui/trade/TradePrompt.h"
+#include "ui/trade/TradeWindow.h"
 
 #include <backends/imgui_impl_dx11.h>
 #include <backends/imgui_impl_win32.h>
@@ -189,6 +191,8 @@ namespace UI::Overlay
         WindowManager::Register(CreateStatusPanel());
         WindowManager::Register(CreateChatWindow());
         WindowManager::Register(CreateWorldPlayerMenu());
+        WindowManager::Register(CreateTradePrompt());
+        WindowManager::Register(CreateTradeWindow());
         WindowManager::Register(CreateSettingsWindow());
         InputCapture::Install();
 

@@ -2,6 +2,7 @@
 #include "sync/chat/ChatRoster.h"
 #include "sync/chat/PlayerDetails.h"
 #include "sync/filters/PlayerFilters.h"
+#include "sync/trade/TradeSync.h"
 #include "ui/Fonts.h"
 #include "ui/Theme.h"
 
@@ -35,6 +36,7 @@ namespace UI
     {
         player = a_player;
         details.clear();
+        nearby = false;
         waited = 0.0F;
         pending = player.playerID != 0;
         if (pending)
@@ -48,6 +50,7 @@ namespace UI
         DrawHeading();
         // An offline player has no slot to whisper.
         const bool whisper = ImGui::MenuItem("Whisper", nullptr, false, player.playerID != 0);
+        DrawTradeItems();
         DrawFilterItems();
         return whisper;
     }
@@ -59,6 +62,7 @@ namespace UI
             if (const auto found = PlayerDetails::Find(player.playerID))
             {
                 details = FormatDetails(*found);
+                nearby = found->nearby;
                 pending = false;
             }
             else
@@ -84,6 +88,36 @@ namespace UI
             ImGui::PopStyleColor();
         }
         ImGui::Separator();
+    }
+
+    void ChatPlayerMenu::DrawTradeItems() const
+    {
+        if (player.playerID == 0 || player.session == 0 || player.session == ChatRoster::GetLocalSession())
+        {
+            return;
+        }
+        if (TradeSync::GetInvitingPlayer() == player.playerID)
+        {
+            if (ImGui::MenuItem("Accept trade"))
+            {
+                TradeSync::AnswerInvitation(true);
+            }
+            if (ImGui::MenuItem("Decline trade"))
+            {
+                TradeSync::AnswerInvitation(false);
+            }
+            return;
+        }
+        const bool idle = TradeSync::GetPhase() == TradeSession::Phase::kIdle;
+        if (ImGui::MenuItem("Trade", nullptr, false, idle && nearby))
+        {
+            TradeSync::RequestTrade(player);
+        }
+        const char* tooltip = !idle ? "Finish your current trade first."
+            : nearby               ? "Offer to exchange items with them."
+            : pending              ? "Checking whether they are near..."
+                                   : "Stand next to their character to trade.";
+        ImGui::SetItemTooltip("%s", tooltip);
     }
 
     void ChatPlayerMenu::DrawFilterItems() const

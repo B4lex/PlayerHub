@@ -24,6 +24,9 @@ namespace UI
 
         [[nodiscard]] virtual bool IsFocusKey(std::uint32_t) const { return false; }
 
+        // Called on the input thread when one of the window's focus keys gave it focus.
+        virtual void OnFocusKey(std::uint32_t) {}
+
         [[nodiscard]] virtual bool IsReleaseKey(std::uint32_t) const { return false; }
 
         [[nodiscard]] virtual bool UsesMouse() const { return false; }

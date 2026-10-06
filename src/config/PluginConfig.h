@@ -79,6 +79,8 @@ namespace Config
 
         // A DirectInput scan code.
         std::uint32_t settingsKey{ 0 };
+        std::uint32_t tradeAcceptKey{ 0 };
+        std::uint32_t tradeDeclineKey{ 0 };
         std::uint32_t accentColor{ kAccentSwatches[0] };
         std::uint32_t frameColor{ kVanillaFrame };
         std::uint32_t frameThickness{ 70 };

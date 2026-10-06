@@ -16,6 +16,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [combat-presentation.md](combat-presentation.md) | Weapon stance, attack action stream, power attacks, bashes, blocking, bow draws, spell casts | `sync/combat/`, `actor/ActorAnimation` |
 | [appearance-and-equipment.md](appearance-and-equipment.md) | Appearance, actor base, player label, equipment, default outfit, item filter and catalog | `sync/appearance/`, `sync/equipment/`, `sync/outfit/`, `src/forms/` |
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
+| [trade.md](trade.md) | Item exchange between two players: invitation, offers, reports, acceptance, commit, cancelling; the only change a peer makes to the local world | `sync/trade/`, `forms/ItemInstance`, `protocol/TradeState.h`, `server/internal/hub/trade.go` |
 | [configuration.md](configuration.md) | `playerhub.ini`, schema, snapshots, saving | `src/config/` |
 | [ui-overlay.md](ui-overlay.md) | Overlay, input focus, fonts, theme, menu frame, logo, status panel, chat, friends, mute and vanish, player menu, player menu in the world, settings window, item picker and preview | `src/ui/`, `sync/chat/`, `sync/filters/`, `assets/` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `server/admin-ui/` |
@@ -54,5 +55,6 @@ criteria.
 | Player menu heading (name, race, level; inspection) | [ui-overlay](ui-overlay.md#player-menu), [network](network.md#inspection), [sync-pipeline](sync-pipeline.md#frame-sequence), [appearance-and-equipment](appearance-and-equipment.md#resolution-and-fallback) |
 | Settings | [ui-overlay](ui-overlay.md#settings-window), [configuration](configuration.md) |
 | Accent color | [ui-overlay](ui-overlay.md#accent-color), [configuration](configuration.md#ui) |
+| Item trade | [trade](trade.md), [network](network.md#trade), [ui-overlay](ui-overlay.md#trade-window), [sync-pipeline](sync-pipeline.md#frame-sequence), [interest-and-delivery](interest-and-delivery.md#ordering), [configuration](configuration.md#ui) |
 | Item picker and preview | [ui-overlay](ui-overlay.md#item-picker), [appearance-and-equipment](appearance-and-equipment.md#item-filter-and-catalog) |
 | Replay and load testing | [recording-and-replay](recording-and-replay.md) |

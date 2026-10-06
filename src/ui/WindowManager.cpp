@@ -65,10 +65,21 @@ namespace UI::WindowManager
                 continue;
             }
             const Window* expected = nullptr;
-            return s_focused.compare_exchange_strong(
-                expected, window.get(), std::memory_order_acq_rel, std::memory_order_acquire);
+            if (!s_focused.compare_exchange_strong(
+                    expected, window.get(), std::memory_order_acq_rel, std::memory_order_acquire))
+            {
+                return false;
+            }
+            window->OnFocusKey(a_scanCode);
+            return true;
         }
         return false;
+    }
+
+    bool TakeFocus(const Window& a_window)
+    {
+        s_focused.store(&a_window, std::memory_order_release);
+        return true;
     }
 
     bool Focus(const Window& a_window)

@@ -31,15 +31,18 @@ type Recorder interface {
 }
 
 type Options struct {
-	Clock            clock.Clock
-	ActionsPerSecond float64
-	ActionBurst      float64
-	Interest         interest.Config
-	EntersPerSecond  float64
-	ChatLocalRadius  float64
-	Recorder         Recorder
-	Logger           *slog.Logger
-	OnChange         func()
+	Clock              clock.Clock
+	ActionsPerSecond   float64
+	ActionBurst        float64
+	Interest           interest.Config
+	EntersPerSecond    float64
+	ChatLocalRadius    float64
+	TradeRequestRadius float64
+	TradeKeepRadius    float64
+	TradeInviteSeconds float64
+	Recorder           Recorder
+	Logger             *slog.Logger
+	OnChange           func()
 }
 
 type member struct {
@@ -61,6 +64,10 @@ type member struct {
 	chat    chatThrottle
 	enters  limit.TokenBucket
 	inspect limit.TokenBucket
+
+	trade         *trade
+	tradeRequests limit.TokenBucket
+	tradeOffers   limit.TokenBucket
 }
 
 type subscription struct {
@@ -96,6 +103,9 @@ type Hub struct {
 	hidden     interest.Hidden
 	pairs      interest.Pairs
 	candidates []candidate
+
+	trades    map[uint32]*trade
+	nextTrade uint32
 }
 
 func New(opts Options) *Hub {
@@ -117,9 +127,16 @@ func New(opts Options) *Hub {
 	if opts.ChatLocalRadius == 0 {
 		opts.ChatLocalRadius = 8192
 	}
+	if opts.TradeRequestRadius == 0 {
+		opts.TradeRequestRadius, opts.TradeKeepRadius = 400, 1000
+	}
+	if opts.TradeInviteSeconds == 0 {
+		opts.TradeInviteSeconds = 30
+	}
 	h := &Hub{
 		opts: opts, members: make(map[uint32]*member), sessions: make(map[uint64]uint32),
 		grid: interest.NewGrid(opts.Interest.LeaveRadius), hidden: interest.Hidden{}, pairs: interest.Pairs{},
+		trades: make(map[uint32]*trade),
 	}
 	h.rules = interest.NewRules(opts.Interest, h.hidden, h.pairs, interest.Vanished{})
 	return h
@@ -196,6 +213,9 @@ func (h *Hub) Disconnect(slot uint32) {
 	if h.opts.Recorder != nil {
 		h.opts.Recorder.Stop(slot, "disconnected")
 	}
+	if m.trade != nil {
+		h.closeTrade(m.trade, pb.TradeCloseReason_TRADE_CLOSE_REASON_DISCONNECTED)
+	}
 	for peer := range m.subscribed {
 		h.members[peer].subscribers = remove(h.members[peer].subscribers, m)
 	}
@@ -262,6 +282,18 @@ func (h *Hub) Handle(slot uint32, message *pb.ClientMessage) error {
 		return h.vanish(m, body.Vanish)
 	case *pb.ClientMessage_Inspect:
 		return h.inspect(m, body.Inspect)
+	case *pb.ClientMessage_TradeRequest:
+		return h.requestTrade(m, body.TradeRequest)
+	case *pb.ClientMessage_TradeAnswer:
+		return h.answerTrade(m, body.TradeAnswer)
+	case *pb.ClientMessage_TradeOffer:
+		return h.offerTrade(m, body.TradeOffer)
+	case *pb.ClientMessage_TradeReport:
+		return h.reportTrade(m, body.TradeReport)
+	case *pb.ClientMessage_TradeAccept:
+		return h.acceptTrade(m, body.TradeAccept)
+	case *pb.ClientMessage_TradeCancel:
+		return h.cancelTrade(m, body.TradeCancel)
 	default:
 		return validate.ErrUnexpected
 	}
@@ -291,6 +323,7 @@ func (h *Hub) UpdateInterest() {
 			h.evaluateViewer(r, now)
 		}
 	}
+	h.expireTrades(now)
 }
 
 func (h *Hub) SetViewRadius(slot uint32, radius float64) {
@@ -453,6 +486,7 @@ func (h *Hub) exit(m *member, message *pb.ClientMessage) {
 	m.changed = false
 	h.record(m.Slot, message)
 	h.unplace(m, pb.LeaveReason_LEAVE_REASON_EXITED)
+	h.checkTradeRange(m)
 	h.opts.OnChange()
 }
 
@@ -480,6 +514,7 @@ func (h *Hub) setContext(m *member, c *pb.Context, message *pb.ClientMessage) er
 		if wasPlaced {
 			h.unplace(m, pb.LeaveReason_LEAVE_REASON_OUT_OF_RANGE)
 		}
+		h.checkTradeRange(m)
 		return nil
 	}
 	if !m.Placed() || len(m.subscribers) == 0 {
@@ -503,6 +538,7 @@ func (h *Hub) setCheckpoint(m *member, c *pb.Checkpoint, message *pb.ClientMessa
 	h.opts.OnChange()
 	m.view.Space, m.view.X, m.view.Y = interest.SpaceOf(m.Context), float64(c.X), float64(c.Y)
 	h.grid.Update(&m.view)
+	h.checkTradeRange(m)
 	if !wasPlaced {
 		// PeerEnter carries this checkpoint.
 		m.distributed, m.forceNext = c, false

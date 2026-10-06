@@ -91,10 +91,13 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 		entersPerSecond = c.Budget.EntersPerSecond
 	}
 	h := hub.New(hub.Options{
-		EntersPerSecond:  entersPerSecond,
-		ChatLocalRadius:  c.Chat.LocalRadius,
-		ActionsPerSecond: c.Limits.ActionsPerSecond,
-		ActionBurst:      c.Limits.ActionBurst,
+		EntersPerSecond:    entersPerSecond,
+		ChatLocalRadius:    c.Chat.LocalRadius,
+		TradeRequestRadius: c.Trade.RequestRadius,
+		TradeKeepRadius:    c.Trade.KeepRadius,
+		TradeInviteSeconds: c.Trade.InviteSeconds,
+		ActionsPerSecond:   c.Limits.ActionsPerSecond,
+		ActionBurst:        c.Limits.ActionBurst,
 		Interest: interest.Config{
 			EnterRadius:       c.Interest.EnterRadius,
 			LeaveRadius:       c.Interest.LeaveRadius,

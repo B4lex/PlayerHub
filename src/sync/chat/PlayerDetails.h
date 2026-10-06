@@ -16,6 +16,8 @@ namespace PlayerDetails
     {
         std::string race;
         std::uint16_t level{ 0 };
+        // Whether the player's character is near enough in the local world to trade.
+        bool nearby{ false };
     };
 
     void Request(Multiplayer::PeerSlot a_playerID);
