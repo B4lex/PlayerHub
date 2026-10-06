@@ -35,7 +35,9 @@
   new session deleted and a resumed one kept, a full server refusing a new
   session but admitting a connected one, the per-address allowance by peer
   and by forwarded address, and the pending hello cap); `internal/admission`
-  covers the gate and `X-Forwarded-For` parsing. The plugin's 4007 and 4008
+  covers the gate and `X-Forwarded-For` parsing; `internal/admin` covers
+  `POST /api/sessions` issuing past the allowance, resuming, a hello resuming
+  an issued session, and its 409 and 422 answers. The plugin's 4007 and 4008
   refusals are not compiled or run. `cmd/loadgen` ran 100 bots
   twice against one database on port 3100 without a refusal, and 20 bots
   against an in-memory store with protocol version 4. Plugin: `ServerClient`,
@@ -440,6 +442,14 @@ the admin API.
 - A new session is issued only when its address may take one
   ([Admission](#admission)); the check runs after the display name is found
   free, so a taken name does not spend the allowance.
+- The admin API's `POST /api/sessions` `{displayName, token?}` runs the same
+  resume-or-issue on `admin_listen`, without the allowance, for
+  `cmd/loadgen` ([Load testing](recording-and-replay.md#load-testing)).
+  `token` is base64 JSON, empty or 32 bytes, and `displayName` passes
+  `validate.DisplayName`, else 422; a held display name answers 409. It
+  answers `{sessionId, displayName, token}`, 201 with a new token or 200 with
+  the resumed one. A session issued there that never connects is not deleted
+  by `Store.Abandon`; it expires.
 - A client is named by its session everywhere: `Appearance.name` on the stored
   and relayed copy, `ChatSpeaker.name`, the admin state, and a recording's
   header. Replays and in-server bots have no session and keep their recorded
@@ -466,9 +476,10 @@ in-server bots do not pass through it and do not count.
   cap also bounds the roster every client receives.
 - `limits.new_sessions_per_address_per_hour` (5; 0 is no limit) is a token
   bucket per address with that burst, refilled at that many per hour.
-  Resuming a session never spends it. An IPv6 address counts with its /64,
-  which one subscriber usually holds whole. `Server.Maintain` prunes refilled
-  buckets hourly.
+  Resuming a session never spends it, and neither does a session issued
+  through the admin API ([Sessions](#sessions)). An IPv6 address counts with
+  its /64, which one subscriber usually holds whole. `Server.Maintain` prunes
+  refilled buckets hourly.
 - The address is the TCP peer's, unless the peer is in `trusted_proxies`
   (addresses or CIDR prefixes, empty by default). Then it is the rightmost
   `X-Forwarded-For` hop not in `trusted_proxies`: each proxy appends the

@@ -10,6 +10,13 @@ Implemented in Go and verified on Linux:
   (`internal/loadtest`), and, over a real WebSocket, capturing a live player,
   replaying it to another client, and the admin API's errors
   (`internal/admin`).
+- `cmd/loadgen` against a server on port 3100 with a file-backed session store
+  and the default limits: two runs of 20 bots resumed the same 20 sessions
+  (every connection `new_session=false`, the file kept 20 tokens); 500 bots'
+  sessions were issued in 0.05 s; a file whose names were held stopped the run
+  with the taken name, and an unreachable `--admin` with the connection
+  error. With `--admin ""`, 5 of 8 bots got sessions and 3 were refused with
+  4008.
 - `cmd/convert-recordings` converted a version 2 fixture and left a converted
   file alone; `cmd/loadgen` replayed it with 20 bots and the server rejected
   none of their messages.
@@ -144,11 +151,19 @@ once, including from one recording.
 - `transport` is always `virtual`. Bots that exercise the network run in
   `cmd/loadgen`: real WebSocket clients that walk randomly in a square
   (`--spread` 20000 dense, 100000 sparse) or replay a recording laid out like a
-  batch. Each takes a new session ([Network](network.md#sessions)) whose display
-  name is `W` for a walker or `R` for a replay, then six hexadecimal digits
-  picked per run, `_`, and the bot's number (`W43ae13_7`), so a later run
-  against the same server does not find its display names taken; the sessions
-  stay in the server's database until they expire. Each stamps its checkpoint
+  batch. Each bot's display name is `W` for a walker or `R` for a replay, then
+  six hexadecimal digits, `_`, and the bot's number (`W43ae13_7`). Before the
+  ramp-up, loadgen asks the admin API (`--admin`) for every bot's session
+  ([Network](network.md#sessions)), passing the token it kept, and saves the
+  digits and tokens to a file (`--sessions`, default
+  `<user cache>/playerhub/loadgen-<host>.json`, mode 0600) whenever one
+  changes. A later run resumes the same sessions, so a server keeps one
+  session per bot however often loadgen runs, and a server whose store was
+  reset issues them again. Sessions issued before a failure are saved too, or
+  their names would stay taken without a token. A display name another
+  session holds stops the run before any bot connects. `--admin ""` keeps no
+  file and takes new sessions under new digits, through the per-address
+  allowance like a player. Each stamps its checkpoint
   sequence with the send time in microseconds, which is strictly rising, so a
   receiver on the same host measures latency without a wire field, and its
   `time` with the send time; `--server-pid` adds the server's CPU from `/proc`.
@@ -187,8 +202,8 @@ Not checked in game:
 
 ## Known limitations
 
-- The admin API has no authentication: it deletes recordings and spawns
-  virtual players, so `admin_listen` must not face the Internet. It does not
+- The admin API has no authentication: it deletes recordings, spawns
+  virtual players, and issues sessions past the per-address allowance, so `admin_listen` must not face the Internet. It does not
   check `Content-Type` or `Host` either, so a web page the operator visits can
   send it simple cross-origin POSTs even on localhost.
 - A replay reaches every connected client; recordings cannot be edited or

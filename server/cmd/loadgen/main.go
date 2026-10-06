@@ -41,6 +41,8 @@ type options struct {
 	idle       float64
 	viewRadius uint
 	near       float64
+	admin      string
+	sessions   string
 	run        string
 }
 
@@ -60,9 +62,11 @@ func main() {
 	flag.Float64Var(&o.idle, "idle", 0, "share of walking bots that stand still, repeating one checkpoint")
 	flag.UintVar(&o.viewRadius, "view-radius", 0, "view radius the bots ask for; 0 is the server's")
 	flag.Float64Var(&o.near, "near", 4096, "peers within this distance are reported as near")
+	flag.StringVar(&o.admin, "admin", "http://127.0.0.1:3001",
+		"server admin address that issues the bots' sessions; empty takes new sessions as players do, which the join limits refuse")
+	flag.StringVar(&o.sessions, "sessions", "", "file that keeps the bots' sessions between runs; default in the user cache directory, per --url host")
 	flag.Parse()
 	o.worldspace = 60
-	o.run = fmt.Sprintf("%06x", rand.Uint32()&0xFFFFFF)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -82,6 +86,14 @@ func run(ctx context.Context, o options) error {
 		}
 		plans = loadtest.PlanBots(o.bots, r.DurationMs(), o.seed, 0.5, 0, o.rampUp.Seconds())
 	}
+	kind := "W"
+	if r != nil {
+		kind = "R"
+	}
+	tokens, err := prepareSessions(ctx, &o, kind)
+	if err != nil {
+		return err
+	}
 
 	stats := newStats()
 	ctx, cancel := context.WithTimeout(ctx, o.rampUp+o.duration)
@@ -98,7 +110,7 @@ func run(ctx context.Context, o options) error {
 				return
 			case <-time.After(time.Until(started.Add(delay))):
 			}
-			b := &bot{o: o, index: i, stats: stats}
+			b := &bot{o: o, index: i, token: tokens[i], stats: stats}
 			var err error
 			if r != nil {
 				err = b.replay(ctx, r, plans[i])
@@ -140,16 +152,13 @@ func run(ctx context.Context, o options) error {
 type bot struct {
 	o           options
 	index       int
+	token       []byte
 	stats       *stats
 	conn        *websocket.Conn
 	mu          sync.Mutex
 	lastSent    uint64
 	lastVirtual uint64
 	x, y        atomic.Int32
-}
-
-func (b *bot) displayName(kind string) string {
-	return fmt.Sprintf("%s%s_%d", kind, b.o.run, b.index+1)
 }
 
 func (b *bot) connect(ctx context.Context, displayName string) error {
@@ -162,7 +171,7 @@ func (b *bot) connect(ctx context.Context, displayName string) error {
 	b.stats.connected.Add(1)
 	if err := b.send(ctx, &pb.ClientMessage{Message: &pb.ClientMessage_Hello{Hello: &pb.Hello{
 		ProtocolVersion: uint32(pb.Protocol_PROTOCOL_VERSION), ViewRadius: uint32(b.o.viewRadius),
-		DisplayName: displayName}}}); err != nil {
+		DisplayName: displayName, SessionToken: b.token}}}); err != nil {
 		return err
 	}
 	go b.receive(ctx)
@@ -253,7 +262,7 @@ func (b *bot) enter(ctx context.Context) error {
 }
 
 func (b *bot) walk(ctx context.Context) error {
-	if err := b.connect(ctx, b.displayName("W")); err != nil {
+	if err := b.connect(ctx, displayName("W", b.o.run, b.index)); err != nil {
 		return err
 	}
 	defer b.conn.CloseNow()
@@ -322,7 +331,7 @@ func (p *replayPlayer) Send(m *pb.ClientMessage) {
 func (p *replayPlayer) Leave() {}
 
 func (b *bot) replay(ctx context.Context, r *recording.Recording, plan loadtest.BotPlan) error {
-	if err := b.connect(ctx, b.displayName("R")); err != nil {
+	if err := b.connect(ctx, displayName("R", b.o.run, b.index)); err != nil {
 		return err
 	}
 	defer b.conn.CloseNow()

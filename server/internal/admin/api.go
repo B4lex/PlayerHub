@@ -11,10 +11,12 @@ import (
 	"strconv"
 	"time"
 
+	"playerhub/server/internal/auth"
 	"playerhub/server/internal/hub"
 	"playerhub/server/internal/loadtest"
 	"playerhub/server/internal/playback"
 	"playerhub/server/internal/recording"
+	"playerhub/server/internal/validate"
 	"playerhub/server/internal/wire/pb"
 )
 
@@ -48,6 +50,7 @@ func (c *Context) Routes(mux *http.ServeMux) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
+	mux.HandleFunc("POST /api/sessions", c.issueSession)
 	mux.HandleFunc("PUT /api/players/{id}/hidden", c.setHidden)
 	mux.HandleFunc("POST /api/exclusions", func(w http.ResponseWriter, r *http.Request) { c.setExcluded(w, r, true) })
 	mux.HandleFunc("DELETE /api/exclusions", func(w http.ResponseWriter, r *http.Request) { c.setExcluded(w, r, false) })
@@ -173,6 +176,44 @@ func (c *Context) startRecording(w http.ResponseWriter, r *http.Request) {
 	default:
 		reply(w, http.StatusCreated, info)
 	}
+}
+
+func (c *Context) issueSession(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		DisplayName string `json:"displayName"`
+		Token       []byte `json:"token"`
+	}
+	if err := decode(r, &request); err != nil {
+		invalid(w, err)
+		return
+	}
+	if validate.DisplayName(request.DisplayName) != nil {
+		fail(w, http.StatusUnprocessableEntity, fmt.Sprintf("displayName must be %d to %d letters, digits, or underscores",
+			validate.MinimumDisplayNameBytes, validate.MaximumDisplayNameBytes))
+		return
+	}
+	if len(request.Token) != 0 && len(request.Token) != validate.SessionTokenBytes {
+		fail(w, http.StatusUnprocessableEntity, fmt.Sprintf("token must be empty or %d bytes", validate.SessionTokenBytes))
+		return
+	}
+	session, issued, err := c.Sessions.Authenticate(request.Token, request.DisplayName, time.Now(), nil)
+	switch {
+	case errors.Is(err, auth.ErrDisplayNameTaken):
+		fail(w, http.StatusConflict, "display name taken")
+		return
+	case err != nil:
+		fail(w, http.StatusInternalServerError, "session store failed: "+err.Error())
+		return
+	}
+	status, token := http.StatusOK, request.Token
+	if issued != nil {
+		status, token = http.StatusCreated, issued
+	}
+	reply(w, status, struct {
+		SessionID   string `json:"sessionId"`
+		DisplayName string `json:"displayName"`
+		Token       []byte `json:"token"`
+	}{strconv.FormatUint(session.ID, 10), session.DisplayName, token})
 }
 
 func (c *Context) setHidden(w http.ResponseWriter, r *http.Request) {

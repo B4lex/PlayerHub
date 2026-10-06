@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -40,13 +41,13 @@ func startStack(t *testing.T) *stack {
 	go loop.Run(ctx)
 	playbacks := playback.NewManager(store, loop, log, func() {})
 	batches := loadtest.NewManager(store, loop, log, func() {})
-	c := &Context{Loop: loop, Store: store, Captures: captures, Playbacks: playbacks, Batches: batches,
-		StartedAt: time.Now(), OnChange: func() {}}
-	mux := http.NewServeMux()
 	identities, err := auth.Open("", 30*24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
+	c := &Context{Loop: loop, Store: store, Captures: captures, Playbacks: playbacks, Batches: batches,
+		Sessions: identities, StartedAt: time.Now(), OnChange: func() {}}
+	mux := http.NewServeMux()
 	mux.Handle("GET /ws", session.NewServer(loop, identities, config.Default(), log))
 	c.Routes(mux)
 	server := httptest.NewServer(mux)
@@ -89,6 +90,12 @@ type player struct {
 
 func (s *stack) join(displayName string) *player {
 	s.t.Helper()
+	p, _ := s.joinWith(displayName, nil)
+	return p
+}
+
+func (s *stack) joinWith(displayName string, token []byte) (*player, *pb.Welcome) {
+	s.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(s.server.URL, "http")+"/ws", nil)
@@ -98,9 +105,13 @@ func (s *stack) join(displayName string) *player {
 	s.t.Cleanup(func() { conn.CloseNow() })
 	p := &player{t: s.t, conn: conn}
 	p.send(&pb.ClientMessage{Message: &pb.ClientMessage_Hello{Hello: &pb.Hello{
-		ProtocolVersion: uint32(pb.Protocol_PROTOCOL_VERSION), DisplayName: displayName}}})
-	p.slot = p.receive().GetWelcome().GetSlot()
-	return p
+		ProtocolVersion: uint32(pb.Protocol_PROTOCOL_VERSION), DisplayName: displayName, SessionToken: token}}})
+	welcome := p.receive().GetWelcome()
+	if welcome == nil {
+		s.t.Fatalf("%s got no welcome", displayName)
+	}
+	p.slot = welcome.GetSlot()
+	return p, welcome
 }
 
 func (p *player) send(m *pb.ClientMessage) {
@@ -223,6 +234,58 @@ func TestRequestValidation(t *testing.T) {
 		var body map[string]string
 		if status := s.call(c.method, c.path, c.body, &body); status != c.status {
 			t.Errorf("%s %s: got %d, want %d (%v)", c.method, c.path, status, c.status, body)
+		}
+	}
+}
+
+type issuedSession struct {
+	SessionID   string `json:"sessionId"`
+	DisplayName string `json:"displayName"`
+	Token       []byte `json:"token"`
+}
+
+func TestIssuedSessionsSkipTheAllowance(t *testing.T) {
+	s := startStack(t)
+	allowance := int(config.Default().Limits.NewSessionsPerAddressPerHour)
+	var first issuedSession
+	for i := range allowance + 2 {
+		var issued issuedSession
+		if status := s.call("POST", "/api/sessions", map[string]string{"displayName": fmt.Sprintf("Bot_%d", i)}, &issued); status != 201 {
+			t.Fatalf("issue %d: %d", i, status)
+		}
+		if i == 0 {
+			first = issued
+		}
+	}
+	if len(first.Token) != 32 || first.DisplayName != "Bot_0" {
+		t.Fatalf("issued %+v", first)
+	}
+
+	// Resuming answers the same session and token, which a hello then resumes too.
+	var resumed issuedSession
+	if status := s.call("POST", "/api/sessions", map[string]any{"displayName": "Bot_0", "token": first.Token}, &resumed); status != 200 {
+		t.Fatalf("resume: %d", status)
+	}
+	if resumed.SessionID != first.SessionID || !bytes.Equal(resumed.Token, first.Token) {
+		t.Fatalf("resumed %+v, issued %+v", resumed, first)
+	}
+	_, welcome := s.joinWith("Bot_0", first.Token)
+	if fmt.Sprint(welcome.GetSessionId()) != first.SessionID || welcome.GetSessionToken() != nil {
+		t.Fatalf("welcome %v for %+v", welcome, first)
+	}
+
+	for _, c := range []struct {
+		body   map[string]any
+		status int
+	}{
+		{map[string]any{"displayName": "bot_1"}, 409},
+		{map[string]any{"displayName": "B"}, 422},
+		{map[string]any{"displayName": "Bot_9", "token": []byte{1, 2, 3}}, 422},
+		{map[string]any{"displayName": "Bot_9", "slot": 1}, 422},
+	} {
+		var body map[string]string
+		if status := s.call("POST", "/api/sessions", c.body, &body); status != c.status {
+			t.Errorf("%v: got %d, want %d (%v)", c.body, status, c.status, body)
 		}
 	}
 }

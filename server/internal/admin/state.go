@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"playerhub/server/internal/auth"
 	"playerhub/server/internal/delivery"
 	"playerhub/server/internal/hub"
 	"playerhub/server/internal/loadtest"
@@ -20,6 +21,7 @@ type Context struct {
 	Captures  *recording.Captures
 	Playbacks *playback.Manager
 	Batches   *loadtest.Manager
+	Sessions  *auth.Store
 	StartedAt time.Time
 	OnChange  func()
 

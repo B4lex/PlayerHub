@@ -118,7 +118,7 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 	playbacks := playback.NewManager(store, loop, log, changed)
 	batches := loadtest.NewManager(store, loop, log, changed)
 	adminContext := &admin.Context{
-		Loop: loop, Store: store, Captures: captures, Playbacks: playbacks, Batches: batches,
+		Loop: loop, Store: store, Captures: captures, Playbacks: playbacks, Batches: batches, Sessions: identities,
 		StartedAt: time.Now(), OnChange: changed,
 	}
 	feed = admin.NewFeed(adminContext.State)

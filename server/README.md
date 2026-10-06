@@ -106,11 +106,15 @@ go run ./cmd/loadgen --bots 250 --server-pid <pid>
 go run ./cmd/convert-recordings recordings
 ```
 
-- `cmd/loadgen` needs a server without the join limits, since every bot is a
-  new session from one address: set `max_players = 0` and
-  `new_sessions_per_address_per_hour = 0` under `[limits]`.
-- `cmd/loadgen` connects bots as real WebSocket clients, each with a new
-  session named after the run, walking in a square
+- `cmd/loadgen` gets its bots' sessions from the admin API (`--admin`,
+  `http://127.0.0.1:3001`), which skips the per-address allowance for new
+  sessions, and keeps their tokens in a file (`--sessions`, by default
+  `loadgen-<host>.json` in the user cache directory), so later runs resume the
+  same sessions under the same names. Two runs at once against one server need
+  different `--sessions` files. More bots than `max_players` need it raised.
+  `--admin ""` takes new sessions as a player does, which needs
+  `new_sessions_per_address_per_hour = 0`.
+- `cmd/loadgen` connects bots as real WebSocket clients, walking in a square
   (`--spread`, `--speed`, `--idle` for a share standing still, `--view-radius`)
   or replaying a recording (`--recording`). Each bot
   sends its send time in microseconds as the checkpoint sequence, so receivers
@@ -162,6 +166,7 @@ snapshot on connect and after changes, at most twice a second.
 | `POST /api/playbacks/{id}/seek` `{positionMs}` | Jump to a time |
 | `PATCH /api/playbacks/{id}` `{rate?, loop?}` | Speed (0.1 to 4) and looping |
 | `DELETE /api/playbacks/{id}` | Stop a replay and remove its virtual player |
+| `POST /api/sessions` `{displayName, token?}` | Resume the session of a base64 `token`, or issue one under `displayName` without the per-address allowance; answers `{sessionId, displayName, token}` |
 | `PUT /api/players/{id}/hidden` `{hidden}` | Hide a player from everyone, or show it again |
 | `POST /api/exclusions`, `DELETE /api/exclusions` `{viewerId, targetId}` | Add or lift a directed exclusion |
 | `POST /api/batches` `{recordingId, players, seed?, jitter?, rateSpread?, rampUpSeconds?}` | Start a batch of in-server bots (1 to 500) |
