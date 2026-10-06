@@ -1,4 +1,5 @@
 #include "ui/settings/ConnectionControls.h"
+#include "config/PluginConfig.h"
 #include "network/ConnectionMonitor.h"
 #include "ui/Theme.h"
 #include "ui/widgets/Controls.h"
@@ -29,6 +30,8 @@ namespace UI::ConnectionControls
         constexpr const char* kInvalidDisplayNameText = "Invalid display name.";
         constexpr const char* kDisconnectToRenameText = "Disconnect to change the display name";
         constexpr const char* kCancelToRenameText = "Cancel the connection to change the display name";
+        constexpr const char* kNoEndpointText
+            = "Enter a server URL in Network, or switch Connect To Official Server on, to connect.";
 
         struct Status
         {
@@ -100,6 +103,12 @@ namespace UI::ConnectionControls
             ImGui::SameLine(0.0F, std::floor(kIndicatorGapFonts * fontSize));
         }
 
+        bool HasServerEndpoint()
+        {
+            const auto config = Config::Get();
+            return !Config::GetServerEndpoint(config->network).empty();
+        }
+
         void DrawMessage(std::string_view a_text, const ImVec4& a_color)
         {
             ImGui::PushStyleColor(ImGuiCol_Text, a_color);
@@ -124,7 +133,7 @@ namespace UI::ConnectionControls
     void DrawButton(bool a_displayNameEntered)
     {
         const auto state = Network::GetConnectionState();
-        const bool canConnect = state == ConnectionState::kDisconnected && a_displayNameEntered;
+        const bool canConnect = state == ConnectionState::kDisconnected && a_displayNameEntered && HasServerEndpoint();
         const auto* label = GetButtonLabel(state);
         const ImVec2 size{ GetButtonWidth(), 0.0F };
 
@@ -175,6 +184,11 @@ namespace UI::ConnectionControls
         if (status.refusal)
         {
             DrawMessage(status.refusal->message, Theme::kNegative);
+            return;
+        }
+        if (status.state == ConnectionState::kDisconnected && !HasServerEndpoint())
+        {
+            DrawMessage(kNoEndpointText, Theme::kWarning);
             return;
         }
         DrawMessage(a_help, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));

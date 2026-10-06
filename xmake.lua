@@ -15,6 +15,13 @@ option("tracy")
     set_description("Build with Tracy profiler instrumentation")
 option_end()
 
+-- Release builds set it to the public server, which the repository does not name.
+option("server_endpoint")
+    set_default("http://127.0.0.1:3000")
+    set_showmenu(true)
+    set_description("Official server URL built into the plugin, starting with http:// or https://")
+option_end()
+
 -- Rebuild a package when a dependency's version changes. Without this, a cached
 -- IXWebSocket compiled against one mbedtls major version is linked against
 -- another; its API selection is compile-time, so TLS setup fails at runtime.
@@ -57,6 +64,14 @@ target("playerhub")
     add_headerfiles("src/**.h")
     add_includedirs("src", "src/network/proto", "lib/nanopb")
     add_packages("ixwebsocket", "imgui", "simpleini")
+    on_config(function (target)
+        -- The value becomes a C string literal.
+        local endpoint = get_config("server_endpoint") or ""
+        if not (endpoint:startswith("http://") or endpoint:startswith("https://")) or endpoint:find("[%s\"\\]") then
+            raise("server_endpoint must start with http:// or https:// and contain no whitespace, quotes, or backslashes")
+        end
+        target:add("defines", format('PLAYERHUB_DEFAULT_SERVER_ENDPOINT="%s"', endpoint))
+    end)
     if has_config("tracy") then
         add_packages("tracy")
         -- The package does not export TRACY_ENABLE to consumers.

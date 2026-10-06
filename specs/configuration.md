@@ -44,6 +44,26 @@ loads; `orange` warns and keeps `FF9000`; `ParseColor` takes `FF9000`,
 digits, `GG0000`, a sign, a space, `0x9000`, `##FF9000`, and a trailing
 comment; applying a color from the window saves it, and applying `FF9000`
 again keeps the line with that value.
+The `server_endpoint` xmake option is not yet built on Windows. On Linux,
+xmake 3.0.6 ran the same option and `on_config` in a scratch project: the
+define holds `http://127.0.0.1:3000` by default and the configured value after
+`xmake f --server_endpoint=...`; changing it recompiles and relinks without
+`-r`; `ftp://bad`, a value with a space or a quote, and an empty value fail
+`xmake f`; the option is listed in `xmake f --help` with its default; a rule's
+`on_config` still runs beside the target's. The project's own `xmake.lua`
+was not loaded on Linux.
+`[Network] ConnectToOfficialServer` is not yet built on Windows or run in
+game. On Linux the same two files ran with the settings window's harness and
+`ConnectionMonitor.cpp` ([UI overlay](ui-overlay.md#status)), built with the
+default endpoint `https://official.example`: the default file has
+`ConnectToOfficialServer = true` and an empty `ServerEndpoint` under their
+comments, before `AutoConnect`, and no trace of the default URL; a file of
+an earlier build with only `ServerEndpoint = http://127.0.0.1:3000` loads
+without a warning as the official server with that URL kept;
+`ConnectToOfficialServer = false` connects to `ServerEndpoint`, an empty one
+loads without a warning as no endpoint, and `ftp://bad` warns and keeps it
+empty; applying the switch off and a URL adds both lines under a
+hand-written comment, and switching on keeps the URL.
 `[UI] CloseChatOnSend` is not yet built on Windows or run in game. On Linux
 the same two files ran with the settings window's harness: the default file
 has `CloseChatOnSend = true` under its comment, between `StatusPanel` and
@@ -102,7 +122,9 @@ digits (`FormatColor`, upper case); reading also takes lower case and a leading
 `#` (`ParseColor`). It takes swatches, the colors the settings window offers.
 `Layout` is a measure of a window that the player sets by dragging that window:
 an unsigned value within both limits, read and saved as any other, which the
-settings window does not show.
+settings window does not show. `ShowNextIf` makes the next setting depend on a
+value described before it; reading and saving ignore it, and the settings
+window leaves the row out while the value is false.
 
 ## Settings
 
@@ -116,8 +138,43 @@ settings window does not show.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `ServerEndpoint` | Server URL starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; replaces `playerhub-server.txt`, which is no longer read | the public server |
+| `ConnectToOfficialServer` | Whether the client connects to the [official server](#official-and-custom-server); when `false`, it connects to `ServerEndpoint` | `true` |
+| `ServerEndpoint` | The custom server's URL, starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; empty is valid and means none. Read only while `ConnectToOfficialServer` is `false`, and kept while it is `true`. Replaces `playerhub-server.txt`, which is no longer read | empty |
 | `AutoConnect` | Whether each game connects when it loads, which it does only with a `DisplayName` set; otherwise the settings window's Connect does | `true` |
+
+#### Official and custom server
+
+Goal: players connect to the official server bundled with the DLL without
+seeing or entering its URL, and only those who switch
+`ConnectToOfficialServer` off enter one. Non-goal: keeping the official URL
+secret; it is a plain string in the DLL and the key of its lines in
+`playerhub.session` and `playerhub.players` ([Network](network.md#client)).
+
+`Config::GetServerEndpoint` is the URL the client connects to: the build's
+default while `ConnectToOfficialServer` is `true`, `ServerEndpoint` while it
+is `false`, and empty when that is empty, in which case nothing connects
+([Network](network.md#connection)). `Config::GetDefaultServerEndpoint` is the
+build's default. The default is never written to the file, so a later build
+with another official server moves every player who did not switch, and the
+settings window never draws it ([UI overlay](ui-overlay.md#settings-window)).
+The log names it `the official server` instead of its URL
+([Network](network.md#client)).
+
+The repository does not name the public server. The `server_endpoint` xmake
+option holds it, set with `xmake f --server_endpoint=https://...` or in an
+IDE build profile's configure arguments, and kept in xmake's configuration
+cache. The playerhub target's `on_config` passes it as the
+`PLAYERHUB_DEFAULT_SERVER_ENDPOINT` string define, which `SettingsSchema.cpp`
+holds as the default endpoint. It is an option rather than an environment
+variable because an IDE's run configuration does not reach the build, and the
+configured value is visible in `xmake f --menu`. Release builds set it to the
+public server. Its default is `http://127.0.0.1:3000`, the local server's
+default address, so a build without it reaches a server run from `server/` on
+the same machine. A value that does not start with `http://` or `https://`, or
+that holds whitespace, a quote, or a backslash, fails the configuration, since
+the define is a C string literal and the client could not connect to it. xmake
+tracks each file's flags, so a changed value recompiles the plugin. The value
+is still a plain string in the DLL.
 
 ### `[DefaultOutfit]`
 
@@ -199,8 +256,9 @@ revision before the snapshot never misses a change.
 | `DefaultOutfit` | main loop | `Refresh`, first in `SyncCoordinator::OnFrame`, resolving every item again when `[DefaultOutfit]` differs |
 | `EquipmentSync` | main loop | the next capture selecting from the new outfit and publishing a new revision |
 | `AppearanceSync` | main loop | the next capture taking the new default race and sex, which publish a new revision for a modded race |
-| `ConnectionMonitor` | main loop | reconnecting at once when the latest attempt went to another endpoint; reading `AutoConnect` and whether `DisplayName` is set when a game starts; ending the player's choice to connect when `DisplayName` is cleared |
-| `ServerClient` | transport, worker | reading the endpoint for each attempt, and `DisplayName` and `ViewRadius` for each hello |
+| `ConnectionMonitor` | main loop | reconnecting at once when the latest attempt went to another endpoint than `Config::GetServerEndpoint` gives; reading `AutoConnect` and whether `DisplayName` and an endpoint are set when a game starts; ending the player's choice to connect when `DisplayName` is cleared or the endpoint becomes empty |
+| `ServerClient` | transport, worker | reading `Config::GetServerEndpoint` for each attempt, and `DisplayName` and `ViewRadius` for each hello |
+| `ConnectionControls` | overlay | reading whether `Config::GetServerEndpoint` is empty each frame the General section draws |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
 | `StatusPanel`, item pickers | overlay | reading `StatusPanel` and `ItemPreview` each frame |
 | `ChatInput` | overlay | reading `CloseChatOnSend` on each Enter that sends or finds the field empty |
@@ -243,7 +301,9 @@ under it ([UI overlay](ui-overlay.md#themed-faces)).
 2. Invalid values, unknown keys, and configured forms that do not resolve or are
    not base-game items are logged and fall back to their defaults, or to no piece
    when the default is unusable too.
-3. `[Network] ServerEndpoint` sets the server URL and `[General] DisplayName`
+3. The default file connects to the official server without naming it;
+   `[Network] ConnectToOfficialServer = false` connects to `ServerEndpoint`
+   instead, and with an empty one nothing connects. `[General] DisplayName` sets
    the name peers see; the default file has an empty `DisplayName`, and the
    plugin stays disconnected until one is entered and Connect is pressed.
    `[Performance] SpawnsPerSecond` bounds spawns, so many players arriving at

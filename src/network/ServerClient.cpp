@@ -157,7 +157,7 @@ namespace Network
             if (vanished.size() > Multiplayer::kMaximumVanishedSessions)
             {
                 logs::warn("Vanished {} players on {}; the server accepts {}, so the rest are shown", vanished.size(),
-                    server, Multiplayer::kMaximumVanishedSessions);
+                    DescribeServer(server), Multiplayer::kMaximumVanishedSessions);
                 vanished.resize(Multiplayer::kMaximumVanishedSessions);
             }
             const auto hello
@@ -635,7 +635,7 @@ namespace Network
                 case ix::WebSocketMessageType::Error:
                     transportOpen.store(false, std::memory_order_release);
                     MarkDisconnected();
-                    logs::warn("Could not connect to {}: {} (http status {})", GetAttemptEndpoint(),
+                    logs::warn("Could not connect to {}: {} (http status {})", DescribeServer(GetAttemptEndpoint()),
                         a_message->errorInfo.reason, a_message->errorInfo.http_status);
                     break;
                 default:
@@ -663,7 +663,7 @@ namespace Network
 
         void OpenSocket()
         {
-            auto endpoint = Config::Get()->network.serverEndpoint;
+            std::string endpoint{ Config::GetServerEndpoint(Config::Get()->network) };
             {
                 const std::scoped_lock lock{ attemptLock };
                 attemptEndpoint = endpoint;
@@ -846,7 +846,16 @@ namespace Network
                 return welcomedServer;
             }
         }
-        return ToWebSocketUrl(Config::Get()->network.serverEndpoint);
+        const auto config = Config::Get();
+        const auto endpoint = Config::GetServerEndpoint(config->network);
+        return endpoint.empty() ? std::string{} : ToWebSocketUrl(std::string{ endpoint });
+    }
+
+    std::string_view DescribeServer(std::string_view a_server)
+    {
+        static const auto official = ToWebSocketUrl(std::string{ Config::GetDefaultServerEndpoint() });
+        return a_server == Config::GetDefaultServerEndpoint() || a_server == official ? "the official server"
+                                                                                      : a_server;
     }
 
     void EmitLatencyProbe(std::function<void()> a_onAcknowledged)
@@ -862,7 +871,7 @@ namespace Network
 
     void AbandonConnection()
     {
-        logs::warn("Abandoning the connection to {}; forgetting remote players", GetAttemptEndpoint());
+        logs::warn("Abandoning the connection to {}; forgetting remote players", DescribeServer(GetAttemptEndpoint()));
         MarkDisconnected();
     }
 
@@ -923,7 +932,8 @@ namespace Network
     bool IsEndpointOutdated()
     {
         const auto endpoint = GetAttemptEndpoint();
-        return !endpoint.empty() && endpoint != Config::Get()->network.serverEndpoint;
+        const auto config = Config::Get();
+        return !endpoint.empty() && endpoint != Config::GetServerEndpoint(config->network);
     }
 
     bool DidReconnectAttemptFail()

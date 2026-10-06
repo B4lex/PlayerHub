@@ -15,7 +15,7 @@ namespace Config
         using Multiplayer::FormReference;
         using KeyboardKey = RE::BSKeyboardDevice::Key;
 
-        constexpr std::string_view kDefaultServerEndpoint = "https://8fa21dsv.lmfao.pp.ua";
+        constexpr std::string_view kDefaultServerEndpoint = PLAYERHUB_DEFAULT_SERVER_ENDPOINT;
 
         // Creation Kit slot names.
         constexpr std::array<std::string_view, DefaultOutfitSettings::kArmorSlotCount> kArmorSlotNames{ "Head", "Body",
@@ -72,8 +72,9 @@ namespace Config
         // SimpleIni keeps a trailing comment in the value.
         bool IsValidServerEndpoint(std::string_view a_value)
         {
-            return (a_value.starts_with("http://") || a_value.starts_with("https://"))
-                && a_value.find_first_of(kWhitespace) == std::string_view::npos;
+            return a_value.empty()
+                || ((a_value.starts_with("http://") || a_value.starts_with("https://"))
+                    && a_value.find_first_of(kWhitespace) == std::string_view::npos);
         }
 
         bool IsValidDisplayName(std::string_view a_value)
@@ -91,8 +92,14 @@ namespace Config
         void DescribeNetwork(NetworkSettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("Network", "");
+            a_visitor.Bool("ConnectToOfficialServer", a_settings.officialServer,
+                "Connects to the official server. Switch off to connect to the server at\n"
+                "ServerEndpoint instead.");
+            a_visitor.ShowNextIf(!a_settings.officialServer);
             a_visitor.String("ServerEndpoint", a_settings.serverEndpoint,
-                "Server URL, starting with http:// or https://.", IsValidServerEndpoint);
+                "Custom server URL, starting with http:// or https://. Used while\n"
+                "ConnectToOfficialServer is off.",
+                IsValidServerEndpoint);
             a_visitor.Bool("AutoConnect", a_settings.autoConnect,
                 "");
         }
@@ -176,7 +183,6 @@ namespace Config
         PluginConfig MakeDefaultConfig()
         {
             PluginConfig config;
-            config.network.serverEndpoint = kDefaultServerEndpoint;
             config.ui.settingsKey = KeyboardKey::kF10;
 
             auto& outfit = config.defaultOutfit;
@@ -223,6 +229,16 @@ namespace Config
     {
         static const PluginConfig defaults = MakeDefaultConfig();
         return defaults;
+    }
+
+    std::string_view GetDefaultServerEndpoint()
+    {
+        return kDefaultServerEndpoint;
+    }
+
+    std::string_view GetServerEndpoint(const NetworkSettings& a_settings)
+    {
+        return a_settings.officialServer ? kDefaultServerEndpoint : std::string_view{ a_settings.serverEndpoint };
     }
 
     std::span<const BindableKey> GetBindableKeys()

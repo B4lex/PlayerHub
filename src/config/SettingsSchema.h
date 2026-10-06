@@ -20,6 +20,8 @@ namespace Config
 
         virtual void Section(std::string_view a_name, std::string_view a_comment) = 0;
         virtual void Comment(std::string_view a_comment) = 0;
+        // Applies to the next setting. Only the settings window hides one.
+        virtual void ShowNextIf(bool) {}
         virtual void Bool(std::string_view a_key, bool& a_value, std::string_view a_comment) = 0;
         virtual void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
             std::uint32_t a_maximum, std::string_view a_zeroName) = 0;

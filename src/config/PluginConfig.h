@@ -22,6 +22,7 @@ namespace Config
 
     struct NetworkSettings
     {
+        bool officialServer{ true };
         std::string serverEndpoint;
         bool autoConnect{ true };
 
@@ -110,4 +111,8 @@ namespace Config
     [[nodiscard]] std::uint64_t GetRevision();
 
     [[nodiscard]] bool Apply(PluginConfig a_config);
+
+    [[nodiscard]] std::string_view GetDefaultServerEndpoint();
+
+    [[nodiscard]] std::string_view GetServerEndpoint(const NetworkSettings& a_settings);
 }

@@ -15,7 +15,9 @@ go run ./cmd/server --listen 127.0.0.1:3100 --admin-listen 127.0.0.1:3101 --conf
 ```
 
 `--verbose` logs every rejected message and virtual-player detail at debug
-level. The plugin defaults to `http://127.0.0.1:3000` and connects to `/ws`.
+level. A plugin built without `xmake f --server_endpoint=...` takes
+`http://127.0.0.1:3000` as its official server and connects to `/ws`
+([Configuration](../specs/configuration.md#official-and-custom-server)).
 
 On `listen`:
 
@@ -177,11 +179,13 @@ Errors answer `{"detail": "..."}`. Player IDs are slots as decimal strings.
 
 ## Connecting from another computer
 
-On the remote player's machine, set the server's reachable URL in
-`playerhub.ini` next to `playerhub.dll`:
+On the remote player's machine, switch off `Connect To Official Server` in the
+settings window's Network section and enter the server's reachable URL, or set
+it in `playerhub.ini` next to `playerhub.dll`:
 
 ```ini
 [Network]
+ConnectToOfficialServer = false
 ServerEndpoint = http://192.168.1.20:3000
 ```
 

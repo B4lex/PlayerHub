@@ -105,6 +105,17 @@
   slot, one with a level over 65535, and one whose default race is not from a
   base game plugin; its `Inspect` for slot 7 encodes as the server's schema
   reads it. The queue in `ServerClient.cpp` was not compiled.
+- **Official and custom server:** not built on Windows or run in game.
+  `ConnectionMonitor.cpp` ran on Linux under the settings window's harness
+  with the real configuration and a stubbed transport
+  ([UI overlay](ui-overlay.md#status)): a game start connects to the official
+  server; switching `ConnectToOfficialServer` off with a URL and on again
+  reconnects to each at once; switching it off without a URL closes the connection, logs why,
+  and stays disconnected when a URL is then entered until Connect; a game
+  starting without an endpoint does not connect, and switching off then waits
+  for Connect. `ServerClient.cpp`, `SessionStore.cpp`, and `PlayerFilters.cpp`
+  passed a syntax check only, so `DescribeServer` and `GetServerAddress` did
+  not run.
 
 ## Scope
 
@@ -155,9 +166,11 @@ refused at the handshake ([Transport](#transport)).
   join. A bare reject of any `Origin` would refuse the plugin. The origin's
   host is not compared with `Host`, since behind a proxy the plugin names the
   public host and port.
-- `[Network] ServerEndpoint` keeps its `http://` or `https://` form; the client
-  maps it to `ws://` or `wss://` and appends `/ws` when the endpoint has no
-  path. TLS is terminated by a reverse proxy in front of the server.
+- The endpoint (`Config::GetServerEndpoint`: the official server, or
+  `[Network] ServerEndpoint` with `ConnectToOfficialServer` off,
+  [Configuration](configuration.md#official-and-custom-server)) keeps its
+  `http://` or `https://` form; the client maps it to `ws://` or `wss://` and
+  appends `/ws` when the endpoint has no path. TLS is terminated by a reverse proxy in front of the server.
 - The client's TLS is IXWebSocket 12 on mbedtls, pinned to 3.6 in `xmake.lua`,
   and verifies the server against the Windows certificate store. mbedtls 4
   returns `MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET` from `mbedtls_ssl_read`
@@ -637,6 +650,11 @@ appearance, so it answers for the others.
   so readers pay for a copy when a player joins or leaves and not per frame.
 - `Network::CopyNearbyPlayers` lists the peers with a context, which are the
   ones the client currently receives; chat orders its name list by it.
+- `Network::DescribeServer` gives `the official server` for the official
+  endpoint in either form, and any other URL as it is. Every log line that
+  names a server goes through it, so players can share a log without the
+  official URL: a failed or abandoned connection, vanishes over the limit,
+  saving a session, and muting or vanishing a player.
 - `Network::RequestInspection` sends `Inspect` while connected and reports
   whether it did. An `Inspection` without a slot, with a level above 65535,
   with an invalid race, or with a default race that is invalid or not from a
@@ -682,10 +700,11 @@ appearance, so it answers for the others.
   end the connection, and the hello reads the file, which the caller updates
   before publishing, so a change made meanwhile is in one or the other.
 - `Network::GetServerAddress` is the URL of the latest welcomed connection, or
-  of the configured endpoint before the first: the server whose session IDs
-  the roster and chat lines carry. `PlayerFilters` reads the file for it again
-  whenever the connection generation changes
-  ([UI overlay](ui-overlay.md#mute-and-vanish)).
+  of the configured endpoint before the first, or empty without one: the
+  server whose session IDs the roster and chat lines carry. `PlayerFilters`
+  reads the file for it again whenever the connection generation changes
+  ([UI overlay](ui-overlay.md#mute-and-vanish)), and changes nothing while it
+  is empty.
 
 ### Latest-wins publishers
 
@@ -698,8 +717,11 @@ the server's `PeerEnter` messages.
 ### Connection
 
 A connection is wanted only in a game, while the player's choice enables it,
-and once `[General] DisplayName` is set
-([Appearance and equipment](appearance-and-equipment.md#display-name)).
+once `[General] DisplayName` is set
+([Appearance and equipment](appearance-and-equipment.md#display-name)), and
+while `Config::GetServerEndpoint` is not empty, which it is only with
+`ConnectToOfficialServer` off and no `ServerEndpoint`
+([Configuration](configuration.md#official-and-custom-server)).
 `ConnectionMonitor` owns that decision; nothing else opens or closes the
 client.
 
@@ -709,13 +731,14 @@ client.
   ends when the main menu opens (`GameSession`). Loading screens keep the game
   and its connection.
 - At a game start the choice becomes `[Network] AutoConnect` (default `true`)
-  if a display name is set, and disabled otherwise. The settings window's
+  if a display name and an endpoint are set, and disabled otherwise. The settings window's
   Connect, Cancel, and Disconnect change it with
   `Network::SetConnectionEnabled` until the game ends.
 - Applying a display name never opens a connection; only the choice does. The
   monitor reads the display name when the configuration revision changes, and
   one that becomes empty disables the choice, so entering one again waits for
-  Connect. The server requires one too, in the hello.
+  Connect. The server requires one too, in the hello. An endpoint that
+  becomes empty does the same, and also closes the connection.
 - A connection keeps the display name its hello carried. The settings window
   locks the field while a connection is wanted or open
   ([UI overlay](ui-overlay.md#connection-controls)), so the configured display
@@ -730,7 +753,8 @@ client.
   once welcomed, `kConnecting` while one is wanted but not welcomed,
   `kDisconnecting` while none is wanted but the socket is open, and
   `kDisconnected` otherwise.
-- An applied endpoint that differs from the latest attempt's abandons a live
+- An endpoint that differs from the latest attempt's, after editing
+  `ServerEndpoint` or switching `ConnectToOfficialServer`, abandons a live
   connection and reconnects at once, with the attempt count reset.
 - A close with status 4001, 4004, 4005, 4006, 4007, or 4008 is a refusal:
   retrying at once cannot help, so the monitor disables the player's choice and closes the client,
@@ -847,6 +871,10 @@ window, and are empty after a long gap. The status panel shows them.
   before the rule keep their names until they expire or a hello renames them.
 - The token is sent in the hello as it is, so an `http://` endpoint exposes it
   to the network; `https://` endpoints carry it under TLS.
+- The official URL is kept out of the settings window and the log only: it
+  is a plain string in the DLL, the key of its lines in `playerhub.session`
+  and `playerhub.players`, and IXWebSocket's reason for a failed connection
+  is logged as the library gives it, which may name the host.
 - Admin exclusions and hiding are still keyed by slot
   ([Interest and delivery](interest-and-delivery.md#admin-controls)); only a
   player's own vanish follows the session.

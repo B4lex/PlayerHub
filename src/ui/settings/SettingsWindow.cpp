@@ -57,6 +57,8 @@ namespace UI
         constexpr std::string_view kConnectionSection = "General";
         constexpr std::string_view kDisplayNameKey = "DisplayName";
         constexpr const char* kDisplayNameHint = "Enter a display name";
+        constexpr std::string_view kServerEndpointKey = "ServerEndpoint";
+        constexpr const char* kServerEndpointHint = "https://host:port";
         constexpr std::string_view kStagedSection = "DefaultOutfit";
         constexpr std::pair<std::string_view, std::string_view> kSectionTitles[]{ { "UI", "Interface" } };
 
@@ -254,6 +256,7 @@ namespace UI
             void Section(std::string_view a_name, std::string_view a_comment) override
             {
                 EndSection();
+                hideNext = false;
                 sections.push_back(a_name);
                 if (openSection.empty())
                 {
@@ -290,6 +293,8 @@ namespace UI
                     ImGuiChildFlags_AlwaysUseWindowPadding);
                 ImGui::PopStyleVar();
             }
+
+            void ShowNextIf(bool a_shown) override { hideNext = !a_shown; }
 
             void Comment(std::string_view a_comment) override
             {
@@ -380,7 +385,7 @@ namespace UI
                     return;
                 }
                 auto& field = GetField([&a_value] { return a_value; });
-                if (DrawTextField(field, nullptr))
+                if (DrawTextField(field, a_key == kServerEndpointKey ? kServerEndpointHint : nullptr))
                 {
                     field.valid = a_isValid(field.text);
                 }
@@ -598,8 +603,18 @@ namespace UI
 
             bool BeginRow(std::string_view a_key, std::string_view a_comment)
             {
+                const bool hidden = std::exchange(hideNext, false);
                 if (!sectionOpen)
                 {
+                    return false;
+                }
+                if (hidden)
+                {
+                    // Forgets text in red, so a hidden field neither reports itself nor
+                    // comes back with it.
+                    ImGui::PushID(a_key.data(), a_key.data() + a_key.size());
+                    fields.erase(ImGui::GetID("##value"));
+                    ImGui::PopID();
                     return false;
                 }
                 sectionEmpty = false;
@@ -698,6 +713,7 @@ namespace UI
             bool stagedSectionOpen{ false };
             bool editing{ false };
             bool focusConnectionField{ false };
+            bool hideNext{ false };
         };
 
         bool LiveSectionsMatch(const Config::PluginConfig& a_left, const Config::PluginConfig& a_right)

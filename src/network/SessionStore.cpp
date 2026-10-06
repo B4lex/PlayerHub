@@ -1,5 +1,6 @@
 #include "network/SessionStore.h"
 #include "config/PluginConfig.h"
+#include "network/ServerClient.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -182,10 +183,10 @@ namespace Network::SessionStore
             logs::error(
                 "Session store could not save the session with {}; it lasts until the game exits, and "
                 "its display name stays taken on the server until the session expires",
-                a_server);
+                DescribeServer(a_server));
             return false;
         }
-        logs::info("Session store saved the session with {}", a_server);
+        logs::info("Session store saved the session with {}", DescribeServer(a_server));
         return true;
     }
 }

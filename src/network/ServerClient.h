@@ -78,6 +78,8 @@ namespace Network
 
     [[nodiscard]] std::string GetServerAddress();
 
+    [[nodiscard]] std::string_view DescribeServer(std::string_view a_server);
+
     void EmitLatencyProbe(std::function<void()> a_onAcknowledged);
 
     void AbandonConnection();

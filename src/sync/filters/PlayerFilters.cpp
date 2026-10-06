@@ -65,6 +65,10 @@ namespace PlayerFilters
             {
                 const std::scoped_lock lock{ s_lock };
                 RefreshLocked();
+                if (s_server.empty())
+                {
+                    return Change::kNone;
+                }
                 auto entry = std::ranges::lower_bound(s_entries, a_player.session, {}, &Entry::session);
                 const bool found = entry != s_entries.end() && entry->session == a_player.session;
                 if ((found ? (*entry).*a_flag : false) == a_value)
@@ -122,7 +126,7 @@ namespace PlayerFilters
             return;
         }
         logs::info("Player filters: {} session {} on {}", a_muted ? "muted" : "unmuted",
-            static_cast<unsigned long long>(a_player.session), server);
+            static_cast<unsigned long long>(a_player.session), Network::DescribeServer(server));
     }
 
     void SetVanished(const Multiplayer::RosterEntry& a_player, bool a_vanished)
@@ -146,7 +150,7 @@ namespace PlayerFilters
         // After the store, which a hello not sent yet reads instead.
         Network::PublishVanish(server, a_player.session, a_vanished);
         logs::info("Player filters: {} session {} on {}", a_vanished ? "vanished" : "brought back",
-            static_cast<unsigned long long>(a_player.session), server);
+            static_cast<unsigned long long>(a_player.session), Network::DescribeServer(server));
     }
 
     std::uint64_t GetRevision()

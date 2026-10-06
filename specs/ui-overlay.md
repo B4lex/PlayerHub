@@ -286,6 +286,21 @@
   (`ChatPlayers.cpp`, `ChatPlayerManager.cpp`, `ChatWindow.cpp`) passed a
   syntax check only. `[UI] AccentColor` in the file is under
   [Configuration](configuration.md#status).
+- **Custom server switch:** not built on Windows or run in game. On Linux,
+  `SettingsWindow.cpp`, `ConnectionControls.cpp`, `Controls.cpp`,
+  `Theme.cpp`, and `MenuFrame.cpp` ran with the real `PluginConfig.cpp`,
+  `SettingsSchema.cpp`, and `ConnectionMonitor.cpp` in a headless Dear ImGui
+  1.92.9 context with a stubbed transport, fonts, and item picker and
+  simulated mouse and keyboard input, checking the drawn text and items, not
+  images: Network shows `Connect To Official Server` and `Auto Connect` and
+  no endpoint row; switching it off shows `Server Endpoint` without the
+  default URL; `ftp://x`
+  turns the footer line on, and switching on hides the row and the footer
+  line, which stay away when switching off again; with the switch off and the
+  field empty, General's `Connect` is disabled with the sentence under it; a
+  typed URL applies on Enter and saves both lines, `Connect` is enabled and
+  the sentence gone; switching on and off again goes back to the official
+  server and to the URL.
 - **Mute and vanish:** not built on Windows or run in game; the server side is
   under [Network](network.md#status). On Linux, in the chat's headless Dear
   ImGui 1.92.9 harness with a stubbed transport and a deploy folder,
@@ -1316,6 +1331,14 @@ peers keep seeing the player.
   connection button instead of as a row
   ([Connection controls](#connection-controls)), and a `Layout` setting, as
   the chat's [size](#size) is, is not drawn at all.
+- A row the schema shows only while a value is true (`ShowNextIf`,
+  [Configuration](configuration.md#schema)) is left out while it is false, and
+  its text in red is dropped, so it neither holds the footer line nor comes
+  back red. Network so shows `Server Endpoint` only while
+  `Connect To Official Server` is off
+  ([Official and custom server](configuration.md#official-and-custom-server)),
+  as a field reading `https://host:port` while empty. The official server's
+  URL is never drawn.
 - A setting's comment is not drawn; it is the tooltip of the row's label, and
   of a text field while its value is invalid.
 - A number's step buttons move it by a hundredth of its maximum, and typing
@@ -1422,6 +1445,7 @@ has not reached, and keeps its width and identity when the label changes:
 | Disconnecting | `Disconnecting...`, disabled | plain | — |
 | Disconnected, the field holds a display name | `Connect` | accent | wants a connection |
 | Disconnected, the field is empty or its text is invalid | `Connect`, disabled | plain | — |
+| Disconnected, `Connect To Official Server` off without a URL | `Connect`, disabled | plain | — |
 
 `Connect` goes by the field's text, not by the applied display name: pressing
 it ends the field's editing, which applies the text before the press lands,
@@ -1435,6 +1459,7 @@ them:
 | --- | --- |
 | The field's text is not a display name ([Network](network.md#sessions)) | `Invalid display name.`, red. The page's footer line does not count this field |
 | Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`) | the sentence of `Network::GetConnectionRefusal`, red, until `Connect` is pressed |
+| Disconnected, `Connect To Official Server` off without a URL | `Enter a server URL in Network, or switch Connect To Official Server on, to connect.`, amber |
 | Otherwise | the setting's comment, `Shown to other players above your character and in chat.`, muted |
 
 The sidebar's summary (`ConnectionControls::DrawSummary`) is an indicator and
@@ -1457,8 +1482,11 @@ is applied, which clears the sentence. The refusals are in
 
 Not wanting a connection closes it and removes every remote player until
 Connect. The button acts on the live settings, which a display name or endpoint
-reaches when its editing ends, and applying an endpoint while connected moves
-the connection to it ([Network](network.md#connection)).
+reaches when its editing ends. Applying an endpoint or switching
+`Connect To Official Server` while connected moves the connection to the
+server they now name, and switching it off without a URL closes the
+connection and waits for Connect
+([Network](network.md#connection)).
 
 ## Item picker
 
@@ -1584,9 +1612,10 @@ or zoomed.
 6. General, Network, Performance, and Interface have nothing below their
    settings. Switching `Status Panel` off hides the panel at once; typing a
    display name changes nothing until Enter or a click elsewhere, which saves it
-   without connecting; an endpoint without `http://` turns red and the
-   connection stays. `View Radius` reads `Auto` and `+` sets 1000. Each change
-   is in `playerhub.ini` without pressing anything. Default Outfit shows
+   without connecting. Network shows `Connect To Official Server` on and no
+   URL.
+   `View Radius` reads `Auto` and `+` sets 1000. Each change is in
+   `playerhub.ini` without pressing anything. Default Outfit shows
    Defaults, Revert, and Apply; a picked item shows a reset icon and reaches
    peers only on Apply, and Defaults leaves the display name and endpoint as
    they are.
@@ -1732,6 +1761,16 @@ or zoomed.
     changing height. A player using a race the local game lacks shows the
     race its character has locally. With the accent changed, the name
     follows it.
+23. A new install connects to the official server, and its URL appears
+    nowhere in the settings window or `playerhub.ini`. Switching
+    `Connect To Official Server` off while connected disconnects, a
+    `Server Endpoint` field appears, and General's `Connect`
+    is disabled with a sentence saying why. A URL typed into
+    `Server Endpoint` applies on Enter, and `Connect` joins that server; an
+    endpoint without `http://` turns red and the connection stays.
+    Switching `Connect To Official Server` on while connected moves the
+    connection back to the official server at once, and off again moves it
+    to the kept URL.
 
 ## Known limitations
 

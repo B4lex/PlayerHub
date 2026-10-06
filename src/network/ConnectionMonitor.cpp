@@ -42,6 +42,7 @@ namespace Network
         std::atomic_uint64_t outstandingProbeID{ 0 };
         std::atomic_bool connectionEnabled{ false };
         std::atomic_bool displayNameSet{ false };
+        std::atomic_bool endpointSet{ true };
 
         std::mutex refusalLock;
         std::optional<Refusal> refusal;
@@ -55,7 +56,7 @@ namespace Network
         std::uint64_t probeConnectionGeneration = 0;
         float secondsSinceProbe = kProbeIntervalSeconds;
         std::uint64_t observedConfigRevision = 0;
-        std::optional<std::uint64_t> displayNameConfigRevision;
+        std::optional<std::uint64_t> requirementsConfigRevision;
         bool endpointChangePending = false;
         bool observedInGame = false;
 
@@ -186,23 +187,33 @@ namespace Network
             return true;
         }
 
-        void FollowDisplayName()
+        void FollowRequirements()
         {
             const auto revision = Config::GetRevision();
-            if (displayNameConfigRevision == revision)
+            if (requirementsConfigRevision == revision)
             {
                 return;
             }
-            displayNameConfigRevision = revision;
-            const bool set = !Config::Get()->general.displayName.empty();
-            if (displayNameSet.exchange(set, std::memory_order_acq_rel) != set)
+            requirementsConfigRevision = revision;
+            const auto config = Config::Get();
+            const bool nameSet = !config->general.displayName.empty();
+            const bool hasEndpoint = !Config::GetServerEndpoint(config->network).empty();
+            bool lost = false;
+            if (displayNameSet.exchange(nameSet, std::memory_order_acq_rel) != nameSet)
             {
-                logs::info("Display name {}", set ? "set" : "cleared; not connecting without one");
-                if (!set)
-                {
-                    // Applying one again must not connect by itself.
-                    connectionEnabled.store(false, std::memory_order_release);
-                }
+                logs::info("Display name {}", nameSet ? "set" : "cleared; not connecting without one");
+                lost = !nameSet;
+            }
+            if (endpointSet.exchange(hasEndpoint, std::memory_order_acq_rel) != hasEndpoint)
+            {
+                logs::info("Server endpoint {}",
+                    hasEndpoint ? "available" : "missing: the custom server has no URL; not connecting without one");
+                lost = lost || !hasEndpoint;
+            }
+            if (lost)
+            {
+                // Applying one again must not connect by itself.
+                connectionEnabled.store(false, std::memory_order_release);
             }
         }
 
@@ -218,16 +229,22 @@ namespace Network
                 return;
             }
             const bool autoConnect = Config::Get()->network.autoConnect;
-            const bool connect = autoConnect && displayNameSet.load(std::memory_order_acquire);
+            const bool nameSet = displayNameSet.load(std::memory_order_acquire);
+            const bool hasEndpoint = endpointSet.load(std::memory_order_acquire);
+            const bool connect = autoConnect && nameSet && hasEndpoint;
             connectionEnabled.store(connect, std::memory_order_release);
             const auto* next = "waiting for the player to connect";
             if (connect)
             {
                 next = "connecting automatically";
             }
-            else if (autoConnect)
+            else if (autoConnect && !nameSet)
             {
                 next = "waiting for the player to enter a display name and connect";
+            }
+            else if (autoConnect)
+            {
+                next = "waiting for the player to enter a custom server endpoint and connect";
             }
             logs::info("Game started; {}", next);
         }
@@ -235,7 +252,7 @@ namespace Network
         bool IsConnectionWanted()
         {
             return GameSession::IsInGame() && connectionEnabled.load(std::memory_order_acquire)
-                && displayNameSet.load(std::memory_order_acquire);
+                && displayNameSet.load(std::memory_order_acquire) && endpointSet.load(std::memory_order_acquire);
         }
 
         void Close(std::string_view a_reason)
@@ -312,7 +329,7 @@ namespace Network
         PROFILE_FUNCTION();
         const auto deltaSeconds = std::clamp(a_deltaSeconds, 0.0F, kMaximumFrameTime);
         const bool inGame = GameSession::IsInGame();
-        FollowDisplayName();
+        FollowRequirements();
         FollowGameStart(inGame);
         if (!inGame)
         {
@@ -322,6 +339,11 @@ namespace Network
         if (!displayNameSet.load(std::memory_order_acquire))
         {
             Close("no display name is set");
+            return;
+        }
+        if (!endpointSet.load(std::memory_order_acquire))
+        {
+            Close("no custom server endpoint is set");
             return;
         }
         if (!connectionEnabled.load(std::memory_order_acquire))
