@@ -621,10 +621,6 @@ namespace Network
                         refusal = std::move(refused);
                     }
                     MarkDisconnected();
-                    if (auto* console = RE::ConsoleLog::GetSingleton())
-                    {
-                        console->Print("MP: Connection closed.");
-                    }
                     logs::info("WebSocket closed: code={} reason={} remote={}; forgetting remote players", close.code,
                         close.reason, close.remote);
                     break;

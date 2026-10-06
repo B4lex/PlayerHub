@@ -304,11 +304,6 @@ namespace ActorLifecycle
             Multiplayer::GetMovementStateName(a_remote.checkpoint.animationState.movementState),
             a_remote.checkpoint.animationState.jumping ? "jumping" : "grounded", a_remote.furnitureRefID,
             allowanceWait);
-
-        if (auto* console = RE::ConsoleLog::GetSingleton())
-        {
-            console->Print("PlayerHub remote player actor reference allocated; initializing.");
-        }
     }
 
     void SpawnMountWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)

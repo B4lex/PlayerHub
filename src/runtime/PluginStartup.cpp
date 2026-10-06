@@ -46,7 +46,6 @@ namespace PluginStartup
             EquipmentSync::RegisterEventSinks();
             PresenceSync::RegisterEventSinks();
             RemoteActorActivation::RegisterEventSink();
-            RE::ConsoleLog::GetSingleton()->Print("Skyrim Multiplayer initialized.");
             Network::Initialize();
         }
     }

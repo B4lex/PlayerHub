@@ -80,10 +80,6 @@ namespace SyncCoordinator
                 "connectionGeneration={}",
                 a_peers.size(), a_changes.connected, static_cast<unsigned long long>(a_changes.connectionGeneration));
             a_peers.clear();
-            if (auto* console = RE::ConsoleLog::GetSingleton())
-            {
-                console->Print("MP: Disconnected from the server; removed remote players.");
-            }
         }
 
         void ForgetWorldState(PeerState& a_peer)
