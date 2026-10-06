@@ -70,12 +70,10 @@ func TestDisplayNamesAreUniqueWithoutCase(t *testing.T) {
 	if _, _, err := s.Authenticate(seranaToken, "lydia", start, nil); !errors.Is(err, ErrDisplayNameTaken) {
 		t.Fatalf("a resumed session took the name: %v", err)
 	}
-	// The refused rename left the session as it was.
 	if session, _, err := s.Authenticate(seranaToken, "Serana", start, nil); err != nil || session.DisplayName != "Serana" {
 		t.Fatalf("after a refused rename: %+v %v", session, err)
 	}
 
-	// Its own name in another spelling is a rename, not a conflict.
 	respelled, _, err := s.Authenticate(token, "LYDIA", start, nil)
 	if err != nil || respelled.ID != lydia.ID || respelled.DisplayName != "LYDIA" {
 		t.Fatalf("respelling: %+v %v", respelled, err)
@@ -89,7 +87,6 @@ func TestResumingUnderAnotherDisplayNameRenames(t *testing.T) {
 	if err != nil || issued != nil || session != (Session{lydia.ID, "Jordis"}) {
 		t.Fatalf("after rename: %+v %v %v", session, issued, err)
 	}
-	// The old name is free at once.
 	issue(t, s, "Lydia", start)
 }
 
@@ -97,7 +94,6 @@ func TestSessionsExpireAfterTheirLifetimeUnused(t *testing.T) {
 	s := open(t, "")
 	lydia, token := issue(t, s, "Lydia", start)
 
-	// Each use within the lifetime extends it.
 	now := start
 	for range 3 {
 		now = now.Add(month - time.Hour)
@@ -106,7 +102,6 @@ func TestSessionsExpireAfterTheirLifetimeUnused(t *testing.T) {
 		}
 	}
 
-	// Being connected counts as use.
 	now = now.Add(month - time.Hour)
 	if err := s.Touch([]uint64{lydia.ID}, now); err != nil {
 		t.Fatal(err)
@@ -116,7 +111,6 @@ func TestSessionsExpireAfterTheirLifetimeUnused(t *testing.T) {
 		t.Fatalf("resume after a touch: %+v %v", session, err)
 	}
 
-	// Past the lifetime the token is worth nothing and the name is free.
 	now = now.Add(month + time.Hour)
 	serana, issued, err := s.Authenticate(nil, "Lydia", now, nil)
 	if err != nil || issued == nil || serana.ID == lydia.ID {
@@ -159,7 +153,6 @@ func TestSessionsSurviveARestart(t *testing.T) {
 	if err != nil || session != lydia || issued != nil {
 		t.Fatalf("after reopening: %+v %v %v", session, issued, err)
 	}
-	// IDs are not reused, so a later session cannot be taken for an earlier one.
 	if _, err := second.Purge(start.Add(2 * month)); err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +199,6 @@ PRAGMA user_version = 1;
 	if _, _, err := s.Authenticate(nil, "LYDIA", start.Add(time.Hour), nil); !errors.Is(err, ErrDisplayNameTaken) {
 		t.Fatalf("the upgraded session's display name was given away: %v", err)
 	}
-	// Opening it again finds nothing left to upgrade.
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +216,6 @@ func TestAbandonFreesTheDisplayNameOfASessionNeverResumed(t *testing.T) {
 		t.Fatalf("after abandon: %+v %v %v", again, issued, err)
 	}
 
-	// A token that came back is held by its client, in the same second too.
 	if _, _, err := s.Authenticate(issued, "Lydia", start, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -250,6 +241,5 @@ func TestMayIssueIsAskedOnlyForANewSession(t *testing.T) {
 	if _, _, err := s.Authenticate(nil, "Serana", start, refuse); !errors.Is(err, ErrIssueRefused) || asked != 1 {
 		t.Fatalf("new: %v, asked %d", err, asked)
 	}
-	// The refused session took nothing.
 	issue(t, s, "Serana", start)
 }

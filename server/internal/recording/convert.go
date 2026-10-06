@@ -9,10 +9,6 @@ import (
 	"skyrim-mp/server/internal/wire/pb"
 )
 
-// ConvertV2 converts a version 2 recording, whose lines carry the Socket.IO
-// JSON payloads, to version 3. A checkpoint splits into a Context, written
-// when its space, graph epoch, or furniture changes and after every enter,
-// and a quantized Checkpoint.
 func ConvertV2(data []byte) ([]byte, error) {
 	lines := splitLines(data)
 	if len(lines) == 0 {

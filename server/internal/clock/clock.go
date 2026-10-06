@@ -1,4 +1,3 @@
-// Package clock lets hub logic run against a fake clock in tests.
 package clock
 
 import (
@@ -16,7 +15,6 @@ func (Real) Now() time.Time {
 	return time.Now()
 }
 
-// Fake is a manually advanced clock.
 type Fake struct {
 	mu  sync.Mutex
 	now time.Time

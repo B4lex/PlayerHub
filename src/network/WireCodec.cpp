@@ -13,8 +13,7 @@ namespace Network::Wire
 {
     namespace
     {
-        // Encodes one ClientMessage whose oneof member is a_fields/a_value. The
-        // envelope is written by hand so the large generated union is never built.
+        // The generated ClientMessage union is large, so the envelope is written by hand.
         std::string EncodeClientMessage(pb_size_t a_tag, const pb_msgdesc_t* a_fields, const void* a_value)
         {
             pb_ostream_t sizing = PB_OSTREAM_SIZING;
@@ -49,7 +48,6 @@ namespace Network::Wire
             return CopyString(a_result.plugin, a_reference.plugin);
         }
 
-        // An empty reference leaves has_* false.
         bool WriteOptionalFormReference(
             const Multiplayer::FormReference& a_reference, bool& a_has, skyrimmp_v1_FormRef& a_result)
         {
@@ -88,8 +86,6 @@ namespace Network::Wire
             a_result.has_form = true;
             return WriteFormReference(a_armor.form, a_result.form);
         }
-
-        // -- decoding ---------------------------------------------------------
 
         bool ReadFormReference(const skyrimmp_v1_FormRef& a_reference, Multiplayer::FormReference& a_result)
         {
@@ -168,7 +164,6 @@ namespace Network::Wire
                     return std::unexpected("action");
             }
             result.attack.power = a_action.power;
-            // Only a power attack carries a direction, and it always does.
             const auto direction = static_cast<int>(a_action.direction);
             if (a_action.power != (direction != skyrimmp_v1_PowerDirection_POWER_DIRECTION_NONE)
                 || direction > skyrimmp_v1_PowerDirection_POWER_DIRECTION_RIGHT || direction < 0)
@@ -752,9 +747,7 @@ namespace Network::Wire
     {
         const auto* bytes = reinterpret_cast<const pb_byte_t*>(a_data.data());
 
-        // Batches are the hot path and decoded entry by entry, and so is the
-        // roster; the generated decoder would need a callback set per oneof
-        // member.
+        // The generated decoder would need a callback set per oneof member.
         {
             pb_istream_t stream = pb_istream_from_buffer(bytes, a_data.size());
             pb_wire_type_t wireType;

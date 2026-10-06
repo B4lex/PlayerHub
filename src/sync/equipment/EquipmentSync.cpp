@@ -25,8 +25,6 @@ namespace EquipmentSync
         constexpr float kCapturePollInterval = 1.0F;
         constexpr float kMinimumPublishInterval = 0.25F;
         constexpr float kReconcileCheckInterval = 0.25F;
-        // A matched actor re-checks what is visible every reconcile interval, and
-        // its whole inventory, whose leftovers are not, at this slower interval.
         constexpr float kMatchedInventoryCheckInterval = 5.0F;
         constexpr float kMaximumHandDeferral = 2.0F;
         constexpr float kMaximumWeaponDrawWait = 1.0F;
@@ -35,8 +33,6 @@ namespace EquipmentSync
         constexpr RE::FormID kPlayerReferenceFormID = 0x00000014;
         constexpr RE::FormID kRightHandEquipSlotFormID = 0x00013F42;
         constexpr RE::FormID kLeftHandEquipSlotFormID = 0x00013F43;
-        // Enough arrows for the quiver to look filled. Remote bow shots never
-        // consume them.
         constexpr std::int32_t kSynchronizedAmmoCount = 20;
 
         using Multiplayer::EquipmentArmor;
@@ -44,9 +40,6 @@ namespace EquipmentSync
         using Multiplayer::EquipmentHandKind;
         using EquipmentData = Multiplayer::PlayerEquipment;
 
-        // Healing Hands: a hand holding any spell shows this concentration spell,
-        // whose hand effect and casting animation stand in for every spell. Remote
-        // actors never release it.
         const Multiplayer::FormReference kPlaceholderSpell{ .plugin = "Skyrim.esm", .localFormID = 0x04D3F2 };
 
         std::atomic_bool localEquipmentDirty{ true };
@@ -63,8 +56,7 @@ namespace EquipmentSync
             RE::BSEventNotifyControl ProcessEvent(
                 const RE::TESEquipEvent* a_event, RE::BSTEventSource<RE::TESEquipEvent>*) override
             {
-                // The event may fire off the main-loop thread and before the change is
-                // complete. Only mark it; the main-loop pass captures after it settles.
+                // The event may fire off the main-loop thread and before the change is complete.
                 if (a_event && a_event->actor && a_event->actor->GetFormID() == kPlayerReferenceFormID)
                 {
                     localEquipmentDirty.store(true, std::memory_order_release);
@@ -79,7 +71,6 @@ namespace EquipmentSync
         }
 
         // Enchanted variants point at their unenchanted item through a template.
-        // Peers only see that base item.
         template <class T>
         T* GetTemplateRoot(T* a_form, T* T::* a_template)
         {
@@ -105,8 +96,7 @@ namespace EquipmentSync
             if (auto* weapon = a_form->As<RE::TESObjectWEAP>())
             {
                 const auto type = weapon->GetWeaponType();
-                // Bare fists are an empty hand. A two-handed weapon is reported by the
-                // right hand only, even if the engine also returns it for the left.
+                // The engine may also return a two-handed weapon for the left hand.
                 if (!IsSynchronizedWeaponType(type)
                     || (a_leftHand && Multiplayer::IsTwoHandedWeaponType(static_cast<std::uint8_t>(type))))
                 {
@@ -126,14 +116,12 @@ namespace EquipmentSync
 
             if (a_form->Is(RE::FormType::Spell) || a_form->Is(RE::FormType::Scroll))
             {
-                // Peers show a placeholder spell, so which spell it is does not matter.
                 return EquipmentHand{ .kind = EquipmentHandKind::kSpell };
             }
 
             auto* light = a_form->As<RE::TESObjectLIGH>();
             if (!light || !a_leftHand || !light->CanBeCarried())
             {
-                // Anything else is sent as an empty hand.
                 return std::nullopt;
             }
             const auto reference = FormLookup::MakeFormReference(light);
@@ -163,7 +151,7 @@ namespace EquipmentSync
 
         std::optional<EquipmentData> CaptureLocalEquipment(RE::PlayerCharacter& a_player, std::uint32_t& a_skipped)
         {
-            // Transformations unequip everything. Keep the last playable equipment.
+            // Transformations unequip everything.
             if (!IsPlayableRace(a_player.GetRace()))
             {
                 return std::nullopt;
@@ -232,9 +220,6 @@ namespace EquipmentSync
             std::string_view dropReason;
         };
 
-        // The single receive policy: resolve an entry to a local form of the
-        // expected type, or return why it is unresolved. Any plugin the receiver
-        // has loaded resolves. An unresolved entry gets the source's default outfit.
         Resolution<RE::TESObjectARMO> ResolveArmor(const EquipmentArmor& a_entry)
         {
             auto* form = FormLookup::ResolveForm(a_entry.form);
@@ -377,8 +362,6 @@ namespace EquipmentSync
             a_remote.rightHand = {};
             a_remote.leftHand = {};
             a_remote.ammo = nullptr;
-            // A newer revision does not make a swap that is already waiting less
-            // overdue. Fast consecutive changes must not extend the deferral forever.
             const float handDeferralElapsed = a_remote.handDeferralElapsed;
             ResetReconciliation(a_remote);
             a_remote.handDeferralElapsed = handDeferralElapsed;
@@ -498,8 +481,6 @@ namespace EquipmentSync
             return a_equippedLeft == a_remote.leftHand.object;
         }
 
-        // Whether the hands, ammo, and worn armor still match, read from the worn
-        // entries without the inventory map Actor::GetInventory builds.
         bool IsPresentationMatched(RE::Actor& a_actor, const RemoteState& a_remote)
         {
             if (GetEquippedHandObject(a_actor, false) != a_remote.rightHand.object
@@ -644,7 +625,6 @@ namespace EquipmentSync
         if (const auto generation = Network::GetConnectionGeneration(); generation != publishedConnectionGeneration)
         {
             publishedConnectionGeneration = generation;
-            // The server forgets a connection's equipment when it drops.
             if (published)
             {
                 logs::debug("Equipment sync republishing after connect: revision={} connectionGeneration={}",
@@ -751,12 +731,6 @@ namespace EquipmentSync
             return;
         }
 
-        // Before the first mutation pass, check every frame so a new revision or a
-        // released hand deferral applies immediately. After a pass, give the engine
-        // an interval to apply it; matched states are re-verified at that interval
-        // against autonomous engine changes. A deferred pass may already have added
-        // the new hand objects, so its release is watched separately; a draw held for
-        // the swap would otherwise wait out the interval.
         const bool deferralReleased = a_remote.handsDeferred && !IsHandSwapDeferred(*actor, a_remoteActor);
         const bool immediate = deferralReleased
             || (!(a_remote.armorMatches && a_remote.handsMatch) && !a_remote.exhausted && a_remote.attempts == 0);
@@ -776,7 +750,6 @@ namespace EquipmentSync
         }
         a_remote.inventoryCheckElapsed = 0.0F;
 
-        // Measure the live state before mutating anything.
         auto inventory = actor->GetInventory();
         auto* equippedRight = GetEquippedHandObject(*actor, false);
         auto* equippedLeft = GetEquippedHandObject(*actor, true);
@@ -804,9 +777,8 @@ namespace EquipmentSync
         }
         if (handsDeferred)
         {
-            // Removing an equipped hand object forces an unequip, so a deferred swap
-            // would leave the remote actor sheathing or drawing empty hands until it applies.
-            // Keep the stale objects until the swap replaces them.
+            // Removing an equipped hand object forces an unequip, so stale hand objects stay until a deferred
+            // swap replaces them.
             for (RE::TESBoundObject* equipped :
                 { equippedRight, equippedLeft, static_cast<RE::TESBoundObject*>(equippedAmmo) })
             {
@@ -845,8 +817,7 @@ namespace EquipmentSync
         };
         const bool armorWorn = std::ranges::all_of(a_remote.armor, isWorn);
 
-        // Hands only gate draws and attacks, so an unrelated inventory leftover must
-        // not hold them.
+        // Hands only gate draws and attacks, so an unrelated inventory leftover must not hold them.
         a_remote.armorMatches = inventoryMatches && armorWorn;
         a_remote.handsMatch = handsMatch;
         a_remote.handsDeferred = handsDeferred;
@@ -873,7 +844,6 @@ namespace EquipmentSync
             a_remote.handDeferralElapsed += sinceLastCheck;
             if (inventoryMatches && armorWorn)
             {
-                // Nothing else to do until the weapon transition or attack releases.
                 return;
             }
         }
@@ -900,8 +870,6 @@ namespace EquipmentSync
             return;
         }
 
-        // Remove everything that is not synchronized. Removed items are deleted,
-        // never moved to another container.
         std::uint32_t removed = 0;
         std::uint32_t added = 0;
         for (const auto& [object, data] : inventory)
@@ -957,8 +925,6 @@ namespace EquipmentSync
                 equipManager->UnequipObject(actor, equippedLeft, nullptr, 1, leftSlot, false, true, false);
                 swappedHands = true;
             }
-            // A placeholder spell in a hand that should be empty has no item to
-            // replace it. The equips below restore a hand that still needs it.
             if (auto* spell = AsSpell(equippedRight); spell && !a_remote.rightHand.object)
             {
                 UnequipSpell(*equipManager, *actor, spell, rightSlot);

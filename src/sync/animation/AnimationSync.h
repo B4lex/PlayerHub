@@ -14,28 +14,18 @@ namespace AnimationSync
     struct LocalGraphEpoch
     {
         std::uint64_t epoch{ 1 };
-        // The local graph was replaced or lost since the previous pass.
         bool changed{ false };
     };
 
-    // Local stage, every pass: tracks the local animation-graph lifetime.
     [[nodiscard]] LocalGraphEpoch ObserveLocalGraphEpoch(const LocalFrame& a_local);
 
-    // Local stage, called by CheckpointPublisher once per published checkpoint:
-    // locomotion, jump phase, and weapon stance of that checkpoint.
     [[nodiscard]] Multiplayer::AnimationState SampleLocalAnimation(
         const LocalFrame& a_local, std::uint64_t a_sequence, const MovementSync::LocalSample& a_movement);
 
-    // Playout stage: logs a playing checkpoint's animation target.
     void OnCheckpointPlayed(const CheckpointUpdate& a_update);
 
-    // Remote stage: stages the next graph step toward the checkpoint's state.
-    // The caller skips it while an attack or furniture owns the graph. A landing
-    // waits, bounded, for the airborne actor to reach where the source landed.
     void SyncAnimation(const RemoteFrame& a_remote, RemoteActor& a_actor, bool a_readyForWeaponDraw, float a_delta);
 
-    // Remote stage result: how the transform may follow the network path this
-    // pass, or nullopt to hold it while a compound transition converges.
     [[nodiscard]] std::optional<Multiplayer::AnimationState> GetTranslationState(
         const RemoteFrame& a_remote, const RemoteActor& a_actor, bool a_readyForWeaponDraw, bool a_furniturePlaying);
 }

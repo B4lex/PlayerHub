@@ -8,10 +8,8 @@ import (
 	"skyrim-mp/server/internal/wire/pb"
 )
 
-// Marker is a notable moment for the admin timeline.
 type Marker struct {
-	TMs int64 `json:"tMs"`
-	// attack, appearance, equipment, weapon, furniture, or area.
+	TMs   int64  `json:"tMs"`
 	Kind  string `json:"kind"`
 	Label string `json:"label"`
 }
@@ -23,8 +21,6 @@ var attackNames = map[pb.AttackAction]string{
 	pb.AttackAction_ATTACK_ACTION_BASH:   "bash",
 }
 
-// Markers lists attacks, gear changes, drawing or sheathing, furniture use,
-// and area changes.
 func Markers(r *Recording) []Marker {
 	markers := []Marker{}
 	seenAppearance, seenEquipment := false, false
@@ -83,8 +79,6 @@ func Markers(r *Recording) []Marker {
 	return markers
 }
 
-// area identifies where a context is. Exterior cells change constantly while
-// walking, so only the worldspace counts there.
 func area(c *pb.Context) (string, uint32) {
 	if c.WorldspaceId != 0 {
 		return "worldspace", c.WorldspaceId

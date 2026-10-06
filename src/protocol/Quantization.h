@@ -9,9 +9,6 @@
 #include <cstdint>
 #include <limits>
 
-// The wire's quantized checkpoint and its context, shared by the publisher and
-// the receiver so both apply the same rules as the server
-// (server/internal/wire/quantize.go).
 namespace Network
 {
     inline constexpr std::uint32_t kHeadingSteps = 4096;
@@ -19,10 +16,8 @@ namespace Network
     inline constexpr std::int32_t kMaximumQuantizedPitch = 1609;
     inline constexpr std::uint32_t kMaximumQuantizedSpeed = 100000;
     inline constexpr std::uint32_t kDirectionSteps = 256;
-    // Checkpoint.time wraps at this many milliseconds.
     inline constexpr std::uint32_t kSampleTimeModulus = 16384;
 
-    // Checkpoint.flags: bits 0-2 hold the movement state.
     namespace CheckpointFlags
     {
         inline constexpr std::uint32_t kMovementStateMask = 0x7;
@@ -41,25 +36,17 @@ namespace Network
     struct QuantizedCheckpoint
     {
         std::uint64_t sequence{ 0 };
-        // Whole game units.
         std::int32_t x{ 0 };
         std::int32_t y{ 0 };
         std::int32_t z{ 0 };
-        // 1/4096 of a turn, 0..4095.
         std::uint32_t heading{ 0 };
-        // 1/1024 radian.
         std::int32_t pitch{ 0 };
-        // Whole units per second.
         std::uint32_t speed{ 0 };
-        // 1/256 of the graph's Direction range, 0..255.
         std::uint32_t direction{ 0 };
         std::uint32_t flags{ 0 };
-        // Milliseconds, 0..kSampleTimeModulus - 1.
         std::uint32_t time{ 0 };
     };
 
-    // What a checkpoint's position and actions are relative to. It changes
-    // rarely, so it travels separately and only when it changes.
     struct CheckpointContext
     {
         std::uint32_t cellID{ 0 };
@@ -137,7 +124,6 @@ namespace Network
             .time = a_transform.sampleTime % kSampleTimeModulus };
     }
 
-    // Rejects values outside the server's validation, as the server does.
     [[nodiscard]] inline bool IsValidQuantizedCheckpoint(const QuantizedCheckpoint& a_checkpoint) noexcept
     {
         using namespace CheckpointFlags;

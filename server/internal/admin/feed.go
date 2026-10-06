@@ -15,11 +15,6 @@ const (
 	feedKeepAliveSeconds = 15
 )
 
-// Feed pushes state snapshots to open panels as server-sent events, one on
-// connect and one after changes, at most every feedIntervalSeconds. Changed
-// is cheap enough to call for every accepted checkpoint: it does nothing
-// without listeners or while a send is already due. The first change after a
-// quiet period goes out at once; later ones collapse into one trailing send.
 type Feed struct {
 	build     func() State
 	listeners atomic.Int32
@@ -71,8 +66,8 @@ func (f *Feed) Run(ctx context.Context) {
 		}
 		f.mu.Lock()
 		for subscriber := range f.subscribers {
-			// Latest wins: a panel that has not taken the previous snapshot gets
-			// this one instead.
+			// Latest wins: a panel that has not taken the previous snapshot gets this one
+			// instead.
 			select {
 			case <-subscriber:
 			default:

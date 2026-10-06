@@ -1,5 +1,3 @@
-// Package loadtest runs batches of in-server bots that replay one recording
-// from shifted positions.
 package loadtest
 
 import (
@@ -24,13 +22,6 @@ type BotPlan struct {
 	JoinDelaySeconds float64
 }
 
-// PlanBots spreads count bots over the recording. Bot i sits at
-// i × duration / count, moved by up to jitter / 2 of that spacing either way,
-// so neighbours never swap places. rateSpread varies each bot's speed around
-// 1x so the spacing drifts instead of repeating each loop. A bot joining
-// during the ramp-up starts that much further along, keeping the spacing.
-// Offsets and rates use separate generators, so changing one setting keeps
-// the other's layout for the same seed.
 func PlanBots(count int, durationMs int64, seed uint64, jitter, rateSpread, rampUpSeconds float64) []BotPlan {
 	offsets := rand.New(rand.NewPCG(seed, offsetStream))
 	rates := rand.New(rand.NewPCG(seed, rateStream))

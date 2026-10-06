@@ -31,7 +31,6 @@ namespace Network
     {
         using Multiplayer::PeerSlot;
 
-        // Close statuses the server refuses a connection with.
         constexpr std::uint16_t kProtocolMismatchCloseCode = 4001;
         constexpr std::uint16_t kDisplayNameTakenCloseCode = 4004;
         constexpr std::uint16_t kDisplayNameInvalidCloseCode = 4005;
@@ -45,15 +44,11 @@ namespace Network
         std::atomic_uint64_t connectionGeneration{ 0 };
         std::atomic_bool reconnectWorkerRunning{ false };
         std::atomic_bool attemptFailed{ false };
-        // Set by BeginClose and cleared by BeginReconnect, so a transport that
-        // opens while it is being closed is not reported as connected.
         std::atomic_bool closeRequested{ false };
 
         std::mutex remoteChangesLock;
         std::unordered_map<PeerSlot, RemotePlayerTransform> pendingTransforms;
         std::unordered_map<PeerSlot, std::uint64_t> latestReceivedSequences;
-        // The context each subscribed peer's checkpoints are relative to, from
-        // its PeerEnter and PeerContext messages.
         std::unordered_map<PeerSlot, CheckpointContext> peerContexts;
         std::unordered_map<PeerSlot, RemotePlayerAppearance> pendingAppearances;
         std::unordered_map<PeerSlot, std::uint64_t> latestReceivedAppearanceRevisions;
@@ -65,48 +60,31 @@ namespace Network
         std::unordered_set<PeerSlot> pendingDisconnects;
         PeerSlot localSlot = 0;
 
-        // Bounds memory while nothing drains chat, for example without the overlay.
         constexpr std::size_t kMaximumPendingChatMessages = 128;
         std::mutex chatMessagesLock;
         std::deque<Multiplayer::ChatMessage> pendingChatMessages;
 
-        // The connected clients as the server lists them, empty while
-        // disconnected. The revision advances with every change.
         std::mutex rosterLock;
         Multiplayer::Roster roster;
         std::atomic_uint64_t rosterRevision{ 0 };
 
-        // Requests waiting for their Result, by request ID. Cleared with the
-        // connection, so a callback never runs for an older one.
         std::mutex requestsLock;
         std::uint32_t lastRequestID = 0;
         std::unordered_map<std::uint32_t, std::function<void(const Wire::Result&)>> pendingRequests;
 
-        // Publisher state of this connection, on the game thread except where
-        // noted. The context is resent after every Enter.
         std::mutex publishLock;
         std::optional<CheckpointContext> sentContext;
         std::uint64_t localActionSequence = 0;
 
-        // The endpoint of the latest connection attempt, empty before the first,
-        // and the display name its hello asked for.
         std::mutex attemptLock;
         std::string attemptEndpoint;
         std::string attemptDisplayName;
         std::optional<Refusal> refusal;
-        // The server of the latest welcome, as a WebSocket URL; empty before the
-        // first.
         std::string welcomedServer;
 
-        // The server the current socket sent its hello to; empty before it. The
-        // hello carries every vanished session and a Vanish sent before it
-        // would not be a hello, so a change is sent only after it; both happen
-        // under the lock.
         std::mutex vanishLock;
         std::string helloServer;
 
-        // The current socket. Replaced only by the worker, after stopping the old
-        // one, so its callbacks never overlap the new socket's.
         std::mutex socketLock;
         std::shared_ptr<ix::WebSocket> socket;
 
@@ -116,8 +94,6 @@ namespace Network
             return attemptEndpoint;
         }
 
-        // [Network] ServerEndpoint keeps its http:// or https:// form; the
-        // WebSocket path is /ws.
         std::string ToWebSocketUrl(std::string a_endpoint)
         {
             if (a_endpoint.starts_with("https://"))
@@ -147,7 +123,6 @@ namespace Network
             return socket;
         }
 
-        // Every send goes through here so the traffic meter sees it.
         void Send(const std::string& a_message)
         {
             if (a_message.empty())
@@ -165,9 +140,6 @@ namespace Network
             }
         }
 
-        // Presents the session kept for the server, or none for the server to
-        // issue one, the configured display name, and the players vanished on
-        // that server. Transport thread.
         void SendHello(ix::WebSocket& a_socket)
         {
             const auto config = Config::Get();
@@ -244,7 +216,6 @@ namespace Network
         std::uint32_t RegisterRequest(std::function<void(const Wire::Result&)> a_onResult)
         {
             const std::scoped_lock lock{ requestsLock };
-            // Zero is never used, so an unset ID never matches.
             if (++lastRequestID == 0)
             {
                 ++lastRequestID;
@@ -253,8 +224,6 @@ namespace Network
             return lastRequestID;
         }
 
-        // Drops every pending change and per-player receive history, as if each
-        // remote player had left. Requires remoteChangesLock.
         void ForgetRemotePlayersLocked()
         {
             pendingTransforms.clear();
@@ -270,8 +239,6 @@ namespace Network
             pendingDisconnects.clear();
         }
 
-        // The roster belongs to one connection too; the server lists it again
-        // after every welcome.
         void ResetRoster(PeerSlot a_localSlot)
         {
             const std::scoped_lock lock{ rosterLock };
@@ -280,9 +247,6 @@ namespace Network
             rosterRevision.fetch_add(1, std::memory_order_acq_rel);
         }
 
-        // Slots belong to one server connection, so every known remote player is
-        // gone once ours closes or is replaced. The connection state changes
-        // under the lock Drain uses, so a drain never mixes connections.
         void MarkDisconnected()
         {
             {
@@ -295,8 +259,6 @@ namespace Network
             ClearRequests();
         }
 
-        // Forgets the player's checkpoint, context, and action stream. Requires
-        // remoteChangesLock.
         void ForgetRemoteWorldStateLocked(PeerSlot a_slot)
         {
             pendingTransforms.erase(a_slot);
@@ -307,7 +269,6 @@ namespace Network
                 [a_slot](const AnimationAction& a_action) { return a_action.playerID == a_slot; });
         }
 
-        // Requires remoteChangesLock.
         void AcceptCheckpointLocked(
             PeerSlot a_slot, const QuantizedCheckpoint& a_checkpoint, std::chrono::steady_clock::time_point a_received)
         {
@@ -325,10 +286,6 @@ namespace Network
                     static_cast<unsigned long long>(latest->second));
                 return;
             }
-            // Transform, locomotion, jump state, and combat stance are one
-            // latest-wins checkpoint. Transient graph events are consequences of
-            // changing between checkpoints; retaining them separately can replay
-            // obsolete transitions.
             latestReceivedSequences.insert_or_assign(a_slot, a_checkpoint.sequence);
             pendingTransforms.insert_or_assign(a_slot,
                 RemotePlayerTransform{ .playerID = a_slot,
@@ -336,7 +293,6 @@ namespace Network
                     .received = a_received });
         }
 
-        // Requires remoteChangesLock.
         void AcceptAppearanceLocked(PeerSlot a_slot, Multiplayer::PlayerAppearance&& a_appearance)
         {
             const auto latest = latestReceivedAppearanceRevisions.find(a_slot);
@@ -349,7 +305,6 @@ namespace Network
                 a_slot, RemotePlayerAppearance{ .playerID = a_slot, .appearance = std::move(a_appearance) });
         }
 
-        // Requires remoteChangesLock.
         void AcceptEquipmentLocked(PeerSlot a_slot, Multiplayer::PlayerEquipment&& a_equipment)
         {
             const auto latest = latestReceivedEquipmentRevisions.find(a_slot);
@@ -364,24 +319,20 @@ namespace Network
 
         void OnWelcome(const Wire::Welcome& a_welcome)
         {
-            // Kept even when the connection is closing: the session exists on
-            // the server and holds its display name either way.
+            // Kept even when the connection is closing: the session exists on the server and
+            // holds its display name either way.
             auto server = ToWebSocketUrl(GetAttemptEndpoint());
             if (a_welcome.issuedToken)
             {
                 SessionStore::Save(server, *a_welcome.issuedToken);
             }
             {
-                // Before the generation advances, which tells readers the
-                // server may have changed.
                 const std::scoped_lock lock{ attemptLock };
                 welcomedServer = std::move(server);
             }
             unsigned long long generation;
             {
                 std::scoped_lock lock{ remoteChangesLock };
-                // Checked under the lock MarkDisconnected takes, so a close
-                // requested after this check still marks the client disconnected.
                 if (closeRequested.load(std::memory_order_acquire))
                 {
                     logs::info("Server welcomed a connection that is closing; ignoring it");
@@ -441,7 +392,6 @@ namespace Network
                 a_enter.equipment.has_value());
             std::scoped_lock lock{ remoteChangesLock };
             pendingDisconnects.erase(a_enter.slot);
-            // A new subscription starts a new checkpoint and action stream.
             ForgetRemoteWorldStateLocked(a_enter.slot);
             if (a_enter.appearance)
             {
@@ -489,8 +439,8 @@ namespace Network
                 pendingDisconnects.insert(a_leave.slot);
                 return;
             }
-            // Unlike a disconnect, a later message does not cancel the leave: the
-            // main-loop pass must drop the old actor before a new checkpoint.
+            // Unlike a disconnect, a later message does not cancel the leave: the main-loop
+            // pass must drop the old actor before a new checkpoint.
             pendingExits.insert(a_leave.slot);
         }
 
@@ -509,9 +459,6 @@ namespace Network
                 }
                 if (a_action.actionSequence != latest->second + 1)
                 {
-                    // The connection is reliable and ordered, and PeerLeave resets
-                    // the stream. A gap means continuity was lost; reject rather
-                    // than playing actions out of order.
                     logs::warn("Animation sync rejected action sequence gap: player={} expected={} received={}",
                         a_action.playerID, static_cast<unsigned long long>(latest->second + 1),
                         static_cast<unsigned long long>(a_action.actionSequence));
@@ -574,7 +521,6 @@ namespace Network
                 OnWelcome(*welcome);
                 return;
             }
-            // Nothing before the welcome belongs to this connection.
             if (!connected.load(std::memory_order_acquire))
             {
                 return;
@@ -694,8 +640,6 @@ namespace Network
             }
         }
 
-        // Stops the current socket, joining its thread, so nothing from it is
-        // reported afterwards. Worker thread only.
         void StopSocket()
         {
             {
@@ -714,8 +658,6 @@ namespace Network
             transportOpen.store(false, std::memory_order_release);
         }
 
-        // The endpoint is read for every attempt, so a changed setting applies to
-        // the next one. Worker thread only.
         void OpenSocket()
         {
             auto endpoint = Config::Get()->network.serverEndpoint;
@@ -729,8 +671,7 @@ namespace Network
             next->disableAutomaticReconnection();
             next->setPerMessageDeflateOptions(ix::WebSocketPerMessageDeflateOptions(false));
             next->setHandshakeTimeout(kHandshakeTimeoutSeconds);
-            // The server pings; the library answers on its own thread, so a paused
-            // game stays connected.
+            // IXWebSocket answers the server's pings on its own thread.
             next->setPingInterval(0);
             next->setOnMessageCallback(OnSocketMessage);
             {
@@ -775,7 +716,6 @@ namespace Network
             return;
         }
         {
-            // The server forgets the context on exit.
             const std::scoped_lock lock{ publishLock };
             sentContext.reset();
         }

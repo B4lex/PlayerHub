@@ -17,9 +17,8 @@ namespace UI::Theme
         constexpr ImVec4 kTransparent{ 0.0F, 0.0F, 0.0F, 0.0F };
         constexpr ImVec4 kText{ 0.93F, 0.92F, 0.90F, 1.0F };
 
-        // The game's 999999 at the 80% it draws its message box with, as it
-        // looks over the dark backing. The accent frame is the accent at 85%
-        // over it. MenuFrame needs them opaque.
+        // The game's 999999 at the 80% it draws its message box with, as it looks
+        // over the dark backing.
         constexpr ImVec4 kVanillaFrame{ 0.49F, 0.49F, 0.49F, 1.0F };
         constexpr float kAccentFrameOpacity = 0.85F;
 
@@ -51,7 +50,6 @@ namespace UI::Theme
             { ImGuiCol_TableRowBgAlt, Tint(0.03F) },
         };
 
-        // The accent at an alpha.
         struct AccentColor
         {
             ImGuiCol index;
@@ -87,7 +85,6 @@ namespace UI::Theme
             { ImGuiCol_NavCursor, 1.0F },
         };
 
-        // The colors that follow the configuration, worked out once per change.
         struct Palette
         {
             ImVec4 accent;
@@ -101,7 +98,6 @@ namespace UI::Theme
                 a_from.z + (a_to.z - a_from.z) * a_amount, a_from.w + (a_to.w - a_from.w) * a_amount };
         }
 
-        // WCAG relative luminance and contrast ratio.
         float GetLuminance(const ImVec4& a_color)
         {
             const auto linear = [](float a_channel) {
@@ -120,7 +116,6 @@ namespace UI::Theme
         {
             static Palette palette;
             static std::optional<std::uint64_t> revision;
-            // The revision before the snapshot, so a change is never missed.
             const auto current = Config::GetRevision();
             if (revision != current)
             {
@@ -136,7 +131,6 @@ namespace UI::Theme
             return palette;
         }
 
-        // Sizes are in font sizes, so they follow the overlay scale.
         struct Size
         {
             ImGuiStyleVar index;
@@ -149,7 +143,6 @@ namespace UI::Theme
             ImVec2 value;
         };
 
-        // One pixel at the overlay's base font size.
         constexpr float kLine = 1.0F / 16.0F;
 
         constexpr Size kSizes[]{
@@ -175,8 +168,6 @@ namespace UI::Theme
             { ImGuiStyleVar_CellPadding, ImVec2{ 0.375F, 0.25F } },
         };
 
-        // Whole pixels keep lines and corners sharp, and a line never vanishes
-        // at a small scale.
         float ToPixels(float a_fonts, float a_fontSize)
         {
             return (std::max)(std::floor(a_fonts * a_fontSize), 1.0F);

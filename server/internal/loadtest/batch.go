@@ -20,8 +20,7 @@ import (
 var ErrNotFound = errors.New("load batch not found")
 
 type Settings struct {
-	Players int `json:"players"`
-	// Always "virtual": out-of-process bots are cmd/loadgen's.
+	Players       int     `json:"players"`
 	Transport     string  `json:"transport"`
 	Seed          uint64  `json:"seed"`
 	Jitter        float64 `json:"jitter"`
@@ -60,9 +59,6 @@ type bot struct {
 	errorMsg string
 }
 
-// Batch is bots that each replay one recording from their own offset,
-// looping. Bots join one by one over the ramp-up; each is an ordinary
-// playback session numbering its own messages.
 type Batch struct {
 	ID       string
 	settings Settings
@@ -110,7 +106,6 @@ func (b *Batch) State() State {
 	return state
 }
 
-// Slots returns the bots' player slots.
 func (b *Batch) Slots() []uint32 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -229,7 +224,6 @@ func (b *Batch) fail(bot *bot, message string) {
 	b.onChange()
 }
 
-// Manager runs load-test batches.
 type Manager struct {
 	store    *recording.Store
 	loop     *hub.Loop
@@ -291,7 +285,6 @@ func (m *Manager) Batches() []*Batch {
 	return slices.Clone(m.batches)
 }
 
-// Slots returns the slots of every bot, which the panel lists by batch only.
 func (m *Manager) Slots() map[uint32]bool {
 	slots := make(map[uint32]bool)
 	for _, b := range m.Batches() {

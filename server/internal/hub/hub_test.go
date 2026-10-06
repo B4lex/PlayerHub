@@ -18,11 +18,10 @@ import (
 )
 
 type fixture struct {
-	t     *testing.T
-	clock *clock.Fake
-	hub   *Hub
-	boxes map[uint32]*delivery.Outbox
-	// The last session a client connected with.
+	t       *testing.T
+	clock   *clock.Fake
+	hub     *Hub
+	boxes   map[uint32]*delivery.Outbox
 	session uint64
 }
 
@@ -38,7 +37,6 @@ func (f *fixture) connect() uint32 {
 	return slot
 }
 
-// connectAs connects a client with a session of its own.
 func (f *fixture) connectAs(displayName string) uint32 {
 	f.session++
 	slot, _ := f.connectSession(f.session, displayName)
@@ -85,7 +83,6 @@ func checkpoint(sequence uint64) *pb.ClientMessage {
 	return checkpointAt(sequence, int32(sequence))
 }
 
-// checkpointAt samples 50 ms apart, so an idle repeat differs in its time.
 func checkpointAt(sequence uint64, x int32) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{
 		Sequence: sequence, X: x, Flags: uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_WEAPON_DRAWN),
@@ -130,21 +127,18 @@ func interior(epoch uint64, cell uint32) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{CellId: cell, GraphEpoch: epoch}}}
 }
 
-// place puts the player in the world with a context and a checkpoint.
 func (f *fixture) place(slot uint32, sequence uint64) {
 	f.send(slot, enter())
 	f.send(slot, contextMessage(1, false))
 	f.send(slot, checkpoint(sequence))
 }
 
-// placeAt puts the player in the world in worldspace 60 at x.
 func (f *fixture) placeAt(slot uint32, sequence uint64, x int32) {
 	f.send(slot, enter())
 	f.send(slot, contextMessage(1, false))
 	f.send(slot, checkpointAt(sequence, x))
 }
 
-// messages drains the recipient's outbox.
 func (f *fixture) messages(slot uint32) []*pb.ServerMessage {
 	f.t.Helper()
 	var b delivery.Batch
@@ -166,8 +160,6 @@ func (f *fixture) messages(slot uint32) []*pb.ServerMessage {
 	return messages
 }
 
-// received drains the recipient's outbox and describes each message in one
-// line.
 func (f *fixture) received(slot uint32) []string {
 	f.t.Helper()
 	var lines []string
@@ -280,7 +272,6 @@ func TestPausedPlayerIsSeenByANewcomer(t *testing.T) {
 	a := f.connect()
 	f.place(a, 9)
 	f.hub.Tick()
-	// A paused game publishes nothing; the newcomer still gets the stored state.
 	f.clock.Advance(60)
 	b := f.connect()
 	f.place(b, 1)
@@ -367,7 +358,6 @@ func TestCheckpointRules(t *testing.T) {
 	f.send(a, exit())
 	f.send(a, enter())
 	f.send(a, contextMessage(1, false))
-	// Exit forgets the stream, so a lower sequence starts it again.
 	f.send(a, checkpoint(1))
 }
 
@@ -404,7 +394,6 @@ func TestDisconnectReachesHoldersOfPresentation(t *testing.T) {
 	d := f.connect()
 	f.hub.Disconnect(a)
 	expect(t, f.received(b), "leave 1 DISCONNECTED")
-	// c was never placed, so it never held a's presentation.
 	expect(t, f.received(c))
 	expect(t, f.received(d), "welcome 4")
 }
@@ -455,7 +444,6 @@ func TestLocalChat(t *testing.T) {
 	f.reject(d, local(8, "unplaced"), ErrNotPlaced)
 	expect(t, f.received(d), "result 8 false not in world")
 
-	// An interior is heard whole; another space is not.
 	for _, slot := range []uint32{a, c} {
 		f.send(slot, interior(2, 70))
 	}
@@ -495,7 +483,6 @@ func TestWhisper(t *testing.T) {
 		"result 13 false invalid chat message")
 	expect(t, f.received(b))
 
-	// A slot names one connection: the name's next holder is someone else.
 	f.hub.Disconnect(b)
 	again := f.connectAs("Ulfric Stormcloak")
 	f.received(a)
@@ -508,7 +495,6 @@ func TestRoster(t *testing.T) {
 	f := newFixture(t)
 	a := f.connectAs("Lydia")
 	expect(t, f.received(a), "welcome 1", "roster +1 Lydia")
-	// Replays and bots receive nothing, so they are not listed.
 	v := f.hub.Connect(world.KindReplay, nil)
 	f.send(v, appearance(1, "Ghost"))
 	b := f.connectAs("Serana")
@@ -522,7 +508,6 @@ func TestRoster(t *testing.T) {
 	f.hub.Disconnect(b)
 	expect(t, f.received(a))
 
-	// A session that connects again leaves and joins under its new slot.
 	c, replaced := f.connectSession(1, "Lydia")
 	if replaced != a {
 		t.Fatalf("replaced %d", replaced)
@@ -550,7 +535,6 @@ func TestAppearanceCarriesTheSessionDisplayName(t *testing.T) {
 		t.Fatalf("enter: %v", enter)
 	}
 
-	// A virtual player has no session and keeps the name it was recorded with.
 	v := f.hub.Connect(world.KindReplay, nil)
 	f.send(v, appearance(1, "Lydia"))
 	f.place(v, 1)
@@ -587,7 +571,6 @@ func TestSessionConnectingAgainReplacesItsConnection(t *testing.T) {
 	expect(t, f.received(second), fmt.Sprintf("welcome %d", second), "roster +2 Serana +3 Lydia",
 		"chat whisper 2 Serana to 3 Lydia: hi")
 
-	// The old connection's own disconnect arrives late and changes nothing.
 	f.hub.Disconnect(first)
 	f.send(b, whisper(2, second, "still there"))
 	expect(t, f.received(second), "chat whisper 2 Serana to 3 Lydia: still there")
@@ -608,7 +591,6 @@ func TestRangeHysteresisAndDwell(t *testing.T) {
 	f.send(a, checkpointAt(4, 20000))
 	f.hub.UpdateInterest()
 	f.hub.Tick()
-	// Still within the minimum time in view.
 	expect(t, f.received(b), "states 1:4")
 	f.clock.Advance(1.1)
 	f.hub.UpdateInterest()
@@ -669,7 +651,6 @@ func TestVanishFollowsTheSessionAtOnce(t *testing.T) {
 	f.received(a)
 	f.received(b)
 
-	// One-way: b no longer receives a, and a still receives b.
 	f.send(b, vanish(1, true))
 	expect(t, f.received(b), "leave 1 EXCLUDED")
 	f.send(b, checkpointAt(2, 120))
@@ -680,7 +661,6 @@ func TestVanishFollowsTheSessionAtOnce(t *testing.T) {
 	expect(t, f.received(b))
 	f.send(b, vanish(1, true))
 
-	// The session stays vanished under the slot it connects again with.
 	again, _ := f.connectSession(1, "Lydia")
 	f.placeAt(again, 1, 0)
 	f.hub.UpdateInterest()
@@ -693,7 +673,6 @@ func TestVanishFollowsTheSessionAtOnce(t *testing.T) {
 	f.send(b, vanish(99, true))
 	expect(t, f.received(b))
 
-	// A hello's vanished sessions apply before the client is placed.
 	c, _ := f.connectSession(4, "Aela")
 	f.hub.SetVanished(c, []uint64{1})
 	f.placeAt(c, 1, 50)
@@ -748,7 +727,6 @@ func TestIdleCheckpointsAreSuppressedButAnchorsAreNot(t *testing.T) {
 	f.send(a, checkpointAt(4, 10))
 	f.hub.Tick()
 	expect(t, f.received(b))
-	// A context change is applied by clients with the next checkpoint.
 	f.send(a, contextMessage(1, true))
 	f.send(a, checkpointAt(5, 10))
 	f.hub.Tick()
@@ -774,13 +752,9 @@ func TestCapKeepsTheNearestWithHysteresis(t *testing.T) {
 	f.placeAt(middle, 1, 2000)
 	f.placeAt(near, 1, 1000)
 	f.hub.UpdateInterest()
-	// The first two fill the view at once; the third waits for the pass, and
-	// the dwell keeps both incumbents meanwhile.
 	expect(t, f.received(viewer), "welcome 1", "enter 4 state 1", "enter 3 state 1")
 	f.clock.Advance(1.5)
 	f.hub.UpdateInterest()
-	// The newcomer at 1000 is not 1024 nearer than the incumbent at 2000 - 1024,
-	// but it is than the one at 3000.
 	expect(t, f.received(viewer), "leave 4 OUT_OF_RANGE", "enter 2 state 1")
 	f.send(far, checkpointAt(2, 1500))
 	f.clock.Advance(1.5)

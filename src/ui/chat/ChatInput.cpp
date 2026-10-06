@@ -14,11 +14,9 @@ namespace UI
     namespace
     {
         constexpr std::size_t kMaximumMenuPartners = 5;
-        // In font sizes: a long name does not take the row from the text.
         constexpr float kMaximumChipTextFonts = 12.0F;
 
-        // A row that takes a click, with text Dear ImGui does not parse for
-        // "##": names are the players'.
+        // Dear ImGui would parse "##" in a player's name.
         bool DrawRow(std::string_view a_text, const ImVec4& a_color, bool a_selected, std::string_view a_detail = {})
         {
             const auto start = ImGui::GetCursorPosX();
@@ -60,8 +58,7 @@ namespace UI
 
     int ChatInput::OnFieldEvent(ImGuiInputTextCallbackData* a_data)
     {
-        // Escape puts back the text the field had when it took the keyboard,
-        // before this runs. That is not an edit; Draw restores the draft.
+        // Escape puts back the text the field had when it took the keyboard, before this runs.
         if (ImGui::IsKeyPressed(ImGuiKey_Escape))
         {
             return 0;
@@ -203,8 +200,6 @@ namespace UI
         const ImVec2 size{ ImGui::GetContentRegionAvail().x,
             rows * ImGui::GetTextLineHeightWithSpacing() + style.WindowPadding.y * 2.0F - style.ItemSpacing.y };
 
-        // Over the lines above the input row, which is drawn where the
-        // cursor is now.
         const auto row = ImGui::GetCursorScreenPos();
         ImGui::SetCursorScreenPos(ImVec2{ row.x, row.y - style.ItemSpacing.y - size.y });
         // As a popup of the theme, which is opaque: the lines must not show through.
@@ -261,8 +256,7 @@ namespace UI
         }
         else
         {
-            // Leaving the field, as a click elsewhere or Escape does, writes
-            // its own text back; the draft may also have changed meanwhile.
+            // Leaving the field, as a click elsewhere or Escape does, writes its own text back.
             const auto length = (std::min)(draft.size(), field.size() - 1);
             std::memcpy(field.data(), draft.data(), length);
             field[length] = '\0';

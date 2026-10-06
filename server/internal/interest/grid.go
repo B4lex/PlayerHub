@@ -7,9 +7,6 @@ type cellKey struct {
 	cx, cy int32
 }
 
-// Grid indexes placed players by space and square cell, so candidates come
-// from the 3×3 cells around a viewer instead of every player. The cell size
-// is at least the leave radius, so every pair that matters is in those cells.
 type Grid struct {
 	size  float64
 	cells map[cellKey]map[uint32]struct{}
@@ -24,8 +21,6 @@ func (g *Grid) key(v *View) cellKey {
 	return cellKey{v.Space, int32(math.Floor(v.X / g.size)), int32(math.Floor(v.Y / g.size))}
 }
 
-// Update places or moves a player. It costs a map lookup when the player
-// stays in its cell.
 func (g *Grid) Update(v *View) {
 	key := g.key(v)
 	if previous, ok := g.at[v.Slot]; ok {
@@ -58,8 +53,6 @@ func (g *Grid) remove(slot uint32, key cellKey) {
 	}
 }
 
-// Near calls f for every player in the 3×3 cells around v, v itself
-// included.
 func (g *Grid) Near(v *View, f func(slot uint32)) {
 	center := g.key(v)
 	for dx := int32(-1); dx <= 1; dx++ {

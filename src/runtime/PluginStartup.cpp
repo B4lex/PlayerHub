@@ -47,7 +47,6 @@ namespace PluginStartup
             PresenceSync::RegisterEventSinks();
             RemoteActorActivation::RegisterEventSink();
             RE::ConsoleLog::GetSingleton()->Print("Skyrim Multiplayer initialized.");
-            // ConnectionMonitor connects once the player enters the world.
             Network::Initialize();
         }
     }
@@ -56,8 +55,7 @@ namespace PluginStartup
     {
         Config::Load();
 
-        // Remote-actor entry detours and the UI overlay use the trampoline too,
-        // so allocate first.
+        // The SKSE trampoline must be allocated before any hook writes through it.
         SKSE::AllocTrampoline(14 + CombatIsolation::kTrampolineSize + ReactionSuppression::kTrampolineSize
             + RemoteCollision::kTrampolineSize + ScenePackageSuppression::kTrampolineSize
             + JumpSound::kTrampolineSize + UI::Overlay::kTrampolineSize);

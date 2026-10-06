@@ -29,7 +29,6 @@ namespace UI
 {
     namespace
     {
-        // In font sizes, so the layout follows the overlay scale.
         constexpr ImVec2 kSizeFonts{ 48.0F, 32.0F };
         constexpr ImVec2 kMinimumSizeFonts{ 40.0F, 20.0F };
         constexpr float kSidebarWidthFonts = 11.5F;
@@ -48,37 +47,25 @@ namespace UI
         constexpr float kSwatchRingFonts = 0.125F;
         constexpr float kSwatchIconFonts = 0.09375F;
         constexpr float kPickerWidthFonts = 13.0F;
-        // Of the base font size.
         constexpr float kTitleScale = 1.375F;
         constexpr float kBrandScale = 1.125F;
         constexpr float kGroupScale = 0.8125F;
-        // Of a row's width; its label has the rest.
         constexpr float kControlWidth = 0.58F;
-        // Steps from zero to a number setting's maximum.
         constexpr std::uint32_t kNumberSteps = 100;
 
-        // The section and its setting that are drawn as a field beside the
-        // connection button rather than as a row.
         constexpr std::string_view kConnectionSection = "General";
         constexpr std::string_view kDisplayNameKey = "DisplayName";
         constexpr const char* kDisplayNameHint = "Enter a display name";
-        // The section whose edits wait for Apply. The others take effect as they
-        // are edited.
         constexpr std::string_view kStagedSection = "DefaultOutfit";
-        // Sections whose file name is not what a player would call them.
         constexpr std::pair<std::string_view, std::string_view> kSectionTitles[]{ { "UI", "Interface" } };
 
         constexpr float kBackgroundAlpha = 0.96F;
         constexpr const char* kSaveFailedText = "Could not save skyrim-mp.ini";
 
-        // Only a section's settings scroll, so the navigation, the title, and the
-        // buttons stay in view.
         constexpr ImGuiWindowFlags kFixedFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-        // MenuFrame draws the background.
         constexpr ImGuiWindowFlags kWindowFlags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse
             | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBackground | kFixedFlags;
 
-        // "SpawnsPerSecond" becomes "Spawns Per Second". Reuses a_result's storage.
         void FormatDisplayName(std::string_view a_name, std::string& a_result)
         {
             a_result.clear();
@@ -156,9 +143,6 @@ namespace UI
             return (channel(a_color[0]) << 16) | (channel(a_color[1]) << 8) | channel(a_color[2]);
         }
 
-        // A square a_size wide, centered in a frame-high item at the cursor:
-        // a_color, ringed in the text color while selected, or a plus on the
-        // button fill where there is no color. Returns whether it was pressed.
         bool DrawSwatch(const char* a_id, const ImVec4* a_color, float a_size, bool a_selected)
         {
             const auto frameHeight = ImGui::GetFrameHeight();
@@ -180,7 +164,6 @@ namespace UI
                 = a_color ? *a_color : ImGui::GetStyleColorVec4(hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
             if (a_selected)
             {
-                // The ring, a gap of the backing, then the color.
                 const auto inset = ring * 2.0F;
                 list.AddRect(min, max, ImGui::GetColorU32(ImGuiCol_Text), rounding, ImDrawFlags_None, ring);
                 list.AddRectFilled(ImVec2{ min.x + inset, min.y + inset }, ImVec2{ max.x - inset, max.y - inset },
@@ -209,49 +192,33 @@ namespace UI
             return pressed;
         }
 
-        // Draws the settings of one section of a configuration at a time, each
-        // as a widget that edits it in place, and the list that picks the
-        // section. A text field sets its value when editing it ends; text that
-        // does not parse stays in the field and leaves the setting at its last
-        // valid value.
         class SettingsEditor final : public Config::SettingsVisitor
         {
         public:
-            // Fields show the configuration's values again on the next draw.
             void Reset()
             {
                 fields.clear();
                 itemPicker.Reset();
             }
 
-            // Fields whose text is not applied, other than one that says so itself.
             [[nodiscard]] bool HasInvalidFields() const
             {
                 return std::ranges::any_of(
                     fields, [](const auto& a_field) { return !a_field.second.valid && !a_field.second.reportsItself; });
             }
 
-            // Shows the connection section with the keyboard in its field, on the
-            // next DrawPage.
             void FocusConnectionField()
             {
                 openSection = kConnectionSection;
                 focusConnectionField = true;
             }
 
-            // As of the last DrawPage.
             [[nodiscard]] bool IsStagedSectionOpen() const { return stagedSectionOpen; }
 
-            // A number is being typed or stepped, as of the last DrawPage.
             [[nodiscard]] bool IsEditing() const { return editing; }
 
-            // What the open section's scrollbar takes from its settings' width, as
-            // of the last DrawPage.
             [[nodiscard]] float GetScrollbarWidth() const { return scrollbarWidth; }
 
-            // The selected section's title, then its settings a_padding.x in from
-            // both sides. Each height is left free below the settings of a
-            // section of that kind.
             void DrawPage(Config::PluginConfig& a_config, const ImVec2& a_padding, float a_stagedFooterHeight,
                 float a_liveFooterHeight)
             {
@@ -265,8 +232,6 @@ namespace UI
                 EndSection();
             }
 
-            // One item per section DrawPage went through. A pick shows on the next
-            // DrawPage, so a field edited until the press still sees its editing end.
             void DrawNavigation()
             {
                 ImGui::PushStyleVar(
@@ -315,7 +280,6 @@ namespace UI
                 }
                 ImGui::Dummy(ImVec2{ 0.0F, std::floor(style.ItemSpacing.y * 0.5F) });
 
-                // The scrollbar runs along the window's edge, outside the padding.
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ padding.x, 0.0F });
                 ImGui::BeginChild("##Content",
                     ImVec2{ 0.0F, -(stagedSectionOpen ? stagedFooterHeight : liveFooterHeight) },
@@ -363,7 +327,6 @@ namespace UI
                 {
                     return;
                 }
-                // A named zero shows as an empty field under its name.
                 const auto flags = a_zeroName.empty()
                     ? ImGuiInputTextFlags_None
                     : ImGuiInputTextFlags_DisplayEmptyRefVal | ImGuiInputTextFlags_ParseEmptyRefVal;
@@ -467,8 +430,6 @@ namespace UI
                 EndRow();
             }
 
-            // The swatches, then one more that opens a picker for any other
-            // color and shows that color once picked, spread across the control.
             void Color(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
                 std::span<const std::uint32_t> a_swatches) override
             {
@@ -527,8 +488,8 @@ namespace UI
                     {
                         a_value = ToRgb(rgb);
                     }
-                    // Applied on release or when the hex field's editing ends,
-                    // so a drag does not save the file in every frame.
+                    // Applied on release or when the hex field's editing ends, so a drag does
+                    // not save the file in every frame.
                     editing = editing || ImGui::IsItemActive();
                     if (!escapeClaimed && ImGui::IsKeyPressed(ImGuiKey_Escape, false))
                     {
@@ -574,14 +535,9 @@ namespace UI
             {
                 std::string text;
                 bool valid{ true };
-                // Its own line says why the text is not applied.
                 bool reportsItself{ false };
             };
 
-            // The setting's name over one line of its field and the connection
-            // button, so the name and joining with it read as one step, then
-            // ConnectionControls' line on either. The field is locked, with the
-            // reason as its tooltip, unless disconnected.
             void DrawConnectionBar(std::string_view a_key, std::string& a_value, std::string_view a_comment,
                 bool (*a_isValid)(std::string_view))
             {
@@ -629,7 +585,6 @@ namespace UI
                 {
                     return;
                 }
-                // Keeps the last row off the edge when the section scrolls.
                 ImGui::Dummy(ImVec2{ 0.0F, std::floor(ImGui::GetStyle().ItemSpacing.y * 0.5F) });
                 scrollbarWidth = ImGui::GetScrollMaxY() > 0.0F ? ImGui::GetStyle().ScrollbarSize : 0.0F;
                 ImGui::EndChild();
@@ -637,8 +592,6 @@ namespace UI
                 sectionOpen = false;
             }
 
-            // The label, with a_comment as its tooltip, then the cursor at the
-            // control's place.
             bool BeginRow(std::string_view a_key, std::string_view a_comment)
             {
                 if (!sectionOpen)
@@ -662,7 +615,6 @@ namespace UI
 
             void EndRow() { ImGui::PopID(); }
 
-            // Comments are wrapped for the file; the window wraps them itself.
             void FormatNote(std::string_view a_text)
             {
                 note.assign(a_text);
@@ -683,7 +635,6 @@ namespace UI
                 ImGui::EndTooltip();
             }
 
-            // a_label, then the color as #RRGGBB where there is one.
             void DrawColorTooltip(std::string_view a_label, std::optional<std::uint32_t> a_color)
             {
                 if (!ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip))
@@ -710,8 +661,6 @@ namespace UI
                 return field->second;
             }
 
-            // Returns whether the text changed. a_hint, if any, shows in an empty
-            // field.
             static bool DrawTextField(TextField& a_field, const char* a_hint)
             {
                 if (!a_field.valid)
@@ -741,7 +690,6 @@ namespace UI
             float controlWidth{ 0.0F };
             float scrollbarWidth{ 0.0F };
             bool sectionOpen{ false };
-            // Nothing was drawn in the open section yet.
             bool sectionEmpty{ false };
             bool stagedSectionOpen{ false };
             bool editing{ false };
@@ -838,7 +786,6 @@ namespace UI
                     ImGui::SetNextWindowFocus();
                     focusWindow = false;
                 }
-                // The sidebar and the page reach the frame's lines and pad themselves.
                 frame = MenuFrame::GetMetrics();
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ frame.inset, frame.inset });
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, frame.rounding);
@@ -867,7 +814,6 @@ namespace UI
                 ImGui::End();
             }
 
-            // A faint panel over the left side of what the frame encloses.
             void DrawSidebarBackground(float a_width) const
             {
                 const auto position = ImGui::GetWindowPos();
@@ -914,11 +860,9 @@ namespace UI
                 const auto fontSize = ImGui::GetFontSize();
                 const ImVec2 padding{ std::floor(kPagePaddingFonts.x * fontSize),
                     std::floor(kPagePaddingFonts.y * fontSize) };
-                // Below a line under a section's settings, which only some sections have.
                 const auto footerGap = std::floor(kFooterGapFonts * fontSize);
                 const auto footerHeight = ImGui::GetFrameHeight() + footerGap * 2.0F;
                 const auto* liveError = GetLiveError();
-                // What a knot takes of the page's right corners.
                 const auto knot = frame.corner - frame.inset;
                 editor.DrawPage(draft, padding, footerHeight, liveError ? footerHeight : (std::max)(padding.y, knot));
                 ApplyLiveSections();
@@ -963,8 +907,6 @@ namespace UI
                 Apply(std::move(config));
             }
 
-            // At the cursor, what became of the edits; the buttons end a_inset from
-            // the page's right edge.
             void DrawStagedFooter(float a_inset)
             {
                 const bool changed = draft.defaultOutfit != live->defaultOutfit;
@@ -1015,7 +957,6 @@ namespace UI
                 ImGui::EndDisabled();
             }
 
-            // What a section without buttons has to report, if anything.
             [[nodiscard]] const char* GetLiveError() const
             {
                 if (editor.HasInvalidFields())
@@ -1029,11 +970,8 @@ namespace UI
             std::shared_ptr<const Config::PluginConfig> live;
             Config::PluginConfig draft;
             SettingsEditor editor;
-            // As of the last DrawWindow.
             MenuFrame::Metrics frame;
-            // The staged section was applied and has not been edited since.
             bool stagedApplied{ false };
-            // The latest Apply could not write the file.
             bool saveFailed{ false };
             bool wasFocused{ false };
             bool focusWindow{ false };

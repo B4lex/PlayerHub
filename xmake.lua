@@ -1,14 +1,11 @@
--- include subprojects
 includes("lib/commonlibsse-ng")
 
--- set project constants
 set_project("skyrim-mp")
 set_version("0.1.3")
 set_license("GPL-3.0")
 set_languages("c++23")
 set_warnings("allextra")
 
--- add common rules
 add_rules("mode.debug", "mode.releasedbg")
 add_rules("plugin.vsxmake.autoupdate")
 
@@ -44,7 +41,6 @@ if has_config("tracy") then
 end
 set_runtimes("MD")
 
--- define targets
 target("skyrim-mp")
     add_rules("commonlibsse-ng.plugin", {
         name = "skyrim-mp",
@@ -52,7 +48,6 @@ target("skyrim-mp")
         description = "SKSE64 plugin template using CommonLibSSE-NG"
     })
 
-    -- add src files
     add_files("src/**.cpp", "src/**.c")
     -- nanopb runtime from the lib/nanopb submodule, because the xmake package
     -- depends on protoc, which cannot run under wine. Keep its tag in step with
@@ -80,10 +75,7 @@ after_build(function (target)
 
     local dllfile = target:targetfile()
     local pdbfile = target:symbolfile()
-    -- The fonts keep their license file beside them wherever they are copied.
     local fontfiles = path.join(os.projectdir(), "assets", "fonts", "*")
-    -- The menu frame's shape and the note on where it is from, without the
-    -- script that made it.
     local framefiles = path.join(os.projectdir(), "assets", "frame", "*")
     for _, deploy_dir in ipairs(deploy_dirs) do
         os.cp(dllfile, deploy_dir)

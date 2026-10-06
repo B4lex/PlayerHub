@@ -19,21 +19,12 @@ namespace Forms
 
 namespace UI
 {
-    // A dropdown that picks an item form from Forms::ItemCatalog, limited to the
-    // items an ItemFilter matches. Its list is searched by name and plugin and,
-    // with [UI] ItemPreview, shows the hovered item's 3D model. One picker serves
-    // every field of a window, as at most one list is open at a time. Overlay
-    // thread.
     class ItemPicker
     {
     public:
-        // Draws the field for a_value at the cursor and, while it differs from
-        // a_default, a button that resets it, together as wide as the next ImGui
-        // item. Returns true when the user picked an item or reset it.
         bool Draw(const char* a_id, Multiplayer::FormReference& a_value, const Multiplayer::FormReference& a_default,
             const Forms::ItemFilter& a_filter);
 
-        // Forgets cached field labels, for example when the window reopens.
         void Reset();
 
     private:
@@ -41,9 +32,7 @@ namespace UI
         {
             kNone,
             kItem,
-            // In the catalog, but a_filter does not match it.
             kMismatch,
-            // Not in the catalog, from a loaded plugin, or before the catalog is built.
             kUnlisted,
             kPluginMissing
         };
@@ -62,15 +51,12 @@ namespace UI
         void DrawDetails(const Forms::CatalogItem* a_item, float a_width);
         void Search(const Forms::ItemFilter& a_filter);
 
-        // Fetched until the catalog is built; it never changes after that.
         std::shared_ptr<const Forms::ItemCatalog> catalog;
         std::unordered_map<ImGuiID, Label> labels;
 
-        // State of the open list.
         std::string query;
         std::vector<std::uint32_t> matches;
         const Forms::CatalogItem* current{ nullptr };
-        // The list row of the field's value, or -1 when the search hides it.
         int currentRow{ -1 };
         bool scrollToCurrent{ false };
     };

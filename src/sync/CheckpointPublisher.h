@@ -5,16 +5,12 @@
 
 #include <cstdint>
 
-// The single local checkpoint publisher. It owns the 20 Hz cadence and the
-// sequence, and samples position, heading, speed, direction, animation state,
-// occupied furniture, death, and mount for one coherent checkpoint.
 namespace CheckpointPublisher
 {
     enum class Status
     {
         kNotDue,
         kDisconnected,
-        // Due, but the player had no parent cell. The interval was consumed.
         kSkipped,
         kPublished
     };
@@ -22,7 +18,6 @@ namespace CheckpointPublisher
     struct Publication
     {
         Status status{ Status::kNotDue };
-        // Valid when status is kPublished.
         Network::PlayerTransform checkpoint{};
     };
 

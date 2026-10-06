@@ -11,7 +11,6 @@ namespace ChatSync
 {
     namespace
     {
-        // Rejections are reported on the transport thread.
         std::mutex s_noticesLock;
         std::vector<ChatLine> s_notices;
 
@@ -103,8 +102,8 @@ namespace ChatSync
                 .text = std::move(message.text),
                 .player = { .playerID = other.playerID, .name = other.name, .session = other.session },
                 .outgoing = message.outgoing };
-            // A note to oneself is not a conversation, and a muted player's
-            // whispers are hidden, so they do not change /r.
+            // A note to oneself is not a conversation, and a muted player's whispers are
+            // hidden, so neither changes /r.
             if (whisper && message.sender.playerID != message.recipient.playerID
                 && (message.outgoing || !PlayerFilters::IsMuted(message.sender.session)))
             {

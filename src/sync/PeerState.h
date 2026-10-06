@@ -12,12 +12,9 @@
 #include <cstdint>
 #include <unordered_map>
 
-// Complete receive state of one network player. Composition only: each feature
-// owns and interprets its own member. Accessed only by the main-loop pass.
 struct PeerState
 {
     CheckpointPlayout playout;
-    // Checkpoint sequence whose transform the current actor last received.
     std::uint64_t appliedSequence{ 0 };
     CombatSync::RemoteState combat;
     ActorLifecycleState lifecycle;

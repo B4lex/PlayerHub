@@ -171,7 +171,7 @@ leave and when the recipient disconnects.
 - A peer farther than `interest.near_distance` (4096) is written to the viewer
   at most `interest.far_rate_hz` (10) times a second; nearer peers get every
   checkpoint. The periodic pass sets each pair's class
-  (`Outbox.SetInterval`). A far peer's newer checkpoint waits in the outbox
+  (`Outbox.SetClass`). A far peer's newer checkpoint waits in the outbox
   until due and is never lost; the writer's timer fires one tick after the due
   time, so a tick's batch usually carries it without a separate write. An
   ordered message about the peer still takes its pending checkpoint along at

@@ -109,9 +109,12 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   after `Speed` was zeroed or `IsSprinting` cleared.
 - A state is latched once its variables and required events are accepted. A
   variable failure stays pending until the graph is writable. A rejected event
-  gets four attempts, then convergence continues: Skyrim also returns false while
-  an edge is already active or transitioning, so the result is not a reliable
-  acknowledgement.
+  gets four attempts spread over at least 0.1 s, so a high frame rate cannot
+  spend them inside one graph blend, then convergence continues: Skyrim also
+  returns false while an edge is already active or transitioning, so the result
+  is not a reliable acknowledgement. Locomotion edges retry for 0.75 s instead:
+  the graph refuses locomotion while it is still leaving an attack, and a power
+  attack's exit was measured holding it past 0.1 s.
 - A newly created or reloaded graph receives the current state.
 - Logs distinguish `processed`, `retrying-events`, `processed-event-timeout`, and
   `variables-rejected`.
@@ -120,7 +123,11 @@ when the applied checkpoint changes jump phase; no jump events are queued.
 
 - Translation waits for the graph revision that matches the checkpoint and for
   staging to reach it, since translating while the graph request is unavailable
-  or rejected is the literal sliding failure.
+  or rejected is the literal sliding failure. The hold gives up after 0.15 s
+  and follows the pose with the graph state reached so far: a rejected
+  locomotion event retries far longer than an actor may visibly stand still,
+  and holding for the whole retry left it running on the spot and then jumping
+  the backlog.
 - Position approaches the pose (`ActorMovement::SetTargetTransform`, every
   pass) at the pose's path speed plus a backlog drain of the remaining distance
   over about 0.5 s, so an actor on the path follows it exactly and one held
@@ -213,9 +220,12 @@ Several state machines re-enter at a standing state chosen from
 - The applied jump value is reasserted immediately before and after the normal
   actor update, so the locally grounded controller cannot overwrite it.
 - A graph output-event sink watches for the delayed `JumpLandEnd` annotation.
-  The landing edge is complete only once it is seen, with a bounded fallback;
-  grounded locomotion is then fully reasserted, so the actor cannot leave the
-  branch in a sliding idle pose. Translation continues during the wait, while
+  The landing edge is complete only once it is seen, or after a 2 s fallback
+  that sends `JumpLandEnd` itself for a custom graph without the annotation;
+  every active grounded axis is then reasserted even if the movement state did
+  not change, so the actor cannot leave the branch in a sliding idle pose. The
+  dispatch history is kept: forgetting it would read a drawn weapon as a new
+  draw and arm a weapon-transition replay that fires mid-jump. Translation continues during the wait, while
   locomotion edges are held because the jump branch rejects them.
 - A jump is not started while the actor is swimming: interpolation can put the
   actor at swim depth while its source still wades, and a jump there would play

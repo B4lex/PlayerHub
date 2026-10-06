@@ -17,7 +17,6 @@ namespace MountSync
         using ActorConstants::kInitialBlockedEventLogs;
 
         constexpr float kSeatRetrySeconds = 0.5F;
-        // Checking the seat looks up the rider's interaction, so it is spread out.
         constexpr float kSeatCheckSeconds = 0.5F;
     }
 
@@ -53,7 +52,6 @@ namespace MountSync
         }
         if (!lifecycle.mount)
         {
-            // DeathSync takes a dying player's actor off its mount before the kill.
             if (!a_remote.checkpoint.dead)
             {
                 ActorLifecycle::SpawnMountWhenDue(a_remote, a_peer, a_delta);
@@ -91,7 +89,6 @@ namespace MountSync
                 static_cast<unsigned long long>(a_remote.lastSequence));
         }
 
-        // A transition may still link both graphs through a paired clip.
         const bool canSeat = rider.ready && mount.actor.ready && !ActorMount::IsInTransition(rider, mount.actor);
         if (canSeat)
         {
@@ -117,7 +114,6 @@ namespace MountSync
         }
         if (mount.seated || seatAttempts <= kInitialBlockedEventLogs || seatAttempts % kBlockedEventLogInterval == 0)
         {
-            // The seat itself is confirmed by the next seat check.
             logs::debug(
                 "Seating remote player {} actor {:08X} on mount {:08X}: started={} seatedNow={} attempt={} "
                 "sequence={}",

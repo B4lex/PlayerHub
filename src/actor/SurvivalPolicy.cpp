@@ -28,8 +28,7 @@ namespace SurvivalPolicy
         bool ShouldSuppressRemoteActorEffect(const RE::MagicItem* a_magicItem, const RE::Effect* a_effect)
         {
             // Effects propagated through projectiles or explosions do not always
-            // retain a caster. Classify shouts from the originating MagicItem so they
-            // can never alter a network-authoritative remote actor.
+            // retain a caster.
             if (a_magicItem && a_magicItem->GetSpellType() == RE::MagicSystem::SpellType::kVoicePower)
             {
                 return true;
@@ -40,8 +39,6 @@ namespace SurvivalPolicy
                 return false;
             }
 
-            // Preserve benign buffs while rejecting harmful effects from every local
-            // source, including NPCs, hazards, traps, and effects without a caster.
             return a_effect->IsHostile() || a_effect->baseEffect->IsDetrimental();
         }
 
@@ -212,8 +209,7 @@ namespace SurvivalPolicy
                         blockedEffectCount);
                 }
 
-                // Reject the ActiveEffect itself so archetypes and scripts (for example
-                // Ice Form's freeze) cannot change a network-authoritative remote actor.
+                // Archetypes and scripts, such as Ice Form's freeze, act through the ActiveEffect itself.
                 return false;
             }
 
@@ -299,13 +295,8 @@ namespace SurvivalPolicy
         {
             static RE::TESPackage* Thunk(RE::Actor* a_actor)
             {
-                // Quest and scene aliases recruit whatever NPCs are at hand: a remote
-                // actor standing in a tavern is filled into the bard audience and
-                // handed travel and applaud packages. Those outrank the do-nothing
-                // package, move the actor off the transform its peer is authoritative
-                // for, and are reselected every pass however often they are taken
-                // back. A remote actor is never a participant in local quests, so the
-                // package is refused at the point the engine asks for it.
+                // Quest and scene aliases recruit bystanders, and their packages
+                // outrank the do-nothing package and are reselected every pass.
                 if (!ActorRegistry::IsRegistered(a_actor))
                 {
                     return _original(a_actor);
@@ -404,16 +395,13 @@ namespace SurvivalPolicy
         {
             static void Thunk(RE::Actor* a_actor, float a_delta)
             {
-                // Reassert policy and persistent jump state immediately around Skyrim's
-                // actor update. The local grounded controller must not overwrite the
-                // network-owned bInJumpState between main-loop synchronization passes.
+                // Reasserted around Skyrim's actor update, since the local grounded
+                // controller overwrites bInJumpState during it.
                 std::optional<ActorRegistry::UpdatePolicy> policy;
                 if (GameThread::IsAuthoritative())
                 {
                     policy = ActorRegistry::GetUpdatePolicy(a_actor);
                 }
-                // An actor whose player died is left to Skyrim's death and ragdoll;
-                // survival enforcement would resurrect it.
                 const bool protectRemoteActor = policy && !policy->dead;
                 if (protectRemoteActor)
                 {
@@ -506,15 +494,11 @@ namespace SurvivalPolicy
                 actorHandle, dispelledEffects, requestCount);
         }
 
-        // Preserve normal actor, graph, and controller processing. Only combat
-        // decisions are suppressed; network movement still uses the live controller.
         auto& runtimeData = a_actor.GetActorRuntimeData();
         auto& flags = runtimeData.boolFlags;
         flags.reset(RE::Actor::BOOL_FLAGS::kCanDoFavor, RE::Actor::BOOL_FLAGS::kCanSpeak,
             RE::Actor::BOOL_FLAGS::kAttackOnSight, RE::Actor::BOOL_FLAGS::kAngryWithPlayer);
         flags.set(RE::Actor::BOOL_FLAGS::kAttackingDisabled, RE::Actor::BOOL_FLAGS::kDoNotShowOnStealthMeter);
-        // A network cast keeps the caster enabled until it stops. Its release is
-        // suppressed by CombatIsolation.
         if (ActorRegistry::IsCastAnimationOwned(&a_actor))
         {
             flags.reset(RE::Actor::BOOL_FLAGS::kCastingDisabled);
@@ -547,12 +531,9 @@ namespace SurvivalPolicy
     {
         a_actor.InitiateDoNothingPackage();
 
-        // The do-nothing package alone loses to the packages quest and scene
-        // systems assign to a bystander: a remote actor standing in a tavern is
-        // recruited as bard audience and sent travelling, and reselection wins
-        // again on the next pass however often it is taken back. A run-once
-        // package outranks those and survives reselection, so the do-nothing
-        // package is installed as one.
+        // The packages quest and scene systems assign to a bystander outrank the
+        // do-nothing package and win reselection on every pass. A run-once package
+        // outranks those and survives reselection.
         auto* process = a_actor.GetActorRuntimeData().currentProcess;
         if (!process)
         {
@@ -625,9 +606,6 @@ namespace SurvivalPolicy
         }
         if (unownedPackage)
         {
-            // Counted separately from the sanitization passes below: a takeover
-            // lasts a frame or two, far inside their logging interval, so it would
-            // otherwise leave no trace of the package the engine had selected.
             // Main-loop thread only, like the rest of this function.
             static std::uint32_t s_packageTakeoverCount = 0;
             const auto takeoverCount = ++s_packageTakeoverCount;

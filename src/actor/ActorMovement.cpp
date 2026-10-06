@@ -19,34 +19,16 @@ namespace ActorMovement
         constexpr float kArrivalTolerance = 1.0F;
         constexpr float kMinimumStep = 0.01F;
         constexpr float kAirborneTransformCatchUpTime = 0.2F;
-        // An attack's own motion, such as a forward power attack's lunge, carries the
-        // source faster than its last measured speed and on past the end of its
-        // movement input. The actor follows it within about this time.
         constexpr float kAttackTransformCatchUpTime = 0.2F;
-        // The path speed alone never recovers a distance the actor fell behind the
-        // path, such as during a translation hold, and the idle checkpoint would
-        // then snap across it. Drain it over about this time.
         constexpr float kLocomotionBacklogDrainTime = 0.5F;
-        // A pose slower than this is at rest, and an idle actor near it is left alone.
         constexpr float kRestingPathSpeed = 1.0F;
-        // Idle players drift, typically 20 units per second in recordings, and the
-        // first idle checkpoint after a stop still carries the deceleration. An idle
-        // actor follows that path and drains a backlog quickly, since sliding in an
-        // idle pose shows more than while walking. A backlog that would need more
-        // than about walking speed to drain is snapped instead.
         constexpr float kIdleBacklogDrainTime = 0.2F;
         constexpr float kMaximumIdleCatchUpSpeed = 150.0F;
-        // An actor following the interpolated path reaches the landing as its
-        // checkpoint plays. A larger backlog is snapped by the landing alignment
-        // rather than holding the airborne pose longer.
         constexpr float kLandingApproachSeconds = 0.25F;
-        // How close to the landing position the airborne actor counts as arrived.
         constexpr float kLandingArrivalTolerance = 2.0F;
         constexpr float kTwoPi = 6.28318530717958647692F;
         constexpr float kHeadingDeadZone = 0.00872664625997164788F;
         constexpr float kMaximumHeadingRate = kTwoPi;
-        // The target pitch is already interpolated between checkpoints; this only
-        // eases the quantization steps.
         constexpr float kPitchSmoothingSeconds = 0.1F;
 
         void ApplySmoothedHeading(RE::Actor& a_actor, float a_targetHeading, float a_deltaTime)
@@ -63,9 +45,7 @@ namespace ActorMovement
                 return;
             }
 
-            // remainder selects the shortest route across the -pi/pi boundary. Limiting
-            // that route keeps individual network samples from snapping the actor and
-            // repeatedly provoking Skyrim's native NPC_Turn transitions.
+            // Snapping the heading provokes Skyrim's native NPC_Turn transitions.
             const float headingDelta = std::remainder(a_targetHeading - currentHeading, kTwoPi);
             if (std::abs(headingDelta) <= kHeadingDeadZone)
             {
@@ -168,15 +148,10 @@ namespace ActorMovement
 
         const float distance = std::sqrt(distanceSquared);
         const bool attackPlaying = ActorAnimation::IsAnimationActionPlaying(a_remote);
-        // A moving target advances only a little each pass, often less than
-        // kArrivalTolerance, so an actor follows it without an arrival tolerance or
-        // it would move in steps.
         if (deltaTime <= 0.0F || distance <= kMinimumStep)
         {
             return;
         }
-        // A playing attack is not idle: the source's attack motion may still be
-        // carrying it after its movement input ended.
         if (!IsMoving(a_translationState.movementState) && !a_translationState.jumping && !attackPlaying)
         {
             const float pathSpeed = a_remote.movement.translationSpeed;
@@ -198,9 +173,6 @@ namespace ActorMovement
         const float catchUpTime = a_translationState.jumping ? kAirborneTransformCatchUpTime
             : attackPlaying                                  ? kAttackTransformCatchUpTime
                                                              : 0.0F;
-        // The drain term also applies with a catch-up time, which alone only
-        // shortens a backlog above translationSpeed * catchUpTime and would carry
-        // a smaller one through the whole jump into the landing.
         const float backlogSpeed = a_remote.movement.translationSpeed + distance / kLocomotionBacklogDrainTime;
         const float interpolationSpeed
             = catchUpTime > 0.0F ? (std::max)(backlogSpeed, distance / catchUpTime) : backlogSpeed;
@@ -210,8 +182,7 @@ namespace ActorMovement
         const RE::NiPoint3 nextPosition{ current.x + offset.x * interpolation, current.y + offset.y * interpolation,
             current.z + offset.z * interpolation };
 
-        // Passing true keeps the actor's character controller in sync with its
-        // reference transform, which is essential for a network-controlled remote actor.
+        // Passing true keeps the character controller in sync with the reference transform.
         a_actor.SetPosition(nextPosition, true);
     }
 
@@ -219,8 +190,7 @@ namespace ActorMovement
     {
         auto* controller = a_actor.GetCharController();
         const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
-        // Skyrim pitches only a controller with this flag, which comes from the
-        // race's kTiltFrontBack.
+        // Skyrim pitches only a controller with this flag, which comes from the race's kTiltFrontBack.
         if (!controller || deltaTime <= 0.0F || controller->flags.none(RE::CHARACTER_FLAGS::kCanPitch))
         {
             return;

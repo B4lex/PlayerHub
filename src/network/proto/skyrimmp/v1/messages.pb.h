@@ -13,16 +13,12 @@
 /* Enum definitions */
 typedef enum _skyrimmp_v1_Protocol {
     skyrimmp_v1_Protocol_PROTOCOL_UNSPECIFIED = 0,
-    /* Bumped on every incompatible change. Client and server must match. */
     skyrimmp_v1_Protocol_PROTOCOL_VERSION = 6
 } skyrimmp_v1_Protocol;
 
 typedef enum _skyrimmp_v1_ChatChannel {
-    /* Every connected player. */
     skyrimmp_v1_ChatChannel_CHAT_CHANNEL_GLOBAL = 0,
-    /* Placed players near the sender, or in the same interior. */
     skyrimmp_v1_ChatChannel_CHAT_CHANNEL_LOCAL = 1,
-    /* One player, addressed by slot. */
     skyrimmp_v1_ChatChannel_CHAT_CHANNEL_WHISPER = 2
 } skyrimmp_v1_ChatChannel;
 
@@ -30,13 +26,8 @@ typedef enum _skyrimmp_v1_LeaveReason {
     skyrimmp_v1_LeaveReason_LEAVE_REASON_UNSPECIFIED = 0,
     skyrimmp_v1_LeaveReason_LEAVE_REASON_OUT_OF_RANGE = 1,
     skyrimmp_v1_LeaveReason_LEAVE_REASON_EXCLUDED = 2,
-    /* The peer left the world: loading screen, main menu, or save load. */
     skyrimmp_v1_LeaveReason_LEAVE_REASON_EXITED = 3,
-    /* The peer's connection closed. The recipient forgets its appearance and
- equipment too. */
     skyrimmp_v1_LeaveReason_LEAVE_REASON_DISCONNECTED = 4,
-    /* The recipient itself has no position the server can compare: it left the
- world or has not sent a Context and Checkpoint since entering. */
     skyrimmp_v1_LeaveReason_LEAVE_REASON_VIEWER_UNPLACED = 5
 } skyrimmp_v1_LeaveReason;
 
@@ -44,18 +35,9 @@ typedef enum _skyrimmp_v1_LeaveReason {
 typedef PB_BYTES_ARRAY_T(32) skyrimmp_v1_Hello_session_token_t;
 typedef struct _skyrimmp_v1_Hello {
     uint32_t protocol_version;
-    /* The radius, in game units, within which this client wants peers; zero
- for the server's. The server clamps it to its own range. */
     uint32_t view_radius;
-    /* The secret of the client's session with this server, 32 bytes; empty to
- ask for a new session. One that matches no live session is answered with
- a new session too. */
     skyrimmp_v1_Hello_session_token_t session_token;
-    /* The display name the player wants: the new session's, or the resumed
- session's from now on. */
     char display_name[16];
-    /* The sessions whose players this client vanished: the server never sends
- it their presentation. At most 1024, none zero. */
     pb_callback_t vanished;
 } skyrimmp_v1_Hello;
 
@@ -71,7 +53,6 @@ typedef struct _skyrimmp_v1_ChatSend {
     uint32_t request_id;
     char text[513];
     skyrimmp_v1_ChatChannel channel;
-    /* The recipient's slot, from the roster. Only for a whisper. */
     uint32_t recipient;
 } skyrimmp_v1_ChatSend;
 
@@ -79,9 +60,6 @@ typedef struct _skyrimmp_v1_Ping {
     uint32_t request_id;
 } skyrimmp_v1_Ping;
 
-/* Vanishes a session's player from this client's world, or brings it back,
- at once and for as long as this connection lasts. The client presents the
- whole set again in its next hello. */
 typedef struct _skyrimmp_v1_Vanish {
     uint64_t session_id;
     bool vanished;
@@ -106,33 +84,22 @@ typedef struct _skyrimmp_v1_ClientMessage {
 
 typedef PB_BYTES_ARRAY_T(32) skyrimmp_v1_Welcome_session_token_t;
 typedef struct _skyrimmp_v1_Welcome {
-    /* The client's own slot. Slots are never reused within a server run. */
     uint32_t slot;
-    /* The session's public identifier, the same for as long as the session
- lives and never reused. */
     uint64_t session_id;
-    /* The session's display name, as peers see it. */
     char display_name[16];
-    /* Only when the session was issued for this connection: the secret to
- present in later hellos. */
     skyrimmp_v1_Welcome_session_token_t session_token;
 } skyrimmp_v1_Welcome;
 
-/* Answers a request that carries a request_id: ChatSend and Ping. */
 typedef struct _skyrimmp_v1_Result {
     uint32_t request_id;
     bool ok;
     char error[64];
 } skyrimmp_v1_Result;
 
-/* Latest checkpoints of peers the recipient subscribes to. The server builds a
- batch by concatenating entries encoded once per sender. */
 typedef struct _skyrimmp_v1_PeerStates {
     pb_callback_t states;
 } skyrimmp_v1_PeerStates;
 
-/* Starts a subscription. Nothing else about the peer precedes it. Appearance
- and equipment are present only when newer than what the recipient holds. */
 typedef struct _skyrimmp_v1_PeerEnter {
     uint32_t slot;
     bool has_appearance;
@@ -151,7 +118,6 @@ typedef struct _skyrimmp_v1_PeerContext {
     skyrimmp_v1_Context context;
 } skyrimmp_v1_PeerContext;
 
-/* Ends a subscription and the peer's action stream. */
 typedef struct _skyrimmp_v1_PeerLeave {
     uint32_t slot;
     skyrimmp_v1_LeaveReason reason;
@@ -175,13 +141,10 @@ typedef struct _skyrimmp_v1_PeerEquipment {
     skyrimmp_v1_Equipment equipment;
 } skyrimmp_v1_PeerEquipment;
 
-/* A player as chat shows it: its display name and the level of its latest
- appearance. */
 typedef struct _skyrimmp_v1_ChatSpeaker {
     uint32_t slot;
     char name[129];
     uint32_t level;
-    /* The player's session, which a client mutes it by. */
     uint64_t session_id;
 } skyrimmp_v1_ChatSpeaker;
 
@@ -189,25 +152,19 @@ typedef struct _skyrimmp_v1_ChatMessage {
     skyrimmp_v1_ChatChannel channel;
     bool has_sender;
     skyrimmp_v1_ChatSpeaker sender;
-    /* Only for a whisper. */
     bool has_recipient;
     skyrimmp_v1_ChatSpeaker recipient;
     char text[513];
 } skyrimmp_v1_ChatMessage;
 
-/* A connected client as others can address it. */
 typedef struct _skyrimmp_v1_RosterEntry {
     uint32_t slot;
     char name[129];
-    /* The session's public identifier, as Welcome gives a client its own. */
     uint64_t session_id;
 } skyrimmp_v1_RosterEntry;
 
-/* A change of the connected clients. The first one after a welcome lists all
- of them, the recipient included; later ones carry one change each. */
 typedef struct _skyrimmp_v1_Roster {
     pb_callback_t joined;
-    /* The slot of a client that disconnected; zero for none. */
     uint32_t left;
 } skyrimmp_v1_Roster;
 

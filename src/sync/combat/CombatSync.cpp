@@ -13,19 +13,12 @@ namespace CombatSync
 {
     namespace
     {
-        // An attack is presentation of what the peer did just now. Replaying it
-        // seconds later only extends the swing sequence past the peer's own; this
-        // still covers a weapon draw or swing that the attack waits behind.
         constexpr float kAnimationActionTimeoutSeconds = 3.0F;
         constexpr std::uint32_t kMaximumAnimationActionAttempts = 4;
-        // Rejected attacks are also retried for at least this long, so a high frame
-        // rate cannot spend every attempt inside one short graph blend.
         constexpr float kMinimumAnimationActionRetrySeconds = 0.25F;
         constexpr std::size_t kMaximumQueuedAnimationActions = 32;
 
-        // Captured local attacks waiting for the next published checkpoint.
         std::deque<Network::Attack> s_pendingAttacks;
-        // Hand presentation observed since the last published checkpoint.
         Multiplayer::HandPresentation s_currentHandPresentation;
         Multiplayer::HandPresentation s_unpublishedHandPresentation;
 
@@ -68,10 +61,7 @@ namespace CombatSync
             }
         }
 
-        // The hand, or bash, of an attack that just started, and whether it is a
-        // power attack in which direction. The attack data is the race's entry for
-        // the graph event that started it; without one the attack is presented as
-        // a plain right-hand swing.
+        // The attack data is the race's entry for the graph event that started the attack.
         Network::Attack ClassifyAttack(const RE::BGSAttackData* a_attackData, RE::ATTACK_STATE_ENUM a_attackState)
         {
             Network::Attack attack{};
@@ -91,7 +81,6 @@ namespace CombatSync
                 attack.action = Network::AttackAction::kBash;
                 // Attack data left over from a swing does not make the bash a power bash.
                 attack.power = attack.power && bashData;
-                // A bash has no direction.
                 attack.direction = Network::PowerAttackDirection::kStanding;
                 return attack;
             }
@@ -104,14 +93,12 @@ namespace CombatSync
             {
                 case AnimationEvents::AttackEventHand::kDual:
                     attack.action = Network::AttackAction::kDual;
-                    // Dual-wield and two-fist power attacks have no direction.
                     attack.direction = Network::PowerAttackDirection::kStanding;
                     break;
                 case AnimationEvents::AttackEventHand::kLeft:
                     attack.action = Network::AttackAction::kLeft;
                     break;
                 default:
-                    // CommonLib's IsLeftAttack reads the attack data's left-hand flag.
                     attack.action
                         = a_attackData->IsLeftAttack() ? Network::AttackAction::kLeft : Network::AttackAction::kNormal;
                     break;
@@ -147,8 +134,7 @@ namespace CombatSync
 
         bool IsCastingSpell(RE::PlayerCharacter& a_player, bool a_leftHand)
         {
-            // Only a hand that peers show as a spell hand can present a cast. A staff
-            // uses the same caster but stays a weapon.
+            // A staff uses the same caster but stays a weapon.
             const auto* equipped = a_player.GetEquippedObject(a_leftHand);
             if (!equipped || !(equipped->Is(RE::FormType::Spell) || equipped->Is(RE::FormType::Scroll)))
             {
@@ -210,15 +196,12 @@ namespace CombatSync
         PROFILE_FUNCTION();
         static RE::ATTACK_STATE_ENUM previousAttackState = RE::ATTACK_STATE_ENUM::kNone;
         static bool attackWindowActive = false;
-        // The latest captured attack of the window is already presented as a power
-        // attack or bash, so it can no longer become one.
         static bool attackPowerResolved = false;
 
         const auto* actorState = a_local.player.AsActorState();
         const auto attackState = actorState ? actorState->GetAttackState() : RE::ATTACK_STATE_ENUM::kNone;
         const bool bashing = attackState == RE::ATTACK_STATE_ENUM::kBash;
         // A bow or crossbow shot passes through kNextAttack and kFollowThrough too.
-        // Bow draws are presented by the checkpoint instead, but any weapon bashes.
         const bool attackActive
             = bashing || (!IsHoldingRangedWeapon(a_local.player) && IsMeleeAttackState(attackState));
         const bool priorAttackFinishing = previousAttackState == RE::ATTACK_STATE_ENUM::kNextAttack
@@ -301,8 +284,7 @@ namespace CombatSync
 
     Multiplayer::HandPresentation SampleLocalHandPresentation()
     {
-        // Capture runs earlier in the same pass, so this always includes the
-        // current presentation.
+        // Capture runs earlier in the same pass, so this always includes the current presentation.
         return std::exchange(s_unpublishedHandPresentation, {});
     }
 
@@ -310,8 +292,7 @@ namespace CombatSync
     {
         if (a_graphEpochChanged)
         {
-            // An accepted input from the previous graph cannot be attached to a
-            // checkpoint from this new epoch. Historical attacks are not replayed.
+            // An input from the previous graph cannot be attached to a checkpoint from this new epoch.
             s_pendingAttacks.clear();
         }
         if (a_capturedAttack && s_pendingAttacks.size() < kMaximumQueuedAnimationActions)
@@ -425,9 +406,6 @@ namespace CombatSync
             return;
         }
         const bool playing = ActorAnimation::IsAnimationActionPlaying(a_actor);
-        // A held attack button publishes the plain swing and then its power attack.
-        // When both are queued before the swing starts, the power attack starts
-        // directly instead of first showing the beginning of the plain swing.
         if (!playing && a_state.pendingAnimationActions.size() >= 2)
         {
             const auto& plain = a_state.pendingAnimationActions[0].action;
@@ -446,11 +424,6 @@ namespace CombatSync
         }
         auto& pending = a_state.pendingAnimationActions.front();
         const auto& action = pending.action;
-        // A playing attack only takes the next one as a chained swing in its combo
-        // window. Waiting for the whole recovery instead makes every replayed swing
-        // slower than the local chain, so spammed attacks pile up behind it. A bash
-        // never chains. A power attack of the playing plain swing's hand turns that
-        // swing into the power attack instead, as the source's held button did.
         const bool poweringUp = playing && ActorAnimation::CanPowerUpAttack(a_actor, action.attack);
         const bool chaining = playing && !poweringUp;
         if (chaining && !ActorAnimation::CanChainAttack(a_actor, action.attack))
@@ -461,7 +434,6 @@ namespace CombatSync
         if (action.graphEpoch != a_remote.checkpoint.graphEpoch || action.checkpointSequence > a_remote.lastSequence
             || a_remote.checkpoint.animationState.jumping || !a_remote.checkpoint.furniture.IsEmpty()
             || !a_remote.checkpoint.animationState.weaponDrawn ||
-            // A weapon swap published before the attack must reach the hands first.
             !a_handsSettled || (!playing && !ActorAnimation::CanDispatchAttack(a_actor, action.attack)))
         {
             return;
@@ -470,8 +442,7 @@ namespace CombatSync
         const bool accepted = ActorAnimation::DispatchAttack(a_actor, action.attack);
         if (!accepted && chaining)
         {
-            // A closed combo window is not a rejection of the attack itself; it
-            // starts normally once the playing attack completes.
+            // A closed combo window is not a rejection; the attack starts once the playing one completes.
             return;
         }
         ++pending.dispatchAttempts;
@@ -506,17 +477,12 @@ namespace CombatSync
         PROFILE_FUNCTION();
         const auto& checkpoint = a_remote.checkpoint;
         const auto& target = checkpoint.handPresentation;
-        // The stance change waits for the presentation to end (AnimationSync holds
-        // it), so a sheathe or jump first releases the draw, stops channelling, and
-        // lowers the block.
         const bool stanceAllows = checkpoint.animationState.weaponDrawn && !checkpoint.animationState.jumping
             && checkpoint.furniture.IsEmpty();
-        // A spell or bow swap published before the presentation reaches the hands
-        // first, so the draw does not start on the previous weapon.
         const bool mayStart = a_handsSettled && !ActorAnimation::IsAnimationActionPlaying(a_actor);
 
-        // A bash is an attack action and plays from the held block, so the block
-        // only waits for other attacks to start, never to be held.
+        // A bash plays from the held block, so the block only waits for other attacks to
+        // start, never to be held.
         ActorAnimation::ApplyBlock(a_actor, stanceAllows && target.blocking, mayStart, a_delta);
         ActorAnimation::ApplyBowDraw(a_actor, stanceAllows && target.bowDrawn, mayStart, a_delta);
         for (const bool leftHand : { true, false })

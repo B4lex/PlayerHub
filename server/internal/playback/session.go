@@ -15,17 +15,15 @@ import (
 const (
 	MinimumRate = 0.1
 	MaximumRate = 4.0
-	// Timeline positions come from float clock arithmetic, so a message due at
-	// exactly the current position can appear a hair in the future.
+	// Timeline positions come from float clock arithmetic, so a message due at exactly the
+	// current position can appear a hair in the future.
 	dueToleranceMs = 1e-6
 )
 
 var ErrNoCheckpoints = errors.New("recording has no checkpoints")
 
-// Player is where a replay's messages go.
 type Player interface {
 	Send(m *pb.ClientMessage)
-	// Leave removes the player from every client.
 	Leave()
 }
 
@@ -42,13 +40,11 @@ type Options struct {
 	Rate     float64
 	Loop     bool
 	StartMs  int64
-	// Replaces the recorded player name, for load-test bots.
 	Name     string
 	Now      func() time.Time
 	OnChange func()
 }
 
-// State is a replay as the admin panel shows it.
 type State struct {
 	ID          string  `json:"id"`
 	RecordingID string  `json:"recordingId"`
@@ -60,9 +56,8 @@ type State struct {
 	DurationMs  int64   `json:"durationMs"`
 	Rate        float64 `json:"rate"`
 	Loop        bool    `json:"loop"`
-	// Rises on every change, so a newer copy supersedes an older one.
-	Revision int64   `json:"revision"`
-	Error    *string `json:"error"`
+	Revision    int64   `json:"revision"`
+	Error       *string `json:"error"`
 }
 
 type timed[T any] struct {
@@ -70,12 +65,6 @@ type timed[T any] struct {
 	value T
 }
 
-// Session replays one recording. The timeline position is anchorMs at
-// anchorTime, moving at rate while playing. Control methods only change that
-// state and wake the run goroutine, which emits every message, so a seek takes
-// effect between two emissions. Checkpoints are latest-wins, so a seek does
-// not replay what it skips: it sends the state in effect at the target. While
-// the recorded player was out of the world, the virtual player is too.
 type Session struct {
 	ID       string
 	PlayerID string
@@ -162,12 +151,10 @@ func ValidateRate(rate float64) error {
 	return nil
 }
 
-// Start runs the emission goroutine.
 func (s *Session) Start() {
 	go s.run()
 }
 
-// Close stops the replay and removes its player from every client.
 func (s *Session) Close() {
 	select {
 	case <-s.stop:
@@ -214,7 +201,6 @@ func (s *Session) Play() {
 		return
 	}
 	if s.ended || s.anchorMs >= float64(s.duration) {
-		// Like a media player, playing from the end starts over.
 		s.anchorMs = 0
 		s.snapshotPending = true
 	}
@@ -246,7 +232,6 @@ func (s *Session) Seek(positionMs float64) {
 	s.touchLocked()
 }
 
-// Configure changes the rate, the looping, or both.
 func (s *Session) Configure(rate *float64, loop *bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -266,8 +251,6 @@ func (s *Session) Configure(rate *float64, loop *bool) error {
 	return nil
 }
 
-// Advance emits whatever is due and returns how long until more is due, or
-// a negative duration when nothing is scheduled.
 func (s *Session) Advance() time.Duration {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -362,12 +345,9 @@ func (s *Session) emitSnapshotLocked(position float64) {
 	s.player.Send(checkpointMessage(s.virtual.Checkpoint(checkpoint, !s.playing, s.now())))
 }
 
-// checkpointAtLocked returns the checkpoint in effect, or nil while the
-// player is out of the world.
 func (s *Session) checkpointAtLocked(position float64) *pb.Checkpoint {
 	presence := sort.Search(len(s.presence), func(i int) bool { return float64(s.presence[i].tMs) > position }) - 1
 	if presence < 0 {
-		// Before any recorded change, the player is in the world unless it enters later.
 		if len(s.presence) > 0 && s.presence[0].value {
 			return nil
 		}
@@ -413,8 +393,6 @@ func (s *Session) emitLocked(m recording.Message) {
 			}
 		}
 	}
-	// A recorded Enter places nothing by itself; the next context or
-	// checkpoint enters the world.
 }
 
 func (s *Session) sendContextLocked(c *pb.Context) {
@@ -475,9 +453,6 @@ func (s *Session) positionLocked(now time.Time) float64 {
 	return math.Min(float64(s.duration), s.anchorMs+elapsedMs)
 }
 
-// timelineTimeLocked is when a timeline position is due while playing. A
-// recorded checkpoint is stamped with it, so receivers see the recorded
-// spacing even when the timer fires late or emits a burst.
 func (s *Session) timelineTimeLocked(positionMs float64) time.Time {
 	if !s.playing {
 		return s.now()
@@ -494,8 +469,6 @@ func (s *Session) touchLocked() {
 	s.onChange()
 }
 
-// latestAt returns the value in effect at position; before the first one, the
-// first is the best estimate.
 func latestAt[T any](series []timed[T], position float64) T {
 	var zero T
 	if len(series) == 0 {

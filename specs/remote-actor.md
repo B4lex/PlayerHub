@@ -108,7 +108,17 @@ have their own update (`UpdateRider`, `UpdateMount`,
 `ActorRegistry` is the only remote-actor state that hooks on worker threads
 read. Each operation keeps one lock scope; pure event-name classification in
 the graph input hook runs outside the lock. Hooks on hot engine paths skip the
-lock when an atomic count says no actor needs them. Per actor it holds:
+lock when an atomic count says no actor needs them (riders' gait speed,
+network-placed actors, native furniture exits).
+
+Registrations are inserted and erased only on the main-loop thread
+(`Register` before the first hook can observe a new actor, `Unregister` before
+its reference is deleted), so that thread reads registrations and the fields
+only it writes without the lock (`LockUnlessMainThread`), and takes it to
+write a field other threads read (`LockForWrite`). Every other thread holds
+the lock. Counts that hooks raise from other threads are atomics the main loop
+consumes without the lock; observation flags and hook counts are only accessed
+under it. Per actor it holds:
 
 - identity (by actor and by handle, so AI threads never resolve a handle) and
   its graph holder;
@@ -141,6 +151,9 @@ is sent directly to the saved graph function, bypassing the hook.
   ([Native interactions](native-interactions.md#mounts)).
 - Local attack, hit, cast, combat-target, and AI-driven events never take
   graph ownership outside those windows.
+- `ForceDefaultGraphState` sends `IdleForceDefaultState` past the filter, then
+  raises a carried torch again, because the reset also drops the graph's torch
+  arm layer.
 
 ### Graph channels
 

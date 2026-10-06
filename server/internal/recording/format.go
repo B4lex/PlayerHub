@@ -1,13 +1,3 @@
-// Package recording stores captured players as append-only JSON Lines files:
-//
-//	{"type":"header","format":"skyrim-mp-recording","version":3,"id":...}
-//	{"type":"message","t":0,"message":{"enter":{}}}
-//	{"type":"end","t":75266,"reason":"stopped"}
-//
-// A message line holds a validated ClientMessage in protojson. A file without
-// an end line is an interrupted capture, and a torn last line is ignored.
-// Playback numbers sequences and revisions itself, so nothing depends on the
-// capture's numbering.
 package recording
 
 import (
@@ -28,7 +18,6 @@ const (
 	FormatVersion = 3
 )
 
-// Error is a recording file that cannot be read or is not valid.
 type Error struct{ message string }
 
 func (e *Error) Error() string { return e.message }
@@ -42,8 +31,7 @@ type Header struct {
 	Label      string `json:"label"`
 	PlayerID   string `json:"playerId"`
 	PlayerName string `json:"playerName"`
-	// ISO-8601 UTC.
-	StartedAt string `json:"startedAt"`
+	StartedAt  string `json:"startedAt"`
 }
 
 type Message struct {
@@ -72,7 +60,6 @@ func (r *Recording) DurationMs() int64 {
 	return 0
 }
 
-// Info is listing metadata, without the messages.
 type Info struct {
 	ID           string  `json:"id"`
 	Label        string  `json:"label"`
@@ -159,7 +146,6 @@ func splitLines(data []byte) [][]byte {
 	return lines
 }
 
-// Read loads and validates a recording, tolerating a torn last line.
 func Read(path string) (*Recording, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -230,8 +216,6 @@ func validateRecorded(m *pb.ClientMessage) error {
 	return errors.New("message kind is never recorded")
 }
 
-// ScanInfo summarizes a recording from its header and last lines without
-// validating messages; Read validates when one is opened.
 func ScanInfo(path string) (Info, error) {
 	stat, err := os.Stat(path)
 	if err != nil {
@@ -256,7 +240,6 @@ func ScanInfo(path string) (Info, error) {
 	}
 	ok := parseLast()
 	if !ok && len(body) > 0 {
-		// Torn final line.
 		body = body[:len(body)-1]
 		ok = parseLast()
 	}

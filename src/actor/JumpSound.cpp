@@ -30,8 +30,8 @@ namespace JumpSound
         constexpr float kMaximumDistance = 1800.0F;
         constexpr std::array<float, 5> kAttenuationCurve{ 1.0F, 0.5F, 0.2F, 0.05F, 0.0F };
 
-        // Set on the thread that dispatches a remote actor's jump footstep, for the
-        // nested impact-sound calls below.
+        // Set on the thread that dispatches a remote actor's jump footstep, for the nested
+        // impact-sound calls below.
         thread_local std::uint32_t t_remoteJumpActor = 0;
         thread_local std::optional<float> t_playVolume;
 
@@ -65,8 +65,7 @@ namespace JumpSound
         {
             auto* descriptor = a_sound ? skyrim_cast<RE::BGSStandardSoundDef*>(a_sound->soundDescriptor) : nullptr;
             const auto* outputModel = descriptor ? descriptor->outputModel : nullptr;
-            // Compound descriptors and sounds without an output model keep vanilla
-            // behavior.
+            // Compound descriptors and sounds without an output model keep vanilla behavior.
             return !outputModel
                 || outputModel->data.flags.all(RE::BGSSoundOutput::Data::Flag::kAttenuatesWithDistance);
         }
@@ -179,8 +178,8 @@ namespace JumpSound
             return;
         }
 
-        // Without the volume hook a nearby jump would still play unattenuated, so
-        // only route remote jumps once it is in place.
+        // Without the volume hook a nearby jump would still play unattenuated, so only route
+        // remote jumps once it is in place.
         PooledSoundPlayHook::_original = WriteCallDetour(REL::ID(36208), PooledSoundPlayHook::kOffset,
             reinterpret_cast<std::uintptr_t>(&PooledSoundPlayHook::Thunk), "pooled impact sound play");
         if (PooledSoundPlayHook::_original.address() != 0)

@@ -1,7 +1,5 @@
 #pragma once
 
-// Tracy instrumentation, compiled in only when configured with `xmake f --tracy=y`.
-// Otherwise every macro expands to nothing.
 #ifdef TRACY_ENABLE
 #    include <tracy/Tracy.hpp>
 

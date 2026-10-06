@@ -9,20 +9,17 @@ namespace UI::Controls
 {
     namespace
     {
-        // In font sizes, so the controls follow the overlay scale.
         constexpr float kToggleWidthFonts = 2.375F;
         constexpr float kToggleHeightFonts = 1.25F;
         constexpr float kToggleKnobInsetFonts = 0.1875F;
         constexpr float kToggleSeconds = 0.12F;
         constexpr float kIconLineFonts = 0.09375F;
-        // Of the button's size.
         constexpr float kCloseReach = 0.17F;
         constexpr float kResetRadius = 0.21F;
         constexpr float kResetHead = 0.15F;
 
         constexpr ImVec4 kToggleOffKnob{ 0.72F, 0.71F, 0.69F, 1.0F };
         constexpr ImVec4 kBlack{ 0.0F, 0.0F, 0.0F, 1.0F };
-        // How much darker the accent fill is while pressed.
         constexpr float kPrimaryPressedShade = 0.14F;
         constexpr ImVec4 kDangerPressed{ 0.80F, 0.30F, 0.26F, 1.0F };
 
@@ -53,8 +50,6 @@ namespace UI::Controls
                 ImVec2{ a_center.x + reach, a_center.y - reach }, a_color, a_thickness);
         }
 
-        // An open circle that ends, at the upper right, in an arrowhead heading
-        // back around it.
         void DrawReset(ImDrawList& a_list, const ImVec2& a_center, float a_size, ImU32 a_color, float a_thickness)
         {
             constexpr float kHeadAngle = -0.25F * std::numbers::pi_v<float>;
@@ -92,7 +87,6 @@ namespace UI::Controls
             a_value = !a_value;
         }
 
-        // The knob's place between off and on, which follows the value.
         auto& place = *ImGui::GetStateStorage()->GetFloatRef(ImGui::GetItemID(), a_value ? 1.0F : 0.0F);
         const float step = ImGui::GetIO().DeltaTime / kToggleSeconds;
         place = a_value ? (std::min)(place + step, 1.0F) : (std::max)(place - step, 0.0F);

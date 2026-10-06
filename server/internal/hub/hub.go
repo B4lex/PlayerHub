@@ -1,6 +1,3 @@
-// Package hub owns all world state. One goroutine calls its methods: sessions,
-// playback, and the admin API submit work to it through Loop, and tests call
-// the methods directly with a fake clock.
 package hub
 
 import (
@@ -21,19 +18,15 @@ import (
 )
 
 var (
-	ErrUnknownPlayer = errors.New("unknown player")
-	ErrRateLimited   = errors.New("rate limited")
-	// Local chat needs the sender's position.
+	ErrUnknownPlayer    = errors.New("unknown player")
+	ErrRateLimited      = errors.New("rate limited")
 	ErrNotPlaced        = errors.New("not in world")
 	ErrUnknownRecipient = errors.New("unknown recipient")
 	ErrTooManyVanished  = errors.New("too many vanished players")
 )
 
-// Recorder receives every accepted client message of every player, so it can
-// append those of captured players.
 type Recorder interface {
 	Record(slot uint32, m *pb.ClientMessage)
-	// Stop ends a capture of a player that is gone.
 	Stop(slot uint32, reason string)
 }
 
@@ -41,72 +34,51 @@ type Options struct {
 	Clock            clock.Clock
 	ActionsPerSecond float64
 	ActionBurst      float64
-	// Zero means interest.DefaultConfig.
-	Interest interest.Config
-	// New subscriptions per viewer and second, nearest first; zero is no limit.
-	EntersPerSecond float64
-	// How far local chat reaches in a worldspace; zero is 8192.
-	ChatLocalRadius float64
-	Recorder        Recorder
-	Logger          *slog.Logger
-	// Called whenever something the admin panel shows changes.
-	OnChange func()
+	Interest         interest.Config
+	EntersPerSecond  float64
+	ChatLocalRadius  float64
+	Recorder         Recorder
+	Logger           *slog.Logger
+	OnChange         func()
 }
 
 type member struct {
 	*world.Player
-	// Nil for a virtual player, which receives nothing.
 	outbox *delivery.Outbox
-	// Where the player is, while placed, and what it asked for as a viewer.
-	view interest.View
+	view   interest.View
 
-	// Recipients subscribed to this player.
-	subscribers []*member
-	// Peers this player receives, and the presentation revisions it holds.
+	subscribers    []*member
 	subscribed     map[uint32]*subscription
 	heldAppearance map[uint32]uint64
 	heldEquipment  map[uint32]uint64
 
-	// A checkpoint arrived since the last tick.
-	changed bool
-	// The last checkpoint handed to subscribers, to skip identical ones.
+	changed     bool
 	distributed *pb.Checkpoint
-	// The next checkpoint is distributed even if identical: it follows a
-	// context change, which clients only apply with a checkpoint.
-	forceNext bool
-	// The outbox received checkpoints this tick.
-	touched bool
+	forceNext   bool
+	touched     bool
 
 	actions limit.TokenBucket
 	chat    chatThrottle
-	// New subscriptions of this viewer, when limited.
-	enters limit.TokenBucket
+	enters  limit.TokenBucket
 }
 
 type subscription struct {
-	since time.Time
-	// The least time between written checkpoints and the budget weight: the
-	// pair's rate class.
+	since    time.Time
 	interval time.Duration
 	weight   float64
 }
 
-// candidate is a peer a viewer may receive in this interest pass.
 type candidate struct {
 	peer      *member
 	distance  float64
 	incumbent bool
-	// Still within its minimum time in view, so the cap cannot evict it.
-	pinned bool
+	pinned    bool
 }
 
-// Identity is the session a client connected with.
 type Identity struct {
 	Session     uint64
 	DisplayName string
-	// The session's secret when it was issued for this connection. The
-	// welcome carries it once.
-	Token []byte
+	Token       []byte
 }
 
 type Hub struct {
@@ -114,16 +86,14 @@ type Hub struct {
 	members    map[uint32]*member
 	recipients []*member
 	nextSlot   uint32
-	// The connected client of each session.
-	sessions map[uint64]uint32
-	changed  []*member
-	touched  []*member
+	sessions   map[uint64]uint32
+	changed    []*member
+	touched    []*member
 
-	rules  *interest.Rules
-	grid   *interest.Grid
-	hidden interest.Hidden
-	pairs  interest.Pairs
-	// Reused by every interest pass.
+	rules      *interest.Rules
+	grid       *interest.Grid
+	hidden     interest.Hidden
+	pairs      interest.Pairs
 	candidates []candidate
 }
 
@@ -154,17 +124,10 @@ func New(opts Options) *Hub {
 	return h
 }
 
-// Connect adds a player without a session and returns its slot. A player
-// with an outbox is welcomed; it receives peers once it is placed itself.
 func (h *Hub) Connect(kind world.Kind, outbox *delivery.Outbox) uint32 {
 	return h.connect(kind, outbox, Identity{})
 }
 
-// ConnectClient adds a client under its session. A session is connected
-// once, so the client it was connected as before is disconnected first, and
-// its slot is returned as replaced, zero for none, for the caller to close.
-// The client receives the roster after its welcome, and every other client
-// the new entry.
 func (h *Hub) ConnectClient(outbox *delivery.Outbox, identity Identity) (slot, replaced uint32) {
 	if previous, ok := h.sessions[identity.Session]; ok {
 		replaced = previous
@@ -185,9 +148,6 @@ func (h *Hub) ConnectClient(outbox *delivery.Outbox, identity Identity) (slot, r
 	return slot, replaced
 }
 
-// listed reports whether the roster names the player: a client with a
-// session. Replays and in-server bots receive nothing, so nobody can whisper
-// them.
 func (m *member) listed() bool {
 	return m.outbox != nil && m.Session != 0
 }
@@ -196,7 +156,6 @@ func rosterMessage(roster *pb.Roster) []byte {
 	return wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Roster{Roster: roster}})
 }
 
-// announce sends a roster change about m to every other listed client.
 func (h *Hub) announce(m *member, roster *pb.Roster) {
 	bytes := rosterMessage(roster)
 	for _, r := range h.recipients {
@@ -228,8 +187,6 @@ func (h *Hub) connect(kind world.Kind, outbox *delivery.Outbox, identity Identit
 	return m.Slot
 }
 
-// Disconnect removes a player. Every recipient that receives it or holds its
-// presentation is told to forget it.
 func (h *Hub) Disconnect(slot uint32) {
 	m, ok := h.members[slot]
 	if !ok {
@@ -275,8 +232,6 @@ func (h *Hub) Disconnect(slot uint32) {
 	h.opts.OnChange()
 }
 
-// Handle applies one validated client message. It returns why the message
-// was rejected, for the sender's log.
 func (h *Hub) Handle(slot uint32, message *pb.ClientMessage) error {
 	m, ok := h.members[slot]
 	if !ok {
@@ -310,8 +265,6 @@ func (h *Hub) Handle(slot uint32, message *pb.ClientMessage) error {
 	return nil
 }
 
-// Tick hands every checkpoint that changed since the last tick to its
-// subscribers and wakes their writers.
 func (h *Hub) Tick() {
 	for _, m := range h.changed {
 		if m.changed {
@@ -328,9 +281,6 @@ func (h *Hub) Tick() {
 	h.touched = h.touched[:0]
 }
 
-// UpdateInterest reevaluates every viewer's pairs: the periodic pass that
-// applies distance and time in view. Hard rules take effect at once without
-// it.
 func (h *Hub) UpdateInterest() {
 	now := h.opts.Clock.Now()
 	for _, r := range h.recipients {
@@ -340,15 +290,12 @@ func (h *Hub) UpdateInterest() {
 	}
 }
 
-// SetViewRadius sets the enter radius a client asked for; the rules clamp it.
 func (h *Hub) SetViewRadius(slot uint32, radius float64) {
 	if m, ok := h.members[slot]; ok {
 		m.view.Radius = radius
 	}
 }
 
-// SetVanished sets the sessions a client vanished when it connected, before
-// it is placed.
 func (h *Hub) SetVanished(slot uint32, sessions []uint64) {
 	m, ok := h.members[slot]
 	if !ok || len(sessions) == 0 {
@@ -360,8 +307,6 @@ func (h *Hub) SetVanished(slot uint32, sessions []uint64) {
 	}
 }
 
-// vanish hides a session's player from m, or shows it again, at once. It is
-// m's own view, so it is not recorded.
 func (h *Hub) vanish(m *member, v *pb.Vanish) error {
 	session, vanished := v.GetSessionId(), v.GetVanished()
 	if m.view.Vanished[session] == vanished {
@@ -384,7 +329,6 @@ func (h *Hub) vanish(m *member, v *pb.Vanish) error {
 	return nil
 }
 
-// SetHidden hides a player from everyone, or shows it again, at once.
 func (h *Hub) SetHidden(slot uint32, hidden bool) bool {
 	m, ok := h.members[slot]
 	if !ok {
@@ -402,7 +346,6 @@ func (h *Hub) SetHidden(slot uint32, hidden bool) bool {
 	return true
 }
 
-// SetExcluded makes viewer never see target, or lifts that, at once.
 func (h *Hub) SetExcluded(viewer, target uint32, excluded bool) bool {
 	r, ok := h.members[viewer]
 	peer, found := h.members[target]
@@ -420,12 +363,10 @@ func (h *Hub) SetExcluded(viewer, target uint32, excluded bool) bool {
 	return true
 }
 
-// Hidden reports whether an admin hid the player.
 func (h *Hub) Hidden(slot uint32) bool {
 	return h.hidden[slot]
 }
 
-// Exclusions lists the excluded pairs, ordered by viewer then target.
 func (h *Hub) Exclusions() []interest.Pair {
 	pairs := make([]interest.Pair, 0, len(h.pairs))
 	for pair := range h.pairs {
@@ -440,7 +381,6 @@ func (h *Hub) Exclusions() []interest.Pair {
 	return pairs
 }
 
-// Player returns a player's state for reading on the hub goroutine.
 func (h *Hub) Player(slot uint32) *world.Player {
 	if m, ok := h.members[slot]; ok {
 		return m.Player
@@ -448,15 +388,12 @@ func (h *Hub) Player(slot uint32) *world.Player {
 	return nil
 }
 
-// Players calls f for every player with the number of peers it receives and
-// its outbox, nil for a virtual player.
 func (h *Hub) Players(f func(p *world.Player, visible int, outbox *delivery.Outbox)) {
 	for _, m := range h.members {
 		f(m.Player, len(m.subscribed), m.outbox)
 	}
 }
 
-// Name returns the player's name, empty for an unknown player.
 func (h *Hub) Name(slot uint32) string {
 	if m, ok := h.members[slot]; ok {
 		return m.Name()
@@ -464,9 +401,6 @@ func (h *Hub) Name(slot uint32) string {
 	return ""
 }
 
-// InitialMessages returns the player's current state as client messages in
-// the order a peer needs them, so a capture that starts mid-session replays
-// on its own.
 func (h *Hub) InitialMessages(slot uint32) []*pb.ClientMessage {
 	m, ok := h.members[slot]
 	if !ok {
@@ -503,8 +437,6 @@ func (h *Hub) exit(m *member, message *pb.ClientMessage) {
 	h.opts.OnChange()
 }
 
-// unplace ends every subscription to and from the player, which has no
-// position any more. Subscribers learn why with reason.
 func (h *Hub) unplace(m *member, reason pb.LeaveReason) {
 	h.grid.Remove(m.Slot)
 	h.unsubscribeAll(m, reason)
@@ -523,8 +455,8 @@ func (h *Hub) setContext(m *member, c *pb.Context, message *pb.ClientMessage) er
 	h.opts.OnChange()
 	m.forceNext = true
 	if change == world.ContextMoved {
-		// The stored position belonged to the old space; the next checkpoint
-		// places the player in the new one.
+		// The stored position belonged to the old space; the next checkpoint places the player
+		// in the new one.
 		m.changed = false
 		if wasPlaced {
 			h.unplace(m, pb.LeaveReason_LEAVE_REASON_OUT_OF_RANGE)
@@ -560,8 +492,6 @@ func (h *Hub) setCheckpoint(m *member, c *pb.Checkpoint, message *pb.ClientMessa
 		h.evaluateViewer(m, now)
 		return nil
 	}
-	// An idle player repeats the same sample; subscribers already hold it. An
-	// action still sends its anchor (AppendAnchored).
 	if !m.forceNext && sameSample(m.distributed, c) {
 		return nil
 	}
@@ -603,7 +533,6 @@ func (h *Hub) setAppearance(m *member, a *pb.Appearance, message *pb.ClientMessa
 	return nil
 }
 
-// relayAppearance hands the player's stored appearance to its subscribers.
 func (h *Hub) relayAppearance(m *member) {
 	if len(m.subscribers) == 0 {
 		return
@@ -634,14 +563,10 @@ func (h *Hub) setEquipment(m *member, e *pb.Equipment, message *pb.ClientMessage
 	return nil
 }
 
-// speaker returns the player as chat shows it.
 func (h *Hub) speaker(m *member) *pb.ChatSpeaker {
 	return &pb.ChatSpeaker{Slot: m.Slot, Name: m.Name(), Level: m.Appearance.GetLevel(), SessionId: m.Session}
 }
 
-// chat relays a line to its channel's recipients, the sender included, so
-// everyone sees one order and the sender's own line confirms delivery. Chat
-// is never recorded.
 func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 	line := &pb.ChatMessage{Channel: request.GetChannel()}
 	text, err := validate.Chat(request)
@@ -653,8 +578,6 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 				err = ErrNotPlaced
 			}
 		case pb.ChatChannel_CHAT_CHANNEL_WHISPER:
-			// A slot names one connection, so a whisper never reaches whoever
-			// took the recipient's display name after it left.
 			recipient = h.members[request.GetRecipient()]
 			if recipient == nil || recipient.outbox == nil {
 				err = ErrUnknownRecipient
@@ -681,8 +604,6 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 	bytes := wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_ChatMessage{ChatMessage: line}})
 	switch line.Channel {
 	case pb.ChatChannel_CHAT_CHANNEL_LOCAL:
-		// Chat is rate limited, so a scan costs less than keeping an index of
-		// interiors, which the grid does not bound.
 		for _, r := range h.recipients {
 			if h.hearsLocally(r, m) {
 				r.outbox.AppendGlobal(bytes)
@@ -703,9 +624,6 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 	return nil
 }
 
-// hearsLocally reports whether r receives local chat from sender: both placed
-// in the same space and, in a worldspace, within the local radius. An
-// interior is heard whole.
 func (h *Hub) hearsLocally(r, sender *member) bool {
 	if !r.Placed() || r.view.Space != sender.view.Space {
 		return false
@@ -713,8 +631,6 @@ func (h *Hub) hearsLocally(r, sender *member) bool {
 	return r.view.Space.Worldspace == 0 || interest.Distance(&r.view, &sender.view) <= h.opts.ChatLocalRadius
 }
 
-// evaluateViewer reevaluates the viewer's subscriptions and the players near
-// it, applies the cap, and sets each pair's rate class.
 func (h *Hub) evaluateViewer(r *member, now time.Time) {
 	if r.outbox == nil {
 		return
@@ -742,8 +658,6 @@ func (h *Hub) evaluateViewer(r *member, now time.Time) {
 	}
 	candidates = h.applyCap(r, candidates)
 	if h.opts.EntersPerSecond > 0 {
-		// Entering a crowd sends many appearances at once; the nearest go first
-		// and the rest follow over the next passes.
 		slices.SortStableFunc(candidates, func(a, b candidate) int {
 			switch {
 			case a.distance < b.distance:
@@ -767,15 +681,11 @@ func (h *Hub) evaluateViewer(r *member, now time.Time) {
 	h.candidates = candidates[:0]
 }
 
-// allowEnter spends one of the viewer's new subscriptions, when they are
-// limited.
 func (h *Hub) allowEnter(r *member, now time.Time) bool {
 	rate := h.opts.EntersPerSecond
 	return rate <= 0 || r.enters.Allow(now, rate, max(rate, 1))
 }
 
-// keep applies the rules to one existing subscription and ends it when they
-// say so.
 func (h *Hub) keep(r, peer *member, sub *subscription, now time.Time) bool {
 	if !r.Placed() || !peer.Placed() {
 		reason := pb.LeaveReason_LEAVE_REASON_EXITED
@@ -792,9 +702,6 @@ func (h *Hub) keep(r, peer *member, sub *subscription, now time.Time) bool {
 	return true
 }
 
-// applyCap keeps at most MaxVisible candidates, nearest first. Peers still
-// within their minimum time in view are never evicted, and a peer already in
-// view keeps its place unless a newcomer is CapHysteresis nearer.
 func (h *Hub) applyCap(r *member, candidates []candidate) []candidate {
 	limit := h.opts.Interest.MaxVisible
 	if limit <= 0 || len(candidates) <= limit {
@@ -837,13 +744,8 @@ func (h *Hub) applyCap(r *member, candidates []candidate) []candidate {
 	return candidates[:limit]
 }
 
-// Within this distance a waiting checkpoint has full priority under the
-// budget; beyond it the priority falls with distance, so the nearest peers
-// stay smooth when the budget is short.
 const fullPriorityDistance = 1024
 
-// setRateClass sets the pair's rate and, for the budget, the weight of its
-// waiting checkpoints, in eighths so it changes rarely.
 func (h *Hub) setRateClass(r, peer *member, distance float64) {
 	sub := r.subscribed[peer.Slot]
 	interval := h.rules.Interval(distance)
@@ -857,8 +759,6 @@ func (h *Hub) setRateClass(r, peer *member, distance float64) {
 	}
 }
 
-// evaluateTarget reevaluates the target's subscribers and the viewers near
-// it.
 func (h *Hub) evaluateTarget(peer *member, now time.Time) {
 	for _, r := range slices.Clone(peer.subscribers) {
 		h.evaluatePair(r, peer, now)
@@ -874,8 +774,6 @@ func (h *Hub) evaluateTarget(peer *member, now time.Time) {
 	})
 }
 
-// evaluatePair subscribes r to peer or ends the subscription, as the rules
-// decide. Both must be placed to be compared.
 func (h *Hub) evaluatePair(r, peer *member, now time.Time) {
 	if r.outbox == nil || r == peer {
 		return
@@ -927,8 +825,6 @@ func (h *Hub) unsubscribeAll(peer *member, reason pb.LeaveReason) {
 	peer.subscribers = peer.subscribers[:0]
 }
 
-// distribute hands the player's latest checkpoint to its subscribers now, so
-// an ordered message about it that follows is not overtaken.
 func (h *Hub) distribute(m *member) {
 	if !m.changed {
 		return
@@ -952,7 +848,6 @@ func (h *Hub) record(slot uint32, message *pb.ClientMessage) {
 	}
 }
 
-// sameSample compares everything but the sequence.
 func sameSample(a, b *pb.Checkpoint) bool {
 	return a != nil && a.X == b.X && a.Y == b.Y && a.Z == b.Z && a.Heading == b.Heading && a.Pitch == b.Pitch &&
 		a.Speed == b.Speed && a.Direction == b.Direction && a.Flags == b.Flags

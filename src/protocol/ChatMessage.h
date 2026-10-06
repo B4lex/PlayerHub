@@ -21,9 +21,7 @@ namespace Multiplayer
     struct ChatSpeaker
     {
         PeerSlot playerID{ 0 };
-        // The display name; empty for a replayed player without an appearance.
         std::string name;
-        // Zero until the player's appearance is known.
         std::uint16_t level{ 0 };
         SessionID session{ 0 };
     };
@@ -32,28 +30,20 @@ namespace Multiplayer
     {
         ChatChannel channel{ ChatChannel::kGlobal };
         ChatSpeaker sender;
-        // Only for a whisper.
         ChatSpeaker recipient;
         std::string text;
-        // Set by the transport: the local player sent it.
         bool outgoing{ false };
     };
 
-    // A connected client as the roster lists it: whom a whisper can address.
     struct RosterEntry
     {
         PeerSlot playerID{ 0 };
         std::string name;
-        // What mutes and vanishes follow: the same while the session lives,
-        // whatever slot or name it connects with.
         SessionID session{ 0 };
     };
 
-    // UTF-8 bytes, matching the server's MAXIMUM_CHAT_TEXT_BYTES.
     inline constexpr std::size_t kMaximumChatTextBytes = 512;
 
-    // Trimmed, non-empty text without control characters. Shared by the sender
-    // and the network parser so both sides enforce the same bounds as the server.
     [[nodiscard]] inline bool IsValidChatText(std::string_view a_text)
     {
         if (a_text.empty() || a_text.size() > kMaximumChatTextBytes || a_text.front() == ' '
@@ -72,7 +62,6 @@ namespace Multiplayer
         return true;
     }
 
-    // The connected clients, the local one included, in no particular order.
     struct Roster
     {
         PeerSlot localPlayerID{ 0 };

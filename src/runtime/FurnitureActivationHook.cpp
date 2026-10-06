@@ -20,10 +20,8 @@ namespace FurnitureActivationHook
                     return _original(a_this, a_targetRef, a_activatorRef, a_arg3, a_object, a_targetCount);
                 }
 
-                // Skyrim activates on a worker thread, where only the reference's
-                // identity is read. Furniture a remote actor holds would refuse the
-                // player with an "in use" message, so that activation is left to
-                // the main loop, which repeats it once the actor has yielded.
+                // Skyrim activates on a worker thread. Furniture a remote actor holds
+                // would refuse the player with an "in use" message.
                 const auto furnitureRefID = a_targetRef->GetFormID();
                 const bool deferred = !GameThread::IsAuthoritative() && ActorRegistry::IsFurnitureHeld(furnitureRefID);
                 SyncCoordinator::QueueLocalFurnitureActivation(furnitureRefID, deferred);

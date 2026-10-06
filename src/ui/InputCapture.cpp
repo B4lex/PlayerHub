@@ -22,8 +22,6 @@ namespace UI::InputCapture
         using KeyboardKey = RE::BSKeyboardDevice::Key;
         using MouseKey = RE::BSWin32MouseDevice::Key;
 
-        // Every event of a press goes where its press went, so a key held across
-        // a focus change is still released where it was pressed.
         enum class Owner : std::uint8_t
         {
             kNone,
@@ -31,17 +29,13 @@ namespace UI::InputCapture
             kWindow
         };
 
-        // Relative mouse counts are scaled as pixels at this back-buffer height, so
-        // the cursor crosses the screen at the same speed at any resolution.
         constexpr float kCursorReferenceScreenHeight = 1080.0F;
 
         struct CapturedEvent
         {
-            // ImGuiKey_None for a typed character or a mouse button.
             ImGuiKey key{ ImGuiKey_None };
             bool down{ false };
             std::uint32_t character{ 0 };
-            // An ImGuiMouseButton, or -1 for a key or character.
             int mouseButton{ -1 };
         };
 
@@ -51,33 +45,25 @@ namespace UI::InputCapture
             bool focused{ false };
         };
 
-        // Input dispatch runs on the main-loop thread.
         std::array<Owner, 256> s_keyboardOwners{};
         std::array<Owner, MouseKey::kWheelDown + 1> s_mouseOwners{};
         std::array<bool, 256> s_keyboardPressed{};
 
-        // Focus keys stay inert until the overlay draws, so input is never
-        // captured for windows that cannot show it.
         std::atomic_bool s_overlayActive{ false };
-        // Whether a text field was active when the overlay last drew.
         std::atomic_bool s_textFieldActive{ false };
         std::mutex s_capturedLock;
         std::vector<CapturedEvent> s_captured;
         float s_capturedWheelSteps{ 0.0F };
         ImVec2 s_capturedMouseMotion{};
 
-        // Overlay thread only.
         std::vector<CapturedEvent> s_forwarding;
         bool s_imguiFocused{ false };
         bool s_imguiMouse{ false };
-        // Whether the mouse moved since a window that uses it took focus.
         bool s_mouseMoved{ false };
         ImVec2 s_cursor{};
 
         // DirectInput scan codes are physical positions, so letters only serve
-        // text-editing shortcuts; typed text arrives as character events. Tab is
-        // left out so it cannot move keyboard focus off a text field; a window
-        // that uses it gets it in ForwardButton.
+        // text-editing shortcuts; typed text arrives as character events.
         ImGuiKey ToImGuiKey(std::uint32_t a_scanCode)
         {
             switch (a_scanCode)
@@ -206,7 +192,6 @@ namespace UI::InputCapture
             }
         }
 
-        // Returns whether the game receives the event.
         bool RouteButton(const RE::ButtonEvent& a_button, DispatchState& a_state)
         {
             const auto device = a_button.GetDevice();
@@ -223,7 +208,6 @@ namespace UI::InputCapture
             }
             else
             {
-                // Gamepads keep driving the game; windows are keyboard-only.
                 return !a_state.focused
                     || (device != RE::INPUT_DEVICE::kKeyboard && device != RE::INPUT_DEVICE::kMouse);
             }
@@ -238,7 +222,6 @@ namespace UI::InputCapture
                     *owner = Owner::kWindow;
                     return false;
                 }
-                // A release key that also edits text stays with an active text field.
                 const bool editsText
                     = s_textFieldActive.load(std::memory_order_acquire) && ToImGuiKey(code) != ImGuiKey_None;
                 if (a_state.focused && device == RE::INPUT_DEVICE::kKeyboard && !editsText
@@ -290,7 +273,6 @@ namespace UI::InputCapture
             }
         }
 
-        // No menu, console, or other input context above gameplay.
         bool IsGameplayInputActive()
         {
             auto* ui = RE::UI::GetSingleton();
@@ -305,7 +287,6 @@ namespace UI::InputCapture
             return !contexts.empty() && contexts.back() == RE::UserEvents::INPUT_CONTEXT_ID::kGameplay;
         }
 
-        // Returns the events the game receives, relinked in their original order.
         RE::InputEvent* Route(RE::InputEvent* a_events)
         {
             DispatchState state{ .gameplay = IsGameplayInputActive(), .focused = WindowManager::HasFocus() };
@@ -332,9 +313,6 @@ namespace UI::InputCapture
             return kept;
         }
 
-        // Dear ImGui sees the mouse only while a window that uses it has focus
-        // and shows the cursor. The cursor starts where the window asks, or in
-        // the middle of the screen, each time.
         void SetImGuiMouse(ImGuiIO& a_io, bool a_enabled)
         {
             if (a_enabled == s_imguiMouse)
@@ -426,7 +404,6 @@ namespace UI::InputCapture
                 return true;
             }
 
-            // Runs on the thread that executes the call, between two dispatches.
             static void StayOutermost()
             {
                 if (!_watching || CodeDetour::ReadCallTarget(_site) == _target)
@@ -447,9 +424,7 @@ namespace UI::InputCapture
             }
 
             static inline std::uintptr_t _site{ 0 };
-            // Where the call goes while this hook is the outermost one.
             static inline std::uintptr_t _target{ 0 };
-            // Oldest first.
             static inline std::array<REL::Relocation<decltype(Thunk)>, kMaximumDetours> _previous;
             static inline std::size_t _detours{ 0 };
             static inline std::size_t _depth{ 0 };

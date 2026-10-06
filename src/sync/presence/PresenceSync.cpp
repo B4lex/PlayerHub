@@ -12,15 +12,10 @@ namespace PresenceSync
 {
     namespace
     {
-        // Exits are also reported by the menu sink and SKSE messages, outside the
-        // main-loop stage.
         std::mutex s_lock;
-        // Whether the server was told the player is in the world on
-        // s_publishedConnectionGeneration.
         bool s_published{ false };
         std::uint64_t s_publishedConnectionGeneration{ 0 };
 
-        // Requires s_lock.
         void PublishExitLocked(std::string_view a_reason)
         {
             if (!s_published)

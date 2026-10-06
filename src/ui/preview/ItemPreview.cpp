@@ -22,13 +22,10 @@ namespace UI::ItemPreview
     {
         using REX::W32::ComPtr;
 
-        // Captures go to the top-left corner of textures this large.
         constexpr std::uint32_t kTextureSize = 2048;
-        // Room around the model's bounding sphere, which fits the model closely.
         constexpr float kCaptureMargin = 1.05F;
         constexpr double kLoadingNoteDelaySeconds = 0.3;
         constexpr std::chrono::seconds kLoadWaitLogDelay{ 1 };
-        // Also cleared behind the model, so the capture blends into the frame.
         constexpr ImVec4 kBackground{ 0.11F, 0.11F, 0.12F, 1.0F };
 
         struct CaptureBox
@@ -43,7 +40,6 @@ namespace UI::ItemPreview
         {
             ComPtr<REX::W32::ID3D11Texture2D> image;
             ComPtr<REX::W32::ID3D11ShaderResourceView> imageView;
-            // The frame's pixels under the capture, put back after it.
             ComPtr<REX::W32::ID3D11Texture2D> saved;
             // The frame's alpha under the model is not coverage, so the opaque
             // capture is drawn without blending.
@@ -51,18 +47,13 @@ namespace UI::ItemPreview
             REX::W32::DXGI_FORMAT format{};
         };
 
-        // Set by Draw for the next Update.
         bool requested{ false };
         std::uint32_t requestedFormID{ 0 };
-        // Draw's own record of when it started showing an item.
         std::uint32_t drawnFormID{ 0 };
         double drawnSince{ 0.0 };
 
-        // Inventory3DManager::Begin3D was called and End3D is due.
         bool running{ false };
-        // Set once for the session when a requirement fails.
         bool unavailable{ false };
-        // The first capture of each start is logged.
         bool captureLogged{ false };
         std::uint32_t loadedFormID{ 0 };
         std::chrono::steady_clock::time_point loadedSince;
@@ -104,9 +95,6 @@ namespace UI::ItemPreview
             }
         }
 
-        // The model's bounding sphere on screen, clamped to the screen and the
-        // textures. The inventory camera's frustum at the model's depth maps the
-        // scene to the screen.
         std::optional<CaptureBox> ProjectModel(const RE::UI3DSceneManager& a_scene, const RE::NiAVObject& a_model,
             std::uint32_t a_screenWidth, std::uint32_t a_screenHeight)
         {
@@ -211,9 +199,7 @@ namespace UI::ItemPreview
 
         // Inventory3DManager::Render attaches a finished load, then calls the scene
         // render (1.7.104 ID 52727), which draws only while UI::numDisablePauseMenu
-        // is positive, as it is while an inventory menu is open. The overlay is not a
-        // menu, so it sets the count for the call and restores it. Main-loop thread,
-        // like the menus that change it.
+        // is positive, as it is while an inventory menu is open.
         class PauseMenuDisabledCountScope
         {
         public:
@@ -232,10 +218,8 @@ namespace UI::ItemPreview
             std::uint32_t previous;
         };
 
-        // Diagnostic for a model that has not appeared a second after loading
-        // started: the models Inventory3DManager holds, the state of its load task
-        // (Render attaches the model at state 5), and both light schemes, which the
-        // scene render requires to match.
+        // Render attaches the model at load task state 5, and the scene render
+        // requires both light schemes to match.
         void LogLoadWait(RE::Inventory3DManager& a_manager)
         {
             const auto& runtime = a_manager.GetRuntimeData();
@@ -251,8 +235,6 @@ namespace UI::ItemPreview
                 scene ? static_cast<int>(scene->currentlightScheme) : -1);
         }
 
-        // Renders the loaded model onto the finished frame, copies it into the
-        // image texture, and restores the frame. False until the model is loaded.
         bool CaptureModel(RE::Inventory3DManager& a_manager, RE::UI& a_ui)
         {
             // A model that loaded in the background is attached only by Render.
@@ -404,8 +386,7 @@ namespace UI::ItemPreview
             Release();
             return;
         }
-        // The inventory renderer is main-loop state. The overlay's renderer hook
-        // is expected, not known, to run on that thread.
+        // The overlay's renderer hook is expected, not known, to run on the main-loop thread.
         if (!GameThread::IsAuthoritative())
         {
             Disable("the overlay does not run on the main-loop thread");

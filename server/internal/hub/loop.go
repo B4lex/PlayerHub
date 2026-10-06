@@ -5,9 +5,6 @@ import (
 	"time"
 )
 
-// Loop runs a hub on one goroutine: submitted work in arrival order, a tick
-// at the send rate, and the interest pass at its own rate. A slow tick is not
-// caught up with a burst; the tickers drop what they missed.
 type Loop struct {
 	hub              *Hub
 	work             chan func(*Hub)
@@ -46,8 +43,6 @@ func (l *Loop) Run(ctx context.Context) {
 	}
 }
 
-// Submit queues work and returns false once the loop has stopped. It blocks
-// while the queue is full, which pushes back on the connection reading.
 func (l *Loop) Submit(f func(*Hub)) bool {
 	select {
 	case l.work <- f:
@@ -57,7 +52,6 @@ func (l *Loop) Submit(f func(*Hub)) bool {
 	}
 }
 
-// Call runs f on the hub goroutine and waits for it.
 func (l *Loop) Call(f func(*Hub)) bool {
 	finished := make(chan struct{})
 	if !l.Submit(func(h *Hub) { f(h); close(finished) }) {

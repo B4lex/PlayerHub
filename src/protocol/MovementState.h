@@ -32,24 +32,15 @@ namespace Multiplayer
         return a_state == MovementState::kSprinting;
     }
 
-    // Jumping is orthogonal to grounded locomotion. Keeping both values allows
-    // takeoff to establish its locomotion prerequisites first and landing to
-    // restore grounded locomotion afterward without duplicating every state.
     struct AnimationState
     {
         MovementState movementState{ MovementState::kIdle };
         bool jumping{ false };
-        // Combat stance is presentation state only. Remote combat decisions remain
-        // suppressed independently by the remote actor ownership policy.
         bool weaponDrawn{ false };
 
         constexpr bool operator==(const AnimationState&) const noexcept = default;
     };
 
-    // Sustained hand presentation: a bow held drawn, spells being channelled, and
-    // a raised block. Only how long they last is replicated, never what they would
-    // release, and they stay apart from AnimationState because its changes
-    // restage locomotion.
     struct HandPresentation
     {
         bool bowDrawn{ false };
@@ -74,7 +65,6 @@ namespace Multiplayer
             return 0.0F;
         }
         float direction = a_direction - std::floor(a_direction);
-        // Rounding can produce exactly 1.0 for a tiny negative input.
         return direction >= 1.0F ? 0.0F : direction;
     }
 

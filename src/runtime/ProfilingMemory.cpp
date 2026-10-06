@@ -1,5 +1,4 @@
-// Replaces the global allocation functions in Tracy builds so the memory view
-// records this plugin's heap usage. MSVC binds the replacement per module, so
+// MSVC binds a replacement of the global allocation functions per module, so
 // the engine's own heap stays unreported.
 #ifdef TRACY_ENABLE
 #    include <tracy/Tracy.hpp>

@@ -17,8 +17,6 @@ const notBuilt = `<!doctype html>
 address it prints. The REST API under <code>/api</code> works meanwhile.</p>
 </body>`
 
-// UI serves the built panel in directory at /admin/. Unknown paths without an
-// extension get index.html, for client-side routes.
 func UI(directory string) http.Handler {
 	files := http.StripPrefix("/admin", http.FileServer(http.Dir(directory)))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

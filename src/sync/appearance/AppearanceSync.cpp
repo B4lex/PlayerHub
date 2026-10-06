@@ -25,8 +25,6 @@ namespace AppearanceSync
         constexpr float kMinimumPublishInterval = 3.0F;
         constexpr float kFirstAppearanceWaitSeconds = 3.0F;
         constexpr float kMinimumRespawnInterval = 2.0F;
-        // Vanilla fallback when neither the source race nor its default race is
-        // available locally.
         constexpr std::string_view kFallbackRacePlugin = "Skyrim.esm";
         constexpr RE::FormID kFallbackRaceLocalFormID = 0x00013746; // NordRace
 
@@ -127,10 +125,8 @@ namespace AppearanceSync
             return nullptr;
         }
 
-        // Returns the player's tint masks in blend order. CommonLibSSE-NG reads
-        // PlayerCharacter::tintMasks at 0xB18 on AE, but 1.7.104 keeps it at 0xB20
-        // (PlayerCharacter::GetNumTints, ID 40700). The array is used only when it
-        // agrees with the engine's own lookups; otherwise masks are listed by type.
+        // CommonLibSSE-NG reads PlayerCharacter::tintMasks at 0xB18 on AE, but
+        // 1.7.104 keeps it at 0xB20 (PlayerCharacter::GetNumTints, ID 40700).
         std::vector<RE::TintMask*> GetPlayerTintMasks(RE::PlayerCharacter& a_player)
         {
             if (!REL::Module::IsAE())
@@ -188,8 +184,6 @@ namespace AppearanceSync
             return masks;
         }
 
-        // Logs a capture failure only when its reason changes, so a persistent
-        // failure does not flood the log once per second.
         void LogCaptureFailure(std::string_view a_reason)
         {
             static std::string lastReason;
@@ -209,8 +203,7 @@ namespace AppearanceSync
                 LogCaptureFailure("player has no actor base");
                 return std::nullopt;
             }
-            // Transformation races replace the skeleton and behavior graph. Keep the
-            // last playable appearance instead of publishing a beast form.
+            // Transformation races replace the skeleton and behavior graph.
             auto* race = base->race;
             if (!IsPlayableRace(race))
             {
@@ -348,7 +341,6 @@ namespace AppearanceSync
         {
             RE::TESRace* race{ nullptr };
             bool female{ false };
-            // The source's own race, rather than its default race or NordRace.
             bool own{ false };
         };
 
@@ -469,11 +461,9 @@ namespace AppearanceSync
             return form ? form->As<RE::TESCombatStyle>() : nullptr;
         }
 
-        // Builds a runtime actor base from engine defaults instead of copying a template
-        // record, so remote actors do not depend on any particular base form. The
-        // TESNPC constructor already runs InitializeData, which leaves no class, AI
-        // packages, factions, inventory, or outfits, and points faceData at a shared
-        // engine default that must be replaced rather than written.
+        // The TESNPC constructor already runs InitializeData, which leaves no class,
+        // AI packages, factions, inventory, or outfits, and points faceData at a
+        // shared engine default that must be replaced rather than written.
         RE::TESNPC* BuildActorBase(
             Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance, RE::TESRace& a_race)
         {
@@ -491,7 +481,6 @@ namespace AppearanceSync
             npc->faceData = RE::calloc<RE::TESNPC::FaceData>(1);
             npc->tintLayers = new RE::BSTArray<RE::TESNPC::Layer*>();
 
-            // A remote player is one specific character, never a generic NPC.
             npc->actorData.actorBaseFlags.set(RE::ACTOR_BASE_DATA::Flag::kUnique);
             npc->fullName = PlayerLabel::Format(a_appearance.name);
             npc->race = &a_race;
@@ -568,7 +557,6 @@ namespace AppearanceSync
             return npc;
         }
 
-        // The race's default head parts and skin tone for the sex.
         AppearanceData MakeDefaultAppearance(RE::TESRace& a_race, bool a_female)
         {
             AppearanceData appearance{ .race = MakeFormReference(&a_race).value_or(AppearanceFormReference{}),
@@ -625,8 +613,6 @@ namespace AppearanceSync
                 return BuildActorBase(a_playerID, a_appearance, *resolved.race);
             }
 
-            // Head parts, tint layers, and face presets are specific to the source's
-            // race and sex, so another race gets its own default look.
             auto look = MakeDefaultAppearance(*resolved.race, resolved.female);
             look.name = a_appearance.name;
             look.level = a_appearance.level;
@@ -636,7 +622,6 @@ namespace AppearanceSync
             return BuildActorBase(a_playerID, look, *resolved.race);
         }
 
-        // The look of a remote player whose appearance never arrived.
         RE::TESNPC* CreateDefaultActorBase(Multiplayer::PeerSlot a_playerID)
         {
             auto* race = LookupFallbackRace();
@@ -747,7 +732,6 @@ namespace AppearanceSync
         if (const auto generation = Network::GetConnectionGeneration(); generation != publishedConnectionGeneration)
         {
             publishedConnectionGeneration = generation;
-            // The server forgets a connection's appearance when it drops.
             if (published)
             {
                 logs::debug("Appearance sync republishing after connect: revision={} connectionGeneration={}",
@@ -773,7 +757,6 @@ namespace AppearanceSync
             candidate.reset();
             return;
         }
-        // Require two identical captures so editor slider drags are not streamed.
         if (!candidate || !candidate->HasSameLook(*captured) || !candidate->HasSameLabel(*captured))
         {
             candidate = std::move(captured);
@@ -861,7 +844,6 @@ namespace AppearanceSync
             return nullptr;
         }
 
-        // Revision zero stands for the default look.
         const auto revision = a_remote.latest ? a_remote.latest->revision : 0;
         if ((!a_remote.base || a_remote.baseRevision != revision) && a_remote.failedRevision != revision)
         {
@@ -878,14 +860,13 @@ namespace AppearanceSync
             }
         }
 
-        // A revision that could not be built keeps the previously built base.
         return a_remote.base;
     }
 
     void OnActorSpawned(RemoteState& a_remote, RE::TESNPC* a_spawnedBase)
     {
-        // A failed build also counts as spawned for that revision, so the remote actor
-        // is not retired every frame for an appearance that cannot be built.
+        // A failed build also counts as spawned, so the actor is not retired every frame for
+        // an appearance that cannot be built.
         a_remote.spawnedRevision = a_remote.latest ? a_remote.latest->revision : 0;
         a_remote.spawnedBase = a_spawnedBase;
         a_remote.respawnCooldown = kMinimumRespawnInterval;

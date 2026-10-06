@@ -40,9 +40,7 @@ namespace FurnitureSync
         static RE::SIT_SLEEP_STATE previousSitSleepState = RE::SIT_SLEEP_STATE::kNormal;
 
         // The occupancy clears only when the player's exit clip ends, 1.1 s after
-        // standing up from a chair and 3.3 s from a table. Peers play their own
-        // exit clip once the furniture is gone from the checkpoint, so it is
-        // dropped when the exit starts and both clips play side by side.
+        // standing up from a chair and 3.3 s from a table.
         const auto sitSleepState = GetSitSleepState(a_local.player);
         const bool exiting = sitSleepState == RE::SIT_SLEEP_STATE::kWantToStand
             || sitSleepState == RE::SIT_SLEEP_STATE::kWantToWake;
@@ -101,9 +99,6 @@ namespace FurnitureSync
             {
                 return "occupied by the local player";
             }
-            // An actor seated beside the local player on a shared bench keeps its
-            // seat, and one yet to enter takes another free seat. The probe waits
-            // for readiness, as native entry does.
             if (!ActorFurniture::HoldsFurniture(*actorPtr, *a_actor, *a_localFurniture) && a_actor->ready
                 && !ActorFurniture::HasAvailableMarkerBeside(*actorPtr, a_local.player, *a_localFurniture))
             {
@@ -161,9 +156,6 @@ namespace FurnitureSync
         if (ActorFurniture::GetTargetFurniture(a_actor) != a_remote.furnitureRefID
             && (a_remote.furnitureRefID == 0 || furniturePlaying))
         {
-            // Exit and direct furniture-to-furniture changes must update the
-            // authoritative target immediately. The native lifecycle exits the
-            // old marker before entering a replacement.
             ActorFurniture::SetFurnitureState(a_actor, a_remote.furnitureRefID);
             furniturePlaying = ActorFurniture::IsFurnitureInteractionPlaying(a_actor);
         }
@@ -177,9 +169,6 @@ namespace FurnitureSync
             && !a_attackPlaying && !ActorAnimation::GetTargetState(a_actor).jumping
             && ActorAnimation::IsAnimationStateSettled(a_actor))
         {
-            // First entry waits until the checkpoint's grounded locomotion and
-            // weapon presentation have settled. Once assigned, furniture owns
-            // graph and transform progression until exit completes.
             ActorFurniture::SetFurnitureState(a_actor, a_remote.furnitureRefID);
             return ActorFurniture::IsFurnitureInteractionPlaying(a_actor);
         }

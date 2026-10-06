@@ -27,7 +27,6 @@ namespace Forms
             }
         }
 
-        // Three-way comparison of ASCII letters without case; other bytes compare as they are.
         int CompareIgnoreCase(std::string_view a_left, std::string_view a_right)
         {
             const auto count = (std::min)(a_left.size(), a_right.size());

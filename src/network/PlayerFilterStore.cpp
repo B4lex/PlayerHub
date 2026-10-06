@@ -17,8 +17,6 @@ namespace Network::PlayerFilterStore
     {
         constexpr std::string_view kFileName = "skyrim-mp.players";
         constexpr std::string_view kTemporaryExtension = ".tmp";
-        // Tabs, which neither a display name nor a URL holds, separate the
-        // fields, so names keep their spaces.
         constexpr std::string_view kFileHeader
             = "; Skyrim Multiplayer: players you muted (m) or vanished (v), per server.\n"
               "; Each line: m, v, or mv, the player's session, the server, and its name when last seen,\n"
@@ -79,7 +77,6 @@ namespace Network::PlayerFilterStore
             return result;
         }
 
-        // Requires s_lock.
         void LoadLocked()
         {
             const auto path = GetPath();
@@ -118,8 +115,6 @@ namespace Network::PlayerFilterStore
             logs::info("Player filters loaded {} players from {}", s_entries.size(), ToUtf8(path));
         }
 
-        // Through a temporary file, so a failed write never leaves a truncated
-        // file. Requires s_lock.
         bool WriteLocked()
         {
             const auto path = GetPath();

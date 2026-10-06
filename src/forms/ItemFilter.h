@@ -9,39 +9,31 @@ namespace Forms
         kArmor,
         kWeapon,
         kAmmo,
-        // A playable race. Not an item, but picked the same way.
         kRace
     };
 
-    // Whether the inventory renderer can show the kind.
     [[nodiscard]] constexpr bool HasModel(ItemKind a_kind) noexcept
     {
         return a_kind != ItemKind::kRace;
     }
 
-    // What decides whether an item form can stand in for another.
     struct ItemTraits
     {
         ItemKind kind{ ItemKind::kArmor };
-        // Armor: biped slots, bit 0 being slot 30.
+        // Biped slots, bit 0 being slot 30.
         std::uint32_t slotMask{ 0 };
-        // Weapon: RE::WEAPON_TYPE, from PlayerEquipment::kMinimumWeaponType.
+        // RE::WEAPON_TYPE.
         std::uint8_t weaponType{ 0 };
-        // Ammunition: a bolt rather than an arrow.
         bool bolt{ false };
-        // Defined by a plugin Multiplayer::IsBaseGamePlugin accepts.
         bool baseGame{ false };
 
         bool operator==(const ItemTraits&) const = default;
     };
 
-    // The items a form setting or list accepts.
     struct ItemFilter
     {
         ItemKind kind{ ItemKind::kArmor };
-        // Armor: the item covers at least one of these slots.
         std::uint32_t slotMask{ 0 };
-        // Armor: the item covers none of these slots.
         std::uint32_t excludedSlotMask{ 0 };
         std::uint8_t weaponType{ 0 };
         bool bolt{ false };

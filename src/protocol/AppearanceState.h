@@ -28,8 +28,7 @@ namespace Multiplayer
     struct AppearanceHeadPart
     {
         AppearanceFormReference form;
-        // BGSHeadPart::HeadPartType. Kept so an unresolved part can fall back to
-        // the race default of the same type.
+        // BGSHeadPart::HeadPartType.
         std::uint8_t type{ 0 };
 
         bool operator==(const AppearanceHeadPart&) const = default;
@@ -47,8 +46,6 @@ namespace Multiplayer
         bool operator==(const AppearanceTint&) const = default;
     };
 
-    // What peers without the source's race show instead: a playable race from a
-    // base-game plugin, which every peer has, in the given sex.
     struct DefaultRace
     {
         AppearanceFormReference race;
@@ -57,15 +54,12 @@ namespace Multiplayer
         bool operator==(const DefaultRace&) const = default;
     };
 
-    // Reconstructable character appearance. Unlike the transform checkpoint it
-    // changes rarely, so it is published as its own latest-wins state.
     struct PlayerAppearance
     {
         static constexpr std::size_t kFaceMorphCount = 19;
         static constexpr std::size_t kFacePartCount = 4;
         static constexpr std::size_t kMaximumHeadParts = 16;
         static constexpr std::size_t kMaximumTints = 64;
-        // UTF-8 bytes, not characters.
         static constexpr std::size_t kMaximumNameLength = 128;
         static constexpr std::size_t kMaximumPluginNameLength = FormReference::kMaximumPluginNameLength;
         static constexpr std::uint32_t kMaximumLocalFormID = FormReference::kMaximumLocalFormID;
@@ -75,8 +69,6 @@ namespace Multiplayer
         static constexpr float kMinimumHeight = 0.25F;
         static constexpr float kMaximumHeight = 4.0F;
 
-        // A remote player's display name, set by the server from the player's
-        // session. Empty on the local player's own appearance.
         std::string name;
         std::uint16_t level{ 0 };
         AppearanceFormReference race;
@@ -90,12 +82,9 @@ namespace Multiplayer
         std::array<float, kFaceMorphCount> faceMorphs{};
         std::array<std::int32_t, kFacePartCount> faceParts{};
         std::vector<AppearanceTint> tints;
-        // Only when race is from other than a base-game plugin.
         std::optional<DefaultRace> defaultRace;
-        // Source-local publication counter. Not part of the look itself.
         std::uint64_t revision{ 0 };
 
-        // Everything the actor base is built from except its label.
         [[nodiscard]] bool HasSameLook(const PlayerAppearance& a_other) const
         {
             return race == a_other.race && female == a_other.female && weight == a_other.weight
@@ -111,8 +100,6 @@ namespace Multiplayer
         }
     };
 
-    // Control characters are rejected, and so are overlong names. Multibyte UTF-8
-    // sequences are passed through unchanged.
     [[nodiscard]] inline bool IsValidAppearanceName(std::string_view a_name)
     {
         if (a_name.size() > PlayerAppearance::kMaximumNameLength)
@@ -130,8 +117,6 @@ namespace Multiplayer
         return true;
     }
 
-    // Shared by capture and by the network parser so both sides enforce the same
-    // bounds as the server.
     [[nodiscard]] inline bool IsValidAppearance(const PlayerAppearance& a_appearance)
     {
         if (a_appearance.revision == 0 || !IsValidAppearanceName(a_appearance.name)

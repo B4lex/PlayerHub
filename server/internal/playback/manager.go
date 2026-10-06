@@ -19,15 +19,12 @@ import (
 
 var ErrNotFound = errors.New("playback not found")
 
-// HubPlayer is a virtual player in the hub. Its messages take the same hub
-// input as a connection's, in order.
 type HubPlayer struct {
 	loop *hub.Loop
 	slot uint32
 	log  *slog.Logger
 }
 
-// Spawn adds a virtual player to the hub.
 func Spawn(loop *hub.Loop, kind world.Kind, log *slog.Logger) (*HubPlayer, bool) {
 	p := &HubPlayer{loop: loop, log: log}
 	if !loop.Call(func(h *hub.Hub) { p.slot = h.Connect(kind, nil) }) {
@@ -50,7 +47,6 @@ func (p *HubPlayer) Leave() {
 	p.loop.Submit(func(h *hub.Hub) { h.Disconnect(p.slot) })
 }
 
-// Manager starts, finds, and stops panel replays, each its own virtual player.
 type Manager struct {
 	store    *recording.Store
 	loop     *hub.Loop
@@ -66,7 +62,6 @@ func NewManager(store *recording.Store, loop *hub.Loop, log *slog.Logger, onChan
 	return &Manager{store: store, loop: loop, log: log, onChange: onChange, sessions: make(map[string]*Session)}
 }
 
-// Open replays a recording as a new virtual player.
 func (m *Manager) Open(recordingID string, o Options) (*Session, error) {
 	r, err := m.store.Load(recordingID)
 	if err != nil {
@@ -141,8 +136,6 @@ func randomID() string {
 	return hex.EncodeToString(b[:])
 }
 
-// BotName numbers a base name from 1 and shortens it to the protocol's name
-// limit.
 func BotName(base string, index int) string {
 	suffix := " #" + strconv.Itoa(index+1)
 	budget := validate.MaximumNameBytes - len(suffix)

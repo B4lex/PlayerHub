@@ -7,10 +7,6 @@ import (
 	"skyrim-mp/server/internal/wire/pb"
 )
 
-// Quantization shared with the plugin's src/protocol. Positions are whole
-// game units, heading is 1/4096 of a turn, pitch is 1/1024 radian, speed is
-// whole units per second, direction is 1/256 of the graph's range, and the
-// sample time is milliseconds modulo TimeModulus.
 const (
 	HeadingSteps   = 4096
 	PitchScale     = 1024
@@ -20,7 +16,6 @@ const (
 	TimeModulus    = 16384
 )
 
-// Sample is an unquantized checkpoint.
 type Sample struct {
 	X, Y, Z, Heading, Pitch, Speed, Direction float64
 	MovementState                             pb.MovementState
@@ -45,7 +40,6 @@ func Quantize(s Sample, sequence uint64) *pb.Checkpoint {
 	}
 }
 
-// SampleTime is a checkpoint's time field for a sample taken at t.
 func SampleTime(t time.Time) uint32 {
 	return uint32(t.UnixMilli() % TimeModulus)
 }
@@ -54,12 +48,10 @@ func roundInt32(v float64) int32 {
 	return int32(max(math.MinInt32, min(math.MaxInt32, math.Round(v))))
 }
 
-// MovementState returns the movement state bits of a checkpoint.
 func MovementState(c *pb.Checkpoint) pb.MovementState {
 	return pb.MovementState(c.GetFlags() & 0x7)
 }
 
-// Moving reports whether the movement state is not idle.
 func Moving(c *pb.Checkpoint) bool {
 	state := MovementState(c)
 	return state != pb.MovementState_MOVEMENT_STATE_IDLE && state != pb.MovementState_MOVEMENT_STATE_SNEAKING_IDLE

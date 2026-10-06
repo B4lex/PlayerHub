@@ -1,6 +1,3 @@
-// Command convert-recordings converts version 2 recordings, written by the
-// Python server, to version 3 in place. Each original is kept beside it with
-// the suffix .v2, which the server does not list.
 package main
 
 import (

@@ -22,14 +22,11 @@ namespace ActorMount
         constexpr RE::FormID kMountBaseID = 0x023AB2;
         // Below the 125 walk speed of Horse_Default_MT.
         constexpr float kMovingSpeed = 20.0F;
-        // Between the 450 run of Horse_Default_MT and the 600 of Horse_Sprint_MT,
-        // apart so that a measured speed around either does not toggle the gallop.
+        // Between the 450 run of Horse_Default_MT and the 600 of Horse_Sprint_MT.
         constexpr float kGallopStartSpeed = 560.0F;
         constexpr float kGallopStopSpeed = 490.0F;
         constexpr float kGaitDiagnosticSeconds = 2.0F;
-        // How often a mount's graph is checked against the requested gait.
         constexpr float kReconcileSeconds = 0.25F;
-        // How long the speed must stay in the gallop range before galloping.
         constexpr float kGallopHoldSeconds = 0.3F;
 
         // The mount engine calls below are Address Library IDs verified only
@@ -72,7 +69,6 @@ namespace ActorMount
             const bool accepted = AnimationFirewall::NotifyNetworkAnimationGraph(a_actor, eventName);
             if (!accepted)
             {
-                // Reconciliation retries it while the graph still differs.
                 const auto rejectedEvents = ++a_gait.rejectedEvents;
                 if (rejectedEvents <= kInitialBlockedEventLogs || rejectedEvents % kBlockedEventLogInterval == 0)
                 {
@@ -122,7 +118,7 @@ namespace ActorMount
             return false;
         }
 
-        // Before the start, which sends the riding events into the rider's graph.
+        // The start sends the riding events into the rider's graph.
         ActorRegistry::SetMounted(a_rider, true);
         // The engine update reasserts this, and an on-foot jump must not carry over.
         ActorRegistry::SetAuthoritativeJumpState(a_rider, false);
@@ -159,8 +155,7 @@ namespace ActorMount
         const float deltaTime = std::clamp(a_deltaTime, 0.0F, ActorConstants::kMaximumFrameTime);
         const bool moving = a_speed >= kMovingSpeed;
         const bool inGallopRange = moving && a_speed >= (a_gait.sprinting ? kGallopStopSpeed : kGallopStartSpeed);
-        // A single fast sample, such as the relocation onto a new mount, must not
-        // start a gallop.
+        // A single fast sample, such as the relocation onto a new mount, must not start a gallop.
         a_gait.gallopPendingElapsed
             = inGallopRange && !a_gait.sprinting ? a_gait.gallopPendingElapsed + deltaTime : 0.0F;
         const bool sprinting = inGallopRange && (a_gait.sprinting || a_gait.gallopPendingElapsed >= kGallopHoldSeconds);
@@ -188,9 +183,7 @@ namespace ActorMount
         }
         else
         {
-            // The gallop is a state inside locomotion, which resumes it on its next
-            // moveStart, so the gallop is left before locomotion is. The request is
-            // recorded even when the graph rejects it; reconciliation retries it.
+            // The gallop is a state inside locomotion, which resumes it on its next moveStart.
             if (a_gait.sprinting && !sprinting)
             {
                 const bool accepted = SendGaitEvent(a_actor, a_gait, "SprintStop", a_role);
@@ -213,8 +206,8 @@ namespace ActorMount
                     a_actor.GetHandle().native_handle(), accepted, a_speed);
             }
 
-            // The events above are edges, and the graph may still disagree, for example
-            // with a gallop resumed by moveStart. Its own state decides the correction.
+            // The events above are edges and the graph may still disagree; its own state
+            // decides the correction.
             a_gait.reconcileElapsed += deltaTime;
             if (a_gait.reconcileElapsed >= kReconcileSeconds)
             {

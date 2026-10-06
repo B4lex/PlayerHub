@@ -8,9 +8,6 @@ import (
 
 const rejectionLogIntervalSeconds = 5
 
-// rejectionLog reports rejections without flooding the log: the first
-// one at once, later ones counted and summarized at most every few seconds.
-// The reader and the hub both report, so it is locked.
 type rejectionLog struct {
 	mu      sync.Mutex
 	log     *slog.Logger

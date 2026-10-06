@@ -8,32 +8,19 @@
 
 namespace
 {
-    // The source publishes every 0.05 s.
     constexpr double kNominalIntervalSeconds = 0.05;
     constexpr double kSampleTimePeriodSeconds = Network::kSampleTimeModulus / 1000.0;
-    // Until a peer's own jitter is measured, assume half a 20 Hz server tick.
     constexpr double kInitialJitterSeconds = 0.025;
-    // Per checkpoint: jitter is followed up quickly and trusted down slowly, so
-    // one calm stretch does not shrink the delay into the next burst.
     constexpr double kJitterRiseSmoothing = 0.25;
     constexpr double kJitterDecaySmoothing = 0.02;
     constexpr double kIntervalSmoothing = 0.1;
     constexpr double kJitterMargin = 2.0;
-    // A checkpoint arriving just after a pass drained the network is only seen
-    // by the next pass.
     constexpr double kFrameMarginSeconds = 0.02;
     constexpr double kMinimumDelaySeconds = 0.05;
     constexpr double kMaximumDelaySeconds = 0.5;
-    // Lets transitFloor follow a slower route, or clock drift, without letting
-    // one late checkpoint raise it.
     constexpr double kTransitFloorRisePerSecond = 0.01;
-    // Playback runs at most this much faster or slower than real time while it
-    // converges on its target, so an estimate change never jumps the actor.
     constexpr double kMaximumSkew = 0.1;
-    // A larger error, such as after the local game was paused, is jumped.
     constexpr double kResyncSeconds = 0.25;
-    // Longer gaps are not one stretch of movement: the server sends nothing
-    // while a player stands still, or the connection stalled.
     constexpr double kMaximumSegmentSeconds = 0.25;
     constexpr float kMinimumTravelSpeed = 1.0F;
     constexpr std::size_t kMaximumPending = 16;
@@ -49,8 +36,6 @@ namespace
         return { a_checkpoint.x, a_checkpoint.y, a_checkpoint.z };
     }
 
-    // A space change, a relocation, or mounting changes what the position
-    // describes, so the actor must not travel between the two.
     bool CanInterpolate(const Network::PlayerTransform& a_from, const Network::PlayerTransform& a_to)
     {
         return a_from.mounted == a_to.mounted
@@ -77,8 +62,6 @@ bool CheckpointPlayout::Push(Network::PlayerTransform&& a_checkpoint, Clock::tim
     }
     else
     {
-        // The sample time wraps every 16.384 s; the arrival gap tells how many
-        // times it did, since jitter is far smaller than that.
         const double wrapped
             = ((sampleTime + Network::kSampleTimeModulus - receivedSampleTime) % Network::kSampleTimeModulus) / 1000.0;
         const double arrivalGap = (std::max)(arrival - receivedArrival, 0.0);
@@ -108,8 +91,8 @@ bool CheckpointPlayout::Push(Network::PlayerTransform&& a_checkpoint, Clock::tim
     }
     if (pending.size() >= kMaximumPending)
     {
-        // Only reachable while playback is stuck far behind; checkpoints are
-        // latest-wins, so skipping the oldest is safe.
+        // Only reachable while playback is stuck far behind; checkpoints are latest-wins, so
+        // skipping the oldest is safe.
         pending.erase(pending.begin());
     }
     pending.push_back(Entry{ .checkpoint = std::move(a_checkpoint), .time = time });
@@ -147,8 +130,6 @@ void CheckpointPlayout::AdvanceClock(Clock::time_point a_now)
         return;
     }
 
-    // Wall time, not frame time: the target follows the sender's clock, and a
-    // local pause has to be caught up with, not replayed.
     const double now = ToSeconds(a_now);
     const double delay = GetDelay();
     const double target = now - transitFloor - delay;
@@ -205,8 +186,6 @@ void CheckpointPlayout::UpdatePose()
     double start = playedTime;
     if (next.time - playedTime > kMaximumSegmentSeconds)
     {
-        // After a long gap the played checkpoint is where the player stood, and
-        // it moved off about one sample before the next one, at its speed.
         const double travel
             = next.checkpoint.speed >= kMinimumTravelSpeed ? distance / next.checkpoint.speed : interval;
         start = next.time - std::clamp(travel, interval, next.time - playedTime);

@@ -68,9 +68,7 @@ namespace AnimationEvents
             && EqualsIgnoringCase(a_text.substr(a_text.size() - a_suffix.size()), a_suffix);
     }
 
-    // Events a hand's magic caster sends to its actor's graph while casting. Graph
-    // event names are case-insensitive, and the left release idle sends
-    // MLH_SpellRelease_event.
+    // Graph event names are case-insensitive, and the left release idle sends MLH_SpellRelease_event.
     constexpr bool IsCastAnimationEvent(std::string_view a_eventName) noexcept
     {
         for (const std::string_view prefix : { "MLh_", "MRh_", "DualMagic_" })
@@ -83,8 +81,6 @@ namespace AnimationEvents
         return ContainsIgnoringCase(a_eventName, "Cast");
     }
 
-    // The graph event of the attack data a local attack started with. The hand
-    // is shared by the power, sprint, and directional variants of an attack.
     enum class AttackEventHand
     {
         kRight,
@@ -120,10 +116,9 @@ namespace AnimationEvents
     static_assert(GetAttackEventHand("attackPowerStartLeftLeftHand") == AttackEventHand::kLeft);
     static_assert(GetAttackEventHand("attackPowerStart_SprintLeftHand") == AttackEventHand::kLeft);
 
-    // The direction of a power attack's event. The vanilla race attack data names
-    // it after the hand prefix (attackPowerStartLeftLeftHand is a left-hand attack
-    // toward the left). Sprinting variants count as forward, and events without a
-    // direction (in place, dual-wield, both fists, power bash) as standing.
+    // The vanilla race attack data names a power attack's direction after the
+    // hand prefix (attackPowerStartLeftLeftHand is a left-hand attack toward the
+    // left).
     enum class PowerAttackEventDirection
     {
         kStanding,

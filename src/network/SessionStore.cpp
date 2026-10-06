@@ -75,7 +75,6 @@ namespace Network::SessionStore
             }
         }
 
-        // Requires s_lock.
         void LoadLocked()
         {
             const auto path = GetPath();
@@ -114,8 +113,6 @@ namespace Network::SessionStore
             logs::info("Session store loaded {} sessions from {}", s_entries.size(), ToUtf8(path));
         }
 
-        // Through a temporary file, so a failed write never leaves a truncated
-        // file. Requires s_lock.
         bool WriteLocked()
         {
             const auto path = GetPath();
@@ -182,8 +179,6 @@ namespace Network::SessionStore
         }
         if (!WriteLocked())
         {
-            // The session holds the display name on the server, so a later game
-            // without its token finds the display name taken.
             logs::error(
                 "Session store could not save the session with {}; it lasts until the game exits, and "
                 "its display name stays taken on the server until the session expires",

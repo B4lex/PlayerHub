@@ -20,16 +20,11 @@ namespace UI::MenuFrame
 {
     namespace
     {
-        // The game's own art, so it is a file beside the plugin rather than
-        // part of it. Relative to the plugin's directory.
         constexpr std::wstring_view kShapeFile = L"skyrim-mp/frame/menu-frame.shape";
         constexpr std::string_view kFormat = "frame 1";
 
-        // A pixel of the art in font sizes at [UI] FrameThickness 100, so the
-        // frame follows the overlay scale. The game lays its menus out for a
-        // 720p screen, which makes the pixel 1.5 px at 1080p, where the base
-        // font is 16 px: the frame is then as large as around the game's own
-        // message boxes.
+        // The game lays its menus out for a 720p screen, which makes a pixel of the
+        // art 1.5 px at 1080p.
         constexpr float kArtPixelFonts = 1.5F / 16.0F;
 
         constexpr float kMaximumLength = 4096.0F;
@@ -38,8 +33,6 @@ namespace UI::MenuFrame
 
         struct Point
         {
-            // In the art's pixels, from the window's left or right edge and
-            // from its top or bottom one.
             ImVec2 offset;
             bool fromRight{ false };
             bool fromBottom{ false };
@@ -48,21 +41,17 @@ namespace UI::MenuFrame
         struct Polygon
         {
             std::uint32_t pointCount{ 0 };
-            // The silhouette behind the lines rather than a part of them.
             bool backing{ false };
         };
 
         struct Shape
         {
-            // A polygon's points follow those of the polygons before it.
             std::vector<Point> points;
             std::vector<Polygon> polygons;
             float inset{ 0.0F };
             float corner{ 0.0F };
         };
 
-        // What decides the triangles of a window's frame apart from where
-        // the window is.
         struct FrameKey
         {
             ImVec2 size;
@@ -81,9 +70,6 @@ namespace UI::MenuFrame
             }
         };
 
-        // A frame as last triangulated, which is most of what drawing one
-        // costs: vertices from the window's corner and indices from the first
-        // vertex. A window drawn again with the same key copies them.
         struct DrawnFrame
         {
             FrameKey key;
@@ -92,10 +78,8 @@ namespace UI::MenuFrame
             int usedFrame{ -1 };
         };
 
-        // One per framed window, and one more for a window that comes and goes.
         constexpr std::size_t kDrawnFrames = 4;
 
-        // Empty until Load reads a shape.
         Shape s_shape;
         std::array<DrawnFrame, kDrawnFrames> s_drawn;
 
@@ -139,7 +123,6 @@ namespace UI::MenuFrame
                 && NextWord(a_line).empty();
         }
 
-        // Null, or what is wrong with a_text.
         const char* Parse(std::string_view a_text, Shape& a_shape)
         {
             bool formatSeen = false;
@@ -221,7 +204,6 @@ namespace UI::MenuFrame
             return nullptr;
         }
 
-        // Screen pixels per pixel of the art.
         float GetScale()
         {
             return ImGui::GetFontSize() * kArtPixelFonts * static_cast<float>(Config::Get()->ui.frameThickness) * 0.01F;
@@ -242,8 +224,6 @@ namespace UI::MenuFrame
             }
         }
 
-        // Draws the frame and keeps its triangles in a_frame for the next
-        // frames, unless the list started its vertices over meanwhile.
         void Triangulate(DrawnFrame& a_frame, ImDrawList& a_list, const ImVec2& a_min, const ImVec2& a_max)
         {
             const auto firstVertex = a_list.VtxBuffer.Size;

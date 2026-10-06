@@ -16,17 +16,11 @@ import (
 
 const (
 	MaximumLabelLength = 100
-	// Lines a capture may have waiting for the disk before it is ended rather
-	// than stall the hub.
-	captureQueueLines = 4096
+	captureQueueLines  = 4096
 )
 
 var ErrAlreadyCapturing = errors.New("player is already being recorded")
 
-// Captures records accepted messages of chosen players until they stop. A
-// capture also ends when its player disconnects, the server shuts down, or
-// the disk fails, so a file is always finished with a reason when possible.
-// Record runs on the hub goroutine and never waits for the disk.
 type Captures struct {
 	store    *Store
 	log      *slog.Logger
@@ -49,9 +43,6 @@ func NewCaptures(store *Store, log *slog.Logger, onChange func()) *Captures {
 	return &Captures{store: store, log: log, onChange: onChange, byPlayer: make(map[uint32]*capture)}
 }
 
-// Start begins recording a player. initial is its current state, written at
-// time zero so the recording replays on its own. now names and dates the
-// recording; message times use the monotonic clock.
 func (c *Captures) Start(slot uint32, playerName, label string, initial []*pb.ClientMessage, now time.Time) (Info, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -98,7 +89,6 @@ func (c *Captures) Start(slot uint32, playerName, label string, initial []*pb.Cl
 	return c.infoLocked(capture, time.Now()), nil
 }
 
-// Record appends an accepted message if the player is being captured.
 func (c *Captures) Record(slot uint32, message *pb.ClientMessage) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -123,7 +113,6 @@ func (c *Captures) Record(slot uint32, message *pb.ClientMessage) {
 	}
 }
 
-// Stop ends the capture of a player that is gone.
 func (c *Captures) Stop(slot uint32, reason string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -132,7 +121,6 @@ func (c *Captures) Stop(slot uint32, reason string) {
 	}
 }
 
-// StopRecording ends a capture by recording ID and returns its final info.
 func (c *Captures) StopRecording(id, reason string) (Info, error) {
 	c.mu.Lock()
 	var finished *capture
@@ -164,7 +152,6 @@ func (c *Captures) StopAll(reason string) {
 	}
 }
 
-// RecordingFor returns the ID of the player's capture, or "".
 func (c *Captures) RecordingFor(slot uint32) string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -200,8 +187,8 @@ func (c *Captures) finishLocked(slot uint32, reason string, now time.Time) {
 	capture := c.byPlayer[slot]
 	delete(c.byPlayer, slot)
 	end := EncodeEnd(End{now.Sub(capture.started).Milliseconds(), reason})
-	// The queue may be full when the disk fell behind; the end line is then
-	// dropped and the recording reads as interrupted.
+	// The queue may be full when the disk fell behind; the end line is then dropped and the
+	// recording reads as interrupted.
 	select {
 	case capture.lines <- append(end, '\n'):
 	default:

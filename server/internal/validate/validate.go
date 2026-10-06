@@ -1,6 +1,3 @@
-// Package validate checks untrusted client messages field by field. It knows
-// nothing about the sender's previous state; ordering rules such as rising
-// sequences live in the hub.
 package validate
 
 import (
@@ -45,11 +42,9 @@ const (
 	MaximumWeaponType   = 9
 	MaximumChatTextByte = 512
 
-	// Sessions one client may vanish at once.
 	MaximumVanished = 1024
 )
 
-// Errors name the rejected message, as the Python server's acknowledgements did.
 var (
 	ErrCheckpoint  = errors.New("invalid player transform")
 	ErrContext     = errors.New("invalid player context")
@@ -64,8 +59,6 @@ var (
 
 var ErrUnexpected = errors.New("unexpected message")
 
-// Message checks the fields of a client message that the hub handles. Hello
-// and Ping are answered by the session and are unexpected here.
 func Message(m *pb.ClientMessage) error {
 	switch body := m.Message.(type) {
 	case *pb.ClientMessage_Enter, *pb.ClientMessage_Exit, *pb.ClientMessage_Chat:
@@ -202,9 +195,6 @@ func Equipment(e *pb.Equipment) error {
 	return nil
 }
 
-// Hello checks the session fields and the vanished sessions; the protocol
-// version is the session's to compare. A token is absent, to ask for a new
-// session, or whole.
 func Hello(h *pb.Hello) error {
 	if token := h.GetSessionToken(); len(token) != 0 && len(token) != SessionTokenBytes {
 		return ErrToken
@@ -215,8 +205,6 @@ func Hello(h *pb.Hello) error {
 	return DisplayName(h.GetDisplayName())
 }
 
-// DisplayName checks a name a session may take:
-// MinimumDisplayNameBytes..MaximumDisplayNameBytes ASCII letters, digits, and underscores.
 func DisplayName(n string) error {
 	if len(n) < MinimumDisplayNameBytes || len(n) > MaximumDisplayNameBytes {
 		return ErrDisplayName
@@ -229,14 +217,10 @@ func DisplayName(n string) error {
 	return nil
 }
 
-// DisplayNameKey is what display names are compared by: two that differ only
-// in case are the same.
 func DisplayNameKey(n string) string {
 	return strings.ToLower(n)
 }
 
-// Chat checks the channel and that only a whisper names a recipient, trims
-// surrounding spaces, and returns the text.
 func Chat(c *pb.ChatSend) (string, error) {
 	text := strings.Trim(c.GetText(), " ")
 	if _, known := pb.ChatChannel_name[int32(c.GetChannel())]; !known ||
@@ -296,7 +280,6 @@ func armorEntry(a *pb.Armor) bool {
 func hand(h *pb.Hand, left bool) bool {
 	switch h.GetKind() {
 	case pb.HandKind_HAND_KIND_SPELL:
-		// Every receiver shows the same placeholder spell, so none is sent.
 		return h.Form == nil && h.GetWeaponType() == 0
 	case pb.HandKind_HAND_KIND_TORCH:
 		return left && h.Form != nil && formRef(h.Form) && h.GetWeaponType() == 0
@@ -309,7 +292,6 @@ func hand(h *pb.Hand, left bool) bool {
 	}
 }
 
-// twoHanded reports WEAPON_TYPE two-handed sword, axe, bow, and crossbow.
 func twoHanded(h *pb.Hand) bool {
 	if h.GetKind() != pb.HandKind_HAND_KIND_WEAPON {
 		return false

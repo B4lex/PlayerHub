@@ -18,7 +18,6 @@ import (
 	"skyrim-mp/server/internal/wire/pb"
 )
 
-// Routes registers the REST commands on mux.
 func (c *Context) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, _ *http.Request) { reply(w, http.StatusOK, c.State()) })
 
@@ -196,7 +195,6 @@ func (c *Context) setHidden(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusOK, map[string]bool{"hidden": *request.Hidden})
 }
 
-// setExcluded adds or removes the exclusion {viewerId, targetId}.
 func (c *Context) setExcluded(w http.ResponseWriter, r *http.Request, excluded bool) {
 	var request Exclusion
 	if err := decode(r, &request); err != nil {
@@ -367,7 +365,6 @@ func reply(w http.ResponseWriter, status int, body any) {
 	json.NewEncoder(w).Encode(body)
 }
 
-// fail answers with {"detail": message}, which the panel shows.
 func fail(w http.ResponseWriter, status int, message string) {
 	reply(w, status, map[string]string{"detail": message})
 }

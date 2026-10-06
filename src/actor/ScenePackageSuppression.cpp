@@ -16,9 +16,8 @@ namespace ScenePackageSuppression
         // A scene package action installs its package on the alias's actor directly
         // (ID 39149), bypassing package evaluation and so the alias package hook in
         // SurvivalPolicy. During a bard song it reinstalls BardAudienceTravelToLoc2
-        // every pass, and BardAudienceStayInLocationAndApplaud once the song ends:
-        // one capture took them back over 13,000 times in two minutes, and every
-        // furniture entry in that window lost its occupancy before the next pass.
+        // every pass, and BardAudienceStayInLocationAndApplaud once the song ends,
+        // which takes furniture occupancy back.
         void LogRefusedScenePackage(std::string_view a_path, RE::Actor& a_actor,
             const RE::BGSSceneActionPackage& a_action, const RE::BGSScene* a_scene)
         {

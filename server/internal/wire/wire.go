@@ -1,5 +1,3 @@
-// Package wire encodes the hot server messages by hand so each checkpoint is
-// encoded once and batches are built by concatenation.
 package wire
 
 import (
@@ -14,8 +12,6 @@ const (
 	peerStatesEntryField protowire.Number = 1
 )
 
-// AppendEntry appends a checkpoint as one PeerStates.states element, player
-// set to the sender's slot. Zero fields are omitted as proto3 does.
 func AppendEntry(b []byte, slot uint32, c *pb.Checkpoint) []byte {
 	var body [64]byte
 	m := body[:0]
@@ -34,15 +30,11 @@ func AppendEntry(b []byte, slot uint32, c *pb.Checkpoint) []byte {
 	return protowire.AppendBytes(b, m)
 }
 
-// AppendPeerStatesHeader appends the ServerMessage framing of a PeerStates
-// whose entries, entriesLength bytes in total, follow it.
 func AppendPeerStatesHeader(b []byte, entriesLength int) []byte {
 	b = protowire.AppendTag(b, peerStatesField, protowire.BytesType)
 	return protowire.AppendVarint(b, uint64(entriesLength))
 }
 
-// Marshal encodes an ordered server message. They are rare enough that the
-// generated code is fine.
 func Marshal(m *pb.ServerMessage) []byte {
 	b, err := proto.MarshalOptions{Deterministic: true}.Marshal(m)
 	if err != nil {

@@ -1,5 +1,3 @@
-// Package config loads the server's TOML configuration. Link-dependent limits
-// live here so the homelab and a remote server differ only in this file.
 package config
 
 import (
@@ -12,13 +10,8 @@ import (
 )
 
 type Config struct {
-	Listen string `toml:"listen"`
-	// The admin panel, its API, and profiling are served only here, apart
-	// from players, so a proxy that exposes the game port cannot expose them.
-	// Empty serves none of them.
-	AdminListen string `toml:"admin_listen"`
-	// Proxies, as addresses or CIDR prefixes, whose X-Forwarded-For names
-	// the player's address for the per-address limits.
+	Listen              string   `toml:"listen"`
+	AdminListen         string   `toml:"admin_listen"`
 	TrustedProxies      []string `toml:"trusted_proxies"`
 	RecordingsDirectory string   `toml:"recordings_directory"`
 	AdminUIDirectory    string   `toml:"admin_ui_directory"`
@@ -32,29 +25,19 @@ type Config struct {
 }
 
 type Sessions struct {
-	// The SQLite file that keeps sessions across restarts. Empty keeps them
-	// in memory, so every restart forgets them.
-	Database string `toml:"database"`
-	// How long a session lives after it was last connected.
+	Database     string  `toml:"database"`
 	LifetimeDays float64 `toml:"lifetime_days"`
 }
 
 type Chat struct {
-	// How far local chat reaches in a worldspace, horizontally; an interior is
-	// heard whole.
 	LocalRadius float64 `toml:"local_radius"`
 }
 
-// Budget bounds egress below the uplink, which a homelab needs: the router's
-// upload buffer must never be what limits the rate.
 type Budget struct {
-	Enabled bool `toml:"enabled"`
-	// The link rate; the budget uses 80% of it.
-	UplinkBytesPerSecond float64 `toml:"uplink_bytes_per_second"`
-	// Caps one client's share; zero leaves only the equal share of the uplink.
+	Enabled                    bool    `toml:"enabled"`
+	UplinkBytesPerSecond       float64 `toml:"uplink_bytes_per_second"`
 	PerRecipientBytesPerSecond float64 `toml:"per_recipient_bytes_per_second"`
-	// New peers a client receives per second, nearest first.
-	EntersPerSecond float64 `toml:"enters_per_second"`
+	EntersPerSecond            float64 `toml:"enters_per_second"`
 }
 
 type Interest struct {
@@ -70,18 +53,14 @@ type Interest struct {
 }
 
 type Limits struct {
-	MessagesPerSecond   float64 `toml:"messages_per_second"`
-	MessageBurst        float64 `toml:"message_burst"`
-	ActionsPerSecond    float64 `toml:"actions_per_second"`
-	ActionBurst         float64 `toml:"action_burst"`
-	OrderedBacklog      int     `toml:"ordered_backlog"`
-	HelloTimeoutSeconds float64 `toml:"hello_timeout_seconds"`
-	// Players connected at once; zero is no cap.
-	MaxPlayers int `toml:"max_players"`
-	// Connections that have not sent their hello yet.
-	MaxPendingHellos int `toml:"max_pending_hellos"`
-	// New sessions one address may take per hour, an IPv6 address with its
-	// /64; zero is no limit.
+	MessagesPerSecond            float64 `toml:"messages_per_second"`
+	MessageBurst                 float64 `toml:"message_burst"`
+	ActionsPerSecond             float64 `toml:"actions_per_second"`
+	ActionBurst                  float64 `toml:"action_burst"`
+	OrderedBacklog               int     `toml:"ordered_backlog"`
+	HelloTimeoutSeconds          float64 `toml:"hello_timeout_seconds"`
+	MaxPlayers                   int     `toml:"max_players"`
+	MaxPendingHellos             int     `toml:"max_pending_hellos"`
 	NewSessionsPerAddressPerHour float64 `toml:"new_sessions_per_address_per_hour"`
 }
 
@@ -111,14 +90,12 @@ func Default() Config {
 		Liveness: Liveness{PingIntervalSeconds: 5, TimeoutSeconds: 10},
 		Interest: Interest{EnterRadius: 8192, LeaveRadius: 9830, MinDwellSeconds: 1, UpdateHz: 5, MaxVisible: 64,
 			CapHysteresis: 1024, NearDistance: 4096, FarRateHz: 10, MinimumViewRadius: 1024},
-		// A 50 Mbit/s homelab upload.
 		Budget:   Budget{UplinkBytesPerSecond: 6_250_000, EntersPerSecond: 20},
 		Chat:     Chat{LocalRadius: 8192},
 		Sessions: Sessions{Database: "sessions.db", LifetimeDays: 30},
 	}
 }
 
-// Load reads path over the defaults. An empty path means defaults only.
 func Load(path string) (Config, error) {
 	c := Default()
 	if path != "" {
@@ -137,8 +114,6 @@ func Load(path string) (Config, error) {
 	return c, c.Validate()
 }
 
-// Validate reports the first setting out of range. Load calls it; call it
-// again after overriding settings.
 func (c Config) Validate() error {
 	switch {
 	case c.AdminListen != "" && c.AdminListen == c.Listen:
@@ -179,7 +154,6 @@ func (c Config) Validate() error {
 	return err
 }
 
-// TrustedProxyPrefixes parses trusted_proxies; an address is its own prefix.
 func (c Config) TrustedProxyPrefixes() ([]netip.Prefix, error) {
 	prefixes := make([]netip.Prefix, 0, len(c.TrustedProxies))
 	for _, proxy := range c.TrustedProxies {

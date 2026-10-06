@@ -31,7 +31,6 @@ namespace SyncCoordinator
 {
     namespace
     {
-        // Accessed only on the bound main-loop thread.
         Peers s_peers;
         std::uint64_t s_peersConnectionGeneration = 0;
         bool s_actorsExcludedFromSaves = false;
@@ -42,11 +41,9 @@ namespace SyncCoordinator
             bool deferred{ false };
         };
 
-        // Skyrim activates on a worker thread, so activations are queued there and
-        // handled by the next main-loop pass.
+        // Skyrim activates on a worker thread.
         std::mutex s_localFurnitureActivationsLock;
         std::vector<LocalFurnitureActivation> s_localFurnitureActivations;
-        // The latest remote actor the local player activated; zero when none.
         std::atomic<RE::FormID> s_localActorActivation{ 0 };
 
         RemoteFrame GetRemoteFrame(Multiplayer::PeerSlot a_playerID, const PeerState& a_peer)
@@ -59,9 +56,6 @@ namespace SyncCoordinator
                 .furnitureRefID = a_peer.furniture.refID };
         }
 
-        // Slots belong to one server connection, so a closed or replaced
-        // connection leaves no peer that the server will update or report as
-        // left. Reconnecting rebuilds every peer from resent state.
         void RemovePeersFromLostConnection(Peers& a_peers, const Network::RemotePlayerChanges& a_changes)
         {
             if (a_changes.connected && a_changes.connectionGeneration == s_peersConnectionGeneration)
@@ -92,8 +86,6 @@ namespace SyncCoordinator
             }
         }
 
-        // The player left the world. Only its appearance and equipment stay valid;
-        // its next checkpoint places it again as if it had just joined.
         void ForgetWorldState(PeerState& a_peer)
         {
             ActorLifecycle::RemoveActor(a_peer);
@@ -104,11 +96,6 @@ namespace SyncCoordinator
             a_peer.appliedSequence = 0;
         }
 
-        // Receive stage. Checkpoints wait in the peer's playout, rising by
-        // sequence; appearance and equipment are latest-wins by revision; actions
-        // are ordered and bounded; a world exit clears the player's checkpoint
-        // state and a disconnect clears everything. Exits apply first, since
-        // changes drained with one arrived after it.
         void ApplyNetworkChanges(Peers& a_peers)
         {
             PROFILE_FUNCTION();
@@ -157,16 +144,12 @@ namespace SyncCoordinator
 
             for (auto& update : changes.appearances)
             {
-                // An appearance may arrive before the first checkpoint. The actor is
-                // only spawned once a checkpoint places it in the local space.
                 auto& state = a_peers[update.playerID];
                 AppearanceSync::AcceptRemoteAppearance(state.appearance, update.playerID, std::move(update.appearance));
             }
 
             for (auto& update : changes.equipment)
             {
-                // Equipment is kept independent of whether an actor reference exists,
-                // so every respawn reconciles from the newest revision.
                 auto& state = a_peers[update.playerID];
                 EquipmentSync::AcceptRemoteEquipment(state.equipment, update.playerID, std::move(update.equipment));
             }
@@ -180,9 +163,6 @@ namespace SyncCoordinator
             }
         }
 
-        // Playout stage. Features see a checkpoint only once it plays, so the
-        // state it carries and the actions anchored to it stay in step with the
-        // interpolated transform.
         void PlayCheckpoints(Peers& a_peers)
         {
             PROFILE_FUNCTION();
@@ -197,9 +177,6 @@ namespace SyncCoordinator
             }
         }
 
-        // Hides remote actors that left an activated furniture no free marker, then
-        // activates it again for the local player when that hid an actor or the
-        // original activation was deferred.
         void YieldActivatedFurniture(Peers& a_peers, RE::PlayerCharacter& a_player)
         {
             PROFILE_FUNCTION();
@@ -248,8 +225,6 @@ namespace SyncCoordinator
             }
         }
 
-        // Opens the menu of the player whose actor or mount the local player
-        // activated. Activations are rare, so a scan over the peers will do.
         void OpenActivatedPlayerMenu(const Peers& a_peers)
         {
             const auto actorID = s_localActorActivation.exchange(0, std::memory_order_acq_rel);
@@ -292,8 +267,6 @@ namespace SyncCoordinator
             s_actorsExcludedFromSaves = false;
         }
 
-        // Local stages. Attack capture and graph-epoch observation run every pass;
-        // the checkpoint and its attacks are published at the snapshot cadence.
         void SyncLocalPlayer(RE::PlayerCharacter& a_player, float a_delta)
         {
             PROFILE_FUNCTION();
@@ -302,8 +275,8 @@ namespace SyncCoordinator
             const auto capturedAttack = CombatSync::CaptureLocalAttack(local);
             const bool handPresentationStarted = CombatSync::CaptureLocalHandPresentation(local);
             const auto graphEpoch = AnimationSync::ObserveLocalGraphEpoch(local);
-            // Flush equipment before a captured attack, bow draw, cast, or block can
-            // be published, so peers receive a weapon swap ahead of its use.
+            // Flush equipment before a captured attack or hand presentation is published, so
+            // peers receive a weapon swap ahead of its use.
             EquipmentSync::SyncEquipment(local, a_delta, capturedAttack.has_value() || handPresentationStarted);
             CombatSync::QueueLocalAttacks(capturedAttack, graphEpoch.changed);
             const auto publication = CheckpointPublisher::PublishLocalCheckpoint(local, a_delta, graphEpoch.epoch);
@@ -322,7 +295,6 @@ namespace SyncCoordinator
             AppearanceSync::SyncAppearance(local, a_delta);
         }
 
-        // Remote stages for one peer.
         void SyncPeer(Multiplayer::PeerSlot a_playerID, PeerState& a_peer, const LocalFrame& a_local,
             RE::FormID a_localCellID, RE::FormID a_localWorldspaceID, RE::TESObjectREFR* a_localFurniture,
             float a_delta)
@@ -347,14 +319,11 @@ namespace SyncCoordinator
             CombatSync::AgeRemoteActions(remote, a_peer.combat, a_delta);
             if (!isInLocalSpace)
             {
-                // Do not preserve transient combat history while no actor/checkpoint
-                // can be reconstructed in the local coordinate space.
                 CombatSync::ClearRemoteActions(a_peer.combat);
                 return;
             }
             if (lifecycle.actor && DeathSync::SyncDeath(remote, a_peer))
             {
-                // The body is left to Skyrim's ragdoll; only its handle and look are kept.
                 auto& actor = *lifecycle.actor;
                 if (auto liveActor = actor.handle.get())
                 {
@@ -368,8 +337,6 @@ namespace SyncCoordinator
             }
             if (lifecycle.actor)
             {
-                // Same-space fast travel keeps the coordinate space, so it is
-                // detected by displacement instead. The actor respawns below.
                 ActorLifecycle::RetireWhenStranded(remote, a_peer, a_delta);
             }
             if (lifecycle.yieldedFurnitureRefID != remote.furnitureRefID)
@@ -383,8 +350,6 @@ namespace SyncCoordinator
 
             if (lifecycle.actor && MountSync::SyncMount(remote, a_peer, a_delta))
             {
-                // The mount carries the actor, and the mount interaction owns its
-                // graph; only its equipment and look are kept.
                 auto& actor = *lifecycle.actor;
                 CombatSync::ClearRemoteActions(a_peer.combat);
                 EquipmentSync::SyncEquipment(a_peer.equipment, a_playerID, actor, a_delta);
@@ -412,9 +377,6 @@ namespace SyncCoordinator
                     AnimationSync::SyncAnimation(remote, actor, readyForWeaponDraw, a_delta);
                 }
                 furniturePlaying = FurnitureSync::SyncFurnitureEntry(remote, actor, attackPlaying, furniturePlaying);
-                // Stage the freshest base state before considering an action. If this
-                // changes the graph request, CanDispatchAttack keeps the action
-                // queued until ApplyAnimationUpdate settles it on a following frame.
                 if (!furniturePlaying)
                 {
                     CombatSync::SyncCombat(remote, a_peer.combat, actor, handsSettled);
@@ -468,8 +430,7 @@ namespace SyncCoordinator
         }
         else
         {
-            // Attacks captured before leaving would otherwise anchor to the first
-            // checkpoint after returning.
+            // Attacks captured before leaving would otherwise anchor to the first checkpoint after returning.
             CombatSync::DiscardLocalAttacks();
         }
 

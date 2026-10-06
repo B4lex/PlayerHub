@@ -62,8 +62,16 @@ a peer does not have a matching modded asset or behavior.
   than repeating it.
 
 ## Code style guidelines
-- Minimize adding new comments. Comment only genuinely non-obvious constraints 
-  or "why" decisions, not self-evident "what".
+- Comment only what a reader cannot get from the code:
+  - non-obvious constraints and "why" decisions at that spot in the code, such
+    as ordering, locking, and lifetime requirements;
+  - engine or third-party behavior that cannot be derived from the code, such
+    as reverse-engineered Skyrim behavior, Address Library IDs, and library
+    quirks;
+  - the frame-count notes required below.
+  Do not comment self-evident "what". Document the plugin's and server's own
+  behavior, contracts, and system-level design decisions in the system specs,
+  not in doc comments.
 
 ## Build notes
 - This project uses XMake under wine, so do not try to build it when the host is Linux.

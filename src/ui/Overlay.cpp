@@ -21,7 +21,6 @@ namespace UI::Overlay
 {
     namespace
     {
-        // Sizes are authored for a 1080p back buffer and scaled to the real one.
         constexpr float kReferenceScreenHeight = 1080.0F;
         constexpr float kMinimumScale = 0.5F;
         constexpr float kBaseFontSize = 16.0F;
@@ -31,8 +30,6 @@ namespace UI::Overlay
         ImGuiStyle baseStyle;
         float appliedScale = 0.0F;
 
-        // Returns false while the renderer is not ready yet; sets
-        // initializationFailed if the ImGui backends reject the device.
         bool Initialize(RE::BSGraphics::RendererData& a_data)
         {
             const auto& window = a_data.renderWindows[0];
@@ -47,10 +44,7 @@ namespace UI::Overlay
             auto& io = ImGui::GetIO();
             io.IniFilename = nullptr;
             io.LogFilename = nullptr;
-            // Skyrim reads the mouse through DirectInput as relative motion, so
-            // InputCapture enables the mouse, with a drawn cursor, only while a
-            // window that uses it has focus. The keyboard reaches ImGui only
-            // through InputCapture, while a window has focus.
+            // Skyrim reads the mouse through DirectInput as relative motion.
             io.ConfigFlags |= ImGuiConfigFlags_NoMouse | ImGuiConfigFlags_NoMouseCursorChange;
 
             Fonts::Load(*io.Fonts, kBaseFontSize);

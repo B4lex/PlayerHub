@@ -30,9 +30,6 @@ func appearance(peer uint32, revision uint64) []byte {
 		Slot: peer, Appearance: &pb.Appearance{Revision: revision}}}})
 }
 
-// written decodes what the outbox writes, one line per message: "states
-// peer:sequence ...", "leave peer", "action peer:sequence", "appearance
-// peer:revision".
 func written(t *testing.T, o *Outbox) []string {
 	t.Helper()
 	var b Batch
@@ -47,7 +44,6 @@ func written(t *testing.T, o *Outbox) []string {
 		}
 		switch body := m.Message.(type) {
 		case *pb.ServerMessage_PeerStates:
-			// Entries of different peers in one batch have no order.
 			var states []string
 			for _, s := range body.PeerStates.States {
 				states = append(states, format(s.Player, s.Sequence))
@@ -91,7 +87,6 @@ func expect(t *testing.T, got []string, want ...string) {
 	}
 }
 
-// set gives the outbox the peer's checkpoint with that sequence.
 func set(o *Outbox, peer uint32, sequence uint64) {
 	o.SetCheckpoint(peer, sequence, entry(peer, sequence), time.Now())
 }

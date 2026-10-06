@@ -10,7 +10,6 @@ func TestPlanSpreadsBotsWithoutSwapping(t *testing.T) {
 	for i, plan := range plans {
 		low, high := int64(i*1000-500), int64(i*1000+500)
 		if i == 0 {
-			// The first bot may wrap to the end.
 			continue
 		}
 		if plan.StartMs < low || plan.StartMs > high || plan.Rate != 1 || plan.JoinDelaySeconds != 0 {

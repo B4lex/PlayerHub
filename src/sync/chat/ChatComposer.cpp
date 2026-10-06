@@ -32,7 +32,6 @@ namespace ChatSync
 
         void AddPlayerCount()
         {
-            // The roster is empty while disconnected.
             const auto count = ChatRoster::GetPlayerCount();
             if (count == 0)
             {
@@ -95,7 +94,6 @@ namespace ChatSync
         dismissed = false;
         recalled = sent.size();
         bool rewritten = false;
-        // A removed prefix can uncover another, as in "/g @name".
         for (;;)
         {
             const auto typed = ChatDraft::Interpret(a_draft, false);
@@ -116,8 +114,6 @@ namespace ChatSync
                 case ChatDraft::Kind::kWhisper:
                 {
                     ListPlayers(typed.rest);
-                    // Nobody else's name continues what is typed, so a name
-                    // followed by a space is the whole name.
                     const auto addressee
                         = suggestions.empty() ? ChatRoster::FindAddressee(typed.rest) : std::nullopt;
                     if (!addressee || addressee->nameLength == typed.rest.size())
@@ -232,7 +228,6 @@ namespace ChatSync
         {
             return;
         }
-        // Copied: applying it rebuilds the list.
         const auto accepted = suggestions[a_index];
         if (accepted.command.empty())
         {

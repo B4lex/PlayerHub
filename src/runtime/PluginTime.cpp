@@ -13,12 +13,10 @@ namespace PluginTime
         constexpr auto kAverageWindowSeconds = std::chrono::milliseconds{ 100 };
         constexpr std::int64_t kNoAverage = -1;
 
-        // The overlay's scope closes on the render path, which is not guaranteed
-        // to be the main-loop thread.
+        // The overlay's render path is not guaranteed to run on the main-loop thread.
         std::atomic<std::int64_t> s_windowNanoseconds{ 0 };
         std::atomic<std::int64_t> s_averageNanoseconds{ kNoAverage };
 
-        // Main-loop thread only.
         std::optional<Clock::time_point> s_windowStart;
         std::int64_t s_windowFrames = 0;
     }
@@ -38,8 +36,6 @@ namespace PluginTime
     {
         const auto now = Clock::now();
 
-        // Work before the first pass, such as startup and loading, has no frame
-        // to belong to.
         if (!s_windowStart)
         {
             s_windowNanoseconds.store(0, std::memory_order_relaxed);

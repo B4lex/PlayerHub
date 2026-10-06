@@ -15,13 +15,9 @@ namespace Multiplayer
     {
         kWeapon,
         kTorch,
-        // Any spell or scroll. Receivers show one placeholder spell, so it carries
-        // no form.
         kSpell
     };
 
-    // Worn armor, clothing, jewelry, or shield. The slot mask selects a default
-    // outfit piece when the form is unavailable on the receiver.
     struct EquipmentArmor
     {
         FormReference form;
@@ -34,33 +30,24 @@ namespace Multiplayer
     {
         FormReference form;
         EquipmentHandKind kind{ EquipmentHandKind::kWeapon };
-        // RE::TESObjectWEAP::WEAPON_TYPE; zero for torches.
+        // RE::TESObjectWEAP::WEAPON_TYPE.
         std::uint8_t weaponType{ 0 };
 
         bool operator==(const EquipmentHand&) const = default;
     };
 
-    // The parts of the source's default outfit that stand in for its equipped
-    // items from other than base-game plugins, for receivers without them. Every
-    // item is from a base-game plugin.
     struct DefaultOutfit
     {
         static constexpr std::size_t kMaximumArmor = 8;
         static constexpr std::size_t kMaximumHands = 2;
 
-        // In priority order. The slot mask is the slots a piece stands in for,
-        // not the piece's own slots.
         std::vector<EquipmentArmor> armor;
-        // A weapon per weapon type, or a torch. Never a spell.
         std::vector<EquipmentHand> hands;
-        // Stands in for the equipped arrows or bolts. Empty form means none.
         FormReference ammo;
 
         bool operator==(const DefaultOutfit&) const = default;
     };
 
-    // Reconstructable equipped-item state. Like appearance, it is published as
-    // its own latest-wins state rather than in every transform checkpoint.
     struct PlayerEquipment
     {
         static constexpr std::size_t kMaximumArmor = 32;
@@ -70,10 +57,8 @@ namespace Multiplayer
         std::vector<EquipmentArmor> armor;
         std::optional<EquipmentHand> rightHand;
         std::optional<EquipmentHand> leftHand;
-        // Equipped arrows or bolts. Empty form means none.
         FormReference ammo;
         DefaultOutfit defaultOutfit;
-        // Source-local publication counter. Not part of the equipped state itself.
         std::uint64_t revision{ 0 };
 
         [[nodiscard]] bool HasSameItems(const PlayerEquipment& a_other) const
@@ -83,7 +68,6 @@ namespace Multiplayer
             {
                 return false;
             }
-            // Worn armor is a set; inventory iteration order is not meaningful.
             for (const auto& entry : armor)
             {
                 bool found = false;
@@ -188,8 +172,6 @@ namespace Multiplayer
         return true;
     }
 
-    // Shared by capture and by the network parser so both sides enforce the same
-    // bounds as the server.
     [[nodiscard]] inline bool IsValidEquipment(const PlayerEquipment& a_equipment)
     {
         if (a_equipment.revision == 0

@@ -8,9 +8,7 @@ namespace UI::WindowManager
 {
     namespace
     {
-        // Filled at startup and read-only afterwards.
         std::vector<std::unique_ptr<Window>> s_windows;
-        // Taken by the input hook, given back by the window or by the input hook.
         std::atomic<const Window*> s_focused{ nullptr };
     }
 

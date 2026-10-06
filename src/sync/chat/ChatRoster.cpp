@@ -20,17 +20,12 @@ namespace ChatRoster
         std::mutex s_lock;
         std::uint64_t s_revision = 0;
         Multiplayer::Roster s_roster;
-        // Sorted by folded name.
         std::vector<Entry> s_entries;
         Multiplayer::SessionID s_localSession = 0;
         std::deque<Player> s_partners;
         std::optional<Player> s_lastWhisperer;
-        // Reused by Complete.
         std::vector<Multiplayer::PeerSlot> s_nearby;
 
-        // The lower case of the letters display names are likely to hold. The
-        // server compares with full Unicode case mapping; here both sides of
-        // every comparison go through this, so it only has to be consistent.
         char32_t FoldCodePoint(char32_t a_code)
         {
             const auto pairs = [a_code](bool a_upperIsOdd) {
@@ -107,8 +102,6 @@ namespace ChatRoster
             return a_code;
         }
 
-        // Folds one- and two-byte UTF-8 sequences, which hold every letter
-        // FoldCodePoint knows, and copies everything else.
         std::string Fold(std::string_view a_text)
         {
             std::string folded;
@@ -135,7 +128,6 @@ namespace ChatRoster
             return folded;
         }
 
-        // Requires s_lock.
         void RefreshLocked()
         {
             if (!Network::CopyRosterIfChanged(s_revision, s_roster))
@@ -156,7 +148,6 @@ namespace ChatRoster
             std::ranges::sort(s_entries, {}, &Entry::folded);
         }
 
-        // Requires s_lock.
         const Entry* FindByNameLocked(std::string_view a_name)
         {
             const auto folded = Fold(a_name);
@@ -253,7 +244,6 @@ namespace ChatRoster
             }
         }
 
-        // Names with the prefix are one run of the sorted entries.
         const auto begin = std::ranges::lower_bound(s_entries, prefix, {}, &Entry::folded);
         for (const bool nearby : { true, false })
         {
@@ -315,7 +305,6 @@ namespace ChatRoster
     void NoteWhisper(const Player& a_player, bool a_incoming)
     {
         const std::scoped_lock lock{ s_lock };
-        // A player who connected again is the same partner under another slot.
         const auto folded = Fold(a_player.name);
         std::erase_if(s_partners, [&](const Player& a_partner) {
             return a_partner.playerID == a_player.playerID || Fold(a_partner.name) == folded;

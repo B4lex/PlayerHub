@@ -8,8 +8,7 @@
 
 namespace Network
 {
-    // Bound on a carrier's pitch, in radians. Skyrim clamps a controller's pitch
-    // well inside it.
+    // Skyrim clamps a controller's pitch well inside this bound.
     inline constexpr float kMaximumPitch = 1.57079632679489661923F;
 
     struct PlayerTransform
@@ -18,54 +17,29 @@ namespace Network
         float y{ 0.0F };
         float z{ 0.0F };
         float heading{ 0.0F };
-        // Front-to-back body tilt of the carrier's character controller in
-        // radians, which Skyrim eases toward the ground's slope for a race that
-        // pitches, such as a horse, and keeps at zero otherwise.
+        // Skyrim eases a pitching race's controller toward the ground's slope and
+        // keeps any other at zero.
         float pitch{ 0.0F };
-        // Measured translation speed in Skyrim world units per second.
         float speed{ 0.0F };
-        // Travel direction relative to heading, in graph `Direction` units [0, 1).
         float direction{ 0.0F };
-        // Locomotion, jump phase, and combat stance from the same snapshot.
         Multiplayer::AnimationState animationState{};
-        // Bow draw, spell channelling, and blocking, gated on the receiver by weapon
-        // stance.
         Multiplayer::HandPresentation handPresentation{};
-        // The source is dying or dead. Receivers then leave its actor to a local
-        // death and ragdoll, and ignore the presentation fields above.
         bool dead{ false };
-        // The source rides a mount. Position, heading, speed, and direction then
-        // describe the mount, which carries the rider.
         bool mounted{ false };
-        // The actor these fields place, the player or its mount, swims. Receivers
-        // report their actor supported by the ground only while this is false.
         bool swimming{ false };
         std::uint32_t cellID{ 0 };
-        // Non-zero for exterior cells. Interior cells use zero and must match by
-        // cell ID because their local coordinates are not globally comparable.
         std::uint32_t worldspaceID{ 0 };
-        // Placed TESFurniture reference currently occupied by the source. Empty
-        // means no furniture interaction.
         Multiplayer::FormReference furniture;
-        // Identifies the source animation-graph lifetime represented by this
-        // checkpoint. Transient actions are only valid against the same epoch.
         std::uint64_t graphEpoch{ 1 };
         std::uint64_t sequence{ 0 };
-        // The source's monotonic clock when sampled, in milliseconds modulo
-        // kSampleTimeModulus.
         std::uint32_t sampleTime{ 0 };
     };
 
-    // The attack vocabulary of the ordered action stream.
     enum class AttackAction : std::uint8_t
     {
-        // A right-hand, or unarmed right, swing.
         kNormal,
-        // A left-hand weapon or unarmed left swing.
         kLeft,
-        // Both weapons, or both fists, at once.
         kDual,
-        // A shield, weapon, torch, or bow bash.
         kBash
     };
 
@@ -84,8 +58,6 @@ namespace Network
         }
     }
 
-    // The movement direction a power attack was started with. A sprinting power
-    // attack is presented as a forward one.
     enum class PowerAttackDirection : std::uint8_t
     {
         kStanding,
@@ -115,9 +87,7 @@ namespace Network
     struct Attack
     {
         AttackAction action{ AttackAction::kNormal };
-        // A power attack, or a power bash, of the action's hand.
         bool power{ false };
-        // Only meaningful for a power attack.
         PowerAttackDirection direction{ PowerAttackDirection::kStanding };
     };
 

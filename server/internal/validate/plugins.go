@@ -1,8 +1,7 @@
 package validate
 
-// baseGamePlugins mirrors Multiplayer::IsBaseGamePlugin: the Skyrim Special
-// Edition masters and the Creation Club plugins the Anniversary Edition's
-// Skyrim.ccc lists, in lower case.
+// The Skyrim Special Edition masters and the Creation Club plugins the
+// Anniversary Edition's Skyrim.ccc lists, in lower case.
 var baseGamePlugins = map[string]struct{}{
 	"_resourcepack.esl":                        {},
 	"ccafdsse001-dwesanctuary.esm":             {},

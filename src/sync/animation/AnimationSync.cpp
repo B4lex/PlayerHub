@@ -34,8 +34,8 @@ namespace AnimationSync
             const bool targetSprinting = a_target == Multiplayer::MovementState::kSprinting;
             if (currentSprinting && !targetSprinting)
             {
-                // Leave sprint while still moving. A later graph update can stop or
-                // enter sneak without racing SprintStop against another event.
+                // Leave sprint while still moving, so a later graph update can stop or enter
+                // sneak without racing SprintStop.
                 return IsMoving(a_target) && !IsSneaking(a_target) ? GetNormalMovingState(a_target)
                                                                    : Multiplayer::MovementState::kRunning;
             }
@@ -56,9 +56,6 @@ namespace AnimationSync
             const bool targetSneaking = IsSneaking(a_target);
             if (currentSneaking != targetSneaking && IsMoving(a_current) != IsMoving(a_target))
             {
-                // When both sneak and movement change, change only one graph axis at
-                // a time. Preserve the current sneak axis while stopping, or establish
-                // the target sneak axis while still idle before starting movement.
                 if (IsMoving(a_current))
                 {
                     return currentSneaking ? Multiplayer::MovementState::kSneakingIdle
@@ -79,15 +76,10 @@ namespace AnimationSync
             }
             if (a_current.jumping && a_target.jumping)
             {
-                // Locomotion events are rejected by the graph's airborne branch. Keep
-                // the takeoff locomotion underneath the jump and apply the freshest
-                // movement state when the latest checkpoint becomes grounded.
+                // Locomotion events are rejected by the graph's airborne branch.
                 return a_current;
             }
 
-            // Takeoff is entered only after its grounded locomotion prerequisites
-            // settle. Landing adopts the newest checkpoint's locomotion variables;
-            // its visible locomotion events are reasserted after the landing branch.
             if (a_current.jumping != a_target.jumping)
             {
                 if (a_current.jumping)
@@ -140,11 +132,7 @@ namespace AnimationSync
 
         Multiplayer::AnimationState GetAnimationState(RE::Actor& a_player)
         {
-            // The graph enters bInJumpState early enough to produce a responsive
-            // takeoff, but it can remain set throughout graph-owned landing cleanup.
-            // Publish the start from the graph and the end from physical ground
-            // contact so the remote actor does not replay that cleanup as extra air
-            // time before it is even allowed to land.
+            // bInJumpState can remain set throughout graph-owned landing cleanup.
             static bool replicatedJumping = false;
             static bool observedMidair = false;
             static bool waitForGraphJumpReset = false;
@@ -196,10 +184,8 @@ namespace AnimationSync
 
             if (state->IsSwimming())
             {
-                // Swimming has no takeoff: the jump input only swims upward, but
-                // the remote actor's swim graph still accepts a jump event. A jump
-                // that ends in the water lands there, and a graph jump state left
-                // over from swimming must reset before a new takeoff counts.
+                // The jump input only swims upward, but the remote actor's swim graph
+                // still accepts a jump event.
                 replicatedJumping = false;
                 observedMidair = false;
                 waitForGraphJumpReset = requestedJumping;
@@ -209,9 +195,8 @@ namespace AnimationSync
                 observedMidair = observedMidair || physicalMidair;
                 if (observedMidair && !physicalMidair)
                 {
-                    // Physical contact is the authoritative landing boundary. If the
-                    // graph is still in its landing branch, suppress that stale true
-                    // value until it has reset once.
+                    // Physical contact is the landing boundary; a stale graph jump state is
+                    // suppressed until it has reset once.
                     replicatedJumping = false;
                     observedMidair = false;
                     waitForGraphJumpReset = requestedJumping;
@@ -249,11 +234,6 @@ namespace AnimationSync
             };
         }
 
-        // The latest checkpoint's animation state, except that a draw waits for the
-        // synchronized weapon to reach the hands so the remote actor does not draw fists
-        // and then pop the weapon in. The wait is bounded by EquipmentSync. A held
-        // bow draw or cast keeps the stance and grounded state until it has ended,
-        // while locomotion keeps following the checkpoint.
         Multiplayer::AnimationState GetPresentableAnimationState(
             const RemoteFrame& a_remote, const RemoteActor& a_actor, bool a_readyForWeaponDraw)
         {
@@ -270,8 +250,7 @@ namespace AnimationSync
             }
             if (target.jumping && !current.jumping && ActorAnimation::IsSwimming(a_actor))
             {
-                // Interpolation can put this actor into swim depth while the source
-                // player still wades, and a jump there would play in Swim_State.
+                // A jump at swim depth would play in Swim_State.
                 target.jumping = false;
             }
             return target;
@@ -388,8 +367,7 @@ namespace AnimationSync
         }
         if (!ActorAnimation::IsAnimationStateSettled(a_actor) && !target.jumping)
         {
-            // Only a consecutive takeoff may interrupt a landing branch. Any other
-            // change waits for JumpLandEnd and the grounded locomotion reassertion.
+            // Only a consecutive takeoff may interrupt a landing branch.
             return;
         }
 
@@ -423,11 +401,6 @@ namespace AnimationSync
             }
             else if (ActorAnimation::IsAnimationActionPlaying(a_actor) || targetState.jumping)
             {
-                // An attack clip or an airborne branch holds the dispatched
-                // locomotion for its whole duration, while the remote player keeps
-                // travelling. Follow the latest sample instead of freezing and then
-                // snapping once the graph releases. An airborne actor keeps its
-                // airborne pace until its landing is staged.
                 translationState = targetState.jumping ? targetState : presentableState;
             }
         }

@@ -12,8 +12,6 @@ namespace Network
         using Clock = std::chrono::steady_clock;
 
         constexpr auto kRateWindow = std::chrono::seconds{ 1 };
-        // A window this long was not observed while it passed, for example
-        // while the panel was hidden, so its average is not a live rate.
         constexpr auto kStaleWindow = std::chrono::seconds{ 3 };
 
         std::atomic_uint64_t receivedBytes{ 0 };

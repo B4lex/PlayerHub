@@ -21,19 +21,12 @@ namespace ActorLifecycle
         constexpr float kActorSpeed = 550.0F;
         constexpr float kActorStoppingDistance = 1.0F;
         constexpr float kSpawnRetryDelay = 1.0F;
-        // A reloaded location normally restores an actor's 3D within a few passes.
         constexpr float kStrandedActorSeconds = 2.0F;
-        // Spawns the current pass may still start, under the configured rate.
         float s_spawnAllowance{ 0.0F };
-        // Read once per pass, so waiting spawns do not each load the configuration.
         std::uint32_t s_spawnsPerSecond{ 0 };
-        // The longest wait of a spawn held back in the previous pass. A spawn starts
-        // only once it has waited as long, so a fixed peer order cannot starve the
-        // last peers under sustained demand.
         float s_previousLongestSpawnWait{ 0.0F };
         float s_longestSpawnWait{ 0.0F };
 
-        // a_waitSeconds accumulates while the spawn is held back.
         bool TakeSpawnAllowance(float& a_waitSeconds, float a_delta)
         {
             if (s_spawnsPerSecond == 0)
@@ -50,8 +43,6 @@ namespace ActorLifecycle
             return false;
         }
 
-        // Removes the mount, if any. Called in the same pass as its rider's removal
-        // and after it: the rider is not taken off first (see ActorMount).
         void RemoveMountActor(ActorLifecycleState& a_lifecycle)
         {
             if (!a_lifecycle.mount)
@@ -63,7 +54,6 @@ namespace ActorLifecycle
             a_lifecycle.mountSpawnRetryRemaining = 0.0F;
         }
 
-        // Returns the retired actor's handle for logging.
         std::uint32_t Retire(PeerState& a_peer)
         {
             auto& lifecycle = a_peer.lifecycle;
@@ -90,7 +80,6 @@ namespace ActorLifecycle
     void RetireForAppearanceChange(const RemoteFrame& a_remote, PeerState& a_peer)
     {
         // Race, sex, head parts, and weight are only applied when 3D loads.
-        // Rebuild the actor from the newest checkpoint with the new base.
         const auto actorHandle = Retire(a_peer);
         logs::debug(
             "Recycling remote player actor {} actor {:08X} after appearance change: spawnedRevision={} revision={}",
@@ -127,8 +116,6 @@ namespace ActorLifecycle
         const char* reason = nullptr;
         if (distance > MovementSync::kRelocationDistance)
         {
-            // Translation would visibly slide across the map, or never happen
-            // while the actor's old cell is unloaded.
             reason = "relocated";
         }
         else if (has3D || !ActorSpawner::IsSpawnLocationLoaded(targetPosition))
@@ -137,8 +124,6 @@ namespace ActorLifecycle
         }
         else
         {
-            // The actor's own cell stayed unloaded, so it cannot regain 3D, and
-            // translation waits for a graph that needs 3D.
             lifecycle.strandedElapsed += std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
             if (lifecycle.strandedElapsed >= kStrandedActorSeconds)
             {
@@ -261,8 +246,6 @@ namespace ActorLifecycle
         const float delta = std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
         s_spawnsPerSecond = Config::Get()->performance.spawnsPerSecond;
         const float passShare = static_cast<float>(s_spawnsPerSecond) * delta;
-        // At least one spawn per pass, and never more than one pass's share, so an
-        // idle period cannot save up a burst.
         s_spawnAllowance = (std::min)(s_spawnAllowance + passShare, (std::max)(passShare, 1.0F));
         s_previousLongestSpawnWait = std::exchange(s_longestSpawnWait, 0.0F);
     }
@@ -288,8 +271,8 @@ namespace ActorLifecycle
         auto* spawnBase = AppearanceSync::GetSpawnBase(a_peer.appearance, a_remote.playerID);
         if (!spawnBase)
         {
-            // Briefly wait for the first appearance so a late joiner is not spawned
-            // with the default look and immediately replaced.
+            // Briefly wait for the first appearance so a late joiner is not spawned with the
+            // default look and immediately replaced.
             return;
         }
         if (!TakeSpawnAllowance(lifecycle.spawnAllowanceWaitSeconds, a_delta))
@@ -351,8 +334,7 @@ namespace ActorLifecycle
             lifecycle.mountSpawnRetryRemaining = kSpawnRetryDelay;
             return;
         }
-        // No applied sequence: MountSync hands it the checkpoint's speed before its
-        // first gait, which would otherwise start from the spawn speed.
+        // No applied sequence: MountSync hands it the checkpoint's speed before its first gait.
         lifecycle.mount.emplace(MountSync::RemoteMount{ .actor = std::move(*mountActor) });
         logs::debug(
             "Allocated remote player {} mount as actor {:08X} for actor {:08X} at transform sequence={}; waiting "

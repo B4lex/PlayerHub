@@ -10,8 +10,6 @@
 
 namespace Multiplayer
 {
-    // Load-order independent form identity: the defining plugin's file name and
-    // the form ID local to that file. An empty plugin name means "no form".
     struct FormReference
     {
         static constexpr std::size_t kMaximumPluginNameLength = 260;
@@ -51,8 +49,7 @@ namespace Multiplayer
         }
 
         // The Skyrim Special Edition masters and the Creation Club plugins
-        // Anniversary Edition bundles, as its Skyrim.ccc lists them. Sorted by
-        // PluginNameLess. Mirrored by BASE_GAME_PLUGINS in the server.
+        // Anniversary Edition bundles, as its Skyrim.ccc lists them.
         inline constexpr std::array<std::string_view, 80> kBaseGamePlugins{
             "_ResourcePack.esl",
             "ccAFDSSE001-DweSanctuary.esm",

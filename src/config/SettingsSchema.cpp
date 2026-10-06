@@ -17,7 +17,7 @@ namespace Config
 
         constexpr std::string_view kDefaultServerEndpoint = "https://8fa21dsv.lmfao.pp.ua";
 
-        // Creation Kit slot names, indexed like DefaultOutfitSettings::kArmorSlotMasks.
+        // Creation Kit slot names.
         constexpr std::array<std::string_view, DefaultOutfitSettings::kArmorSlotCount> kArmorSlotNames{ "Head", "Body",
             "Hands", "Amulet", "Feet", "Shield", "Circlet", "Backpack" };
         // Creation Kit weapon animation types, indexed by RE::WEAPON_TYPE.
@@ -69,14 +69,13 @@ namespace Config
             });
         }
 
-        // Whitespace also rejects a trailing comment, which SimpleIni keeps in the value.
+        // SimpleIni keeps a trailing comment in the value.
         bool IsValidServerEndpoint(std::string_view a_value)
         {
             return (a_value.starts_with("http://") || a_value.starts_with("https://"))
                 && a_value.find_first_of(kWhitespace) == std::string_view::npos;
         }
 
-        // Empty for not set yet.
         bool IsValidDisplayName(std::string_view a_value)
         {
             return a_value.empty() || Multiplayer::IsValidDisplayName(a_value);
@@ -190,14 +189,11 @@ namespace Config
             // NordRace.
             outfit.race = skyrim(0x013746);
             // Hide armor, a gold necklace, a circlet, and Anniversary Edition's basic
-            // backpack, which vanilla lacks. The hide helmet also covers Circlet, and
-            // Head comes first in kArmorSlotPrecedence, so the circlet only stands in
-            // for circlet-only items. Indexed like kArmorSlotNames.
+            // backpack, which vanilla lacks.
             outfit.armor = { skyrim(0x013913), skyrim(0x013911), skyrim(0x013912), skyrim(0x0877D5), skyrim(0x013910),
                 skyrim(0x013914), skyrim(0x0166D6),
                 FormReference{ .plugin = "ccFSVSSE001-Backpacks.esl", .localFormID = 0x000801 } };
-            // Iron weapons, the hunting bow, an unenchanted staff, and the Dawnguard
-            // crossbow.
+            // Iron weapons, the hunting bow, an unenchanted staff, and the Dawnguard crossbow.
             outfit.weapons[1] = skyrim(0x012EB7);
             outfit.weapons[2] = skyrim(0x01397E);
             outfit.weapons[3] = skyrim(0x013790);
@@ -363,8 +359,6 @@ namespace Config
         {
             return Forms::ItemFilter{ .kind = Forms::ItemKind::kArmor, .baseGameOnly = true };
         }
-        // Only items whose main slot this is, so a hooded robe is a Body piece
-        // and not a Head one.
         std::uint32_t excludedSlotMask = 0;
         for (const auto slot : DefaultOutfitSettings::kArmorSlotPrecedence)
         {

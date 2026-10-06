@@ -1,5 +1,3 @@
-// Package admin serves the admin panel: REST commands under /api, a
-// server-sent event feed of state snapshots, and the built panel at /admin.
 package admin
 
 import (
@@ -16,7 +14,6 @@ import (
 	"skyrim-mp/server/internal/world"
 )
 
-// Context is the part of the server the admin API reads and controls.
 type Context struct {
 	Loop      *hub.Loop
 	Store     *recording.Store
@@ -24,14 +21,11 @@ type Context struct {
 	Playbacks *playback.Manager
 	Batches   *loadtest.Manager
 	StartedAt time.Time
-	// Tells open panels that state changed.
-	OnChange func()
+	OnChange  func()
 
 	rates rateTracker
 }
 
-// rateTracker turns each recipient's counters into per-second rates between
-// snapshots, which the feed builds at most twice a second.
 type rateTracker struct {
 	mu      sync.Mutex
 	samples map[uint32]rateSample
@@ -67,7 +61,6 @@ func (t *rateTracker) rates(slot uint32, now time.Time, written, replaced uint64
 	return next.writtenRate, next.replacedRate
 }
 
-// forget drops samples of players that are gone.
 func (t *rateTracker) forget(keep map[uint32]bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -85,28 +78,23 @@ type Position struct {
 }
 
 type Player struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	Virtual       bool      `json:"virtual"`
-	InWorld       bool      `json:"inWorld"`
-	ConnectedAtMs *float64  `json:"connectedAtMs"`
-	CellID        *uint32   `json:"cellId"`
-	WorldspaceID  *uint32   `json:"worldspaceId"`
-	Position      *Position `json:"position"`
-	MovementState *string   `json:"movementState"`
-	// Peers this player receives.
-	Visible int `json:"visible"`
-	// Hidden from every other player by an admin.
-	Hidden bool `json:"hidden"`
-	// Bytes per second written to this client, and checkpoints per second
-	// replaced by a newer one before they were written.
-	BytesPerSecond    float64 `json:"bytesPerSecond"`
-	ReplacedPerSecond float64 `json:"replacedPerSecond"`
-	RecordingID       *string `json:"recordingId"`
-	PlaybackID        *string `json:"playbackId"`
+	ID                string    `json:"id"`
+	Name              string    `json:"name"`
+	Virtual           bool      `json:"virtual"`
+	InWorld           bool      `json:"inWorld"`
+	ConnectedAtMs     *float64  `json:"connectedAtMs"`
+	CellID            *uint32   `json:"cellId"`
+	WorldspaceID      *uint32   `json:"worldspaceId"`
+	Position          *Position `json:"position"`
+	MovementState     *string   `json:"movementState"`
+	Visible           int       `json:"visible"`
+	Hidden            bool      `json:"hidden"`
+	BytesPerSecond    float64   `json:"bytesPerSecond"`
+	ReplacedPerSecond float64   `json:"replacedPerSecond"`
+	RecordingID       *string   `json:"recordingId"`
+	PlaybackID        *string   `json:"playbackId"`
 }
 
-// Exclusion is a directed pair: the viewer never sees the target.
 type Exclusion struct {
 	ViewerID string `json:"viewerId"`
 	TargetID string `json:"targetId"`
@@ -136,8 +124,6 @@ func optional[T any](value T) *T {
 	return &value
 }
 
-// players lists connected clients, and the excluded pairs. Replays and bots
-// are shown by their playback or batch instead.
 func (c *Context) players() ([]Player, []Exclusion) {
 	var players []Player
 	exclusions := []Exclusion{}

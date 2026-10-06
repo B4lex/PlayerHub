@@ -16,8 +16,6 @@ namespace RemoteCollision
 {
     namespace
     {
-        // Collision filters a mover ignores for one movement update, restored
-        // when it ends. Skipped when already ignored, so each is restored once.
         class PassThrough
         {
         public:
@@ -208,7 +206,6 @@ namespace RemoteCollision
                 || a_layer == RE::COL_LAYER::kDeadBip;
         }
 
-        // Returns how many bodies changed.
         std::uint32_t SetSkeletonIsolated(RE::Actor& a_actor, bool a_isolated)
         {
             auto* root = a_actor.Get3D(false);

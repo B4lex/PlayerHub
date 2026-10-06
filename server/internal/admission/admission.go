@@ -1,7 +1,3 @@
-// Package admission decides which connections may join: it caps the players
-// connected at once, the connections still waiting for their hello, and the
-// new sessions each address may take per hour. Admin replays and in-server
-// bots do not join through it.
 package admission
 
 import (
@@ -15,22 +11,18 @@ import (
 )
 
 type Limits struct {
-	// Zero is no cap.
-	MaxPlayers       int
-	MaxPendingHellos int
-	// Zero is no limit. Also the burst, so an address may take this many at
-	// once and then one every hour divided by it.
+	MaxPlayers                   int
+	MaxPendingHellos             int
 	NewSessionsPerAddressPerHour float64
 }
 
-// Gate is safe for concurrent use.
 type Gate struct {
 	limits Limits
 
 	mu      sync.Mutex
 	pending int
-	// Admitted connections by session. A session that connects again is
-	// briefly admitted twice, until its earlier connection leaves.
+	// A session that connects again is briefly admitted twice, until its earlier connection
+	// leaves.
 	players map[uint64]int
 	issued  map[netip.Prefix]*limit.TokenBucket
 }
@@ -39,8 +31,6 @@ func NewGate(limits Limits) *Gate {
 	return &Gate{limits: limits, players: make(map[uint64]int), issued: make(map[netip.Prefix]*limit.TokenBucket)}
 }
 
-// BeginHello counts a connection that has not sent its hello yet, unless
-// too many already wait. Every true needs one EndHello.
 func (g *Gate) BeginHello() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -57,7 +47,6 @@ func (g *Gate) EndHello() {
 	g.mu.Unlock()
 }
 
-// Full reports whether a session that is not connected would be refused.
 func (g *Gate) Full() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -68,9 +57,6 @@ func (g *Gate) full() bool {
 	return g.limits.MaxPlayers > 0 && len(g.players) >= g.limits.MaxPlayers
 }
 
-// Admit counts a connection of session as a player, unless the server is full.
-// A session that is connected already is always admitted, so a player can
-// replace a connection that has not timed out yet. Every true needs one Leave.
 func (g *Gate) Admit(session uint64) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -89,7 +75,6 @@ func (g *Gate) Leave(session uint64) {
 	}
 }
 
-// MayIssue takes one of the new sessions address may have this hour.
 func (g *Gate) MayIssue(address netip.Addr, now time.Time) bool {
 	rate := g.limits.NewSessionsPerAddressPerHour
 	if rate <= 0 {
@@ -106,7 +91,6 @@ func (g *Gate) MayIssue(address netip.Addr, now time.Time) bool {
 	return bucket.Allow(now, rate/3600, rate)
 }
 
-// Prune forgets addresses whose allowance has refilled.
 func (g *Gate) Prune(now time.Time) {
 	rate := g.limits.NewSessionsPerAddressPerHour
 	g.mu.Lock()
@@ -118,8 +102,6 @@ func (g *Gate) Prune(now time.Time) {
 	}
 }
 
-// addressKey groups an IPv6 address with its /64, which one subscriber
-// usually holds whole.
 func addressKey(address netip.Addr) netip.Prefix {
 	address = address.Unmap()
 	bits := 32
@@ -130,9 +112,6 @@ func addressKey(address netip.Addr) netip.Prefix {
 	return key
 }
 
-// ClientAddress is the address r came from. Behind a trusted proxy it is the
-// nearest X-Forwarded-For hop that no trusted proxy has: proxies append the
-// address they received from, so earlier hops may be forged by the client.
 func ClientAddress(r *http.Request, trusted []netip.Prefix) netip.Addr {
 	peer, err := netip.ParseAddrPort(r.RemoteAddr)
 	if err != nil {

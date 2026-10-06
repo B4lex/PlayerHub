@@ -19,18 +19,12 @@ namespace DefaultOutfit
         using Multiplayer::EquipmentHandKind;
         using Multiplayer::FormReference;
 
-        // Torch01, the only carriable base-game torch besides test items, so it
-        // is not configurable.
         const FormReference kTorch{ .plugin = "Skyrim.esm", .localFormID = 0x01D4EC };
 
-        // The configured items that resolved and fit their key, else the key's
-        // default if that does, else empty.
         Settings local;
-        // The configuration the items were resolved from; null before Initialize.
         std::shared_ptr<const Config::PluginConfig> resolvedConfig;
         std::uint64_t resolvedConfigRevision{ 0 };
 
-        // Why an item cannot be used for a key, or empty when it can.
         std::string_view FindUnusableReason(const FormReference& a_reference, const Forms::ItemFilter& a_filter)
         {
             auto* form = FormLookup::ResolveForm(a_reference);
@@ -64,9 +58,6 @@ namespace DefaultOutfit
             return Multiplayer::IsBaseGamePlugin(a_reference.plugin);
         }
 
-        // The position in kArmorSlotPrecedence of the first outfit slot that
-        // a_slotMask covers, which is an item's main slot; kArmorSlotCount when
-        // it covers none.
         std::size_t GetSlotRank(std::uint32_t a_slotMask)
         {
             for (std::size_t rank = 0; rank < Settings::kArmorSlotCount; ++rank)
@@ -110,8 +101,6 @@ namespace DefaultOutfit
 
     void Refresh()
     {
-        // Apply publishes the configuration before its revision, so a snapshot
-        // taken after reading the revision is at least that new.
         const auto revision = Config::GetRevision();
         if (!resolvedConfig || revision == resolvedConfigRevision)
         {
@@ -196,8 +185,6 @@ namespace DefaultOutfit
         struct Candidate
         {
             std::size_t rank{ 0 };
-            // Index into a_outfit.armor, or kNoPiece for a resolved item, which
-            // sorts it before the pieces of its rank.
             std::size_t piece{ 0 };
             RE::TESObjectARMO* armor{ nullptr };
         };
@@ -236,7 +223,6 @@ namespace DefaultOutfit
         for (const auto& candidate : candidates)
         {
             const bool standIn = candidate.piece != kNoPiece;
-            // A piece is needed only while a slot it stands in for is still bare.
             if (standIn && (a_outfit.armor[candidate.piece].slotMask & a_missingSlots & ~occupiedSlots) == 0)
             {
                 continue;

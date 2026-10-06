@@ -21,20 +21,12 @@ namespace ActorAnimation
         using Multiplayer::IsSprinting;
 
         constexpr std::uint32_t kMaximumEventDispatchAttempts = 4;
-        // Rejected graph events are also retried for at least this long, so a high
-        // frame rate cannot spend every attempt inside one short graph blend.
         constexpr float kMinimumEventRetrySeconds = 0.1F;
-        // Locomotion edges need a far longer budget than the presentation events
-        // above. The graph refuses locomotion for as long as it is still leaving an
-        // attack, and a power attack's exit was measured holding it past 0.1
-        // seconds every time, so the old budget gave up exactly one frame early and
-        // recorded an edge the graph never took.
+        // The graph refuses locomotion while it is still leaving an attack, and a
+        // power attack's exit was measured holding it past 0.1 seconds.
         constexpr float kLocomotionEventRetrySeconds = 0.75F;
         // Skyrim cross-blends directional locomotion (CyclicFreeze, then
         // CyclicCrossBlend) instead of sweeping through intermediate directions.
-        // The source's Direction ramps over several samples, so only a change of
-        // at least 1/8 of a turn starts one, and never before the previous
-        // 0.2-second cross-blend has finished. Smaller changes follow Direction.
         constexpr float kDirectionCrossBlendThreshold = 0.125F;
         constexpr float kDirectionCrossBlendIntervalSeconds = 0.25F;
         constexpr float kHitReactionObservationSeconds = 0.1F;
@@ -44,44 +36,28 @@ namespace ActorAnimation
         constexpr std::int32_t kStandingTurnState = 1;
         constexpr std::uint32_t kInitialTurnStateOverrideLogs = 8;
         constexpr std::uint32_t kTurnStateOverrideLogInterval = 120;
-        // A locomotion dispatch the graph keeps rejecting retries for much longer
-        // than an actor may visibly stand still. Holding the transform for the whole
-        // retry leaves the actor running on the spot and then applies the collected
-        // backlog in one jump when the state finally settles, so the hold gives up
-        // after this and follows the network path with the graph state reached so far.
         constexpr float kUnsettledTranslationHoldSeconds = 0.15F;
+        // Main-loop passes: the reverted graph and controller stay available across consecutive passes.
         constexpr std::uint32_t kGraphRecoveryStableFrames = 2;
         constexpr float kGraphRecoveryFallbackSeconds = 2.0F;
         constexpr std::uint32_t kGraphRecoveryWaitLogInterval = 120;
         constexpr float kLandingCompletionFallbackSeconds = 2.0F;
-        // Measured in time, not frames: a one-handed sword draw takes about 1.4
-        // seconds, which a frame budget cuts short at high frame rates.
+        // A one-handed sword draw takes about 1.4 seconds.
         constexpr float kWeaponTransitionFallbackSeconds = 2.5F;
         constexpr float kAttackStartFallbackSeconds = 1.25F;
         constexpr float kAttackPlaybackFallbackSeconds = 4.0F;
-        // A graph that keeps rejecting attackRelease this long is cancelled instead.
         constexpr float kBowReleaseFallbackSeconds = 1.5F;
-        // The release clip's length. The next draw and locomotion replay wait for it.
+        // The release clip's length.
         constexpr float kBowShotSeconds = 0.5F;
-        // Upper bound for the shot while the attack state still reports a bow attack.
         constexpr float kBowShotFallbackSeconds = 2.0F;
-        // A cast still playing this long after its interrupt is abandoned.
         constexpr float kCastStopFallbackSeconds = 1.0F;
-        // A block still raised this long after blockStop is dropped instantly. It
-        // covers a bash that was already playing when the block was lowered.
         constexpr float kBlockStopFallbackSeconds = 1.5F;
-        // A cast enters its graph state some updates after the caster's request. A
-        // graph without the casting variables takes moveStart after this long.
+        // A cast enters its graph state some updates after the caster's request.
         constexpr float kCastLowerBodyEntrySeconds = 0.5F;
-        // SwimIdle rejects moveStart until the graph has taken SwimStart. A moving
-        // actor that is still rejected after this long stays in SwimIdle.
+        // SwimIdle rejects moveStart until the graph has taken SwimStart.
         constexpr float kSwimMoveStartFallbackSeconds = 0.5F;
 
-        // A graph that rejects a locomotion edge is asked again on every pass until
-        // its retry budget runs out, which is a whole second of identical lines at a
-        // high frame rate. Report the first pass of such a burst and a sample of the
-        // wait; the dispatch that ends it carries the attempt count. Counting passes
-        // rather than seconds is intended: this only throttles the log.
+        // Counting passes rather than seconds is intended: this only throttles the log.
         constexpr bool ShouldReportEventRetry(std::uint32_t a_attempt) noexcept
         {
             constexpr std::uint32_t kEventRetryReportInterval = 60;
@@ -92,8 +68,7 @@ namespace ActorAnimation
         static_assert(!ShouldReportEventRetry(2));
         static_assert(ShouldReportEventRetry(60));
 
-        // The native attack takes attackStart as its next combo swing in these
-        // states; CombatSync captures the local player's chained swings from them.
+        // The native attack takes attackStart as its next combo swing in these states.
         constexpr bool IsAttackChainWindow(RE::ATTACK_STATE_ENUM a_state) noexcept
         {
             return a_state == RE::ATTACK_STATE_ENUM::kNextAttack || a_state == RE::ATTACK_STATE_ENUM::kFollowThrough;
@@ -143,19 +118,12 @@ namespace ActorAnimation
 
         bool RevertAnimationGraphManager(RE::Actor& a_actor)
         {
-            // CommonLibSSE-NG does not currently expose this wrapper. Skyrim Together
-            // uses the same engine function before authoritative action replay. Its
-            // Address Library IDs sit immediately before the graph-variable accessors:
-            // Revert=32140/32883, SetBool=32141/32885.
             using func_t = bool(RE::IAnimationGraphManagerHolder*);
             static REL::Relocation<func_t> func{ RELOCATION_ID(32140, 32883) };
             auto* holder = static_cast<RE::IAnimationGraphManagerHolder*>(std::addressof(a_actor));
             return func(holder);
         }
 
-        // Diagnostics only. The vanilla locomotion branches tag iState while they
-        // run (iState_NPC1HM, iState_NPCSneaking, iState_NPCSprinting, ...), so it
-        // shows which branch the last graph update left active; -1 if unavailable.
         std::int32_t GetGraphStateTag(const RE::Actor& a_actor)
         {
             static const RE::BSFixedString stateVariable{ "iState" };
@@ -192,11 +160,7 @@ namespace ActorAnimation
                 }
             }
 
-            // TESHitEvent can be delivered while animation work is running elsewhere.
-            // The event sink only increments a protected counter. This function is
-            // reached from the authoritative main-loop hook, so the engine-owned
-            // graph is reverted at a safe lifecycle boundary instead of being patched
-            // from the event callback.
+            // TESHitEvent can arrive while animation work runs elsewhere.
             AnimationFirewall::Disable(a_remote);
             animationState->localInterruptionLatched = true;
             animationState->graphRecoveryInProgress = true;
@@ -297,8 +261,6 @@ namespace ActorAnimation
                 return 0.0F;
             }
 
-            // Speed and locomotion state must describe the same network sample. The
-            // actor's base speed is only a fallback for a zero/invalid first sample.
             if (std::isfinite(a_sampleSpeed) && a_sampleSpeed > 0.0F)
             {
                 return a_sampleSpeed;
@@ -324,8 +286,6 @@ namespace ActorAnimation
             return std::isfinite(graphSpeed) && graphSpeed > 0.0F ? graphSpeed : 1.0F;
         }
 
-        // The draw/sheathe clip itself is still running. The reassert flag alone
-        // stays armed long after the clip for a later locomotion replay.
         bool IsWeaponTransitionClipPending(const State& a_state)
         {
             return a_state.weaponLocomotionReassertPending && !a_state.weaponTransitionCompletionObserved
@@ -342,10 +302,6 @@ namespace ActorAnimation
             {
                 return true;
             }
-            // The reassert flag stays armed across an idle interval so that later
-            // movement replays locomotion after the weapon clip. An idle target has
-            // nothing left to replay once the clip is complete and, for a sheathe, the
-            // default state has been forced.
             const bool moving = IsMoving(a_state.desired.load(std::memory_order_acquire));
             const bool jumping = a_state.desiredJumping.load(std::memory_order_acquire);
             const bool weaponDrawn = a_state.desiredWeaponDrawn.load(std::memory_order_acquire);
@@ -439,7 +395,6 @@ namespace ActorAnimation
         // match the condition, and plays the NPC variant of the clip.
         const RE::BSFixedString& GetPowerAttackEvent(const RE::Actor& a_actor, const Network::Attack& a_attack)
         {
-            // Indexed by Network::PowerAttackDirection.
             static const std::array<RE::BSFixedString, 5> rightHandEvents{ "attackPowerStartInPlace",
                 "attackPowerStartForward", "attackPowerStartBackward", "attackPowerStartLeft",
                 "attackPowerStartRight" };
@@ -481,8 +436,6 @@ namespace ActorAnimation
             return hand && hand->Is(RE::FormType::Spell);
         }
 
-        // A bow draw or cast may only enter a stable, grounded, fully drawn graph
-        // that no attack, weapon transition, shot, or recovery owns.
         bool CanStartHandPresentation(const RemoteActor& a_remote, RE::Actor& a_actor)
         {
             const auto& state = *a_remote.animation;
@@ -519,9 +472,6 @@ namespace ActorAnimation
             return accepted;
         }
 
-        // Moves a remote actor that entered the water while moving from SwimIdle into
-        // SwimLocomotion. A swim started while standing needs nothing: the network
-        // idle-to-moving dispatch sends its own moveStart into SwimIdle.
         void AdvanceSwimMoveStart(
             RemoteActor& a_remote, State& a_state, const RE::ActorState* a_actorState, float a_deltaTime)
         {
@@ -696,11 +646,10 @@ namespace ActorAnimation
             || !a_remote.animationGraphHolder || !IsAnimationStateSettled(a_remote)
             || a_remote.animation->attackPlaybackPending || a_remote.animation->attackLocomotionReassertPending
             || IsBowOrCastPlaying(*a_remote.animation) ||
-            // The source bashes from a raised block, so only a bash plays from it.
-            // Other attacks wait until the block is lowered.
+            // Only a bash plays from a raised block; other attacks wait until it is lowered.
             (a_attack.action != Network::AttackAction::kBash && IsBlockPlaying(*a_remote.animation)) ||
-            // The reassert flag stays armed while idle after a completed draw, so
-            // only a transition that is still unsettled may hold the attack.
+            // The reassert flag stays armed while idle after a completed draw, so only a
+            // transition that is still unsettled may hold the attack.
             IsWeaponTransitionUnsettled(*a_remote.animation) || a_remote.animation->graphRecoveryInProgress
             || a_remote.animation->targetAnimationState.jumping
             || !a_remote.animation->targetAnimationState.weaponDrawn)
@@ -827,17 +776,11 @@ namespace ActorAnimation
         // no AI update can run inside this synchronous call.
         actorFlags.reset(RE::Actor::BOOL_FLAGS::kAttackingDisabled);
         bool accepted = SendNetworkAnimationEvent(a_remote, attackEvent);
-        // A graph without the power attack of these hands or this direction, for
-        // example from a mod, shows the plain attack of the same hand instead. A
-        // rejected chain only means the combo window does not take it, so the
-        // power attack waits for the playing attack to finish. A playing plain
-        // attack that rejects its power attack already shows the plain one.
+        // A rejected chain only means the combo window does not take it.
         const bool powerFellBack
             = !accepted && a_attack.power && startsNewAttack && SendNetworkAnimationEvent(a_remote, plainEvent);
         accepted = accepted || powerFellBack;
-        // The dual-wield branch requires two one-handed weapons in the actor's hand
-        // types. When a mod or an unsettled hand disagrees, a right-hand swing is
-        // the vanilla presentation of the same input.
+        // The dual-wield branch requires two one-handed weapons in the actor's hand types.
         const bool dualFellBack = !accepted && a_attack.action == Network::AttackAction::kDual
             && (!a_attack.power || startsNewAttack) && SendNetworkAnimationEvent(a_remote, attackStartEvent);
         accepted = accepted || dualFellBack;
@@ -848,8 +791,6 @@ namespace ActorAnimation
         }
         if (a_attack.power)
         {
-            // Stamina is not managed on the actor. Logged to check that an exhausted
-            // actor still plays power attacks.
             const auto* actorValueOwner = actorPtr->AsActorValueOwner();
             logs::debug(
                 "Animation sync dispatched power attack: actor={:08X} action={} direction={} event={} "
@@ -866,7 +807,6 @@ namespace ActorAnimation
         }
 
         a_remote.animation->attackPlaybackElapsed = 0.0F;
-        // Only an attack that did not fall back to the plain swing is a power attack.
         a_remote.animation->attackPlaybackPower = a_attack.power && !powerFellBack;
         if (poweringUp)
         {
@@ -878,8 +818,8 @@ namespace ActorAnimation
         a_remote.animation->attackPlaybackAction = a_attack.action;
         if (chaining)
         {
-            // The graph leaves the combo window on a later update. Until then the
-            // actor state still reports it and must not consume another attack.
+            // The graph leaves the combo window on a later update; until then the
+            // actor state still reports it.
             a_remote.animation->attackChainDispatched = true;
             return true;
         }
@@ -949,7 +889,6 @@ namespace ActorAnimation
                 a_remote.handle.native_handle(), state.bowPhaseElapsed, timedOut);
             state.bowReleasePending = false;
             state.bowPhaseElapsed = 0.0F;
-            // As after a normal attack, replay locomotion without touching the stance.
             state.attackLocomotionReassertPending = true;
             return;
         }
@@ -968,10 +907,7 @@ namespace ActorAnimation
                 return;
             }
             state.bowEventRetryElapsed = 0.0F;
-            // An early release is rejected until the draw can take it, as the local
-            // player's early release still waits for the arrow to be drawn. A graph
-            // that keeps rejecting it is cancelled instead, so the draw never stays
-            // held without its source.
+            // An early release is rejected until the draw can take it.
             const bool released = SendHandPresentationEvent(a_remote, actor, attackReleaseEvent);
             const bool releaseTimedOut = state.bowReleaseRequestElapsed >= kBowReleaseFallbackSeconds;
             if (!released && !releaseTimedOut)
@@ -1090,7 +1026,6 @@ namespace ActorAnimation
 
         if (state.castHeld[hand])
         {
-            // An equipment swap that takes the spell away also ends the cast.
             if (a_casting && IsHoldingSpell(actor, a_leftHand))
             {
                 // The magic graph stays in its casting state only while this
@@ -1176,7 +1111,6 @@ namespace ActorAnimation
             state.blockStopElapsed += deltaTime;
             bool graphBlocking = false;
             const bool graphBlockingAvailable = actor.GetGraphVariableBool(isBlockingVariable, graphBlocking);
-            // A graph without the variable only has the accepted event as evidence.
             const bool lowered = graphBlockingAvailable ? !graphBlocking : state.blockStopAccepted;
             const bool timedOut = state.blockStopElapsed >= kBlockStopFallbackSeconds;
             if (!lowered && !timedOut)
@@ -1198,7 +1132,6 @@ namespace ActorAnimation
             state.blockStopping = false;
             state.blockStopAccepted = false;
             state.blockStopElapsed = 0.0F;
-            // As after an attack, replay locomotion without touching the stance.
             state.attackLocomotionReassertPending = true;
             return;
         }
@@ -1260,8 +1193,7 @@ namespace ActorAnimation
         auto actorPtr = a_remote.handle.get();
         if (!actorPtr || !presentationHeld || !IsMoving(state.targetAnimationState.movementState))
         {
-            // A standing start needs nothing, and movement that starts later sends
-            // its own moveStart into the presentation's lower body.
+            // A standing start needs nothing; movement that starts later sends its own moveStart.
             state.presentationMoveStartPending = false;
             return;
         }
@@ -1403,9 +1335,9 @@ namespace ActorAnimation
         a_state.attackChainDispatched = false;
         a_state.attackPlaybackPower = false;
         a_state.attackPlaybackElapsed = 0.0F;
-        // Native attacks normally return to locomotion themselves. Also request an
-        // explicit replay without invalidating the drawn stance; treating this as a
-        // full graph reset would incorrectly start another equip lifecycle.
+        // Native attacks normally return to locomotion themselves. The explicit
+        // replay keeps the drawn stance; a full graph reset would start another
+        // equip lifecycle.
         a_state.attackLocomotionReassertPending = true;
     }
 
@@ -1584,9 +1516,6 @@ namespace ActorAnimation
         static const RE::BSFixedString inJumpStateVariable{ "bInJumpState" };
         static const RE::BSFixedString speedDampedVariable{ "SpeedDamped" };
 
-        // The caller is already running in the authoritative main-loop hook.
-        // Apply graph state before direct translation so a single network sample
-        // cannot advance the transform with stale locomotion variables.
         const auto actorHandle = a_actor.GetHandle();
         if (!a_actor.Is3DLoaded())
         {
@@ -1780,11 +1709,8 @@ namespace ActorAnimation
                 animationState->landingCompletionWaitFrames = 0;
                 animationState->landingCompletionWaitElapsed = 0.0F;
                 ActorRegistry::SetLandingCompletionObservation(*actor, false);
-                // JumpLandEnd selects the graph's exit branch. Reassert every active
-                // grounded axis afterward—even if the network movement enum did not
-                // change—so the actor cannot exit into idle and slide. Keep the
-                // dispatch history: forgetting it reads a drawn weapon as a new draw
-                // and arms a weapon-transition replay that later fires mid-jump.
+                // JumpLandEnd selects the graph's exit branch, which can exit into idle. Keep the dispatch
+                // history: forgetting it reads a drawn weapon as a new draw.
                 animationState->landingLocomotionReassertPending = true;
                 animationState->failedDispatchAttempts = 0;
                 animationState->rejectedEventAttempts = 0;
@@ -1798,8 +1724,8 @@ namespace ActorAnimation
         }
         else
         {
-            // Drain a duplicate graph annotation while no landing transition owns
-            // it. The next takeoff also closes and clears this observation window.
+            // Drain a duplicate annotation while no landing owns it; the next takeoff also
+            // clears this observation window.
             (void)ActorRegistry::ConsumeJumpLandEnds(a_remote);
         }
 
@@ -1902,8 +1828,7 @@ namespace ActorAnimation
                 animationState->weaponTransitionWaitElapsed, transitionEndEvent.c_str(), forcedExitAccepted);
             if (forcedExitAccepted)
             {
-                // Give an accepted exit edge one graph update before restoring
-                // locomotion. No longer-lived recovery gate is introduced.
+                // Give an accepted exit edge one graph update before restoring locomotion.
                 return;
             }
         }
@@ -1997,14 +1922,10 @@ namespace ActorAnimation
         const bool jumpLandRequired = jumpRequired && !state.jumping && !landingInWater;
         if (jumpLandRequired && !landingEventSinkRegistered)
         {
-            // Do not enter a landing branch whose completion marker cannot yet be
-            // observed. Graph construction can expose the manager one pass before
-            // its first animation graph becomes available.
+            // Graph construction can expose the manager one pass before its first
+            // animation graph becomes available.
             return;
         }
-        // The landing checkpoint's variables must represent current movement,
-        // not takeoff movement. Ordinary locomotion events are deferred until
-        // JumpLandEnd, when the full grounded state is reasserted.
         const bool moveRequired = !jumpLandRequired
             && ((dispatchRequired && (hadPreviousState ? IsMoving(previousState.movementState) != isMoving : isMoving))
                 || ((replayingWeaponBase || reassertLocomotionAfterSwimStop || reassertLocomotionAfterAttack
@@ -2035,9 +1956,9 @@ namespace ActorAnimation
 
         auto* strings = RE::FixedStrings::GetSingleton();
         const bool stringsAvailable = strings != nullptr;
-        // Stop edges are evaluated against the old graph variables. Clearing
-        // Speed or IsSprinting first made the recorded sprint/idle exits reject
-        // deterministically and left the graph in its previous branch.
+        // Stop edges are evaluated against the old graph variables. Clearing Speed
+        // or IsSprinting first makes the sprint and idle exits reject and leaves
+        // the graph in its previous branch.
         const bool moveStopRequired = moveRequired && !isMoving;
         const bool sneakStopRequired = sneakRequired && !isSneaking;
         const bool sprintStopRequired = sprintRequired && !isSprinting;
@@ -2085,10 +2006,8 @@ namespace ActorAnimation
             bool graphJumpingBeforeLanding = false;
             const bool graphJumpAvailableBeforeLanding
                 = actor->GetGraphVariableBool(inJumpStateVariable, graphJumpingBeforeLanding);
-            // The grounded checkpoint and JumpLand describe one boundary. Clear
-            // interpolation backlog before changing the persistent graph state,
-            // otherwise the landing branch can begin while the remote actor is aloft.
-            // The landing approach normally leaves only a residual to clear here.
+            // Clear the interpolation backlog before changing the persistent graph state, or
+            // the landing branch can begin while the actor is aloft.
             auto& movement = a_remote.movement;
             const auto landingPosition = movement.landingPosition.value_or(movement.targetPosition);
             movement.landingPosition.reset();
@@ -2127,8 +2046,8 @@ namespace ActorAnimation
             // The vanilla locomotion, sneak, jump, and landing state machines pick
             // their sprint or non-sprint state from iSyncSprintState when entered,
             // and only some of them write it back. A sprinting takeoff leaves it at
-            // sprint, so the moveStart after a running landing re-entered Sprint_State
-            // where no SprintStop had been sent. Keep it authoritative instead.
+            // sprint, so the moveStart after a running landing would re-enter
+            // Sprint_State without a SprintStop.
             syncSprintStateAccepted = actor->SetGraphVariableInt(strings->iSyncSprintState, isSprinting ? 1 : 0);
             jumpVariableAccepted = actor->SetGraphVariableBool(inJumpStateVariable, state.jumping);
         }
@@ -2191,8 +2110,6 @@ namespace ActorAnimation
             const bool eventAttemptsExhausted = !eventsAccepted && eventAttempt >= kMaximumEventDispatchAttempts
                 && animationState->rejectedEventElapsed >= kLocomotionEventRetrySeconds;
             const bool stateProcessed = variablesAccepted && (eventsAccepted || eventAttemptsExhausted);
-            // A rejection burst repeats on every pass; only its outcome and a
-            // sample of the wait are worth a line.
             const bool retryingEvents = variablesAccepted && !stateProcessed;
             const bool reportDispatch = retryingEvents ? ShouldReportEventRetry(eventAttempt)
                                                        : variablesAccepted || ShouldReportEventRetry(variableAttempt);

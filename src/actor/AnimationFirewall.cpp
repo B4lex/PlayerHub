@@ -40,7 +40,6 @@ namespace AnimationFirewall
         }
 
         // Locomotion requests Skyrim's own movement logic may send a remote mount.
-        // ActorMount drives these from the network instead.
         constexpr bool IsMountGaitEvent(std::string_view a_eventName) noexcept
         {
             using AnimationEvents::EqualsIgnoringCase;
@@ -147,32 +146,21 @@ namespace AnimationFirewall
                     firewallEnabled = registration->animationFirewallEnabled;
                     actorHandle = registration->actorHandle;
                     const std::string_view eventView = eventName ? std::string_view{ eventName } : std::string_view{};
-                    // Swimming transitions are client-managed and do not interrupt
-                    // remote actor animation. Weapon draw/sheathe requests can also reach
-                    // this hook from an animation worker after the authoritative request
-                    // was queued. Do not firewall either presentation-only event family;
-                    // combat AI, targeting, attacks, damage, and magic remain suppressed
-                    // elsewhere.
+                    // Weapon draw/sheathe requests can reach this hook from an
+                    // animation worker after the authoritative request was queued.
                     allowClientManagedEvent = IsClientManagedAnimationEvent(eventView);
-                    // Death and ragdoll own the graph of a dead actor, and the mount
-                    // interaction that of a rider, like native furniture while it is
-                    // in use.
                     allowNativeGraphEvent
                         = registration->furnitureAnimationOwned || registration->dead || registration->mounted;
-                    // A network cast runs through the actor's own magic caster.
                     allowCastEvent = registration->castAnimationOwned && IsCastAnimationEvent(eventView);
-                    // A remote mount's graph is otherwise native. Its seated rider takes
-                    // every native event: the rider's riding graph follows its mount.
+                    // A seated rider's riding graph follows its mount.
                     blockMountGaitEvent
                         = registration->gaitDriven && !registration->mounted && IsMountGaitEvent(eventView);
                     isSwimStartEvent = eventView == "SwimStart";
                     isSwimStopEvent = eventView == "swimStop";
                 }
 
-                // Graph construction and the do-nothing package are allowed to finish
-                // before ownership becomes exclusive. Filtering these setup events can
-                // leave the newly spawned actor in its default pose. Native furniture
-                // temporarily owns the graph while the remote actor uses furniture; its event
+                // Filtering graph construction and do-nothing package setup events can
+                // leave a newly spawned actor in its default pose. Furniture event
                 // names vary by furniture record and are generated locally by Skyrim.
                 if (!blockMountGaitEvent
                     && (!firewallEnabled || allowClientManagedEvent || allowNativeGraphEvent || allowCastEvent))
@@ -213,8 +201,6 @@ namespace AnimationFirewall
         constexpr std::ptrdiff_t kChannelCachedValueOffset = 0x24;
         constexpr std::ptrdiff_t kChannelActorOffset = 0x28;
 
-        // The pointer is only compared with registered remote actors, never
-        // dereferenced, so non-remote actor channels are left untouched.
         const RE::Actor* GetChannelActor(const RE::BSAnimationGraphChannel* a_channel)
         {
             const RE::Actor* actor = nullptr;
@@ -276,8 +262,7 @@ namespace AnimationFirewall
 
         // The TurnDelta channel follows the local AI's turn request, which the network
         // heading never satisfies. It sets the speed of the turn-in-place blends and
-        // first-person rotation. Remote actors never turn in place (see
-        // ActorAnimation::HoldIdleTurnState), so the graph must not see a turn rate.
+        // first-person rotation.
         struct TurnDeltaChannelHook
         {
             static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
@@ -347,9 +332,8 @@ namespace AnimationFirewall
 
     bool NotifyNetworkAnimationGraph(RE::Actor& a_actor, const RE::BSFixedString& a_eventName)
     {
-        // Network-owned animation is the only source permitted to bypass the remote actor
-        // firewall. Calling the saved vfunc directly avoids classifying the event
-        // at the public virtual dispatch point, where local game/mod events arrive.
+        // Calling the saved vfunc directly skips the filter at the public dispatch point,
+        // where local game and mod events arrive.
         auto* holder = static_cast<RE::IAnimationGraphManagerHolder*>(std::addressof(a_actor));
         return GraphInputHook::_original(holder, a_eventName);
     }

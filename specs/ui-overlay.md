@@ -746,7 +746,8 @@ the name cut at 12 font sizes. The empty field reads
   `@` at once, a command when a space follows it or on Enter, where the chat
   then stays open. `ChatDraft::Interpret` decides that from the text alone,
   comparing command names without case, and `Composer::OnEdited` applies it
-  after every edit, so the chip is always where Enter sends.
+  after every edit, so the chip is always where Enter sends. Removing one can
+  uncover another, as in `/g @name`, which is applied in the same edit.
 - `/who` adds a notice with the number of connected players and `/help` one
   line per command. An unknown command is a notice on Enter and is not sent,
   so text that starts with `/` never is.

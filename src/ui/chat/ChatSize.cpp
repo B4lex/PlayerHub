@@ -31,7 +31,6 @@ namespace UI
             return ImVec2{ static_cast<float>(a_size.width) * a_step.x, static_cast<float>(a_size.lines) * a_step.y };
         }
 
-        // To the nearest whole font size and line.
         ChatSize::Extent ToExtent(const ImVec2& a_size, const ChatSize::Units& a_units)
         {
             const auto count = [](float a_pixels, float a_step) {

@@ -13,16 +13,13 @@ namespace UI
 {
     namespace
     {
-        // In font sizes, so the window follows the overlay scale.
         constexpr ImVec2 kSizeFonts{ 26.0F, 22.0F };
-        // Of the base font size.
         constexpr float kTitleScale = 1.25F;
         constexpr float kTabSpacingFonts = 0.375F;
 
         struct TabLabel
         {
             const char* label;
-            // The button that undoes the tab's choice.
             const char* action;
             const char* empty;
         };
@@ -111,7 +108,6 @@ namespace UI
                     online, entry.session, {}, &std::pair<Multiplayer::SessionID, std::uint32_t>::first);
                 if (found != online.end() && found->first == entry.session)
                 {
-                    // The name the player has now, which a rename changed.
                     const auto& listed = roster[found->second];
                     row.player = listed.player;
                     row.folded = listed.folded;
@@ -210,8 +206,6 @@ namespace UI
                 ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
             }
 
-            // The tab shown is a chip in the accent, as the player list's
-            // button is while the list shows; the others are outlines.
             const auto color
                 = selected ? Theme::GetAccent() : style.Colors[hovered ? ImGuiCol_Text : ImGuiCol_TextDisabled];
             const auto fillAlpha = selected ? (hovered ? ChatStyle::kHoveredChipFillAlpha : ChatStyle::kChipFillAlpha)

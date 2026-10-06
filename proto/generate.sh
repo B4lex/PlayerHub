@@ -7,7 +7,6 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 tools=$(mktemp -d)
 trap 'rm -rf "$tools"' EXIT
 
-# protoc-gen-go at the version server/go.mod pins.
 (cd "$root/server" && GOBIN="$tools" go install google.golang.org/protobuf/cmd/protoc-gen-go)
 
 go_out="$root/server/internal/wire/pb"

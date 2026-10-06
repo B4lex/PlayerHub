@@ -1,7 +1,3 @@
-// Package auth keeps player sessions. A session is a player's identity on
-// this server: a public ID, a secret token only its client holds, and a
-// display name no other live session has. It lives for as long as it keeps
-// being used.
 package auth
 
 import (
@@ -20,8 +16,7 @@ import (
 
 var (
 	ErrDisplayNameTaken = errors.New("display name taken")
-	// The hello needs a new session and mayIssue refused it.
-	ErrIssueRefused = errors.New("too many new sessions")
+	ErrIssueRefused     = errors.New("too many new sessions")
 )
 
 const schemaVersion = 2
@@ -40,28 +35,21 @@ CREATE TABLE sessions (
 CREATE INDEX sessions_last_used_at ON sessions (last_used_at);
 `
 
-// Version 1 called the display name a nickname.
 const upgradeFromVersion1 = `
 ALTER TABLE sessions RENAME COLUMN nickname TO display_name;
 ALTER TABLE sessions RENAME COLUMN nickname_key TO display_name_key;
 `
 
 type Session struct {
-	// Never reused, also after the session is gone.
 	ID          uint64
 	DisplayName string
 }
 
-// Store is safe for concurrent use; its one connection serializes every
-// transaction, which the display name checks rely on.
 type Store struct {
 	db       *sql.DB
 	lifetime time.Duration
 }
 
-// Open opens the database at path, creating it when missing. An empty path
-// keeps the sessions in memory, for tests and load tests. A session unused
-// for lifetime is gone.
 func Open(path string, lifetime time.Duration) (*Store, error) {
 	if path == "" {
 		path = ":memory:"
@@ -109,12 +97,6 @@ func (s *Store) migrate() error {
 	})
 }
 
-// Authenticate resumes the live session the token belongs to, renaming it
-// when displayName differs from its own, or issues a new session when the
-// token is empty or matches none. Only a new session returns its token, which
-// is not stored and cannot be recovered. A new session is issued only once its
-// display name is known to be free and mayIssue, when not nil, allows it.
-// ErrDisplayNameTaken and ErrIssueRefused leave everything as it was.
 func (s *Store) Authenticate(token []byte, displayName string, now time.Time, mayIssue func() bool) (Session, []byte, error) {
 	var session Session
 	var issued []byte
@@ -167,9 +149,6 @@ func (s *Store) Authenticate(token []byte, displayName string, now time.Time, ma
 	return session, issued, nil
 }
 
-// Abandon deletes a session whose token never came back, which frees its
-// display name, and reports whether it did. A session that was resumed stays:
-// its client holds the token.
 func (s *Store) Abandon(id uint64) (bool, error) {
 	result, err := s.db.Exec(`DELETE FROM sessions WHERE id = ? AND resumed = 0`, id)
 	if err != nil {
@@ -179,8 +158,6 @@ func (s *Store) Abandon(id uint64) (bool, error) {
 	return deleted > 0, err
 }
 
-// Touch marks the sessions used at now, so the lifetime of a session counts
-// from when its player was last connected.
 func (s *Store) Touch(ids []uint64, now time.Time) error {
 	if len(ids) == 0 {
 		return nil
@@ -195,9 +172,6 @@ func (s *Store) Touch(ids []uint64, now time.Time) error {
 	})
 }
 
-// Purge deletes the sessions that expired, which frees their display names, and
-// returns how many. Authenticate does the same before it compares display
-// names, so this only keeps the database small.
 func (s *Store) Purge(now time.Time) (int64, error) {
 	var purged int64
 	err := s.transact(func(tx *sql.Tx) error {
@@ -241,7 +215,6 @@ func rename(tx *sql.Tx, id uint64, displayName string) error {
 	return err
 }
 
-// requireFree fails when a session other than own holds the display name.
 func requireFree(tx *sql.Tx, own uint64, displayName string) error {
 	var holder uint64
 	err := tx.QueryRow(`SELECT id FROM sessions WHERE display_name_key = ?`, validate.DisplayNameKey(displayName)).Scan(&holder)

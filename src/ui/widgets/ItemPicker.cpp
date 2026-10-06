@@ -18,7 +18,6 @@ namespace UI
     {
         using Multiplayer::FormReference;
 
-        // In font sizes, so the layout follows the overlay scale.
         constexpr float kPopupWidthFonts = 40.0F;
         constexpr float kPopupHeightFonts = 22.0F;
         constexpr float kPreviewWidthFonts = 13.0F;
@@ -40,7 +39,6 @@ namespace UI
         const auto& label = GetLabel(ImGui::GetID("##item"), a_value, a_filter);
         const auto fontSize = ImGui::GetFontSize();
         const auto& style = ImGui::GetStyle();
-        // The reset button takes its place only while there is something to reset.
         const bool resettable = a_value != a_default;
         const auto resetWidth = resettable ? ImGui::GetFrameHeight() + style.ItemSpacing.x : 0.0F;
         const auto comboWidth = (std::max)(ImGui::CalcItemWidth() - resetWidth, fontSize);

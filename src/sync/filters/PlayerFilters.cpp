@@ -15,10 +15,8 @@ namespace PlayerFilters
     namespace
     {
         std::mutex s_lock;
-        // The connection generation the entries were read for.
         std::uint64_t s_generation = (std::numeric_limits<std::uint64_t>::max)();
         std::string s_server;
-        // The current server's, sorted by session.
         std::vector<Entry> s_entries;
         std::atomic_uint64_t s_changes{ 0 };
 
@@ -27,8 +25,6 @@ namespace PlayerFilters
             return { .session = a_entry.session, .name = a_entry.name, .muted = a_entry.muted, .vanished = a_entry.vanished };
         }
 
-        // A server changes only with a connection, so the entries are read
-        // again when the generation moves. Requires s_lock.
         void RefreshLocked()
         {
             const auto generation = Network::GetConnectionGeneration();
@@ -49,7 +45,6 @@ namespace PlayerFilters
             std::ranges::sort(s_entries, {}, &Entry::session);
         }
 
-        // Requires s_lock.
         const Entry* FindLocked(Multiplayer::SessionID a_session)
         {
             RefreshLocked();
@@ -64,8 +59,6 @@ namespace PlayerFilters
             kFull
         };
 
-        // Sets one flag of a_player's entry, adding or removing the entry, and
-        // saves it under a_server, the server it belongs to.
         Change Set(const Multiplayer::RosterEntry& a_player, bool Entry::* a_flag, bool a_value, std::string& a_server)
         {
             Entry saved;

@@ -15,22 +15,13 @@ namespace UI
 {
     namespace
     {
-        // In font sizes: the list's content, and the gap between the person
-        // drawn on the button and its number.
         constexpr float kListWidthFonts = 13.0F;
         constexpr float kIconGapFonts = 0.3F;
-        // Of the person's height, which is the digits'.
         constexpr float kIconWidthOfHeight = 0.9F;
-        // In font sizes: the marks of a muted or vanished player.
         constexpr float kFilterMarkFonts = 0.75F;
         constexpr double kNearbySeconds = 0.5;
-        // Between the theme's text and disabled text, so players not nearby
-        // read as less prominent without looking unavailable.
         constexpr ImVec4 kDistantPlayerColor{ 0.76F, 0.75F, 0.73F, 1.0F };
 
-        // The rows of the line a digit takes, from its top: what the person
-        // beside the number fills, rather than the whole line with the room
-        // above the digits and below the baseline.
         struct DigitRows
         {
             float top{ 0.0F };
@@ -46,8 +37,6 @@ namespace UI
             return DigitRows{ .top = 0.0F, .height = ImGui::GetFontSize() };
         }
 
-        // A head over shoulders in a box of a_size, so it does not depend on
-        // a font having the glyph.
         void DrawPersonIcon(ImDrawList& a_list, const ImVec2& a_min, const ImVec2& a_size, ImU32 a_color)
         {
             const auto middle = a_min.x + a_size.x * 0.5F;
@@ -58,7 +47,6 @@ namespace UI
             a_list.PathFillConvex(a_color);
         }
 
-        // A speech bubble, struck through, in a square of a_size.
         void DrawMutedMark(ImDrawList& a_list, const ImVec2& a_min, float a_size, ImU32 a_color, float a_thickness)
         {
             const ImVec2 bubbleMax{ a_min.x + a_size, a_min.y + a_size * 0.7F };
@@ -70,7 +58,6 @@ namespace UI
             a_list.AddLine(ImVec2{ a_min.x, a_min.y + a_size }, ImVec2{ a_min.x + a_size, a_min.y }, a_color, a_thickness);
         }
 
-        // An eye, struck through, in a square of a_size.
         void DrawVanishedMark(ImDrawList& a_list, const ImVec2& a_min, float a_size, ImU32 a_color, float a_thickness)
         {
             const ImVec2 center{ a_min.x + a_size * 0.5F, a_min.y + a_size * 0.5F };
@@ -158,8 +145,6 @@ namespace UI
             ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
         }
 
-        // Open, a chip in the accent, as a filter that is on is in its
-        // channel's color; closed, an outline in the text color.
         const auto color = open ? Theme::GetAccent() : style.Colors[online ? ImGuiCol_Text : ImGuiCol_TextDisabled];
         const auto fillAlpha = open ? (hovered ? ChatStyle::kHoveredChipFillAlpha : ChatStyle::kChipFillAlpha)
                                     : (hovered ? ChatStyle::kHoveredOffChipFillAlpha : 0.0F);
@@ -261,7 +246,6 @@ namespace UI
 
     void ChatPlayers::DrawRows(std::optional<Multiplayer::RosterEntry>& a_picked, bool a_closeMenu)
     {
-        // The Manage players button stays below the rows.
         if (ImGui::BeginChild("##ChatPlayerRows", ImVec2{ 0.0F, -ImGui::GetFrameHeightWithSpacing() }))
         {
             if (players.empty())
@@ -309,7 +293,6 @@ namespace UI
                     const auto marksLeft = max.x - markSpace * static_cast<float>(isMuted + isVanished);
                     const ImVec4 nameClip{ min.x, min.y, marksLeft, max.y };
 
-                    // As the chat names a sender in Local.
                     const auto nameColor = ImGui::GetColorU32(
                         index < nearbyMatches ? ChatStyle::kLocalColor : kDistantPlayerColor);
                     drawList->AddText(nullptr, 0.0F, min, nameColor, name, nameEnd, 0.0F, &nameClip);

@@ -31,8 +31,8 @@ namespace DeathSync
     {
         if (a_remote.checkpoint.dead && a_peer.lifecycle.mount)
         {
-            // A rider is never taken off its mount (see ActorMount). The mount goes
-            // with the rider, whose replacement is killed once it is ready.
+            // A rider is never taken off its mount (see ActorMount); its replacement is killed
+            // once it is ready.
             ActorLifecycle::RetireMountedForDeath(a_remote, a_peer);
             return false;
         }
@@ -48,8 +48,6 @@ namespace DeathSync
             return false;
         }
 
-        // An actor spawned for a player that is already dead is killed once its
-        // 3D, controller, and graph are ready, so it collapses where it stands.
         if (!a_remote.checkpoint.dead || !actor.ready)
         {
             return false;

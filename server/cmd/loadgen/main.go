@@ -1,12 +1,3 @@
-// Command loadgen connects bots to a server as real WebSocket clients and
-// measures peer-to-peer latency. Bots either replay a recording, spread over
-// its timeline like an admin batch, or walk randomly in a square. Every bot
-// takes a new session, named after the run so that runs against one server do
-// not find their display names taken.
-//
-// Each bot sends the send time in microseconds since the Unix epoch as its
-// checkpoint sequence, which is strictly rising and needs no wire field, so a
-// receiver on the same host measures latency directly, across processes too.
 package main
 
 import (
@@ -50,8 +41,7 @@ type options struct {
 	idle       float64
 	viewRadius uint
 	near       float64
-	// Part of every bot's display name.
-	run string
+	run        string
 }
 
 func main() {
@@ -148,20 +138,16 @@ func run(ctx context.Context, o options) error {
 }
 
 type bot struct {
-	o     options
-	index int
-	stats *stats
-	conn  *websocket.Conn
-	mu    sync.Mutex
-	// The last sequence sent, and the virtual player's number it replaced.
+	o           options
+	index       int
+	stats       *stats
+	conn        *websocket.Conn
+	mu          sync.Mutex
 	lastSent    uint64
 	lastVirtual uint64
-	// The bot's own last position, to tell near peers from far ones.
-	x, y atomic.Int32
+	x, y        atomic.Int32
 }
 
-// displayName names the bot's session after its kind, the run, and its
-// number, within the display name rules for up to 99999 bots.
 func (b *bot) displayName(kind string) string {
 	return fmt.Sprintf("%s%s_%d", kind, b.o.run, b.index+1)
 }
@@ -193,7 +179,6 @@ func (b *bot) send(ctx context.Context, m *pb.ClientMessage) error {
 	return b.conn.Write(ctx, websocket.MessageBinary, data)
 }
 
-// stamp gives a checkpoint the current time as its sequence.
 func (b *bot) stamp(c *pb.Checkpoint) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -208,7 +193,6 @@ func (b *bot) stamp(c *pb.Checkpoint) {
 func (b *bot) receive(ctx context.Context) {
 	defer b.stats.connected.Add(-1)
 	var window, near, gaps histogram
-	// When each peer was last updated, to find the longest wait.
 	lastUpdate := make(map[uint32]time.Time)
 	flush := time.Now()
 	for {
@@ -292,7 +276,6 @@ func (b *bot) walk(ctx context.Context) error {
 		}
 		sample := wire.Sample{X: x, Y: y, Heading: heading, MovementState: pb.MovementState_MOVEMENT_STATE_IDLE}
 		if !idle {
-			// Turn a little each step and away from the edge of the square.
 			heading += (random.Float64() - 0.5) * 0.3
 			step := b.o.speed * interval.Seconds()
 			nx, ny := x+math.Sin(heading)*step, y+math.Cos(heading)*step
@@ -313,8 +296,6 @@ func (b *bot) walk(ctx context.Context) error {
 	}
 }
 
-// replayPlayer sends a playback session's messages over the bot's
-// connection, stamping checkpoints with the send time.
 type replayPlayer struct {
 	b   *bot
 	ctx context.Context
@@ -346,7 +327,6 @@ func (b *bot) replay(ctx context.Context, r *recording.Recording, plan loadtest.
 	}
 	defer b.conn.CloseNow()
 	player := &replayPlayer{b: b, ctx: ctx}
-	// The server names the bot after its session, whatever was recorded.
 	session, err := playback.NewSession(strconv.Itoa(b.index), "", r, player, playback.Options{
 		Autoplay: true, Rate: plan.Rate, Loop: true, StartMs: plan.StartMs})
 	if err != nil {
@@ -410,7 +390,6 @@ func (s *stats) line(w window, seconds float64, cpu string) string {
 		fmt.Sprintf("received %.0f entries/s %.2f MB/s", float64(w.entries)/seconds, float64(w.bytes)/seconds/1e6),
 		fmt.Sprintf("latency p50 %s p99 %s max %s", w.latency.quantile(0.5), w.latency.quantile(0.99), w.latency.max()),
 		fmt.Sprintf("near p99 %s", w.near.quantile(0.99)),
-		// The histogram saturates at 2 s.
 		fmt.Sprintf("update gap p99 %s max %s", w.gaps.quantile(0.99), w.gaps.max()),
 	}
 	if cpu != "" {
@@ -419,7 +398,6 @@ func (s *stats) line(w window, seconds float64, cpu string) string {
 	return strings.Join(parts, " | ")
 }
 
-// histogram counts latencies in 0.1 ms buckets up to 2 s.
 type histogram struct {
 	buckets [20001]uint32
 	count   uint64
@@ -463,7 +441,6 @@ func (h *histogram) max() time.Duration {
 	return 0
 }
 
-// cpuSampler reads a process's user and system time from /proc.
 type cpuSampler struct {
 	pid   int
 	ticks float64

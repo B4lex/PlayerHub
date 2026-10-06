@@ -16,7 +16,6 @@ namespace ReactionSuppression
         using CodeDetour::EntryDetourTrampolineSize;
         using CodeDetour::WriteEntryDetour;
 
-        // Returns the running count when this suppression should be logged, or zero.
         std::uint32_t CountSuppression(std::atomic_uint32_t& a_count)
         {
             const auto count = ++a_count;
@@ -91,9 +90,7 @@ namespace ReactionSuppression
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
-        // Actor::IsFleeing (ID 37577), queried from 22 call sites across combat and
-        // AI evaluation. The combat-state sanitization still clears the flee flags
-        // it finds; this keeps callers from acting on them in between.
+        // Actor::IsFleeing (ID 37577), queried from 22 call sites across combat and AI evaluation.
         struct IsFleeingHook
         {
             static bool Thunk(RE::Actor* a_actor)
@@ -101,8 +98,6 @@ namespace ReactionSuppression
                 const bool fleeing = _original(a_actor);
                 if (fleeing && ActorRegistry::IsRegistered(a_actor))
                 {
-                    // Only a query that would have reported fleeing is logged; callers
-                    // ask far more often than an actor starts to flee.
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     if (const auto count = CountSuppression(suppressedCount))
                     {

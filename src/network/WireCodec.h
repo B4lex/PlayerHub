@@ -19,14 +19,8 @@
 #include <variant>
 #include <vector>
 
-// Protobuf encoding of the wire messages (proto/skyrimmp/v1) to and from the
-// plain values in src/protocol. Decoding validates every field as the server
-// does, so nothing invalid reaches the queues.
 namespace Network::Wire
 {
-    // Without a token the server issues a new session under a_displayName.
-    // Otherwise the token's session is resumed and takes a_displayName. The
-    // server never sends this client the players of a_vanished.
     [[nodiscard]] std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_displayName,
         const std::optional<Multiplayer::SessionToken>& a_token, std::span<const Multiplayer::SessionID> a_vanished);
     [[nodiscard]] std::string EncodeEnter();
@@ -35,10 +29,8 @@ namespace Network::Wire
     [[nodiscard]] std::string EncodeCheckpoint(const QuantizedCheckpoint& a_checkpoint);
     [[nodiscard]] std::string EncodeAction(
         std::uint64_t a_actionSequence, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence, const Attack& a_attack);
-    // Empty when the value cannot be encoded, which validation prevents.
     [[nodiscard]] std::string EncodeAppearance(const Multiplayer::PlayerAppearance& a_appearance);
     [[nodiscard]] std::string EncodeEquipment(const Multiplayer::PlayerEquipment& a_equipment);
-    // a_recipient is the whispered player's slot, and zero on other channels.
     [[nodiscard]] std::string EncodeChat(std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel,
         Multiplayer::PeerSlot a_recipient, std::string_view a_text);
     [[nodiscard]] std::string EncodePing(std::uint32_t a_requestID);
@@ -48,9 +40,7 @@ namespace Network::Wire
     {
         Multiplayer::PeerSlot slot{ 0 };
         Multiplayer::SessionID sessionID{ 0 };
-        // The session's display name, as peers see it.
         std::string displayName;
-        // Only when the server issued the session for this connection.
         std::optional<Multiplayer::SessionToken> issuedToken;
     };
 
@@ -75,7 +65,6 @@ namespace Network::Wire
     struct PeerEnter
     {
         Multiplayer::PeerSlot slot{ 0 };
-        // Present only when newer than what this client holds.
         std::optional<Multiplayer::PlayerAppearance> appearance;
         std::optional<Multiplayer::PlayerEquipment> equipment;
         CheckpointContext context;
@@ -133,20 +122,15 @@ namespace Network::Wire
         Multiplayer::PlayerEquipment equipment;
     };
 
-    // A change of the connected clients. The first after a welcome lists all
-    // of them.
     struct RosterChange
     {
         std::vector<Multiplayer::RosterEntry> joined;
-        // Zero for none.
         Multiplayer::PeerSlot left{ 0 };
     };
 
     using ServerMessage = std::variant<Welcome, Result, PeerStates, PeerEnter, PeerContext, PeerLeave, AnimationAction,
         PeerAppearance, PeerEquipment, Multiplayer::ChatMessage, RosterChange>;
 
-    // Decodes server messages with one reused buffer; the generated message
-    // struct is large. Not thread-safe: one per transport thread.
     class Decoder
     {
     public:
@@ -155,7 +139,6 @@ namespace Network::Wire
         Decoder(const Decoder&) = delete;
         Decoder& operator=(const Decoder&) = delete;
 
-        // The message, or what was rejected in it.
         [[nodiscard]] std::expected<ServerMessage, std::string> Decode(std::span<const std::byte> a_data);
 
     private:
@@ -163,7 +146,6 @@ namespace Network::Wire
         std::unique_ptr<Buffer> buffer;
     };
 
-    // Bounds the work one untrusted batch can cause.
     inline constexpr std::size_t kMaximumPeerStatesEntries = 4096;
     inline constexpr std::size_t kMaximumRosterEntries = 4096;
 }

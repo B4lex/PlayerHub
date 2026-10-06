@@ -1,42 +1,25 @@
-// Player state shared by client messages, server messages, and recordings.
-// Validation rules are in specs/network.md; the server enforces them at the
-// boundary and the plugin checks what it receives.
 syntax = "proto3";
 
 package skyrimmp.v1;
 
 option go_package = "skyrim-mp/server/internal/wire/pb;pb";
 
-// A form by the file that defines it and its file-local ID, so peers with
-// different load orders agree on it.
 message FormRef {
   string plugin = 1;
   uint32 form_id = 2;
 }
 
-// One latest-wins player sample, quantized. The coordinate space and graph
-// epoch it belongs to are the sender's latest Context.
 message Checkpoint {
-  // Sender slot. Set by the server on relayed entries only.
   uint32 player = 1;
   uint64 sequence = 2;
-  // Game units, rounded.
   sint32 x = 3;
   sint32 y = 4;
   sint32 z = 5;
-  // 0..4095, one step is 2π/4096.
   uint32 heading = 6;
-  // Radians × 1024, |pitch| <= 1609.
   sint32 pitch = 7;
-  // Units per second, rounded.
   uint32 speed = 8;
-  // Graph Direction × 256, 0..255.
   uint32 direction = 9;
-  // Bits 0-2 movement state, bits 3-11 CheckpointFlag.
   uint32 flags = 10;
-  // Sender's monotonic clock when sampled, milliseconds modulo 16384.
-  // Receivers unwrap it against arrival times to play checkpoints back at
-  // their original spacing.
   uint32 time = 11;
 }
 
@@ -50,7 +33,6 @@ enum MovementState {
   MOVEMENT_STATE_SNEAKING_RUNNING = 6;
 }
 
-// Bits of Checkpoint.flags above the movement state.
 enum CheckpointFlag {
   CHECKPOINT_FLAG_NONE = 0;
   CHECKPOINT_FLAG_JUMPING = 8;
@@ -64,15 +46,10 @@ enum CheckpointFlag {
   CHECKPOINT_FLAG_SWIMMING = 2048;
 }
 
-// What a checkpoint's position and actions are relative to. Sent when a field
-// changes and after every Enter.
 message Context {
   uint32 cell_id = 1;
-  // Zero for an interior, which then compares by cell_id.
   uint32 worldspace_id = 2;
-  // Never decreases.
   uint64 graph_epoch = 3;
-  // Occupied placed furniture reference; unset for none.
   FormRef furniture = 4;
 }
 
@@ -85,7 +62,6 @@ enum AttackAction {
 }
 
 enum PowerDirection {
-  // Only a plain attack has none.
   POWER_DIRECTION_NONE = 0;
   POWER_DIRECTION_STANDING = 1;
   POWER_DIRECTION_FORWARD = 2;
@@ -94,7 +70,6 @@ enum PowerDirection {
   POWER_DIRECTION_RIGHT = 5;
 }
 
-// One item of the ordered attack stream.
 message Action {
   uint64 action_sequence = 1;
   uint64 graph_epoch = 2;
@@ -128,11 +103,7 @@ message DefaultRace {
 }
 
 message Appearance {
-  // A client's own counter. On a relayed copy, the server's: it also rises
-  // when the server changes the name.
   uint64 revision = 1;
-  // Set by the server to the session's display name; a client's value is
-  // ignored. A replayed player keeps its recorded name.
   string name = 2;
   uint32 level = 3;
   FormRef race = 4;
@@ -140,15 +111,12 @@ message Appearance {
   float weight = 6;
   float height = 7;
   repeated HeadPart head_parts = 8;
-  // Unset for none.
   Color hair_color = 9;
-  // Unset for none.
   FormRef face_details = 10;
   Color body_tint = 11;
   repeated float face_morphs = 12;
   repeated sint32 face_parts = 13;
   repeated Tint tints = 14;
-  // Unset for none.
   DefaultRace default_race = 15;
 }
 
@@ -166,9 +134,7 @@ message Armor {
 
 message Hand {
   HandKind kind = 1;
-  // Unset for a spell.
   FormRef form = 2;
-  // WEAPON_TYPE, only for a weapon.
   uint32 weapon_type = 3;
 }
 
@@ -181,7 +147,6 @@ message DefaultOutfit {
 message Equipment {
   uint64 revision = 1;
   repeated Armor armor = 2;
-  // Unset for an empty hand.
   Hand right_hand = 3;
   Hand left_hand = 4;
   FormRef ammo = 5;

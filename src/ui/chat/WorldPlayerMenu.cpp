@@ -20,8 +20,6 @@ namespace UI
         class WorldPlayerMenu final : public Window
         {
         public:
-            // As Skyrim's own menus close with Escape, and the menu toggles
-            // with the key that opened it.
             [[nodiscard]] bool IsReleaseKey(std::uint32_t a_scanCode) const override
             {
                 if (a_scanCode == RE::BSKeyboardDevice::Key::kEscape)
@@ -40,8 +38,6 @@ namespace UI
             {
                 if (!a_input.focused && !shown)
                 {
-                    // The menu opens with focus, in the next frame, which
-                    // brings the cursor up in the middle of the screen.
                     if (auto activated = PlayerActivation::TakeActivated(); activated && WindowManager::Focus(*this))
                     {
                         player = std::move(*activated);
@@ -66,7 +62,6 @@ namespace UI
                 {
                     whisper = ImGui::MenuItem("Whisper");
                     ChatPlayerMenu::DrawFilterItems(player);
-                    // A release key or a menu taking over input ended focus.
                     if (!a_input.focused)
                     {
                         ImGui::CloseCurrentPopup();

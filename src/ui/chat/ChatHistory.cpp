@@ -17,9 +17,7 @@ namespace UI
         constexpr double kRecentLineSeconds = 10.0;
         constexpr double kRecentFadeSeconds = 2.0;
         constexpr float kWheelLines = 3.0F;
-        // In font sizes. Lines stand closer than the theme's items do.
         constexpr float kLineSpacingFonts = 0.25F;
-        // Between filters, and the unread dot on a filter's corner.
         constexpr float kFilterSpacingFonts = 0.375F;
         constexpr float kFilterDotFonts = 0.16F;
 
@@ -66,7 +64,6 @@ namespace UI
             ImGui::PopTextWrapPos();
         }
 
-        // Who a line is from, in the heading face.
         void DrawLabel(const std::string& a_label, const ImVec4& a_color)
         {
             ImGui::PushFont(Fonts::GetHeading(), 0.0F);
@@ -79,11 +76,6 @@ namespace UI
             return std::find_if(a_text, a_end, [](char a_character) { return a_character != ' '; });
         }
 
-        // Where a row of a_width that starts at a_row ends, with a_full the
-        // width of a whole row. Words stay whole, except one wider than a
-        // whole row: no row holds it, so it fills this one and is cut at its
-        // end. A row beside a label, narrower than a whole one, is left empty
-        // by a word that only fits a whole row; any other row takes text.
         const char* FindRowEnd(const char* a_row, const char* a_end, float a_width, float a_full)
         {
             const bool besideLabel = a_width < a_full;
@@ -126,8 +118,6 @@ namespace UI
             return (std::max)(cut, wrapped);
         }
 
-        // A line's text after its label, the item before it: on the label's
-        // row as far as it fits, then from the left edge under the label.
         void DrawAfterLabel(const std::string& a_text, const ImVec4& a_color)
         {
             const char* row = a_text.c_str();
@@ -148,7 +138,6 @@ namespace UI
                     }
                     else
                     {
-                        // As close under the row above as wrapped rows are.
                         ImGui::SetCursorPosY(ImGui::GetCursorPosY() - style.ItemSpacing.y);
                     }
                     ImGui::TextUnformatted(row, rowEnd);
@@ -162,7 +151,6 @@ namespace UI
 
     void ChatHistory::Collect(double a_now, bool a_open)
     {
-        // Muting hides what a player said before too, and unmuting shows it again.
         if (const auto revision = PlayerFilters::GetRevision(); revision != filtersRevision)
         {
             filtersRevision = revision;
@@ -186,7 +174,6 @@ namespace UI
             const bool fromPlayer = line.kind == ChatSync::LineKind::kPlayer;
             const auto sender = fromPlayer && !line.outgoing ? line.player.session : 0;
             const bool muted = sender != 0 && PlayerFilters::IsMuted(sender);
-            // Whispering oneself by a click on one's own line would only surprise.
             const bool whisperable = fromPlayer && !line.player.name.empty()
                 && (line.channel == Multiplayer::ChatChannel::kWhisper || !line.outgoing);
             lines.push_back(Line{ .kind = line.kind,
@@ -197,7 +184,6 @@ namespace UI
                 .sender = sender,
                 .muted = muted,
                 .receivedAt = a_now });
-            // The player's own line stays in view.
             if (fromPlayer && line.outgoing)
             {
                 SetShown(line.channel, true);
@@ -281,7 +267,6 @@ namespace UI
                 unread[channel] = false;
             }
 
-            // On, a chip filled with its channel's color; off, a muted outline.
             const auto min = ImGui::GetItemRectMin();
             const auto max = ImGui::GetItemRectMax();
             const auto& channelColor = ChatStyle::GetChannelColor(filter.channel);
@@ -310,13 +295,9 @@ namespace UI
         }
         if (ImGui::BeginChild("##ChatHistory", a_size))
         {
-            // Before this frame's lines extend it: whether the latest was in
-            // view. A resized chat has another scroll range and rows that wrap
-            // elsewhere, so it keeps what it had and follows again below.
             const auto size = ImGui::GetWindowSize();
             const bool resized = size.x != shownSize.x || size.y != shownSize.y;
             shownSize = size;
-            // Less the scrollbar while it shows.
             const auto width = ImGui::GetContentRegionAvail().x;
             const bool rewrapped = width != shownWidth;
             shownWidth = width;
@@ -372,14 +353,10 @@ namespace UI
                 ImGui::PopStyleVar();
             };
 
-            // Dear ImGui scrolls by what the lines took a frame ago. When they
-            // wrap at another width, rows above the view change too, which
-            // would leave the latest line off the bottom for a frame, each
-            // frame of a drag. There the lines are first laid out clipped,
-            // which draws nothing and takes no click, to find what they take
-            // now, and then drawn where that scrolls them to. A new height
-            // needs none of it: the scroll set from the end of the lines is
-            // applied at the height of the frame it lands in.
+            // Dear ImGui scrolls by what the lines took a frame ago, so lines that wrap
+            // at another width would leave the latest line off the bottom for a frame.
+            // After a rewrap they are first laid out clipped, which draws nothing and
+            // takes no click, to find what they take now.
             float latestScroll = -1.0F;
             if (rewrapped && following)
             {
@@ -408,8 +385,7 @@ namespace UI
                 ImGui::EndPopup();
             }
 
-            // The child scrolls by itself under the cursor; elsewhere, and
-            // while the cursor is hidden, the wheel still scrolls the lines.
+            // The child scrolls by itself under the cursor.
             const auto lineHeight = GetLinePitch();
             const auto wheel = a_input.wheelSteps
                 + (ImGui::IsWindowHovered() || a_wheelElsewhere ? 0.0F : ImGui::GetIO().MouseWheel);
@@ -462,7 +438,6 @@ namespace UI
     {
         const auto& textColor = ImGui::GetStyleColorVec4(ImGuiCol_Text);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ ImGui::GetStyle().ItemSpacing.x, GetLineSpacing() });
-        // Found newest first.
         for (auto index = recentCount; index-- > 0;)
         {
             const auto& line = *recent[index];

@@ -192,7 +192,10 @@ new connection generation ([Network](network.md#latest-wins-publishers)).
   `Enter` is sent again once it is in the world.
 - `Exit` is sent once when a loading screen or the main menu opens
   (menu sink), when a save starts loading (`kPreLoadGame`), or when a pass finds
-  the player out of the world. The main menu also ends the game session.
+  the player out of the world. The main menu also ends the game session. The
+  menu sink reports the exit as soon as the menu opens, before the main loop
+  may stall on the load; since it and the SKSE message run outside the
+  main-loop pass, the published state is kept under a lock.
 - Attacks captured while out of the world are discarded, so they cannot anchor
   to the first checkpoint after returning.
 

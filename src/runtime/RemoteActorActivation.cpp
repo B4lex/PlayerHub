@@ -6,8 +6,7 @@ namespace RemoteActorActivation
 {
     namespace
     {
-        // Skyrim activates on a worker thread, where only the actor's identity
-        // is read; the main loop finds its player.
+        // Skyrim activates on a worker thread.
         class ActivateEventSink final : public RE::BSTEventSink<RE::TESActivateEvent>
         {
         public:

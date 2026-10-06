@@ -78,8 +78,12 @@ mean a request is outstanding, so the request is retried until the actor reaches
   from the actor's drawn state; `weaponDraw` and `weaponSheathe` only mark the
   attachment and do not close the clip branch. The replay stays pending if the
   transition began idle, so movement that starts after the clip is restored.
-- A bounded fallback sends the equip or unequip exit event when a custom graph
-  omits the annotation. Recovery never holds newer checkpoints or translation.
+- A fallback sends the equip or unequip exit event when a custom graph omits
+  the annotation, 2.5 s after the clip starts (a one-handed sword draw takes
+  about 1.4 s). A request that flips while the opposite clip still plays
+  restarts the wait once the requested clip starts, since timing out mid-sheathe
+  resets the graph before its `weaponSheathe` annotation and leaves the weapon
+  in hand. Recovery never holds newer checkpoints or translation.
 - A draw waits, at most 1 s, until equipment has reconciled the hands, so the
   actor does not draw fists and then pop the weapon in.
 

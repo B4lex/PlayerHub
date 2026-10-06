@@ -9,8 +9,6 @@ import (
 	"skyrim-mp/server/internal/wire/pb"
 )
 
-// drainAt drains the outbox at now and returns the peers of the checkpoints
-// written and whether any message other than a checkpoint was written.
 func drainAt(t *testing.T, o *Outbox, now time.Time) (peers []uint32, ordered int) {
 	t.Helper()
 	var b Batch
@@ -40,8 +38,6 @@ func drainAt(t *testing.T, o *Outbox, now time.Time) (peers []uint32, ordered in
 func TestBudgetSpreadsCheckpointsWithoutStarving(t *testing.T) {
 	start := time.Unix(1000, 0)
 	size := len(entry(1, 1))
-	// 80% of the uplink, one recipient: about four entries and one message's
-	// overhead per 25 ms drain.
 	budget := NewBudget(float64(size*4+messageOverheadBytes)*40/uplinkShare, 0)
 	o := NewOutbox(64)
 	o.UseBudget(budget)
@@ -52,7 +48,6 @@ func TestBudgetSpreadsCheckpointsWithoutStarving(t *testing.T) {
 			o.SetCheckpoint(peer, uint64(tick+1), entry(peer, uint64(tick+1)), now)
 		}
 		peers, _ := drainAt(t, o, now)
-		// The first drains may spend the global burst.
 		if tick >= 10 && len(peers) > 5 {
 			t.Fatalf("tick %d wrote %d entries, over the budget", tick, len(peers))
 		}
@@ -74,7 +69,6 @@ func TestBudgetPrefersNearPeersAndSendsOrderedMessages(t *testing.T) {
 	budget := NewBudget(float64(size*2+messageOverheadBytes)*40/uplinkShare, 0)
 	o := NewOutbox(256)
 	o.UseBudget(budget)
-	// Far more waiting than one burst pays for, all since the same moment.
 	for peer := uint32(1); peer <= 100; peer++ {
 		o.SetClass(peer, 0, 0.125)
 		o.SetCheckpoint(peer, 1, entry(peer, 1), now)

@@ -36,14 +36,11 @@ namespace MovementSync
         const auto position = a_carrier.GetPosition();
         const auto cellID = a_cell.GetFormID();
         const auto worldspaceID = GetWorldspaceID(a_local.player);
-        // A fast travel within one space is a relocation, not a speed sample.
         const bool comparableLocalSpace = s_hasPreviousPosition
             && IsSameCoordinateSpace(cellID, worldspaceID, s_previousCellID, s_previousWorldspaceID)
             && position.GetDistance(s_previousPosition) <= kRelocationDistance;
 
         float speed = 0.0F;
-        // The body angle is the facing direction. Travel direction is carried
-        // separately so a backpedalling remote actor keeps facing forward.
         float heading = a_carrier.GetAngleZ();
         if (!std::isfinite(heading))
         {
@@ -67,8 +64,7 @@ namespace MovementSync
 
             if (!graphDirectionAvailable && horizontalDistanceSquared >= kMinimumHeadingTravel * kMinimumHeadingTravel)
             {
-                // A custom graph may not expose Direction. Skyrim heading zero faces
-                // positive Y, so derive the travel angle relative to the body.
+                    // Skyrim heading zero faces positive Y.
                 direction = (std::atan2(deltaX, deltaY) - heading) / kTwoPi;
             }
         }

@@ -1,5 +1,3 @@
-// Package playback replays recordings as virtual players that enter the hub
-// through the same input as connections.
 package playback
 
 import (
@@ -11,15 +9,7 @@ import (
 	"skyrim-mp/server/internal/wire/pb"
 )
 
-// VirtualPlayer numbers one replayed player's messages. Receivers accept a
-// peer's checkpoint only with a rising sequence, its context only with a
-// non-decreasing graph epoch, its actions only when contiguous, and
-// presentation only with rising revisions. A recording's own numbers break
-// these rules once playback seeks back or loops, so the virtual player numbers
-// everything itself and only borrows the recording's content. Every method
-// returns a new message and never modifies the recorded one.
 type VirtualPlayer struct {
-	// Replaces the recorded name when not empty.
 	Name string
 
 	sequence           uint64
@@ -33,9 +23,6 @@ type VirtualPlayer struct {
 	equipment          *pb.Equipment
 }
 
-// BreakContinuity marks that the next context does not follow from the
-// previous one, as after a seek. It starts a new graph epoch, which makes
-// receivers drop attacks queued for the old position.
 func (v *VirtualPlayer) BreakContinuity() {
 	v.epochBreak = true
 }
@@ -52,10 +39,6 @@ func (v *VirtualPlayer) Context(recorded *pb.Context) *pb.Context {
 	return c
 }
 
-// Checkpoint numbers a recorded checkpoint and stamps it with sampled, since
-// the recorded time does not follow on across a seek or a loop. hold stops
-// all locomotion, which a paused replay shows: its actor stands still instead
-// of running in place, keeping stance and hand state.
 func (v *VirtualPlayer) Checkpoint(recorded *pb.Checkpoint, hold bool, sampled time.Time) *pb.Checkpoint {
 	c := proto.Clone(recorded).(*pb.Checkpoint)
 	v.sequence++
@@ -74,8 +57,6 @@ func (v *VirtualPlayer) Checkpoint(recorded *pb.Checkpoint, hold bool, sampled t
 	return c
 }
 
-// Action numbers a recorded action against the latest checkpoint and
-// context. It returns nil before the first checkpoint.
 func (v *VirtualPlayer) Action(recorded *pb.Action) *pb.Action {
 	if v.sequence == 0 || v.epoch == 0 {
 		return nil
@@ -88,8 +69,6 @@ func (v *VirtualPlayer) Action(recorded *pb.Action) *pb.Action {
 	return a
 }
 
-// Appearance returns nil when the content equals what receivers already show,
-// since they rebuild the actor for a new appearance.
 func (v *VirtualPlayer) Appearance(recorded *pb.Appearance) *pb.Appearance {
 	a := proto.Clone(recorded).(*pb.Appearance)
 	if v.Name != "" {

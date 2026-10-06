@@ -23,46 +23,34 @@ namespace UI
 {
     namespace
     {
-        // In font sizes, so the layout follows the overlay scale. The bottom margin
-        // keeps the chat above the vanilla magicka bar.
+        // The bottom margin keeps the chat above the vanilla magicka bar.
         constexpr ImVec2 kMarginFonts{ 0.75F, 5.5F };
-        // In font sizes, between the open chat and the player list.
         constexpr float kPlayerListGapFonts = 0.5F;
 
         constexpr float kOpenBackgroundAlpha = 0.6F;
-        // Over the chat and the game, Manage players needs to stand out.
         constexpr float kManagerBackgroundAlpha = 0.9F;
         constexpr float kRecentBackgroundAlpha = 0.25F;
 
         constexpr ImGuiWindowFlags kWindowFlags
             = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
-        // MenuFrame draws the open chat's background. A click in the chat or
-        // the player list leaves Manage players in front of them.
         constexpr ImGuiWindowFlags kOpenWindowFlags
             = kWindowFlags | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoBringToFrontOnFocus;
-        // Manage players is dragged by any empty part.
         constexpr ImGuiWindowFlags kManagerWindowFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
             | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
         constexpr ImGuiWindowFlags kRecentWindowFlags = kWindowFlags | ImGuiWindowFlags_NoInputs
             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize;
 
-        // What the open chat's frame takes on each side. A knot cuts across
-        // its corner, so halfway into it is clear.
         float GetFramePadding()
         {
             const auto frame = MenuFrame::GetMetrics();
             return std::floor((frame.inset + frame.corner) * 0.5F);
         }
 
-        // What the open chat has around its lines on both sides.
         float GetSidePadding()
         {
             return (ImGui::GetStyle().WindowPadding.x + GetFramePadding()) * 2.0F;
         }
 
-        // What the chat's size is measured in, and the lines the screen has
-        // room for with the chat's margin from every edge and a_around of the
-        // open chat around them.
         ChatSize::Units GetUnits(const ImVec2& a_around)
         {
             const auto& display = ImGui::GetIO().DisplaySize;
@@ -80,14 +68,11 @@ namespace UI
             return std::floor(kPlayerListGapFonts * ImGui::GetFontSize());
         }
 
-        // The player list's window, with what is around its content.
         float GetPlayerListWidth()
         {
             return ChatPlayers::GetWidth() + GetSidePadding();
         }
 
-        // A window of the open chat: inside the menu frame, which keeps the
-        // content clear of its knots, over the chat's background.
         bool BeginFramed(const char* a_name, ImGuiWindowFlags a_flags = kOpenWindowFlags,
             float a_backgroundAlpha = kOpenBackgroundAlpha)
         {
@@ -106,7 +91,6 @@ namespace UI
             return visible;
         }
 
-        // a_inset in from the chat's corner on both axes.
         void SetNextChatWindowPosition(float a_inset)
         {
             const auto fontSize = ImGui::GetFontSize();
@@ -124,15 +108,12 @@ namespace UI
             }
 
             [[nodiscard]] bool UsesMouse() const override { return true; }
-            // Most of the time the chat is opened to type a line and closed again.
             [[nodiscard]] bool HidesIdleCursor() const override { return true; }
             [[nodiscard]] std::optional<ScreenPoint> GetCursorStart() const override { return cursorStart; }
             [[nodiscard]] bool UsesTab() const override { return true; }
 
             void Draw(const WindowInput& a_input) override
             {
-                // Whisper in a player's menu in the world; the chat opens with
-                // the next frame.
                 if (const auto player = PlayerActivation::TakeWhisperRequest();
                     player && (a_input.focused || WindowManager::Focus(*this)))
                 {
@@ -164,8 +145,6 @@ namespace UI
             }
 
         private:
-            // Of the lines, in pixels: as wide as configured or dragged, and no
-            // wider than the screen has room for.
             [[nodiscard]] float GetLinesWidth() const { return size.Get(GetUnits(ImVec2{ GetSidePadding(), 0.0F })).x; }
 
             void DrawRecent(double a_now)
@@ -178,12 +157,11 @@ namespace UI
 
                 const Theme::Scope theme;
                 const auto width = GetLinesWidth();
-                // Inside where the open chat's frame would be, so the lines
-                // stay in their column when it opens.
+                // Inside where the open chat's frame would be, so the lines stay in their
+                // column when it opens.
                 SetNextChatWindowPosition(GetFramePadding());
                 ImGui::SetNextWindowSizeConstraints(ImVec2{ width, 0.0F }, ImVec2{ width, FLT_MAX });
                 ImGui::SetNextWindowBgAlpha(kRecentBackgroundAlpha * alpha);
-                // The theme's border is for windows the player acts on.
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
                 const bool visible = ImGui::Begin("##ChatRecent", nullptr, kRecentWindowFlags);
                 ImGui::PopStyleVar();
@@ -198,19 +176,14 @@ namespace UI
             {
                 const Theme::Scope theme;
                 const auto sidePadding = GetSidePadding();
-                // The player list takes its share of the screen's width.
                 const auto listWidth = players.IsOpen() ? GetPlayerListGap() + GetPlayerListWidth() : 0.0F;
                 const auto units = GetUnits(ImVec2{ sidePadding + listWidth, aroundHeight });
                 size.Follow(units);
                 const auto linesSize = size.Get(units);
                 SetNextChatWindowPosition(0.0F);
                 // Both given, so the window has the size in the frame a drag
-                // moves it. As high as its content it would follow a frame
-                // late, with the input row off its place meanwhile; as wide as
-                // its content it would never get narrower, since the rule and
-                // the input row take the width there is. Only a new window is
-                // as high as its content, before aroundHeight is measured, and
-                // Dear ImGui hides it for that frame.
+                // moves it. Sized to its content, it would follow a frame late in
+                // height and never get narrower in width.
                 ImGui::SetNextWindowSize(
                     ImVec2{ linesSize.x + sidePadding, aroundHeight > 0.0F ? linesSize.y + aroundHeight : 0.0F });
                 if (focusInput)
@@ -225,21 +198,17 @@ namespace UI
                 const auto framePadding = GetFramePadding();
                 const auto& padding = ImGui::GetStyle().WindowPadding;
 
-                // An open menu takes Escape first, then Manage players, then
-                // the name list and the chat.
                 const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false);
                 const bool menuOpen = history.IsMenuOpen() || input.IsMenuOpen() || players.IsMenuOpen();
                 const bool closeMenu = escape && menuOpen;
                 const bool closeManager = escape && !menuOpen && manager.IsOpen();
 
                 auto& composer = input.GetComposer();
-                // Changed since the previous frame by a key, a prefix, or a click.
                 if (!(composer.GetTarget() == shownTarget))
                 {
                     shownTarget = composer.GetTarget();
                     history.SetShown(shownTarget.channel, true);
                 }
-                // As far from the rule under them as from the frame's line above.
                 const auto ruleGap = padding.y + framePadding - MenuFrame::GetMetrics().inset;
                 history.DrawFilters();
                 players.DrawButton();
@@ -248,12 +217,10 @@ namespace UI
                 const auto inputRowHeight = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeight();
                 aroundHeight = ImGui::GetCursorScreenPos().y - ImGui::GetWindowPos().y + inputRowHeight + padding.y
                     + framePadding;
-                // The strips the frame runs in, which hold nothing to click.
                 const ImVec2 grip{ padding.x + framePadding, padding.y + framePadding };
                 size.Grab(ChatSize::Grip{ .depth = grip,
                               .corner = (std::max)({ MenuFrame::GetMetrics().corner, grip.x, grip.y }) },
                     units);
-                // The lines take what the window leaves above the input row.
                 if (const auto player = history.DrawLines(
                         a_input, ImVec2{ 0.0F, -inputRowHeight }, closeMenu, players.IsHovered() || manager.IsHovered()))
                 {
@@ -295,8 +262,6 @@ namespace UI
                 }
             }
 
-            // In the middle of the screen when it opens, then where the
-            // player drags it, in front of the chat.
             void DrawPlayerManager()
             {
                 const auto& display = ImGui::GetIO().DisplaySize;
@@ -316,8 +281,6 @@ namespace UI
                 ImGui::End();
             }
 
-            // Right of the open chat and as high, so its rule lines up with
-            // the chat's.
             void DrawPlayerList(const ImVec2& a_chatPos, const ImVec2& a_chatSize, float a_ruleGap, bool a_closeMenu)
             {
                 ImGui::SetNextWindowPos(ImVec2{ a_chatPos.x + a_chatSize.x + GetPlayerListGap(), a_chatPos.y });
@@ -348,13 +311,8 @@ namespace UI
             ChatPlayers players;
             ChatPlayerManager manager;
             ChatSize size;
-            // Of the open chat as last drawn, around its lines: the filters
-            // above and the input row below, with the padding. Zero before it
-            // is drawn.
             float aroundHeight{ 0.0F };
-            // The target whose channel was last turned on.
             ChatSync::ChatTarget shownTarget;
-            // The middle of the open chat as it was last drawn.
             std::optional<ScreenPoint> cursorStart;
             bool wasFocused{ false };
             bool focusInput{ false };

@@ -70,15 +70,11 @@ namespace ActorSpawner
         auto* targetCell = GetSpawnCell(*player, a_targetPosition);
         if (!targetCell)
         {
-            // Wait until the exterior cell containing the first remote snapshot
-            // is loaded instead of briefly creating the remote actor beside the player.
+            // Wait until the exterior cell is loaded instead of briefly creating the actor
+            // beside the player.
             return std::nullopt;
         }
 
-        // Remote actors must survive ordinary exterior cell unloads within one worldspace.
-        // Interior/worldspace changes are handled as explicit respawn boundaries by
-        // SyncCoordinator. Create the reference at the first compatible snapshot so its
-        // initial character-controller position is never the local player's position.
         const RE::NiPoint3 targetRotation{ 0.0F, 0.0F, a_targetHeading };
         const auto spawnedHandle = dataHandler->CreateReferenceAtLocation(a_npcBase, a_targetPosition, targetRotation,
             targetCell, worldspace, nullptr, nullptr, RE::ObjectRefHandle{}, true, true);
@@ -134,10 +130,6 @@ namespace ActorSpawner
         auto actorPtr = a_remote.handle.get();
         if (actorPtr)
         {
-            // Before the registration is dropped and the reference is deleted: a
-            // deleted actor keeps the marker it reserved on its furniture, and
-            // Skyrim then refuses every entry point on that furniture to the
-            // replacement actor until the reservation expires.
             ActorFurniture::ReleaseFurniture(*actorPtr, a_remote);
         }
         ActorRegistry::Unregister(a_remote);
@@ -154,8 +146,7 @@ namespace ActorSpawner
         // of that playthrough. Such a record carries the runtime actor base the
         // reference was spawned from, and that base is never serialized: on load
         // the record binds to whichever dynamic form receives the same ID while
-        // the save is replayed, and the load crashes. The exclusion is permanent
-        // because nothing restores a reference that is being destroyed.
+        // the save is replayed, and the load crashes.
         SetReferenceExcludedFromSaves(*actor, true);
     }
 

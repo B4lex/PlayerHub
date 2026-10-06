@@ -22,10 +22,6 @@ namespace ActorRegistry
         using AnimationEvents::IsWeaponTransitionEndEvent;
         using Multiplayer::IsMoving;
 
-        // The main-loop thread reads its own fields without s_mutex (see
-        // LockUnlessMainThread) and writes those other threads read under it.
-        // Pending counts other threads raise are atomics it consumes without the
-        // lock; the observation flags and hook counts are only accessed under it.
         struct Registration
         {
             const RE::Actor* actor{ nullptr };
@@ -51,9 +47,6 @@ namespace ActorRegistry
             std::uint32_t weaponTransitionEndCount{ 0 };
             std::uint32_t bashExitCount{ 0 };
             bool authoritativeJumping{ false };
-            // Network travel direction while moving, in graph Direction units. The
-            // actor's direction channel would otherwise feed the remote actor's own (empty)
-            // movement into the graph on every animation update.
             float authoritativeDirection{ 0.0F };
             bool authoritativeWeaponDrawn{ false };
             bool animationFirewallEnabled{ false };
@@ -62,15 +55,9 @@ namespace ActorRegistry
             bool castAnimationOwned{ false };
             bool dead{ false };
             bool mounted{ false };
-            // A remote mount or its seated rider, whose riding gait follows the
-            // network speed.
             bool gaitDriven{ false };
             float gaitSpeed{ 0.0F };
-            // Skyrim's movement update is skipped: the network transform is the only
-            // writer of the actor's position and heading.
             bool networkPlaced{ false };
-            // The graph Speed of a network-placed actor, which Skyrim no longer
-            // measures from its movement.
             float authoritativeSpeed{ 0.0F };
             bool landingCompletionObservationAllowed{ false };
             bool observeJumpLandEndEvent{ false };
@@ -79,17 +66,10 @@ namespace ActorRegistry
 
         PROFILE_LOCKABLE(std::mutex, s_mutex);
         std::unordered_map<const RE::IAnimationGraphManagerHolder*, Registration> s_registrations;
-        // Lets the speed channel of every local actor skip the lock while no
-        // remote player rides.
         std::atomic<std::size_t> s_gaitDrivenCount{ 0 };
-        // Lets the movement update of every local actor skip the lock while no
-        // remote actor is network-placed.
         std::atomic<std::size_t> s_networkPlacedCount{ 0 };
-        // Lets graph output events of every actor skip the lock while no remote
-        // actor runs a native furniture exit.
         std::atomic<std::size_t> s_nativeFurnitureExitCount{ 0 };
 
-        // Called with s_mutex held.
         void EraseRegistration(const RE::IAnimationGraphManagerHolder* a_holder)
         {
             const auto registration = s_registrations.find(a_holder);
@@ -112,7 +92,6 @@ namespace ActorRegistry
             s_registrations.erase(registration);
         }
 
-        // Called with s_mutex held.
         auto FindRegistration(const RE::Actor* a_actor)
         {
             return s_registrations.find(static_cast<const RE::IAnimationGraphManagerHolder*>(a_actor));
@@ -120,15 +99,11 @@ namespace ActorRegistry
 
         using RegistryLock = std::unique_lock<decltype(s_mutex)>;
 
-        // Registrations are inserted and erased only on the main-loop thread
-        // (Register and Unregister run from the spawner and actor runtime), so
-        // that thread may find one without s_mutex. Every other thread holds it.
         RegistryLock LockUnlessMainThread()
         {
             return GameThread::IsAuthoritative() ? RegistryLock{} : RegistryLock{ s_mutex };
         }
 
-        // For a write to a field other threads read under s_mutex.
         void LockForWrite(RegistryLock& a_lock)
         {
             if (!a_lock.owns_lock())
@@ -137,7 +112,6 @@ namespace ActorRegistry
             }
         }
 
-        // Called with s_mutex held, or on the main-loop thread.
         Registration* Find(const RE::IAnimationGraphManagerHolder* a_holder)
         {
             const auto registration = s_registrations.find(a_holder);
@@ -198,7 +172,6 @@ namespace ActorRegistry
         a_remote.animationGraphHolder = nullptr;
     }
 
-    // Safe to call from AI worker threads.
     bool IsRegistered(const RE::Actor* a_actor)
     {
         if (!a_actor)
@@ -586,8 +559,7 @@ namespace ActorRegistry
         {
             return std::nullopt;
         }
-        // A riding gait only travels the way the mount faces. A rider's on-foot
-        // direction is stale once it is seated.
+        // A riding gait only travels the way the mount faces.
         return registration->second.gaitDriven ? 0.0F : registration->second.authoritativeDirection;
     }
 
@@ -599,12 +571,11 @@ namespace ActorRegistry
         {
             return;
         }
-        // The worker observing the completion reads the state, the flag, and the
-        // count together.
+        // The worker observing the completion reads the state, the flag, and the count together.
         LockForWrite(lock);
         registration->authoritativeWeaponDrawn = a_weaponDrawn;
-        // Arm before DrawWeaponMagicHands runs on the next remote actor update. Its
-        // completion annotation may be emitted from an animation worker.
+        // Armed before DrawWeaponMagicHands runs on the next update; its completion annotation may be
+        // emitted from an animation worker.
         registration->pendingWeaponTransitionEnds = 0;
         registration->observeWeaponTransitionEndEvent = true;
     }
@@ -714,8 +685,6 @@ namespace ActorRegistry
     {
         auto lock = LockUnlessMainThread();
         auto* registration = Find(a_actor);
-        // While disallowed nothing arms the observation or raises its count, so
-        // disallowing it again changes nothing.
         if (!registration || (!a_allowed && !registration->landingCompletionObservationAllowed))
         {
             return;
@@ -733,8 +702,8 @@ namespace ActorRegistry
         if (registration && registration->landingCompletionObservationAllowed)
         {
             LockForWrite(lock);
-            // Arm only after the grounded transform and graph variables are in
-            // place. A delayed marker from the prior jump must not complete this one.
+            // Arm only after the grounded transform and graph variables are in place, so a
+            // delayed marker from the prior jump cannot complete this one.
             registration->pendingJumpLandEnds = 0;
             registration->observeJumpLandEndEvent = true;
         }

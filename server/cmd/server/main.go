@@ -1,4 +1,3 @@
-// Command server runs the Skyrim multiplayer server.
 package main
 
 import (
@@ -70,7 +69,6 @@ func main() {
 }
 
 func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) error {
-	// The feed is built from everything below, so changes reach it late.
 	var feed *admin.Feed
 	changed := func() {
 		if feed != nil {

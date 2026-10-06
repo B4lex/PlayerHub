@@ -41,7 +41,6 @@ namespace Config
             return { text.begin(), text.end() };
         }
 
-        // Each line of the parts as a `;` comment line.
         std::string FormatComment(std::initializer_list<std::string_view> a_parts)
         {
             std::string text;
@@ -182,7 +181,6 @@ namespace Config
                 ReadUnsigned(a_key, a_value, a_minimum, a_maximum);
             }
 
-            // Every key a setting reads has been removed, so what is left is unknown.
             void ReportUnknownEntries() const
             {
                 CSimpleIniA::TNamesDepend sections;
@@ -239,7 +237,6 @@ namespace Config
             std::string section;
         };
 
-        // Visits every setting as the text the file stores for it.
         class TextVisitor : public SettingsVisitor
         {
         public:
@@ -332,7 +329,6 @@ namespace Config
             }
 
         private:
-            // The pending group comment, then a_comment.
             std::string TakeComment(std::string_view a_comment)
             {
                 auto text = FormatComment({ pendingComment, a_comment });
@@ -342,11 +338,9 @@ namespace Config
 
             CSimpleIniA file;
             std::string section;
-            // The file header leads the first section's comment.
             std::string pendingComment{ kFileHeader };
         };
 
-        // Every setting's text, in description order.
         class ValueCollector final : public TextVisitor
         {
         public:
@@ -362,9 +356,6 @@ namespace Config
             }
         };
 
-        // Writes settings into a loaded file, keeping its comments, its order, and
-        // entries no setting reads. A setting that is absent from the file and at
-        // its default stays absent, so a removed line keeps meaning "default".
         class FileUpdater final : public TextVisitor
         {
         public:
@@ -443,7 +434,6 @@ namespace Config
             return std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{} };
         }
 
-        // Through a temporary file, so a failed write never leaves a truncated file.
         bool WriteFile(const std::filesystem::path& a_path, std::string_view a_text)
         {
             auto temporaryPath = a_path;
@@ -492,7 +482,6 @@ namespace Config
         {
             CSimpleIniA file;
             file.SetUnicode(true);
-            // A missing or unreadable file is recreated from the commented default.
             auto text = ReadFile(a_path);
             if (!text || file.LoadData(*text) < 0)
             {
@@ -518,8 +507,6 @@ namespace Config
             GetDefaultConfig()) };
         std::atomic_uint64_t s_revision{ 0 };
 
-        // Serializes file access and Apply, so the live configuration and the file
-        // always change in the same order.
         std::mutex s_fileLock;
         std::filesystem::path s_path;
     }

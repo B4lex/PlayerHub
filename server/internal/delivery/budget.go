@@ -6,23 +6,12 @@ import (
 )
 
 const (
-	// Share of the uplink the budget uses. The rest is left for TCP
-	// acknowledgements, retransmits, and headers, and so that the router's
-	// upload buffer never sets the rate, which would raise every player's
-	// latency.
-	uplinkShare = 0.8
-	// Burst of the global bucket and of each recipient's allowance, as
-	// seconds of their rate.
+	uplinkShare           = 0.8
 	globalBurstSeconds    = 0.1
 	recipientBurstSeconds = 0.2
-	// Charged per WebSocket message besides its payload: IPv4, TCP with
-	// timestamps, and the WebSocket header.
-	messageOverheadBytes = 60
+	messageOverheadBytes  = 60
 )
 
-// Budget shares one uplink between recipients. Each recipient gets an equal
-// share of the global rate, capped per recipient; what an idle recipient
-// leaves unused stays in the global bucket for the others.
 type Budget struct {
 	mu           sync.Mutex
 	rate         float64
@@ -32,8 +21,6 @@ type Budget struct {
 	recipients   int
 }
 
-// NewBudget makes a budget for an uplink of bytes per second. perRecipient
-// caps one recipient's share; zero leaves only the global share.
 func NewBudget(uplinkBytesPerSecond, perRecipientBytesPerSecond float64) *Budget {
 	return &Budget{rate: uplinkBytesPerSecond * uplinkShare, perRecipient: perRecipientBytesPerSecond}
 }
@@ -50,7 +37,6 @@ func (b *Budget) leave() {
 	b.mu.Unlock()
 }
 
-// share is one recipient's rate in bytes per second.
 func (b *Budget) share() float64 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -70,8 +56,6 @@ func (b *Budget) refillLocked(now time.Time) {
 	b.updated = now
 }
 
-// charge takes bytes that are sent whatever the budget, such as ordered
-// messages. The bucket may go negative, which holds back checkpoints.
 func (b *Budget) charge(now time.Time, bytes int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -79,7 +63,6 @@ func (b *Budget) charge(now time.Time, bytes int) {
 	b.tokens -= float64(bytes)
 }
 
-// take grants up to want bytes of checkpoints.
 func (b *Budget) take(now time.Time, want int) int {
 	b.mu.Lock()
 	defer b.mu.Unlock()

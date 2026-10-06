@@ -19,26 +19,19 @@ namespace Network
     {
         constexpr float kProbeIntervalSeconds = 1.0F;
         // The transport notices a closed connection, but not a server that stops
-        // answering while the socket stays open, so an unanswered probe means the
-        // connection is dead.
+        // answering while the socket stays open.
         constexpr float kProbeTimeoutSeconds = 5.0F;
         constexpr float kReconnectDelaySeconds = 1.0F;
         constexpr float kMaximumReconnectDelaySeconds = 15.0F;
-        // An attempt whose handshake stalls without failing is torn down and retried.
         constexpr float kReconnectAttemptTimeoutSeconds = 20.0F;
         constexpr float kMaximumFrameTime = 0.1F;
         constexpr unsigned kMaximumBackoffDoublings = 4;
-        // Spreads the retries of clients that lost the same server together, so a
-        // restart does not meet them all at once.
         constexpr float kReconnectJitterFraction = 0.5F;
         constexpr std::int64_t kNoLatency = -1;
 
         enum class Phase
         {
-            // No connection is wanted, and the client is closed.
             kIdle,
-            // No connection is wanted; waiting for a previous worker to finish
-            // before the client can be closed.
             kClosing,
             kConnected,
             kWaitingToReconnect,
@@ -50,8 +43,6 @@ namespace Network
         std::atomic_bool connectionEnabled{ false };
         std::atomic_bool displayNameSet{ false };
 
-        // The refusal that ended the player's choice to connect, until the player
-        // connects again or a game starts or ends.
         std::mutex refusalLock;
         std::optional<Refusal> refusal;
 
@@ -166,9 +157,6 @@ namespace Network
             }
         }
 
-        // Returns whether the connection is being moved to a changed endpoint. The
-        // move skips the reconnect delay and waits only for a previous attempt's
-        // worker to finish.
         bool FollowEndpointChange()
         {
             const auto revision = Config::GetRevision();
@@ -218,8 +206,6 @@ namespace Network
             }
         }
 
-        // Each game starts from [Network] AutoConnect, which connects only with
-        // a display name: one applied later waits for the player to connect.
         void FollowGameStart(bool a_inGame)
         {
             if (a_inGame == std::exchange(observedInGame, a_inGame))
@@ -272,7 +258,6 @@ namespace Network
 
         void Open()
         {
-            // A previous worker may still be closing the client; retried next pass.
             if (!BeginReconnect())
             {
                 return;
@@ -287,9 +272,6 @@ namespace Network
 
         void UpdateDisconnected(float a_deltaSeconds)
         {
-            // Retrying a refused connection cannot help, so a refusal ends the
-            // player's choice to connect; what would help, such as another
-            // display name, is the player's to change before connecting again.
             if (auto refused = GetRefusal())
             {
                 logs::error("Not reconnecting: {}", refused->message);

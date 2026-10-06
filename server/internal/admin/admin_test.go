@@ -124,7 +124,6 @@ func (p *player) receive() *pb.ServerMessage {
 	return &m
 }
 
-// until receives messages until one satisfies match.
 func (p *player) until(match func(*pb.ServerMessage) bool) *pb.ServerMessage {
 	p.t.Helper()
 	for {

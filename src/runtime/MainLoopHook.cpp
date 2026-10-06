@@ -35,8 +35,6 @@ namespace MainLoopHook
                 }
 
                 // Frame time stops in the main menu and while the game is paused.
-                // The connection still follows the game and the player's choice
-                // there, with its timers held.
                 const auto delta = RE::Main::QFrameAnimTime();
                 const bool advancing = std::isfinite(delta) && delta > 0.0F;
                 if (advancing)

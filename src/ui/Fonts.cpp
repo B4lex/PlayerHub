@@ -23,9 +23,7 @@ namespace UI::Fonts
 {
     namespace
     {
-        // In lookup order: the first file that loads is the main font, and each
-        // later one only supplies glyphs the earlier ones lack. Windows and
-        // Proton ship some of them under different names.
+        // Windows and Proton ship some of these under different names.
         constexpr std::array<std::wstring_view, 12> kSystemFiles{
             L"segoeui.ttf",  // Latin, Greek, Cyrillic, Arabic, Hebrew, Armenian, Georgian
             L"arial.ttf",
@@ -41,13 +39,11 @@ namespace UI::Fonts
             L"seguisym.ttf",  // Symbols
         };
 
-        // Sovngarde, under the SIL Open Font License beside the files. Relative
-        // to the plugin's directory.
+        // Sovngarde, under the SIL Open Font License beside the files.
         constexpr std::wstring_view kShippedDirectory = L"skyrim-mp/fonts";
         constexpr std::wstring_view kTextFile = L"Sovngarde Light.ttf";
         constexpr std::wstring_view kHeadingFile = L"Sovngarde Bold.ttf";
-        // Sovngarde's letters are small for its line height. This brings them
-        // to the system font's width without changing the line height.
+        // Sovngarde's letters are small for its line height.
         constexpr float kShippedGlyphScale = 1.25F;
 
         // <windows.h> reaches plugin sources through the precompiled header, and
@@ -94,7 +90,6 @@ namespace UI::Fonts
             return directory;
         }
 
-        // Empty if the file is missing or cannot be mapped.
         std::span<const std::byte> MapFile(const std::filesystem::path& a_path)
         {
             std::error_code error;
@@ -129,8 +124,6 @@ namespace UI::Fonts
             return data;
         }
 
-        // Starts a font with a_data, or adds to the atlas's latest font the
-        // glyphs it lacks. Null if the data is not a font.
         ImFont* AddSource(ImFontAtlas& a_atlas, float a_sizePixels, std::span<const std::byte> a_data, bool a_merge,
             float a_glyphScale = 1.0F)
         {
@@ -143,8 +136,6 @@ namespace UI::Fonts
                 const_cast<std::byte*>(a_data.data()), static_cast<int>(a_data.size()), a_sizePixels, &config);
         }
 
-        // A font of its own for a shipped file, with a_fallbacks for what the
-        // file lacks. Null if the file is missing or not a font.
         ImFont* AddShipped(ImFontAtlas& a_atlas, float a_sizePixels, const std::filesystem::path& a_path,
             std::span<const std::span<const std::byte>> a_fallbacks)
         {

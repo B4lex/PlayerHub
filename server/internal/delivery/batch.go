@@ -2,7 +2,6 @@ package delivery
 
 import "skyrim-mp/server/internal/wire"
 
-// Batch is one drain of an outbox. A writer keeps one and reuses its buffers.
 type Batch struct {
 	ordered []item
 	latest  [][]byte
@@ -10,10 +9,6 @@ type Batch struct {
 	frame   []byte
 }
 
-// Write passes each WebSocket message of the batch to write, in order.
-// Adjacent checkpoint entries share one PeerStates, and the latest-wins
-// checkpoints go last in one more. The slice passed to write is only valid
-// during the call.
 func (b *Batch) Write(write func([]byte) error) error {
 	defer func() {
 		// Drop references so written messages can be collected.
@@ -40,7 +35,6 @@ func (b *Batch) Write(write func([]byte) error) error {
 	return b.flushEntries(write)
 }
 
-// Empty reports whether the batch has nothing to write.
 func (b *Batch) Empty() bool {
 	return len(b.ordered) == 0 && len(b.latest) == 0
 }

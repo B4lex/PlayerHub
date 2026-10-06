@@ -18,9 +18,6 @@ namespace CombatIsolation
         using CodeDetour::WriteCallDetour;
         using CodeDetour::WriteEntryDetour;
 
-        // Returns true when either side of a hostility or combat query is a
-        // remote actor. A remote actor belongs to another player's world, so local actors never
-        // treat it as an enemy and it never treats them as one.
         bool IsRemoteActorCombatQuery(const RE::Actor* a_actor, const RE::Actor* a_target, std::string_view a_path)
         {
             if (!ActorRegistry::IsRegistered(a_target) && !ActorRegistry::IsRegistered(a_actor))
@@ -39,9 +36,6 @@ namespace CombatIsolation
             return true;
         }
 
-        // Returns true when a registered remote actor is the aggressor of a hit.
-        // Its native attack animations still run the local hit pipeline, but the
-        // swing belongs to another player's world and must not affect this one.
         bool IsRemoteActorHit(const RE::Actor* a_aggressor, const RE::TESObjectREFR* a_target, std::string_view a_path)
         {
             if (!ActorRegistry::IsRegistered(a_aggressor))
@@ -59,9 +53,6 @@ namespace CombatIsolation
             return true;
         }
 
-        // Returns true when a local actor's melee swing reaches a registered remote
-        // actor. The remote actor stands in this world only as another player's
-        // presentation, so the swing passes through it as a miss.
         bool IsRemoteActorMeleeTarget(
             const RE::Actor* a_attacker, const RE::TESObjectREFR* a_target, std::string_view a_path)
         {
@@ -80,8 +71,6 @@ namespace CombatIsolation
             return true;
         }
 
-        // Returns true when a registered remote actor would release a projectile or
-        // spell. Its bow draws and casts are presentation only.
         bool IsRemoteActorRelease(const RE::Actor* a_actor, std::string_view a_path)
         {
             if (!ActorRegistry::IsRegistered(a_actor))
@@ -251,9 +240,6 @@ namespace CombatIsolation
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
-        // A remote actor channels its placeholder spell for the animation only.
-        // Reports that it can always cast, so magicka or the casting-disabled flag
-        // never interrupt the animation. SpellFireHook keeps the spell unreleased.
         struct CheckCastHook
         {
             static bool Thunk(RE::MagicCaster* a_caster, RE::MagicItem* a_spell, bool a_dualCast,

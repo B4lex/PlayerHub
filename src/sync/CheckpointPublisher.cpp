@@ -21,8 +21,6 @@ namespace CheckpointPublisher
     {
         constexpr float kSnapshotInterval = 0.05F;
 
-        // Wall time rather than accumulated frame time: receivers compare it with
-        // arrival times, and a paused or hitching game must not stretch it.
         std::uint32_t GetSampleTime()
         {
             const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -45,8 +43,8 @@ namespace CheckpointPublisher
         {
             return Publication{ .status = Network::IsConnected() ? Status::kNotDue : Status::kDisconnected };
         }
-        // Keeping the remainder holds the average rate when frame times do not
-        // divide the interval; whole missed intervals are dropped, not sent as a burst.
+        // Keeping the remainder holds the average rate; whole missed intervals are dropped,
+        // not sent as a burst.
         scheduleElapsed = std::fmod(scheduleElapsed, kSnapshotInterval);
         const float snapshotElapsed = elapsed;
         elapsed = 0.0F;

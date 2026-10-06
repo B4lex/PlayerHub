@@ -22,22 +22,17 @@ namespace ActorFurniture
         constexpr float kFurnitureEntryFallbackSeconds = 10.0F;
         constexpr float kFurnitureExitFallbackSeconds = 10.0F;
         // The engine releases the furniture when a native exit clip ends: about 1.1
-        // seconds for a chair and 3.3 for a table in vanilla. Past this, the exit
-        // idle is taken as refused by the graph.
+        // seconds for a chair and 3.3 for a table in vanilla.
         constexpr float kNativeExitReleaseSeconds = 5.0F;
         // A table's exit releases the furniture about 0.2 seconds before its clip
         // stops driving the actor.
         constexpr float kNativeExitClipTailSeconds = 2.0F;
-        // How far the source must have moved on for the get-up settle after an
-        // exit clip to be cut rather than played out.
         constexpr float kExitSettleCutDistance = 32.0F;
-        // A started entry that never records occupancy is a refusal Skyrim reported
-        // as success; it is retried long before the budget for an entry that was
-        // seated and then dropped.
+        // Skyrim can report a started entry as success without ever recording the occupancy.
         constexpr float kFurnitureEntryOccupancySeconds = 1.5F;
         // Occupancy on a reference that was never requested comes from the actor's
         // own package selection. Cancelling it is not always accepted on the first
-        // pass, so bound the attempts before the interaction is abandoned.
+        // pass.
         constexpr float kForeignFurnitureCancelSeconds = 3.0F;
         // A remote actor created in the pass the local cell finished loading has not
         // run one update with its do-nothing package, its equipment, or a settled AI
@@ -45,8 +40,7 @@ namespace ActorFurniture
         // engine, which leaves the marker reserved and the actor off its marker.
         constexpr float kFurnitureEntrySpawnSettleSeconds = 1.5F;
         constexpr float kFurnitureEntryAlignmentDistance = 24.0F;
-        // Native entry aligns the actor to the chosen entry point itself; this only
-        // bounds how far that alignment may glide the remote actor.
+        // Native entry aligns the actor to the chosen entry point itself.
         constexpr float kFurnitureEntryMarkerDistance = 96.0F;
 
         void SetFurnitureAnimationOwnership(RemoteActor& a_remote, bool a_owned)
@@ -81,9 +75,7 @@ namespace ActorFurniture
             return furniture ? furniture->GetFormID() : 0;
         }
 
-        // The idle the native furniture machinery selected, which is the entry idle
-        // once ID 39923 has chosen one. Logged through the exit as well: it is what
-        // distinguishes an exit from an entry idle still holding the graph.
+        // The entry idle once ID 39923 has chosen one.
         RE::FormID GetFurnitureIdleFormID(RE::Actor& a_actor)
         {
             const auto* process = a_actor.GetActorRuntimeData().currentProcess;
@@ -119,9 +111,6 @@ namespace ActorFurniture
             return releasedCount;
         }
 
-        // Logged when the marker probe and the native entry disagree: the probe
-        // reports a free marker while entry-point selection refuses every one. The
-        // reservations are the only state that can explain that disagreement.
         void LogFurnitureMarkerReservations(std::uint32_t a_actorHandle, const RE::TESObjectREFR& a_furniture)
         {
             const auto* usedMarkers = a_furniture.extraList.GetByType<RE::ExtraUsedMarkers>();
@@ -204,8 +193,6 @@ namespace ActorFurniture
             float distance{ std::numeric_limits<float>::infinity() };
         };
 
-        // 2D distance to the furniture's nearest marker, or to the reference when it
-        // has no marker node.
         FurnitureMarkerDistance FindNearestFurnitureMarker(
             const RE::TESObjectREFR& a_furniture, const RE::NiPoint3& a_position)
         {
@@ -232,7 +219,6 @@ namespace ActorFurniture
             return nearest;
         }
 
-        // True the first pass a_gate holds the current request back.
         bool EnterEntryGate(RemoteActor& a_remote, EntryGate a_gate)
         {
             if (a_remote.furniture.loggedEntryGate == a_gate)
@@ -336,8 +322,6 @@ namespace ActorFurniture
                 a_actor.IsInCombat());
             if (!started)
             {
-                // The caller only reaches this after the marker probe reported a free
-                // marker, so the reservations explain which owner refused the entry.
                 LogFurnitureMarkerReservations(a_remote.handle.native_handle(), a_furniture);
             }
             return started;
@@ -496,15 +480,14 @@ namespace ActorFurniture
         a_remote.furniture.loggedEntryGate = EntryGate::kNone;
         if (a_furnitureRefID != a_remote.furniture.resumeFurnitureRefID)
         {
-            // The source left the furniture it used at spawn; entering it again is
-            // an entry the local player can watch.
+            // The source left the furniture it used at spawn; entering it again is an entry
+            // the local player can watch.
             a_remote.furniture.resumeFurnitureRefID = 0;
         }
         if (a_remote.furniture.requestedFurnitureRefID == 0)
         {
-            // An in-progress exit keeps its elapsed time so that rapid target changes
-            // cannot postpone the forced-exit fallback indefinitely. The graph-exit
-            // escalation is paired with that elapsed time and is kept with it.
+            // An in-progress exit keeps its elapsed time, so rapid target changes cannot
+            // postpone the forced-exit fallback indefinitely.
             a_remote.furniture.furnitureTransitionElapsed = 0.0F;
             a_remote.furniture.furnitureExitGraphForced = false;
         }
@@ -619,8 +602,7 @@ namespace ActorFurniture
         PROFILE_FUNCTION();
         const auto targetFurnitureRefID = a_remote.furniture.targetFurnitureRefID;
         const auto occupiedFurnitureRefID = GetOccupiedFurnitureRefID(a_actor);
-        // Published before this pass advances it; the activation reading it runs
-        // on a worker thread anyway.
+        // Published before this pass advances it; the activation reading it runs on a worker thread anyway.
         ActorRegistry::SetHeldFurniture(a_remote,
             occupiedFurnitureRefID != 0 ? occupiedFurnitureRefID : a_remote.furniture.requestedFurnitureRefID);
         const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
@@ -642,14 +624,8 @@ namespace ActorFurniture
             UpdateNativeSitSleepState(a_actor);
         }
 
-        // A source returning to its seat mid-exit still holds the occupancy there,
-        // and later none at all once the exit clip has released it. Both would
-        // read as a seated or dropped entry below, so an exit runs to completion
-        // before the target is entered again.
         const bool exiting = a_remote.furniture.exitPhase != ExitPhase::kNone;
 
-        // Entry, use, and the furniture graph are driven natively once the target
-        // is occupied.
         if (!exiting && targetFurnitureRefID != 0 && occupiedFurnitureRefID == targetFurnitureRefID)
         {
             SetFurnitureAnimationOwnership(a_remote, true);
@@ -657,9 +633,7 @@ namespace ActorFurniture
             auto* process = a_actor.GetActorRuntimeData().currentProcess;
             if (!a_remote.furniture.occupancyObserved)
             {
-                // The pass after the native call is the first one that can see what
-                // it recorded. Entries that report success without ever reaching
-                // here are refusals, not slow entries.
+                // The pass after the native call is the first one that can see what it recorded.
                 a_remote.furniture.occupancyObserved = true;
                 logs::debug(
                     "Animation sync confirmed furniture occupancy: actor={:08X} furniture={:08X} marker={} "
@@ -683,9 +657,7 @@ namespace ActorFurniture
         if (!exiting && targetFurnitureRefID != 0 && a_remote.furniture.requestedFurnitureRefID == targetFurnitureRefID
             && occupiedFurnitureRefID == 0)
         {
-            // Skyrim dropped a started entry, or never recorded the occupancy the
-            // native call reported. Hold ownership for a bounded time before
-            // releasing the request for a fresh attempt.
+            // Hold ownership for a bounded time before releasing the request for a fresh attempt.
             SetFurnitureAnimationOwnership(a_remote, true);
             a_remote.furniture.furnitureTransitionElapsed += deltaTime;
             const bool occupancyObserved = a_remote.furniture.occupancyObserved;
@@ -707,13 +679,10 @@ namespace ActorFurniture
             SetFurnitureAnimationOwnership(a_remote, false);
             if (!occupancyObserved)
             {
-                // Retrying on the next pass restarts the entry idle from its first
-                // frame, so an entry Skyrim keeps taking back plays nothing at all.
-                // Space the attempts instead of attempting one every pass.
+                // Retrying on the next pass restarts the entry idle from its first frame.
                 a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
-                // The native entry recorded occupancy and the engine took it back
-                // before the next pass, which the entry call itself reports as
-                // success. The reservations name the owner it was taken back for.
+                // The native entry can record occupancy that the engine takes back
+                // before the next pass, and still report success.
                 if (auto* furniture = RE::TESForm::LookupByID<RE::TESObjectREFR>(targetFurnitureRefID))
                 {
                     LogFurnitureMarkerReservations(a_remote.handle.native_handle(), *furniture);
@@ -724,15 +693,10 @@ namespace ActorFurniture
 
         // An interrupted entry idle can still reach its seated node after the engine
         // bookkeeping was cleared, which leaves the actor sitting with no occupancy,
-        // request, or target for the branches above to key on. The sit/sleep state is
-        // the only remaining evidence, so unwinding is driven from it as well.
+        // request, or target.
         const bool residualSitSleepState = sitSleepState != RE::SIT_SLEEP_STATE::kNormal;
         const bool mustExitCurrentFurniture
             = occupiedFurnitureRefID != 0 || a_remote.furniture.requestedFurnitureRefID != 0 || residualSitSleepState;
-        // Reaching here while furniture still owns the actor means neither occupancy
-        // nor the request matches the target, whatever the target is, so the previous
-        // interaction has to be unwound before anything else. Ending it through this
-        // block is also what releases ownership.
         const bool furnitureAnimationOwned = a_remote.furniture.furnitureAnimationOwned;
         if (mustExitCurrentFurniture || furnitureAnimationOwned)
         {
@@ -754,13 +718,12 @@ namespace ActorFurniture
                 a_remote.furniture.exitClipEnded = true;
             }
             // The clip ends about 0.2 s before the engine's get-up settle does, and
-            // locomotion only plays after that settle. Once the source has moved on,
-            // the settle is cut so the actor follows it without the pause.
+            // locomotion only plays after that settle.
             const bool cutExitSettle = nativeExit && a_remote.furniture.exitClipEnded
                 && a_actor.GetPosition().GetDistance(a_remote.movement.targetPosition) > kExitSettleCutDistance;
-            // A native exit counts as released once the state is Normal, even with
-            // occupancy left: cancelling that as an incomplete entry would force the
-            // default graph state over the exit clip.
+            // A native exit counts as released once the state is Normal, even with occupancy
+            // left: cancelling it as an incomplete entry would force the default graph state
+            // over the exit clip.
             if (cutExitSettle
                 || ((occupiedFurnitureRefID == 0 || nativeExit)
                     && GetActorSitSleepState(a_actor) == RE::SIT_SLEEP_STATE::kNormal))
@@ -810,17 +773,14 @@ namespace ActorFurniture
                 if (a_remote.animation)
                 {
                     // Furniture graphs do not consistently return to the locomotion
-                    // variables which preceded entry. Reconstruct the current checkpoint.
+                    // variables which preceded entry.
                     ActorAnimation::InvalidateAnimationDispatch(*a_remote.animation);
                 }
                 const auto* actorState = a_actor.AsActorState();
                 if (a_remote.animation->targetAnimationState.weaponDrawn && actorState
                     && actorState->GetWeaponState() == RE::WEAPON_STATE::kSheathed)
                 {
-                    // Sitting sheathes the weapon, but checkpoints are not staged while
-                    // furniture owns the graph, so the request still holds the pre-entry
-                    // drawn state. Dispatching it now would draw on the reconstruction
-                    // update and then sheathe once the fresh checkpoint is staged.
+                    // Sitting sheathes the weapon, but the staged request still holds the pre-entry drawn state.
                     auto sheathedState = a_remote.animation->targetAnimationState;
                     sheathedState.weaponDrawn = false;
                     ActorAnimation::SetAnimationState(a_remote, sheathedState);
@@ -840,21 +800,14 @@ namespace ActorFurniture
                 && occupiedFurnitureRefID == a_remote.furniture.requestedFurnitureRefID
                 && a_remote.furniture.furnitureTransitionElapsed < kFurnitureEntryFallbackSeconds)
             {
-                // A source stands only once seated, so an exit arriving mid-entry means
-                // the entry clip here started later or runs longer. Cancelling it would
-                // snap the actor upright; it is finished and followed by the native exit.
+                // A source stands only once seated, so an exit arriving mid-entry finishes the entry first.
                 a_remote.furniture.furnitureTransitionElapsed += deltaTime;
                 return true;
             }
 
             if (occupiedFurnitureRefID != 0 && !IsFurnitureEntryComplete(sitSleepState))
             {
-                // The entry never reached a seated state, so there is no native exit
-                // to request. Release the reservation; the next update completes exit.
-                // Occupancy on a reference that was never requested comes from the
-                // actor's own package selection, and clearing it is not always
-                // accepted on the first pass, so this is bounded rather than retried
-                // every pass.
+                // Release the reservation; the next update completes the exit.
                 a_remote.furniture.furnitureTransitionElapsed += deltaTime;
                 auto occupiedFurniture = a_actor.GetOccupiedFurniture().get();
                 if (occupiedFurniture)
@@ -950,8 +903,7 @@ namespace ActorFurniture
 
             if (!a_remote.furniture.furnitureExitGraphForced)
             {
-                // No native exit idle is playing, so there is nothing to wait for:
-                // the graph node is left on the first forced pass.
+                // No native exit idle is playing, so the graph node is left on the first forced pass.
                 a_remote.furniture.furnitureExitGraphForced = true;
                 static const RE::BSFixedString furnitureExitEvent{ "IdleFurnitureExit" };
                 const bool eventAccepted = AnimationFirewall::NotifyNetworkAnimationGraph(a_actor, furnitureExitEvent);
@@ -983,8 +935,6 @@ namespace ActorFurniture
             return false;
         }
 
-        // The target is a FormID resolved locally; Skyrim chooses the entry point,
-        // idle, and marker for the remote actor.
         auto* furniture = RE::TESForm::LookupByID<RE::TESObjectREFR>(targetFurnitureRefID);
         const auto* furnitureBase = furniture ? furniture->GetBaseObject() : nullptr;
         const bool isFurniture = furnitureBase && furnitureBase->As<RE::TESFurniture>();
@@ -1001,13 +951,8 @@ namespace ActorFurniture
                     a_remote.handle.native_handle(), targetFurnitureRefID, furniture != nullptr, isFurniture, loaded3D,
                     sameCoordinateSpace);
             }
-            // The latest transform remains authoritative while the reference is
-            // unavailable. Do not strand the remote actor at its pre-interaction position.
             return false;
         }
-        // A resumed entry has no entry idle to be torn down, and waiting would leave
-        // the actor standing on the seat. It only waits for the first update after
-        // readiness, which runs with the do-nothing package installed.
         const bool resuming = a_remote.furniture.resumeFurnitureRefID == targetFurnitureRefID;
         if (a_remote.ready
             && (resuming ? a_remote.readyElapsed <= 0.0F : a_remote.readyElapsed < kFurnitureEntrySpawnSettleSeconds))
@@ -1020,8 +965,7 @@ namespace ActorFurniture
                     "resuming={} readyElapsed={:.3f}",
                     a_remote.handle.native_handle(), targetFurnitureRefID, resuming, a_remote.readyElapsed);
             }
-            // The transform stays authoritative meanwhile, so the actor follows the
-            // source to the furniture instead of waiting beside its spawn point.
+            // The transform stays authoritative meanwhile, so the actor follows the source to the furniture.
             return false;
         }
         if (!a_remote.ready || a_remote.furniture.furnitureRetryRemaining > 0.0F)
@@ -1051,10 +995,7 @@ namespace ActorFurniture
         }
 
         // The source reports occupancy when it activates, then travels to the entry
-        // point before its entry idle moves it onto the marker. Waiting for the
-        // source to settle on the marker delays the remote actor by the whole entry idle.
-        // Start once the remote actor follows the source close to the furniture; the
-        // native entry aligns it to the chosen entry point.
+        // point before its entry idle moves it onto the marker.
         const auto actorPosition = a_actor.GetPosition();
         const float alignmentDistance = (a_remote.movement.targetPosition - actorPosition).Length();
         if (alignmentDistance > kFurnitureEntryAlignmentDistance)
@@ -1071,8 +1012,6 @@ namespace ActorFurniture
             }
             return false;
         }
-        // Furniture shared with the local player is entered here only while another
-        // marker is free: FurnitureSync hides the actor otherwise.
         const auto marker = FindAvailableFurnitureMarker(a_actor, *furniture);
         a_remote.furniture.targetHeldByOtherActor = marker < 0 && IsReservedByOtherActor(a_actor, *furniture);
         if (marker < 0)
@@ -1090,7 +1029,6 @@ namespace ActorFurniture
         // The probe answers whether any marker is free, with the first free index.
         // The native entry chooses its own entry point, so on a bench the probe's
         // marker can lie at the far end while the actor stands beside another seat.
-        // Measuring the probe's marker then held the entry back on every pass.
         const auto nearestMarker = FindNearestFurnitureMarker(*furniture, actorPosition);
         const float markerDistance = nearestMarker.distance;
         if (markerDistance > kFurnitureEntryMarkerDistance)

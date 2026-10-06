@@ -20,7 +20,6 @@ typedef enum _skyrimmp_v1_MovementState {
     skyrimmp_v1_MovementState_MOVEMENT_STATE_SNEAKING_RUNNING = 6
 } skyrimmp_v1_MovementState;
 
-/* Bits of Checkpoint.flags above the movement state. */
 typedef enum _skyrimmp_v1_CheckpointFlag {
     skyrimmp_v1_CheckpointFlag_CHECKPOINT_FLAG_NONE = 0,
     skyrimmp_v1_CheckpointFlag_CHECKPOINT_FLAG_JUMPING = 8,
@@ -43,7 +42,6 @@ typedef enum _skyrimmp_v1_AttackAction {
 } skyrimmp_v1_AttackAction;
 
 typedef enum _skyrimmp_v1_PowerDirection {
-    /* Only a plain attack has none. */
     skyrimmp_v1_PowerDirection_POWER_DIRECTION_NONE = 0,
     skyrimmp_v1_PowerDirection_POWER_DIRECTION_STANDING = 1,
     skyrimmp_v1_PowerDirection_POWER_DIRECTION_FORWARD = 2,
@@ -60,53 +58,33 @@ typedef enum _skyrimmp_v1_HandKind {
 } skyrimmp_v1_HandKind;
 
 /* Struct definitions */
-/* A form by the file that defines it and its file-local ID, so peers with
- different load orders agree on it. */
 typedef struct _skyrimmp_v1_FormRef {
     char plugin[261];
     uint32_t form_id;
 } skyrimmp_v1_FormRef;
 
-/* One latest-wins player sample, quantized. The coordinate space and graph
- epoch it belongs to are the sender's latest Context. */
 typedef struct _skyrimmp_v1_Checkpoint {
-    /* Sender slot. Set by the server on relayed entries only. */
     uint32_t player;
     uint64_t sequence;
-    /* Game units, rounded. */
     int32_t x;
     int32_t y;
     int32_t z;
-    /* 0..4095, one step is 2π/4096. */
     uint32_t heading;
-    /* Radians × 1024, |pitch| <= 1609. */
     int32_t pitch;
-    /* Units per second, rounded. */
     uint32_t speed;
-    /* Graph Direction × 256, 0..255. */
     uint32_t direction;
-    /* Bits 0-2 movement state, bits 3-11 CheckpointFlag. */
     uint32_t flags;
-    /* Sender's monotonic clock when sampled, milliseconds modulo 16384.
- Receivers unwrap it against arrival times to play checkpoints back at
- their original spacing. */
     uint32_t time;
 } skyrimmp_v1_Checkpoint;
 
-/* What a checkpoint's position and actions are relative to. Sent when a field
- changes and after every Enter. */
 typedef struct _skyrimmp_v1_Context {
     uint32_t cell_id;
-    /* Zero for an interior, which then compares by cell_id. */
     uint32_t worldspace_id;
-    /* Never decreases. */
     uint64_t graph_epoch;
-    /* Occupied placed furniture reference; unset for none. */
     bool has_furniture;
     skyrimmp_v1_FormRef furniture;
 } skyrimmp_v1_Context;
 
-/* One item of the ordered attack stream. */
 typedef struct _skyrimmp_v1_Action {
     uint64_t action_sequence;
     uint64_t graph_epoch;
@@ -143,11 +121,7 @@ typedef struct _skyrimmp_v1_DefaultRace {
 } skyrimmp_v1_DefaultRace;
 
 typedef struct _skyrimmp_v1_Appearance {
-    /* A client's own counter. On a relayed copy, the server's: it also rises
- when the server changes the name. */
     uint64_t revision;
-    /* Set by the server to the session's display name; a client's value is
- ignored. A replayed player keeps its recorded name. */
     char name[129];
     uint32_t level;
     bool has_race;
@@ -157,10 +131,8 @@ typedef struct _skyrimmp_v1_Appearance {
     float height;
     pb_size_t head_parts_count;
     skyrimmp_v1_HeadPart head_parts[16];
-    /* Unset for none. */
     bool has_hair_color;
     skyrimmp_v1_Color hair_color;
-    /* Unset for none. */
     bool has_face_details;
     skyrimmp_v1_FormRef face_details;
     bool has_body_tint;
@@ -171,7 +143,6 @@ typedef struct _skyrimmp_v1_Appearance {
     int32_t face_parts[4];
     pb_size_t tints_count;
     skyrimmp_v1_Tint tints[64];
-    /* Unset for none. */
     bool has_default_race;
     skyrimmp_v1_DefaultRace default_race;
 } skyrimmp_v1_Appearance;
@@ -184,10 +155,8 @@ typedef struct _skyrimmp_v1_Armor {
 
 typedef struct _skyrimmp_v1_Hand {
     skyrimmp_v1_HandKind kind;
-    /* Unset for a spell. */
     bool has_form;
     skyrimmp_v1_FormRef form;
-    /* WEAPON_TYPE, only for a weapon. */
     uint32_t weapon_type;
 } skyrimmp_v1_Hand;
 
@@ -204,7 +173,6 @@ typedef struct _skyrimmp_v1_Equipment {
     uint64_t revision;
     pb_size_t armor_count;
     skyrimmp_v1_Armor armor[32];
-    /* Unset for an empty hand. */
     bool has_right_hand;
     skyrimmp_v1_Hand right_hand;
     bool has_left_hand;

@@ -1,7 +1,3 @@
-// Package session serves player connections: one binary WebSocket message
-// per protobuf envelope. Each connection authenticates its player's session
-// with the hello, decodes and validates on its own reader goroutine, submits
-// accepted messages to the hub, and writes its outbox on a writer goroutine.
 package session
 
 import (
@@ -29,51 +25,34 @@ import (
 	"skyrim-mp/server/internal/wire/pb"
 )
 
-// The largest valid ClientMessage is about 12.9 KB.
 const readLimitBytes = 16 * 1024
 
 const (
-	// StatusProtocolMismatch closes a connection whose Hello names another
-	// protocol version. The reason is "protocol <server version>".
-	StatusProtocolMismatch websocket.StatusCode = 4001
-	// StatusBacklog closes a connection that stopped reading.
-	StatusBacklog websocket.StatusCode = 4002
-	// StatusRateLimited closes a connection that sends too fast.
-	StatusRateLimited websocket.StatusCode = 4003
-	// StatusDisplayNameTaken closes a connection whose Hello asks for a display
-	// name another session holds.
-	StatusDisplayNameTaken websocket.StatusCode = 4004
-	// StatusDisplayNameInvalid closes a connection whose Hello has no display
-	// name or one that cannot be a display name.
+	StatusProtocolMismatch   websocket.StatusCode = 4001
+	StatusBacklog            websocket.StatusCode = 4002
+	StatusRateLimited        websocket.StatusCode = 4003
+	StatusDisplayNameTaken   websocket.StatusCode = 4004
 	StatusDisplayNameInvalid websocket.StatusCode = 4005
-	// StatusReplaced closes a connection whose session connected again.
-	StatusReplaced websocket.StatusCode = 4006
-	// StatusServerFull closes a connection whose session would exceed
-	// limits.max_players.
-	StatusServerFull websocket.StatusCode = 4007
-	// StatusTooManyNewSessions closes a connection whose hello needs a new
-	// session when its address took limits.new_sessions_per_address_per_hour.
+	StatusReplaced           websocket.StatusCode = 4006
+	StatusServerFull         websocket.StatusCode = 4007
 	StatusTooManyNewSessions websocket.StatusCode = 4008
 )
 
-// How often connected sessions are marked used and expired ones deleted.
 const maintenanceInterval = time.Hour
 
 type Server struct {
-	loop   *hub.Loop
-	store  *auth.Store
-	config config.Config
-	log    *slog.Logger
-	// Nil without an egress budget.
-	budget  *delivery.Budget
-	gate    *admission.Gate
-	trusted []netip.Prefix
-	// Joins refused before a WebSocket exists, which a flood would repeat.
+	loop     *hub.Loop
+	store    *auth.Store
+	config   config.Config
+	log      *slog.Logger
+	budget   *delivery.Budget
+	gate     *admission.Gate
+	trusted  []netip.Prefix
 	refusals *rejectionLog
 
 	mu sync.Mutex
-	// By slot. Set on the hub goroutine as a client connects, so a session
-	// that connects again finds the connection it replaces.
+	// Set on the hub goroutine as a client connects, so a session that connects again finds
+	// the connection it replaces.
 	connections map[uint32]*connection
 }
 
@@ -81,7 +60,6 @@ type connection struct {
 	conn    *websocket.Conn
 	cancel  context.CancelFunc
 	session uint64
-	// The client sent something after its hello, so it received the welcome.
 	// Reader goroutine only.
 	heard bool
 }
@@ -98,12 +76,10 @@ func NewServer(loop *hub.Loop, store *auth.Store, c config.Config, log *slog.Log
 		refusals: newRejectionLog(log, "refused connections"), connections: make(map[uint32]*connection)}
 }
 
-// UseBudget makes every connection's writes share b. Call before serving.
 func (s *Server) UseBudget(b *delivery.Budget) {
 	s.budget = b
 }
 
-// SetLoop sets the hub connections join. Call before serving.
 func (s *Server) SetLoop(loop *hub.Loop) {
 	s.loop = loop
 }
@@ -133,10 +109,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.serve(r.Context(), conn, admission.ClientAddress(r, s.trusted))
 }
 
-// playerOrigin refuses WebSocket upgrades from web pages, so a page cannot
-// make its visitors' browsers join. A browser always sends the page's origin,
-// whose scheme is never ws or wss. IXWebSocket, the plugin's transport, sends
-// ws://host:port or wss://host:port, and Go tools send none.
+// A browser always sends the page's origin, whose scheme is never ws or wss.
+// IXWebSocket sends ws://host:port or wss://host:port, and Go tools send none.
 func playerOrigin(r *http.Request) bool {
 	for _, origin := range r.Header.Values("Origin") {
 		u, err := url.Parse(origin)
@@ -207,8 +181,8 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address net
 	s.mu.Lock()
 	delete(s.connections, slot)
 	s.mu.Unlock()
-	// A stopping server closes the store; Maintain marked the session used
-	// within the last interval.
+	// A stopping server closes the store; Maintain marked the session used within the last
+	// interval.
 	if parent.Err() == nil {
 		s.settle(current, identity.Token != nil, log)
 	}
@@ -242,15 +216,12 @@ func (s *Server) readHello(ctx context.Context, conn *websocket.Conn) (*pb.Hello
 
 var errServerFull = errors.New("server full")
 
-// join reads the hello and admits its session. A refused connection is closed
-// with the status that tells the client why; the hello is nil when none came.
 func (s *Server) join(ctx context.Context, conn *websocket.Conn, address netip.Addr) (*pb.Hello, hub.Identity, error) {
 	defer s.gate.EndHello()
 	hello, err := s.readHello(ctx, conn)
 	if err != nil {
 		return nil, hub.Identity{}, err
 	}
-	// Spares a full server the session it would issue and then delete.
 	if len(hello.GetSessionToken()) == 0 && s.gate.Full() {
 		conn.Close(StatusServerFull, errServerFull.Error())
 		return hello, hub.Identity{}, errServerFull
@@ -271,8 +242,6 @@ func (s *Server) join(ctx context.Context, conn *websocket.Conn, address netip.A
 	return hello, identity, nil
 }
 
-// authenticate resumes or issues the session the hello asks for. A refused
-// connection is closed with the status that tells the client why.
 func (s *Server) authenticate(conn *websocket.Conn, hello *pb.Hello, address netip.Addr) (hub.Identity, error) {
 	if err := validate.Hello(hello); err != nil {
 		if errors.Is(err, validate.ErrDisplayName) {
@@ -300,11 +269,6 @@ func (s *Server) authenticate(conn *websocket.Conn, hello *pb.Hello, address net
 	return hub.Identity{Session: session.ID, DisplayName: session.DisplayName, Token: issued}, nil
 }
 
-// settle ends a connection's use of its session. A client that never
-// received the welcome of a new session cannot present its token, and the
-// session would keep the display name from its own player until it expired,
-// so it is deleted, unless the token came back on another connection
-// meanwhile.
 func (s *Server) settle(c *connection, issued bool, log *slog.Logger) {
 	if issued && !c.heard {
 		abandoned, err := s.store.Abandon(c.session)
@@ -326,8 +290,6 @@ func (c *connection) replace() {
 	c.cancel()
 }
 
-// Maintain keeps the sessions of connected players alive and deletes expired
-// ones, until ctx ends.
 func (s *Server) Maintain(ctx context.Context) {
 	ticker := time.NewTicker(maintenanceInterval)
 	defer ticker.Stop()
@@ -408,9 +370,6 @@ func (s *Server) write(ctx context.Context, conn *websocket.Conn, outbox *delive
 		outbox.AddWritten(len(frame))
 		return nil
 	}
-	// Wakes the writer for checkpoints of far peers deferred by their rate. It
-	// fires a tick late, so a tick's batch usually carries them first and no
-	// separate write is needed.
 	deferred := time.NewTimer(time.Hour)
 	deferred.Stop()
 	for {
@@ -443,8 +402,6 @@ func (s *Server) write(ctx context.Context, conn *websocket.Conn, outbox *delive
 	}
 }
 
-// keepAlive pings on the transport, independent of the game loop: a paused
-// game sends nothing for as long as it stays paused.
 func (s *Server) keepAlive(ctx context.Context, conn *websocket.Conn, cancel context.CancelFunc) {
 	interval := time.Duration(s.config.Liveness.PingIntervalSeconds * float64(time.Second))
 	timeout := time.Duration(s.config.Liveness.TimeoutSeconds * float64(time.Second))

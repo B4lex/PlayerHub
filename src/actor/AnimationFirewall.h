@@ -6,22 +6,15 @@ struct RemoteActor;
 
 namespace AnimationFirewall
 {
-    // Installs the local animation-event filter and the Direction and TurnDelta
-    // channel overrides for registered remote actors.
     void InstallHooks();
 
-    // Admits only network-owned and client-managed events once enabled.
     void Enable(RemoteActor& a_remote);
     void Disable(RemoteActor& a_remote);
 
-    // Observes graph output annotations (landing and weapon-transition ends).
     [[nodiscard]] bool RegisterGraphOutputEventSink(RE::BSAnimationGraphManager& a_graphManager);
 
-    // Delivers a network-owned event past the filter. Game thread only.
     [[nodiscard]] bool NotifyNetworkAnimationGraph(RE::Actor& a_actor, const RE::BSFixedString& a_eventName);
 
-    // Sends IdleForceDefaultState past the filter, then raises a carried torch
-    // again, because the reset also drops the graph's torch arm layer.
-    // Returns whether the default-state event was accepted. Game thread only.
+    // IdleForceDefaultState also drops the graph's torch arm layer.
     [[nodiscard]] bool ForceDefaultGraphState(RE::Actor& a_actor);
 }

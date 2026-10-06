@@ -16,7 +16,6 @@ namespace UI::ConnectionControls
     {
         using Network::ConnectionState;
 
-        // In font sizes, so the layout follows the overlay scale.
         constexpr float kMinimumButtonWidthFonts = 7.0F;
         constexpr float kIndicatorRadiusFonts = 0.28F;
         constexpr float kIndicatorGapFonts = 0.5F;
@@ -34,8 +33,6 @@ namespace UI::ConnectionControls
         struct Status
         {
             ConnectionState state;
-            // The server refused the latest connection, which left the player
-            // disconnected.
             std::optional<Network::Refusal> refusal;
         };
 
@@ -76,9 +73,6 @@ namespace UI::ConnectionControls
             }
         }
 
-        // Green while connected, amber and pulsing while a connection is on its
-        // way, red once refused, and grey otherwise while none is wanted. The
-        // text it marks follows on the same line.
         void DrawIndicator(const Status& a_status)
         {
             auto color = ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);

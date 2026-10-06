@@ -219,7 +219,11 @@ on its edges ends ([UI overlay](ui-overlay.md#size)).
   Entries no setting reads are kept.
 - A setting absent from the file and equal to its default stays absent, so a
   removed line keeps meaning "default".
-- A missing or unreadable file is recreated from the commented default.
+- A missing or unreadable file is recreated from the commented default. A file
+  whose existence cannot be checked is left alone and the defaults are used,
+  since writing could truncate it.
+- One lock serializes file access and `Apply`, so the live configuration and
+  the file always change in the same order.
 - The text goes to `skyrim-mp.ini.tmp` and is renamed over the file, so a failed
   write never truncates it. A failed save is logged and reported in the window;
   the applied settings still last until restart.

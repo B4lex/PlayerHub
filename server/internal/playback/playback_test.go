@@ -25,7 +25,6 @@ func (p *fakePlayer) Send(m *pb.ClientMessage) {
 
 func (p *fakePlayer) Leave() { p.left = true }
 
-// take describes and forgets what was sent, one word per message.
 func (p *fakePlayer) take() string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -68,8 +67,6 @@ func message(t int64, m *pb.ClientMessage) recording.Message {
 	return recording.Message{TMs: t, Message: m}
 }
 
-// timeline has appearance and equipment at 0, a context, a checkpoint every
-// 100 ms running along x (x = t / 10), and one attack at 500 ms.
 func timeline() *recording.Recording {
 	r := &recording.Recording{Header: recording.Header{ID: "r1", PlayerName: "Lydia"}, End: &recording.End{TMs: 1000, Reason: "stopped"}}
 	add := func(t int64, m *pb.ClientMessage) { r.Messages = append(r.Messages, message(t, m)) }
@@ -126,8 +123,6 @@ func TestCheckpointsCarryTheirTimelineTime(t *testing.T) {
 	s, p, clock := newSession(t, timeline(), Options{Autoplay: true, Rate: 2})
 	s.Advance()
 	p.take()
-	// A late timer emits two checkpoints at once; they keep the recorded
-	// spacing, halved by the rate.
 	clock.advance(130)
 	s.Advance()
 	p.mu.Lock()

@@ -16,7 +16,6 @@ import (
 
 const suffix = ".jsonl"
 
-// Recording IDs become file names and URL segments.
 var idPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
 var ErrNotFound = errors.New("recording not found")
@@ -25,7 +24,6 @@ func ValidID(id string) bool {
 	return idPattern.MatchString(id)
 }
 
-// Store is the directory of recordings.
 type Store struct {
 	directory string
 	log       *slog.Logger
@@ -43,7 +41,6 @@ func NewStore(directory string, log *slog.Logger) *Store {
 	return &Store{directory: directory, log: log, cache: make(map[string]cachedInfo)}
 }
 
-// NewID returns a sortable, readable ID unused in the directory.
 func (s *Store) NewID(now time.Time) string {
 	stamp := now.UTC().Format("20060102-150405")
 	for {
@@ -60,7 +57,6 @@ func (s *Store) path(id string) string {
 	return filepath.Join(s.directory, id+suffix)
 }
 
-// Path returns the file of a recording ID, or ErrNotFound for an invalid ID.
 func (s *Store) Path(id string) (string, error) {
 	if !ValidID(id) {
 		return "", ErrNotFound
@@ -68,7 +64,6 @@ func (s *Store) Path(id string) (string, error) {
 	return s.path(id), nil
 }
 
-// Create opens a new recording for appending. It never overwrites one.
 func (s *Store) Create(header Header) (*os.File, error) {
 	path, err := s.Path(header.ID)
 	if err != nil {
@@ -80,8 +75,6 @@ func (s *Store) Create(header Header) (*os.File, error) {
 	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 }
 
-// Infos lists readable recordings, newest first, skipping IDs the caller
-// describes better, such as captures still being written.
 func (s *Store) Infos(skip map[string]bool) []Info {
 	entries, err := os.ReadDir(s.directory)
 	if err != nil {

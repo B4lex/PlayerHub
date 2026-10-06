@@ -82,7 +82,6 @@ func (c *client) send(m *pb.ClientMessage) {
 	}
 }
 
-// receive returns the next message that is not a roster change.
 func (c *client) receive() *pb.ServerMessage {
 	c.t.Helper()
 	for {
@@ -107,8 +106,6 @@ func (c *client) receiveAny() *pb.ServerMessage {
 	return &m
 }
 
-// tryReceive returns an error instead of failing the test, for a connection
-// the server may refuse.
 func (c *client) tryReceive() (*pb.ServerMessage, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -125,7 +122,6 @@ func hello(displayName string, token []byte) *pb.ClientMessage {
 		ProtocolVersion: uint32(pb.Protocol_PROTOCOL_VERSION), DisplayName: displayName, SessionToken: token}}}
 }
 
-// resume connects with a session's token, or without one for a new session.
 func resume(t *testing.T, s *testServer, displayName string, token []byte) (*client, *pb.Welcome) {
 	t.Helper()
 	c := dial(t, s)
@@ -134,7 +130,6 @@ func resume(t *testing.T, s *testServer, displayName string, token []byte) (*cli
 	if welcome == nil {
 		t.Fatal("no welcome")
 	}
-	// A new session is kept once its client is heard from.
 	if welcome.GetSessionToken() != nil {
 		c.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 9999}}})
 		if result := c.receive().GetResult(); result.GetRequestId() != 9999 {
@@ -150,7 +145,6 @@ func join(t *testing.T, s *testServer, displayName string) (*client, uint32) {
 	return c, welcome.Slot
 }
 
-// refused connects and returns the status the server closed with.
 func refused(t *testing.T, s *testServer, displayName string, token []byte) (websocket.StatusCode, string) {
 	t.Helper()
 	c := dial(t, s)
@@ -293,7 +287,6 @@ func TestHelloIssuesAndResumesASession(t *testing.T) {
 		t.Fatalf("resumed %v after %v", resumed, issued)
 	}
 
-	// A token no session has, such as an expired one, gets a new session.
 	_, other := resume(t, s, "Serana", bytes.Repeat([]byte{1}, 32))
 	if other.GetSessionId() == issued.GetSessionId() || len(other.GetSessionToken()) != 32 {
 		t.Fatalf("unknown token got %v", other)
@@ -308,7 +301,6 @@ func TestHelloRenamesAResumedSession(t *testing.T) {
 	if renamed.GetSessionId() != issued.GetSessionId() || renamed.GetDisplayName() != "Jordis" {
 		t.Fatalf("renamed %v", renamed)
 	}
-	// The old name is free for another session.
 	join(t, s, "Lydia")
 }
 
@@ -336,7 +328,6 @@ func TestHelloIsRefused(t *testing.T) {
 			t.Errorf("%s: got %d %q", name, code, reason)
 		}
 	}
-	// A refused hello changed nothing.
 	_, again := resume(t, s, "Serana", serana.GetSessionToken())
 	if again.GetSessionId() != serana.GetSessionId() || again.GetDisplayName() != "Serana" {
 		t.Fatalf("after refusals: %v", again)
@@ -369,14 +360,11 @@ func TestSessionConnectingAgainClosesItsEarlierConnection(t *testing.T) {
 
 func TestNewSessionThatIsNeverUsedIsDeleted(t *testing.T) {
 	s := startServer(t, config.Default())
-	// The welcome may never reach a client whose connection drops at once. It
-	// could not present the token, and would find its own display name taken.
 	c := dial(t, s)
 	c.send(hello("Lydia", nil))
 	lost := c.receive().GetWelcome()
 	c.conn.Close(websocket.StatusNormalClosure, "")
 
-	// The display name is free once the server has noticed the close.
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		probe := dial(t, s)
@@ -399,7 +387,6 @@ func TestUsedSessionIsKept(t *testing.T) {
 	s := startServer(t, config.Default())
 	c, issued := resume(t, s, "Lydia", nil)
 	c.conn.Close(websocket.StatusNormalClosure, "")
-	// Whenever the server notices the close, the session is still there.
 	for range 20 {
 		if code, _ := refused(t, s, "Lydia", nil); code != StatusDisplayNameTaken {
 			t.Fatalf("the display name of a used session was given away: %d", code)
@@ -413,8 +400,6 @@ func TestUsedSessionIsKept(t *testing.T) {
 
 func TestNewSessionResumedBeforeItWasUsedIsKept(t *testing.T) {
 	s := startServer(t, config.Default())
-	// The client received the welcome, lost the connection before sending
-	// anything, and came back with the token before the server noticed.
 	first := dial(t, s)
 	first.send(hello("Lydia", nil))
 	issued := first.receive().GetWelcome()
@@ -426,8 +411,6 @@ func TestNewSessionResumedBeforeItWasUsedIsKept(t *testing.T) {
 	if code, _ := closeStatus(t, first); code != StatusReplaced {
 		t.Fatalf("the first connection closed with %d", code)
 	}
-	// Whenever the first connection ends on the server, the session is still
-	// there.
 	for range 20 {
 		if code, _ := refused(t, s, "Lydia", nil); code != StatusDisplayNameTaken {
 			t.Fatalf("the session of the second connection is gone: %d", code)
@@ -515,14 +498,12 @@ func TestFullServerRefusesNewPlayers(t *testing.T) {
 	if code, reason := refused(t, s, "Serana", nil); code != StatusServerFull || reason != "server full" {
 		t.Fatalf("got %d %q", code, reason)
 	}
-	// A connected session may replace its connection on a full server.
 	second, _ := resume(t, s, "Lydia", lydia.GetSessionToken())
 	if code, _ := closeStatus(t, first); code != StatusReplaced {
 		t.Fatalf("got %d", code)
 	}
 	second.conn.Close(websocket.StatusNormalClosure, "")
 
-	// Leaving frees the place.
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		c := dial(t, s)
@@ -547,11 +528,9 @@ func TestNewSessionsPerAddressAreLimited(t *testing.T) {
 	if code, reason := refused(t, s, "Aela", nil); code != StatusTooManyNewSessions || reason != "too many new sessions" {
 		t.Fatalf("got %d %q", code, reason)
 	}
-	// A taken display name is refused for that, without the limit.
 	if code, _ := refused(t, s, "lydia", nil); code != StatusDisplayNameTaken {
 		t.Fatalf("got %d", code)
 	}
-	// Resuming takes no new session.
 	first.conn.Close(websocket.StatusNormalClosure, "")
 	resume(t, s, "Lydia", lydia.GetSessionToken())
 }

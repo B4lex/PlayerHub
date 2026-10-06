@@ -7,8 +7,6 @@ const (
 	chatWindowSeconds     = 5.0
 )
 
-// chatThrottle allows chatMessagesPerWindow accepted messages in any
-// chatWindowSeconds. Rejected messages do not count.
 type chatThrottle struct {
 	accepted []time.Time
 }
