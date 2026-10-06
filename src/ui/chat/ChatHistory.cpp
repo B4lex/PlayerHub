@@ -1,7 +1,6 @@
 #include "ui/chat/ChatHistory.h"
 #include "sync/filters/PlayerFilters.h"
 #include "ui/Fonts.h"
-#include "ui/chat/ChatPlayerMenu.h"
 #include "ui/chat/ChatStyle.h"
 
 #include <algorithm>
@@ -346,7 +345,7 @@ namespace UI
                     if (line.player.playerID != 0 && ImGui::IsItemHovered(kHover)
                         && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
                     {
-                        menuPlayer = line.player;
+                        playerMenu.Open(line.player);
                         ImGui::OpenPopup("##ChatLineMenu");
                     }
                 }
@@ -377,11 +376,10 @@ namespace UI
                 {
                     ImGui::CloseCurrentPopup();
                 }
-                if (ImGui::MenuItem("Whisper"))
+                if (playerMenu.Draw())
                 {
-                    picked = menuPlayer;
+                    picked = playerMenu.GetPlayer();
                 }
-                ChatPlayerMenu::DrawFilterItems(menuPlayer);
                 ImGui::EndPopup();
             }
 

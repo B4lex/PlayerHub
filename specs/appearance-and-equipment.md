@@ -121,6 +121,9 @@ and the race's default look for that sex: default head parts and skin tone. The
 source's head parts, tints, morphs, presets, face details, and hair color belong
 to its own race and sex and are dropped; display name, level, weight, and height
 are kept. Each fallback is logged once per revision.
+`AppearanceSync::GetRaceName` applies the race rule alone to name a player's
+race in its [player menu](ui-overlay.md#player-menu), logging the fallback
+each time.
 
 ### Spawn and respawn
 

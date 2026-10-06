@@ -13,7 +13,7 @@
 /* Enum definitions */
 typedef enum _playerhub_v1_Protocol {
     playerhub_v1_Protocol_PROTOCOL_UNSPECIFIED = 0,
-    playerhub_v1_Protocol_PROTOCOL_VERSION = 6
+    playerhub_v1_Protocol_PROTOCOL_VERSION = 7
 } playerhub_v1_Protocol;
 
 typedef enum _playerhub_v1_ChatChannel {
@@ -65,6 +65,10 @@ typedef struct _playerhub_v1_Vanish {
     bool vanished;
 } playerhub_v1_Vanish;
 
+typedef struct _playerhub_v1_Inspect {
+    uint32_t slot;
+} playerhub_v1_Inspect;
+
 typedef struct _playerhub_v1_ClientMessage {
     pb_size_t which_message;
     union {
@@ -79,6 +83,7 @@ typedef struct _playerhub_v1_ClientMessage {
         playerhub_v1_ChatSend chat;
         playerhub_v1_Ping ping;
         playerhub_v1_Vanish vanish;
+        playerhub_v1_Inspect inspect;
     } message;
 } playerhub_v1_ClientMessage;
 
@@ -168,6 +173,15 @@ typedef struct _playerhub_v1_Roster {
     uint32_t left;
 } playerhub_v1_Roster;
 
+typedef struct _playerhub_v1_Inspection {
+    uint32_t slot;
+    uint32_t level;
+    bool has_race;
+    playerhub_v1_FormRef race;
+    bool has_default_race;
+    playerhub_v1_DefaultRace default_race;
+} playerhub_v1_Inspection;
+
 typedef struct _playerhub_v1_ServerMessage {
     pb_size_t which_message;
     union {
@@ -182,6 +196,7 @@ typedef struct _playerhub_v1_ServerMessage {
         playerhub_v1_PeerEquipment peer_equipment;
         playerhub_v1_ChatMessage chat_message;
         playerhub_v1_Roster roster;
+        playerhub_v1_Inspection inspection;
     } message;
 } playerhub_v1_ServerMessage;
 
@@ -216,6 +231,7 @@ extern "C" {
 
 
 
+
 #define playerhub_v1_PeerLeave_reason_ENUMTYPE playerhub_v1_LeaveReason
 
 
@@ -228,6 +244,7 @@ extern "C" {
 
 
 
+
 /* Initializer values for message structs */
 #define playerhub_v1_Hello_init_default          {0, 0, {0, {0}}, "", {{NULL}, NULL}}
 #define playerhub_v1_Enter_init_default          {0}
@@ -235,6 +252,7 @@ extern "C" {
 #define playerhub_v1_ChatSend_init_default       {0, "", _playerhub_v1_ChatChannel_MIN, 0}
 #define playerhub_v1_Ping_init_default           {0}
 #define playerhub_v1_Vanish_init_default         {0, 0}
+#define playerhub_v1_Inspect_init_default        {0}
 #define playerhub_v1_ClientMessage_init_default  {0, {playerhub_v1_Hello_init_default}}
 #define playerhub_v1_Welcome_init_default        {0, 0, "", {0, {0}}}
 #define playerhub_v1_Result_init_default         {0, 0, ""}
@@ -249,6 +267,7 @@ extern "C" {
 #define playerhub_v1_ChatMessage_init_default    {_playerhub_v1_ChatChannel_MIN, false, playerhub_v1_ChatSpeaker_init_default, false, playerhub_v1_ChatSpeaker_init_default, ""}
 #define playerhub_v1_RosterEntry_init_default    {0, "", 0}
 #define playerhub_v1_Roster_init_default         {{{NULL}, NULL}, 0}
+#define playerhub_v1_Inspection_init_default     {0, 0, false, playerhub_v1_FormRef_init_default, false, playerhub_v1_DefaultRace_init_default}
 #define playerhub_v1_ServerMessage_init_default  {0, {playerhub_v1_Welcome_init_default}}
 #define playerhub_v1_Hello_init_zero             {0, 0, {0, {0}}, "", {{NULL}, NULL}}
 #define playerhub_v1_Enter_init_zero             {0}
@@ -256,6 +275,7 @@ extern "C" {
 #define playerhub_v1_ChatSend_init_zero          {0, "", _playerhub_v1_ChatChannel_MIN, 0}
 #define playerhub_v1_Ping_init_zero              {0}
 #define playerhub_v1_Vanish_init_zero            {0, 0}
+#define playerhub_v1_Inspect_init_zero           {0}
 #define playerhub_v1_ClientMessage_init_zero     {0, {playerhub_v1_Hello_init_zero}}
 #define playerhub_v1_Welcome_init_zero           {0, 0, "", {0, {0}}}
 #define playerhub_v1_Result_init_zero            {0, 0, ""}
@@ -270,6 +290,7 @@ extern "C" {
 #define playerhub_v1_ChatMessage_init_zero       {_playerhub_v1_ChatChannel_MIN, false, playerhub_v1_ChatSpeaker_init_zero, false, playerhub_v1_ChatSpeaker_init_zero, ""}
 #define playerhub_v1_RosterEntry_init_zero       {0, "", 0}
 #define playerhub_v1_Roster_init_zero            {{{NULL}, NULL}, 0}
+#define playerhub_v1_Inspection_init_zero        {0, 0, false, playerhub_v1_FormRef_init_zero, false, playerhub_v1_DefaultRace_init_zero}
 #define playerhub_v1_ServerMessage_init_zero     {0, {playerhub_v1_Welcome_init_zero}}
 
 /* Field tags (for use in manual encoding/decoding) */
@@ -285,6 +306,7 @@ extern "C" {
 #define playerhub_v1_Ping_request_id_tag         1
 #define playerhub_v1_Vanish_session_id_tag       1
 #define playerhub_v1_Vanish_vanished_tag         2
+#define playerhub_v1_Inspect_slot_tag            1
 #define playerhub_v1_ClientMessage_hello_tag     1
 #define playerhub_v1_ClientMessage_enter_tag     2
 #define playerhub_v1_ClientMessage_exit_tag      3
@@ -296,6 +318,7 @@ extern "C" {
 #define playerhub_v1_ClientMessage_chat_tag      9
 #define playerhub_v1_ClientMessage_ping_tag      10
 #define playerhub_v1_ClientMessage_vanish_tag    11
+#define playerhub_v1_ClientMessage_inspect_tag   12
 #define playerhub_v1_Welcome_slot_tag            1
 #define playerhub_v1_Welcome_session_id_tag      2
 #define playerhub_v1_Welcome_display_name_tag    3
@@ -332,6 +355,10 @@ extern "C" {
 #define playerhub_v1_RosterEntry_session_id_tag  3
 #define playerhub_v1_Roster_joined_tag           1
 #define playerhub_v1_Roster_left_tag             2
+#define playerhub_v1_Inspection_slot_tag         1
+#define playerhub_v1_Inspection_level_tag        2
+#define playerhub_v1_Inspection_race_tag         3
+#define playerhub_v1_Inspection_default_race_tag 4
 #define playerhub_v1_ServerMessage_welcome_tag   1
 #define playerhub_v1_ServerMessage_result_tag    2
 #define playerhub_v1_ServerMessage_peer_states_tag 3
@@ -343,6 +370,7 @@ extern "C" {
 #define playerhub_v1_ServerMessage_peer_equipment_tag 9
 #define playerhub_v1_ServerMessage_chat_message_tag 10
 #define playerhub_v1_ServerMessage_roster_tag    11
+#define playerhub_v1_ServerMessage_inspection_tag 12
 
 /* Struct field encoding specification for nanopb */
 #define playerhub_v1_Hello_FIELDLIST(X, a) \
@@ -383,6 +411,11 @@ X(a, STATIC,   SINGULAR, BOOL,     vanished,          2)
 #define playerhub_v1_Vanish_CALLBACK NULL
 #define playerhub_v1_Vanish_DEFAULT NULL
 
+#define playerhub_v1_Inspect_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   slot,              1)
+#define playerhub_v1_Inspect_CALLBACK NULL
+#define playerhub_v1_Inspect_DEFAULT NULL
+
 #define playerhub_v1_ClientMessage_FIELDLIST(X, a) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,hello,message.hello),   1) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,enter,message.enter),   2) \
@@ -394,7 +427,8 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,appearance,message.appearance),   7)
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,equipment,message.equipment),   8) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,chat,message.chat),   9) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,ping,message.ping),  10) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,vanish,message.vanish),  11)
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,vanish,message.vanish),  11) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,inspect,message.inspect),  12)
 #define playerhub_v1_ClientMessage_CALLBACK NULL
 #define playerhub_v1_ClientMessage_DEFAULT NULL
 #define playerhub_v1_ClientMessage_message_hello_MSGTYPE playerhub_v1_Hello
@@ -408,6 +442,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,vanish,message.vanish),  11)
 #define playerhub_v1_ClientMessage_message_chat_MSGTYPE playerhub_v1_ChatSend
 #define playerhub_v1_ClientMessage_message_ping_MSGTYPE playerhub_v1_Ping
 #define playerhub_v1_ClientMessage_message_vanish_MSGTYPE playerhub_v1_Vanish
+#define playerhub_v1_ClientMessage_message_inspect_MSGTYPE playerhub_v1_Inspect
 
 #define playerhub_v1_Welcome_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   slot,              1) \
@@ -509,6 +544,16 @@ X(a, STATIC,   SINGULAR, UINT32,   left,              2)
 #define playerhub_v1_Roster_DEFAULT NULL
 #define playerhub_v1_Roster_joined_MSGTYPE playerhub_v1_RosterEntry
 
+#define playerhub_v1_Inspection_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   slot,              1) \
+X(a, STATIC,   SINGULAR, UINT32,   level,             2) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  race,              3) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  default_race,      4)
+#define playerhub_v1_Inspection_CALLBACK NULL
+#define playerhub_v1_Inspection_DEFAULT NULL
+#define playerhub_v1_Inspection_race_MSGTYPE playerhub_v1_FormRef
+#define playerhub_v1_Inspection_default_race_MSGTYPE playerhub_v1_DefaultRace
+
 #define playerhub_v1_ServerMessage_FIELDLIST(X, a) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,welcome,message.welcome),   1) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,result,message.result),   2) \
@@ -520,7 +565,8 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,peer_action,message.peer_action),   
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,peer_appearance,message.peer_appearance),   8) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,peer_equipment,message.peer_equipment),   9) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,chat_message,message.chat_message),  10) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,roster,message.roster),  11)
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,roster,message.roster),  11) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,inspection,message.inspection),  12)
 #define playerhub_v1_ServerMessage_CALLBACK NULL
 #define playerhub_v1_ServerMessage_DEFAULT NULL
 #define playerhub_v1_ServerMessage_message_welcome_MSGTYPE playerhub_v1_Welcome
@@ -534,6 +580,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,roster,message.roster),  11)
 #define playerhub_v1_ServerMessage_message_peer_equipment_MSGTYPE playerhub_v1_PeerEquipment
 #define playerhub_v1_ServerMessage_message_chat_message_MSGTYPE playerhub_v1_ChatMessage
 #define playerhub_v1_ServerMessage_message_roster_MSGTYPE playerhub_v1_Roster
+#define playerhub_v1_ServerMessage_message_inspection_MSGTYPE playerhub_v1_Inspection
 
 extern const pb_msgdesc_t playerhub_v1_Hello_msg;
 extern const pb_msgdesc_t playerhub_v1_Enter_msg;
@@ -541,6 +588,7 @@ extern const pb_msgdesc_t playerhub_v1_Exit_msg;
 extern const pb_msgdesc_t playerhub_v1_ChatSend_msg;
 extern const pb_msgdesc_t playerhub_v1_Ping_msg;
 extern const pb_msgdesc_t playerhub_v1_Vanish_msg;
+extern const pb_msgdesc_t playerhub_v1_Inspect_msg;
 extern const pb_msgdesc_t playerhub_v1_ClientMessage_msg;
 extern const pb_msgdesc_t playerhub_v1_Welcome_msg;
 extern const pb_msgdesc_t playerhub_v1_Result_msg;
@@ -555,6 +603,7 @@ extern const pb_msgdesc_t playerhub_v1_ChatSpeaker_msg;
 extern const pb_msgdesc_t playerhub_v1_ChatMessage_msg;
 extern const pb_msgdesc_t playerhub_v1_RosterEntry_msg;
 extern const pb_msgdesc_t playerhub_v1_Roster_msg;
+extern const pb_msgdesc_t playerhub_v1_Inspection_msg;
 extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
@@ -564,6 +613,7 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_ChatSend_fields &playerhub_v1_ChatSend_msg
 #define playerhub_v1_Ping_fields &playerhub_v1_Ping_msg
 #define playerhub_v1_Vanish_fields &playerhub_v1_Vanish_msg
+#define playerhub_v1_Inspect_fields &playerhub_v1_Inspect_msg
 #define playerhub_v1_ClientMessage_fields &playerhub_v1_ClientMessage_msg
 #define playerhub_v1_Welcome_fields &playerhub_v1_Welcome_msg
 #define playerhub_v1_Result_fields &playerhub_v1_Result_msg
@@ -578,6 +628,7 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_ChatMessage_fields &playerhub_v1_ChatMessage_msg
 #define playerhub_v1_RosterEntry_fields &playerhub_v1_RosterEntry_msg
 #define playerhub_v1_Roster_fields &playerhub_v1_Roster_msg
+#define playerhub_v1_Inspection_fields &playerhub_v1_Inspection_msg
 #define playerhub_v1_ServerMessage_fields &playerhub_v1_ServerMessage_msg
 
 /* Maximum encoded size of messages (where known) */
@@ -592,6 +643,8 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_ChatSpeaker_size            154
 #define playerhub_v1_Enter_size                  0
 #define playerhub_v1_Exit_size                   0
+#define playerhub_v1_Inspect_size                6
+#define playerhub_v1_Inspection_size             561
 #define playerhub_v1_PeerAction_size             47
 #define playerhub_v1_PeerAppearance_size         8141
 #define playerhub_v1_PeerContext_size            304

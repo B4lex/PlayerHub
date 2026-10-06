@@ -123,6 +123,10 @@ func vanish(session uint64, vanished bool) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Vanish{Vanish: &pb.Vanish{SessionId: session, Vanished: vanished}}}
 }
 
+func inspect(slot uint32) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Inspect{Inspect: &pb.Inspect{Slot: slot}}}
+}
+
 func interior(epoch uint64, cell uint32) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{CellId: cell, GraphEpoch: epoch}}}
 }
@@ -210,6 +214,16 @@ func describe(m *pb.ServerMessage) string {
 			s += fmt.Sprintf(" to %d %s", c.Recipient.Slot, c.Recipient.Name)
 		}
 		return s + ": " + c.Text
+	case *pb.ServerMessage_Inspection:
+		i := body.Inspection
+		s := fmt.Sprintf("inspection %d level %d", i.Slot, i.Level)
+		if i.Race != nil {
+			s += fmt.Sprintf(" race %s|%X", i.Race.Plugin, i.Race.FormId)
+		}
+		if i.DefaultRace != nil {
+			s += fmt.Sprintf(" default %s|%X", i.DefaultRace.Race.GetPlugin(), i.DefaultRace.Race.GetFormId())
+		}
+		return s
 	case *pb.ServerMessage_Roster:
 		s := "roster"
 		for _, e := range body.Roster.Joined {
@@ -807,4 +821,29 @@ func TestEntersAreSpreadNearestFirst(t *testing.T) {
 	c.Advance(1)
 	f.hub.UpdateInterest()
 	expect(t, f.received(viewer), "enter 2 state 1", "enter 1 state 1")
+}
+
+func TestInspect(t *testing.T) {
+	f := newFixture(t)
+	a, b := f.connectAs("Lydia"), f.connectAs("Serana")
+	f.send(b, &pb.ClientMessage{Message: &pb.ClientMessage_Appearance{Appearance: &pb.Appearance{
+		Revision: 1, Name: "Serana", Level: 31, Race: &pb.FormRef{Plugin: "Mod.esp", FormId: 0x812},
+		DefaultRace: &pb.DefaultRace{Race: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 0x13746}, Female: true}}}})
+	v := f.hub.Connect(world.KindReplay, nil)
+	f.send(v, appearance(1, "Lydia"))
+	f.received(a)
+	f.received(b)
+
+	f.send(a, inspect(b))
+	f.send(a, inspect(a))
+	f.send(a, inspect(v))
+	f.send(a, inspect(99))
+	expect(t, f.received(a), "inspection 2 level 31 race Mod.esp|812 default Skyrim.esm|13746",
+		"inspection 1 level 0", "inspection 3 level 0", "inspection 99 level 0")
+	expect(t, f.received(b))
+
+	f.send(a, inspect(b))
+	f.reject(a, inspect(b), ErrRateLimited)
+	f.clock.Advance(0.5)
+	f.send(a, inspect(b))
 }

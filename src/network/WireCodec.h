@@ -35,6 +35,7 @@ namespace Network::Wire
         Multiplayer::PeerSlot a_recipient, std::string_view a_text);
     [[nodiscard]] std::string EncodePing(std::uint32_t a_requestID);
     [[nodiscard]] std::string EncodeVanish(Multiplayer::SessionID a_session, bool a_vanished);
+    [[nodiscard]] std::string EncodeInspect(Multiplayer::PeerSlot a_slot);
 
     struct Welcome
     {
@@ -129,7 +130,7 @@ namespace Network::Wire
     };
 
     using ServerMessage = std::variant<Welcome, Result, PeerStates, PeerEnter, PeerContext, PeerLeave, AnimationAction,
-        PeerAppearance, PeerEquipment, Multiplayer::ChatMessage, RosterChange>;
+        PeerAppearance, PeerEquipment, Multiplayer::ChatMessage, RosterChange, Multiplayer::PlayerInspection>;
 
     class Decoder
     {

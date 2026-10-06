@@ -60,6 +60,7 @@ type member struct {
 	actions limit.TokenBucket
 	chat    chatThrottle
 	enters  limit.TokenBucket
+	inspect limit.TokenBucket
 }
 
 type subscription struct {
@@ -259,6 +260,8 @@ func (h *Hub) Handle(slot uint32, message *pb.ClientMessage) error {
 		return h.chat(m, body.Chat)
 	case *pb.ClientMessage_Vanish:
 		return h.vanish(m, body.Vanish)
+	case *pb.ClientMessage_Inspect:
+		return h.inspect(m, body.Inspect)
 	default:
 		return validate.ErrUnexpected
 	}
@@ -326,6 +329,22 @@ func (h *Hub) vanish(m *member, v *pb.Vanish) error {
 	if slot, ok := h.sessions[session]; ok {
 		h.evaluatePair(m, h.members[slot], h.opts.Clock.Now())
 	}
+	return nil
+}
+
+func (h *Hub) inspect(m *member, request *pb.Inspect) error {
+	if m.outbox == nil {
+		return nil
+	}
+	if !m.inspect.Allow(h.opts.Clock.Now(), inspectsPerSecond, inspectBurst) {
+		return ErrRateLimited
+	}
+	inspection := &pb.Inspection{Slot: request.GetSlot()}
+	if target := h.members[request.GetSlot()]; target != nil && target.listed() && target.Appearance != nil {
+		a := target.Appearance
+		inspection.Level, inspection.Race, inspection.DefaultRace = a.GetLevel(), a.GetRace(), a.GetDefaultRace()
+	}
+	m.outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Inspection{Inspection: inspection}}))
 	return nil
 }
 

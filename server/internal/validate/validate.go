@@ -55,6 +55,7 @@ var (
 	ErrDisplayName = errors.New("invalid display name")
 	ErrToken       = errors.New("invalid session token")
 	ErrVanish      = errors.New("invalid vanish")
+	ErrInspect     = errors.New("invalid inspect")
 )
 
 var ErrUnexpected = errors.New("unexpected message")
@@ -76,6 +77,11 @@ func Message(m *pb.ClientMessage) error {
 	case *pb.ClientMessage_Vanish:
 		if body.Vanish.GetSessionId() == 0 {
 			return ErrVanish
+		}
+		return nil
+	case *pb.ClientMessage_Inspect:
+		if body.Inspect.GetSlot() == 0 {
+			return ErrInspect
 		}
 		return nil
 	default:

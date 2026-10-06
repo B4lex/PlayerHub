@@ -3,6 +3,7 @@
 #include "protocol/ChatMessage.h"
 #include "sync/chat/ChatSync.h"
 #include "ui/Window.h"
+#include "ui/chat/ChatPlayerMenu.h"
 
 #include <imgui.h>
 
@@ -71,7 +72,7 @@ namespace UI
         // Dear ImGui would also count how far from their place the lines were drawn.
         float rewrappedHeight{ -1.0F };
 
-        Multiplayer::RosterEntry menuPlayer;
+        ChatPlayerMenu playerMenu;
         bool menuOpen{ false };
 
         std::array<const Line*, kMaximumRecentLines> recent{};

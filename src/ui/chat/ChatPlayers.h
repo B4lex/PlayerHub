@@ -3,6 +3,7 @@
 #include "protocol/AppearanceState.h"
 #include "protocol/ChatMessage.h"
 #include "sync/chat/ChatRoster.h"
+#include "ui/chat/ChatPlayerMenu.h"
 
 #include <imgui.h>
 
@@ -61,7 +62,7 @@ namespace UI
         std::size_t labelCount{ SIZE_MAX };
         std::array<char, 16> label{};
 
-        Multiplayer::RosterEntry menuPlayer;
+        ChatPlayerMenu playerMenu;
         bool menuOpen{ false };
 
         ImVec2 shownMin;

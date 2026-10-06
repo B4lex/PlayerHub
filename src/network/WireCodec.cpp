@@ -732,6 +732,12 @@ namespace Network::Wire
         return EncodeClientMessage(playerhub_v1_ClientMessage_vanish_tag, playerhub_v1_Vanish_fields, &vanish);
     }
 
+    std::string EncodeInspect(Multiplayer::PeerSlot a_slot)
+    {
+        playerhub_v1_Inspect inspect{ a_slot };
+        return EncodeClientMessage(playerhub_v1_ClientMessage_inspect_tag, playerhub_v1_Inspect_fields, &inspect);
+    }
+
     struct Decoder::Buffer
     {
         playerhub_v1_ServerMessage message;
@@ -953,6 +959,32 @@ namespace Network::Wire
                     return std::unexpected("chat message");
                 }
                 result.channel = *channel;
+                return result;
+            }
+            case playerhub_v1_ServerMessage_inspection_tag:
+            {
+                const auto& inspection = message.message.inspection;
+                if (inspection.slot == 0 || inspection.level > (std::numeric_limits<std::uint16_t>::max)())
+                {
+                    return std::unexpected("inspection");
+                }
+                Multiplayer::PlayerInspection result{ .playerID = inspection.slot,
+                    .level = static_cast<std::uint16_t>(inspection.level) };
+                if (inspection.has_race && !ReadFormReference(inspection.race, result.race.emplace()))
+                {
+                    return std::unexpected("inspection race");
+                }
+                if (inspection.has_default_race)
+                {
+                    auto& defaultRace = result.defaultRace.emplace();
+                    defaultRace.female = inspection.default_race.female;
+                    if (!inspection.default_race.has_race
+                        || !ReadFormReference(inspection.default_race.race, defaultRace.race)
+                        || !Multiplayer::IsBaseGamePlugin(defaultRace.race.plugin))
+                    {
+                        return std::unexpected("inspection defaultRace");
+                    }
+                }
                 return result;
             }
             default:

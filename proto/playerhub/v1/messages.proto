@@ -8,7 +8,7 @@ option go_package = "playerhub/server/internal/wire/pb;pb";
 
 enum Protocol {
   PROTOCOL_UNSPECIFIED = 0;
-  PROTOCOL_VERSION = 6;
+  PROTOCOL_VERSION = 7;
 }
 
 message Hello {
@@ -45,6 +45,10 @@ message Vanish {
   bool vanished = 2;
 }
 
+message Inspect {
+  uint32 slot = 1;
+}
+
 message ClientMessage {
   oneof message {
     Hello hello = 1;
@@ -58,6 +62,7 @@ message ClientMessage {
     ChatSend chat = 9;
     Ping ping = 10;
     Vanish vanish = 11;
+    Inspect inspect = 12;
   }
 }
 
@@ -145,6 +150,13 @@ message Roster {
   uint32 left = 2;
 }
 
+message Inspection {
+  uint32 slot = 1;
+  uint32 level = 2;
+  FormRef race = 3;
+  DefaultRace default_race = 4;
+}
+
 message ServerMessage {
   oneof message {
     Welcome welcome = 1;
@@ -158,5 +170,6 @@ message ServerMessage {
     PeerEquipment peer_equipment = 9;
     ChatMessage chat_message = 10;
     Roster roster = 11;
+    Inspection inspection = 12;
   }
 }

@@ -109,6 +109,7 @@ write before render ([Remote actor](remote-actor.md#frame-order)).
 restore save eligibility after a save
 DefaultOutfit::Refresh                    # re-resolve a changed [DefaultOutfit]
 ApplyNetworkChanges                       # the one drain
+ServePlayerDetails                        # the open player menu's race and level
 PlayCheckpoints                           # each peer's due checkpoints play
 ActorLifecycle::RefillSpawnAllowance
 if no player: return
@@ -230,6 +231,8 @@ pass:
    any checkpoint. Neither alone spawns an actor.
 6. Actions are ordered and bounded by the combat system, and accepted against
    the newest received checkpoint, played or not.
+7. Inspections go to `PlayerDetails::Accept`
+   ([UI overlay](ui-overlay.md#player-menu)).
 
 `PlayCheckpoints` then advances every peer's playout. Each checkpoint that
 reaches its playback time is shown, in order, to furniture, animation, and

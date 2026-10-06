@@ -6,8 +6,6 @@
 
 #include <imgui.h>
 
-#include <utility>
-
 namespace UI
 {
     namespace
@@ -40,7 +38,7 @@ namespace UI
                 {
                     if (auto activated = PlayerActivation::TakeActivated(); activated && WindowManager::Focus(*this))
                     {
-                        player = std::move(*activated);
+                        playerMenu.Open(*activated);
                     }
                     return;
                 }
@@ -60,8 +58,7 @@ namespace UI
                 bool whisper = false;
                 if (ImGui::BeginPopup("##WorldPlayerMenu"))
                 {
-                    whisper = ImGui::MenuItem("Whisper");
-                    ChatPlayerMenu::DrawFilterItems(player);
+                    whisper = playerMenu.Draw();
                     if (!a_input.focused)
                     {
                         ImGui::CloseCurrentPopup();
@@ -78,12 +75,12 @@ namespace UI
                 if (whisper)
                 {
                     WindowManager::ReleaseFocus(*this);
-                    PlayerActivation::RequestWhisper(player);
+                    PlayerActivation::RequestWhisper(playerMenu.GetPlayer());
                 }
             }
 
         private:
-            Multiplayer::RosterEntry player;
+            ChatPlayerMenu playerMenu;
             // The menu was opened and Dear ImGui has not closed it yet.
             bool shown{ false };
         };

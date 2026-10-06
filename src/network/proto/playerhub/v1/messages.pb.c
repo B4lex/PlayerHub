@@ -24,6 +24,9 @@ PB_BIND(playerhub_v1_Ping, playerhub_v1_Ping, AUTO)
 PB_BIND(playerhub_v1_Vanish, playerhub_v1_Vanish, AUTO)
 
 
+PB_BIND(playerhub_v1_Inspect, playerhub_v1_Inspect, AUTO)
+
+
 PB_BIND(playerhub_v1_ClientMessage, playerhub_v1_ClientMessage, 4)
 
 
@@ -64,6 +67,9 @@ PB_BIND(playerhub_v1_RosterEntry, playerhub_v1_RosterEntry, AUTO)
 
 
 PB_BIND(playerhub_v1_Roster, playerhub_v1_Roster, AUTO)
+
+
+PB_BIND(playerhub_v1_Inspection, playerhub_v1_Inspection, 2)
 
 
 PB_BIND(playerhub_v1_ServerMessage, playerhub_v1_ServerMessage, 4)

@@ -155,8 +155,8 @@ rule here.
    action after a new `PeerEnter` starts a new boundary.
 6. Appearance and equipment are latest-wins per (recipient, peer): a newer one
    drops the unsent one and is queued at the end, keeping the true order.
-7. Chat, results, and roster changes are ordered with everything else in the
-   outbox.
+7. Chat, results, roster changes, and inspections are ordered with
+   everything else in the outbox.
 
 ## Records per pair
 

@@ -2,7 +2,6 @@
 #include "sync/filters/PlayerFilters.h"
 #include "ui/Theme.h"
 #include "ui/chat/ChatHistory.h"
-#include "ui/chat/ChatPlayerMenu.h"
 #include "ui/chat/ChatStyle.h"
 
 #include <algorithm>
@@ -329,7 +328,7 @@ namespace UI
                     }
                     if (ImGui::IsMouseReleased(ImGuiMouseButton_Right))
                     {
-                        menuPlayer = player;
+                        playerMenu.Open(player);
                         ImGui::OpenPopup("##ChatPlayerMenu");
                     }
                 }
@@ -343,11 +342,10 @@ namespace UI
                 {
                     ImGui::CloseCurrentPopup();
                 }
-                if (ImGui::MenuItem("Whisper"))
+                if (playerMenu.Draw())
                 {
-                    a_picked = menuPlayer;
+                    a_picked = playerMenu.GetPlayer();
                 }
-                ChatPlayerMenu::DrawFilterItems(menuPlayer);
                 ImGui::EndPopup();
             }
         }

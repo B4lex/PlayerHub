@@ -344,27 +344,33 @@ namespace AppearanceSync
             bool own{ false };
         };
 
-        ResolvedRace ResolveRace(Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance)
+        ResolvedRace ResolveRace(Multiplayer::PeerSlot a_playerID, const Multiplayer::AppearanceFormReference& a_race,
+            bool a_female, const std::optional<Multiplayer::DefaultRace>& a_defaultRace, std::uint64_t a_revision)
         {
-            auto* race = ResolveForm<RE::TESRace>(a_appearance.race);
+            auto* race = ResolveForm<RE::TESRace>(a_race);
             if (IsPlayableRace(race))
             {
-                return ResolvedRace{ .race = race, .female = a_appearance.female, .own = true };
+                return ResolvedRace{ .race = race, .female = a_female, .own = true };
             }
 
-            const auto& defaultRace = a_appearance.defaultRace;
-            auto* fallback = defaultRace ? ResolveForm<RE::TESRace>(defaultRace->race) : nullptr;
+            auto* fallback = a_defaultRace ? ResolveForm<RE::TESRace>(a_defaultRace->race) : nullptr;
             const bool useDefault = IsPlayableRace(fallback);
             logs::warn(
                 "Appearance sync race unavailable: player={} revision={} race={}|{:06X} resolved={} "
                 "defaultRace={} using={}",
-                a_playerID, static_cast<unsigned long long>(a_appearance.revision), a_appearance.race.plugin,
-                a_appearance.race.localFormID, race != nullptr,
-                defaultRace ? std::format("{}|{:06X}", defaultRace->race.plugin, defaultRace->race.localFormID)
-                            : std::string{ "none" },
+                a_playerID, static_cast<unsigned long long>(a_revision), a_race.plugin, a_race.localFormID,
+                race != nullptr,
+                a_defaultRace ? std::format("{}|{:06X}", a_defaultRace->race.plugin, a_defaultRace->race.localFormID)
+                              : std::string{ "none" },
                 useDefault ? "default" : "NordRace");
             return ResolvedRace{ .race = useDefault ? fallback : LookupFallbackRace(),
-                .female = defaultRace ? defaultRace->female : a_appearance.female };
+                .female = a_defaultRace ? a_defaultRace->female : a_female };
+        }
+
+        ResolvedRace ResolveRace(Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance)
+        {
+            return ResolveRace(
+                a_playerID, a_appearance.race, a_appearance.female, a_appearance.defaultRace, a_appearance.revision);
         }
 
         RE::BGSHeadPart* FindDefaultHeadPart(FaceRelatedData* a_faceData, std::uint8_t a_type)
@@ -790,6 +796,14 @@ namespace AppearanceSync
         published = std::move(candidate);
         candidate.reset();
         publishElapsed = 0.0F;
+    }
+
+    std::string GetRaceName(Multiplayer::PeerSlot a_playerID, const Multiplayer::AppearanceFormReference& a_race,
+        const std::optional<Multiplayer::DefaultRace>& a_defaultRace)
+    {
+        const auto* race = ResolveRace(a_playerID, a_race, false, a_defaultRace, 0).race;
+        const char* name = race ? race->GetFullName() : nullptr;
+        return name ? name : "";
     }
 
     void AcceptRemoteAppearance(

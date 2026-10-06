@@ -11,6 +11,7 @@
 #include "sync/animation/AnimationSync.h"
 #include "sync/appearance/AppearanceSync.h"
 #include "sync/chat/PlayerActivation.h"
+#include "sync/chat/PlayerDetails.h"
 #include "sync/combat/CombatSync.h"
 #include "sync/death/DeathSync.h"
 #include "sync/equipment/EquipmentSync.h"
@@ -157,6 +158,8 @@ namespace SyncCoordinator
                 CombatSync::AcceptRemoteAction(known ? &peer->second.combat : nullptr,
                     known ? peer->second.playout.GetNewest() : nullptr, std::move(action));
             }
+
+            PlayerDetails::Accept(changes.inspections);
         }
 
         void PlayCheckpoints(Peers& a_peers)
@@ -240,6 +243,17 @@ namespace SyncCoordinator
                     return;
                 }
             }
+        }
+
+        void ServePlayerDetails(const Peers& a_peers)
+        {
+            const auto playerID = PlayerDetails::TakeRequest();
+            if (!playerID)
+            {
+                return;
+            }
+            const auto peer = a_peers.find(*playerID);
+            PlayerDetails::Serve(*playerID, peer != a_peers.end() ? &peer->second : nullptr);
         }
 
         void RestoreSaveEligibility(Peers& a_peers)
@@ -411,6 +425,7 @@ namespace SyncCoordinator
         RestoreSaveEligibility(s_peers);
         DefaultOutfit::Refresh();
         ApplyNetworkChanges(s_peers);
+        ServePlayerDetails(s_peers);
         PlayCheckpoints(s_peers);
         ActorLifecycle::RefillSpawnAllowance(a_delta);
         if (!a_player)

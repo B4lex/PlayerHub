@@ -303,3 +303,15 @@ func TestVanish(t *testing.T) {
 		t.Error("vanish without a session accepted")
 	}
 }
+
+func TestInspect(t *testing.T) {
+	inspect := func(slot uint32) *pb.ClientMessage {
+		return &pb.ClientMessage{Message: &pb.ClientMessage_Inspect{Inspect: &pb.Inspect{Slot: slot}}}
+	}
+	if err := Message(inspect(3)); err != nil {
+		t.Errorf("inspect rejected: %v", err)
+	}
+	if Message(inspect(0)) != ErrInspect {
+		t.Error("inspect without a slot accepted")
+	}
+}

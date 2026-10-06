@@ -322,6 +322,24 @@
   longer), a left or right click outside, and focus lost to a menu close it;
   `Whisper` opens the chat and its line goes to that player; an activation
   while the chat is open opens nothing and is not kept.
+- **Player menu heading:** an earlier build that showed it in the world
+  menu only, with the race read from the character, ran in game on Windows
+  and the user saw the name and `<race> · Level <level>`; the shared menu,
+  the accent color, and `PlayerDetails` are not built on Windows or run in
+  game. On Linux, a headless Dear ImGui 1.92.9 harness ran the real
+  `ChatPlayerMenu.cpp`, `WorldPlayerMenu.cpp`, `PlayerActivation.cpp`, and
+  `PlayerDetails.cpp` with stubbed peers, transport, and race names (text,
+  heights, and vertex colors, not rasterized): the world menu of a player
+  with an actor shows the name in the accent color, `Nord · Level 12`,
+  `Whisper`, and `Mute` in that order without asking the server, at the
+  same height before and after the details; the chat's menu of a player
+  without an actor asks the server even with an old appearance kept, shows
+  the reply at the same height, and drops a reply for another slot; an
+  empty reply, no connection, and no reply after 2 s leave the name alone,
+  a 5 s frame does not end the wait, and the chat's menu of a player with
+  an actor is answered locally. `ChatHistory.cpp` and `ChatPlayers.cpp`
+  passed a syntax check; `AppearanceSync.cpp` and `SyncCoordinator.cpp`
+  were not compiled. The wire is in [Network](network.md#status).
 - **Item picker and preview:** built on Windows; in game the picker lists names
   and the preview shows models. The attach pass for models that load in the
   background has not run in game yet. On Linux, `ItemCatalog.cpp`,
@@ -370,7 +388,7 @@ src/ui/
   chat/ChatSize               # the open chat's size, the drag that sets it, saving it
   chat/ChatPlayers            # the players online: the button on the filters' row, the list beside the chat
   chat/ChatStyle.h            # channel and notice colors, the chips' frame, the rule under the filters
-  chat/ChatPlayerMenu         # Mute and Vanish, or their undoing, in a player's menu
+  chat/ChatPlayerMenu         # a player's menu: heading, Whisper, Mute and Vanish or their undoing
   chat/ChatPlayerManager      # Manage players: Friends, Muted, and Vanished tabs over the chat
   chat/WorldPlayerMenu        # a player's menu at the crosshair, opened by activating its character
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
@@ -888,8 +906,8 @@ connected players whose names start with what follows, at most 8.
   color and the heading face ([Themed faces](#themed-faces)). Text is the
   theme's, in the text face, and notices are orange. Under the cursor a label is underlined; a right click on a line with
   another player, its sender or the recipient of one's own whisper, opens
-  `Whisper`, then `Mute` and `Vanish` ([Mute and vanish](#mute-and-vanish)).
-  One's own other lines and notices have no menu.
+  its [player menu](#player-menu). One's own other lines and notices have
+  no menu.
 - A line wider than the chat wraps at words. Its text starts beside its label
   and continues from the chat's left edge under the label, not from where the
   text started, so a long name does not narrow every row (`DrawAfterLabel` in
@@ -938,9 +956,8 @@ connected players whose names start with what follows, at most 8.
   without a search, and without a roster `Not connected to the server.`
 - A name acts as a sender's name does in the lines: under the cursor it is
   underlined and the cursor is a hand, a click whispers the player, and a
-  right click opens `Whisper`, then `Mute` and `Vanish`
-  ([Mute and vanish](#mute-and-vanish)). The keyboard then returns to the
-  chat's field.
+  right click opens its [player menu](#player-menu). The keyboard then
+  returns to the chat's field.
 - A muted or vanished player has a mark at the list's right edge, in the
   muted text color, three quarters of a font size square: a speech bubble
   struck through for muted, an eye struck through for vanished, both when both. Hovering them shows `Muted`, `Vanished`, or
@@ -1092,8 +1109,8 @@ connected players whose names start with what follows, at most 8.
 
 Goal: a player can stop seeing another player without leaving: mute hides
 what it says, vanish removes its character from this world. Either is chosen
-from a player's menu, in the chat's lines or the
-[player list](#player-list), shows as a mark in the list, can be undone
+from a [player menu](#player-menu), in the chat's lines, the
+[player list](#player-list), or the world, shows as a mark in the list, can be undone
 there or in [Manage players](#manage-players), also while the player is
 offline, and lasts across games on the same server. Non-goals: telling the
 player, a mutual vanish (a vanished player still sees the one who vanished
@@ -1114,8 +1131,8 @@ covers chat), and admin moderation.
   either. At 1024 vanished players on a server another vanish is refused
   with `You can vanish at most 1024 players on a server.` A failed save adds
   a notice that the change lasts until the game exits.
-- `ChatPlayerMenu::DrawFilterItems` adds a separator, `Mute` or `Unmute`,
-  and `Vanish` or `Unvanish` to a player's menu, each with a tooltip saying
+- The [player menu](#player-menu) ends with a separator, `Mute` or `Unmute`,
+  and `Vanish` or `Unvanish`, each with a tooltip saying
   what it does and that the player is not told. The local player
   (`ChatRoster::GetLocalSession`) and a player without a session get none.
 - Muting hides the player's lines on every channel, whispers included, in
@@ -1172,15 +1189,53 @@ offline ones included, and undone; and where friends will be.
   (`ChatPlayerManager::IsHovered`). After a click the keyboard returns to
   the chat's field, except in its search field.
 
+## Player menu
+
+Goal: wherever another player's menu opens, a right click on its name in
+the chat's lines or the [player list](#player-list) or Activate on its
+character ([below](#player-menu-in-the-world)), it looks the same and says
+who the player is: its name, race, and level, then `Whisper` and
+[mute and vanish](#mute-and-vanish). Non-goals: the real name of a modded
+race the local game lacks (a race's name is not on the wire; the race the
+local game resolves it to is named, as on its character), and following a
+level-up while the menu is open.
+
+- `ChatPlayerMenu` is the menu's content. `ChatHistory`, `ChatPlayers`, and
+  `WorldPlayerMenu` each hold one, call `Open` with the roster entry when
+  they open their popup, and `Draw` inside it, which reports `Whisper` for
+  each to handle as before.
+- It starts with the roster's name in the heading face (`Fonts::GetHeading`)
+  at the text size and in the accent color (`Theme::GetAccent`), then
+  `<race> · Level <level>` in the muted text color: `Level <level>` without
+  a race name, the race alone at level zero, and no line without either.
+  A separator, `Whisper`, and Mute and Vanish follow.
+- `Open` asks `PlayerDetails` (`sync/chat/`) for the player's slot,
+  replacing any earlier request. The next pass serves it on the game thread
+  ([Sync pipeline](sync-pipeline.md#frame-sequence)): a peer with an actor,
+  which receives every appearance revision, is answered from its latest
+  appearance; any other player, the local player included, is asked of the
+  server with `Network::RequestInspection`
+  ([Network](network.md#inspection)), since an appearance kept after a peer
+  left range may be old. Without a connection the answer is empty.
+- The race is `AppearanceSync::GetRaceName`: the full name of the race the
+  appearance's race resolves to in the local game, with the
+  [fallback](appearance-and-equipment.md#resolution-and-fallback) a spawned
+  character gets. The level is `Appearance.level`, zero before the player
+  sent an appearance.
+- `PlayerDetails` keeps only the latest request and its answer, under one
+  lock; an answer for another slot is dropped. While the answer is due the
+  menu reads it once a frame and holds an empty line of the text's height,
+  so the menu does not grow under the cursor; after
+  `kDetailsWaitSeconds` (2) of frame time, each frame counting at most
+  0.1 s, it stops waiting and shows the name alone, as for a reply the
+  server's rate limit dropped. The answer is read once.
+
 ## Player menu in the world
 
 Goal: activating another player's character, or the mount it rides, with
-Skyrim's Activate key (E by default) opens that player's menu, the one a
-right click on its name in the chat opens: `Whisper` and
-[mute and vanish](#mute-and-vanish). Non-goals: the player's name as a
-heading (the chat's menus have none, and the label is above the
-character), another crosshair prompt (Skyrim's `Talk` and the label stay),
-and gamepad navigation.
+Skyrim's Activate key (E by default) opens that player's
+[player menu](#player-menu) at the crosshair. Non-goals: another crosshair
+prompt (Skyrim's `Talk` and the label stay) and gamepad navigation.
 
 - `RemoteActorActivation` (`runtime/`) is a `TESActivateEvent` sink on
   `ScriptEventSourceHolder`, registered once data is loaded. Remote actors
@@ -1198,8 +1253,8 @@ and gamepad navigation.
   window holds focus and takes focus with `WindowManager::Focus`; otherwise
   the request is dropped. With focus the cursor comes up in the middle of the
   screen ([Input focus](#input-focus)), and the menu, a theme popup, opens
-  with its corner there, over the crosshair. Its items are
-  `Whisper` and `ChatPlayerMenu::DrawFilterItems`, as in the player list; the chat stays closed.
+  with its corner there, over the crosshair. It holds the
+  [player menu](#player-menu); the chat stays closed.
 - Picking an item, a click of either button outside the menu, Escape, and
   the keyboard key mapped to Activate (`ControlMap::GetMappedKey`) close it
   and give input back to the game, as does a menu taking over input. Escape
@@ -1655,8 +1710,8 @@ or zoomed.
     and leaves the chat open; closing the chat closes it too. Connecting to
     another server lists only that server's players.
 20. Pressing E on another player's character, or the horse it rides,
-    shows a cursor and a menu at the crosshair with `Whisper`, `Mute`, and
-    `Vanish`, and no dialogue starts. `Mute` and `Vanish` act as
+    shows a cursor and a menu at the crosshair with the player's name, race,
+    and level, then `Whisper`, `Mute`, and `Vanish`, and no dialogue starts. `Mute` and `Vanish` act as
     in the chat's menu. `Whisper` opens the chat with the chip whispering
     that player. Escape, E again, or a click outside closes the menu without
     opening the journal or activating anything, and the character moves
@@ -1670,9 +1725,21 @@ or zoomed.
     release, then the whole window, and a typed hex color applies on Enter.
     A dark custom color gives `Connect` light text. Amber returns the
     default look. The status panel stays as it was.
+22. The menus a right click opens on a player's chat line or on its name in
+    the player list look like the one E opens: its name in bold in the
+    accent color, then a muted line such as `Nord · Level 12`, also for a
+    player far away, whose line fills in a moment later without the menu
+    changing height. A player using a race the local game lacks shows the
+    race its character has locally. With the accent changed, the name
+    follows it.
 
 ## Known limitations
 
+- A player's menu shows the race and level of a player without a character
+  in range a server round trip after it opens. Opening more than five menus
+  within a few seconds can exceed the server's
+  [inspection limit](network.md#inspection), and those menus show the name
+  alone.
 - Any accent is accepted, so a very dark one or one close to the surfaces
   makes selection and hover marks hard to see; picking amber restores the
   default. Live sections have no reset button

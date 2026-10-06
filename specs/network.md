@@ -93,6 +93,16 @@
   ([UI overlay](ui-overlay.md#status)). The vanish handling in
   `ServerClient.cpp` (the hello's list, a `Vanish` held back until the hello
   went to the same server) was not compiled.
+- **Inspection:** not built on Windows or run in game. Server:
+  `go test -race ./...` covers the reply for a client with an appearance,
+  for the asking client itself, for a replay (not listed), and for an unknown
+  slot, that nobody else receives it, the rate limit and its refill
+  (`internal/hub`), and the zero slot rule (`internal/validate`). Plugin:
+  `WireCodec.cpp` with the regenerated nanopb code was built on Linux and
+  decoded Go-encoded inspections (full, slot only) and rejected one without a
+  slot, one with a level over 65535, and one whose default race is not from a
+  base game plugin; its `Inspect` for slot 7 encodes as the server's schema
+  reads it. The queue in `ServerClient.cpp` was not compiled.
 
 ## Scope
 
@@ -163,7 +173,7 @@ refused at the handshake ([Transport](#transport)).
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
   within `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (6) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (7) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
@@ -211,9 +221,11 @@ retries. What a refusal means for the client is in [Connection](#connection).
 | `ChatSend` | `{request_id, text, channel, recipient}`, answered with a `Result` ([Chat](#chat)) |
 | `Ping` | `{request_id}`, answered with `Result{ok}` by the connection at once; the latency probe |
 | `Vanish` | `{session_id, vanished}`: stop or resume receiving a session's player ([Vanish](#vanish)) |
+| `Inspect` | `{slot}`: ask for a player's level and race, answered with an `Inspection` ([Inspection](#inspection)) |
 
 A rejected message is dropped and logged on the server (at most one summary
-per connection every 5 s); only `ChatSend` and `Ping` get a `Result`. Graph
+per connection every 5 s); only `ChatSend` and `Ping` get a `Result`, and an
+accepted `Inspect` gets an `Inspection`. Graph
 event names never cross the network.
 
 ## Checkpoint and context
@@ -355,6 +367,7 @@ same list.
 | `PeerAction`, `PeerAppearance`, `PeerEquipment` | `slot` and the message |
 | `ChatMessage` | `channel`, `sender`, `recipient` (whisper only), `text`; a `ChatSpeaker` is `slot`, `name`, `level`, `session_id` |
 | `Roster` | `joined`, a list of `RosterEntry{slot, name, session_id}`, and `left`, a slot or 0 ([Roster](#roster)) |
+| `Inspection` | `slot`, `level`, `race`, `default_race` of the player an `Inspect` named ([Inspection](#inspection)) |
 
 When each is sent and in what order is
 [Interest and delivery](interest-and-delivery.md#ordering).
@@ -555,6 +568,29 @@ is the client's alone and has no wire message.
 - The vanished player is not told and still receives the client, and chat is
   unaffected.
 
+### Inspection
+
+A player's menu shows the player's race and level
+([UI overlay](ui-overlay.md#player-menu)), and a client holds them only for
+the players it receives. The server holds every connected player's
+appearance, so it answers for the others.
+
+- `Inspect{slot}` with a zero slot is dropped as `invalid inspect`.
+- `Hub.inspect` answers the asking connection alone, from its global queue,
+  with `Inspection{slot, level, race, default_race}` copied from the named
+  player's stored `Appearance`. A slot that is not a listed client
+  ([Roster](#roster)), or one without an appearance yet, gets
+  `Inspection{slot}` alone, so the client stops waiting. Asking about oneself
+  is answered too.
+- Each connection may ask twice a second with a burst of 5
+  (`inspectsPerSecond`, `inspectBurst`, a `limit.TokenBucket`); one more is
+  dropped as `rate limited` without a reply. A reply is small and goes only
+  to the asker, so the limit guards the hub's work rather than anyone's
+  bandwidth.
+- Neither is recorded; vanish and hiding do not change the reply, since the
+  name is already on the roster and the race and level show on the label of
+  any character in range.
+
 ## Client
 
 - `ServerClient` runs its callbacks on the IXWebSocket thread. `WireCodec`
@@ -590,6 +626,13 @@ is the client's alone and has no wire message.
   so readers pay for a copy when a player joins or leaves and not per frame.
 - `Network::CopyNearbyPlayers` lists the peers with a context, which are the
   ones the client currently receives; chat orders its name list by it.
+- `Network::RequestInspection` sends `Inspect` while connected and reports
+  whether it did. An `Inspection` without a slot, with a level above 65535,
+  with an invalid race, or with a default race that is invalid or not from a
+  base game plugin is rejected, as an `Appearance` with them would be. The
+  newest per slot is queued with the remote changes, drained as
+  `RemotePlayerChanges::inspections`, and dropped with them when the
+  connection is lost.
 
 ### Session
 

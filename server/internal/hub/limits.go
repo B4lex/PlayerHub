@@ -5,6 +5,9 @@ import "time"
 const (
 	chatMessagesPerWindow = 5
 	chatWindowSeconds     = 5.0
+
+	inspectsPerSecond = 2.0
+	inspectBurst      = 5.0
 )
 
 type chatThrottle struct {

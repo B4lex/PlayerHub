@@ -43,6 +43,7 @@ namespace Network
         std::vector<RemotePlayerAppearance> appearances;
         std::vector<RemotePlayerEquipment> equipment;
         std::vector<AnimationAction> animationActions;
+        std::vector<Multiplayer::PlayerInspection> inspections;
         std::vector<Multiplayer::PeerSlot> exitedPlayerIDs;
         std::vector<Multiplayer::PeerSlot> disconnectedPlayerIDs;
         std::uint64_t connectionGeneration = 0;
@@ -72,6 +73,8 @@ namespace Network
         std::string_view a_text, std::function<void(std::string_view)> a_onRejected);
 
     void PublishVanish(std::string_view a_server, Multiplayer::SessionID a_session, bool a_vanished);
+
+    [[nodiscard]] bool RequestInspection(Multiplayer::PeerSlot a_playerID);
 
     [[nodiscard]] std::string GetServerAddress();
 

@@ -56,6 +56,7 @@ namespace Network
         std::unordered_map<PeerSlot, std::uint64_t> latestReceivedEquipmentRevisions;
         std::deque<AnimationAction> pendingAnimationActions;
         std::unordered_map<PeerSlot, std::uint64_t> latestReceivedActionSequences;
+        std::unordered_map<PeerSlot, Multiplayer::PlayerInspection> pendingInspections;
         std::unordered_set<PeerSlot> pendingExits;
         std::unordered_set<PeerSlot> pendingDisconnects;
         PeerSlot localSlot = 0;
@@ -235,6 +236,7 @@ namespace Network
             latestReceivedEquipmentRevisions.clear();
             pendingAnimationActions.clear();
             latestReceivedActionSequences.clear();
+            pendingInspections.clear();
             pendingExits.clear();
             pendingDisconnects.clear();
         }
@@ -570,6 +572,11 @@ namespace Network
                     {
                         OnRosterChange(std::move(a_value));
                     }
+                    else if constexpr (std::is_same_v<T, Multiplayer::PlayerInspection>)
+                    {
+                        std::scoped_lock lock{ remoteChangesLock };
+                        pendingInspections.insert_or_assign(a_value.playerID, std::move(a_value));
+                    }
                 },
                 std::move(a_message));
         }
@@ -820,6 +827,16 @@ namespace Network
         }
     }
 
+    bool RequestInspection(PeerSlot a_playerID)
+    {
+        if (!IsConnected())
+        {
+            return false;
+        }
+        Send(Wire::EncodeInspect(a_playerID));
+        return true;
+    }
+
     std::string GetServerAddress()
     {
         {
@@ -959,6 +976,13 @@ namespace Network
             changes.animationActions.push_back(std::move(pendingAnimationActions.front()));
             pendingAnimationActions.pop_front();
         }
+
+        changes.inspections.reserve(pendingInspections.size());
+        for (auto& entry : pendingInspections)
+        {
+            changes.inspections.push_back(std::move(entry.second));
+        }
+        pendingInspections.clear();
 
         changes.exitedPlayerIDs.assign(pendingExits.begin(), pendingExits.end());
         pendingExits.clear();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol/FormReference.h"
+#include "protocol/PeerSlot.h"
 
 #include <array>
 #include <cmath>
@@ -98,6 +99,14 @@ namespace Multiplayer
         {
             return name == a_other.name && level == a_other.level;
         }
+    };
+
+    struct PlayerInspection
+    {
+        PeerSlot playerID{ 0 };
+        std::uint16_t level{ 0 };
+        std::optional<AppearanceFormReference> race;
+        std::optional<DefaultRace> defaultRace;
     };
 
     [[nodiscard]] inline bool IsValidAppearanceName(std::string_view a_name)
