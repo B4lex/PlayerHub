@@ -16,18 +16,23 @@ namespace UI
         constexpr ImVec2 kSizeFonts{ 26.0F, 22.0F };
         constexpr float kTitleScale = 1.25F;
         constexpr float kTabSpacingFonts = 0.375F;
+        constexpr float kStatusDotFonts = 0.4375F;
+        constexpr ImVec4 kOnlineColor{ 0.35F, 0.85F, 0.40F, 1.0F };
 
         struct TabLabel
         {
             const char* label;
+            bool PlayerFilters::Entry::* listed;
             const char* action;
             const char* empty;
         };
 
         constexpr std::array kTabs{
-            TabLabel{ "Friends", nullptr, nullptr },
-            TabLabel{ "Muted", "Unmute", "You have not muted anyone on this server." },
-            TabLabel{ "Vanished", "Unvanish", "You have not vanished anyone on this server." },
+            TabLabel{ "Friends", &PlayerFilters::Entry::friended, "Remove",
+                "You have not added any friends on this server." },
+            TabLabel{ "Muted", &PlayerFilters::Entry::muted, "Unmute", "You have not muted anyone on this server." },
+            TabLabel{ "Vanished", &PlayerFilters::Entry::vanished, "Unvanish",
+                "You have not vanished anyone on this server." },
         };
 
         // Tab would move the keyboard off the field; the field keeps it.
@@ -68,6 +73,7 @@ namespace UI
         search[0] = '\0';
         foldedSearch.clear();
         stale = true;
+        menuOpen = false;
     }
 
     void ChatPlayerManager::Refresh()
@@ -94,33 +100,33 @@ namespace UI
         stale = false;
 
         rows.clear();
-        if (tab != Tab::kFriends)
+        PlayerFilters::Copy(entries);
+        const auto shown = kTabs[static_cast<std::size_t>(tab)].listed;
+        for (auto& entry : entries)
         {
-            PlayerFilters::Copy(entries);
-            for (auto& entry : entries)
+            if (!(entry.*shown))
             {
-                if (!(tab == Tab::kMuted ? entry.muted : entry.vanished))
-                {
-                    continue;
-                }
-                Row row{ .player = { .name = std::move(entry.name), .session = entry.session } };
-                const auto found = std::ranges::lower_bound(
-                    online, entry.session, {}, &std::pair<Multiplayer::SessionID, std::uint32_t>::first);
-                if (found != online.end() && found->first == entry.session)
-                {
-                    const auto& listed = roster[found->second];
-                    row.player = listed.player;
-                    row.folded = listed.folded;
-                    row.online = true;
-                }
-                else
-                {
-                    row.folded = ChatRoster::FoldName(row.player.name);
-                }
-                rows.push_back(std::move(row));
+                continue;
             }
-            std::ranges::sort(rows, {}, &Row::folded);
+            Row row{ .player = { .name = std::move(entry.name), .session = entry.session } };
+            const auto found = std::ranges::lower_bound(
+                online, entry.session, {}, &std::pair<Multiplayer::SessionID, std::uint32_t>::first);
+            if (found != online.end() && found->first == entry.session)
+            {
+                const auto& listed = roster[found->second];
+                row.player = listed.player;
+                row.folded = listed.folded;
+                row.online = true;
+            }
+            else
+            {
+                row.folded = ChatRoster::FoldName(row.player.name);
+            }
+            rows.push_back(std::move(row));
         }
+        std::ranges::sort(rows, [](const Row& a_left, const Row& a_right) {
+            return a_left.online != a_right.online ? a_left.online : a_left.folded < a_right.folded;
+        });
         Match();
     }
 
@@ -136,7 +142,7 @@ namespace UI
         }
     }
 
-    void ChatPlayerManager::Draw()
+    std::optional<Multiplayer::RosterEntry> ChatPlayerManager::Draw(bool a_closeMenu)
     {
         Refresh();
         const auto& style = ImGui::GetStyle();
@@ -154,27 +160,28 @@ namespace UI
         if (Controls::IconButton("##ManagePlayersClose", Controls::Icon::kClose))
         {
             Close();
-            return;
+            return std::nullopt;
         }
         ImGui::SetCursorPosY((std::max)(titleBottom, ImGui::GetCursorPosY()));
 
         DrawTabs();
         ChatStyle::DrawRule(style.ItemSpacing.y);
-        if (tab == Tab::kFriends)
-        {
-            return;
-        }
 
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ChatStyle::GetChipPadding());
-        ImGui::SetNextItemWidth(-FLT_MIN);
-        if (ImGui::InputTextWithHint("##ManagePlayersSearch", "Search", search.data(), search.size(),
-                ImGuiInputTextFlags_CallbackCompletion, &KeepTab))
+        if (!rows.empty())
         {
-            foldedSearch = ChatRoster::FoldName(search.data());
-            Match();
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ChatStyle::GetChipPadding());
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            if (ImGui::InputTextWithHint("##ManagePlayersSearch", "Search", search.data(), search.size(),
+                    ImGuiInputTextFlags_CallbackCompletion, &KeepTab))
+            {
+                foldedSearch = ChatRoster::FoldName(search.data());
+                Match();
+            }
+            ImGui::PopStyleVar();
         }
-        ImGui::PopStyleVar();
-        DrawRows();
+        std::optional<Multiplayer::RosterEntry> whisper;
+        DrawRows(whisper, a_closeMenu);
+        return whisper;
     }
 
     void ChatPlayerManager::DrawTabs()
@@ -216,7 +223,7 @@ namespace UI
         }
     }
 
-    void ChatPlayerManager::DrawRows()
+    void ChatPlayerManager::DrawRows(std::optional<Multiplayer::RosterEntry>& a_whisper, bool a_closeMenu)
     {
         if (!ImGui::BeginChild("##ManagePlayersRows"))
         {
@@ -233,15 +240,25 @@ namespace UI
             DrawMuted("No player with that name");
         }
 
+        // The chat's field keeps the keyboard, which would otherwise keep the rows from being hovered.
+        constexpr auto kHover = ImGuiHoveredFlags_AllowWhenBlockedByActiveItem;
         const auto& style = ImGui::GetStyle();
-        const auto buttonWidth = (std::max)(ImGui::CalcTextSize(kTabs[1].action).x, ImGui::CalcTextSize(kTabs[2].action).x)
-            + style.FramePadding.x * 2.0F;
-        const auto onlineWidth = ImGui::CalcTextSize("Online").x;
+        auto buttonWidth = 0.0F;
+        for (const auto& label : kTabs)
+        {
+            buttonWidth = (std::max)(buttonWidth, ImGui::CalcTextSize(label.action).x);
+        }
+        buttonWidth += style.FramePadding.x * 2.0F;
         const auto right = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
         const auto buttonLeft = right - buttonWidth;
-        const auto onlineLeft = buttonLeft - style.ItemSpacing.x - onlineWidth;
+        const auto frameHeight = ImGui::GetFrameHeight();
+        const auto dotSize = std::round(kStatusDotFonts * ImGui::GetFontSize());
+        const auto offlineColor = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+        const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
+        auto* drawList = ImGui::GetWindowDrawList();
 
         std::optional<Multiplayer::RosterEntry> undone;
+        std::optional<Multiplayer::RosterEntry> menuPlayer;
         ImGuiListClipper clipper;
         clipper.Begin(static_cast<int>(matches.size()), ImGui::GetFrameHeightWithSpacing());
         while (clipper.Step())
@@ -249,20 +266,44 @@ namespace UI
             for (auto index = clipper.DisplayStart; index < clipper.DisplayEnd; ++index)
             {
                 const auto& row = rows[matches[static_cast<std::size_t>(index)]];
-                const auto& name = row.player.name;
+                const char* name = row.player.name.c_str();
+                const char* nameEnd = name + row.player.name.size();
                 ImGui::PushID(index);
-                ImGui::AlignTextToFramePadding();
-                const auto nameMin = ImGui::GetCursorScreenPos();
-                const auto windowLeft = ImGui::GetWindowPos().x;
-                ImGui::PushClipRect(nameMin,
-                    ImVec2{ windowLeft + onlineLeft - style.ItemSpacing.x, nameMin.y + ImGui::GetFrameHeight() }, true);
-                ImGui::TextUnformatted(name.c_str(), name.c_str() + name.size());
-                ImGui::PopClipRect();
-                if (row.online)
+
+                ImGui::Dummy(ImVec2{ dotSize, frameHeight });
+                const auto dotMin = ImGui::GetItemRectMin();
+                drawList->AddCircleFilled(ImVec2{ dotMin.x + dotSize * 0.5F, dotMin.y + frameHeight * 0.5F },
+                    dotSize * 0.5F, row.online ? ImGui::GetColorU32(kOnlineColor) : offlineColor);
+                if (ImGui::IsItemHovered(kHover))
                 {
-                    ImGui::SameLine(onlineLeft);
-                    ImGui::TextDisabled("Online");
+                    ImGui::SetTooltip("%s", row.online ? "Online" : "Offline");
                 }
+
+                ImGui::SameLine();
+                const auto nameLeft = ImGui::GetCursorPosX();
+                const auto columnWidth = (std::max)(buttonLeft - style.ItemSpacing.x - nameLeft, 1.0F);
+                const auto nameWidth = (std::min)(ImGui::CalcTextSize(name, nameEnd).x, columnWidth);
+                const bool clicked = ImGui::InvisibleButton("##ManagePlayersName", ImVec2{ nameWidth, frameHeight });
+                const auto min = ImGui::GetItemRectMin();
+                const auto max = ImGui::GetItemRectMax();
+                const ImVec4 clip{ min.x, min.y, max.x, max.y };
+                const auto textTop = std::floor(min.y + (frameHeight - ImGui::GetTextLineHeight()) * 0.5F);
+                drawList->AddText(nullptr, 0.0F, ImVec2{ min.x, textTop }, textColor, name, nameEnd, 0.0F, &clip);
+                if (ImGui::IsItemHovered(kHover))
+                {
+                    const auto underline = textTop + ImGui::GetTextLineHeight();
+                    drawList->AddRectFilled(ImVec2{ min.x, underline - 1.0F }, ImVec2{ max.x, underline }, textColor);
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                    if (clicked && row.online)
+                    {
+                        a_whisper = row.player;
+                    }
+                    if (ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+                    {
+                        menuPlayer = row.player;
+                    }
+                }
+
                 ImGui::SameLine(buttonLeft);
                 if (ImGui::Button(current.action, ImVec2{ buttonWidth, 0.0F }))
                 {
@@ -271,18 +312,41 @@ namespace UI
                 ImGui::PopID();
             }
         }
+
+        if (menuPlayer)
+        {
+            playerMenu.Open(*menuPlayer);
+            ImGui::OpenPopup("##ManagePlayersMenu");
+        }
+        menuOpen = ImGui::BeginPopup("##ManagePlayersMenu");
+        if (menuOpen)
+        {
+            if (a_closeMenu)
+            {
+                ImGui::CloseCurrentPopup();
+            }
+            if (playerMenu.Draw())
+            {
+                a_whisper = playerMenu.GetPlayer();
+            }
+            ImGui::EndPopup();
+        }
         ImGui::EndChild();
 
         // The rows change with it, so after the clipper is done with them.
         if (undone)
         {
-            if (tab == Tab::kMuted)
+            switch (tab)
             {
-                PlayerFilters::SetMuted(*undone, false);
-            }
-            else
-            {
-                PlayerFilters::SetVanished(*undone, false);
+                case Tab::kFriends:
+                    PlayerFilters::SetFriend(*undone, false);
+                    break;
+                case Tab::kMuted:
+                    PlayerFilters::SetMuted(*undone, false);
+                    break;
+                case Tab::kVanished:
+                    PlayerFilters::SetVanished(*undone, false);
+                    break;
             }
         }
     }

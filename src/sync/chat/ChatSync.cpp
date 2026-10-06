@@ -112,6 +112,13 @@ namespace ChatSync
             a_lines.push_back(std::move(line));
         }
 
+        std::vector<Multiplayer::RosterEntry> friends;
+        PlayerFilters::CollectArrivedFriends(friends);
+        for (const auto& player : friends)
+        {
+            AddNotice(player.name + " is online.");
+        }
+
         const std::scoped_lock lock{ s_noticesLock };
         for (auto& notice : s_notices)
         {

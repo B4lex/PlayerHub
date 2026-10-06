@@ -316,13 +316,33 @@
   player has no menu, and the marks show (rasterized). `Manage players` sits
   at the list's bottom and opens a window in the middle of the screen over the
   chat, on Friends; Muted lists this server's muted players with an offline
-  one and `Online` by those connected; `Unmute` and `Unvanish` remove their
-  row at once; the search filters the tab shown and stays across tabs; Friends
-  is empty; Escape closes the window and leaves the chat open, a second one
+  one marked as connected (then as `Online`, since replaced by the
+  [Friends](#status) checks' dot); `Unmute` and `Unvanish` remove their
+  row at once; the search filters the tab shown and stays across tabs;
+  Escape closes the window and leaves the chat open, a second one
   closes the chat; Enter closing the chat closes the window; its close button
   closes only it; dragged and reopened, it is in the middle again and on
   Friends (rasterized). With 500 players and 300 lines the open chat took the
   same time as before, about 107 µs a frame.
+- **Friends:** not built on Windows or run in game; `ChatSync.cpp` and
+  `ChatWindow.cpp` were only compiled. On Linux, in a headless Dear ImGui
+  1.92.9 harness with a stubbed roster and store folder, the real
+  `PlayerFilterStore.cpp`, `PlayerFilters.cpp`, `ChatRoster.cpp`,
+  `ChatPlayerMenu.cpp`, and `ChatPlayerManager.cpp` ran: `f` lines load for
+  their server only, `fx` and flagless lines are skipped, adding writes `f`
+  and with a mute `fm`, and removing both drops the line; a connection's
+  first roster announces nobody, a later join of a friend is announced and
+  of anyone else not, a reconnect under a new slot announces nobody, also
+  when the empty roster between was not seen; a renamed friend's new name is
+  saved when it appears. The Friends tab lists friends by name with a dot
+  whose tooltip reads `Online` or `Offline`, and `Remove`; a name under the
+  cursor shows a hand, a click on an online one whispers it and on an
+  offline one does nothing; a right click opens the menu with `Whisper` and
+  `Remove friend` before `Mute` and `Vanish`, also on an offline friend
+  (no race and level, `Whisper` disabled) and on a Muted row; a close
+  request shuts the menu first; `Remove` and `Remove friend` drop the row
+  at once, and an emptied tab reads its sentence without a search field.
+  Nothing was rasterized.
 - **Player menu in the world:** not built on Windows or run in game.
   `RemoteActorActivation.cpp` and the `SyncCoordinator` step need
   CommonLibSSE-NG and were not compiled; the event they rely on was read from
@@ -403,7 +423,7 @@ src/ui/
   chat/ChatSize               # the open chat's size, the drag that sets it, saving it
   chat/ChatPlayers            # the players online: the button on the filters' row, the list beside the chat
   chat/ChatStyle.h            # channel and notice colors, the chips' frame, the rule under the filters
-  chat/ChatPlayerMenu         # a player's menu: heading, Whisper, Mute and Vanish or their undoing
+  chat/ChatPlayerMenu         # a player's menu: heading, Whisper, Add friend, Mute and Vanish or their undoing
   chat/ChatPlayerManager      # Manage players: Friends, Muted, and Vanished tabs over the chat
   chat/WorldPlayerMenu        # a player's menu at the crosshair, opened by activating its character
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
@@ -415,7 +435,7 @@ src/sync/chat/ChatSync        # send to a target, rejections as notices, lines t
 src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners, the list's copy
 src/sync/chat/ChatDraft       # syntax of prefixes and commands
 src/sync/chat/ChatComposer    # send target, name and command list, sent lines
-src/sync/filters/PlayerFilters # muted and vanished players of the current server, publishing
+src/sync/filters/PlayerFilters # friends, muted and vanished players of the current server, publishing, friends coming online
 src/sync/chat/PlayerActivation # the activated player, and a whisper picked in its menu
 src/runtime/PluginTime        # plugin time per pass
 assets/fonts/                 # Sovngarde Light and Bold with their license, the logo font, deployed beside the DLL
@@ -1133,7 +1153,8 @@ it), muting or vanishing by name, a vanished player's Local chat (mute
 covers chat), and admin moderation.
 
 - `PlayerFilters` (`sync/filters/`) holds the current server's entries by
-  session ID: a name, `muted`, and `vanished`. It reads them from
+  session ID: a name, `friended` ([Friends](#friends)), `muted`, and
+  `vanished`, each independent of the others. It reads them from
   `Network::PlayerFilterStore` for `Network::GetServerAddress` and again
   whenever the connection generation changes, so a session is never looked
   up on another server's list ([Network](network.md#player-filters)). A
@@ -1165,8 +1186,8 @@ covers chat), and admin moderation.
 
 ### Manage players
 
-Where the muted and vanished players of the current server are listed,
-offline ones included, and undone; and where friends will be.
+Where the friends, muted, and vanished players of the current server are
+listed, offline ones included, and undone.
 
 - `ChatPlayerManager` draws it and `ChatWindow` places and begins it
   (`BeginFramed`) after the chat and the player list, in the menu frame
@@ -1177,24 +1198,36 @@ offline ones included, and undone; and where friends will be.
   have `ImGuiWindowFlags_NoBringToFrontOnFocus`, so a click in the chat or
   the list leaves it in front. `Manage players` while it is open brings it
   to the front.
-- It holds the title `Manage players` in the heading face with a close
+- It holds the title `Players` in the heading face with a close
   button at the right, the tabs `Friends`, `Muted`, and `Vanished` as chips
   (the one shown in the accent with the chip fill, the others outlines that
   brighten under the cursor), and a rule. Every opening shows Friends;
   nothing of the window is kept once it closes.
-- Friends is empty: a placeholder for friends.
-- Muted and Vanished have a search field, `Search` while empty, that keeps
+- A tab with players has a search field, `Search` while empty, that keeps
   the names containing its text, folded as the [name list](#name-list)
-  folds them. The search stays across tabs and empties when the window
-  closes; Tab stays in the field. Then a row per player of the tab, sorted
-  by folded name: the name, cut before the rest of the row, the roster's
-  while the player is online and as kept otherwise; `Online` in the muted
-  color while it is connected; and an `Unmute` or `Unvanish` button, which
-  undoes it as the menu does and removes the row at once. With nobody the
-  tab reads `You have not muted anyone on this server.` or
+  folds them; an empty tab has none. The search stays across tabs and
+  empties when the window closes; Tab stays in the field. Then a row per
+  player of the tab, the connected ones first, each group sorted by folded
+  name: a dot of 0.4375 font sizes,
+  green (`kOnlineColor`) while the player is connected and in the muted
+  text color otherwise, whose tooltip says `Online` or `Offline`; the name,
+  cut before the button, the roster's while the player is online and as
+  kept otherwise; and a `Remove`, `Unmute`, or `Unvanish` button, which
+  undoes it as the menu does and removes the row at once.
+  With nobody the tab reads `You have not added any friends on this
+  server.`, `You have not muted anyone on this server.`, or
   `You have not vanished anyone on this server.`, and with nothing matching
   `No player with that name`. `ImGuiListClipper` draws only the rows in
   view.
+- A name acts as a sender's name does in the chat's lines, on every tab:
+  under the cursor it is underlined and the cursor is a hand, a click
+  whispers the player while it is online, and a right click opens its
+  [player menu](#player-menu) (`##ManagePlayersMenu`), offline too. An
+  offline player has no slot, so its menu has no race and level line and
+  `Whisper` is disabled. `Whisper` sets the chat's target as the list's
+  does, and the window stays open. The chat counts the menu among its open
+  menus (`ChatPlayerManager::IsMenuOpen`), so Escape closes it first and
+  the field leaves the keyboard to it.
 - It copies the roster and `PlayerFilters` only when their revisions
   change, and rebuilds the tab's rows then and when the tab changes.
 - Escape closes it before the chat, from any field. Its close button closes
@@ -1204,26 +1237,61 @@ offline ones included, and undone; and where friends will be.
   (`ChatPlayerManager::IsHovered`). After a click the keyboard returns to
   the chat's field, except in its search field.
 
+## Friends
+
+Goal: a player can keep other players to find again: added from a
+[player menu](#player-menu), listed with whether they are online in
+[Manage players](#manage-players), kept across games on the same server,
+and announced in the chat when they connect. Friendship is one way: the
+player is not told and need not add back. Non-goals: requests or mutual
+friendship, a mark for friends in the player list or chat lines (the
+user's choice: only the menu and the tab show it), a notice when a friend
+leaves, friends across servers (a session ID names a player on one server),
+and a limit, since nothing about friends is sent.
+
+- `SetFriend` sets `friended` and saves the entry as `SetMuted` does,
+  without a chat notice. A friend may also be muted or vanished; removing
+  the last of the three drops the entry.
+- The [player menu](#player-menu) has `Add friend` or `Remove friend` right
+  after `Whisper`, with a tooltip on what it does. The local player and a
+  player without a session get neither, as for mute and vanish.
+- `PlayerFilters::CollectArrivedFriends`, called by `ChatSync::DrainLines`
+  each time the chat collects lines, copies the roster only when its
+  revision changes (`Network::CopyRosterIfChanged`) and keeps the sorted
+  session IDs of the previous copy. A roster without the local player,
+  before a connection's first `Roster` or after a disconnect, clears them.
+  The first roster with a new local slot is a connection's first and lists
+  who was already online, so it announces nobody; after it, each friend
+  whose session was not in the previous copy adds the notice
+  `<name> is online.` A muted or vanished friend is announced too. A friend
+  who leaves and comes back between two copies is not announced; one who
+  reconnects later is announced again.
+- The same pass refreshes the kept name of any entry, friend or not, whose
+  player appears with another name, the first roster included, and saves
+  it, so an offline row shows the name last seen.
+
 ## Player menu
 
 Goal: wherever another player's menu opens, a right click on its name in
 the chat's lines or the [player list](#player-list) or Activate on its
 character ([below](#player-menu-in-the-world)), it looks the same and says
-who the player is: its name, race, and level, then `Whisper` and
-[mute and vanish](#mute-and-vanish). Non-goals: the real name of a modded
+who the player is: its name, race, and level, then `Whisper`,
+[`Add friend`](#friends), and [mute and vanish](#mute-and-vanish). Non-goals: the real name of a modded
 race the local game lacks (a race's name is not on the wire; the race the
 local game resolves it to is named, as on its character), and following a
 level-up while the menu is open.
 
-- `ChatPlayerMenu` is the menu's content. `ChatHistory`, `ChatPlayers`, and
-  `WorldPlayerMenu` each hold one, call `Open` with the roster entry when
+- `ChatPlayerMenu` is the menu's content. `ChatHistory`, `ChatPlayers`,
+  `ChatPlayerManager`, and `WorldPlayerMenu` each hold one, call `Open` with the roster entry when
   they open their popup, and `Draw` inside it, which reports `Whisper` for
   each to handle as before.
 - It starts with the roster's name in the heading face (`Fonts::GetHeading`)
   at the text size and in the accent color (`Theme::GetAccent`), then
   `<race> · Level <level>` in the muted text color: `Level <level>` without
   a race name, the race alone at level zero, and no line without either.
-  A separator, `Whisper`, and Mute and Vanish follow.
+  A separator, `Whisper`, `Add friend`, and Mute and Vanish follow.
+  `Whisper` is disabled for a player without a slot, which only an offline
+  row in [Manage players](#manage-players) opens the menu for.
 - `Open` asks `PlayerDetails` (`sync/chat/`) for the player's slot,
   replacing any earlier request. The next pass serves it on the game thread
   ([Sync pipeline](sync-pipeline.md#frame-sequence)): a peer with an actor,
@@ -1732,20 +1800,32 @@ or zoomed.
     character back where the player stands, if it is in range.
 19. `Manage players` at the bottom of the player list opens a framed window
     in the middle of the screen over the open chat, with the tabs Friends,
-    Muted, and Vanished. Friends is empty. Muted and Vanished list the
-    connected server's players, offline ones included, with `Online` by
-    those connected and a search field; `Unmute` or `Unvanish` removes the
-    row at once and has the effect the menu has. Escape closes the window
+    Muted, and Vanished. Each lists the connected server's players, offline
+    ones included, those connected first with a green dot and the others
+    after with a gray one, which say `Online` or `Offline` under the cursor, and a search
+    field while the tab has anyone; `Remove`, `Unmute`, or `Unvanish`
+    removes the row at once and has the effect the menu has. A name is
+    underlined under the cursor; a click whispers an online player, and a
+    right click opens the player's menu, an offline player's with
+    `Whisper` disabled. Escape closes the window
     and leaves the chat open; closing the chat closes it too. Connecting to
     another server lists only that server's players.
-20. Pressing E on another player's character, or the horse it rides,
+20. `Add friend` in another player's menu, from the chat, the player list,
+    or the world, adds it to Friends with no notice, and the menu then
+    offers `Remove friend`; the other player is told nothing. When that
+    player next connects, the chat shows `<name> is online.`, also while the
+    chat is closed; friends already online when this game connects are not
+    announced. An offline friend shows its last name in Friends.
+    A friend stays one after either game restarts, and muting or vanishing
+    a friend keeps the friend.
+21. Pressing E on another player's character, or the horse it rides,
     shows a cursor and a menu at the crosshair with the player's name, race,
     and level, then `Whisper`, `Mute`, and `Vanish`, and no dialogue starts. `Mute` and `Vanish` act as
     in the chat's menu. `Whisper` opens the chat with the chip whispering
     that player. Escape, E again, or a click outside closes the menu without
     opening the journal or activating anything, and the character moves
     again at once.
-21. In Interface, a click on the blue swatch turns the settings window's
+22. In Interface, a click on the blue swatch turns the settings window's
     sidebar mark, switches, slider, and hovered widgets blue at once, and
     with `Border Color` at `Accent` its frame and the open chat's too; the
     open chat's player list button and lists follow. `playerhub.ini` then
@@ -1754,14 +1834,14 @@ or zoomed.
     release, then the whole window, and a typed hex color applies on Enter.
     A dark custom color gives `Connect` light text. Amber returns the
     default look. The status panel stays as it was.
-22. The menus a right click opens on a player's chat line or on its name in
+23. The menus a right click opens on a player's chat line or on its name in
     the player list look like the one E opens: its name in bold in the
     accent color, then a muted line such as `Nord · Level 12`, also for a
     player far away, whose line fills in a moment later without the menu
     changing height. A player using a race the local game lacks shows the
     race its character has locally. With the accent changed, the name
     follows it.
-23. A new install connects to the official server, and its URL appears
+24. A new install connects to the official server, and its URL appears
     nowhere in the settings window or `playerhub.ini`. Switching
     `Connect To Official Server` off while connected disconnects, a
     `Server Endpoint` field appears, and General's `Connect`
@@ -1831,13 +1911,13 @@ or zoomed.
 - A click made before the mouse has moved since the chat opened is dropped.
 - The send target, the filters, the whisper partners, and the sent lines last
   until the game exits.
-- An offline player in Manage players shows the name it had when last
-  muted or vanished; online, the roster's. The window lists the last
+- An offline player in Manage players shows the name the roster last gave
+  it while this game ran, or the kept one; online, the roster's. The window lists the last
   server that welcomed the client, or the configured endpoint's before the
   first connection of a game, so an endpoint changed while disconnected
   shows its list only once connected. It opens only from the open chat.
-- Mutes and vanishes are kept per server URL, so the same server reached
-  under another address starts with none.
+- Friends, mutes, and vanishes are kept per server URL, so the same server
+  reached under another address starts with none.
 - A gamepad's Activate opens the player menu as E does, but the menu takes
   the mouse and keyboard only, while gamepad input keeps reaching the game.
 - The picker covers armor, weapons, ammunition, and races, not torches, spells,

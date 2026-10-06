@@ -17,7 +17,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [appearance-and-equipment.md](appearance-and-equipment.md) | Appearance, actor base, player label, equipment, default outfit, item filter and catalog | `sync/appearance/`, `sync/equipment/`, `sync/outfit/`, `src/forms/` |
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
 | [configuration.md](configuration.md) | `playerhub.ini`, schema, snapshots, saving | `src/config/` |
-| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, fonts, theme, menu frame, logo, status panel, chat, mute and vanish, player menu, player menu in the world, settings window, item picker and preview | `src/ui/`, `sync/chat/`, `sync/filters/`, `assets/` |
+| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, fonts, theme, menu frame, logo, status panel, chat, friends, mute and vanish, player menu, player menu in the world, settings window, item picker and preview | `src/ui/`, `sync/chat/`, `sync/filters/`, `assets/` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `server/admin-ui/` |
 
 ## Features
@@ -48,6 +48,7 @@ criteria.
 | Proximity, exclusions, late join, peer enter and leave, batching | [interest-and-delivery](interest-and-delivery.md), [network](network.md#server-messages), [sync-pipeline](sync-pipeline.md#receive-state) |
 | Chat | [ui-overlay](ui-overlay.md#chat), [network](network.md#chat) |
 | Players online list | [ui-overlay](ui-overlay.md#player-list), [network](network.md#roster) |
+| Friends | [ui-overlay](ui-overlay.md#friends), [network](network.md#player-filters) |
 | Mute and vanish | [ui-overlay](ui-overlay.md#mute-and-vanish), [network](network.md#vanish), [interest-and-delivery](interest-and-delivery.md#subscriptions) |
 | Player menu in the world (Activate on a player) | [ui-overlay](ui-overlay.md#player-menu-in-the-world), [remote-actor](remote-actor.md#spawn), [sync-pipeline](sync-pipeline.md#frame-sequence) |
 | Player menu heading (name, race, level; inspection) | [ui-overlay](ui-overlay.md#player-menu), [network](network.md#inspection), [sync-pipeline](sync-pipeline.md#frame-sequence), [appearance-and-equipment](appearance-and-equipment.md#resolution-and-fallback) |

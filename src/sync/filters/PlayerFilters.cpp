@@ -20,9 +20,21 @@ namespace PlayerFilters
         std::vector<Entry> s_entries;
         std::atomic_uint64_t s_changes{ 0 };
 
+        std::mutex s_rosterLock;
+        std::uint64_t s_rosterRevision = 0;
+        Multiplayer::Roster s_roster;
+        Multiplayer::PeerSlot s_rosterLocalPlayer = 0;
+        std::vector<Multiplayer::SessionID> s_online;
+        std::vector<std::uint32_t> s_arrived;
+        std::vector<Entry> s_renamed;
+
         Network::PlayerFilterStore::Entry ToStored(const Entry& a_entry)
         {
-            return { .session = a_entry.session, .name = a_entry.name, .muted = a_entry.muted, .vanished = a_entry.vanished };
+            return { .session = a_entry.session,
+                .name = a_entry.name,
+                .friended = a_entry.friended,
+                .muted = a_entry.muted,
+                .vanished = a_entry.vanished };
         }
 
         void RefreshLocked()
@@ -39,8 +51,11 @@ namespace PlayerFilters
             s_entries.clear();
             for (auto& entry : stored)
             {
-                s_entries.push_back(Entry{
-                    .session = entry.session, .name = std::move(entry.name), .muted = entry.muted, .vanished = entry.vanished });
+                s_entries.push_back(Entry{ .session = entry.session,
+                    .name = std::move(entry.name),
+                    .friended = entry.friended,
+                    .muted = entry.muted,
+                    .vanished = entry.vanished });
             }
             std::ranges::sort(s_entries, {}, &Entry::session);
         }
@@ -58,6 +73,15 @@ namespace PlayerFilters
             kChanged,
             kFull
         };
+
+        void Save(const std::string& a_server, const Entry& a_entry)
+        {
+            if (!Network::PlayerFilterStore::Save(a_server, ToStored(a_entry)))
+            {
+                ChatSync::AddNotice("Could not save your list of friends, muted, and vanished players; the change "
+                                    "lasts until the game exits.");
+            }
+        }
 
         Change Set(const Multiplayer::RosterEntry& a_player, bool Entry::* a_flag, bool a_value, std::string& a_server)
         {
@@ -88,20 +112,23 @@ namespace PlayerFilters
                 (*entry).*a_flag = a_value;
                 entry->name = a_player.name;
                 saved = *entry;
-                if (!entry->muted && !entry->vanished)
+                if (!entry->friended && !entry->muted && !entry->vanished)
                 {
                     s_entries.erase(entry);
                 }
                 a_server = s_server;
                 s_changes.fetch_add(1, std::memory_order_acq_rel);
             }
-            if (!Network::PlayerFilterStore::Save(a_server, ToStored(saved)))
-            {
-                ChatSync::AddNotice("Could not save the list of muted and vanished players; the change lasts until "
-                                    "the game exits.");
-            }
+            Save(a_server, saved);
             return Change::kChanged;
         }
+    }
+
+    bool IsFriend(Multiplayer::SessionID a_session)
+    {
+        const std::scoped_lock lock{ s_lock };
+        const auto* entry = FindLocked(a_session);
+        return entry && entry->friended;
     }
 
     bool IsMuted(Multiplayer::SessionID a_session)
@@ -116,6 +143,17 @@ namespace PlayerFilters
         const std::scoped_lock lock{ s_lock };
         const auto* entry = FindLocked(a_session);
         return entry && entry->vanished;
+    }
+
+    void SetFriend(const Multiplayer::RosterEntry& a_player, bool a_friend)
+    {
+        std::string server;
+        if (a_player.session == 0 || Set(a_player, &Entry::friended, a_friend, server) == Change::kNone)
+        {
+            return;
+        }
+        logs::info("Player filters: {} session {} on {}", a_friend ? "befriended" : "unfriended",
+            static_cast<unsigned long long>(a_player.session), Network::DescribeServer(server));
     }
 
     void SetMuted(const Multiplayer::RosterEntry& a_player, bool a_muted)
@@ -164,5 +202,76 @@ namespace PlayerFilters
         const std::scoped_lock lock{ s_lock };
         RefreshLocked();
         a_entries = s_entries;
+    }
+
+    void CollectArrivedFriends(std::vector<Multiplayer::RosterEntry>& a_friends)
+    {
+        const std::scoped_lock rosterLock{ s_rosterLock };
+        if (!Network::CopyRosterIfChanged(s_rosterRevision, s_roster))
+        {
+            return;
+        }
+        const auto& players = s_roster.players;
+        if (std::ranges::find(players, s_roster.localPlayerID, &Multiplayer::RosterEntry::playerID) == players.end())
+        {
+            s_online.clear();
+            s_rosterLocalPlayer = 0;
+            return;
+        }
+        // A connection's first roster lists everyone already online; only later joins arrive.
+        const bool first = s_roster.localPlayerID != s_rosterLocalPlayer;
+        s_rosterLocalPlayer = s_roster.localPlayerID;
+        s_arrived.clear();
+        for (std::uint32_t index = 0; index < players.size(); ++index)
+        {
+            if (first || !std::ranges::binary_search(s_online, players[index].session))
+            {
+                s_arrived.push_back(index);
+            }
+        }
+        s_online.clear();
+        for (const auto& player : players)
+        {
+            s_online.push_back(player.session);
+        }
+        std::ranges::sort(s_online);
+        if (s_arrived.empty())
+        {
+            return;
+        }
+
+        std::string server;
+        {
+            const std::scoped_lock lock{ s_lock };
+            RefreshLocked();
+            for (const auto index : s_arrived)
+            {
+                const auto& player = players[index];
+                const auto entry = std::ranges::lower_bound(s_entries, player.session, {}, &Entry::session);
+                if (entry == s_entries.end() || entry->session != player.session)
+                {
+                    continue;
+                }
+                if (entry->name != player.name)
+                {
+                    entry->name = player.name;
+                    s_renamed.push_back(*entry);
+                }
+                if (!first && entry->friended)
+                {
+                    a_friends.push_back(player);
+                }
+            }
+            if (!s_renamed.empty())
+            {
+                server = s_server;
+                s_changes.fetch_add(1, std::memory_order_acq_rel);
+            }
+        }
+        for (const auto& entry : s_renamed)
+        {
+            Save(server, entry);
+        }
+        s_renamed.clear();
     }
 }

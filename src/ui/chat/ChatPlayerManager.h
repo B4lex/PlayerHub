@@ -4,6 +4,7 @@
 #include "protocol/Session.h"
 #include "sync/chat/ChatRoster.h"
 #include "sync/filters/PlayerFilters.h"
+#include "ui/chat/ChatPlayerMenu.h"
 
 #include <imgui.h>
 
@@ -23,11 +24,12 @@ namespace UI
         void Close();
         [[nodiscard]] bool IsOpen() const { return open; }
         [[nodiscard]] bool IsHovered() const;
+        [[nodiscard]] bool IsMenuOpen() const { return menuOpen; }
         [[nodiscard]] bool TakeFocusRequest() { return std::exchange(focusRequested, false); }
 
         [[nodiscard]] static ImVec2 GetSize();
 
-        void Draw();
+        [[nodiscard]] std::optional<Multiplayer::RosterEntry> Draw(bool a_closeMenu);
 
     private:
         enum class Tab : std::uint8_t
@@ -47,7 +49,7 @@ namespace UI
         void Refresh();
         void Match();
         void DrawTabs();
-        void DrawRows();
+        void DrawRows(std::optional<Multiplayer::RosterEntry>& a_whisper, bool a_closeMenu);
 
         bool open{ false };
         bool focusRequested{ false };
@@ -66,6 +68,9 @@ namespace UI
 
         std::array<char, Multiplayer::PlayerAppearance::kMaximumNameLength + 1> search{};
         std::string foldedSearch;
+
+        ChatPlayerMenu playerMenu;
+        bool menuOpen{ false };
 
         ImVec2 shownMin;
         ImVec2 shownMax;

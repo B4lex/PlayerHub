@@ -18,8 +18,8 @@ namespace Network::PlayerFilterStore
         constexpr std::string_view kFileName = "playerhub.players";
         constexpr std::string_view kTemporaryExtension = ".tmp";
         constexpr std::string_view kFileHeader
-            = "; Skyrim Multiplayer: players you muted (m) or vanished (v), per server.\n"
-              "; Each line: m, v, or mv, the player's session, the server, and its name when last seen,\n"
+            = "; Skyrim Multiplayer: your friends (f) and the players you muted (m) or vanished (v), per server.\n"
+              "; Each line: any of f, m, and v, the player's session, the server, and its name when last seen,\n"
               "; separated by tabs.\n";
         constexpr char kSeparator = '\t';
 
@@ -33,6 +33,11 @@ namespace Network::PlayerFilterStore
         // Read once; the file changes only through Save afterwards.
         bool s_loaded = false;
         std::vector<StoredEntry> s_entries;
+
+        bool IsKept(const Entry& a_entry)
+        {
+            return a_entry.friended || a_entry.muted || a_entry.vanished;
+        }
 
         std::string ToUtf8(const std::filesystem::path& a_path)
         {
@@ -68,9 +73,10 @@ namespace Network::PlayerFilterStore
             {
                 return std::nullopt;
             }
+            result.entry.friended = flags.find('f') != std::string_view::npos;
             result.entry.muted = flags.find('m') != std::string_view::npos;
             result.entry.vanished = flags.find('v') != std::string_view::npos;
-            if (flags.find_first_not_of("mv") != std::string_view::npos || (!result.entry.muted && !result.entry.vanished))
+            if (flags.find_first_not_of("fmv") != std::string_view::npos || !IsKept(result.entry))
             {
                 return std::nullopt;
             }
@@ -89,7 +95,7 @@ namespace Network::PlayerFilterStore
             std::ifstream input{ path, std::ios::binary };
             if (!input)
             {
-                logs::info("Player filters have no {}; nobody is muted or vanished", ToUtf8(path));
+                logs::info("Player filters have no {}; nobody is a friend, muted, or vanished", ToUtf8(path));
                 return;
             }
             std::string line;
@@ -125,6 +131,10 @@ namespace Network::PlayerFilterStore
             std::string text{ kFileHeader };
             for (const auto& [server, entry] : s_entries)
             {
+                if (entry.friended)
+                {
+                    text.push_back('f');
+                }
                 if (entry.muted)
                 {
                     text.push_back('m');
@@ -198,7 +208,7 @@ namespace Network::PlayerFilterStore
         const auto stored = std::ranges::find_if(s_entries, [&](const StoredEntry& a_stored) {
             return a_stored.entry.session == a_entry.session && a_stored.server == a_server;
         });
-        if (!a_entry.muted && !a_entry.vanished)
+        if (!IsKept(a_entry))
         {
             if (stored != s_entries.end())
             {

@@ -199,7 +199,8 @@ namespace UI
                 const auto& padding = ImGui::GetStyle().WindowPadding;
 
                 const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false);
-                const bool menuOpen = history.IsMenuOpen() || input.IsMenuOpen() || players.IsMenuOpen();
+                const bool menuOpen
+                    = history.IsMenuOpen() || input.IsMenuOpen() || players.IsMenuOpen() || manager.IsMenuOpen();
                 const bool closeMenu = escape && menuOpen;
                 const bool closeManager = escape && !menuOpen && manager.IsOpen();
 
@@ -258,11 +259,11 @@ namespace UI
                 }
                 if (manager.IsOpen())
                 {
-                    DrawPlayerManager();
+                    DrawPlayerManager(closeMenu);
                 }
             }
 
-            void DrawPlayerManager()
+            void DrawPlayerManager(bool a_closeMenu)
             {
                 const auto& display = ImGui::GetIO().DisplaySize;
                 const auto content = ChatPlayerManager::GetSize();
@@ -276,7 +277,10 @@ namespace UI
                 }
                 if (BeginFramed("##ChatPlayerManager", kManagerWindowFlags, kManagerBackgroundAlpha))
                 {
-                    manager.Draw();
+                    if (const auto player = manager.Draw(a_closeMenu))
+                    {
+                        Whisper(*player);
+                    }
                 }
                 ImGui::End();
             }

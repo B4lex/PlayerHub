@@ -288,7 +288,7 @@ on its edges ends ([UI overlay](ui-overlay.md#size)).
 
 `Config::GetDirectory` is the directory of `playerhub.ini`, for the plugin's
 other files: the session tokens are kept there in `playerhub.session`, outside
-this file ([Network](network.md#session)), the muted and vanished players in
+this file ([Network](network.md#session)), the friends, muted, and vanished players in
 `playerhub.players` ([Network](network.md#player-filters)), and the settings
 window's fonts and
 the menu frame's shape are read from `playerhub/fonts/` and `playerhub/frame/`

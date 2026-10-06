@@ -684,15 +684,16 @@ appearance, so it answers for the others.
 
 ### Player filters
 
-- `PlayerFilterStore` keeps the players the local player muted or vanished in
-  `playerhub.players`, next to `playerhub.session`: a line per player and
-  server, `m`, `v`, or `mv`, the session ID, the WebSocket URL, and the name
-  when last muted or vanished, separated by tabs, which neither a display
+- `PlayerFilterStore` keeps the local player's friends and the players it
+  muted or vanished in `playerhub.players`, next to `playerhub.session`: a
+  line per player and server, any of `f`, `m`, and `v` in that order, the
+  session ID, the WebSocket URL, and the name when last seen
+  ([UI overlay](ui-overlay.md#friends)), separated by tabs, which neither a display
   name nor a URL holds; lines starting with `;` are comments, and a line
   without a session, a server, a name, or a known flag is skipped with a
   warning. It is read once, on first use, and written through
   `playerhub.players.tmp` on every change; a failed write lasts until the
-  game exits. A player neither muted nor vanished has no line.
+  game exits. A player with none of the three has no line.
 - The hello carries the sessions vanished on the attempt's URL, at most 1024
   with a warning for the rest. `Network::PublishVanish` sends a change only
   when the current socket's hello went to the server the change belongs to,

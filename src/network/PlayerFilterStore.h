@@ -12,6 +12,7 @@ namespace Network::PlayerFilterStore
     {
         Multiplayer::SessionID session{ 0 };
         std::string name;
+        bool friended{ false };
         bool muted{ false };
         bool vanished{ false };
     };

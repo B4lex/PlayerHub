@@ -46,7 +46,8 @@ namespace UI
     bool ChatPlayerMenu::Draw()
     {
         DrawHeading();
-        const bool whisper = ImGui::MenuItem("Whisper");
+        // An offline player has no slot to whisper.
+        const bool whisper = ImGui::MenuItem("Whisper", nullptr, false, player.playerID != 0);
         DrawFilterItems();
         return whisper;
     }
@@ -91,6 +92,13 @@ namespace UI
         {
             return;
         }
+        const bool friended = PlayerFilters::IsFriend(player.session);
+        if (ImGui::MenuItem(friended ? "Remove friend" : "Add friend"))
+        {
+            PlayerFilters::SetFriend(player, !friended);
+        }
+        ImGui::SetItemTooltip("%s", friended ? "Take them off your friends list."
+                                             : "Keep them in your friends list and see when they come online.");
         ImGui::Separator();
         const bool muted = PlayerFilters::IsMuted(player.session);
         if (ImGui::MenuItem(muted ? "Unmute" : "Mute"))
