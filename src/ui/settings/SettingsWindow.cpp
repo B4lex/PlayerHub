@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cfloat>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -61,6 +62,9 @@ namespace UI
 
         constexpr float kBackgroundAlpha = 0.96F;
         constexpr const char* kSaveFailedText = "Could not save skyrim-mp.ini";
+        // U+E000 and U+E001 of the logo font: the letters and the bar.
+        constexpr const char* kLogoLetters = "\xEE\x80\x80";
+        constexpr const char* kLogoBar = "\xEE\x80\x81";
 
         constexpr ImGuiWindowFlags kFixedFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
         constexpr ImGuiWindowFlags kWindowFlags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse
@@ -842,9 +846,7 @@ namespace UI
                 {
                     const auto& style = ImGui::GetStyle();
                     ImGui::SetCursorPosX(padding.x + inset);
-                    ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kBrandScale);
-                    ImGui::TextUnformatted("Multiplayer");
-                    ImGui::PopFont();
+                    DrawBrand(a_width - (padding.x + inset) * 2.0F);
                     ImGui::Dummy(ImVec2{ 0.0F, std::floor(style.ItemSpacing.y * 0.5F) });
                     editor.DrawNavigation();
 
@@ -853,6 +855,30 @@ namespace UI
                     ConnectionControls::DrawSummary(a_width - (padding.x + inset) * 2.0F);
                 }
                 ImGui::EndChild();
+            }
+
+            static void DrawBrand(float a_width)
+            {
+                const auto& style = ImGui::GetStyle();
+                auto* logo = Fonts::GetLogo();
+                if (!logo)
+                {
+                    ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kBrandScale);
+                    ImGui::TextUnformatted("Multiplayer");
+                    ImGui::PopFont();
+                    return;
+                }
+                // The logo font's em is the logo's height. Dear ImGui rounds a font size
+                // to whole pixels, so a whole height keeps the logo within the width.
+                const auto aspect =
+                    logo->CalcTextSizeA(style.FontSizeBase, FLT_MAX, 0.0F, kLogoLetters).x / style.FontSizeBase;
+                ImGui::PushFont(logo, std::floor(a_width / aspect) / (style.FontScaleMain * style.FontScaleDpi));
+                const auto position = ImGui::GetCursorScreenPos();
+                auto& list = *ImGui::GetWindowDrawList();
+                list.AddText(position, ImGui::GetColorU32(ImGuiCol_Text), kLogoLetters);
+                list.AddText(position, ImGui::GetColorU32(Theme::GetAccent()), kLogoBar);
+                ImGui::Dummy(ImGui::CalcTextSize(kLogoLetters));
+                ImGui::PopFont();
             }
 
             void DrawPage(bool& a_open)

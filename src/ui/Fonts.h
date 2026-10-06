@@ -9,4 +9,5 @@ namespace UI::Fonts
 
     [[nodiscard]] ImFont* GetText();
     [[nodiscard]] ImFont* GetHeading();
+    [[nodiscard]] ImFont* GetLogo();
 }

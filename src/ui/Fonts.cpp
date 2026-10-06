@@ -43,6 +43,7 @@ namespace UI::Fonts
         constexpr std::wstring_view kShippedDirectory = L"skyrim-mp/fonts";
         constexpr std::wstring_view kTextFile = L"Sovngarde Light.ttf";
         constexpr std::wstring_view kHeadingFile = L"Sovngarde Bold.ttf";
+        constexpr std::wstring_view kLogoFile = L"PlayerHUB Logo.ttf";
         // Sovngarde's letters are small for its line height.
         constexpr float kShippedGlyphScale = 1.25F;
 
@@ -76,6 +77,7 @@ namespace UI::Fonts
 
         ImFont* s_text = nullptr;
         ImFont* s_heading = nullptr;
+        ImFont* s_logo = nullptr;
 
         std::optional<std::filesystem::path> GetFontsDirectory()
         {
@@ -159,6 +161,25 @@ namespace UI::Fonts
             logs::info("UI overlay: font {}", a_path.filename().string());
             return font;
         }
+
+        ImFont* AddLogo(ImFontAtlas& a_atlas, float a_sizePixels, const std::filesystem::path& a_path)
+        {
+            const auto data = MapFile(a_path);
+            if (data.empty())
+            {
+                logs::warn("UI overlay: could not read logo {}; using a text title", a_path.string());
+                return nullptr;
+            }
+            const auto font = AddSource(a_atlas, a_sizePixels, data, false);
+            if (!font)
+            {
+                logs::warn("UI overlay: could not load logo {}; using a text title", a_path.string());
+                s_views.pop_back();
+                return nullptr;
+            }
+            logs::info("UI overlay: logo {}", a_path.filename().string());
+            return font;
+        }
     }
 
     void Load(ImFontAtlas& a_atlas, float a_sizePixels)
@@ -211,6 +232,7 @@ namespace UI::Fonts
         const auto shipped = directory / kShippedDirectory;
         s_text = AddShipped(a_atlas, a_sizePixels, shipped / kTextFile, system);
         s_heading = AddShipped(a_atlas, a_sizePixels, shipped / kHeadingFile, system);
+        s_logo = AddLogo(a_atlas, a_sizePixels, shipped / kLogoFile);
     }
 
     ImFont* GetText()
@@ -221,5 +243,10 @@ namespace UI::Fonts
     ImFont* GetHeading()
     {
         return s_heading;
+    }
+
+    ImFont* GetLogo()
+    {
+        return s_logo;
     }
 }
