@@ -16,10 +16,10 @@ import (
 	"github.com/coder/websocket"
 	"google.golang.org/protobuf/proto"
 
-	"skyrim-mp/server/internal/auth"
-	"skyrim-mp/server/internal/config"
-	"skyrim-mp/server/internal/hub"
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/auth"
+	"playerhub/server/internal/config"
+	"playerhub/server/internal/hub"
+	"playerhub/server/internal/wire/pb"
 )
 
 type testServer struct {

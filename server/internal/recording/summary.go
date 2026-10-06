@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"skyrim-mp/server/internal/validate"
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/validate"
+	"playerhub/server/internal/wire/pb"
 )
 
 type Marker struct {

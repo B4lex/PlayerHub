@@ -4,9 +4,9 @@ import (
 	"errors"
 	"time"
 
-	"skyrim-mp/server/internal/validate"
-	"skyrim-mp/server/internal/wire"
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/validate"
+	"playerhub/server/internal/wire"
+	"playerhub/server/internal/wire/pb"
 )
 
 type Kind uint8

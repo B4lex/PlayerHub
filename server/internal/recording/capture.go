@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/wire/pb"
 )
 
 const (

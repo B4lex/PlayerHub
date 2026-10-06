@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/wire/pb"
 )
 
 func TestConcatenatedEntriesDecodeAsPeerStates(t *testing.T) {

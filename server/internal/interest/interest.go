@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/wire/pb"
 )
 
 type Config struct {

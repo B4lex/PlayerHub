@@ -1,6 +1,6 @@
 package delivery
 
-import "skyrim-mp/server/internal/wire"
+import "playerhub/server/internal/wire"
 
 type Batch struct {
 	ordered []item

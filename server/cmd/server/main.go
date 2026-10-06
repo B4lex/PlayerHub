@@ -14,16 +14,16 @@ import (
 	"syscall"
 	"time"
 
-	"skyrim-mp/server/internal/admin"
-	"skyrim-mp/server/internal/auth"
-	"skyrim-mp/server/internal/config"
-	"skyrim-mp/server/internal/delivery"
-	"skyrim-mp/server/internal/hub"
-	"skyrim-mp/server/internal/interest"
-	"skyrim-mp/server/internal/loadtest"
-	"skyrim-mp/server/internal/playback"
-	"skyrim-mp/server/internal/recording"
-	"skyrim-mp/server/internal/session"
+	"playerhub/server/internal/admin"
+	"playerhub/server/internal/auth"
+	"playerhub/server/internal/config"
+	"playerhub/server/internal/delivery"
+	"playerhub/server/internal/hub"
+	"playerhub/server/internal/interest"
+	"playerhub/server/internal/loadtest"
+	"playerhub/server/internal/playback"
+	"playerhub/server/internal/recording"
+	"playerhub/server/internal/session"
 )
 
 func main() {

@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"skyrim-mp/server/internal/hub"
-	"skyrim-mp/server/internal/playback"
-	"skyrim-mp/server/internal/recording"
-	"skyrim-mp/server/internal/world"
+	"playerhub/server/internal/hub"
+	"playerhub/server/internal/playback"
+	"playerhub/server/internal/recording"
+	"playerhub/server/internal/world"
 )
 
 var ErrNotFound = errors.New("load batch not found")

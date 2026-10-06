@@ -40,7 +40,7 @@ namespace UI::Fonts
         };
 
         // Sovngarde, under the SIL Open Font License beside the files.
-        constexpr std::wstring_view kShippedDirectory = L"skyrim-mp/fonts";
+        constexpr std::wstring_view kShippedDirectory = L"playerhub/fonts";
         constexpr std::wstring_view kTextFile = L"Sovngarde Light.ttf";
         constexpr std::wstring_view kHeadingFile = L"Sovngarde Bold.ttf";
         constexpr std::wstring_view kLogoFile = L"PlayerHUB Logo.ttf";

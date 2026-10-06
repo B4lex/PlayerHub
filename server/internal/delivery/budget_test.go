@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/wire/pb"
 )
 
 func drainAt(t *testing.T, o *Outbox, now time.Time) (peers []uint32, ordered int) {

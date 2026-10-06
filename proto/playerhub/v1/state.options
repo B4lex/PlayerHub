@@ -1,0 +1,11 @@
+# nanopb static sizes. They mirror the validation limits in specs/network.md,
+# plus one byte for a string's terminator.
+playerhub.v1.FormRef.plugin max_size:261
+playerhub.v1.Appearance.name max_size:129
+playerhub.v1.Appearance.head_parts max_count:16
+playerhub.v1.Appearance.face_morphs max_count:19
+playerhub.v1.Appearance.face_parts max_count:4
+playerhub.v1.Appearance.tints max_count:64
+playerhub.v1.Equipment.armor max_count:32
+playerhub.v1.DefaultOutfit.armor max_count:8
+playerhub.v1.DefaultOutfit.hands max_count:2

@@ -17,7 +17,7 @@ export function Sidebar({ pages }: { pages: readonly PageDefinition[] }) {
       <div className={styles.brand}>
         <span className={styles.logo} aria-hidden="true" />
         <div>
-          <div className={styles.name}>Skyrim MP</div>
+          <div className={styles.name}>PlayerHub</div>
           <div className={styles.subtitle}>Server admin</div>
         </div>
       </div>

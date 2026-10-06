@@ -9,12 +9,12 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"skyrim-mp/server/internal/validate"
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/validate"
+	"playerhub/server/internal/wire/pb"
 )
 
 const (
-	FormatName    = "skyrim-mp-recording"
+	FormatName    = "playerhub-recording"
 	FormatVersion = 3
 )
 

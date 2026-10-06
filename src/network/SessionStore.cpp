@@ -16,7 +16,7 @@ namespace Network::SessionStore
     {
         using Multiplayer::SessionToken;
 
-        constexpr std::string_view kFileName = "skyrim-mp.session";
+        constexpr std::string_view kFileName = "playerhub.session";
         constexpr std::string_view kTemporaryExtension = ".tmp";
         constexpr std::string_view kFileHeader
             = "; Skyrim Multiplayer sessions, one per server: the session's token, then the server.\n"

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"skyrim-mp/server/internal/recording"
+	"playerhub/server/internal/recording"
 )
 
 func main() {

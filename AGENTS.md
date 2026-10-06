@@ -108,7 +108,7 @@ a peer does not have a matching modded asset or behavior.
 - Backward compatibility between protocol or server versions is not a priority:
   every client release is supplied with its required server update. Prefer clear,
   direct protocol evolution over compatibility shims for older client versions.
-- A wire change usually spans the schema in `proto/skyrimmp/v1/`, plain values
+- A wire change usually spans the schema in `proto/playerhub/v1/`, plain values
   and quantization in `src/protocol/`, encoding and parsing in
   `src/network/WireCodec`, validation in `server/internal/validate`, ordering
   and relay in `server/internal/hub`, and the owning `src/sync/` feature. Check

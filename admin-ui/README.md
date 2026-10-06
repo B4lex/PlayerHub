@@ -1,4 +1,4 @@
-# Skyrim MP admin panel
+# PlayerHub admin panel
 
 React and TypeScript front end for the game server's admin API. The server
 hosts the built app at `/admin/` on its admin address (`admin_listen`,

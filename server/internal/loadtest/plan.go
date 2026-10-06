@@ -4,7 +4,7 @@ import (
 	"math"
 	"math/rand/v2"
 
-	"skyrim-mp/server/internal/playback"
+	"playerhub/server/internal/playback"
 )
 
 const (

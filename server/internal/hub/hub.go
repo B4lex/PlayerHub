@@ -7,14 +7,14 @@ import (
 	"slices"
 	"time"
 
-	"skyrim-mp/server/internal/clock"
-	"skyrim-mp/server/internal/delivery"
-	"skyrim-mp/server/internal/interest"
-	"skyrim-mp/server/internal/limit"
-	"skyrim-mp/server/internal/validate"
-	"skyrim-mp/server/internal/wire"
-	"skyrim-mp/server/internal/wire/pb"
-	"skyrim-mp/server/internal/world"
+	"playerhub/server/internal/clock"
+	"playerhub/server/internal/delivery"
+	"playerhub/server/internal/interest"
+	"playerhub/server/internal/limit"
+	"playerhub/server/internal/validate"
+	"playerhub/server/internal/wire"
+	"playerhub/server/internal/wire/pb"
+	"playerhub/server/internal/world"
 )
 
 var (

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"skyrim-mp/server/internal/recording"
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/recording"
+	"playerhub/server/internal/wire/pb"
 )
 
 type fakePlayer struct {

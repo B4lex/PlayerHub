@@ -37,7 +37,7 @@
     `Theme.cpp`, `MenuFrame.cpp`, and `Fonts.cpp` in a headless Dear ImGui
     1.92.9 context against a folder laid out as the deploy step leaves it,
     with simulated keys and mouse and the draw data rasterized to images, at
-    1080p, at 4K, with `BorderColor = Accent`, and without `skyrim-mp/`:
+    1080p, at 4K, with `BorderColor = Accent`, and without `playerhub/`:
     typing, `!`, Tab, Shift+Tab, and Backspace; the name list by
     keys and by a click; Escape closing the list, then the chat, with the
     text kept and discarded; the command list; Up and Down; each filter
@@ -65,7 +65,7 @@
 
   - The chat's size and wrapped lines ran in that harness over a stubbed
     `Config::Apply`, at 720p, 1080p, and 4K, with `BorderColor = Accent`, and
-    without `skyrim-mp/`: a line longer than its row starting beside its
+    without `playerhub/`: a line longer than its row starting beside its
     label and continuing from the left edge under it, in the open chat and
     among the closed chat's lines; a first word that only a whole row has
     room for starting the next row; a word wider than a row, with and
@@ -203,7 +203,7 @@
   - every section at 1080p and Default Outfit at 4K, the key list, and a
     label's tooltip are in Sovngarde with bold headings; a display name with
     `Ґ`, `ž`, and Han characters shows them from the fallbacks;
-  - without `skyrim-mp/fonts/` the log warns for each file and the window is
+  - without `playerhub/fonts/` the log warns for each file and the window is
     in the system font; without system fonts both faces still load;
   - after a frame the font stack is empty and the current font is the
     overlay's.
@@ -250,7 +250,7 @@
   - a drag on the lower right corner resizes the settings window and the frame
     follows, and the cursor over that corner is the resize one; recent chat
     lines have no frame and stand in the open chat's column;
-  - without `skyrim-mp/frame/` the log warns and both windows have their
+  - without `playerhub/frame/` the log warns and both windows have their
     style's rounded rectangle with a line in the frame color; a file cut
     short, of another version, with a `nan`, with a point
     count out of range, or with no polygons each warn with the reason and fall
@@ -449,7 +449,7 @@ status panel keeps the system font.
 
 - The files are in `assets/fonts/`, unmodified from the
   [standalone release](https://mjorka.itch.io/sovngarde), with
-  `Sovngarde OFL License.txt`, and are read from `skyrim-mp/fonts/` under
+  `Sovngarde OFL License.txt`, and are read from `playerhub/fonts/` under
   `Config::GetDirectory` ([Configuration](configuration.md#file));
   `xmake.lua` copies the folder to every deploy directory after a build.
 - They are separate files rather than data in the DLL because Sovngarde is
@@ -576,7 +576,7 @@ is not part of the plugin.
   coordinate: the corners keep their shape and the lines stretch, as the
   game's 9-slice does. The file also gives `inset`, 8.2, how far the lines
   reach in from a side, and `corner`, 27.05, how far the knots do.
-- The file is `skyrim-mp/frame/menu-frame.shape` under `Config::GetDirectory`,
+- The file is `playerhub/frame/menu-frame.shape` under `Config::GetDirectory`,
   deployed by `xmake.lua`. It is a file rather than data in the DLL for the
   reason the [themed faces](#themed-faces) are: the art is Bethesda's and the
   plugin is under GPL-3.0.
@@ -1214,7 +1214,7 @@ and gamepad navigation.
 
 ## Settings window
 
-Players change `skyrim-mp.ini` ([Configuration](configuration.md)) in game and
+Players change `playerhub.ini` ([Configuration](configuration.md)) in game and
 see the result at once. The game is not paused; the world keeps running and
 peers keep seeing the player.
 
@@ -1506,7 +1506,7 @@ or zoomed.
    Chat still opens with Enter and shows no cursor until the mouse moves.
    With Modex installed and bound to Delete, Delete and letters typed into the
    chat or a settings field do not open its menu, and Delete opens it once
-   the window is closed; `skyrim-mp.log` has one line about detouring input
+   the window is closed; `playerhub.log` has one line about detouring input
    dispatch again.
 5. The General section holds the `Display Name` field with one button beside
    it and a line under them. Opening the window with no display name puts the
@@ -1531,7 +1531,7 @@ or zoomed.
    display name changes nothing until Enter or a click elsewhere, which saves it
    without connecting; an endpoint without `http://` turns red and the
    connection stays. `View Radius` reads `Auto` and `+` sets 1000. Each change
-   is in `skyrim-mp.ini` without pressing anything. Default Outfit shows
+   is in `playerhub.ini` without pressing anything. Default Outfit shows
    Defaults, Revert, and Apply; a picked item shows a reset icon and reaches
    peers only on Apply, and Defaults leaves the display name and endpoint as
    they are.
@@ -1555,7 +1555,7 @@ or zoomed.
    height when the chat opens; the status panel stays in the system font. The
    log has one `UI overlay: font` line per file. A display name or chat line
    with characters Sovngarde lacks still shows every character. With
-   `skyrim-mp/fonts/` removed, the log warns for each file and the window and
+   `playerhub/fonts/` removed, the log warns for each file and the window and
    the chat show in the system font.
    The sidebar is headed by the sharp PlayerHUB logo at 1080p and 4K, left-aligned
    with the section labels and as wide as the space between their insets, its bar
@@ -1571,10 +1571,10 @@ or zoomed.
     inside the lines and clear of the knots.
     Picking
     `Accent` for `Border Color` in the Interface section turns both frames
-    the accent at once and writes `BorderColor = Accent` to `skyrim-mp.ini`;
+    the accent at once and writes `BorderColor = Accent` to `playerhub.ini`;
     `Vanilla` turns them grey again. Recent chat lines have no frame and do
     not move sideways when the chat opens. The log has one
-    `UI overlay: menu frame` line. With `skyrim-mp/frame/` removed, the log
+    `UI overlay: menu frame` line. With `playerhub/frame/` removed, the log
     warns and both windows have a rounded line in the frame color.
 11. With `Ulf Stone` online, `@u` lists it; Tab or Enter turns the chip to
     `To Ulf Stone` and empties the field, and a line reaches only that player,
@@ -1621,7 +1621,7 @@ or zoomed.
     Throughout, the filters, the field, and the chip keep their place in the
     window without flickering and the latest line stays at the bottom. On
     release the chat settles on whole lines and font sizes. After a drag
-    `skyrim-mp.ini` has `ChatWidth` and `ChatLines`, the closed chat's lines
+    `playerhub.ini` has `ChatWidth` and `ChatLines`, the closed chat's lines
     are as wide, the chat has that size after the game restarts, and the
     Interface section shows neither key.
 17. The open chat's filter row ends with a chip showing a person and the
@@ -1664,7 +1664,7 @@ or zoomed.
 21. In Interface, a click on the blue swatch turns the settings window's
     sidebar mark, switches, slider, and hovered widgets blue at once, and
     with `Border Color` at `Accent` its frame and the open chat's too; the
-    open chat's player list button and lists follow. `skyrim-mp.ini` then
+    open chat's player list button and lists follow. `playerhub.ini` then
     has `AccentColor = 4F8EF7`, which the next game loads. The custom swatch
     opens a picker; dragging in it changes only the custom swatch until
     release, then the whole window, and a typed hex color applies on Enter.

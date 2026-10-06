@@ -18,11 +18,11 @@ import (
 	"github.com/coder/websocket"
 	"google.golang.org/protobuf/proto"
 
-	"skyrim-mp/server/internal/loadtest"
-	"skyrim-mp/server/internal/playback"
-	"skyrim-mp/server/internal/recording"
-	"skyrim-mp/server/internal/wire"
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/loadtest"
+	"playerhub/server/internal/playback"
+	"playerhub/server/internal/recording"
+	"playerhub/server/internal/wire"
+	"playerhub/server/internal/wire/pb"
 )
 
 type options struct {

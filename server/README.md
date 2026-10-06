@@ -173,7 +173,7 @@ Errors answer `{"detail": "..."}`. Player IDs are slots as decimal strings.
 ## Connecting from another computer
 
 On the remote player's machine, set the server's reachable URL in
-`skyrim-mp.ini` next to `skyrim-mp.dll`:
+`playerhub.ini` next to `playerhub.dll`:
 
 ```ini
 [Network]

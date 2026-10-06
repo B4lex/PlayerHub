@@ -2,7 +2,7 @@
 
 #include <pb_decode.h>
 #include <pb_encode.h>
-#include <skyrimmp/v1/messages.pb.h>
+#include <playerhub/v1/messages.pb.h>
 
 #include <algorithm>
 #include <cmath>
@@ -42,52 +42,52 @@ namespace Network::Wire
             return true;
         }
 
-        bool WriteFormReference(const Multiplayer::FormReference& a_reference, skyrimmp_v1_FormRef& a_result)
+        bool WriteFormReference(const Multiplayer::FormReference& a_reference, playerhub_v1_FormRef& a_result)
         {
             a_result.form_id = a_reference.localFormID;
             return CopyString(a_result.plugin, a_reference.plugin);
         }
 
         bool WriteOptionalFormReference(
-            const Multiplayer::FormReference& a_reference, bool& a_has, skyrimmp_v1_FormRef& a_result)
+            const Multiplayer::FormReference& a_reference, bool& a_has, playerhub_v1_FormRef& a_result)
         {
             a_has = !a_reference.IsEmpty();
             return !a_has || WriteFormReference(a_reference, a_result);
         }
 
-        skyrimmp_v1_Color WriteColor(const Multiplayer::AppearanceColor& a_color)
+        playerhub_v1_Color WriteColor(const Multiplayer::AppearanceColor& a_color)
         {
-            return skyrimmp_v1_Color{ a_color.red, a_color.green, a_color.blue };
+            return playerhub_v1_Color{ a_color.red, a_color.green, a_color.blue };
         }
 
-        skyrimmp_v1_HandKind WriteHandKind(Multiplayer::EquipmentHandKind a_kind)
+        playerhub_v1_HandKind WriteHandKind(Multiplayer::EquipmentHandKind a_kind)
         {
             switch (a_kind)
             {
                 case Multiplayer::EquipmentHandKind::kTorch:
-                    return skyrimmp_v1_HandKind_HAND_KIND_TORCH;
+                    return playerhub_v1_HandKind_HAND_KIND_TORCH;
                 case Multiplayer::EquipmentHandKind::kSpell:
-                    return skyrimmp_v1_HandKind_HAND_KIND_SPELL;
+                    return playerhub_v1_HandKind_HAND_KIND_SPELL;
                 default:
-                    return skyrimmp_v1_HandKind_HAND_KIND_WEAPON;
+                    return playerhub_v1_HandKind_HAND_KIND_WEAPON;
             }
         }
 
-        bool WriteHand(const Multiplayer::EquipmentHand& a_hand, skyrimmp_v1_Hand& a_result)
+        bool WriteHand(const Multiplayer::EquipmentHand& a_hand, playerhub_v1_Hand& a_result)
         {
             a_result.kind = WriteHandKind(a_hand.kind);
             a_result.weapon_type = a_hand.weaponType;
             return WriteOptionalFormReference(a_hand.form, a_result.has_form, a_result.form);
         }
 
-        bool WriteArmor(const Multiplayer::EquipmentArmor& a_armor, skyrimmp_v1_Armor& a_result)
+        bool WriteArmor(const Multiplayer::EquipmentArmor& a_armor, playerhub_v1_Armor& a_result)
         {
             a_result.slot_mask = a_armor.slotMask;
             a_result.has_form = true;
             return WriteFormReference(a_armor.form, a_result.form);
         }
 
-        bool ReadFormReference(const skyrimmp_v1_FormRef& a_reference, Multiplayer::FormReference& a_result)
+        bool ReadFormReference(const playerhub_v1_FormRef& a_reference, Multiplayer::FormReference& a_result)
         {
             a_result.plugin = a_reference.plugin;
             a_result.localFormID = a_reference.form_id;
@@ -95,13 +95,13 @@ namespace Network::Wire
         }
 
         bool ReadOptionalFormReference(
-            bool a_has, const skyrimmp_v1_FormRef& a_reference, Multiplayer::FormReference& a_result)
+            bool a_has, const playerhub_v1_FormRef& a_reference, Multiplayer::FormReference& a_result)
         {
             a_result = {};
             return !a_has || ReadFormReference(a_reference, a_result);
         }
 
-        bool ReadColor(const skyrimmp_v1_Color& a_color, Multiplayer::AppearanceColor& a_result)
+        bool ReadColor(const playerhub_v1_Color& a_color, Multiplayer::AppearanceColor& a_result)
         {
             if (a_color.r > 0xFF || a_color.g > 0xFF || a_color.b > 0xFF)
             {
@@ -112,7 +112,7 @@ namespace Network::Wire
             return true;
         }
 
-        bool ReadContext(const skyrimmp_v1_Context& a_context, CheckpointContext& a_result)
+        bool ReadContext(const playerhub_v1_Context& a_context, CheckpointContext& a_result)
         {
             a_result.cellID = a_context.cell_id;
             a_result.worldspaceID = a_context.worldspace_id;
@@ -121,7 +121,7 @@ namespace Network::Wire
                 && ReadOptionalFormReference(a_context.has_furniture, a_context.furniture, a_result.furniture);
         }
 
-        QuantizedCheckpoint ReadCheckpoint(const skyrimmp_v1_Checkpoint& a_checkpoint)
+        QuantizedCheckpoint ReadCheckpoint(const playerhub_v1_Checkpoint& a_checkpoint)
         {
             return QuantizedCheckpoint{ .sequence = a_checkpoint.sequence,
                 .x = a_checkpoint.x,
@@ -136,7 +136,7 @@ namespace Network::Wire
         }
 
         std::expected<AnimationAction, std::string> ReadAction(
-            Multiplayer::PeerSlot a_slot, const skyrimmp_v1_Action& a_action)
+            Multiplayer::PeerSlot a_slot, const playerhub_v1_Action& a_action)
         {
             AnimationAction result{ .playerID = a_slot,
                 .actionSequence = a_action.action_sequence,
@@ -148,16 +148,16 @@ namespace Network::Wire
             }
             switch (a_action.action)
             {
-                case skyrimmp_v1_AttackAction_ATTACK_ACTION_NORMAL:
+                case playerhub_v1_AttackAction_ATTACK_ACTION_NORMAL:
                     result.attack.action = AttackAction::kNormal;
                     break;
-                case skyrimmp_v1_AttackAction_ATTACK_ACTION_LEFT:
+                case playerhub_v1_AttackAction_ATTACK_ACTION_LEFT:
                     result.attack.action = AttackAction::kLeft;
                     break;
-                case skyrimmp_v1_AttackAction_ATTACK_ACTION_DUAL:
+                case playerhub_v1_AttackAction_ATTACK_ACTION_DUAL:
                     result.attack.action = AttackAction::kDual;
                     break;
-                case skyrimmp_v1_AttackAction_ATTACK_ACTION_BASH:
+                case playerhub_v1_AttackAction_ATTACK_ACTION_BASH:
                     result.attack.action = AttackAction::kBash;
                     break;
                 default:
@@ -165,20 +165,20 @@ namespace Network::Wire
             }
             result.attack.power = a_action.power;
             const auto direction = static_cast<int>(a_action.direction);
-            if (a_action.power != (direction != skyrimmp_v1_PowerDirection_POWER_DIRECTION_NONE)
-                || direction > skyrimmp_v1_PowerDirection_POWER_DIRECTION_RIGHT || direction < 0)
+            if (a_action.power != (direction != playerhub_v1_PowerDirection_POWER_DIRECTION_NONE)
+                || direction > playerhub_v1_PowerDirection_POWER_DIRECTION_RIGHT || direction < 0)
             {
                 return std::unexpected("direction");
             }
             if (a_action.power)
             {
                 result.attack.direction = static_cast<PowerAttackDirection>(
-                    direction - skyrimmp_v1_PowerDirection_POWER_DIRECTION_STANDING);
+                    direction - playerhub_v1_PowerDirection_POWER_DIRECTION_STANDING);
             }
             return result;
         }
 
-        const char* ReadAppearance(const skyrimmp_v1_Appearance& a_appearance, Multiplayer::PlayerAppearance& a_result)
+        const char* ReadAppearance(const playerhub_v1_Appearance& a_appearance, Multiplayer::PlayerAppearance& a_result)
         {
             using Multiplayer::PlayerAppearance;
             a_result.revision = a_appearance.revision;
@@ -262,17 +262,17 @@ namespace Network::Wire
             return Multiplayer::IsValidAppearance(a_result) ? nullptr : "value ranges";
         }
 
-        bool ReadHand(const skyrimmp_v1_Hand& a_hand, Multiplayer::EquipmentHand& a_result)
+        bool ReadHand(const playerhub_v1_Hand& a_hand, Multiplayer::EquipmentHand& a_result)
         {
             switch (a_hand.kind)
             {
-                case skyrimmp_v1_HandKind_HAND_KIND_WEAPON:
+                case playerhub_v1_HandKind_HAND_KIND_WEAPON:
                     a_result.kind = Multiplayer::EquipmentHandKind::kWeapon;
                     break;
-                case skyrimmp_v1_HandKind_HAND_KIND_TORCH:
+                case playerhub_v1_HandKind_HAND_KIND_TORCH:
                     a_result.kind = Multiplayer::EquipmentHandKind::kTorch;
                     break;
-                case skyrimmp_v1_HandKind_HAND_KIND_SPELL:
+                case playerhub_v1_HandKind_HAND_KIND_SPELL:
                     a_result.kind = Multiplayer::EquipmentHandKind::kSpell;
                     break;
                 default:
@@ -286,13 +286,13 @@ namespace Network::Wire
             return ReadOptionalFormReference(a_hand.has_form, a_hand.form, a_result.form);
         }
 
-        bool ReadArmor(const skyrimmp_v1_Armor& a_armor, Multiplayer::EquipmentArmor& a_result)
+        bool ReadArmor(const playerhub_v1_Armor& a_armor, Multiplayer::EquipmentArmor& a_result)
         {
             a_result.slotMask = a_armor.slot_mask;
             return a_armor.has_form && ReadFormReference(a_armor.form, a_result.form);
         }
 
-        const char* ReadEquipment(const skyrimmp_v1_Equipment& a_equipment, Multiplayer::PlayerEquipment& a_result)
+        const char* ReadEquipment(const playerhub_v1_Equipment& a_equipment, Multiplayer::PlayerEquipment& a_result)
         {
             a_result.revision = a_equipment.revision;
             a_result.armor.clear();
@@ -343,7 +343,7 @@ namespace Network::Wire
             return Multiplayer::IsValidEquipment(a_result) ? nullptr : "value ranges";
         }
 
-        bool ReadChatSpeaker(const skyrimmp_v1_ChatSpeaker& a_speaker, Multiplayer::ChatSpeaker& a_result)
+        bool ReadChatSpeaker(const playerhub_v1_ChatSpeaker& a_speaker, Multiplayer::ChatSpeaker& a_result)
         {
             a_result = Multiplayer::ChatSpeaker{ .playerID = a_speaker.slot,
                 .name = a_speaker.name,
@@ -354,32 +354,32 @@ namespace Network::Wire
                 && Multiplayer::IsValidAppearanceName(a_result.name);
         }
 
-        std::optional<Multiplayer::ChatChannel> ReadChatChannel(skyrimmp_v1_ChatChannel a_channel)
+        std::optional<Multiplayer::ChatChannel> ReadChatChannel(playerhub_v1_ChatChannel a_channel)
         {
             switch (a_channel)
             {
-                case skyrimmp_v1_ChatChannel_CHAT_CHANNEL_GLOBAL:
+                case playerhub_v1_ChatChannel_CHAT_CHANNEL_GLOBAL:
                     return Multiplayer::ChatChannel::kGlobal;
-                case skyrimmp_v1_ChatChannel_CHAT_CHANNEL_LOCAL:
+                case playerhub_v1_ChatChannel_CHAT_CHANNEL_LOCAL:
                     return Multiplayer::ChatChannel::kLocal;
-                case skyrimmp_v1_ChatChannel_CHAT_CHANNEL_WHISPER:
+                case playerhub_v1_ChatChannel_CHAT_CHANNEL_WHISPER:
                     return Multiplayer::ChatChannel::kWhisper;
             }
             return std::nullopt;
         }
 
-        skyrimmp_v1_ChatChannel WriteChatChannel(Multiplayer::ChatChannel a_channel)
+        playerhub_v1_ChatChannel WriteChatChannel(Multiplayer::ChatChannel a_channel)
         {
             switch (a_channel)
             {
                 case Multiplayer::ChatChannel::kLocal:
-                    return skyrimmp_v1_ChatChannel_CHAT_CHANNEL_LOCAL;
+                    return playerhub_v1_ChatChannel_CHAT_CHANNEL_LOCAL;
                 case Multiplayer::ChatChannel::kWhisper:
-                    return skyrimmp_v1_ChatChannel_CHAT_CHANNEL_WHISPER;
+                    return playerhub_v1_ChatChannel_CHAT_CHANNEL_WHISPER;
                 case Multiplayer::ChatChannel::kGlobal:
                     break;
             }
-            return skyrimmp_v1_ChatChannel_CHAT_CHANNEL_GLOBAL;
+            return playerhub_v1_ChatChannel_CHAT_CHANNEL_GLOBAL;
         }
 
         std::expected<ServerMessage, std::string> DecodePeerStates(pb_istream_t& a_stream)
@@ -399,7 +399,7 @@ namespace Network::Wire
                 {
                     return std::unexpected("peer states entry tag");
                 }
-                if (tag != skyrimmp_v1_PeerStates_states_tag || wireType != PB_WT_STRING)
+                if (tag != playerhub_v1_PeerStates_states_tag || wireType != PB_WT_STRING)
                 {
                     if (!pb_skip_field(&batch, wireType))
                     {
@@ -411,8 +411,8 @@ namespace Network::Wire
                 {
                     return std::unexpected("peer states entry count");
                 }
-                skyrimmp_v1_Checkpoint entry = skyrimmp_v1_Checkpoint_init_zero;
-                if (!pb_decode_ex(&batch, skyrimmp_v1_Checkpoint_fields, &entry, PB_DECODE_DELIMITED))
+                playerhub_v1_Checkpoint entry = playerhub_v1_Checkpoint_init_zero;
+                if (!pb_decode_ex(&batch, playerhub_v1_Checkpoint_fields, &entry, PB_DECODE_DELIMITED))
                 {
                     return std::unexpected(std::string{ "peer states entry: " } + PB_GET_ERROR(&batch));
                 }
@@ -447,7 +447,7 @@ namespace Network::Wire
                 {
                     return std::unexpected("roster field tag");
                 }
-                if (tag == skyrimmp_v1_Roster_left_tag && wireType == PB_WT_VARINT)
+                if (tag == playerhub_v1_Roster_left_tag && wireType == PB_WT_VARINT)
                 {
                     if (!pb_decode_varint32(&roster, &change.left))
                     {
@@ -455,7 +455,7 @@ namespace Network::Wire
                     }
                     continue;
                 }
-                if (tag != skyrimmp_v1_Roster_joined_tag || wireType != PB_WT_STRING)
+                if (tag != playerhub_v1_Roster_joined_tag || wireType != PB_WT_STRING)
                 {
                     if (!pb_skip_field(&roster, wireType))
                     {
@@ -467,8 +467,8 @@ namespace Network::Wire
                 {
                     return std::unexpected("roster entry count");
                 }
-                skyrimmp_v1_RosterEntry entry = skyrimmp_v1_RosterEntry_init_zero;
-                if (!pb_decode_ex(&roster, skyrimmp_v1_RosterEntry_fields, &entry, PB_DECODE_DELIMITED))
+                playerhub_v1_RosterEntry entry = playerhub_v1_RosterEntry_init_zero;
+                if (!pb_decode_ex(&roster, playerhub_v1_RosterEntry_fields, &entry, PB_DECODE_DELIMITED))
                 {
                     return std::unexpected(std::string{ "roster entry: " } + PB_GET_ERROR(&roster));
                 }
@@ -491,8 +491,8 @@ namespace Network::Wire
     std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_displayName,
         const std::optional<Multiplayer::SessionToken>& a_token, std::span<const Multiplayer::SessionID> a_vanished)
     {
-        skyrimmp_v1_Hello hello = skyrimmp_v1_Hello_init_zero;
-        hello.protocol_version = skyrimmp_v1_Protocol_PROTOCOL_VERSION;
+        playerhub_v1_Hello hello = playerhub_v1_Hello_init_zero;
+        hello.protocol_version = playerhub_v1_Protocol_PROTOCOL_VERSION;
         hello.view_radius = a_viewRadius;
         static_assert(sizeof(hello.session_token.bytes) == Multiplayer::kSessionTokenBytes);
         if (a_token)
@@ -515,24 +515,24 @@ namespace Network::Wire
             }
             return true;
         };
-        return EncodeClientMessage(skyrimmp_v1_ClientMessage_hello_tag, skyrimmp_v1_Hello_fields, &hello);
+        return EncodeClientMessage(playerhub_v1_ClientMessage_hello_tag, playerhub_v1_Hello_fields, &hello);
     }
 
     std::string EncodeEnter()
     {
-        skyrimmp_v1_Enter enter = skyrimmp_v1_Enter_init_zero;
-        return EncodeClientMessage(skyrimmp_v1_ClientMessage_enter_tag, skyrimmp_v1_Enter_fields, &enter);
+        playerhub_v1_Enter enter = playerhub_v1_Enter_init_zero;
+        return EncodeClientMessage(playerhub_v1_ClientMessage_enter_tag, playerhub_v1_Enter_fields, &enter);
     }
 
     std::string EncodeExit()
     {
-        skyrimmp_v1_Exit exit = skyrimmp_v1_Exit_init_zero;
-        return EncodeClientMessage(skyrimmp_v1_ClientMessage_exit_tag, skyrimmp_v1_Exit_fields, &exit);
+        playerhub_v1_Exit exit = playerhub_v1_Exit_init_zero;
+        return EncodeClientMessage(playerhub_v1_ClientMessage_exit_tag, playerhub_v1_Exit_fields, &exit);
     }
 
     std::string EncodeContext(const CheckpointContext& a_context)
     {
-        skyrimmp_v1_Context context = skyrimmp_v1_Context_init_zero;
+        playerhub_v1_Context context = playerhub_v1_Context_init_zero;
         context.cell_id = a_context.cellID;
         context.worldspace_id = a_context.worldspaceID;
         context.graph_epoch = a_context.graphEpoch;
@@ -540,12 +540,12 @@ namespace Network::Wire
         {
             return {};
         }
-        return EncodeClientMessage(skyrimmp_v1_ClientMessage_context_tag, skyrimmp_v1_Context_fields, &context);
+        return EncodeClientMessage(playerhub_v1_ClientMessage_context_tag, playerhub_v1_Context_fields, &context);
     }
 
     std::string EncodeCheckpoint(const QuantizedCheckpoint& a_checkpoint)
     {
-        const skyrimmp_v1_Checkpoint checkpoint{ .player = 0,
+        const playerhub_v1_Checkpoint checkpoint{ .player = 0,
             .sequence = a_checkpoint.sequence,
             .x = a_checkpoint.x,
             .y = a_checkpoint.y,
@@ -556,37 +556,37 @@ namespace Network::Wire
             .direction = a_checkpoint.direction,
             .flags = a_checkpoint.flags,
             .time = a_checkpoint.time };
-        return EncodeClientMessage(skyrimmp_v1_ClientMessage_checkpoint_tag, skyrimmp_v1_Checkpoint_fields, &checkpoint);
+        return EncodeClientMessage(playerhub_v1_ClientMessage_checkpoint_tag, playerhub_v1_Checkpoint_fields, &checkpoint);
     }
 
     std::string EncodeAction(
         std::uint64_t a_actionSequence, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence, const Attack& a_attack)
     {
-        skyrimmp_v1_Action action = skyrimmp_v1_Action_init_zero;
+        playerhub_v1_Action action = playerhub_v1_Action_init_zero;
         action.action_sequence = a_actionSequence;
         action.graph_epoch = a_graphEpoch;
         action.checkpoint_sequence = a_checkpointSequence;
         switch (a_attack.action)
         {
             case AttackAction::kLeft:
-                action.action = skyrimmp_v1_AttackAction_ATTACK_ACTION_LEFT;
+                action.action = playerhub_v1_AttackAction_ATTACK_ACTION_LEFT;
                 break;
             case AttackAction::kDual:
-                action.action = skyrimmp_v1_AttackAction_ATTACK_ACTION_DUAL;
+                action.action = playerhub_v1_AttackAction_ATTACK_ACTION_DUAL;
                 break;
             case AttackAction::kBash:
-                action.action = skyrimmp_v1_AttackAction_ATTACK_ACTION_BASH;
+                action.action = playerhub_v1_AttackAction_ATTACK_ACTION_BASH;
                 break;
             default:
-                action.action = skyrimmp_v1_AttackAction_ATTACK_ACTION_NORMAL;
+                action.action = playerhub_v1_AttackAction_ATTACK_ACTION_NORMAL;
                 break;
         }
         action.power = a_attack.power;
         action.direction = a_attack.power
-            ? static_cast<skyrimmp_v1_PowerDirection>(
-                  skyrimmp_v1_PowerDirection_POWER_DIRECTION_STANDING + static_cast<int>(a_attack.direction))
-            : skyrimmp_v1_PowerDirection_POWER_DIRECTION_NONE;
-        return EncodeClientMessage(skyrimmp_v1_ClientMessage_action_tag, skyrimmp_v1_Action_fields, &action);
+            ? static_cast<playerhub_v1_PowerDirection>(
+                  playerhub_v1_PowerDirection_POWER_DIRECTION_STANDING + static_cast<int>(a_attack.direction))
+            : playerhub_v1_PowerDirection_POWER_DIRECTION_NONE;
+        return EncodeClientMessage(playerhub_v1_ClientMessage_action_tag, playerhub_v1_Action_fields, &action);
     }
 
     std::string EncodeAppearance(const Multiplayer::PlayerAppearance& a_appearance)
@@ -598,8 +598,8 @@ namespace Network::Wire
             return {};
         }
         // About 8 KB; kept off the stack.
-        auto appearance = std::make_unique<skyrimmp_v1_Appearance>();
-        *appearance = skyrimmp_v1_Appearance_init_zero;
+        auto appearance = std::make_unique<playerhub_v1_Appearance>();
+        *appearance = playerhub_v1_Appearance_init_zero;
         appearance->revision = a_appearance.revision;
         appearance->level = a_appearance.level;
         appearance->has_race = true;
@@ -632,7 +632,7 @@ namespace Network::Wire
         for (std::size_t i = 0; i < a_appearance.tints.size(); ++i)
         {
             const auto& tint = a_appearance.tints[i];
-            appearance->tints[i] = skyrimmp_v1_Tint{ .index = tint.index,
+            appearance->tints[i] = playerhub_v1_Tint{ .index = tint.index,
                 .type = tint.type,
                 .has_color = true,
                 .color = WriteColor(tint.color),
@@ -649,7 +649,7 @@ namespace Network::Wire
         {
             return {};
         }
-        return EncodeClientMessage(skyrimmp_v1_ClientMessage_appearance_tag, skyrimmp_v1_Appearance_fields, appearance.get());
+        return EncodeClientMessage(playerhub_v1_ClientMessage_appearance_tag, playerhub_v1_Appearance_fields, appearance.get());
     }
 
     std::string EncodeEquipment(const Multiplayer::PlayerEquipment& a_equipment)
@@ -663,8 +663,8 @@ namespace Network::Wire
             return {};
         }
         // About 13 KB; kept off the stack.
-        auto equipment = std::make_unique<skyrimmp_v1_Equipment>();
-        *equipment = skyrimmp_v1_Equipment_init_zero;
+        auto equipment = std::make_unique<playerhub_v1_Equipment>();
+        *equipment = playerhub_v1_Equipment_init_zero;
         equipment->revision = a_equipment.revision;
         bool written = true;
         equipment->armor_count = static_cast<pb_size_t>(a_equipment.armor.size());
@@ -703,13 +703,13 @@ namespace Network::Wire
         {
             return {};
         }
-        return EncodeClientMessage(skyrimmp_v1_ClientMessage_equipment_tag, skyrimmp_v1_Equipment_fields, equipment.get());
+        return EncodeClientMessage(playerhub_v1_ClientMessage_equipment_tag, playerhub_v1_Equipment_fields, equipment.get());
     }
 
     std::string EncodeChat(std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel,
         Multiplayer::PeerSlot a_recipient, std::string_view a_text)
     {
-        skyrimmp_v1_ChatSend chat = skyrimmp_v1_ChatSend_init_zero;
+        playerhub_v1_ChatSend chat = playerhub_v1_ChatSend_init_zero;
         chat.request_id = a_requestID;
         chat.channel = WriteChatChannel(a_channel);
         chat.recipient = a_recipient;
@@ -717,24 +717,24 @@ namespace Network::Wire
         {
             return {};
         }
-        return EncodeClientMessage(skyrimmp_v1_ClientMessage_chat_tag, skyrimmp_v1_ChatSend_fields, &chat);
+        return EncodeClientMessage(playerhub_v1_ClientMessage_chat_tag, playerhub_v1_ChatSend_fields, &chat);
     }
 
     std::string EncodePing(std::uint32_t a_requestID)
     {
-        skyrimmp_v1_Ping ping{ a_requestID };
-        return EncodeClientMessage(skyrimmp_v1_ClientMessage_ping_tag, skyrimmp_v1_Ping_fields, &ping);
+        playerhub_v1_Ping ping{ a_requestID };
+        return EncodeClientMessage(playerhub_v1_ClientMessage_ping_tag, playerhub_v1_Ping_fields, &ping);
     }
 
     std::string EncodeVanish(Multiplayer::SessionID a_session, bool a_vanished)
     {
-        skyrimmp_v1_Vanish vanish{ a_session, a_vanished };
-        return EncodeClientMessage(skyrimmp_v1_ClientMessage_vanish_tag, skyrimmp_v1_Vanish_fields, &vanish);
+        playerhub_v1_Vanish vanish{ a_session, a_vanished };
+        return EncodeClientMessage(playerhub_v1_ClientMessage_vanish_tag, playerhub_v1_Vanish_fields, &vanish);
     }
 
     struct Decoder::Buffer
     {
-        skyrimmp_v1_ServerMessage message;
+        playerhub_v1_ServerMessage message;
     };
 
     Decoder::Decoder() :
@@ -757,7 +757,7 @@ namespace Network::Wire
             {
                 return std::unexpected("envelope");
             }
-            if (tag == skyrimmp_v1_ServerMessage_peer_states_tag && wireType == PB_WT_STRING)
+            if (tag == playerhub_v1_ServerMessage_peer_states_tag && wireType == PB_WT_STRING)
             {
                 auto states = DecodePeerStates(stream);
                 if (states && stream.bytes_left != 0)
@@ -766,7 +766,7 @@ namespace Network::Wire
                 }
                 return states;
             }
-            if (tag == skyrimmp_v1_ServerMessage_roster_tag && wireType == PB_WT_STRING)
+            if (tag == playerhub_v1_ServerMessage_roster_tag && wireType == PB_WT_STRING)
             {
                 auto roster = DecodeRoster(stream);
                 if (roster && stream.bytes_left != 0)
@@ -779,14 +779,14 @@ namespace Network::Wire
 
         auto& message = buffer->message;
         pb_istream_t stream = pb_istream_from_buffer(bytes, a_data.size());
-        if (!pb_decode(&stream, skyrimmp_v1_ServerMessage_fields, &message))
+        if (!pb_decode(&stream, playerhub_v1_ServerMessage_fields, &message))
         {
             return std::unexpected(std::string{ "decode: " } + PB_GET_ERROR(&stream));
         }
 
         switch (message.which_message)
         {
-            case skyrimmp_v1_ServerMessage_welcome_tag:
+            case playerhub_v1_ServerMessage_welcome_tag:
             {
                 const auto& welcome = message.message.welcome;
                 Welcome result{
@@ -815,12 +815,12 @@ namespace Network::Wire
                 }
                 return result;
             }
-            case skyrimmp_v1_ServerMessage_result_tag:
+            case playerhub_v1_ServerMessage_result_tag:
             {
                 const auto& result = message.message.result;
                 return Result{ .requestID = result.request_id, .ok = result.ok, .error = result.error };
             }
-            case skyrimmp_v1_ServerMessage_peer_enter_tag:
+            case playerhub_v1_ServerMessage_peer_enter_tag:
             {
                 const auto& enter = message.message.peer_enter;
                 PeerEnter result;
@@ -854,7 +854,7 @@ namespace Network::Wire
                 }
                 return result;
             }
-            case skyrimmp_v1_ServerMessage_peer_context_tag:
+            case playerhub_v1_ServerMessage_peer_context_tag:
             {
                 const auto& context = message.message.peer_context;
                 PeerContext result;
@@ -865,25 +865,25 @@ namespace Network::Wire
                 }
                 return result;
             }
-            case skyrimmp_v1_ServerMessage_peer_leave_tag:
+            case playerhub_v1_ServerMessage_peer_leave_tag:
             {
                 const auto& leave = message.message.peer_leave;
                 PeerLeave result{ .slot = leave.slot };
                 switch (leave.reason)
                 {
-                    case skyrimmp_v1_LeaveReason_LEAVE_REASON_OUT_OF_RANGE:
+                    case playerhub_v1_LeaveReason_LEAVE_REASON_OUT_OF_RANGE:
                         result.reason = LeaveReason::kOutOfRange;
                         break;
-                    case skyrimmp_v1_LeaveReason_LEAVE_REASON_EXCLUDED:
+                    case playerhub_v1_LeaveReason_LEAVE_REASON_EXCLUDED:
                         result.reason = LeaveReason::kExcluded;
                         break;
-                    case skyrimmp_v1_LeaveReason_LEAVE_REASON_EXITED:
+                    case playerhub_v1_LeaveReason_LEAVE_REASON_EXITED:
                         result.reason = LeaveReason::kExited;
                         break;
-                    case skyrimmp_v1_LeaveReason_LEAVE_REASON_DISCONNECTED:
+                    case playerhub_v1_LeaveReason_LEAVE_REASON_DISCONNECTED:
                         result.reason = LeaveReason::kDisconnected;
                         break;
-                    case skyrimmp_v1_LeaveReason_LEAVE_REASON_VIEWER_UNPLACED:
+                    case playerhub_v1_LeaveReason_LEAVE_REASON_VIEWER_UNPLACED:
                         result.reason = LeaveReason::kViewerUnplaced;
                         break;
                     default:
@@ -895,7 +895,7 @@ namespace Network::Wire
                 }
                 return result;
             }
-            case skyrimmp_v1_ServerMessage_peer_action_tag:
+            case playerhub_v1_ServerMessage_peer_action_tag:
             {
                 const auto& action = message.message.peer_action;
                 if (action.slot == 0 || !action.has_action)
@@ -909,7 +909,7 @@ namespace Network::Wire
                 }
                 return *result;
             }
-            case skyrimmp_v1_ServerMessage_peer_appearance_tag:
+            case playerhub_v1_ServerMessage_peer_appearance_tag:
             {
                 const auto& appearance = message.message.peer_appearance;
                 PeerAppearance result;
@@ -924,7 +924,7 @@ namespace Network::Wire
                 }
                 return result;
             }
-            case skyrimmp_v1_ServerMessage_peer_equipment_tag:
+            case playerhub_v1_ServerMessage_peer_equipment_tag:
             {
                 const auto& equipment = message.message.peer_equipment;
                 PeerEquipment result;
@@ -939,7 +939,7 @@ namespace Network::Wire
                 }
                 return result;
             }
-            case skyrimmp_v1_ServerMessage_chat_message_tag:
+            case playerhub_v1_ServerMessage_chat_message_tag:
             {
                 const auto& chat = message.message.chat_message;
                 Multiplayer::ChatMessage result{ .text = chat.text };

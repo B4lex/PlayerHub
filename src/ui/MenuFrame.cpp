@@ -20,7 +20,7 @@ namespace UI::MenuFrame
 {
     namespace
     {
-        constexpr std::wstring_view kShapeFile = L"skyrim-mp/frame/menu-frame.shape";
+        constexpr std::wstring_view kShapeFile = L"playerhub/frame/menu-frame.shape";
         constexpr std::string_view kFormat = "frame 1";
 
         // The game lays its menus out for a 720p screen, which makes a pixel of the

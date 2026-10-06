@@ -53,7 +53,7 @@ value.
 
 ## Scope
 
-`skyrim-mp.ini` is the plugin's general configuration. This system owns the
+`playerhub.ini` is the plugin's general configuration. This system owns the
 file, its schema, the immutable settings snapshot, how consumers follow a
 change, and saving. The settings window that edits it is in
 [UI overlay](ui-overlay.md#settings-window); what each value does is in its
@@ -68,7 +68,7 @@ consumer's system.
 
 ## File
 
-`skyrim-mp.ini` sits in the directory of the loaded plugin DLL, found through
+`playerhub.ini` sits in the directory of the loaded plugin DLL, found through
 the DLL's own module path, so it also works from a mod manager's folder. It is
 read once when SKSE loads the plugin, before any other plugin work.
 
@@ -116,7 +116,7 @@ settings window does not show.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `ServerEndpoint` | Server URL starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; replaces `skyrim-mp-server.txt`, which is no longer read | the public server |
+| `ServerEndpoint` | Server URL starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; replaces `playerhub-server.txt`, which is no longer read | the public server |
 | `AutoConnect` | Whether each game connects when it loads, which it does only with a `DisplayName` set; otherwise the settings window's Connect does | `true` |
 
 ### `[DefaultOutfit]`
@@ -224,21 +224,21 @@ on its edges ends ([UI overlay](ui-overlay.md#size)).
   since writing could truncate it.
 - One lock serializes file access and `Apply`, so the live configuration and
   the file always change in the same order.
-- The text goes to `skyrim-mp.ini.tmp` and is renamed over the file, so a failed
+- The text goes to `playerhub.ini.tmp` and is renamed over the file, so a failed
   write never truncates it. A failed save is logged and reported in the window;
   the applied settings still last until restart.
 
-`Config::GetDirectory` is the directory of `skyrim-mp.ini`, for the plugin's
-other files: the session tokens are kept there in `skyrim-mp.session`, outside
+`Config::GetDirectory` is the directory of `playerhub.ini`, for the plugin's
+other files: the session tokens are kept there in `playerhub.session`, outside
 this file ([Network](network.md#session)), the muted and vanished players in
-`skyrim-mp.players` ([Network](network.md#player-filters)), and the settings
+`playerhub.players` ([Network](network.md#player-filters)), and the settings
 window's fonts and
-the menu frame's shape are read from `skyrim-mp/fonts/` and `skyrim-mp/frame/`
+the menu frame's shape are read from `playerhub/fonts/` and `playerhub/frame/`
 under it ([UI overlay](ui-overlay.md#themed-faces)).
 
 ## Acceptance criteria
 
-1. Without a file, the first launch writes `skyrim-mp.ini` next to the DLL with
+1. Without a file, the first launch writes `playerhub.ini` next to the DLL with
    the defaults; later launches never overwrite it.
 2. Invalid values, unknown keys, and configured forms that do not resolve or are
    not base-game items are logged and fall back to their defaults, or to no piece

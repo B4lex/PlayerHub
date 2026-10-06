@@ -1,6 +1,6 @@
 includes("lib/commonlibsse-ng")
 
-set_project("skyrim-mp")
+set_project("playerhub")
 set_version("0.1.3")
 set_license("GPL-3.0")
 set_languages("c++23")
@@ -41,9 +41,9 @@ if has_config("tracy") then
 end
 set_runtimes("MD")
 
-target("skyrim-mp")
+target("playerhub")
     add_rules("commonlibsse-ng.plugin", {
-        name = "skyrim-mp",
+        name = "playerhub",
         author = "B4lex",
         description = "SKSE64 plugin template using CommonLibSSE-NG"
     })
@@ -84,11 +84,11 @@ after_build(function (target)
             os.cp(pdbfile, deploy_dir)
         end
 
-        local fonts_dir = path.join(deploy_dir, "skyrim-mp", "fonts")
+        local fonts_dir = path.join(deploy_dir, "playerhub", "fonts")
         os.mkdir(fonts_dir)
         os.cp(fontfiles, fonts_dir)
 
-        local frame_dir = path.join(deploy_dir, "skyrim-mp", "frame")
+        local frame_dir = path.join(deploy_dir, "playerhub", "frame")
         os.mkdir(frame_dir)
         os.cp(framefiles, frame_dir)
 

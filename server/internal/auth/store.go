@@ -11,7 +11,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"skyrim-mp/server/internal/validate"
+	"playerhub/server/internal/validate"
 )
 
 var (

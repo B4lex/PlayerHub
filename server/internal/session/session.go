@@ -14,15 +14,15 @@ import (
 	"github.com/coder/websocket"
 	"google.golang.org/protobuf/proto"
 
-	"skyrim-mp/server/internal/admission"
-	"skyrim-mp/server/internal/auth"
-	"skyrim-mp/server/internal/config"
-	"skyrim-mp/server/internal/delivery"
-	"skyrim-mp/server/internal/hub"
-	"skyrim-mp/server/internal/limit"
-	"skyrim-mp/server/internal/validate"
-	"skyrim-mp/server/internal/wire"
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/admission"
+	"playerhub/server/internal/auth"
+	"playerhub/server/internal/config"
+	"playerhub/server/internal/delivery"
+	"playerhub/server/internal/hub"
+	"playerhub/server/internal/limit"
+	"playerhub/server/internal/validate"
+	"playerhub/server/internal/wire"
+	"playerhub/server/internal/wire/pb"
 )
 
 const readLimitBytes = 16 * 1024

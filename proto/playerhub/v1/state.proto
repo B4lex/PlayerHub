@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package skyrimmp.v1;
+package playerhub.v1;
 
-option go_package = "skyrim-mp/server/internal/wire/pb;pb";
+option go_package = "playerhub/server/internal/wire/pb;pb";
 
 message FormRef {
   string plugin = 1;

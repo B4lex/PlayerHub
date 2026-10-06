@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/wire/pb"
 )
 
 func TestDecideHysteresisAndDwell(t *testing.T) {

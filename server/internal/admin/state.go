@@ -5,13 +5,13 @@ import (
 	"sync"
 	"time"
 
-	"skyrim-mp/server/internal/delivery"
-	"skyrim-mp/server/internal/hub"
-	"skyrim-mp/server/internal/loadtest"
-	"skyrim-mp/server/internal/playback"
-	"skyrim-mp/server/internal/recording"
-	"skyrim-mp/server/internal/wire"
-	"skyrim-mp/server/internal/world"
+	"playerhub/server/internal/delivery"
+	"playerhub/server/internal/hub"
+	"playerhub/server/internal/loadtest"
+	"playerhub/server/internal/playback"
+	"playerhub/server/internal/recording"
+	"playerhub/server/internal/wire"
+	"playerhub/server/internal/world"
 )
 
 type Context struct {

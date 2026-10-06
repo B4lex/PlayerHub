@@ -11,11 +11,11 @@ import (
 	"strconv"
 	"time"
 
-	"skyrim-mp/server/internal/hub"
-	"skyrim-mp/server/internal/loadtest"
-	"skyrim-mp/server/internal/playback"
-	"skyrim-mp/server/internal/recording"
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/hub"
+	"playerhub/server/internal/loadtest"
+	"playerhub/server/internal/playback"
+	"playerhub/server/internal/recording"
+	"playerhub/server/internal/wire/pb"
 )
 
 func (c *Context) Routes(mux *http.ServeMux) {

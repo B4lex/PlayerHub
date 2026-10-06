@@ -10,14 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/wire/pb"
 )
 
 func quietLog() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-const v2Recording = `{"type":"header","format":"skyrim-mp-recording","version":2,"id":"20260921-101500-abc123","label":"Test capture","playerId":"player-1","playerName":"Lydia Stormblade","startedAt":"2026-09-21T10:15:00Z"}
+const v2Recording = `{"type":"header","format":"playerhub-recording","version":2,"id":"20260921-101500-abc123","label":"Test capture","playerId":"player-1","playerName":"Lydia Stormblade","startedAt":"2026-09-21T10:15:00Z"}
 {"type":"message","t":0,"event":"player:appearance","payload":{"revision":1,"name":"Lydia Stormblade","level":12,"race":{"plugin":"Skyrim.esm","formId":79686},"female":true,"weight":42.5,"height":1.0,"headParts":[{"plugin":"Skyrim.esm","formId":333173,"type":1}],"hairColor":{"r":59,"g":42,"b":30},"faceDetails":null,"bodyTint":{"r":222,"g":188,"b":170},"faceMorphs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3.4028234663852886e38],"faceParts":[0,1,-1,2],"tints":[{"index":44,"type":6,"r":1,"g":2,"b":3,"alpha":0.5}],"defaultRace":{"race":{"plugin":"Skyrim.esm","formId":1},"female":true}}}
 {"type":"message","t":0,"event":"player:equipment","payload":{"revision":1,"armor":[{"plugin":"Skyrim.esm","formId":77385,"slotMask":4}],"rightHand":{"plugin":"Skyrim.esm","formId":77495,"kind":"weapon","weaponType":1},"leftHand":{"kind":"spell"},"ammo":null,"defaultOutfit":{"armor":[],"hands":[{"plugin":"Skyrim.esm","formId":2,"kind":"torch"}],"ammo":null}}}
 {"type":"message","t":0,"event":"player:enter","payload":{}}
@@ -42,7 +42,7 @@ func TestConvertV2(t *testing.T) {
 	}
 	var kinds []string
 	for _, m := range r.Messages {
-		kinds = append(kinds, strings.TrimPrefix(strings.Split(m.Message.String(), ":")[0], "skyrimmp.v1."))
+		kinds = append(kinds, strings.TrimPrefix(strings.Split(m.Message.String(), ":")[0], "playerhub.v1."))
 	}
 	want := "appearance equipment enter context checkpoint checkpoint action context checkpoint"
 	if got := strings.Join(kinds, " "); got != want {

@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        v5.29.0
-// source: skyrimmp/v1/state.proto
+// source: playerhub/v1/state.proto
 
 package pb
 
@@ -66,11 +66,11 @@ func (x MovementState) String() string {
 }
 
 func (MovementState) Descriptor() protoreflect.EnumDescriptor {
-	return file_skyrimmp_v1_state_proto_enumTypes[0].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[0].Descriptor()
 }
 
 func (MovementState) Type() protoreflect.EnumType {
-	return &file_skyrimmp_v1_state_proto_enumTypes[0]
+	return &file_playerhub_v1_state_proto_enumTypes[0]
 }
 
 func (x MovementState) Number() protoreflect.EnumNumber {
@@ -79,7 +79,7 @@ func (x MovementState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use MovementState.Descriptor instead.
 func (MovementState) EnumDescriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{0}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{0}
 }
 
 type CheckpointFlag int32
@@ -136,11 +136,11 @@ func (x CheckpointFlag) String() string {
 }
 
 func (CheckpointFlag) Descriptor() protoreflect.EnumDescriptor {
-	return file_skyrimmp_v1_state_proto_enumTypes[1].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[1].Descriptor()
 }
 
 func (CheckpointFlag) Type() protoreflect.EnumType {
-	return &file_skyrimmp_v1_state_proto_enumTypes[1]
+	return &file_playerhub_v1_state_proto_enumTypes[1]
 }
 
 func (x CheckpointFlag) Number() protoreflect.EnumNumber {
@@ -149,7 +149,7 @@ func (x CheckpointFlag) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CheckpointFlag.Descriptor instead.
 func (CheckpointFlag) EnumDescriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{1}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{1}
 }
 
 type AttackAction int32
@@ -191,11 +191,11 @@ func (x AttackAction) String() string {
 }
 
 func (AttackAction) Descriptor() protoreflect.EnumDescriptor {
-	return file_skyrimmp_v1_state_proto_enumTypes[2].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[2].Descriptor()
 }
 
 func (AttackAction) Type() protoreflect.EnumType {
-	return &file_skyrimmp_v1_state_proto_enumTypes[2]
+	return &file_playerhub_v1_state_proto_enumTypes[2]
 }
 
 func (x AttackAction) Number() protoreflect.EnumNumber {
@@ -204,7 +204,7 @@ func (x AttackAction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AttackAction.Descriptor instead.
 func (AttackAction) EnumDescriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{2}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{2}
 }
 
 type PowerDirection int32
@@ -249,11 +249,11 @@ func (x PowerDirection) String() string {
 }
 
 func (PowerDirection) Descriptor() protoreflect.EnumDescriptor {
-	return file_skyrimmp_v1_state_proto_enumTypes[3].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[3].Descriptor()
 }
 
 func (PowerDirection) Type() protoreflect.EnumType {
-	return &file_skyrimmp_v1_state_proto_enumTypes[3]
+	return &file_playerhub_v1_state_proto_enumTypes[3]
 }
 
 func (x PowerDirection) Number() protoreflect.EnumNumber {
@@ -262,7 +262,7 @@ func (x PowerDirection) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PowerDirection.Descriptor instead.
 func (PowerDirection) EnumDescriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{3}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{3}
 }
 
 type HandKind int32
@@ -301,11 +301,11 @@ func (x HandKind) String() string {
 }
 
 func (HandKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_skyrimmp_v1_state_proto_enumTypes[4].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[4].Descriptor()
 }
 
 func (HandKind) Type() protoreflect.EnumType {
-	return &file_skyrimmp_v1_state_proto_enumTypes[4]
+	return &file_playerhub_v1_state_proto_enumTypes[4]
 }
 
 func (x HandKind) Number() protoreflect.EnumNumber {
@@ -314,7 +314,7 @@ func (x HandKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HandKind.Descriptor instead.
 func (HandKind) EnumDescriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{4}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{4}
 }
 
 type FormRef struct {
@@ -327,7 +327,7 @@ type FormRef struct {
 
 func (x *FormRef) Reset() {
 	*x = FormRef{}
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[0]
+	mi := &file_playerhub_v1_state_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -339,7 +339,7 @@ func (x *FormRef) String() string {
 func (*FormRef) ProtoMessage() {}
 
 func (x *FormRef) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[0]
+	mi := &file_playerhub_v1_state_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -352,7 +352,7 @@ func (x *FormRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FormRef.ProtoReflect.Descriptor instead.
 func (*FormRef) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{0}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *FormRef) GetPlugin() string {
@@ -388,7 +388,7 @@ type Checkpoint struct {
 
 func (x *Checkpoint) Reset() {
 	*x = Checkpoint{}
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[1]
+	mi := &file_playerhub_v1_state_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -400,7 +400,7 @@ func (x *Checkpoint) String() string {
 func (*Checkpoint) ProtoMessage() {}
 
 func (x *Checkpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[1]
+	mi := &file_playerhub_v1_state_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -413,7 +413,7 @@ func (x *Checkpoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Checkpoint.ProtoReflect.Descriptor instead.
 func (*Checkpoint) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{1}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Checkpoint) GetPlayer() uint32 {
@@ -505,7 +505,7 @@ type Context struct {
 
 func (x *Context) Reset() {
 	*x = Context{}
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[2]
+	mi := &file_playerhub_v1_state_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -517,7 +517,7 @@ func (x *Context) String() string {
 func (*Context) ProtoMessage() {}
 
 func (x *Context) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[2]
+	mi := &file_playerhub_v1_state_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -530,7 +530,7 @@ func (x *Context) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Context.ProtoReflect.Descriptor instead.
 func (*Context) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{2}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Context) GetCellId() uint32 {
@@ -566,16 +566,16 @@ type Action struct {
 	ActionSequence     uint64                 `protobuf:"varint,1,opt,name=action_sequence,json=actionSequence,proto3" json:"action_sequence,omitempty"`
 	GraphEpoch         uint64                 `protobuf:"varint,2,opt,name=graph_epoch,json=graphEpoch,proto3" json:"graph_epoch,omitempty"`
 	CheckpointSequence uint64                 `protobuf:"varint,3,opt,name=checkpoint_sequence,json=checkpointSequence,proto3" json:"checkpoint_sequence,omitempty"`
-	Action             AttackAction           `protobuf:"varint,4,opt,name=action,proto3,enum=skyrimmp.v1.AttackAction" json:"action,omitempty"`
+	Action             AttackAction           `protobuf:"varint,4,opt,name=action,proto3,enum=playerhub.v1.AttackAction" json:"action,omitempty"`
 	Power              bool                   `protobuf:"varint,5,opt,name=power,proto3" json:"power,omitempty"`
-	Direction          PowerDirection         `protobuf:"varint,6,opt,name=direction,proto3,enum=skyrimmp.v1.PowerDirection" json:"direction,omitempty"`
+	Direction          PowerDirection         `protobuf:"varint,6,opt,name=direction,proto3,enum=playerhub.v1.PowerDirection" json:"direction,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
 
 func (x *Action) Reset() {
 	*x = Action{}
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[3]
+	mi := &file_playerhub_v1_state_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -587,7 +587,7 @@ func (x *Action) String() string {
 func (*Action) ProtoMessage() {}
 
 func (x *Action) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[3]
+	mi := &file_playerhub_v1_state_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -600,7 +600,7 @@ func (x *Action) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Action.ProtoReflect.Descriptor instead.
 func (*Action) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{3}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Action) GetActionSequence() uint64 {
@@ -656,7 +656,7 @@ type Color struct {
 
 func (x *Color) Reset() {
 	*x = Color{}
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[4]
+	mi := &file_playerhub_v1_state_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -668,7 +668,7 @@ func (x *Color) String() string {
 func (*Color) ProtoMessage() {}
 
 func (x *Color) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[4]
+	mi := &file_playerhub_v1_state_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -681,7 +681,7 @@ func (x *Color) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Color.ProtoReflect.Descriptor instead.
 func (*Color) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{4}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Color) GetR() uint32 {
@@ -715,7 +715,7 @@ type HeadPart struct {
 
 func (x *HeadPart) Reset() {
 	*x = HeadPart{}
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[5]
+	mi := &file_playerhub_v1_state_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -727,7 +727,7 @@ func (x *HeadPart) String() string {
 func (*HeadPart) ProtoMessage() {}
 
 func (x *HeadPart) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[5]
+	mi := &file_playerhub_v1_state_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -740,7 +740,7 @@ func (x *HeadPart) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeadPart.ProtoReflect.Descriptor instead.
 func (*HeadPart) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{5}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *HeadPart) GetForm() *FormRef {
@@ -769,7 +769,7 @@ type Tint struct {
 
 func (x *Tint) Reset() {
 	*x = Tint{}
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[6]
+	mi := &file_playerhub_v1_state_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -781,7 +781,7 @@ func (x *Tint) String() string {
 func (*Tint) ProtoMessage() {}
 
 func (x *Tint) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[6]
+	mi := &file_playerhub_v1_state_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -794,7 +794,7 @@ func (x *Tint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Tint.ProtoReflect.Descriptor instead.
 func (*Tint) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{6}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Tint) GetIndex() uint32 {
@@ -835,7 +835,7 @@ type DefaultRace struct {
 
 func (x *DefaultRace) Reset() {
 	*x = DefaultRace{}
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[7]
+	mi := &file_playerhub_v1_state_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -847,7 +847,7 @@ func (x *DefaultRace) String() string {
 func (*DefaultRace) ProtoMessage() {}
 
 func (x *DefaultRace) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[7]
+	mi := &file_playerhub_v1_state_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -860,7 +860,7 @@ func (x *DefaultRace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DefaultRace.ProtoReflect.Descriptor instead.
 func (*DefaultRace) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{7}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *DefaultRace) GetRace() *FormRef {
@@ -900,7 +900,7 @@ type Appearance struct {
 
 func (x *Appearance) Reset() {
 	*x = Appearance{}
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[8]
+	mi := &file_playerhub_v1_state_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -912,7 +912,7 @@ func (x *Appearance) String() string {
 func (*Appearance) ProtoMessage() {}
 
 func (x *Appearance) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[8]
+	mi := &file_playerhub_v1_state_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -925,7 +925,7 @@ func (x *Appearance) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Appearance.ProtoReflect.Descriptor instead.
 func (*Appearance) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{8}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Appearance) GetRevision() uint64 {
@@ -1043,7 +1043,7 @@ type Armor struct {
 
 func (x *Armor) Reset() {
 	*x = Armor{}
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[9]
+	mi := &file_playerhub_v1_state_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1055,7 +1055,7 @@ func (x *Armor) String() string {
 func (*Armor) ProtoMessage() {}
 
 func (x *Armor) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[9]
+	mi := &file_playerhub_v1_state_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1068,7 +1068,7 @@ func (x *Armor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Armor.ProtoReflect.Descriptor instead.
 func (*Armor) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{9}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Armor) GetForm() *FormRef {
@@ -1087,7 +1087,7 @@ func (x *Armor) GetSlotMask() uint32 {
 
 type Hand struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Kind          HandKind               `protobuf:"varint,1,opt,name=kind,proto3,enum=skyrimmp.v1.HandKind" json:"kind,omitempty"`
+	Kind          HandKind               `protobuf:"varint,1,opt,name=kind,proto3,enum=playerhub.v1.HandKind" json:"kind,omitempty"`
 	Form          *FormRef               `protobuf:"bytes,2,opt,name=form,proto3" json:"form,omitempty"`
 	WeaponType    uint32                 `protobuf:"varint,3,opt,name=weapon_type,json=weaponType,proto3" json:"weapon_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1096,7 +1096,7 @@ type Hand struct {
 
 func (x *Hand) Reset() {
 	*x = Hand{}
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[10]
+	mi := &file_playerhub_v1_state_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1108,7 +1108,7 @@ func (x *Hand) String() string {
 func (*Hand) ProtoMessage() {}
 
 func (x *Hand) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[10]
+	mi := &file_playerhub_v1_state_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1121,7 +1121,7 @@ func (x *Hand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Hand.ProtoReflect.Descriptor instead.
 func (*Hand) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{10}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Hand) GetKind() HandKind {
@@ -1156,7 +1156,7 @@ type DefaultOutfit struct {
 
 func (x *DefaultOutfit) Reset() {
 	*x = DefaultOutfit{}
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[11]
+	mi := &file_playerhub_v1_state_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1168,7 +1168,7 @@ func (x *DefaultOutfit) String() string {
 func (*DefaultOutfit) ProtoMessage() {}
 
 func (x *DefaultOutfit) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[11]
+	mi := &file_playerhub_v1_state_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1181,7 +1181,7 @@ func (x *DefaultOutfit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DefaultOutfit.ProtoReflect.Descriptor instead.
 func (*DefaultOutfit) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{11}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DefaultOutfit) GetArmor() []*Armor {
@@ -1219,7 +1219,7 @@ type Equipment struct {
 
 func (x *Equipment) Reset() {
 	*x = Equipment{}
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[12]
+	mi := &file_playerhub_v1_state_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1231,7 +1231,7 @@ func (x *Equipment) String() string {
 func (*Equipment) ProtoMessage() {}
 
 func (x *Equipment) ProtoReflect() protoreflect.Message {
-	mi := &file_skyrimmp_v1_state_proto_msgTypes[12]
+	mi := &file_playerhub_v1_state_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1244,7 +1244,7 @@ func (x *Equipment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Equipment.ProtoReflect.Descriptor instead.
 func (*Equipment) Descriptor() ([]byte, []int) {
-	return file_skyrimmp_v1_state_proto_rawDescGZIP(), []int{12}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Equipment) GetRevision() uint64 {
@@ -1289,11 +1289,11 @@ func (x *Equipment) GetDefaultOutfit() *DefaultOutfit {
 	return nil
 }
 
-var File_skyrimmp_v1_state_proto protoreflect.FileDescriptor
+var File_playerhub_v1_state_proto protoreflect.FileDescriptor
 
-const file_skyrimmp_v1_state_proto_rawDesc = "" +
+const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\n" +
-	"\x17skyrimmp/v1/state.proto\x12\vskyrimmp.v1\":\n" +
+	"\x18playerhub/v1/state.proto\x12\fplayerhub.v1\":\n" +
 	"\aFormRef\x12\x16\n" +
 	"\x06plugin\x18\x01 \x01(\tR\x06plugin\x12\x17\n" +
 	"\aform_id\x18\x02 \x01(\rR\x06formId\"\xf8\x01\n" +
@@ -1310,78 +1310,78 @@ const file_skyrimmp_v1_state_proto_rawDesc = "" +
 	"\tdirection\x18\t \x01(\rR\tdirection\x12\x14\n" +
 	"\x05flags\x18\n" +
 	" \x01(\rR\x05flags\x12\x12\n" +
-	"\x04time\x18\v \x01(\rR\x04time\"\x9c\x01\n" +
+	"\x04time\x18\v \x01(\rR\x04time\"\x9d\x01\n" +
 	"\aContext\x12\x17\n" +
 	"\acell_id\x18\x01 \x01(\rR\x06cellId\x12#\n" +
 	"\rworldspace_id\x18\x02 \x01(\rR\fworldspaceId\x12\x1f\n" +
 	"\vgraph_epoch\x18\x03 \x01(\x04R\n" +
-	"graphEpoch\x122\n" +
-	"\tfurniture\x18\x04 \x01(\v2\x14.skyrimmp.v1.FormRefR\tfurniture\"\x87\x02\n" +
+	"graphEpoch\x123\n" +
+	"\tfurniture\x18\x04 \x01(\v2\x15.playerhub.v1.FormRefR\tfurniture\"\x89\x02\n" +
 	"\x06Action\x12'\n" +
 	"\x0faction_sequence\x18\x01 \x01(\x04R\x0eactionSequence\x12\x1f\n" +
 	"\vgraph_epoch\x18\x02 \x01(\x04R\n" +
 	"graphEpoch\x12/\n" +
-	"\x13checkpoint_sequence\x18\x03 \x01(\x04R\x12checkpointSequence\x121\n" +
-	"\x06action\x18\x04 \x01(\x0e2\x19.skyrimmp.v1.AttackActionR\x06action\x12\x14\n" +
-	"\x05power\x18\x05 \x01(\bR\x05power\x129\n" +
-	"\tdirection\x18\x06 \x01(\x0e2\x1b.skyrimmp.v1.PowerDirectionR\tdirection\"1\n" +
+	"\x13checkpoint_sequence\x18\x03 \x01(\x04R\x12checkpointSequence\x122\n" +
+	"\x06action\x18\x04 \x01(\x0e2\x1a.playerhub.v1.AttackActionR\x06action\x12\x14\n" +
+	"\x05power\x18\x05 \x01(\bR\x05power\x12:\n" +
+	"\tdirection\x18\x06 \x01(\x0e2\x1c.playerhub.v1.PowerDirectionR\tdirection\"1\n" +
 	"\x05Color\x12\f\n" +
 	"\x01r\x18\x01 \x01(\rR\x01r\x12\f\n" +
 	"\x01g\x18\x02 \x01(\rR\x01g\x12\f\n" +
-	"\x01b\x18\x03 \x01(\rR\x01b\"H\n" +
-	"\bHeadPart\x12(\n" +
-	"\x04form\x18\x01 \x01(\v2\x14.skyrimmp.v1.FormRefR\x04form\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\rR\x04type\"p\n" +
+	"\x01b\x18\x03 \x01(\rR\x01b\"I\n" +
+	"\bHeadPart\x12)\n" +
+	"\x04form\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\x04form\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\rR\x04type\"q\n" +
 	"\x04Tint\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\rR\x05index\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\rR\x04type\x12(\n" +
-	"\x05color\x18\x03 \x01(\v2\x12.skyrimmp.v1.ColorR\x05color\x12\x14\n" +
-	"\x05alpha\x18\x04 \x01(\x02R\x05alpha\"O\n" +
-	"\vDefaultRace\x12(\n" +
-	"\x04race\x18\x01 \x01(\v2\x14.skyrimmp.v1.FormRefR\x04race\x12\x16\n" +
-	"\x06female\x18\x02 \x01(\bR\x06female\"\xbd\x04\n" +
+	"\x04type\x18\x02 \x01(\rR\x04type\x12)\n" +
+	"\x05color\x18\x03 \x01(\v2\x13.playerhub.v1.ColorR\x05color\x12\x14\n" +
+	"\x05alpha\x18\x04 \x01(\x02R\x05alpha\"P\n" +
+	"\vDefaultRace\x12)\n" +
+	"\x04race\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\x04race\x12\x16\n" +
+	"\x06female\x18\x02 \x01(\bR\x06female\"\xc4\x04\n" +
 	"\n" +
 	"Appearance\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
-	"\x05level\x18\x03 \x01(\rR\x05level\x12(\n" +
-	"\x04race\x18\x04 \x01(\v2\x14.skyrimmp.v1.FormRefR\x04race\x12\x16\n" +
+	"\x05level\x18\x03 \x01(\rR\x05level\x12)\n" +
+	"\x04race\x18\x04 \x01(\v2\x15.playerhub.v1.FormRefR\x04race\x12\x16\n" +
 	"\x06female\x18\x05 \x01(\bR\x06female\x12\x16\n" +
 	"\x06weight\x18\x06 \x01(\x02R\x06weight\x12\x16\n" +
-	"\x06height\x18\a \x01(\x02R\x06height\x124\n" +
+	"\x06height\x18\a \x01(\x02R\x06height\x125\n" +
 	"\n" +
-	"head_parts\x18\b \x03(\v2\x15.skyrimmp.v1.HeadPartR\theadParts\x121\n" +
+	"head_parts\x18\b \x03(\v2\x16.playerhub.v1.HeadPartR\theadParts\x122\n" +
 	"\n" +
-	"hair_color\x18\t \x01(\v2\x12.skyrimmp.v1.ColorR\thairColor\x127\n" +
+	"hair_color\x18\t \x01(\v2\x13.playerhub.v1.ColorR\thairColor\x128\n" +
 	"\fface_details\x18\n" +
-	" \x01(\v2\x14.skyrimmp.v1.FormRefR\vfaceDetails\x12/\n" +
-	"\tbody_tint\x18\v \x01(\v2\x12.skyrimmp.v1.ColorR\bbodyTint\x12\x1f\n" +
+	" \x01(\v2\x15.playerhub.v1.FormRefR\vfaceDetails\x120\n" +
+	"\tbody_tint\x18\v \x01(\v2\x13.playerhub.v1.ColorR\bbodyTint\x12\x1f\n" +
 	"\vface_morphs\x18\f \x03(\x02R\n" +
 	"faceMorphs\x12\x1d\n" +
 	"\n" +
-	"face_parts\x18\r \x03(\x11R\tfaceParts\x12'\n" +
-	"\x05tints\x18\x0e \x03(\v2\x11.skyrimmp.v1.TintR\x05tints\x12;\n" +
-	"\fdefault_race\x18\x0f \x01(\v2\x18.skyrimmp.v1.DefaultRaceR\vdefaultRace\"N\n" +
-	"\x05Armor\x12(\n" +
-	"\x04form\x18\x01 \x01(\v2\x14.skyrimmp.v1.FormRefR\x04form\x12\x1b\n" +
-	"\tslot_mask\x18\x02 \x01(\rR\bslotMask\"|\n" +
-	"\x04Hand\x12)\n" +
-	"\x04kind\x18\x01 \x01(\x0e2\x15.skyrimmp.v1.HandKindR\x04kind\x12(\n" +
-	"\x04form\x18\x02 \x01(\v2\x14.skyrimmp.v1.FormRefR\x04form\x12\x1f\n" +
+	"face_parts\x18\r \x03(\x11R\tfaceParts\x12(\n" +
+	"\x05tints\x18\x0e \x03(\v2\x12.playerhub.v1.TintR\x05tints\x12<\n" +
+	"\fdefault_race\x18\x0f \x01(\v2\x19.playerhub.v1.DefaultRaceR\vdefaultRace\"O\n" +
+	"\x05Armor\x12)\n" +
+	"\x04form\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\x04form\x12\x1b\n" +
+	"\tslot_mask\x18\x02 \x01(\rR\bslotMask\"~\n" +
+	"\x04Hand\x12*\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x16.playerhub.v1.HandKindR\x04kind\x12)\n" +
+	"\x04form\x18\x02 \x01(\v2\x15.playerhub.v1.FormRefR\x04form\x12\x1f\n" +
 	"\vweapon_type\x18\x03 \x01(\rR\n" +
-	"weaponType\"\x8c\x01\n" +
-	"\rDefaultOutfit\x12(\n" +
-	"\x05armor\x18\x01 \x03(\v2\x12.skyrimmp.v1.ArmorR\x05armor\x12'\n" +
-	"\x05hands\x18\x02 \x03(\v2\x11.skyrimmp.v1.HandR\x05hands\x12(\n" +
-	"\x04ammo\x18\x03 \x01(\v2\x14.skyrimmp.v1.FormRefR\x04ammo\"\xa0\x02\n" +
+	"weaponType\"\x8f\x01\n" +
+	"\rDefaultOutfit\x12)\n" +
+	"\x05armor\x18\x01 \x03(\v2\x13.playerhub.v1.ArmorR\x05armor\x12(\n" +
+	"\x05hands\x18\x02 \x03(\v2\x12.playerhub.v1.HandR\x05hands\x12)\n" +
+	"\x04ammo\x18\x03 \x01(\v2\x15.playerhub.v1.FormRefR\x04ammo\"\xa5\x02\n" +
 	"\tEquipment\x12\x1a\n" +
-	"\brevision\x18\x01 \x01(\x04R\brevision\x12(\n" +
-	"\x05armor\x18\x02 \x03(\v2\x12.skyrimmp.v1.ArmorR\x05armor\x120\n" +
+	"\brevision\x18\x01 \x01(\x04R\brevision\x12)\n" +
+	"\x05armor\x18\x02 \x03(\v2\x13.playerhub.v1.ArmorR\x05armor\x121\n" +
 	"\n" +
-	"right_hand\x18\x03 \x01(\v2\x11.skyrimmp.v1.HandR\trightHand\x12.\n" +
-	"\tleft_hand\x18\x04 \x01(\v2\x11.skyrimmp.v1.HandR\bleftHand\x12(\n" +
-	"\x04ammo\x18\x05 \x01(\v2\x14.skyrimmp.v1.FormRefR\x04ammo\x12A\n" +
-	"\x0edefault_outfit\x18\x06 \x01(\v2\x1a.skyrimmp.v1.DefaultOutfitR\rdefaultOutfit*\xea\x01\n" +
+	"right_hand\x18\x03 \x01(\v2\x12.playerhub.v1.HandR\trightHand\x12/\n" +
+	"\tleft_hand\x18\x04 \x01(\v2\x12.playerhub.v1.HandR\bleftHand\x12)\n" +
+	"\x04ammo\x18\x05 \x01(\v2\x15.playerhub.v1.FormRefR\x04ammo\x12B\n" +
+	"\x0edefault_outfit\x18\x06 \x01(\v2\x1b.playerhub.v1.DefaultOutfitR\rdefaultOutfit*\xea\x01\n" +
 	"\rMovementState\x12\x17\n" +
 	"\x13MOVEMENT_STATE_IDLE\x10\x00\x12\x1a\n" +
 	"\x16MOVEMENT_STATE_WALKING\x10\x01\x12\x1a\n" +
@@ -1418,67 +1418,67 @@ const file_skyrimmp_v1_state_proto_rawDesc = "" +
 	"\x15HAND_KIND_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10HAND_KIND_WEAPON\x10\x01\x12\x13\n" +
 	"\x0fHAND_KIND_TORCH\x10\x02\x12\x13\n" +
-	"\x0fHAND_KIND_SPELL\x10\x03B&Z$skyrim-mp/server/internal/wire/pb;pbb\x06proto3"
+	"\x0fHAND_KIND_SPELL\x10\x03B&Z$playerhub/server/internal/wire/pb;pbb\x06proto3"
 
 var (
-	file_skyrimmp_v1_state_proto_rawDescOnce sync.Once
-	file_skyrimmp_v1_state_proto_rawDescData []byte
+	file_playerhub_v1_state_proto_rawDescOnce sync.Once
+	file_playerhub_v1_state_proto_rawDescData []byte
 )
 
-func file_skyrimmp_v1_state_proto_rawDescGZIP() []byte {
-	file_skyrimmp_v1_state_proto_rawDescOnce.Do(func() {
-		file_skyrimmp_v1_state_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_skyrimmp_v1_state_proto_rawDesc), len(file_skyrimmp_v1_state_proto_rawDesc)))
+func file_playerhub_v1_state_proto_rawDescGZIP() []byte {
+	file_playerhub_v1_state_proto_rawDescOnce.Do(func() {
+		file_playerhub_v1_state_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_playerhub_v1_state_proto_rawDesc), len(file_playerhub_v1_state_proto_rawDesc)))
 	})
-	return file_skyrimmp_v1_state_proto_rawDescData
+	return file_playerhub_v1_state_proto_rawDescData
 }
 
-var file_skyrimmp_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_skyrimmp_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
-var file_skyrimmp_v1_state_proto_goTypes = []any{
-	(MovementState)(0),    // 0: skyrimmp.v1.MovementState
-	(CheckpointFlag)(0),   // 1: skyrimmp.v1.CheckpointFlag
-	(AttackAction)(0),     // 2: skyrimmp.v1.AttackAction
-	(PowerDirection)(0),   // 3: skyrimmp.v1.PowerDirection
-	(HandKind)(0),         // 4: skyrimmp.v1.HandKind
-	(*FormRef)(nil),       // 5: skyrimmp.v1.FormRef
-	(*Checkpoint)(nil),    // 6: skyrimmp.v1.Checkpoint
-	(*Context)(nil),       // 7: skyrimmp.v1.Context
-	(*Action)(nil),        // 8: skyrimmp.v1.Action
-	(*Color)(nil),         // 9: skyrimmp.v1.Color
-	(*HeadPart)(nil),      // 10: skyrimmp.v1.HeadPart
-	(*Tint)(nil),          // 11: skyrimmp.v1.Tint
-	(*DefaultRace)(nil),   // 12: skyrimmp.v1.DefaultRace
-	(*Appearance)(nil),    // 13: skyrimmp.v1.Appearance
-	(*Armor)(nil),         // 14: skyrimmp.v1.Armor
-	(*Hand)(nil),          // 15: skyrimmp.v1.Hand
-	(*DefaultOutfit)(nil), // 16: skyrimmp.v1.DefaultOutfit
-	(*Equipment)(nil),     // 17: skyrimmp.v1.Equipment
+var file_playerhub_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_playerhub_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_playerhub_v1_state_proto_goTypes = []any{
+	(MovementState)(0),    // 0: playerhub.v1.MovementState
+	(CheckpointFlag)(0),   // 1: playerhub.v1.CheckpointFlag
+	(AttackAction)(0),     // 2: playerhub.v1.AttackAction
+	(PowerDirection)(0),   // 3: playerhub.v1.PowerDirection
+	(HandKind)(0),         // 4: playerhub.v1.HandKind
+	(*FormRef)(nil),       // 5: playerhub.v1.FormRef
+	(*Checkpoint)(nil),    // 6: playerhub.v1.Checkpoint
+	(*Context)(nil),       // 7: playerhub.v1.Context
+	(*Action)(nil),        // 8: playerhub.v1.Action
+	(*Color)(nil),         // 9: playerhub.v1.Color
+	(*HeadPart)(nil),      // 10: playerhub.v1.HeadPart
+	(*Tint)(nil),          // 11: playerhub.v1.Tint
+	(*DefaultRace)(nil),   // 12: playerhub.v1.DefaultRace
+	(*Appearance)(nil),    // 13: playerhub.v1.Appearance
+	(*Armor)(nil),         // 14: playerhub.v1.Armor
+	(*Hand)(nil),          // 15: playerhub.v1.Hand
+	(*DefaultOutfit)(nil), // 16: playerhub.v1.DefaultOutfit
+	(*Equipment)(nil),     // 17: playerhub.v1.Equipment
 }
-var file_skyrimmp_v1_state_proto_depIdxs = []int32{
-	5,  // 0: skyrimmp.v1.Context.furniture:type_name -> skyrimmp.v1.FormRef
-	2,  // 1: skyrimmp.v1.Action.action:type_name -> skyrimmp.v1.AttackAction
-	3,  // 2: skyrimmp.v1.Action.direction:type_name -> skyrimmp.v1.PowerDirection
-	5,  // 3: skyrimmp.v1.HeadPart.form:type_name -> skyrimmp.v1.FormRef
-	9,  // 4: skyrimmp.v1.Tint.color:type_name -> skyrimmp.v1.Color
-	5,  // 5: skyrimmp.v1.DefaultRace.race:type_name -> skyrimmp.v1.FormRef
-	5,  // 6: skyrimmp.v1.Appearance.race:type_name -> skyrimmp.v1.FormRef
-	10, // 7: skyrimmp.v1.Appearance.head_parts:type_name -> skyrimmp.v1.HeadPart
-	9,  // 8: skyrimmp.v1.Appearance.hair_color:type_name -> skyrimmp.v1.Color
-	5,  // 9: skyrimmp.v1.Appearance.face_details:type_name -> skyrimmp.v1.FormRef
-	9,  // 10: skyrimmp.v1.Appearance.body_tint:type_name -> skyrimmp.v1.Color
-	11, // 11: skyrimmp.v1.Appearance.tints:type_name -> skyrimmp.v1.Tint
-	12, // 12: skyrimmp.v1.Appearance.default_race:type_name -> skyrimmp.v1.DefaultRace
-	5,  // 13: skyrimmp.v1.Armor.form:type_name -> skyrimmp.v1.FormRef
-	4,  // 14: skyrimmp.v1.Hand.kind:type_name -> skyrimmp.v1.HandKind
-	5,  // 15: skyrimmp.v1.Hand.form:type_name -> skyrimmp.v1.FormRef
-	14, // 16: skyrimmp.v1.DefaultOutfit.armor:type_name -> skyrimmp.v1.Armor
-	15, // 17: skyrimmp.v1.DefaultOutfit.hands:type_name -> skyrimmp.v1.Hand
-	5,  // 18: skyrimmp.v1.DefaultOutfit.ammo:type_name -> skyrimmp.v1.FormRef
-	14, // 19: skyrimmp.v1.Equipment.armor:type_name -> skyrimmp.v1.Armor
-	15, // 20: skyrimmp.v1.Equipment.right_hand:type_name -> skyrimmp.v1.Hand
-	15, // 21: skyrimmp.v1.Equipment.left_hand:type_name -> skyrimmp.v1.Hand
-	5,  // 22: skyrimmp.v1.Equipment.ammo:type_name -> skyrimmp.v1.FormRef
-	16, // 23: skyrimmp.v1.Equipment.default_outfit:type_name -> skyrimmp.v1.DefaultOutfit
+var file_playerhub_v1_state_proto_depIdxs = []int32{
+	5,  // 0: playerhub.v1.Context.furniture:type_name -> playerhub.v1.FormRef
+	2,  // 1: playerhub.v1.Action.action:type_name -> playerhub.v1.AttackAction
+	3,  // 2: playerhub.v1.Action.direction:type_name -> playerhub.v1.PowerDirection
+	5,  // 3: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
+	9,  // 4: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
+	5,  // 5: playerhub.v1.DefaultRace.race:type_name -> playerhub.v1.FormRef
+	5,  // 6: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
+	10, // 7: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
+	9,  // 8: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
+	5,  // 9: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
+	9,  // 10: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
+	11, // 11: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
+	12, // 12: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.DefaultRace
+	5,  // 13: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
+	4,  // 14: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
+	5,  // 15: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
+	14, // 16: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
+	15, // 17: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
+	5,  // 18: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
+	14, // 19: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
+	15, // 20: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
+	15, // 21: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
+	5,  // 22: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
+	16, // 23: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
 	24, // [24:24] is the sub-list for method output_type
 	24, // [24:24] is the sub-list for method input_type
 	24, // [24:24] is the sub-list for extension type_name
@@ -1486,27 +1486,27 @@ var file_skyrimmp_v1_state_proto_depIdxs = []int32{
 	0,  // [0:24] is the sub-list for field type_name
 }
 
-func init() { file_skyrimmp_v1_state_proto_init() }
-func file_skyrimmp_v1_state_proto_init() {
-	if File_skyrimmp_v1_state_proto != nil {
+func init() { file_playerhub_v1_state_proto_init() }
+func file_playerhub_v1_state_proto_init() {
+	if File_playerhub_v1_state_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_skyrimmp_v1_state_proto_rawDesc), len(file_skyrimmp_v1_state_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_playerhub_v1_state_proto_rawDesc), len(file_playerhub_v1_state_proto_rawDesc)),
 			NumEnums:      5,
 			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_skyrimmp_v1_state_proto_goTypes,
-		DependencyIndexes: file_skyrimmp_v1_state_proto_depIdxs,
-		EnumInfos:         file_skyrimmp_v1_state_proto_enumTypes,
-		MessageInfos:      file_skyrimmp_v1_state_proto_msgTypes,
+		GoTypes:           file_playerhub_v1_state_proto_goTypes,
+		DependencyIndexes: file_playerhub_v1_state_proto_depIdxs,
+		EnumInfos:         file_playerhub_v1_state_proto_enumTypes,
+		MessageInfos:      file_playerhub_v1_state_proto_msgTypes,
 	}.Build()
-	File_skyrimmp_v1_state_proto = out.File
-	file_skyrimmp_v1_state_proto_goTypes = nil
-	file_skyrimmp_v1_state_proto_depIdxs = nil
+	File_playerhub_v1_state_proto = out.File
+	file_playerhub_v1_state_proto_goTypes = nil
+	file_playerhub_v1_state_proto_depIdxs = nil
 }

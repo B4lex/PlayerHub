@@ -61,7 +61,7 @@ namespace UI
         constexpr std::pair<std::string_view, std::string_view> kSectionTitles[]{ { "UI", "Interface" } };
 
         constexpr float kBackgroundAlpha = 0.96F;
-        constexpr const char* kSaveFailedText = "Could not save skyrim-mp.ini";
+        constexpr const char* kSaveFailedText = "Could not save playerhub.ini";
         // U+E000 and U+E001 of the logo font: the letters and the bar.
         constexpr const char* kLogoLetters = "\xEE\x80\x80";
         constexpr const char* kLogoBar = "\xEE\x80\x81";

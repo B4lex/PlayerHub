@@ -10,11 +10,11 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"skyrim-mp/server/internal/hub"
-	"skyrim-mp/server/internal/recording"
-	"skyrim-mp/server/internal/validate"
-	"skyrim-mp/server/internal/wire/pb"
-	"skyrim-mp/server/internal/world"
+	"playerhub/server/internal/hub"
+	"playerhub/server/internal/recording"
+	"playerhub/server/internal/validate"
+	"playerhub/server/internal/wire/pb"
+	"playerhub/server/internal/world"
 )
 
 var ErrNotFound = errors.New("playback not found")

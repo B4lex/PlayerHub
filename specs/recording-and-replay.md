@@ -47,7 +47,7 @@ bots as real WebSocket clients out of process.
 One append-only JSON Lines file per capture, `server/recordings/<id>.jsonl`:
 
 ```text
-{"type":"header","format":"skyrim-mp-recording","version":3,"id":...,"label":...,"playerId":"7","playerName":...,"startedAt":...}
+{"type":"header","format":"playerhub-recording","version":3,"id":...,"label":...,"playerId":"7","playerName":...,"startedAt":...}
 {"type":"message","t":0,"message":{"enter":{}}}
 {"type":"end","t":75266,"reason":"stopped"}
 ```

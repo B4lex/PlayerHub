@@ -8,8 +8,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"skyrim-mp/server/internal/wire"
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/wire"
+	"playerhub/server/internal/wire/pb"
 )
 
 func entry(peer uint32, sequence uint64) []byte {

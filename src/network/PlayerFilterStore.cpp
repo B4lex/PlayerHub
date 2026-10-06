@@ -15,7 +15,7 @@ namespace Network::PlayerFilterStore
 {
     namespace
     {
-        constexpr std::string_view kFileName = "skyrim-mp.players";
+        constexpr std::string_view kFileName = "playerhub.players";
         constexpr std::string_view kTemporaryExtension = ".tmp";
         constexpr std::string_view kFileHeader
             = "; Skyrim Multiplayer: players you muted (m) or vanished (v), per server.\n"

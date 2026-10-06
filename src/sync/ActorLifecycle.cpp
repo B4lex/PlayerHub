@@ -307,7 +307,7 @@ namespace ActorLifecycle
 
         if (auto* console = RE::ConsoleLog::GetSingleton())
         {
-            console->Print("SkyrimMP remote player actor reference allocated; initializing.");
+            console->Print("PlayerHub remote player actor reference allocated; initializing.");
         }
     }
 

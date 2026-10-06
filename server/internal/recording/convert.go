@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"skyrim-mp/server/internal/wire"
-	"skyrim-mp/server/internal/wire/pb"
+	"playerhub/server/internal/wire"
+	"playerhub/server/internal/wire/pb"
 )
 
 func ConvertV2(data []byte) ([]byte, error) {

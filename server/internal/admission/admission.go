@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"skyrim-mp/server/internal/limit"
+	"playerhub/server/internal/limit"
 )
 
 type Limits struct {

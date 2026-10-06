@@ -42,7 +42,7 @@
   `WireCodec`, `SessionStore`, and `ConnectionMonitor` were built on Linux
   against IXWebSocket 12.0.1 and nanopb 0.4.9 with a stubbed configuration and
   game state, and run against that server: a session issued and saved to
-  `skyrim-mp.session`, resumed by a second process from the file, a hello with
+  `playerhub.session`, resumed by a second process from the file, a hello with
   a held display name refused without retrying, and a second process with the
   same token closing the first, which stayed down. That run was before the wire
   fields were named `display_name`, before the display name could change only
@@ -113,12 +113,12 @@ refused at the handshake ([Transport](#transport)).
 
 | Module | Responsibility |
 | --- | --- |
-| `proto/skyrimmp/v1/` | The schema (`state.proto`, `messages.proto`) and nanopb size options. `proto/generate.sh` regenerates `server/internal/wire/pb` and `src/network/proto` |
+| `proto/playerhub/v1/` | The schema (`state.proto`, `messages.proto`) and nanopb size options. `proto/generate.sh` regenerates `server/internal/wire/pb` and `src/network/proto` |
 | `src/protocol/` | Plain wire values and shared validation: `PlayerState.h`, `MovementState.h`, `AppearanceState.h`, `EquipmentState.h`, `FormReference.h`, `ChatMessage.h`, `PeerSlot.h`, `Session.h`, and the quantization rules in `Quantization.h`. No Skyrim headers |
 | `network/WireCodec` | nanopb encoding of client messages and validated decoding of server messages |
 | `network/ServerClient` | IXWebSocket transport: sends, dispatches received messages, merges each peer's context into its checkpoints, and queues per-player changes for `DrainRemotePlayerChanges` |
 | `network/ConnectionMonitor` | When to connect, reconnect schedule, latency probes, refusal, and the connection state |
-| `network/SessionStore` | The session tokens in `skyrim-mp.session`, one per server |
+| `network/SessionStore` | The session tokens in `playerhub.session`, one per server |
 | `network/Refusal.h` | Why the server refused a connection, for the monitor and the UI |
 | `network/TrafficMeter` | Bytes per second in each direction |
 | `server/internal/session` | WebSocket accept, hello and session authentication, reader and writer goroutines, liveness, per-connection limits |
@@ -593,13 +593,13 @@ is the client's alone and has no wire message.
 
 ### Session
 
-- `SessionStore` keeps one token per server in `skyrim-mp.session`, next to
-  `skyrim-mp.ini` (`Config::GetDirectory`): a line of 64 hexadecimal digits, a
+- `SessionStore` keeps one token per server in `playerhub.session`, next to
+  `playerhub.ini` (`Config::GetDirectory`): a line of 64 hexadecimal digits, a
   space, and the WebSocket URL the connection is opened to; lines starting with
   `;` are comments. It is a file of its own because players share their ini and
   modpacks, and a token is all it takes to connect as its owner; one per server
   lets a player switch servers and back. The file is read once, on first use,
-  and written through `skyrim-mp.session.tmp`. Tokens are never logged.
+  and written through `playerhub.session.tmp`. Tokens are never logged.
 - When the socket opens, the transport thread sends the hello with the token
   kept for the attempt's URL, or none, and `[General] DisplayName`.
 - A `Welcome` with a token saves it, also when the connection is already being
@@ -613,13 +613,13 @@ is the client's alone and has no wire message.
 ### Player filters
 
 - `PlayerFilterStore` keeps the players the local player muted or vanished in
-  `skyrim-mp.players`, next to `skyrim-mp.session`: a line per player and
+  `playerhub.players`, next to `playerhub.session`: a line per player and
   server, `m`, `v`, or `mv`, the session ID, the WebSocket URL, and the name
   when last muted or vanished, separated by tabs, which neither a display
   name nor a URL holds; lines starting with `;` are comments, and a line
   without a session, a server, a name, or a known flag is skipped with a
   warning. It is read once, on first use, and written through
-  `skyrim-mp.players.tmp` on every change; a failed write lasts until the
+  `playerhub.players.tmp` on every change; a failed write lasts until the
   game exits. A player neither muted nor vanished has no line.
 - The hello carries the sessions vanished on the attempt's URL, at most 1024
   with a warning for the rest. `Network::PublishVanish` sends a change only
@@ -745,7 +745,7 @@ window, and are empty after a long gap. The status panel shows them.
 6. A client without a display name opens no connection, whatever `AutoConnect`
    says, and cannot press Connect; applying one does not connect until Connect
    is pressed.
-7. A first connection to a server writes its line to `skyrim-mp.session`; later
+7. A first connection to a server writes its line to `playerhub.session`; later
    games, and reconnects after a loss or a server restart, resume the same
    session.
 8. Two players never show the same display name, compared without case, also
@@ -758,7 +758,7 @@ window, and are empty after a long gap. The status panel shows them.
     After Disconnect, applying another one and pressing Connect resumes the
     same session under it, and peers see the player leave and enter with the
     new display name.
-11. A second game started with a copy of `skyrim-mp.session` takes the session;
+11. A second game started with a copy of `playerhub.session` takes the session;
     the first shows that its session connected from another game and stays
     down until Connect.
 12. A reconnect after a network loss is welcomed at once, without waiting for
@@ -777,7 +777,7 @@ window, and are empty after a long gap. The status panel shows them.
   which must not face the Internet.
 - The `Origin` rule stops browsers only. Any other program can open
   connections and send hellos from its own address.
-- A session cannot be recovered: a player who loses `skyrim-mp.session`, or
+- A session cannot be recovered: a player who loses `playerhub.session`, or
   whose plugin could not write it, gets a new session, and the old one keeps
   its display name until it expires.
 - Display names can still be squatted from many addresses, slowly from one

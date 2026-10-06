@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-package skyrimmp.v1;
+package playerhub.v1;
 
-import "skyrimmp/v1/state.proto";
+import "playerhub/v1/state.proto";
 
-option go_package = "skyrim-mp/server/internal/wire/pb;pb";
+option go_package = "playerhub/server/internal/wire/pb;pb";
 
 enum Protocol {
   PROTOCOL_UNSPECIFIED = 0;
