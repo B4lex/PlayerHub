@@ -9,8 +9,10 @@
   never starts an entry. The native exit ([Exit](#exit)) was checked in game on
   1.7.104 from replay captures of a chair, a bench, and two tables: each played
   its exit idle and then its locomotion, including when the source stood up
-  right after sitting down. Beds, crafting stations, and modded exit idles are
-  not verified. Plugin-qualified furniture references
+  right after sitting down. A bed's wake-up played its exit idle in game; its
+  12 s release window passed a Linux syntax check only, and the Windows build
+  and in-game behavior are not verified. Crafting stations and modded exit
+  idles are not verified. Plugin-qualified furniture references
   ([Resolution](#source)) are covered by server tests only; peers with
   different load orders have not been run in game.
 - **Mounts:** implemented and run in game: a replayed rider was seated on its
@@ -180,8 +182,9 @@ When the checkpoint changes to zero or another reference:
   `IdleFurnitureExit`, `tailMTLocomotion`, `IdleStop`, and `idleChairGetUp`, and
   `ChairFurnitureExitHandler`/`BedFurnitureExitHandler` return the actor to
   Normal and clear the occupancy (ID 39912). Captures measured about 1.1 s for a
-  chair and 3.3 s for a table. A chair's clip has ended by then. A table's has
-  not: `bAnimationDriven` stays set and a second `idleChairGetUp` follows about
+  chair and 3.3 s for a table; the vanilla bed and bedroll wake clips
+  (`bed_*exit`, `bedroll_*exit`) run 6.8–8.3 s. A chair's clip has ended by
+  then. A table's has not: `bAnimationDriven` stays set and a second `idleChairGetUp` follows about
   0.2 s later, and locomotion dispatched in between is accepted but never
   played. The exit therefore completes once the furniture is released and
   `bAnimationDriven` is clear, or 2 s after the release. In both cases the clip
@@ -194,10 +197,11 @@ When the checkpoint changes to zero or another reference:
   runs to completion before the actor enters any furniture again, including the
   seat its source has just returned to.
 - **Forced exit:** when the get-up leaves the actor in neither WantToStand nor
-  WantToWake, or the furniture is not released within 5 s, the receiver sets
-  WantToStand/WantToWake and sends `IdleFurnitureExit`, which leaves the
-  furniture node without an exit clip, retrying the state once per second. The
-  actor returns to Normal in about 200 ms.
+  WantToWake, or the furniture is not released within 5 s of WantToStand or
+  12 s of WantToWake, the receiver sets WantToStand/WantToWake and sends
+  `IdleFurnitureExit`, which leaves the furniture node without an exit clip,
+  retrying the state once per second. The actor returns to Normal in about
+  200 ms.
 
   No get-up package is installed. `InitiateGetUpPackage` installs a run-once
   package whose procedure can never finish once the actor has left the
@@ -224,7 +228,8 @@ When the checkpoint changes to zero or another reference:
   it, unoccupied, and a native exit's clip no longer drives it, the receiver
   clears any occupancy left behind, restores the do-nothing package, and
   rebuilds the latest locomotion checkpoint.
-- **Stuck exit:** after 10 s the receiver clears the occupancy, forces
+- **Stuck exit:** 10 s after the exit starts, or after a native exit gives way
+  to the forced exit, the receiver clears the occupancy, forces
   `IdleForceDefaultState`, and restores the do-nothing package. Target changes
   during an exit do not reset this timer.
 
@@ -441,10 +446,16 @@ Skyrim, where it comes from the race flag `kTiltFrontBack` (ID 78305). Roll is
 not synchronized: the vanilla horse does not roll, and the source's roll stayed
 zero on every slope.
 
-Traced in the 1.7.104 binary: the biped orientation controller (vfunc 8, ID
-79327) moves each angle toward the support normal, clamped to 47°, by `pitchMult`
-every physics step; pathing (ID 38308) and placement (ID 37314) set them from the
-navmesh normal. `Actor::SetPosition` (ID 37309) and `SetHeading` (ID 37230) leave
+Traced in the 1.7.104 binary: the controller's orientation controller
+(`controller + 0x190`, vfunc 8) moves each angle toward its target by
+`pitchMult` every movement update. A horse has `bhkQuadOrientationController`
+(ID 80138): the pitch target is the slope between ground heights raycast below
+its front and rear feet (IDs 80142, 80143) with the controller's own filter
+info; without `kCanPitch` the pitch decays toward zero. The biped one (ID 79327)
+follows the support normal, clamped to 47°. Pathing (ID 38308) eases them toward
+the navmesh normal. All three run only inside `Actor::Move` (ID 37507), which
+is reached for a non-player actor only from the skipped movement update.
+Placement (ID 37314) sets them from the navmesh normal. `Actor::SetPosition` (ID 37309) and `SetHeading` (ID 37230) leave
 them alone. The move-finish sink (ID 37996) overwrites them from the body's
 rotation, but `kNoSim` suppresses it for a network-placed actor.
 
@@ -631,9 +642,9 @@ Death:
   rather than infer it from speed; a cheaper one is to hold the gallop until the
   speed stays below its range for a while.
 - Furniture: a native exit plays its full clip while the source may already
-  be walking away (3.3 s for a table). The actor then catches up by running
-  along the network path, or snaps to the source if the source is standing
-  still by then.
+  be walking away (3.3 s for a table, up to 8.3 s for a bed). The actor then
+  catches up by running along the network path, or snaps to the source if the
+  source is standing still by then.
 - Furniture: crafting menus, recipes, ingredients, output, skill progression,
   sleep and wait UI, ownership and crime, arbitrary activators, doors,
   containers, scripted furniture, paired idles, and killmoves are not

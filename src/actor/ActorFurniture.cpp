@@ -24,6 +24,8 @@ namespace ActorFurniture
         // The engine releases the furniture when a native exit clip ends: about 1.1
         // seconds for a chair and 3.3 for a table in vanilla.
         constexpr float kNativeExitReleaseSeconds = 5.0F;
+        // Vanilla bed and bedroll wake clips run 6.8 to 8.3 seconds.
+        constexpr float kNativeWakeReleaseSeconds = 12.0F;
         // A table's exit releases the furniture about 0.2 seconds before its clip
         // stops driving the actor.
         constexpr float kNativeExitClipTailSeconds = 2.0F;
@@ -862,7 +864,10 @@ namespace ActorFurniture
             }
             if (a_remote.furniture.exitPhase == ExitPhase::kNative)
             {
-                if (a_remote.furniture.furnitureTransitionElapsed < kNativeExitReleaseSeconds)
+                const float releaseSeconds = sitSleepState == RE::SIT_SLEEP_STATE::kWantToWake
+                    ? kNativeWakeReleaseSeconds
+                    : kNativeExitReleaseSeconds;
+                if (a_remote.furniture.furnitureTransitionElapsed < releaseSeconds)
                 {
                     return true;
                 }
@@ -872,6 +877,9 @@ namespace ActorFurniture
                     a_remote.handle.native_handle(), occupiedFurnitureRefID,
                     static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(sitSleepState),
                     GetFurnitureIdleFormID(a_actor), a_remote.furniture.furnitureTransitionElapsed);
+                // The wake window outlasts the stuck-exit fallback, which therefore
+                // counts from the forced exit.
+                a_remote.furniture.furnitureTransitionElapsed = 0.0F;
             }
             a_remote.furniture.exitPhase = ExitPhase::kForced;
 
