@@ -365,7 +365,8 @@ namespace SyncCoordinator
                 auto& actor = *lifecycle.actor;
                 CombatSync::ClearRemoteActions(a_peer.combat);
                 EquipmentSync::SyncEquipment(a_peer.equipment, a_playerID, actor, a_delta);
-                if (!MountSync::UpdateRider(a_peer, a_delta))
+                const bool readyForWeaponDraw = EquipmentSync::IsReadyForWeaponDraw(a_peer.equipment);
+                if (!MountSync::UpdateRider(remote, a_peer, readyForWeaponDraw, a_delta))
                 {
                     ActorLifecycle::OnActorLost(remote, a_peer);
                 }

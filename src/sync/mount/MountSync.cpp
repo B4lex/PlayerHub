@@ -1,4 +1,5 @@
 #include "sync/mount/MountSync.h"
+#include "actor/ActorAnimation.h"
 #include "actor/ActorConstants.h"
 #include "actor/ActorRuntime.h"
 #include "runtime/Profiling.h"
@@ -124,11 +125,15 @@ namespace MountSync
         return mount.carriesRider;
     }
 
-    bool UpdateRider(PeerState& a_peer, float a_delta)
+    bool UpdateRider(const RemoteFrame& a_remote, PeerState& a_peer, bool a_readyForWeaponDraw, float a_delta)
     {
         PROFILE_FUNCTION();
         auto& mount = *a_peer.lifecycle.mount;
+        auto& rider = *a_peer.lifecycle.actor;
+        // A drawn weapon stays drawn while new hand objects are reconciled, as on foot.
+        const bool weaponDrawn = a_remote.checkpoint.animationState.weaponDrawn
+            && (a_readyForWeaponDraw || ActorAnimation::GetTargetState(rider).weaponDrawn);
         return ActorRuntime::UpdateRider(
-            *a_peer.lifecycle.actor, mount.riderGait, mount.actor.movement.animationSpeed, a_delta);
+            rider, mount.riderGait, mount.actor.movement.animationSpeed, weaponDrawn, a_delta);
     }
 }

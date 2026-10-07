@@ -1248,6 +1248,36 @@ namespace ActorAnimation
         return a_remote.animation && IsWeaponTransitionClipPending(*a_remote.animation);
     }
 
+    void ApplyRiderWeaponState(RE::Actor& a_actor, RemoteActor& a_remote, bool a_weaponDrawn)
+    {
+        if (!a_remote.animation)
+        {
+            return;
+        }
+        const auto* actorState = a_actor.AsActorState();
+        const auto weaponState = actorState ? actorState->GetWeaponState() : RE::WEAPON_STATE::kSheathed;
+        auto& target = a_remote.animation->targetAnimationState;
+        if (target.weaponDrawn != a_weaponDrawn)
+        {
+            target.weaponDrawn = a_weaponDrawn;
+            ActorRegistry::SetAuthoritativeWeaponDrawnState(a_remote, a_weaponDrawn);
+            logs::debug("Remote rider weapon state changed: actor={:08X} weaponDrawn={} weaponState={}",
+                a_remote.handle.native_handle(), a_weaponDrawn,
+                static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(weaponState));
+        }
+        if (!actorState)
+        {
+            return;
+        }
+        const bool transitionPending
+            = a_weaponDrawn ? weaponState != RE::WEAPON_STATE::kDrawn : weaponState != RE::WEAPON_STATE::kSheathed;
+        // As on foot, the request is only recorded until the transition animates.
+        if (transitionPending && !IsWeaponTransitionAnimating(weaponState, a_weaponDrawn))
+        {
+            a_actor.DrawWeaponMagicHands(a_weaponDrawn);
+        }
+    }
+
     void RequestAnimationUpdate(
         State* a_animationState, Multiplayer::AnimationState a_state, float a_speed, float a_direction)
     {

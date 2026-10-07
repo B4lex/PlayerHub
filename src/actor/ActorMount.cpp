@@ -1,4 +1,5 @@
 #include "actor/ActorMount.h"
+#include "actor/ActorAnimation.h"
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationFirewall.h"
@@ -126,6 +127,12 @@ namespace ActorMount
         if (!started)
         {
             ActorRegistry::SetMounted(a_rider, false);
+        }
+        else if (a_rider.animation)
+        {
+            // The on-foot update never runs on a rider, so a draw, attack, or block it was
+            // tracking would stay pending and defer every hand swap for the whole ride.
+            ActorAnimation::InvalidateAnimationDispatch(*a_rider.animation);
         }
         return started;
     }

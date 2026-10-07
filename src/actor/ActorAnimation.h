@@ -133,6 +133,7 @@ namespace ActorAnimation
     void AdvancePresentationLocomotion(RemoteActor& a_remote, float a_deltaTime);
     [[nodiscard]] bool IsHandPresentationPlaying(const RemoteActor& a_remote);
     [[nodiscard]] bool IsWeaponTransitionPlaying(const RemoteActor& a_remote);
+    void ApplyRiderWeaponState(RE::Actor& a_actor, RemoteActor& a_remote, bool a_weaponDrawn);
 
     void RequestAnimationUpdate(
         State* a_animationState, Multiplayer::AnimationState a_state, float a_speed, float a_direction);

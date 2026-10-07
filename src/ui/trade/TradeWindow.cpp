@@ -304,7 +304,7 @@ namespace UI
                 }
                 if (a_line.equipped)
                 {
-                    add("Equipped; giving it takes it off");
+                    add("Equipped");
                 }
                 if (a_line.favorited)
                 {
@@ -438,7 +438,7 @@ namespace UI
                 }
                 if (view.ownAccepted)
                 {
-                    ImGui::TextColored(Theme::kPositive, "You accepted; waiting for %s.", view.peer.name.c_str());
+                    ImGui::TextColored(Theme::kPositive, "You accepted. Waiting for %s.", view.peer.name.c_str());
                 }
                 else if (!view.acceptBlocker.empty())
                 {

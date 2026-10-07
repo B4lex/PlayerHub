@@ -156,7 +156,8 @@ namespace ActorRuntime
         return true;
     }
 
-    bool UpdateRider(RemoteActor& a_remote, ActorMount::Gait& a_gait, float a_mountSpeed, float a_deltaTime)
+    bool UpdateRider(
+        RemoteActor& a_remote, ActorMount::Gait& a_gait, float a_mountSpeed, bool a_weaponDrawn, float a_deltaTime)
     {
         PROFILE_FUNCTION();
         if (!GameThread::Require("UpdateRemoteRider"))
@@ -184,6 +185,7 @@ namespace ActorRuntime
         if (AdvanceReadiness(*actor, a_remote, a_deltaTime))
         {
             ActorMount::ApplyGait(*actor, a_remote, a_gait, a_mountSpeed, a_deltaTime, false, "rider");
+            ActorAnimation::ApplyRiderWeaponState(*actor, a_remote, a_weaponDrawn);
         }
         return true;
     }

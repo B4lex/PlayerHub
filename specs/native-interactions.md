@@ -16,7 +16,9 @@
 - **Mounts:** implemented and run in game: a replayed rider was seated on its
   horse, which walked, trotted, and ran with the recorded speed and leaned on
   slopes; dismount and death removed the horse without a crash. The gallop is a
-  [known limitation](#known-limitations).
+  [known limitation](#known-limitations). The rider's draw and sheathe
+  ([Weapon](#weapon)) passed a Linux syntax check only; the Windows build and
+  in-game behavior are not verified.
 - **Death:** implemented and run in game: a replayed player's deaths, standing
   and seated, collapsed the actor into a ragdoll that the next world exit
   removed. The remaining assumptions and criteria are not checked individually.
@@ -319,8 +321,12 @@ every on-foot stage:
    translates it with the actor translation code.
 3. Once actor and mount are ready, `ActorMount::Seat` seats the actor instantly,
    retrying every 0.5 s. From then on the mount carries it: it is never driven on
-   foot again. `ActorRuntime::UpdateRider` keeps its policy, equipment and
-   appearance are still reconciled, and queued attacks are dropped.
+   foot again. Seating clears the on-foot graph tracking
+   (`InvalidateAnimationDispatch`), since the on-foot update that would finish a
+   draw, sheathe, attack, or block in progress never runs on a rider.
+   `ActorRuntime::UpdateRider` keeps its policy, equipment and appearance are
+   still reconciled, the weapon follows the checkpoint
+   ([Weapon](#weapon)), and queued attacks are dropped.
 4. The seat is checked every 0.5 s, since the check looks up the rider's
    interaction; a rider found off its mount is logged and seated again. A seat
    also waits while either actor is getting on or off (`kGettingOnOffMount`).
@@ -343,6 +349,28 @@ mode 1, which sets the quick-mount flag, it starts the paired `pa_HorseExit`
 clip, a `BSSynchronizedClipGenerator` that links the graphs, and removing both
 actors in the pass that started it crashed in `NotifyAnimationGraph` with the
 mount and its clip on the stack.
+
+### Weapon
+
+A rider draws and sheathes with the checkpoint's `weaponDrawn`, through the
+riding graph's own mounted draw and sheathe.
+`ActorAnimation::ApplyRiderWeaponState` sets the target and the registry's
+authoritative weapon state, and while the actor's `WEAPON_STATE` differs it
+calls `DrawWeaponMagicHands` every update until the matching transition
+animates, as on foot ([Remote actor](remote-actor.md)). A first draw waits for
+`IsReadyForWeaponDraw` (at most 1 s), and a drawn weapon stays drawn while new
+hand objects are reconciled
+([Appearance and equipment](appearance-and-equipment.md)).
+`Remote rider weapon state changed` logs each change with the actor's weapon
+state.
+
+Why: the rider update used to leave the weapon alone, so a rider kept the state
+it was seated with. A rider seated drawn stayed drawn through every sheathe, one
+seated sheathed never drew, and a rider seated mid-sheathe redrew its weapon on
+the horse (`BeginWeaponDraw`, `weaponDraw`, `WeapEquip_Out` with
+`expectedWeaponDrawn=false`). The on-foot transition left pending at the seat
+also kept `IsWeaponTransitionPlaying` true for the whole ride, deferring each
+hand swap by its 2 s bound.
 
 ### Gait
 
@@ -580,15 +608,18 @@ Mounts:
    count.
 10. A horse on a slope leans with it and levels out on flat ground, and its rider
     leans with it (`pitch` near `targetPitch`).
+11. A rider draws and sheathes when the source does on horseback, also when it
+    was seated drawn, sheathed, or mid-transition, and a hand item changed on
+    horseback appears without a 2 s delay (`Remote rider weapon state changed`).
 
 Death:
 
-11. A player killed by an enemy collapses into a ragdoll on every peer, and the
+12. A player killed by an enemy collapses into a ragdoll on every peer, and the
     body disappears when its game loads. A peer entering the cell during the
     death camera sees it collapse where the player died.
-12. The body cannot be looted, and the local player gains no kill, bounty, or
+13. The body cannot be looted, and the local player gains no kill, bounty, or
     quest progress.
-13. A player revived with `resurrect` stands up again as a fresh actor. A player
+14. A player revived with `resurrect` stands up again as a fresh actor. A player
     in bleedout (essential) stays standing.
 
 ## Known limitations
@@ -610,8 +641,8 @@ Death:
   the furniture's plugin shows the actor standing, with no substitute furniture
   or seated idle.
 - Mounts: the source's mount appearance, mount and dismount animations, combat
-  on horseback (drawn weapons, attacks, bows, spells), horse jumps, a mount left
-  standing after a dismount, and the mount's approach are not shown.
+  on horseback (attacks, bows, spells; a drawn weapon is shown), horse jumps, a
+  mount left standing after a dismount, and the mount's approach are not shown.
 - Death: the killer, kill moves, death animations (the actor always goes straight
   to ragdoll), where the body comes to rest (each peer simulates its own), and
   bleedout are not shown.

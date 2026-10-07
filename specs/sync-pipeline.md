@@ -142,7 +142,7 @@ not in the local space: clear actions, stop
 DeathSync::SyncDeath                       # a killed actor keeps only handle and look
 ActorLifecycle::RetireWhenStranded
 FurnitureSync yield check                  # hide an actor that would block furniture
-MountSync::SyncMount                       # riding: equipment, rider update, look only
+MountSync::SyncMount                       # riding: equipment, rider update with weapon state, look only
 otherwise:
     MovementSync::SyncMovement             # played checkpoint's movement, then the pose
     EquipmentSync::SyncEquipment           # -> handsSettled, readyForWeaponDraw

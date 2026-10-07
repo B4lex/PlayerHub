@@ -28,5 +28,6 @@ namespace MountSync
     [[nodiscard]] RE::NiPointer<RE::Actor> SampleLocalMount(const LocalFrame& a_local, std::uint64_t a_sequence);
 
     [[nodiscard]] bool SyncMount(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta);
-    [[nodiscard]] bool UpdateRider(PeerState& a_peer, float a_delta);
+    [[nodiscard]] bool UpdateRider(
+        const RemoteFrame& a_remote, PeerState& a_peer, bool a_readyForWeaponDraw, float a_delta);
 }
