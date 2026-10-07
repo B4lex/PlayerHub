@@ -14,8 +14,6 @@ namespace CombatIsolation
         using ActorConstants::kBlockedEventLogInterval;
         using ActorConstants::kInitialBlockedEventLogs;
         using CodeDetour::EntryDetourTrampolineSize;
-        using CodeDetour::kCallDetourTrampolineSize;
-        using CodeDetour::WriteCallDetour;
         using CodeDetour::WriteEntryDetour;
 
         bool IsRemoteActorCombatQuery(const RE::Actor* a_actor, const RE::Actor* a_target, std::string_view a_path)
@@ -38,7 +36,8 @@ namespace CombatIsolation
 
         bool IsRemoteActorHit(const RE::Actor* a_aggressor, const RE::TESObjectREFR* a_target, std::string_view a_path)
         {
-            if (!ActorRegistry::IsRegistered(a_aggressor))
+            if (!ActorRegistry::IsRegistered(a_aggressor)
+                && (!a_target || !ActorRegistry::IsRegistered(a_target->As<RE::Actor>())))
             {
                 return false;
             }
@@ -47,26 +46,8 @@ namespace CombatIsolation
             const auto count = ++suppressedCount;
             if (count <= kInitialBlockedEventLogs || count % kBlockedEventLogInterval == 0)
             {
-                logs::debug("Suppressed remote actor hit: path={} aggressor={:08X} target={:08X} count={}", a_path,
-                    a_aggressor->GetFormID(), a_target ? a_target->GetFormID() : 0, count);
-            }
-            return true;
-        }
-
-        bool IsRemoteActorMeleeTarget(
-            const RE::Actor* a_attacker, const RE::TESObjectREFR* a_target, std::string_view a_path)
-        {
-            if (!a_target || !ActorRegistry::IsRegistered(a_target->As<RE::Actor>()))
-            {
-                return false;
-            }
-
-            static std::atomic_uint32_t suppressedCount{ 0 };
-            const auto count = ++suppressedCount;
-            if (count <= kInitialBlockedEventLogs || count % kBlockedEventLogInterval == 0)
-            {
-                logs::debug("Suppressed melee hit on remote actor: path={} attacker={:08X} target={:08X} count={}",
-                    a_path, a_attacker ? a_attacker->GetFormID() : 0, a_target->GetFormID(), count);
+                logs::debug("Suppressed hit involving remote actor: path={} aggressor={:08X} target={:08X} count={}",
+                    a_path, a_aggressor ? a_aggressor->GetFormID() : 0, a_target ? a_target->GetFormID() : 0, count);
             }
             return true;
         }
@@ -108,12 +89,20 @@ namespace CombatIsolation
             0x48, 0x8B, 0xC4, // mov rax, rsp
             0x88, 0x50, 0x10 // mov [rax+10h], dl
         };
+        // Shared by the swing target entry and the actor hit past its guard.
+        constexpr std::array<std::uint8_t, 7> kHitPrologue{
+            0x48, 0x8B, 0xC4, // mov rax, rsp
+            0x48, 0x89, 0x48, 0x08 // mov [rax+8], rcx
+        };
+        // ID 38627 opens with test rdx, rdx; je to its ret.
+        constexpr std::ptrdiff_t kActorHitGuardSize = 9;
 
         static_assert(EntryDetourTrampolineSize(kHostilityPrologue.size())
                 + EntryDetourTrampolineSize(kIsHostileToActorPrologue.size())
                 + EntryDetourTrampolineSize(kStartCombatPrologue.size())
                 + EntryDetourTrampolineSize(kSpellFirePrologue.size())
-                + EntryDetourTrampolineSize(kWeaponSwingHitPrologue.size()) + 3 * kCallDetourTrampolineSize
+                + EntryDetourTrampolineSize(kWeaponSwingHitPrologue.size())
+                + 2 * EntryDetourTrampolineSize(kHitPrologue.size())
             == kTrampolineSize);
 
         // The engine's hostility decision (ID 37534 on 1.7.104): aggression and
@@ -183,42 +172,38 @@ namespace CombatIsolation
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
-        // The melee hit frame's calls to the actor hit (ID 38627): +0x40A hits each
-        // actor a sweep attack reaches, +0x45A the swing's primary target. Skipping
-        // the call skips HitData, damage, stagger, hit effects, and the hit event.
-        template <std::ptrdiff_t Offset>
-        struct MeleeTargetHitHook
+        // The swing's hit target (ID 38628 on 1.7.104, Precision's
+        // CalculateCurrentHitTargetForWeaponSwing): the melee hit frame is its only
+        // caller in the executable, and Precision calls it directly before each hit
+        // of its weapon collisions. The hit frame treats a null result as no target.
+        struct SwingHitTargetHook
         {
-            static void Thunk(
-                RE::Actor* a_attacker, RE::TESObjectREFR* a_target, RE::Projectile* a_projectile, bool a_leftHand)
+            static RE::TESObjectREFR* Thunk(RE::Actor* a_attacker)
             {
-                if (IsRemoteActorMeleeTarget(a_attacker, a_target, kPath))
+                if (IsRemoteActorHit(a_attacker, nullptr, "SwingHitTarget"))
                 {
-                    return;
+                    return nullptr;
                 }
-                _original(a_attacker, a_target, a_projectile, a_leftHand);
+                return _original(a_attacker);
             }
 
-            static constexpr std::ptrdiff_t kOffset = Offset;
-            static constexpr std::string_view kPath = Offset == 0x40A ? "MeleeSweepHit" : "MeleePrimaryHit";
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
-        using MeleeSweepHitHook = MeleeTargetHitHook<0x40A>;
-        using MeleePrimaryHitHook = MeleeTargetHitHook<0x45A>;
-
-        // The call from a projectile impact (ID 44218) to the actor hit (ID 38627),
-        // which builds HitData for the shooter and applies it to the struck actor.
-        struct ProjectileHitHook
+        // The actor hit (ID 38627 on 1.7.104): builds HitData for the aggressor and
+        // applies damage, stagger, hit effects, and the target's hit event. The
+        // melee hit frame (+0x40A sweep, +0x45A primary target) and the projectile
+        // impact (ID 44218 + 0x90) call it, and Precision calls it directly.
+        struct ActorHitHook
         {
             static void Thunk(
-                RE::Actor* a_shooter, RE::TESObjectREFR* a_target, RE::Projectile* a_projectile, bool a_leftHand)
+                RE::Actor* a_aggressor, RE::TESObjectREFR* a_target, RE::Projectile* a_projectile, bool a_leftHand)
             {
-                if (IsRemoteActorHit(a_shooter, a_target, "ProjectileHit"))
+                if (IsRemoteActorHit(a_aggressor, a_target, a_projectile ? "ProjectileHit" : "ActorHit"))
                 {
                     return;
                 }
-                _original(a_shooter, a_target, a_projectile, a_leftHand);
+                _original(a_aggressor, a_target, a_projectile, a_leftHand);
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -340,18 +325,16 @@ namespace CombatIsolation
             reinterpret_cast<std::uintptr_t>(&WeaponSwingHitHook::Thunk), "weapon swing hit");
         SpellFireHook::_original = WriteEntryDetour(
             REL::ID(34407), kSpellFirePrologue, reinterpret_cast<std::uintptr_t>(&SpellFireHook::Thunk), "spell fire");
-        ProjectileHitHook::_original = WriteCallDetour(
-            REL::ID(44218), 0x90, reinterpret_cast<std::uintptr_t>(&ProjectileHitHook::Thunk), "projectile hit");
-        MeleeSweepHitHook::_original = WriteCallDetour(REL::ID(38603), MeleeSweepHitHook::kOffset,
-            reinterpret_cast<std::uintptr_t>(&MeleeSweepHitHook::Thunk), "melee sweep hit");
-        MeleePrimaryHitHook::_original = WriteCallDetour(REL::ID(38603), MeleePrimaryHitHook::kOffset,
-            reinterpret_cast<std::uintptr_t>(&MeleePrimaryHitHook::Thunk), "melee primary hit");
+        SwingHitTargetHook::_original = WriteEntryDetour(REL::ID(38628), kHitPrologue,
+            reinterpret_cast<std::uintptr_t>(&SwingHitTargetHook::Thunk), "swing hit target");
+        ActorHitHook::_original = WriteEntryDetour(REL::ID(38627), kHitPrologue,
+            reinterpret_cast<std::uintptr_t>(&ActorHitHook::Thunk), "actor hit", kActorHitGuardSize);
         logs::debug(
             "Remote actor combat isolation hooks: hostility={} isHostileToActor={} startCombat={} weaponSwingHit={} "
-            "spellFire={} projectileHit={} meleeSweepHit={} meleePrimaryHit={}",
+            "spellFire={} swingHitTarget={} actorHit={}",
             HostilityHook::_original.address() != 0, IsHostileToActorHook::_original.address() != 0,
             StartCombatHook::_original.address() != 0, WeaponSwingHitHook::_original.address() != 0,
-            SpellFireHook::_original.address() != 0, ProjectileHitHook::_original.address() != 0,
-            MeleeSweepHitHook::_original.address() != 0, MeleePrimaryHitHook::_original.address() != 0);
+            SpellFireHook::_original.address() != 0, SwingHitTargetHook::_original.address() != 0,
+            ActorHitHook::_original.address() != 0);
     }
 }

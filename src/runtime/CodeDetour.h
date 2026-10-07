@@ -22,8 +22,10 @@ namespace CodeDetour
     // The absolute jump write_call<5> allocates.
     inline constexpr std::size_t kCallDetourTrampolineSize = kAbsoluteJumpSize;
 
-    [[nodiscard]] std::uintptr_t WriteEntryDetour(
-        REL::ID a_id, std::span<const std::uint8_t> a_prologue, std::uintptr_t a_thunk, std::string_view a_name);
+    // A nonzero offset detours a function past a guard at its entry that only
+    // returns; the stack and argument registers there must still be as at entry.
+    [[nodiscard]] std::uintptr_t WriteEntryDetour(REL::ID a_id, std::span<const std::uint8_t> a_prologue,
+        std::uintptr_t a_thunk, std::string_view a_name, std::ptrdiff_t a_offset = 0);
 
     [[nodiscard]] std::uintptr_t WriteCallDetour(
         REL::ID a_id, std::ptrdiff_t a_offset, std::uintptr_t a_thunk, std::string_view a_name);

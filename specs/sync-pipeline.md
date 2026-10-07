@@ -129,6 +129,7 @@ if inWorld:
 else: discard captured attacks
 TradeSync::Sync                           # trade events, overlay commands, cancels, offers, a commit
 if no local cell: return
+PrecisionIsolation::Update                # reassert after the player's Havok world changes
 for each peer: SyncPeer
 ```
 

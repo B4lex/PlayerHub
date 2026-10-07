@@ -2,6 +2,7 @@
 #include "actor/AnimationFirewall.h"
 #include "actor/CombatIsolation.h"
 #include "actor/JumpSound.h"
+#include "actor/PrecisionIsolation.h"
 #include "actor/ReactionSuppression.h"
 #include "actor/RemoteCollision.h"
 #include "actor/ScenePackageSuppression.h"
@@ -42,6 +43,7 @@ namespace PluginStartup
         void OnDataLoaded()
         {
             SurvivalPolicy::RegisterEventSinks();
+            PrecisionIsolation::Initialize();
             Forms::BuildItemCatalog();
             DefaultOutfit::Initialize();
             EquipmentSync::RegisterEventSinks();

@@ -1,6 +1,7 @@
 #include "sync/SyncCoordinator.h"
 #include "actor/ActorAnimation.h"
 #include "actor/ActorRuntime.h"
+#include "actor/PrecisionIsolation.h"
 #include "network/ServerClient.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
@@ -455,6 +456,7 @@ namespace SyncCoordinator
         {
             return;
         }
+        PrecisionIsolation::Update(*localCell, a_delta);
 
         const LocalFrame local{ .player = *a_player };
         const auto localFurniture = a_player->GetOccupiedFurniture().get();

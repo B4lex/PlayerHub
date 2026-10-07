@@ -5,14 +5,15 @@
 
 namespace CodeDetour
 {
-    std::uintptr_t WriteEntryDetour(
-        REL::ID a_id, std::span<const std::uint8_t> a_prologue, std::uintptr_t a_thunk, std::string_view a_name)
+    std::uintptr_t WriteEntryDetour(REL::ID a_id, std::span<const std::uint8_t> a_prologue, std::uintptr_t a_thunk,
+        std::string_view a_name, std::ptrdiff_t a_offset)
     {
-        const auto target = REL::Relocation<std::uintptr_t>{ a_id }.address();
+        const auto target = REL::Relocation<std::uintptr_t>{ a_id }.address() + a_offset;
         if (a_prologue.size() < kBranchSize
             || std::memcmp(reinterpret_cast<const void*>(target), a_prologue.data(), a_prologue.size()) != 0)
         {
-            logs::error("Did not install {} hook: unexpected entry bytes at ID {}", a_name, a_id.id());
+            logs::error(
+                "Did not install {} hook: unexpected entry bytes at ID {} + {:#x}", a_name, a_id.id(), a_offset);
             return 0;
         }
 

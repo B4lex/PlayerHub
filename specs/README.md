@@ -41,7 +41,7 @@ criteria.
 | Mounts | [native-interactions](native-interactions.md#mounts), [sync-pipeline](sync-pipeline.md#actor-lifecycle) |
 | Death | [native-interactions](native-interactions.md#death) |
 | World presence, fast travel, spawn throttling | [sync-pipeline](sync-pipeline.md) |
-| Combat and reaction isolation | [remote-actor](remote-actor.md#combat-isolation) |
+| Combat and reaction isolation, Precision compatibility | [remote-actor](remote-actor.md#combat-isolation), [remote-actor](remote-actor.md#precision), [sync-pipeline](sync-pipeline.md#frame-sequence) |
 | World isolation and collision | [remote-actor](remote-actor.md#world-isolation), [native-interactions](native-interactions.md#collision) |
 | Connection, latency, traffic | [network](network.md#connection), [ui-overlay](ui-overlay.md#status-panel) |
 | Official and custom server | [configuration](configuration.md#official-and-custom-server), [network](network.md#connection), [ui-overlay](ui-overlay.md#settings-window) |

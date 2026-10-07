@@ -8,6 +8,9 @@ Implemented for Skyrim AE 1.7.104, and run in game there.
   every synchronized feature.
 - **Combat isolation:** hook sites and entry bytes checked against the 1.7.104
   executable and address library; behavior not yet verified in game.
+- **Precision exclusion:** interface layout and disable behavior read from
+  Precision's source (`PrecisionAPI.h`, `PrecisionHandler`, `Hooks.cpp`); Linux
+  syntax check only. Not built on Windows or run with Precision installed.
 - **Reaction suppression and package takeover:** run in game on 2026-09-20:
   every hit met a blocked dialogue response and one package takeover, and the
   repeating weapon equip animation after a hit was gone. Sitting in furniture
@@ -48,10 +51,11 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/AnimationFirewall` | Rejects locally injected graph events; network dispatch bypasses it |
 | `actor/SurvivalPolicy` | Actor flags, combat sanitization, package takeover, damage, kill, and magic guards |
 | `actor/CombatIsolation` | Hostility, combat start, and hit hooks |
+| `actor/PrecisionIsolation` | Excludes remote actors from Precision through its interface |
 | `actor/ReactionSuppression` | Dialogue, flee, and detection hooks |
 | `actor/ScenePackageSuppression` | Scene package action hooks |
 | `actor/RemoteCollision` | Placement ownership, the skipped movement update, collision, support, and Speed channel |
-| `runtime/CodeDetour` | Shared entry detour: copies checked entry bytes into a trampoline gateway |
+| `runtime/CodeDetour` | Shared entry detour: copies checked entry bytes, at the entry or past an entry guard, into a trampoline gateway |
 
 ## Spawn
 
@@ -72,7 +76,8 @@ survives ordinary exterior cell unloads within one worldspace.
   in Skyrim's normal processing; disabling it clears `kProcessMe`, zeroes the
   controller velocity, and can stop 3D, controller, or graph initialization.
 - It is registered with `ActorRegistry` right after creation, before any hook
-  can see it, and unregistered before the reference is deleted.
+  can see it, and unregistered before the reference is deleted. Its
+  [Precision exclusion](#precision) follows the same span.
 - The reference must not carry `kCollisionsDisabled`, the flag `TCL` toggles.
 - The update loop never calls `MoveTo(player)`: an exterior actor may occupy
   another parent cell than the local player.
@@ -227,27 +232,59 @@ tail-call 37534. The frenzy check is inside 37534, so frenzied local actors also
 ignore remote actors.
 
 Remote attack animations play natively, so their `HitFrame` annotations still
-run the local hit pipeline. Two more hooks drop hits whose aggressor is a
-remote actor:
+run the local hit pipeline. Three more hooks drop hits:
 
-| ID | Function | Hook | Effect |
+| ID | Function | Hook | Drops when |
 | --- | --- | --- | --- |
-| 38603 | Melee hit frame `(attacker, leftHand, flag)`: reach sweep, then hits on actors (38627) and objects (38628) | entry detour, `mov rax, rsp; mov [rax+10h], dl` | returns without sweeping |
-| 44218 + 0x90 | Projectile impact calling the actor hit 38627 `(shooter, target, projectile, leftHand)` | call-site detour | skips the hit |
+| 38603 | Melee hit frame `(attacker, leftHand, flag)`: reach sweep, the swing's target (38628), then the actor hit (38627) at +0x40A for each swept actor and +0x45A for the target | entry detour, `mov rax, rsp; mov [rax+10h], dl` | the attacker is remote; returns without sweeping |
+| 38628 | Swing hit target `(attacker)`, returns the target or null (Precision's `CalculateCurrentHitTargetForWeaponSwing`) | entry detour, `mov rax, rsp; mov [rax+8], rcx` | the attacker is remote; returns null |
+| 38627 | Actor hit `(aggressor, target, projectile, leftHand)`: HitData, damage, stagger, hit effects, `TESHitEvent` | detour at +9, `mov rax, rsp; mov [rax+8], rcx` | either side is remote; returns |
 
 The melee hook also covers the queued path: when 38603 defers itself (ID
 36915), the deferred task (ID 36991) calls 38603 again. Skipping it drops
 damage, stagger, hit impulses, hit effects, and the target's `TESHitEvent`.
 Bashes and power attacks reach the same hit frame (`WeaponSwingHitHook`).
 
+The actor hit is filtered at its entry rather than at its call sites because
+combat mods call it directly: Precision's weapon collisions call 38628 and then
+38627 without passing 38603, so a remote actor's swing hit local actors. Its
+callers in the executable are 38603 and the projectile impact (ID 44218 +
+0x90), so a local arrow or bolt that strikes a remote actor is dropped as well,
+not only melee. 38627 opens with `test rdx, rdx; je` to its `ret`; the detour
+sits after that guard, where the stack and argument registers are still as at
+entry, because the relative `je` cannot be moved into a gateway.
+
+### Precision
+
+Precision replaces melee hit detection with weapon collision bodies and applies
+its own hit stop, impulses, and hit reactions (`Precision_Hit*` graph events)
+before it calls the actor hit. `PrecisionIsolation` takes remote actors out of
+it entirely, so they fall back to the vanilla hit frame, which the hooks above
+drop:
+
+- `Initialize` at `kDataLoaded` calls `Precision.dll`'s `RequestPluginAPI`
+  with `InterfaceVersion::V3` and keeps `ToggleDisableActor` (virtual slot 23
+  of the returned interface). Without the module nothing else runs; a module
+  without V3 logs a warning, and the actor hit hook is then the only guard.
+- `ActorSpawner::Spawn` excludes each new remote actor and mount
+  (`ToggleDisableActor(handle, true)`), and `ActorSpawner::Remove` releases it.
+  A disabled actor is never added to Precision's world, so it gets no attack
+  collisions or ragdoll there, and Precision's swings pass through it.
+- Precision clears its disabled actors when the local player's `bhkWorld`
+  changes, then waits `fWorldChangedWaitTime` (0.4 s by default) before adding
+  actors again. `PrecisionIsolation::Update` compares the player cell's world
+  each pass and reasserts every exclusion on each pass for 1 s after a change,
+  so the order of Precision's job and the main loop does not matter.
+
 ### Detours
 
-`CodeDetour` copies the first five entry bytes, which end at an instruction
+`CodeDetour` copies the first entry bytes, which end at an instruction
 boundary and are position independent, into an SKSE trampoline gateway that
-jumps back to the sixth byte, then writes a 5-byte branch to the thunk. The
+jumps back to the next byte, then writes a 5-byte branch to the thunk. An
+offset moves the detour past an entry guard that only returns. The
 bytes are compared first: if another plugin already patched the function, that
-hook is skipped and an error is logged. An entry detour pads a sixth byte with a
-NOP when needed. A call-site detour chains to whatever the call pointed to, so
+hook is skipped and an error is logged. An entry detour pads moved bytes past
+the fifth with NOPs. A call-site detour chains to whatever the call pointed to, so
 another plugin's hook there keeps working. Startup logs which hooks were
 installed. Suppressions are logged with the path, both form IDs, and a count,
 throttled.
@@ -479,9 +516,12 @@ Verified against the 1.7.104 executable:
    `rcx` and the target in `rdx`; 38561 returns in `al` and returns false on
    its own early rejects.
 2. ID 38603 takes the attacker in `rcx`, returns nothing, is the only caller of
-   38628, and calls 38627 twice. ID 38627 takes aggressor, target, and optional
-   projectile in `rcx`, `rdx`, `r8`; its callers are 38603 and 44218, which
-   passes the actor resolved from the projectile's shooter.
+   38628 in the executable, treats its null result as no target, and calls
+   38627 twice. ID 38628 takes the attacker in `rcx` and returns a reference.
+   ID 38627 takes aggressor, target, and optional projectile in `rcx`, `rdx`,
+   `r8`; its callers are 38603 and 44218, which passes the actor resolved from
+   the projectile's shooter. Its first 9 bytes return on a null target, and no
+   branch inside it targets bytes +9 to +0x10.
 3. ID 39643 has one caller, ID 39642 + 0x32C, which passes the item for the
    speaker in `r8`; 39643 stores it at `middleHigh+0x360` and releases `*rdx`.
 4. ID 37577 takes the actor in `rcx` and returns in `al`. ID 42704 has one
@@ -523,6 +563,11 @@ Not yet checked in game:
 15. The local player's Activate on a remote actor or mount, from the
     crosshair, reaches ID 19796 with the player as the activator, so the
     event above is sent.
+16. Precision (read from its source, not run): `RequestPluginAPI` returns the
+    same `IVPrecision4` object for V3; its interfaces declare no virtual
+    destructor, so `ToggleDisableActor` is slot 23; a disabled actor is
+    removed from its active actors and gets no attack collisions; and it
+    clears the disabled set only on a player world change.
 
 ## Acceptance criteria
 
@@ -531,7 +576,10 @@ Not yet checked in game:
    raise no alarm and do not flee because of it. Followers do not attack it.
 2. A local actor hit by a remote swing does not enter combat with it. A remote
    melee, bash, unarmed attack, or arrow deals no damage, stagger, hit reaction,
-   or impulse to the player, an NPC, or a physics object.
+   or impulse to the player, an NPC, or a physics object. With Precision
+   installed, the log shows `Precision interface V3 found`, and the same holds:
+   a remote swing through the player or an NPC has no hit stop, no hit
+   reaction, and no damage.
 3. Combat between local actors and the local player is otherwise unchanged.
 4. Hitting a remote actor with a weapon, spell, or shout produces no hit line or
    grunt. Near a fight, crime, or sneaking player it speaks no combat, alarm, or

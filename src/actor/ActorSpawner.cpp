@@ -2,6 +2,7 @@
 #include "actor/ActorAnimation.h"
 #include "actor/ActorFurniture.h"
 #include "actor/ActorRegistry.h"
+#include "actor/PrecisionIsolation.h"
 #include "actor/SurvivalPolicy.h"
 #include "runtime/GameThread.h"
 
@@ -116,6 +117,7 @@ namespace ActorSpawner
             .initializationWaitFrames = 0,
             .ready = false };
         ActorRegistry::Register(remoteActor, *actor);
+        PrecisionIsolation::Exclude(remoteActor.handle);
         SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);
         return std::optional<RemoteActor>{ std::move(remoteActor) };
     }
@@ -133,6 +135,7 @@ namespace ActorSpawner
             ActorFurniture::ReleaseFurniture(*actorPtr, a_remote);
         }
         ActorRegistry::Unregister(a_remote);
+        PrecisionIsolation::Release(a_remote.handle);
         if (!actorPtr)
         {
             return;
