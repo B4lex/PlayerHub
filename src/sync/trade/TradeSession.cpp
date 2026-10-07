@@ -33,6 +33,12 @@ const std::vector<Multiplayer::TradeSkip>* TradeSession::FindOwnSkips() const
     return ownReportRevision == ownRevision ? &ownSkips : nullptr;
 }
 
+const std::vector<Multiplayer::TradeItem>* TradeSession::FindReportedOffer() const
+{
+    const auto sent = sentOffers.find(ownReportRevision);
+    return sent != sentOffers.end() ? &sent->second : nullptr;
+}
+
 TradeSession::Blocker TradeSession::GetAcceptBlocker() const
 {
     if (phase != Phase::kOpen)

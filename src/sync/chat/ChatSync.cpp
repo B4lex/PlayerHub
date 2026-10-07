@@ -22,7 +22,7 @@ namespace ChatSync
             }
             if (a_error == "not in world")
             {
-                return "You are not in the world, so nobody nearby can hear you; switch to Global to talk to everyone.";
+                return "You are not in the world.";
             }
             if (a_error == "unknown recipient")
             {
@@ -60,7 +60,7 @@ namespace ChatSync
         {
             if (!Network::IsConnected())
             {
-                return std::unexpected{ "Not connected to the server; your message was not sent." };
+                return std::unexpected{ "You are not connected to the server." };
             }
             const auto player = ChatRoster::Resolve(a_target.player);
             if (!player)
@@ -76,7 +76,7 @@ namespace ChatSync
                 s_rejections.push_back(std::move(rejection));
             }))
         {
-            return std::unexpected{ "Not connected to the server; your message was not sent." };
+            return std::unexpected{ "You are not connected to the server." };
         }
         logs::debug("Chat sent: channel={} recipient={} bytes={}", static_cast<int>(a_target.channel), recipient,
             text.size());

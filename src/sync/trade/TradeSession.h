@@ -79,6 +79,9 @@ public:
     [[nodiscard]] std::uint64_t GetPeerRevision() const noexcept { return peerRevision; }
     // The peer's report on the shown own offer, once it covers it.
     [[nodiscard]] const std::vector<Multiplayer::TradeSkip>* FindOwnSkips() const;
+    // The own revision the peer's latest report covers, or null before one.
+    [[nodiscard]] const std::vector<Multiplayer::TradeItem>* FindReportedOffer() const;
+    [[nodiscard]] const std::vector<Multiplayer::TradeSkip>& GetReportedSkips() const noexcept { return ownSkips; }
     [[nodiscard]] const std::vector<Multiplayer::TradeSkip>& GetPeerSkips() const noexcept { return peerSkips; }
     [[nodiscard]] bool IsOwnAccepted() const noexcept { return ownAccepted; }
     [[nodiscard]] bool IsPeerAccepted() const noexcept { return peerAccepted; }

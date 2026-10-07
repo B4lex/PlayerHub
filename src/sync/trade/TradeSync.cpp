@@ -10,8 +10,11 @@
 #include <atomic>
 #include <cmath>
 #include <format>
+#include <iterator>
 #include <mutex>
 #include <numeric>
+#include <optional>
+#include <string_view>
 #include <utility>
 #include <variant>
 
@@ -33,6 +36,8 @@ namespace TradeSync
                 kAnswer,
                 kCancel,
                 kSetCount,
+                kAddOne,
+                kRemoveOne,
                 kAccept
             };
 
@@ -67,8 +72,23 @@ namespace TradeSync
         std::uint64_t s_connectionGeneration = 0;
         std::vector<TradeInventory::Row> s_inventory;
         std::uint64_t s_inventoryRevision = 0;
+
+        struct RowCheck
+        {
+            bool confirmed{ false };
+            // Why the peer's game cannot receive it, or empty.
+            std::string rejected;
+        };
+
+        // Parallel to s_inventory.
+        std::vector<RowCheck> s_rowChecks;
+        std::vector<std::string> s_peerMissingPlugins;
+        // Includes lines the peer's game has not confirmed yet.
         std::vector<OfferLine> s_offer;
         std::vector<PeerLine> s_peerOffer;
+        // Parallel to s_peerOffer.
+        std::vector<Multiplayer::TradeItem> s_peerItems;
+        std::uint64_t s_nextPeerLineID = 1;
         std::uint32_t s_secondsLeft = 0;
         bool s_viewDirty = false;
 
@@ -121,24 +141,31 @@ namespace TradeSync
             return "It cannot be described to another game.";
         }
 
-        std::string DescribeSkip(const Multiplayer::TradeSkip& a_skip, std::string_view a_who, bool a_local)
+        std::string DescribeRejection(const Multiplayer::TradeSkip& a_skip, const Multiplayer::TradeItem& a_item)
         {
-            const auto lacks = a_local ? std::string{ "You do not have " } : std::string{ a_who } + " does not have ";
+            const auto& peer = PeerName();
+            if (!a_skip.plugin.empty())
+            {
+                return peer + " does not have " + a_skip.plugin + " installed.";
+            }
             switch (a_skip.reason)
             {
                 case Multiplayer::TradeSkipReason::kMissingItem:
-                    return a_skip.plugin.empty() ? lacks + "this item." : lacks + a_skip.plugin + ".";
-                case Multiplayer::TradeSkipReason::kMissingEffect:
-                    return a_skip.plugin.empty() ? lacks + "this item's enchantment."
-                                                 : lacks + a_skip.plugin + ", which its enchantment needs.";
                 case Multiplayer::TradeSkipReason::kWrongType:
-                    return a_local ? std::string{ "In your game this is not an item that can be traded." }
-                                   : std::string{ "In " } + std::string{ a_who } + "'s game this is another kind of form.";
+                    return peer + " has a different version of " + a_item.item.plugin + ".";
+                case Multiplayer::TradeSkipReason::kMissingEffect:
+                    return peer + "'s game does not have the enchantment.";
                 case Multiplayer::TradeSkipReason::kBadEnchantment:
                     break;
             }
-            return a_local ? std::string{ "Your game cannot rebuild its enchantment." }
-                           : std::string{ a_who } + "'s game cannot rebuild its enchantment.";
+            return peer + "'s game cannot rebuild the enchantment.";
+        }
+
+        bool ReferencesPlugin(const Multiplayer::TradeItem& a_item, std::string_view a_plugin)
+        {
+            return a_item.item.plugin == a_plugin || a_item.enchantment.plugin == a_plugin
+                || std::ranges::any_of(
+                    a_item.effects, [&](const auto& a_effect) { return a_effect.effect.plugin == a_plugin; });
         }
 
         std::string FormatItems(const std::vector<std::string>& a_names)
@@ -155,8 +182,11 @@ namespace TradeSync
         {
             s_session.Reset();
             s_inventory.clear();
+            s_rowChecks.clear();
+            s_peerMissingPlugins.clear();
             s_offer.clear();
             s_peerOffer.clear();
+            s_peerItems.clear();
             s_hit.store(false, std::memory_order_release);
             s_viewDirty = true;
         }
@@ -168,7 +198,6 @@ namespace TradeSync
                 .peer = s_session.GetPeer(),
                 .secondsLeft = s_secondsLeft,
                 .inventoryRevision = s_inventoryRevision,
-                .offer = s_offer,
                 .peerOffer = s_peerOffer,
                 .ownAccepted = s_session.IsOwnAccepted(),
                 .peerAccepted = s_session.IsPeerAccepted() };
@@ -186,18 +215,22 @@ namespace TradeSync
                 default:
                     break;
             }
+            std::ranges::copy_if(s_offer, std::back_inserter(view.offer),
+                [](const OfferLine& a_line) { return s_rowChecks[a_line.row].confirmed; });
             view.inventory.reserve(s_inventory.size());
-            for (const auto& row : s_inventory)
+            for (std::size_t i = 0; i < s_inventory.size(); ++i)
             {
+                const auto& row = s_inventory[i];
+                const auto& rejected = s_rowChecks[i].rejected;
                 view.inventory.push_back(InventoryLine{ .name = row.name,
                     .count = row.item.count,
                     .formID = row.formID,
                     .category = row.category,
-                    .weight = row.weight,
+                    .details = row.details,
                     .equipped = row.equipped,
                     .favorited = row.favorited,
                     .enchanted = row.item.IsEnchanted(),
-                    .blocked = row.block ? DescribeBlock(*row.block) : std::string{} });
+                    .blocked = row.block ? DescribeBlock(*row.block) : rejected });
             }
             s_phase.store(view.phase, std::memory_order_release);
             s_invitingPlayer.store(view.phase == Phase::kInvited ? view.peer.playerID : 0, std::memory_order_release);
@@ -206,11 +239,64 @@ namespace TradeSync
             ++s_viewRevision;
         }
 
+        std::optional<std::size_t> FindRow(const Multiplayer::TradeItem& a_item)
+        {
+            const auto row = std::ranges::find_if(
+                s_inventory, [&](const TradeInventory::Row& a_row) { return a_row.item.IsSameInstance(a_item); });
+            return row != s_inventory.end() ? std::optional{ static_cast<std::size_t>(row - s_inventory.begin()) }
+                                            : std::nullopt;
+        }
+
+        // Returns whether the row was in the offer, which it leaves.
+        bool RejectRow(std::size_t a_row, std::string a_reason)
+        {
+            s_rowChecks[a_row] = RowCheck{ .rejected = std::move(a_reason) };
+            return std::erase_if(s_offer, [a_row](const OfferLine& a_line) { return a_line.row == a_row; }) > 0;
+        }
+
+        // Calls a_rejected with each row the plugin newly rejects that was in the offer.
+        template <class Callback>
+        void RejectPluginRows(const std::string& a_plugin, Callback&& a_rejected)
+        {
+            for (std::size_t i = 0; i < s_inventory.size(); ++i)
+            {
+                if (!s_inventory[i].block && s_rowChecks[i].rejected.empty()
+                    && ReferencesPlugin(s_inventory[i].item, a_plugin))
+                {
+                    if (RejectRow(i, PeerName() + " does not have " + a_plugin + " installed."))
+                    {
+                        a_rejected(i);
+                    }
+                }
+            }
+        }
+
         void CaptureInventory(RE::PlayerCharacter& a_player)
         {
-            s_inventory = TradeInventory::Capture(a_player);
+            auto inventory = TradeInventory::Capture(a_player);
+            std::vector<RowCheck> checks(inventory.size());
+            // A capture during the trade may order the rows differently.
+            for (std::size_t i = 0; i < s_inventory.size(); ++i)
+            {
+                if (!s_rowChecks[i].confirmed && s_rowChecks[i].rejected.empty())
+                {
+                    continue;
+                }
+                const auto row = std::ranges::find_if(inventory,
+                    [&](const TradeInventory::Row& a_row) { return a_row.item.IsSameInstance(s_inventory[i].item); });
+                if (row != inventory.end())
+                {
+                    checks[static_cast<std::size_t>(row - inventory.begin())] = std::move(s_rowChecks[i]);
+                }
+            }
+            s_inventory = std::move(inventory);
+            s_rowChecks = std::move(checks);
             ++s_inventoryRevision;
             s_offer.clear();
+            for (const auto& plugin : s_peerMissingPlugins)
+            {
+                RejectPluginRows(plugin, [](std::size_t) {});
+            }
             s_viewDirty = true;
             logs::debug("Trade captured the inventory: rows={}", s_inventory.size());
         }
@@ -228,22 +314,67 @@ namespace TradeSync
             return items;
         }
 
-        void RefreshOwnSkips()
+        // Confirms the lines the peer's report accepts and takes the others out of the offer.
+        void ApplyOwnReport()
         {
-            const auto* skips = s_session.FindOwnSkips();
-            for (std::size_t i = 0; i < s_offer.size(); ++i)
+            const auto* items = s_session.FindReportedOffer();
+            if (!items)
             {
-                auto& line = s_offer[i];
-                line.skipped.clear();
-                if (!skips)
+                return;
+            }
+            const auto& skips = s_session.GetReportedSkips();
+            // One notice for each reason.
+            struct Rejection
+            {
+                std::string reason;
+                std::vector<std::string> names;
+            };
+            std::vector<Rejection> rejections;
+            const auto note = [&rejections](std::size_t a_row) {
+                const auto& reason = s_rowChecks[a_row].rejected;
+                auto entry = std::ranges::find(rejections, reason, &Rejection::reason);
+                if (entry == rejections.end())
+                {
+                    entry = rejections.insert(rejections.end(), Rejection{ .reason = reason });
+                }
+                entry->names.push_back(s_inventory[a_row].name);
+            };
+            bool offerChanged = false;
+            for (std::size_t i = 0; i < items->size(); ++i)
+            {
+                const auto& item = (*items)[i];
+                const auto row = FindRow(item);
+                if (!row || !s_rowChecks[*row].rejected.empty())
                 {
                     continue;
                 }
-                const auto skip = std::ranges::find(*skips, i, &Multiplayer::TradeSkip::index);
-                if (skip != skips->end())
+                const auto skip = std::ranges::find(skips, i, &Multiplayer::TradeSkip::index);
+                if (skip == skips.end())
                 {
-                    line.skipped = DescribeSkip(*skip, PeerName(), false);
+                    s_rowChecks[*row].confirmed = true;
+                    continue;
                 }
+                logs::info("Trade {}: {} cannot receive {}|{:06X}: reason={} plugin={}", s_session.GetID(), PeerName(),
+                    item.item.plugin, item.item.localFormID, static_cast<int>(skip->reason), skip->plugin);
+                offerChanged = RejectRow(*row, DescribeRejection(*skip, item)) || offerChanged;
+                note(*row);
+                if (!skip->plugin.empty()
+                    && std::ranges::find(s_peerMissingPlugins, skip->plugin) == s_peerMissingPlugins.end())
+                {
+                    s_peerMissingPlugins.push_back(skip->plugin);
+                    RejectPluginRows(skip->plugin, [&](std::size_t a_row) {
+                        offerChanged = true;
+                        note(a_row);
+                    });
+                }
+            }
+            for (const auto& rejection : rejections)
+            {
+                Notices::Post("You cannot offer " + FormatItems(rejection.names) + ": " + rejection.reason);
+            }
+            if (offerChanged)
+            {
+                s_session.SetOwnItems(BuildOwnItems());
             }
             s_viewDirty = true;
         }
@@ -251,14 +382,21 @@ namespace TradeSync
         void SetOfferCount(const Command& a_command)
         {
             if (s_session.GetPhase() != Phase::kOpen || a_command.inventoryRevision != s_inventoryRevision
-                || a_command.row >= s_inventory.size() || s_inventory[a_command.row].block)
+                || a_command.row >= s_inventory.size() || s_inventory[a_command.row].block
+                || !s_rowChecks[a_command.row].rejected.empty())
             {
                 return;
             }
             const auto& row = s_inventory[a_command.row];
-            const auto count = (std::min)(a_command.count, row.item.count);
             auto offer = s_offer;
             const auto line = std::ranges::find(offer, a_command.row, &OfferLine::row);
+            // One more or less counts lines the peer's game has not confirmed, which the overlay
+            // does not see.
+            const auto offered = line != offer.end() ? line->count : 0;
+            const auto requested = a_command.kind == Command::Kind::kAddOne ? offered + 1
+                : a_command.kind == Command::Kind::kRemoveOne               ? (std::max)(offered, 1U) - 1
+                                                                            : a_command.count;
+            const auto count = (std::min)(requested, row.item.count);
             if (count == 0)
             {
                 if (line == offer.end())
@@ -291,7 +429,7 @@ namespace TradeSync
             }
             s_offer = std::move(offer);
             s_session.SetOwnItems(BuildOwnItems());
-            RefreshOwnSkips();
+            s_viewDirty = true;
         }
 
         // Drops offered items the player no longer holds, which a script may have taken.
@@ -386,30 +524,34 @@ namespace TradeSync
         void ReportPeerOffer()
         {
             std::vector<Multiplayer::TradeSkip> skips;
-            s_peerOffer.clear();
+            auto previousLines = std::exchange(s_peerOffer, {});
+            auto previousItems = std::exchange(s_peerItems, {});
             const auto& items = s_session.GetPeerItems();
             for (std::size_t i = 0; i < items.size(); ++i)
             {
                 const auto& item = items[i];
-                PeerLine line{ .count = item.count, .enchanted = item.IsEnchanted() };
                 auto resolved = Forms::ResolveItem(item);
-                if (resolved)
+                if (!resolved)
                 {
-                    line.name = Forms::GetDisplayName(*resolved->object, item);
-                    line.formID = resolved->object->GetFormID();
-                }
-                else
-                {
+                    // Not shown: the peer's game takes it out of the offer on this report.
                     auto skip = resolved.error();
                     skip.index = static_cast<std::uint8_t>(i);
-                    line.name = item.name.empty() ? std::format("{}|0x{:06X}", item.item.plugin, item.item.localFormID)
-                                                  : item.name;
-                    line.skipped = DescribeSkip(skip, PeerName(), true);
                     logs::info("Trade cannot receive {}|{:06X}: reason={} plugin={}", item.item.plugin,
                         item.item.localFormID, static_cast<int>(skip.reason), skip.plugin);
                     skips.push_back(std::move(skip));
+                    continue;
                 }
-                s_peerOffer.push_back(std::move(line));
+                const auto previous = std::ranges::find(previousItems, item);
+                const auto id = previous != previousItems.end()
+                    ? previousLines[static_cast<std::size_t>(previous - previousItems.begin())].id
+                    : s_nextPeerLineID++;
+                s_peerItems.push_back(item);
+                s_peerOffer.push_back(PeerLine{ .id = id,
+                    .name = Forms::GetDisplayName(*resolved->object, item),
+                    .count = item.count,
+                    .formID = resolved->object->GetFormID(),
+                    .enchanted = item.IsEnchanted(),
+                    .details = Forms::GetItemDetails(*resolved, item) });
             }
             Network::PublishTradeReport(s_session.ReportPeerOffer(std::move(skips)));
             s_viewDirty = true;
@@ -492,7 +634,7 @@ namespace TradeSync
                     ReportPeerOffer();
                     break;
                 case TradeSession::Outcome::kReport:
-                    RefreshOwnSkips();
+                    ApplyOwnReport();
                     break;
                 case TradeSession::Outcome::kPeerAccepted:
                     logs::debug("Trade {}: {} accepted", s_session.GetID(), PeerName());
@@ -565,6 +707,8 @@ namespace TradeSync
                     }
                     return;
                 case Command::Kind::kSetCount:
+                case Command::Kind::kAddOne:
+                case Command::Kind::kRemoveOne:
                     SetOfferCount(a_command);
                     break;
                 case Command::Kind::kAccept:
@@ -604,6 +748,17 @@ namespace TradeSync
     {
         PushCommand(Command{
             .kind = Command::Kind::kSetCount, .inventoryRevision = a_inventoryRevision, .row = a_row, .count = a_count });
+    }
+
+    void OfferOneMore(std::uint64_t a_inventoryRevision, std::size_t a_row)
+    {
+        PushCommand(Command{ .kind = Command::Kind::kAddOne, .inventoryRevision = a_inventoryRevision, .row = a_row });
+    }
+
+    void OfferOneLess(std::uint64_t a_inventoryRevision, std::size_t a_row)
+    {
+        PushCommand(
+            Command{ .kind = Command::Kind::kRemoveOne, .inventoryRevision = a_inventoryRevision, .row = a_row });
     }
 
     void Accept()
@@ -730,7 +885,7 @@ namespace TradeSync
                 logs::debug("Trade {} publishing offer revision {} with {} items", tick.offer->id,
                     static_cast<unsigned long long>(tick.offer->revision), tick.offer->items.size());
                 Network::PublishTradeOffer(*tick.offer);
-                RefreshOwnSkips();
+                s_viewDirty = true;
             }
             const auto phase = s_session.GetPhase();
             const auto secondsLeft = phase == Phase::kInviting || phase == Phase::kInvited

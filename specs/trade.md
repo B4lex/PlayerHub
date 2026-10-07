@@ -44,6 +44,30 @@ Implemented 2026-10-06; not built on Windows and not run in game.
   - Since its outcomes became [notices](#notices), `TradeSync.cpp` passed
     the syntax check again; no post ran. The stack that shows them ran in
     the [UI overlay](ui-overlay.md#status)'s notices harness.
+  - [Confirmed offer lines](#offers-and-acceptance) (2026-10-07): the
+    changed `TradeSync.cpp`, `TradeSession.cpp`, and `TradeWindow.cpp`
+    passed the syntax check, which a planted error confirmed reaches them.
+    Nothing ran: the 119 session checks and the window harness predate the
+    change.
+  - Offer grids and inspecting the peer's lines (2026-10-07): the window
+    ran in a new harness, see [UI overlay](ui-overlay.md#status);
+    `TradeSync.cpp` with `PeerLine::id` and `OfferOneLess` passed only the
+    syntax check.
+  - [Item details](#item-details) (2026-10-07): the formulas and the IDs
+    they call were read from the 1.7.104 executable's disassembly
+    (`PlayerCharacter::GetDamage`, `GetArmorValue`, and
+    `InventoryEntryData::GetValue` and what they call), not run.
+    `ItemDetails.cpp`, `TradeInventory.cpp`, and `TradeSync.cpp` passed the
+    syntax check, which a planted error confirmed reaches `ItemDetails.cpp`.
+    No number was compared with the game's.
+
+- [Trade bot](#trade-bot) (2026-10-07): two bots and an idle `cmd/loadgen`
+  walker against a local server traded with each other: an invitation
+  answered at once, offers with tempering, names, and a player enchantment,
+  a `skip plugin` report that made the giver drop the line and send a new
+  revision, both acceptances and the commit, an edit after an acceptance,
+  `cancel menu`, a decline, `leave` closing the trade with `OUT_OF_RANGE`,
+  and a quit closing it with `DISCONNECTED`. Not run against the game.
 
 ## Scope
 
@@ -71,7 +95,8 @@ Non-goals:
   it received while the other side stands (the user's choice).
 - Player-made potions and poisons, poisons applied to a weapon, and any other
   dynamic form except a player enchantment, which is rebuilt from its effects.
-- Trading with a player who is not near, a replay, or a bot.
+- Trading with a player who is not near, a replay, or an in-server bot.
+  The [trade bot](#trade-bot) is a real client and can.
 - Ownership: received items are unowned, also stolen ones.
 - Showing the trade on the characters (facing each other, an idle).
 
@@ -88,9 +113,11 @@ The wire messages and their validation are in
 | `protocol/TradeState.h` | `TradeItem`, `TradeSkip`, close reasons, the events of a trade, their validators and size limits, `EstimateTradeItemBytes` |
 | `server/internal/hub/trade.go` | A trade's two players, its phase, both offer revisions, item counts, reports, and acceptances; range, busy, vanish, expiry, and commit |
 | `forms/ItemInstance` | An inventory stack to a `TradeItem` or the reason it cannot be offered; a `TradeItem` to local forms or a skip reason; rebuilding a player enchantment; putting extra data on a reference |
+| `forms/ItemDetails` | A resolved item's [details](#item-details) for the tooltips: damage or armor, weight, value, effects, charge |
 | `sync/trade/TradeSession` | The state machine of one trade, without engine types: phases, the own offer and the revisions sent, the peer's offer, both reports, acceptances, and what a commit applies |
 | `sync/trade/TradeInventory` | The player's offerable inventory, how many of an item it holds, removing and adding items |
-| `sync/trade/TradeSync` | The game-thread stage: trade events and the overlay's commands, cancelling on combat or a hit, sending offers once edits are quiet, applying a commit, [notices](#notices), and the `View` the overlay draws |
+| `server/cmd/tradebot` | A scripted trade partner for testing alone ([Trade bot](#trade-bot)) |
+| `sync/trade/TradeSync` | The game-thread stage: trade events and the overlay's commands, cancelling on combat or a hit, sending offers once edits are quiet, which rows the peer's game confirmed or rejected, applying a commit, [notices](#notices), and the `View` the overlay draws |
 
 ## Phases
 
@@ -155,16 +182,86 @@ a request unanswered after 10 s, as for a lost message.
   loaded), a form of a kind that cannot be traded (`WRONG_TYPE`), an
   enchantment or an effect whose plugin or form is missing
   (`MISSING_EFFECT`), or an enchantment that is not one, or on an item that
-  takes none (`BAD_ENCHANTMENT`). Both windows mark those lines with the
-  reason; they are skipped, not refused: the giver keeps them and the rest is
-  exchanged (the user's choice).
+  takes none (`BAD_ENCHANTMENT`). The receiver never shows those lines.
+- An item is in the offer only once the peer's game confirmed it (the
+  user's choice, so neither window shows a line that is then taken back).
+  `TradeSync` keeps each inventory row's check (`RowCheck`) for the trade:
+  a click sends the line in the next revision, but the window shows it only
+  after a report on a revision that holds it without skipping it. From then
+  on the row is confirmed, and count changes and removals show at once. A
+  skipped line leaves the offer, which sends a new revision. The offer and
+  report are the check, so the wire is unchanged. Checks and missing plugins
+  carry over when the inventory is listed again. A rejected row is disabled
+  with the reason, and a warning notice names the items and why
+  (`You cannot offer <items>: <reason>`, one per reason):
+  - `<name> does not have <plugin> installed.` when the report names the
+    plugin; every other row whose item, enchantment, or effect comes from
+    that plugin is disabled at once with the same reason, and those already
+    in the offer leave it and are named in the notice.
+  - `<name> has a different version of <plugin>.` for a missing form in a
+    loaded plugin, or a form of another kind (`MISSING_ITEM` without a
+    plugin, `WRONG_TYPE`).
+  - `<name>'s game does not have the enchantment.` (`MISSING_EFFECT` without
+    a plugin) and `<name>'s game cannot rebuild the enchantment.`
+    (`BAD_ENCHANTMENT`).
+- Right-click's one more in the item list and one less on an offered cell
+  count lines not confirmed yet (`TradeSync::OfferOneMore`, `OfferOneLess`),
+  which the window does not see.
 - `Accept` is possible once the window holds something on either side, the
-  own offer is sent, the peer reported on it, and this game reported on the
-  peer's. It first checks that the player still holds every offered item;
+  own offer is sent, the peer reported on it, this game reported on the
+  peer's, and the player has had the cursor over each of the peer's lines
+  since the peer added or changed it
+  ([UI overlay](ui-overlay.md#trade-window), as Path of Exile asks, so a
+  swapped item cannot pass unseen). `TradeSync` gives each shown peer line
+  an id (`PeerLine::id`) that it keeps while the peer offers the same item
+  (`TradeItem` equal, count included). It first checks that the player still holds every offered item;
   one gone (a script took it) refuses with a notice naming them and
-  lists the inventory again. `TradeAccept` names both revisions; the server relays it to the
-  peer, or, when the peer's acceptance of the same pair stands, sends both a
-  `TradeCommit`.
+  lists the inventory again. `TradeAccept` names both revisions; the server
+  relays it to the peer, or, when the peer's acceptance of the same pair
+  stands, sends both a `TradeCommit`. A player never accepts an own revision
+  with skipped lines: the report that names them takes them out of the
+  offer in the same pass, so Accept waits for the new revision's report.
+
+## Item details
+
+Each inventory row and each shown peer line carries `Forms::ItemDetails`,
+computed on the game thread when the inventory is listed
+(`TradeInventory::Capture`) or the peer's offer is resolved
+(`ReportPeerOffer`), never per frame. Both sides use the same function on
+the item as the local game resolves it, so a peer's item shows the local
+plugins' numbers, which is what the player would receive. The numbers are
+the item's own, without either player's skills or perks (the user's
+choice), and the tooltips that show them are in
+[UI overlay](ui-overlay.md#trade-window).
+
+- Damage, for a weapon other than a staff:
+  `attackDamage × fDamageWeaponMult` plus the tempering bonus the game adds
+  before skills (1.7.104 ID 26498), rounded. Ammunition: its damage.
+- Armor, for armor with a rating: `ceil(armorRating / 100 + bonus)`, the
+  bonus from ID 26499, which the game doubles for armor with the
+  `kKeywordCuirass` default object. Both bonuses scale linearly from 1 at
+  `fHealthDataValue1` to 10 at `fHealthDataValue6`, and are 0 untempered.
+- Value, as `InventoryEntryData::GetValue` (ID 15995) computes it: the gold
+  value scaled by tempering (ID 26483) and rounded up; an enchantment adds
+  its cost (`MagicItem::CalculateTotalGoldValue` with no caster), rounded,
+  for a constant effect, or for a weapon enchantment goes through ID 26465
+  with the maximum charge. A player enchantment's cost is the sum of its
+  effects' sent costs. The enchantment is the item's own, else the base
+  form's (`TESEnchantableForm::formEnchanting`). These IDs were read in the
+  1.7.104 executable and are called as the pure functions they are there.
+- Effects: of the enchantment, a player enchantment's effects, or a potion,
+  poison, scroll, or ingredient, each its effect's item description
+  (`EffectSetting::magicItemDescription`) with `<mag>`, `<dur>`, and `<area>`
+  filled (any case; magnitudes whole unless fractional), or its name when it
+  has none. An ingredient's effects the local player has not discovered
+  (`IngredientItem::gamedata.knownEffectFlags`) are `Unknown effect`, as in
+  the game (the user's choice).
+- Charge, for an enchanted weapon: the sent charge and maximum, or for a
+  base form's enchantment the full `amountofEnchantment`, which is what
+  arrives.
+- Weight is the base form's. The tempering tier is already in the name.
+- A row that cannot be offered has no instance data, so its details are its
+  base form's.
 
 ## Commit
 
@@ -175,6 +272,9 @@ that revision, which is what the peer accepted. Without the peer's report on
 that revision it gives nothing, since what the peer takes is unknown and
 keeping the items loses nothing; that cannot happen with one ordered stream
 and is logged as an error.
+
+Skipped lines are still left out on both sides, as a guard; an accepted
+revision holds none.
 
 1. Each own line the peer did not skip is removed: `TradeInventory::Remove`
    finds the stacks with the same item again (base form, enchantment,
@@ -221,9 +321,50 @@ names the other player and why (declined, busy, unavailable, too far, no
 answer, combat, withdrawn or cancelled, left, could not open, the
 connection lost, or the player's own decline); a commit is
 `You successfully traded.` Refusals of the player's own actions (a trade
-already under way, combat, no connection, a full offer, items gone) are
-notices too. Sending an invitation and receiving one post nothing:
+already under way, combat, no connection, a full offer, items gone, an item
+the other game cannot receive) are notices too. Sending an invitation and receiving one post nothing:
 the [prompt](ui-overlay.md#prompt) shows both.
+
+## Trade bot
+
+`cmd/tradebot` lets one player test trades from the game against a
+scripted peer. It joins as a real client with a session from the admin API
+(`--admin`, kept in `<user cache>/playerhub/tradebot-<host>.json`), so the
+server treats it as any player, and it can only send what a client may.
+
+- It finds its target in the admin state (`GET /api/state`): the only other
+  non-virtual player in the world, or `--target` by display name. It copies
+  the target's space, appears `--distance` (150) units in front of it, and
+  follows from the relayed checkpoints, running at the target's speed or
+  `--speed` (350) once the target is 150 units farther than `--distance`.
+  It jumps next to the target from another space or past 2500 units. The
+  admin state places the target only while the relay has been quiet for
+  1.5 s, since it lags. A target that disconnects is chosen again by name.
+- It mirrors the plugin's side of the protocol: it reports on every offer
+  at once, and on a report naming its own lines it drops them and sends a
+  new revision, so it never accepts a revision with skipped lines. It keeps
+  the last 16 revisions it sent for a commit that names an older one, and
+  prints what each commit gave and received; it has no inventory.
+- `--auto-answer` and `--auto-accept` (both on) accept an invitation, and
+  the exchange once the target accepted the current revisions. `--kit`
+  starts with the test kit in its offer.
+- The console drives everything else (`help`): `invite`, `accept`,
+  `decline`, `cancel` with any reason a client may send; offer edits (`add`
+  with every `TradeItem` field, `count`, `remove`, `clear`, `kit`), checked
+  with `validate.TradeOffer` and sent at once while a trade is open;
+  `copy` and `mirror` to offer the target's own lines back, which tests
+  extra data both ways without knowing form IDs; `skip plugin` and
+  `skip form` rules that report lines as a game lacking that plugin or form
+  would (the order of `Forms::ResolveItem`); and `follow`, `stay`, and
+  `leave`, which runs to 1500 units, past the default `trade.keep_radius`.
+- The test kit is Skyrim.esm gold, lockpicks, an iron sword, a Superior
+  steel sword (`health` 1.2), an iron dagger named `Bot Dagger`, iron arrows,
+  and one item from `TradeBotMissing.esp`, which the receiver must skip with
+  its plugin named.
+
+What it cannot test: the peer's side of a commit (its inventory), a peer
+with another modpack beyond the reports it fakes, and combat or menus on
+the peer's side.
 
 ## Engine assumptions
 
@@ -245,6 +386,15 @@ To verify in game:
    a script can open, such as message boxes and dialogue started by an NPC.
 7. `ExtraTextDisplayData::customNameLength` is the length of the given name
    before the tempering tier in `displayName`.
+8. [Item details](#item-details): IDs 26498 (`float(float health)`), 26499
+   (`float(float health, TESObjectARMO*)`), 26483 (`float(float value,
+   float health)`), and 26465 (`float(float value, float charge, float
+   cost)`) take the arguments as read from the disassembly and touch nothing
+   but game settings and, for 26499, the default object manager.
+9. `GetValue`'s enchantment lookup (ID 14563) returns the base form's own
+   enchantment when the stack has none, so a pre-enchanted item's value
+   includes it; and a player enchantment's `CalculateTotalGoldValue` is the
+   sum of its effects' costs.
 
 ## Acceptance criteria
 
@@ -256,12 +406,15 @@ To verify in game:
 3. Invitations from muted or vanished players never show and expire for the
    sender.
 4. Both windows show both offers within a moment of an edit, and an edit
-   takes both acceptances back.
+   takes both acceptances back. A line the peer adds or changes keeps Accept
+   disabled until the player hovers it.
 5. A completed trade moves exactly the offered items and counts, with their
    enchantments, tempering, names, and souls, both ways, and nothing else.
-6. An item, or an enchantment's effect, from a plugin the receiver lacks is
-   marked in both windows with that plugin and stays with the giver; the
-   rest is exchanged.
+6. An item, or an enchantment's effect, from a plugin the receiver lacks
+   never shows in either window's offer: the giver gets a notice naming the
+   plugin, and that item and every other one from the plugin are disabled
+   with the reason. Items both games have show on both sides once the
+   receiver's game confirmed them.
 7. Cancel, Escape, a disconnect, combat, a hit, any game menu, a loading
    screen, and walking apart each close both windows without changes.
 8. Quest items and player-made potions show why they cannot be offered.
@@ -276,4 +429,16 @@ To verify in game:
 - The client's request radius is the server's default; a server configured
   wider or narrower still decides, and the menu may enable or disable
   `Trade` against it.
-- The window does not show weights or values.
+- Tooltips show the item's own damage, armor, and value, not the numbers
+  the inventory shows after the player's skills and perks.
+- The tempering bonuses rest on 1.7.104 Address Library IDs, which another
+  runtime would need checked again.
+- A new line shows in the giver's offer only a quiet interval (0.2 s) and a
+  round trip after the click.
+- A receiver that accepts in the moment before the giver's game drops a
+  line it cannot receive has the acceptance taken back by the new revision,
+  though its window did not change: the server clears both acceptances on
+  every offer.
+- Only a reported plugin disables other rows ahead of a click; an item from
+  a plugin the peer has, but in another version, is found one click at a
+  time.

@@ -242,7 +242,7 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 | `BorderColor` | Color of the menu frame around the settings window and the open chat ([UI overlay](ui-overlay.md#menu-frame)): `Vanilla`, the grey of the game's menus, or `Accent`, the accent | `Vanilla` |
 | `BorderThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `50..100` | `70` |
 | `StatusPanel` | Shows the status panel | `true` |
-| `ItemPreview` | Shows the 3D item preview in item pickers | `true` |
+| `ItemPreview` | Shows the 3D item preview in item pickers and item thumbnails in the trade window's offers; off, the cells show names | `true` |
 | `CloseChatOnSend` | Closes the chat when Enter sends a line; when `false`, the chat stays open and Enter in an empty field does nothing ([UI overlay](ui-overlay.md#sending)) | `true` |
 | `ChatWidth` | Width of the chat's lines in font sizes, `24..100`; set by dragging the open chat's right edge ([UI overlay](ui-overlay.md#size)) and not shown in the settings window | `30` |
 | `ChatLines` | Lines of history the open chat shows, `9..40`; set by dragging its top edge, and not shown in the settings window | `10` |
@@ -267,7 +267,7 @@ revision before the snapshot never misses a change.
 | `ConnectionControls` | overlay | reading whether `Config::GetServerEndpoint` is empty each frame the General section draws |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
 | `TradePrompt` | overlay, input | reading `TradeAcceptKey` and `TradeDeclineKey` on each focus key press and each frame it draws |
-| `StatusPanel`, item pickers | overlay | reading `StatusPanel` and `ItemPreview` each frame |
+| `StatusPanel`, item pickers, trade window | overlay | reading `StatusPanel` and `ItemPreview` each frame |
 | `ChatInput` | overlay | reading `CloseChatOnSend` on each Enter that sends or finds the field empty |
 | `Theme` | overlay | working out the accent and frame colors from `AccentColor` and `BorderColor` when the revision changes |
 | `MenuFrame` | overlay | reading `BorderThickness` for each framed window each frame |

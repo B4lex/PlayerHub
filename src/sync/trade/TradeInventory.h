@@ -1,5 +1,6 @@
 #pragma once
 
+#include "forms/ItemDetails.h"
 #include "forms/ItemInstance.h"
 #include "protocol/TradeState.h"
 
@@ -18,7 +19,7 @@ namespace TradeInventory
         RE::FormID formID{ 0 };
         std::string name;
         Forms::TradeCategory category{ Forms::TradeCategory::kMisc };
-        float weight{ 0.0F };
+        Forms::ItemDetails details;
         bool equipped{ false };
         bool favorited{ false };
         std::optional<Forms::OfferBlock> block;

@@ -400,7 +400,11 @@
   closing the list before the window, Apply saving `Plugin|0xID`, and
   `ItemPreview = false` hiding the preview. The reset button as an icon shown
   only off the default is not built on Windows or run in game. `ItemForms.cpp` and `ItemPreview.cpp`
-  need CommonLibSSE-NG and were only checked in game.
+  need CommonLibSSE-NG and were only checked in game. The
+  [thumbnails](#3d-preview) (2026-10-07) are not built on Windows or run in
+  game: `ItemPreview.cpp` passed a g++ syntax check against the
+  CommonLibSSE-NG headers with `__declspec` defined away, which a planted
+  error confirmed reaches it; nothing was captured.
 - **Trade window and prompt:** not built on Windows or run in game. On
   Linux, `TradeWindow.cpp`, `TradePrompt.cpp`, `ChatPlayerMenu.cpp`,
   `WindowManager.cpp`, and `Controls.cpp` ran in a headless Dear ImGui
@@ -409,9 +413,8 @@
   invitation, its name, keys, and countdown, taking no input; `Y` and `N`
   answering through `OnFocusKey` and giving input back, other keys left to
   the game, and only `N` taken while the player's own invitation waits; the
-  window taking focus from another window, its three lists, a click adding a
-  stack, a right click one more, a blocked row adding nothing, the hovered
-  row's preview and notes, a skipped line, Accept disabled with its blocker
+  window taking focus from another window, a click adding a
+  stack, a right click one more, a blocked row adding nothing, Accept disabled with its blocker
   and while accepted, Escape cancelling, focus lost to a menu cancelling
   with `MENU`, a window kept from focus giving up with `FAILED` after 2 s but
   not at 1.8 s, a trade closed by the server releasing focus; `Trade`
@@ -420,6 +423,28 @@
   player. The window and prompt were rasterized at 1080p in Dear ImGui's
   default style, which found and fixed a heading hint that pushed the lists
   past the window. The real theme, fonts, and frame were not drawn.
+- **Trade grids** (2026-10-07): not built on Windows or run in game. On
+  Linux, `TradeWindow.cpp` with the real `Theme.cpp`, `MenuFrame.cpp`, and
+  `Controls.cpp` ran headless in Dear ImGui 1.92.9 at 1080p (18 px font)
+  against a stubbed `TradeSync` and `ItemPreview::DrawThumbnail` (67
+  checks), and was rasterized: the list on the left, the peer's grid
+  above the own one to its right, all inside the window, 83 px cells at the default size,
+  thumbnails requested in offer order with the enchanted background, names
+  when thumbnails are unavailable; Accept disabled with the inspect line
+  until each peer cell was hovered, a cell inspected and its tooltip shown
+  in the frame the cursor reaches it, a count change shading only that line, a `TradeSync` blocker disabling
+  Accept with its reason as the button's tooltip and no footer line, nothing
+  in the footer once all is inspected; the item tooltip's stats, totals,
+  effects, an unknown effect, charge, notes, and a blocked row's reason; a right
+  click sending `OfferOneLess`, a click opening the popup, its step button
+  and `Remove`, no count field for a single item, Escape closing the popup
+  and not the trade, the popup closing when its line leaves; Escape
+  cancelling otherwise; the inspected lines reset by a new trade; the green
+  tint; 23 lines scrolling the own grid by two rows with both grids the
+  same width; the list keeping its width at the minimum size. The
+  prompt, focus, and menu checks above predate the grids and were not run
+  again. `TradeSync.cpp` (`PeerLine::id`, `OfferOneLess`) passed only the
+  g++ syntax check.
 
 ## Scope
 
@@ -465,12 +490,12 @@ src/ui/
   chat/ChatPlayerManager      # Manage players: Friends, Muted, and Vanished tabs over the chat
   chat/WorldPlayerMenu        # a player's menu at the crosshair, opened by activating its character
   trade/TradePrompt           # a trade invitation waiting for an answer, answered by its keys
-  trade/TradeWindow           # the open trade: own items, both offers, Accept and Cancel
+  trade/TradeWindow           # the open trade: both offers as grids, own items, Accept and Cancel
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
   settings/ConnectionControls # connection button, the line under it, one-line summary
   widgets/Controls            # switch, accent and red buttons, icon buttons
   widgets/ItemPicker          # item dropdown
-  preview/ItemPreview         # 3D item capture
+  preview/ItemPreview         # 3D item capture and cached thumbnails
 src/sync/chat/ChatSync        # send to a target and why it failed, the server's rejections, lines to display
 src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners, the list's copy
 src/sync/chat/ChatDraft       # syntax of prefixes and commands
@@ -975,7 +1000,7 @@ connected players whose names start with what follows, at most 8.
 - When nothing was handed to the server, `ChatSync::Send` returns why, and
   the chat stays open with the text and the target and a failure note:
   `<name> is offline.`,
-  `Not connected to the server; your message was not sent.`, or
+  `You are not connected to the server.`, or
   `Your message contains characters that cannot be sent.`
 - A rejecting `Result` runs its callback on the transport thread, which
   queues each server rejection (`rate limited`, `not in world`,
@@ -1458,11 +1483,12 @@ prompt (Skyrim's `Talk` and the label stay) and gamepad navigation.
 Goal: the overlay half of [Trade](trade.md): an invitation shows without
 taking control from the player, and an open trade is one window with the
 player's items and both offers. Non-goals: gamepad navigation, weights and
-values, sorting the peer's offer.
+values, sorting the peer's offer, placing items in the grids, and item sizes
+on the grid (every line takes one cell).
 
 The windows read `TradeSync::View`, copied when its revision changes, and
 send commands (`RequestTrade`, `AnswerInvitation`, `Cancel`,
-`SetOfferCount`, `Accept`) that the next pass applies on the game thread;
+`SetOfferCount`, `OfferOneMore`, `OfferOneLess`, `Accept`) that the next pass applies on the game thread;
 neither touches an engine object.
 
 ### Prompt
@@ -1484,35 +1510,74 @@ neither touches an engine object.
 ### Window
 
 - `TradeWindow` takes focus with `TakeFocus` once the view is open, also
-  from the chat or the player menu, and centers a framed window of 62 × 32
-  font sizes (at least 48 × 22). The cursor shows. A window kept from focus
+  from the chat or the player menu, and centers a framed window of 56 × 40
+  font sizes (at least 44 × 28). The cursor shows. A window kept from focus
   by a game menu retries each frame and gives the trade up with `FAILED`
   after `kFocusWaitSeconds` (2) of frame time, each frame counting at most
   0.1 s; one that had focus and loses it cancels with `MENU`.
 - The title is `Trade with <name>`, the name in the accent, with a close
-  button. Three equal lists follow:
-  - Your items: a search field (case-insensitive, by name) and a category
-    (`All`, `Weapons`, `Apparel`, `Ammunition`, `Potions`, `Ingredients`,
-    `Books`, `Scrolls`, `Soul gems`, `Keys`, `Miscellaneous`), matched again
-    only when either or the inventory changes; rows clipped to the visible
-    ones, with counts above one. A click offers the whole stack, a right
-    click one more; offered rows are highlighted; rows that cannot be offered
-    are disabled.
-  - Your offer: each line's name, a count field for stacks with steps of one
-    (clamped to what the player holds), and a remove button. A line the peer
-    cannot receive is amber. Empty, it says how to add items.
-  - `<name>'s offer`: names as the local game resolves them, or
-    `Plugin|0xID` (or the given name) for what it lacks, in amber, with
-    counts.
-- Hovering a row shows one tooltip after the lists: the 3D preview with
-  `[UI] ItemPreview`, and the row's notes: enchanted, equipped (giving it
-  takes it off), favorite, why it cannot be offered, or why it is skipped
-  and that it stays with its owner.
-- The footer shows `<name> accepted.` and `You accepted; waiting for
-  <name>.` in green, else why Accept is unavailable, else that changing
-  either offer takes both acceptances back; then Accept, disabled while
-  blocked or accepted, and Cancel. Escape, when no field or popup claims
-  it, cancels as Cancel and the close button do.
+  button. The left column holds the player's items, and the right column
+  `<name>'s offer` above `Your offer`, each a grid, the order Path of Exile
+  stacks them in.
+- Each offer is a grid of 5 × 3 square cells, one line per cell in offer
+  order, row by row; the player cannot move items in it (the user's choice,
+  as Steam's trade does). An offer over 15 lines adds rows, and the grid
+  scrolls with its 3 rows in view; the scrollbar's width is kept beside
+  every grid so the cells never change size. The cell is the largest whole
+  pixel size up to 7 font sizes, at least 2.5, that fits both grids' rows in
+  the height and leaves the item list 20 font sizes.
+- A cell shows the item's [thumbnail](#3d-preview) on its background (blue
+  for an enchanted item, as Path of Exile tints magic items, else dark grey)
+  and the count above one in its top left corner. While thumbnails are off
+  (`[UI] ItemPreview`) or unavailable, the cell shows the name instead;
+  while one is captured, only the background. Hovering a cell frames it in
+  the accent and shows the item tooltip (below) at once, without
+  ImGui's tooltip delay.
+- Your offer: the lines the other game confirmed; a clicked item appears
+  only once confirmed. Clicking a cell opens a popup with the name, for a
+  stack a count field with steps of one (clamped to what the player holds)
+  and `of <held>`, and `Remove`; Escape closes it, and it closes when its
+  line leaves the offer. A right click takes one away
+  (`TradeSync::OfferOneLess`), removing the line at one.
+- `<name>'s offer`: names as the local game resolves them; lines it cannot
+  receive are left out. Each line must be inspected, as in Path of Exile: a
+  line the cursor has not been over is shaded dark, and Accept stays
+  disabled with `Hover over <name>'s items to inspect them (<n> left).`
+  until none is left. Inspecting is local to the window and takes effect in
+  the frame the cursor reaches the cell, so moving the cursor across the
+  grid inspects every cell it passes (the user's choice). `TradeSync` keeps a line's `PeerLine::id` while the peer offers the same
+  item and count, so only a line the peer adds or changes needs inspecting
+  again; the inspected ids last for the trade.
+- While a player has accepted, its grid is tinted green with a green frame,
+  and its heading says `Accepted`, so the state does not rest on color
+  alone.
+- Your items: a search field (case-insensitive, by name) and a category
+  (`All`, `Weapons`, `Apparel`, `Ammunition`, `Potions`, `Ingredients`,
+  `Books`, `Scrolls`, `Soul gems`, `Keys`, `Miscellaneous`), matched again
+  only when either or the inventory changes; rows clipped to the visible
+  ones, with counts above one. A click offers the whole stack, a right
+  click one more (`TradeSync::OfferOneMore`); offered rows are
+  highlighted; rows that cannot be offered, also those the other game
+  [cannot receive](trade.md#offers-and-acceptance), are disabled. A hovered
+  row shows the item tooltip (below) after ImGui's usual delay,
+  with why it cannot be offered when it cannot.
+- The item tooltip, up to 22 font sizes wide,
+  shows the item's [details](trade.md#item-details): the name with
+  `×count`; `Damage` or `Armor`, `Weight`, and `Value` on one line, labels
+  dimmed; for a stack, `Total: weight … · value …` for the count it shows
+  (held in the list, offered in a grid); a separator, then each effect as
+  the game words it, an undiscovered ingredient effect dimmed, and
+  `Charge <n> / <max>`; then the notes, equipped (giving it takes it off)
+  and favorite; and in amber why a row cannot be offered. An enchanted item
+  is told by its effects and its cell, so no `Enchanted` note is shown.
+- The footer holds only the lines left to inspect, when any are, then
+  Accept, disabled while blocked, uninspected, or accepted, and Cancel.
+  Acceptance shows on the grids alone, and a change taking it back shows as
+  the tint going and the changed line shaded. `TradeSync`'s reason Accept is
+  unavailable (nothing offered, the offer sending, a report awaited) is the
+  disabled button's tooltip rather than a footer line, since it mostly
+  lasts a round trip after each edit and would flicker there. Escape, when
+  no field or popup claims it, cancels as Cancel and the close button do.
 - A trade that ends releases focus; a window that cancelled waits for the
   view to close without taking focus again.
 
@@ -1753,9 +1818,10 @@ catalog and filters are in
 
 ### 3D preview
 
-`UI::ItemPreview` shows one item at a time through the game's own inventory
-renderer, following `Item3DPreview` in ModExplorerMenu. Models cannot be rotated
-or zoomed.
+`UI::ItemPreview` renders one item at a time through the game's own inventory
+renderer, following `Item3DPreview` in ModExplorerMenu, either live for one
+panel or as cached thumbnails for many cells. Models cannot be rotated or
+zoomed.
 
 - `Draw(formID, size)` records the request and draws the latest capture, fitted
   and centered on a dark background. A new item shows nothing for 0.3 s, then
@@ -1775,8 +1841,9 @@ or zoomed.
 - The capture is opaque but the back buffer's alpha under the model is not
   coverage, so the image is drawn with blending off (a draw callback sets an
   opaque blend state, then `ImDrawCallback_ResetRenderState`).
-- When no window drew a preview in the previous frame, `Update` unloads the
-  item, calls `End3D`, and frees the textures. If an item menu opened meanwhile
+- When no window drew a preview or a thumbnail in the previous frame,
+  `Update` unloads the item, calls `End3D`, and frees the textures and the
+  thumbnails. If an item menu opened meanwhile
   (`UI::IsItemMenuOpen`), that menu owns the renderer, so the state is dropped
   without calling it.
 - The preview turns itself off for the session with one warning when the overlay
@@ -1793,11 +1860,49 @@ or zoomed.
   draws into the engine's current render target, which a one-time pixel readback
   confirmed is the back buffer at the overlay hook; with the count at zero every
   captured pixel matched the cleared background.
+- `DrawThumbnail(drawList, formID, background, min, max)` fills the rectangle
+  with the opaque `background` and draws the item's still fitted and
+  centered, returning `kDrawn`, `kLoading` while it waits for its capture,
+  or `kUnavailable` (thumbnails off, unavailable, or the form failed), when
+  the caller draws something else. A still is kept per form and background
+  in one of 64 slots of 256² in a 2048² atlas; a new one takes a free slot,
+  else the one drawn longest ago that no window drew this frame.
+- A live preview requested in the frame comes first. Otherwise `Update`
+  captures the earliest requested thumbnail that a window drew last frame:
+  it loads the item, waits until its model is attached and one more update
+  pass has run, then captures it once, cleared to its background, into a
+  2048² scratch texture with a full mip chain. `GenerateMips` halves it
+  until it fits a slot, and the level is copied in, dropping the partial
+  last texel each level adds. A still that has not rendered within
+  `kThumbnailTimeoutSeconds` (5) of frame time fails and logs why. With no
+  thumbnail waiting, the renderer stops (`End3D`) and the atlas stays. A
+  still is drawn opaque like the live capture, and since it was captured on
+  its cell's background, no seam shows around it.
+- Thumbnails turn off for the session with one warning when the back buffer
+  format cannot generate mipmaps (`D3D11_FORMAT_SUPPORT_MIP_AUTOGEN`) or
+  their textures cannot be created; cells then show names.
 - Logs: `Item preview started` and `stopped` (debug), the first capture of each
   start with its screen box and bound radius, `Item preview waiting` once per
   item whose model has not appeared a second after loading started (with the
   models `Inventory3DManager` holds, its load task state, and both light
-  schemes), and `Item preview unavailable: <reason>` once.
+  schemes), and `Item preview unavailable: <reason>` once. Each thumbnail
+  logs `Item thumbnail captured` with its box and mip level (debug), a
+  timeout `Item thumbnail: form <id> did not render within 5 s` with the
+  wait state, and `Item thumbnails unavailable: <reason>` once.
+
+## Engine assumptions
+
+To verify in game:
+
+1. A model attached one update pass before its capture is fully drawn,
+   textures included, by a single `Inventory3DManager::Render`, so a
+   thumbnail captured once matches what the live preview settles on.
+2. Skyrim's back buffer format supports `D3D11_FORMAT_SUPPORT_MIP_AUTOGEN`,
+   as `R8G8B8A8_UNORM` does, and `ClearView` writes the same value the
+   overlay's draw of the same 8-bit color does, so a cell's background meets
+   its thumbnail's without a seam.
+3. Starting and stopping the inventory renderer (`Begin3D`, `End3D`) for
+   each batch of thumbnails costs no visible frame time.
 
 ## Acceptance criteria
 
@@ -2024,11 +2129,21 @@ or zoomed.
     prompt at the top, which `Y` and `N` answer for the other player,
     without moving the character or opening a game menu. Accepting opens
     the trade window on both screens with the cursor, also over an open
-    chat. A click offers a stack, the count field changes it, and the other
-    window shows it within a moment; a modded item the other game lacks is
-    amber in both with a tooltip naming the plugin. Escape, Cancel, and a
+    chat. A click offers a stack, which shows in the own grid as its
+    thumbnail with its count; clicking the cell opens its count and
+    `Remove`, and a right click takes one away. The other window shows it
+    within a moment, shaded until the cursor passes over it, and keeps Accept
+    disabled until every line of the offer was hovered; a count change
+    shades only that line again. An accepted side turns green. A modded item the other game lacks
+    never appears in either offer, and its giver gets a notice naming the
+    plugin and sees the item's row disabled. Escape, Cancel, and a
     message box or dialogue a script opens each close both windows.
-26. Notices stack on the right edge from 40% of the screen's height, at
+26. Both trade grids fill with thumbnails of the offered items within a
+    second or two, each on a dark or, for an enchanted item, blue cell, and
+    keep them while the window is open; FPS stays steady meanwhile. A 16th
+    line adds a row and the grid scrolls. With `ItemPreview = false` the
+    cells show names. The inventory looks normal afterwards.
+27. Notices stack on the right edge from 40% of the screen's height, at
     1080p and 4K, each with a strip in the accent: `You successfully
     traded.` after a trade, the other player's decline, a friend
     connecting. Each fades after about 5 s, a long one later; the same
@@ -2107,3 +2222,9 @@ or zoomed.
   the mouse and keyboard only, while gamepad input keeps reaching the game.
 - The picker covers armor, weapons, ammunition, and races, not torches, spells,
   or actors; `ItemKind` is where more kinds would go.
+- A trade thumbnail shows the base form's model, without an enchantment's
+  glow or the item's own name, and is captured once, so a texture still
+  streaming in at that moment stays missing until the window reopens.
+  Thumbnails are captured one per frame or more, so a full grid fills over
+  a moment. The atlas holds 64; more distinct items in view than that show
+  names.

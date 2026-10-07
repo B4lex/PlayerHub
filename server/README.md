@@ -110,6 +110,7 @@ Unknown keys are an error, so a typo does not silently keep a default.
 go test ./...                             # unit and black-box WebSocket tests
 go test -race ./...
 go run ./cmd/loadgen --bots 250 --server-pid <pid>
+go run ./cmd/tradebot --kit
 go run ./cmd/convert-recordings recordings
 ```
 
@@ -128,6 +129,10 @@ go run ./cmd/convert-recordings recordings
   on the same host measure latency across processes. It reports entries and
   bytes received per second, latency percentiles overall and for peers within
   `--near` (4096), and with `--server-pid` the server's CPU.
+- `cmd/tradebot` is a scripted trade partner for testing trades from the game
+  without a second player: it joins as a real client, follows the only other
+  player in the world (`--target` picks one), and is driven from its console
+  (`help`). See `../specs/trade.md`, Trade bot.
 - `cmd/convert-recordings` converts version 2 recordings, from the Python
   server, to version 3 in place and keeps each original as `<id>.v2`.
 - `../proto/generate.sh` regenerates `internal/wire/pb` and the plugin's
@@ -138,6 +143,8 @@ go run ./cmd/convert-recordings recordings
 | Package | Responsibility |
 | --- | --- |
 | `cmd/server` | Entry point and wiring |
+| `cmd/loadgen`, `cmd/tradebot` | Networked bots: load testing, a trade partner |
+| `internal/adminclient` | The admin API for tools: issuing sessions, reading players |
 | `internal/config` | TOML configuration and defaults |
 | `internal/session` | WebSocket accept, hello and session authentication, reader, writer, liveness, limits |
 | `internal/auth` | Session store: tokens, unique display names, expiry |

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "forms/ItemDetails.h"
 #include "forms/ItemInstance.h"
 #include "network/ServerClient.h"
 #include "protocol/ChatMessage.h"
@@ -24,7 +25,7 @@ namespace TradeSync
         std::uint32_t count{ 0 };
         RE::FormID formID{ 0 };
         Forms::TradeCategory category{ Forms::TradeCategory::kMisc };
-        float weight{ 0.0F };
+        Forms::ItemDetails details;
         bool equipped{ false };
         bool favorited{ false };
         bool enchanted{ false };
@@ -37,18 +38,17 @@ namespace TradeSync
         // Index into View::inventory.
         std::size_t row{ 0 };
         std::uint32_t count{ 0 };
-        // Why the peer cannot receive it, or empty.
-        std::string skipped;
     };
 
     struct PeerLine
     {
+        // Kept while the peer offers the same item and count.
+        std::uint64_t id{ 0 };
         std::string name;
         std::uint32_t count{ 0 };
-        // 0 when the local game lacks the item.
         RE::FormID formID{ 0 };
         bool enchanted{ false };
-        std::string skipped;
+        Forms::ItemDetails details;
     };
 
     struct View
@@ -58,6 +58,7 @@ namespace TradeSync
         std::uint32_t secondsLeft{ 0 };
         std::uint64_t inventoryRevision{ 0 };
         std::vector<InventoryLine> inventory;
+        // Only the lines the peer's game confirmed it can receive.
         std::vector<OfferLine> offer;
         std::vector<PeerLine> peerOffer;
         bool ownAccepted{ false };
@@ -71,6 +72,8 @@ namespace TradeSync
     void AnswerInvitation(bool a_accept);
     void Cancel(Multiplayer::TradeCloseReason a_reason);
     void SetOfferCount(std::uint64_t a_inventoryRevision, std::size_t a_row, std::uint32_t a_count);
+    void OfferOneMore(std::uint64_t a_inventoryRevision, std::size_t a_row);
+    void OfferOneLess(std::uint64_t a_inventoryRevision, std::size_t a_row);
     void Accept();
     [[nodiscard]] bool CopyView(std::uint64_t& a_revision, View& a_view);
     [[nodiscard]] TradeSession::Phase GetPhase();

@@ -69,6 +69,20 @@ namespace TradeInventory
             const char* name = a_extra ? a_extra->GetDisplayName(&a_object) : a_object.GetName();
             return name ? std::string{ name } : std::string{};
         }
+
+        Forms::ItemDetails GetDetails(const Row& a_row)
+        {
+            if (!a_row.block)
+            {
+                if (const auto resolved = Forms::ResolveItem(a_row.item))
+                {
+                    return Forms::GetItemDetails(*resolved, a_row.item);
+                }
+            }
+            // A row that cannot be offered has no instance data to resolve.
+            auto* object = RE::TESForm::LookupByID<RE::TESBoundObject>(a_row.formID);
+            return object ? Forms::GetItemDetails(Forms::ResolvedItem{ .object = object }, {}) : Forms::ItemDetails{};
+        }
     }
 
     std::vector<Row> Capture(RE::PlayerCharacter& a_player)
@@ -93,7 +107,6 @@ namespace TradeInventory
             Row row{ .formID = a_stack.object->GetFormID(),
                 .name = std::move(name),
                 .category = *category,
-                .weight = a_stack.object->GetWeight(),
                 .equipped = IsWorn(a_stack.extra),
                 .favorited = a_stack.extra && a_stack.extra->HasType(RE::ExtraDataType::kHotkey) };
             if (described)
@@ -119,6 +132,10 @@ namespace TradeInventory
             same->favorited = same->favorited || row.favorited;
         });
         std::ranges::sort(rows, [](const Row& a_left, const Row& a_right) { return a_left.name < a_right.name; });
+        for (auto& row : rows)
+        {
+            row.details = GetDetails(row);
+        }
         return rows;
     }
 
