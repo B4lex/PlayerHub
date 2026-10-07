@@ -15,6 +15,10 @@ not checked separately, nor were slow movement at a high frame rate and the
 slide after a stop. The idle drift figures below were measured from the 13
 server recordings.
 
+Every graph loss or replacement resetting through
+`InvalidateAnimationDispatch`: Linux syntax check only; not built on Windows
+or run in game.
+
 Jump sound attenuation: hook sites traced in the 1.7.104 executable and the
 sound records read from `Skyrim.esm`; Windows build and in-game behavior not
 yet verified. Other runtimes skip it with a warning.
@@ -115,7 +119,12 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   is not a reliable acknowledgement. Locomotion edges retry for 0.75 s instead:
   the graph refuses locomotion while it is still leaving an attack, and a power
   attack's exit was measured holding it past 0.1 s.
-- A newly created or reloaded graph receives the current state.
+- A graph that first appears, is replaced, or becomes unavailable (no 3D or no
+  graph manager) drops all dispatch tracking through
+  `InvalidateAnimationDispatch`, as recovery, furniture exit, and mounting do:
+  latched and staged locomotion, the landing and weapon-transition waits,
+  attack and hand-presentation ownership, and the direction cross-blend. The
+  next update asserts the current state in full.
 - Logs distinguish `processed`, `retrying-events`, `processed-event-timeout`, and
   `variables-rejected`.
 

@@ -52,7 +52,7 @@ target("playerhub")
     add_rules("commonlibsse-ng.plugin", {
         name = "playerhub",
         author = "B4lex",
-        description = "SKSE64 plugin template using CommonLibSSE-NG"
+        description = "Shows other players as actors in your own Skyrim world"
     })
 
     add_files("src/**.cpp", "src/**.c")

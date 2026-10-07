@@ -149,7 +149,7 @@ rule here.
 4. An action is preceded by the checkpoint it is anchored to: when the
    recipient's newest queued sequence for the peer is below the action's
    `checkpoint_sequence`, the peer's current checkpoint is queued in front of
-   it. The client holds an attack until `lastSequence >= checkpointSequence`
+   it. The client holds an attack until its played checkpoint reaches `checkpointSequence`
    ([Combat presentation](combat-presentation.md#action-stream)).
 5. `PeerLeave` resets the peer's action stream on the client, so the next
    action after a new `PeerEnter` starts a new boundary.

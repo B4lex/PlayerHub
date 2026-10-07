@@ -1,6 +1,7 @@
 #include "network/ConnectionMonitor.h"
 #include "config/PluginConfig.h"
 #include "network/ServerClient.h"
+#include "runtime/FrameTime.h"
 #include "runtime/GameSession.h"
 #include "runtime/Profiling.h"
 
@@ -24,7 +25,6 @@ namespace Network
         constexpr float kReconnectDelaySeconds = 1.0F;
         constexpr float kMaximumReconnectDelaySeconds = 15.0F;
         constexpr float kReconnectAttemptTimeoutSeconds = 20.0F;
-        constexpr float kMaximumFrameTime = 0.1F;
         constexpr unsigned kMaximumBackoffDoublings = 4;
         constexpr float kReconnectJitterFraction = 0.5F;
         constexpr std::int64_t kNoLatency = -1;
@@ -327,7 +327,7 @@ namespace Network
     void UpdateConnectionMonitor(float a_deltaSeconds)
     {
         PROFILE_FUNCTION();
-        const auto deltaSeconds = std::clamp(a_deltaSeconds, 0.0F, kMaximumFrameTime);
+        const auto deltaSeconds = FrameTime::Clamp(a_deltaSeconds);
         const bool inGame = GameSession::IsInGame();
         FollowRequirements();
         FollowGameStart(inGame);

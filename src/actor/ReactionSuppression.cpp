@@ -11,15 +11,14 @@ namespace ReactionSuppression
 {
     namespace
     {
-        using ActorConstants::kBlockedEventLogInterval;
-        using ActorConstants::kInitialBlockedEventLogs;
+        using ActorConstants::ShouldLogOccurrence;
         using CodeDetour::EntryDetourTrampolineSize;
         using CodeDetour::WriteEntryDetour;
 
         std::uint32_t CountSuppression(std::atomic_uint32_t& a_count)
         {
             const auto count = ++a_count;
-            return count <= kInitialBlockedEventLogs || count % kBlockedEventLogInterval == 0 ? count : 0;
+            return ShouldLogOccurrence(count) ? count : 0;
         }
 
         constexpr std::array<std::uint8_t, 7> kProcessResponsePrologue{

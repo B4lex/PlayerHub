@@ -24,7 +24,6 @@ struct RemoteFrame
 {
     Multiplayer::PeerSlot playerID;
     const Network::PlayerTransform& checkpoint;
-    std::uint64_t lastSequence;
     const RemotePose& pose;
     RE::FormID furnitureRefID;
 };

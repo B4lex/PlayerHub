@@ -4,6 +4,7 @@
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationFirewall.h"
 #include "actor/RemoteActor.h"
+#include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
 
@@ -16,8 +17,7 @@ namespace ActorMount
 {
     namespace
     {
-        using ActorConstants::kBlockedEventLogInterval;
-        using ActorConstants::kInitialBlockedEventLogs;
+        using ActorConstants::ShouldLogOccurrence;
 
         // Skyrim.esm EncHorseSaddledBrown: a generic, non-unique saddled horse.
         constexpr RE::FormID kMountBaseID = 0x023AB2;
@@ -71,7 +71,7 @@ namespace ActorMount
             if (!accepted)
             {
                 const auto rejectedEvents = ++a_gait.rejectedEvents;
-                if (rejectedEvents <= kInitialBlockedEventLogs || rejectedEvents % kBlockedEventLogInterval == 0)
+                if (ShouldLogOccurrence(rejectedEvents))
                 {
                     logs::debug("Remote {} graph rejected gait event: actor={:08X} event={} speed={:.1f} count={}",
                         a_role, a_actor.GetHandle().native_handle(), a_eventName, a_gait.graphSpeed, rejectedEvents);
@@ -128,11 +128,11 @@ namespace ActorMount
         {
             ActorRegistry::SetMounted(a_rider, false);
         }
-        else if (a_rider.animation)
+        else
         {
             // The on-foot update never runs on a rider, so a draw, attack, or block it was
             // tracking would stay pending and defer every hand swap for the whole ride.
-            ActorAnimation::InvalidateAnimationDispatch(*a_rider.animation);
+            ActorAnimation::InvalidateAnimationDispatch(a_rider.animation);
         }
         return started;
     }
@@ -159,7 +159,7 @@ namespace ActorMount
         static const RE::BSFixedString speedVariable{ "Speed" };
         static const RE::BSFixedString horseSpeedSampledVariable{ "HorseSpeedSampled" };
 
-        const float deltaTime = std::clamp(a_deltaTime, 0.0F, ActorConstants::kMaximumFrameTime);
+        const float deltaTime = FrameTime::Clamp(a_deltaTime);
         const bool moving = a_speed >= kMovingSpeed;
         const bool inGallopRange = moving && a_speed >= (a_gait.sprinting ? kGallopStopSpeed : kGallopStartSpeed);
         // A single fast sample, such as the relocation onto a new mount, must not start a gallop.
@@ -253,7 +253,7 @@ namespace ActorMount
                     {
                         const bool accepted = SendGaitEvent(a_actor, a_gait, correction, a_role);
                         const auto corrections = ++a_gait.corrections;
-                        if (corrections <= kInitialBlockedEventLogs || corrections % kBlockedEventLogInterval == 0)
+                        if (ShouldLogOccurrence(corrections))
                         {
                             logs::debug(
                                 "Corrected remote {} graph gait: actor={:08X} event={} accepted={} speed={:.1f} "

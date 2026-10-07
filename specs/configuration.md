@@ -17,6 +17,8 @@ file without the key were checked before the key took this name. The current
 character rule was checked by compile-time assertions only; `SettingsSchema.cpp`
 with it was not compiled. `Config::GetDirectory` ran
 only through its fallback, since the stubs resolve no DLL path.
+`config/PluginFiles`, which now reads and replaces the file, passed a Linux
+syntax check only; the stubbed checks above predate it.
 `[UI] BorderColor` is not yet built on Windows or run in game. On Linux the same
 two files were checked the same way: the default file has `BorderColor = Vanilla`
 under its comment, `Accent` and `accent` load as the accent, `Orange` and an
@@ -89,6 +91,7 @@ consumer's system.
 | --- | --- |
 | `config/PluginConfig` | `Config::PluginConfig`, `Load`, `Get`, `GetRevision`, `Apply`, saving |
 | `config/SettingsSchema` | `Config::Describe`: every setting described once, through a visitor |
+| `config/PluginFiles` | Reading, line iteration, and atomic replacement of the plugin's files, shared with the session store, player filters, and menu frame |
 
 ## File
 
@@ -289,8 +292,8 @@ on its edges ends ([UI overlay](ui-overlay.md#size)).
   since writing could truncate it.
 - One lock serializes file access and `Apply`, so the live configuration and
   the file always change in the same order.
-- The text goes to `playerhub.ini.tmp` and is renamed over the file, so a failed
-  write never truncates it. A failed save is logged and reported in the window;
+- The text goes to `playerhub.ini.tmp` and is renamed over the file
+  (`PluginFiles::ReplaceFile`), so a failed write never truncates it. A failed save is logged and reported in the window;
   the applied settings still last until restart.
 
 `Config::GetDirectory` is the directory of `playerhub.ini`, for the plugin's

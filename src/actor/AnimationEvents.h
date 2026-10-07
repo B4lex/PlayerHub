@@ -1,5 +1,7 @@
 #pragma once
 
+#include "text/AsciiCase.h"
+
 #include <cstddef>
 #include <string_view>
 
@@ -26,59 +28,17 @@ namespace AnimationEvents
                                    || a_eventName == "Magic_Unequip_Out" || a_eventName == "Magic_Unequip_OutMoving");
     }
 
-    constexpr bool EqualsIgnoringCase(std::string_view a_lhs, std::string_view a_rhs) noexcept
-    {
-        const auto lower = [](char a_char) {
-            return a_char >= 'A' && a_char <= 'Z' ? static_cast<char>(a_char - 'A' + 'a') : a_char;
-        };
-        if (a_lhs.size() != a_rhs.size())
-        {
-            return false;
-        }
-        for (std::size_t index = 0; index < a_lhs.size(); ++index)
-        {
-            if (lower(a_lhs[index]) != lower(a_rhs[index]))
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    constexpr bool ContainsIgnoringCase(std::string_view a_text, std::string_view a_part) noexcept
-    {
-        for (std::size_t start = 0; start + a_part.size() <= a_text.size(); ++start)
-        {
-            if (EqualsIgnoringCase(a_text.substr(start, a_part.size()), a_part))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    constexpr bool StartsWithIgnoringCase(std::string_view a_text, std::string_view a_prefix) noexcept
-    {
-        return a_text.size() >= a_prefix.size() && EqualsIgnoringCase(a_text.substr(0, a_prefix.size()), a_prefix);
-    }
-
-    constexpr bool EndsWithIgnoringCase(std::string_view a_text, std::string_view a_suffix) noexcept
-    {
-        return a_text.size() >= a_suffix.size()
-            && EqualsIgnoringCase(a_text.substr(a_text.size() - a_suffix.size()), a_suffix);
-    }
-
     // Graph event names are case-insensitive, and the left release idle sends MLH_SpellRelease_event.
     constexpr bool IsCastAnimationEvent(std::string_view a_eventName) noexcept
     {
         for (const std::string_view prefix : { "MLh_", "MRh_", "DualMagic_" })
         {
-            if (EqualsIgnoringCase(a_eventName.substr(0, prefix.size()), prefix))
+            if (AsciiCase::Equals(a_eventName.substr(0, prefix.size()), prefix))
             {
                 return true;
             }
         }
-        return ContainsIgnoringCase(a_eventName, "Cast");
+        return AsciiCase::Contains(a_eventName, "Cast");
     }
 
     enum class AttackEventHand
@@ -91,13 +51,13 @@ namespace AnimationEvents
     constexpr AttackEventHand GetAttackEventHand(std::string_view a_eventName) noexcept
     {
         // attackPowerStartH2HCombo is the power attack of both fists.
-        if (ContainsIgnoringCase(a_eventName, "DualWield") || ContainsIgnoringCase(a_eventName, "H2HCombo"))
+        if (AsciiCase::Contains(a_eventName, "DualWield") || AsciiCase::Contains(a_eventName, "H2HCombo"))
         {
             return AttackEventHand::kDual;
         }
         // attackPowerStartLeft is a right-hand power attack toward the left, so only
         // the hand suffixes count.
-        if (EndsWithIgnoringCase(a_eventName, "LeftHand") || EndsWithIgnoringCase(a_eventName, "H2HLeft"))
+        if (AsciiCase::EndsWith(a_eventName, "LeftHand") || AsciiCase::EndsWith(a_eventName, "H2HLeft"))
         {
             return AttackEventHand::kLeft;
         }
@@ -133,25 +93,25 @@ namespace AnimationEvents
         std::string_view name = a_eventName;
         for (const std::string_view handSuffix : { "LeftHand", "RightHand" })
         {
-            if (EndsWithIgnoringCase(name, handSuffix))
+            if (AsciiCase::EndsWith(name, handSuffix))
             {
                 name.remove_suffix(handSuffix.size());
                 break;
             }
         }
-        if (ContainsIgnoringCase(name, "Forward") || ContainsIgnoringCase(name, "Sprint"))
+        if (AsciiCase::Contains(name, "Forward") || AsciiCase::Contains(name, "Sprint"))
         {
             return PowerAttackEventDirection::kForward;
         }
-        if (ContainsIgnoringCase(name, "Back"))
+        if (AsciiCase::Contains(name, "Back"))
         {
             return PowerAttackEventDirection::kBackward;
         }
-        if (EndsWithIgnoringCase(name, "Left"))
+        if (AsciiCase::EndsWith(name, "Left"))
         {
             return PowerAttackEventDirection::kLeft;
         }
-        if (EndsWithIgnoringCase(name, "Right"))
+        if (AsciiCase::EndsWith(name, "Right"))
         {
             return PowerAttackEventDirection::kRight;
         }

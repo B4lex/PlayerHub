@@ -1,6 +1,5 @@
 #include "actor/ActorRuntime.h"
 #include "actor/ActorAnimation.h"
-#include "actor/ActorConstants.h"
 #include "actor/ActorFurniture.h"
 #include "actor/ActorMount.h"
 #include "actor/ActorMovement.h"
@@ -9,6 +8,7 @@
 #include "actor/RemoteActor.h"
 #include "actor/RemoteCollision.h"
 #include "actor/SurvivalPolicy.h"
+#include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
 
@@ -32,8 +32,7 @@ namespace ActorRuntime
                 {
                     // Accumulated here: this is the one pass that always runs for a ready
                     // actor, whatever a feature does.
-                    a_remote.readyElapsed = (std::min)(a_remote.readyElapsed
-                            + std::clamp(a_deltaTime, 0.0F, ActorConstants::kMaximumFrameTime),
+                    a_remote.readyElapsed = (std::min)(a_remote.readyElapsed + FrameTime::Clamp(a_deltaTime),
                         kReadyElapsedCeilingSeconds);
                 }
                 return true;
@@ -66,7 +65,7 @@ namespace ActorRuntime
                 "Remote actor actor became ready: actor={:08X} base={:08X} desired={} hasCollision={} aiEnabled={} "
                 "waitedFrames={}",
                 a_remote.handle.native_handle(), a_actor.GetActorBase() ? a_actor.GetActorBase()->GetFormID() : 0,
-                Multiplayer::GetMovementStateName(a_remote.animation->targetAnimationState.movementState),
+                Multiplayer::GetMovementStateName(a_remote.animation.targetAnimationState.movementState),
                 a_actor.HasCollision(), a_actor.IsAIEnabled(), a_remote.initializationWaitFrames);
             return true;
         }
@@ -88,10 +87,7 @@ namespace ActorRuntime
         }
 
         auto* actor = actorPtr.get();
-        if (a_remote.animation)
-        {
-            ActorAnimation::AdvanceAttackPlayback(*actor, *a_remote.animation, a_deltaTime);
-        }
+        ActorAnimation::AdvanceAttackPlayback(*actor, a_remote.animation, a_deltaTime);
         SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);
         const bool furnitureLifecycleActive = ActorFurniture::IsFurnitureInteractionPlaying(a_remote);
         // Combat packages can be selected before the suppression flags are
@@ -126,7 +122,7 @@ namespace ActorRuntime
         // Graph events can reactivate an idle turn machine.
         ActorAnimation::HoldIdleTurnState(*actor, a_remote);
         ActorAnimation::ApplyAnimationUpdate(*actor, a_remote, a_deltaTime);
-        const bool landingCompletionPending = a_remote.animation && a_remote.animation->landingCompletionPending;
+        const bool landingCompletionPending = a_remote.animation.landingCompletionPending;
         const bool holdForUnsettledDispatch = ActorAnimation::ShouldHoldTranslation(a_remote, a_deltaTime);
         if (holdForUnsettledDispatch && !landingCompletionPending)
         {
@@ -151,7 +147,7 @@ namespace ActorRuntime
             return true;
         }
 
-        const auto translationState = a_translationState.value_or(a_remote.animation->targetAnimationState);
+        const auto translationState = a_translationState.value_or(a_remote.animation.targetAnimationState);
         ActorMovement::ApplyTranslation(*actor, a_remote, a_deltaTime, translationState);
         return true;
     }
@@ -175,7 +171,7 @@ namespace ActorRuntime
         auto* actor = actorPtr.get();
         SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);
         SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready);
-            // Skyrim carries a seated rider with its mount.
+        // Skyrim carries a seated rider with its mount.
         const bool carried = actor->IsOnMount();
         RemoteCollision::ReleaseToEngine(*actor, a_remote, "mount", carried);
         if (carried)

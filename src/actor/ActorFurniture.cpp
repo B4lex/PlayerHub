@@ -1,9 +1,9 @@
 #include "actor/ActorFurniture.h"
-#include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationFirewall.h"
 #include "actor/RemoteActor.h"
 #include "actor/SurvivalPolicy.h"
+#include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
 
@@ -16,9 +16,8 @@ namespace ActorFurniture
 {
     namespace
     {
-        using ActorConstants::kMaximumFrameTime;
 
-        constexpr float kFurnitureRetryInterval = 1.0F;
+        constexpr float kFurnitureRetryIntervalSeconds = 1.0F;
         constexpr float kFurnitureEntryFallbackSeconds = 10.0F;
         constexpr float kFurnitureExitFallbackSeconds = 10.0F;
         // The engine releases the furniture when a native exit clip ends: about 1.1
@@ -425,7 +424,7 @@ namespace ActorFurniture
                 const bool entryPointChosen = IsFurnitureEntryPointChosen(a_process);
                 if (!entryPointChosen)
                 {
-                    a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
+                    a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryIntervalSeconds;
                 }
                 const auto* entryIdle = a_process.middleHigh ? a_process.middleHigh->furnitureIdle : nullptr;
                 logs::debug(
@@ -460,7 +459,7 @@ namespace ActorFurniture
             (void)SetActorSitSleepState(a_actor, RE::SIT_SLEEP_STATE::kNormal);
             SurvivalPolicy::AssertDoNothingPackage(a_actor);
             ResetFurnitureRequest(a_remote);
-            a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
+            a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryIntervalSeconds;
             SetFurnitureAnimationOwnership(a_remote, false);
             return false;
         }
@@ -607,7 +606,7 @@ namespace ActorFurniture
         // Published before this pass advances it; the activation reading it runs on a worker thread anyway.
         ActorRegistry::SetHeldFurniture(a_remote,
             occupiedFurnitureRefID != 0 ? occupiedFurnitureRefID : a_remote.furniture.requestedFurnitureRefID);
-        const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        const float deltaTime = FrameTime::Clamp(a_deltaTime);
         a_remote.furniture.furnitureRetryRemaining -= deltaTime;
         const auto sitSleepState = GetActorSitSleepState(a_actor);
         if (sitSleepState != a_remote.furniture.loggedSitSleepState)
@@ -682,7 +681,7 @@ namespace ActorFurniture
             if (!occupancyObserved)
             {
                 // Retrying on the next pass restarts the entry idle from its first frame.
-                a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
+                a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryIntervalSeconds;
                 // The native entry can record occupancy that the engine takes back
                 // before the next pass, and still report success.
                 if (auto* furniture = RE::TESForm::LookupByID<RE::TESObjectREFR>(targetFurnitureRefID))
@@ -772,18 +771,15 @@ namespace ActorFurniture
                 SurvivalPolicy::AssertDoNothingPackage(a_actor);
                 ResetFurnitureRequest(a_remote);
                 SetFurnitureAnimationOwnership(a_remote, false);
-                if (a_remote.animation)
-                {
-                    // Furniture graphs do not consistently return to the locomotion
-                    // variables which preceded entry.
-                    ActorAnimation::InvalidateAnimationDispatch(*a_remote.animation);
-                }
+                // Furniture graphs do not consistently return to the locomotion
+                // variables which preceded entry.
+                ActorAnimation::InvalidateAnimationDispatch(a_remote.animation);
                 const auto* actorState = a_actor.AsActorState();
-                if (a_remote.animation->targetAnimationState.weaponDrawn && actorState
+                if (a_remote.animation.targetAnimationState.weaponDrawn && actorState
                     && actorState->GetWeaponState() == RE::WEAPON_STATE::kSheathed)
                 {
                     // Sitting sheathes the weapon, but the staged request still holds the pre-entry drawn state.
-                    auto sheathedState = a_remote.animation->targetAnimationState;
+                    auto sheathedState = a_remote.animation.targetAnimationState;
                     sheathedState.weaponDrawn = false;
                     ActorAnimation::SetAnimationState(a_remote, sheathedState);
                 }
@@ -828,7 +824,7 @@ namespace ActorFurniture
                 const bool defaultStateAccepted = AnimationFirewall::ForceDefaultGraphState(a_actor);
                 if (a_remote.furniture.furnitureRetryRemaining <= 0.0F)
                 {
-                    a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
+                    a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryIntervalSeconds;
                     logs::debug(
                         "Animation sync cancelled incomplete furniture entry: actor={:08X} occupied={:08X} "
                         "requested={:08X} target={:08X} sitSleepState={} defaultStateAccepted={} elapsed={:.3f}",
@@ -850,7 +846,7 @@ namespace ActorFurniture
                 SurvivalPolicy::AssertDoNothingPackage(a_actor);
                 ResetFurnitureRequest(a_remote);
                 SetFurnitureAnimationOwnership(a_remote, false);
-                a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
+                a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryIntervalSeconds;
                 return false;
             }
 
@@ -900,7 +896,7 @@ namespace ActorFurniture
                     stateAccepted = SetActorSitSleepState(
                         a_actor, sleeping ? RE::SIT_SLEEP_STATE::kWantToWake : RE::SIT_SLEEP_STATE::kWantToStand);
                 }
-                a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
+                a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryIntervalSeconds;
                 logs::debug(
                     "Animation sync requested furniture exit: actor={:08X} occupied={:08X} target={:08X} "
                     "sitSleepState={} stateAccepted={} furnitureIdle={:08X} elapsed={:.3f}",
@@ -952,7 +948,7 @@ namespace ActorFurniture
         {
             if (a_remote.furniture.furnitureRetryRemaining <= 0.0F)
             {
-                a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
+                a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryIntervalSeconds;
                 logs::warn(
                     "Animation sync waiting for furniture reference: actor={:08X} furniture={:08X} resolved={} "
                     "furnitureBase={} loaded3D={} sameSpace={}",
@@ -1024,7 +1020,7 @@ namespace ActorFurniture
         a_remote.furniture.targetHeldByOtherActor = marker < 0 && IsReservedByOtherActor(a_actor, *furniture);
         if (marker < 0)
         {
-            a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
+            a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryIntervalSeconds;
             logs::debug(
                 "Animation sync found no available furniture marker: actor={:08X} furniture={:08X} heldByOther={}",
                 a_remote.handle.native_handle(), targetFurnitureRefID, a_remote.furniture.targetHeldByOtherActor);
@@ -1062,7 +1058,7 @@ namespace ActorFurniture
             a_actor.SetHeading(a_remote.movement.targetHeading);
         }
         SetFurnitureAnimationOwnership(a_remote, true);
-        a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryInterval;
+        a_remote.furniture.furnitureRetryRemaining = kFurnitureRetryIntervalSeconds;
         if (!StartNativeFurnitureEntry(a_remote, a_actor, *furniture, markerDistance))
         {
             // Do not freeze translation or leave the graph open to local events.

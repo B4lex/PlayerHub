@@ -11,8 +11,7 @@ namespace CombatIsolation
 {
     namespace
     {
-        using ActorConstants::kBlockedEventLogInterval;
-        using ActorConstants::kInitialBlockedEventLogs;
+        using ActorConstants::ShouldLogOccurrence;
         using CodeDetour::EntryDetourTrampolineSize;
         using CodeDetour::WriteEntryDetour;
 
@@ -25,7 +24,7 @@ namespace CombatIsolation
 
             static std::atomic_uint32_t suppressedCount{ 0 };
             const auto count = ++suppressedCount;
-            if (count <= kInitialBlockedEventLogs || count % kBlockedEventLogInterval == 0)
+            if (ShouldLogOccurrence(count))
             {
                 logs::debug(
                     "Suppressed local hostility involving remote actor: path={} actor={:08X} target={:08X} count={}",
@@ -44,7 +43,7 @@ namespace CombatIsolation
 
             static std::atomic_uint32_t suppressedCount{ 0 };
             const auto count = ++suppressedCount;
-            if (count <= kInitialBlockedEventLogs || count % kBlockedEventLogInterval == 0)
+            if (ShouldLogOccurrence(count))
             {
                 logs::debug("Suppressed hit involving remote actor: path={} aggressor={:08X} target={:08X} count={}",
                     a_path, a_aggressor ? a_aggressor->GetFormID() : 0, a_target ? a_target->GetFormID() : 0, count);
@@ -61,7 +60,7 @@ namespace CombatIsolation
 
             static std::atomic_uint32_t suppressedCount{ 0 };
             const auto count = ++suppressedCount;
-            if (count <= kInitialBlockedEventLogs || count % kBlockedEventLogInterval == 0)
+            if (ShouldLogOccurrence(count))
             {
                 logs::debug("Suppressed remote actor release: path={} actor={:08X} count={}", a_path,
                     a_actor->GetFormID(), count);

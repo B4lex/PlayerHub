@@ -1,4 +1,5 @@
 #include "config/PluginConfig.h"
+#include "config/PluginFiles.h"
 #include "config/SettingsSchema.h"
 
 #include <SimpleIni.h>
@@ -6,9 +7,7 @@
 #include <atomic>
 #include <filesystem>
 #include <format>
-#include <fstream>
 #include <initializer_list>
-#include <iterator>
 #include <mutex>
 #include <optional>
 #include <span>
@@ -22,7 +21,6 @@ namespace Config
     namespace
     {
         constexpr std::string_view kFileName = "playerhub.ini";
-        constexpr std::string_view kTemporaryExtension = ".tmp";
         constexpr std::string_view kFallbackDirectory = "Data/SKSE/Plugins";
         constexpr std::size_t kMaximumModulePathLength = 32768;
 
@@ -34,12 +32,8 @@ namespace Config
               "\n";
 
         using Multiplayer::FormReference;
-
-        std::string ToUtf8(const std::filesystem::path& a_path)
-        {
-            const auto text = a_path.u8string();
-            return { text.begin(), text.end() };
-        }
+        using PluginFiles::ReadFile;
+        using PluginFiles::ToUtf8;
 
         std::string FormatComment(std::initializer_list<std::string_view> a_parts)
         {
@@ -424,41 +418,6 @@ namespace Config
             return std::filesystem::path{ kFallbackDirectory };
         }
 
-        std::optional<std::string> ReadFile(const std::filesystem::path& a_path)
-        {
-            std::ifstream input{ a_path, std::ios::binary };
-            if (!input)
-            {
-                return std::nullopt;
-            }
-            return std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{} };
-        }
-
-        bool WriteFile(const std::filesystem::path& a_path, std::string_view a_text)
-        {
-            auto temporaryPath = a_path;
-            temporaryPath += kTemporaryExtension;
-            {
-                std::ofstream output{ temporaryPath, std::ios::binary | std::ios::trunc };
-                output.write(a_text.data(), static_cast<std::streamsize>(a_text.size()));
-                output.close();
-                if (!output)
-                {
-                    return false;
-                }
-            }
-
-            std::error_code error;
-            std::filesystem::rename(temporaryPath, a_path, error);
-            if (error)
-            {
-                logs::warn("Config could not replace {}: {}", ToUtf8(a_path), error.message());
-                std::filesystem::remove(temporaryPath, error);
-                return false;
-            }
-            return true;
-        }
-
         std::optional<std::string> MakeDefaultFileText()
         {
             auto defaults = GetDefaultConfig();
@@ -470,7 +429,7 @@ namespace Config
         void WriteDefaultFile(const std::filesystem::path& a_path)
         {
             const auto text = MakeDefaultFileText();
-            if (!text || !WriteFile(a_path, *text))
+            if (!text || !PluginFiles::ReplaceFile(a_path, *text))
             {
                 logs::warn("Config could not write the default {}; using defaults", ToUtf8(a_path));
                 return;
@@ -500,7 +459,7 @@ namespace Config
             Describe(a_config, updater);
 
             std::string output;
-            return file.Save(output, false) >= 0 && WriteFile(a_path, output);
+            return file.Save(output, false) >= 0 && PluginFiles::ReplaceFile(a_path, output);
         }
 
         std::atomic<std::shared_ptr<const PluginConfig>> s_config{ std::make_shared<const PluginConfig>(

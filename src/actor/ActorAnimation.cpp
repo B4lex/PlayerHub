@@ -3,6 +3,7 @@
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationFirewall.h"
 #include "actor/RemoteActor.h"
+#include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
 
@@ -15,7 +16,6 @@ namespace ActorAnimation
 {
     namespace
     {
-        using ActorConstants::kMaximumFrameTime;
         using Multiplayer::IsMoving;
         using Multiplayer::IsSneaking;
         using Multiplayer::IsSprinting;
@@ -34,8 +34,6 @@ namespace ActorAnimation
         // 1HM_Idle_Behavior, Bow_Idle_Behavior, MagicReadyIdleTurnBehavior, ...) number
         // their states 0 turn right, 1 standing, and 2 turn left.
         constexpr std::int32_t kStandingTurnState = 1;
-        constexpr std::uint32_t kInitialTurnStateOverrideLogs = 8;
-        constexpr std::uint32_t kTurnStateOverrideLogInterval = 120;
         constexpr float kUnsettledTranslationHoldSeconds = 0.15F;
         // Main-loop passes: the reverted graph and controller stay available across consecutive passes.
         constexpr std::uint32_t kGraphRecoveryStableFrames = 2;
@@ -145,12 +143,7 @@ namespace ActorAnimation
         void BeginAnimationGraphRecovery(
             RE::Actor& a_actor, RemoteActor& a_remote, std::uint32_t a_observedHitEvents, bool a_detectedHitReaction)
         {
-            const auto animationState = a_remote.animation.get();
-            if (!animationState)
-            {
-                return;
-            }
-
+            auto* const animationState = &a_remote.animation;
             RE::BSAnimationGraphManager* graphBeforeRecovery = nullptr;
             {
                 RE::BSTSmartPointer<RE::BSAnimationGraphManager> graphManager;
@@ -203,7 +196,7 @@ namespace ActorAnimation
                 "Started actor animation-graph recovery: actor={:08X} desired={} detectedReaction={} observedHits={} "
                 "graphReverted={} fallback3DReset={} previousGraph={} recovery={}",
                 a_remote.handle.native_handle(),
-                Multiplayer::GetMovementStateName(a_remote.animation->targetAnimationState.movementState),
+                Multiplayer::GetMovementStateName(a_remote.animation.targetAnimationState.movementState),
                 a_detectedHitReaction, a_observedHitEvents, graphReverted, !graphReverted,
                 static_cast<const void*>(graphBeforeRecovery), recoveryCount);
         }
@@ -234,8 +227,7 @@ namespace ActorAnimation
             {
                 a_actor.DrawWeaponMagicHands(authoritativeWeaponDrawn);
             }
-            if (weaponTransitionPending && a_moving && a_remote.animation
-                && !a_remote.animation->weaponTransitionMoveStartDispatched)
+            if (weaponTransitionPending && a_moving && !a_remote.animation.weaponTransitionMoveStartDispatched)
             {
                 static const RE::BSFixedString moveStartEvent{ "moveStart" };
                 // Enter the equip graph through its normal standing state, then take its
@@ -247,7 +239,7 @@ namespace ActorAnimation
                     || SendNetworkAnimationEvent(a_remote, moveStartEvent);
                 if (moveStartAccepted)
                 {
-                    a_remote.animation->weaponTransitionMoveStartDispatched = true;
+                    a_remote.animation.weaponTransitionMoveStartDispatched = true;
                     logs::debug("Animation sync selected moving weapon-transition branch: actor={:08X} weaponDrawn={}",
                         a_remote.handle.native_handle(), authoritativeWeaponDrawn);
                 }
@@ -302,10 +294,9 @@ namespace ActorAnimation
             {
                 return true;
             }
-            const bool moving = IsMoving(a_state.desired.load(std::memory_order_acquire));
-            const bool jumping = a_state.desiredJumping.load(std::memory_order_acquire);
-            const bool weaponDrawn = a_state.desiredWeaponDrawn.load(std::memory_order_acquire);
-            return moving || jumping || (!weaponDrawn && !a_state.weaponDefaultStateDispatched);
+            const auto& target = a_state.targetAnimationState;
+            return IsMoving(target.movementState) || target.jumping
+                || (!target.weaponDrawn && !a_state.weaponDefaultStateDispatched);
         }
 
         constexpr bool IsBowAttackState(RE::ATTACK_STATE_ENUM a_state) noexcept
@@ -315,6 +306,26 @@ namespace ActorAnimation
 
         static_assert(IsBowAttackState(RE::ATTACK_STATE_ENUM::kBowDrawn));
         static_assert(!IsBowAttackState(RE::ATTACK_STATE_ENUM::kFollowThrough));
+
+        void ResetWeaponTransition(State& a_state, bool a_pending)
+        {
+            a_state.weaponLocomotionReassertPending = a_pending;
+            a_state.weaponTransitionCompletionObserved = false;
+            a_state.weaponTransitionWaitElapsed = 0.0F;
+            a_state.weaponTransitionAnimationObserved = false;
+            a_state.weaponTransitionExitForced = false;
+            a_state.weaponDefaultStateDispatched = false;
+            a_state.weaponReplayBaseDispatched = false;
+            a_state.weaponTransitionMoveStartDispatched = false;
+            a_state.weaponRestoredWithoutCompletion = false;
+        }
+
+        void SetLandingCompletionPending(State& a_state, bool a_pending)
+        {
+            a_state.landingCompletionPending = a_pending;
+            a_state.landingCompletionWaitFrames = 0;
+            a_state.landingCompletionWaitElapsed = 0.0F;
+        }
 
         void ResetHandPresentation(State& a_state)
         {
@@ -438,7 +449,7 @@ namespace ActorAnimation
 
         bool CanStartHandPresentation(const RemoteActor& a_remote, RE::Actor& a_actor)
         {
-            const auto& state = *a_remote.animation;
+            const auto& state = a_remote.animation;
             if (!a_remote.ready || !a_remote.animationGraphHolder || !IsAnimationStateSettled(a_remote)
                 || state.attackPlaybackPending || state.attackLocomotionReassertPending || state.bowReleasePending
                 || IsWeaponTransitionUnsettled(state) || state.graphRecoveryInProgress
@@ -487,7 +498,7 @@ namespace ActorAnimation
                 return;
             }
 
-            a_state.swimMoveStartElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+            a_state.swimMoveStartElapsed += FrameTime::Clamp(a_deltaTime);
             // SwimStart is evaluated on the graph's next update. Counting passes
             // rather than time is intended: the swim branch must have been entered.
             if (++a_state.swimMoveStartWaitPasses < 2)
@@ -535,27 +546,42 @@ namespace ActorAnimation
             logs::debug("Animation sync selected moving state after sneak edge: actor={:08X} state={} accepted={}",
                 a_remote.handle.native_handle(), Multiplayer::GetMovementStateName(dispatched.movementState), accepted);
         }
+
+        void ResetGraphDispatch(RE::Actor& a_actor, RemoteActor& a_remote)
+        {
+            AnimationFirewall::Disable(a_remote);
+            ActorRegistry::SetLandingCompletionObservation(a_actor, false);
+            InvalidateAnimationDispatch(a_remote.animation);
+        }
+
+        void ResetUnavailableGraph(RE::Actor& a_actor, RemoteActor& a_remote, const char* a_reason)
+        {
+            if (a_remote.animation.hasDispatched || a_remote.animation.graphManager)
+            {
+                logs::debug("Animation sync reset graph state: actor={:08X} reason={}", a_remote.handle.native_handle(),
+                    a_reason);
+            }
+            ResetGraphDispatch(a_actor, a_remote);
+        }
     }
 
     Multiplayer::AnimationState GetTargetState(const RemoteActor& a_remote)
     {
-        return a_remote.animation->targetAnimationState;
+        return a_remote.animation.targetAnimationState;
     }
 
     void SetAnimationState(RemoteActor& a_remote, Multiplayer::AnimationState a_animationState)
     {
-        const auto previousAnimationState = a_remote.animation->targetAnimationState;
-        a_remote.animation->targetAnimationState = a_animationState;
+        const auto previousAnimationState = a_remote.animation.targetAnimationState;
+        a_remote.animation.targetAnimationState = a_animationState;
         ActorRegistry::SetAuthoritativeJumpState(a_remote, a_animationState.jumping);
         ActorRegistry::SetAuthoritativeDirection(a_remote);
         ActorRegistry::SetAuthoritativeWeaponDrawnState(a_remote, a_animationState.weaponDrawn);
-        RequestAnimationUpdate(a_remote.animation.get(), a_animationState, a_remote.movement.animationSpeed,
-            a_remote.movement.animationDirection);
-        if (previousAnimationState != a_animationState && a_remote.animation)
+        RequestAnimationUpdate(a_remote.animation);
+        if (previousAnimationState != a_animationState)
         {
             logs::debug("Animation sync updated actor request: actor={:08X} revision={} previous={}/{} desired={}/{}",
-                a_remote.handle.native_handle(),
-                static_cast<unsigned long long>(a_remote.animation->desiredRevision.load(std::memory_order_acquire)),
+                a_remote.handle.native_handle(), static_cast<unsigned long long>(a_remote.animation.requestedRevision),
                 Multiplayer::GetMovementStateName(previousAnimationState.movementState),
                 previousAnimationState.jumping ? "jumping" : "grounded",
                 Multiplayer::GetMovementStateName(a_animationState.movementState),
@@ -589,33 +615,17 @@ namespace ActorAnimation
 
     bool IsAnimationStateSettled(const RemoteActor& a_remote)
     {
-        if (!a_remote.animation)
-        {
-            return true;
-        }
-
-        return !a_remote.animation->landingCompletionPending && IsAnimationStateSettledExceptLanding(a_remote);
+        return !a_remote.animation.landingCompletionPending && IsAnimationStateSettledExceptLanding(a_remote);
     }
 
     bool IsAnimationStateSettledExceptLanding(const RemoteActor& a_remote)
     {
-        if (!a_remote.animation)
-        {
-            return true;
-        }
-
-        return a_remote.animation->processedRevision.load(std::memory_order_acquire)
-            == a_remote.animation->desiredRevision.load(std::memory_order_acquire);
+        return a_remote.animation.processedRevision == a_remote.animation.requestedRevision;
     }
 
     bool ShouldHoldTranslation(RemoteActor& a_remote, float a_deltaTime)
     {
-        if (!a_remote.animation)
-        {
-            return false;
-        }
-
-        auto& state = *a_remote.animation;
+        auto& state = a_remote.animation;
         if (IsAnimationStateSettledExceptLanding(a_remote))
         {
             state.unsettledTranslationHoldElapsed = 0.0F;
@@ -623,7 +633,7 @@ namespace ActorAnimation
             return false;
         }
 
-        state.unsettledTranslationHoldElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        state.unsettledTranslationHoldElapsed += FrameTime::Clamp(a_deltaTime);
         if (state.unsettledTranslationHoldElapsed < kUnsettledTranslationHoldSeconds)
         {
             return true;
@@ -642,17 +652,15 @@ namespace ActorAnimation
 
     bool CanDispatchAttack(const RemoteActor& a_remote, const Network::Attack& a_attack)
     {
-        if (!GameThread::Require("CanDispatchAttack") || !a_remote.ready || !a_remote.animation
-            || !a_remote.animationGraphHolder || !IsAnimationStateSettled(a_remote)
-            || a_remote.animation->attackPlaybackPending || a_remote.animation->attackLocomotionReassertPending
-            || IsBowOrCastPlaying(*a_remote.animation) ||
+        if (!GameThread::Require("CanDispatchAttack") || !a_remote.ready || !a_remote.animationGraphHolder
+            || !IsAnimationStateSettled(a_remote) || a_remote.animation.attackPlaybackPending
+            || a_remote.animation.attackLocomotionReassertPending || IsBowOrCastPlaying(a_remote.animation) ||
             // Only a bash plays from a raised block; other attacks wait until it is lowered.
-            (a_attack.action != Network::AttackAction::kBash && IsBlockPlaying(*a_remote.animation)) ||
+            (a_attack.action != Network::AttackAction::kBash && IsBlockPlaying(a_remote.animation)) ||
             // The reassert flag stays armed while idle after a completed draw, so only a
             // transition that is still unsettled may hold the attack.
-            IsWeaponTransitionUnsettled(*a_remote.animation) || a_remote.animation->graphRecoveryInProgress
-            || a_remote.animation->targetAnimationState.jumping
-            || !a_remote.animation->targetAnimationState.weaponDrawn)
+            IsWeaponTransitionUnsettled(a_remote.animation) || a_remote.animation.graphRecoveryInProgress
+            || a_remote.animation.targetAnimationState.jumping || !a_remote.animation.targetAnimationState.weaponDrawn)
         {
             return false;
         }
@@ -674,17 +682,16 @@ namespace ActorAnimation
 
         RE::BSTSmartPointer<RE::BSAnimationGraphManager> graphManager;
         return actor->Is3DLoaded() && actor->GetAnimationGraphManager(graphManager) && graphManager
-            && a_remote.animation->graphManager == graphManager.get();
+            && a_remote.animation.graphManager == graphManager.get();
     }
 
     bool CanChainAttack(const RemoteActor& a_remote, const Network::Attack& a_attack)
     {
         if (!GameThread::Require("CanChainAttack") || !a_remote.ready || a_attack.action == Network::AttackAction::kBash
-            || !a_remote.animation || !a_remote.animationGraphHolder || !IsAnimationStateSettled(a_remote)
-            || !a_remote.animation->attackPlaybackPending || !a_remote.animation->attackPlaybackObserved
-            || a_remote.animation->attackChainDispatched || a_remote.animation->graphRecoveryInProgress
-            || a_remote.animation->targetAnimationState.jumping
-            || !a_remote.animation->targetAnimationState.weaponDrawn)
+            || !a_remote.animationGraphHolder || !IsAnimationStateSettled(a_remote)
+            || !a_remote.animation.attackPlaybackPending || !a_remote.animation.attackPlaybackObserved
+            || a_remote.animation.attackChainDispatched || a_remote.animation.graphRecoveryInProgress
+            || a_remote.animation.targetAnimationState.jumping || !a_remote.animation.targetAnimationState.weaponDrawn)
         {
             return false;
         }
@@ -706,23 +713,22 @@ namespace ActorAnimation
 
         RE::BSTSmartPointer<RE::BSAnimationGraphManager> graphManager;
         return actor->Is3DLoaded() && actor->GetAnimationGraphManager(graphManager) && graphManager
-            && a_remote.animation->graphManager == graphManager.get();
+            && a_remote.animation.graphManager == graphManager.get();
     }
 
     bool CanPowerUpAttack(const RemoteActor& a_remote, const Network::Attack& a_attack)
     {
         if (!GameThread::Require("CanPowerUpAttack") || !a_remote.ready || !a_attack.power
-            || a_attack.action == Network::AttackAction::kBash || !a_remote.animation || !a_remote.animationGraphHolder
+            || a_attack.action == Network::AttackAction::kBash || !a_remote.animationGraphHolder
             || !IsAnimationStateSettled(a_remote)
-            || !a_remote.animation->attackPlaybackPending
+            || !a_remote.animation.attackPlaybackPending
             // The actor's attack state is not waited for: a remote actor reports it
             // well into the swing, which showed most of the plain swing before the
             // power attack. A graph not yet in its attack state rejects the event
             // and the action is retried.
-            || a_remote.animation->attackPlaybackBash || a_remote.animation->attackPlaybackPower
-            || a_remote.animation->attackPlaybackAction != a_attack.action
-            || a_remote.animation->graphRecoveryInProgress || a_remote.animation->targetAnimationState.jumping
-            || !a_remote.animation->targetAnimationState.weaponDrawn)
+            || a_remote.animation.attackPlaybackBash || a_remote.animation.attackPlaybackPower
+            || a_remote.animation.attackPlaybackAction != a_attack.action || a_remote.animation.graphRecoveryInProgress
+            || a_remote.animation.targetAnimationState.jumping || !a_remote.animation.targetAnimationState.weaponDrawn)
         {
             return false;
         }
@@ -743,7 +749,7 @@ namespace ActorAnimation
 
         RE::BSTSmartPointer<RE::BSAnimationGraphManager> graphManager;
         return actor->Is3DLoaded() && actor->GetAnimationGraphManager(graphManager) && graphManager
-            && a_remote.animation->graphManager == graphManager.get();
+            && a_remote.animation.graphManager == graphManager.get();
     }
 
     bool DispatchAttack(RemoteActor& a_remote, const Network::Attack& a_attack)
@@ -806,37 +812,37 @@ namespace ActorAnimation
                 a_remote.handle.native_handle());
         }
 
-        a_remote.animation->attackPlaybackElapsed = 0.0F;
-        a_remote.animation->attackPlaybackPower = a_attack.power && !powerFellBack;
+        a_remote.animation.attackPlaybackElapsed = 0.0F;
+        a_remote.animation.attackPlaybackPower = a_attack.power && !powerFellBack;
         if (poweringUp)
         {
             // The power attack plays on in the attack state. Its own attack state is
             // observed again, so the transition cannot end ownership early.
-            a_remote.animation->attackPlaybackObserved = false;
+            a_remote.animation.attackPlaybackObserved = false;
             return true;
         }
-        a_remote.animation->attackPlaybackAction = a_attack.action;
+        a_remote.animation.attackPlaybackAction = a_attack.action;
         if (chaining)
         {
             // The graph leaves the combo window on a later update; until then the
             // actor state still reports it.
-            a_remote.animation->attackChainDispatched = true;
+            a_remote.animation.attackChainDispatched = true;
             return true;
         }
-        a_remote.animation->attackPlaybackPending = true;
-        a_remote.animation->attackPlaybackBash = a_attack.action == Network::AttackAction::kBash;
-        a_remote.animation->attackPlaybackObserved = false;
-        a_remote.animation->attackChainDispatched = false;
-        a_remote.animation->attackLocomotionReassertPending = false;
+        a_remote.animation.attackPlaybackPending = true;
+        a_remote.animation.attackPlaybackBash = a_attack.action == Network::AttackAction::kBash;
+        a_remote.animation.attackPlaybackObserved = false;
+        a_remote.animation.attackChainDispatched = false;
+        a_remote.animation.attackLocomotionReassertPending = false;
         const auto* actorState = actorPtr->AsActorState();
-        a_remote.animation->attackPlaybackObserved
+        a_remote.animation.attackPlaybackObserved
             = actorState && actorState->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone;
         return true;
     }
 
     bool IsAnimationActionPlaying(const RemoteActor& a_remote)
     {
-        return a_remote.animation && a_remote.animation->attackPlaybackPending;
+        return a_remote.animation.attackPlaybackPending;
     }
 
     bool IsSwimming(const RemoteActor& a_remote)
@@ -852,7 +858,7 @@ namespace ActorAnimation
 
     void ApplyBowDraw(RemoteActor& a_remote, bool a_drawn, bool a_mayStart, float a_deltaTime)
     {
-        if (!GameThread::Require("ApplyBowDraw") || !a_remote.animation)
+        if (!GameThread::Require("ApplyBowDraw"))
         {
             return;
         }
@@ -868,8 +874,8 @@ namespace ActorAnimation
         static const RE::BSFixedString bowResetEvent{ "bowReset" };
 
         auto& actor = *actorPtr;
-        auto& state = *a_remote.animation;
-        const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        auto& state = a_remote.animation;
+        const float deltaTime = FrameTime::Clamp(a_deltaTime);
         state.bowEventRetryElapsed = (std::min)(state.bowEventRetryElapsed + deltaTime, kMinimumEventRetrySeconds);
 
         if (state.bowReleasePending)
@@ -950,7 +956,7 @@ namespace ActorAnimation
 
     void ApplySpellCast(RemoteActor& a_remote, bool a_leftHand, bool a_casting, bool a_mayStart, float a_deltaTime)
     {
-        if (!GameThread::Require("ApplySpellCast") || !a_remote.animation)
+        if (!GameThread::Require("ApplySpellCast"))
         {
             return;
         }
@@ -961,9 +967,9 @@ namespace ActorAnimation
         }
 
         auto& actor = *actorPtr;
-        auto& state = *a_remote.animation;
+        auto& state = a_remote.animation;
         const std::size_t hand = a_leftHand ? 1 : 0;
-        const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        const float deltaTime = FrameTime::Clamp(a_deltaTime);
         static const RE::BSFixedString wantCastLeftVariable{ "bWantCastLeft" };
         static const RE::BSFixedString wantCastRightVariable{ "bWantCastRight" };
         const auto& wantCastVariable = a_leftHand ? wantCastLeftVariable : wantCastRightVariable;
@@ -1086,7 +1092,7 @@ namespace ActorAnimation
 
     void ApplyBlock(RemoteActor& a_remote, bool a_blocking, bool a_mayStart, float a_deltaTime)
     {
-        if (!GameThread::Require("ApplyBlock") || !a_remote.animation)
+        if (!GameThread::Require("ApplyBlock"))
         {
             return;
         }
@@ -1102,8 +1108,8 @@ namespace ActorAnimation
         static const RE::BSFixedString isBlockingVariable{ "IsBlocking" };
 
         auto& actor = *actorPtr;
-        auto& state = *a_remote.animation;
-        const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        auto& state = a_remote.animation;
+        const float deltaTime = FrameTime::Clamp(a_deltaTime);
         state.blockEventRetryElapsed = (std::min)(state.blockEventRetryElapsed + deltaTime, kMinimumEventRetrySeconds);
 
         if (state.blockStopping)
@@ -1182,12 +1188,11 @@ namespace ActorAnimation
 
     void AdvancePresentationLocomotion(RemoteActor& a_remote, float a_deltaTime)
     {
-        if (!GameThread::Require("AdvancePresentationLocomotion") || !a_remote.animation
-            || !a_remote.animation->presentationMoveStartPending)
+        if (!GameThread::Require("AdvancePresentationLocomotion") || !a_remote.animation.presentationMoveStartPending)
         {
             return;
         }
-        auto& state = *a_remote.animation;
+        auto& state = a_remote.animation;
         const bool castHeld = state.castHeld[0] || state.castHeld[1];
         const bool presentationHeld = state.blockHeld || state.bowDrawHeld || castHeld;
         auto actorPtr = a_remote.handle.get();
@@ -1203,7 +1208,7 @@ namespace ActorAnimation
             return;
         }
 
-        state.presentationMoveStartElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        state.presentationMoveStartElapsed += FrameTime::Clamp(a_deltaTime);
         // The start event is evaluated on the graph's next update. Counting passes
         // rather than time is intended: the branch must have been entered once.
         if (++state.presentationMoveStartWaitPasses < 2)
@@ -1240,23 +1245,19 @@ namespace ActorAnimation
 
     bool IsHandPresentationPlaying(const RemoteActor& a_remote)
     {
-        return a_remote.animation && (IsBowOrCastPlaying(*a_remote.animation) || IsBlockPlaying(*a_remote.animation));
+        return IsBowOrCastPlaying(a_remote.animation) || IsBlockPlaying(a_remote.animation);
     }
 
     bool IsWeaponTransitionPlaying(const RemoteActor& a_remote)
     {
-        return a_remote.animation && IsWeaponTransitionClipPending(*a_remote.animation);
+        return IsWeaponTransitionClipPending(a_remote.animation);
     }
 
     void ApplyRiderWeaponState(RE::Actor& a_actor, RemoteActor& a_remote, bool a_weaponDrawn)
     {
-        if (!a_remote.animation)
-        {
-            return;
-        }
         const auto* actorState = a_actor.AsActorState();
         const auto weaponState = actorState ? actorState->GetWeaponState() : RE::WEAPON_STATE::kSheathed;
-        auto& target = a_remote.animation->targetAnimationState;
+        auto& target = a_remote.animation.targetAnimationState;
         if (target.weaponDrawn != a_weaponDrawn)
         {
             target.weaponDrawn = a_weaponDrawn;
@@ -1278,20 +1279,9 @@ namespace ActorAnimation
         }
     }
 
-    void RequestAnimationUpdate(
-        State* a_animationState, Multiplayer::AnimationState a_state, float a_speed, float a_direction)
+    void RequestAnimationUpdate(State& a_state)
     {
-        if (!a_animationState)
-        {
-            return;
-        }
-
-        a_animationState->desired.store(a_state.movementState, std::memory_order_relaxed);
-        a_animationState->desiredJumping.store(a_state.jumping, std::memory_order_relaxed);
-        a_animationState->desiredWeaponDrawn.store(a_state.weaponDrawn, std::memory_order_relaxed);
-        a_animationState->desiredSpeed.store(a_speed, std::memory_order_relaxed);
-        a_animationState->desiredDirection.store(a_direction, std::memory_order_relaxed);
-        a_animationState->desiredRevision.fetch_add(1, std::memory_order_release);
+        ++a_state.requestedRevision;
     }
 
     void InvalidateAnimationDispatch(State& a_state)
@@ -1305,19 +1295,9 @@ namespace ActorAnimation
         a_state.failedDispatchAttempts = 0;
         a_state.rejectedEventAttempts = 0;
         a_state.rejectedEventElapsed = 0.0F;
-        a_state.landingCompletionPending = false;
-        a_state.landingCompletionWaitFrames = 0;
-        a_state.landingCompletionWaitElapsed = 0.0F;
+        SetLandingCompletionPending(a_state, false);
         a_state.landingLocomotionReassertPending = false;
-        a_state.weaponLocomotionReassertPending = false;
-        a_state.weaponTransitionCompletionObserved = false;
-        a_state.weaponTransitionWaitElapsed = 0.0F;
-        a_state.weaponTransitionAnimationObserved = false;
-        a_state.weaponTransitionExitForced = false;
-        a_state.weaponDefaultStateDispatched = false;
-        a_state.weaponReplayBaseDispatched = false;
-        a_state.weaponTransitionMoveStartDispatched = false;
-        a_state.weaponRestoredWithoutCompletion = false;
+        ResetWeaponTransition(a_state, false);
         a_state.attackPlaybackPending = false;
         a_state.attackPlaybackObserved = false;
         a_state.attackChainDispatched = false;
@@ -1325,7 +1305,7 @@ namespace ActorAnimation
         a_state.attackPlaybackElapsed = 0.0F;
         a_state.attackLocomotionReassertPending = false;
         ResetHandPresentation(a_state);
-        a_state.processedRevision.store(0, std::memory_order_release);
+        a_state.processedRevision = 0;
         a_state.graphManager = nullptr;
         a_state.landingEventSinkGraph = nullptr;
     }
@@ -1337,7 +1317,7 @@ namespace ActorAnimation
             return;
         }
 
-        a_state.attackPlaybackElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        a_state.attackPlaybackElapsed += FrameTime::Clamp(a_deltaTime);
         const auto* actorState = a_actor.AsActorState();
         const bool attacking = actorState && actorState->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone;
         a_state.attackPlaybackObserved = a_state.attackPlaybackObserved || attacking;
@@ -1374,12 +1354,7 @@ namespace ActorAnimation
     bool RecoverAuthoritativeAnimation(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)
     {
         PROFILE_FUNCTION();
-        const auto animationState = a_remote.animation.get();
-        if (!animationState)
-        {
-            return false;
-        }
-
+        auto* const animationState = &a_remote.animation;
         const auto pendingHitObservations = ActorRegistry::ConsumeHitObservations(a_remote);
         const bool isInterrupted = a_actor.Is3DLoaded() && IsActorInHitReaction(a_actor);
 
@@ -1401,7 +1376,7 @@ namespace ActorAnimation
             return true;
         }
 
-        const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        const float deltaTime = FrameTime::Clamp(a_deltaTime);
         if (animationState->hitReactionObservationRemaining > 0.0F)
         {
             animationState->hitReactionObservationRemaining -= deltaTime;
@@ -1474,18 +1449,13 @@ namespace ActorAnimation
             "Recovered actor animation graph is stable; replaying authoritative locomotion: actor={:08X} desired={} "
             "graphReplaced={} fallback3DReset={} recovery={}",
             a_remote.handle.native_handle(),
-            Multiplayer::GetMovementStateName(a_remote.animation->targetAnimationState.movementState), graphWasReplaced,
+            Multiplayer::GetMovementStateName(a_remote.animation.targetAnimationState.movementState), graphWasReplaced,
             used3DReset, animationState->recoveryCount);
         return false;
     }
 
     void HoldIdleTurnState(RE::Actor& a_actor, RemoteActor& a_remote)
     {
-        if (!a_remote.animation)
-        {
-            return;
-        }
-
         // Skyrim records the local AI's turn-in-place request in iSyncTurnState along
         // with its TurnLeft/TurnRight/turnStop events. The remote actor's AI keeps asking
         // to face its own target because the network owns the heading. The firewall
@@ -1507,10 +1477,9 @@ namespace ActorAnimation
         // standing state has no turnStop transition.
         static const RE::BSFixedString turnStopEvent{ "turnStop" };
         const bool turnStopAccepted = SendNetworkAnimationEvent(a_remote, turnStopEvent);
-        auto& state = *a_remote.animation;
+        auto& state = a_remote.animation;
         ++state.turnStateOverrides;
-        if (state.turnStateOverrides <= kInitialTurnStateOverrideLogs
-            || state.turnStateOverrides % kTurnStateOverrideLogInterval == 0)
+        if (ActorConstants::ShouldLogOccurrence(state.turnStateOverrides))
         {
             logs::debug(
                 "Animation sync held idle turn state: actor={:08X} localTurnState={} accepted={} turnStop={} count={}",
@@ -1521,12 +1490,7 @@ namespace ActorAnimation
     void ApplyAnimationUpdate(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)
     {
         PROFILE_FUNCTION();
-        const auto animationState = a_remote.animation.get();
-        if (!animationState)
-        {
-            return;
-        }
-
+        auto* const animationState = &a_remote.animation;
         static const RE::BSFixedString moveStartEvent{ "moveStart" };
         static const RE::BSFixedString moveStopEvent{ "moveStop" };
         static const RE::BSFixedString sneakStartEvent{ "sneakStart" };
@@ -1549,41 +1513,7 @@ namespace ActorAnimation
         const auto actorHandle = a_actor.GetHandle();
         if (!a_actor.Is3DLoaded())
         {
-            AnimationFirewall::Disable(a_remote);
-            ActorRegistry::SetLandingCompletionObservation(a_actor, false);
-            if (animationState->hasDispatched || animationState->graphManager)
-            {
-                logs::debug("Animation sync reset graph state: actor={:08X} reason=actor-or-3d-unavailable",
-                    actorHandle.native_handle());
-            }
-            animationState->hasDispatched = false;
-            animationState->hasAttempted = false;
-            animationState->hasVariableUpdateResult = false;
-            animationState->failedDispatchAttempts = 0;
-            animationState->rejectedEventAttempts = 0;
-            animationState->rejectedEventElapsed = 0.0F;
-            animationState->landingCompletionPending = false;
-            animationState->landingCompletionWaitFrames = 0;
-            animationState->landingCompletionWaitElapsed = 0.0F;
-            animationState->landingLocomotionReassertPending = false;
-            animationState->weaponLocomotionReassertPending = false;
-            animationState->weaponTransitionCompletionObserved = false;
-            animationState->weaponTransitionWaitElapsed = 0.0F;
-            animationState->weaponTransitionAnimationObserved = false;
-            animationState->weaponTransitionExitForced = false;
-            animationState->weaponDefaultStateDispatched = false;
-            animationState->weaponReplayBaseDispatched = false;
-            animationState->weaponTransitionMoveStartDispatched = false;
-            animationState->attackPlaybackPending = false;
-            animationState->attackPlaybackObserved = false;
-            animationState->attackChainDispatched = false;
-            animationState->attackPlaybackPower = false;
-            animationState->attackPlaybackElapsed = 0.0F;
-            animationState->attackLocomotionReassertPending = false;
-            ResetHandPresentation(*animationState);
-            animationState->processedRevision.store(0, std::memory_order_release);
-            animationState->graphManager = nullptr;
-            animationState->landingEventSinkGraph = nullptr;
+            ResetUnavailableGraph(a_actor, a_remote, "actor-or-3d-unavailable");
             return;
         }
 
@@ -1591,75 +1521,15 @@ namespace ActorAnimation
         RE::BSTSmartPointer<RE::BSAnimationGraphManager> graphManager;
         if (!actor->GetAnimationGraphManager(graphManager) || !graphManager)
         {
-            AnimationFirewall::Disable(a_remote);
-            ActorRegistry::SetLandingCompletionObservation(*actor, false);
-            if (animationState->hasDispatched || animationState->graphManager)
-            {
-                logs::debug("Animation sync reset graph state: actor={:08X} reason=graph-unavailable",
-                    actorHandle.native_handle());
-            }
-            animationState->hasDispatched = false;
-            animationState->hasAttempted = false;
-            animationState->hasVariableUpdateResult = false;
-            animationState->failedDispatchAttempts = 0;
-            animationState->rejectedEventAttempts = 0;
-            animationState->rejectedEventElapsed = 0.0F;
-            animationState->landingCompletionPending = false;
-            animationState->landingCompletionWaitFrames = 0;
-            animationState->landingCompletionWaitElapsed = 0.0F;
-            animationState->landingLocomotionReassertPending = false;
-            animationState->weaponLocomotionReassertPending = false;
-            animationState->weaponTransitionCompletionObserved = false;
-            animationState->weaponTransitionWaitElapsed = 0.0F;
-            animationState->weaponTransitionAnimationObserved = false;
-            animationState->weaponTransitionExitForced = false;
-            animationState->weaponReplayBaseDispatched = false;
-            animationState->weaponTransitionMoveStartDispatched = false;
-            animationState->attackPlaybackPending = false;
-            animationState->attackPlaybackObserved = false;
-            animationState->attackChainDispatched = false;
-            animationState->attackPlaybackPower = false;
-            animationState->attackPlaybackElapsed = 0.0F;
-            animationState->attackLocomotionReassertPending = false;
-            ResetHandPresentation(*animationState);
-            animationState->processedRevision.store(0, std::memory_order_release);
-            animationState->graphManager = nullptr;
-            animationState->landingEventSinkGraph = nullptr;
+            ResetUnavailableGraph(a_actor, a_remote, "graph-unavailable");
             return;
         }
         if (animationState->graphManager != graphManager.get())
         {
-            AnimationFirewall::Disable(a_remote);
-            ActorRegistry::SetLandingCompletionObservation(*actor, false);
             logs::debug("Animation sync detected {} graph: actor={:08X}; next state will be fully asserted",
                 animationState->graphManager ? "replacement" : "initial", actorHandle.native_handle());
+            ResetGraphDispatch(a_actor, a_remote);
             animationState->graphManager = graphManager.get();
-            animationState->hasDispatched = false;
-            animationState->hasAttempted = false;
-            animationState->hasVariableUpdateResult = false;
-            animationState->processedRevision.store(0, std::memory_order_release);
-            animationState->failedDispatchAttempts = 0;
-            animationState->rejectedEventAttempts = 0;
-            animationState->rejectedEventElapsed = 0.0F;
-            animationState->landingCompletionPending = false;
-            animationState->landingCompletionWaitFrames = 0;
-            animationState->landingCompletionWaitElapsed = 0.0F;
-            animationState->landingLocomotionReassertPending = false;
-            animationState->weaponLocomotionReassertPending = false;
-            animationState->weaponTransitionCompletionObserved = false;
-            animationState->weaponTransitionWaitElapsed = 0.0F;
-            animationState->weaponTransitionAnimationObserved = false;
-            animationState->weaponTransitionExitForced = false;
-            animationState->weaponDefaultStateDispatched = false;
-            animationState->weaponReplayBaseDispatched = false;
-            animationState->weaponTransitionMoveStartDispatched = false;
-            animationState->attackPlaybackPending = false;
-            animationState->attackPlaybackObserved = false;
-            animationState->attackChainDispatched = false;
-            animationState->attackPlaybackPower = false;
-            animationState->attackPlaybackElapsed = 0.0F;
-            animationState->attackLocomotionReassertPending = false;
-            ResetHandPresentation(*animationState);
         }
         bool landingEventSinkRegistered = animationState->landingEventSinkGraph == graphManager.get();
         if (!landingEventSinkRegistered)
@@ -1672,16 +1542,14 @@ namespace ActorAnimation
             }
         }
 
-        if (animationState->landingCompletionPending && animationState->desiredJumping.load(std::memory_order_acquire))
+        if (animationState->landingCompletionPending && animationState->targetAnimationState.jumping)
         {
             // A consecutive takeoff leaves the landing branch directly, as the
             // local player's graph does. Waiting for JumpLandEnd would hold the
             // takeoff until the remote jump is already over. The jump dispatch
             // below closes the landing observation window; grounded locomotion is
             // reasserted after that jump's own landing.
-            animationState->landingCompletionPending = false;
-            animationState->landingCompletionWaitFrames = 0;
-            animationState->landingCompletionWaitElapsed = 0.0F;
+            SetLandingCompletionPending(*animationState, false);
             logs::debug("Animation sync takeoff preempted pending landing completion: actor={:08X}",
                 actorHandle.native_handle());
         }
@@ -1693,9 +1561,7 @@ namespace ActorAnimation
             // the graph from Swim_State into land locomotion while Skyrim keeps the
             // actor swimming. Swimming owns locomotion until swimStop.
             (void)ActorRegistry::ConsumeJumpLandEnds(a_remote);
-            animationState->landingCompletionPending = false;
-            animationState->landingCompletionWaitFrames = 0;
-            animationState->landingCompletionWaitElapsed = 0.0F;
+            SetLandingCompletionPending(*animationState, false);
             ActorRegistry::SetLandingCompletionObservation(*actor, false);
             logs::debug(
                 "Animation sync landing branch replaced by swimming: actor={:08X}", actorHandle.native_handle());
@@ -1707,7 +1573,7 @@ namespace ActorAnimation
             bool forcedCompletion = false;
             bool forcedEventAccepted = false;
             const auto landingWaitFrames = ++animationState->landingCompletionWaitFrames;
-            animationState->landingCompletionWaitElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+            animationState->landingCompletionWaitElapsed += FrameTime::Clamp(a_deltaTime);
             if (!landingCompleted && (landingWaitFrames == 1 || landingWaitFrames % 15 == 0))
             {
                 const auto currentPosition = actor->GetPosition();
@@ -1735,9 +1601,7 @@ namespace ActorAnimation
             if (landingCompleted)
             {
                 const auto completedAfterFrames = landingWaitFrames;
-                animationState->landingCompletionPending = false;
-                animationState->landingCompletionWaitFrames = 0;
-                animationState->landingCompletionWaitElapsed = 0.0F;
+                SetLandingCompletionPending(*animationState, false);
                 ActorRegistry::SetLandingCompletionObservation(*actor, false);
                 // JumpLandEnd selects the graph's exit branch, which can exit into idle. Keep the dispatch
                 // history: forgetting it reads a drawn weapon as a new draw.
@@ -1759,13 +1623,10 @@ namespace ActorAnimation
             (void)ActorRegistry::ConsumeJumpLandEnds(a_remote);
         }
 
-        const auto desiredRevision = animationState->desiredRevision.load(std::memory_order_acquire);
-        const Multiplayer::AnimationState authoritativeState{ .movementState
-            = animationState->desired.load(std::memory_order_acquire),
-            .jumping = animationState->desiredJumping.load(std::memory_order_acquire),
-            .weaponDrawn = animationState->desiredWeaponDrawn.load(std::memory_order_acquire) };
-        const auto sampleSpeed = animationState->desiredSpeed.load(std::memory_order_acquire);
-        const auto sampleDirection = animationState->desiredDirection.load(std::memory_order_acquire);
+        const auto requestedRevision = animationState->requestedRevision;
+        const auto authoritativeState = animationState->targetAnimationState;
+        const auto sampleSpeed = a_remote.movement.animationSpeed;
+        const auto sampleDirection = a_remote.movement.animationDirection;
         const bool authoritativeDispatchRequired
             = !animationState->hasDispatched || animationState->lastDispatched != authoritativeState;
         const auto previousState = animationState->lastDispatched;
@@ -1775,15 +1636,7 @@ namespace ActorAnimation
                                         : authoritativeState.weaponDrawn);
         if (weaponDrawnChanged)
         {
-            animationState->weaponLocomotionReassertPending = true;
-            animationState->weaponTransitionCompletionObserved = false;
-            animationState->weaponTransitionWaitElapsed = 0.0F;
-            animationState->weaponTransitionAnimationObserved = false;
-            animationState->weaponTransitionExitForced = false;
-            animationState->weaponDefaultStateDispatched = false;
-            animationState->weaponReplayBaseDispatched = false;
-            animationState->weaponTransitionMoveStartDispatched = false;
-            animationState->weaponRestoredWithoutCompletion = false;
+            ResetWeaponTransition(*animationState, true);
         }
         const auto weaponState = actorState ? actorState->GetWeaponState() : RE::WEAPON_STATE::kSheathed;
         const auto observedWeaponTransitionEnds = ActorRegistry::ConsumeWeaponTransitionEnds(a_remote);
@@ -1797,14 +1650,8 @@ namespace ActorAnimation
                 // The bounded fallback restored locomotion while the clip was still
                 // playing, so the clip consumed that replay and its exit leaves the
                 // graph in a standing stance. Replay locomotion again from this exit.
-                animationState->weaponRestoredWithoutCompletion = false;
-                animationState->weaponLocomotionReassertPending = true;
-                animationState->weaponTransitionWaitElapsed = 0.0F;
-                animationState->weaponTransitionAnimationObserved = false;
-                animationState->weaponTransitionExitForced = false;
-                animationState->weaponDefaultStateDispatched = false;
-                animationState->weaponReplayBaseDispatched = false;
-                animationState->weaponTransitionMoveStartDispatched = false;
+                ResetWeaponTransition(*animationState, true);
+                animationState->weaponTransitionCompletionObserved = true;
             }
             logs::debug(
                 "Animation sync observed weapon transition exit: actor={:08X} weaponDrawn={} weaponState={} markers={} "
@@ -1835,7 +1682,7 @@ namespace ActorAnimation
         if (animationState->weaponLocomotionReassertPending
             && animationState->weaponTransitionWaitElapsed < kWeaponTransitionFallbackSeconds)
         {
-            animationState->weaponTransitionWaitElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+            animationState->weaponTransitionWaitElapsed += FrameTime::Clamp(a_deltaTime);
         }
         const bool weaponTransitionTimedOut
             = animationState->weaponTransitionWaitElapsed >= kWeaponTransitionFallbackSeconds;
@@ -2019,7 +1866,7 @@ namespace ActorAnimation
                     "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} "
                     "result=retrying-stop-events strings={} moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} "
                     "jumpEvent=deferred/{} iState={} eventAttempt={}/{}",
-                    actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision), previousStateLabel,
+                    actorHandle.native_handle(), static_cast<unsigned long long>(requestedRevision), previousStateLabel,
                     hadPreviousState && previousState.jumping ? "jumping" : "grounded",
                     Multiplayer::GetMovementStateName(state.movementState), state.jumping ? "jumping" : "grounded",
                     stringsAvailable, moveAccepted, moveStopRequired, sneakAccepted, sneakStopRequired, sprintAccepted,
@@ -2027,7 +1874,7 @@ namespace ActorAnimation
                     kMaximumEventDispatchAttempts);
             }
             ++animationState->rejectedEventAttempts;
-            animationState->rejectedEventElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+            animationState->rejectedEventElapsed += FrameTime::Clamp(a_deltaTime);
             return;
         }
         if (jumpLandRequired)
@@ -2094,7 +1941,7 @@ namespace ActorAnimation
             logs::debug(
                 "Animation sync graph variable refresh changed: actor={:08X} revision={} state={} result={} strings={} "
                 "speed={} sampledSpeed={} dampedSpeed={} direction={} turn={} sprint={} jump={}",
-                actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision),
+                actorHandle.native_handle(), static_cast<unsigned long long>(requestedRevision),
                 Multiplayer::GetMovementStateName(state.movementState), variablesAccepted ? "accepted" : "rejected",
                 stringsAvailable, speedAccepted, sampledSpeedAccepted, dampedSpeedAccepted, directionAccepted,
                 turnAccepted, sprintVariableAccepted, jumpVariableAccepted);
@@ -2103,7 +1950,7 @@ namespace ActorAnimation
         animationState->hasVariableUpdateResult = true;
         if (!eventDispatchRequired && variablesAccepted)
         {
-            animationState->processedRevision.store(desiredRevision, std::memory_order_release);
+            animationState->processedRevision = requestedRevision;
         }
         if (eventDispatchRequired)
         {
@@ -2151,7 +1998,7 @@ namespace ActorAnimation
                     "directionVariable={} turnVariable={} sprintVariable={} syncSprintVariable={} jumpVariable={} "
                     "moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} jumpEvent={}/{} graphSpeed={:.1f} iState={} "
                     "variableAttempt={} eventAttempt={}/{}",
-                    actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision), previousStateLabel,
+                    actorHandle.native_handle(), static_cast<unsigned long long>(requestedRevision), previousStateLabel,
                     hadPreviousState && previousState.jumping ? "jumping" : "grounded",
                     Multiplayer::GetMovementStateName(state.movementState), state.jumping ? "jumping" : "grounded",
                     !variablesAccepted           ? "variables-rejected"
@@ -2187,14 +2034,7 @@ namespace ActorAnimation
                     {
                         const bool weaponCompletionWasObserved = animationState->weaponTransitionCompletionObserved;
                         const auto weaponTransitionWaitElapsed = animationState->weaponTransitionWaitElapsed;
-                        animationState->weaponLocomotionReassertPending = false;
-                        animationState->weaponTransitionCompletionObserved = false;
-                        animationState->weaponTransitionWaitElapsed = 0.0F;
-                        animationState->weaponTransitionAnimationObserved = false;
-                        animationState->weaponTransitionExitForced = false;
-                        animationState->weaponDefaultStateDispatched = false;
-                        animationState->weaponReplayBaseDispatched = false;
-                        animationState->weaponTransitionMoveStartDispatched = false;
+                        ResetWeaponTransition(*animationState, false);
                         animationState->weaponRestoredWithoutCompletion = !weaponCompletionWasObserved;
                         logs::debug(
                             "Animation sync restored state after weapon transition: actor={:08X} state={} jumping={} "
@@ -2229,18 +2069,16 @@ namespace ActorAnimation
                 animationState->sneakMoveStartPending = sneakRequired && sneakAccepted && isMoving && !state.jumping;
                 if (jumpLandRequired)
                 {
-                    animationState->landingCompletionPending = true;
-                    animationState->landingCompletionWaitFrames = 0;
-                    animationState->landingCompletionWaitElapsed = 0.0F;
+                    SetLandingCompletionPending(*animationState, true);
                     logs::debug("Animation sync waiting for landing completion marker: actor={:08X} revision={}",
-                        actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision));
+                        actorHandle.native_handle(), static_cast<unsigned long long>(requestedRevision));
                 }
                 else if (landingInWater)
                 {
                     logs::debug("Animation sync skipped landing branch while swimming: actor={:08X} revision={}",
-                        actorHandle.native_handle(), static_cast<unsigned long long>(desiredRevision));
+                        actorHandle.native_handle(), static_cast<unsigned long long>(requestedRevision));
                 }
-                animationState->processedRevision.store(desiredRevision, std::memory_order_release);
+                animationState->processedRevision = requestedRevision;
             }
             else if (!variablesAccepted)
             {
@@ -2249,11 +2087,11 @@ namespace ActorAnimation
             else
             {
                 ++animationState->rejectedEventAttempts;
-                animationState->rejectedEventElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+                animationState->rejectedEventElapsed += FrameTime::Clamp(a_deltaTime);
             }
         }
 
-        animationState->directionCrossBlendElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        animationState->directionCrossBlendElapsed += FrameTime::Clamp(a_deltaTime);
         if (animationState->directionCrossBlendPending)
         {
             // One graph update after CyclicFreeze, matching Skyrim's own spacing.
@@ -2292,8 +2130,7 @@ namespace ActorAnimation
 
     bool IsFurnitureEntryBlocked(const RemoteActor& a_remote)
     {
-        return a_remote.animation
-            && (a_remote.animation->attackPlaybackPending || IsHandPresentationPlaying(a_remote)
-                || IsWeaponTransitionUnsettled(*a_remote.animation) || a_remote.animation->graphRecoveryInProgress);
+        return a_remote.animation.attackPlaybackPending || IsHandPresentationPlaying(a_remote)
+            || IsWeaponTransitionUnsettled(a_remote.animation) || a_remote.animation.graphRecoveryInProgress;
     }
 }

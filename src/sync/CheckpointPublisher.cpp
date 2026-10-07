@@ -9,7 +9,6 @@
 #include "sync/mount/MountSync.h"
 #include "sync/movement/MovementSync.h"
 
-#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -19,7 +18,7 @@ namespace CheckpointPublisher
 {
     namespace
     {
-        constexpr float kSnapshotInterval = 0.05F;
+        constexpr float kSnapshotIntervalSeconds = 0.05F;
 
         std::uint32_t GetSampleTime()
         {
@@ -32,20 +31,20 @@ namespace CheckpointPublisher
     Publication PublishLocalCheckpoint(const LocalFrame& a_local, float a_delta, std::uint64_t a_graphEpoch)
     {
         PROFILE_FUNCTION();
-        static float elapsed = kSnapshotInterval;
-        static float scheduleElapsed = kSnapshotInterval;
+        static float elapsed = kSnapshotIntervalSeconds;
+        static float scheduleElapsed = kSnapshotIntervalSeconds;
         static std::uint64_t sequence = 0;
 
-        const float delta = (std::max)(a_delta, 0.0F);
-        elapsed += delta;
-        scheduleElapsed += delta;
-        if (scheduleElapsed < kSnapshotInterval || !Network::IsConnected())
+        // Not clamped: the elapsed time divides the distance travelled into the published speed.
+        elapsed += a_delta;
+        scheduleElapsed += a_delta;
+        if (scheduleElapsed < kSnapshotIntervalSeconds || !Network::IsConnected())
         {
             return Publication{ .status = Network::IsConnected() ? Status::kNotDue : Status::kDisconnected };
         }
         // Keeping the remainder holds the average rate; whole missed intervals are dropped,
         // not sent as a burst.
-        scheduleElapsed = std::fmod(scheduleElapsed, kSnapshotInterval);
+        scheduleElapsed = std::fmod(scheduleElapsed, kSnapshotIntervalSeconds);
         const float snapshotElapsed = elapsed;
         elapsed = 0.0F;
 

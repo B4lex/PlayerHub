@@ -74,7 +74,6 @@ public:
     [[nodiscard]] float GetWaited() const noexcept { return waited; }
     [[nodiscard]] bool IsActive() const noexcept { return phase != Phase::kIdle; }
 
-    [[nodiscard]] const std::vector<Multiplayer::TradeItem>& GetOwnItems() const noexcept { return ownItems; }
     [[nodiscard]] const std::vector<Multiplayer::TradeItem>& GetPeerItems() const noexcept { return peerItems; }
     [[nodiscard]] std::uint64_t GetPeerRevision() const noexcept { return peerRevision; }
     // The peer's report on the shown own offer, once it covers it.
@@ -82,7 +81,6 @@ public:
     // The own revision the peer's latest report covers, or null before one.
     [[nodiscard]] const std::vector<Multiplayer::TradeItem>* FindReportedOffer() const;
     [[nodiscard]] const std::vector<Multiplayer::TradeSkip>& GetReportedSkips() const noexcept { return ownSkips; }
-    [[nodiscard]] const std::vector<Multiplayer::TradeSkip>& GetPeerSkips() const noexcept { return peerSkips; }
     [[nodiscard]] bool IsOwnAccepted() const noexcept { return ownAccepted; }
     [[nodiscard]] bool IsPeerAccepted() const noexcept { return peerAccepted; }
     [[nodiscard]] Blocker GetAcceptBlocker() const;

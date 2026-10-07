@@ -3,6 +3,7 @@
 #include "ui/Theme.h"
 #include "ui/chat/ChatHistory.h"
 #include "ui/chat/ChatStyle.h"
+#include "ui/widgets/Controls.h"
 
 #include <algorithm>
 #include <cfloat>
@@ -69,18 +70,6 @@ namespace UI
                 ImVec2{ a_min.x + a_size * 0.9F, a_min.y + a_size * 0.05F }, a_color, a_thickness);
         }
 
-        // Tab would move the keyboard to the rows; the field keeps it.
-        int KeepTab(ImGuiInputTextCallbackData*)
-        {
-            return 0;
-        }
-
-        void DrawMuted(const char* a_text)
-        {
-            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-            ImGui::TextWrapped("%s", a_text);
-            ImGui::PopStyleColor();
-        }
     }
 
     float ChatPlayers::GetWidth()
@@ -223,9 +212,7 @@ namespace UI
 
         // As high as the chat's filters, so the rules under both line up.
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ChatStyle::GetChipPadding());
-        ImGui::SetNextItemWidth(-FLT_MIN);
-        if (ImGui::InputTextWithHint("##ChatPlayerSearch", "Search", search.data(), search.size(),
-                ImGuiInputTextFlags_CallbackCompletion, &KeepTab))
+        if (Controls::SearchField("##ChatPlayerSearch", search))
         {
             foldedSearch = ChatRoster::FoldName(search.data());
             Match();
@@ -249,11 +236,12 @@ namespace UI
         {
             if (players.empty())
             {
-                DrawMuted("Not connected to the server.");
+                Controls::MutedTextWrapped("Not connected to the server.");
             }
             else if (matches.empty())
             {
-                DrawMuted(foldedSearch.empty() ? "No other players online" : "No player with that name is online");
+                Controls::MutedTextWrapped(
+                    foldedSearch.empty() ? "No other players online" : "No player with that name is online");
             }
 
             // The chat's field is active while the player types, which would

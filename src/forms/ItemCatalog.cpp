@@ -1,8 +1,8 @@
 #include "forms/ItemCatalog.h"
+#include "text/AsciiCase.h"
 
 #include <algorithm>
 #include <atomic>
-#include <cctype>
 #include <cstddef>
 #include <utility>
 
@@ -14,37 +14,17 @@ namespace Forms
 
         std::atomic<std::shared_ptr<const ItemCatalog>> s_catalog;
 
-        char ToLower(char a_character)
-        {
-            return static_cast<char>(std::tolower(static_cast<unsigned char>(a_character)));
-        }
-
         void AppendLower(std::string_view a_text, std::string& a_result)
         {
             for (const auto character : a_text)
             {
-                a_result += ToLower(character);
+                a_result += AsciiCase::ToLower(character);
             }
-        }
-
-        int CompareIgnoreCase(std::string_view a_left, std::string_view a_right)
-        {
-            const auto count = (std::min)(a_left.size(), a_right.size());
-            for (std::size_t index = 0; index < count; ++index)
-            {
-                const auto left = static_cast<unsigned char>(ToLower(a_left[index]));
-                const auto right = static_cast<unsigned char>(ToLower(a_right[index]));
-                if (left != right)
-                {
-                    return left < right ? -1 : 1;
-                }
-            }
-            return a_left.size() == a_right.size() ? 0 : (a_left.size() < a_right.size() ? -1 : 1);
         }
 
         bool ReferenceLess(const FormReference& a_left, const FormReference& a_right)
         {
-            const auto plugin = CompareIgnoreCase(a_left.plugin, a_right.plugin);
+            const auto plugin = AsciiCase::Compare(a_left.plugin, a_right.plugin);
             return plugin != 0 ? plugin < 0 : a_left.localFormID < a_right.localFormID;
         }
     }
@@ -53,7 +33,7 @@ namespace Forms
         : items(std::move(a_items))
     {
         std::ranges::sort(items, [](const CatalogItem& a_left, const CatalogItem& a_right) {
-            const auto name = CompareIgnoreCase(a_left.name, a_right.name);
+            const auto name = AsciiCase::Compare(a_left.name, a_right.name);
             return name != 0 ? name < 0 : ReferenceLess(a_left.reference, a_right.reference);
         });
 
@@ -97,8 +77,8 @@ namespace Forms
     bool ItemCatalog::IsPluginLoaded(std::string_view a_plugin) const
     {
         const auto found = std::ranges::lower_bound(loadedPlugins, a_plugin,
-            [](std::string_view a_left, std::string_view a_right) { return CompareIgnoreCase(a_left, a_right) < 0; });
-        return found != loadedPlugins.end() && CompareIgnoreCase(*found, a_plugin) == 0;
+            [](std::string_view a_left, std::string_view a_right) { return AsciiCase::Compare(a_left, a_right) < 0; });
+        return found != loadedPlugins.end() && AsciiCase::Compare(*found, a_plugin) == 0;
     }
 
     void ItemCatalog::Search(

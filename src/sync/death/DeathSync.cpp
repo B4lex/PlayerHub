@@ -57,7 +57,7 @@ namespace DeathSync
         CombatSync::ClearRemoteActions(a_peer.combat);
         const bool killed = ActorDeath::Kill(actor);
         logs::debug("Remote player {} died: actor={:08X} killed={} sequence={}", a_remote.playerID,
-            actor.handle.native_handle(), killed, static_cast<unsigned long long>(a_remote.lastSequence));
+            actor.handle.native_handle(), killed, static_cast<unsigned long long>(a_remote.checkpoint.sequence));
         return true;
     }
 }

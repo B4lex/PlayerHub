@@ -1,5 +1,6 @@
 #include "ui/trade/TradeWindow.h"
 #include "sync/trade/TradeSync.h"
+#include "text/AsciiCase.h"
 #include "ui/Fonts.h"
 #include "ui/MenuFrame.h"
 #include "ui/Theme.h"
@@ -12,7 +13,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cfloat>
 #include <cmath>
 #include <format>
@@ -64,15 +64,6 @@ namespace UI
 
         constexpr std::array<const char*, 11> kCategoryNames{ "All", "Weapons", "Apparel", "Ammunition", "Potions",
             "Ingredients", "Books", "Scrolls", "Soul gems", "Keys", "Miscellaneous" };
-
-        bool ContainsIgnoringCase(std::string_view a_text, std::string_view a_query)
-        {
-            return a_query.empty()
-                || std::ranges::search(a_text, a_query, [](char a_left, char a_right) {
-                       return std::tolower(static_cast<unsigned char>(a_left))
-                           == std::tolower(static_cast<unsigned char>(a_right));
-                   }).begin() != a_text.end();
-        }
 
         std::string Describe(bool a_equipped, bool a_favorited)
         {
@@ -322,7 +313,7 @@ namespace UI
                 {
                     const auto& line = view.inventory[row];
                     if ((category == 0 || static_cast<int>(line.category) == category - 1)
-                        && ContainsIgnoringCase(line.name, query))
+                        && AsciiCase::Contains(line.name, query))
                     {
                         matches.push_back(row);
                     }
@@ -332,30 +323,12 @@ namespace UI
             void DrawWindow(bool& a_open)
             {
                 const Theme::Scope theme;
-                const auto& display = ImGui::GetIO().DisplaySize;
-                const auto fontSize = ImGui::GetFontSize();
-                ImGui::SetNextWindowPos(
-                    ImVec2{ display.x * 0.5F, display.y * 0.5F }, ImGuiCond_Appearing, ImVec2{ 0.5F, 0.5F });
-                ImGui::SetNextWindowSize(
-                    ImVec2{ kSizeFonts.x * fontSize, kSizeFonts.y * fontSize }, ImGuiCond_Appearing);
-                ImGui::SetNextWindowSizeConstraints(
-                    ImVec2{ kMinimumSizeFonts.x * fontSize, kMinimumSizeFonts.y * fontSize }, display);
-                if (std::exchange(focusWindow, false))
+                const MenuFrame::WindowLayout layout{ .sizeFonts = kSizeFonts,
+                    .minimumSizeFonts = kMinimumSizeFonts,
+                    .paddingFonts = 1.0F,
+                    .backgroundAlpha = kBackgroundAlpha };
+                if (MenuFrame::BeginWindow("Trade###Trade", layout, kWindowFlags, std::exchange(focusWindow, false)))
                 {
-                    ImGui::SetNextWindowFocus();
-                }
-                const auto frame = MenuFrame::GetMetrics();
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ frame.inset + fontSize, frame.inset + fontSize });
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, frame.rounding);
-                ImGui::PushStyleColor(ImGuiCol_SeparatorHovered, IM_COL32_BLACK_TRANS);
-                ImGui::PushStyleColor(ImGuiCol_SeparatorActive, IM_COL32_BLACK_TRANS);
-                const bool visible = ImGui::Begin("Trade###Trade", nullptr, kWindowFlags);
-                ImGui::PopStyleColor(2);
-                ImGui::PopStyleVar(2);
-                if (visible)
-                {
-                    MenuFrame::Draw(ImGui::GetColorU32(Theme::GetFrameColor()),
-                        ImGui::GetColorU32(ImGuiCol_WindowBg, kBackgroundAlpha));
                     DrawTitle(a_open);
                     const auto& style = ImGui::GetStyle();
                     const auto available = ImGui::GetContentRegionAvail();

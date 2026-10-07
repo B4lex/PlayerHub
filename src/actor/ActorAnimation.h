@@ -6,7 +6,6 @@
 #include <RE/Skyrim.h>
 
 #include <array>
-#include <atomic>
 #include <cstdint>
 
 struct RemoteActor;
@@ -16,17 +15,12 @@ namespace ActorAnimation
     struct State
     {
         Multiplayer::AnimationState targetAnimationState{};
-        std::atomic<Multiplayer::MovementState> desired{ Multiplayer::MovementState::kIdle };
-        std::atomic_bool desiredJumping{ false };
-        std::atomic_bool desiredWeaponDrawn{ false };
-        std::atomic<float> desiredSpeed{ 0.0F };
-        std::atomic<float> desiredDirection{ 0.0F };
         float crossBlendedDirection{ 0.0F };
         bool hasCrossBlendedDirection{ false };
         bool directionCrossBlendPending{ false };
         float directionCrossBlendElapsed{ 0.0F };
-        std::atomic_uint64_t desiredRevision{ 0 };
-        std::atomic_uint64_t processedRevision{ 0 };
+        std::uint64_t requestedRevision{ 0 };
+        std::uint64_t processedRevision{ 0 };
 
         Multiplayer::AnimationState lastDispatched{};
         Multiplayer::AnimationState lastAttempted{};
@@ -135,8 +129,7 @@ namespace ActorAnimation
     [[nodiscard]] bool IsWeaponTransitionPlaying(const RemoteActor& a_remote);
     void ApplyRiderWeaponState(RE::Actor& a_actor, RemoteActor& a_remote, bool a_weaponDrawn);
 
-    void RequestAnimationUpdate(
-        State* a_animationState, Multiplayer::AnimationState a_state, float a_speed, float a_direction);
+    void RequestAnimationUpdate(State& a_state);
     void InvalidateAnimationDispatch(State& a_state);
     void AdvanceAttackPlayback(RE::Actor& a_actor, State& a_state, float a_deltaTime);
     [[nodiscard]] bool RecoverAuthoritativeAnimation(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime);

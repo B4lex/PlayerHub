@@ -10,6 +10,9 @@
   a warning is logged. The status panel reading only `Disconnected` without a
   display name is not built on Windows or run in game; on Linux,
   `StatusPanel.cpp` passed a syntax check against Dear ImGui 1.92.9.
+- **Shared window setup and search field** (`MenuFrame::BeginWindow`,
+  `Controls::SearchField`, `Controls::MutedTextWrapped`, 2026-10-07): Linux
+  syntax check only; not rerun in the headless harness or in game.
 - **Input ahead of other plugins:** not built on Windows or run in game. That
   Modex 3.0.0 and Open Animation Replacer 3.2.1 detour the same call was read
   from their binaries, and that Modex does it after this plugin from
@@ -493,7 +496,7 @@ src/ui/
   trade/TradeWindow           # the open trade: both offers as grids, own items, Accept and Cancel
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
   settings/ConnectionControls # connection button, the line under it, one-line summary
-  widgets/Controls            # switch, accent and red buttons, icon buttons
+  widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text
   widgets/ItemPicker          # item dropdown
   preview/ItemPreview         # 3D item capture and cached thumbnails
 src/sync/chat/ChatSync        # send to a target and why it failed, the server's rejections, lines to display
@@ -731,6 +734,10 @@ is not part of the plugin.
   70, the lines are a little over 2 px thick at 1080p and end 9 px in from the
   window's edge, and a knot fills 29 px of each corner; at 100 those are 3 px,
   13 px, and 41 px.
+- `MenuFrame::BeginWindow` begins the settings and trade windows the same way:
+  centered and sized in font units when they appear, focused on request,
+  padded by the frame's inset (plus a font size for trade), with its rounding,
+  and with the frame drawn behind the content.
 - `MenuFrame::GetMetrics` gives a window those two lengths in pixels to lay its
   content out by. A knot stays inside the square of `corner` at its window
   corner, and cuts across it, so content is clear of it outside that square or

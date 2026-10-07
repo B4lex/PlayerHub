@@ -2,6 +2,7 @@
 #include "actor/ActorAnimation.h"
 #include "actor/ActorConstants.h"
 #include "actor/ActorRuntime.h"
+#include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
 #include "sync/ActorLifecycle.h"
 #include "sync/PeerState.h"
@@ -14,8 +15,7 @@ namespace MountSync
 {
     namespace
     {
-        using ActorConstants::kBlockedEventLogInterval;
-        using ActorConstants::kInitialBlockedEventLogs;
+        using ActorConstants::ShouldLogOccurrence;
 
         constexpr float kSeatRetrySeconds = 0.5F;
         constexpr float kSeatCheckSeconds = 0.5F;
@@ -69,7 +69,7 @@ namespace MountSync
             return false;
         }
 
-        const float delta = std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
+        const float delta = FrameTime::Clamp(a_delta);
         if (mount.seated)
         {
             mount.seatCheckRemaining -= delta;
@@ -87,7 +87,7 @@ namespace MountSync
             mount.seatRetryRemaining = kSeatRetrySeconds;
             logs::warn("Remote player {} actor {:08X} left its mount {:08X} locally; seating it again: sequence={}",
                 a_remote.playerID, rider.handle.native_handle(), mount.actor.handle.native_handle(),
-                static_cast<unsigned long long>(a_remote.lastSequence));
+                static_cast<unsigned long long>(a_remote.checkpoint.sequence));
         }
 
         const bool canSeat = rider.ready && mount.actor.ready && !ActorMount::IsInTransition(rider, mount.actor);
@@ -113,14 +113,14 @@ namespace MountSync
         {
             mount.seatRetryRemaining = kSeatRetrySeconds;
         }
-        if (mount.seated || seatAttempts <= kInitialBlockedEventLogs || seatAttempts % kBlockedEventLogInterval == 0)
+        if (mount.seated || ShouldLogOccurrence(seatAttempts))
         {
             logs::debug(
                 "Seating remote player {} actor {:08X} on mount {:08X}: started={} seatedNow={} attempt={} "
                 "sequence={}",
                 a_remote.playerID, rider.handle.native_handle(), mount.actor.handle.native_handle(), mount.seated,
                 mount.seated && ActorMount::IsSeated(rider, mount.actor), seatAttempts,
-                static_cast<unsigned long long>(a_remote.lastSequence));
+                static_cast<unsigned long long>(a_remote.checkpoint.sequence));
         }
         return mount.carriesRider;
     }

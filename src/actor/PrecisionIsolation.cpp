@@ -1,5 +1,5 @@
 #include "actor/PrecisionIsolation.h"
-#include "actor/ActorConstants.h"
+#include "runtime/FrameTime.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -105,7 +105,7 @@ namespace PrecisionIsolation
             return;
         }
 
-        s_reassertRemaining -= std::clamp(a_deltaTime, 0.0F, ActorConstants::kMaximumFrameTime);
+        s_reassertRemaining -= FrameTime::Clamp(a_deltaTime);
         for (const auto& handle : s_excluded)
         {
             SetDisabled(handle, true);

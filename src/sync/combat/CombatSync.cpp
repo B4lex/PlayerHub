@@ -3,6 +3,7 @@
 #include "actor/AnimationEvents.h"
 #include "actor/RemoteActor.h"
 #include "network/ServerClient.h"
+#include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
 
 #include <algorithm>
@@ -376,10 +377,10 @@ namespace CombatSync
     {
         for (auto& pending : a_state.pendingAnimationActions)
         {
-            pending.age += (std::max)(a_delta, 0.0F);
+            pending.age += FrameTime::Clamp(a_delta);
             if (pending.dispatchAttempts != 0)
             {
-                pending.retryElapsed += (std::max)(a_delta, 0.0F);
+                pending.retryElapsed += FrameTime::Clamp(a_delta);
             }
         }
         while (!a_state.pendingAnimationActions.empty()
@@ -431,10 +432,10 @@ namespace CombatSync
             return;
         }
 
-        if (action.graphEpoch != a_remote.checkpoint.graphEpoch || action.checkpointSequence > a_remote.lastSequence
-            || a_remote.checkpoint.animationState.jumping || !a_remote.checkpoint.furniture.IsEmpty()
-            || !a_remote.checkpoint.animationState.weaponDrawn ||
-            !a_handsSettled || (!playing && !ActorAnimation::CanDispatchAttack(a_actor, action.attack)))
+        if (action.graphEpoch != a_remote.checkpoint.graphEpoch
+            || action.checkpointSequence > a_remote.checkpoint.sequence || a_remote.checkpoint.animationState.jumping
+            || !a_remote.checkpoint.furniture.IsEmpty() || !a_remote.checkpoint.animationState.weaponDrawn
+            || !a_handsSettled || (!playing && !ActorAnimation::CanDispatchAttack(a_actor, action.attack)))
         {
             return;
         }

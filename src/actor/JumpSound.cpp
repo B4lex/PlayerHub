@@ -16,8 +16,7 @@ namespace JumpSound
 {
     namespace
     {
-        using ActorConstants::kBlockedEventLogInterval;
-        using ActorConstants::kInitialBlockedEventLogs;
+        using ActorConstants::ShouldLogOccurrence;
         using CodeDetour::kCallDetourTrampolineSize;
         using CodeDetour::WriteCallDetour;
 
@@ -75,7 +74,7 @@ namespace JumpSound
         {
             static std::atomic<std::uint32_t> s_count{ 0 };
             const auto count = ++s_count;
-            if (count > kInitialBlockedEventLogs && count % kBlockedEventLogInterval != 0)
+            if (!ShouldLogOccurrence(count))
             {
                 return;
             }

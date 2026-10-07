@@ -6,6 +6,8 @@ Implemented for Skyrim AE 1.7.104, and run in game there.
 
 - **Spawn, readiness, animation firewall, hit recovery:** run in game with
   every synchronized feature.
+- **Registry shared lock and identity indexes:** Linux syntax check only; not
+  built on Windows or run in game.
 - **Combat isolation:** hook sites and entry bytes checked against the 1.7.104
   executable and address library; behavior not yet verified in game.
 - **Precision exclusion:** interface layout and disable behavior read from
@@ -116,17 +118,22 @@ the graph input hook runs outside the lock. Hooks on hot engine paths skip the
 lock when an atomic count says no actor needs them (riders' gait speed,
 network-placed actors, native furniture exits).
 
-Registrations are inserted and erased only on the main-loop thread
-(`Register` before the first hook can observe a new actor, `Unregister` before
-its reference is deleted), so that thread reads registrations and the fields
-only it writes without the lock (`LockUnlessMainThread`), and takes it to
-write a field other threads read (`LockForWrite`). Every other thread holds
-the lock. Counts that hooks raise from other threads are atomics the main loop
-consumes without the lock; observation flags and hook counts are only accessed
-under it. Per actor it holds:
+The lock is a `std::shared_mutex`. Registrations are inserted and erased only
+on the main-loop thread (`Register` before the first hook can observe a new
+actor, `Unregister` before its reference is deleted), so that thread reads
+registrations and the fields only it writes without the lock
+(`LockUnlessMainThread`, `LockSharedUnlessMainThread`), and takes it
+exclusively to write a field other threads read (`LockForWrite`). Other
+threads take it shared to read fields only the main loop writes or to raise an
+atomic count (graph input and channel hooks, `IsRegistered`, `IsNetworkPlaced`),
+and exclusively to change anything else. Counts that hooks raise from other
+threads are atomics the main loop consumes without the lock; observation flags
+and hook counts are only accessed under the exclusive lock. Per actor it holds:
 
-- identity (by actor and by handle, so AI threads never resolve a handle) and
-  its graph holder;
+- identity and its graph holder, indexed by actor, by handle (so AI threads
+  never resolve a handle), and by the actor's `MagicTarget` and
+  `ActorValueOwner`, so the damage and magic hooks, which see every actor in
+  the world, find a remote actor without scanning;
 - ownership flags that open the firewall: furniture, cast, mounted rider, dead;
 - `networkPlaced`, the published graph Speed, and mount gait speed;
 - the furniture each actor holds, for the local activation hook
@@ -435,8 +442,8 @@ The main-loop hook wraps the call at ID 36564 + 0x6E (ID 40438), which reaches
 the per-frame actor movement job list (ID 41306, job callback ID 41444, calling
 ID 37350). Skyrim's movement update therefore runs before the pass, and the
 network transform is the last write before render. The movement update runs on
-job threads, so `IsNetworkPlaced` takes the registry lock, skipped by an atomic
-count when no actor is network-placed.
+job threads, so `IsNetworkPlaced` takes the registry lock shared, skipped by an
+atomic count when no actor is network-placed.
 
 ### Graph speed
 

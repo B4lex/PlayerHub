@@ -1,5 +1,7 @@
 #include "ui/MenuFrame.h"
 #include "config/PluginConfig.h"
+#include "config/PluginFiles.h"
+#include "ui/Theme.h"
 
 #include <algorithm>
 #include <array>
@@ -8,8 +10,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
-#include <iterator>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -271,22 +271,22 @@ namespace UI::MenuFrame
             return;
         }
         const auto path = directory / kShapeFile;
-        std::ifstream input{ path, std::ios::binary };
-        if (!input)
-        {
-            logs::warn("UI overlay: could not read menu frame {}; windows have a plain border", path.string());
-            return;
-        }
-        const std::string text{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{} };
-
-        Shape shape;
-        if (const auto* problem = Parse(text, shape))
+        const auto text = PluginFiles::ReadFile(path);
+        if (!text)
         {
             logs::warn(
-                "UI overlay: could not load menu frame {}: {}; windows have a plain border", path.string(), problem);
+                "UI overlay: could not read menu frame {}; windows have a plain border", PluginFiles::ToUtf8(path));
             return;
         }
-        logs::info("UI overlay: menu frame {} with {} polygons, {} points", path.filename().string(),
+
+        Shape shape;
+        if (const auto* problem = Parse(*text, shape))
+        {
+            logs::warn("UI overlay: could not load menu frame {}: {}; windows have a plain border",
+                PluginFiles::ToUtf8(path), problem);
+            return;
+        }
+        logs::info("UI overlay: menu frame {} with {} polygons, {} points", PluginFiles::ToUtf8(path.filename()),
             shape.polygons.size(), shape.points.size());
         s_shape = std::move(shape);
     }
@@ -344,5 +344,37 @@ namespace UI::MenuFrame
             drawn->usedFrame = ImGui::GetFrameCount();
         }
         list.PopClipRect();
+    }
+
+    bool BeginWindow(const char* a_name, const WindowLayout& a_layout, ImGuiWindowFlags a_flags, bool a_focus)
+    {
+        const auto& display = ImGui::GetIO().DisplaySize;
+        const auto fontSize = ImGui::GetFontSize();
+        ImGui::SetNextWindowPos(
+            ImVec2{ display.x * 0.5F, display.y * 0.5F }, ImGuiCond_Appearing, ImVec2{ 0.5F, 0.5F });
+        ImGui::SetNextWindowSize(
+            ImVec2{ a_layout.sizeFonts.x * fontSize, a_layout.sizeFonts.y * fontSize }, ImGuiCond_Appearing);
+        ImGui::SetNextWindowSizeConstraints(
+            ImVec2{ a_layout.minimumSizeFonts.x * fontSize, a_layout.minimumSizeFonts.y * fontSize }, display);
+        if (a_focus)
+        {
+            ImGui::SetNextWindowFocus();
+        }
+        const auto metrics = GetMetrics();
+        const auto padding = metrics.inset + a_layout.paddingFonts * fontSize;
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ padding, padding });
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, metrics.rounding);
+        // Begin draws the window edge under the cursor in these, over the frame.
+        ImGui::PushStyleColor(ImGuiCol_SeparatorHovered, IM_COL32_BLACK_TRANS);
+        ImGui::PushStyleColor(ImGuiCol_SeparatorActive, IM_COL32_BLACK_TRANS);
+        const bool visible = ImGui::Begin(a_name, nullptr, a_flags);
+        ImGui::PopStyleColor(2);
+        ImGui::PopStyleVar(2);
+        if (visible)
+        {
+            Draw(ImGui::GetColorU32(Theme::GetFrameColor()),
+                ImGui::GetColorU32(ImGuiCol_WindowBg, a_layout.backgroundAlpha));
+        }
+        return visible;
     }
 }

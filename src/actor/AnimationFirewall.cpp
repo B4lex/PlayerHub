@@ -4,6 +4,7 @@
 #include "actor/AnimationEvents.h"
 #include "actor/RemoteActor.h"
 #include "runtime/Profiling.h"
+#include "text/AsciiCase.h"
 
 #include <cstddef>
 #include <cstring>
@@ -14,8 +15,7 @@ namespace AnimationFirewall
 {
     namespace
     {
-        using ActorConstants::kBlockedEventLogInterval;
-        using ActorConstants::kInitialBlockedEventLogs;
+        using ActorConstants::ShouldLogOccurrence;
         using AnimationEvents::IsCastAnimationEvent;
         using AnimationEvents::IsWeaponTransitionEndEvent;
         using AnimationEvents::IsWeaponTransitionTraceEvent;
@@ -42,14 +42,13 @@ namespace AnimationFirewall
         // Locomotion requests Skyrim's own movement logic may send a remote mount.
         constexpr bool IsMountGaitEvent(std::string_view a_eventName) noexcept
         {
-            using AnimationEvents::EqualsIgnoringCase;
-            return EqualsIgnoringCase(a_eventName, "moveStart") || EqualsIgnoringCase(a_eventName, "moveStop")
-                || EqualsIgnoringCase(a_eventName, "SprintStart") || EqualsIgnoringCase(a_eventName, "SprintStop")
-                || EqualsIgnoringCase(a_eventName, "moveForward") || EqualsIgnoringCase(a_eventName, "moveBackward")
-                || EqualsIgnoringCase(a_eventName, "BrakeStart") || EqualsIgnoringCase(a_eventName, "BrakeStop")
-                || EqualsIgnoringCase(a_eventName, "turnLeft") || EqualsIgnoringCase(a_eventName, "turnRight")
-                || EqualsIgnoringCase(a_eventName, "turnStop")
-                || AnimationEvents::StartsWithIgnoringCase(a_eventName, "cannedTurn");
+            using AsciiCase::Equals;
+            return Equals(a_eventName, "moveStart") || Equals(a_eventName, "moveStop")
+                || Equals(a_eventName, "SprintStart") || Equals(a_eventName, "SprintStop")
+                || Equals(a_eventName, "moveForward") || Equals(a_eventName, "moveBackward")
+                || Equals(a_eventName, "BrakeStart") || Equals(a_eventName, "BrakeStop")
+                || Equals(a_eventName, "turnLeft") || Equals(a_eventName, "turnRight")
+                || Equals(a_eventName, "turnStop") || AsciiCase::StartsWith(a_eventName, "cannedTurn");
         }
 
         static_assert(IsMountGaitEvent("MoveStop"));
@@ -85,7 +84,7 @@ namespace AnimationFirewall
                 const bool isWeaponTransitionEnd
                     = IsWeaponTransitionEndEvent(eventView, true) || IsWeaponTransitionEndEvent(eventView, false);
                 const bool shouldTraceWeaponEvent = IsWeaponTransitionTraceEvent(eventView);
-                const bool isBashExit = AnimationEvents::EqualsIgnoringCase(eventView, "bashExit");
+                const bool isBashExit = AsciiCase::Equals(eventView, "bashExit");
                 if (!isJumpLandEnd && !isWeaponTransitionEnd && !shouldTraceWeaponEvent && !isBashExit)
                 {
                     return RE::BSEventNotifyControl::kContinue;
@@ -180,9 +179,7 @@ namespace AnimationFirewall
 
                 blockedEventCount = ActorRegistry::RecordBlockedGraphEvent(a_holder, eventName);
 
-                if (blockedEventCount != 0
-                    && (blockedEventCount <= kInitialBlockedEventLogs
-                        || blockedEventCount % kBlockedEventLogInterval == 0))
+                if (blockedEventCount != 0 && ShouldLogOccurrence(blockedEventCount))
                 {
                     logs::debug("Blocked local actor animation event: actor={:08X} event={} count={}", actorHandle,
                         a_eventName.c_str(), blockedEventCount);

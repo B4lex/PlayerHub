@@ -358,13 +358,14 @@ same ID, and the load crashed.
 
 ## Timing
 
-Durations accumulate the clamped frame delta in seconds
-(`ActorConstants::kMaximumFrameTime`) and use `...Seconds` constants. Pass
-counters remain only where the logic means engine update passes (graph
-readiness across passes) or for log throttling, with a comment saying so. The
-checkpoint playout is the exception: it follows the sender's clock, so it
-runs on `steady_clock` and catches up after a local pause instead of replaying
-it.
+Durations accumulate the frame delta clamped to 0.1 s (`FrameTime::Clamp`)
+and use `...Seconds` constants. Pass counters remain only where the logic
+means engine update passes (graph readiness across passes) or for log
+throttling (`ActorConstants::ShouldLogOccurrence`), with a comment saying so.
+Two clocks are exceptions. The checkpoint playout follows the sender's clock,
+so it runs on `steady_clock` and catches up after a local pause instead of
+replaying it. `CheckpointPublisher` accumulates the unclamped delta, because
+the elapsed time divides the distance travelled into the published speed.
 
 ## Known limitations
 

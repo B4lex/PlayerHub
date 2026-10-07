@@ -1,8 +1,8 @@
 #include "actor/ActorMovement.h"
 #include "actor/ActorAnimation.h"
-#include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
 #include "actor/RemoteActor.h"
+#include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
 
@@ -13,16 +13,15 @@ namespace ActorMovement
 {
     namespace
     {
-        using ActorConstants::kMaximumFrameTime;
         using Multiplayer::IsMoving;
 
         constexpr float kArrivalTolerance = 1.0F;
         constexpr float kMinimumStep = 0.01F;
-        constexpr float kAirborneTransformCatchUpTime = 0.2F;
-        constexpr float kAttackTransformCatchUpTime = 0.2F;
-        constexpr float kLocomotionBacklogDrainTime = 0.5F;
+        constexpr float kAirborneTransformCatchUpSeconds = 0.2F;
+        constexpr float kAttackTransformCatchUpSeconds = 0.2F;
+        constexpr float kLocomotionBacklogDrainSeconds = 0.5F;
         constexpr float kRestingPathSpeed = 1.0F;
-        constexpr float kIdleBacklogDrainTime = 0.2F;
+        constexpr float kIdleBacklogDrainSeconds = 0.2F;
         constexpr float kMaximumIdleCatchUpSpeed = 150.0F;
         constexpr float kLandingApproachSeconds = 0.25F;
         constexpr float kLandingArrivalTolerance = 2.0F;
@@ -67,8 +66,7 @@ namespace ActorMovement
         {
             a_remote.movement.animationSpeed = a_speed;
             a_remote.movement.animationDirection = Multiplayer::NormalizeMovementDirection(a_direction);
-            ActorAnimation::RequestAnimationUpdate(a_remote.animation.get(), a_remote.animation->targetAnimationState,
-                a_remote.movement.animationSpeed, a_remote.movement.animationDirection);
+            ActorAnimation::RequestAnimationUpdate(a_remote.animation);
             ActorRegistry::SetAuthoritativeDirection(a_remote);
         }
     }
@@ -101,7 +99,7 @@ namespace ActorMovement
 
         if (movement.landingPosition)
         {
-            movement.landingApproachElapsed += std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+            movement.landingApproachElapsed += FrameTime::Clamp(a_deltaTime);
         }
         else
         {
@@ -137,7 +135,7 @@ namespace ActorMovement
         RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime, Multiplayer::AnimationState a_translationState)
     {
         PROFILE_FUNCTION();
-        const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        const float deltaTime = FrameTime::Clamp(a_deltaTime);
         ApplySmoothedHeading(a_actor, a_remote.movement.targetHeading, deltaTime);
 
         const auto current = a_actor.GetPosition();
@@ -159,7 +157,7 @@ namespace ActorMovement
             {
                 return;
             }
-            const float catchUpSpeed = distance / kIdleBacklogDrainTime;
+            const float catchUpSpeed = distance / kIdleBacklogDrainSeconds;
             if (catchUpSpeed > kMaximumIdleCatchUpSpeed)
             {
                 a_actor.SetPosition(target, true);
@@ -170,10 +168,10 @@ namespace ActorMovement
             return;
         }
 
-        const float catchUpTime = a_translationState.jumping ? kAirborneTransformCatchUpTime
-            : attackPlaying                                  ? kAttackTransformCatchUpTime
+        const float catchUpTime = a_translationState.jumping ? kAirborneTransformCatchUpSeconds
+            : attackPlaying                                  ? kAttackTransformCatchUpSeconds
                                                              : 0.0F;
-        const float backlogSpeed = a_remote.movement.translationSpeed + distance / kLocomotionBacklogDrainTime;
+        const float backlogSpeed = a_remote.movement.translationSpeed + distance / kLocomotionBacklogDrainSeconds;
         const float interpolationSpeed
             = catchUpTime > 0.0F ? (std::max)(backlogSpeed, distance / catchUpTime) : backlogSpeed;
         const float step = (std::min)(interpolationSpeed * deltaTime, distance);
@@ -189,7 +187,7 @@ namespace ActorMovement
     void ApplyPitch(RE::Actor& a_actor, const RemoteActor& a_remote, float a_deltaTime)
     {
         auto* controller = a_actor.GetCharController();
-        const float deltaTime = std::clamp(a_deltaTime, 0.0F, kMaximumFrameTime);
+        const float deltaTime = FrameTime::Clamp(a_deltaTime);
         // Skyrim pitches only a controller with this flag, which comes from the race's kTiltFrontBack.
         if (!controller || deltaTime <= 0.0F || controller->flags.none(RE::CHARACTER_FLAGS::kCanPitch))
         {

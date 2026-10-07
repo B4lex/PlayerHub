@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cfloat>
 #include <cmath>
 
 namespace UI
@@ -35,18 +34,6 @@ namespace UI
                 "You have not vanished anyone on this server." },
         };
 
-        // Tab would move the keyboard off the field; the field keeps it.
-        int KeepTab(ImGuiInputTextCallbackData*)
-        {
-            return 0;
-        }
-
-        void DrawMuted(const char* a_text)
-        {
-            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-            ImGui::TextWrapped("%s", a_text);
-            ImGui::PopStyleColor();
-        }
     }
 
     ImVec2 ChatPlayerManager::GetSize()
@@ -170,9 +157,7 @@ namespace UI
         if (!rows.empty())
         {
             ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ChatStyle::GetChipPadding());
-            ImGui::SetNextItemWidth(-FLT_MIN);
-            if (ImGui::InputTextWithHint("##ManagePlayersSearch", "Search", search.data(), search.size(),
-                    ImGuiInputTextFlags_CallbackCompletion, &KeepTab))
+            if (Controls::SearchField("##ManagePlayersSearch", search))
             {
                 foldedSearch = ChatRoster::FoldName(search.data());
                 Match();
@@ -233,11 +218,11 @@ namespace UI
         const auto& current = kTabs[static_cast<std::size_t>(tab)];
         if (rows.empty())
         {
-            DrawMuted(current.empty);
+            Controls::MutedTextWrapped(current.empty);
         }
         else if (matches.empty())
         {
-            DrawMuted("No player with that name");
+            Controls::MutedTextWrapped("No player with that name");
         }
 
         // The chat's field keeps the keyboard, which would otherwise keep the rows from being hovered.

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "actor/RemoteActor.h"
-#include "protocol/MovementState.h"
 
 #include <RE/Skyrim.h>
 
@@ -10,8 +9,7 @@
 namespace ActorSpawner
 {
     [[nodiscard]] std::optional<RemoteActor> Spawn(RE::TESNPC* a_npcBase, const RE::NiPoint3& a_targetPosition,
-        float a_targetHeading, Multiplayer::AnimationState a_animationState, float a_speed = 250.0F,
-        float a_stoppingDistance = 1.0F);
+        float a_targetHeading, float a_speed, float a_stoppingDistance);
 
     void Remove(RemoteActor& a_remote);
 

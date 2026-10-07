@@ -7,7 +7,6 @@
 #include "runtime/GameThread.h"
 
 #include <cmath>
-#include <memory>
 #include <utility>
 
 namespace ActorSpawner
@@ -42,7 +41,7 @@ namespace ActorSpawner
     }
 
     std::optional<RemoteActor> Spawn(RE::TESNPC* a_npcBase, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
-        Multiplayer::AnimationState a_animationState, float a_speed, float a_stoppingDistance)
+        float a_speed, float a_stoppingDistance)
     {
         if (!GameThread::Require("SpawnControlledNPC") || !a_npcBase || !std::isfinite(a_targetPosition.x)
             || !std::isfinite(a_targetPosition.y) || !std::isfinite(a_targetPosition.z)
@@ -96,15 +95,6 @@ namespace ActorSpawner
         // while the actor remains in Skyrim's normal processing pipeline.
         actor->EnableAI(true);
 
-        auto animationState = std::make_unique<ActorAnimation::State>();
-        animationState->targetAnimationState = a_animationState;
-        ActorAnimation::RequestAnimationUpdate(animationState.get(), a_animationState, a_speed, 0.0F);
-        logs::debug("Created remote actor reference: actor={:08X} base={:08X} revision={} desired={}/{}",
-            actor->GetHandle().native_handle(), actor->GetActorBase() ? actor->GetActorBase()->GetFormID() : 0,
-            static_cast<unsigned long long>(animationState->desiredRevision.load()),
-            Multiplayer::GetMovementStateName(a_animationState.movementState),
-            a_animationState.jumping ? "jumping" : "grounded");
-
         RemoteActor remoteActor{ .handle = actor->GetHandle(),
             .animationGraphHolder = nullptr,
             .movement = ActorMovement::State{ .targetPosition = a_targetPosition,
@@ -113,9 +103,13 @@ namespace ActorSpawner
                 .translationSpeed = a_speed,
                 .animationSpeed = a_speed,
                 .stoppingDistance = a_stoppingDistance },
-            .animation = std::move(animationState),
+            .animation = {},
             .initializationWaitFrames = 0,
             .ready = false };
+        ActorAnimation::RequestAnimationUpdate(remoteActor.animation);
+        logs::debug("Created remote actor reference: actor={:08X} base={:08X} revision={}",
+            actor->GetHandle().native_handle(), actor->GetActorBase() ? actor->GetActorBase()->GetFormID() : 0,
+            static_cast<unsigned long long>(remoteActor.animation.requestedRevision));
         ActorRegistry::Register(remoteActor, *actor);
         PrecisionIsolation::Exclude(remoteActor.handle);
         SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);

@@ -2,6 +2,7 @@
 #include "ui/Theme.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cmath>
 #include <numbers>
 
@@ -22,6 +23,11 @@ namespace UI::Controls
         constexpr ImVec4 kBlack{ 0.0F, 0.0F, 0.0F, 1.0F };
         constexpr float kPrimaryPressedShade = 0.14F;
         constexpr ImVec4 kDangerPressed{ 0.80F, 0.30F, 0.26F, 1.0F };
+
+        int KeepTab(ImGuiInputTextCallbackData*)
+        {
+            return 0;
+        }
 
         constexpr ImVec4 Mix(const ImVec4& a_from, const ImVec4& a_to, float a_amount)
         {
@@ -143,5 +149,19 @@ namespace UI::Controls
                 break;
         }
         return pressed;
+    }
+
+    bool SearchField(const char* a_id, std::span<char> a_buffer)
+    {
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        return ImGui::InputTextWithHint(
+            a_id, "Search", a_buffer.data(), a_buffer.size(), ImGuiInputTextFlags_CallbackCompletion, &KeepTab);
+    }
+
+    void MutedTextWrapped(const char* a_text)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::TextWrapped("%s", a_text);
+        ImGui::PopStyleColor();
     }
 }

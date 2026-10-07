@@ -1,5 +1,4 @@
 #include "sync/filters/PlayerFilters.h"
-#include "network/PlayerFilterStore.h"
 #include "network/ServerClient.h"
 #include "sync/notices/Notices.h"
 
@@ -8,6 +7,7 @@
 #include <format>
 #include <limits>
 #include <mutex>
+#include <string>
 #include <utility>
 
 namespace PlayerFilters
@@ -28,15 +28,6 @@ namespace PlayerFilters
         std::vector<std::uint32_t> s_arrived;
         std::vector<Entry> s_renamed;
 
-        Network::PlayerFilterStore::Entry ToStored(const Entry& a_entry)
-        {
-            return { .session = a_entry.session,
-                .name = a_entry.name,
-                .friended = a_entry.friended,
-                .muted = a_entry.muted,
-                .vanished = a_entry.vanished };
-        }
-
         void RefreshLocked()
         {
             const auto generation = Network::GetConnectionGeneration();
@@ -46,17 +37,8 @@ namespace PlayerFilters
             }
             s_generation = generation;
             s_server = Network::GetServerAddress();
-            std::vector<Network::PlayerFilterStore::Entry> stored;
-            Network::PlayerFilterStore::Copy(s_server, stored);
             s_entries.clear();
-            for (auto& entry : stored)
-            {
-                s_entries.push_back(Entry{ .session = entry.session,
-                    .name = std::move(entry.name),
-                    .friended = entry.friended,
-                    .muted = entry.muted,
-                    .vanished = entry.vanished });
-            }
+            Network::PlayerFilterStore::Copy(s_server, s_entries);
             std::ranges::sort(s_entries, {}, &Entry::session);
         }
 
@@ -76,7 +58,7 @@ namespace PlayerFilters
 
         void Save(const std::string& a_server, const Entry& a_entry)
         {
-            if (!Network::PlayerFilterStore::Save(a_server, ToStored(a_entry)))
+            if (!Network::PlayerFilterStore::Save(a_server, a_entry))
             {
                 Notices::Post("Could not save your list of friends, muted, and vanished players; the change lasts "
                               "until the game exits.");

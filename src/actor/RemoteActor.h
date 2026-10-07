@@ -8,14 +8,13 @@
 #include <RE/Skyrim.h>
 
 #include <cstdint>
-#include <memory>
 
 struct RemoteActor
 {
     RE::ActorHandle handle{};
     RE::IAnimationGraphManagerHolder* animationGraphHolder{ nullptr };
     ActorMovement::State movement;
-    std::unique_ptr<ActorAnimation::State> animation;
+    ActorAnimation::State animation;
     ActorFurniture::State furniture;
     // Main-loop passes, only used to throttle initialization logs.
     std::uint32_t initializationWaitFrames{ 0 };

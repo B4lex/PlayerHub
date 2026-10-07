@@ -1,14 +1,12 @@
 #include "network/SessionStore.h"
 #include "config/PluginConfig.h"
+#include "config/PluginFiles.h"
 #include "network/ServerClient.h"
 
 #include <algorithm>
 #include <filesystem>
-#include <fstream>
-#include <iterator>
 #include <mutex>
 #include <string>
-#include <system_error>
 #include <vector>
 
 namespace Network::SessionStore
@@ -16,9 +14,9 @@ namespace Network::SessionStore
     namespace
     {
         using Multiplayer::SessionToken;
+        using PluginFiles::ToUtf8;
 
         constexpr std::string_view kFileName = "playerhub.session";
-        constexpr std::string_view kTemporaryExtension = ".tmp";
         constexpr std::string_view kFileHeader
             = "; Skyrim Multiplayer sessions, one per server: the session's token, then the server.\n"
               "; Keep this file to yourself. Anyone who has a line of it can connect as you.\n";
@@ -34,12 +32,6 @@ namespace Network::SessionStore
         // Read once; the file changes only through Save afterwards.
         bool s_loaded = false;
         std::vector<Entry> s_entries;
-
-        std::string ToUtf8(const std::filesystem::path& a_path)
-        {
-            const auto text = a_path.u8string();
-            return { text.begin(), text.end() };
-        }
 
         std::filesystem::path GetPath()
         {
@@ -85,32 +77,22 @@ namespace Network::SessionStore
             }
             s_loaded = true;
 
-            std::ifstream input{ path, std::ios::binary };
-            if (!input)
+            const auto text = PluginFiles::ReadFile(path);
+            if (!text)
             {
                 logs::info("Session store has no {}; the server will issue a session", ToUtf8(path));
                 return;
             }
-            std::string line;
-            while (std::getline(input, line))
-            {
-                if (!line.empty() && line.back() == '\r')
-                {
-                    line.pop_back();
-                }
-                if (line.empty() || line.front() == ';')
-                {
-                    continue;
-                }
-                const auto separator = line.find(' ');
-                const auto token = ParseToken(std::string_view{ line }.substr(0, separator));
-                if (!token || separator == std::string::npos || separator + 1 == line.size())
+            PluginFiles::ForEachDataLine(*text, [&path](std::string_view a_line) {
+                const auto separator = a_line.find(' ');
+                const auto token = ParseToken(a_line.substr(0, separator));
+                if (!token || separator == std::string_view::npos || separator + 1 == a_line.size())
                 {
                     logs::warn("Session store ignored a malformed line of {}", ToUtf8(path));
-                    continue;
+                    return;
                 }
-                s_entries.push_back(Entry{ .server = line.substr(separator + 1), .token = *token });
-            }
+                s_entries.push_back(Entry{ .server = std::string{ a_line.substr(separator + 1) }, .token = *token });
+            });
             logs::info("Session store loaded {} sessions from {}", s_entries.size(), ToUtf8(path));
         }
 
@@ -129,27 +111,7 @@ namespace Network::SessionStore
                 text.append(entry.server);
                 text.push_back('\n');
             }
-
-            auto temporaryPath = path;
-            temporaryPath += kTemporaryExtension;
-            {
-                std::ofstream output{ temporaryPath, std::ios::binary | std::ios::trunc };
-                output.write(text.data(), static_cast<std::streamsize>(text.size()));
-                output.close();
-                if (!output)
-                {
-                    return false;
-                }
-            }
-            std::error_code error;
-            std::filesystem::rename(temporaryPath, path, error);
-            if (error)
-            {
-                logs::warn("Session store could not replace {}: {}", ToUtf8(path), error.message());
-                std::filesystem::remove(temporaryPath, error);
-                return false;
-            }
-            return true;
+            return PluginFiles::ReplaceFile(path, text);
         }
     }
 

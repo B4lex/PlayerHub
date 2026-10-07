@@ -793,32 +793,14 @@ namespace UI
             void DrawWindow(bool& a_open)
             {
                 const Theme::Scope theme;
-                const auto& display = ImGui::GetIO().DisplaySize;
-                const auto fontSize = ImGui::GetFontSize();
-                ImGui::SetNextWindowPos(
-                    ImVec2{ display.x * 0.5F, display.y * 0.5F }, ImGuiCond_Appearing, ImVec2{ 0.5F, 0.5F });
-                ImGui::SetNextWindowSize(
-                    ImVec2{ kSizeFonts.x * fontSize, kSizeFonts.y * fontSize }, ImGuiCond_Appearing);
-                ImGui::SetNextWindowSizeConstraints(
-                    ImVec2{ kMinimumSizeFonts.x * fontSize, kMinimumSizeFonts.y * fontSize }, display);
-                if (focusWindow)
-                {
-                    ImGui::SetNextWindowFocus();
-                    focusWindow = false;
-                }
                 frame = MenuFrame::GetMetrics();
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ frame.inset, frame.inset });
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, frame.rounding);
-                // Begin draws the window edge under the cursor in these, over the frame.
-                ImGui::PushStyleColor(ImGuiCol_SeparatorHovered, IM_COL32_BLACK_TRANS);
-                ImGui::PushStyleColor(ImGuiCol_SeparatorActive, IM_COL32_BLACK_TRANS);
-                const bool visible = ImGui::Begin("Multiplayer Settings###Settings", nullptr, kWindowFlags);
-                ImGui::PopStyleColor(2);
-                ImGui::PopStyleVar(2);
-                if (visible)
+                const MenuFrame::WindowLayout layout{
+                    .sizeFonts = kSizeFonts, .minimumSizeFonts = kMinimumSizeFonts, .backgroundAlpha = kBackgroundAlpha
+                };
+                if (MenuFrame::BeginWindow(
+                        "Multiplayer Settings###Settings", layout, kWindowFlags, std::exchange(focusWindow, false)))
                 {
-                    MenuFrame::Draw(ImGui::GetColorU32(Theme::GetFrameColor()),
-                        ImGui::GetColorU32(ImGuiCol_WindowBg, kBackgroundAlpha));
+                    const auto fontSize = ImGui::GetFontSize();
                     const auto sidebarWidth = std::floor(kSidebarWidthFonts * fontSize);
                     DrawSidebarBackground(sidebarWidth);
                     // The page first: it finds the sections the sidebar lists.

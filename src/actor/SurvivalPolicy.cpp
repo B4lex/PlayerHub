@@ -16,8 +16,7 @@ namespace SurvivalPolicy
 {
     namespace
     {
-        using ActorConstants::kBlockedEventLogInterval;
-        using ActorConstants::kInitialBlockedEventLogs;
+        using ActorConstants::ShouldLogOccurrence;
 
         bool ApplyAuthoritativeJumpState(RE::Actor& a_actor, bool a_jumping)
         {
@@ -98,9 +97,7 @@ namespace SurvivalPolicy
         void LogBlockedHealthDamage(
             std::uint32_t a_actorHandle, std::uint32_t a_blockedDamageCount, std::string_view a_path, float a_damage)
         {
-            if (a_blockedDamageCount != 0
-                && (a_blockedDamageCount <= kInitialBlockedEventLogs
-                    || a_blockedDamageCount % kBlockedEventLogInterval == 0))
+            if (a_blockedDamageCount != 0 && ShouldLogOccurrence(a_blockedDamageCount))
             {
                 logs::debug("Blocked local health damage to remote actor: actor={:08X} path={} damage={:.3f} count={}",
                     a_actorHandle, a_path, a_damage, a_blockedDamageCount);
@@ -126,8 +123,7 @@ namespace SurvivalPolicy
 
                 auto* actor = a_event->target->As<RE::Actor>();
                 const auto [actorHandle, requestCount] = ActorRegistry::RequestHitObservation(actor);
-                if (requestCount != 0
-                    && (requestCount <= kInitialBlockedEventLogs || requestCount % kBlockedEventLogInterval == 0))
+                if (requestCount != 0 && ShouldLogOccurrence(requestCount))
                 {
                     logs::debug(
                         "Observed local hit on remote actor; watching for an animation reaction: actor={:08X} "
@@ -168,8 +164,7 @@ namespace SurvivalPolicy
 
                 auto* actor = a_event->target->As<RE::Actor>();
                 const auto [actorHandle, requestCount] = ActorRegistry::RequestHitObservation(actor);
-                if (requestCount != 0
-                    && (requestCount <= kInitialBlockedEventLogs || requestCount % kBlockedEventLogInterval == 0))
+                if (requestCount != 0 && ShouldLogOccurrence(requestCount))
                 {
                     logs::debug(
                         "Observed harmful magic effect on remote actor; watching for an animation reaction: "
@@ -195,8 +190,7 @@ namespace SurvivalPolicy
                     return _original(a_target, a_targetData);
                 }
 
-                if (blockedEffectCount <= kInitialBlockedEventLogs
-                    || blockedEffectCount % kBlockedEventLogInterval == 0)
+                if (ShouldLogOccurrence(blockedEffectCount))
                 {
                     logs::debug(
                         "Blocked magic effect before it reached remote actor: actor={:08X} caster={:08X} spell={:08X} "
@@ -306,7 +300,7 @@ namespace SurvivalPolicy
                 // the main loop.
                 static std::atomic<std::uint32_t> s_refusedAliasPackageCount{ 0 };
                 const auto refusedCount = ++s_refusedAliasPackageCount;
-                if (refusedCount <= kInitialBlockedEventLogs || refusedCount % kBlockedEventLogInterval == 0)
+                if (ShouldLogOccurrence(refusedCount))
                 {
                     logs::debug("Refused local alias package for remote actor: actor={:08X} count={}",
                         a_actor ? a_actor->GetHandle().native_handle() : 0, refusedCount);
@@ -380,7 +374,7 @@ namespace SurvivalPolicy
                     (void)observationActorHandle;
                     observationRequestCount = requestCount;
                 }
-                if (interventionCount <= kInitialBlockedEventLogs || interventionCount % kBlockedEventLogInterval == 0)
+                if (ShouldLogOccurrence(interventionCount))
                 {
                     logs::debug(
                         "Reasserted remote actor survival state: actor={:08X} previousLifeState={} "
@@ -609,7 +603,7 @@ namespace SurvivalPolicy
             // Main-loop thread only, like the rest of this function.
             static std::uint32_t s_packageTakeoverCount = 0;
             const auto takeoverCount = ++s_packageTakeoverCount;
-            if (takeoverCount <= kInitialBlockedEventLogs || takeoverCount % kBlockedEventLogInterval == 0)
+            if (ShouldLogOccurrence(takeoverCount))
             {
                 logs::debug("Took back local actor package: actor={:08X} package={} packageForm={:08X} count={}",
                     a_actor.GetHandle().native_handle(),
@@ -635,8 +629,7 @@ namespace SurvivalPolicy
         if (needsAIReset || unownedPackage || weaponTransitionPending)
         {
             const auto [actorHandle, sanitizationCount] = ActorRegistry::RecordCombatSanitization(a_actor);
-            if (cowerRequests != 0 || sanitizationCount <= kInitialBlockedEventLogs
-                || sanitizationCount % kBlockedEventLogInterval == 0)
+            if (cowerRequests != 0 || ShouldLogOccurrence(sanitizationCount))
             {
                 logs::debug(
                     "Sanitized local actor combat presentation: actor={:08X} cowerEvents={} package={} "

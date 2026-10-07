@@ -1,7 +1,7 @@
 #include "forms/ItemDetails.h"
+#include "text/AsciiCase.h"
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <format>
 #include <string_view>
@@ -60,14 +60,9 @@ namespace Forms
 
         void ReplaceTag(std::string& a_text, std::string_view a_tag, const std::string& a_value)
         {
-            const auto equal = [](char a_left, char a_right) {
-                return std::tolower(static_cast<unsigned char>(a_left))
-                    == std::tolower(static_cast<unsigned char>(a_right));
-            };
-            for (auto found = std::ranges::search(a_text, a_tag, equal); !found.empty();
-                found = std::ranges::search(a_text, a_tag, equal))
+            for (auto position = AsciiCase::Find(a_text, a_tag); position != std::string::npos;
+                position = AsciiCase::Find(a_text, a_tag, position + a_value.size()))
             {
-                const auto position = static_cast<std::size_t>(found.begin() - a_text.begin());
                 a_text.replace(position, a_tag.size(), a_value);
             }
         }

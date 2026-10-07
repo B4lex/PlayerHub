@@ -145,7 +145,7 @@ a peer does not have a matching modded asset or behavior.
 - Peers run at different and variable frame rates, so never express a duration
   as a number of frames. Timeouts, fallbacks, observation windows, retry budgets,
   cooldowns, and interpolation must accumulate the frame delta in seconds (clamp
-  it, as `kMaximumFrameTime` does) and use `...Seconds` constants.
+  it with `FrameTime::Clamp`) and use `...Seconds` constants.
 - A retry budget may keep an attempt count, but must also require a minimum
   elapsed time, so a high frame rate cannot spend every attempt within a few
   milliseconds.

@@ -3,6 +3,7 @@
 #include "actor/RemoteActor.h"
 #include "forms/FormLookup.h"
 #include "network/ServerClient.h"
+#include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
 #include "sync/outfit/DefaultOutfit.h"
 
@@ -21,13 +22,13 @@ namespace EquipmentSync
 {
     namespace
     {
-        constexpr float kCaptureQuietInterval = 0.1F;
-        constexpr float kCapturePollInterval = 1.0F;
-        constexpr float kMinimumPublishInterval = 0.25F;
-        constexpr float kReconcileCheckInterval = 0.25F;
-        constexpr float kMatchedInventoryCheckInterval = 5.0F;
-        constexpr float kMaximumHandDeferral = 2.0F;
-        constexpr float kMaximumWeaponDrawWait = 1.0F;
+        constexpr float kCaptureQuietIntervalSeconds = 0.1F;
+        constexpr float kCapturePollIntervalSeconds = 1.0F;
+        constexpr float kMinimumPublishIntervalSeconds = 0.25F;
+        constexpr float kReconcileCheckIntervalSeconds = 0.25F;
+        constexpr float kMatchedInventoryCheckIntervalSeconds = 5.0F;
+        constexpr float kMaximumHandDeferralSeconds = 2.0F;
+        constexpr float kMaximumWeaponDrawWaitSeconds = 1.0F;
         constexpr std::uint32_t kMaximumReconcileAttempts = 4;
         constexpr std::uint32_t kMaximumTemplateDepth = 8;
         constexpr RE::FormID kPlayerReferenceFormID = 0x00000014;
@@ -337,7 +338,7 @@ namespace EquipmentSync
 
         void ResetReconciliation(RemoteState& a_remote)
         {
-            a_remote.checkElapsed = kReconcileCheckInterval;
+            a_remote.checkElapsed = kReconcileCheckIntervalSeconds;
             a_remote.inventoryCheckElapsed = 0.0F;
             a_remote.handDeferralElapsed = 0.0F;
             a_remote.handsUnsettledElapsed = 0.0F;
@@ -596,15 +597,15 @@ namespace EquipmentSync
     {
         PROFILE_FUNCTION();
         static float quietElapsed = 0.0F;
-        static float pollElapsed = kCapturePollInterval;
-        static float publishElapsed = kMinimumPublishInterval;
+        static float pollElapsed = kCapturePollIntervalSeconds;
+        static float publishElapsed = kMinimumPublishIntervalSeconds;
         static std::optional<EquipmentData> published;
         static std::optional<EquipmentData> pending;
         static std::uint64_t revision = 0;
         static bool dirty = false;
         static std::uint64_t publishedConnectionGeneration = 0;
 
-        const float delta = std::isfinite(a_delta) ? (std::max)(a_delta, 0.0F) : 0.0F;
+        const float delta = FrameTime::Clamp(a_delta);
         if (localEquipmentDirty.exchange(false, std::memory_order_acq_rel))
         {
             // Coalesce multi-event changes such as a favorites swap or outfit change.
@@ -634,8 +635,8 @@ namespace EquipmentSync
             }
         }
 
-        const bool captureDue
-            = a_flush || (dirty && quietElapsed >= kCaptureQuietInterval) || pollElapsed >= kCapturePollInterval;
+        const bool captureDue = a_flush || (dirty && quietElapsed >= kCaptureQuietIntervalSeconds)
+            || pollElapsed >= kCapturePollIntervalSeconds;
         std::uint32_t skipped = 0;
         if (captureDue)
         {
@@ -654,7 +655,7 @@ namespace EquipmentSync
             }
         }
 
-        if (!pending || (!a_flush && publishElapsed < kMinimumPublishInterval))
+        if (!pending || (!a_flush && publishElapsed < kMinimumPublishIntervalSeconds))
         {
             return;
         }
@@ -713,7 +714,7 @@ namespace EquipmentSync
     void SyncEquipment(RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RemoteActor& a_remoteActor, float a_delta)
     {
         PROFILE_FUNCTION();
-        const float delta = std::isfinite(a_delta) ? (std::max)(a_delta, 0.0F) : 0.0F;
+        const float delta = FrameTime::Clamp(a_delta);
         EnsureResolved(a_remote, a_playerID);
         if (a_remote.handsMatch || a_remote.exhausted)
         {
@@ -735,7 +736,7 @@ namespace EquipmentSync
         const bool immediate = deferralReleased
             || (!(a_remote.armorMatches && a_remote.handsMatch) && !a_remote.exhausted && a_remote.attempts == 0);
         a_remote.checkElapsed += delta;
-        if (!immediate && a_remote.checkElapsed < kReconcileCheckInterval)
+        if (!immediate && a_remote.checkElapsed < kReconcileCheckIntervalSeconds)
         {
             return;
         }
@@ -743,7 +744,7 @@ namespace EquipmentSync
         a_remote.checkElapsed = 0.0F;
         a_remote.inventoryCheckElapsed += sinceLastCheck;
         if (a_remote.armorMatches && a_remote.handsMatch
-            && a_remote.inventoryCheckElapsed < kMatchedInventoryCheckInterval
+            && a_remote.inventoryCheckElapsed < kMatchedInventoryCheckIntervalSeconds
             && IsPresentationMatched(*actor, a_remote))
         {
             return;
@@ -757,7 +758,7 @@ namespace EquipmentSync
         const bool handsMatch = equippedRight == a_remote.rightHand.object && IsLeftHandMatched(a_remote, equippedLeft)
             && equippedAmmo == a_remote.ammo;
         const bool handsDeferred = !handsMatch && IsHandSwapDeferred(*actor, a_remoteActor)
-            && a_remote.handDeferralElapsed < kMaximumHandDeferral;
+            && a_remote.handDeferralElapsed < kMaximumHandDeferralSeconds;
 
         std::map<RE::TESBoundObject*, std::int32_t> required;
         for (auto* armor : a_remote.armor)
@@ -986,6 +987,6 @@ namespace EquipmentSync
 
     bool IsReadyForWeaponDraw(const RemoteState& a_remote)
     {
-        return AreHandsSettled(a_remote) || a_remote.handsUnsettledElapsed >= kMaximumWeaponDrawWait;
+        return AreHandsSettled(a_remote) || a_remote.handsUnsettledElapsed >= kMaximumWeaponDrawWaitSeconds;
     }
 }

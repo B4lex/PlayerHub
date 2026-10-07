@@ -1,22 +1,22 @@
 #include "network/PlayerFilterStore.h"
 #include "config/PluginConfig.h"
+#include "config/PluginFiles.h"
 
 #include <algorithm>
 #include <array>
 #include <charconv>
 #include <filesystem>
-#include <fstream>
 #include <mutex>
 #include <optional>
 #include <string>
-#include <system_error>
 
 namespace Network::PlayerFilterStore
 {
     namespace
     {
+        using PluginFiles::ToUtf8;
+
         constexpr std::string_view kFileName = "playerhub.players";
-        constexpr std::string_view kTemporaryExtension = ".tmp";
         constexpr std::string_view kFileHeader
             = "; Skyrim Multiplayer: your friends (f) and the players you muted (m) or vanished (v), per server.\n"
               "; Each line: any of f, m, and v, the player's session, the server, and its name when last seen,\n"
@@ -37,12 +37,6 @@ namespace Network::PlayerFilterStore
         bool IsKept(const Entry& a_entry)
         {
             return a_entry.friended || a_entry.muted || a_entry.vanished;
-        }
-
-        std::string ToUtf8(const std::filesystem::path& a_path)
-        {
-            const auto text = a_path.u8string();
-            return { text.begin(), text.end() };
         }
 
         std::filesystem::path GetPath()
@@ -92,24 +86,14 @@ namespace Network::PlayerFilterStore
             }
             s_loaded = true;
 
-            std::ifstream input{ path, std::ios::binary };
-            if (!input)
+            const auto text = PluginFiles::ReadFile(path);
+            if (!text)
             {
                 logs::info("Player filters have no {}; nobody is a friend, muted, or vanished", ToUtf8(path));
                 return;
             }
-            std::string line;
-            while (std::getline(input, line))
-            {
-                if (!line.empty() && line.back() == '\r')
-                {
-                    line.pop_back();
-                }
-                if (line.empty() || line.front() == ';')
-                {
-                    continue;
-                }
-                if (auto entry = ParseLine(line))
+            PluginFiles::ForEachDataLine(*text, [&path](std::string_view a_line) {
+                if (auto entry = ParseLine(a_line))
                 {
                     s_entries.push_back(std::move(*entry));
                 }
@@ -117,7 +101,7 @@ namespace Network::PlayerFilterStore
                 {
                     logs::warn("Player filters ignored a malformed line of {}", ToUtf8(path));
                 }
-            }
+            });
             logs::info("Player filters loaded {} players from {}", s_entries.size(), ToUtf8(path));
         }
 
@@ -151,27 +135,7 @@ namespace Network::PlayerFilterStore
                 text.append(entry.name);
                 text.push_back('\n');
             }
-
-            auto temporaryPath = path;
-            temporaryPath += kTemporaryExtension;
-            {
-                std::ofstream output{ temporaryPath, std::ios::binary | std::ios::trunc };
-                output.write(text.data(), static_cast<std::streamsize>(text.size()));
-                output.close();
-                if (!output)
-                {
-                    return false;
-                }
-            }
-            std::error_code error;
-            std::filesystem::rename(temporaryPath, path, error);
-            if (error)
-            {
-                logs::warn("Player filters could not replace {}: {}", ToUtf8(path), error.message());
-                std::filesystem::remove(temporaryPath, error);
-                return false;
-            }
-            return true;
+            return PluginFiles::ReplaceFile(path, text);
         }
     }
 

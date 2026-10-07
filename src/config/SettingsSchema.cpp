@@ -1,9 +1,9 @@
 #include "config/SettingsSchema.h"
 #include "protocol/Session.h"
+#include "text/AsciiCase.h"
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <charconv>
 #include <format>
 #include <system_error>
@@ -95,14 +95,6 @@ namespace Config
                 return {};
             }
             return a_text.substr(first, a_text.find_last_not_of(kWhitespace) - first + 1);
-        }
-
-        bool EqualsIgnoreCase(std::string_view a_left, std::string_view a_right)
-        {
-            return std::ranges::equal(a_left, a_right, [](char a_first, char a_second) {
-                return std::tolower(static_cast<unsigned char>(a_first))
-                    == std::tolower(static_cast<unsigned char>(a_second));
-            });
         }
 
         // SimpleIni keeps a trailing comment in the value.
@@ -293,14 +285,14 @@ namespace Config
     {
         for (const auto name : { "true", "yes", "on", "1" })
         {
-            if (EqualsIgnoreCase(a_value, name))
+            if (AsciiCase::Equals(a_value, name))
             {
                 return true;
             }
         }
         for (const auto name : { "false", "no", "off", "0" })
         {
-            if (EqualsIgnoreCase(a_value, name))
+            if (AsciiCase::Equals(a_value, name))
             {
                 return false;
             }
@@ -358,7 +350,7 @@ namespace Config
     std::optional<std::uint32_t> ParseChoice(std::string_view a_value, std::span<const std::string_view> a_options)
     {
         const auto option = std::ranges::find_if(
-            a_options, [a_value](std::string_view a_option) { return EqualsIgnoreCase(a_option, a_value); });
+            a_options, [a_value](std::string_view a_option) { return AsciiCase::Equals(a_option, a_value); });
         return option == a_options.end() ? std::nullopt
                                          : std::optional{ static_cast<std::uint32_t>(option - a_options.begin()) };
     }
@@ -392,7 +384,7 @@ namespace Config
     std::optional<std::uint32_t> ParseKey(std::string_view a_value)
     {
         const auto key = std::ranges::find_if(
-            kBindableKeys, [a_value](const BindableKey& a_key) { return EqualsIgnoreCase(a_key.name, a_value); });
+            kBindableKeys, [a_value](const BindableKey& a_key) { return AsciiCase::Equals(a_key.name, a_value); });
         return key == kBindableKeys.end() ? std::nullopt : std::optional{ key->scanCode };
     }
 

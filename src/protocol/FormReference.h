@@ -1,5 +1,7 @@
 #pragma once
 
+#include "text/AsciiCase.h"
+
 #include <algorithm>
 #include <array>
 #include <compare>
@@ -36,16 +38,11 @@ namespace Multiplayer
 
     namespace Detail
     {
-        [[nodiscard]] constexpr char ToLowerAscii(char a_character) noexcept
-        {
-            return a_character >= 'A' && a_character <= 'Z' ? static_cast<char>(a_character - 'A' + 'a') : a_character;
-        }
-
         // Plugin names compare without case, as the game's lookup does.
         [[nodiscard]] constexpr bool PluginNameLess(std::string_view a_left, std::string_view a_right) noexcept
         {
             return std::ranges::lexicographical_compare(a_left, a_right,
-                [](char a_first, char a_second) { return ToLowerAscii(a_first) < ToLowerAscii(a_second); });
+                [](char a_first, char a_second) { return AsciiCase::ToLower(a_first) < AsciiCase::ToLower(a_second); });
         }
 
         // The Skyrim Special Edition masters and the Creation Club plugins

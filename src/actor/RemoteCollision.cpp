@@ -1,7 +1,7 @@
 #include "actor/RemoteCollision.h"
-#include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
 #include "actor/RemoteActor.h"
+#include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
 
 #include <algorithm>
@@ -332,7 +332,7 @@ namespace RemoteCollision
         auto& collision = a_remote.collision;
         if (collision.skeletonIsolated)
         {
-            collision.skeletonRecheckElapsed += std::clamp(a_deltaTime, 0.0F, ActorConstants::kMaximumFrameTime);
+            collision.skeletonRecheckElapsed += FrameTime::Clamp(a_deltaTime);
             if (collision.skeletonRecheckElapsed < kSkeletonRecheckSeconds)
             {
                 return;

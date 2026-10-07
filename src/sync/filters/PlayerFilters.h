@@ -1,22 +1,15 @@
 #pragma once
 
+#include "network/PlayerFilterStore.h"
 #include "protocol/ChatMessage.h"
 #include "protocol/Session.h"
 
 #include <cstdint>
-#include <string>
 #include <vector>
 
 namespace PlayerFilters
 {
-    struct Entry
-    {
-        Multiplayer::SessionID session{ 0 };
-        std::string name;
-        bool friended{ false };
-        bool muted{ false };
-        bool vanished{ false };
-    };
+    using Entry = Network::PlayerFilterStore::Entry;
 
     [[nodiscard]] bool IsFriend(Multiplayer::SessionID a_session);
     [[nodiscard]] bool IsMuted(Multiplayer::SessionID a_session);

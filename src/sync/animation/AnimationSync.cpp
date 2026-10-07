@@ -379,7 +379,8 @@ namespace AnimationSync
         logs::debug(
             "Animation sync advancing animation state: player={} actor={:08X} sequence={} current={}/{} step={}/{} "
             "target={}/{}",
-            a_remote.playerID, a_actor.handle.native_handle(), static_cast<unsigned long long>(a_remote.lastSequence),
+            a_remote.playerID, a_actor.handle.native_handle(),
+            static_cast<unsigned long long>(a_remote.checkpoint.sequence),
             Multiplayer::GetMovementStateName(current.movementState), current.jumping ? "jumping" : "grounded",
             Multiplayer::GetMovementStateName(next.movementState), next.jumping ? "jumping" : "grounded",
             Multiplayer::GetMovementStateName(target.movementState), target.jumping ? "jumping" : "grounded");

@@ -1,8 +1,8 @@
 #include "sync/ActorLifecycle.h"
-#include "actor/ActorConstants.h"
 #include "actor/ActorMount.h"
 #include "actor/ActorSpawner.h"
 #include "config/PluginConfig.h"
+#include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
 #include "sync/PeerState.h"
 #include "sync/SyncFrame.h"
@@ -20,7 +20,7 @@ namespace ActorLifecycle
     {
         constexpr float kActorSpeed = 550.0F;
         constexpr float kActorStoppingDistance = 1.0F;
-        constexpr float kSpawnRetryDelay = 1.0F;
+        constexpr float kSpawnRetryDelaySeconds = 1.0F;
         constexpr float kStrandedActorSeconds = 2.0F;
         float s_spawnAllowance{ 0.0F };
         std::uint32_t s_spawnsPerSecond{ 0 };
@@ -38,7 +38,7 @@ namespace ActorLifecycle
                 s_spawnAllowance -= 1.0F;
                 return true;
             }
-            a_waitSeconds += std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
+            a_waitSeconds += FrameTime::Clamp(a_delta);
             s_longestSpawnWait = (std::max)(s_longestSpawnWait, a_waitSeconds);
             return false;
         }
@@ -124,7 +124,7 @@ namespace ActorLifecycle
         }
         else
         {
-            lifecycle.strandedElapsed += std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
+            lifecycle.strandedElapsed += FrameTime::Clamp(a_delta);
             if (lifecycle.strandedElapsed >= kStrandedActorSeconds)
             {
                 reason = "unloaded";
@@ -142,14 +142,14 @@ namespace ActorLifecycle
             "sequence={}",
             a_remote.playerID, actorHandle, reason, actorPosition.x, actorPosition.y, actorPosition.z, targetPosition.x,
             targetPosition.y, targetPosition.z, distance, has3D,
-            static_cast<unsigned long long>(a_remote.lastSequence));
+            static_cast<unsigned long long>(a_remote.checkpoint.sequence));
     }
 
     void RetireForRevival(const RemoteFrame& a_remote, PeerState& a_peer)
     {
         const auto actorHandle = Retire(a_peer);
         logs::debug("Recycling remote player actor {} actor {:08X} after the player came back to life: sequence={}",
-            a_remote.playerID, actorHandle, static_cast<unsigned long long>(a_remote.lastSequence));
+            a_remote.playerID, actorHandle, static_cast<unsigned long long>(a_remote.checkpoint.sequence));
     }
 
     void RetireForDismount(const RemoteFrame& a_remote, PeerState& a_peer)
@@ -163,7 +163,7 @@ namespace ActorLifecycle
             "Recycling remote player actor {} actor {:08X} and mount {:08X} after the player dismounted: seated={} "
             "transition={} sequence={}",
             a_remote.playerID, actorHandle, mountHandle, seated, transition,
-            static_cast<unsigned long long>(a_remote.lastSequence));
+            static_cast<unsigned long long>(a_remote.checkpoint.sequence));
     }
 
     void RetireForMountLoss(const RemoteFrame& a_remote, PeerState& a_peer)
@@ -171,7 +171,7 @@ namespace ActorLifecycle
         const auto mountHandle = a_peer.lifecycle.mount->actor.handle.native_handle();
         const auto actorHandle = Retire(a_peer);
         logs::warn("Recycling remote player actor {} actor {:08X} after losing mount {:08X}: sequence={}",
-            a_remote.playerID, actorHandle, mountHandle, static_cast<unsigned long long>(a_remote.lastSequence));
+            a_remote.playerID, actorHandle, mountHandle, static_cast<unsigned long long>(a_remote.checkpoint.sequence));
     }
 
     void RetireMountedForDeath(const RemoteFrame& a_remote, PeerState& a_peer)
@@ -184,7 +184,7 @@ namespace ActorLifecycle
             "Recycling remote player actor {} actor {:08X} and mount {:08X} after the player died riding: "
             "transition={} sequence={}",
             a_remote.playerID, actorHandle, mountHandle, transition,
-            static_cast<unsigned long long>(a_remote.lastSequence));
+            static_cast<unsigned long long>(a_remote.checkpoint.sequence));
     }
 
     void YieldFurniture(
@@ -197,14 +197,14 @@ namespace ActorLifecycle
             "Hiding remote player actor {} actor {:08X} while furniture {:08X} is in use: reason={} "
             "checkpointFurniture={:08X} sequence={}",
             a_remote.playerID, actorHandle, a_furnitureRefID, a_reason, a_remote.furnitureRefID,
-            static_cast<unsigned long long>(a_remote.lastSequence));
+            static_cast<unsigned long long>(a_remote.checkpoint.sequence));
     }
 
     void EndFurnitureYield(const RemoteFrame& a_remote, PeerState& a_peer)
     {
         logs::debug("Restoring remote player actor {} after furniture {:08X} was vacated: sequence={}",
             a_remote.playerID, a_peer.lifecycle.yieldedFurnitureRefID,
-            static_cast<unsigned long long>(a_remote.lastSequence));
+            static_cast<unsigned long long>(a_remote.checkpoint.sequence));
         a_peer.lifecycle.yieldedFurnitureRefID = 0;
     }
 
@@ -229,7 +229,7 @@ namespace ActorLifecycle
         RemoveMountActor(a_peer.lifecycle);
         a_peer.lifecycle.actor.reset();
         CombatSync::ClearRemoteActions(a_peer.combat);
-        a_peer.lifecycle.spawnRetryRemaining = kSpawnRetryDelay;
+        a_peer.lifecycle.spawnRetryRemaining = kSpawnRetryDelaySeconds;
     }
 
     void RemoveActor(PeerState& a_peer)
@@ -243,7 +243,7 @@ namespace ActorLifecycle
 
     void RefillSpawnAllowance(float a_delta)
     {
-        const float delta = std::clamp(a_delta, 0.0F, ActorConstants::kMaximumFrameTime);
+        const float delta = FrameTime::Clamp(a_delta);
         s_spawnsPerSecond = Config::Get()->performance.spawnsPerSecond;
         const float passShare = static_cast<float>(s_spawnsPerSecond) * delta;
         s_spawnAllowance = (std::min)(s_spawnAllowance + passShare, (std::max)(passShare, 1.0F));
@@ -262,7 +262,7 @@ namespace ActorLifecycle
             }
             lifecycle.yieldedFurnitureRefID = 0;
         }
-        lifecycle.spawnRetryRemaining -= (std::max)(a_delta, 0.0F);
+        lifecycle.spawnRetryRemaining -= FrameTime::Clamp(a_delta);
         if (lifecycle.spawnRetryRemaining > 0.0F)
         {
             return;
@@ -282,17 +282,17 @@ namespace ActorLifecycle
         const float allowanceWait = std::exchange(lifecycle.spawnAllowanceWaitSeconds, 0.0F);
 
         const RE::NiPoint3 targetPosition{ a_remote.checkpoint.x, a_remote.checkpoint.y, a_remote.checkpoint.z };
-        lifecycle.actor = ActorSpawner::Spawn(spawnBase, targetPosition, a_remote.checkpoint.heading,
-            Multiplayer::AnimationState{}, kActorSpeed, kActorStoppingDistance);
+        lifecycle.actor = ActorSpawner::Spawn(
+            spawnBase, targetPosition, a_remote.checkpoint.heading, kActorSpeed, kActorStoppingDistance);
         if (!lifecycle.actor)
         {
-            lifecycle.spawnRetryRemaining = kSpawnRetryDelay;
+            lifecycle.spawnRetryRemaining = kSpawnRetryDelaySeconds;
             return;
         }
         AppearanceSync::OnActorSpawned(a_peer.appearance, spawnBase);
         EquipmentSync::OnActorSpawned(a_peer.equipment);
         FurnitureSync::OnActorSpawned(a_remote, *lifecycle.actor);
-        a_peer.appliedSequence = a_remote.lastSequence;
+        a_peer.appliedSequence = a_remote.checkpoint.sequence;
         lifecycle.spawnedCellID = a_remote.checkpoint.cellID;
         lifecycle.spawnedWorldspaceID = a_remote.checkpoint.worldspaceID;
 
@@ -309,7 +309,7 @@ namespace ActorLifecycle
     void SpawnMountWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
     {
         auto& lifecycle = a_peer.lifecycle;
-        lifecycle.mountSpawnRetryRemaining -= (std::max)(a_delta, 0.0F);
+        lifecycle.mountSpawnRetryRemaining -= FrameTime::Clamp(a_delta);
         if (lifecycle.mountSpawnRetryRemaining > 0.0F
             || !TakeSpawnAllowance(lifecycle.mountSpawnAllowanceWaitSeconds, a_delta))
         {
@@ -321,12 +321,12 @@ namespace ActorLifecycle
         if (auto* mountBase = ActorMount::GetMountBase())
         {
             const RE::NiPoint3 targetPosition{ a_remote.checkpoint.x, a_remote.checkpoint.y, a_remote.checkpoint.z };
-            mountActor = ActorSpawner::Spawn(mountBase, targetPosition, a_remote.checkpoint.heading,
-                Multiplayer::AnimationState{}, kActorSpeed, kActorStoppingDistance);
+            mountActor = ActorSpawner::Spawn(
+                mountBase, targetPosition, a_remote.checkpoint.heading, kActorSpeed, kActorStoppingDistance);
         }
         if (!mountActor)
         {
-            lifecycle.mountSpawnRetryRemaining = kSpawnRetryDelay;
+            lifecycle.mountSpawnRetryRemaining = kSpawnRetryDelaySeconds;
             return;
         }
         // No applied sequence: MountSync hands it the checkpoint's speed before its first gait.
@@ -335,6 +335,6 @@ namespace ActorLifecycle
             "Allocated remote player {} mount as actor {:08X} for actor {:08X} at transform sequence={}; waiting "
             "for both to be ready before seating",
             a_remote.playerID, lifecycle.mount->actor.handle.native_handle(), lifecycle.actor->handle.native_handle(),
-            static_cast<unsigned long long>(a_remote.lastSequence));
+            static_cast<unsigned long long>(a_remote.checkpoint.sequence));
     }
 }

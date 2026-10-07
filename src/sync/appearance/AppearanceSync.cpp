@@ -1,13 +1,14 @@
 #include "sync/appearance/AppearanceSync.h"
 #include "forms/FormLookup.h"
 #include "network/ServerClient.h"
+#include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
 #include "sync/PlayerLabel.h"
 #include "sync/outfit/DefaultOutfit.h"
+#include "text/AsciiCase.h"
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cmath>
 #include <format>
 #include <limits>
@@ -21,10 +22,10 @@ namespace AppearanceSync
 {
     namespace
     {
-        constexpr float kCaptureInterval = 1.0F;
-        constexpr float kMinimumPublishInterval = 3.0F;
+        constexpr float kCaptureIntervalSeconds = 1.0F;
+        constexpr float kMinimumPublishIntervalSeconds = 3.0F;
         constexpr float kFirstAppearanceWaitSeconds = 3.0F;
-        constexpr float kMinimumRespawnInterval = 2.0F;
+        constexpr float kMinimumRespawnIntervalSeconds = 2.0F;
         constexpr std::string_view kFallbackRacePlugin = "Skyrim.esm";
         constexpr RE::FormID kFallbackRaceLocalFormID = 0x00013746; // NordRace
 
@@ -42,14 +43,6 @@ namespace AppearanceSync
         constexpr AppearanceColor ToAppearanceColor(const RE::Color& a_color) noexcept
         {
             return AppearanceColor{ .red = a_color.red, .green = a_color.green, .blue = a_color.blue };
-        }
-
-        bool EqualsIgnoreCase(std::string_view a_first, std::string_view a_second)
-        {
-            return std::ranges::equal(a_first, a_second, [](char a_left, char a_right) {
-                return std::tolower(static_cast<unsigned char>(a_left))
-                    == std::tolower(static_cast<unsigned char>(a_right));
-            });
         }
 
         bool IsPlayableRace(const RE::TESRace* a_race)
@@ -83,7 +76,7 @@ namespace AppearanceSync
             }
             for (const auto* asset : *a_faceData->tintMasks)
             {
-                if (asset && EqualsIgnoreCase(asset->texture.file.textureName.c_str(), maskPath))
+                if (asset && AsciiCase::Equals(asset->texture.file.textureName.c_str(), maskPath))
                 {
                     return asset;
                 }
@@ -720,14 +713,14 @@ namespace AppearanceSync
     void SyncAppearance(const LocalFrame& a_local, float a_delta)
     {
         PROFILE_FUNCTION();
-        static float captureElapsed = kCaptureInterval;
-        static float publishElapsed = kMinimumPublishInterval;
+        static float captureElapsed = kCaptureIntervalSeconds;
+        static float publishElapsed = kMinimumPublishIntervalSeconds;
         static std::optional<AppearanceData> published;
         static std::optional<AppearanceData> candidate;
         static std::uint64_t revision = 0;
         static std::uint64_t publishedConnectionGeneration = 0;
 
-        const float delta = std::isfinite(a_delta) ? (std::max)(a_delta, 0.0F) : 0.0F;
+        const float delta = FrameTime::Clamp(a_delta);
         captureElapsed += delta;
         publishElapsed += delta;
 
@@ -747,7 +740,7 @@ namespace AppearanceSync
             }
         }
 
-        if (captureElapsed < kCaptureInterval)
+        if (captureElapsed < kCaptureIntervalSeconds)
         {
             return;
         }
@@ -768,7 +761,7 @@ namespace AppearanceSync
             candidate = std::move(captured);
             return;
         }
-        if (publishElapsed < kMinimumPublishInterval)
+        if (publishElapsed < kMinimumPublishIntervalSeconds)
         {
             return;
         }
@@ -843,7 +836,7 @@ namespace AppearanceSync
 
     void SyncAppearance(RemoteState& a_remote, float a_delta)
     {
-        const float delta = std::isfinite(a_delta) ? (std::max)(a_delta, 0.0F) : 0.0F;
+        const float delta = FrameTime::Clamp(a_delta);
         if (!a_remote.latest)
         {
             a_remote.appearanceWaitElapsed += delta;
@@ -883,7 +876,7 @@ namespace AppearanceSync
         // an appearance that cannot be built.
         a_remote.spawnedRevision = a_remote.latest ? a_remote.latest->revision : 0;
         a_remote.spawnedBase = a_spawnedBase;
-        a_remote.respawnCooldown = kMinimumRespawnInterval;
+        a_remote.respawnCooldown = kMinimumRespawnIntervalSeconds;
         a_remote.colorsApplied = false;
         a_remote.faceTintTexture.reset();
     }

@@ -54,7 +54,6 @@ namespace SyncCoordinator
             const auto& checkpoint = a_peer.playout.GetPlayed();
             return RemoteFrame{ .playerID = a_playerID,
                 .checkpoint = checkpoint,
-                .lastSequence = checkpoint.sequence,
                 .pose = a_peer.playout.GetPose(),
                 .furnitureRefID = a_peer.furniture.refID };
         }
@@ -459,11 +458,12 @@ namespace SyncCoordinator
         PrecisionIsolation::Update(*localCell, a_delta);
 
         const LocalFrame local{ .player = *a_player };
+        const auto localCellID = localCell->GetFormID();
+        const auto localWorldspaceID = MovementSync::GetWorldspaceID(*a_player);
         const auto localFurniture = a_player->GetOccupiedFurniture().get();
         for (auto& [playerID, peer] : s_peers)
         {
-            SyncPeer(playerID, peer, local, localCell->GetFormID(), MovementSync::GetWorldspaceID(*a_player),
-                localFurniture.get(), a_delta);
+            SyncPeer(playerID, peer, local, localCellID, localWorldspaceID, localFurniture.get(), a_delta);
         }
     }
 

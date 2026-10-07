@@ -10,8 +10,7 @@ namespace ScenePackageSuppression
 {
     namespace
     {
-        using ActorConstants::kBlockedEventLogInterval;
-        using ActorConstants::kInitialBlockedEventLogs;
+        using ActorConstants::ShouldLogOccurrence;
 
         // A scene package action installs its package on the alias's actor directly
         // (ID 39149), bypassing package evaluation and so the alias package hook in
@@ -24,7 +23,7 @@ namespace ScenePackageSuppression
             // Scene updates are not confined to the main loop.
             static std::atomic<std::uint32_t> s_refusedCount{ 0 };
             const auto refusedCount = ++s_refusedCount;
-            if (refusedCount > kInitialBlockedEventLogs && refusedCount % kBlockedEventLogInterval != 0)
+            if (!ShouldLogOccurrence(refusedCount))
             {
                 return;
             }
