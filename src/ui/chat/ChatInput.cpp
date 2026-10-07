@@ -54,6 +54,7 @@ namespace UI
     {
         draftWhenOpened = draft;
         composer.StopRecalling();
+        composer.ClearNotes();
     }
 
     int ChatInput::OnFieldEvent(ImGuiInputTextCallbackData* a_data)
@@ -192,6 +193,7 @@ namespace UI
         const auto listing = composer.GetListing();
         if (listing == ChatSync::Composer::Listing::kNone)
         {
+            DrawNotes();
             return;
         }
         const auto suggestions = composer.GetSuggestions();
@@ -234,6 +236,58 @@ namespace UI
         {
             composer.AcceptSuggestion(accepted, draft);
         }
+    }
+
+    void ChatInput::DrawNotes() const
+    {
+        const auto notes = composer.GetNotes();
+        if (notes.empty())
+        {
+            return;
+        }
+        const auto& style = ImGui::GetStyle();
+        const auto width = ImGui::GetContentRegionAvail().x;
+        const auto wrapWidth = width - style.WindowPadding.x * 2.0F;
+        float height = style.WindowPadding.y * 2.0F - style.ItemSpacing.y;
+        for (const auto& note : notes)
+        {
+            const auto textHeight = note.detail.empty()
+                ? ImGui::CalcTextSize(note.text.c_str(), note.text.c_str() + note.text.size(), false, wrapWidth).y
+                : ImGui::GetTextLineHeight();
+            height += textHeight + style.ItemSpacing.y;
+        }
+
+        const auto row = ImGui::GetCursorScreenPos();
+        ImGui::SetCursorScreenPos(ImVec2{ row.x, row.y - style.ItemSpacing.y - height });
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyleColorVec4(ImGuiCol_PopupBg));
+        if (ImGui::BeginChild("##ChatNotes", ImVec2{ width, height },
+                ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding,
+                ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoInputs))
+        {
+            for (const auto& note : notes)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text,
+                    note.failure ? ChatStyle::kFailureColor : ImGui::GetStyleColorVec4(ImGuiCol_Text));
+                if (note.detail.empty())
+                {
+                    ImGui::PushTextWrapPos(0.0F);
+                    ImGui::TextUnformatted(note.text.c_str(), note.text.c_str() + note.text.size());
+                    ImGui::PopTextWrapPos();
+                }
+                else
+                {
+                    ImGui::TextUnformatted(note.text.c_str(), note.text.c_str() + note.text.size());
+                    ImGui::SameLine();
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+                    ImGui::TextUnformatted(note.detail.c_str(), note.detail.c_str() + note.detail.size());
+                    ImGui::PopStyleColor();
+                }
+                ImGui::PopStyleColor();
+            }
+        }
+        ImGui::EndChild();
+        ImGui::PopStyleColor();
+        ImGui::SetCursorScreenPos(row);
     }
 
     ChatInput::Outcome ChatInput::Draw(const Frame& a_frame)

@@ -39,7 +39,6 @@ namespace UI
     private:
         struct Line
         {
-            ChatSync::LineKind kind{ ChatSync::LineKind::kPlayer };
             Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kGlobal };
             std::string label;
             std::string text;
@@ -53,10 +52,10 @@ namespace UI
 
         [[nodiscard]] bool Shows(Multiplayer::ChatChannel a_channel) const;
         [[nodiscard]] bool Shows(const Line& a_line) const;
-        void Evict(std::size_t a_kind);
+        void Evict(Multiplayer::ChatChannel a_channel);
 
         std::deque<Line> lines;
-        std::array<std::size_t, 4> counts{};
+        std::array<std::size_t, 3> counts{};
         std::vector<ChatSync::ChatLine> incoming;
 
         std::array<bool, 3> shown{ true, true, true };

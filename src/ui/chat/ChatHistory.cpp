@@ -11,8 +11,7 @@ namespace UI
 {
     namespace
     {
-        constexpr std::size_t kMaximumLinesPerKind = 100;
-        constexpr std::size_t kNoticeKind = 3;
+        constexpr std::size_t kMaximumLinesPerChannel = 100;
         constexpr double kRecentLineSeconds = 10.0;
         constexpr double kRecentFadeSeconds = 2.0;
         constexpr float kWheelLines = 3.0F;
@@ -32,11 +31,6 @@ namespace UI
             Filter{ "Whispers", Multiplayer::ChatChannel::kWhisper },
         };
 
-        std::size_t GetKind(ChatSync::LineKind a_kind, Multiplayer::ChatChannel a_channel)
-        {
-            return a_kind == ChatSync::LineKind::kNotice ? kNoticeKind : static_cast<std::size_t>(a_channel);
-        }
-
         float GetRecentAlpha(double a_receivedAt, double a_now)
         {
             const auto remaining = kRecentLineSeconds - (a_now - a_receivedAt);
@@ -54,13 +48,6 @@ namespace UI
             ImGui::PushStyleColor(ImGuiCol_Text, a_color);
             ImGui::TextUnformatted(a_text.c_str(), a_text.c_str() + a_text.size());
             ImGui::PopStyleColor();
-        }
-
-        void DrawWrapped(const std::string& a_text, const ImVec4& a_color)
-        {
-            ImGui::PushTextWrapPos(0.0F);
-            DrawColored(a_text, a_color);
-            ImGui::PopTextWrapPos();
         }
 
         void DrawLabel(const std::string& a_label, const ImVec4& a_color)
@@ -163,31 +150,29 @@ namespace UI
         ChatSync::DrainLines(incoming);
         for (auto& line : incoming)
         {
-            const auto kind = GetKind(line.kind, line.channel);
-            if (counts[kind] >= kMaximumLinesPerKind)
+            const auto channel = static_cast<std::size_t>(line.channel);
+            if (counts[channel] >= kMaximumLinesPerChannel)
             {
-                Evict(kind);
+                Evict(line.channel);
             }
-            ++counts[kind];
+            ++counts[channel];
 
-            const bool fromPlayer = line.kind == ChatSync::LineKind::kPlayer;
-            const auto sender = fromPlayer && !line.outgoing ? line.player.session : 0;
+            const auto sender = !line.outgoing ? line.player.session : 0;
             const bool muted = sender != 0 && PlayerFilters::IsMuted(sender);
-            const bool whisperable = fromPlayer && !line.player.name.empty()
+            const bool whisperable = !line.player.name.empty()
                 && (line.channel == Multiplayer::ChatChannel::kWhisper || !line.outgoing);
-            lines.push_back(Line{ .kind = line.kind,
-                .channel = line.channel,
-                .label = fromPlayer ? std::move(line.sender) + ":" : std::string{},
+            lines.push_back(Line{ .channel = line.channel,
+                .label = std::move(line.sender) + ":",
                 .text = std::move(line.text),
                 .player = whisperable ? std::move(line.player) : Multiplayer::RosterEntry{},
                 .sender = sender,
                 .muted = muted,
                 .receivedAt = a_now });
-            if (fromPlayer && line.outgoing)
+            if (line.outgoing)
             {
                 SetShown(line.channel, true);
             }
-            if (fromPlayer && !muted && !(a_open && Shows(line.channel)))
+            if (!muted && !(a_open && Shows(line.channel)))
             {
                 unread[static_cast<std::size_t>(line.channel)] = true;
             }
@@ -196,14 +181,13 @@ namespace UI
         incoming.clear();
     }
 
-    void ChatHistory::Evict(std::size_t a_kind)
+    void ChatHistory::Evict(Multiplayer::ChatChannel a_channel)
     {
-        const auto oldest = std::ranges::find_if(
-            lines, [a_kind](const Line& a_line) { return GetKind(a_line.kind, a_line.channel) == a_kind; });
+        const auto oldest = std::ranges::find(lines, a_channel, &Line::channel);
         if (oldest != lines.end())
         {
             lines.erase(oldest);
-            --counts[a_kind];
+            --counts[static_cast<std::size_t>(a_channel)];
         }
     }
 
@@ -224,7 +208,7 @@ namespace UI
 
     bool ChatHistory::Shows(const Line& a_line) const
     {
-        return a_line.kind == ChatSync::LineKind::kNotice || (Shows(a_line.channel) && !a_line.muted);
+        return Shows(a_line.channel) && !a_line.muted;
     }
 
     float ChatHistory::GetLinePitch()
@@ -320,27 +304,20 @@ namespace UI
                         continue;
                     }
                     ImGui::BeginGroup();
-                    if (line.kind == ChatSync::LineKind::kPlayer)
+                    DrawLabel(line.label, ChatStyle::GetChannelColor(line.channel));
+                    if (line.player.playerID != 0 && ImGui::IsItemHovered(kHover))
                     {
-                        DrawLabel(line.label, ChatStyle::GetChannelColor(line.channel));
-                        if (line.player.playerID != 0 && ImGui::IsItemHovered(kHover))
+                        const auto min = ImGui::GetItemRectMin();
+                        const auto max = ImGui::GetItemRectMax();
+                        drawList->AddRectFilled(ImVec2{ min.x, max.y - 1.0F }, max,
+                            ImGui::GetColorU32(ChatStyle::GetChannelColor(line.channel)));
+                        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                         {
-                            const auto min = ImGui::GetItemRectMin();
-                            const auto max = ImGui::GetItemRectMax();
-                            drawList->AddRectFilled(ImVec2{ min.x, max.y - 1.0F }, max,
-                                ImGui::GetColorU32(ChatStyle::GetChannelColor(line.channel)));
-                            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-                            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-                            {
-                                picked = line.player;
-                            }
+                            picked = line.player;
                         }
-                        DrawAfterLabel(line.text, textColor);
                     }
-                    else
-                    {
-                        DrawWrapped(line.text, ChatStyle::kNoticeColor);
-                    }
+                    DrawAfterLabel(line.text, textColor);
                     ImGui::EndGroup();
                     if (line.player.playerID != 0 && ImGui::IsItemHovered(kHover)
                         && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
@@ -440,15 +417,8 @@ namespace UI
         {
             const auto& line = *recent[index];
             const auto alpha = GetRecentAlpha(line.receivedAt, a_now);
-            if (line.kind == ChatSync::LineKind::kPlayer)
-            {
-                DrawLabel(line.label, ChatStyle::WithAlpha(ChatStyle::GetChannelColor(line.channel), alpha));
-                DrawAfterLabel(line.text, ChatStyle::WithAlpha(textColor, alpha));
-            }
-            else
-            {
-                DrawWrapped(line.text, ChatStyle::WithAlpha(ChatStyle::kNoticeColor, alpha));
-            }
+            DrawLabel(line.label, ChatStyle::WithAlpha(ChatStyle::GetChannelColor(line.channel), alpha));
+            DrawAfterLabel(line.text, ChatStyle::WithAlpha(textColor, alpha));
         }
         ImGui::PopStyleVar();
     }

@@ -34,6 +34,13 @@ namespace ChatSync
             kStayOpen
         };
 
+        struct Note
+        {
+            std::string text;
+            std::string detail;
+            bool failure{ false };
+        };
+
         [[nodiscard]] const ChatTarget& GetTarget() const { return target; }
         void SetTarget(const ChatTarget& a_target);
         void CycleTarget(int a_direction);
@@ -54,6 +61,10 @@ namespace ChatSync
         bool RecallNext(std::string& a_draft);
         void StopRecalling() { recalled = sent.size(); }
 
+        [[nodiscard]] std::span<const Note> GetNotes() const { return notes; }
+        void Fail(std::string a_text);
+        void ClearNotes() { notes.clear(); }
+
     private:
         struct Sent
         {
@@ -66,6 +77,9 @@ namespace ChatSync
         void ClearListing();
         void Reply();
         void Remember(std::string_view a_text);
+        void Inform(std::string a_text, std::string a_detail = {});
+        void ShowHelp();
+        void ShowPlayerCount();
 
         ChatTarget target;
         Multiplayer::ChatChannel previousChannel{ Multiplayer::ChatChannel::kLocal };
@@ -75,6 +89,8 @@ namespace ChatSync
         std::size_t selection{ 0 };
         bool dismissed{ false };
         std::vector<Multiplayer::RosterEntry> players;
+
+        std::vector<Note> notes;
 
         std::deque<Sent> sent;
         std::size_t recalled{ 0 };

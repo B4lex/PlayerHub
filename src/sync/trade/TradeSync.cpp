@@ -1,11 +1,9 @@
 #include "sync/trade/TradeSync.h"
-#include "config/PluginConfig.h"
-#include "config/SettingsSchema.h"
 #include "forms/FormLookup.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
-#include "sync/chat/ChatSync.h"
 #include "sync/filters/PlayerFilters.h"
+#include "sync/notices/Notices.h"
 #include "sync/trade/TradeInventory.h"
 
 #include <algorithm>
@@ -109,12 +107,6 @@ namespace TradeSync
             return s_session.GetPeer().name;
         }
 
-        std::string KeyName(std::uint32_t a_scanCode)
-        {
-            const auto name = Config::FormatKey(a_scanCode);
-            return name.empty() ? std::string{ "?" } : std::string{ name };
-        }
-
         const char* DescribeBlock(Forms::OfferBlock a_block)
         {
             switch (a_block)
@@ -157,11 +149,6 @@ namespace TradeSync
             }
             return std::accumulate(std::next(a_names.begin()), a_names.end(), a_names.front(),
                 [](std::string a_left, const std::string& a_right) { return std::move(a_left) + ", " + a_right; });
-        }
-
-        std::string FormatCount(std::string a_name, std::uint32_t a_count)
-        {
-            return a_count > 1 ? std::format("{} ({})", a_name, a_count) : a_name;
         }
 
         void ClearTrade()
@@ -217,11 +204,6 @@ namespace TradeSync
             const std::scoped_lock lock{ s_viewLock };
             s_view = std::move(view);
             ++s_viewRevision;
-        }
-
-        void Notice(std::string a_text)
-        {
-            ChatSync::AddNotice(std::move(a_text));
         }
 
         void CaptureInventory(RE::PlayerCharacter& a_player)
@@ -293,7 +275,7 @@ namespace TradeSync
             {
                 if (offer.size() >= Multiplayer::kMaximumTradeItems)
                 {
-                    Notice(std::format("An offer holds at most {} items.", Multiplayer::kMaximumTradeItems));
+                    Notices::Post(std::format("An offer holds at most {} items.", Multiplayer::kMaximumTradeItems));
                     return;
                 }
                 offer.push_back(OfferLine{ .row = a_command.row, .count = count });
@@ -304,7 +286,7 @@ namespace TradeSync
                 });
             if (bytes > Multiplayer::kMaximumTradeOfferBytes)
             {
-                Notice("Your offer is full; these items carry too much data to send together.");
+                Notices::Post("Your offer is full; these items carry too much data to send together.");
                 return;
             }
             s_offer = std::move(offer);
@@ -329,7 +311,7 @@ namespace TradeSync
             {
                 return true;
             }
-            Notice("You no longer have " + FormatItems(missing) + "; the trade shows what you hold now.");
+            Notices::Post("You no longer have " + FormatItems(missing) + "; the trade shows what you hold now.");
             CaptureInventory(a_player);
             s_session.SetOwnItems({});
             return false;
@@ -351,14 +333,14 @@ namespace TradeSync
             }
             if (!a_notice.empty())
             {
-                Notice(std::string{ a_notice });
+                Notices::Post(std::string{ a_notice });
             }
             ClearTrade();
         }
 
         void ApplyCommit(RE::PlayerCharacter& a_player, const TradeSession::Commit& a_commit, std::string_view a_peer)
         {
-            std::vector<std::string> given;
+            std::size_t given = 0;
             for (const auto& item : a_commit.given)
             {
                 auto* object = FormLookup::ResolveForm<RE::TESBoundObject>(item.item);
@@ -371,10 +353,10 @@ namespace TradeSync
                 }
                 if (removed > 0)
                 {
-                    given.push_back(FormatCount(name, removed));
+                    ++given;
                 }
             }
-            std::vector<std::string> received;
+            std::size_t received = 0;
             for (const auto& item : a_commit.received)
             {
                 // Resolved again: the forms resolved at the offer are not kept across passes.
@@ -394,13 +376,11 @@ namespace TradeSync
                 }
                 if (added > 0)
                 {
-                    received.push_back(FormatCount(name, added));
+                    ++received;
                 }
             }
-            logs::info("Trade with {} completed: gave {} entries, received {} entries", a_peer, given.size(),
-                received.size());
-            Notice(std::format("You traded with {}. Gave: {}. Received: {}.", a_peer, FormatItems(given),
-                FormatItems(received)));
+            logs::info("Trade with {} completed: gave {} entries, received {} entries", a_peer, given, received);
+            Notices::Post("You successfully traded.");
         }
 
         void ReportPeerOffer()
@@ -445,34 +425,34 @@ namespace TradeSync
             switch (a_result.reason)
             {
                 case TradeCloseReason::kBusy:
-                    Notice(a_peer + " is busy with another trade.");
+                    Notices::Post(a_peer + " is busy with another trade.");
                     break;
                 case TradeCloseReason::kUnavailable:
-                    Notice(a_peer + " cannot trade right now.");
+                    Notices::Post(a_peer + " cannot trade right now.");
                     break;
                 case TradeCloseReason::kOutOfRange:
-                    Notice(requested ? a_peer + " is too far away to trade."
-                                     : "The trade with " + a_peer + " ended: you are too far apart.");
+                    Notices::Post(requested ? a_peer + " is too far away to trade."
+                                            : "The trade with " + a_peer + " ended: you are too far apart.");
                     break;
                 case TradeCloseReason::kDeclined:
-                    Notice(a_peer + " declined your trade offer.");
+                    Notices::Post(a_peer + " declined your trade offer.");
                     break;
                 case TradeCloseReason::kExpired:
-                    Notice(inviting ? a_peer + " did not answer your trade offer."
-                                    : "The trade offer from " + a_peer + " expired.");
+                    Notices::Post(inviting ? a_peer + " did not answer your trade offer."
+                                           : "The trade offer from " + a_peer + " expired.");
                     break;
                 case TradeCloseReason::kCombat:
-                    Notice("The trade with " + a_peer + " ended: they are in combat.");
+                    Notices::Post("The trade with " + a_peer + " ended: they are in combat.");
                     break;
                 case TradeCloseReason::kMenu:
                 case TradeCloseReason::kCancelled:
-                    Notice(invited ? a_peer + " withdrew the trade offer." : a_peer + " cancelled the trade.");
+                    Notices::Post(invited ? a_peer + " withdrew the trade offer." : a_peer + " cancelled the trade.");
                     break;
                 case TradeCloseReason::kDisconnected:
-                    Notice(a_peer + " left; the trade ended.");
+                    Notices::Post(a_peer + " left; the trade ended.");
                     break;
                 case TradeCloseReason::kFailed:
-                    Notice("The trade with " + a_peer + " could not open.");
+                    Notices::Post("The trade with " + a_peer + " could not open.");
                     break;
             }
         }
@@ -488,7 +468,6 @@ namespace TradeSync
                     return;
                 case TradeSession::Outcome::kInviteSent:
                     logs::info("Trade {} offered to {}", s_session.GetID(), PeerName());
-                    Notice("You offered to trade with " + PeerName() + ".");
                     break;
                 case TradeSession::Outcome::kInvited:
                 {
@@ -500,10 +479,7 @@ namespace TradeSync
                         ClearTrade();
                         return;
                     }
-                    const auto config = Config::Get();
                     logs::info("Trade {} offered by {}", s_session.GetID(), sender.name);
-                    Notice(std::format("{} wants to trade. Press {} to accept or {} to decline.", sender.name,
-                        KeyName(config->ui.tradeAcceptKey), KeyName(config->ui.tradeDeclineKey)));
                     break;
                 }
                 case TradeSession::Outcome::kOpened:
@@ -546,17 +522,17 @@ namespace TradeSync
                 case Command::Kind::kRequest:
                     if (phase != Phase::kIdle)
                     {
-                        Notice("Finish your current trade first.");
+                        Notices::Post("Finish your current trade first.");
                         return;
                     }
                     if (!a_inWorld || a_player.IsInCombat())
                     {
-                        Notice("You cannot trade in combat or away from the world.");
+                        Notices::Post("You cannot trade in combat or away from the world.");
                         return;
                     }
                     if (!Network::PublishTradeRequest(a_command.player.playerID))
                     {
-                        Notice("Not connected to the server.");
+                        Notices::Post("Not connected to the server.");
                         return;
                     }
                     s_session.BeginRequest(a_command.player);
@@ -574,7 +550,7 @@ namespace TradeSync
                     }
                     if (!a_inWorld || a_player.IsInCombat())
                     {
-                        Notice("You cannot trade in combat or away from the world.");
+                        Notices::Post("You cannot trade in combat or away from the world.");
                         return;
                     }
                     Network::PublishTradeAnswer(s_session.GetID(), true);
@@ -680,7 +656,7 @@ namespace TradeSync
         if (lost && s_session.IsActive())
         {
             logs::info("Trade with {} ended with the connection", PeerName());
-            Notice("The trade with " + PeerName() + " ended: the connection to the server was lost.");
+            Notices::Post("The trade with " + PeerName() + " ended: the connection to the server was lost.");
             ClearTrade();
             s_events.clear();
         }

@@ -2,21 +2,15 @@
 
 #include "protocol/ChatMessage.h"
 
+#include <expected>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace ChatSync
 {
-    enum class LineKind
-    {
-        kPlayer,
-        kNotice
-    };
-
     struct ChatLine
     {
-        LineKind kind{ LineKind::kPlayer };
         Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kGlobal };
         std::string sender;
         std::string text;
@@ -37,9 +31,10 @@ namespace ChatSync
         }
     };
 
-    bool Send(const ChatTarget& a_target, std::string_view a_text);
-
-    void AddNotice(std::string a_text);
+    std::expected<void, std::string> Send(const ChatTarget& a_target, std::string_view a_text);
 
     void DrainLines(std::vector<ChatLine>& a_lines);
+
+    // The server's rejections of messages already sent.
+    void DrainRejections(std::vector<std::string>& a_rejections);
 }

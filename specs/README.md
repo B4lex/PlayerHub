@@ -18,7 +18,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
 | [trade.md](trade.md) | Item exchange between two players: invitation, offers, reports, acceptance, commit, cancelling; the only change a peer makes to the local world | `sync/trade/`, `forms/ItemInstance`, `protocol/TradeState.h`, `server/internal/hub/trade.go` |
 | [configuration.md](configuration.md) | `playerhub.ini`, schema, snapshots, saving | `src/config/` |
-| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, fonts, theme, menu frame, logo, status panel, chat, friends, mute and vanish, player menu, player menu in the world, settings window, item picker and preview | `src/ui/`, `sync/chat/`, `sync/filters/`, `assets/` |
+| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, fonts, theme, menu frame, logo, status panel, notices, chat, friends, mute and vanish, player menu, player menu in the world, settings window, item picker and preview | `src/ui/`, `sync/chat/`, `sync/filters/`, `sync/notices/`, `assets/` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `server/admin-ui/` |
 
 ## Features
@@ -48,6 +48,7 @@ criteria.
 | Player cap and join limits | [network](network.md#admission), [ui-overlay](ui-overlay.md#connection-controls) |
 | Proximity, exclusions, late join, peer enter and leave, batching | [interest-and-delivery](interest-and-delivery.md), [network](network.md#server-messages), [sync-pipeline](sync-pipeline.md#receive-state) |
 | Chat | [ui-overlay](ui-overlay.md#chat), [network](network.md#chat) |
+| Notices (toasts on the right) and chat notes | [ui-overlay](ui-overlay.md#notices), [ui-overlay](ui-overlay.md#notes), [trade](trade.md#notices) |
 | Players online list | [ui-overlay](ui-overlay.md#player-list), [network](network.md#roster) |
 | Friends | [ui-overlay](ui-overlay.md#friends), [network](network.md#player-filters) |
 | Mute and vanish | [ui-overlay](ui-overlay.md#mute-and-vanish), [network](network.md#vanish), [interest-and-delivery](interest-and-delivery.md#subscriptions) |

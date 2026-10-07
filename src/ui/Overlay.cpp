@@ -6,6 +6,7 @@
 #include "ui/WindowManager.h"
 #include "ui/chat/ChatWindow.h"
 #include "ui/chat/WorldPlayerMenu.h"
+#include "ui/hud/NoticeStack.h"
 #include "ui/hud/StatusPanel.h"
 #include "ui/preview/ItemPreview.h"
 #include "ui/settings/SettingsWindow.h"
@@ -189,6 +190,7 @@ namespace UI::Overlay
         }
 
         WindowManager::Register(CreateStatusPanel());
+        WindowManager::Register(CreateNoticeStack());
         WindowManager::Register(CreateChatWindow());
         WindowManager::Register(CreateWorldPlayerMenu());
         WindowManager::Register(CreateTradePrompt());

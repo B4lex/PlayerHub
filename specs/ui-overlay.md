@@ -20,6 +20,22 @@
   typed into the chat, and each sees an unfocused key once; a later plugin
   that swallows input still does; the ninth detour is refused with one
   warning.
+- **Notices and notes:** not built on Windows or run in game. On Linux, the
+  changed `sync/` and `ui/` files passed a g++ 16 syntax check against
+  CommonLibSSE-NG, and `NoticeStack.cpp`, `Notices.cpp`, `ChatComposer.cpp`,
+  `ChatDraft.cpp`, `ChatInput.cpp`, and `Theme.cpp` ran in a headless Dear
+  ImGui 1.92.9 context with stubbed roster, filters, and sending, without
+  the themed fonts or the frame (47 checks): a fifth notice dropping the
+  oldest, a friend's arrival, a repeat shown as a toast of its own, the
+  strip in the accent, 5 s for a short
+  notice and 8.9 s for the 105-character save failure, half alpha halfway
+  through the fade, nothing drawn once expired or outside a game, the
+  stack's right edge and top where this spec puts them; `/who`, `/help`,
+  an unknown command, a failed send keeping its text, an edit, a recalled
+  line, and Tab clearing the notes; the panel ending one item spacing above
+  the field and as tall as its wrapped rows, and gone after `OnOpened`.
+  The rasterized stack and panels were looked at. `ChatWindow`'s routing of
+  rejections ran only through the syntax check.
 - **Chat:** not built on Windows or run in game. Server unit tests cover
   routing, the roster, and whisper addressing ([Network](network.md#status)).
   On Linux, with g++ 16 and a logging stub:
@@ -31,8 +47,9 @@
     only when no longer name continues it; `/r`, `/who`, `/help`, an unknown
     command; Tab order with and without partners; a partner under another
     slot found by name and one who left reported offline; sent lines recalled
-    with their targets; the notices for a player who left, text that cannot
-    be sent, no connection, and the server's `unknown recipient`.
+    with their targets; the messages for a player who left, text that cannot
+    be sent, no connection, and the server's `unknown recipient`, checked
+    when they were chat lines (see **Notices and notes** for what ran since).
   - `ChatWindow.cpp`, `ChatHistory.cpp`, and `ChatInput.cpp` ran with those,
     `Theme.cpp`, `MenuFrame.cpp`, and `Fonts.cpp` in a headless Dear ImGui
     1.92.9 context against a folder laid out as the deploy step leaves it,
@@ -43,8 +60,7 @@
     text kept and discarded; the command list; Up and Down; each filter
     turning its channel off and on by itself, in the open chat and among the
     closed chat's lines, with the send target unchanged; the unread dots; a
-    target and the player's own line turning a channel back on; every filter
-    off leaving the notices; a click on a sender's name; the chip's menu; a
+    target and the player's own line turning a channel back on; a click on a sender's name; the chip's menu; a
     line's menu; a click outside; a whisper to a player who
     left; scrolling by the wheel while the cursor is hidden and a line
     arriving while scrolled back; the closed chat's lines with every channel
@@ -407,7 +423,8 @@
 
 ## Scope
 
-The plugin's own UI layer: a status panel, chat, the settings window, the
+The plugin's own UI layer: a status panel, [notices](#notices), chat, the
+settings window, the
 [trade window and prompt](#trade-window), and the reusable item picker with a
 3D preview. `ui/` never changes the game; it reaches
 the network only through the feature modules it presents, such as `ChatSync`,
@@ -437,12 +454,13 @@ src/ui/
   InputCapture.h/.cpp         # input dispatch hook: focus keys, routing to ImGui
   Layout.h                    # placement helpers (screen corners)
   hud/StatusPanel             # connection, ping, traffic, plugin time
+  hud/NoticeStack             # notices on the right edge, friends coming online
   chat/ChatWindow             # open and closed chat, focus, the send target's channel kept shown
   chat/ChatHistory            # lines, channel filters, unread marks, scrolling, the line menu
-  chat/ChatInput              # target chip and its menu, text field, name and command list
+  chat/ChatInput              # target chip and its menu, text field, name and command list, notes
   chat/ChatSize               # the open chat's size, the drag that sets it, saving it
   chat/ChatPlayers            # the players online: the button on the filters' row, the list beside the chat
-  chat/ChatStyle.h            # channel and notice colors, the chips' frame, the rule under the filters
+  chat/ChatStyle.h            # channel and failure colors, the chips' frame, the rule under the filters
   chat/ChatPlayerMenu         # a player's menu: heading, Whisper, Trade, Add friend, Mute and Vanish or their undoing
   chat/ChatPlayerManager      # Manage players: Friends, Muted, and Vanished tabs over the chat
   chat/WorldPlayerMenu        # a player's menu at the crosshair, opened by activating its character
@@ -453,10 +471,11 @@ src/ui/
   widgets/Controls            # switch, accent and red buttons, icon buttons
   widgets/ItemPicker          # item dropdown
   preview/ItemPreview         # 3D item capture
-src/sync/chat/ChatSync        # send to a target, rejections as notices, lines to display
+src/sync/chat/ChatSync        # send to a target and why it failed, the server's rejections, lines to display
 src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners, the list's copy
 src/sync/chat/ChatDraft       # syntax of prefixes and commands
-src/sync/chat/ChatComposer    # send target, name and command list, sent lines
+src/sync/chat/ChatComposer    # send target, name and command list, notes, sent lines
+src/sync/notices/Notices      # the notices queue any feature posts to
 src/sync/filters/PlayerFilters # friends, muted and vanished players of the current server, publishing, friends coming online
 src/sync/chat/PlayerActivation # the activated player, and a whisper picked in its menu
 src/runtime/PluginTime        # plugin time per pass
@@ -817,6 +836,40 @@ and a new window starts, so the number changes once per second. It is always
 compiled in and costs two clock reads per hook call. Detailed profiling uses
 Tracy (`xmake f --tracy=y`, `runtime/Profiling.h`).
 
+## Notices
+
+Goal: tell the player what happened outside the chat's input, such as a
+friend connecting or a trade ending, briefly and without filling the chat.
+Non-goals: a log of past notices, notices in the chat's lines, and an
+action on a notice. What answers the chat's own input is a
+[note](#notes) instead.
+
+- `Notices` (`sync/notices/`) is a queue of sentences any thread posts to
+  with `Notices::Post`. It keeps
+  the 32 newest, so it stays small where no overlay drains it, as in VR. Its
+  posters are [trade](trade.md#notices), [mute and vanish](#mute-and-vanish),
+  and `ChatWindow` for a server's rejection while the chat is closed
+  ([Sending](#sending)).
+- `NoticeStack` (`ui/hud/`) drains it every frame, with
+  `PlayerFilters::CollectArrivedFriends` for `<name> is online.`
+  ([Friends](#friends)), and keeps at most 4: a fifth drops the oldest.
+  Every notice is its own toast, a repeat too: the user chose not to merge
+  them into one with a count.
+- A notice shows for 2 s plus its length at 15 characters a second, at least
+  5 s and at most 10, and fades over its last second, timed by
+  `ImGui::GetTime`. Notices keep their time while none is drawn, outside a
+  game (`GameSession::IsInGame`); in a game they show in menus too.
+- They stack on the right edge, the first one's top at 40% of the screen
+  height, the oldest on top, 0.375 font sizes apart, each right-aligned
+  0.75 font sizes from the edge, like the chat from the left. Each is a box
+  with the theme's surface at 85% and its corners, its text in the theme's
+  text and face, wrapped at 22 font sizes less the padding, and a strip in
+  the accent on its left edge. Notices have no kinds: the user chose the
+  accent for all over a color per success, warning, and info.
+- They are drawn in a `Theme::Scope` on Dear ImGui's background draw list,
+  under every window, so they take no input and never cover a window the
+  player uses; a window over them hides them.
+
 ## Chat
 
 Players talk in plain text on three channels. Chat is presentation only. The
@@ -868,8 +921,9 @@ the name cut at 12 font sizes. The empty field reads
   comparing command names without case, and `Composer::OnEdited` applies it
   after every edit, so the chip is always where Enter sends. Removing one can
   uncover another, as in `/g @name`, which is applied in the same edit.
-- `/who` adds a notice with the number of connected players and `/help` one
-  line per command. An unknown command is a notice on Enter and is not sent,
+- `/who` shows a [note](#notes) with the number of connected players and
+  `/help` one with the prefixes and a row per command, its description in the
+  muted color. An unknown command is a failure note on Enter and is not sent,
   so text that starts with `/` never is.
 - `ChatRoster` keeps the whisper partners, at most 8, moved to the front by
   every whisper sent or received except one to oneself, and compared by name
@@ -898,7 +952,7 @@ connected players whose names start with what follows, at most 8.
   `ChatRoster::FindAddressee` takes the longest name followed by a space or
   the end.
 - With nobody matching, the list is one row, `No player with that name is
-  online`, and Enter adds that notice and keeps the text.
+  online`, and Enter shows that as a failure note and keeps the text.
 - While the text is `/` and letters, the same list offers the commands whose
   names start with them, each with its description; accepting one applies it.
 
@@ -918,33 +972,52 @@ connected players whose names start with what follows, at most 8.
   recipient's slot for a whisper, and a request ID.
 - A whisper resolves its player with `ChatRoster::Resolve`: the slot while
   that connection lasts, otherwise the connection that has the name now.
-- When nothing was handed to the server, the chat stays open with the text
-  and the target, and a notice says why: `<name> is offline.`,
+- When nothing was handed to the server, `ChatSync::Send` returns why, and
+  the chat stays open with the text and the target and a failure note:
+  `<name> is offline.`,
   `Not connected to the server; your message was not sent.`, or
   `Your message contains characters that cannot be sent.`
-- A rejecting `Result` runs its callback on the transport thread, and each
-  server rejection (`rate limited`, `not in world`, `unknown recipient`)
-  becomes a notice.
+- A rejecting `Result` runs its callback on the transport thread, which
+  queues each server rejection (`rate limited`, `not in world`,
+  `unknown recipient`) as a sentence. `ChatWindow` takes them every frame: a
+  failure note while the chat is open, otherwise, as after Enter closed it, a
+  [notice](#notices).
 - Up and Down in the field, while no list shows, step through the last 50
   lines sent in this game session, consecutive repeats kept once. A recalled
   line restores its target. Down past the newest returns the text and target
   that were being written.
 
+### Notes
+
+What the chat answers to the player's own input is a note above the field,
+never a line, so the history holds only what players said.
+
+- `Composer` keeps the notes (`Composer::Note`: text, an optional muted
+  detail, and whether it is a failure) and replaces them on every command or
+  send. Any edit, a recalled line, a new target, Backspace leaving a whisper,
+  and opening the chat clear them; the field's text is kept.
+- `ChatInput::DrawNotes` draws them where the name and command list would be,
+  which hides them while it shows: a child window as wide as the field with
+  the popup's opaque background and border, as tall as its rows, ending one
+  item spacing above the field. A note with a detail is one row; one without
+  wraps. Failures are `ChatStyle::kFailureColor` (orange-red), the rest the
+  theme's text. The panel takes no input.
+
 ### Lines and filters
 
-- `ChatSync::DrainLines` returns received messages and notices. A line carries
+- `ChatSync::DrainLines` returns received messages. A line carries
   its label and the other player: the sender, or the recipient of the local
   player's own whisper, whose label reads `To <recipient>`, where a received
   one reads `From <sender>`. Senders are shown as a player label
   ([Appearance and equipment](appearance-and-equipment.md#player-label)).
-- `ChatHistory` keeps the latest 100 lines of each channel and 100 notices,
+- `ChatHistory` keeps the latest 100 lines of each channel,
   each stamped with `ImGui::GetTime()` when it arrived, so a busy channel only
   pushes out its own lines.
 - A row above the lines has a filter for each channel: `Global`, `Local`, and
   `Whispers`. Each is a toggle of its own: a click turns its channel's lines
   off or on, in the open chat and among the closed chat's lines, and changes
-  no other filter. All are on at first and any number may be off; notices
-  show regardless. `ChatHistory` keeps collecting the lines of a channel that
+  no other filter. All are on at first and any number may be off.
+  `ChatHistory` keeps collecting the lines of a channel that
   is off, so turning it on shows what arrived meanwhile.
 - A filter is drawn as a chip, so it reads as a switch: its label inside an
   outline with the field's corners, a sixteenth of the font size and at
@@ -966,10 +1039,9 @@ connected players whose names start with what follows, at most 8.
   lines of its channel arrived that the open chat has not shown.
 - A line's label, everything up to and with its colon, takes the channel's
   color and the heading face ([Themed faces](#themed-faces)). Text is the
-  theme's, in the text face, and notices are orange. Under the cursor a label is underlined; a right click on a line with
+  theme's, in the text face. Under the cursor a label is underlined; a right click on a line with
   another player, its sender or the recipient of one's own whisper, opens
-  its [player menu](#player-menu). One's own other lines and notices have
-  no menu.
+  its [player menu](#player-menu). One's own other lines have no menu.
 - A line wider than the chat wraps at words. Its text starts beside its label
   and continues from the chat's left edge under the label, not from where the
   text started, so a long name does not narrow every row (`DrawAfterLabel` in
@@ -983,7 +1055,7 @@ connected players whose names start with what follows, at most 8.
   a whole row, such as an address or text without spaces, fits no row, so it
   starts where the text before it ends, beside the label too, and is cut at
   each row's end by character (`ImFont::CalcTextSizeA`), leaving no row
-  short. Notices have no label and wrap as Dear ImGui does.
+  short.
 
 ### Player list
 
@@ -1145,7 +1217,7 @@ connected players whose names start with what follows, at most 8.
   column when the chat opens.
 - The open chat and the recent lines are each drawn in a `Theme::Scope`
   ([Theme](#theme)), so the chat has no colors or sizes of its own beyond
-  `ChatStyle`'s channel and notice colors: the field is the theme's white
+  `ChatStyle`'s channel and failure colors: the field is the theme's white
   tint with 6 px corners, the scrollbar its thin grab, the chip's and a
   line's menus its opaque popups with the accent border, and their hovered
   and selected rows the accent. The name and command list is a child window
@@ -1188,12 +1260,12 @@ covers chat), and admin moderation.
   revision, the sum of its own change count and the generation, tells
   readers when to copy again; it is two atomic loads.
 - `SetMuted` and `SetVanished` change one flag and save the entry, without a
-  chat notice: the menu item, the list's marks, and the hidden lines or
+  [notice](#notices): the menu item, the list's marks, and the hidden lines or
   character already show the change. `SetVanished` then publishes it
   ([Network](network.md#vanish)). A player without a session cannot be
   either. At 1024 vanished players on a server another vanish is refused
-  with `You can vanish at most 1024 players on a server.` A failed save adds
-  a notice that the change lasts until the game exits.
+  with the notice `You can vanish at most 1024 players on a server.` A
+  failed save posts a notice that the change lasts until the game exits.
 - The [player menu](#player-menu) ends with a separator, `Mute` or `Unmute`,
   and `Vanish` or `Unvanish`, each with a tooltip saying
   what it does and that the player is not told. The local player
@@ -1202,7 +1274,7 @@ covers chat), and admin moderation.
   the open chat and the closed chat's recent lines, and what it said before
   the mute too; unmuting shows every line still held. `ChatHistory` keeps a
   `muted` flag per line from the sender's session (zero for the local
-  player's own lines and notices), set when a line arrives and recomputed
+  player's own lines), set when a line arrives and recomputed
   for all lines only when `PlayerFilters`' revision changes. A muted line
   marks no filter unread. A muted player's whisper does not become a whisper
   partner or `/r` (`ChatSync::DrainLines`).
@@ -1269,7 +1341,7 @@ listed, offline ones included, and undone.
 Goal: a player can keep other players to find again: added from a
 [player menu](#player-menu), listed with whether they are online in
 [Manage players](#manage-players), kept across games on the same server,
-and announced in the chat when they connect. Friendship is one way: the
+and announced by a [notice](#notices) when they connect. Friendship is one way: the
 player is not told and need not add back. Non-goals: requests or mutual
 friendship, a mark for friends in the player list or chat lines (the
 user's choice: only the menu and the tab show it), a notice when a friend
@@ -1277,19 +1349,19 @@ leaves, friends across servers (a session ID names a player on one server),
 and a limit, since nothing about friends is sent.
 
 - `SetFriend` sets `friended` and saves the entry as `SetMuted` does,
-  without a chat notice. A friend may also be muted or vanished; removing
+  without a notice. A friend may also be muted or vanished; removing
   the last of the three drops the entry.
 - The [player menu](#player-menu) has `Add friend` or `Remove friend` right
   after `Whisper`, with a tooltip on what it does. The local player and a
   player without a session get neither, as for mute and vanish.
-- `PlayerFilters::CollectArrivedFriends`, called by `ChatSync::DrainLines`
-  each time the chat collects lines, copies the roster only when its
+- `PlayerFilters::CollectArrivedFriends`, called by the
+  [notice stack](#notices) every frame, copies the roster only when its
   revision changes (`Network::CopyRosterIfChanged`) and keeps the sorted
   session IDs of the previous copy. A roster without the local player,
   before a connection's first `Roster` or after a disconnect, clears them.
   The first roster with a new local slot is a connection's first and lists
   who was already online, so it announces nobody; after it, each friend
-  whose session was not in the previous copy adds the notice
+  whose session was not in the previous copy gets the notice
   `<name> is online.` A muted or vanished friend is announced too. A friend
   who leaves and comes back between two copies is not announced; one who
   reconnects later is announced again.
@@ -1739,7 +1811,8 @@ or zoomed.
    an empty field does nothing; Escape closes without sending and does not
    open the journal; a menu that opens by itself closes the chat; recent lines
    fade after 10 s; the wheel and Page Up/Down scroll; sending while disconnected
-   shows a notice and keeps the chat open with the text.
+   shows a failure note above the field and keeps the chat open with the
+   text, and typing clears the note.
 3. The chip reads `Local` at first, and `hi` reaches players within 8192 units
    or in the same interior with a lime name, and not a player farther away.
    `!` as the first character turns the chip to `Global` and is not part of
@@ -1828,12 +1901,13 @@ or zoomed.
     recipient in violet. Enter, text, Enter whispers the same player again.
     `/r` after a received whisper targets its sender, and Backspace in the
     empty field returns to the channel before. A name nobody has shows one row
-    saying so. Once the player disconnects, a line adds
+    saying so. Once the player disconnects, a note above the field reads
     `Ulf Stone is offline.` and the chat stays open with the text.
 12. Up in the field recalls the last sent line with its target, and Down
     returns the text that was being written. `/` lists the commands; `/who`
-    shows the number of players online; `/dance` shows a notice and sends
-    nothing.
+    shows the number of players online above the field and `/help` the
+    commands, neither adding a chat line; `/dance` shows a failure note and
+    sends nothing. Closing and opening the chat clears a note.
 13. Moving the mouse in the open chat shows a cursor in the middle of the
     chat, and the character does not turn or attack. A click on another
     player's name turns the chip to that player; a right click on its line
@@ -1848,7 +1922,7 @@ or zoomed.
     whisper stays out of the closed chat too. A second click shows the
     channel again with the lines that arrived meanwhile. With `Global` off,
     typing `!` turns it on, and so does the player's own global line coming
-    back. With all three off only notices show.
+    back. With all three off no line shows.
 15. With the default accent the open chat has no blue and no square corners,
     at 1080p and 4K: the
     field is a faint rounded tint, the chip is rounded in its channel's
@@ -1907,8 +1981,8 @@ or zoomed.
 20. `Add friend` in another player's menu, from the chat, the player list,
     or the world, adds it to Friends with no notice, and the menu then
     offers `Remove friend`; the other player is told nothing. When that
-    player next connects, the chat shows `<name> is online.`, also while the
-    chat is closed; friends already online when this game connects are not
+    player next connects, a notice on the right reads `<name> is online.`,
+    with the chat open or closed, and the chat's lines do not; friends already online when this game connects are not
     announced. An offline friend shows its last name in Friends.
     A friend stays one after either game restarts, and muting or vanishing
     a friend keeps the friend.
@@ -1946,14 +2020,20 @@ or zoomed.
     connection back to the official server at once, and off again moves it
     to the kept URL.
 
-25. Activating a nearby player and picking `Trade` shows both players a
-    notice and the other the prompt at the top, which `Y` and `N` answer
+25. Activating a nearby player and picking `Trade` shows both players the
+    prompt at the top, which `Y` and `N` answer for the other player,
     without moving the character or opening a game menu. Accepting opens
     the trade window on both screens with the cursor, also over an open
     chat. A click offers a stack, the count field changes it, and the other
     window shows it within a moment; a modded item the other game lacks is
     amber in both with a tooltip naming the plugin. Escape, Cancel, and a
     message box or dialogue a script opens each close both windows.
+26. Notices stack on the right edge from 40% of the screen's height, at
+    1080p and 4K, each with a strip in the accent: `You successfully
+    traded.` after a trade, the other player's decline, a friend
+    connecting. Each fades after about 5 s, a long one later; the same
+    notice twice shows twice; a fifth pushes out the oldest. They show over the inventory and under the open chat or trade
+    window, and never add a chat line.
 
 ## Known limitations
 
@@ -1969,7 +2049,9 @@ or zoomed.
 - The accent follows a picker drag only on release, since each apply saves
   the file; the custom swatch shows the color meanwhile.
 
-- Lists, tooltips, and recent chat lines have no menu frame: its corners need
+- A window over the right edge, such as a wide trade window, hides the
+  notices under it; they keep their time meanwhile.
+- Lists, tooltips, notices, notes, and recent chat lines have no menu frame: its corners need
   about 65 px of height at 1080p at the default thickness. The settings window's
   resize grip and edge highlight and the chat's grips are not drawn, so only
   the cursor shows where each resizes.

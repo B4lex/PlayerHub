@@ -11,8 +11,8 @@ namespace ChatSync
 {
     namespace
     {
-        std::mutex s_noticesLock;
-        std::vector<ChatLine> s_notices;
+        std::mutex s_rejectionsLock;
+        std::vector<std::string> s_rejections;
 
         std::string DescribeRejection(std::string_view a_error)
         {
@@ -44,50 +44,43 @@ namespace ChatSync
         }
     }
 
-    bool Send(const ChatTarget& a_target, std::string_view a_text)
+    std::expected<void, std::string> Send(const ChatTarget& a_target, std::string_view a_text)
     {
         const auto text = Multiplayer::TrimChatText(a_text);
         if (text.empty())
         {
-            return true;
+            return {};
         }
         if (!Multiplayer::IsValidChatText(text))
         {
-            AddNotice("Your message contains characters that cannot be sent.");
-            return false;
+            return std::unexpected{ "Your message contains characters that cannot be sent." };
         }
         Multiplayer::PeerSlot recipient = 0;
         if (a_target.channel == Multiplayer::ChatChannel::kWhisper)
         {
             if (!Network::IsConnected())
             {
-                AddNotice("Not connected to the server; your message was not sent.");
-                return false;
+                return std::unexpected{ "Not connected to the server; your message was not sent." };
             }
             const auto player = ChatRoster::Resolve(a_target.player);
             if (!player)
             {
-                AddNotice(a_target.player.name + " is offline.");
-                return false;
+                return std::unexpected{ a_target.player.name + " is offline." };
             }
             recipient = player->playerID;
         }
-        if (!Network::PublishChatMessage(a_target.channel, recipient, text,
-                [](std::string_view a_error) { AddNotice(DescribeRejection(a_error)); }))
+        if (!Network::PublishChatMessage(a_target.channel, recipient, text, [](std::string_view a_error) {
+                auto rejection = DescribeRejection(a_error);
+                logs::debug("Chat rejected: {}", rejection);
+                const std::scoped_lock lock{ s_rejectionsLock };
+                s_rejections.push_back(std::move(rejection));
+            }))
         {
-            AddNotice("Not connected to the server; your message was not sent.");
-            return false;
+            return std::unexpected{ "Not connected to the server; your message was not sent." };
         }
         logs::debug("Chat sent: channel={} recipient={} bytes={}", static_cast<int>(a_target.channel), recipient,
             text.size());
-        return true;
-    }
-
-    void AddNotice(std::string a_text)
-    {
-        logs::debug("Chat notice: {}", a_text);
-        const std::scoped_lock lock{ s_noticesLock };
-        s_notices.push_back(ChatLine{ .kind = LineKind::kNotice, .text = std::move(a_text) });
+        return {};
     }
 
     void DrainLines(std::vector<ChatLine>& a_lines)
@@ -96,8 +89,7 @@ namespace ChatSync
         {
             const bool whisper = message.channel == Multiplayer::ChatChannel::kWhisper;
             const auto& other = whisper && message.outgoing ? message.recipient : message.sender;
-            ChatLine line{ .kind = LineKind::kPlayer,
-                .channel = message.channel,
+            ChatLine line{ .channel = message.channel,
                 .sender = FormatSender(message),
                 .text = std::move(message.text),
                 .player = { .playerID = other.playerID, .name = other.name, .session = other.session },
@@ -111,19 +103,15 @@ namespace ChatSync
             }
             a_lines.push_back(std::move(line));
         }
+    }
 
-        std::vector<Multiplayer::RosterEntry> friends;
-        PlayerFilters::CollectArrivedFriends(friends);
-        for (const auto& player : friends)
+    void DrainRejections(std::vector<std::string>& a_rejections)
+    {
+        const std::scoped_lock lock{ s_rejectionsLock };
+        for (auto& rejection : s_rejections)
         {
-            AddNotice(player.name + " is online.");
+            a_rejections.push_back(std::move(rejection));
         }
-
-        const std::scoped_lock lock{ s_noticesLock };
-        for (auto& notice : s_notices)
-        {
-            a_lines.push_back(std::move(notice));
-        }
-        s_notices.clear();
+        s_rejections.clear();
     }
 }

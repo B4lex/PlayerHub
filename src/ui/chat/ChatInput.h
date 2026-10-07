@@ -40,6 +40,7 @@ namespace UI
     private:
         static int OnFieldEvent(ImGuiInputTextCallbackData* a_data);
         void DrawChip(bool a_closeMenu);
+        void DrawNotes() const;
 
         ChatSync::Composer composer;
         std::string draft;

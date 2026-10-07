@@ -18,38 +18,11 @@ namespace ChatSync
         {
             return ChatTarget{ .channel = Multiplayer::ChatChannel::kWhisper, .player = a_player };
         }
-
-        void AddHelp()
-        {
-            AddNotice("! switches to Global and @name whispers. Tab steps through the channels.");
-            for (const auto& command : ChatDraft::GetCommands())
-            {
-                AddNotice(command.argument.empty()
-                              ? std::format("/{} - {}", command.name, command.description)
-                              : std::format("/{} {} - {}", command.name, command.argument, command.description));
-            }
-        }
-
-        void AddPlayerCount()
-        {
-            const auto count = ChatRoster::GetPlayerCount();
-            if (count == 0)
-            {
-                AddNotice("Not connected to the server.");
-            }
-            else if (count == 1)
-            {
-                AddNotice("You are the only player online.");
-            }
-            else
-            {
-                AddNotice(std::format("{} players online.", count));
-            }
-        }
     }
 
     void Composer::SetTarget(const ChatTarget& a_target)
     {
+        notes.clear();
         if (target.channel != Multiplayer::ChatChannel::kWhisper)
         {
             previousChannel = target.channel;
@@ -86,6 +59,7 @@ namespace ChatSync
             return false;
         }
         target = ChatTarget{ .channel = previousChannel };
+        notes.clear();
         return true;
     }
 
@@ -93,6 +67,7 @@ namespace ChatSync
     {
         dismissed = false;
         recalled = sent.size();
+        notes.clear();
         bool rewritten = false;
         for (;;)
         {
@@ -106,10 +81,10 @@ namespace ChatSync
                     Reply();
                     break;
                 case ChatDraft::Kind::kWho:
-                    AddPlayerCount();
+                    ShowPlayerCount();
                     break;
                 case ChatDraft::Kind::kHelp:
-                    AddHelp();
+                    ShowHelp();
                     break;
                 case ChatDraft::Kind::kWhisper:
                 {
@@ -146,6 +121,7 @@ namespace ChatSync
 
     Composer::SubmitResult Composer::Submit(std::string& a_draft)
     {
+        notes.clear();
         if (GetListing() != Listing::kNone && !suggestions.empty())
         {
             AcceptSuggestion(selection, a_draft);
@@ -158,8 +134,9 @@ namespace ChatSync
             case ChatDraft::Kind::kText:
             {
                 const auto text = Multiplayer::TrimChatText(typed.rest);
-                if (!Send(target, text))
+                if (const auto result = Send(target, text); !result)
                 {
+                    Fail(result.error());
                     return SubmitResult::kStayOpen;
                 }
                 Remember(text);
@@ -174,22 +151,22 @@ namespace ChatSync
                 Reply();
                 break;
             case ChatDraft::Kind::kWho:
-                AddPlayerCount();
+                ShowPlayerCount();
                 break;
             case ChatDraft::Kind::kHelp:
-                AddHelp();
+                ShowHelp();
                 break;
             case ChatDraft::Kind::kWhisper:
             {
                 if (typed.rest.empty())
                 {
-                    AddNotice("Type a player's name after @, then your message.");
+                    Fail("Type a player's name after @, then your message.");
                     return SubmitResult::kStayOpen;
                 }
                 const auto addressee = ChatRoster::FindAddressee(typed.rest);
                 if (!addressee)
                 {
-                    AddNotice("No player with that name is online.");
+                    Fail("No player with that name is online.");
                     return SubmitResult::kStayOpen;
                 }
                 SetTarget(Whisper(addressee->player));
@@ -198,7 +175,7 @@ namespace ChatSync
                 return a_draft.empty() ? SubmitResult::kStayOpen : Submit(a_draft);
             }
             default:
-                AddNotice(std::format("Unknown command /{}. Type /help for the list.", typed.rest));
+                Fail(std::format("Unknown command /{}. Type /help for the list.", typed.rest));
                 return SubmitResult::kStayOpen;
         }
         a_draft = std::string{ typed.rest };
@@ -318,7 +295,45 @@ namespace ChatSync
         }
         else
         {
-            AddNotice("Nobody has whispered you yet.");
+            Fail("Nobody has whispered you yet.");
+        }
+    }
+
+    void Composer::Fail(std::string a_text)
+    {
+        notes.push_back(Note{ .text = std::move(a_text), .failure = true });
+    }
+
+    void Composer::Inform(std::string a_text, std::string a_detail)
+    {
+        notes.push_back(Note{ .text = std::move(a_text), .detail = std::move(a_detail) });
+    }
+
+    void Composer::ShowHelp()
+    {
+        Inform("! switches to Global and @name whispers. Tab steps through the channels.");
+        for (const auto& command : ChatDraft::GetCommands())
+        {
+            Inform(command.argument.empty() ? std::format("/{}", command.name)
+                                            : std::format("/{} {}", command.name, command.argument),
+                std::string{ command.description });
+        }
+    }
+
+    void Composer::ShowPlayerCount()
+    {
+        const auto count = ChatRoster::GetPlayerCount();
+        if (count == 0)
+        {
+            Fail("Not connected to the server.");
+        }
+        else if (count == 1)
+        {
+            Inform("You are the only player online.");
+        }
+        else
+        {
+            Inform(std::format("{} players online.", count));
         }
     }
 

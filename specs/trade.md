@@ -41,6 +41,9 @@ Implemented 2026-10-06; not built on Windows and not run in game.
     `ServerClient.cpp`, and `SettingsSchema.cpp` passed a g++ syntax check
     against the CommonLibSSE-NG headers, whose own Windows layout assertions
     fail under g++ and were ignored. None of the engine calls ran.
+  - Since its outcomes became [notices](#notices), `TradeSync.cpp` passed
+    the syntax check again; no post ran. The stack that shows them ran in
+    the [UI overlay](ui-overlay.md#status)'s notices harness.
 
 ## Scope
 
@@ -87,7 +90,7 @@ The wire messages and their validation are in
 | `forms/ItemInstance` | An inventory stack to a `TradeItem` or the reason it cannot be offered; a `TradeItem` to local forms or a skip reason; rebuilding a player enchantment; putting extra data on a reference |
 | `sync/trade/TradeSession` | The state machine of one trade, without engine types: phases, the own offer and the revisions sent, the peer's offer, both reports, acceptances, and what a commit applies |
 | `sync/trade/TradeInventory` | The player's offerable inventory, how many of an item it holds, removing and adding items |
-| `sync/trade/TradeSync` | The game-thread stage: trade events and the overlay's commands, cancelling on combat or a hit, sending offers once edits are quiet, applying a commit, notices, and the `View` the overlay draws |
+| `sync/trade/TradeSync` | The game-thread stage: trade events and the overlay's commands, cancelling on combat or a hit, sending offers once edits are quiet, applying a commit, [notices](#notices), and the `View` the overlay draws |
 
 ## Phases
 
@@ -111,16 +114,17 @@ a request unanswered after 10 s, as for a lost message.
   horizontal, the server's default; an interior needs the same cell) when the
   menu opened, and no trade is under way. The server checks again against its
   own `trade.request_radius` from both players' latest checkpoints, and
-  refuses with `OUT_OF_RANGE`, `BUSY`, or `UNAVAILABLE`, each told in the
-  chat.
-- Both players get a chat notice. The invited one gets the
-  [prompt](ui-overlay.md#trade-window) without losing input:
+  refuses with `OUT_OF_RANGE`, `BUSY`, or `UNAVAILABLE`, each a warning
+  notice.
+- Both players get the [prompt](ui-overlay.md#trade-window), and no notice,
+  since the prompt already says it. The invited one answers without losing
+  input:
   `[UI] TradeAcceptKey` (`Y`) accepts and `TradeDeclineKey` (`N`) declines,
   and its menu for the inviting player offers `Accept trade` and
   `Decline trade`. The inviting player's prompt waits, and the decline key
   withdraws it.
-- Accepting is refused locally, with a notice, in combat or out of the
-  world.
+- Accepting is refused locally, with a notice, in combat or out of
+  the world.
 - An invitation from a muted player is ignored without an answer, and the
   server never shows one from a player the invited player vanished: both
   expire for the sender as if unanswered, so neither tells it apart from a
@@ -140,7 +144,8 @@ a request unanswered after 10 s, as for a lost message.
   (an unreferenceable form, or a player enchantment with more than 4 effects
   or one from a dynamic effect).
 - An offer holds at most 32 lines and at most 15 KiB by
-  `EstimateTradeItemBytes`; an edit over either is refused with a notice.
+  `EstimateTradeItemBytes`; an edit over either is refused with a warning
+  notice.
 - Edits are sent as a whole `TradeOffer` with the next revision once none
   came for 0.2 s of frame time. Any edit, and any new offer from the peer,
   clears both players' acceptances.
@@ -156,8 +161,8 @@ a request unanswered after 10 s, as for a lost message.
 - `Accept` is possible once the window holds something on either side, the
   own offer is sent, the peer reported on it, and this game reported on the
   peer's. It first checks that the player still holds every offered item;
-  one gone (a script took it) refuses with a notice and lists the inventory
-  again. `TradeAccept` names both revisions; the server relays it to the
+  one gone (a script took it) refuses with a notice naming them and
+  lists the inventory again. `TradeAccept` names both revisions; the server relays it to the
   peer, or, when the peer's acceptance of the same pair stands, sends both a
   `TradeCommit`.
 
@@ -184,7 +189,9 @@ and is logged as an error.
    `AddArmorEnchantment` from its effects (magic effect, magnitude, area,
    duration, cost) and attached with its maximum charge; a weapon below it
    gets `ExtraCharge`. A plugin enchantment is attached as it is.
-3. A chat notice lists what was given and received.
+3. The notice `You successfully traded.` says it is done; what
+   moved is in the log (counts of entries given and received, and each
+   shortfall), not the notice, which the user chose to keep short.
 
 A pre-enchanted plugin weapon carries no `ExtraEnchantment`, so its charge
 is not sent and it arrives full.
@@ -204,7 +211,19 @@ is not sent and it arrives full.
 | The local connection lost, or trade messages dropped from a full queue | — | client, locally |
 
 A local cancel sends its message and ends the trade at once; the server's
-close for it is then ignored. Each end is a chat notice for both players.
+close for it is then ignored.
+
+## Notices
+
+Each outcome reaches the player as a [notice](ui-overlay.md#notices)
+(`Notices::Post` from `TradeSync`), not a chat line. Every end of a trade
+names the other player and why (declined, busy, unavailable, too far, no
+answer, combat, withdrawn or cancelled, left, could not open, the
+connection lost, or the player's own decline); a commit is
+`You successfully traded.` Refusals of the player's own actions (a trade
+already under way, combat, no connection, a full offer, items gone) are
+notices too. Sending an invitation and receiving one post nothing:
+the [prompt](ui-overlay.md#prompt) shows both.
 
 ## Engine assumptions
 
@@ -231,7 +250,7 @@ To verify in game:
 
 1. `Trade` in a player's menu is enabled only for a player standing near;
    the server refuses a far one with a notice.
-2. The invited player sees the prompt and a notice without losing control;
+2. The invited player sees the prompt, and no notice, without losing control;
    the keys and the menu answer it; it expires after 30 s; the sender is told
    each outcome.
 3. Invitations from muted or vanished players never show and expire for the

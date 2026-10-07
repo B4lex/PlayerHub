@@ -267,7 +267,6 @@ revision before the snapshot never misses a change.
 | `ConnectionControls` | overlay | reading whether `Config::GetServerEndpoint` is empty each frame the General section draws |
 | `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
 | `TradePrompt` | overlay, input | reading `TradeAcceptKey` and `TradeDeclineKey` on each focus key press and each frame it draws |
-| `TradeSync` | main loop | reading the trade keys for the invitation's notice |
 | `StatusPanel`, item pickers | overlay | reading `StatusPanel` and `ItemPreview` each frame |
 | `ChatInput` | overlay | reading `CloseChatOnSend` on each Enter that sends or finds the field empty |
 | `Theme` | overlay | working out the accent and frame colors from `AccentColor` and `BorderColor` when the revision changes |

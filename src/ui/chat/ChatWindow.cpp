@@ -1,5 +1,6 @@
 #include "ui/chat/ChatWindow.h"
 #include "sync/chat/PlayerActivation.h"
+#include "sync/notices/Notices.h"
 #include "ui/Layout.h"
 #include "ui/MenuFrame.h"
 #include "ui/Theme.h"
@@ -18,6 +19,9 @@
 #include <cmath>
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace UI
 {
@@ -130,6 +134,7 @@ namespace UI
                     input.OnOpened();
                 }
                 wasFocused = a_input.focused;
+                RouteRejections(a_input.focused);
 
                 if (a_input.focused)
                 {
@@ -304,6 +309,24 @@ namespace UI
                 ImGui::End();
             }
 
+            // A rejection arrives after Enter; with the chat closed by then, the field is gone.
+            void RouteRejections(bool a_open)
+            {
+                ChatSync::DrainRejections(rejections);
+                for (auto& rejection : rejections)
+                {
+                    if (a_open)
+                    {
+                        input.GetComposer().Fail(std::move(rejection));
+                    }
+                    else
+                    {
+                        Notices::Post(std::move(rejection));
+                    }
+                }
+                rejections.clear();
+            }
+
             void Whisper(const Multiplayer::RosterEntry& a_player)
             {
                 input.GetComposer().SetTarget(
@@ -317,6 +340,7 @@ namespace UI
             ChatSize size;
             float aroundHeight{ 0.0F };
             ChatSync::ChatTarget shownTarget;
+            std::vector<std::string> rejections;
             std::optional<ScreenPoint> cursorStart;
             bool wasFocused{ false };
             bool focusInput{ false };
