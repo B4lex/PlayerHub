@@ -140,90 +140,93 @@ TradeSession::EventResult TradeSession::OnEvent(const Multiplayer::TradeEvent& a
                     phase = Phase::kOpen;
                     return { .outcome = Outcome::kOpened };
                 }
-                if (phase != Phase::kOpen)
+                else
                 {
-                    return {};
-                }
-                if constexpr (std::is_same_v<T, Multiplayer::TradeOffer>)
-                {
-                    if (a_value.revision <= peerRevision)
+                    if (phase != Phase::kOpen)
                     {
                         return {};
                     }
-                    peerRevision = a_value.revision;
-                    peerItems = a_value.items;
-                    peerSkips.clear();
-                    ownAccepted = false;
-                    peerAccepted = false;
-                    return { .outcome = Outcome::kPeerOffer };
-                }
-                else if constexpr (std::is_same_v<T, Multiplayer::TradeReport>)
-                {
-                    if (!sentOffers.contains(a_value.revision))
+                    if constexpr (std::is_same_v<T, Multiplayer::TradeOffer>)
                     {
-                        return {};
-                    }
-                    ownReportRevision = a_value.revision;
-                    ownSkips = a_value.skipped;
-                    return { .outcome = Outcome::kReport };
-                }
-                else if constexpr (std::is_same_v<T, Multiplayer::TradeAcceptance>)
-                {
-                    // Sent as the peer names them: its own offer first.
-                    if (a_value.ownRevision != peerRevision || a_value.peerRevision != ownRevision || ownDirty)
-                    {
-                        return {};
-                    }
-                    peerAccepted = true;
-                    return { .outcome = Outcome::kPeerAccepted };
-                }
-                else if constexpr (std::is_same_v<T, Multiplayer::TradeCommit>)
-                {
-                    Commit commit;
-                    if (a_value.ownRevision != 0)
-                    {
-                        const auto sent = sentOffers.find(a_value.ownRevision);
-                        if (sent != sentOffers.end() && ownReportRevision == a_value.ownRevision)
+                        if (a_value.revision <= peerRevision)
                         {
-                            for (std::size_t i = 0; i < sent->second.size(); ++i)
+                            return {};
+                        }
+                        peerRevision = a_value.revision;
+                        peerItems = a_value.items;
+                        peerSkips.clear();
+                        ownAccepted = false;
+                        peerAccepted = false;
+                        return { .outcome = Outcome::kPeerOffer };
+                    }
+                    else if constexpr (std::is_same_v<T, Multiplayer::TradeReport>)
+                    {
+                        if (!sentOffers.contains(a_value.revision))
+                        {
+                            return {};
+                        }
+                        ownReportRevision = a_value.revision;
+                        ownSkips = a_value.skipped;
+                        return { .outcome = Outcome::kReport };
+                    }
+                    else if constexpr (std::is_same_v<T, Multiplayer::TradeAcceptance>)
+                    {
+                        // Sent as the peer names them: its own offer first.
+                        if (a_value.ownRevision != peerRevision || a_value.peerRevision != ownRevision || ownDirty)
+                        {
+                            return {};
+                        }
+                        peerAccepted = true;
+                        return { .outcome = Outcome::kPeerAccepted };
+                    }
+                    else
+                    {
+                        static_assert(std::is_same_v<T, Multiplayer::TradeCommit>);
+                        Commit commit;
+                        if (a_value.ownRevision != 0)
+                        {
+                            const auto sent = sentOffers.find(a_value.ownRevision);
+                            if (sent != sentOffers.end() && ownReportRevision == a_value.ownRevision)
                             {
-                                if (!IsSkipped(ownSkips, i))
+                                for (std::size_t i = 0; i < sent->second.size(); ++i)
                                 {
-                                    commit.given.push_back(sent->second[i]);
+                                    if (!IsSkipped(ownSkips, i))
+                                    {
+                                        commit.given.push_back(sent->second[i]);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // Without the peer's report it is unknown what the peer takes;
+                                // keeping the items loses nothing.
+                                logs::error("Trade {} committed own revision {} without its report; keeping the items",
+                                    id, static_cast<unsigned long long>(a_value.ownRevision));
+                            }
+                        }
+                        if (a_value.peerRevision == peerRevision && reportedPeerRevision == peerRevision)
+                        {
+                            for (std::size_t i = 0; i < peerItems.size(); ++i)
+                            {
+                                if (!IsSkipped(peerSkips, i))
+                                {
+                                    commit.received.push_back(peerItems[i]);
+                                    commit.receivedIndices.push_back(static_cast<std::uint8_t>(i));
                                 }
                             }
                         }
-                        else
+                        else if (a_value.peerRevision != 0)
                         {
-                            // Without the peer's report it is unknown what the peer takes;
-                            // keeping the items loses nothing.
-                            logs::error("Trade {} committed own revision {} without its report; keeping the items",
-                                id, static_cast<unsigned long long>(a_value.ownRevision));
+                            logs::error("Trade {} committed peer revision {}, but this client holds {}", id,
+                                static_cast<unsigned long long>(a_value.peerRevision),
+                                static_cast<unsigned long long>(peerRevision));
                         }
+                        auto result = Close(TradeCloseReason::kCancelled);
+                        result.outcome = Outcome::kCommitted;
+                        result.commit = std::move(commit);
+                        return result;
                     }
-                    if (a_value.peerRevision == peerRevision && reportedPeerRevision == peerRevision)
-                    {
-                        for (std::size_t i = 0; i < peerItems.size(); ++i)
-                        {
-                            if (!IsSkipped(peerSkips, i))
-                            {
-                                commit.received.push_back(peerItems[i]);
-                                commit.receivedIndices.push_back(static_cast<std::uint8_t>(i));
-                            }
-                        }
-                    }
-                    else if (a_value.peerRevision != 0)
-                    {
-                        logs::error("Trade {} committed peer revision {}, but this client holds {}", id,
-                            static_cast<unsigned long long>(a_value.peerRevision),
-                            static_cast<unsigned long long>(peerRevision));
-                    }
-                    auto result = Close(TradeCloseReason::kCancelled);
-                    result.outcome = Outcome::kCommitted;
-                    result.commit = std::move(commit);
-                    return result;
                 }
-                return {};
             }
         },
         a_event);

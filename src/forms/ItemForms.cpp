@@ -59,7 +59,7 @@ namespace Forms
 
     std::optional<ItemTraits> GetItemTraits(RE::TESForm& a_form)
     {
-        const auto* file = a_form.GetFile(0);
+        const auto* file = FormLookup::GetDefiningFile(&a_form);
         const bool baseGame = file && Multiplayer::IsBaseGamePlugin(file->GetFilename());
         if (const auto* armor = a_form.As<RE::TESObjectARMO>())
         {

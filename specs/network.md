@@ -25,6 +25,9 @@
 - Not verified in game: the connection policy and recovery
   ([Connection](#connection)), and whether quantization shows as jitter. The
   display name requirement is not built on Windows either.
+- **Form references:** plugin taken from the FormID's compile index
+  (`FormLookup::GetDefiningFile`); not built on Windows or run in game. The
+  `Update.esm|0DDFB3` misreport it fixes was seen in `playerhub.log`.
 - **Sessions:** not built on Windows or run in game. Server: `go test -race`
   covers the store (`internal/auth`: issue, resume, unique display names, a
   resumed session renamed by its hello, sliding expiry, a reopened database, a
@@ -332,6 +335,13 @@ file that defines the form and its file-local ID (the low 24 bits, or 12 for a
 light plugin). A receiver resolves by plugin name, so load orders need not
 match. Plugin names are 1..260 bytes and `form_id` is `0..0xFFFFFF`. Dynamic
 (`FF`) forms cannot be referenced and are omitted.
+
+`FormLookup::GetDefiningFile` takes the plugin from the FormID's compile index
+(or light index under `FE`), the same index the receiver's `LookupFormID`
+rebuilds. `TESForm::GetFile(0)` is not used: a placed reference that a later
+plugin overrides can list only the overriding file (Skyrim.esm's Arcane
+Enchanter `000DDFB3` lists `Update.esm`), which would name a missing form on
+every receiver.
 
 ### `Appearance`
 

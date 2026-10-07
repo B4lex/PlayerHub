@@ -208,12 +208,12 @@ namespace Forms
         }
         for (const auto& effect : a_item.effects)
         {
-            auto* form = FormLookup::ResolveForm(effect.effect);
-            auto* setting = form ? form->As<RE::EffectSetting>() : nullptr;
+            auto* effectForm = FormLookup::ResolveForm(effect.effect);
+            auto* setting = effectForm ? effectForm->As<RE::EffectSetting>() : nullptr;
             if (!setting)
             {
-                return std::unexpected(form ? TradeSkip{ .reason = TradeSkipReason::kBadEnchantment }
-                                            : MissingFrom(TradeSkipReason::kMissingEffect, effect.effect));
+                return std::unexpected(effectForm ? TradeSkip{ .reason = TradeSkipReason::kBadEnchantment }
+                                                  : MissingFrom(TradeSkipReason::kMissingEffect, effect.effect));
             }
             resolved.effects.push_back(ResolvedEffect{ .effect = setting, .values = effect });
         }

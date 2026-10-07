@@ -8,6 +8,9 @@
 
 namespace FormLookup
 {
+    // The plugin the FormID's compile index names; null for dynamic (FF) forms.
+    [[nodiscard]] const RE::TESFile* GetDefiningFile(const RE::TESForm* a_form);
+
     // Dynamic (FF) forms and forms without a defining file cannot be referenced
     // across game sessions.
     [[nodiscard]] std::optional<Multiplayer::FormReference> MakeFormReference(const RE::TESForm* a_form);
