@@ -404,10 +404,15 @@
   `ItemPreview = false` hiding the preview. The reset button as an icon shown
   only off the default is not built on Windows or run in game. `ItemForms.cpp` and `ItemPreview.cpp`
   need CommonLibSSE-NG and were only checked in game. The
-  [thumbnails](#3d-preview) (2026-10-07) are not built on Windows or run in
+  [thumbnails](#3d-preview) ran in game (2026-10-07 log): every item was
+  captured within a frame or two of loading, but some stills showed items
+  without their textures. With the refresh capture (2026-10-08, in game)
+  every thumbnail ended up textured; across 78 captures the texture check
+  found nothing missing, so the refresh is what fixed them. The check on
+  the attached model's form (2026-10-08) is not built on Windows or run in
   game: `ItemPreview.cpp` passed a g++ syntax check against the
   CommonLibSSE-NG headers with `__declspec` defined away, which a planted
-  error confirmed reaches it; nothing was captured.
+  error confirmed reaches it.
 - **Trade window and prompt:** not built on Windows or run in game. On
   Linux, `TradeWindow.cpp`, `TradePrompt.cpp`, `ChatPlayerMenu.cpp`,
   `WindowManager.cpp`, and `Controls.cpp` ran in a headless Dear ImGui
@@ -896,7 +901,10 @@ action on a notice. What answers the chat's own input is a
   0.75 font sizes from the edge, like the chat from the left. Each is a box
   with the theme's surface at 85% and its corners, its text in the theme's
   text and face, wrapped at 22 font sizes less the padding, and a strip in
-  the accent on its left edge. Notices have no kinds: the user chose the
+  the accent on its left edge. The strip and the surface are clipped from
+  one rounded box, so the strip follows the box's left corners: a
+  separate strip rect would have its rounding clamped to its narrow width.
+  Notices have no kinds: the user chose the
   accent for all over a color per success, warning, and info.
 - They are drawn in a `Theme::Scope` on Dear ImGui's background draw list,
   under every window, so they take no input and never cover a window the
@@ -1834,7 +1842,10 @@ zoomed.
   and centered on a dark background. A new item shows nothing for 0.3 s, then
   "Loading...".
 - `Update` runs in `Overlay::DrawFrame` before `ImGui::NewFrame`, when the game
-  frame is finished and the overlay has not drawn. If the previous frame drew a
+  frame is finished and the overlay has not drawn. A model counts as
+  attached only when the last `loadedModels` entry's `itemBase` is the
+  loaded form, since the previous item's model was seen still attached a
+  frame after a new load. If the previous frame drew a
   preview, it calls `Inventory3DManager::Begin3D(kInventory)` once and
   `LoadInventoryItem` whenever the form changes. A model loading in the
   background is attached only by `Render`, so while none is attached, `Update`
@@ -1876,40 +1887,60 @@ zoomed.
   else the one drawn longest ago that no window drew this frame.
 - A live preview requested in the frame comes first. Otherwise `Update`
   captures the earliest requested thumbnail that a window drew last frame:
-  it loads the item, waits until its model is attached and one more update
-  pass has run, then captures it once, cleared to its background, into a
-  2048² scratch texture with a full mip chain. `GenerateMips` halves it
-  until it fits a slot, and the level is copied in, dropping the partial
-  last texel each level adds. A still that has not rendered within
-  `kThumbnailTimeoutSeconds` (5) of frame time fails and logs why. With no
-  thumbnail waiting, the renderer stops (`End3D`) and the atlas stays. A
-  still is drawn opaque like the live capture, and since it was captured on
-  its cell's background, no seam shows around it.
+  it loads the item, waits until its model is attached, one more update
+  pass has run, and every diffuse and normal texture of its lighting
+  materials has a `rendererTexture` with a D3D texture and view, then
+  captures it, cleared to its background, into a 2048² scratch texture
+  with a full mip chain. `GenerateMips` halves it until it fits a slot,
+  and the level is copied in, dropping the partial last texel each level
+  adds. A model that has not rendered within `kThumbnailTimeoutSeconds` (5)
+  of frame time fails and logs why; one whose textures are still missing
+  then is captured as it is.
+- Each still is captured once more, after a fresh load, when
+  `kThumbnailRefreshDelaySeconds` (1.5) of frame time have passed since its
+  first capture and no other thumbnail in view waits for its first. The
+  cell keeps showing the first still meanwhile, and keeps it if the
+  refresh fails. This covers textures that complete after the first
+  capture by a path the readiness check does not see.
+- With no thumbnail due, the renderer stops (`End3D`) and the atlas
+  stays. A still is drawn opaque like the live capture, and since it was
+  captured on its cell's background, no seam shows around it.
 - Thumbnails turn off for the session with one warning when the back buffer
   format cannot generate mipmaps (`D3D11_FORMAT_SUPPORT_MIP_AUTOGEN`) or
   their textures cannot be created; cells then show names.
 - Logs: `Item preview started` and `stopped` (debug), the first capture of each
   start with its screen box and bound radius, `Item preview waiting` once per
   item whose model has not appeared a second after loading started (with the
-  models `Inventory3DManager` holds, its load task state, and both light
-  schemes), and `Item preview unavailable: <reason>` once. Each thumbnail
-  logs `Item thumbnail captured` with its box and mip level (debug), a
-  timeout `Item thumbnail: form <id> did not render within 5 s` with the
-  wait state, and `Item thumbnails unavailable: <reason>` once.
+  models `Inventory3DManager` holds, the last one's form, its load task
+  state, and both light schemes), and `Item preview unavailable: <reason>` once. Each thumbnail
+  capture logs `Item thumbnail captured` (debug) with its box, mip level,
+  whether it is the refresh, the textures checked and still missing, and
+  the first diffuse texture's path. A model waiting for textures logs
+  `Item thumbnail waiting for textures` once (debug) and, when captured,
+  `Item thumbnail: form <id> captured after <s> s waiting for textures`; a
+  timeout logs `Item thumbnail: form <id> did not render within 5 s` with
+  the wait state, and `Item thumbnails unavailable: <reason>` once.
 
 ## Engine assumptions
 
 To verify in game:
 
-1. A model attached one update pass before its capture is fully drawn,
-   textures included, by a single `Inventory3DManager::Render`, so a
-   thumbnail captured once matches what the live preview settles on.
+1. A model captured again 1.5 s after its first capture, from a fresh
+   load, is drawn with all its textures. In game some first captures,
+   taken one update pass after attaching, lacked textures even though
+   every lighting texture already had its `rendererTexture`: in 1.7.104
+   `BSShaderManager::GetTexture` (ID 105640) reads a texture file
+   synchronously on the model loader thread, and `BSShaderResourceManager`
+   (vtable slot `0xD0`, ID 108531) sets `rendererTexture` when it creates
+   the `NiSourceTexture`. What the first capture misses is not identified.
 2. Skyrim's back buffer format supports `D3D11_FORMAT_SUPPORT_MIP_AUTOGEN`,
    as `R8G8B8A8_UNORM` does, and `ClearView` writes the same value the
    overlay's draw of the same 8-bit color does, so a cell's background meets
    its thumbnail's without a seam.
 3. Starting and stopping the inventory renderer (`Begin3D`, `End3D`) for
    each batch of thumbnails costs no visible frame time.
+4. `LoadedInventoryModel::itemBase` of the model `LoadInventoryItem`
+   attaches is the form passed to it.
 
 ## Acceptance criteria
 
@@ -2146,8 +2177,10 @@ To verify in game:
     plugin and sees the item's row disabled. Escape, Cancel, and a
     message box or dialogue a script opens each close both windows.
 26. Both trade grids fill with thumbnails of the offered items within a
-    second or two, each on a dark or, for an enchanted item, blue cell, and
-    keep them while the window is open; FPS stays steady meanwhile. A 16th
+    second or two, each on a dark or, for an enchanted item, blue cell,
+    every one textured within about 2 s (`latest.log` shows `pending=0`
+    on each `Item thumbnail captured` line), and keep them while the
+    window is open; FPS stays steady meanwhile. A 16th
     line adds a row and the grid scrolls. With `ItemPreview = false` the
     cells show names. The inventory looks normal afterwards.
 27. Notices stack on the right edge from 40% of the screen's height, at
@@ -2230,8 +2263,9 @@ To verify in game:
 - The picker covers armor, weapons, ammunition, and races, not torches, spells,
   or actors; `ItemKind` is where more kinds would go.
 - A trade thumbnail shows the base form's model, without an enchantment's
-  glow or the item's own name, and is captured once, so a texture still
-  streaming in at that moment stays missing until the window reopens.
-  Thumbnails are captured one per frame or more, so a full grid fills over
-  a moment. The atlas holds 64; more distinct items in view than that show
+  glow or the item's own name. It is captured twice, so an item whose
+  textures were missing at the first capture shows untextured for about
+  1.5 s; one still missing them at the refresh stays so until the window
+  reopens. Thumbnails are captured one per frame or more, so a full grid
+  fills over a moment. The atlas holds 64; more distinct items in view than that show
   names.
