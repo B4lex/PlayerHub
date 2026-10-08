@@ -1,5 +1,6 @@
 #include "ui/preview/ItemPreview.h"
 #include "config/PluginConfig.h"
+#include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
 
@@ -34,7 +35,7 @@ namespace UI::ItemPreview
         constexpr std::size_t kThumbnailSlots = kThumbnailColumns * kThumbnailColumns;
         constexpr std::size_t kNoSlot = kThumbnailSlots;
         constexpr float kThumbnailTimeoutSeconds = 5.0F;
-        constexpr float kMaximumFrameSeconds = 0.1F;
+        constexpr float kThumbnailRefreshDelaySeconds = 1.5F;
 
         struct CaptureBox
         {
@@ -70,7 +71,9 @@ namespace UI::ItemPreview
             enum class State : std::uint8_t
             {
                 kPending,
+                // Drawn, with one more capture due kThumbnailRefreshDelaySeconds later.
                 kCaptured,
+                kSettled,
                 kFailed
             };
 
@@ -80,6 +83,7 @@ namespace UI::ItemPreview
             State state{ State::kPending };
             std::uint64_t order{ 0 };
             int usedFrame{ -1 };
+            float capturedAt{ 0.0F };
             std::uint32_t width{ 0 };
             std::uint32_t height{ 0 };
         };
@@ -106,7 +110,9 @@ namespace UI::ItemPreview
         ThumbnailTextures thumbnailTextures;
         std::size_t capturingSlot{ kNoSlot };
         bool capturingAttached{ false };
+        bool capturingTexturesLogged{ false };
         float capturingWaited{ 0.0F };
+        float thumbnailClock{ 0.0F };
 
         void Disable(std::string_view a_reason)
         {
@@ -151,6 +157,7 @@ namespace UI::ItemPreview
                 thumbnailTextures = {};
                 thumbnailSlots = {};
                 thumbnailOrder = 0;
+                thumbnailClock = 0.0F;
             }
         }
 
@@ -287,7 +294,7 @@ namespace UI::ItemPreview
             thumbnailTextures = {};
             for (auto& slot : thumbnailSlots)
             {
-                if (slot.state == ThumbnailSlot::State::kCaptured)
+                if (slot.state == ThumbnailSlot::State::kCaptured || slot.state == ThumbnailSlot::State::kSettled)
                 {
                     slot.state = ThumbnailSlot::State::kPending;
                 }
@@ -378,29 +385,98 @@ namespace UI::ItemPreview
             const auto& runtime = a_manager.GetRuntimeData();
             const auto* task = reinterpret_cast<const std::uint8_t*>(runtime.loadTask.get());
             const auto* scene = RE::UI3DSceneManager::GetSingleton();
-            const auto* model = runtime.loadedModels.empty() ? nullptr : runtime.loadedModels.back().spModel.get();
+            const auto* loaded = runtime.loadedModels.empty() ? nullptr : std::addressof(runtime.loadedModels.back());
+            const auto* model = loaded ? loaded->spModel.get() : nullptr;
             logs::debug(
-                "Item preview waiting: formID={:08X} models={} modelRadius={} loadTaskState={} "
+                "Item preview waiting: formID={:08X} models={} modelForm={:08X} modelRadius={} loadTaskState={} "
                 "managerScheme={} sceneScheme={}",
-                loadedFormID, runtime.loadedModels.size(), model ? model->worldBound.radius : 0.0F,
+                loadedFormID, runtime.loadedModels.size(),
+                loaded && loaded->itemBase ? loaded->itemBase->GetFormID() : 0U, model ? model->worldBound.radius : 0.0F,
                 task ? static_cast<std::int64_t>(*reinterpret_cast<const std::uint32_t*>(task + 0xC)) : -1,
                 static_cast<int>(a_manager.currentLightScheme),
                 scene ? static_cast<int>(scene->currentlightScheme) : -1);
         }
 
         // Returns the attached model, attaching one that loaded in the background.
-        const RE::NiAVObject* AttachModel(RE::Inventory3DManager& a_manager, RE::UI& a_ui)
+        RE::NiAVObject* AttachedModel(const RE::Inventory3DManager& a_manager)
         {
+            const auto& models = a_manager.GetRuntimeData().loadedModels;
+            if (models.empty())
+            {
+                return nullptr;
+            }
+            // After UnloadInventoryItem and a new load, the previous item's model was seen
+            // still attached for a frame (2026-10-08 log), so the entry must be the loaded form's.
+            const auto& loaded = models.back();
+            auto* model = loaded.spModel.get();
+            return loaded.itemBase && loaded.itemBase->GetFormID() == loadedFormID && model
+                    && model->worldBound.radius > 0.0F
+                ? model
+                : nullptr;
+        }
+
+        RE::NiAVObject* AttachModel(RE::Inventory3DManager& a_manager, RE::UI& a_ui)
+        {
+            if (auto* model = AttachedModel(a_manager))
+            {
+                return model;
+            }
             // A model that loaded in the background is attached only by Render.
             // With the count at zero, the scene render draws nothing.
-            if (a_manager.GetRuntimeData().loadedModels.empty())
             {
                 const PauseMenuDisabledCountScope attachOnly{ a_ui, 0 };
                 a_manager.Render();
             }
-            const auto& models = a_manager.GetRuntimeData().loadedModels;
-            const auto* model = models.empty() ? nullptr : models.back().spModel.get();
-            return model && model->worldBound.radius > 0.0F ? model : nullptr;
+            return AttachedModel(a_manager);
+        }
+
+        struct ModelTextures
+        {
+            std::uint32_t total{ 0 };
+            std::uint32_t pending{ 0 };
+            std::string_view firstDiffuse;
+            std::string_view firstPending;
+        };
+
+        // In 1.7.104 a model's textures load on its loader thread: BSShaderManager::GetTexture
+        // (ID 105640) reads the file synchronously, and BSShaderResourceManager (vtable slot 0xD0,
+        // ID 108531) sets rendererTexture as the NiSourceTexture is created. Whether the D3D
+        // texture behind it can still be missing after attaching was not traced.
+        ModelTextures InspectTextures(RE::NiAVObject& a_model)
+        {
+            ModelTextures result;
+            const auto inspect = [&](const RE::NiSourceTexture* a_texture) {
+                if (!a_texture)
+                {
+                    return;
+                }
+                ++result.total;
+                const auto* data = a_texture->rendererTexture;
+                if (!data || !data->texture || !data->resourceView)
+                {
+                    ++result.pending;
+                    if (result.firstPending.empty())
+                    {
+                        result.firstPending = a_texture->name.c_str();
+                    }
+                }
+            };
+            RE::BSVisit::TraverseScenegraphGeometries(&a_model, [&](RE::BSGeometry* a_geometry) {
+                auto* property = a_geometry->GetGeometryRuntimeData().shaderProperty.get();
+                auto* material = property ? property->GetBaseMaterial() : nullptr;
+                if (material && material->GetType() == RE::BSShaderMaterial::Type::kLighting)
+                {
+                    const auto& lighting = *static_cast<const RE::BSLightingShaderMaterialBase*>(material);
+                    if (result.firstDiffuse.empty() && lighting.diffuseTexture)
+                    {
+                        result.firstDiffuse = lighting.diffuseTexture->name.c_str();
+                    }
+                    inspect(lighting.diffuseTexture.get());
+                    inspect(lighting.normalTexture.get());
+                }
+                return RE::BSVisit::BSVisitControl::kContinue;
+            });
+            return result;
         }
 
         enum class Destination : std::uint8_t
@@ -492,13 +568,23 @@ namespace UI::ItemPreview
             return true;
         }
 
-        bool CaptureThumbnail(RE::Inventory3DManager& a_manager, RE::UI& a_ui, ThumbnailSlot& a_slot)
+        // a_force captures even while textures are still pending.
+        bool CaptureThumbnail(RE::Inventory3DManager& a_manager, RE::UI& a_ui, ThumbnailSlot& a_slot, bool a_force)
         {
-            const auto* model = AttachModel(a_manager, a_ui);
-            // Gives a newly attached model one engine update pass before the single capture its
-            // still gets.
+            auto* model = AttachModel(a_manager, a_ui);
+            // Gives a newly attached model one engine update pass before it is captured.
             if (!model || !std::exchange(capturingAttached, true))
             {
+                return false;
+            }
+            const auto modelTextures = InspectTextures(*model);
+            if (modelTextures.pending > 0 && !a_force)
+            {
+                if (!std::exchange(capturingTexturesLogged, true))
+                {
+                    logs::debug("Item thumbnail waiting for textures: formID={:08X} pending={}/{} first={}",
+                        a_slot.formID, modelTextures.pending, modelTextures.total, modelTextures.firstPending);
+                }
                 return false;
             }
             const auto box = RenderModel(a_manager, a_ui, *model, ImGui::ColorConvertU32ToFloat4(a_slot.background),
@@ -524,8 +610,11 @@ namespace UI::ItemPreview
             };
             context->CopySubresourceRegion(thumbnailTextures.atlas.Get(), 0, index % kThumbnailColumns * kThumbnailSize,
                 index / kThumbnailColumns * kThumbnailSize, 0, thumbnailTextures.scratch.Get(), level, &source);
-            logs::debug("Item thumbnail captured: formID={:08X} box={}x{} level={}", a_slot.formID, box->width,
-                box->height, level);
+            logs::debug(
+                "Item thumbnail captured: formID={:08X} box={}x{} level={} refresh={} textures={} pending={} "
+                "diffuse={}",
+                a_slot.formID, box->width, box->height, level, a_slot.state == ThumbnailSlot::State::kCaptured,
+                modelTextures.total, modelTextures.pending, modelTextures.firstDiffuse);
             return true;
         }
 
@@ -560,21 +649,32 @@ namespace UI::ItemPreview
             return claimed;
         }
 
-        // The earliest requested slot still waiting for its still that a window drew last frame.
-        ThumbnailSlot* NextPendingThumbnail()
+        // Among the slots a window drew last frame, the earliest requested one waiting for its
+        // still, else the earliest one due for its refresh.
+        ThumbnailSlot* NextThumbnail()
         {
             // Update runs before ImGui::NewFrame, so this is the frame the windows last drew.
             const int frame = ImGui::GetFrameCount();
-            ThumbnailSlot* next = nullptr;
+            ThumbnailSlot* pending = nullptr;
+            ThumbnailSlot* refresh = nullptr;
             for (auto& slot : thumbnailSlots)
             {
-                if (slot.formID != 0 && slot.state == ThumbnailSlot::State::kPending && slot.usedFrame == frame
-                    && (!next || slot.order < next->order))
+                if (slot.formID == 0 || slot.usedFrame != frame)
                 {
-                    next = std::addressof(slot);
+                    continue;
+                }
+                if (slot.state == ThumbnailSlot::State::kPending && (!pending || slot.order < pending->order))
+                {
+                    pending = std::addressof(slot);
+                }
+                else if (slot.state == ThumbnailSlot::State::kCaptured
+                    && thumbnailClock - slot.capturedAt >= kThumbnailRefreshDelaySeconds
+                    && (!refresh || slot.order < refresh->order))
+                {
+                    refresh = std::addressof(slot);
                 }
             }
-            return next;
+            return pending ? pending : refresh;
         }
 
         void UpdateLive(RE::Inventory3DManager& a_manager, RE::UI& a_ui)
@@ -599,7 +699,9 @@ namespace UI::ItemPreview
 
         void UpdateThumbnails(RE::Inventory3DManager& a_manager, RE::UI& a_ui)
         {
-            auto* slot = NextPendingThumbnail();
+            const float delta = FrameTime::Clamp(ImGui::GetIO().DeltaTime);
+            thumbnailClock += delta;
+            auto* slot = NextThumbnail();
             if (!slot)
             {
                 StopRenderer();
@@ -607,26 +709,45 @@ namespace UI::ItemPreview
             }
             Start(a_manager);
             const auto index = static_cast<std::size_t>(slot - thumbnailSlots.data());
+            const bool refresh = slot->state == ThumbnailSlot::State::kCaptured;
+            // A refresh that cannot render keeps the still it has.
+            const auto finish = [&](bool a_captured) {
+                if (refresh)
+                {
+                    slot->state = ThumbnailSlot::State::kSettled;
+                }
+                else
+                {
+                    slot->state = a_captured ? ThumbnailSlot::State::kCaptured : ThumbnailSlot::State::kFailed;
+                }
+                slot->capturedAt = thumbnailClock;
+                capturingSlot = kNoSlot;
+            };
             if (capturingSlot != index || loadedFormID != slot->formID)
             {
                 capturingSlot = index;
                 capturingAttached = false;
+                capturingTexturesLogged = false;
                 capturingWaited = 0.0F;
                 if (!Load(a_manager, slot->formID))
                 {
-                    slot->state = ThumbnailSlot::State::kFailed;
-                    capturingSlot = kNoSlot;
+                    finish(false);
                     return;
                 }
             }
-            if (CaptureThumbnail(a_manager, a_ui, *slot))
+            const bool timedOut = capturingWaited > kThumbnailTimeoutSeconds;
+            if (CaptureThumbnail(a_manager, a_ui, *slot, timedOut))
             {
-                slot->state = ThumbnailSlot::State::kCaptured;
-                capturingSlot = kNoSlot;
+                if (capturingTexturesLogged)
+                {
+                    logs::warn("Item thumbnail: form {:08X} captured after {:.2f} s waiting for textures",
+                        slot->formID, capturingWaited);
+                }
+                finish(true);
                 return;
             }
-            capturingWaited += (std::min)(ImGui::GetIO().DeltaTime, kMaximumFrameSeconds);
-            if (capturingWaited > kThumbnailTimeoutSeconds || thumbnailsUnavailable)
+            capturingWaited += delta;
+            if (timedOut || thumbnailsUnavailable)
             {
                 if (!thumbnailsUnavailable)
                 {
@@ -634,8 +755,7 @@ namespace UI::ItemPreview
                         kThumbnailTimeoutSeconds);
                     LogLoadWait(a_manager);
                 }
-                slot->state = ThumbnailSlot::State::kFailed;
-                capturingSlot = kNoSlot;
+                finish(false);
             }
         }
     }
@@ -741,7 +861,8 @@ namespace UI::ItemPreview
         {
             return Thumbnail::kUnavailable;
         }
-        if (slot->state != ThumbnailSlot::State::kCaptured || !thumbnailTextures.atlasView.Get()
+        if ((slot->state != ThumbnailSlot::State::kCaptured && slot->state != ThumbnailSlot::State::kSettled)
+            || !thumbnailTextures.atlasView.Get()
             || !textures.opaque.Get())
         {
             return Thumbnail::kLoading;
