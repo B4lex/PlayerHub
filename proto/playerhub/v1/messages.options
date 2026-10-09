@@ -13,5 +13,5 @@ playerhub.v1.Hello.vanished type:FT_CALLBACK
 playerhub.v1.TradeOffer.items type:FT_CALLBACK
 playerhub.v1.TradeItem.effects max_count:4
 playerhub.v1.TradeItem.name max_size:129
-playerhub.v1.TradeReport.skipped max_count:32
+playerhub.v1.TradeReport.skipped max_count:15
 playerhub.v1.TradeSkip.plugin max_size:261

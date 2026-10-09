@@ -74,10 +74,10 @@ func TestTradeOffer(t *testing.T) {
 		many[i] = validTradeItem()
 	}
 	if Message(offerOf(many...)) != ErrTrade {
-		t.Error("33 items accepted")
+		t.Error("16 items accepted")
 	}
 	if Message(offerOf(many[:MaximumTradeItems]...)) != nil {
-		t.Error("32 items rejected")
+		t.Error("15 items rejected")
 	}
 	for _, offer := range []*pb.TradeOffer{{TradeId: 0, Revision: 1}, {TradeId: 1, Revision: 0}} {
 		if Message(&pb.ClientMessage{Message: &pb.ClientMessage_TradeOffer{TradeOffer: offer}}) != ErrTrade {
@@ -95,11 +95,11 @@ func TestTradeReport(t *testing.T) {
 		return &pb.TradeSkip{Index: index, Reason: reason, Plugin: plugin}
 	}
 	if err := Message(report(skip(0, pb.TradeSkipReason_TRADE_SKIP_REASON_MISSING_ITEM, "Mod.esp"),
-		skip(31, pb.TradeSkipReason_TRADE_SKIP_REASON_BAD_ENCHANTMENT, ""))); err != nil {
+		skip(14, pb.TradeSkipReason_TRADE_SKIP_REASON_BAD_ENCHANTMENT, ""))); err != nil {
 		t.Errorf("report rejected: %v", err)
 	}
 	for name, s := range map[string]*pb.TradeSkip{
-		"index 32":       skip(32, pb.TradeSkipReason_TRADE_SKIP_REASON_MISSING_ITEM, ""),
+		"index 15":       skip(15, pb.TradeSkipReason_TRADE_SKIP_REASON_MISSING_ITEM, ""),
 		"no reason":      skip(1, pb.TradeSkipReason_TRADE_SKIP_REASON_UNSPECIFIED, ""),
 		"unknown reason": skip(1, 5, ""),
 		"long plugin":    skip(1, pb.TradeSkipReason_TRADE_SKIP_REASON_MISSING_ITEM, strings.Repeat("p", 261)),

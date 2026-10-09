@@ -135,7 +135,9 @@ namespace Forms
             return details;
         }
         const auto health = (std::max)(a_item.health, kUntemperedHealth);
-        details.weight = object->GetWeight();
+        // TESForm::GetWeight (14809/14988) returns -1 for a weightless form: ammo, and one Misc item it
+        // compares against a cached form, unless Survival Mode is on.
+        details.weight = (std::max)(object->GetWeight(), 0.0F);
 
         const RE::EnchantmentItem* enchantment = a_resolved.enchantment;
         if (!enchantment && a_resolved.effects.empty())

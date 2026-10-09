@@ -21,6 +21,7 @@ namespace UI
         constexpr float kPopupWidthFonts = 40.0F;
         constexpr float kPopupHeightFonts = 22.0F;
         constexpr float kPreviewWidthFonts = 13.0F;
+        constexpr ImU32 kPreviewBackground = IM_COL32(28, 28, 31, 255);
         constexpr float kPluginColumnWidthFonts = 11.0F;
 
         constexpr ImGuiTableFlags kListFlags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg;
@@ -248,7 +249,10 @@ namespace UI
     void ItemPicker::DrawDetails(const Forms::CatalogItem* a_item, float a_width)
     {
         ImGui::BeginGroup();
-        ItemPreview::Draw(a_item ? a_item->formID : 0, ImVec2{ a_width, a_width });
+        const auto origin = ImGui::GetCursorScreenPos();
+        ImGui::GetWindowDrawList()->AddRectFilled(origin, ImVec2{ origin.x + a_width, origin.y + a_width },
+            kPreviewBackground, ImGui::GetStyle().FrameRounding);
+        ItemPreview::DrawModel(a_item ? a_item->formID : 0, ImVec2{ a_width, a_width });
         if (a_item)
         {
             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + a_width);

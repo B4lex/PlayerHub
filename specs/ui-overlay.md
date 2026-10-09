@@ -422,7 +422,7 @@
   answering through `OnFocusKey` and giving input back, other keys left to
   the game, and only `N` taken while the player's own invitation waits; the
   window taking focus from another window, a click adding a
-  stack, a right click one more, a blocked row adding nothing, Accept disabled with its blocker
+  stack, a blocked row adding nothing, Accept disabled with its blocker
   and while accepted, Escape cancelling, focus lost to a menu cancelling
   with `MENU`, a window kept from focus giving up with `FAILED` after 2 s but
   not at 1.8 s, a trade closed by the server releasing focus; `Trade`
@@ -436,23 +436,64 @@
   `Controls.cpp` ran headless in Dear ImGui 1.92.9 at 1080p (18 px font)
   against a stubbed `TradeSync` and `ItemPreview::DrawThumbnail` (67
   checks), and was rasterized: the list on the left, the peer's grid
-  above the own one to its right, all inside the window, 83 px cells at the default size,
+  above the own one to its right, all inside the window, 83 px cells at the
+  then default size of 56 × 40,
   thumbnails requested in offer order with the enchanted background, names
   when thumbnails are unavailable; Accept disabled with the inspect line
-  until each peer cell was hovered, a cell inspected and its tooltip shown
+  until each peer cell was hovered, a cell inspected
   in the frame the cursor reaches it, a count change shading only that line, a `TradeSync` blocker disabling
   Accept with its reason as the button's tooltip and no footer line, nothing
-  in the footer once all is inspected; the item tooltip's stats, totals,
-  effects, an unknown effect, charge, notes, and a blocked row's reason; a right
-  click sending `OfferOneLess`, a click opening the popup, its step button
-  and `Remove`, no count field for a single item, Escape closing the popup
+  in the footer once all is inspected; a
+  click opening the popup, its step button
+  and `Remove all`, Escape closing the popup
   and not the trade, the popup closing when its line leaves; Escape
   cancelling otherwise; the inspected lines reset by a new trade; the green
-  tint; 23 lines scrolling the own grid by two rows with both grids the
-  same width; the list keeping its width at the minimum size. The
+  tint. The
   prompt, focus, and menu checks above predate the grids and were not run
-  again. `TradeSync.cpp` (`PeerLine::id`, `OfferOneLess`) passed only the
-  g++ syntax check.
+  again. `TradeSync.cpp` (`PeerLine::id`) passed only the g++ syntax check.
+  A click on a single offered item removing it without the popup works in
+  game (2026-10-09, user report). The count popup for a clicked stack in
+  the item list and the removed right clicks (2026-10-09) passed only the
+  g++ syntax check of `TradeWindow.cpp` and `TradeSync.cpp`. The full
+  offer ignoring new rows (2026-10-09) passed only the g++ syntax check of
+  `TradeWindow.cpp`.
+- **Trade screen, preview column, backdrop, and turning model**
+  (2026-10-09): not built on Windows or run in game. On Linux,
+  `TradeWindow.cpp` with the real `Theme.cpp`, `MenuFrame.cpp`, and
+  `Controls.cpp` ran headless in Dear ImGui 1.92.9 (16 px font at 1080p)
+  against a stubbed `TradeSync`, `ItemPreview`, and `Backdrop` (35 checks)
+  and was rasterized at 1080p and 1280 × 1024: the fixed 56 × 44 panel to
+  the right of a 28 font size column, the two centered, the model square
+  above the card reaching the panel's bottom; a narrower column at 5:4,
+  none on a square display, the same proportions at 4K; the backdrop drawn
+  each frame; the card's placeholder, then at once the hovered row's or
+  cell's name, count (held or offered), stats, effects, notes, and a
+  blocked row's reason; the last item kept while the cursor is over the
+  backdrop; a shown row found again after rows moved and the card cleared
+  when its row or peer line left; a peer cell still inspected by hovering;
+  a drag on the model square reaching it; clicks on the backdrop doing
+  nothing; Escape cancelling. Cells came out at the 5 font size minimum.
+  `Gpu.cpp`, `Backdrop.cpp`, `ItemPreview.cpp`, `ItemPicker.cpp`,
+  `MenuFrame.cpp`, and `Overlay.cpp` passed only the g++ syntax check, a
+  planted error confirming it reaches `ItemPreview.cpp`. The HLSL compiled
+  with DXC 1.9 for shader model 6 in HLSL 2016 mode, not with the FXC
+  behind `D3DCompile`. The blur, the black and white capture, turning, and
+  the picker's model on its panel were neither drawn nor run. The macro
+  clash that broke the first Windows build (2026-10-10) was fixed, after
+  which the user saw the trade screen in game and found it looking right
+  but the model's resolution low; what else they tried is not known. The capture fitted to the
+  drawn size (2026-10-10) passed only the g++ syntax check; capturing at
+  1.2 times it did not look sharper in game and was reverted (the 08:35
+  log showed captures already larger than the area, 705 px for 597). With
+  the game's TAA off the model was sharp in game but its edges jagged (user
+  report, 2026-10-10); the 2× capture drawn at half size that followed
+  passed only the g++ syntax check. The user found the 2× capture much
+  better in game (2026-10-10). Capturing [animated](#3d-preview)
+  models on every update, for an enchanted item's glow flickering while
+  turned, made it animate correctly in game, but the glow appeared only
+  once the model was turned (user report and log, 2026-10-10); watching
+  each enchanted load for 0.5 s, and enchanted thumbnails waiting for their
+  glow, passed only the g++ syntax check.
 
 ## Scope
 
@@ -498,12 +539,14 @@ src/ui/
   chat/ChatPlayerManager      # Manage players: Friends, Muted, and Vanished tabs over the chat
   chat/WorldPlayerMenu        # a player's menu at the crosshair, opened by activating its character
   trade/TradePrompt           # a trade invitation waiting for an answer, answered by its keys
-  trade/TradeWindow           # the open trade: both offers as grids, own items, Accept and Cancel
+  trade/TradeWindow           # the open trade: a fixed panel with both offers as grids, own items, Accept and Cancel, and the preview column
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
   settings/ConnectionControls # connection button, the line under it, one-line summary
   widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text
   widgets/ItemPicker          # item dropdown
-  preview/ItemPreview         # 3D item capture and cached thumbnails
+  preview/ItemPreview         # 3D item model, turned by dragging, and cached thumbnails
+  render/Gpu                  # back buffer, runtime-compiled full-screen passes, image blend modes
+  render/Backdrop             # the game's frame blurred and darkened behind a full-screen window
 src/sync/chat/ChatSync        # send to a target and why it failed, the server's rejections, lines to display
 src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners, the list's copy
 src/sync/chat/ChatDraft       # syntax of prefixes and commands
@@ -539,6 +582,38 @@ factory, such as `CreateChatWindow`, so its state stays in its `.cpp`.
   swap chain's render target view, draws, and restores the previous targets.
 - `ImGuiConfigFlags_NoMouse` and `NoMouseCursorChange` are set unless a window
   takes the mouse, and `imgui.ini` is disabled.
+
+### Backdrop
+
+`Backdrop::Draw` covers the display behind every overlay window (ImGui's
+background draw list) with the finished game frame, blurred and darkened;
+the [trade window](#trade-window) draws it each frame. The game keeps
+running, so the blur is made again each frame from the back buffer as the
+overlay hook finds it, HUD and menus included, after `ItemPreview::Update`
+has put back what its capture changed.
+
+- It copies the back buffer, reduces it to a quarter in each dimension with
+  four bilinear taps per pixel, and blurs that with a 17-tap Gaussian
+  (σ 3.5 quarter pixels) horizontally, then vertically, so the blur scales
+  with the resolution. The result is stretched over the display at 60% of
+  its brightness (`kTint`).
+- `Gpu` (`ui/render/Gpu`) holds what the overlay's own GPU passes share:
+  the back buffer (`GetFrame`), render targets, pixel shaders compiled at
+  runtime by `D3DCompile` (`vs_4_0`, `ps_4_0`, from the
+  `d3dcompiler_47.dll` the plugin already links) after a shared `Vertex`
+  declaration, and `AddImage` with an opaque or premultiplied blend
+  callback. `PassScope` draws full-screen triangles from `SV_VertexID` with
+  blending, depth, and culling off, and on leaving puts back the input
+  layout and topology, every shader stage but compute, the pixel stage's
+  first two views and first sampler, the rasterizer state and viewports,
+  and the output merger's target, depth stencil, blend, and depth state,
+  since the engine tracks what it bound.
+- A multisampled back buffer, a shader that does not compile, or textures
+  or states that cannot be created turn the blur off for the session with
+  one warning (`UI backdrop blur unavailable: <reason>`); the backdrop is
+  then a 40% black fill.
+- `Backdrop::Update`, before `ImGui::NewFrame`, frees the copy and the
+  reduced textures when nothing drew the backdrop in the last frame.
 
 ### Fonts
 
@@ -1496,14 +1571,16 @@ prompt (Skyrim's `Talk` and the label stay) and gamepad navigation.
 ## Trade window
 
 Goal: the overlay half of [Trade](trade.md): an invitation shows without
-taking control from the player, and an open trade is one window with the
-player's items and both offers. Non-goals: gamepad navigation, weights and
-values, sorting the peer's offer, placing items in the grids, and item sizes
-on the grid (every line takes one cell).
+taking control from the player, and an open trade takes the screen: one
+fixed panel with the player's items and both offers, beside the hovered
+item's model and numbers as the vanilla inventory shows them. Non-goals:
+gamepad navigation, an offer's total weight and value, sorting the peer's
+offer, placing items in the grids, item sizes on the grid (every line takes
+one cell), and zooming the model.
 
 The windows read `TradeSync::View`, copied when its revision changes, and
 send commands (`RequestTrade`, `AnswerInvitation`, `Cancel`,
-`SetOfferCount`, `OfferOneMore`, `OfferOneLess`, `Accept`) that the next pass applies on the game thread;
+`SetOfferCount`, `Accept`) that the next pass applies on the game thread;
 neither touches an engine object.
 
 ### Prompt
@@ -1525,35 +1602,49 @@ neither touches an engine object.
 ### Window
 
 - `TradeWindow` takes focus with `TakeFocus` once the view is open, also
-  from the chat or the player menu, and centers a framed window of 56 × 40
-  font sizes (at least 44 × 28). The cursor shows. A window kept from focus
+  from the chat or the player menu, and takes the whole display: the
+  [backdrop](#backdrop) blurs and darkens the game behind every overlay
+  window, and a click on it does nothing. The cursor shows. A window kept from focus
   by a game menu retries each frame and gives the trade up with `FAILED`
   after `kFocusWaitSeconds` (2) of frame time, each frame counting at most
   0.1 s; one that had focus and loses it cancels with `MENU`.
+- The trade itself is a framed panel of 56 × 44 font sizes, the same share
+  of the screen at every resolution, which cannot be moved or resized
+  (`MenuFrame::WindowLayout::fixedPosition`). To its left, 2 font sizes
+  apart, the [preview column](#preview-column) is 28 font sizes wide, less
+  on a narrow display while at least 12 fit within a 1 font size margin,
+  and left out otherwise. Panel and column are centered together, and the
+  panel vertically; the column is as tall as the panel.
 - The title is `Trade with <name>`, the name in the accent, with a close
   button. The left column holds the player's items, and the right column
   `<name>'s offer` above `Your offer`, each a grid, the order Path of Exile
   stacks them in.
 - Each offer is a grid of 5 × 3 square cells, one line per cell in offer
   order, row by row; the player cannot move items in it (the user's choice,
-  as Steam's trade does). An offer over 15 lines adds rows, and the grid
-  scrolls with its 3 rows in view; the scrollbar's width is kept beside
-  every grid so the cells never change size. The cell is the largest whole
-  pixel size up to 7 font sizes, at least 2.5, that fits both grids' rows in
-  the height and leaves the item list 20 font sizes.
-- A cell shows the item's [thumbnail](#3d-preview) on its background (blue
-  for an enchanted item, as Path of Exile tints magic items, else dark grey)
-  and the count above one in its top left corner. While thumbnails are off
-  (`[UI] ItemPreview`) or unavailable, the cell shows the name instead;
+  as Steam's trade does). An offer holds at most 15 lines
+  ([Trade](trade.md#offers-and-acceptance)), so every line is in view and
+  the grid has no scrolling; `TradeWindow.cpp` asserts that the grid holds
+  `kMaximumTradeItems` at compile time. The cell is the largest whole
+  pixel size up to 7 font sizes, at least 5 (`kMinimumCellFonts`, the
+  user's choice), that fits both grids' rows in the panel's height and
+  leaves the item list 20 font sizes; in the fixed panel that is 5 font
+  sizes (80 px at 1080p, measured headless).
+- A cell shows the item's [thumbnail](#3d-preview) on its background (light
+  blue-grey for an enchanted item, as Path of Exile tints magic items, else
+  light grey, the user's choice so dark items stand out) and the count
+  above one in its top left corner, in white with a dark shadow. While
+  thumbnails are off (`[UI] ItemPreview`) or unavailable, the cell shows
+  the name instead, in dark text;
   while one is captured, only the background. Hovering a cell frames it in
-  the accent and shows the item tooltip (below) at once, without
-  ImGui's tooltip delay.
+  the accent and shows the item in the preview column at once.
 - Your offer: the lines the other game confirmed; a clicked item appears
-  only once confirmed. Clicking a cell opens a popup with the name, for a
-  stack a count field with steps of one (clamped to what the player holds)
-  and `of <held>`, and `Remove`; Escape closes it, and it closes when its
-  line leaves the offer. A right click takes one away
-  (`TradeSync::OfferOneLess`), removing the line at one.
+  only once confirmed. Clicking a cell of a single item (the player holds
+  one) removes its line at once (`TradeSync::SetOfferCount` with 0).
+  Clicking a cell of a stack opens a popup with the name, a count field
+  with steps of one (clamped to what the player holds) and `of <held>`, and
+  `Remove all`; the field is left out if the player comes to hold only one while
+  it is open. Escape closes the popup, and it closes when its line leaves
+  the offer.
 - `<name>'s offer`: names as the local game resolves them; lines it cannot
   receive are left out. Each line must be inspected, as in Path of Exile: a
   line the cursor has not been over is shaded dark, and Accept stays
@@ -1570,21 +1661,20 @@ neither touches an engine object.
   (`All`, `Weapons`, `Apparel`, `Ammunition`, `Potions`, `Ingredients`,
   `Books`, `Scrolls`, `Soul gems`, `Keys`, `Miscellaneous`), matched again
   only when either or the inventory changes; rows clipped to the visible
-  ones, with counts above one. A click offers the whole stack, a right
-  click one more (`TradeSync::OfferOneMore`); offered rows are
+  ones, with counts above one. A click on a single item offers it. A click
+  on a row not yet offered does nothing while the offer holds 15 lines, with
+  no notice, since the full grid shows why. A click
+  on a stack opens a popup with the name, a count field focused with its
+  text selected, steps of one, clamped to 1 to what the player holds, and
+  `of <held>`, and a button: it starts at 1 with `Offer`, or for a stack
+  already offered at the offered count with `Update`. Only the button or
+  Enter sends the count (`TradeSync::SetOfferCount`); Escape, also while
+  typing, and a click outside close it without a change, and it closes when
+  the inventory changes, since its row may then be another item. Right
+  clicks do nothing (the user's choice, for now). Offered rows are
   highlighted; rows that cannot be offered, also those the other game
   [cannot receive](trade.md#offers-and-acceptance), are disabled. A hovered
-  row shows the item tooltip (below) after ImGui's usual delay,
-  with why it cannot be offered when it cannot.
-- The item tooltip, up to 22 font sizes wide,
-  shows the item's [details](trade.md#item-details): the name with
-  `×count`; `Damage` or `Armor`, `Weight`, and `Value` on one line, labels
-  dimmed; for a stack, `Total: weight … · value …` for the count it shows
-  (held in the list, offered in a grid); a separator, then each effect as
-  the game words it, an undiscovered ingredient effect dimmed, and
-  `Charge <n> / <max>`; then the notes, equipped (giving it takes it off)
-  and favorite; and in amber why a row cannot be offered. An enchanted item
-  is told by its effects and its cell, so no `Enchanted` note is shown.
+  row, also a disabled one, shows its item in the preview column at once.
 - The footer holds only the lines left to inspect, when any are, then
   Accept, disabled while blocked, uninspected, or accepted, and Cancel.
   Acceptance shows on the grids alone, and a change taking it back shows as
@@ -1595,6 +1685,37 @@ neither touches an engine object.
   no field or popup claims it, cancels as Cancel and the close button do.
 - A trade that ends releases focus; a window that cancelled waits for the
   view to close without taking focus again.
+
+### Preview column
+
+The vanilla inventory's item display, beside the panel (the user's choice):
+the item's model above a card with its numbers. It replaces the item
+tooltips; the only tooltip left in the window is Accept's blocker.
+
+- It shows the item last hovered in the item list or either grid, and keeps
+  it while the cursor is over the backdrop or the panel's empty parts.
+  Before any hover the square is empty and the card says `Hover over an item
+  to inspect it.` A row of the player's is found again by form and name
+  when the inventory changes, since rows can move, and the column empties
+  when it is gone or when the peer takes the shown line out. Hovering a
+  peer cell also [inspects](#window) it.
+- The model's square is the column's width, leaving the card at least 12
+  font sizes, so 28 font sizes square on most displays. It shows the
+  item's [model](#3d-preview) floating over the backdrop, as the inventory
+  menu does, and turns it while dragged with the left button. With
+  `[UI] ItemPreview` off it stays empty.
+- The card is a framed window from the square to the panel's bottom with
+  the item's [details](trade.md#item-details): the name in the heading font
+  at 1.25 times with `×count`; `Damage` or `Armor` of one item, then
+  `Weight` and `Value` of the whole count it shows (held for an item list
+  row, offered for a grid cell, held again once a stack leaves the offer),
+  on one line with dimmed labels, so a stack and a single item read the
+  same; a separator, then each effect as the game words it, an undiscovered
+  ingredient effect dimmed, and `Charge <n> / <max>`; then the notes,
+  equipped (giving it takes it off) and favorite; and in amber why a row
+  cannot be offered. An enchanted item is told by its effects and its cell,
+  so no `Enchanted` note is shown. The text wraps at the card's width, and
+  a card too long for its height scrolls.
 
 ## Settings window
 
@@ -1834,40 +1955,116 @@ catalog and filters are in
 ### 3D preview
 
 `UI::ItemPreview` renders one item at a time through the game's own inventory
-renderer, following `Item3DPreview` in ModExplorerMenu, either live for one
-panel or as cached thumbnails for many cells. Models cannot be rotated or
-zoomed.
+renderer, following `Item3DPreview` in ModExplorerMenu: as the model of one
+panel (the trade window's [preview column](#preview-column) and the item
+picker's panel) or as cached thumbnails for many cells.
 
-- `Draw(formID, size)` records the request and draws the latest capture, fitted
-  and centered on a dark background. A new item shows nothing for 0.3 s, then
-  "Loading...".
-- `Update` runs in `Overlay::DrawFrame` before `ImGui::NewFrame`, when the game
-  frame is finished and the overlay has not drawn. A model counts as
-  attached only when the last `loadedModels` entry's `itemBase` is the
-  loaded form, since the previous item's model was seen still attached a
-  frame after a new load. If the previous frame drew a
-  preview, it calls `Inventory3DManager::Begin3D(kInventory)` once and
-  `LoadInventoryItem` whenever the form changes. A model loading in the
-  background is attached only by `Render`, so while none is attached, `Update`
-  calls `Render` with `UI::numDisablePauseMenu` at zero, which draws nothing.
-  Once a model is attached, it projects the model's world bound through
-  `UI3DSceneManager::viewFrustum` to a screen rectangle, then saves that
-  rectangle of the back buffer, clears it to the preview background
-  (`ID3D11DeviceContext1::ClearView`), calls `Render` with the count at least one,
-  copies the rectangle into a 2048² texture ImGui samples, and puts the saved
-  pixels back.
-- The capture is opaque but the back buffer's alpha under the model is not
-  coverage, so the image is drawn with blending off (a draw callback sets an
-  opaque blend state, then `ImDrawCallback_ResetRenderState`).
-- When no window drew a preview or a thumbnail in the previous frame,
+- `DrawModel(formID, size)` takes the area as an invisible button and draws
+  the item's model fitted and centered in it over whatever is behind it; the
+  item picker draws its dark panel first. A new item shows nothing for
+  0.3 s, then `Loading...`, and `No preview` once it fails. While the button
+  is held, the mouse turns the model, one radian per 8 font sizes of
+  movement, the horizontal part negated as the inventory menu's mouse
+  handler does. A new item starts unturned.
+- `Update` runs in `Overlay::DrawFrame` before `ImGui::NewFrame`, when the
+  game frame is finished and the overlay has not drawn. It advances a clock
+  by the clamped frame time and does one job: the model when it is due (its
+  first capture, its refresh, a turn, or a fresh load being watched), else the next thumbnail due, else
+  an [animated](#3d-preview) model, else nothing, which stops the
+  renderer (`End3D`) and keeps the images. A job
+  calls `Inventory3DManager::Begin3D(kInventory)` once and
+  `LoadInventoryItem` for its form. A model loading in the background is
+  attached only by `Render`, so while none is attached, `Update` calls
+  `Render` with `UI::numDisablePauseMenu` at zero, which draws nothing. A
+  model counts as attached only when the last `loadedModels` entry's
+  `itemBase` is the loaded form, since the previous item's model was seen
+  still attached a frame after a new load. A job captures once the model is
+  attached, one more update pass has run, and every diffuse and normal
+  texture of its lighting materials has a `rendererTexture` with a D3D
+  texture and view; a model that has not rendered within
+  `kCaptureTimeoutSeconds` (5) of frame time fails and logs why, and one
+  whose textures are still missing then is captured as it is.
+- A capture projects the model's world bound through
+  `UI3DSceneManager::viewFrustum` to a screen rectangle, saves that
+  rectangle of the back buffer, clears it
+  (`ID3D11DeviceContext1::ClearView`), calls `Render` with the count at least
+  one, copies the rectangle out, and puts the saved pixels back.
+- The model is rendered twice, cleared to black and to white, so its
+  coverage can be told from the back buffer's alpha, which is not coverage.
+  A `Separate` pass ([Gpu](#backdrop) helpers) takes alpha as one minus the
+  mean difference of the two and keeps the color over black, which is
+  already multiplied by it, in a 2048² texture drawn with a premultiplied
+  blend (`Gpu::Blend::kPremultiplied`), so the model floats with
+  anti-aliased edges over the backdrop or the picker's panel.
+- The model is captured at twice the pixels it is drawn at
+  (`kSupersample`), not at the size the inventory scene gives it: before
+  each capture `FitModel` scales it about its bound's center so its square
+  capture (the bound's radius projected at the center's depth, plus 5%) is
+  twice the smaller side of the area `DrawModel` was given, at most the
+  screen and 2048 px, and moves it across the view only as far as keeps
+  that square on the screen. A change within 1% is skipped. The area's
+  size changing captures it again. The image is drawn at exactly half size
+  on whole pixels, so ImGui's bilinear sampler averages each 2 × 2 texel
+  block, a box filter that anti-aliases the edges the capture has without
+  the game's TAA (below); a capture the screen clamped is filtered into the
+  area as it fits.
+- Every capture renders with the game's TAA off. In 1.7.104 the UI 3D scene
+  render (ID 52727) checks `ImageSpaceManager`'s `ISTemporalAA` block
+  (`+0x1F0`, `taaEnabled` at `+0x18`): when it is on, the render jitters the
+  camera, adds the motion vector target, and resolves the item through
+  temporal AA, which converges over the inventory menu's frames but leaves
+  a single capture soft. A scope clears the flag for the capture's
+  `Render` calls and restores it; the first capture of each start logs
+  whether it was on (`gameTAA`). The 2× capture above is the model's
+  anti-aliasing instead; thumbnails get theirs from the mip reduction.
+- After restoring or fitting a transform, `ItemPreview` calls
+  `NiAVObject::Update` (ID 70251) with a time of zero and the dirty flag,
+  as `Render` does before drawing, so the world bound it projects and turns
+  about is current.
+- The model is captured again `kRefreshDelaySeconds` (1.5) after its first
+  capture from a fresh load and keeps its image if the refresh fails. This
+  covers textures that complete after the first capture by a path the
+  readiness check does not see.
+- A turn calls the inventory menu's own rotation (1.7.104 ID 51778) with the
+  angles dragged since the last capture, then captures, so a drag re-renders
+  every frame while the renderer holds the model. The model's local
+  transform as fitted and turned is kept after each capture and set again
+  when it is attached after thumbnails took the renderer, so it neither
+  snaps back nor is fitted twice.
+- A model is animated when a node, geometry,
+  or geometry property in its scene graph has a time controller, or a
+  shader property has effect data (`BSShaderProperty::effectData`, which
+  is where an enchantment's glow is). The check runs after each capture
+  until one finds either. The game attaches the glow a frame or two after
+  the model (2026-10-10 log: absent at a load's first capture, present at
+  the next). A form with its own enchantment
+  (`TESEnchantableForm::formEnchanting`; items load without extra data, so
+  no other can glow) is therefore watched: after the first capture of each of its loads, the
+  refresh's included, the model is captured on every update for
+  `kEffectWatchSeconds` (0.5) before thumbnails get the renderer, as
+  otherwise it showed its glow only once turned. A thumbnail, captured
+  once per load, instead waits up to as long before its capture for effect
+  data to appear, running only `Render`'s update pass with the count at
+  zero meanwhile, and logs how long it waited (`waited ... for its
+  effect`); one without a glow by then is captured as it is. An animated model is captured on every
+  update that has no other job, as the inventory menu renders it each
+  frame; captured only when due, its glow froze between captures and
+  jumped at each turn, which a drag showed as flicker (user report,
+  2026-10-10). Afterwards it gives way only to a thumbnail that is due, so the loaded
+  item does not switch every frame. The first capture that finds it
+  animated logs the counts (`Item model animated`), and the first 6 log
+  the first effect data's offsets and alphas against the clock
+  (`Item model effect`).
+- When no window drew a model or a thumbnail in the previous frame,
   `Update` unloads the item, calls `End3D`, and frees the textures and the
-  thumbnails. If an item menu opened meanwhile
-  (`UI::IsItemMenuOpen`), that menu owns the renderer, so the state is dropped
-  without calling it.
-- The preview turns itself off for the session with one warning when the overlay
-  does not run on the bound main-loop thread (`GameThread::IsAuthoritative`), the
-  inventory renderer is missing, or capture textures cannot be created for the
-  back buffer format.
+  thumbnails; when only the model was not drawn, it forgets the model. If
+  an item menu opened meanwhile (`UI::IsItemMenuOpen`), that menu owns the
+  renderer, so the state is dropped without calling it.
+- The preview turns itself off for the session with one warning when the
+  overlay does not run on the bound main-loop thread
+  (`GameThread::IsAuthoritative`), the inventory renderer is missing, or
+  capture textures cannot be created for the back buffer format. The model
+  alone turns off when its textures or its shader cannot be created.
 - Unlike ModExplorerMenu, the game is not paused. In 1.7.104 `Render` attaches a
   finished load (load task state 5), updates the model, and tail-calls the UI 3D
   scene render (ID 52727), which draws nothing unless the scene's light scheme
@@ -1885,41 +2082,38 @@ zoomed.
   the caller draws something else. A still is kept per form and background
   in one of 64 slots of 256² in a 2048² atlas; a new one takes a free slot,
   else the one drawn longest ago that no window drew this frame.
-- A live preview requested in the frame comes first. Otherwise `Update`
-  captures the earliest requested thumbnail that a window drew last frame:
-  it loads the item, waits until its model is attached, one more update
-  pass has run, and every diffuse and normal texture of its lighting
-  materials has a `rendererTexture` with a D3D texture and view, then
-  captures it, cleared to its background, into a 2048² scratch texture
-  with a full mip chain. `GenerateMips` halves it until it fits a slot,
-  and the level is copied in, dropping the partial last texel each level
-  adds. A model that has not rendered within `kThumbnailTimeoutSeconds` (5)
-  of frame time fails and logs why; one whose textures are still missing
-  then is captured as it is.
-- Each still is captured once more, after a fresh load, when
-  `kThumbnailRefreshDelaySeconds` (1.5) of frame time have passed since its
-  first capture and no other thumbnail in view waits for its first. The
-  cell keeps showing the first still meanwhile, and keeps it if the
-  refresh fails. This covers textures that complete after the first
-  capture by a path the readiness check does not see.
-- With no thumbnail due, the renderer stops (`End3D`) and the atlas
-  stays. A still is drawn opaque like the live capture, and since it was
-  captured on its cell's background, no seam shows around it.
+- The next thumbnail is one a window drew last frame: the earliest requested
+  one waiting for its still, else the earliest one due for its refresh. It
+  is captured on its background into a 2048² scratch texture with a full mip
+  chain. `GenerateMips` halves it until it fits a slot, and the level is
+  copied in, dropping the partial last texel each level adds. Each still is
+  captured once more, after a fresh load, when 1.5 s of frame time have
+  passed since its first capture and no other thumbnail in view waits for
+  its first; the cell keeps the first still meanwhile, and keeps it if the
+  refresh fails.
+- A still is drawn with blending off (a draw callback sets an opaque blend
+  state, then `ImDrawCallback_ResetRenderState`), since the back buffer's
+  alpha under the model is not coverage; captured on its cell's background,
+  it shows no seam.
 - Thumbnails turn off for the session with one warning when the back buffer
   format cannot generate mipmaps (`D3D11_FORMAT_SUPPORT_MIP_AUTOGEN`) or
   their textures cannot be created; cells then show names.
-- Logs: `Item preview started` and `stopped` (debug), the first capture of each
-  start with its screen box and bound radius, `Item preview waiting` once per
-  item whose model has not appeared a second after loading started (with the
-  models `Inventory3DManager` holds, the last one's form, its load task
-  state, and both light schemes), and `Item preview unavailable: <reason>` once. Each thumbnail
-  capture logs `Item thumbnail captured` (debug) with its box, mip level,
-  whether it is the refresh, the textures checked and still missing, and
-  the first diffuse texture's path. A model waiting for textures logs
-  `Item thumbnail waiting for textures` once (debug) and, when captured,
-  `Item thumbnail: form <id> captured after <s> s waiting for textures`; a
-  timeout logs `Item thumbnail: form <id> did not render within 5 s` with
-  the wait state, and `Item thumbnails unavailable: <reason>` once.
+- Logs: `Item preview started` and `stopped` (debug), the first capture of
+  each start with its screen box and bound radius, and `Item preview
+  unavailable: <reason>` or `Item model preview unavailable: <reason>` once.
+  A model waiting a second after its load logs `Item preview waiting` once
+  (debug) with the models `Inventory3DManager` holds, the last one's form,
+  its load task state, and both light schemes; its first and refresh
+  captures log `Item model captured` (debug) with the size and the textures
+  checked and still missing, and a timeout `Item model: form <id> did not
+  render within 5 s`. Each thumbnail capture logs `Item thumbnail captured`
+  (debug) with its box, mip level, whether it is the refresh, the textures
+  checked and still missing, and the first diffuse texture's path. A model
+  waiting for textures logs `Item preview waiting for textures` once
+  (debug) and, for a thumbnail, when captured, `Item thumbnail: form <id>
+  captured after <s> s waiting for textures`; a thumbnail's timeout logs
+  `Item thumbnail: form <id> did not render within 5 s` with the wait state,
+  and `Item thumbnails unavailable: <reason>` once.
 
 ## Engine assumptions
 
@@ -1941,6 +2135,44 @@ To verify in game:
    each batch of thumbnails costs no visible frame time.
 4. `LoadedInventoryModel::itemBase` of the model `LoadInventoryItem`
    attaches is the form passed to it.
+5. The UI 3D scene draws a model the same over black and over white within
+   one frame, so the difference of the two captures is its coverage: no
+   part of the scene render reads the cleared background.
+6. ID 51778, called as the inventory menu's mouse handler (ID 51770) calls
+   it, with a `NiPoint2` of angles in radians, turns the last loaded model
+   about its bound's center by changing its local transform. From the
+   disassembly, `Render` does not reset that transform: its zoom step (ID
+   51777) moves the model only while a zoom is under way. Setting the kept
+   transform on a newly attached model before its update pass shows it
+   turned.
+7. `D3DCompile` from `d3dcompiler_47.dll` compiles the overlay's shaders for
+   `vs_4_0` and `ps_4_0` (they were only compiled by DXC for shader model
+   6), and the state `PassScope` puts back is all the engine's state
+   tracking relies on, so the frame after a blur or a model capture draws
+   as before.
+8. The back buffer at the overlay hook is single-sampled and can be copied
+   whole (`CopyResource`) into a texture of its own format.
+9. Scaling a model's local transform in the inventory scene keeps its
+   lighting and textures as the unscaled model has them, and calling
+   `NiAVObject::Update` (ID 70251) with a time of zero on the attached model
+   advances nothing visible. From the disassembly, a controller accumulates
+   the time since its last update (`NiTimeController::ComputeScaledTime`,
+   ID 70824), so the zero steps it back by the last time and the update
+   `Render` makes before drawing, at the application's run time (ID 410201,
+   in ms), steps it forward again.
+10. Clearing `taaEnabled` for the scene render's call removes the jitter,
+    the motion vector target, and the TAA resolve together, read from the
+    disassembly (the camera setup it calls, ID 77506, takes the same flag),
+    and nothing else that frame reads the flag between the clear and the
+    restore.
+11. An enchanted item's glow is attached by the game within
+    `kEffectWatchSeconds` of the model's attach. The 2026-10-10 log showed
+    it as effect data on one shader property of enchanted armor (no
+    controllers), absent at the first capture and present one update
+    later, its `vOffset` advancing between frames; what attaches it, and
+    whether it can take longer, was not traced. Only forms with their own
+    enchantment get one, and `Render` with the count at zero, which draws
+    nothing, still lets it attach.
 
 ## Acceptance criteria
 
@@ -2167,9 +2399,12 @@ To verify in game:
     prompt at the top, which `Y` and `N` answer for the other player,
     without moving the character or opening a game menu. Accepting opens
     the trade window on both screens with the cursor, also over an open
-    chat. A click offers a stack, which shows in the own grid as its
-    thumbnail with its count; clicking the cell opens its count and
-    `Remove`, and a right click takes one away. The other window shows it
+    chat. A click on a stack asks how many, starting at 1, and only `Offer`
+    or Enter offers them; they show in the own grid as its thumbnail with
+    its count. Clicking the stack's row again starts at that count with
+    `Update`. Clicking the cell opens its count and `Remove all`, clicking a
+    single item's cell removes it with no popup, and right clicks do
+    nothing. The other window shows it
     within a moment, shaded until the cursor passes over it, and keeps Accept
     disabled until every line of the offer was hovered; a count change
     shades only that line again. An accepted side turns green. A modded item the other game lacks
@@ -2180,15 +2415,30 @@ To verify in game:
     second or two, each on a dark or, for an enchanted item, blue cell,
     every one textured within about 2 s (`latest.log` shows `pending=0`
     on each `Item thumbnail captured` line), and keep them while the
-    window is open; FPS stays steady meanwhile. A 16th
-    line adds a row and the grid scrolls. With `ItemPreview = false` the
-    cells show names. The inventory looks normal afterwards.
+    window is open; FPS stays steady meanwhile. With 15 lines offered
+    every cell is filled, the grid does not scroll, and clicking a row not
+    yet offered does nothing and posts no notice, while an offered row's
+    count can still change. With `ItemPreview = false` the cells show names
+    and the preview column only the card. The inventory looks normal
+    afterwards.
 27. Notices stack on the right edge from 40% of the screen's height, at
     1080p and 4K, each with a strip in the accent: `You successfully
     traded.` after a trade, the other player's decline, a friend
     connecting. Each fades after about 5 s, a long one later; the same
     notice twice shows twice; a fifth pushes out the oldest. They show over the inventory and under the open chat or trade
     window, and never add a chat line.
+28. The open trade takes the screen at 1080p, 1440p, 4K, and 21:9: the
+    game behind it, HUD included, is blurred and darker and keeps moving,
+    the panel takes the same share of the screen's height on each, and the
+    preview column sits to its left; nothing else on screen changes, and
+    the game looks normal after the window closes. FPS stays steady with
+    the window open. Hovering a row or a cell shows its model at once,
+    textured, floating over the blur without a box or a dark fringe, as
+    the inventory menu shows it, and its card with its numbers; moving off
+    the panel keeps it. Dragging the model turns
+    it smoothly like the inventory menu's model, and it stays turned after
+    other items were hovered and the grid thumbnails captured. The item
+    picker's model shows on its dark panel as before.
 
 ## Known limitations
 
@@ -2262,10 +2512,17 @@ To verify in game:
   the mouse and keyboard only, while gamepad input keeps reaching the game.
 - The picker covers armor, weapons, ammunition, and races, not torches, spells,
   or actors; `ItemKind` is where more kinds would go.
-- A trade thumbnail shows the base form's model, without an enchantment's
-  glow or the item's own name. It is captured twice, so an item whose
-  textures were missing at the first capture shows untextured for about
-  1.5 s; one still missing them at the refresh stays so until the window
-  reopens. Thumbnails are captured one per frame or more, so a full grid
-  fills over a moment. The atlas holds 64; more distinct items in view than that show
-  names.
+- A trade thumbnail or model shows the base form's model, without an
+  enchantment's glow or the item's own name. Each is captured twice, so an
+  item whose textures were missing at the first capture shows untextured
+  for about 1.5 s; one still missing them at the refresh stays so until it
+  is shown again. Thumbnails are captured one per frame or more, so a full
+  grid fills over a moment, and while the hovered item's model loads they
+  wait: sweeping the cursor across rows delays them. The atlas holds 64;
+  more distinct items in view than that show names.
+- The blur's strength and darkening are fixed. A display narrower than
+  about 1.07 times its height leaves no room for the preview column, and
+  the trade then shows no item numbers at all. The model cannot be zoomed,
+  and a turn applies the drag's angles in one call per frame, so a fast
+  drag turns in larger steps than the inventory menu's.
+- The fixed panel gives the grids' cells their 5 font size minimum.

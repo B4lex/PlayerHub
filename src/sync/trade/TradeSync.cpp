@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
-#include <format>
 #include <iterator>
 #include <mutex>
 #include <numeric>
@@ -36,8 +35,6 @@ namespace TradeSync
                 kAnswer,
                 kCancel,
                 kSetCount,
-                kAddOne,
-                kRemoveOne,
                 kAccept
             };
 
@@ -390,13 +387,7 @@ namespace TradeSync
             const auto& row = s_inventory[a_command.row];
             auto offer = s_offer;
             const auto line = std::ranges::find(offer, a_command.row, &OfferLine::row);
-            // One more or less counts lines the peer's game has not confirmed, which the overlay
-            // does not see.
-            const auto offered = line != offer.end() ? line->count : 0;
-            const auto requested = a_command.kind == Command::Kind::kAddOne ? offered + 1
-                : a_command.kind == Command::Kind::kRemoveOne               ? (std::max)(offered, 1U) - 1
-                                                                            : a_command.count;
-            const auto count = (std::min)(requested, row.item.count);
+            const auto count = (std::min)(a_command.count, row.item.count);
             if (count == 0)
             {
                 if (line == offer.end())
@@ -413,7 +404,6 @@ namespace TradeSync
             {
                 if (offer.size() >= Multiplayer::kMaximumTradeItems)
                 {
-                    Notices::Post(std::format("An offer holds at most {} items.", Multiplayer::kMaximumTradeItems));
                     return;
                 }
                 offer.push_back(OfferLine{ .row = a_command.row, .count = count });
@@ -518,6 +508,7 @@ namespace TradeSync
                 }
             }
             logs::info("Trade with {} completed: gave {} entries, received {} entries", a_peer, given, received);
+            TradeInventory::PlayPickUpSound(a_player);
             Notices::Post("You successfully traded.");
         }
 
@@ -707,8 +698,6 @@ namespace TradeSync
                     }
                     return;
                 case Command::Kind::kSetCount:
-                case Command::Kind::kAddOne:
-                case Command::Kind::kRemoveOne:
                     SetOfferCount(a_command);
                     break;
                 case Command::Kind::kAccept:
@@ -748,17 +737,6 @@ namespace TradeSync
     {
         PushCommand(Command{
             .kind = Command::Kind::kSetCount, .inventoryRevision = a_inventoryRevision, .row = a_row, .count = a_count });
-    }
-
-    void OfferOneMore(std::uint64_t a_inventoryRevision, std::size_t a_row)
-    {
-        PushCommand(Command{ .kind = Command::Kind::kAddOne, .inventoryRevision = a_inventoryRevision, .row = a_row });
-    }
-
-    void OfferOneLess(std::uint64_t a_inventoryRevision, std::size_t a_row)
-    {
-        PushCommand(
-            Command{ .kind = Command::Kind::kRemoveOne, .inventoryRevision = a_inventoryRevision, .row = a_row });
     }
 
     void Accept()

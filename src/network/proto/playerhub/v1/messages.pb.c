@@ -45,7 +45,7 @@ PB_BIND(playerhub_v1_TradeOffer, playerhub_v1_TradeOffer, AUTO)
 PB_BIND(playerhub_v1_TradeSkip, playerhub_v1_TradeSkip, 2)
 
 
-PB_BIND(playerhub_v1_TradeReport, playerhub_v1_TradeReport, 4)
+PB_BIND(playerhub_v1_TradeReport, playerhub_v1_TradeReport, 2)
 
 
 PB_BIND(playerhub_v1_TradeAccept, playerhub_v1_TradeAccept, AUTO)

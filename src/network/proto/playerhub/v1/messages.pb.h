@@ -143,7 +143,7 @@ typedef struct _playerhub_v1_TradeReport {
     uint32_t trade_id;
     uint64_t revision;
     pb_size_t skipped_count;
-    playerhub_v1_TradeSkip skipped[32];
+    playerhub_v1_TradeSkip skipped[15];
 } playerhub_v1_TradeReport;
 
 /* From a client: it accepts its own and the peer's offer revisions. From the server:
@@ -411,7 +411,7 @@ extern "C" {
 #define playerhub_v1_TradeItem_init_default      {false, playerhub_v1_FormRef_init_default, 0, false, playerhub_v1_FormRef_init_default, 0, {playerhub_v1_TradeEffect_init_default, playerhub_v1_TradeEffect_init_default, playerhub_v1_TradeEffect_init_default, playerhub_v1_TradeEffect_init_default}, 0, 0, 0, "", 0}
 #define playerhub_v1_TradeOffer_init_default     {0, 0, {{NULL}, NULL}}
 #define playerhub_v1_TradeSkip_init_default      {0, _playerhub_v1_TradeSkipReason_MIN, ""}
-#define playerhub_v1_TradeReport_init_default    {0, 0, 0, {playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default}}
+#define playerhub_v1_TradeReport_init_default    {0, 0, 0, {playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default}}
 #define playerhub_v1_TradeAccept_init_default    {0, 0, 0}
 #define playerhub_v1_TradeCancel_init_default    {0, _playerhub_v1_TradeCloseReason_MIN}
 #define playerhub_v1_ClientMessage_init_default  {0, {playerhub_v1_Hello_init_default}}
@@ -447,7 +447,7 @@ extern "C" {
 #define playerhub_v1_TradeItem_init_zero         {false, playerhub_v1_FormRef_init_zero, 0, false, playerhub_v1_FormRef_init_zero, 0, {playerhub_v1_TradeEffect_init_zero, playerhub_v1_TradeEffect_init_zero, playerhub_v1_TradeEffect_init_zero, playerhub_v1_TradeEffect_init_zero}, 0, 0, 0, "", 0}
 #define playerhub_v1_TradeOffer_init_zero        {0, 0, {{NULL}, NULL}}
 #define playerhub_v1_TradeSkip_init_zero         {0, _playerhub_v1_TradeSkipReason_MIN, ""}
-#define playerhub_v1_TradeReport_init_zero       {0, 0, 0, {playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero}}
+#define playerhub_v1_TradeReport_init_zero       {0, 0, 0, {playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero}}
 #define playerhub_v1_TradeAccept_init_zero       {0, 0, 0}
 #define playerhub_v1_TradeCancel_init_zero       {0, _playerhub_v1_TradeCloseReason_MIN}
 #define playerhub_v1_ClientMessage_init_zero     {0, {playerhub_v1_Hello_init_zero}}
@@ -1047,7 +1047,7 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_TradeInvite_size            320
 #define playerhub_v1_TradeItem_size              1891
 #define playerhub_v1_TradeOpen_size              6
-#define playerhub_v1_TradeReport_size            8785
+#define playerhub_v1_TradeReport_size            4127
 #define playerhub_v1_TradeRequest_size           6
 #define playerhub_v1_TradeSkip_size              271
 #define playerhub_v1_Vanish_size                 13

@@ -19,9 +19,10 @@ Implemented 2026-10-06; not built on Windows and not run in game.
     messages (an invitation, an opening, an offer of three items with player
     and plugin enchantments, tempering, a name, a report, an acceptance, a
     commit, closes with and without a trade) and rejected an invitation
-    without a recipient, an opening without a trade, offers with 33 items, a
-    soul above grand, and an enchantment with effects, a report index of 32 or
-    an unknown reason, and closes without or with an unknown reason. Its
+    without a recipient, an opening without a trade, offers over the item
+    limit, a soul above grand, and an enchantment with effects, a report index
+    at the limit or an unknown reason (the limits checked at 32, before they
+    became 15), and closes without or with an unknown reason. Its
     encoded request, answer, offer, report, acceptance, and cancel passed the
     server's `validate.Message`. `EstimateTradeItemBytes` stayed above the
     encoded size, 1664 against 1580 bytes for the largest valid item.
@@ -51,8 +52,7 @@ Implemented 2026-10-06; not built on Windows and not run in game.
     change.
   - Offer grids and inspecting the peer's lines (2026-10-07): the window
     ran in a new harness, see [UI overlay](ui-overlay.md#status);
-    `TradeSync.cpp` with `PeerLine::id` and `OfferOneLess` passed only the
-    syntax check.
+    `TradeSync.cpp` with `PeerLine::id` passed only the syntax check.
   - [Item details](#item-details) (2026-10-07): the formulas and the IDs
     they call were read from the 1.7.104 executable's disassembly
     (`PlayerCharacter::GetDamage`, `GetArmorValue`, and
@@ -60,6 +60,16 @@ Implemented 2026-10-06; not built on Windows and not run in game.
     `ItemDetails.cpp`, `TradeInventory.cpp`, and `TradeSync.cpp` passed the
     syntax check, which a planted error confirmed reaches `ItemDetails.cpp`.
     No number was compared with the game's.
+  - [Commit](#commit) ownership (2026-10-09): `GetOwner` (ID 20194), the
+    owner check (ID 20210), and `PlayerCharacter::PickUpObject`'s call of
+    the steal alarm (ID 37422) were read from the 1.7.104 executable's
+    disassembly; `TradeInventory.cpp` passed the syntax check, which a
+    planted error confirmed reaches it. Not run in game.
+  - The 15-line limit (2026-10-09): `go vet` and `go test
+    ./internal/validate ./internal/hub` passed; the nanopb code was
+    regenerated; `TradeSync.cpp`, `TradeWindow.cpp`, and `WireCodec.cpp`
+    passed the syntax check, which a planted error confirmed reaches
+    `TradeWindow.cpp`. Nothing ran.
 
 - [Trade bot](#trade-bot) (2026-10-07): two bots and an idle `cmd/loadgen`
   walker against a local server traded with each other: an invitation
@@ -97,7 +107,8 @@ Non-goals:
   dynamic form except a player enchantment, which is rebuilt from its effects.
 - Trading with a player who is not near, a replay, or an in-server bot.
   The [trade bot](#trade-bot) is a real client and can.
-- Ownership: received items are unowned, also stolen ones.
+- Ownership: the giver's stolen mark is not carried; a received item is
+  never stolen.
 - Showing the trade on the characters (facing each other, an idle).
 
 The wire messages and their validation are in
@@ -113,7 +124,7 @@ The wire messages and their validation are in
 | `protocol/TradeState.h` | `TradeItem`, `TradeSkip`, close reasons, the events of a trade, their validators and size limits, `EstimateTradeItemBytes` |
 | `server/internal/hub/trade.go` | A trade's two players, its phase, both offer revisions, item counts, reports, and acceptances; range, busy, vanish, expiry, and commit |
 | `forms/ItemInstance` | An inventory stack to a `TradeItem` or the reason it cannot be offered; a `TradeItem` to local forms or a skip reason; rebuilding a player enchantment; putting extra data on a reference |
-| `forms/ItemDetails` | A resolved item's [details](#item-details) for the tooltips: damage or armor, weight, value, effects, charge |
+| `forms/ItemDetails` | A resolved item's [details](#item-details) for the trade window's item card: damage or armor, weight, value, effects, charge |
 | `sync/trade/TradeSession` | The state machine of one trade, without engine types: phases, the own offer and the revisions sent, the peer's offer, both reports, acceptances, and what a commit applies |
 | `sync/trade/TradeInventory` | The player's offerable inventory, how many of an item it holds, removing and adding items |
 | `server/cmd/tradebot` | A scripted trade partner for testing alone ([Trade bot](#trade-bot)) |
@@ -170,9 +181,11 @@ a request unanswered after 10 s, as for a lost message.
   (a dynamic base form, such as a brewed potion), or it cannot be described
   (an unreferenceable form, or a player enchantment with more than 4 effects
   or one from a dynamic effect).
-- An offer holds at most 32 lines and at most 15 KiB by
-  `EstimateTradeItemBytes`; an edit over either is refused with a warning
-  notice.
+- An offer holds at most 15 lines (`kMaximumTradeItems`), as many as its
+  [grid](ui-overlay.md#trade-window) shows without scrolling, and at most
+  15 KiB by `EstimateTradeItemBytes`. A line past the 15th is refused
+  silently, since the full grid already shows why (the user's choice); an
+  edit over the byte limit is refused with a warning notice.
 - Edits are sent as a whole `TradeOffer` with the next revision once none
   came for 0.2 s of frame time. Any edit, and any new offer from the peer,
   clears both players' acceptances.
@@ -204,9 +217,6 @@ a request unanswered after 10 s, as for a lost message.
   - `<name>'s game does not have the enchantment.` (`MISSING_EFFECT` without
     a plugin) and `<name>'s game cannot rebuild the enchantment.`
     (`BAD_ENCHANTMENT`).
-- Right-click's one more in the item list and one less on an offered cell
-  count lines not confirmed yet (`TradeSync::OfferOneMore`, `OfferOneLess`),
-  which the window does not see.
 - `Accept` is possible once the window holds something on either side, the
   own offer is sent, the peer reported on it, this game reported on the
   peer's, and the player has had the cursor over each of the peer's lines
@@ -231,7 +241,7 @@ computed on the game thread when the inventory is listed
 the item as the local game resolves it, so a peer's item shows the local
 plugins' numbers, which is what the player would receive. The numbers are
 the item's own, without either player's skills or perks (the user's
-choice), and the tooltips that show them are in
+choice), and the item card that shows them is in
 [UI overlay](ui-overlay.md#trade-window).
 
 - Damage, for a weapon other than a staff:
@@ -259,7 +269,9 @@ choice), and the tooltips that show them are in
 - Charge, for an enchanted weapon: the sent charge and maximum, or for a
   base form's enchantment the full `amountofEnchantment`, which is what
   arrives.
-- Weight is the base form's. The tempering tier is already in the name.
+- Weight is the base form's, at least 0: `TESForm::GetWeight` returns -1
+  for a form it counts as weightless, such as ammo outside Survival Mode.
+  The tempering tier is already in the name.
 - A row that cannot be offered has no instance data, so its details are its
   base form's.
 
@@ -283,13 +295,20 @@ revision holds none.
 2. Each peer line this game did not skip is resolved again and added. An
    item without extra data goes in with `AddObjectToContainer`. An item with
    extra data cannot have its stack built here, so each unit is placed as a
-   reference (`PlaceObjectAtMe`), given its extra data, and picked up
-   (`PickUpObject`, no sound). A player enchantment is rebuilt with
+   reference (`PlaceObjectAtMe`), given its extra data and the player's
+   base form as owner, and picked up (`PickUpObject`, no sound). Without
+   the owner the reference takes its cell's owner, and picking it up in a
+   shop or a house is a theft: a bounty when seen, a stolen item otherwise.
+   A player enchantment is rebuilt with
    `BGSCreatedObjectManager::AddWeaponEnchantment` or
    `AddArmorEnchantment` from its effects (magic effect, magnitude, area,
    duration, cost) and attached with its maximum charge; a weapon below it
    gets `ExtraCharge`. A plugin enchantment is attached as it is.
-3. The notice `You successfully traded.` says it is done; what
+3. `TradeInventory::PlayPickUpSound` plays the generic pickup sound (the
+   `kPickupSoundGeneric` default object, so a modpack's override applies) at the
+   player, on both sides and whatever moved. The single unit pickups in
+   step 2 stay silent so it plays once.
+4. The notice `You successfully traded.` says it is done; what
    moved is in the log (counts of entries given and received, and each
    shortfall), not the notice, which the user chose to keep short.
 
@@ -380,21 +399,27 @@ To verify in game:
    the inventory shows the tempering tier and the given name.
 4. `PickUpObject` takes a reference placed in the same frame, before its 3D
    loads. If not, the item lies at the player's feet.
-5. `TESHitEvent` arrives for every hit on the player, on a thread other than
+5. A unit picked up with the player's base form as owner keeps that
+   `ExtraOwnership` in the inventory, which the game does not count as
+   stolen, so it can be sold to a merchant without a fence.
+6. `TESHitEvent` arrives for every hit on the player, on a thread other than
    the main loop.
-6. The input contexts that already release a focused window cover every menu
+7. The input contexts that already release a focused window cover every menu
    a script can open, such as message boxes and dialogue started by an NPC.
-7. `ExtraTextDisplayData::customNameLength` is the length of the given name
+8. `ExtraTextDisplayData::customNameLength` is the length of the given name
    before the tempering tier in `displayName`.
-8. [Item details](#item-details): IDs 26498 (`float(float health)`), 26499
+9. [Item details](#item-details): IDs 26498 (`float(float health)`), 26499
    (`float(float health, TESObjectARMO*)`), 26483 (`float(float value,
    float health)`), and 26465 (`float(float value, float charge, float
    cost)`) take the arguments as read from the disassembly and touch nothing
    but game settings and, for 26499, the default object manager.
-9. `GetValue`'s enchantment lookup (ID 14563) returns the base form's own
+10. `GetValue`'s enchantment lookup (ID 14563) returns the base form's own
    enchantment when the stack has none, so a pre-enchanted item's value
    includes it; and a player enchantment's `CalculateTotalGoldValue` is the
    sum of its effects' costs.
+11. A `BSSoundHandle` from `BSAudioManager::GetSoundHandle` for the generic
+   pickup descriptor, positioned at the player and following the player's
+   3D, plays audibly in first and third person.
 
 ## Acceptance criteria
 
@@ -429,7 +454,7 @@ To verify in game:
 - The client's request radius is the server's default; a server configured
   wider or narrower still decides, and the menu may enable or disable
   `Trade` against it.
-- Tooltips show the item's own damage, armor, and value, not the numbers
+- The item card shows the item's own damage, armor, and value, not the numbers
   the inventory shows after the player's skills and perks.
 - The tempering bonuses rest on 1.7.104 Address Library IDs, which another
   runtime would need checked again.

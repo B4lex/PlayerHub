@@ -350,12 +350,21 @@ namespace UI::MenuFrame
     {
         const auto& display = ImGui::GetIO().DisplaySize;
         const auto fontSize = ImGui::GetFontSize();
-        ImGui::SetNextWindowPos(
-            ImVec2{ display.x * 0.5F, display.y * 0.5F }, ImGuiCond_Appearing, ImVec2{ 0.5F, 0.5F });
-        ImGui::SetNextWindowSize(
-            ImVec2{ a_layout.sizeFonts.x * fontSize, a_layout.sizeFonts.y * fontSize }, ImGuiCond_Appearing);
-        ImGui::SetNextWindowSizeConstraints(
-            ImVec2{ a_layout.minimumSizeFonts.x * fontSize, a_layout.minimumSizeFonts.y * fontSize }, display);
+        const ImVec2 size{ a_layout.sizeFonts.x * fontSize, a_layout.sizeFonts.y * fontSize };
+        if (a_layout.fixedPosition)
+        {
+            ImGui::SetNextWindowPos(*a_layout.fixedPosition, ImGuiCond_Always);
+            ImGui::SetNextWindowSize(size, ImGuiCond_Always);
+            a_flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
+        }
+        else
+        {
+            ImGui::SetNextWindowPos(
+                ImVec2{ display.x * 0.5F, display.y * 0.5F }, ImGuiCond_Appearing, ImVec2{ 0.5F, 0.5F });
+            ImGui::SetNextWindowSize(size, ImGuiCond_Appearing);
+            ImGui::SetNextWindowSizeConstraints(
+                ImVec2{ a_layout.minimumSizeFonts.x * fontSize, a_layout.minimumSizeFonts.y * fontSize }, display);
+        }
         if (a_focus)
         {
             ImGui::SetNextWindowFocus();

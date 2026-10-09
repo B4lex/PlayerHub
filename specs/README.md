@@ -18,7 +18,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
 | [trade.md](trade.md) | Item exchange between two players: invitation, offers, reports, acceptance, commit, cancelling, the trade bot; the only change a peer makes to the local world | `sync/trade/`, `forms/ItemInstance`, `protocol/TradeState.h`, `server/internal/hub/trade.go`, `server/cmd/tradebot` |
 | [configuration.md](configuration.md) | `playerhub.ini`, schema, snapshots, saving | `src/config/` |
-| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, fonts, theme, menu frame, logo, status panel, notices, chat, friends, mute and vanish, player menu, player menu in the world, settings window, item picker and preview | `src/ui/`, `sync/chat/`, `sync/filters/`, `sync/notices/`, `assets/` |
+| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, theme, menu frame, logo, status panel, notices, chat, friends, mute and vanish, player menu, player menu in the world, settings window, item picker and preview | `src/ui/`, `sync/chat/`, `sync/filters/`, `sync/notices/`, `assets/` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `server/admin-ui/` |
 
 ## Features

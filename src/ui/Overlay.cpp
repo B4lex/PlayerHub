@@ -9,6 +9,7 @@
 #include "ui/hud/NoticeStack.h"
 #include "ui/hud/StatusPanel.h"
 #include "ui/preview/ItemPreview.h"
+#include "ui/render/Backdrop.h"
 #include "ui/settings/SettingsWindow.h"
 #include "ui/trade/TradePrompt.h"
 #include "ui/trade/TradeWindow.h"
@@ -127,6 +128,7 @@ namespace UI::Overlay
 
             // Renders onto the finished frame, so it goes before the overlay draws.
             ItemPreview::Update();
+            Backdrop::Update();
 
             ImGui_ImplDX11_NewFrame();
             ImGui_ImplWin32_NewFrame();

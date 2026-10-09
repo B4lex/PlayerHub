@@ -35,4 +35,6 @@ namespace TradeInventory
 
     std::uint32_t Add(
         RE::PlayerCharacter& a_player, const Forms::ResolvedItem& a_resolved, const Multiplayer::TradeItem& a_item);
+
+    void PlayPickUpSound(RE::PlayerCharacter& a_player);
 }

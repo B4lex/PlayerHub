@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	MaximumTradeItems       = 32
+	MaximumTradeItems       = 15
 	MaximumTradeEffects     = 4
 	MaximumTradeCount       = math.MaxInt32
 	MaximumTradeInstances   = 1000

@@ -218,6 +218,9 @@ namespace TradeInventory
         }
         // An inventory stack's extra data cannot be built here, but a placed reference has
         // its own list, which picking it up moves into the inventory.
+        // An unowned reference takes its cell's owner (GetOwner, ID 20194), and PickUpObject
+        // raises the steal alarm (ID 37422) unless the picker's base form owns it (ID 20210).
+        auto* owner = a_player.GetBaseObject();
         std::uint32_t added = 0;
         for (std::uint32_t unit = 0; unit < a_item.count; ++unit)
         {
@@ -228,9 +231,37 @@ namespace TradeInventory
                 break;
             }
             Forms::ApplyExtraData(*reference, a_resolved, a_item, enchantment);
+            reference->extraList.SetOwner(owner);
             a_player.PickUpObject(reference.get(), 1, false, false);
             ++added;
         }
         return added;
+    }
+
+    void PlayPickUpSound(RE::PlayerCharacter& a_player)
+    {
+        if (!GameThread::Require("TradeInventory::PlayPickUpSound"))
+        {
+            return;
+        }
+        // BGSDefaultObjectManager::GetObject is unusable here because windows.h
+        // defines GetObject as a macro.
+        constexpr std::size_t kPickUpSoundIndex = RE::DEFAULT_OBJECTS::kPickupSoundGeneric;
+        const auto* defaults = RE::BGSDefaultObjectManager::GetSingleton();
+        auto* form = defaults && defaults->IsObjectInitialized(kPickUpSoundIndex)
+            ? defaults->objects[kPickUpSoundIndex]
+            : nullptr;
+        auto* sound = form ? form->As<RE::BGSSoundDescriptorForm>() : nullptr;
+        auto* audio = RE::BSAudioManager::GetSingleton();
+        RE::BSSoundHandle handle;
+        if (!sound || !audio || !audio->GetSoundHandle(handle, sound))
+        {
+            logs::warn("Trade could not play the pickup sound: sound={:08X}", form ? form->GetFormID() : 0);
+            return;
+        }
+        // Placed at the player in case the descriptor's output model attenuates with distance.
+        handle.SetPosition(a_player.GetPosition());
+        handle.SetObjectToFollow(a_player.Get3D());
+        handle.Play();
     }
 }

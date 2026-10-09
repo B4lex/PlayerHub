@@ -70,7 +70,7 @@ namespace Multiplayer
         bool operator==(const TradeItem&) const = default;
     };
 
-    inline constexpr std::size_t kMaximumTradeItems = 32;
+    inline constexpr std::size_t kMaximumTradeItems = 15;
     // Under the server's 16 KiB message limit, with room for the envelope.
     inline constexpr std::size_t kMaximumTradeOfferBytes = 15 * 1024;
 

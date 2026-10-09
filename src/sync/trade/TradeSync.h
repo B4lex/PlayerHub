@@ -72,8 +72,6 @@ namespace TradeSync
     void AnswerInvitation(bool a_accept);
     void Cancel(Multiplayer::TradeCloseReason a_reason);
     void SetOfferCount(std::uint64_t a_inventoryRevision, std::size_t a_row, std::uint32_t a_count);
-    void OfferOneMore(std::uint64_t a_inventoryRevision, std::size_t a_row);
-    void OfferOneLess(std::uint64_t a_inventoryRevision, std::size_t a_row);
     void Accept();
     [[nodiscard]] bool CopyView(std::uint64_t& a_revision, View& a_view);
     [[nodiscard]] TradeSession::Phase GetPhase();
