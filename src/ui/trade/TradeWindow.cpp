@@ -7,6 +7,7 @@
 #include "ui/WindowManager.h"
 #include "ui/preview/ItemPreview.h"
 #include "ui/render/Backdrop.h"
+#include "ui/trade/ItemCard.h"
 #include "ui/widgets/Controls.h"
 
 #include <imgui.h>
@@ -29,7 +30,7 @@ namespace UI
     {
         using Phase = TradeSession::Phase;
 
-        constexpr ImVec2 kPanelSizeFonts{ 56.0F, 44.0F };
+        constexpr ImVec2 kPanelSizeFonts{ 56.0F, 52.8F };
         constexpr float kBackgroundAlpha = 0.96F;
         constexpr float kPreviewWidthFonts = 28.0F;
         // Narrower than this, the preview column is left out.
@@ -54,14 +55,15 @@ namespace UI
         constexpr float kMaximumCellFonts = 7.0F;
         constexpr float kMinimumInventoryWidthFonts = 20.0F;
         constexpr float kCellPaddingFonts = 0.2F;
+        constexpr float kCellGapFonts = 0.25F;
         constexpr float kFallbackNameScale = 0.8F;
 
         // Item backgrounds are opaque: the thumbnail of each item is captured on its own.
-        constexpr ImU32 kWellColor = IM_COL32(12, 12, 14, 255);
-        constexpr ImU32 kWellLineColor = IM_COL32(44, 44, 50, 255);
-        constexpr ImU32 kItemColor = IM_COL32(67, 67, 67, 255);
+        constexpr ImU32 kWellColor = IM_COL32(8, 8, 10, 255);
+        constexpr ImU32 kItemColor = kWellColor;
         constexpr ImU32 kEnchantedColor = IM_COL32(130, 146, 204, 255);
-        constexpr ImU32 kCellTextColor = IM_COL32(20, 20, 24, 255);
+        // A fallback name on the light enchanted background; others take the style's text color.
+        constexpr ImU32 kEnchantedTextColor = IM_COL32(20, 20, 24, 255);
         constexpr ImU32 kUninspectedShade = IM_COL32(0, 0, 0, 150);
         constexpr ImU32 kCountShadow = IM_COL32(0, 0, 0, 220);
         constexpr float kAcceptedTintAlpha = 0.14F;
@@ -77,11 +79,12 @@ namespace UI
             | ImGuiWindowFlags_NoScrollWithMouse;
         constexpr ImGuiWindowFlags kCardFlags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse
             | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoFocusOnAppearing
-            | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNav;
+            | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoScrollbar
+            | ImGuiWindowFlags_NoScrollWithMouse;
         constexpr ImGuiWindowFlags kModelFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
             | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoFocusOnAppearing
             | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNav;
-        constexpr ImGuiTableFlags kListFlags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg;
+        constexpr ImGuiTableFlags kListFlags = ImGuiTableFlags_ScrollY;
         constexpr const char* kOfferPopup = "##OfferLine";
         constexpr const char* kPickPopup = "##OfferCount";
 
@@ -97,97 +100,6 @@ namespace UI
             return a_favorited ? "Favorite" : "";
         }
 
-        std::string FormatWeight(float a_weight)
-        {
-            const auto tenths = std::round(a_weight * 10.0F);
-            return std::fmod(tenths, 10.0F) == 0.0F ? std::format("{:.0f}", tenths / 10.0F)
-                                                    : std::format("{:.1f}", tenths / 10.0F);
-        }
-
-        // A label in the disabled color and its value, after a separating dot unless first.
-        void DrawStat(const char* a_label, const std::string& a_value, bool& a_first)
-        {
-            if (!std::exchange(a_first, false))
-            {
-                ImGui::SameLine();
-                ImGui::TextDisabled("\xC2\xB7");
-                ImGui::SameLine();
-            }
-            ImGui::TextDisabled("%s", a_label);
-            ImGui::SameLine(0.0F, ImGui::GetFontSize() * 0.3F);
-            ImGui::TextUnformatted(a_value.c_str());
-        }
-
-        struct ItemCard
-        {
-            std::string_view name;
-            std::uint32_t count{ 0 };
-            const Forms::ItemDetails* details{ nullptr };
-            std::string_view notes;
-            // Why the item cannot be offered, or empty.
-            std::string_view blocked;
-            std::uint32_t formID{ 0 };
-        };
-
-        // The name and count; the item's own damage or armor, the weight and value of the whole
-        // count; its effects as the game words them, and charge; then the notes.
-        void DrawItemCard(const ItemCard& a_card)
-        {
-            const auto& style = ImGui::GetStyle();
-            const auto& details = *a_card.details;
-            ImGui::PushTextWrapPos(0.0F);
-            ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kTitleScale);
-            ImGui::TextUnformatted(a_card.name.data(), a_card.name.data() + a_card.name.size());
-            ImGui::PopFont();
-            if (a_card.count > 1)
-            {
-                ImGui::SameLine();
-                ImGui::TextDisabled("\xC3\x97%u", a_card.count);
-            }
-            bool first = true;
-            if (details.rating != Forms::ItemDetails::Rating::kNone)
-            {
-                DrawStat(details.rating == Forms::ItemDetails::Rating::kDamage ? "Damage" : "Armor",
-                    std::format("{}", details.ratingValue), first);
-            }
-            const auto count = (std::max)(a_card.count, 1U);
-            DrawStat("Weight", FormatWeight(details.weight * static_cast<float>(count)), first);
-            DrawStat("Value", std::format("{}", static_cast<long long>(details.value) * count), first);
-            if (!details.effects.empty() || details.maximumCharge > 0)
-            {
-                ImGui::Separator();
-                for (const auto& effect : details.effects)
-                {
-                    if (!effect.known)
-                    {
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-                    }
-                    ImGui::TextUnformatted(effect.text.c_str());
-                    if (!effect.known)
-                    {
-                        ImGui::PopStyleColor();
-                    }
-                }
-                if (details.maximumCharge > 0)
-                {
-                    ImGui::TextDisabled("Charge %u / %u", details.charge, details.maximumCharge);
-                }
-            }
-            if (!a_card.notes.empty())
-            {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-                ImGui::TextUnformatted(a_card.notes.data(), a_card.notes.data() + a_card.notes.size());
-                ImGui::PopStyleColor();
-            }
-            if (!a_card.blocked.empty())
-            {
-                ImGui::PushStyleColor(ImGuiCol_Text, Theme::kWarning);
-                ImGui::TextUnformatted(a_card.blocked.data(), a_card.blocked.data() + a_card.blocked.size());
-                ImGui::PopStyleColor();
-            }
-            ImGui::PopTextWrapPos();
-        }
-
         // Where the panel and the preview column go: the two centered together, the column's
         // model above its card, both as tall as the panel.
         struct Arrangement
@@ -198,7 +110,8 @@ namespace UI
             // Zero when the display leaves no room for the column.
             float previewWidth{ 0.0F };
             float modelSize{ 0.0F };
-            float cardHeight{ 0.0F };
+            // The card's window shrinks to its content up to this.
+            float maximumCardHeight{ 0.0F };
         };
 
         Arrangement Arrange()
@@ -216,13 +129,14 @@ namespace UI
             const auto column = previewWidth > 0.0F ? previewWidth + gap : 0.0F;
             const auto left = std::floor((std::max)((display.x - column - panel.x) * 0.5F, 0.0F));
             const auto top = std::floor((std::max)((display.y - panel.y) * 0.5F, 0.0F));
-            Arrangement arrangement{ .panel = ImVec2{ left + column, top },
-                .model = ImVec2{ left, top },
+            const auto columnLeft = left + panel.x + gap;
+            Arrangement arrangement{ .panel = ImVec2{ left, top },
+                .model = ImVec2{ columnLeft, top },
                 .previewWidth = previewWidth };
             arrangement.modelSize = std::floor(
                 std::clamp(panel.y - gap - kMinimumCardHeightFonts * fontSize, 0.0F, previewWidth));
-            arrangement.card = ImVec2{ left, top + arrangement.modelSize + gap };
-            arrangement.cardHeight = panel.y - arrangement.modelSize - gap;
+            arrangement.card = ImVec2{ columnLeft, top + arrangement.modelSize + gap };
+            arrangement.maximumCardHeight = panel.y - arrangement.modelSize - gap;
             return arrangement;
         }
 
@@ -245,8 +159,8 @@ namespace UI
                 const auto padding = kCellPaddingFonts * fontSize;
                 const ImVec4 clip{ a_min.x + padding, a_min.y + padding, a_max.x - padding, a_max.y - padding };
                 a_drawList.AddText(nullptr, fontSize * kFallbackNameScale,
-                    ImVec2{ clip.x, a_item.count > 1 ? a_min.y + padding + fontSize : clip.y }, kCellTextColor,
-                    a_item.name.data(), a_item.name.data() + a_item.name.size(), clip.z - clip.x, &clip);
+                    ImVec2{ clip.x, a_item.count > 1 ? a_min.y + padding + fontSize : clip.y },
+                    a_item.enchanted ? kEnchantedTextColor : ImGui::GetColorU32(ImGuiCol_Text), a_item.name.data(), a_item.name.data() + a_item.name.size(), clip.z - clip.x, &clip);
             }
             if (a_item.count > 1)
             {
@@ -306,11 +220,10 @@ namespace UI
                     return;
                 }
                 hadFocus = true;
-                bool open = true;
                 fieldActive = ImGui::IsAnyItemActive();
                 const bool escapeClaimed = fieldActive || ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
-                DrawWindow(open);
-                if (!open || (!escapeClaimed && ImGui::IsKeyPressed(ImGuiKey_Escape, false)))
+                DrawWindow();
+                if (!escapeClaimed && ImGui::IsKeyPressed(ImGuiKey_Escape, false))
                 {
                     Close(Multiplayer::TradeCloseReason::kCancelled);
                 }
@@ -389,7 +302,7 @@ namespace UI
                 }
             }
 
-            void DrawWindow(bool& a_open)
+            void DrawWindow()
             {
                 const Theme::Scope theme;
                 Backdrop::Draw();
@@ -400,12 +313,12 @@ namespace UI
                     .fixedPosition = arrangement.panel };
                 if (MenuFrame::BeginWindow("Trade###Trade", layout, kWindowFlags, std::exchange(focusWindow, false)))
                 {
-                    DrawTitle(a_open);
+                    DrawTitle();
                     const auto& style = ImGui::GetStyle();
                     const auto available = ImGui::GetContentRegionAvail();
                     const auto height = available.y - ImGui::GetFrameHeight() - style.ItemSpacing.y;
                     const auto cell = GetCellSize(available.x, height);
-                    const auto gridWidth = cell * static_cast<float>(kGridColumns);
+                    const auto gridWidth = cell * static_cast<float>(kGridColumns) - GetCellGap();
                     DrawInventory(ImVec2{ available.x - gridWidth - style.ItemSpacing.x, height });
                     ImGui::SameLine();
                     ImGui::BeginGroup();
@@ -425,12 +338,12 @@ namespace UI
             }
 
             // What the grids' area holds besides their cells: the inventory list beside the grids,
-            // and both grids' headings and closing lines.
+            // and both grids' headings.
             [[nodiscard]] static ImVec2 GetGridsOverhead()
             {
                 const auto& style = ImGui::GetStyle();
                 return ImVec2{ kMinimumInventoryWidthFonts * ImGui::GetFontSize() + style.ItemSpacing.x,
-                    2.0F * (ImGui::GetFrameHeight() + style.ItemSpacing.y + 1.0F) + 2.0F * style.ItemSpacing.y };
+                    2.0F * (ImGui::GetFrameHeight() + style.ItemSpacing.y) + 2.0F * style.ItemSpacing.y };
             }
 
             // The largest cell up to kMaximumCellFonts that fits both grids' rows in the
@@ -443,6 +356,12 @@ namespace UI
                 const auto byWidth = (a_width - overhead.x) / static_cast<float>(kGridColumns);
                 return std::floor(std::clamp(
                     (std::min)(byHeight, byWidth), kMinimumCellFonts * fontSize, kMaximumCellFonts * fontSize));
+            }
+
+            // Taken out of each cell's pitch, so the grids keep their size and the cell its spacing.
+            [[nodiscard]] static float GetCellGap()
+            {
+                return (std::max)(std::round(kCellGapFonts * ImGui::GetFontSize()), 1.0F);
             }
 
             void DrawPreview(const Arrangement& a_arrangement)
@@ -463,24 +382,38 @@ namespace UI
                     ImGui::End();
                     ImGui::PopStyleVar();
                 }
+                if (!card)
+                {
+                    return;
+                }
+                // The card's top stays under the model and its bottom follows the content, as the
+                // inventory menu's card does, up to the panel's bottom where it scrolls.
+                const auto frame = MenuFrame::GetMetrics();
+                const auto padding = frame.inset + kCardPaddingFonts * fontSize;
+                // The first and last lines clear the corner knots, which the sides need not.
+                const auto knotClearance = std::ceil((std::max)(frame.corner - padding, 0.0F));
+                const auto contentHeight =
+                    MeasureItemCard(*card, a_arrangement.previewWidth - 2.0F * padding);
+                const auto cardHeight = (std::min)(
+                    contentHeight + 2.0F * (padding + knotClearance), a_arrangement.maximumCardHeight);
                 const MenuFrame::WindowLayout layout{
-                    .sizeFonts = ImVec2{ a_arrangement.previewWidth / fontSize, a_arrangement.cardHeight / fontSize },
+                    .sizeFonts = ImVec2{ a_arrangement.previewWidth / fontSize, cardHeight / fontSize },
                     .paddingFonts = kCardPaddingFonts,
                     .backgroundAlpha = kBackgroundAlpha,
                     .fixedPosition = a_arrangement.card
                 };
                 if (MenuFrame::BeginWindow("###TradeCard", layout, kCardFlags, false))
                 {
-                    if (card)
+                    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + knotClearance);
+                    // A window clips its content only half its padding from its edge, so a long
+                    // card scrolls in a child clipped to the content area instead.
+                    const auto visibleHeight = cardHeight - 2.0F * (padding + knotClearance);
+                    if (ImGui::BeginChild("##content", ImVec2{ 0.0F, visibleHeight }, ImGuiChildFlags_None,
+                            ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoNav))
                     {
                         DrawItemCard(*card);
                     }
-                    else
-                    {
-                        ImGui::PushTextWrapPos(0.0F);
-                        ImGui::TextDisabled("Hover over an item to inspect it.");
-                        ImGui::PopTextWrapPos();
-                    }
+                    ImGui::EndChild();
                 }
                 ImGui::End();
             }
@@ -560,7 +493,7 @@ namespace UI
                     .formID = line.formID };
             }
 
-            void DrawTitle(bool& a_open) const
+            void DrawTitle() const
             {
                 const auto& style = ImGui::GetStyle();
                 ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kTitleScale);
@@ -570,11 +503,6 @@ namespace UI
                 ImGui::TextUnformatted(view.peer.name.c_str());
                 ImGui::PopStyleColor();
                 ImGui::PopFont();
-                ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::GetFrameHeight());
-                if (Controls::IconButton("##close", Controls::Icon::kClose))
-                {
-                    a_open = false;
-                }
                 ImGui::Separator();
             }
 
@@ -598,20 +526,19 @@ namespace UI
                 const auto columns = static_cast<std::size_t>(kGridColumns);
                 auto& drawList = *ImGui::GetWindowDrawList();
                 const auto origin = ImGui::GetCursorScreenPos();
+                const auto gap = GetCellGap();
+                const auto well = a_cell - gap;
                 const auto cellAt = [&](std::size_t a_index) {
                     const ImVec2 min{ origin.x + static_cast<float>(a_index % columns) * a_cell,
                         origin.y + static_cast<float>(a_index / columns) * a_cell };
-                    return std::pair{ min, ImVec2{ min.x + a_cell, min.y + a_cell } };
+                    return std::pair{ min, ImVec2{ min.x + well, min.y + well } };
                 };
-                // One more pixel for the wells' closing line.
-                const ImVec2 size{ a_cell * static_cast<float>(kGridColumns),
-                    a_cell * static_cast<float>(kGridRows) + 1.0F };
-                const ImVec2 gridEnd{ origin.x + size.x, origin.y + size.y - 1.0F };
-                drawList.AddRectFilled(origin, gridEnd, kWellColor);
+                const ImVec2 size{ a_cell * static_cast<float>(kGridColumns) - gap,
+                    a_cell * static_cast<float>(kGridRows) - gap };
                 for (std::size_t index = 0; index < Multiplayer::kMaximumTradeItems; ++index)
                 {
                     const auto [min, max] = cellAt(index);
-                    drawList.AddRect(min, ImVec2{ max.x + 1.0F, max.y + 1.0F }, kWellLineColor);
+                    drawList.AddRectFilled(min, max, kWellColor);
                 }
                 ImGui::PushID(a_id);
                 for (std::size_t index = 0; index < a_lines; ++index)
@@ -619,15 +546,13 @@ namespace UI
                     const auto [min, max] = cellAt(index);
                     ImGui::SetCursorScreenPos(min);
                     ImGui::PushID(static_cast<int>(index));
-                    ImGui::InvisibleButton("##cell", ImVec2{ a_cell, a_cell },
+                    ImGui::InvisibleButton("##cell", ImVec2{ well, well },
                         ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
                     const bool hovered = ImGui::IsItemHovered();
-                    // Inside the well lines, which stay visible between neighbouring items.
-                    const ImVec2 inner{ min.x + 1.0F, min.y + 1.0F };
-                    a_drawCell(index, inner, max, hovered);
+                    a_drawCell(index, min, max, hovered);
                     if (hovered)
                     {
-                        drawList.AddRect(inner, max, ImGui::GetColorU32(Theme::GetAccent()), 0.0F, 0, 2.0F);
+                        drawList.AddRect(min, max, ImGui::GetColorU32(Theme::GetAccent()), 0.0F, 0, 2.0F);
                     }
                     ImGui::PopID();
                 }
@@ -651,6 +576,13 @@ namespace UI
                 const auto end = std::format_to_n(heading, sizeof(heading) - 1, "{}'s offer", view.peer.name).out;
                 *end = '\0';
                 DrawGridHeading(heading, view.peerAccepted);
+                // Counted before the grid as well, so the hint shows on the window's first frame.
+                CountUninspected();
+                if (uninspected > 0)
+                {
+                    ImGui::SameLine();
+                    ImGui::TextDisabled("Hover over items to inspect them (%zu left)", uninspected);
+                }
                 DrawGrid("##peer", view.peerOffer.size(), a_cell, view.peerAccepted,
                     [this](std::size_t a_index, const ImVec2& a_min, const ImVec2& a_max, bool a_hovered) {
                         const auto& line = view.peerOffer[a_index];
@@ -676,6 +608,11 @@ namespace UI
                             drawList.AddRectFilled(a_min, a_max, kUninspectedShade);
                         }
                     });
+                CountUninspected();
+            }
+
+            void CountUninspected()
+            {
                 uninspected = static_cast<std::size_t>(
                     std::ranges::count_if(view.peerOffer, [this](const TradeSync::PeerLine& a_line) {
                         return std::ranges::find(inspected, a_line.id) == inspected.end();
@@ -701,7 +638,7 @@ namespace UI
                             a_min, a_max);
                         if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
                         {
-                            if (item.count > 1)
+                            if (line.count > 1)
                             {
                                 popupRow = line.row;
                                 openPopup = true;
@@ -718,7 +655,7 @@ namespace UI
                     });
             }
 
-            // A clicked stack of the own offer: its count and Remove all. The count field stays conditional because
+            // A clicked line of the own offer: its count and Remove all. The count field stays conditional because
             // the held count can drop to one while the popup is open.
             void DrawOfferPopup()
             {
@@ -745,9 +682,15 @@ namespace UI
                     std::uint32_t count = line->count;
                     const std::uint32_t step = 1;
                     ImGui::SetNextItemWidth(kCountFieldFonts * ImGui::GetFontSize());
+                    // Since ImGui 1.92.9 typed text applies only on Enter or focus loss, so a 0 is never a digit typed
+                    // on the way to another count.
                     if (ImGui::InputScalar("##count", ImGuiDataType_U32, &count, &step))
                     {
-                        TradeSync::SetOfferCount(view.inventoryRevision, popupRow, std::clamp(count, 1U, item.count));
+                        TradeSync::SetOfferCount(view.inventoryRevision, popupRow, (std::min)(count, item.count));
+                        if (count == 0)
+                        {
+                            ImGui::CloseCurrentPopup();
+                        }
                     }
                     ImGui::SameLine();
                     ImGui::AlignTextToFramePadding();
@@ -903,18 +846,7 @@ namespace UI
                 const auto& style = ImGui::GetStyle();
                 const auto fontSize = ImGui::GetFontSize();
                 const auto buttonWidth = kFooterButtonWidthFonts * fontSize;
-                // Acceptance shows on the grids; the line is left for the one rule they cannot show.
-                if (uninspected > 0)
-                {
-                    ImGui::AlignTextToFramePadding();
-                    ImGui::TextDisabled(
-                        "Hover over %s's items to inspect them (%zu left).", view.peer.name.c_str(), uninspected);
-                }
-                else
-                {
-                    ImGui::Dummy(ImVec2{ 0.0F, ImGui::GetFrameHeight() });
-                }
-                ImGui::SameLine(ImGui::GetContentRegionMax().x - buttonWidth * 2.0F - style.ItemSpacing.x);
+                ImGui::SetCursorPosX(ImGui::GetContentRegionMax().x - buttonWidth * 2.0F - style.ItemSpacing.x);
                 const bool blocked = !view.acceptBlocker.empty();
                 ImGui::BeginDisabled(view.ownAccepted || blocked || uninspected > 0);
                 if (Controls::PrimaryButton("Accept", ImVec2{ buttonWidth, 0.0F }))

@@ -442,8 +442,7 @@
   when thumbnails are unavailable; Accept disabled with the inspect line
   until each peer cell was hovered, a cell inspected
   in the frame the cursor reaches it, a count change shading only that line, a `TradeSync` blocker disabling
-  Accept with its reason as the button's tooltip and no footer line, nothing
-  in the footer once all is inspected; a
+  Accept with its reason as the button's tooltip and no footer line; a
   click opening the popup, its step button
   and `Remove all`, Escape closing the popup
   and not the trade, the popup closing when its line leaves; Escape
@@ -456,7 +455,11 @@
   the item list and the removed right clicks (2026-10-09) passed only the
   g++ syntax check of `TradeWindow.cpp` and `TradeSync.cpp`. The full
   offer ignoring new rows (2026-10-09) passed only the g++ syntax check of
-  `TradeWindow.cpp`.
+  `TradeWindow.cpp`. The gap between borderless cells (2026-10-10) passed only the g++
+  syntax check of `TradeWindow.cpp`, a planted error confirming it is
+  checked; it was not rasterized. A click removing a cell that offers one
+  of a larger stack, and the popup's count removing the line at 0
+  (2026-10-11), passed only the g++ syntax check of `TradeWindow.cpp`.
 - **Trade screen, preview column, backdrop, and turning model**
   (2026-10-09): not built on Windows or run in game. On Linux,
   `TradeWindow.cpp` with the real `Theme.cpp`, `MenuFrame.cpp`, and
@@ -466,13 +469,15 @@
   the right of a 28 font size column, the two centered, the model square
   above the card reaching the panel's bottom; a narrower column at 5:4,
   none on a square display, the same proportions at 4K; the backdrop drawn
-  each frame; the card's placeholder, then at once the hovered row's or
+  each frame; at once the hovered row's or
   cell's name, count (held or offered), stats, effects, notes, and a
   blocked row's reason; the last item kept while the cursor is over the
   backdrop; a shown row found again after rows moved and the card cleared
   when its row or peer line left; a peer cell still inspected by hovering;
   a drag on the model square reaching it; clicks on the backdrop doing
   nothing; Escape cancelling. Cells came out at the 5 font size minimum.
+  The inspect hint on the peer grid's heading line and the card left out
+  until an item is shown (2026-10-10) passed only the g++ syntax check.
   `Gpu.cpp`, `Backdrop.cpp`, `ItemPreview.cpp`, `ItemPicker.cpp`,
   `MenuFrame.cpp`, and `Overlay.cpp` passed only the g++ syntax check, a
   planted error confirming it reaches `ItemPreview.cpp`. The HLSL compiled
@@ -493,7 +498,24 @@
   turned, made it animate correctly in game, but the glow appeared only
   once the model was turned (user report and log, 2026-10-10); watching
   each enchanted load for 0.5 s, and enchanted thumbnails waiting for their
-  glow, passed only the g++ syntax check.
+  glow, passed only the g++ syntax check. Starting each load from the
+  game's transform and fitting thumbnails to 512 px, after the user saw
+  stills missing (2026-10-10), passed only the g++ syntax check.
+- **Vanilla item card** (2026-10-10): not built on Windows or run in game.
+  On Linux, `ItemCard.cpp` with the real `MenuFrame.cpp` and `Theme.cpp`
+  ran headless in Dear ImGui 1.92.9 with Sovngarde (16 px at 1080p,
+  Liberation Sans standing in for the system fonts) and was rasterized for
+  seven cards of the column's 28 font size width, each as tall as its
+  content up to 14 font sizes with no scrollbar: a charged
+  weapon, a stack with a note, a Cyrillic name in capitals, and two that
+  reach the limit and scroll (ingredients with four effects and a blocked
+  reason, and an item with four effects and a three-line name), each also
+  scrolled to its end with the bottom margin kept and only the child
+  showing a scrollbar. The column moved to the panel's right (2026-10-10)
+  passed only the g++ syntax check of `TradeWindow.cpp`, as did the panel
+  20% taller (56 × 52.8 font sizes), whose cell size was estimated, not
+  measured. `ItemCard.cpp` and `TradeWindow.cpp` passed the g++ syntax
+  check against CommonLib, a planted error confirming it reaches both.
 
 ## Scope
 
@@ -540,6 +562,7 @@ src/ui/
   chat/WorldPlayerMenu        # a player's menu at the crosshair, opened by activating its character
   trade/TradePrompt           # a trade invitation waiting for an answer, answered by its keys
   trade/TradeWindow           # the open trade: a fixed panel with both offers as grids, own items, Accept and Cancel, and the preview column
+  trade/ItemCard              # the preview column's item card in the vanilla layout
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
   settings/ConnectionControls # connection button, the line under it, one-line summary
   widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text
@@ -1052,7 +1075,8 @@ connected players whose names start with what follows, at most 8.
 - `ChatRoster` copies the roster from the transport when its revision changes
   ([Network](network.md#client)) and sorts it by folded name. `Complete`
   returns the player named exactly as typed, then whisper partners, then
-  players the client currently receives (`Network::CopyNearbyPlayers`), then
+  players within Local chat ([Network](network.md#local-players),
+  `Network::CopyNearbyPlayers`), then
   the rest by name, without the local player. It runs when the text changes,
   not per frame.
 - Names are folded by a table for ASCII, Latin-1, Latin Extended-A, Greek,
@@ -1194,8 +1218,10 @@ never a line, so the history holds only what players said.
   folded as the [name list](#name-list) folds them. Tab stays in the field;
   Enter gives the keyboard back to the chat's field.
 - The names follow, a chat line apart, in the text face. Players
-  nearby, the ones the client receives (`ChatRoster::CopyNearbyPlayers`),
-  come first in the Local color, as the chat names a sender in Local; the
+  nearby, the ones Local chat reaches (`ChatRoster::CopyNearbyPlayers`,
+  [Network](network.md#local-players)), so in the same interior at any
+  distance, come first in the Local color, as the chat names a sender in
+  Local; the
   others follow in a light gray (`kDistantPlayerColor`), between the
   theme's text and disabled text; each group keeps the order
   `ChatRoster` sorts them in (by folded name). The local player is left
@@ -1210,8 +1236,8 @@ never a line, so the history holds only what players said.
 - A muted or vanished player has a mark at the list's right edge, in the
   muted text color, three quarters of a font size square: a speech bubble
   struck through for muted, an eye struck through for vanished, both when both. Hovering them shows `Muted`, `Vanished`, or
-  `Muted and vanished`. A vanished player is never nearby, since the client
-  no longer receives it.
+  `Muted and vanished`. A vanished player within Local chat is still
+  nearby, since its Local lines still arrive.
 - A `Manage players` button as wide as the list stands at its bottom,
   below the names, and opens [Manage players](#manage-players).
 - Only the button closes the list. A chat closed by Escape, also from the
@@ -1608,15 +1634,16 @@ neither touches an engine object.
   by a game menu retries each frame and gives the trade up with `FAILED`
   after `kFocusWaitSeconds` (2) of frame time, each frame counting at most
   0.1 s; one that had focus and loses it cancels with `MENU`.
-- The trade itself is a framed panel of 56 × 44 font sizes, the same share
+- The trade itself is a framed panel of 56 × 52.8 font sizes, the same share
   of the screen at every resolution, which cannot be moved or resized
-  (`MenuFrame::WindowLayout::fixedPosition`). To its left, 2 font sizes
-  apart, the [preview column](#preview-column) is 28 font sizes wide, less
+  (`MenuFrame::WindowLayout::fixedPosition`). To its right, 2 font sizes
+  apart, as the inventory menu shows its item (the user's choice), the
+  [preview column](#preview-column) is 28 font sizes wide, less
   on a narrow display while at least 12 fit within a 1 font size margin,
   and left out otherwise. Panel and column are centered together, and the
   panel vertically; the column is as tall as the panel.
-- The title is `Trade with <name>`, the name in the accent, with a close
-  button. The left column holds the player's items, and the right column
+- The title is `Trade with <name>`, the name in the accent; the window has
+  no close button, Cancel and Escape close it. The left column holds the player's items, and the right column
   `<name>'s offer` above `Your offer`, each a grid, the order Path of Exile
   stacks them in.
 - Each offer is a grid of 5 × 3 square cells, one line per cell in offer
@@ -1627,29 +1654,42 @@ neither touches an engine object.
   `kMaximumTradeItems` at compile time. The cell is the largest whole
   pixel size up to 7 font sizes, at least 5 (`kMinimumCellFonts`, the
   user's choice), that fits both grids' rows in the panel's height and
-  leaves the item list 20 font sizes; in the fixed panel that is 5 font
-  sizes (80 px at 1080p, measured headless).
+  leaves the item list 20 font sizes. In the fixed panel the width limits
+  it, leaving the item list its 20 font sizes: about 103 px at 1080p
+  (6.4 font sizes), estimated from the style's sizes. The 56 × 44 panel
+  before it held the cells at their 5 font size minimum (80 px, measured
+  headless), so the panel was made 20% taller (the user's choice).
+- Each cell is its own borderless well, with a quarter font size gap
+  (`kCellGapFonts`, rounded to whole pixels, at least 1) to its neighbours.
+  The gap is taken out of the cell's pitch, so the cell size above and the
+  grid's footprint are unchanged; the item fills the whole well (the user's
+  choice).
 - A cell shows the item's [thumbnail](#3d-preview) on its background (light
   blue-grey for an enchanted item, as Path of Exile tints magic items, else
-  light grey, the user's choice so dark items stand out) and the count
-  above one in its top left corner, in white with a dark shadow. While
-  thumbnails are off (`[UI] ItemPreview`) or unavailable, the cell shows
-  the name instead, in dark text;
+  the empty well's color, `kItemColor` = `kWellColor`, the user's choice)
+  and the count above one in its top left corner, in white with a dark
+  shadow. The background must be opaque, since the still is captured on
+  it. While thumbnails are off (`[UI] ItemPreview`) or unavailable, the
+  cell shows the name instead, in dark text on an enchanted item's
+  background and the style's text color on the well;
   while one is captured, only the background. Hovering a cell frames it in
   the accent and shows the item in the preview column at once.
 - Your offer: the lines the other game confirmed; a clicked item appears
-  only once confirmed. Clicking a cell of a single item (the player holds
-  one) removes its line at once (`TradeSync::SetOfferCount` with 0).
-  Clicking a cell of a stack opens a popup with the name, a count field
+  only once confirmed. Clicking a cell that offers one item, also one of a
+  larger stack, removes its line at once (`TradeSync::SetOfferCount` with 0)
+  (the user's choice).
+  Clicking a cell that offers more opens a popup with the name, a count field
   with steps of one (clamped to what the player holds) and `of <held>`, and
   `Remove all`; the field is left out if the player comes to hold only one while
-  it is open. Escape closes the popup, and it closes when its line leaves
-  the offer.
+  it is open. Stepping down from 1, or entering 0, removes the line and
+  closes the popup (the user's choice); typed text applies only on Enter or
+  focus loss (ImGui 1.92.9), so a 0 on the way to another count does not.
+  Escape closes the popup, and it closes when its line leaves the offer.
 - `<name>'s offer`: names as the local game resolves them; lines it cannot
   receive are left out. Each line must be inspected, as in Path of Exile: a
   line the cursor has not been over is shaded dark, and Accept stays
-  disabled with `Hover over <name>'s items to inspect them (<n> left).`
-  until none is left. Inspecting is local to the window and takes effect in
+  disabled until none is left, with `Hover over items to inspect them
+  (<n> left)` after the grid's heading. Inspecting is local to the window and takes effect in
   the frame the cursor reaches the cell, so moving the cursor across the
   grid inspects every cell it passes (the user's choice). `TradeSync` keeps a line's `PeerLine::id` while the peer offers the same
   item and count, so only a line the peer adds or changes needs inspecting
@@ -1675,47 +1715,69 @@ neither touches an engine object.
   highlighted; rows that cannot be offered, also those the other game
   [cannot receive](trade.md#offers-and-acceptance), are disabled. A hovered
   row, also a disabled one, shows its item in the preview column at once.
-- The footer holds only the lines left to inspect, when any are, then
-  Accept, disabled while blocked, uninspected, or accepted, and Cancel.
+- The footer holds only Accept, disabled while blocked, uninspected, or
+  accepted, and Cancel.
   Acceptance shows on the grids alone, and a change taking it back shows as
   the tint going and the changed line shaded. `TradeSync`'s reason Accept is
   unavailable (nothing offered, the offer sending, a report awaited) is the
-  disabled button's tooltip rather than a footer line, since it mostly
+  disabled button's tooltip rather than a line, since it mostly
   lasts a round trip after each edit and would flicker there. Escape, when
-  no field or popup claims it, cancels as Cancel and the close button do.
+  no field or popup claims it, cancels as Cancel does.
 - A trade that ends releases focus; a window that cancelled waits for the
   view to close without taking focus again.
 
 ### Preview column
 
-The vanilla inventory's item display, beside the panel (the user's choice):
+The vanilla inventory's item display, right of the panel (the user's choice):
 the item's model above a card with its numbers. It replaces the item
 tooltips; the only tooltip left in the window is Accept's blocker.
 
 - It shows the item last hovered in the item list or either grid, and keeps
   it while the cursor is over the backdrop or the panel's empty parts.
-  Before any hover the square is empty and the card says `Hover over an item
-  to inspect it.` A row of the player's is found again by form and name
-  when the inventory changes, since rows can move, and the column empties
-  when it is gone or when the peer takes the shown line out. Hovering a
+  While no item is shown, from the window's opening to the first hover,
+  the square is empty and the card is left out. A row of the player's is
+  found again by form and name when the inventory changes, since rows can
+  move, and the column empties when it is gone or when the peer takes the
+  shown line out. Hovering a
   peer cell also [inspects](#window) it.
-- The model's square is the column's width, leaving the card at least 12
+- The model's square is the column's width, leaving the card room for at least 12
   font sizes, so 28 font sizes square on most displays. It shows the
   item's [model](#3d-preview) floating over the backdrop, as the inventory
   menu does, and turns it while dragged with the left button. With
   `[UI] ItemPreview` off it stays empty.
-- The card is a framed window from the square to the panel's bottom with
-  the item's [details](trade.md#item-details): the name in the heading font
-  at 1.25 times with `×count`; `Damage` or `Armor` of one item, then
-  `Weight` and `Value` of the whole count it shows (held for an item list
-  row, offered for a grid cell, held again once a stack leaves the offer),
-  on one line with dimmed labels, so a stack and a single item read the
-  same; a separator, then each effect as the game words it, an undiscovered
-  ingredient effect dimmed, and `Charge <n> / <max>`; then the notes,
-  equipped (giving it takes it off) and favorite; and in amber why a row
-  cannot be offered. An enchanted item is told by its effects and its cell,
-  so no `Enchanted` note is shown. The text wraps at the card's width, and
-  a card too long for its height scrolls.
+- The card is a framed window under the square (`ui/trade/ItemCard`) laid
+  out as the vanilla inventory's item card, every line centered. As in the
+  inventory menu (the user's choice), its top stays put and its bottom
+  border follows the content: `MeasureItemCard` lays the card out without
+  drawing before the window begins, and the window is that tall, up to the
+  panel's bottom, where a longer card scrolls. The first and last lines
+  keep clear of the frame's corner knots (`MenuFrame::Metrics::corner`);
+  the sides keep the card's 0.6 font size padding. The content scrolls in
+  a child exactly the content area's size, because a window clips its
+  content only half its padding from its edge: lines scrolled past are cut
+  at that margin, and a card scrolled to its end keeps the same space
+  under its last line as one that fits. It shows the item's
+  [details](trade.md#item-details):
+  - the name in capitals in the heading font at 1.45 times, wrapped onto
+    more lines when needed, with ` (count)` after it for more than one, as
+    the vanilla item list writes counts, over a rule the card's width.
+    Capitals are made for ASCII, Latin-1, Latin Extended-A, and Cyrillic;
+    other letters are kept;
+  - `DAMAGE` or `ARMOR` of one item, then `WEIGHT` and `VALUE` of the
+    whole count it shows (held for an item list row, offered for a grid
+    cell, held again once a stack leaves the offer), so a stack and a
+    single item read the same: each a gray label at 0.95 times before its
+    value in the heading font at 1.75 times, spaced 1.6 font sizes apart
+    down to 0.8 and wrapped when they still do not fit;
+  - each effect as the game words it in gray with every number (digits
+    with single `.` or `,` between them) white in the heading font, as the
+    game shows magnitudes; an undiscovered ingredient effect is darker
+    without highlights; then `Charge <n> / <max>` in the same style (the
+    user kept it as text rather than the vanilla meter);
+  - the notes, equipped (giving it takes it off) and favorite, in gray at
+    0.9 times, and in amber why a row cannot be offered (the user's
+    choice). An enchanted item is told by its effects and its cell, so no
+    `Enchanted` note is shown.
 
 ## Settings window
 
@@ -2017,6 +2079,23 @@ picker's panel) or as cached thumbnails for many cells.
   `Render` calls and restores it; the first capture of each start logs
   whether it was on (`gameTAA`). The 2× capture above is the model's
   anti-aliasing instead; thumbnails get theirs from the mip reduction.
+- Every capture renders with its own directional ambient, so an item looks
+  the same wherever and whenever it is captured, and faces turned from the
+  scene's light are not black. In 1.7.104 the inventory scene sets none, so
+  the lighting shader takes the world's from `BSShaderManager::State`, which
+  ID 26232 sets from the current cell's lighting or the weather and time of
+  day.
+  `CaptureAmbientScope` does what MistMenu's render (ID 52308) does around
+  its scene render: it calls ID 105643 with the same color
+  (`kCaptureAmbient`, 0.45) for all six directions, MistMenu's white
+  ambient specular tint, and a fresnel power of zero, then puts back the
+  state's `directionalAmbientTransform`, `ambientSpecular`, and
+  `ambientSpecularEnabled` and the colors ID 105643 keeps (ID 414646, which
+  MistMenu reads back through ID 105644). The scene's own light, the
+  `fInventoryMenuLight*` INI point light (by default at (100, -350, 100),
+  radius 400, in front of and above the item), stays as the inventory menu
+  has it and gives the shading. The first capture of each start logs the
+  world's ambient it replaced (`worldAmbient`, the transform's translation).
 - After restoring or fitting a transform, `ItemPreview` calls
   `NiAVObject::Update` (ID 70251) with a time of zero and the dirty flag,
   as `Render` does before drawing, so the world bound it projects and turns
@@ -2031,6 +2110,15 @@ picker's panel) or as cached thumbnails for many cells.
   transform as fitted and turned is kept after each capture and set again
   when it is attached after thumbnails took the renderer, so it neither
   snaps back nor is fitted twice.
+- Loads share models. In 1.7.104 `LoadInventoryItem` (ID 51758) reuses a
+  model still in `loadedModels` (up to 7, keyed by model object) as it was
+  left, and only `End3D` (ID 51756) releases them, so a still captured
+  after the panel showed the same item got the panel's size and turn
+  (2026-10-10 log: thumbnail boxes of about 1176 px right after a model
+  capture of the form). The first time a form attaches after `Begin3D`,
+  `ItemPreview` keeps its local transform as the game's (`gameTransforms`,
+  cleared on stop), and each load starts from it, or from the panel's kept
+  transform for the model.
 - A model is animated when a node, geometry,
   or geometry property in its scene graph has a time controller, or a
   shader property has effect data (`BSShaderProperty::effectData`, which
@@ -2083,7 +2171,10 @@ picker's panel) or as cached thumbnails for many cells.
   in one of 64 slots of 256² in a 2048² atlas; a new one takes a free slot,
   else the one drawn longest ago that no window drew this frame.
 - The next thumbnail is one a window drew last frame: the earliest requested
-  one waiting for its still, else the earliest one due for its refresh. It
+  one waiting for its still, else the earliest one due for its refresh.
+  `FitModel` sizes it to a 512 px square capture
+  (`kThumbnailCaptureSide`, twice a slot) and its box is projected at the
+  bound center's depth, as the model's is. It
   is captured on its background into a 2048² scratch texture with a full mip
   chain. `GenerateMips` halves it until it fits a slot, and the level is
   copied in, dropping the partial last texel each level adds. Each still is
@@ -2099,7 +2190,8 @@ picker's panel) or as cached thumbnails for many cells.
   format cannot generate mipmaps (`D3D11_FORMAT_SUPPORT_MIP_AUTOGEN`) or
   their textures cannot be created; cells then show names.
 - Logs: `Item preview started` and `stopped` (debug), the first capture of
-  each start with its screen box and bound radius, and `Item preview
+  each start with its screen box, bound radius, and the game's TAA and
+  world ambient it replaced, and `Item preview
   unavailable: <reason>` or `Item model preview unavailable: <reason>` once.
   A model waiting a second after its load logs `Item preview waiting` once
   (debug) with the models `Inventory3DManager` holds, the last one's form,
@@ -2134,7 +2226,10 @@ To verify in game:
 3. Starting and stopping the inventory renderer (`Begin3D`, `End3D`) for
    each batch of thumbnails costs no visible frame time.
 4. `LoadedInventoryModel::itemBase` of the model `LoadInventoryItem`
-   attaches is the form passed to it.
+   attaches is the form passed to it. A reused entry is found by its model
+   object (ID 51771) and keeps its `itemBase`, so two forms sharing one
+   model object within a run would leave the second waiting until its
+   5 s timeout; no capture in game has timed out so far.
 5. The UI 3D scene draws a model the same over black and over white within
    one frame, so the difference of the two captures is its coverage: no
    part of the scene render reads the cleared background.
@@ -2173,6 +2268,14 @@ To verify in game:
     whether it can take longer, was not traced. Only forms with their own
     enchantment get one, and `Render` with the count at zero, which draws
     nothing, still lets it attach.
+12. The lighting shader reads the directional ambient and ambient specular
+    from `BSShaderManager::State` during the scene render's call, so setting
+    them with ID 105643 for the call and restoring the fields afterwards
+    lights the capture without changing the world's frame. Read from the
+    disassembly: ID 105643 writes only those fields and its color copy at
+    ID 414646, the inventory scene's render path does not call it, and the
+    lighting shader's geometry setup (ID 107312) reads the transform. How
+    bright 0.45 looks against the scene's light was not seen in game.
 
 ## Acceptance criteria
 
@@ -2402,8 +2505,9 @@ To verify in game:
     chat. A click on a stack asks how many, starting at 1, and only `Offer`
     or Enter offers them; they show in the own grid as its thumbnail with
     its count. Clicking the stack's row again starts at that count with
-    `Update`. Clicking the cell opens its count and `Remove all`, clicking a
-    single item's cell removes it with no popup, and right clicks do
+    `Update`. Clicking the cell opens its count and `Remove all`, and
+    stepping the count down from 1 removes it; clicking a cell that offers
+    one item removes it with no popup, and right clicks do
     nothing. The other window shows it
     within a moment, shaded until the cursor passes over it, and keeps Accept
     disabled until every line of the offer was hovered; a count change
@@ -2420,7 +2524,9 @@ To verify in game:
     yet offered does nothing and posts no notice, while an offered row's
     count can still change. With `ItemPreview = false` the cells show names
     and the preview column only the card. The inventory looks normal
-    afterwards.
+    afterwards. An item's thumbnail and preview model look equally bright
+    in a dark interior, outside by day, and outside at night, with no face
+    left black, and the world's lighting is unchanged while they capture.
 27. Notices stack on the right edge from 40% of the screen's height, at
     1080p and 4K, each with a strip in the accent: `You successfully
     traded.` after a trade, the other player's decline, a friend
@@ -2430,11 +2536,12 @@ To verify in game:
 28. The open trade takes the screen at 1080p, 1440p, 4K, and 21:9: the
     game behind it, HUD included, is blurred and darker and keeps moving,
     the panel takes the same share of the screen's height on each, and the
-    preview column sits to its left; nothing else on screen changes, and
+    preview column sits to its right; nothing else on screen changes, and
     the game looks normal after the window closes. FPS stays steady with
     the window open. Hovering a row or a cell shows its model at once,
     textured, floating over the blur without a box or a dark fringe, as
-    the inventory menu shows it, and its card with its numbers; moving off
+    the inventory menu shows it, and its card with its numbers laid out
+    as the inventory menu's, in capitals where the game shows them; moving off
     the panel keeps it. Dragging the model turns
     it smoothly like the inventory menu's model, and it stays turned after
     other items were hovered and the grid thumbnails captured. The item
@@ -2525,4 +2632,3 @@ To verify in game:
   the trade then shows no item numbers at all. The model cannot be zoomed,
   and a turn applies the drag's angles in one call per frame, so a fast
   drag turns in larger steps than the inventory menu's.
-- The fixed panel gives the grids' cells their 5 font size minimum.

@@ -319,7 +319,7 @@ is not sent and it arrives full.
 
 | Event | Reason | Where |
 | --- | --- | --- |
-| Cancel, Escape, the window's close button | `CANCELLED` | client |
+| Cancel, Escape | `CANCELLED` | client |
 | The decline key, `Decline trade` | `DECLINED` | client (`TradeAnswer`) |
 | Combat (`IsInCombat`) or a `TESHitEvent` on the player while a trade is invited or open | `COMBAT` | client |
 | Anything taking input from the open window: a game menu, the console, dialogue, a loading screen | `MENU` | client |

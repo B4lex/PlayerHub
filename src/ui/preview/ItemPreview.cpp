@@ -16,6 +16,7 @@
 #include <span>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 // The capture follows Item3DPreview in ModExplorerMenu by patchulidev (GPL-3.0).
 namespace UI::ItemPreview
@@ -46,8 +47,12 @@ namespace UI::ItemPreview
         constexpr float kTurnFontsPerRadian = 8.0F;
         constexpr ImVec4 kBlack{ 0.0F, 0.0F, 0.0F, 1.0F };
         constexpr ImVec4 kWhite{ 1.0F, 1.0F, 1.0F, 1.0F };
+        // Every direction's ambient color in captures, so faces turned from the scene's light are lit.
+        constexpr float kCaptureAmbient = 0.45F;
 
         constexpr std::uint32_t kThumbnailSize = 256;
+        // Twice a slot, so the first mip level halves the capture into it.
+        constexpr float kThumbnailCaptureSide = 2.0F * kThumbnailSize;
         constexpr std::uint32_t kThumbnailColumns = kTextureSize / kThumbnailSize;
         constexpr std::size_t kThumbnailSlots = kThumbnailColumns * kThumbnailColumns;
         constexpr std::size_t kModelTarget = kThumbnailSlots;
@@ -166,11 +171,21 @@ float4 Separate(Vertex input) : SV_Target
             float watched{ 0.0F };
         };
 
+        struct GameTransform
+        {
+            std::uint32_t formID{ 0 };
+            RE::NiTransform transform;
+        };
+
         bool running{ false };
         bool unavailable{ false };
         bool captureLogged{ false };
         std::uint32_t loadedFormID{ 0 };
         CaptureJob job;
+        // In 1.7.104 LoadInventoryItem (ID 51758) reuses a model still in loadedModels (up to 7,
+        // keyed by model object) as it was left, fitted and turned, and only End3D (ID 51756)
+        // releases them. A form's transform at its first attach since Begin3D is the game's.
+        std::vector<GameTransform> gameTransforms;
         float clock{ 0.0F };
         CaptureTextures textures;
 
@@ -212,6 +227,7 @@ float4 Separate(Vertex input) : SV_Target
             running = false;
             loadedFormID = 0;
             job = {};
+            gameTransforms.clear();
             logs::debug("Item preview stopped");
         }
 
@@ -509,6 +525,57 @@ float4 Separate(Vertex input) : SV_Target
             bool previous{ false };
         };
 
+        // In 1.7.104 the inventory scene sets no directional ambient, so the lighting shader takes
+        // the world's from BSShaderManager::State, which ID 26232 sets from the current cell's
+        // lighting or the weather. MistMenu's render (ID 52308) sets its own around its scene render
+        // with ID 105643, as this does around a capture's: it takes six directional colors, an
+        // ambient specular tint and a fresnel power, writes the state's ambient transform and
+        // specular, and keeps the colors at ID 414646, which MistMenu reads back (ID 105644).
+        class CaptureAmbientScope
+        {
+        public:
+            CaptureAmbientScope()
+                : state(RE::BSShaderManager::State::GetSingleton())
+                , transform(state.directionalAmbientTransform)
+                , specular(state.ambientSpecular)
+                , specularEnabled(state.ambientSpecularEnabled)
+                , colors(*LastColors())
+            {
+                using Function = void(const RE::NiColor*, const RE::NiColor*, float);
+                static REL::Relocation<Function*> setAmbient{ REL::ID(105643) };
+                const RE::NiColor ambient{ kCaptureAmbient, kCaptureAmbient, kCaptureAmbient };
+                const std::array<RE::NiColor, 6> uniform{ ambient, ambient, ambient, ambient, ambient, ambient };
+                // MistMenu's tint and fresnel power.
+                const RE::NiColor tint{ 1.0F, 1.0F, 1.0F };
+                setAmbient(uniform.data(), &tint, 0.0F);
+            }
+            ~CaptureAmbientScope()
+            {
+                state.directionalAmbientTransform = transform;
+                state.ambientSpecular = specular;
+                state.ambientSpecularEnabled = specularEnabled;
+                *LastColors() = colors;
+            }
+            CaptureAmbientScope(const CaptureAmbientScope&) = delete;
+            CaptureAmbientScope& operator=(const CaptureAmbientScope&) = delete;
+
+            // The world's ambient without direction.
+            [[nodiscard]] const RE::NiPoint3& WorldAmbient() const { return transform.translate; }
+
+        private:
+            static std::array<RE::NiColor, 6>* LastColors()
+            {
+                static REL::Relocation<std::array<RE::NiColor, 6>*> colors{ REL::ID(414646) };
+                return colors.get();
+            }
+
+            RE::BSShaderManager::State& state;
+            RE::NiTransform transform;
+            RE::NiColorA specular;
+            bool specularEnabled;
+            std::array<RE::NiColor, 6> colors;
+        };
+
         // Render attaches the model at load task state 5, and the scene render
         // requires both light schemes to match.
         void LogLoadWait(RE::Inventory3DManager& a_manager)
@@ -686,9 +753,19 @@ float4 Separate(Vertex input) : SV_Target
             a_model.Update(data);
         }
 
+        const RE::NiTransform& GameTransformOf(const RE::NiAVObject& a_model)
+        {
+            const auto known = std::ranges::find(gameTransforms, loadedFormID, &GameTransform::formID);
+            if (known != gameTransforms.end())
+            {
+                return known->transform;
+            }
+            return gameTransforms.emplace_back(loadedFormID, a_model.local).transform;
+        }
+
         // The loaded model once it can be captured: attached, given one more engine update pass,
         // and with every texture present unless a_force. A model loaded again is given back the
-        // transform the player turned it to.
+        // transform the player turned it to, and a still the game's.
         RE::NiAVObject* ReadyModel(
             RE::Inventory3DManager& a_manager, RE::UI& a_ui, bool a_force, TextureCheck& a_textures)
         {
@@ -699,11 +776,9 @@ float4 Separate(Vertex input) : SV_Target
             }
             if (!std::exchange(job.attached, true))
             {
-                if (job.target == kModelTarget && model.transform)
-                {
-                    object->local = *model.transform;
-                    UpdateWorld(*object);
-                }
+                const auto& game = GameTransformOf(*object);
+                object->local = job.target == kModelTarget && model.transform ? *model.transform : game;
+                UpdateWorld(*object);
                 return nullptr;
             }
             a_textures = InspectTextures(*object);
@@ -818,6 +893,7 @@ float4 Separate(Vertex input) : SV_Target
             auto* backBuffer = a_frame.backBuffer.Get();
             context.CopySubresourceRegion(textures.saved.Get(), 0, 0, 0, 0, backBuffer, 0, &screenBox);
             const TemporalAAOffScope noTemporalAA;
+            const CaptureAmbientScope ambient;
             for (const auto& layer : a_layers)
             {
                 ClearBackground(context, a_frame.target, *box, layer.background);
@@ -833,9 +909,10 @@ float4 Separate(Vertex input) : SV_Target
             {
                 captureLogged = true;
                 logs::debug("Item preview captured: formID={:08X} box=({}, {}, {}x{}) screen={}x{} radius={} "
-                            "gameTAA={}",
+                            "gameTAA={} worldAmbient=({:.3f}, {:.3f}, {:.3f})",
                     loadedFormID, box->left, box->top, box->width, box->height, description.width, description.height,
-                    a_model.worldBound.radius, noTemporalAA.WasEnabled());
+                    a_model.worldBound.radius, noTemporalAA.WasEnabled(), ambient.WorldAmbient().x,
+                    ambient.WorldAmbient().y, ambient.WorldAmbient().z);
             }
             return box;
         }
@@ -873,17 +950,21 @@ float4 Separate(Vertex input) : SV_Target
             return true;
         }
 
-        bool CaptureThumbnail(RE::Inventory3DManager& a_manager, RE::UI& a_ui, const RE::NiAVObject& a_model,
+        bool CaptureThumbnail(RE::Inventory3DManager& a_manager, RE::UI& a_ui, RE::NiAVObject& a_model,
             ThumbnailSlot& a_slot, const TextureCheck& a_textures)
         {
             const auto frame = Gpu::GetFrame();
-            if (!frame || !EnsureThumbnailTextures(frame->device, frame->description.format))
+            auto* scene = RE::UI3DSceneManager::GetSingleton();
+            if (!frame || !scene || !EnsureThumbnailTextures(frame->device, frame->description.format))
             {
                 return false;
             }
+            const auto& description = frame->description;
+            const float depth
+                = FitModel(a_model, *scene, kThumbnailCaptureSide, description.width, description.height);
             const std::array layers{ Layer{ ImGui::ColorConvertU32ToFloat4(a_slot.background),
                 thumbnailTextures.scratch.Get() } };
-            const auto box = RenderModel(a_manager, a_ui, a_model, a_model.local.translate.y, *frame, layers);
+            const auto box = RenderModel(a_manager, a_ui, a_model, depth, *frame, layers);
             if (!box)
             {
                 return false;
