@@ -12,7 +12,9 @@
   right after sitting down. A bed's wake-up played its exit idle in game; its
   12 s release window passed a Linux syntax check only, and the Windows build
   and in-game behavior are not verified. Crafting stations and modded exit
-  idles are not verified. Plugin-qualified furniture references
+  idles are not verified. The reset before a repeated entry after a sheathe
+  ([Entry](#entry)) passed a Linux syntax check only; the Windows build and
+  in-game behavior are not verified. Plugin-qualified furniture references
   ([Resolution](#source)) are covered by server tests only; peers with
   different load orders have not been run in game.
 - **Mounts:** implemented and run in game: a replayed rider was seated on its
@@ -128,7 +130,12 @@ marker. Without an entry point the occupancy is cleared and entry retried after
 1 s. With a weapon drawn, ID 39923 only requests a sheathe and returns without
 an entry point; Skyrim's Sit procedure (ID 39648) selects again while the marker
 is unset, so the entry is repeated once sheathed, every second, and a fresh
-entry is attempted when none is chosen within 10 s.
+entry is attempted when none is chosen within 10 s. Before each repeat the
+receiver releases the actor's reservations on the reference and returns it to
+Normal: while it waits, Skyrim's sit/sleep update can already set WantToSit and
+reserve the unset marker ([assumption 10](#engine-assumptions)). An entry point
+chosen after that played its entry idle from WantToSit, and the actor sat in
+the air beside the seat.
 
 ID 37330 reports success before its occupancy is observable, and sometimes
 records none. An entry is confirmed on a later pass, when the actor is seen
@@ -577,6 +584,17 @@ Furniture exit, traced in the 1.7.104 binary:
    a sit or sleep state to Normal and clear its occupancy (ID 39912 with no
    furniture). In game this happened at the end of the exit clip, not its
    start; for a table, about 0.2 s before `bAnimationDriven` cleared.
+
+Furniture entry, traced in the 1.7.104 binary:
+
+10. With a weapon drawn, ID 39923 calls the actor's sheathe (vfunc 0xA6) and
+    returns true without choosing an entry point, so ID 37330 reports success
+    with marker -1. ID 39861 runs its entry step only from Normal: it sets
+    WantToSit or WantToSleep through ID 39912 and reserves the process's marker
+    (ID 20159), without checking that one was chosen. A later sit/sleep state
+    skips that step. In game, an actor whose entry point was chosen in
+    WantToSit sat offset from the seat; that the reset to Normal fixes it is
+    not verified.
 
 ## Acceptance criteria
 

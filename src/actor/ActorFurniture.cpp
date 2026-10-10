@@ -420,6 +420,12 @@ namespace ActorFurniture
             if (furniture && actorState && actorState->GetWeaponState() == RE::WEAPON_STATE::kSheathed
                 && a_remote.furniture.furnitureRetryRemaining <= 0.0F)
             {
+                // ID 39861 records WantToSit and reserves the process's marker only
+                // from Normal, without checking that a marker was chosen. While the
+                // entry waited, it may have done so with marker -1; an entry point
+                // chosen afterwards would then never reach that step.
+                const auto releasedMarkerCount = ReleaseFurnitureMarkerReservations(a_actor, *furniture);
+                (void)SetActorSitSleepState(a_actor, RE::SIT_SLEEP_STATE::kNormal);
                 const bool started = UseNativeFurniture(a_actor, *furniture);
                 const bool entryPointChosen = IsFurnitureEntryPointChosen(a_process);
                 if (!entryPointChosen)
@@ -429,12 +435,12 @@ namespace ActorFurniture
                 const auto* entryIdle = a_process.middleHigh ? a_process.middleHigh->furnitureIdle : nullptr;
                 logs::debug(
                     "Animation sync resumed deferred furniture entry: actor={:08X} furniture={:08X} started={} "
-                    "marker={} entryIdle={:08X} sitSleepState={} elapsed={:.3f}",
+                    "marker={} entryIdle={:08X} previousSitSleepState={} releasedMarkers={} elapsed={:.3f}",
                     a_remote.handle.native_handle(), furniture->GetFormID(), started,
                     a_process.middleHigh ? a_process.middleHigh->currentFurnitureMarkerID
                                          : static_cast<std::uint32_t>(-1),
                     entryIdle ? entryIdle->GetFormID() : 0,
-                    static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(a_sitSleepState),
+                    static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(a_sitSleepState), releasedMarkerCount,
                     a_remote.furniture.furnitureTransitionElapsed);
                 if (entryPointChosen)
                 {
