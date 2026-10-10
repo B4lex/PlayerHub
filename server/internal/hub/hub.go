@@ -54,6 +54,8 @@ type member struct {
 	subscribed     map[uint32]*subscription
 	heldAppearance map[uint32]uint64
 	heldEquipment  map[uint32]uint64
+	local          map[uint32]uint64
+	localDue       time.Time
 
 	changed     bool
 	distributed *pb.Checkpoint
@@ -104,6 +106,11 @@ type Hub struct {
 	pairs      interest.Pairs
 	candidates []candidate
 
+	localGrid   *interest.Grid
+	localPass   uint64
+	localJoined []uint32
+	localLeft   []uint32
+
 	trades    map[uint32]*trade
 	nextTrade uint32
 }
@@ -136,7 +143,7 @@ func New(opts Options) *Hub {
 	h := &Hub{
 		opts: opts, members: make(map[uint32]*member), sessions: make(map[uint64]uint32),
 		grid: interest.NewGrid(opts.Interest.LeaveRadius), hidden: interest.Hidden{}, pairs: interest.Pairs{},
-		trades: make(map[uint32]*trade),
+		localGrid: interest.NewGrid(opts.ChatLocalRadius), trades: make(map[uint32]*trade),
 	}
 	h.rules = interest.NewRules(opts.Interest, h.hidden, h.pairs, interest.Vanished{})
 	return h
@@ -192,6 +199,7 @@ func (h *Hub) connect(kind world.Kind, outbox *delivery.Outbox, identity Identit
 		subscribed:     make(map[uint32]*subscription),
 		heldAppearance: make(map[uint32]uint64),
 		heldEquipment:  make(map[uint32]uint64),
+		local:          make(map[uint32]uint64),
 	}
 	m.view.Slot, m.view.Session = m.Slot, identity.Session
 	h.members[m.Slot] = m
@@ -221,6 +229,8 @@ func (h *Hub) Disconnect(slot uint32) {
 	}
 	leave := leaveMessage(slot, pb.LeaveReason_LEAVE_REASON_DISCONNECTED)
 	for _, r := range h.recipients {
+		// The roster's leave takes the slot out of the client's local players too.
+		delete(r.local, slot)
 		_, subscribed := r.subscribed[slot]
 		_, holdsAppearance := r.heldAppearance[slot]
 		_, holdsEquipment := r.heldEquipment[slot]
@@ -237,6 +247,7 @@ func (h *Hub) Disconnect(slot uint32) {
 		h.recipients = remove(h.recipients, m)
 	}
 	h.grid.Remove(slot)
+	h.localGrid.Remove(slot)
 	delete(h.hidden, slot)
 	for pair := range h.pairs {
 		if pair.Viewer == slot || pair.Target == slot {
@@ -323,6 +334,7 @@ func (h *Hub) UpdateInterest() {
 			h.evaluateViewer(r, now)
 		}
 	}
+	h.updateLocalPlayers(now)
 	h.expireTrades(now)
 }
 
@@ -492,6 +504,7 @@ func (h *Hub) exit(m *member, message *pb.ClientMessage) {
 
 func (h *Hub) unplace(m *member, reason pb.LeaveReason) {
 	h.grid.Remove(m.Slot)
+	h.localGrid.Remove(m.Slot)
 	h.unsubscribeAll(m, reason)
 	for peer := range m.subscribed {
 		h.unsubscribe(m, h.members[peer], pb.LeaveReason_LEAVE_REASON_VIEWER_UNPLACED)
@@ -538,6 +551,8 @@ func (h *Hub) setCheckpoint(m *member, c *pb.Checkpoint, message *pb.ClientMessa
 	h.opts.OnChange()
 	m.view.Space, m.view.X, m.view.Y = interest.SpaceOf(m.Context), float64(c.X), float64(c.Y)
 	h.grid.Update(&m.view)
+	local := localView(&m.view)
+	h.localGrid.Update(&local)
 	h.checkTradeRange(m)
 	if !wasPlaced {
 		// PeerEnter carries this checkpoint.
@@ -683,7 +698,71 @@ func (h *Hub) hearsLocally(r, sender *member) bool {
 	if !r.Placed() || r.view.Space != sender.view.Space {
 		return false
 	}
-	return r.view.Space.Worldspace == 0 || interest.Distance(&r.view, &sender.view) <= h.opts.ChatLocalRadius
+	dx, dy := r.view.X-sender.view.X, r.view.Y-sender.view.Y
+	return r.view.Space.Worldspace == 0 || dx*dx+dy*dy <= h.opts.ChatLocalRadius*h.opts.ChatLocalRadius
+}
+
+// localView places a whole interior in one cell of localGrid, since Local chat ignores distance there.
+func localView(v *interest.View) interest.View {
+	if v.Space.Worldspace == 0 {
+		return interest.View{Slot: v.Slot, Space: v.Space}
+	}
+	return interest.View{Slot: v.Slot, Space: v.Space, X: v.X, Y: v.Y}
+}
+
+// A scan checks every player in reach, so in a crowd each viewer is rescanned once a second, the
+// viewers spread over the interest passes.
+const localPlayersInterval = time.Second
+
+func (h *Hub) updateLocalPlayers(now time.Time) {
+	for _, r := range h.recipients {
+		if r.listed() && !now.Before(r.localDue) {
+			r.localDue = now.Add(localPlayersInterval)
+			h.updateLocal(r)
+		}
+	}
+}
+
+func (h *Hub) updateLocal(r *member) {
+	joined, left := h.localJoined[:0], h.localLeft[:0]
+	kept := 0
+	h.nearLocal(r, func(slot uint32) {
+		if _, known := r.local[slot]; known {
+			kept++
+		} else {
+			joined = append(joined, slot)
+		}
+	})
+	if kept < len(r.local) {
+		h.localPass++
+		h.nearLocal(r, func(slot uint32) { r.local[slot] = h.localPass })
+		for slot, pass := range r.local {
+			if pass != h.localPass {
+				left = append(left, slot)
+				delete(r.local, slot)
+			}
+		}
+	}
+	for _, slot := range joined {
+		r.local[slot] = h.localPass
+	}
+	if len(joined) > 0 || len(left) > 0 {
+		r.outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_LocalPlayers{
+			LocalPlayers: &pb.LocalPlayers{Joined: joined, Left: left}}}))
+	}
+	h.localJoined, h.localLeft = joined, left
+}
+
+func (h *Hub) nearLocal(r *member, f func(slot uint32)) {
+	if !r.Placed() {
+		return
+	}
+	view := localView(&r.view)
+	h.localGrid.Near(&view, func(slot uint32) {
+		if peer := h.members[slot]; peer != r && peer.listed() && h.hearsLocally(r, peer) {
+			f(slot)
+		}
+	})
 }
 
 func (h *Hub) evaluateViewer(r *member, now time.Time) {

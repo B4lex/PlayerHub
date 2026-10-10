@@ -248,6 +248,15 @@ func describe(m *pb.ServerMessage) string {
 	case *pb.ServerMessage_TradeClose:
 		c := body.TradeClose
 		return fmt.Sprintf("trade close %d %s", c.TradeId, strings.TrimPrefix(c.Reason.String(), "TRADE_CLOSE_REASON_"))
+	case *pb.ServerMessage_LocalPlayers:
+		s := "local"
+		for _, slot := range slices.Sorted(slices.Values(body.LocalPlayers.Joined)) {
+			s += fmt.Sprintf(" +%d", slot)
+		}
+		for _, slot := range slices.Sorted(slices.Values(body.LocalPlayers.Left)) {
+			s += fmt.Sprintf(" -%d", slot)
+		}
+		return s
 	case *pb.ServerMessage_Roster:
 		s := "roster"
 		for _, e := range body.Roster.Joined {
@@ -496,6 +505,61 @@ func TestLocalChat(t *testing.T) {
 	expect(t, f.received(b))
 }
 
+func TestLocalPlayersFollowLocalChat(t *testing.T) {
+	f := newFixture(t)
+	a, b, c, d := f.connectAs("Lydia"), f.connectAs("Serana"), f.connectAs("Aela"), f.connectAs("Brynjolf")
+	v := f.connect()
+	f.placeAt(a, 1, 0)
+	f.placeAt(b, 1, 8192)
+	f.placeAt(c, 1, -8193)
+	f.placeAt(v, 1, 10)
+	local := func(slot uint32) []string {
+		return slices.DeleteFunc(f.received(slot), func(line string) bool { return !strings.HasPrefix(line, "local") })
+	}
+	f.hub.UpdateInterest()
+	expect(t, local(a), "local +2")
+	expect(t, local(b), "local +1")
+	expect(t, local(c))
+	expect(t, local(d))
+
+	f.send(b, vanish(1, true))
+	f.send(c, checkpointAt(2, -8000))
+	f.clock.Advance(0.9)
+	f.hub.UpdateInterest()
+	expect(t, local(a))
+	f.clock.Advance(0.1)
+	f.hub.UpdateInterest()
+	expect(t, local(a), "local +3")
+	expect(t, local(b))
+	expect(t, local(c), "local +1")
+
+	for _, slot := range []uint32{a, c} {
+		f.send(slot, interior(2, 70))
+	}
+	f.send(a, checkpointAt(2, 0))
+	f.send(c, checkpointAt(3, 50000))
+	f.send(d, enter())
+	f.send(d, interior(1, 70))
+	f.send(d, checkpointAt(1, -50000))
+	f.clock.Advance(1)
+	f.hub.UpdateInterest()
+	expect(t, local(a), "local +4 -2")
+	expect(t, local(b), "local -1")
+	expect(t, local(c), "local +4")
+	expect(t, local(d), "local +1 +3")
+
+	f.hub.Disconnect(c)
+	f.clock.Advance(1)
+	f.hub.UpdateInterest()
+	expect(t, local(a))
+	expect(t, local(d))
+	f.send(a, exit())
+	f.clock.Advance(1)
+	f.hub.UpdateInterest()
+	expect(t, local(a), "local -4")
+	expect(t, local(d), "local -1")
+}
+
 func TestWhisper(t *testing.T) {
 	f := newFixture(t)
 	a, b, c := f.connectAs("Ulfric"), f.connectAs("Ulfric Stormcloak"), f.connectAs("Galmar")
@@ -695,15 +759,15 @@ func TestVanishFollowsTheSessionAtOnce(t *testing.T) {
 	f.send(a, checkpointAt(2, 20))
 	f.hub.Tick()
 	f.hub.UpdateInterest()
-	expect(t, f.received(a), "states 2:2")
-	expect(t, f.received(b))
+	expect(t, f.received(a), "local +2", "states 2:2")
+	expect(t, f.received(b), "local +1")
 	f.send(b, vanish(1, true))
 
 	again, _ := f.connectSession(1, "Lydia")
 	f.placeAt(again, 1, 0)
 	f.hub.UpdateInterest()
 	expect(t, f.received(b), "roster -1", "roster +3 Lydia")
-	expect(t, f.received(again), "welcome 3", "roster +2 Serana +3 Lydia", "enter 2 state 2")
+	expect(t, f.received(again), "welcome 3", "roster +2 Serana +3 Lydia", "enter 2 state 2", "local +2")
 
 	f.send(b, vanish(1, false))
 	expect(t, f.received(b), "enter 3 state 1")
@@ -715,7 +779,7 @@ func TestVanishFollowsTheSessionAtOnce(t *testing.T) {
 	f.hub.SetVanished(c, []uint64{1})
 	f.placeAt(c, 1, 50)
 	f.hub.UpdateInterest()
-	expect(t, f.received(c), "welcome 4", "roster +2 Serana +3 Lydia +4 Aela", "enter 2 state 2")
+	expect(t, f.received(c), "welcome 4", "roster +2 Serana +3 Lydia +4 Aela", "enter 2 state 2", "local +2 +3")
 }
 
 func TestVanishedSessionsAreBounded(t *testing.T) {

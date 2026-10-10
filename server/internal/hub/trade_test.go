@@ -168,9 +168,9 @@ func TestTradeExpiresAndHidesFromAVanishingPlayer(t *testing.T) {
 	f.send(c, tradeRequest(b))
 	f.clock.Advance(31)
 	f.hub.UpdateInterest()
-	expect(t, f.received(a), "roster +3 Aela", "enter 3 state 1", "trade close 1 EXPIRED")
+	expect(t, f.received(a), "roster +3 Aela", "enter 3 state 1", "local +2 +3", "trade close 1 EXPIRED")
 	received := f.received(c)
-	expect(t, received[len(received)-2:], "trade invite 2 3>2", "trade close 2 EXPIRED")
+	expect(t, received[len(received)-3:], "trade invite 2 3>2", "local +1 +2", "trade close 2 EXPIRED")
 }
 
 func TestTradeClosesWhenPlayersPartOrLeave(t *testing.T) {

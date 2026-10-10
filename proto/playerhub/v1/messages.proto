@@ -241,6 +241,12 @@ message Roster {
   uint32 left = 2;
 }
 
+// Roster players entering and leaving the recipient's Local chat reach, which is mutual.
+message LocalPlayers {
+  repeated uint32 joined = 1;
+  repeated uint32 left = 2;
+}
+
 message Inspection {
   uint32 slot = 1;
   uint32 level = 2;
@@ -292,5 +298,6 @@ message ServerMessage {
     TradeAccept trade_accept = 17;
     TradeCommit trade_commit = 18;
     TradeClose trade_close = 19;
+    LocalPlayers local_players = 20;
   }
 }

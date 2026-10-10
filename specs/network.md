@@ -80,6 +80,21 @@
   for a whisper and for a local line passed the server's `validate.Chat`, and
   one with a recipient on another channel or a whisper without one did not.
   The roster kept in `ServerClient.cpp` passed a syntax check only.
+- **Local players:** not built on Windows or run in game. Server:
+  `go test -race ./...` covers the set in the hub
+  (`TestLocalPlayersFollowLocalChat`: the worldspace radius at 8192 and 8193
+  units, a whole interior at 50000 units apart, a vanished player kept,
+  unlisted players left out, a join and a leave in one message, a disconnect
+  sent only as the roster's leave, an exit emptying the set, and no rescan
+  before a second). `cmd/loadgen` with 500 bots within ±3000 units on port
+  3100, all in each other's reach, delivered 559k entries/s at p99 82.8 ms
+  against 567k entries/s and 82.8 ms before; scanning every viewer on every
+  interest pass had cost 23% of the entries and 20 ms of p99, so a viewer is
+  scanned once a second. Plugin: `WireCodec.cpp` with the regenerated nanopb
+  code was built on Linux and decoded Go-encoded `LocalPlayers` (a join and a
+  leave, none, 500 slots, the unpacked encoding) and rejected a zero slot and
+  4097 slots; `ServerClient.cpp` and `ChatRoster.cpp` passed a syntax check
+  only.
 - **Session IDs to peers and vanish:** not built on Windows or run in game.
   Server: `go test -race ./...` covers the session ID on roster entries and
   chat speakers, a vanish that takes effect at once and one way, that holds
@@ -399,6 +414,7 @@ same list.
 | `PeerAction`, `PeerAppearance`, `PeerEquipment` | `slot` and the message |
 | `ChatMessage` | `channel`, `sender`, `recipient` (whisper only), `text`; a `ChatSpeaker` is `slot`, `name`, `level`, `session_id` |
 | `Roster` | `joined`, a list of `RosterEntry{slot, name, session_id}`, and `left`, a slot or 0 ([Roster](#roster)) |
+| `LocalPlayers` | `joined` and `left`, packed slots entering and leaving the recipient's Local chat reach ([Local players](#local-players)) |
 | `Inspection` | `slot`, `level`, `race`, `default_race` of the player an `Inspect` named ([Inspection](#inspection)) |
 | `TradeInvite`, `TradeOpen`, `TradeOffer`, `TradeReport`, `TradeAccept`, `TradeCommit`, `TradeClose` | A trade's progress ([Trade](#trade)) |
 
@@ -583,6 +599,34 @@ player.
   name, or an invalid name, or with more than `kMaximumRosterEntries` (4096)
   entries.
 
+### Local players
+
+Every client knows which listed players its Local lines reach, so the
+[player list](ui-overlay.md#player-list) shows them in the Local color. The
+client cannot work it out: it receives at most `max_visible` peers within its
+view radius, while Local reaches a whole interior.
+
+- The set follows [Local chat](#chat) (`Hub.hearsLocally`): the listed
+  players placed in the same space, in a worldspace within
+  `chat.local_radius`, and in an interior all of it. The rule is mutual, and
+  like Local chat it ignores exclusions, hiding, vanish, and the cap.
+- `Hub.updateLocalPlayers` runs after each interest pass and scans the
+  listed clients due, each a second after its previous scan
+  (`localPlayersInterval`), so a crowd's scans spread over the passes and a
+  change shows in the list up to about 1.2 s late, plus its half-second copy. A
+  scan finds candidates in `localGrid`, a second `interest.Grid` whose cells
+  are `chat.local_radius` wide, where an interior's players all share one
+  cell (`localView`). It checks each candidate against the slots it sent
+  before and walks them again only when one may have left.
+- A change is sent as one `LocalPlayers` with the joined and left slots,
+  through `Outbox.AppendGlobal` and so in order with the roster. An unplaced
+  client's set empties at its next scan. A disconnect is not sent: the
+  roster's `left` removes the slot on the client too, and the hub forgets it
+  in every set.
+- The client rejects a `LocalPlayers` with a zero slot or with more than
+  `kMaximumRosterEntries` (4096) slots in either list, and accepts both the
+  packed and unpacked encoding.
+
 ### Vanish
 
 A client can stop receiving a player: its character leaves that client's
@@ -722,8 +766,11 @@ Server messages:
   advances a revision, and `Network::CopyRosterIfChanged` copies the list,
   with the connection's own slot, only for a caller that holds an older one,
   so readers pay for a copy when a player joins or leaves and not per frame.
-- `Network::CopyNearbyPlayers` lists the peers with a context, which are the
-  ones the client currently receives; chat orders its name list by it.
+- The transport keeps the [local players](#local-players) sorted, with the
+  roster under its lock: `LocalPlayers` adds and removes slots, a roster's
+  `left` removes one, and a welcome and a disconnect empty them.
+  `Network::CopyNearbyPlayers` appends them; chat orders its name list and
+  colors its player list by them.
 - `Network::DescribeServer` gives `the official server` for the official
   endpoint in either form, and any other URL as it is. Every log line that
   names a server goes through it, so players can share a log without the

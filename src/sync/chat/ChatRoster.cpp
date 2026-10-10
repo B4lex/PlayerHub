@@ -297,9 +297,7 @@ namespace ChatRoster
 
     void CopyNearbyPlayers(std::vector<Multiplayer::PeerSlot>& a_players)
     {
-        const auto first = a_players.size();
         Network::CopyNearbyPlayers(a_players);
-        std::sort(a_players.begin() + static_cast<std::ptrdiff_t>(first), a_players.end());
     }
 
     void NoteWhisper(const Player& a_player, bool a_incoming)

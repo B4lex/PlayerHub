@@ -629,6 +629,75 @@ namespace Network::Wire
             }
             return change;
         }
+
+        std::expected<ServerMessage, std::string> DecodeLocalPlayers(pb_istream_t& a_stream)
+        {
+            LocalPlayersChange change;
+            pb_istream_t local;
+            if (!pb_make_string_substream(&a_stream, &local))
+            {
+                return std::unexpected("local players framing");
+            }
+            const auto read = [](pb_istream_t& a_values, std::vector<Multiplayer::PeerSlot>& a_slots) {
+                Multiplayer::PeerSlot slot = 0;
+                if (a_slots.size() >= kMaximumRosterEntries || !pb_decode_varint32(&a_values, &slot) || slot == 0)
+                {
+                    return false;
+                }
+                a_slots.push_back(slot);
+                return true;
+            };
+            while (local.bytes_left > 0)
+            {
+                pb_wire_type_t wireType;
+                std::uint32_t tag = 0;
+                bool eof = false;
+                if (!pb_decode_tag(&local, &wireType, &tag, &eof))
+                {
+                    return std::unexpected("local players field tag");
+                }
+                auto* slots = tag == playerhub_v1_LocalPlayers_joined_tag ? &change.joined
+                    : tag == playerhub_v1_LocalPlayers_left_tag           ? &change.left
+                                                                          : nullptr;
+                if (!slots)
+                {
+                    if (!pb_skip_field(&local, wireType))
+                    {
+                        return std::unexpected("local players field");
+                    }
+                    continue;
+                }
+                if (wireType == PB_WT_VARINT)
+                {
+                    if (!read(local, *slots))
+                    {
+                        return std::unexpected("local players slot");
+                    }
+                    continue;
+                }
+                pb_istream_t packed;
+                if (wireType != PB_WT_STRING || !pb_make_string_substream(&local, &packed))
+                {
+                    return std::unexpected("local players framing");
+                }
+                while (packed.bytes_left > 0)
+                {
+                    if (!read(packed, *slots))
+                    {
+                        return std::unexpected("local players slot");
+                    }
+                }
+                if (!pb_close_string_substream(&local, &packed))
+                {
+                    return std::unexpected("local players framing");
+                }
+            }
+            if (!pb_close_string_substream(&a_stream, &local))
+            {
+                return std::unexpected("local players framing");
+            }
+            return change;
+        }
     }
 
     std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_displayName,
@@ -999,6 +1068,15 @@ namespace Network::Wire
                     return std::unexpected("trailing envelope fields");
                 }
                 return roster;
+            }
+            if (tag == playerhub_v1_ServerMessage_local_players_tag && wireType == PB_WT_STRING)
+            {
+                auto local = DecodeLocalPlayers(stream);
+                if (local && stream.bytes_left != 0)
+                {
+                    return std::unexpected("trailing envelope fields");
+                }
+                return local;
             }
             if (tag == playerhub_v1_ServerMessage_trade_offer_tag && wireType == PB_WT_STRING)
             {

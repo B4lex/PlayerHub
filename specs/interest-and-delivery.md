@@ -59,7 +59,9 @@ record of presentation revisions, and the per-recipient outbox that batches
 checkpoints. Wire messages and validation are in [Network](network.md); how a
 client applies them is in [Sync pipeline](sync-pipeline.md#receive-state).
 Local chat compares the same spaces and horizontal distance but is routed
-without subscriptions ([Network](network.md#chat)).
+without subscriptions ([Network](network.md#chat)), and the hub tells each
+client which players it reaches without them
+([Network](network.md#local-players)).
 
 ## Components
 
@@ -155,7 +157,7 @@ rule here.
    action after a new `PeerEnter` starts a new boundary.
 6. Appearance and equipment are latest-wins per (recipient, peer): a newer one
    drops the unsent one and is queued at the end, keeping the true order.
-7. Chat, results, roster changes, inspections, and trade messages are
+7. Chat, results, roster and local player changes, inspections, and trade messages are
    ordered with everything else in the outbox, so a player receives the
    other player's report before its acceptance and both before a commit
    ([Trade](trade.md#commit)).

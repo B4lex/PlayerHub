@@ -49,7 +49,7 @@ criteria.
 | Proximity, exclusions, late join, peer enter and leave, batching | [interest-and-delivery](interest-and-delivery.md), [network](network.md#server-messages), [sync-pipeline](sync-pipeline.md#receive-state) |
 | Chat | [ui-overlay](ui-overlay.md#chat), [network](network.md#chat) |
 | Notices (toasts on the right) and chat notes | [ui-overlay](ui-overlay.md#notices), [ui-overlay](ui-overlay.md#notes), [trade](trade.md#notices) |
-| Players online list | [ui-overlay](ui-overlay.md#player-list), [network](network.md#roster) |
+| Players online list | [ui-overlay](ui-overlay.md#player-list), [network](network.md#roster), [network](network.md#local-players) |
 | Friends | [ui-overlay](ui-overlay.md#friends), [network](network.md#player-filters) |
 | Mute and vanish | [ui-overlay](ui-overlay.md#mute-and-vanish), [network](network.md#vanish), [interest-and-delivery](interest-and-delivery.md#subscriptions) |
 | Player menu in the world (Activate on a player) | [ui-overlay](ui-overlay.md#player-menu-in-the-world), [remote-actor](remote-actor.md#spawn), [sync-pipeline](sync-pipeline.md#frame-sequence) |
