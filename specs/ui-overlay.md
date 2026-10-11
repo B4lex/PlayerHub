@@ -174,7 +174,7 @@
   mouse and keyboard input and the draw data rasterized to images over a
   stand-in scene. With General as a row and a button below it:
   - every section at 1080p, General at 720p and Default Outfit at 4K, the open
-    key, sex, and item lists, a label's tooltip, an invalid field with its
+    sex and item lists, a label's tooltip, an invalid field with its
     footer, and a picked item with its reset button;
   - typing applies nothing; Enter and a click on another section each apply
     the text once; Escape puts the previous text back and leaves the window
@@ -208,18 +208,18 @@
     `Connect` clears it and connects.
 
   ImGui's style-stack checks passed. The mouse path of `InputCapture` was not
-  run there. Closing with `SettingsKey` is not built on Windows or run in game;
+  run there. Closing with `OpenSettings` is not built on Windows or run in game;
   on Linux, `InputCapture.cpp` and `WindowManager.cpp` ran against stubbed
   engine input and ImGui IO functions: the key opens and closes the window
-  without the game seeing either press, an editing key bound as `SettingsKey`
-  stays with an active text field, and chat keeps Enter.
+  without the game seeing either press, an editing key bound as the settings
+  key stays with an active text field, and chat keeps Enter.
 - **Themed faces (Sovngarde):** not built on Windows or run in game. On Linux,
   `Fonts.cpp` ran with POSIX stand-ins for its Win32 file calls, with
   `SettingsWindow.cpp`, `ConnectionControls.cpp`, `Controls.cpp`, and
   `Theme.cpp`, in a headless Dear ImGui 1.92.9 context against a folder laid
   out as the deploy step leaves it and stand-in system fonts, the draw data
   rasterized to images:
-  - every section at 1080p and Default Outfit at 4K, the key list, and a
+  - every section at 1080p and Default Outfit at 4K, and a
     label's tooltip are in Sovngarde with bold headings; a display name with
     `Ґ`, `ž`, and Han characters shows them from the fallbacks;
   - without `playerhub/fonts/` the log warns for each file and the window is
@@ -305,6 +305,41 @@
   (`ChatPlayers.cpp`, `ChatPlayerManager.cpp`, `ChatWindow.cpp`) passed a
   syntax check only. `[UI] AccentColor` in the file is under
   [Configuration](configuration.md#status).
+- **Key bindings:** not built on Windows or run in game. On Linux,
+  `SettingsWindow.cpp`, `Controls.cpp`, `Theme.cpp`, and the real
+  `SettingsSchema.cpp` ran in a headless Dear ImGui 1.92.9 context with a
+  stubbed configuration, fonts, menu frame, connection controls, and item
+  picker, simulated mouse input, and key presses handed to
+  `Window::OnCapturedKey` as `InputCapture` would, checking the drawn text
+  and items, not images: Controls lists `Open Settings`, `Accept Trade`, and
+  `Decline Trade` with `F10`, `Y`, and `N`, and Interface lists no key; a
+  click shows `Press a key` with no line under it, and `H` binds and applies
+  once; `N` for another action shows `N is already used by Decline Trade`
+  and keeps listening, Escape then cancels without closing the window, Left
+  Shift
+  shows `This key cannot be bound`, and the bound key ends listening without
+  an apply; a click on the listening button, on another key's button, with
+  the right button on the empty page, and on another section each end it,
+  the second starting the other key's; of two keys pressed before a frame,
+  the first binds; `Numpad7` for `Open Settings` shows `Num 7` and becomes
+  the window's focus and release key; losing focus ends listening; the rows
+  below keep their place when a button starts listening and move down for a
+  rejection's line; Backspace unbinds Accept Trade, which then reads
+  `Not bound`, ends listening without an apply on an unbound action, and
+  leaves two actions unbound without a conflict; Backspace on Open Settings
+  restores `F10`, and shows `F10 is already used by Accept Trade` while
+  Accept Trade has it; Escape without listening still closes the window. `InputCapture.cpp` and
+  `WindowManager.cpp`, which route the key presses, passed a g++ syntax
+  check only. The Keybinds title and the section order (2026-10-11) passed
+  the g++ syntax check only; the harness ran before them, when the section
+  was titled Controls and came last. With Open Chat and Manage Players
+  (2026-10-11) the harness
+  also showed them between Open Settings and Accept Trade with `Enter` and
+  `F11`, then the Manage Players default (now `O`, not rerun); `T` bound
+  Open Chat and Backspace restored `Enter`; Enter for Manage Players showed `Enter is already used by Open Chat`, keypad Enter
+  bound it as `Num Enter`, and Backspace unbound it. `ChatWindow.cpp`,
+  which shows the manager alone, and the dropped character of a typing
+  focus key in `InputCapture.cpp` passed the g++ syntax check only. The file side is under [Configuration](configuration.md#status).
 - **Custom server switch:** not built on Windows or run in game. On Linux,
   `SettingsWindow.cpp`, `ConnectionControls.cpp`, `Controls.cpp`,
   `Theme.cpp`, and `MenuFrame.cpp` ran with the real `PluginConfig.cpp`,
@@ -551,14 +586,14 @@ src/ui/
   Layout.h                    # placement helpers (screen corners)
   hud/StatusPanel             # connection, ping, traffic, plugin time
   hud/NoticeStack             # notices on the right edge, friends coming online
-  chat/ChatWindow             # open and closed chat, focus, the send target's channel kept shown
+  chat/ChatWindow             # open and closed chat, focus by its keys, the manager alone, the send target's channel kept shown
   chat/ChatHistory            # lines, channel filters, unread marks, scrolling, the line menu
   chat/ChatInput              # target chip and its menu, text field, name and command list, notes
   chat/ChatSize               # the open chat's size, the drag that sets it, saving it
   chat/ChatPlayers            # the players online: the button on the filters' row, the list beside the chat
   chat/ChatStyle.h            # channel and failure colors, the chips' frame, the rule under the filters
   chat/ChatPlayerMenu         # a player's menu: heading, Whisper, Trade, Add friend, Mute and Vanish or their undoing
-  chat/ChatPlayerManager      # Manage players: Friends, Muted, and Vanished tabs over the chat
+  chat/ChatPlayerManager      # Manage players: Friends, Muted, and Vanished tabs, over the chat or alone
   chat/WorldPlayerMenu        # a player's menu at the crosshair, opened by activating its character
   trade/TradePrompt           # a trade invitation waiting for an answer, answered by its keys
   trade/TradeWindow           # the open trade: a fixed panel with both offers as grids, own items, Accept and Cancel, and the preview column
@@ -872,9 +907,14 @@ keyboard and the game receives no keyboard or mouse input.
   `PushInputContext` appends, keeping the console on top. Any menu, the console,
   dialogue, or a loading screen therefore blocks focus keys, and a context taking
   over input releases a focused window.
-- `WindowManager::FocusByKey` tells the window which of its focus keys gave
+- `WindowManager::FocusByKey` tells the window which of its focus keys gives
   it focus (`Window::OnFocusKey`, on the input thread), for a window with
-  several, such as the [trade prompt](#trade-window).
+  several, such as the [trade prompt](#trade-window) and the chat's
+  `OpenChat` and `ManagePlayers`. It calls it before publishing the focus,
+  so the overlay thread never draws the window focused without the key.
+- The first `CharEvent` while the key that gave focus is still held is
+  dropped, so a focus key that types, such as `T` bound to `OpenChat`, does
+  not start the text it opened the field for.
 - A window that opens without a key, the [player menu in the
   world](#player-menu-in-the-world) and the chat it opens to whisper, takes
   focus with `WindowManager::Focus` from the overlay thread, only while no
@@ -885,9 +925,16 @@ keyboard and the game receives no keyboard or mouse input.
 - A window gives focus back with `WindowManager::ReleaseFocus(*this)`, or names
   release keys with `Window::IsReleaseKey`: `InputCapture` releases the focused
   window when such a key is pressed, and neither the window nor the game sees
-  that press. A release key that ImGui also receives, such as Delete or Home,
-  goes to a text field instead while one is active (`io.WantTextInput` as of
-  the overlay's latest frame), so it still edits.
+  that press. A release key that edits text, an ImGui key such as Delete or
+  Home or a key that types a character on common layouts (letters, digits,
+  punctuation, Space, the numpad), goes to a text field instead while one is
+  active (`io.WantTextInput` as of the overlay's latest frame), so it still
+  edits.
+- While the focused window returns true from `Window::CapturesKeys`, each
+  keyboard key pressed goes to its `Window::OnCapturedKey`, on the input
+  thread, ahead of release keys, and neither ImGui nor the game sees the
+  press. The [settings window](#key-bindings) so binds its own release key
+  and Escape.
 - `InputCapture` replaces the `call` at `+0x7B` in
   `BSInputDeviceManager::PollInputDevices` (IDs 67315/68617), which is
   `BSTEventSource<InputEvent*>::SendEvent(this, &head)` on 1.7.104 and feeds the
@@ -1323,8 +1370,11 @@ never a line, so the history holds only what players said.
 
 ### Window and input
 
-- Enter or keypad Enter during gameplay opens the chat and focuses its field.
-  `Whisper` in the [player menu in the world](#player-menu-in-the-world)
+- `[Controls] OpenChat` ([Configuration](configuration.md#controls)), Enter
+  by default, during gameplay opens the chat and focuses its field; keypad
+  Enter opens it only when bound. The key only opens: the chat closes by
+  Enter and Escape as below. `Whisper` in the
+  [player menu in the world](#player-menu-in-the-world)
   opens it too, with that player as the send target.
   Typing goes only to the chat; the character does not move or look around, and
   keys already held keep acting until released.
@@ -1430,7 +1480,7 @@ Where the friends, muted, and vanished players of the current server are
 listed, offline ones included, and undone.
 
 - `ChatPlayerManager` draws it and `ChatWindow` places and begins it
-  (`BeginFramed`) after the chat and the player list, in the menu frame
+  (`BeginFramed`) after the chat and the player list, or alone, in the menu frame
   over 90% of the theme's background, with 26 × 22 font sizes of content.
   It opens in the middle of the screen (`ImGuiCond_Appearing`) and can be
   dragged by any empty part while it is open; every opening starts in the
@@ -1473,7 +1523,18 @@ listed, offline ones included, and undone.
 - Escape closes it before the chat, from any field. Its close button closes
   it alone. Closing the chat, by Escape, Enter, or a menu that opens by
   itself, closes it too, and it does not show again until `Manage players`
-  is pressed. The wheel over it scrolls it and not the chat's lines
+  is pressed.
+- `[Controls] ManagePlayers` ([Configuration](configuration.md#controls)),
+  `O` by default, during gameplay opens it alone, without the chat (the
+  user's choice): the chat's window takes focus and `ChatWindow::OnFocusKey`
+  marks it manager-only (`managerOnly`, atomic, as the input thread writes
+  it). The cursor shows at once in the middle of the screen
+  (`HidesIdleCursor` false), the recent lines show as with the chat closed,
+  and the key only opens it. Escape closes an open menu, else the window,
+  and its close button closes it; either gives input back to the game.
+  `Whisper`, by a name's click or its menu, closes it and opens the chat
+  with that player as the target, as a whisper from the world does. The
+  chat's key does nothing while it is open. The wheel over it scrolls it and not the chat's lines
   (`ChatPlayerManager::IsHovered`). After a click the keyboard returns to
   the chat's field, except in its search field.
 
@@ -1616,11 +1677,13 @@ neither touches an engine object.
   panel at the top center, 4.5 font sizes down, under the compass. It has
   no inputs and never takes focus to show.
 - Invited: the inviting player's name in the accent, `wants to trade`, then
-  `[Y] Accept`, `[N] Decline` with the configured keys
-  ([Configuration](configuration.md#ui)) and the seconds left. Inviting:
+  `[Y] Accept`, `[N] Decline` with the configured keys' labels
+  ([Configuration](configuration.md#controls)) and the seconds left. Inviting:
   `Waiting for <name> to answer your trade offer`, `[N] Withdraw`, and the
-  seconds left. Requesting: `Offering a trade to <name>...`.
-- `IsFocusKey` takes `TradeAcceptKey` while invited and `TradeDeclineKey`
+  seconds left. Requesting: `Offering a trade to <name>...`. An unbound
+  action's key and label are left out; the invited player then answers from
+  the player menu.
+- `IsFocusKey` takes `AcceptTrade` while invited and `DeclineTrade`
   while invited or inviting, and nothing otherwise, so the keys stay the
   game's. The key that gave focus answers, and the prompt gives focus back
   in the same frame, so neither the game nor another window sees it.
@@ -1789,11 +1852,12 @@ Players change `playerhub.ini` ([Configuration](configuration.md)) in game and
 see the result at once. The game is not paused; the world keeps running and
 peers keep seeing the player.
 
-- `[UI] SettingsKey` opens it during gameplay as a focus key and closes it again
-  as a release key ([Input focus](#input-focus)); a changed key applies once
-  picked. The close button at the page's top right or Escape also closes it;
-  Escape first goes to an active text field or open combo or list. Any menu
-  taking input closes it too.
+- `[Controls] OpenSettings` opens it during gameplay as a focus key and closes
+  it again as a release key ([Input focus](#input-focus)); a changed key
+  applies once bound. The close button at the page's top right or Escape also
+  closes it; Escape first goes to an active text field, open combo or list, or
+  a [key binding](#key-bindings) waiting for a key. Any menu taking input
+  closes it too.
 - Every opening starts from the live configuration; closing discards unapplied
   outfit edits and text still being typed. The section that was open stays
   open, except that an opening with no display name applied shows General
@@ -1809,9 +1873,10 @@ peers keep seeing the player.
 - A sidebar 11.5 font sizes wide, on a faint panel, lists one item per file
   section in schema order under the [logo](#logo): General, which opens
   first and is the display name beside the
-  [connection button](#connection-controls), then
-  Network, Default Outfit, Performance, and Interface (`[UI]`). The open
-  section's item has an accent tint and an accent mark on its left. The
+  [connection button](#connection-controls), then Default Outfit,
+  Interface (`[UI]`), Keybinds (`[Controls]`), Network, and Performance
+  (the user's order). `FormatSectionTitle` maps the two renamed sections. The
+  open section's item has an accent tint and an accent mark on its left. The
   connection status stays at the sidebar's bottom in every section
   (`ConnectionControls::DrawSummary`).
 - The open section's title and the group names inside a section are in the
@@ -1826,8 +1891,9 @@ peers keep seeing the player.
   (`SpawnsPerSecond` is `Spawns Per Second`) and, in the right 58% of the row,
   its control: a switch at the right edge for a bool, a number field with step
   buttons for an unsigned value, a slider for a percentage, a text field for a
-  string, an item picker for a form, a combo for a choice or key, and swatches
-  for a color ([Accent color](#accent-color)). Group comments are small muted
+  string, an item picker for a form, a combo for a choice, a button showing
+  the key for a key ([Key bindings](#key-bindings)), and swatches for a color
+  ([Accent color](#accent-color)). Group comments are small muted
   capitals above their rows. `[General] DisplayName` is drawn beside the
   connection button instead of as a row
   ([Connection controls](#connection-controls)), and a `Layout` setting, as
@@ -1850,7 +1916,8 @@ peers keep seeing the player.
   percent sign. Ctrl and a click turn it into a field, and a typed value is
   clamped to the limits.
 - Edits in every section but Default Outfit take effect and are saved as they
-  are made, with no button: a switch, combo, or swatch at once, a number when
+  are made, with no button: a switch, combo, or swatch at once, a key when
+  it is bound, a number when
   its field or step button is released, a percentage when its slider is
   released, so the frame does not resize the window's content under the cursor
   mid-drag, a color from the picker when it is released or its hex field's
@@ -1913,6 +1980,41 @@ window, the open chat, and their lists can match a modpack's look.
 - The new accent shows everywhere from the next frame, including the
   `Accent` [frame](#menu-frame). The status panel and state colors stay as
   they are.
+
+### Key bindings
+
+Keybinds binds each `[Controls]` key ([Configuration](configuration.md#controls))
+by pressing it, as games' control menus do.
+
+- A row's button shows its key's label, or `Not bound` in muted text. A
+  click on it, on the press, makes it listen: the button reads `Press a key`
+  with an accent tint and outline. Nothing is added under it, so the rows
+  below stay in place.
+- The next key pressed is bound and applied at once, and listening ends.
+  Escape, the key it already has, and any mouse click end it without a
+  change; a click on another key's button makes that one listen instead.
+- Backspace unbinds the action and applies at once; on an unbound action it
+  ends listening without a change. Open Settings and Open Chat are the only
+  ways to open their windows, so Backspace there restores the default,
+  `F10` or `Enter`, instead, checked against the other actions like a
+  pressed key.
+  `SettingsVisitor::Key` passes the value Backspace sets, `a_cleared`: 0 for
+  an action that can be unbound.
+- A reserved key, one without a name, shows `This key cannot be bound` in
+  red under the button, and a key another action has shows
+  `<label> is already used by <action>`; listening goes on, so the player
+  presses another key or cancels.
+- Losing focus or reopening the window ends listening.
+- `SettingsEditor` collects every key setting of the `Config::Describe`
+  pass, and after the pass starts or ends listening for the frame's clicks,
+  then takes the key pressed. After the pass, so a click lands on the rows
+  where the player saw them: a rejection's line under a listening row goes
+  when its listening ends.
+- While a binding listens, `SettingsWindow` returns true from
+  `Window::CapturesKeys`, and `InputCapture` hands each key pressed to
+  `Window::OnCapturedKey` ([Input focus](#input-focus)). The window keeps the
+  first key until the overlay's next frame takes it, in an atomic, since
+  the input thread writes it.
 
 ### Connection controls
 
@@ -2301,8 +2403,8 @@ To verify in game:
    the text; the line reaches every player with a gold name, and so does the
    next one, until Tab or `/l`.
 4. `F10` opens the settings window with a cursor, and the game receives no input
-   until it closes; `F10` again closes it. A new `SettingsKey` opens and closes
-   it and the old one no longer does, as soon as it is picked.
+   until it closes; `F10` again closes it. A new `OpenSettings` key opens and
+   closes it and the old one no longer does, as soon as it is bound.
    Chat still opens with Enter and shows no cursor until the mouse moves.
    With Modex installed and bound to Delete, Delete and letters typed into the
    chat or a settings field do not open its menu, and Delete opens it once
@@ -2550,6 +2652,30 @@ To verify in game:
     it smoothly like the inventory menu's model, and it stays turned after
     other items were hovered and the grid thumbnails captured. The item
     picker's model shows on its dark panel as before.
+29. The settings window's sidebar lists General, Default Outfit, Interface,
+    Keybinds, Network, and Performance. Keybinds lists Open Settings, Open Chat,
+    Manage Players, Accept Trade, and Decline Trade with their keys, and
+    Interface lists none. A
+    click on Accept Trade's key, then `H`, shows `H` and saves
+    `AcceptTrade = H` under `[Controls]`; a trade invitation then shows
+    `[H] Accept` and `H` accepts it. While a button reads `Press a key`,
+    `F10` shows that it is used by Open Settings and does not close the
+    window, Escape cancels without closing it, the game sees none of these
+    presses, and a click anywhere cancels. Binding Open Settings to Num 7
+    makes Num 7 open and close the window and F10 do nothing. A display name
+    typed with a letter bound to Open Settings keeps the letter and the
+    window open. Backspace on Accept Trade's button shows `Not bound`, saves
+    `AcceptTrade =`, and the next invitation shows only `[N] Decline`; `Y`
+    then reaches the game. Backspace on Open Settings' button restores
+    `F10`.
+30. With Open Chat bound to `T`, `T` opens the chat with an empty field and
+    Enter and keypad Enter reach the game; Enter still sends and closes it.
+    Backspace on Open Chat's button restores `Enter`. `O` opens Manage
+    players alone in the middle of the screen with the cursor shown and the
+    chat closed, its recent lines still fading; `O` again changes nothing,
+    and Escape or its close button returns input to the game. Clicking an
+    online friend's name there closes it and opens the chat whispering
+    that friend. With Manage Players unbound, `O` reaches the game.
 
 ## Known limitations
 
@@ -2577,9 +2703,12 @@ To verify in game:
 - The frame is exported ahead of time from the vanilla `messagebox.swf`, not
   read from the player's game, so a mod that replaces the game's menu art does
   not change it.
-- `SettingsKey` is picked from a list rather than by pressing the key:
-  `InputCapture` forwards only editing and navigation keys to ImGui, and the
-  current key closes the window.
+- Keys are keyboard keys only: mouse buttons and the gamepad cannot be bound,
+  and neither can a key with a modifier. Labels are a US layout's, since
+  scan codes are positions: on another layout a label can differ from what
+  the key prints.
+- A key a mod or the game also uses is bound without a warning; only the
+  plugin's own keys are checked against each other.
 - A focused window keeps its keys only from plugins that take them from the
   input dispatch call. One that reads the keyboard another way, such as
   `GetAsyncKeyState`, the window procedure, or DirectInput, still sees them.

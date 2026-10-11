@@ -35,7 +35,8 @@ namespace Config
             std::span<const std::string_view> a_options) = 0;
         virtual void Color(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
             std::span<const std::uint32_t> a_swatches) = 0;
-        virtual void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment) = 0;
+        virtual void Key(
+            std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t a_cleared) = 0;
         virtual void Layout(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
             std::uint32_t a_minimum, std::uint32_t a_maximum) = 0;
     };
@@ -43,14 +44,6 @@ namespace Config
     void Describe(PluginConfig& a_config, SettingsVisitor& a_visitor);
 
     [[nodiscard]] const PluginConfig& GetDefaultConfig();
-
-    struct BindableKey
-    {
-        std::string_view name;
-        std::uint32_t scanCode;
-    };
-
-    [[nodiscard]] std::span<const BindableKey> GetBindableKeys();
 
     [[nodiscard]] std::optional<bool> ParseBool(std::string_view a_value);
     [[nodiscard]] std::optional<std::uint32_t> ParseUnsigned(std::string_view a_value);
@@ -63,6 +56,7 @@ namespace Config
     [[nodiscard]] std::string FormatColor(std::uint32_t a_color);
     [[nodiscard]] std::optional<std::uint32_t> ParseKey(std::string_view a_value);
     [[nodiscard]] std::string_view FormatKey(std::uint32_t a_scanCode);
+    [[nodiscard]] std::string_view FormatKeyLabel(std::uint32_t a_scanCode);
 
     [[nodiscard]] std::string_view GetOutfitArmorKey(std::size_t a_slotIndex);
     [[nodiscard]] std::string_view GetOutfitWeaponKey(std::size_t a_weaponType);

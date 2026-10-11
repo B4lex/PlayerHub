@@ -15,6 +15,11 @@ namespace Config
         using Multiplayer::FormReference;
         using KeyboardKey = RE::BSKeyboardDevice::Key;
 
+        // DIK_OEM_102, the key between left Shift and Z on ISO keyboards.
+        constexpr std::uint32_t kIntlBackslash = 0x56;
+        constexpr std::uint32_t kDefaultSettingsKey = KeyboardKey::kF10;
+        constexpr std::uint32_t kDefaultChatKey = KeyboardKey::kEnter;
+
         constexpr std::string_view kDefaultServerEndpoint = PLAYERHUB_DEFAULT_SERVER_ENDPOINT;
 
         // Creation Kit slot names.
@@ -26,64 +31,113 @@ namespace Config
             "TwoHandAxe", "Bow", "Staff", "Crossbow"
         };
 
-        constexpr std::array<BindableKey, 56> kBindableKeys{ {
-            { "F1", KeyboardKey::kF1 },
-            { "F2", KeyboardKey::kF2 },
-            { "F3", KeyboardKey::kF3 },
-            { "F4", KeyboardKey::kF4 },
-            { "F5", KeyboardKey::kF5 },
-            { "F6", KeyboardKey::kF6 },
-            { "F7", KeyboardKey::kF7 },
-            { "F8", KeyboardKey::kF8 },
-            { "F9", KeyboardKey::kF9 },
-            { "F10", KeyboardKey::kF10 },
-            { "F11", KeyboardKey::kF11 },
-            { "F12", KeyboardKey::kF12 },
-            { "Insert", KeyboardKey::kInsert },
-            { "Delete", KeyboardKey::kDelete },
-            { "Home", KeyboardKey::kHome },
-            { "End", KeyboardKey::kEnd },
-            { "PageUp", KeyboardKey::kPageUp },
-            { "PageDown", KeyboardKey::kPageDown },
-            { "Pause", KeyboardKey::kPause },
-            { "ScrollLock", KeyboardKey::kScrollLock },
-            { "A", KeyboardKey::kA },
-            { "B", KeyboardKey::kB },
-            { "C", KeyboardKey::kC },
-            { "D", KeyboardKey::kD },
-            { "E", KeyboardKey::kE },
-            { "F", KeyboardKey::kF },
-            { "G", KeyboardKey::kG },
-            { "H", KeyboardKey::kH },
-            { "I", KeyboardKey::kI },
-            { "J", KeyboardKey::kJ },
-            { "K", KeyboardKey::kK },
-            { "L", KeyboardKey::kL },
-            { "M", KeyboardKey::kM },
-            { "N", KeyboardKey::kN },
-            { "O", KeyboardKey::kO },
-            { "P", KeyboardKey::kP },
-            { "Q", KeyboardKey::kQ },
-            { "R", KeyboardKey::kR },
-            { "S", KeyboardKey::kS },
-            { "T", KeyboardKey::kT },
-            { "U", KeyboardKey::kU },
-            { "V", KeyboardKey::kV },
-            { "W", KeyboardKey::kW },
-            { "X", KeyboardKey::kX },
-            { "Y", KeyboardKey::kY },
-            { "Z", KeyboardKey::kZ },
-            { "0", KeyboardKey::kNum0 },
-            { "1", KeyboardKey::kNum1 },
-            { "2", KeyboardKey::kNum2 },
-            { "3", KeyboardKey::kNum3 },
-            { "4", KeyboardKey::kNum4 },
-            { "5", KeyboardKey::kNum5 },
-            { "6", KeyboardKey::kNum6 },
-            { "7", KeyboardKey::kNum7 },
-            { "8", KeyboardKey::kNum8 },
-            { "9", KeyboardKey::kNum9 },
+        struct BindableKey
+        {
+            std::string_view name;
+            // Scan codes are physical positions; a label is what a US layout prints there.
+            std::string_view label;
+            std::uint32_t scanCode;
+        };
+
+        constexpr std::array<BindableKey, 91> kBindableKeys{ {
+            { "F1", "F1", KeyboardKey::kF1 },
+            { "F2", "F2", KeyboardKey::kF2 },
+            { "F3", "F3", KeyboardKey::kF3 },
+            { "F4", "F4", KeyboardKey::kF4 },
+            { "F5", "F5", KeyboardKey::kF5 },
+            { "F6", "F6", KeyboardKey::kF6 },
+            { "F7", "F7", KeyboardKey::kF7 },
+            { "F8", "F8", KeyboardKey::kF8 },
+            { "F9", "F9", KeyboardKey::kF9 },
+            { "F10", "F10", KeyboardKey::kF10 },
+            { "F11", "F11", KeyboardKey::kF11 },
+            { "F12", "F12", KeyboardKey::kF12 },
+            { "A", "A", KeyboardKey::kA },
+            { "B", "B", KeyboardKey::kB },
+            { "C", "C", KeyboardKey::kC },
+            { "D", "D", KeyboardKey::kD },
+            { "E", "E", KeyboardKey::kE },
+            { "F", "F", KeyboardKey::kF },
+            { "G", "G", KeyboardKey::kG },
+            { "H", "H", KeyboardKey::kH },
+            { "I", "I", KeyboardKey::kI },
+            { "J", "J", KeyboardKey::kJ },
+            { "K", "K", KeyboardKey::kK },
+            { "L", "L", KeyboardKey::kL },
+            { "M", "M", KeyboardKey::kM },
+            { "N", "N", KeyboardKey::kN },
+            { "O", "O", KeyboardKey::kO },
+            { "P", "P", KeyboardKey::kP },
+            { "Q", "Q", KeyboardKey::kQ },
+            { "R", "R", KeyboardKey::kR },
+            { "S", "S", KeyboardKey::kS },
+            { "T", "T", KeyboardKey::kT },
+            { "U", "U", KeyboardKey::kU },
+            { "V", "V", KeyboardKey::kV },
+            { "W", "W", KeyboardKey::kW },
+            { "X", "X", KeyboardKey::kX },
+            { "Y", "Y", KeyboardKey::kY },
+            { "Z", "Z", KeyboardKey::kZ },
+            { "1", "1", KeyboardKey::kNum1 },
+            { "2", "2", KeyboardKey::kNum2 },
+            { "3", "3", KeyboardKey::kNum3 },
+            { "4", "4", KeyboardKey::kNum4 },
+            { "5", "5", KeyboardKey::kNum5 },
+            { "6", "6", KeyboardKey::kNum6 },
+            { "7", "7", KeyboardKey::kNum7 },
+            { "8", "8", KeyboardKey::kNum8 },
+            { "9", "9", KeyboardKey::kNum9 },
+            { "0", "0", KeyboardKey::kNum0 },
+            { "Minus", "-", KeyboardKey::kMinus },
+            { "Equals", "=", KeyboardKey::kEquals },
+            { "LeftBracket", "[", KeyboardKey::kBracketLeft },
+            { "RightBracket", "]", KeyboardKey::kBracketRight },
+            { "Semicolon", ";", KeyboardKey::kSemicolon },
+            { "Apostrophe", "'", KeyboardKey::kApostrophe },
+            { "Backslash", "\\", KeyboardKey::kBackslash },
+            { "IntlBackslash", "\\ (ISO)", kIntlBackslash },
+            { "Comma", ",", KeyboardKey::kComma },
+            { "Period", ".", KeyboardKey::kPeriod },
+            { "Slash", "/", KeyboardKey::kSlash },
+            { "Space", "Space", KeyboardKey::kSpacebar },
+            { "Enter", "Enter", KeyboardKey::kEnter },
+            { "CapsLock", "Caps Lock", KeyboardKey::kCapsLock },
+            { "Insert", "Insert", KeyboardKey::kInsert },
+            { "Delete", "Delete", KeyboardKey::kDelete },
+            { "Home", "Home", KeyboardKey::kHome },
+            { "End", "End", KeyboardKey::kEnd },
+            { "PageUp", "Page Up", KeyboardKey::kPageUp },
+            { "PageDown", "Page Down", KeyboardKey::kPageDown },
+            { "Up", "Up", KeyboardKey::kUp },
+            { "Down", "Down", KeyboardKey::kDown },
+            { "Left", "Left", KeyboardKey::kLeft },
+            { "Right", "Right", KeyboardKey::kRight },
+            { "Pause", "Pause", KeyboardKey::kPause },
+            { "ScrollLock", "Scroll Lock", KeyboardKey::kScrollLock },
+            { "NumLock", "Num Lock", KeyboardKey::kNumLock },
+            { "Numpad0", "Num 0", KeyboardKey::kKP_0 },
+            { "Numpad1", "Num 1", KeyboardKey::kKP_1 },
+            { "Numpad2", "Num 2", KeyboardKey::kKP_2 },
+            { "Numpad3", "Num 3", KeyboardKey::kKP_3 },
+            { "Numpad4", "Num 4", KeyboardKey::kKP_4 },
+            { "Numpad5", "Num 5", KeyboardKey::kKP_5 },
+            { "Numpad6", "Num 6", KeyboardKey::kKP_6 },
+            { "Numpad7", "Num 7", KeyboardKey::kKP_7 },
+            { "Numpad8", "Num 8", KeyboardKey::kKP_8 },
+            { "Numpad9", "Num 9", KeyboardKey::kKP_9 },
+            { "NumpadDecimal", "Num .", KeyboardKey::kKP_Decimal },
+            { "NumpadPlus", "Num +", KeyboardKey::kKP_Plus },
+            { "NumpadMinus", "Num -", KeyboardKey::kKP_Subtract },
+            { "NumpadMultiply", "Num *", KeyboardKey::kKP_Multiply },
+            { "NumpadDivide", "Num /", KeyboardKey::kKP_Divide },
+            { "NumpadEnter", "Num Enter", KeyboardKey::kKP_Enter },
         } };
+
+        const BindableKey* FindKey(std::uint32_t a_scanCode)
+        {
+            const auto key = std::ranges::find(kBindableKeys, a_scanCode, &BindableKey::scanCode);
+            return key == kBindableKeys.end() ? nullptr : &*key;
+        }
 
         constexpr std::string_view kWhitespace = " \t\r\n";
 
@@ -181,13 +235,6 @@ namespace Config
         void DescribeUI(UISettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("UI", "");
-            a_visitor.Key("SettingsKey", a_settings.settingsKey,
-                "Opens the settings window.");
-            a_visitor.Key("TradeAcceptKey", a_settings.tradeAcceptKey,
-                "Accepts another player's trade offer while it waits for an answer.");
-            a_visitor.Key("TradeDeclineKey", a_settings.tradeDeclineKey,
-                "Declines another player's trade offer, or withdraws your own, while it waits\n"
-                "for an answer.");
             a_visitor.Color("AccentColor", a_settings.accentColor,
                 "Color that marks what can be selected or is selected in the settings window and\n"
                 "the chat, as hexadecimal RRGGBB.",
@@ -213,12 +260,29 @@ namespace Config
                 UISettings::kMinimumChatLines, UISettings::kMaximumChatLines);
         }
 
+        void DescribeControls(ControlsSettings& a_settings, SettingsVisitor& a_visitor)
+        {
+            a_visitor.Section("Controls", "");
+            a_visitor.Key(
+                "OpenSettings", a_settings.settingsKey, "Opens and closes the settings window.", kDefaultSettingsKey);
+            a_visitor.Key("OpenChat", a_settings.chatKey, "Opens the chat.", kDefaultChatKey);
+            a_visitor.Key("ManagePlayers", a_settings.playersKey,
+                "Opens the window that lists your friends and the players you muted or vanished.", 0);
+            a_visitor.Key("AcceptTrade", a_settings.tradeAcceptKey,
+                "Accepts another player's trade offer while it waits for an answer.", 0);
+            a_visitor.Key("DeclineTrade", a_settings.tradeDeclineKey,
+                "Declines another player's trade offer, or withdraws your own, while it waits\n"
+                "for an answer.", 0);
+        }
+
         PluginConfig MakeDefaultConfig()
         {
             PluginConfig config;
-            config.ui.settingsKey = KeyboardKey::kF10;
-            config.ui.tradeAcceptKey = KeyboardKey::kY;
-            config.ui.tradeDeclineKey = KeyboardKey::kN;
+            config.controls.settingsKey = kDefaultSettingsKey;
+            config.controls.chatKey = kDefaultChatKey;
+            config.controls.playersKey = KeyboardKey::kO;
+            config.controls.tradeAcceptKey = KeyboardKey::kY;
+            config.controls.tradeDeclineKey = KeyboardKey::kN;
 
             auto& outfit = config.defaultOutfit;
             const auto skyrim = [](std::uint32_t a_localFormID) {
@@ -254,10 +318,11 @@ namespace Config
     void Describe(PluginConfig& a_config, SettingsVisitor& a_visitor)
     {
         DescribeGeneral(a_config.general, a_visitor);
-        DescribeNetwork(a_config.network, a_visitor);
         DescribeDefaultOutfit(a_config.defaultOutfit, a_visitor);
-        DescribePerformance(a_config.performance, a_visitor);
         DescribeUI(a_config.ui, a_visitor);
+        DescribeControls(a_config.controls, a_visitor);
+        DescribeNetwork(a_config.network, a_visitor);
+        DescribePerformance(a_config.performance, a_visitor);
     }
 
     const PluginConfig& GetDefaultConfig()
@@ -274,11 +339,6 @@ namespace Config
     std::string_view GetServerEndpoint(const NetworkSettings& a_settings)
     {
         return a_settings.officialServer ? kDefaultServerEndpoint : std::string_view{ a_settings.serverEndpoint };
-    }
-
-    std::span<const BindableKey> GetBindableKeys()
-    {
-        return kBindableKeys;
     }
 
     std::optional<bool> ParseBool(std::string_view a_value)
@@ -390,8 +450,14 @@ namespace Config
 
     std::string_view FormatKey(std::uint32_t a_scanCode)
     {
-        const auto key = std::ranges::find(kBindableKeys, a_scanCode, &BindableKey::scanCode);
-        return key == kBindableKeys.end() ? std::string_view{} : key->name;
+        const auto* key = FindKey(a_scanCode);
+        return key ? key->name : std::string_view{};
+    }
+
+    std::string_view FormatKeyLabel(std::uint32_t a_scanCode)
+    {
+        const auto* key = FindKey(a_scanCode);
+        return key ? key->label : std::string_view{};
     }
 
     std::string_view GetOutfitArmorKey(std::size_t a_slotIndex)

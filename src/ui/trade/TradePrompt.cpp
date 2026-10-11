@@ -10,7 +10,6 @@
 
 #include <atomic>
 #include <cmath>
-#include <format>
 #include <string>
 
 namespace UI
@@ -26,21 +25,16 @@ namespace UI
             | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize
             | ImGuiWindowFlags_NoNav;
 
-        std::string KeyLabel(std::uint32_t a_scanCode)
-        {
-            const auto name = Config::FormatKey(a_scanCode);
-            return std::format("[{}]", name.empty() ? std::string_view{ "?" } : name);
-        }
-
         class TradePrompt final : public Window
         {
         public:
             [[nodiscard]] bool IsFocusKey(std::uint32_t a_scanCode) const override
             {
                 const auto phase = TradeSync::GetPhase();
-                const auto& ui = Config::Get()->ui;
-                return (phase == Phase::kInvited && a_scanCode == ui.tradeAcceptKey)
-                    || ((phase == Phase::kInvited || phase == Phase::kInviting) && a_scanCode == ui.tradeDeclineKey);
+                const auto& controls = Config::Get()->controls;
+                return (phase == Phase::kInvited && a_scanCode == controls.tradeAcceptKey)
+                    || ((phase == Phase::kInvited || phase == Phase::kInviting)
+                        && a_scanCode == controls.tradeDeclineKey);
             }
 
             void OnFocusKey(std::uint32_t a_scanCode) override { pressedKey.store(a_scanCode, std::memory_order_release); }
@@ -64,16 +58,21 @@ namespace UI
             void Answer()
             {
                 const auto key = pressedKey.exchange(0, std::memory_order_acq_rel);
-                const auto& ui = Config::Get()->ui;
-                if (view.phase == Phase::kInvited && key == ui.tradeAcceptKey)
+                // 0 also matches an unbound action.
+                if (key == 0)
+                {
+                    return;
+                }
+                const auto& controls = Config::Get()->controls;
+                if (view.phase == Phase::kInvited && key == controls.tradeAcceptKey)
                 {
                     TradeSync::AnswerInvitation(true);
                 }
-                else if (view.phase == Phase::kInvited && key == ui.tradeDeclineKey)
+                else if (view.phase == Phase::kInvited && key == controls.tradeDeclineKey)
                 {
                     TradeSync::AnswerInvitation(false);
                 }
-                else if (view.phase == Phase::kInviting && key == ui.tradeDeclineKey)
+                else if (view.phase == Phase::kInviting && key == controls.tradeDeclineKey)
                 {
                     TradeSync::Cancel(Multiplayer::TradeCloseReason::kCancelled);
                 }
@@ -104,7 +103,7 @@ namespace UI
 
             void DrawContent() const
             {
-                const auto& ui = Config::Get()->ui;
+                const auto& controls = Config::Get()->controls;
                 const auto& name = view.peer.name;
                 switch (view.phase)
                 {
@@ -113,32 +112,43 @@ namespace UI
                         break;
                     case Phase::kInviting:
                         ImGui::Text("Waiting for %s to answer your trade offer", name.c_str());
-                        DrawKey(KeyLabel(ui.tradeDeclineKey), "Withdraw");
+                        DrawKey(controls.tradeDeclineKey, "Withdraw", false);
                         DrawCountdown();
                         break;
                     case Phase::kInvited:
+                    {
                         ImGui::PushStyleColor(ImGuiCol_Text, Theme::GetAccent());
                         ImGui::TextUnformatted(name.c_str());
                         ImGui::PopStyleColor();
                         ImGui::SameLine(0.0F, ImGui::CalcTextSize(" ").x);
                         ImGui::TextUnformatted("wants to trade");
-                        DrawKey(KeyLabel(ui.tradeAcceptKey), "Accept");
-                        ImGui::SameLine();
-                        DrawKey(KeyLabel(ui.tradeDeclineKey), "Decline");
+                        const bool accept = DrawKey(controls.tradeAcceptKey, "Accept", false);
+                        DrawKey(controls.tradeDeclineKey, "Decline", accept);
                         DrawCountdown();
                         break;
+                    }
                     default:
                         break;
                 }
             }
 
-            static void DrawKey(const std::string& a_key, const char* a_action)
+            static bool DrawKey(std::uint32_t a_scanCode, const char* a_action, bool a_sameLine)
             {
+                const auto key = Config::FormatKeyLabel(a_scanCode);
+                if (key.empty())
+                {
+                    return false;
+                }
+                if (a_sameLine)
+                {
+                    ImGui::SameLine();
+                }
                 ImGui::PushStyleColor(ImGuiCol_Text, Theme::GetAccent());
-                ImGui::TextUnformatted(a_key.c_str());
+                ImGui::Text("[%.*s]", static_cast<int>(key.size()), key.data());
                 ImGui::PopStyleColor();
                 ImGui::SameLine(0.0F, ImGui::CalcTextSize(" ").x);
                 ImGui::TextUnformatted(a_action);
+                return true;
             }
 
             void DrawCountdown() const

@@ -1,4 +1,5 @@
 #include "ui/chat/ChatWindow.h"
+#include "config/PluginConfig.h"
 #include "sync/chat/PlayerActivation.h"
 #include "sync/notices/Notices.h"
 #include "ui/Layout.h"
@@ -15,6 +16,7 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cfloat>
 #include <cmath>
 #include <cstdint>
@@ -107,13 +109,21 @@ namespace UI
         public:
             [[nodiscard]] bool IsFocusKey(std::uint32_t a_scanCode) const override
             {
-                return a_scanCode == RE::BSKeyboardDevice::Key::kEnter
-                    || a_scanCode == RE::BSKeyboardDevice::Key::kKP_Enter;
+                const auto& controls = Config::Get()->controls;
+                return a_scanCode != 0 && (a_scanCode == controls.chatKey || a_scanCode == controls.playersKey);
+            }
+
+            void OnFocusKey(std::uint32_t a_scanCode) override
+            {
+                managerOnly.store(a_scanCode != Config::Get()->controls.chatKey, std::memory_order_release);
             }
 
             [[nodiscard]] bool UsesMouse() const override { return true; }
-            [[nodiscard]] bool HidesIdleCursor() const override { return true; }
-            [[nodiscard]] std::optional<ScreenPoint> GetCursorStart() const override { return cursorStart; }
+            [[nodiscard]] bool HidesIdleCursor() const override { return !IsManagerOnly(); }
+            [[nodiscard]] std::optional<ScreenPoint> GetCursorStart() const override
+            {
+                return IsManagerOnly() ? std::nullopt : cursorStart;
+            }
             [[nodiscard]] bool UsesTab() const override { return true; }
 
             void Draw(const WindowInput& a_input) override
@@ -121,35 +131,55 @@ namespace UI
                 if (const auto player = PlayerActivation::TakeWhisperRequest();
                     player && (a_input.focused || WindowManager::Focus(*this)))
                 {
+                    if (IsManagerOnly())
+                    {
+                        manager.Close();
+                    }
+                    managerOnly.store(false, std::memory_order_release);
                     Whisper(*player);
                 }
 
-                const auto now = ImGui::GetTime();
-                history.Collect(now, a_input.focused);
+                const bool managerShown = a_input.focused && IsManagerOnly();
+                if (managerShown && !wasFocused)
+                {
+                    manager.Open();
+                }
+                const bool open = a_input.focused && !managerShown;
 
-                if (a_input.focused && !wasFocused)
+                const auto now = ImGui::GetTime();
+                history.Collect(now, open);
+
+                if (open && !wasOpen)
                 {
                     focusInput = true;
                     history.ScrollToLatest();
                     input.OnOpened();
                 }
                 wasFocused = a_input.focused;
-                RouteRejections(a_input.focused);
+                wasOpen = open;
+                RouteRejections(open);
 
-                if (a_input.focused)
+                if (open)
                 {
                     DrawOpen(a_input);
+                    return;
+                }
+                size.Release();
+                if (managerShown)
+                {
+                    DrawManagerOnly();
                 }
                 else
                 {
-                    size.Release();
                     // A menu that opens by itself closes the chat without Enter or Escape.
                     manager.Close();
-                    DrawRecent(now);
                 }
+                DrawRecent(now);
             }
 
         private:
+            [[nodiscard]] bool IsManagerOnly() const { return managerOnly.load(std::memory_order_acquire); }
+
             [[nodiscard]] float GetLinesWidth() const { return size.Get(GetUnits(ImVec2{ GetSidePadding(), 0.0F })).x; }
 
             void DrawRecent(double a_now)
@@ -268,6 +298,25 @@ namespace UI
                 }
             }
 
+            void DrawManagerOnly()
+            {
+                const Theme::Scope theme;
+                const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+                if (escape && !manager.IsMenuOpen())
+                {
+                    manager.Close();
+                }
+                else
+                {
+                    DrawPlayerManager(escape);
+                }
+                // Closed, but not by a whisper, which goes on in the chat.
+                if (!manager.IsOpen() && IsManagerOnly())
+                {
+                    WindowManager::ReleaseFocus(*this);
+                }
+            }
+
             void DrawPlayerManager(bool a_closeMenu)
             {
                 const auto& display = ImGui::GetIO().DisplaySize;
@@ -284,6 +333,11 @@ namespace UI
                 {
                     if (const auto player = manager.Draw(a_closeMenu))
                     {
+                        if (IsManagerOnly())
+                        {
+                            manager.Close();
+                            managerOnly.store(false, std::memory_order_release);
+                        }
                         Whisper(*player);
                     }
                 }
@@ -342,7 +396,11 @@ namespace UI
             ChatSync::ChatTarget shownTarget;
             std::vector<std::string> rejections;
             std::optional<ScreenPoint> cursorStart;
+            // Written on the input thread before a focus key gives the window focus,
+            // and on this one only while the window holds it.
+            std::atomic_bool managerOnly{ false };
             bool wasFocused{ false };
+            bool wasOpen{ false };
             bool focusInput{ false };
         };
     }

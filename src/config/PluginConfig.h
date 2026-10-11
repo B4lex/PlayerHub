@@ -77,10 +77,6 @@ namespace Config
         static constexpr std::uint32_t kMinimumChatLines = 9;
         static constexpr std::uint32_t kMaximumChatLines = 40;
 
-        // A DirectInput scan code.
-        std::uint32_t settingsKey{ 0 };
-        std::uint32_t tradeAcceptKey{ 0 };
-        std::uint32_t tradeDeclineKey{ 0 };
         std::uint32_t accentColor{ kAccentSwatches[0] };
         std::uint32_t frameColor{ kVanillaFrame };
         std::uint32_t frameThickness{ 70 };
@@ -93,6 +89,18 @@ namespace Config
         bool operator==(const UISettings&) const = default;
     };
 
+    struct ControlsSettings
+    {
+        // DirectInput scan codes.
+        std::uint32_t settingsKey{ 0 };
+        std::uint32_t chatKey{ 0 };
+        std::uint32_t playersKey{ 0 };
+        std::uint32_t tradeAcceptKey{ 0 };
+        std::uint32_t tradeDeclineKey{ 0 };
+
+        bool operator==(const ControlsSettings&) const = default;
+    };
+
     struct PluginConfig
     {
         GeneralSettings general;
@@ -100,6 +108,7 @@ namespace Config
         DefaultOutfitSettings defaultOutfit;
         PerformanceSettings performance;
         UISettings ui;
+        ControlsSettings controls;
 
         bool operator==(const PluginConfig&) const = default;
     };

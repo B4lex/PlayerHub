@@ -26,8 +26,9 @@ namespace Config
 
         constexpr std::string_view kFileHeader
             = "Skyrim Multiplayer configuration. Written with default values when missing.\n"
-              "Edits here apply on the next start; the in-game settings window ([UI] SettingsKey)\n"
-              "applies changes at once and saves them here. Removing a line restores its default.\n"
+              "Edits here apply on the next start; the in-game settings window\n"
+              "([Controls] OpenSettings) applies changes at once and saves them here. Removing a\n"
+              "line restores its default.\n"
               "Comments must be on their own line.\n"
               "\n";
 
@@ -154,11 +155,16 @@ namespace Config
                 WarnInvalid(a_key, *value, FormatColor(a_value));
             }
 
-            void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view) override
+            void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view, std::uint32_t a_cleared) override
             {
                 const auto value = Take(a_key);
                 if (!value)
                 {
+                    return;
+                }
+                if (value->empty())
+                {
+                    a_value = a_cleared;
                     return;
                 }
                 if (const auto parsed = ParseKey(*value))
@@ -275,7 +281,7 @@ namespace Config
                 Text(a_key, FormatColor(a_value), a_comment);
             }
 
-            void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment) override
+            void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t) override
             {
                 Text(a_key, FormatKey(a_value), a_comment);
             }

@@ -48,6 +48,8 @@ namespace UI::InputCapture
         std::array<Owner, 256> s_keyboardOwners{};
         std::array<Owner, MouseKey::kWheelDown + 1> s_mouseOwners{};
         std::array<bool, 256> s_keyboardPressed{};
+        // The key that last gave a window focus, while its character may still follow.
+        std::uint32_t s_focusKeyCharacter{ 0 };
 
         std::atomic_bool s_overlayActive{ false };
         std::atomic_bool s_textFieldActive{ false };
@@ -123,6 +125,20 @@ namespace UI::InputCapture
                 default:
                     return ImGuiKey_None;
             }
+        }
+
+        // Keys that type a character on common layouts, which reach a text field as
+        // CharEvents rather than ImGui keys.
+        bool TypesCharacter(std::uint32_t a_scanCode)
+        {
+            constexpr std::uint32_t kIntlBackslash = 0x56;
+            return (a_scanCode >= KeyboardKey::kNum1 && a_scanCode <= KeyboardKey::kEquals)
+                || (a_scanCode >= KeyboardKey::kQ && a_scanCode <= KeyboardKey::kBracketRight)
+                || (a_scanCode >= KeyboardKey::kA && a_scanCode <= KeyboardKey::kTilde)
+                || (a_scanCode >= KeyboardKey::kBackslash && a_scanCode <= KeyboardKey::kSlash)
+                || a_scanCode == KeyboardKey::kKP_Multiply || a_scanCode == KeyboardKey::kSpacebar
+                || (a_scanCode >= KeyboardKey::kKP_7 && a_scanCode <= KeyboardKey::kKP_Decimal)
+                || a_scanCode == kIntlBackslash || a_scanCode == KeyboardKey::kKP_Divide;
         }
 
         // Dear ImGui tracks each modifier as one key, whichever side is held.
@@ -219,11 +235,18 @@ namespace UI::InputCapture
                 {
                     logs::debug("UI input: a window took focus with scan code {:#04x}", code);
                     a_state.focused = true;
+                    s_focusKeyCharacter = code;
                     *owner = Owner::kWindow;
                     return false;
                 }
-                const bool editsText
-                    = s_textFieldActive.load(std::memory_order_acquire) && ToImGuiKey(code) != ImGuiKey_None;
+                if (a_state.focused && device == RE::INPUT_DEVICE::kKeyboard && WindowManager::CaptureKey(code))
+                {
+                    logs::debug("UI input: a window captured scan code {:#04x}", code);
+                    *owner = Owner::kWindow;
+                    return false;
+                }
+                const bool editsText = s_textFieldActive.load(std::memory_order_acquire)
+                    && (ToImGuiKey(code) != ImGuiKey_None || TypesCharacter(code));
                 if (a_state.focused && device == RE::INPUT_DEVICE::kKeyboard && !editsText
                     && WindowManager::ReleaseFocusByKey(code))
                 {
@@ -243,6 +266,10 @@ namespace UI::InputCapture
             if (!a_button.IsPressed())
             {
                 *owner = Owner::kNone;
+                if (device == RE::INPUT_DEVICE::kKeyboard && code == s_focusKeyCharacter)
+                {
+                    s_focusKeyCharacter = 0;
+                }
             }
             return !toWindow;
         }
@@ -254,7 +281,9 @@ namespace UI::InputCapture
                 case RE::INPUT_EVENT_TYPE::kButton:
                     return RouteButton(*a_event.AsButtonEvent(), a_state);
                 case RE::INPUT_EVENT_TYPE::kChar:
-                    if (a_state.focused)
+                    // A focus key that types, such as T opening the chat, would
+                    // otherwise start the text it opened the field for.
+                    if (a_state.focused && std::exchange(s_focusKeyCharacter, 0) == 0)
                     {
                         Capture(CapturedEvent{ .character = a_event.AsCharEvent()->keyCode });
                     }

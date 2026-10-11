@@ -115,7 +115,7 @@ The wire messages and their validation are in
 [Network](network.md#trade); the prompt, the window, and the menu entry in
 [UI overlay](ui-overlay.md#trade-window); the stage's place in the pass in
 [Sync pipeline](sync-pipeline.md#frame-sequence); the keys in
-[Configuration](configuration.md#ui).
+[Configuration](configuration.md#controls).
 
 ## Components
 
@@ -157,9 +157,9 @@ a request unanswered after 10 s, as for a lost message.
 - Both players get the [prompt](ui-overlay.md#trade-window), and no notice,
   since the prompt already says it. The invited one answers without losing
   input:
-  `[UI] TradeAcceptKey` (`Y`) accepts and `TradeDeclineKey` (`N`) declines,
-  and its menu for the inviting player offers `Accept trade` and
-  `Decline trade`. The inviting player's prompt waits, and the decline key
+  `[Controls] AcceptTrade` (`Y`) accepts and `DeclineTrade` (`N`) declines,
+  unless unbound, and its menu for the inviting player offers
+  `Accept trade` and `Decline trade`. The inviting player's prompt waits, and the decline key
   withdraws it.
 - Accepting is refused locally, with a notice, in combat or out of
   the world.

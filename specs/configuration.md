@@ -66,10 +66,25 @@ without a warning as the official server with that URL kept;
 loads without a warning as no endpoint, and `ftp://bad` warns and keeps it
 empty; applying the switch off and a URL adds both lines under a
 hand-written comment, and switching on keeps the URL.
-`[UI] TradeAcceptKey` and `TradeDeclineKey`, and the letters and digits
-added to the keys a key setting takes, are not yet built on Windows or run
-in game; `SettingsSchema.cpp` passed a g++ syntax check only
-([Trade](trade.md#status)).
+`[Controls]` is not yet built on Windows or run in game. On Linux the same
+two files and `PluginFiles.cpp` were compiled against SimpleIni with stubs:
+the default file ends with `[Controls]` and `OpenSettings = F10`,
+`AcceptTrade = Y`, and `DeclineTrade = N` under their comments, after
+`[UI]`, which has no key; `numpad3` loads as `Numpad3`; `Escape` warns and
+keeps `Y`; `SettingsKey` and `TradeAcceptKey` lines in `[UI]` are logged as
+unknown and ignored; applying a key adds its line, which loads back; an
+empty `DeclineTrade` loads as unbound and an empty `OpenSettings` as `F10`,
+and applying an unbound `AcceptTrade` saves `AcceptTrade =`, which loads
+back unbound. Every
+key name parses back to its scan code, and none of the reserved keys has a
+name. Run again with `OpenChat` and `ManagePlayers` (2026-10-11): the
+default file has `OpenChat = Enter` and `ManagePlayers = F11` between
+`OpenSettings` and `AcceptTrade`; `numpadenter` loads as `NumpadEnter`; an
+empty `OpenChat` loads as `Enter`; applying an unbound `ManagePlayers` saves
+`ManagePlayers =`, which loads back unbound. The `ManagePlayers` default
+changed to `O` afterwards (2026-10-11) without a rerun. The section order
+changed afterwards too (2026-10-11), so `[Controls]` now follows `[UI]` before
+`[Network]`; `SettingsSchema.cpp` passed the g++ syntax check only.
 `[UI] CloseChatOnSend` is not yet built on Windows or run in game. On Linux
 the same two files ran with the settings window's harness: the default file
 has `CloseChatOnSend = true` under its comment, between `StatusPanel` and
@@ -132,6 +147,10 @@ an unsigned value within both limits, read and saved as any other, which the
 settings window does not show. `ShowNextIf` makes the next setting depend on a
 value described before it; reading and saving ignore it, and the settings
 window leaves the row out while the value is false.
+`Config::Describe` describes the sections in the order General,
+DefaultOutfit, UI, Controls, Network, Performance: the order of a new file's
+sections and of the settings window's sidebar
+([UI overlay](ui-overlay.md#settings-window)).
 
 ## Settings
 
@@ -140,48 +159,6 @@ window leaves the row out while the value is false.
 | Key | Meaning | Default |
 | --- | --- | --- |
 | `DisplayName` | The player's name as peers see it, in the player label over the actor and in chat ([Appearance and equipment](appearance-and-equipment.md#display-name)): 3..15 ASCII letters, digits, and underscores, as the server accepts (`Multiplayer::IsValidDisplayName`, [Network](network.md#sessions)). A file value that breaks the rule loads as not set. Empty means not set, and no connection is opened without one ([Network](network.md#connection)). It is the display name of the player's session, so the server refuses one another player holds ([Network](network.md#sessions)), and it reaches the server only when connecting: the settings window locks it while a connection is wanted or open ([UI overlay](ui-overlay.md#connection-controls)) | empty |
-
-### `[Network]`
-
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `ConnectToOfficialServer` | Whether the client connects to the [official server](#official-and-custom-server); when `false`, it connects to `ServerEndpoint` | `true` |
-| `ServerEndpoint` | The custom server's URL, starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; empty is valid and means none. Read only while `ConnectToOfficialServer` is `false`, and kept while it is `true`. Replaces `playerhub-server.txt`, which is no longer read | empty |
-| `AutoConnect` | Whether each game connects when it loads, which it does only with a `DisplayName` set; otherwise the settings window's Connect does | `true` |
-
-#### Official and custom server
-
-Goal: players connect to the official server bundled with the DLL without
-seeing or entering its URL, and only those who switch
-`ConnectToOfficialServer` off enter one. Non-goal: keeping the official URL
-secret; it is a plain string in the DLL and the key of its lines in
-`playerhub.session` and `playerhub.players` ([Network](network.md#client)).
-
-`Config::GetServerEndpoint` is the URL the client connects to: the build's
-default while `ConnectToOfficialServer` is `true`, `ServerEndpoint` while it
-is `false`, and empty when that is empty, in which case nothing connects
-([Network](network.md#connection)). `Config::GetDefaultServerEndpoint` is the
-build's default. The default is never written to the file, so a later build
-with another official server moves every player who did not switch, and the
-settings window never draws it ([UI overlay](ui-overlay.md#settings-window)).
-The log names it `the official server` instead of its URL
-([Network](network.md#client)).
-
-The repository does not name the public server. The `server_endpoint` xmake
-option holds it, set with `xmake f --server_endpoint=https://...` or in an
-IDE build profile's configure arguments, and kept in xmake's configuration
-cache. The playerhub target's `on_config` passes it as the
-`PLAYERHUB_DEFAULT_SERVER_ENDPOINT` string define, which `SettingsSchema.cpp`
-holds as the default endpoint. It is an option rather than an environment
-variable because an IDE's run configuration does not reach the build, and the
-configured value is visible in `xmake f --menu`. Release builds set it to the
-public server. Its default is `http://127.0.0.1:3000`, the local server's
-default address, so a build without it reaches a server run from `server/` on
-the same machine. A value that does not start with `http://` or `https://`, or
-that holds whitespace, a quote, or a backslash, fails the configuration, since
-the define is a C string literal and the client could not connect to it. xmake
-tracks each file's flags, so a changed value recompiles the plugin. The value
-is still a plain string in the DLL.
 
 ### `[DefaultOutfit]`
 
@@ -227,20 +204,10 @@ Defaults, from `Skyrim.esm` unless noted: `Race` `NordRace`, `Sex` `Male`.
 
 Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 
-### `[Performance]`
-
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `ViewRadius` | Game units within which other players are shown, `0..100000`; sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection. It is here rather than in `[Network]` because it bounds how many remote actors the client draws | `0`, the server's range, named `Auto` |
-| `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..1000`; `0` is unlimited, named `Unlimited` ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
-
 ### `[UI]`
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `SettingsKey` | Opens the settings window: `F1`–`F12`, `Insert`, `Delete`, `Home`, `End`, `PageUp`, `PageDown`, `Pause`, `ScrollLock`, a letter `A`–`Z`, or a digit `0`–`9` | `F10` |
-| `TradeAcceptKey` | Accepts another player's trade invitation while it waits for an answer ([Trade](trade.md#invitation)); the same keys as `SettingsKey`. It is the game's only while no invitation waits | `Y` |
-| `TradeDeclineKey` | Declines another player's trade invitation, or withdraws the player's own, while it waits | `N` |
 | `AccentColor` | Color of the theme's accent in the settings window and the chat, as `RRGGBB` ([UI overlay](ui-overlay.md#accent-color)) | `FF9000` |
 | `BorderColor` | Color of the menu frame around the settings window and the open chat ([UI overlay](ui-overlay.md#menu-frame)): `Vanilla`, the grey of the game's menus, or `Accent`, the accent | `Vanilla` |
 | `BorderThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `50..100` | `70` |
@@ -249,6 +216,100 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 | `CloseChatOnSend` | Closes the chat when Enter sends a line; when `false`, the chat stays open and Enter in an empty field does nothing ([UI overlay](ui-overlay.md#sending)) | `true` |
 | `ChatWidth` | Width of the chat's lines in font sizes, `24..100`; set by dragging the open chat's right edge ([UI overlay](ui-overlay.md#size)) and not shown in the settings window | `30` |
 | `ChatLines` | Lines of history the open chat shows, `9..40`; set by dragging its top edge, and not shown in the settings window | `10` |
+
+### `[Controls]`
+
+Keyboard keys, each a DirectInput scan code stored by name
+(`Config::FormatKey`, `ParseKey`, case-insensitive). The settings window
+binds them by a key press ([UI overlay](ui-overlay.md#key-bindings)) and
+shows each key's label (`FormatKeyLabel`), what a US layout prints on it:
+`Num 7` for `Numpad7`, `[` for `LeftBracket`.
+
+| Key | Meaning | Default |
+| --- | --- | --- |
+| `OpenSettings` | Opens and closes the settings window | `F10` |
+| `OpenChat` | Opens the chat ([UI overlay](ui-overlay.md#window-and-input)) | `Enter` |
+| `ManagePlayers` | Opens [Manage players](ui-overlay.md#manage-players) alone, without the chat | `O` |
+| `AcceptTrade` | Accepts another player's trade invitation while it waits for an answer ([Trade](trade.md#invitation)). It is the game's only while no invitation waits | `Y` |
+| `DeclineTrade` | Declines another player's trade invitation, or withdraws the player's own, while it waits | `N` |
+
+- A key is `F1`–`F12`, a letter `A`–`Z`, a digit `0`–`9`, `Minus`,
+  `Equals`, `LeftBracket`, `RightBracket`, `Semicolon`, `Apostrophe`,
+  `Backslash`, `IntlBackslash` (the ISO key beside left Shift, scan code
+  `0x56`), `Comma`, `Period`, `Slash`, `Space`, `Enter`, `CapsLock`, `Insert`,
+  `Delete`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`,
+  `Right`, `Pause`, `ScrollLock`, `NumLock`, `Numpad0`–`Numpad9`,
+  `NumpadDecimal`, `NumpadPlus`, `NumpadMinus`, `NumpadMultiply`,
+  `NumpadDivide`, or `NumpadEnter`. Enter and keypad Enter are open to
+  every action now that the chat's key is one of them; inside a focused
+  window they still reach Dear ImGui.
+- Reserved keys have no name, so neither the file nor the window takes them:
+  Escape cancels and closes, Tab is the chat's, the
+  key left of `1` opens the console, Backspace and the modifiers (Shift,
+  Ctrl, Alt) edit text and form shortcuts, Backspace also clears a binding
+  in the window, and the Windows keys, the
+  context-menu key, and Print Screen belong to the system.
+- An empty value leaves `ManagePlayers`, `AcceptTrade`, or `DeclineTrade`
+  unbound (scan code 0), and the file keeps it as `AcceptTrade =`; an
+  unbound action has no key and the prompt leaves it out. An empty
+  `OpenSettings` is `F10` and an empty `OpenChat` is `Enter`, since each key
+  is the only way to open its window (a whisper from the
+  [world player menu](ui-overlay.md#player-menu-in-the-world) aside). Backspace in the
+  window sets the same values.
+- Two settings may hold the same key in the file; the window does not let
+  the player bind one key twice. Unbound actions do not conflict.
+- The section replaced `[UI] SettingsKey`, `TradeAcceptKey`, and
+  `TradeDeclineKey` without migrating them: an earlier file's lines are
+  logged as unknown and the defaults apply.
+
+### `[Network]`
+
+| Key | Meaning | Default |
+| --- | --- | --- |
+| `ConnectToOfficialServer` | Whether the client connects to the [official server](#official-and-custom-server); when `false`, it connects to `ServerEndpoint` | `true` |
+| `ServerEndpoint` | The custom server's URL, starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; empty is valid and means none. Read only while `ConnectToOfficialServer` is `false`, and kept while it is `true`. Replaces `playerhub-server.txt`, which is no longer read | empty |
+| `AutoConnect` | Whether each game connects when it loads, which it does only with a `DisplayName` set; otherwise the settings window's Connect does | `true` |
+
+#### Official and custom server
+
+Goal: players connect to the official server bundled with the DLL without
+seeing or entering its URL, and only those who switch
+`ConnectToOfficialServer` off enter one. Non-goal: keeping the official URL
+secret; it is a plain string in the DLL and the key of its lines in
+`playerhub.session` and `playerhub.players` ([Network](network.md#client)).
+
+`Config::GetServerEndpoint` is the URL the client connects to: the build's
+default while `ConnectToOfficialServer` is `true`, `ServerEndpoint` while it
+is `false`, and empty when that is empty, in which case nothing connects
+([Network](network.md#connection)). `Config::GetDefaultServerEndpoint` is the
+build's default. The default is never written to the file, so a later build
+with another official server moves every player who did not switch, and the
+settings window never draws it ([UI overlay](ui-overlay.md#settings-window)).
+The log names it `the official server` instead of its URL
+([Network](network.md#client)).
+
+The repository does not name the public server. The `server_endpoint` xmake
+option holds it, set with `xmake f --server_endpoint=https://...` or in an
+IDE build profile's configure arguments, and kept in xmake's configuration
+cache. The playerhub target's `on_config` passes it as the
+`PLAYERHUB_DEFAULT_SERVER_ENDPOINT` string define, which `SettingsSchema.cpp`
+holds as the default endpoint. It is an option rather than an environment
+variable because an IDE's run configuration does not reach the build, and the
+configured value is visible in `xmake f --menu`. Release builds set it to the
+public server. Its default is `http://127.0.0.1:3000`, the local server's
+default address, so a build without it reaches a server run from `server/` on
+the same machine. A value that does not start with `http://` or `https://`, or
+that holds whitespace, a quote, or a backslash, fails the configuration, since
+the define is a C string literal and the client could not connect to it. xmake
+tracks each file's flags, so a changed value recompiles the plugin. The value
+is still a plain string in the DLL.
+
+### `[Performance]`
+
+| Key | Meaning | Default |
+| --- | --- | --- |
+| `ViewRadius` | Game units within which other players are shown, `0..100000`; sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection. It is here rather than in `[Network]` because it bounds how many remote actors the client draws | `0`, the server's range, named `Auto` |
+| `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..1000`; `0` is unlimited, named `Unlimited` ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
 
 ## Snapshots
 
@@ -268,8 +329,9 @@ revision before the snapshot never misses a change.
 | `ConnectionMonitor` | main loop | reconnecting at once when the latest attempt went to another endpoint than `Config::GetServerEndpoint` gives; reading `AutoConnect` and whether `DisplayName` and an endpoint are set when a game starts; ending the player's choice to connect when `DisplayName` is cleared or the endpoint becomes empty |
 | `ServerClient` | transport, worker | reading `Config::GetServerEndpoint` for each attempt, and `DisplayName` and `ViewRadius` for each hello |
 | `ConnectionControls` | overlay | reading whether `Config::GetServerEndpoint` is empty each frame the General section draws |
-| `SettingsWindow` | overlay, input | reading `SettingsKey` on each focus key press |
-| `TradePrompt` | overlay, input | reading `TradeAcceptKey` and `TradeDeclineKey` on each focus key press and each frame it draws |
+| `SettingsWindow` | overlay, input | reading `OpenSettings` on each focus key press |
+| `ChatWindow` | input | reading `OpenChat` and `ManagePlayers` on each focus key press |
+| `TradePrompt` | overlay, input | reading `AcceptTrade` and `DeclineTrade` on each focus key press and each frame it draws |
 | `StatusPanel`, item pickers, trade window | overlay | reading `StatusPanel` and `ItemPreview` each frame |
 | `ChatInput` | overlay | reading `CloseChatOnSend` on each Enter that sends or finds the field empty |
 | `Theme` | overlay | working out the accent and frame colors from `AccentColor` and `BorderColor` when the revision changes |

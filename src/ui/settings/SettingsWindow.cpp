@@ -13,10 +13,12 @@
 #include <misc/cpp/imgui_stdlib.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cfloat>
 #include <cmath>
 #include <cstdint>
+#include <format>
 #include <memory>
 #include <optional>
 #include <span>
@@ -48,6 +50,7 @@ namespace UI
         constexpr float kSwatchRingFonts = 0.125F;
         constexpr float kSwatchIconFonts = 0.09375F;
         constexpr float kPickerWidthFonts = 13.0F;
+        constexpr float kCaptureRingFonts = 0.125F;
         constexpr float kTitleScale = 1.375F;
         constexpr float kBrandScale = 1.125F;
         constexpr float kGroupScale = 0.8125F;
@@ -60,10 +63,16 @@ namespace UI
         constexpr std::string_view kServerEndpointKey = "ServerEndpoint";
         constexpr const char* kServerEndpointHint = "https://host:port";
         constexpr std::string_view kStagedSection = "DefaultOutfit";
-        constexpr std::pair<std::string_view, std::string_view> kSectionTitles[]{ { "UI", "Interface" } };
+        constexpr std::pair<std::string_view, std::string_view> kSectionTitles[]{ { "UI", "Interface" },
+            { "Controls", "Keybinds" } };
 
         constexpr float kBackgroundAlpha = 0.96F;
         constexpr const char* kSaveFailedText = "Could not save playerhub.ini";
+        constexpr std::string_view kCapturePrompt = "Press a key";
+        constexpr std::string_view kUnboundText = "Not bound";
+        constexpr std::string_view kReservedKeyText = "This key cannot be bound";
+        constexpr std::uint32_t kEscapeScanCode = RE::BSKeyboardDevice::Key::kEscape;
+        constexpr std::uint32_t kBackspaceScanCode = RE::BSKeyboardDevice::Key::kBackspace;
         // U+E000 and U+E001 of the logo font: the letters and the bar.
         constexpr const char* kLogoLetters = "\xEE\x80\x80";
         constexpr const char* kLogoBar = "\xEE\x80\x81";
@@ -205,6 +214,7 @@ namespace UI
             {
                 fields.clear();
                 itemPicker.Reset();
+                StopKeyCapture();
             }
 
             [[nodiscard]] bool HasInvalidFields() const
@@ -234,8 +244,30 @@ namespace UI
                 stagedSectionOpen = false;
                 editing = false;
                 sections.clear();
+                bindings.clear();
+                pressedKey = {};
                 Config::Describe(a_config, *this);
                 EndSection();
+                // After the pass, so the rows a click lands on are where the player saw them:
+                // a rejection's line under a capturing row goes when its capture ends.
+                if (!pressedKey.empty() && pressedKey != capturingKey)
+                {
+                    StartKeyCapture(pressedKey);
+                }
+                else if (!capturingKey.empty() && IsAnyMouseClicked())
+                {
+                    StopKeyCapture();
+                }
+                ResolveKeyCapture();
+            }
+
+            [[nodiscard]] bool CapturesKeys() const { return keyCapture.active.load(std::memory_order_acquire); }
+
+            void OnCapturedKey(std::uint32_t a_scanCode)
+            {
+                // Keeps the first key until the overlay takes it; later ones are dropped.
+                std::uint32_t none = 0;
+                keyCapture.pressed.compare_exchange_strong(none, a_scanCode, std::memory_order_acq_rel);
             }
 
             void DrawNavigation()
@@ -509,30 +541,27 @@ namespace UI
                 EndRow();
             }
 
-            void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment) override
+            void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+                std::uint32_t a_cleared) override
             {
+                bindings.push_back(KeyBinding{ .name = a_key, .value = &a_value, .cleared = a_cleared });
                 if (!BeginRow(a_key, a_comment))
                 {
                     return;
                 }
-                const auto current = Config::FormatKey(a_value);
-                label.assign(current);
-                if (ImGui::BeginCombo("##value", label.c_str()))
+                const bool capturing = capturingKey == a_key;
+                if (DrawKeyButton(capturing ? kCapturePrompt : Config::FormatKeyLabel(a_value), capturing))
                 {
-                    for (const auto& key : Config::GetBindableKeys())
-                    {
-                        label.assign(key.name);
-                        const bool selected = key.scanCode == a_value;
-                        if (ImGui::Selectable(label.c_str(), selected))
-                        {
-                            a_value = key.scanCode;
-                        }
-                        if (selected)
-                        {
-                            ImGui::SetItemDefaultFocus();
-                        }
-                    }
-                    ImGui::EndCombo();
+                    pressedKey = a_key;
+                }
+                if (capturing && captureRejected)
+                {
+                    ImGui::SetCursorPosX(controlLeft);
+                    ImGui::PushTextWrapPos(controlLeft + controlWidth);
+                    ImGui::PushStyleColor(ImGuiCol_Text, Theme::kNegative);
+                    DrawText(captureNote);
+                    ImGui::PopStyleColor();
+                    ImGui::PopTextWrapPos();
                 }
                 EndRow();
             }
@@ -546,6 +575,120 @@ namespace UI
                 bool valid{ true };
                 bool reportsItself{ false };
             };
+
+            struct KeyBinding
+            {
+                std::string_view name;
+                std::uint32_t* value;
+                std::uint32_t cleared;
+            };
+
+            // Read and written by the input thread too.
+            struct KeyCapture
+            {
+                std::atomic_bool active{ false };
+                std::atomic_uint32_t pressed{ 0 };
+            };
+
+            static bool IsAnyMouseClicked()
+            {
+                return ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right)
+                    || ImGui::IsMouseClicked(ImGuiMouseButton_Middle);
+            }
+
+            bool DrawKeyButton(std::string_view a_text, bool a_capturing)
+            {
+                const bool unbound = a_text.empty();
+                label.assign(unbound ? kUnboundText : a_text);
+                label += "###value";
+                if (a_capturing)
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Button, Theme::Accent(0.16F));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Theme::Accent(0.22F));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, Theme::Accent(0.28F));
+                }
+                if (unbound)
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+                }
+                ImGui::Button(label.c_str(), ImVec2{ controlWidth, 0.0F });
+                // On the press, which is when a click elsewhere cancels a capture.
+                const bool activated = ImGui::IsItemActivated();
+                if (unbound)
+                {
+                    ImGui::PopStyleColor();
+                }
+                if (a_capturing)
+                {
+                    ImGui::PopStyleColor(3);
+                    const auto thickness = (std::max)(std::floor(kCaptureRingFonts * ImGui::GetFontSize()), 1.0F);
+                    ImGui::GetWindowDrawList()->AddRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(),
+                        ImGui::GetColorU32(Theme::GetAccent()), ImGui::GetStyle().FrameRounding, ImDrawFlags_None,
+                        thickness);
+                }
+                return activated;
+            }
+
+            void StartKeyCapture(std::string_view a_key)
+            {
+                capturingKey = a_key;
+                captureRejected = false;
+                keyCapture.pressed.store(0, std::memory_order_release);
+                keyCapture.active.store(true, std::memory_order_release);
+            }
+
+            void StopKeyCapture()
+            {
+                keyCapture.active.store(false, std::memory_order_release);
+                capturingKey = {};
+                captureRejected = false;
+            }
+
+            void ResolveKeyCapture()
+            {
+                if (capturingKey.empty())
+                {
+                    return;
+                }
+                const auto scanCode = keyCapture.pressed.exchange(0, std::memory_order_acq_rel);
+                if (scanCode == 0)
+                {
+                    return;
+                }
+                const auto binding = std::ranges::find(bindings, capturingKey, &KeyBinding::name);
+                if (scanCode == kEscapeScanCode || binding == bindings.end())
+                {
+                    StopKeyCapture();
+                    return;
+                }
+                const auto key = scanCode == kBackspaceScanCode ? binding->cleared : scanCode;
+                if (*binding->value == key)
+                {
+                    StopKeyCapture();
+                    return;
+                }
+                if (key != 0)
+                {
+                    const auto keyLabel = Config::FormatKeyLabel(key);
+                    if (keyLabel.empty())
+                    {
+                        captureRejected = true;
+                        captureNote.assign(kReservedKeyText);
+                        return;
+                    }
+                    const auto other = std::ranges::find(
+                        bindings, key, [](const KeyBinding& a_binding) { return *a_binding.value; });
+                    if (other != bindings.end())
+                    {
+                        captureRejected = true;
+                        FormatDisplayName(other->name, label);
+                        captureNote = std::format("{} is already used by {}", keyLabel, label);
+                        return;
+                    }
+                }
+                *binding->value = key;
+                StopKeyCapture();
+            }
 
             void DrawConnectionBar(std::string_view a_key, std::string& a_value, std::string_view a_comment,
                 bool (*a_isValid)(std::string_view))
@@ -622,12 +765,13 @@ namespace UI
                 const auto left = ImGui::GetCursorPosX();
                 const auto width = ImGui::GetContentRegionAvail().x;
                 controlWidth = std::floor(width * kControlWidth);
+                controlLeft = left + width - controlWidth;
 
                 FormatDisplayName(a_key, label);
                 ImGui::AlignTextToFramePadding();
                 DrawText(label);
                 DrawTooltip(a_comment);
-                ImGui::SameLine(left + width - controlWidth);
+                ImGui::SameLine(controlLeft);
                 ImGui::SetNextItemWidth(controlWidth);
                 return true;
             }
@@ -697,6 +841,12 @@ namespace UI
 
             std::unordered_map<ImGuiID, TextField> fields;
             ItemPicker itemPicker;
+            KeyCapture keyCapture;
+            // Collected in each pass, pointing into the configuration it draws.
+            std::vector<KeyBinding> bindings;
+            std::string captureNote;
+            std::string_view capturingKey;
+            std::string_view pressedKey;
             // Reused so drawing formats labels and notes without allocating.
             std::string label;
             std::string note;
@@ -706,6 +856,7 @@ namespace UI
             ImVec2 padding;
             float stagedFooterHeight{ 0.0F };
             float liveFooterHeight{ 0.0F };
+            float controlLeft{ 0.0F };
             float controlWidth{ 0.0F };
             float scrollbarWidth{ 0.0F };
             bool sectionOpen{ false };
@@ -714,12 +865,14 @@ namespace UI
             bool editing{ false };
             bool focusConnectionField{ false };
             bool hideNext{ false };
+            bool captureRejected{ false };
         };
 
         bool LiveSectionsMatch(const Config::PluginConfig& a_left, const Config::PluginConfig& a_right)
         {
             return a_left.general == a_right.general && a_left.network == a_right.network
-                && a_left.performance == a_right.performance && a_left.ui == a_right.ui;
+                && a_left.performance == a_right.performance && a_left.ui == a_right.ui
+                && a_left.controls == a_right.controls;
         }
 
         class SettingsWindow final : public Window
@@ -732,10 +885,14 @@ namespace UI
 
             [[nodiscard]] bool IsFocusKey(std::uint32_t a_scanCode) const override
             {
-                return a_scanCode == Config::Get()->ui.settingsKey;
+                return a_scanCode == Config::Get()->controls.settingsKey;
             }
 
             [[nodiscard]] bool IsReleaseKey(std::uint32_t a_scanCode) const override { return IsFocusKey(a_scanCode); }
+
+            [[nodiscard]] bool CapturesKeys() const override { return editor.CapturesKeys(); }
+
+            void OnCapturedKey(std::uint32_t a_scanCode) override { editor.OnCapturedKey(a_scanCode); }
 
             [[nodiscard]] bool UsesMouse() const override { return true; }
 

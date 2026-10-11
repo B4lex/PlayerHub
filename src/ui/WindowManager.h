@@ -29,6 +29,8 @@ namespace UI::WindowManager
 
     [[nodiscard]] bool ReleaseFocusByKey(std::uint32_t a_scanCode);
 
+    [[nodiscard]] bool CaptureKey(std::uint32_t a_scanCode);
+
     void ReleaseFocus(const Window& a_window);
 
     void ReleaseFocus();

@@ -64,14 +64,15 @@ namespace UI::WindowManager
             {
                 continue;
             }
-            const Window* expected = nullptr;
-            if (!s_focused.compare_exchange_strong(
-                    expected, window.get(), std::memory_order_acq_rel, std::memory_order_acquire))
+            if (HasFocus())
             {
                 return false;
             }
+            // Before focus is published, so the window never draws focused without its key.
             window->OnFocusKey(a_scanCode);
-            return true;
+            const Window* expected = nullptr;
+            return s_focused.compare_exchange_strong(
+                expected, window.get(), std::memory_order_acq_rel, std::memory_order_acquire);
         }
         return false;
     }
@@ -98,6 +99,24 @@ namespace UI::WindowManager
         }
         ReleaseFocus(*focused);
         return true;
+    }
+
+    bool CaptureKey(std::uint32_t a_scanCode)
+    {
+        const auto* focused = s_focused.load(std::memory_order_acquire);
+        if (!focused || !focused->CapturesKeys())
+        {
+            return false;
+        }
+        for (const auto& window : s_windows)
+        {
+            if (window.get() == focused)
+            {
+                window->OnCapturedKey(a_scanCode);
+                return true;
+            }
+        }
+        return false;
     }
 
     void ReleaseFocus(const Window& a_window)
