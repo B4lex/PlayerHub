@@ -1027,13 +1027,6 @@ namespace Network
         return true;
     }
 
-    bool IsEndpointOutdated()
-    {
-        const auto endpoint = GetAttemptEndpoint();
-        const auto config = Config::Get();
-        return !endpoint.empty() && endpoint != Config::GetServerEndpoint(config->network);
-    }
-
     bool DidReconnectAttemptFail()
     {
         return !reconnectWorkerRunning.load(std::memory_order_acquire) && attemptFailed.load(std::memory_order_acquire);

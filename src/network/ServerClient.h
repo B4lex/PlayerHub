@@ -98,8 +98,6 @@ namespace Network
 
     [[nodiscard]] bool BeginClose();
 
-    [[nodiscard]] bool IsEndpointOutdated();
-
     [[nodiscard]] bool DidReconnectAttemptFail();
 
     [[nodiscard]] std::optional<Refusal> GetRefusal();

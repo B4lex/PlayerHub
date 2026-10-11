@@ -191,13 +191,13 @@ Errors answer `{"detail": "..."}`. Player IDs are slots as decimal strings.
 
 ## Connecting from another computer
 
-On the remote player's machine, switch off `Connect To Official Server` in the
-settings window's Network section and enter the server's reachable URL, or set
+On the remote player's machine, switch on `Custom Server` in the settings
+window's Network section and enter the server's reachable URL, or set
 it in `playerhub.ini` next to `playerhub.dll`:
 
 ```ini
 [Network]
-ConnectToOfficialServer = false
+CustomServer = true
 ServerEndpoint = http://192.168.1.20:3000
 ```
 

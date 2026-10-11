@@ -61,7 +61,7 @@ namespace UI
         constexpr std::string_view kDisplayNameKey = "DisplayName";
         constexpr const char* kDisplayNameHint = "Enter a display name";
         constexpr std::string_view kServerEndpointKey = "ServerEndpoint";
-        constexpr const char* kServerEndpointHint = "https://host:port";
+        constexpr const char* kServerEndpointHint = "Enter server endpoint URL";
         constexpr std::string_view kStagedSection = "DefaultOutfit";
         constexpr std::pair<std::string_view, std::string_view> kSectionTitles[]{ { "UI", "Interface" },
             { "Controls", "Keybinds" } };
@@ -412,12 +412,13 @@ namespace UI
                     DrawConnectionBar(a_key, a_value, a_comment, a_isValid);
                     return;
                 }
-                if (!BeginRow(a_key, a_comment))
+                const bool endpoint = a_key == kServerEndpointKey;
+                if (!BeginRow(a_key, a_comment, !endpoint))
                 {
                     return;
                 }
                 auto& field = GetField([&a_value] { return a_value; });
-                if (DrawTextField(field, a_key == kServerEndpointKey ? kServerEndpointHint : nullptr))
+                if (DrawTextField(field, endpoint ? kServerEndpointHint : nullptr))
                 {
                     field.valid = a_isValid(field.text);
                 }
@@ -744,7 +745,7 @@ namespace UI
                 sectionOpen = false;
             }
 
-            bool BeginRow(std::string_view a_key, std::string_view a_comment)
+            bool BeginRow(std::string_view a_key, std::string_view a_comment, bool a_labeled = true)
             {
                 const bool hidden = std::exchange(hideNext, false);
                 if (!sectionOpen)
@@ -764,6 +765,13 @@ namespace UI
                 ImGui::PushID(a_key.data(), a_key.data() + a_key.size());
                 const auto left = ImGui::GetCursorPosX();
                 const auto width = ImGui::GetContentRegionAvail().x;
+                if (!a_labeled)
+                {
+                    controlWidth = width;
+                    controlLeft = left;
+                    ImGui::SetNextItemWidth(controlWidth);
+                    return true;
+                }
                 controlWidth = std::floor(width * kControlWidth);
                 controlLeft = left + width - controlWidth;
 

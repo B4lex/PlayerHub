@@ -174,16 +174,14 @@ namespace Config
         void DescribeNetwork(NetworkSettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("Network", "");
-            a_visitor.Bool("ConnectToOfficialServer", a_settings.officialServer,
-                "Connects to the official server. Switch off to connect to the server at\n"
-                "ServerEndpoint instead.");
-            a_visitor.ShowNextIf(!a_settings.officialServer);
+            a_visitor.Bool("ConnectAutomatically", a_settings.autoConnect, "Connects to the server automatically after the game is loaded.");
+            a_visitor.Bool("CustomServer", a_settings.customServer,
+                "Connects to the server at the URL below instead of the official server.");
+            a_visitor.ShowNextIf(a_settings.customServer);
             a_visitor.String("ServerEndpoint", a_settings.serverEndpoint,
-                "Custom server URL, starting with http:// or https://. Used while\n"
-                "ConnectToOfficialServer is off.",
+                "Custom server URL, starting with http:// or https://. Used only while\n"
+                "Custom Server is on.",
                 IsValidServerEndpoint);
-            a_visitor.Bool("AutoConnect", a_settings.autoConnect,
-                "");
         }
 
         void DescribeDefaultOutfit(DefaultOutfitSettings& a_settings, SettingsVisitor& a_visitor)
@@ -338,7 +336,7 @@ namespace Config
 
     std::string_view GetServerEndpoint(const NetworkSettings& a_settings)
     {
-        return a_settings.officialServer ? kDefaultServerEndpoint : std::string_view{ a_settings.serverEndpoint };
+        return a_settings.customServer ? std::string_view{ a_settings.serverEndpoint } : kDefaultServerEndpoint;
     }
 
     std::optional<bool> ParseBool(std::string_view a_value)

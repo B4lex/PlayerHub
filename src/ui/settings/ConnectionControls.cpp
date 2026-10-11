@@ -31,7 +31,7 @@ namespace UI::ConnectionControls
         constexpr const char* kDisconnectToRenameText = "Disconnect to change the display name";
         constexpr const char* kCancelToRenameText = "Cancel the connection to change the display name";
         constexpr const char* kNoEndpointText
-            = "Enter a server URL in Network, or switch Connect To Official Server on, to connect.";
+            = "Enter a server URL in Network, or switch Custom Server off, to connect.";
 
         struct Status
         {

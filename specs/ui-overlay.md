@@ -346,15 +346,22 @@
   `SettingsSchema.cpp`, and `ConnectionMonitor.cpp` in a headless Dear ImGui
   1.92.9 context with a stubbed transport, fonts, and item picker and
   simulated mouse and keyboard input, checking the drawn text and items, not
-  images: Network shows `Connect To Official Server` and `Auto Connect` and
-  no endpoint row; switching it off shows `Server Endpoint` without the
-  default URL; `ftp://x`
-  turns the footer line on, and switching on hides the row and the footer
-  line, which stay away when switching off again; with the switch off and the
-  field empty, General's `Connect` is disabled with the sentence under it; a
-  typed URL applies on Enter and saves both lines, `Connect` is enabled and
-  the sentence gone; switching on and off again goes back to the official
-  server and to the URL.
+  images. The current `Custom Server` switch ran in the settings-only harness
+  (real `SettingsSchema.cpp`, stubbed configuration store and connection
+  controls): Network shows `Custom Server` and `Auto Connect` and no endpoint
+  row or `Official`; switching it on applies it and shows an unlabeled field
+  reading `https://host:port` between the two toggles, from the labels' left
+  edge to the toggles' right edge, with no `Server Endpoint` text; a typed URL
+  applies on Enter and becomes the endpoint; switching off hides the field
+  and goes back to the official server with the URL kept. The rest ran
+  with the earlier, inverted `Connect To Official Server` switch, whose
+  `ConnectionControls.cpp` behavior is unchanged, while disconnected:
+  `ftp://x` turns the footer line on, and hiding the row hides the footer
+  line, which stays away when the row is shown again; with the custom server
+  and an empty field, General's `Connect` is disabled with the sentence under
+  it; a typed URL saves both lines, `Connect` is enabled and the sentence
+  gone. `ConnectionControls.cpp` with its new sentence passed the g++ syntax
+  check only.
 - **Mute and vanish:** not built on Windows or run in game; the server side is
   under [Network](network.md#status). On Linux, in the chat's headless Dear
   ImGui 1.92.9 harness with a stubbed transport and a deploy folder,
@@ -535,7 +542,9 @@
   each enchanted load for 0.5 s, and enchanted thumbnails waiting for their
   glow, passed only the g++ syntax check. Starting each load from the
   game's transform and fitting thumbnails to 512 px, after the user saw
-  stills missing (2026-10-10), passed only the g++ syntax check.
+  stills missing (2026-10-10), passed only the g++ syntax check. The
+  model's [spin](#3d-preview) (2026-10-11) passed only the g++ syntax check
+  of `ItemPreview.cpp`, a planted error confirming it is checked.
 - **Vanilla item card** (2026-10-10): not built on Windows or run in game.
   On Linux, `ItemCard.cpp` with the real `MenuFrame.cpp` and `Theme.cpp`
   ran headless in Dear ImGui 1.92.9 with Sovngarde (16 px at 1080p,
@@ -602,7 +611,7 @@ src/ui/
   settings/ConnectionControls # connection button, the line under it, one-line summary
   widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text
   widgets/ItemPicker          # item dropdown
-  preview/ItemPreview         # 3D item model, turned by dragging, and cached thumbnails
+  preview/ItemPreview         # 3D item model, spinning and turned by dragging, and cached thumbnails
   render/Gpu                  # back buffer, runtime-compiled full-screen passes, image blend modes
   render/Backdrop             # the game's frame blurred and darkened behind a full-screen window
 src/sync/chat/ChatSync        # send to a target and why it failed, the server's rejections, lines to display
@@ -1806,7 +1815,7 @@ tooltips; the only tooltip left in the window is Accept's blocker.
 - The model's square is the column's width, leaving the card room for at least 12
   font sizes, so 28 font sizes square on most displays. It shows the
   item's [model](#3d-preview) floating over the backdrop, as the inventory
-  menu does, and turns it while dragged with the left button. With
+  menu does, spins it slowly, and turns it while dragged with the left button. With
   `[UI] ItemPreview` off it stays empty.
 - The card is a framed window under the square (`ui/trade/ItemCard`) laid
   out as the vanilla inventory's item card, every line centered. As in the
@@ -1901,11 +1910,11 @@ peers keep seeing the player.
 - A row the schema shows only while a value is true (`ShowNextIf`,
   [Configuration](configuration.md#schema)) is left out while it is false, and
   its text in red is dropped, so it neither holds the footer line nor comes
-  back red. Network so shows `Server Endpoint` only while
-  `Connect To Official Server` is off
-  ([Official and custom server](configuration.md#official-and-custom-server)),
-  as a field reading `https://host:port` while empty. The official server's
-  URL is never drawn.
+  back red. Network so shows `ServerEndpoint` only while `Custom Server` is
+  on ([Official and custom server](configuration.md#official-and-custom-server)),
+  as a field without a label, spanning the row from the labels' left edge, and
+  reading `https://host:port` while empty: the switch above it already names
+  it. The official server's URL is never drawn.
 - A setting's comment is not drawn; it is the tooltip of the row's label, and
   of a text field while its value is invalid.
 - A number's step buttons move it by a hundredth of its maximum, and typing
@@ -2048,7 +2057,7 @@ has not reached, and keeps its width and identity when the label changes:
 | Disconnecting | `Disconnecting...`, disabled | plain | — |
 | Disconnected, the field holds a display name | `Connect` | accent | wants a connection |
 | Disconnected, the field is empty or its text is invalid | `Connect`, disabled | plain | — |
-| Disconnected, `Connect To Official Server` off without a URL | `Connect`, disabled | plain | — |
+| Disconnected, `Custom Server` on without a URL | `Connect`, disabled | plain | — |
 
 `Connect` goes by the field's text, not by the applied display name: pressing
 it ends the field's editing, which applies the text before the press lands,
@@ -2062,7 +2071,7 @@ them:
 | --- | --- |
 | The field's text is not a display name ([Network](network.md#sessions)) | `Invalid display name.`, red. The page's footer line does not count this field |
 | Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`) | the sentence of `Network::GetConnectionRefusal`, red, until `Connect` is pressed |
-| Disconnected, `Connect To Official Server` off without a URL | `Enter a server URL in Network, or switch Connect To Official Server on, to connect.`, amber |
+| Disconnected, `Custom Server` on without a URL | `Enter a server URL in Network, or switch Custom Server off, to connect.`, amber |
 | Otherwise | the setting's comment, `Shown to other players above your character and in chat.`, muted |
 
 The sidebar's summary (`ConnectionControls::DrawSummary`) is an indicator and
@@ -2086,9 +2095,8 @@ is applied, which clears the sentence. The refusals are in
 Not wanting a connection closes it and removes every remote player until
 Connect. The button acts on the live settings, which a display name or endpoint
 reaches when its editing ends. Applying an endpoint or switching
-`Connect To Official Server` while connected moves the connection to the
-server they now name, and switching it off without a URL closes the
-connection and waits for Connect
+`Custom Server` keeps a live connection on its server; the next Connect, or
+a reconnect after a loss, goes to the server they now name
 ([Network](network.md#connection)).
 
 ## Item picker
@@ -2134,11 +2142,19 @@ picker's panel) or as cached thumbnails for many cells.
   is held, the mouse turns the model, one radian per 8 font sizes of
   movement, the horizontal part negated as the inventory menu's mouse
   handler does. A new item starts unturned.
+- Once captured, the model spins about its vertical axis at
+  `kSpinRadiansPerSecond` (30° a second, one turn in 12 s; the user's
+  choice), as a horizontal drag to the right turns it. Holding the button
+  pauses the spin, which resumes from where the player left the model
+  `kSpinResumeSeconds` (2) of frame time after release (the user's choice).
+  The spin advances by the frame time of the updates that render the model,
+  so it pauses rather than jumps while thumbnails hold the renderer. A light
+  (`FormType::Light`) does not spin, since ID 51778 does not turn it.
 - `Update` runs in `Overlay::DrawFrame` before `ImGui::NewFrame`, when the
   game frame is finished and the overlay has not drawn. It advances a clock
   by the clamped frame time and does one job: the model when it is due (its
   first capture, its refresh, a turn, or a fresh load being watched), else the next thumbnail due, else
-  an [animated](#3d-preview) model, else nothing, which stops the
+  an [animated](#3d-preview) or spinning model, else nothing, which stops the
   renderer (`End3D`) and keeps the images. A job
   calls `Inventory3DManager::Begin3D(kInventory)` once and
   `LoadInventoryItem` for its form. A model loading in the background is
@@ -2431,15 +2447,15 @@ To verify in game:
 6. General, Network, Performance, and Interface have nothing below their
    settings. Switching `Status Panel` off hides the panel at once; typing a
    display name changes nothing until Enter or a click elsewhere, which saves it
-   without connecting. Network shows `Connect To Official Server` on and no
-   URL.
+   without connecting. Network shows `Custom Server` off and no URL.
    `View Radius` reads `Auto` and `+` sets 1000. Each change is in
    `playerhub.ini` without pressing anything. Default Outfit shows
    Defaults, Revert, and Apply; a picked item shows a reset icon and reaches
    peers only on Apply, and Defaults leaves the display name and endpoint as
    they are.
 7. The picker lists only matching base-game items and races. Hovering rows
-   switches the model without flicker on the world behind; background loads
+   switches the model without flicker on the world behind, and the model spins
+   slowly; background loads
    appear after the attach pass (a stall logs `Item preview waiting`); nothing is
    left on screen after the list closes; the inventory shows its own models
    normally afterwards; FPS stays steady while a list is open;
@@ -2595,14 +2611,13 @@ To verify in game:
     follows it.
 24. A new install connects to the official server, and its URL appears
     nowhere in the settings window or `playerhub.ini`. Switching
-    `Connect To Official Server` off while connected disconnects, a
-    `Server Endpoint` field appears, and General's `Connect`
-    is disabled with a sentence saying why. A URL typed into
-    `Server Endpoint` applies on Enter, and `Connect` joins that server; an
-    endpoint without `http://` turns red and the connection stays.
-    Switching `Connect To Official Server` on while connected moves the
-    connection back to the official server at once, and off again moves it
-    to the kept URL.
+    `Custom Server` on while connected keeps the connection and remote
+    players, and a URL field without a label appears under it. Disconnecting
+    with the field empty disables General's `Connect` with a sentence saying
+    why. A URL typed into the field applies on Enter, and `Connect` joins that
+    server; an endpoint without `http://` turns red. Switching
+    `Custom Server` off while connected to the custom server keeps that
+    connection; Disconnect and Connect join the official server.
 
 25. Activating a nearby player and picking `Trade` shows both players the
     prompt at the top, which `Y` and `N` answer for the other player,
@@ -2648,10 +2663,12 @@ To verify in game:
     textured, floating over the blur without a box or a dark fringe, as
     the inventory menu shows it, and its card with its numbers laid out
     as the inventory menu's, in capitals where the game shows them; moving off
-    the panel keeps it. Dragging the model turns
-    it smoothly like the inventory menu's model, and it stays turned after
-    other items were hovered and the grid thumbnails captured. The item
-    picker's model shows on its dark panel as before.
+    the panel keeps it. The model spins slowly and evenly, one turn in
+    about 12 s, without flicker. Dragging the model stops the spin and turns
+    it smoothly like the inventory menu's model; 2 s after release it spins
+    on from there, and it keeps its angle after other items were hovered
+    and the grid thumbnails captured. The item picker's model shows on its
+    dark panel as before and spins too.
 29. The settings window's sidebar lists General, Default Outfit, Interface,
     Keybinds, Network, and Performance. Keybinds lists Open Settings, Open Chat,
     Manage Players, Accept Trade, and Decline Trade with their keys, and
@@ -2764,4 +2781,6 @@ To verify in game:
   about 1.07 times its height leaves no room for the preview column, and
   the trade then shows no item numbers at all. The model cannot be zoomed,
   and a turn applies the drag's angles in one call per frame, so a fast
-  drag turns in larger steps than the inventory menu's.
+  drag turns in larger steps than the inventory menu's. The spin captures
+  the model on every frame it is shown, two renders and a separation pass,
+  and stops while thumbnails are captured.

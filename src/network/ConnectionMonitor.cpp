@@ -55,9 +55,7 @@ namespace Network
         std::uint64_t lastProbeID = 0;
         std::uint64_t probeConnectionGeneration = 0;
         float secondsSinceProbe = kProbeIntervalSeconds;
-        std::uint64_t observedConfigRevision = 0;
         std::optional<std::uint64_t> requirementsConfigRevision;
-        bool endpointChangePending = false;
         bool observedInGame = false;
 
         void ForgetLatency()
@@ -158,35 +156,6 @@ namespace Network
             }
         }
 
-        bool FollowEndpointChange()
-        {
-            const auto revision = Config::GetRevision();
-            if (revision != observedConfigRevision)
-            {
-                observedConfigRevision = revision;
-                endpointChangePending = endpointChangePending || IsEndpointOutdated();
-            }
-            if (!endpointChangePending)
-            {
-                return false;
-            }
-
-            if (IsConnected())
-            {
-                AbandonConnection();
-            }
-            if (!BeginReconnect())
-            {
-                return true;
-            }
-            endpointChangePending = false;
-            ForgetLatency();
-            reconnectAttempts = 0;
-            EnterPhase(Phase::kReconnecting);
-            logs::info("Server endpoint changed; reconnecting");
-            return true;
-        }
-
         void FollowRequirements()
         {
             const auto revision = Config::GetRevision();
@@ -198,22 +167,19 @@ namespace Network
             const auto config = Config::Get();
             const bool nameSet = !config->general.displayName.empty();
             const bool hasEndpoint = !Config::GetServerEndpoint(config->network).empty();
-            bool lost = false;
             if (displayNameSet.exchange(nameSet, std::memory_order_acq_rel) != nameSet)
             {
                 logs::info("Display name {}", nameSet ? "set" : "cleared; not connecting without one");
-                lost = !nameSet;
+                if (!nameSet)
+                {
+                    // Applying one again must not connect by itself.
+                    connectionEnabled.store(false, std::memory_order_release);
+                }
             }
             if (endpointSet.exchange(hasEndpoint, std::memory_order_acq_rel) != hasEndpoint)
             {
                 logs::info("Server endpoint {}",
-                    hasEndpoint ? "available" : "missing: the custom server has no URL; not connecting without one");
-                lost = lost || !hasEndpoint;
-            }
-            if (lost)
-            {
-                // Applying one again must not connect by itself.
-                connectionEnabled.store(false, std::memory_order_release);
+                    hasEndpoint ? "available" : "missing: the custom server has no URL; not opening a connection without one");
             }
         }
 
@@ -252,7 +218,8 @@ namespace Network
         bool IsConnectionWanted()
         {
             return GameSession::IsInGame() && connectionEnabled.load(std::memory_order_acquire)
-                && displayNameSet.load(std::memory_order_acquire) && endpointSet.load(std::memory_order_acquire);
+                && displayNameSet.load(std::memory_order_acquire)
+                && (endpointSet.load(std::memory_order_acquire) || IsConnected());
         }
 
         void Close(std::string_view a_reason)
@@ -279,8 +246,6 @@ namespace Network
             {
                 return;
             }
-            observedConfigRevision = Config::GetRevision();
-            endpointChangePending = false;
             reconnectAttempts = 0;
             ForgetLatency();
             EnterPhase(Phase::kReconnecting);
@@ -341,8 +306,10 @@ namespace Network
             Close("no display name is set");
             return;
         }
-        if (!endpointSet.load(std::memory_order_acquire))
+        if (!endpointSet.load(std::memory_order_acquire) && !IsConnected())
         {
+            // Entering one later must not connect by itself.
+            connectionEnabled.store(false, std::memory_order_release);
             Close("no custom server endpoint is set");
             return;
         }
@@ -354,10 +321,6 @@ namespace Network
         if (phase == Phase::kIdle || phase == Phase::kClosing)
         {
             Open();
-            return;
-        }
-        if (FollowEndpointChange())
-        {
             return;
         }
         if (IsConnected())

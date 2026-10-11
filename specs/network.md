@@ -129,16 +129,19 @@
   messages and its encoded ones passed `validate.Message`; the details are in
   [Trade](trade.md#status).
 - **Official and custom server:** not built on Windows or run in game.
-  `ConnectionMonitor.cpp` ran on Linux under the settings window's harness
-  with the real configuration and a stubbed transport
-  ([UI overlay](ui-overlay.md#status)): a game start connects to the official
-  server; switching `ConnectToOfficialServer` off with a URL and on again
-  reconnects to each at once; switching it off without a URL closes the connection, logs why,
-  and stays disconnected when a URL is then entered until Connect; a game
-  starting without an endpoint does not connect, and switching off then waits
-  for Connect. `ServerClient.cpp`, `SessionStore.cpp`, and `PlayerFilters.cpp`
-  passed a syntax check only, so `DescribeServer` and `GetServerAddress` did
-  not run.
+  `ConnectionMonitor.cpp` ran on Linux with the real `SettingsSchema.cpp`, a
+  stubbed configuration store, and a fake transport whose attempts connect to
+  the endpoint configured when they begin: a game start connects to the
+  official server; switching `CustomServer` on with a URL, editing the URL, and
+  switching it off while connected start no attempt and close nothing; a loss
+  then reconnects to the endpoint configured at that time; switching it on
+  without a URL keeps the live connection, and its loss closes, ends the
+  player's choice, and logs why, so a URL entered then waits for Connect;
+  Connect without an endpoint does not connect. An earlier run under the
+  settings window's harness ([UI overlay](ui-overlay.md#status)) showed a game
+  starting without an endpoint not connecting. `ServerClient.cpp`,
+  `SessionStore.cpp`, and `PlayerFilters.cpp` passed a syntax check only, so
+  `DescribeServer` and `GetServerAddress` did not run.
 
 ## Scope
 
@@ -190,7 +193,7 @@ refused at the handshake ([Transport](#transport)).
   host is not compared with `Host`, since behind a proxy the plugin names the
   public host and port.
 - The endpoint (`Config::GetServerEndpoint`: the official server, or
-  `[Network] ServerEndpoint` with `ConnectToOfficialServer` off,
+  `[Network] ServerEndpoint` with `CustomServer` on,
   [Configuration](configuration.md#official-and-custom-server)) keeps its
   `http://` or `https://` form; the client maps it to `ws://` or `wss://` and
   appends `/ws` when the endpoint has no path. TLS is terminated by a reverse proxy in front of the server.
@@ -851,8 +854,8 @@ the server's `PeerEnter` messages.
 A connection is wanted only in a game, while the player's choice enables it,
 once `[General] DisplayName` is set
 ([Appearance and equipment](appearance-and-equipment.md#display-name)), and
-while `Config::GetServerEndpoint` is not empty, which it is only with
-`ConnectToOfficialServer` off and no `ServerEndpoint`
+while `Config::GetServerEndpoint` is not empty or a connection is welcomed.
+The endpoint is empty only with `CustomServer` on and no `ServerEndpoint`
 ([Configuration](configuration.md#official-and-custom-server)).
 `ConnectionMonitor` owns that decision; nothing else opens or closes the
 client.
@@ -869,8 +872,14 @@ client.
 - Applying a display name never opens a connection; only the choice does. The
   monitor reads the display name when the configuration revision changes, and
   one that becomes empty disables the choice, so entering one again waits for
-  Connect. The server requires one too, in the hello. An endpoint that
-  becomes empty does the same, and also closes the connection.
+  Connect. The server requires one too, in the hello.
+- Applying an endpoint or switching `CustomServer` never touches the
+  connection: a welcomed one stays with its server, and each later attempt,
+  after Connect or a loss, reads `Config::GetServerEndpoint` when it begins.
+  Goal: changing the server setting does not drop players from the server
+  they are playing on; Disconnect and Connect switch servers. An endpoint
+  that is empty while no connection is welcomed disables the choice and
+  closes the client, so entering one waits for Connect.
 - A connection keeps the display name its hello carried. The settings window
   locks the field while a connection is wanted or open
   ([UI overlay](ui-overlay.md#connection-controls)), so the configured display
@@ -885,9 +894,6 @@ client.
   once welcomed, `kConnecting` while one is wanted but not welcomed,
   `kDisconnecting` while none is wanted but the socket is open, and
   `kDisconnected` otherwise.
-- An endpoint that differs from the latest attempt's, after editing
-  `ServerEndpoint` or switching `ConnectToOfficialServer`, abandons a live
-  connection and reconnects at once, with the attempt count reset.
 - A close with status 4001, 4004, 4005, 4006, 4007, or 4008 is a refusal:
   retrying at once cannot help, so the monitor disables the player's choice and closes the client,
   which leaves `kDisconnected`. `Network::GetConnectionRefusal` returns its

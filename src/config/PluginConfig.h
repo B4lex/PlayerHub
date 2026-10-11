@@ -22,7 +22,7 @@ namespace Config
 
     struct NetworkSettings
     {
-        bool officialServer{ true };
+        bool customServer{ false };
         std::string serverEndpoint;
         bool autoConnect{ true };
 
