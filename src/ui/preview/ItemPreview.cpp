@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdint>
 #include <format>
+#include <numbers>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -45,6 +46,8 @@ namespace UI::ItemPreview
         constexpr std::uint32_t kEffectSampleLogs = 6;
         // Dragging across this many font sizes turns the model by one radian.
         constexpr float kTurnFontsPerRadian = 8.0F;
+        constexpr float kSpinRadiansPerSecond = std::numbers::pi_v<float> / 6.0F;
+        constexpr float kSpinResumeSeconds = 2.0F;
         constexpr ImVec4 kBlack{ 0.0F, 0.0F, 0.0F, 1.0F };
         constexpr ImVec4 kWhite{ 1.0F, 1.0F, 1.0F, 1.0F };
         // Every direction's ambient color in captures, so faces turned from the scene's light are lit.
@@ -149,6 +152,9 @@ float4 Separate(Vertex input) : SV_Target
             float capturedSide{ 0.0F };
             // Radians the player turned it by that the next capture applies.
             ImVec2 turn{};
+            // ID 51778 does not turn a light, which would be captured every update for nothing.
+            bool spins{ false };
+            float spinsFrom{ 0.0F };
             // Its local transform as fitted and turned, put back when it is loaded again.
             std::optional<RE::NiTransform> transform;
             double requestedSince{ 0.0 };
@@ -1085,6 +1091,12 @@ float4 Separate(Vertex input) : SV_Target
                 && (model.state == CaptureState::kCaptured || model.state == CaptureState::kSettled);
         }
 
+        bool IsModelSpinning()
+        {
+            return model.spins && clock >= model.spinsFrom && !modelUnavailable
+                && (model.state == CaptureState::kCaptured || model.state == CaptureState::kSettled);
+        }
+
         void UpdateModel(RE::Inventory3DManager& a_manager, RE::UI& a_ui, float a_delta)
         {
             Start(a_manager);
@@ -1103,6 +1115,12 @@ float4 Separate(Vertex input) : SV_Target
             TextureCheck check;
             if (auto* object = ReadyModel(a_manager, a_ui, timedOut, check))
             {
+                // Advanced only by updates that render the model, so it pauses rather than jumps
+                // while thumbnails hold the renderer.
+                if (IsModelSpinning())
+                {
+                    model.turn.x -= kSpinRadiansPerSecond * a_delta;
+                }
                 if (model.turn.x != 0.0F || model.turn.y != 0.0F)
                 {
                     Turn(a_manager, std::exchange(model.turn, ImVec2{}));
@@ -1250,11 +1268,15 @@ float4 Separate(Vertex input) : SV_Target
         const auto now = ImGui::GetTime();
         if (a_formID != model.formID)
         {
-            model = Model{ .formID = a_formID, .requestedSince = now };
+            const auto* form = RE::TESForm::LookupByID(a_formID);
+            model = Model{ .formID = a_formID,
+                .spins = form && !form->Is(RE::FormType::Light),
+                .requestedSince = now };
         }
         model.side = std::floor((std::min)(a_size.x, a_size.y)) * kSupersample;
         if (ImGui::IsItemActive() && model.state != CaptureState::kFailed)
         {
+            model.spinsFrom = clock + kSpinResumeSeconds;
             const auto& delta = ImGui::GetIO().MouseDelta;
             const float scale = 1.0F / (kTurnFontsPerRadian * ImGui::GetFontSize());
             model.turn.x -= delta.x * scale;
@@ -1383,13 +1405,13 @@ float4 Separate(Vertex input) : SV_Target
         {
             UpdateModel(*manager, *ui, delta);
         }
-        // An animated model gives way to stills only while one is due, so the loaded item does
-        // not switch every frame.
+        // An animated or spinning model gives way to stills only while one is due, so the loaded
+        // item does not switch every frame.
         else if (thumbnails && NextThumbnail())
         {
             UpdateThumbnails(*manager, *ui, delta);
         }
-        else if (IsModelAnimating())
+        else if (IsModelAnimating() || IsModelSpinning())
         {
             UpdateModel(*manager, *ui, delta);
         }
