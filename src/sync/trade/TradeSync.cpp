@@ -224,8 +224,6 @@ namespace TradeSync
                     .formID = row.formID,
                     .category = row.category,
                     .details = row.details,
-                    .equipped = row.equipped,
-                    .favorited = row.favorited,
                     .enchanted = row.item.IsEnchanted(),
                     .blocked = row.block ? DescribeBlock(*row.block) : rejected });
             }

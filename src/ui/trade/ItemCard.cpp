@@ -59,7 +59,6 @@ namespace UI
             Face body;
             Face highlight;
             Face unknown;
-            Face note;
             Face warning;
         };
 
@@ -74,7 +73,6 @@ namespace UI
                 .body = { text, fontSize, kBodyColor },
                 .highlight = { heading, fontSize, kValueColor },
                 .unknown = { text, fontSize, kUnknownColor },
-                .note = { text, fontSize * kNoteScale, kLabelColor },
                 .warning = { text, fontSize * kNoteScale, ImGui::GetColorU32(Theme::kWarning) } };
         }
 
@@ -335,7 +333,7 @@ namespace UI
         }
 
         // The inventory menu's item card: the name in capitals over a rule, the numbers, and the
-        // effects with their magnitudes picked out; then what the trade adds to it.
+        // effects with their magnitudes picked out.
         void Layout(Pen& a_pen, const Faces& a_faces, const ItemCard& a_card)
         {
             const auto& details = *a_card.details;
@@ -355,6 +353,11 @@ namespace UI
             }
             a_pen.y += 1.0F;
             Gap(a_pen, kSectionGapFonts * 0.5F);
+            if (!a_card.blocked.empty())
+            {
+                Paragraph(a_pen, a_card.blocked, a_faces.warning);
+                Gap(a_pen, kSectionGapFonts);
+            }
 
             std::array<char, 24> rating{};
             std::array<char, 24> weight{};
@@ -407,12 +410,6 @@ namespace UI
                                          .out;
                     Paragraph(a_pen, std::string_view{ charge.data(), end }, a_faces.body, &a_faces.highlight);
                 }
-            }
-            if (!a_card.notes.empty() || !a_card.blocked.empty())
-            {
-                Gap(a_pen, kSectionGapFonts);
-                Paragraph(a_pen, a_card.notes, a_faces.note);
-                Paragraph(a_pen, a_card.blocked, a_faces.warning);
             }
         }
 

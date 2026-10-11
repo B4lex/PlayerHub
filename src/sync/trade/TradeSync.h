@@ -26,8 +26,6 @@ namespace TradeSync
         RE::FormID formID{ 0 };
         Forms::TradeCategory category{ Forms::TradeCategory::kMisc };
         Forms::ItemDetails details;
-        bool equipped{ false };
-        bool favorited{ false };
         bool enchanted{ false };
         // Why it cannot be offered, or empty.
         std::string blocked;

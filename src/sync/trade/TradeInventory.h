@@ -20,8 +20,6 @@ namespace TradeInventory
         std::string name;
         Forms::TradeCategory category{ Forms::TradeCategory::kMisc };
         Forms::ItemDetails details;
-        bool equipped{ false };
-        bool favorited{ false };
         std::optional<Forms::OfferBlock> block;
     };
 

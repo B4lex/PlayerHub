@@ -91,15 +91,6 @@ namespace UI
         constexpr std::array<const char*, 11> kCategoryNames{ "All", "Weapons", "Apparel", "Ammunition", "Potions",
             "Ingredients", "Books", "Scrolls", "Soul gems", "Keys", "Miscellaneous" };
 
-        std::string_view Describe(bool a_equipped, bool a_favorited)
-        {
-            if (a_equipped)
-            {
-                return a_favorited ? "Equipped \xC2\xB7 Favorite" : "Equipped";
-            }
-            return a_favorited ? "Favorite" : "";
-        }
-
         // Where the panel and the preview column go: the two centered together, the column's
         // model above its card, both as tall as the panel.
         struct Arrangement
@@ -488,7 +479,6 @@ namespace UI
                 return ItemCard{ .name = line.name,
                     .count = offered > 0 ? offered : line.count,
                     .details = &line.details,
-                    .notes = Describe(line.equipped, line.favorited),
                     .blocked = offered > 0 ? std::string_view{} : std::string_view{ line.blocked },
                     .formID = line.formID };
             }

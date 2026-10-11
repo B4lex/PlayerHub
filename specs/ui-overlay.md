@@ -470,7 +470,7 @@
   above the card reaching the panel's bottom; a narrower column at 5:4,
   none on a square display, the same proportions at 4K; the backdrop drawn
   each frame; at once the hovered row's or
-  cell's name, count (held or offered), stats, effects, notes, and a
+  cell's name, count (held or offered), stats, effects, and a
   blocked row's reason; the last item kept while the cursor is over the
   backdrop; a shown row found again after rows moved and the card cleared
   when its row or peer line left; a peer cell still inspected by hovering;
@@ -1763,6 +1763,10 @@ tooltips; the only tooltip left in the window is Accept's blocker.
     the vanilla item list writes counts, over a rule the card's width.
     Capitals are made for ASCII, Latin-1, Latin Extended-A, and Cyrillic;
     other letters are kept;
+  - in amber at 0.9 times, why a row cannot be offered (a quest needs it,
+    the peer cannot receive it, and the other [offer blocks](trade.md#offers-and-acceptance)),
+    under the rule and before the stats, so it is read first (the user's
+    choice);
   - `DAMAGE` or `ARMOR` of one item, then `WEIGHT` and `VALUE` of the
     whole count it shows (held for an item list row, offered for a grid
     cell, held again once a stack leaves the offer), so a stack and a
@@ -1774,10 +1778,10 @@ tooltips; the only tooltip left in the window is Accept's blocker.
     game shows magnitudes; an undiscovered ingredient effect is darker
     without highlights; then `Charge <n> / <max>` in the same style (the
     user kept it as text rather than the vanilla meter);
-  - the notes, equipped (giving it takes it off) and favorite, in gray at
-    0.9 times, and in amber why a row cannot be offered (the user's
-    choice). An enchanted item is told by its effects and its cell, so no
-    `Enchanted` note is shown.
+
+  The card shows no equipped, favorite, or `Enchanted` note: the user
+  dropped equipped and favorite, and an enchanted item is told by its
+  effects and its cell.
 
 ## Settings window
 

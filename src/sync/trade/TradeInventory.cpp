@@ -106,9 +106,7 @@ namespace TradeInventory
             auto described = Forms::DescribeItem(*a_stack.object, a_stack.extra);
             Row row{ .formID = a_stack.object->GetFormID(),
                 .name = std::move(name),
-                .category = *category,
-                .equipped = IsWorn(a_stack.extra),
-                .favorited = a_stack.extra && a_stack.extra->HasType(RE::ExtraDataType::kHotkey) };
+                .category = *category };
             if (described)
             {
                 row.item = std::move(*described);
@@ -128,8 +126,6 @@ namespace TradeInventory
                 return;
             }
             same->item.count += row.item.count;
-            same->equipped = same->equipped || row.equipped;
-            same->favorited = same->favorited || row.favorited;
         });
         std::ranges::sort(rows, [](const Row& a_left, const Row& a_right) { return a_left.name < a_right.name; });
         for (auto& row : rows)
