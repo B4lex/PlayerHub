@@ -27,7 +27,7 @@
   display name requirement is not built on Windows either.
 - **Form references:** plugin taken from the FormID's compile index
   (`FormLookup::GetDefiningFile`); not built on Windows or run in game. The
-  `Update.esm|0DDFB3` misreport it fixes was seen in `playerhub.log`.
+  `Update.esm|0DDFB3` misreport it fixes was seen in `PlayerHub.log`.
 - **Sessions:** not built on Windows or run in game. Server: `go test -race`
   covers the store (`internal/auth`: issue, resume, unique display names, a
   resumed session renamed by its hello, sliding expiry, a reopened database, a
@@ -47,7 +47,7 @@
   `WireCodec`, `SessionStore`, and `ConnectionMonitor` were built on Linux
   against IXWebSocket 12.0.1 and nanopb 0.4.9 with a stubbed configuration and
   game state, and run against that server: a session issued and saved to
-  `playerhub.session`, resumed by a second process from the file, a hello with
+  `PlayerHub.session`, resumed by a second process from the file, a hello with
   a held display name refused without retrying, and a second process with the
   same token closing the first, which stayed down. That run was before the wire
   fields were named `display_name`, before the display name could change only
@@ -167,7 +167,7 @@ refused at the handshake ([Transport](#transport)).
 | `network/WireCodec` | nanopb encoding of client messages and validated decoding of server messages |
 | `network/ServerClient` | IXWebSocket transport: sends, dispatches received messages, merges each peer's context into its checkpoints, and queues per-player changes for `DrainRemotePlayerChanges` |
 | `network/ConnectionMonitor` | When to connect, reconnect schedule, latency probes, refusal, and the connection state |
-| `network/SessionStore` | The session tokens in `playerhub.session`, one per server |
+| `network/SessionStore` | The session tokens in `PlayerHub.session`, one per server |
 | `network/Refusal.h` | Why the server refused a connection, for the monitor and the UI |
 | `network/TrafficMeter` | Bytes per second in each direction |
 | `server/internal/session` | WebSocket accept, hello and session authentication, reader and writer goroutines, liveness, per-connection limits |
@@ -799,13 +799,13 @@ Server messages:
 
 ### Session
 
-- `SessionStore` keeps one token per server in `playerhub.session`, next to
-  `playerhub.ini` (`Config::GetDirectory`): a line of 64 hexadecimal digits, a
+- `SessionStore` keeps one token per server in `PlayerHub.session`, next to
+  `PlayerHub.ini` (`Config::GetDirectory`): a line of 64 hexadecimal digits, a
   space, and the WebSocket URL the connection is opened to; lines starting with
   `;` are comments. It is a file of its own because players share their ini and
   modpacks, and a token is all it takes to connect as its owner; one per server
   lets a player switch servers and back. The file is read once, on first use,
-  and written through `playerhub.session.tmp`. Tokens are never logged.
+  and written through `PlayerHub.session.tmp`. Tokens are never logged.
 - When the socket opens, the transport thread sends the hello with the token
   kept for the attempt's URL, or none, and `[General] DisplayName`.
 - A `Welcome` with a token saves it, also when the connection is already being
@@ -819,14 +819,14 @@ Server messages:
 ### Player filters
 
 - `PlayerFilterStore` keeps the local player's friends and the players it
-  muted or vanished in `playerhub.players`, next to `playerhub.session`: a
+  muted or vanished in `PlayerHub.players`, next to `PlayerHub.session`: a
   line per player and server, any of `f`, `m`, and `v` in that order, the
   session ID, the WebSocket URL, and the name when last seen
   ([UI overlay](ui-overlay.md#friends)), separated by tabs, which neither a display
   name nor a URL holds; lines starting with `;` are comments, and a line
   without a session, a server, a name, or a known flag is skipped with a
   warning. It is read once, on first use, and written through
-  `playerhub.players.tmp` on every change; a failed write lasts until the
+  `PlayerHub.players.tmp` on every change; a failed write lasts until the
   game exits. A player with none of the three has no line.
 - The hello carries the sessions vanished on the attempt's URL, at most 1024
   with a warning for the rest. `Network::PublishVanish` sends a change only
@@ -961,7 +961,7 @@ window, and are empty after a long gap. The status panel shows them.
 6. A client without a display name opens no connection, whatever `AutoConnect`
    says, and cannot press Connect; applying one does not connect until Connect
    is pressed.
-7. A first connection to a server writes its line to `playerhub.session`; later
+7. A first connection to a server writes its line to `PlayerHub.session`; later
    games, and reconnects after a loss or a server restart, resume the same
    session.
 8. Two players never show the same display name, compared without case, also
@@ -974,7 +974,7 @@ window, and are empty after a long gap. The status panel shows them.
     After Disconnect, applying another one and pressing Connect resumes the
     same session under it, and peers see the player leave and enter with the
     new display name.
-11. A second game started with a copy of `playerhub.session` takes the session;
+11. A second game started with a copy of `PlayerHub.session` takes the session;
     the first shows that its session connected from another game and stays
     down until Connect.
 12. A reconnect after a network loss is welcomed at once, without waiting for
@@ -993,7 +993,7 @@ window, and are empty after a long gap. The status panel shows them.
   which must not face the Internet.
 - The `Origin` rule stops browsers only. Any other program can open
   connections and send hellos from its own address.
-- A session cannot be recovered: a player who loses `playerhub.session`, or
+- A session cannot be recovered: a player who loses `PlayerHub.session`, or
   whose plugin could not write it, gets a new session, and the old one keeps
   its display name until it expires.
 - Display names can still be squatted from many addresses, slowly from one
@@ -1010,8 +1010,8 @@ window, and are empty after a long gap. The status panel shows them.
 - The token is sent in the hello as it is, so an `http://` endpoint exposes it
   to the network; `https://` endpoints carry it under TLS.
 - The official URL is kept out of the settings window and the log only: it
-  is a plain string in the DLL, the key of its lines in `playerhub.session`
-  and `playerhub.players`, and IXWebSocket's reason for a failed connection
+  is a plain string in the DLL, the key of its lines in `PlayerHub.session`
+  and `PlayerHub.players`, and IXWebSocket's reason for a failed connection
   is logged as the library gives it, which may name the host.
 - Admin exclusions and hiding are still keyed by slot
   ([Interest and delivery](interest-and-delivery.md#admin-controls)); only a

@@ -193,7 +193,7 @@ Errors answer `{"detail": "..."}`. Player IDs are slots as decimal strings.
 
 On the remote player's machine, switch on `Custom Server` in the settings
 window's Network section and enter the server's reachable URL, or set
-it in `playerhub.ini` next to `playerhub.dll`:
+it in `PlayerHub.ini` next to `PlayerHub.dll`:
 
 ```ini
 [Network]

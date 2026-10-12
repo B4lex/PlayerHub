@@ -98,7 +98,7 @@ value.
 
 ## Scope
 
-`playerhub.ini` is the plugin's general configuration. This system owns the
+`PlayerHub.ini` is the plugin's general configuration. This system owns the
 file, its schema, the immutable settings snapshot, how consumers follow a
 change, and saving. The settings window that edits it is in
 [UI overlay](ui-overlay.md#settings-window); what each value does is in its
@@ -114,7 +114,7 @@ consumer's system.
 
 ## File
 
-`playerhub.ini` sits in the directory of the loaded plugin DLL, found through
+`PlayerHub.ini` sits in the directory of the loaded plugin DLL, found through
 the DLL's own module path, so it also works from a mod manager's folder. It is
 read once when SKSE loads the plugin, before any other plugin work.
 
@@ -284,7 +284,7 @@ Goal: players connect to the official server bundled with the DLL without
 seeing or entering its URL, and only those who switch `CustomServer` on enter
 one. Non-goal: keeping the official URL
 secret; it is a plain string in the DLL and the key of its lines in
-`playerhub.session` and `playerhub.players` ([Network](network.md#client)).
+`PlayerHub.session` and `PlayerHub.players` ([Network](network.md#client)).
 
 `Config::GetServerEndpoint` is the URL the client connects to: the build's
 default while `CustomServer` is `false`, `ServerEndpoint` while it is
@@ -299,7 +299,7 @@ The log names it `the official server` instead of its URL
 The repository does not name the public server. The `server_endpoint` xmake
 option holds it, set with `xmake f --server_endpoint=https://...` or in an
 IDE build profile's configure arguments, and kept in xmake's configuration
-cache. The playerhub target's `on_config` passes it as the
+cache. The PlayerHub target's `on_config` passes it as the
 `PLAYERHUB_DEFAULT_SERVER_ENDPOINT` string define, which `SettingsSchema.cpp`
 holds as the default endpoint. It is an option rather than an environment
 variable because an IDE's run configuration does not reach the build, and the
@@ -362,21 +362,21 @@ on its edges ends ([UI overlay](ui-overlay.md#size)).
   since writing could truncate it.
 - One lock serializes file access and `Apply`, so the live configuration and
   the file always change in the same order.
-- The text goes to `playerhub.ini.tmp` and is renamed over the file
+- The text goes to `PlayerHub.ini.tmp` and is renamed over the file
   (`PluginFiles::ReplaceFile`), so a failed write never truncates it. A failed save is logged and reported in the window;
   the applied settings still last until restart.
 
-`Config::GetDirectory` is the directory of `playerhub.ini`, for the plugin's
-other files: the session tokens are kept there in `playerhub.session`, outside
+`Config::GetDirectory` is the directory of `PlayerHub.ini`, for the plugin's
+other files: the session tokens are kept there in `PlayerHub.session`, outside
 this file ([Network](network.md#session)), the friends, muted, and vanished players in
-`playerhub.players` ([Network](network.md#player-filters)), and the settings
+`PlayerHub.players` ([Network](network.md#player-filters)), and the settings
 window's fonts and
-the menu frame's shape are read from `playerhub/fonts/` and `playerhub/frame/`
+the menu frame's shape are read from `PlayerHub/fonts/` and `PlayerHub/frame/`
 under it ([UI overlay](ui-overlay.md#themed-faces)).
 
 ## Acceptance criteria
 
-1. Without a file, the first launch writes `playerhub.ini` next to the DLL with
+1. Without a file, the first launch writes `PlayerHub.ini` next to the DLL with
    the defaults; later launches never overwrite it.
 2. Invalid values, unknown keys, and configured forms that do not resolve or are
    not base-game items are logged and fall back to their defaults, or to no piece

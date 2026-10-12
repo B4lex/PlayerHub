@@ -40,10 +40,10 @@ namespace UI::Fonts
         };
 
         // Sovngarde, under the SIL Open Font License beside the files.
-        constexpr std::wstring_view kShippedDirectory = L"playerhub/fonts";
+        constexpr std::wstring_view kShippedDirectory = L"PlayerHub/fonts";
         constexpr std::wstring_view kTextFile = L"Sovngarde Light.ttf";
         constexpr std::wstring_view kHeadingFile = L"Sovngarde Bold.ttf";
-        constexpr std::wstring_view kLogoFile = L"PlayerHUB Logo.ttf";
+        constexpr std::wstring_view kLogoFile = L"PlayerHub Logo.ttf";
         // Sovngarde's letters are small for its line height.
         constexpr float kShippedGlyphScale = 1.25F;
 

@@ -20,7 +20,7 @@ namespace Config
 {
     namespace
     {
-        constexpr std::string_view kFileName = "playerhub.ini";
+        constexpr std::string_view kFileName = "PlayerHub.ini";
         constexpr std::string_view kFallbackDirectory = "Data/SKSE/Plugins";
         constexpr std::size_t kMaximumModulePathLength = 32768;
 

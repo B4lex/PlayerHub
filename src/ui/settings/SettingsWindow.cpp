@@ -67,7 +67,7 @@ namespace UI
             { "Controls", "Keybinds" } };
 
         constexpr float kBackgroundAlpha = 0.96F;
-        constexpr const char* kSaveFailedText = "Could not save playerhub.ini";
+        constexpr const char* kSaveFailedText = "Could not save PlayerHub.ini";
         constexpr std::string_view kCapturePrompt = "Press a key";
         constexpr std::string_view kUnboundText = "Not bound";
         constexpr std::string_view kReservedKeyText = "This key cannot be bound";

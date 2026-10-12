@@ -16,7 +16,7 @@ namespace Network::SessionStore
         using Multiplayer::SessionToken;
         using PluginFiles::ToUtf8;
 
-        constexpr std::string_view kFileName = "playerhub.session";
+        constexpr std::string_view kFileName = "PlayerHub.session";
         constexpr std::string_view kFileHeader
             = "; Skyrim Multiplayer sessions, one per server: the session's token, then the server.\n"
               "; Keep this file to yourself. Anyone who has a line of it can connect as you.\n";
