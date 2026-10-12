@@ -60,6 +60,11 @@ Implemented 2026-10-06; not built on Windows and not run in game.
     `ItemDetails.cpp`, `TradeInventory.cpp`, and `TradeSync.cpp` passed the
     syntax check, which a planted error confirmed reaches `ItemDetails.cpp`.
     No number was compared with the game's.
+  - Item details on SE (2026-10-12): calling the 1.7.104 IDs crashed
+    `TradeInventory::Capture` on 1.5.97 (user's crash log), so the four
+    formulas were ported from their 1.7.104 disassembly. `ItemDetails.cpp`
+    passed the syntax check, which a planted error confirmed reaches it.
+    Not built on Windows or run on either runtime.
   - [Commit](#commit) ownership (2026-10-09): `GetOwner` (ID 20194), the
     owner check (ID 20210), and `PlayerCharacter::PickUpObject`'s call of
     the steal alarm (ID 37422) were read from the 1.7.104 executable's
@@ -248,17 +253,27 @@ choice), and the item card that shows them is in
   `attackDamage × fDamageWeaponMult` plus the tempering bonus the game adds
   before skills (1.7.104 ID 26498), rounded. Ammunition: its damage.
 - Armor, for armor with a rating: `ceil(armorRating / 100 + bonus)`, the
-  bonus from ID 26499, which the game doubles for armor with the
-  `kKeywordCuirass` default object. Both bonuses scale linearly from 1 at
-  `fHealthDataValue1` to 10 at `fHealthDataValue6`, and are 0 untempered.
+  bonus as ID 26499 computes it, doubled for armor with the
+  `kKeywordCuirass` default object, matched as Skyrim.esm `ArmorCuirass`
+  (`0x0006C0EC`). Both bonuses are
+  `max(0, progress × (fSmithingWeaponMax or fSmithingArmorMax − 1) + 1)`,
+  where progress runs from 0 at `fHealthDataValue1` to 1 at
+  `fHealthDataValue6`, so they are 0 untempered.
 - Value, as `InventoryEntryData::GetValue` (ID 15995) computes it: the gold
-  value scaled by tempering (ID 26483) and rounded up; an enchantment adds
-  its cost (`MagicItem::CalculateTotalGoldValue` with no caster), rounded,
-  for a constant effect, or for a weapon enchantment goes through ID 26465
-  with the maximum charge. A player enchantment's cost is the sum of its
-  effects' sent costs. The enchantment is the item's own, else the base
-  form's (`TESEnchantableForm::formEnchanting`). These IDs were read in the
-  1.7.104 executable and are called as the pure functions they are there.
+  value scaled by tempering as ID 26483 does,
+  `value × ((health − 1) / (fHealthDataValue6 − 1) + 1)`, and rounded up; an
+  enchantment adds its cost (`MagicItem::CalculateTotalGoldValue` with no
+  caster), rounded, for a constant effect, or for a weapon enchantment is
+  `fEnchantmentPointsMult × maximum charge + value +
+  fEnchantmentEffectPointsMult × cost` as in ID 26465. A player
+  enchantment's cost is the sum of its effects' sent costs. The enchantment
+  is the item's own, else the base form's
+  (`TESEnchantableForm::formEnchanting`).
+- The four formulas are ported from the 1.7.104 executable rather than
+  called, because those IDs resolve to unrelated functions on SE 1.5.97,
+  where calling them crashed the inventory capture. The game settings come
+  from `GameSettingCollection`, so the numbers follow each runtime's
+  settings.
 - Effects: of the enchantment, a player enchantment's effects, or a potion,
   poison, scroll, or ingredient, each its effect's item description
   (`EffectSetting::magicItemDescription`) with `<mag>`, `<dur>`, and `<area>`
@@ -408,11 +423,9 @@ To verify in game:
    a script can open, such as message boxes and dialogue started by an NPC.
 8. `ExtraTextDisplayData::customNameLength` is the length of the given name
    before the tempering tier in `displayName`.
-9. [Item details](#item-details): IDs 26498 (`float(float health)`), 26499
-   (`float(float health, TESObjectARMO*)`), 26483 (`float(float value,
-   float health)`), and 26465 (`float(float value, float charge, float
-   cost)`) take the arguments as read from the disassembly and touch nothing
-   but game settings and, for 26499, the default object manager.
+9. [Item details](#item-details): the formulas of 1.7.104 IDs 26498, 26499,
+   26483, and 26465 were read from the disassembly and are the same on SE
+   1.5.97, and `kKeywordCuirass` is `ArmorCuirass` in every load order.
 10. `GetValue`'s enchantment lookup (ID 14563) returns the base form's own
    enchantment when the stack has none, so a pre-enchanted item's value
    includes it; and a player enchantment's `CalculateTotalGoldValue` is the

@@ -88,6 +88,13 @@ namespace UI::InputLanguage
 
     void Install()
     {
+        // The call offsets are verified against 1.7.104 only.
+        if (!REL::Module::IsAE())
+        {
+            logs::warn("UI input: keyboard layout fix is verified only on Skyrim AE; text may keep the old layout "
+                       "after switching the input language");
+            return;
+        }
         const auto mapVirtualKey = WriteImportCall(kMapVirtualKeyCallOffset,
             reinterpret_cast<std::uintptr_t>(&::MapVirtualKeyA), reinterpret_cast<std::uintptr_t>(&MapVirtualKeyThunk),
             "MapVirtualKeyA");

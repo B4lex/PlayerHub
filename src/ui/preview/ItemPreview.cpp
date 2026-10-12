@@ -800,9 +800,14 @@ float4 Separate(Vertex input) : SV_Target
 
         // 1.7.104 ID 51778, which the inventory menu's mouse (ID 51770) and thumbstick handlers
         // call with the drag scaled to radians, x negated: turns the last loaded model about its
-        // bound's center, unless it is hidden or the item is a light (form type 0x1F).
+        // bound's center, unless it is hidden or the item is a light (form type 0x1F). The ID has
+        // no verified SE match, so SE models do not turn.
         void Turn(RE::Inventory3DManager& a_manager, const ImVec2& a_angles)
         {
+            if (!REL::Module::IsAE())
+            {
+                return;
+            }
             using Function = void(RE::Inventory3DManager*, const RE::NiPoint2*);
             static REL::Relocation<Function*> function{ REL::ID(51778) };
             const RE::NiPoint2 angles{ a_angles.x, a_angles.y };
@@ -897,7 +902,12 @@ float4 Separate(Vertex input) : SV_Target
             auto* backBuffer = a_frame.backBuffer.Get();
             context.CopySubresourceRegion(textures.saved.Get(), 0, 0, 0, 0, backBuffer, 0, &screenBox);
             const TemporalAAOffScope noTemporalAA;
-            const CaptureAmbientScope ambient;
+            // The ambient override has no verified SE IDs, so SE captures keep the world's ambient.
+            std::optional<CaptureAmbientScope> ambient;
+            if (REL::Module::IsAE())
+            {
+                ambient.emplace();
+            }
             for (const auto& layer : a_layers)
             {
                 ClearBackground(context, a_frame.target, *box, layer.background);
@@ -912,11 +922,12 @@ float4 Separate(Vertex input) : SV_Target
             if (!captureLogged)
             {
                 captureLogged = true;
+                const auto worldAmbient = ambient ? ambient->WorldAmbient() : RE::NiPoint3{};
                 logs::debug("Item preview captured: formID={:08X} box=({}, {}, {}x{}) screen={}x{} radius={} "
-                            "gameTAA={} worldAmbient=({:.3f}, {:.3f}, {:.3f})",
+                            "gameTAA={} ambientOverride={} worldAmbient=({:.3f}, {:.3f}, {:.3f})",
                     loadedFormID, box->left, box->top, box->width, box->height, description.width, description.height,
-                    a_model.worldBound.radius, noTemporalAA.WasEnabled(), ambient.WorldAmbient().x,
-                    ambient.WorldAmbient().y, ambient.WorldAmbient().z);
+                    a_model.worldBound.radius, noTemporalAA.WasEnabled(), ambient.has_value(), worldAmbient.x,
+                    worldAmbient.y, worldAmbient.z);
             }
             return box;
         }

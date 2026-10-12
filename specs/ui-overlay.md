@@ -27,6 +27,14 @@
   reported by the user: switching between English and Russian while the
   chat's field has focus changes the letters typed at once. The call sites
   in `BSWin32KeyboardDevice::Poll` were read from the 1.7.104 executable.
+- **SE 1.5.97 guards** (2026-10-12): a 1.5.97 crash log showed opening a
+  menu with an item preview crash in `Forms::GetItemDetails`, which called
+  1.7.104 Address Library IDs that resolve to unrelated functions on SE. The
+  item details formulas are now ported (see [Trade](trade.md#item-details)),
+  and the preview's ambient override and turn and the input language patch
+  are skipped off AE. Not built on Windows or run on 1.5.97:
+  `ItemDetails.cpp`, `ItemPreview.cpp`, and `InputLanguage.cpp` passed the
+  g++ syntax check, which a planted error confirmed reaches each.
 - **Notices and notes:** not built on Windows or run in game. On Linux, the
   changed `sync/` and `ui/` files passed a g++ 16 syntax check against
   CommonLibSSE-NG, and `NoticeStack.cpp`, `Notices.cpp`, `ChatComposer.cpp`,
@@ -1018,7 +1026,8 @@ Windows.
   `MapVirtualKeyExA` and `ToUnicodeEx` with `GetKeyboardLayout` of the game
   window's thread, found once from the swap chain's window; until that
   window exists they use the calling thread's layout, as the game did. The
-  game's menus follow the language the same way.
+  game's menus follow the language the same way. The offsets are read from
+  1.7.104 only, so off AE nothing is patched and a warning is logged.
 - When the layout used changes, including the first key, the replacement
   logs it at info with the polling thread, that thread's own layout, and
   the character produced.
@@ -2181,7 +2190,8 @@ picker's panel) or as cached thumbnails for many cells.
   soon as it is released (the user's choice).
   The spin advances by the frame time of the updates that render the model,
   so it pauses rather than jumps while thumbnails hold the renderer. A light
-  (`FormType::Light`) does not spin, since ID 51778 does not turn it.
+  (`FormType::Light`) does not spin, since ID 51778 does not turn it. On SE
+  no model turns or spins, since ID 51778 has no verified SE match.
 - `Update` runs in `Overlay::DrawFrame` before `ImGui::NewFrame`, when the
   game frame is finished and the overlay has not drawn. It advances a clock
   by the clamped frame time and does one job: the model when it is due (its
@@ -2250,6 +2260,8 @@ picker's panel) or as cached thumbnails for many cells.
   radius 400, in front of and above the item), stays as the inventory menu
   has it and gives the shading. The first capture of each start logs the
   world's ambient it replaced (`worldAmbient`, the transform's translation).
+  IDs 105643 and 414646 have no verified SE match, so on SE captures keep
+  the world's ambient, and the log shows `ambientOverride=false`.
 - After restoring or fitting a transform, `ItemPreview` calls
   `NiAVObject::Update` (ID 70251) with a time of zero and the dirty flag,
   as `Render` does before drawing, so the world bound it projects and turns
@@ -2784,6 +2796,10 @@ To verify in game:
   alike, which shows in the server endpoint.
 - An input method editor's composition, such as Chinese or Japanese, does
   not type into a window: Skyrim takes only single `ToUnicode` characters.
+- On SE 1.5.97 the item preview's model does not turn or spin, captures are
+  lit by the world's ambient, and window text keeps the polling thread's
+  keyboard layout: those engine IDs and offsets were read from 1.7.104 only,
+  and no 1.5.97 executable was available to find their matches.
 - Editing shortcut letters (Ctrl+A/C/V/X/Y/Z) follow physical QWERTY positions,
   not the keyboard layout. Chat lines and player names cannot be selected
   or copied.

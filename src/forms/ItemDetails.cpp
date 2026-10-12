@@ -15,40 +15,72 @@ namespace Forms
         // ExtraHealth is 1 on an untempered item; a TradeItem leaves it at 0.
         constexpr float kUntemperedHealth = 1.0F;
 
-        // 1.7.104 ID 26498: the damage tempering adds before skills and perks,
-        // max(0, (health - fHealthDataValue1) / (fHealthDataValue6 - fHealthDataValue1) * 9 + 1).
+        // Skyrim.esm ArmorCuirass, the kKeywordCuirass default object.
+        constexpr RE::FormID kCuirassKeywordID = 0x0006C0EC;
+        // Initial values of the static game settings below, which the collection always holds.
+        constexpr float kDefaultSmithingMax = 10.0F;
+        constexpr float kDefaultEnchantmentPointsMult = 0.4F;
+
+        // The formulas below are ported from the 1.7.104 functions named on each; those IDs
+        // resolve to unrelated functions on SE.
+
+        // Health from fHealthDataValue1 (0) to fHealthDataValue6 (1). Without both settings the
+        // engine measures from 1 over 1, and over 1 when they are equal.
+        float GetTemperProgress(float a_health)
+        {
+            const auto lowest = "fHealthDataValue1"_gs;
+            const auto highest = "fHealthDataValue6"_gs;
+            if (!lowest || !highest)
+            {
+                return a_health - 1.0F;
+            }
+            const auto range = *highest - *lowest;
+            return (a_health - *lowest) / (range != 0.0F ? range : 1.0F);
+        }
+
+        // ID 26498: the damage tempering adds before skills and perks.
         float GetWeaponTemperBonus(float a_health)
         {
-            using Function = float(float);
-            static REL::Relocation<Function*> function{ REL::ID(26498) };
-            return function(a_health);
+            const auto maximum = "fSmithingWeaponMax"_gs.value_or(kDefaultSmithingMax);
+            return (std::max)(GetTemperProgress(a_health) * (maximum - 1.0F) + 1.0F, 0.0F);
         }
 
-        // 1.7.104 ID 26499: the same bonus for armor, doubled for armor with the
-        // kKeywordCuirass default object (index 318 in this runtime's table).
-        float GetArmorTemperBonus(float a_health, RE::TESObjectARMO& a_armor)
+        // ID 26499: the same bonus for armor, doubled for armor with the kKeywordCuirass
+        // default object.
+        float GetArmorTemperBonus(float a_health, const RE::TESObjectARMO& a_armor)
         {
-            using Function = float(float, RE::TESObjectARMO*);
-            static REL::Relocation<Function*> function{ REL::ID(26499) };
-            return function(a_health, std::addressof(a_armor));
+            const auto maximum = "fSmithingArmorMax"_gs.value_or(kDefaultSmithingMax);
+            auto bonus = GetTemperProgress(a_health) * (maximum - 1.0F) + 1.0F;
+            if (a_armor.HasKeywordID(kCuirassKeywordID))
+            {
+                bonus += bonus;
+            }
+            return (std::max)(bonus, 0.0F);
         }
 
-        // 1.7.104 ID 26483: the gold value scaled by tempering. InventoryEntryData::GetValue
-        // (ID 15995) rounds it up.
+        // ID 26483: the gold value scaled by tempering, unscaled without both health settings.
+        // InventoryEntryData::GetValue (ID 15995) rounds it up.
         float GetTemperedValue(float a_value, float a_health)
         {
-            using Function = float(float, float);
-            static REL::Relocation<Function*> function{ REL::ID(26483) };
-            return function(a_value, a_health);
+            const auto lowest = "fHealthDataValue1"_gs;
+            const auto highest = "fHealthDataValue6"_gs;
+            if (!lowest || !highest || !(*highest > 1.0F))
+            {
+                return a_value;
+            }
+            return ((a_health - 1.0F) / (*highest - 1.0F) + 1.0F) * a_value;
         }
 
-        // 1.7.104 ID 26465: the value of an item with a cast enchantment, from its tempered value,
+        // ID 26465: the value of an item with a cast enchantment, from its tempered value,
         // maximum charge, and enchantment cost. GetValue truncates it.
         float GetChargedValue(float a_value, float a_maximumCharge, float a_cost)
         {
-            using Function = float(float, float, float);
-            static REL::Relocation<Function*> function{ REL::ID(26465) };
-            return function(a_value, a_maximumCharge, a_cost);
+            if (a_value == 0.0F)
+            {
+                return 0.0F;
+            }
+            return "fEnchantmentPointsMult"_gs.value_or(kDefaultEnchantmentPointsMult) * a_maximumCharge + a_value
+                + "fEnchantmentEffectPointsMult"_gs.value_or(kDefaultEnchantmentPointsMult) * a_cost;
         }
 
         std::string FormatNumber(float a_value)
