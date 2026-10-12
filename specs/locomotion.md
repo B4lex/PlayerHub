@@ -21,7 +21,10 @@ or run in game.
 
 Jump sound attenuation: hook sites traced in the 1.7.104 executable and the
 sound records read from `Skyrim.esm`; Windows build and in-game behavior not
-yet verified. Other runtimes skip it with a warning.
+yet verified. On SE 1.5.97 (2026-10-12) it hooks the footstep sink's call at
+ID 35314 + 0x29E and the pooled play's call at ID 35313 + 0x17E, which reach
+the SE counterparts of the same functions in the 1.5.97 disassembly; Linux
+syntax check only, not run on SE.
 
 ## Scope
 

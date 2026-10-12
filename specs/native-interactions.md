@@ -24,7 +24,9 @@
   slopes; dismount and death removed the horse without a crash. The gallop is a
   [known limitation](#known-limitations). The rider's draw and sheathe
   ([Weapon](#weapon)) passed a Linux syntax check only; the Windows build and
-  in-game behavior are not verified.
+  in-game behavior are not verified. On SE 1.5.97 riders are seated through
+  the IDs in [assumption 2](#engine-assumptions) since 2026-10-12 (before that
+  never off AE); Linux syntax check only, not run on SE.
 - **Death:** implemented and run in game: a replayed player's deaths, standing
   and seated, collapsed the actor into a ragdoll that the next world exit
   removed. The remaining assumptions and criteria are not checked individually.
@@ -536,7 +538,7 @@ The registration is per reference, so a respawned actor starts protected again.
 
 ## Engine assumptions
 
-Mounts, traced in the 1.7.104 binary (AE only):
+Mounts, traced in the 1.7.104 binary:
 
 1. A rider and mount are linked by an `ExtraInteraction` on the rider holding a
    `MountInteraction`; `Actor::GetMount` and `IsOnMount` read it.
@@ -548,7 +550,10 @@ Mounts, traced in the 1.7.104 binary (AE only):
    The interaction is reference counted at offset 8 and freed by the engine's
    deleting destructor. Verified in game: the quick start seats a spawned actor
    (`started=true seatedNow=true`), which stayed seated on the do-nothing
-   package for the whole ride.
+   package for the whole ride. On SE the mount entry is ID 37759, which
+   allocates the same 0x38 bytes, constructs with ID 39266 (byte for byte the
+   same code as 40345), and starts with ID 40525 (rider, interaction, quick),
+   its only call of it, set up as 38704's call of 41530; not run on SE.
 3. Removing a seated pair together is safe: seated riding has no paired clip.
    Besides the AI dismount procedure (ID 39670, mode 0), Skyrim dismounts with
    mode 2 from the main loop (ID 36564), an actor update (ID 37347), and 3D load

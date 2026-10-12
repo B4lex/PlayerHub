@@ -12,6 +12,9 @@ namespace ScenePackageSuppression
     {
         using ActorConstants::ShouldLogOccurrence;
 
+        // The comments below name 1.7.104 IDs. Each SE ID was matched against the
+        // 1.5.97 disassembly by its code and the functions it calls.
+
         // A scene package action installs its package on the alias's actor directly
         // (ID 39149), bypassing package evaluation and so the alias package hook in
         // SurvivalPolicy. During a bard song it reinstalls BardAudienceTravelToLoc2
@@ -71,9 +74,11 @@ namespace ScenePackageSuppression
 
         // ID 24252, which scene updates (IDs 24130 and 24173) call for each
         // running package action with the alias's actor, and which reinstalls the
-        // package whenever the actor runs another one. One instance per call site,
-        // since another plugin may already have chained either of them.
-        template <std::uint64_t CallerID, std::ptrdiff_t CallOffset>
+        // package whenever the actor runs another one. On SE it is ID 23800, called
+        // from IDs 23709 and 23704 and from the start action, which the hook above
+        // already skips for remote actors. One instance per call site, since another
+        // plugin may already have chained either of them.
+        template <std::size_t Site>
         struct UpdateActionHook
         {
             static void Thunk(RE::BGSSceneActionPackage* a_action, RE::BGSScene* a_scene, RE::Actor* a_actor)
@@ -87,13 +92,13 @@ namespace ScenePackageSuppression
                 LogRefusedScenePackage("update", *a_actor, *a_action, a_scene);
             }
 
-            static bool Install()
+            static bool Install(REL::RelocationID a_caller, std::ptrdiff_t a_offset)
             {
-                const auto site = REL::Relocation<std::uintptr_t>{ REL::ID(CallerID) }.address() + CallOffset;
+                const auto site = REL::Relocation<std::uintptr_t>{ a_caller }.address() + a_offset;
                 if (*reinterpret_cast<const std::uint8_t*>(site) != 0xE8)
                 {
-                    logs::error("Did not install remote actor scene package hook: no call at ID {} + {:#x}", CallerID,
-                        CallOffset);
+                    logs::error("Did not install remote actor scene package hook: no call at ID {} + {:#x}",
+                        a_caller.id(), a_offset);
                     return false;
                 }
 
@@ -107,19 +112,11 @@ namespace ScenePackageSuppression
 
     void InstallHooks()
     {
-        // The vtable slot and call sites are verified against 1.7.104 only.
-        if (!REL::Module::IsAE())
-        {
-            logs::warn(
-                "Remote actor scene package suppression is verified only on Skyrim AE; local scenes may "
-                "move remote actors");
-            return;
-        }
-
         REL::Relocation<std::uintptr_t> actionVTable{ RE::VTABLE_BGSSceneActionPackage[0] };
         StartActionHook::_original = actionVTable.write_vfunc(0x10, StartActionHook::Thunk);
-        const bool firstUpdateSite = UpdateActionHook<24130, 0x9A>::Install();
-        const bool secondUpdateSite = UpdateActionHook<24173, 0x61>::Install();
+        const bool firstUpdateSite
+            = UpdateActionHook<0>::Install(RELOCATION_ID(23709, 24130), REL::Relocate(0xB0, 0x9A));
+        const bool secondUpdateSite = UpdateActionHook<1>::Install(RELOCATION_ID(23704, 24173), 0x61);
         logs::debug("Remote actor scene package suppression hooks: startAction=true updateAction={}/{}",
             firstUpdateSite, secondUpdateSite);
     }

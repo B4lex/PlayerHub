@@ -30,8 +30,8 @@ namespace ActorMount
         constexpr float kReconcileSeconds = 0.25F;
         constexpr float kGallopHoldSeconds = 0.3F;
 
-        // The mount engine calls below are Address Library IDs verified only
-        // against 1.7.104. Other runtimes never seat a rider.
+        // The comments below name 1.7.104 IDs. Each SE ID was matched against the
+        // 1.5.97 disassembly by its code and the functions it calls.
 
         // Skyrim's mount entry (ID 38704) builds this interaction and starts it,
         // but only its animated branch builds one; its quick branch, used by
@@ -45,8 +45,8 @@ namespace ActorMount
             // Records the interaction on the rider and starts it. A quick start sets
             // the process flag that skips the mount animation.
             using StartInteraction = bool(RE::Actor*, RE::BSTSmartPointer<RE::RefrInteraction>*, bool);
-            static REL::Relocation<ConstructMountInteraction> construct{ REL::ID(40345) };
-            static REL::Relocation<StartInteraction> start{ REL::ID(41530) };
+            static REL::Relocation<ConstructMountInteraction> construct{ RELOCATION_ID(39266, 40345) };
+            static REL::Relocation<StartInteraction> start{ RELOCATION_ID(40525, 41530) };
             constexpr std::size_t kMountInteractionSize = 0x38;
 
             auto* memory = RE::malloc(kMountInteractionSize);
@@ -107,7 +107,7 @@ namespace ActorMount
 
     bool Seat(RemoteActor& a_rider, const RemoteActor& a_mount)
     {
-        if (!GameThread::Require("SeatRemoteRider") || !REL::Module::IsAE())
+        if (!GameThread::Require("SeatRemoteRider"))
         {
             return false;
         }

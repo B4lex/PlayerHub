@@ -119,7 +119,8 @@ namespace AppearanceSync
         }
 
         // CommonLibSSE-NG reads PlayerCharacter::tintMasks at 0xB18 on AE, but
-        // 1.7.104 keeps it at 0xB20 (PlayerCharacter::GetNumTints, ID 40700).
+        // 1.7.104 keeps it at 0xB20 (PlayerCharacter::GetNumTints, ID 40700). Its
+        // 0xB10 on SE matches 1.5.97 (ID 39614).
         std::vector<RE::TintMask*> GetPlayerTintMasks(RE::PlayerCharacter& a_player)
         {
             if (!REL::Module::IsAE())
@@ -650,8 +651,8 @@ namespace AppearanceSync
                 }
             }
 
-            // PrepareHeadPartForShaders (ID 26838) names the face geometry after the
-            // face head part's editor ID.
+            // PrepareHeadPartForShaders (ID 26838, SE 26259) names the face geometry
+            // after the face head part's editor ID.
             auto* object = face ? faceNode->GetObjectByName(face->formEditorID) : nullptr;
             auto* geometry = object ? object->AsGeometry() : nullptr;
             auto* shader = geometry ? netimmerse_cast<RE::BSLightingShaderProperty*>(
@@ -665,18 +666,20 @@ namespace AppearanceSync
             return static_cast<RE::BSLightingShaderMaterialFacegen*>(material)->tintTexture.get();
         }
 
-        // PrepareHeadPartForShaders (ID 26838) gives a runtime-built face a blank tint
-        // texture and renders tint masks into it only for the player base, or for
-        // other NPCs when bUseFaceGenPreprocessedHeads is off. Remote actor bases get
-        // neither, so the blank texture darkens the face. Queue the same render the
-        // engine uses (ID 27040) from the remote actor base's tint layers.
+        // PrepareHeadPartForShaders (ID 26838, SE 26259) gives a runtime-built face a
+        // blank tint texture and renders tint masks into it only for the player base,
+        // or for other NPCs when bUseFaceGenPreprocessedHeads is off. Remote actor
+        // bases get neither, so the blank texture darkens the face. Queue the same
+        // render the engine uses (ID 27040, SE 26454) from the remote actor base's
+        // tint layers. The SE IDs were matched against the 1.5.97 disassembly by their
+        // code and callers.
         std::size_t QueueFaceTintRender(const RE::TESNPC& a_base, RE::NiSourceTexture& a_texture)
         {
             PROFILE_FUNCTION();
             // A render job has 16 layer slots and does not check the mask count.
             constexpr std::size_t kMaximumRenderedTints = 16;
             using RenderTintMasks = bool(RE::BSTArray<RE::TintMask*>*, RE::NiTexture*);
-            static REL::Relocation<RenderTintMasks> renderTintMasks{ REL::ID(27040) };
+            static REL::Relocation<RenderTintMasks> renderTintMasks{ RELOCATION_ID(26454, 27040) };
 
             auto* race = a_base.race;
             const auto* faceData = GetFaceRelatedData(race, a_base.IsFemale());
@@ -909,12 +912,7 @@ namespace AppearanceSync
                 static_cast<unsigned long long>(a_remote.spawnedRevision), a_actor.GetFaceNodeSkinned() != nullptr);
         }
 
-        // The face tint render is AE-only: its engine IDs are verified against 1.7.104.
         // A head rebuilt by a 3D reset gets a new blank texture, so render again.
-        if (!REL::Module::IsAE())
-        {
-            return;
-        }
         auto* tintTexture = FindFaceTintTexture(a_actor, *a_remote.spawnedBase);
         if (!tintTexture || tintTexture == a_remote.faceTintTexture.get())
         {

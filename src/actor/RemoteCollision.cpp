@@ -275,24 +275,16 @@ namespace RemoteCollision
 
     void InstallHooks()
     {
-        // The call site is verified against 1.7.104 only.
-        if (!REL::Module::IsAE())
-        {
-            logs::warn(
-                "Remote actor movement isolation is verified only on Skyrim AE; the local world may push remote "
-                "actors, and remote actors may body-block characters");
-            return;
-        }
-
-        // Actor movement update call (ID 37350 + 0xFB on 1.7.104), its only caller,
-        // as patched by powerofthree's Tweaks. write_call chains onto another
-        // plugin's detour.
-        constexpr std::ptrdiff_t kUpdateMovementCallOffset = 0xFB;
-        const auto site = REL::Relocation<std::uintptr_t>{ REL::ID(37350) }.address() + kUpdateMovementCallOffset;
+        // Actor movement update call (ID 37350 + 0xFB on 1.7.104, ID 36359 + 0xF0 on
+        // SE), its only caller, as patched by powerofthree's Tweaks. write_call chains
+        // onto another plugin's detour.
+        const REL::RelocationID callerID{ 36359, 37350 };
+        const auto callOffset = REL::Relocate(0xF0, 0xFB);
+        const auto site = REL::Relocation<std::uintptr_t>{ callerID }.address() + callOffset;
         if (*reinterpret_cast<const std::uint8_t*>(site) != 0xE8)
         {
-            logs::error("Did not install remote actor movement isolation hook: no call at ID 37350 + {:#x}",
-                kUpdateMovementCallOffset);
+            logs::error("Did not install remote actor movement isolation hook: no call at ID {} + {:#x}", callerID.id(),
+                callOffset);
             return;
         }
         UpdateMovementHook::_original

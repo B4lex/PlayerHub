@@ -559,17 +559,13 @@ namespace EquipmentSync
         // which CommonLibSSE-NG does not expose. Like EquipSpell it runs the equip
         // pipeline, whose ActionForceEquip moves a drawn hand out of its spell pose;
         // Actor::DeselectSpell only clears the selection and leaves the pose.
-        // Verified against 1.7.104 only.
+        // ID 38902 on 1.7.104; SE 37946 was matched against the 1.5.97 disassembly
+        // by its code and its callers.
         void UnequipSpell(RE::ActorEquipManager& a_equipManager, RE::Actor& a_actor, RE::SpellItem* a_spell,
             const RE::BGSEquipSlot* a_slot)
         {
-            if (!REL::Module::IsAE())
-            {
-                a_actor.DeselectSpell(a_spell);
-                return;
-            }
             using func_t = void(RE::ActorEquipManager*, RE::Actor*, RE::SpellItem*, const RE::BGSEquipSlot*);
-            static REL::Relocation<func_t> func{ REL::ID(38902) };
+            static REL::Relocation<func_t> func{ RELOCATION_ID(37946, 38902) };
             func(std::addressof(a_equipManager), std::addressof(a_actor), a_spell, a_slot);
         }
     }

@@ -5,9 +5,12 @@
 - **Appearance:** run in game between two clients on Skyrim AE 1.7.104 with a
   base copied from the local player base. The current base, built from engine
   defaults, and the default race are not yet built on Windows or run in game.
-- **Equipment:** run in game, including an earlier receiver-configured
-  fallback. The items under [Engine assumptions](#engine-assumptions) are not
-  individually checked.
+  The face tint render on SE 1.5.97 (ID 26454, 2026-10-12; before that AE
+  only) passed a Linux syntax check only and was not run on SE.
+- **Equipment:** run in game, including an earlier receiver-configured fallback.
+  `UnequipSpell` on SE 1.5.97 (ID 37946, 2026-10-12; before that `DeselectSpell`
+  off AE) passed a Linux syntax check only. The items under [Engine
+  assumptions](#engine-assumptions) are not individually checked.
 - **Default outfit:** the sender's outfit and the receiver's ranked armor
   selection (`SelectArmor`) are not yet built on Windows or run in game. The
   default form IDs were checked against `Skyrim.esm` and `Dawnguard.esm` records
@@ -71,10 +74,11 @@ On the game thread, once per second:
 - `bodyTint`: `TESNPC::bodyTintColor`, or the skin tone mask's color if black.
 - `tints`: `PlayerCharacter` runtime `tintMasks` in blend order. On 1.7.104 the
   array is at `0xB20` (CommonLibSSE-NG reads `0xB18`); it is used only when it
-  matches `GetNumTints`/`GetTintMask` (IDs 40700/40698), which otherwise list the
-  masks by type. Each mask maps to the race's `TintAsset` for the sex by texture
-  (pointer, then case-insensitive path) for its stable `index`. Zero-alpha masks
-  and masks without an asset are skipped.
+  matches `GetNumTints`/`GetTintMask` (IDs 40700/40698), which otherwise list
+  the masks by type. On SE it is CommonLib's `0xB10`, which SE `GetNumTints`
+  (ID 39614) also reads. Each mask maps to the race's `TintAsset` for the sex by
+  texture (pointer, then case-insensitive path) for its stable `index`.
+  Zero-alpha masks and masks without an asset are skipped.
 
 A capture that differs from the last published one must repeat in two
 consecutive captures, so dragging an editor slider does not stream updates.
@@ -138,15 +142,16 @@ each time.
   base or respawn; the built base's full name is rewritten in place.
 - Once the respawned actor is ready with 3D, `Actor::UpdateHairColor` and
   `UpdateSkinColor` run once.
-- The face tint (AE only): `PrepareHeadPartForShaders` (ID 26838) gives a
+- The face tint: `PrepareHeadPartForShaders` (ID 26838, SE 26259) gives a
   runtime-built face a blank tint texture and fills it only for the player base
-  or with `bUseFaceGenPreprocessedHeads` off, which left the dark face bug. The
-  receiver finds the face geometry (named after the face part's editor ID),
-  takes its FaceGen material's tint texture, and queues the engine's tint render
-  (ID 27040) with masks from the base's layers: race `TintAsset` texture, layer
-  color, and `interpolationValue / 100` alpha, at most 16 non-zero layers. It
-  renders again whenever the head gets a new tint texture, such as after a 3D
-  reset.
+  or with `bUseFaceGenPreprocessedHeads` off, the same on both runtimes, which
+  left the dark face bug. The receiver
+  finds the face geometry (named after the face part's editor ID), takes its
+  FaceGen material's tint texture, and queues the engine's tint render
+  (ID 27040, SE 26454) with masks from the base's layers: race `TintAsset`
+  texture, layer color, and `interpolationValue / 100` alpha, at most 16
+  non-zero layers. It renders again whenever the head gets a new tint texture,
+  such as after a 3D reset.
 
 ### Display name
 
@@ -253,9 +258,9 @@ worn armor, and equipped hand objects with the resolved set. When they differ:
    transferred to a container or the player: gold, leveled items, script items.
 3. Equipped armor and hand objects outside the set are unequipped. A placeholder
    spell in a hand that should be empty is removed with
-   `ActorEquipManager::UnequipSpell` (ID 38902, Papyrus `Actor.UnequipSpell`),
-   whose `ActionForceEquip` lowers a drawn hand; `Actor::DeselectSpell` sent no
-   graph event and left the hand raised, and remains the fallback off AE.
+   `ActorEquipManager::UnequipSpell` (ID 38902, SE 37946, Papyrus
+   `Actor.UnequipSpell`), whose `ActionForceEquip` lowers a drawn hand;
+   `Actor::DeselectSpell` sent no graph event and left the hand raised.
 4. Missing objects are added.
 5. Armor, then the right hand, then the left, are equipped with
    `ActorEquipManager::EquipObject` in the matching `BGSEquipSlot` (either for
@@ -435,5 +440,4 @@ To verify in game:
   or power, and SMP/CBPC physics are not shown.
 - An outfit piece stands in only for its slot and weapon type, not for the
   missing item's look. A default race shows its own default face.
-- Appearance is synchronized only between 1.7.104 clients; tint capture is off on
-  VR.
+- Tint capture is off on VR.

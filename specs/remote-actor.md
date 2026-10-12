@@ -23,12 +23,14 @@ Implemented for Skyrim AE 1.7.104, and run in game there.
   SE ID was 32140, a thunk to a different graph routine (32192); it is now
   32139, which calls the same graph functions as 1.7.104 ID 32883 in the
   1.5.97 disassembly. Linux syntax check only; not run on 1.5.97.
+- **Isolation hooks on SE (2026-10-12):** combat isolation, reaction
+  suppression, scene package suppression, and the skipped movement update
+  install on SE 1.5.97 through the IDs, entry bytes, and call sites in
+  [assumption 17](#engine-assumptions); before that they were AE only. Linux
+  syntax check only; not built on Windows or run on 1.5.97.
 - **World isolation:** placement verified in game with a replayed player
   walking, idling, mounting, riding, and dismounting. Its other acceptance
   criteria are not yet checked.
-
-On runtimes other than 1.7.104 the entry detours are not installed and a
-warning is logged.
 
 ## Scope
 
@@ -393,6 +395,11 @@ action installs its package on the alias's actor through ID 39149:
 - ID 24253 installs packages the same way but has no reference in the binary
   and is not hooked.
 
+On SE the start action is ID 23792 and the end ID 23793, in the same vtable
+slots. Its package install is ID 23800, called at ID 23709 + `0xB0` and ID
+23704 + `0x61` (the counterparts of 24130 and 24173) and also by the start
+action itself, which the start hook already skips for a remote actor.
+
 `ScenePackageSuppression` refuses both for a registered actor
 (`Refused local scene package`, with scene, quest, alias, and package). The start hook resolves
 the alias through `TESQuest::GetAliasedRef` and treats a remote actor like an
@@ -423,10 +430,11 @@ touching the local world shook.
 
 ### Skipped movement update
 
-The hook on the movement update call (ID 37350 + 0xFB, the only call of ID
-37356) returns without calling it for a network-placed actor. For any other
-remote actor it passes through: an actor Skyrim moves passes through the
-character body it bumped for that update. ID 37356:
+The hook on the movement update call (ID 37350 + 0xFB, the only call of
+ID 37356; SE ID 36359 + 0xF0 calling 36365) returns without calling it for a
+network-placed actor. For any other remote actor it passes through: an actor
+Skyrim moves passes through the character body it bumped for that update.
+ID 37356:
 
 1. reads root motion and the movement controller's output, passes them through
    `ModifyMovementData` (vfunc 0x11A), and stores the process movement speed
@@ -580,6 +588,18 @@ Not yet checked in game:
     destructor, so `ToggleDisableActor` is slot 23; a disabled actor is
     removed from its active actors and gets no attack collisions; and it
     clears the disabled set only on a player world change.
+17. The SE 1.5.97 functions behave as their 1.7.104 counterparts, matched in
+    the 1.5.97 disassembly by instruction sequence and by calling the SE
+    counterparts of the same functions; none was run on SE. Combat: 36534
+    (37534), 36537 (37537), 37608 (38561), 37650 (38603), 33629 (34407),
+    37674 (38628), and 37673 (38627). Reactions: 38612 (39643), 34414 (35221),
+    102158 (109588), 36575 (37577), and 41626 (42704). Hostility,
+    IsHostileToActor, spell fire, the swing target, and the three reaction
+    detours have the same entry bytes on SE; StartCombat and the hit frame open
+    with `mov r11/rax, rsp; push rsi; push rdi` (5 bytes), and the actor hit
+    with `mov rax, rsp; push rdi; push r12` (6 bytes) after the same 9-byte
+    guard. No branch in the executable targets the interior of a replaced SE
+    prologue. On SE the hit frame calls the actor hit once (+0x38B).
 
 ## Acceptance criteria
 

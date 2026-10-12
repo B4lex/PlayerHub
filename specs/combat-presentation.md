@@ -375,8 +375,9 @@ rejected the next `moveStop` until its retries ran out.
 
 Draw and cast clips natively run the release paths. These hooks keep a
 registered actor from releasing anything; other actors pass through. The vtable
-hooks install on every runtime; the spell fire entry detour is verified against
-1.7.104 only.
+hooks install on every runtime. The spell fire entry detour was read from
+1.7.104; its SE ID 33629 has the same entry bytes and callees in the 1.5.97
+disassembly (2026-10-12, Linux syntax check only, not run on SE).
 
 | Hook | Effect for a remote actor |
 | --- | --- |

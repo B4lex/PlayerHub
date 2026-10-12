@@ -83,8 +83,11 @@ namespace JumpSound
                 a_actorHandle, a_sound.GetFormID(), a_distance, a_volume, count);
         }
 
-        // BGSImpactManager's footstep sink (ID 36209 on 1.7.104). It picks the
-        // impact for the ground material and plays it at the actor's position.
+        // The comments below name 1.7.104 IDs and offsets. Each SE ID was matched
+        // against the 1.5.97 disassembly by its code and the functions it calls.
+
+        // BGSImpactManager's footstep sink (ID 36209). It picks the impact for the
+        // ground material and plays it at the actor's position.
         struct FootstepHook
         {
             static RE::BSEventNotifyControl Thunk(RE::BSTEventSink<RE::BGSFootstepEvent>* a_sink,
@@ -109,7 +112,8 @@ namespace JumpSound
         // handle pool, at the position in a_data.
         struct ImpactSoundsHook
         {
-            static constexpr std::ptrdiff_t kOffset = 0x53D;
+            static constexpr std::ptrdiff_t kSEOffset = 0x29E;
+            static constexpr std::ptrdiff_t kAEOffset = 0x53D;
 
             static bool Thunk(
                 RE::BGSImpactManager* a_manager, RE::BGSImpactManager::ImpactSoundData& a_data, void* a_unused)
@@ -152,7 +156,8 @@ namespace JumpSound
         // starts at full volume.
         struct PooledSoundPlayHook
         {
-            static constexpr std::ptrdiff_t kOffset = 0x182;
+            static constexpr std::ptrdiff_t kSEOffset = 0x17E;
+            static constexpr std::ptrdiff_t kAEOffset = 0x182;
 
             static bool Thunk(RE::BSSoundHandle* a_handle)
             {
@@ -169,21 +174,15 @@ namespace JumpSound
 
     void InstallHooks()
     {
-        // The call sites are verified against 1.7.104 only.
-        if (!REL::Module::IsAE())
-        {
-            logs::warn("Remote actor jump sound attenuation is verified only on Skyrim AE; remote jumps may be "
-                       "heard at any distance");
-            return;
-        }
-
         // Without the volume hook a nearby jump would still play unattenuated, so only route
         // remote jumps once it is in place.
-        PooledSoundPlayHook::_original = WriteCallDetour(REL::ID(36208), PooledSoundPlayHook::kOffset,
+        PooledSoundPlayHook::_original = WriteCallDetour(REL::ID(RELOCATION_ID(35313, 36208)),
+            REL::Relocate(PooledSoundPlayHook::kSEOffset, PooledSoundPlayHook::kAEOffset),
             reinterpret_cast<std::uintptr_t>(&PooledSoundPlayHook::Thunk), "pooled impact sound play");
         if (PooledSoundPlayHook::_original.address() != 0)
         {
-            ImpactSoundsHook::_original = WriteCallDetour(REL::ID(36209), ImpactSoundsHook::kOffset,
+            ImpactSoundsHook::_original = WriteCallDetour(REL::ID(RELOCATION_ID(35314, 36209)),
+                REL::Relocate(ImpactSoundsHook::kSEOffset, ImpactSoundsHook::kAEOffset),
                 reinterpret_cast<std::uintptr_t>(&ImpactSoundsHook::Thunk), "footstep impact sounds");
         }
         if (ImpactSoundsHook::_original.address() != 0)
