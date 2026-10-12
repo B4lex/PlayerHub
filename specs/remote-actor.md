@@ -19,6 +19,10 @@ Implemented for Skyrim AE 1.7.104, and run in game there.
   after a hit is not covered by the captures yet.
 - **Scene package suppression:** traced in the 1.7.104 binary; not verified in
   game.
+- **Graph recovery on SE (2026-10-12):** `RevertAnimationGraphManager`'s
+  SE ID was 32140, a thunk to a different graph routine (32192); it is now
+  32139, which calls the same graph functions as 1.7.104 ID 32883 in the
+  1.5.97 disassembly. Linux syntax check only; not run on 1.5.97.
 - **World isolation:** placement verified in game with a replayed player
   walking, idling, mounting, riding, and dismounting. Its other acceptance
   criteria are not yet checked.
@@ -182,7 +186,8 @@ Some hit reactions enter the graph below `NotifyAnimationGraph`, so filtering
 alone is not enough. A `TESHitEvent` for a registered actor, and stagger or
 recoil state seen by polling, queue a recovery; the hit callback never touches
 the actor, since it can overlap animation work. On the next update the
-firewall opens and Skyrim's native `RevertAnimationGraphManager` resets the
+firewall opens and Skyrim's native `RevertAnimationGraphManager` (ID 32883,
+SE 32139) resets the
 whole graph, including variables and partly active transitions. `DoReset3D(false)`
 is the fallback when the revert fails or the graph is not ready within 2 s.
 Translation stays paused until graph and controller have been ready for two

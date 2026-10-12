@@ -21,8 +21,8 @@ namespace Forms
         constexpr float kDefaultSmithingMax = 10.0F;
         constexpr float kDefaultEnchantmentPointsMult = 0.4F;
 
-        // The formulas below are ported from the 1.7.104 functions named on each; those IDs
-        // resolve to unrelated functions on SE.
+        // The formulas below are ported from the engine functions named on each, which compute the
+        // same on 1.7.104 and SE 1.5.97.
 
         // Health from fHealthDataValue1 (0) to fHealthDataValue6 (1). Without both settings the
         // engine measures from 1 over 1, and over 1 when they are equal.
@@ -38,14 +38,14 @@ namespace Forms
             return (a_health - *lowest) / (range != 0.0F ? range : 1.0F);
         }
 
-        // ID 26498: the damage tempering adds before skills and perks.
+        // ID 26498 (SE 25915): the damage tempering adds before skills and perks.
         float GetWeaponTemperBonus(float a_health)
         {
             const auto maximum = "fSmithingWeaponMax"_gs.value_or(kDefaultSmithingMax);
             return (std::max)(GetTemperProgress(a_health) * (maximum - 1.0F) + 1.0F, 0.0F);
         }
 
-        // ID 26499: the same bonus for armor, doubled for armor with the kKeywordCuirass
+        // ID 26499 (SE 25916): the same bonus for armor, doubled for armor with the kKeywordCuirass
         // default object.
         float GetArmorTemperBonus(float a_health, const RE::TESObjectARMO& a_armor)
         {
@@ -58,7 +58,7 @@ namespace Forms
             return (std::max)(bonus, 0.0F);
         }
 
-        // ID 26483: the gold value scaled by tempering, unscaled without both health settings.
+        // ID 26483 (SE 25901): the gold value scaled by tempering, unscaled without both health settings.
         // InventoryEntryData::GetValue (ID 15995) rounds it up.
         float GetTemperedValue(float a_value, float a_health)
         {
@@ -71,7 +71,7 @@ namespace Forms
             return ((a_health - 1.0F) / (*highest - 1.0F) + 1.0F) * a_value;
         }
 
-        // ID 26465: the value of an item with a cast enchantment, from its tempered value,
+        // ID 26465 (SE 25893): the value of an item with a cast enchantment, from its tempered value,
         // maximum charge, and enchantment cost. GetValue truncates it.
         float GetChargedValue(float a_value, float a_maximumCharge, float a_cost)
         {

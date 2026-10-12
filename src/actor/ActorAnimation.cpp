@@ -117,7 +117,7 @@ namespace ActorAnimation
         bool RevertAnimationGraphManager(RE::Actor& a_actor)
         {
             using func_t = bool(RE::IAnimationGraphManagerHolder*);
-            static REL::Relocation<func_t> func{ RELOCATION_ID(32140, 32883) };
+            static REL::Relocation<func_t> func{ RELOCATION_ID(32139, 32883) };
             auto* holder = static_cast<RE::IAnimationGraphManagerHolder*>(std::addressof(a_actor));
             return func(holder);
         }

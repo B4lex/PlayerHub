@@ -10,14 +10,16 @@ namespace UI::InputLanguage
 {
     namespace
     {
-        // BSWin32KeyboardDevice::Poll (1.7.104) turns each key into a character
-        // with MapVirtualKeyA and ToUnicode, which use the calling thread's
-        // layout. Poll also runs on job threads (seen while a plugin window has
-        // focus), and Windows switches the input language only for the thread
-        // that owns the game window, so those threads kept the old layout.
-        constexpr REL::ID kPollID{ 68782 };
+        // BSWin32KeyboardDevice::Poll (vtable slot 2) turns each key into a
+        // character with MapVirtualKeyA and ToUnicode, which use the calling
+        // thread's layout. Poll also runs on job threads (seen while a plugin
+        // window has focus), and Windows switches the input language only for
+        // the thread that owns the game window, so those threads kept the old
+        // layout. Poll holds each runtime's only call to either import.
+        constexpr REL::RelocationID kPollID{ 67472, 68782 };
         constexpr std::ptrdiff_t kMapVirtualKeyCallOffset = 0xEC;
-        constexpr std::ptrdiff_t kToUnicodeCallOffset = 0x2CB;
+        constexpr std::ptrdiff_t kSEToUnicodeCallOffset = 0x20D;
+        constexpr std::ptrdiff_t kAEToUnicodeCallOffset = 0x2CB;
 
         std::atomic<DWORD> s_windowThread{ 0 };
         std::atomic<HKL> s_loggedLayout{ nullptr };
@@ -88,18 +90,12 @@ namespace UI::InputLanguage
 
     void Install()
     {
-        // The call offsets are verified against 1.7.104 only.
-        if (!REL::Module::IsAE())
-        {
-            logs::warn("UI input: keyboard layout fix is verified only on Skyrim AE; text may keep the old layout "
-                       "after switching the input language");
-            return;
-        }
         const auto mapVirtualKey = WriteImportCall(kMapVirtualKeyCallOffset,
             reinterpret_cast<std::uintptr_t>(&::MapVirtualKeyA), reinterpret_cast<std::uintptr_t>(&MapVirtualKeyThunk),
             "MapVirtualKeyA");
-        const auto toUnicode = WriteImportCall(kToUnicodeCallOffset, reinterpret_cast<std::uintptr_t>(&::ToUnicode),
-            reinterpret_cast<std::uintptr_t>(&ToUnicodeThunk), "ToUnicode");
+        const auto toUnicode = WriteImportCall(REL::Relocate(kSEToUnicodeCallOffset, kAEToUnicodeCallOffset),
+            reinterpret_cast<std::uintptr_t>(&::ToUnicode), reinterpret_cast<std::uintptr_t>(&ToUnicodeThunk),
+            "ToUnicode");
         logs::debug("UI input: keyboard text follows the game window's layout: mapVirtualKey={} toUnicode={}",
             mapVirtualKey, toUnicode);
     }

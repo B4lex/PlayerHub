@@ -33,12 +33,15 @@
   which a planted error confirmed reaches the first three. The player's
   line-of-sight path and the projection were read from the 1.7.104
   executable ([Engine assumptions](#engine-assumptions)).
-- **SE 1.5.97 guards** (2026-10-12): a 1.5.97 crash log showed opening a
+- **SE 1.5.97 IDs** (2026-10-12): a 1.5.97 crash log showed opening a
   menu with an item preview crash in `Forms::GetItemDetails`, which called
-  1.7.104 Address Library IDs that resolve to unrelated functions on SE. The
-  item details formulas are now ported (see [Trade](trade.md#item-details)),
-  and the preview's ambient override and turn and the input language patch
-  are skipped off AE. Not built on Windows or run on 1.5.97:
+  1.7.104 Address Library IDs that resolve to unrelated functions on SE; the
+  item details formulas are now ported (see [Trade](trade.md#item-details)).
+  The SE IDs of the preview's turn (50902) and ambient override (98989,
+  527705), the input language patch's poll (67472, `ToUnicode` at +0x20D),
+  and the nameplates' line of sight and projection were matched against
+  the 1.5.97 executable's disassembly, function by function with their
+  1.7.104 counterparts. Not built on Windows or run on 1.5.97:
   `ItemDetails.cpp`, `ItemPreview.cpp`, and `InputLanguage.cpp` passed the
   g++ syntax check, which a planted error confirmed reaches each.
 - **Notices and notes:** not built on Windows or run in game. On Linux, the
@@ -1023,20 +1026,21 @@ the layout typed into a window's text field at once, as it does elsewhere in
 Windows.
 
 - Typed text comes from Skyrim's `CharEvent`s, which
-  `BSWin32KeyboardDevice::Poll` (ID 68782) builds with `MapVirtualKeyA` and
-  `ToUnicode`, so they follow the layout of the thread that polls. Windows
-  switches the language only for the thread that owns the game window. The
-  poll runs on that thread while the game has input, but on other threads
-  while a window holds focus (seen in a Windows log, 1.7.104). Those threads
-  keep the layout they started with, so a window typed in the old layout.
+  `BSWin32KeyboardDevice::Poll` (ID 68782, SE 67472) builds with
+  `MapVirtualKeyA` and `ToUnicode`, so they follow the layout of the thread
+  that polls. Windows switches the language only for the thread that owns the
+  game window. The poll runs on that thread while the game has input, but on
+  other threads while a window holds focus (seen in a Windows log, 1.7.104).
+  Those threads keep the layout they started with, so a window typed in the
+  old layout.
 - `InputLanguage::Install`, called from `Overlay::Install`, replaces both
-  `call [rip+disp]` sites (+0xEC and +0x2CB) with `write_call<6>`, after
+  `call [rip+disp]` sites (+0xEC, and +0x2CB on 1.7.104 or +0x20D on SE, the
+  only calls to either import in each executable) with `write_call<6>`, after
   checking that each still reads the user32 import. The replacements call
   `MapVirtualKeyExA` and `ToUnicodeEx` with `GetKeyboardLayout` of the game
-  window's thread, found once from the swap chain's window; until that
-  window exists they use the calling thread's layout, as the game did. The
-  game's menus follow the language the same way. The offsets are read from
-  1.7.104 only, so off AE nothing is patched and a warning is logged.
+  window's thread, found once from the swap chain's window; until that window
+  exists they use the calling thread's layout, as the game did. The game's
+  menus follow the language the same way.
 - When the layout used changes, including the first key, the replacement
   logs it at info with the polling thread, that thread's own layout, and
   the character produced.
@@ -2264,8 +2268,7 @@ picker's panel) or as cached thumbnails for many cells.
   soon as it is released (the user's choice).
   The spin advances by the frame time of the updates that render the model,
   so it pauses rather than jumps while thumbnails hold the renderer. A light
-  (`FormType::Light`) does not spin, since ID 51778 does not turn it. On SE
-  no model turns or spins, since ID 51778 has no verified SE match.
+  (`FormType::Light`) does not spin, since ID 51778 does not turn it.
 - `Update` runs in `Overlay::DrawFrame` before `ImGui::NewFrame`, when the
   game frame is finished and the overlay has not drawn. It advances a clock
   by the clamped frame time and does one job: the model when it is due (its
@@ -2317,25 +2320,22 @@ picker's panel) or as cached thumbnails for many cells.
   `Render` calls and restores it; the first capture of each start logs
   whether it was on (`gameTAA`). The 2× capture above is the model's
   anti-aliasing instead; thumbnails get theirs from the mip reduction.
-- Every capture renders with its own directional ambient, so an item looks
-  the same wherever and whenever it is captured, and faces turned from the
-  scene's light are not black. In 1.7.104 the inventory scene sets none, so
-  the lighting shader takes the world's from `BSShaderManager::State`, which
-  ID 26232 sets from the current cell's lighting or the weather and time of
-  day.
-  `CaptureAmbientScope` does what MistMenu's render (ID 52308) does around
-  its scene render: it calls ID 105643 with the same color
-  (`kCaptureAmbient`, 0.45) for all six directions, MistMenu's white
-  ambient specular tint, and a fresnel power of zero, then puts back the
-  state's `directionalAmbientTransform`, `ambientSpecular`, and
-  `ambientSpecularEnabled` and the colors ID 105643 keeps (ID 414646, which
-  MistMenu reads back through ID 105644). The scene's own light, the
-  `fInventoryMenuLight*` INI point light (by default at (100, -350, 100),
-  radius 400, in front of and above the item), stays as the inventory menu
-  has it and gives the shading. The first capture of each start logs the
-  world's ambient it replaced (`worldAmbient`, the transform's translation).
-  IDs 105643 and 414646 have no verified SE match, so on SE captures keep
-  the world's ambient, and the log shows `ambientOverride=false`.
+- Every capture renders with its own directional ambient, so an item looks the
+  same wherever and whenever it is captured, and faces turned from the scene's
+  light are not black. In 1.7.104 the inventory scene sets none, so the
+  lighting shader takes the world's from `BSShaderManager::State`, which ID
+  26232 sets from the current cell's lighting or the weather and time of day.
+  `CaptureAmbientScope` does what MistMenu's render (ID 52308) does around its
+  scene render: it calls ID 105643 (SE 98989) with the same color
+  (`kCaptureAmbient`, 0.45) for all six directions, MistMenu's white ambient
+  specular tint, and a fresnel power of zero, then puts back the state's
+  `directionalAmbientTransform`, `ambientSpecular`, and
+  `ambientSpecularEnabled` and the colors ID 105643 keeps (ID 414646, SE
+  527705, which MistMenu reads back through ID 105644). The scene's own light,
+  the `fInventoryMenuLight*` INI point light (by default at (100, -350, 100),
+  radius 400, in front of and above the item), stays as the inventory menu has
+  it and gives the shading. The first capture of each start logs the world's
+  ambient it replaced (`worldAmbient`, the transform's translation).
 - After restoring or fitting a transform, `ItemPreview` calls
   `NiAVObject::Update` (ID 70251) with a time of zero and the dirty flag,
   as `Render` does before drawing, so the world bound it projects and turns
@@ -2344,12 +2344,12 @@ picker's panel) or as cached thumbnails for many cells.
   capture from a fresh load and keeps its image if the refresh fails. This
   covers textures that complete after the first capture by a path the
   readiness check does not see.
-- A turn calls the inventory menu's own rotation (1.7.104 ID 51778) with the
-  angles dragged since the last capture, then captures, so a drag re-renders
-  every frame while the renderer holds the model. The model's local
-  transform as fitted and turned is kept after each capture and set again
-  when it is attached after thumbnails took the renderer, so it neither
-  snaps back nor is fitted twice.
+- A turn calls the inventory menu's own rotation (1.7.104 ID 51778, SE 50902)
+  with the angles dragged since the last capture, then captures, so a drag
+  re-renders every frame while the renderer holds the model. The model's local
+  transform as fitted and turned is kept after each capture and set again when
+  it is attached after thumbnails took the renderer, so it neither snaps back
+  nor is fitted twice.
 - Loads share models. In 1.7.104 `LoadInventoryItem` (ID 51758) reuses a
   model still in `loadedModels` (up to 7, keyed by model object) as it was
   left, and only `End3D` (ID 51756) releases them, so a still captured
@@ -2530,8 +2530,9 @@ To verify in game:
     overlay hook is the matrix the frame was rendered with, its fourth row
     gives a depth that is positive in front of the camera, and its viewport
     is 0 to 1 with y up; ID 70640's arithmetic matches a standard
-    projection, but none of this was seen in game. Neither SE ID (53029,
-    69270) was checked against a 1.5.97 executable.
+    projection, but none of this was seen in game. The SE IDs (53029,
+    69270, and 39444 for ID 40520, with the same layer) match the 1.5.97
+    disassembly.
 
 ## Acceptance criteria
 
@@ -2899,10 +2900,6 @@ To verify in game:
   alike, which shows in the server endpoint.
 - An input method editor's composition, such as Chinese or Japanese, does
   not type into a window: Skyrim takes only single `ToUnicode` characters.
-- On SE 1.5.97 the item preview's model does not turn or spin, captures are
-  lit by the world's ambient, and window text keeps the polling thread's
-  keyboard layout: those engine IDs and offsets were read from 1.7.104 only,
-  and no 1.5.97 executable was available to find their matches.
 - Editing shortcut letters (Ctrl+A/C/V/X/Y/Z) follow physical QWERTY positions,
   not the keyboard layout. Chat lines and player names cannot be selected
   or copied.

@@ -532,9 +532,10 @@ float4 Separate(Vertex input) : SV_Target
         // In 1.7.104 the inventory scene sets no directional ambient, so the lighting shader takes
         // the world's from BSShaderManager::State, which ID 26232 sets from the current cell's
         // lighting or the weather. MistMenu's render (ID 52308) sets its own around its scene render
-        // with ID 105643, as this does around a capture's: it takes six directional colors, an
-        // ambient specular tint and a fresnel power, writes the state's ambient transform and
-        // specular, and keeps the colors at ID 414646, which MistMenu reads back (ID 105644).
+        // with ID 105643 (SE 98989), as this does around a capture's: it takes six directional
+        // colors, an ambient specular tint and a fresnel power, writes the state's ambient transform
+        // and specular, and keeps the colors at ID 414646 (SE 527705), which MistMenu reads back
+        // (ID 105644).
         class CaptureAmbientScope
         {
         public:
@@ -546,7 +547,7 @@ float4 Separate(Vertex input) : SV_Target
                 , colors(*LastColors())
             {
                 using Function = void(const RE::NiColor*, const RE::NiColor*, float);
-                static REL::Relocation<Function*> setAmbient{ REL::ID(105643) };
+                static REL::Relocation<Function*> setAmbient{ RELOCATION_ID(98989, 105643) };
                 const RE::NiColor ambient{ kCaptureAmbient, kCaptureAmbient, kCaptureAmbient };
                 const std::array<RE::NiColor, 6> uniform{ ambient, ambient, ambient, ambient, ambient, ambient };
                 // MistMenu's tint and fresnel power.
@@ -569,7 +570,7 @@ float4 Separate(Vertex input) : SV_Target
         private:
             static std::array<RE::NiColor, 6>* LastColors()
             {
-                static REL::Relocation<std::array<RE::NiColor, 6>*> colors{ REL::ID(414646) };
+                static REL::Relocation<std::array<RE::NiColor, 6>*> colors{ RELOCATION_ID(527705, 414646) };
                 return colors.get();
             }
 
@@ -798,18 +799,13 @@ float4 Separate(Vertex input) : SV_Target
             return object;
         }
 
-        // 1.7.104 ID 51778, which the inventory menu's mouse (ID 51770) and thumbstick handlers
-        // call with the drag scaled to radians, x negated: turns the last loaded model about its
-        // bound's center, unless it is hidden or the item is a light (form type 0x1F). The ID has
-        // no verified SE match, so SE models do not turn.
+        // 1.7.104 ID 51778 (SE 50902), which the inventory menu's mouse (ID 51770) and thumbstick
+        // handlers call with the drag scaled to radians, x negated: turns the last loaded model
+        // about its bound's center, unless it is hidden or the item is a light (form type 0x1F).
         void Turn(RE::Inventory3DManager& a_manager, const ImVec2& a_angles)
         {
-            if (!REL::Module::IsAE())
-            {
-                return;
-            }
             using Function = void(RE::Inventory3DManager*, const RE::NiPoint2*);
-            static REL::Relocation<Function*> function{ REL::ID(51778) };
+            static REL::Relocation<Function*> function{ RELOCATION_ID(50902, 51778) };
             const RE::NiPoint2 angles{ a_angles.x, a_angles.y };
             function(&a_manager, &angles);
         }
@@ -902,12 +898,7 @@ float4 Separate(Vertex input) : SV_Target
             auto* backBuffer = a_frame.backBuffer.Get();
             context.CopySubresourceRegion(textures.saved.Get(), 0, 0, 0, 0, backBuffer, 0, &screenBox);
             const TemporalAAOffScope noTemporalAA;
-            // The ambient override has no verified SE IDs, so SE captures keep the world's ambient.
-            std::optional<CaptureAmbientScope> ambient;
-            if (REL::Module::IsAE())
-            {
-                ambient.emplace();
-            }
+            const CaptureAmbientScope ambient;
             for (const auto& layer : a_layers)
             {
                 ClearBackground(context, a_frame.target, *box, layer.background);
@@ -922,12 +913,11 @@ float4 Separate(Vertex input) : SV_Target
             if (!captureLogged)
             {
                 captureLogged = true;
-                const auto worldAmbient = ambient ? ambient->WorldAmbient() : RE::NiPoint3{};
                 logs::debug("Item preview captured: formID={:08X} box=({}, {}, {}x{}) screen={}x{} radius={} "
-                            "gameTAA={} ambientOverride={} worldAmbient=({:.3f}, {:.3f}, {:.3f})",
+                            "gameTAA={} worldAmbient=({:.3f}, {:.3f}, {:.3f})",
                     loadedFormID, box->left, box->top, box->width, box->height, description.width, description.height,
-                    a_model.worldBound.radius, noTemporalAA.WasEnabled(), ambient.has_value(), worldAmbient.x,
-                    worldAmbient.y, worldAmbient.z);
+                    a_model.worldBound.radius, noTemporalAA.WasEnabled(), ambient.WorldAmbient().x,
+                    ambient.WorldAmbient().y, ambient.WorldAmbient().z);
             }
             return box;
         }

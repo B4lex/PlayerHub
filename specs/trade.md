@@ -62,9 +62,11 @@ Implemented 2026-10-06; not built on Windows and not run in game.
     No number was compared with the game's.
   - Item details on SE (2026-10-12): calling the 1.7.104 IDs crashed
     `TradeInventory::Capture` on 1.5.97 (user's crash log), so the four
-    formulas were ported from their 1.7.104 disassembly. `ItemDetails.cpp`
-    passed the syntax check, which a planted error confirmed reaches it.
-    Not built on Windows or run on either runtime.
+    formulas were ported from their 1.7.104 disassembly and then compared
+    with their SE counterparts (25915, 25916, 25901, 25893) in the 1.5.97
+    executable. `ItemDetails.cpp` passed the syntax check, which a planted
+    error confirmed reaches it. Not built on Windows; the user saw the crash
+    gone on 1.5.97.
   - [Commit](#commit) ownership (2026-10-09): `GetOwner` (ID 20194), the
     owner check (ID 20210), and `PlayerCharacter::PickUpObject`'s call of
     the steal alarm (ID 37422) were read from the 1.7.104 executable's
@@ -269,11 +271,11 @@ choice), and the item card that shows them is in
   enchantment's cost is the sum of its effects' sent costs. The enchantment
   is the item's own, else the base form's
   (`TESEnchantableForm::formEnchanting`).
-- The four formulas are ported from the 1.7.104 executable rather than
-  called, because those IDs resolve to unrelated functions on SE 1.5.97,
-  where calling them crashed the inventory capture. The game settings come
-  from `GameSettingCollection`, so the numbers follow each runtime's
-  settings.
+- The four formulas are ported rather than called, so they need no
+  Address Library ID on either runtime; the AE IDs resolve to unrelated
+  functions on SE 1.5.97, where calling them crashed the inventory capture.
+  The game settings come from `GameSettingCollection`, so the numbers
+  follow each runtime's settings.
 - Effects: of the enchantment, a player enchantment's effects, or a potion,
   poison, scroll, or ingredient, each its effect's item description
   (`EffectSetting::magicItemDescription`) with `<mag>`, `<dur>`, and `<area>`
@@ -424,8 +426,9 @@ To verify in game:
 8. `ExtraTextDisplayData::customNameLength` is the length of the given name
    before the tempering tier in `displayName`.
 9. [Item details](#item-details): the formulas of 1.7.104 IDs 26498, 26499,
-   26483, and 26465 were read from the disassembly and are the same on SE
-   1.5.97, and `kKeywordCuirass` is `ArmorCuirass` in every load order.
+   26483, and 26465 were read from the disassembly, and SE 1.5.97's 25915,
+   25916, 25901, and 25893 read the same settings, default object, and
+   constants; `kKeywordCuirass` is `ArmorCuirass` in every load order.
 10. `GetValue`'s enchantment lookup (ID 14563) returns the base form's own
    enchantment when the stack has none, so a pre-enchanted item's value
    includes it; and a player enchantment's `CalculateTotalGoldValue` is the
