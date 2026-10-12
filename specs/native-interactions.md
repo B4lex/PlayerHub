@@ -4,9 +4,11 @@
 
 - **Furniture:** implemented for placed `TESFurniture` references on Skyrim AE
   1.7.104 and run in game. Chairs, benches, alchemy tables, forges, and other
-  workstations share one native entry path. The engine functions are Address
-  Library IDs verified only against 1.7.104; on other runtimes the receiver
-  never starts an entry. The native exit ([Exit](#exit)) was checked in game on
+  workstations share one native entry path. SE 1.5.97 calls the same engine
+  functions through the SE IDs in [assumption 11](#engine-assumptions)
+  (2026-10-12; before that the receiver never started an entry off AE). They
+  passed a Linux syntax check only; the Windows build and SE in-game behavior
+  are not verified. The native exit ([Exit](#exit)) was checked in game on
   1.7.104 from replay captures of a chair, a bench, and two tables: each played
   its exit idle and then its locomotion, including when the source stood up
   right after sitting down. A bed's wake-up played its exit idle in game; its
@@ -276,14 +278,13 @@ local player occupies the checkpoint's reference and the actor does not already
 hold it (an actor seated beside the player on a bench keeps its seat), or if its
 last entry attempt found no free marker and the reference carries a reservation
 by another live, enabled actor, local or remote. The later actor yields. A probe
-failure without such a reservation (stale, or a runtime other than 1.7.104) keeps
-the 1 s retry. The flag comes from the entry attempt, so the actor is hidden one
-pass later.
+failure without such a reservation (stale) keeps the 1 s retry. The flag comes
+from the entry attempt, so the actor is hidden one pass later.
 
 **Return.** A hidden actor spawns again when its checkpoint leaves the reference
 (standing), or when the reference is vacated locally: the player neither
 occupies nor reserves it and the probe finds a free marker for the player (the
-actor then resumes seated; this needs 1.7.104). If the player sits back down
+actor then resumes seated). If the player sits back down
 before the returned actor entered, it is hidden again.
 
 Logs: `Hiding remote player actor ... reason=`,
@@ -595,6 +596,12 @@ Furniture entry, traced in the 1.7.104 binary:
     skips that step. In game, an actor whose entry point was chosen in
     WantToSit sat offset from the seat; that the reset to Normal fixes it is
     not verified.
+11. The SE 1.5.97 functions behave as their 1.7.104 counterparts: 19767
+    (20162), 36340 (37330), 38909 (39955), 38882 (39923), 36334 (37324),
+    36342 (37332, calling 38831 for 39861), and 38835 (39865). Each was
+    matched in the 1.5.97 disassembly by its instruction sequence, which
+    differs only in `Actor` field offsets, and by calling the SE counterparts
+    of the same functions; none was run on SE.
 
 ## Acceptance criteria
 

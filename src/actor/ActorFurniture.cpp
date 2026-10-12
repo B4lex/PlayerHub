@@ -162,17 +162,13 @@ namespace ActorFurniture
             return a_actor.GetParentCell() && a_actor.GetParentCell() == a_furniture.GetParentCell();
         }
 
-        // The furniture engine calls below are Address Library IDs verified only
-        // against 1.7.104. Other runtimes never find a marker and never start entry.
+        // The comments below name 1.7.104 IDs. Each SE ID was matched against the
+        // 1.5.97 disassembly by its code and the functions it calls.
 
         std::int32_t FindAvailableFurnitureMarker(RE::Actor& a_actor, RE::TESObjectREFR& a_furniture)
         {
-            if (!REL::Module::IsAE())
-            {
-                return -1;
-            }
             using func_t = std::int32_t(RE::TESObjectREFR*, RE::Actor*, bool);
-            static REL::Relocation<func_t> func{ REL::ID(20162) };
+            static REL::Relocation<func_t> func{ RELOCATION_ID(19767, 20162) };
             return func(std::addressof(a_furniture), std::addressof(a_actor), true);
         }
 
@@ -240,7 +236,7 @@ namespace ActorFurniture
             // entry (ID 37324) is not used: it selects the Idle*EnterInstant records
             // and skips the transition.
             using UseFurniture = bool(RE::Actor*, RE::TESObjectREFR*);
-            static REL::Relocation<UseFurniture> useFurniture{ REL::ID(37330) };
+            static REL::Relocation<UseFurniture> useFurniture{ RELOCATION_ID(36340, 37330) };
             return useFurniture(std::addressof(a_actor), std::addressof(a_furniture));
         }
 
@@ -262,9 +258,9 @@ namespace ActorFurniture
             using SetOccupiedFurniture = void(RE::AIProcess*, RE::Actor*, const RE::ObjectRefHandle&);
             using ChooseFurnitureEntryPoint = bool(RE::AIProcess*, RE::Actor*);
             using UseFurnitureInstant = bool(RE::Actor*, RE::TESObjectREFR*, std::uint32_t);
-            static REL::Relocation<SetOccupiedFurniture> setOccupiedFurniture{ REL::ID(39955) };
-            static REL::Relocation<ChooseFurnitureEntryPoint> chooseFurnitureEntryPoint{ REL::ID(39923) };
-            static REL::Relocation<UseFurnitureInstant> useFurnitureInstant{ REL::ID(37324) };
+            static REL::Relocation<SetOccupiedFurniture> setOccupiedFurniture{ RELOCATION_ID(38909, 39955) };
+            static REL::Relocation<ChooseFurnitureEntryPoint> chooseFurnitureEntryPoint{ RELOCATION_ID(38882, 39923) };
+            static REL::Relocation<UseFurnitureInstant> useFurnitureInstant{ RELOCATION_ID(36334, 37324) };
             setOccupiedFurniture(std::addressof(a_process), std::addressof(a_actor), a_furniture.GetHandle());
             if (!chooseFurnitureEntryPoint(std::addressof(a_process), std::addressof(a_actor))
                 || !IsFurnitureEntryPointChosen(a_process))
@@ -279,7 +275,7 @@ namespace ActorFurniture
             RemoteActor& a_remote, RE::Actor& a_actor, RE::TESObjectREFR& a_furniture, float a_markerDistance)
         {
             auto* process = a_actor.GetActorRuntimeData().currentProcess;
-            if (!REL::Module::IsAE() || !process || !process->middleHigh)
+            if (!process || !process->middleHigh)
             {
                 return false;
             }
@@ -334,12 +330,8 @@ namespace ActorFurniture
             // Normal -> WantToSit -> WaitingForSitAnim and WantToStand -> Normal.
             // Skyrim calls it from package procedure branches that the remote actor's
             // do-nothing package never reaches.
-            if (!REL::Module::IsAE())
-            {
-                return;
-            }
             using func_t = void(RE::Actor*);
-            static REL::Relocation<func_t> func{ REL::ID(37332) };
+            static REL::Relocation<func_t> func{ RELOCATION_ID(36342, 37332) };
             func(std::addressof(a_actor));
         }
 
@@ -360,7 +352,7 @@ namespace ActorFurniture
             RE::FormID a_occupiedFurnitureRefID)
         {
             auto* process = a_actor.GetActorRuntimeData().currentProcess;
-            if (!REL::Module::IsAE() || !process || !process->middleHigh)
+            if (!process || !process->middleHigh)
             {
                 return false;
             }
@@ -368,7 +360,7 @@ namespace ActorFurniture
             const auto seatedIdle = GetFurnitureIdleFormID(a_actor);
             (void)ActorRegistry::ConsumeFurnitureExitClipEnds(a_remote);
             using StandUp = bool(RE::AIProcess*, RE::Actor*);
-            static REL::Relocation<StandUp> standUp{ REL::ID(39865) };
+            static REL::Relocation<StandUp> standUp{ RELOCATION_ID(38835, 39865) };
             const bool result = standUp(process, std::addressof(a_actor));
             const auto sitSleepState = GetActorSitSleepState(a_actor);
             const bool started = sitSleepState == RE::SIT_SLEEP_STATE::kWantToStand
