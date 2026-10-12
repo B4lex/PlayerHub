@@ -268,6 +268,13 @@ namespace ChatRoster
         return s_entries.size();
     }
 
+    std::uint64_t GetRevision()
+    {
+        const std::scoped_lock lock{ s_lock };
+        RefreshLocked();
+        return s_revision;
+    }
+
     Multiplayer::SessionID GetLocalSession()
     {
         const std::scoped_lock lock{ s_lock };

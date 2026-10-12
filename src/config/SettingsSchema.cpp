@@ -245,6 +245,13 @@ namespace Config
                 UISettings::kMinimumFrameThickness, UISettings::kMaximumFrameThickness);
             a_visitor.Bool("ItemPreview", a_settings.itemPreview,
                 "Shows a 3D model of the hovered item in item lists.");
+            a_visitor.Bool("Nameplates", a_settings.nameplates,
+                "Shows other players' names above their heads while they are in sight.");
+            a_visitor.ShowNextIf(a_settings.nameplates);
+            a_visitor.Unsigned("NameplateDistance", a_settings.nameplateDistance,
+                "Game units within which names are shown above players' heads, about 70 to a\n"
+                "meter.",
+                UISettings::kMaximumNameplateDistance, "");
             a_visitor.Bool("StatusPanel", a_settings.statusPanel,
                 "Displays the in-game debug status panel.");
             a_visitor.Bool("CloseChatOnSend", a_settings.closeChatOnSend,

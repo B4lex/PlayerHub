@@ -106,6 +106,7 @@ write before render ([Remote actor](remote-actor.md#frame-order)).
 `SyncCoordinator::OnFrame`:
 
 ```text
+NameplateSync::Clear                      # an early return leaves no plates
 restore save eligibility after a save
 DefaultOutfit::Refresh                    # re-resolve a changed [DefaultOutfit]
 ApplyNetworkChanges                       # the one drain; trade events queued
@@ -131,6 +132,7 @@ TradeSync::Sync                           # trade events, overlay commands, canc
 if no local cell: return
 PrecisionIsolation::Update                # reassert after the player's Havok world changes
 for each peer: SyncPeer
+NameplateSync::Update                     # head nodes, line of sight, the plates the overlay draws
 ```
 
 `SyncPeer` for one remote player:

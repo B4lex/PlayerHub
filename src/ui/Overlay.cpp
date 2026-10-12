@@ -7,6 +7,7 @@
 #include "ui/WindowManager.h"
 #include "ui/chat/ChatWindow.h"
 #include "ui/chat/WorldPlayerMenu.h"
+#include "ui/hud/NameplateLayer.h"
 #include "ui/hud/NoticeStack.h"
 #include "ui/hud/StatusPanel.h"
 #include "ui/preview/ItemPreview.h"
@@ -192,6 +193,7 @@ namespace UI::Overlay
             return;
         }
 
+        WindowManager::Register(CreateNameplateLayer());
         WindowManager::Register(CreateStatusPanel());
         WindowManager::Register(CreateNoticeStack());
         WindowManager::Register(CreateChatWindow());

@@ -27,6 +27,12 @@
   reported by the user: switching between English and Russian while the
   chat's field has focus changes the letters typed at once. The call sites
   in `BSWin32KeyboardDevice::Poll` were read from the 1.7.104 executable.
+- **Nameplates** (2026-10-12): not built on Windows or run in game. On
+  Linux, `NameplateSync.cpp`, `NameplateLayer.cpp`, `SyncCoordinator.cpp`,
+  `ChatRoster.cpp`, and `SettingsSchema.cpp` passed the g++ syntax check,
+  which a planted error confirmed reaches the first three. The player's
+  line-of-sight path and the projection were read from the 1.7.104
+  executable ([Engine assumptions](#engine-assumptions)).
 - **SE 1.5.97 guards** (2026-10-12): a 1.5.97 crash log showed opening a
   menu with an item preview crash in `Forms::GetItemDetails`, which called
   1.7.104 Address Library IDs that resolve to unrelated functions on SE. The
@@ -575,7 +581,8 @@
 
 ## Scope
 
-The plugin's own UI layer: a status panel, [notices](#notices), chat, the
+The plugin's own UI layer: [nameplates](#nameplates) over other players'
+heads, a status panel, [notices](#notices), chat, the
 settings window, the
 [trade window and prompt](#trade-window), and the reusable item picker with a
 3D preview. `ui/` never changes the game; it reaches
@@ -606,6 +613,7 @@ src/ui/
   InputCapture.h/.cpp         # input dispatch hook: focus keys, routing to ImGui
   InputLanguage.h/.cpp        # typed characters follow the game window thread's keyboard layout
   Layout.h                    # placement helpers (screen corners)
+  hud/NameplateLayer          # other players' names projected above their heads
   hud/StatusPanel             # connection, ping, traffic, plugin time
   hud/NoticeStack             # notices on the right edge, friends coming online
   chat/ChatWindow             # open and closed chat, focus by its keys, the manager alone, the send target's channel kept shown
@@ -632,6 +640,7 @@ src/sync/chat/ChatRoster      # connected players by name, completion, whisper p
 src/sync/chat/ChatDraft       # syntax of prefixes and commands
 src/sync/chat/ChatComposer    # send target, name and command list, notes, sent lines
 src/sync/notices/Notices      # the notices queue any feature posts to
+src/sync/nameplates/NameplateSync # per peer: head node, line of sight, fade, label; the pass's plates
 src/sync/filters/PlayerFilters # friends, muted and vanished players of the current server, publishing, friends coming online
 src/sync/chat/PlayerActivation # the activated player, and a whisper picked in its menu
 src/runtime/PluginTime        # plugin time per pass
@@ -1067,6 +1076,71 @@ passed, the total over the passes in the window becomes the published average
 and a new window starts, so the number changes once per second. It is always
 compiled in and costs two clock reads per hook call. Detailed profiling uses
 Tracy (`xmake f --tracy=y`, `runtime/Profiling.h`).
+
+## Nameplates
+
+Goal: show each other player's display name above their character's head
+while the character is within `[UI] NameplateDistance` of the player and in
+sight, so players can tell who is who. Friends' names are in the accent.
+Non-goals: a level, health bar, or other detail on the plate (the user chose
+the name alone), plates for players without a character in the local world,
+plates through walls (the user chose to hide them), and a plate for the
+player's own character.
+
+- `NameplateSync` (`sync/nameplates/`) runs on the game thread at the end of
+  each pass, after every peer is synced
+  ([Sync pipeline](sync-pipeline.md#frame-sequence)). `Clear` at the pass's
+  start empties the plates, so a pass that returns early leaves none.
+  Its per-peer `RemoteState` is a member of `PeerState`.
+- A peer has a plate only while its remote actor is `ready` and its third
+  person 3D has a head node: the node named by the race's body part data
+  for `kHead` (`BGSBodyPart::nodeName`, `NPC Head [Head]` on vanilla
+  races), found with `GetObjectByName` once per 3D root. The root and the
+  head are held as `NiPointer`s, so a new 3D at the same address cannot be
+  mistaken for the old one; both are dropped when the actor is gone. A
+  mounted player's plate follows the rider's head.
+- Distance is from the player's position to the actor's, compared with
+  `NameplateDistance` in game units. Within it, `PlayerCharacter::HasLineOfSight`
+  decides sight: for the player it tests the actor against the camera's
+  frustum and casts a ray only for one inside it. An in-frustum result is
+  kept for 0.2 s; an actor outside the frustum keeps its last result and is
+  tested again after 0.05 s, so a plate appears soon after the camera turns
+  to it. At most 8 rays are cast per pass; a peer over that budget is
+  tested in a later pass. Out of range a peer's result is cleared, so it
+  comes back only after a fresh test.
+- Each plate fades in and out over 0.2 s of clamped frame time as its result
+  changes. Its label is the peer's roster name with `PlayerLabel::Format`,
+  or the appearance's name for a player the roster lacks, and it is a
+  friend's by `PlayerFilters::IsFriend` on the roster's session. Both are
+  read again only when the roster's revision (`ChatRoster::GetRevision`) or
+  the filters' revision changes.
+- `NameplateSync::GetPlates` gives the pass's plates sorted farthest first,
+  each with the head node, label, friend flag, fade, and distance as a
+  fraction of the range. The node and label are owned by the peer's state
+  until the next pass. Off the main-loop thread it returns none: the overlay
+  is expected to draw on that thread ([Item picker](#3d-preview) relies on
+  the same), and the layer reads node transforms.
+- `NameplateLayer`, registered before every other window, draws them on Dear
+  ImGui's background draw list, under every window and under the
+  [backdrop](#backdrop), which hides them behind the trade window. It draws
+  nothing outside a game, with `[UI] Nameplates` off, while the game is
+  paused or menus are hidden (`UI::GameIsPaused`, `UI::IsShowingMenus`), or
+  while the dialogue or race menu is open.
+- A plate's anchor is 30 units above the head node, times the node's world
+  scale, projected each frame with `Main::WorldRootCamera`, so it follows
+  the head as rendered. `NiCamera::WorldPtToScreenPt3` divides by the
+  depth's absolute value, so the layer computes the depth from the
+  `worldToCam` matrix's fourth row first and skips a point at or behind the
+  camera. The name is centered on the anchor with its bottom there, in
+  Sovngarde Bold (`Fonts::GetHeading`, or the overlay's font without it), at
+  1.2 font sizes near the player down to 0.8 at the range, rounded to whole
+  pixels. It is white, or the accent for a friend, over a black outline of
+  four copies offset diagonally by a pixel per 16 px of the overlay's font
+  size, at 80% of the plate's alpha. Over the last 15% of the range it fades out; a plate wholly
+  off screen is skipped.
+- Per pass the cost is one distance per peer with a character, the budgeted
+  rays, and one roster and filter revision read; nothing allocates once the
+  plates vector has grown. Drawing costs five text draws per plate.
 
 ## Notices
 
@@ -2447,6 +2521,17 @@ To verify in game:
     languages were not tried. Dead keys compose in the polling thread's
     own keyboard state, so a dead key pressed while the poll changes
     threads may be lost.
+14. Nameplates: `Actor::HasLineOfSight` (ID 53829) on the player calls ID
+    40520, which sets its second argument from a frustum test of the
+    target's bound and only then casts a ray, on collision layer `0x29`,
+    from the camera; this was read from the 1.7.104 disassembly, not seen
+    in game. That other remote actors and the target's own collision do not
+    block the ray is assumed. `WorldRootCamera`'s `worldToCam` at the
+    overlay hook is the matrix the frame was rendered with, its fourth row
+    gives a depth that is positive in front of the camera, and its viewport
+    is 0 to 1 with y up; ID 70640's arithmetic matches a standard
+    projection, but none of this was seen in game. Neither SE ID (53029,
+    69270) was checked against a 1.5.97 executable.
 
 ## Acceptance criteria
 
@@ -2747,6 +2832,18 @@ To verify in game:
     the next letters Cyrillic, and switching back makes them Latin, without
     closing the chat. The log shows the new layout with the first
     character typed in it.
+32. Another player standing in view within 30 m has their display name
+    above their head, following it while they walk, run, sit, ride, or
+    crouch, in third and first person, at 1080p and 4K. A friend's name is
+    in the accent and changes at once when the friend is added or removed.
+    Walking behind a wall or a hill fades the name out within about half a
+    second and stepping back into view fades it in. Beyond
+    `NameplateDistance` the name is gone, fading over the last stretch.
+    Turning the camera toward a player shows the name almost at once. No
+    name shows in the main menu, the pause or inventory menus, dialogue,
+    with the HUD hidden (`tm`), behind the trade window, or with
+    `Nameplates` off. Many players in view do not lower the frame rate
+    noticeably.
 
 ## Known limitations
 
@@ -2764,6 +2861,12 @@ To verify in game:
 
 - A window over the right edge, such as a wide trade window, hides the
   notices under it; they keep their time meanwhile.
+- Nameplates are tested from the camera to the actor, so a name stays shown
+  while only part of the character is in sight, and keeps its result for up
+  to 0.2 s after the view changes. Plates of players standing close
+  together overlap; nearer ones are drawn over farther ones. A plate shows
+  while another plugin's menu that neither pauses nor hides the HUD is
+  open.
 - Lists, tooltips, notices, notes, and recent chat lines have no menu frame: its corners need
   about 65 px of height at 1080p at the default thickness. The settings window's
   resize grip and edge highlight and the chat's grips are not drawn, so only

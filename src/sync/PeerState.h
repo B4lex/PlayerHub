@@ -8,6 +8,7 @@
 #include "sync/combat/CombatSync.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/furniture/FurnitureSync.h"
+#include "sync/nameplates/NameplateSync.h"
 
 #include <cstdint>
 #include <unordered_map>
@@ -21,6 +22,7 @@ struct PeerState
     AppearanceSync::RemoteState appearance;
     EquipmentSync::RemoteState equipment;
     FurnitureSync::RemoteState furniture;
+    NameplateSync::RemoteState nameplate;
 };
 
 using Peers = std::unordered_map<Multiplayer::PeerSlot, PeerState>;

@@ -76,11 +76,14 @@ namespace Config
         static constexpr std::uint32_t kMaximumChatWidth = 100;
         static constexpr std::uint32_t kMinimumChatLines = 9;
         static constexpr std::uint32_t kMaximumChatLines = 40;
+        static constexpr std::uint32_t kMaximumNameplateDistance = 10000;
 
         std::uint32_t accentColor{ kAccentSwatches[0] };
         std::uint32_t frameColor{ kVanillaFrame };
         std::uint32_t frameThickness{ 70 };
         bool itemPreview{ true };
+        bool nameplates{ true };
+        std::uint32_t nameplateDistance{ 2100 };
         bool statusPanel{ true };
         bool closeChatOnSend{ true };
         std::uint32_t chatWidth{ 30 };

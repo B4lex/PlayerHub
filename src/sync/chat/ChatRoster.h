@@ -36,6 +36,8 @@ namespace ChatRoster
 
     [[nodiscard]] std::size_t GetPlayerCount();
 
+    [[nodiscard]] std::uint64_t GetRevision();
+
     [[nodiscard]] Multiplayer::SessionID GetLocalSession();
 
     [[nodiscard]] bool CopyPlayersIfChanged(

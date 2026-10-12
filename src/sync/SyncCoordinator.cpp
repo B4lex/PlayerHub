@@ -18,6 +18,7 @@
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/furniture/FurnitureSync.h"
 #include "sync/mount/MountSync.h"
+#include "sync/nameplates/NameplateSync.h"
 #include "sync/movement/MovementSync.h"
 #include "sync/outfit/DefaultOutfit.h"
 #include "sync/presence/PresenceSync.h"
@@ -425,6 +426,8 @@ namespace SyncCoordinator
     {
         PROFILE_FUNCTION();
         PROFILE_PLOT("Remote peers", s_peers.size());
+        // A pass that returns before the peers are synced leaves no plates behind.
+        NameplateSync::Clear();
         RestoreSaveEligibility(s_peers);
         DefaultOutfit::Refresh();
         ApplyNetworkChanges(s_peers);
@@ -465,6 +468,7 @@ namespace SyncCoordinator
         {
             SyncPeer(playerID, peer, local, localCellID, localWorldspaceID, localFurniture.get(), a_delta);
         }
+        NameplateSync::Update(s_peers, *a_player, a_delta);
     }
 
     void QueueLocalFurnitureActivation(RE::FormID a_furnitureRefID, bool a_deferred)

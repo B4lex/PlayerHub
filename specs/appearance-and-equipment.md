@@ -169,8 +169,8 @@ under it. A replayed player keeps the name it was recorded with.
 
 ### Player label
 
-`PlayerLabel::Format` builds the label used for the actor base's name and for
-chat senders: the display name, or `Unknown` for an empty one, as before a
+`PlayerLabel::Format` builds the label used for the actor base's name, chat
+senders, and [nameplates](ui-overlay.md#nameplates): the display name, or `Unknown` for an empty one, as before a
 peer's appearance arrives.
 
 The level is not part of the label. It stays in `Appearance` and `ChatSpeaker`
