@@ -23,6 +23,10 @@
   typed into the chat, and each sees an unfocused key once; a later plugin
   that swallows input still does; the ninth detour is refused with one
   warning.
+- **Input language** (2026-10-12): works in game on Windows (1.7.104),
+  reported by the user: switching between English and Russian while the
+  chat's field has focus changes the letters typed at once. The call sites
+  in `BSWin32KeyboardDevice::Poll` were read from the 1.7.104 executable.
 - **Notices and notes:** not built on Windows or run in game. On Linux, the
   changed `sync/` and `ui/` files passed a g++ 16 syntax check against
   CommonLibSSE-NG, and `NoticeStack.cpp`, `Notices.cpp`, `ChatComposer.cpp`,
@@ -592,6 +596,7 @@ src/ui/
   Window.h                    # interface every window implements
   WindowManager.h/.cpp        # registered windows, draw order, input focus
   InputCapture.h/.cpp         # input dispatch hook: focus keys, routing to ImGui
+  InputLanguage.h/.cpp        # typed characters follow the game window thread's keyboard layout
   Layout.h                    # placement helpers (screen corners)
   hud/StatusPanel             # connection, ping, traffic, plugin time
   hud/NoticeStack             # notices on the right edge, friends coming online
@@ -993,6 +998,33 @@ keyboard and the game receives no keyboard or mouse input.
 - Characters outside the Basic Multilingual Plane, such as emoji, never reach a
   window: Skyrim keeps only single-unit `ToUnicode` results when building
   `CharEvent`s (checked against 1.7.104).
+
+### Input language
+
+Goal: switching the Windows input language while the game has focus changes
+the layout typed into a window's text field at once, as it does elsewhere in
+Windows.
+
+- Typed text comes from Skyrim's `CharEvent`s, which
+  `BSWin32KeyboardDevice::Poll` (ID 68782) builds with `MapVirtualKeyA` and
+  `ToUnicode`, so they follow the layout of the thread that polls. Windows
+  switches the language only for the thread that owns the game window. The
+  poll runs on that thread while the game has input, but on other threads
+  while a window holds focus (seen in a Windows log, 1.7.104). Those threads
+  keep the layout they started with, so a window typed in the old layout.
+- `InputLanguage::Install`, called from `Overlay::Install`, replaces both
+  `call [rip+disp]` sites (+0xEC and +0x2CB) with `write_call<6>`, after
+  checking that each still reads the user32 import. The replacements call
+  `MapVirtualKeyExA` and `ToUnicodeEx` with `GetKeyboardLayout` of the game
+  window's thread, found once from the swap chain's window; until that
+  window exists they use the calling thread's layout, as the game did. The
+  game's menus follow the language the same way.
+- When the layout used changes, including the first key, the replacement
+  logs it at info with the polling thread, that thread's own layout, and
+  the character produced.
+- The plugin reads the window thread's layout and never activates one:
+  `ActivateKeyboardLayout(…, KLF_SETFORPROCESS)` from the input dispatch
+  hung the game on Windows.
 
 ## Status panel
 
@@ -2145,8 +2177,8 @@ picker's panel) or as cached thumbnails for many cells.
 - Once captured, the model spins about its vertical axis at
   `kSpinRadiansPerSecond` (30° a second, one turn in 12 s; the user's
   choice), as a horizontal drag to the right turns it. Holding the button
-  pauses the spin, which resumes from where the player left the model
-  `kSpinResumeSeconds` (2) of frame time after release (the user's choice).
+  pauses the spin, which resumes from where the player left the model as
+  soon as it is released (the user's choice).
   The spin advances by the frame time of the updates that render the model,
   so it pauses rather than jumps while thumbnails hold the renderer. A light
   (`FormType::Light`) does not spin, since ID 51778 does not turn it.
@@ -2398,6 +2430,11 @@ To verify in game:
     ID 414646, the inventory scene's render path does not call it, and the
     lighting shader's geometry setup (ID 107312) reads the transform. How
     bright 0.45 looks against the scene's light was not seen in game.
+
+13. Only an English and Russian switch was seen on Windows; other
+    languages were not tried. Dead keys compose in the polling thread's
+    own keyboard state, so a dead key pressed while the poll changes
+    threads may be lost.
 
 ## Acceptance criteria
 
@@ -2665,8 +2702,8 @@ To verify in game:
     as the inventory menu's, in capitals where the game shows them; moving off
     the panel keeps it. The model spins slowly and evenly, one turn in
     about 12 s, without flicker. Dragging the model stops the spin and turns
-    it smoothly like the inventory menu's model; 2 s after release it spins
-    on from there, and it keeps its angle after other items were hovered
+    it smoothly like the inventory menu's model; on release it spins on
+    from there, and it keeps its angle after other items were hovered
     and the grid thumbnails captured. The item picker's model shows on its
     dark panel as before and spins too.
 29. The settings window's sidebar lists General, Default Outfit, Interface,
@@ -2693,6 +2730,11 @@ To verify in game:
     and Escape or its close button returns input to the game. Clicking an
     online friend's name there closes it and opens the chat whispering
     that friend. With Manage Players unbound, `O` reaches the game.
+31. On Windows with English and Ukrainian layouts, switching the input
+    language with the Windows hotkey while the chat's field is open makes
+    the next letters Cyrillic, and switching back makes them Latin, without
+    closing the chat. The log shows the new layout with the first
+    character typed in it.
 
 ## Known limitations
 
@@ -2740,6 +2782,8 @@ To verify in game:
   ([Themed faces](#themed-faces)); in chat that is any line in a script other
   than Latin or Russian and Ukrainian Cyrillic. Sovngarde's `1` and `l` look
   alike, which shows in the server endpoint.
+- An input method editor's composition, such as Chinese or Japanese, does
+  not type into a window: Skyrim takes only single `ToUnicode` characters.
 - Editing shortcut letters (Ctrl+A/C/V/X/Y/Z) follow physical QWERTY positions,
   not the keyboard layout. Chat lines and player names cannot be selected
   or copied.

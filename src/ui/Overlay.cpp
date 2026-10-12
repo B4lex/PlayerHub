@@ -2,6 +2,7 @@
 #include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "ui/Fonts.h"
+#include "ui/InputLanguage.h"
 #include "ui/MenuFrame.h"
 #include "ui/WindowManager.h"
 #include "ui/chat/ChatWindow.h"
@@ -199,6 +200,7 @@ namespace UI::Overlay
         WindowManager::Register(CreateTradeWindow());
         WindowManager::Register(CreateSettingsWindow());
         InputCapture::Install();
+        InputLanguage::Install();
 
         REL::Relocation<std::uintptr_t> rendererEndTimerCall{ RELOCATION_ID(75461, 77246), 0x9 };
         RendererEndHook::_original

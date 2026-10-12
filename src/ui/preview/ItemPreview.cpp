@@ -19,7 +19,6 @@
 #include <utility>
 #include <vector>
 
-// The capture follows Item3DPreview in ModExplorerMenu by patchulidev (GPL-3.0).
 namespace UI::ItemPreview
 {
     namespace
@@ -47,7 +46,6 @@ namespace UI::ItemPreview
         // Dragging across this many font sizes turns the model by one radian.
         constexpr float kTurnFontsPerRadian = 8.0F;
         constexpr float kSpinRadiansPerSecond = std::numbers::pi_v<float> / 6.0F;
-        constexpr float kSpinResumeSeconds = 2.0F;
         constexpr ImVec4 kBlack{ 0.0F, 0.0F, 0.0F, 1.0F };
         constexpr ImVec4 kWhite{ 1.0F, 1.0F, 1.0F, 1.0F };
         // Every direction's ambient color in captures, so faces turned from the scene's light are lit.
@@ -154,7 +152,7 @@ float4 Separate(Vertex input) : SV_Target
             ImVec2 turn{};
             // ID 51778 does not turn a light, which would be captured every update for nothing.
             bool spins{ false };
-            float spinsFrom{ 0.0F };
+            bool held{ false };
             // Its local transform as fitted and turned, put back when it is loaded again.
             std::optional<RE::NiTransform> transform;
             double requestedSince{ 0.0 };
@@ -1093,7 +1091,7 @@ float4 Separate(Vertex input) : SV_Target
 
         bool IsModelSpinning()
         {
-            return model.spins && clock >= model.spinsFrom && !modelUnavailable
+            return model.spins && !model.held && !modelUnavailable
                 && (model.state == CaptureState::kCaptured || model.state == CaptureState::kSettled);
         }
 
@@ -1274,9 +1272,9 @@ float4 Separate(Vertex input) : SV_Target
                 .requestedSince = now };
         }
         model.side = std::floor((std::min)(a_size.x, a_size.y)) * kSupersample;
-        if (ImGui::IsItemActive() && model.state != CaptureState::kFailed)
+        model.held = ImGui::IsItemActive();
+        if (model.held && model.state != CaptureState::kFailed)
         {
-            model.spinsFrom = clock + kSpinResumeSeconds;
             const auto& delta = ImGui::GetIO().MouseDelta;
             const float scale = 1.0F / (kTurnFontsPerRadian * ImGui::GetFontSize());
             model.turn.x -= delta.x * scale;

@@ -57,6 +57,7 @@ criteria.
 | Settings | [ui-overlay](ui-overlay.md#settings-window), [configuration](configuration.md) |
 | Accent color | [ui-overlay](ui-overlay.md#accent-color), [configuration](configuration.md#ui) |
 | Key bindings | [ui-overlay](ui-overlay.md#key-bindings), [ui-overlay](ui-overlay.md#input-focus), [configuration](configuration.md#controls) |
+| Input language switching while typing | [ui-overlay](ui-overlay.md#input-language) |
 | Item trade | [trade](trade.md), [network](network.md#trade), [ui-overlay](ui-overlay.md#trade-window), [sync-pipeline](sync-pipeline.md#frame-sequence), [interest-and-delivery](interest-and-delivery.md#ordering), [configuration](configuration.md#controls) |
 | Item picker and preview | [ui-overlay](ui-overlay.md#item-picker), [appearance-and-equipment](appearance-and-equipment.md#item-filter-and-catalog) |
 | Replay and load testing | [recording-and-replay](recording-and-replay.md) |
