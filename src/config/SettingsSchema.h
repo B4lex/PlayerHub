@@ -25,8 +25,9 @@ namespace Config
         virtual void Bool(std::string_view a_key, bool& a_value, std::string_view a_comment) = 0;
         virtual void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
             std::uint32_t a_maximum, std::string_view a_zeroName) = 0;
+        // Valid values are the minimum plus whole steps.
         virtual void Percent(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-            std::uint32_t a_minimum, std::uint32_t a_maximum) = 0;
+            std::uint32_t a_minimum, std::uint32_t a_maximum, std::uint32_t a_step) = 0;
         virtual void String(std::string_view a_key, std::string& a_value, std::string_view a_comment,
             bool (*a_isValid)(std::string_view)) = 0;
         virtual void Form(std::string_view a_key, Multiplayer::FormReference& a_value,

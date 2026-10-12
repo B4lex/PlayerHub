@@ -3,6 +3,7 @@
 #include "sync/filters/PlayerFilters.h"
 #include "sync/notices/Notices.h"
 #include "ui/Theme.h"
+#include "ui/widgets/Controls.h"
 
 #include <imgui.h>
 
@@ -121,19 +122,9 @@ namespace UI
                     const auto textSize = ImGui::CalcTextSize(text, textEnd, false, wrapWidth);
                     const ImVec2 min{ std::floor(right - (strip + padding.x * 2.0F + std::ceil(textSize.x))), top };
                     const ImVec2 max{ right, top + padding.y * 2.0F + textSize.y };
-                    const auto seam = min.x + strip;
 
-                    // ImGui clamps a rect's rounding to its width, so a strip drawn as its own rect gets
-                    // near-square corners that stick out of the body's curve. Both halves are clipped from
-                    // one rounded rect instead; the seam is a whole pixel because backends truncate the
-                    // scissor, and the outer clip edges leave room for the anti-aliased fringe.
-                    drawList->PushClipRect(ImVec2{ min.x - 1.0F, min.y - 1.0F }, ImVec2{ seam, max.y + 1.0F }, true);
-                    drawList->AddRectFilled(min, max, ImGui::GetColorU32(WithAlpha(accent, alpha)), rounding);
-                    drawList->PopClipRect();
-                    drawList->PushClipRect(ImVec2{ seam, min.y - 1.0F }, ImVec2{ max.x + 1.0F, max.y + 1.0F }, true);
-                    drawList->AddRectFilled(
-                        min, max, ImGui::GetColorU32(WithAlpha(background, kBackgroundAlpha * alpha)), rounding);
-                    drawList->PopClipRect();
+                    Controls::StripedBox(*drawList, min, max, strip, ImGui::GetColorU32(WithAlpha(accent, alpha)),
+                        ImGui::GetColorU32(WithAlpha(background, kBackgroundAlpha * alpha)), rounding);
                     drawList->AddText(font, fontSize, ImVec2{ min.x + strip + padding.x, min.y + padding.y },
                         ImGui::GetColorU32(WithAlpha(textColor, alpha)), text, textEnd, wrapWidth);
                     top = max.y + gap;

@@ -19,7 +19,7 @@ namespace UI
         using Phase = TradeSession::Phase;
 
         // Below the compass.
-        constexpr float kTopFonts = 4.5F;
+        constexpr float kTopFonts = 5.0F;
         constexpr float kBackgroundAlpha = 0.85F;
         constexpr ImGuiWindowFlags kWindowFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
             | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize
@@ -144,7 +144,7 @@ namespace UI
                     ImGui::SameLine();
                 }
                 ImGui::PushStyleColor(ImGuiCol_Text, Theme::GetAccent());
-                ImGui::Text("[%.*s]", static_cast<int>(key.size()), key.data());
+                ImGui::Text("%.*s", static_cast<int>(key.size()), key.data());
                 ImGui::PopStyleColor();
                 ImGui::SameLine(0.0F, ImGui::CalcTextSize(" ").x);
                 ImGui::TextUnformatted(a_action);

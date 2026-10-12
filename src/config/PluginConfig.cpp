@@ -86,9 +86,9 @@ namespace Config
             }
 
             void Percent(std::string_view a_key, std::uint32_t& a_value, std::string_view, std::uint32_t a_minimum,
-                std::uint32_t a_maximum) override
+                std::uint32_t a_maximum, std::uint32_t a_step) override
             {
-                ReadUnsigned(a_key, a_value, a_minimum, a_maximum);
+                ReadUnsigned(a_key, a_value, a_minimum, a_maximum, a_step);
             }
 
             void String(std::string_view a_key, std::string& a_value, std::string_view,
@@ -211,15 +211,16 @@ namespace Config
                 return result;
             }
 
-            void ReadUnsigned(
-                std::string_view a_key, std::uint32_t& a_value, std::uint32_t a_minimum, std::uint32_t a_maximum)
+            void ReadUnsigned(std::string_view a_key, std::uint32_t& a_value, std::uint32_t a_minimum,
+                std::uint32_t a_maximum, std::uint32_t a_step = 1)
             {
                 const auto value = Take(a_key);
                 if (!value)
                 {
                     return;
                 }
-                if (const auto parsed = ParseUnsigned(*value); parsed && *parsed >= a_minimum && *parsed <= a_maximum)
+                if (const auto parsed = ParseUnsigned(*value);
+                    parsed && *parsed >= a_minimum && *parsed <= a_maximum && (*parsed - a_minimum) % a_step == 0)
                 {
                     a_value = *parsed;
                     return;
@@ -252,7 +253,7 @@ namespace Config
             }
 
             void Percent(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t,
-                std::uint32_t) override
+                std::uint32_t, std::uint32_t) override
             {
                 Text(a_key, std::format("{}", a_value), a_comment);
             }

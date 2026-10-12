@@ -70,6 +70,9 @@ namespace Config
         static constexpr std::array<std::string_view, 2> kFrameColorNames{ "Vanilla", "Accent" };
         static constexpr std::array<std::uint32_t, 8> kAccentSwatches{ 0xFF9000, 0x909090, 0xF2C14E, 0xE5484D, 0xE0559C, 0x9B6CF0,
             0x4F8EF7, 0x2EC4B6 };
+        static constexpr std::uint32_t kMinimumFontScale = 80;
+        static constexpr std::uint32_t kMaximumFontScale = 130;
+        static constexpr std::uint32_t kFontScaleStep = 5;
         static constexpr std::uint32_t kMinimumFrameThickness = 50;
         static constexpr std::uint32_t kMaximumFrameThickness = 100;
         static constexpr std::uint32_t kMinimumChatWidth = 24;
@@ -78,13 +81,14 @@ namespace Config
         static constexpr std::uint32_t kMaximumChatLines = 40;
         static constexpr std::uint32_t kMaximumNameplateDistance = 10000;
 
+        std::uint32_t fontScale{ 100 };
         std::uint32_t accentColor{ kAccentSwatches[0] };
         std::uint32_t frameColor{ kVanillaFrame };
         std::uint32_t frameThickness{ 70 };
         bool itemPreview{ true };
         bool nameplates{ true };
         std::uint32_t nameplateDistance{ 2100 };
-        bool statusPanel{ true };
+        bool statusPanel{ false };
         bool closeChatOnSend{ true };
         std::uint32_t chatWidth{ 30 };
         std::uint32_t chatLines{ 10 };

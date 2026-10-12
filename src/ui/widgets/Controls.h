@@ -27,4 +27,7 @@ namespace UI::Controls
     bool SearchField(const char* a_id, std::span<char> a_buffer);
 
     void MutedTextWrapped(const char* a_text);
+
+    void StripedBox(ImDrawList& a_list, const ImVec2& a_min, const ImVec2& a_max, float a_strip, ImU32 a_stripColor,
+        ImU32 a_bodyColor, float a_rounding);
 }

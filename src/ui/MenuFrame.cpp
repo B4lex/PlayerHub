@@ -261,6 +261,40 @@ namespace UI::MenuFrame
                 index = static_cast<ImDrawIdx>(index - first);
             }
         }
+
+        // A resizable window's size is set only when it appears, so a later overlay scale would
+        // leave its content in the old box. Begin has by then grown the window to the new minimum
+        // size, so the rect is scaled from the one kept last frame. Call between Begin and End.
+        void FollowFontSize(float a_fontSize, const ImVec2& a_display)
+        {
+            auto& storage = *ImGui::GetStateStorage();
+            const auto fontSizeId = ImGui::GetID("##FrameFontSize");
+            const std::array rectIds{ ImGui::GetID("##FrameX"), ImGui::GetID("##FrameY"), ImGui::GetID("##FrameWidth"),
+                ImGui::GetID("##FrameHeight") };
+            const auto previous = storage.GetFloat(fontSizeId, a_fontSize);
+            storage.SetFloat(fontSizeId, a_fontSize);
+
+            auto position = ImGui::GetWindowPos();
+            auto size = ImGui::GetWindowSize();
+            if (!ImGui::IsWindowAppearing() && previous != a_fontSize)
+            {
+                const auto ratio = a_fontSize / previous;
+                const ImVec2 kept{ storage.GetFloat(rectIds[2]), storage.GetFloat(rectIds[3]) };
+                const ImVec2 center{ storage.GetFloat(rectIds[0]) + kept.x * 0.5F,
+                    storage.GetFloat(rectIds[1]) + kept.y * 0.5F };
+                size = ImVec2{ std::floor((std::min)(kept.x * ratio, a_display.x)),
+                    std::floor((std::min)(kept.y * ratio, a_display.y)) };
+                position = ImVec2{ std::floor(std::clamp(center.x - size.x * 0.5F, 0.0F, a_display.x - size.x)),
+                    std::floor(std::clamp(center.y - size.y * 0.5F, 0.0F, a_display.y - size.y)) };
+                // The size applies from the next frame, so it is kept as set rather than read back.
+                ImGui::SetWindowSize(size);
+                ImGui::SetWindowPos(position);
+            }
+            storage.SetFloat(rectIds[0], position.x);
+            storage.SetFloat(rectIds[1], position.y);
+            storage.SetFloat(rectIds[2], size.x);
+            storage.SetFloat(rectIds[3], size.y);
+        }
     }
 
     void Load()
@@ -379,6 +413,10 @@ namespace UI::MenuFrame
         const bool visible = ImGui::Begin(a_name, nullptr, a_flags);
         ImGui::PopStyleColor(2);
         ImGui::PopStyleVar(2);
+        if (!a_layout.fixedPosition)
+        {
+            FollowFontSize(fontSize, display);
+        }
         if (visible)
         {
             Draw(ImGui::GetColorU32(Theme::GetFrameColor()),

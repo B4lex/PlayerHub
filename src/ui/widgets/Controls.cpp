@@ -164,4 +164,20 @@ namespace UI::Controls
         ImGui::TextWrapped("%s", a_text);
         ImGui::PopStyleColor();
     }
+
+    void StripedBox(ImDrawList& a_list, const ImVec2& a_min, const ImVec2& a_max, float a_strip, ImU32 a_stripColor,
+        ImU32 a_bodyColor, float a_rounding)
+    {
+        // ImGui clamps a rect's rounding to its width, so a strip drawn as its own rect gets near-square
+        // corners that stick out of the body's curve. Both halves are clipped from one rounded rect instead;
+        // the seam is a whole pixel because backends truncate the scissor, and the outer clip edges leave
+        // room for the anti-aliased fringe.
+        const auto seam = std::floor(a_min.x + a_strip);
+        a_list.PushClipRect(ImVec2{ a_min.x - 1.0F, a_min.y - 1.0F }, ImVec2{ seam, a_max.y + 1.0F }, true);
+        a_list.AddRectFilled(a_min, a_max, a_stripColor, a_rounding);
+        a_list.PopClipRect();
+        a_list.PushClipRect(ImVec2{ seam, a_min.y - 1.0F }, ImVec2{ a_max.x + 1.0F, a_max.y + 1.0F }, true);
+        a_list.AddRectFilled(a_min, a_max, a_bodyColor, a_rounding);
+        a_list.PopClipRect();
+    }
 }

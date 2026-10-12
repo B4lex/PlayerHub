@@ -1,4 +1,5 @@
 #include "ui/Overlay.h"
+#include "config/PluginConfig.h"
 #include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "ui/Fonts.h"
@@ -88,7 +89,8 @@ namespace UI::Overlay
 
         void ApplyScale(float a_displayHeight)
         {
-            const auto scale = (std::max)(a_displayHeight / kReferenceScreenHeight, kMinimumScale);
+            const auto fontScale = static_cast<float>(Config::Get()->ui.fontScale) * 0.01F;
+            const auto scale = (std::max)(a_displayHeight / kReferenceScreenHeight, kMinimumScale) * fontScale;
             if (scale == appliedScale)
             {
                 return;

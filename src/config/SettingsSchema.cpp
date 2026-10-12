@@ -233,6 +233,10 @@ namespace Config
         void DescribeUI(UISettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("UI", "");
+            a_visitor.Percent("FontScale", a_settings.fontScale,
+                "Size of the text in the settings window, the chat, and the rest of the\n"
+                "multiplayer interface. Windows grow and shrink with it.",
+                UISettings::kMinimumFontScale, UISettings::kMaximumFontScale, UISettings::kFontScaleStep);
             a_visitor.Color("AccentColor", a_settings.accentColor,
                 "Color that marks what can be selected or is selected in the settings window and\n"
                 "the chat, as hexadecimal RRGGBB.",
@@ -242,9 +246,7 @@ namespace Config
                 UISettings::kFrameColorNames);
             a_visitor.Percent("BorderThickness", a_settings.frameThickness,
                 "Thickness of the frame around the settings window and the chat.",
-                UISettings::kMinimumFrameThickness, UISettings::kMaximumFrameThickness);
-            a_visitor.Bool("ItemPreview", a_settings.itemPreview,
-                "Shows a 3D model of the hovered item in item lists.");
+                UISettings::kMinimumFrameThickness, UISettings::kMaximumFrameThickness, 1);
             a_visitor.Bool("Nameplates", a_settings.nameplates,
                 "Shows other players' names above their heads while they are in sight.");
             a_visitor.ShowNextIf(a_settings.nameplates);
@@ -252,11 +254,13 @@ namespace Config
                 "Game units within which names are shown above players' heads, about 70 to a\n"
                 "meter.",
                 UISettings::kMaximumNameplateDistance, "");
-            a_visitor.Bool("StatusPanel", a_settings.statusPanel,
-                "Displays the in-game debug status panel.");
             a_visitor.Bool("CloseChatOnSend", a_settings.closeChatOnSend,
                 "Closes the chat when Enter sends a line. Otherwise Enter only sends, and an\n"
                 "empty line does nothing.");
+            a_visitor.Bool("ItemPreview", a_settings.itemPreview,
+                "Shows a 3D model of the hovered item in item lists.");
+            a_visitor.Bool("StatusPanel", a_settings.statusPanel,
+                "Displays the in-game debug status panel.");
             a_visitor.Layout("ChatWidth", a_settings.chatWidth,
                 "Width of the chat in font sizes. Dragging the open chat's right edge sets it.",
                 UISettings::kMinimumChatWidth, UISettings::kMaximumChatWidth);

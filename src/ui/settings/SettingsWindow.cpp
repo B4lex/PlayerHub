@@ -39,7 +39,7 @@ namespace UI
         constexpr float kNavigationHeightFonts = 2.125F;
         constexpr float kNavigationInsetFonts = 0.875F;
         constexpr float kNavigationGapFonts = 0.125F;
-        constexpr float kNavigationMarkFonts = 0.1875F;
+        constexpr float kNavigationMarkFonts = 0.2F;
         constexpr float kNavigationIdleAlpha = 0.68F;
         constexpr ImVec2 kPagePaddingFonts{ 1.5F, 1.125F };
         constexpr float kCloseInsetFonts = 0.75F;
@@ -130,18 +130,15 @@ namespace UI
 
             auto& list = *ImGui::GetWindowDrawList();
             const ImVec2 end{ position.x + size.x, position.y + size.y };
-            if (a_selected || hovered)
-            {
-                list.AddRectFilled(position, end,
-                    ImGui::GetColorU32(a_selected ? Theme::Accent(0.16F) : Theme::Tint(0.06F)),
-                    ImGui::GetStyle().FrameRounding);
-            }
+            const auto rounding = ImGui::GetStyle().FrameRounding;
             if (a_selected)
             {
-                const auto width = std::floor(kNavigationMarkFonts * fontSize);
-                const auto inset = std::floor(size.y * 0.28F);
-                list.AddRectFilled(ImVec2{ position.x, position.y + inset },
-                    ImVec2{ position.x + width, end.y - inset }, ImGui::GetColorU32(Theme::GetAccent()), width * 0.5F);
+                Controls::StripedBox(list, position, end, std::floor(kNavigationMarkFonts * fontSize),
+                    ImGui::GetColorU32(Theme::GetAccent()), ImGui::GetColorU32(Theme::Accent(0.16F)), rounding);
+            }
+            else if (hovered)
+            {
+                list.AddRectFilled(position, end, ImGui::GetColorU32(Theme::Tint(0.06F)), rounding);
             }
             list.AddText(ImVec2{ position.x + std::floor(kNavigationInsetFonts * fontSize),
                              position.y + std::floor((size.y - fontSize) * 0.5F) },
@@ -391,14 +388,17 @@ namespace UI
             }
 
             void Percent(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-                std::uint32_t a_minimum, std::uint32_t a_maximum) override
+                std::uint32_t a_minimum, std::uint32_t a_maximum, std::uint32_t a_step) override
             {
                 if (!BeginRow(a_key, a_comment))
                 {
                     return;
                 }
-                ImGui::SliderScalar("##value", ImGuiDataType_U32, &a_value, &a_minimum, &a_maximum, "%u%%",
-                    ImGuiSliderFlags_AlwaysClamp);
+                if (ImGui::SliderScalar("##value", ImGuiDataType_U32, &a_value, &a_minimum, &a_maximum, "%u%%",
+                        ImGuiSliderFlags_AlwaysClamp))
+                {
+                    a_value = a_minimum + (a_value - a_minimum + a_step / 2) / a_step * a_step;
+                }
                 // Applied on release: a frame resized under the cursor would move the slider.
                 editing = editing || ImGui::IsItemActive();
                 EndRow();

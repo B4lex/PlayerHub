@@ -94,7 +94,9 @@ the same two files ran with the settings window's harness: the default file
 has `CloseChatOnSend = true` under its comment, between `StatusPanel` and
 `ChatWidth`; `false` loads; `maybe` warns and keeps `true`; a file without
 the key loads as `true`; switching it off and on in the window saves each
-value.
+value. `ItemPreview` and `StatusPanel` moved afterwards (2026-10-12) to follow
+`CloseChatOnSend`, last among the shown `[UI]` keys; `SettingsSchema.cpp` was
+not rechecked.
 
 ## Scope
 
@@ -142,7 +144,8 @@ takes the setting's item filter
 `Unsigned` takes the setting's maximum, above which a value in the file is
 invalid, and a name for zero where zero is not a count, which only the settings
 window shows; the file stores `0`. `Percent` takes both limits, outside which a
-value in the file is invalid; the file stores the number without a sign.
+value in the file is invalid, and a step: a value that is not the minimum
+plus whole steps is invalid too. The file stores the number without a sign.
 `Color` is an opaque `0xRRGGBB` value that the file stores as six hexadecimal
 digits (`FormatColor`, upper case); reading also takes lower case and a leading
 `#` (`ParseColor`). It takes swatches, the colors the settings window offers.
@@ -214,14 +217,15 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
+| `FontScale` | Size of the overlay's text in percent, `80..130` in steps of `5`; the windows laid out in font sizes grow and shrink with it ([UI overlay](ui-overlay.md#font-scale)) | `100` |
 | `AccentColor` | Color of the theme's accent in the settings window and the chat, as `RRGGBB` ([UI overlay](ui-overlay.md#accent-color)) | `FF9000` |
 | `BorderColor` | Color of the menu frame around the settings window and the open chat ([UI overlay](ui-overlay.md#menu-frame)): `Vanilla`, the grey of the game's menus, or `Accent`, the accent | `Vanilla` |
 | `BorderThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `50..100` | `70` |
-| `StatusPanel` | Shows the status panel | `true` |
-| `ItemPreview` | Shows the 3D item model in item pickers and the trade window's preview column, and item thumbnails in the trade window's offers; off, the cells show names and the column only the item card | `true` |
 | `Nameplates` | Shows other players' display names above their heads while in sight ([UI overlay](ui-overlay.md#nameplates)) | `true` |
 | `NameplateDistance` | Game units from the player within which nameplates show, `0..10000`, about 70 to a meter; `0` shows none and skips their line-of-sight tests, as `Nameplates = false` does; the settings window shows it only while `Nameplates` is on | `2100` |
 | `CloseChatOnSend` | Closes the chat when Enter sends a line; when `false`, the chat stays open and Enter in an empty field does nothing ([UI overlay](ui-overlay.md#sending)) | `true` |
+| `ItemPreview` | Shows the 3D item model in item pickers and the trade window's preview column, and item thumbnails in the trade window's offers; off, the cells show names and the column only the item card | `true` |
+| `StatusPanel` | Shows the status panel | `false` |
 | `ChatWidth` | Width of the chat's lines in font sizes, `24..100`; set by dragging the open chat's right edge ([UI overlay](ui-overlay.md#size)) and not shown in the settings window | `30` |
 | `ChatLines` | Lines of history the open chat shows, `9..40`; set by dragging its top edge, and not shown in the settings window | `10` |
 

@@ -33,6 +33,17 @@
   which a planted error confirmed reaches the first three. The player's
   line-of-sight path and the projection were read from the 1.7.104
   executable ([Engine assumptions](#engine-assumptions)).
+- **Font scale** (2026-10-12): not built on Windows or run in game. On
+  Linux, `Overlay.cpp`, `MenuFrame.cpp`, `SettingsWindow.cpp`,
+  `SettingsSchema.cpp`, and `PluginConfig.cpp` passed the g++ syntax check,
+  a planted error confirming each is checked. `MenuFrame`'s
+  `FollowFontSize` ran in a headless Dear ImGui 1.92.9 window set up as
+  `BeginWindow` sets up the settings window: a window dragged and resized at
+  100% grew to 130% around its center (900 × 600 to 1181 × 787 at a 21 px
+  font), held on later frames, reopened at 80% at 48 × 32 font sizes without
+  scaling twice, and a window in the display's corner scaled from its size
+  before `Begin` raised it to the new minimum and stayed on the display.
+  The slider's step and the file's step check were not run.
 - **SE 1.5.97 IDs** (2026-10-12): a 1.5.97 crash log showed opening a
   menu with an item preview crash in `Forms::GetItemDetails`, which called
   1.7.104 Address Library IDs that resolve to unrelated functions on SE; the
@@ -633,7 +644,7 @@ src/ui/
   trade/ItemCard              # the preview column's item card in the vanilla layout
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
   settings/ConnectionControls # connection button, the line under it, one-line summary
-  widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text
+  widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text, striped box
   widgets/ItemPicker          # item dropdown
   preview/ItemPreview         # 3D item model, spinning and turned by dragging, and cached thumbnails
   render/Gpu                  # back buffer, runtime-compiled full-screen passes, image blend modes
@@ -669,7 +680,28 @@ factory, such as `CreateChatWindow`, so its state stays in its `.cpp`.
   off for the session with an error.
 - `io.DisplaySize` comes from the swap chain's back buffer, not the window's
   client rectangle. Sizes and fonts are written for 1080p and scaled by
-  `backBufferHeight / 1080` (at least 0.5).
+  `backBufferHeight / 1080` (at least 0.5) times the [font scale](#font-scale).
+
+### Font scale
+
+`[UI] FontScale` ([Configuration](configuration.md#ui)), 80 to 130% in steps
+of 5, multiplies the overlay scale (`Overlay::ApplyScale`), which sets
+`FontScaleMain` and rescales the style from the unscaled one when the product
+changes, from the next frame after the setting applies.
+
+- Almost every length in the overlay is in font sizes, so the setting resizes
+  the whole overlay with the text: the settings, chat, trade, and player
+  windows, notices, nameplates, the status panel, and the menu frame. The
+  user chose this over scaling only the glyphs, which would need every layout
+  redone. The cursor's speed ([Input focus](#input-focus)) stays on the
+  display's scale alone.
+- The range is the user's. At 130% the trade panel's 52.8 font sizes are
+  1.7% taller than the display at any resolution (1098 px at 1080p), so the
+  panel is placed at the display's top and its bottom is cut; at 125% it
+  fits with 12 px to spare at 1080p.
+- The settings window's size is set only when it appears, so
+  `MenuFrame::BeginWindow` scales an open window's last size and keeps its
+  center when the font size changes ([Menu frame](#menu-frame)).
 - The DX11 backend does not save the output merger, so the overlay binds the
   swap chain's render target view, draws, and restores the previous targets.
 - `ImGuiConfigFlags_NoMouse` and `NoMouseCursorChange` are set unless a window
@@ -909,7 +941,11 @@ is not part of the plugin.
 - `MenuFrame::BeginWindow` begins the settings and trade windows the same way:
   centered and sized in font units when they appear, focused on request,
   padded by the frame's inset (plus a font size for trade), with its rounding,
-  and with the frame drawn behind the content.
+  and with the frame drawn behind the content. A resizable window keeps its
+  size and position in its ImGui state storage each frame; when the font size
+  differs from the kept one, it is resized by their ratio around its kept
+  center and clamped to the display. The kept rect, not the current one, is
+  scaled because `Begin` has by then grown the window to the new minimum size.
 - `MenuFrame::GetMetrics` gives a window those two lengths in pixels to lay its
   content out by. A knot stays inside the square of `corner` at its window
   corner, and cuts across it, so content is clear of it outside that square or
@@ -1052,8 +1088,8 @@ Windows.
 
 The panel sits in the top-right corner, 12 px from both edges before scaling, on
 a translucent background, and takes no input. It is drawn only during a game
-(`GameSession::IsInGame`) and while `[UI] StatusPanel` is on; a change applies
-on the next frame.
+(`GameSession::IsInGame`) and while `[UI] StatusPanel` is on, which it is not
+by default; a change applies on the next frame.
 
 | State | Text | Color |
 | --- | --- | --- |
@@ -1175,7 +1211,7 @@ action on a notice. What answers the chat's own input is a
   with the theme's surface at 85% and its corners, its text in the theme's
   text and face, wrapped at 22 font sizes less the padding, and a strip in
   the accent on its left edge. The strip and the surface are clipped from
-  one rounded box, so the strip follows the box's left corners: a
+  one rounded box (`Controls::StripedBox`), so the strip follows the box's left corners: a
   separate strip rect would have its rounding clamped to its narrow width.
   Notices have no kinds: the user chose the
   accent for all over a color per success, warning, and info.
@@ -1802,7 +1838,7 @@ neither touches an engine object.
 
 - `TradePrompt`, registered before the settings window so its keys come
   first, draws while a trade is requested, invited, or inviting: a framed
-  panel at the top center, 4.5 font sizes down, under the compass. It has
+  panel at the top center, 5 font sizes down, under the compass. It has
   no inputs and never takes focus to show.
 - Invited: the inviting player's name in the accent, `wants to trade`, then
   `[Y] Accept`, `[N] Decline` with the configured keys' labels
@@ -2004,7 +2040,9 @@ peers keep seeing the player.
   [connection button](#connection-controls), then Default Outfit,
   Interface (`[UI]`), Keybinds (`[Controls]`), Network, and Performance
   (the user's order). `FormatSectionTitle` maps the two renamed sections. The
-  open section's item has an accent tint and an accent mark on its left. The
+  open section's item has an accent tint and, like a [notice](#notices), a
+  strip in the accent 0.2 font sizes wide down its full height on its left,
+  clipped from the item's rounded box (`Controls::StripedBox`). The
   connection status stays at the sidebar's bottom in every section
   (`ConnectionControls::DrawSummary`).
 - The open section's title and the group names inside a section are in the
@@ -2042,7 +2080,8 @@ peers keep seeing the player.
   (`Auto`, `Unlimited`) in the empty field, and clearing the field sets zero.
 - A percentage's slider runs between its limits and shows the value with a
   percent sign. Ctrl and a click turn it into a field, and a typed value is
-  clamped to the limits.
+  clamped to the limits; a dragged or typed value is rounded to the nearest
+  step from the minimum.
 - Edits in every section but Default Outfit take effect and are saved as they
   are made, with no button: a switch, combo, or swatch at once, a key when
   it is bound, a number when
@@ -2536,8 +2575,9 @@ To verify in game:
 
 ## Acceptance criteria
 
-1. The main menu shows no status panel. In a game the panel shows the connection,
-   a stable ping, traffic, and plugin time, and scales at 1080p and 4K;
+1. The main menu shows no status panel, and a game shows none by default. With
+   `StatusPanel = true`, in a game the panel shows the connection, a stable
+   ping, traffic, and plugin time, and scales at 1080p and 4K;
    `StatusPanel = false` hides it at once.
 2. Enter opens the chat only with no menu open; the character stands still while
    typing, and W held from before keeps running until released. Enter sends and
@@ -2845,6 +2885,13 @@ To verify in game:
     with the HUD hidden (`tm`), behind the trade window, or with
     `Nameplates` off. Many players in view do not lower the frame rate
     noticeably.
+33. `Font Scale` at the top of the Interface section reads `100%` and moves
+    in steps of 5 between 80 and 130. Releasing it at 130 makes the text and
+    every overlay window, the chat, notices, and nameplates larger from the
+    next frame and writes `FontScale = 130`; the open settings window grows
+    around its center and stays on the display, and the cursor moves at the
+    same speed. At 80 all of them shrink the same way. `FontScale = 107` or
+    `150` in the file warns in the log and loads `100`.
 
 ## Known limitations
 
