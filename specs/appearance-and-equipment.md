@@ -290,17 +290,22 @@ Hand timing:
 
 Each player configures a default outfit and race that peers show in place of
 the player's items and race they cannot resolve. Its forms are limited to
-base-game plugins, which every receiver has (a Special Edition receiver without
-the Anniversary upgrade lacks the Creation Club ones and shows nothing for
-them), so they are expected to resolve. It is the source's choice; the receiver
-has no outfit of its own.
+base-game plugins (`Multiplayer::IsBaseGamePlugin`): the five Special Edition
+masters, which every receiver has, so they are expected to resolve, and
+`ccFSVSSE001-Backpacks.esl`. Other Creation Club plugins are not base-game,
+since a Special Edition receiver, or an Anniversary Edition one without the
+upgrade, lacks them: an outfit cannot use them, and a worn Creation Club item
+gets a stand-in like any modded item. The backpacks are the exception because
+they only use slot 47: a receiver without them shows no backpack and every
+other slot as usual. It is the source's choice; the receiver has no outfit of
+its own.
 
 `DefaultOutfit` resolves every configured form at `kDataLoaded` and whenever
 the settings change `[DefaultOutfit]` (`Refresh`, first in each pass), checked
 with the key's item filter. A form that is missing or does not fit is logged
 with its key (`Default outfit item ignored ... reason=does-not-fit`) and
 replaced by the key's default, or treated as unset when the default is unusable
-too, such as the Anniversary backpack on a Special Edition install.
+too, such as the Anniversary backpack on an install without it.
 
 Each equipment capture selects pieces only for items not from base-game
 plugins:

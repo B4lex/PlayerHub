@@ -171,8 +171,10 @@ What peers show in place of this player's race and items they cannot resolve
 values are `Plugin|FormID`, the defining plugin and its local hexadecimal ID, as
 in `Skyrim.esm|0x012E49`. A full load-order form ID is rejected, since it differs
 between modpacks. Every key has a value: an empty or malformed one is invalid and
-keeps the default. Only base-game forms, including Anniversary Edition content,
-are accepted.
+keeps the default. Only base-game forms are accepted: the five Special Edition
+masters and `ccFSVSSE001-Backpacks.esl`, without other Creation Club content,
+so a peer on Special Edition or on Anniversary Edition without the upgrade
+resolves every piece but the backpack.
 
 | Key | Meaning |
 | --- | --- |

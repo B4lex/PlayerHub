@@ -399,8 +399,8 @@ create dynamic color forms.
 
 `slot_mask` and `weapon_type` are hints that select the default outfit piece;
 the receiver's locally resolved form decides how an item is equipped. The
-base-game plugins are the Special Edition masters and the 74 Creation Club
-plugins the Anniversary Edition `Skyrim.ccc` lists;
+base-game plugins are the five Special Edition masters and
+`ccFSVSSE001-Backpacks.esl`, without other Creation Club plugins;
 `Multiplayer::IsBaseGamePlugin` and the server's `baseGamePlugins` hold the
 same list.
 

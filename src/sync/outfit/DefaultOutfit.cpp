@@ -45,8 +45,8 @@ namespace DefaultOutfit
                 return a_reference;
             }
             ++a_unusable;
-            // Anniversary Edition defaults are missing from Special Edition installs
-            // without the upgrade.
+            // The Anniversary Edition backpack default is missing from installs
+            // without it.
             const bool useDefault = a_default != a_reference && FindUnusableReason(a_default, a_filter).empty();
             logs::warn("Default outfit item ignored [DefaultOutfit] {}: item={}|{:06X} reason={} using={}", a_label,
                 a_reference.plugin, a_reference.localFormID, reason, useDefault ? "default" : "none");
