@@ -300,7 +300,7 @@ Four groups: Display (`FontScale`, `AccentColor`, `BorderColor`,
 | `ItemPreview` | Shows the 3D item model in item pickers and the trade window's preview column, and item thumbnails in the trade window's offers; off, the cells show names and the column only the item card | `true` |
 | `ChatWidth` | Width of the chat's lines in font sizes, `24..100`; set by dragging the open chat's right edge ([UI overlay](ui-overlay.md#size)) and not shown in the settings window | `30` |
 | `ChatLines` | Lines of history the open chat shows, `9..40`; set by dragging its top edge, and not shown in the settings window | `10` |
-| `ChatPositionHorizontal` | Distance of the open chat's left edge from the screen's left edge in percent of the screen's width, `0..100`; the chat stays there and its size is limited to the room left on the screen ([UI overlay](ui-overlay.md#position)) | `1` |
+| `ChatPositionHorizontal` | Distance of the open chat's left edge from the screen's left edge in percent of the screen's width, `0..100`; the chat stays there and its size is limited to the room left on the screen; also set by dragging the open chat ([UI overlay](ui-overlay.md#position)) | `1` |
 | `ChatPositionVertical` | Distance of the open chat's bottom edge from the screen's bottom edge in percent of the screen's height, `0..100`; the default keeps it above the magicka bar | `8` |
 
 ### `[Controls]`
@@ -391,12 +391,13 @@ revision before the snapshot never misses a change.
 | `Theme` | overlay | working out the accent and frame colors from `AccentColor` and `BorderColor` when the revision changes |
 | `MenuFrame` | overlay | reading `BorderThickness` for each framed window each frame |
 | `ChatSize` | overlay | reading `ChatWidth` and `ChatLines` each frame the chat draws, outside a drag |
-| `ChatWindow` | overlay | reading `ChatPositionHorizontal` and `ChatPositionVertical` each frame the chat or its recent lines draw |
+| `ChatPosition` | overlay | reading `ChatPositionHorizontal` and `ChatPositionVertical` each frame the chat or its recent lines draw, outside a drag |
 
 ## Saving
 
 `Config::Apply` is called by the settings window, and by the chat when a drag
-on its edges ends ([UI overlay](ui-overlay.md#size)).
+on its edges ([UI overlay](ui-overlay.md#size)) or one that moves it
+([UI overlay](ui-overlay.md#position)) ends.
 
 - The current file is loaded with its comments and each setting written into it.
   SimpleIni keeps an existing key's comment and position, adds a new key with its

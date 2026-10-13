@@ -21,7 +21,11 @@
   on Windows (the user's check). As positions from the screen's corner, without
   the margins, it is not yet built on Windows or run in game; on Linux,
   `ChatWindow.cpp`, `SettingsSchema.cpp`, `PluginConfig.cpp`, and
-  `SettingsWindow.cpp` passed the g++ syntax check.
+  `SettingsWindow.cpp` passed the g++ syntax check. Moving the chat by a drag
+  (2026-10-13) is not built on Windows, run in game, or run in the headless
+  harness; on Linux, `ChatPosition.cpp`, `ChatSize.cpp`, and `ChatWindow.cpp`
+  passed the g++ syntax check, which a planted error confirmed reaches
+  `ChatPosition.cpp`.
 - **Settings sections** (`[Connection]`, `[Advanced]`, and the `[UI]`
   groups, 2026-10-13): not built on Windows or run in game, and not run in
   the headless harness. On Linux, `SettingsSchema.cpp`, `PluginConfig.cpp`,
@@ -681,6 +685,7 @@ src/ui/
   chat/ChatHistory            # lines, channel filters, unread marks, scrolling, the line menu
   chat/ChatInput              # target chip and its menu, text field, name and command list, notes
   chat/ChatSize               # the open chat's size, the drag that sets it, saving it
+  chat/ChatPosition           # the open chat's corner, the drag that moves it, saving it
   chat/ChatPlayers            # the players online: the button on the filters' row, the list beside the chat
   chat/ChatStyle.h            # channel and failure colors, the chips' frame, the rule under the filters
   chat/ChatPlayerMenu         # a player's menu: heading, whisper, trade, friend, mute and vanish items or their undoing
@@ -1625,7 +1630,7 @@ never a line, so the history holds only what players said.
 
 - `[UI] ChatPositionHorizontal` and `ChatPositionVertical`
   ([Configuration](configuration.md#ui)) place the lower left corner of the
-  open chat's frame (`GetChatAnchor`) at a percentage of the screen's width
+  open chat's frame (`ChatPosition::Get`) at a percentage of the screen's width
   from its left edge and of its height from its bottom edge, so `0` and `0` is
   the screen's lower left corner and the place is the same share of any
   resolution, independent of the font scale. The defaults, `1` and `8`, keep
@@ -1647,6 +1652,34 @@ never a line, so the history holds only what players said.
   back and forth.
 - The settings window shows both as percentage sliders; Defaults on `[UI]`
   resets them. The chat moves when a slider is released.
+- The player also moves the open chat by dragging any part of it that takes
+  no click itself: the frame's left and bottom strips, the gaps in the
+  filters' row, and the lines away from senders' names. The top and right
+  strips stay the [size](#size) grips. `ChatPosition::Grab` runs after every
+  item in the window, so `ImGui::IsAnyItemHovered` covers the filters, the
+  players chip, the target chip, the field, and the scrollbar; a sender's
+  name takes its click without being an item, so a click that picked one
+  (`ChatHistory::DrawLines`) starts no move, and neither does one while a
+  menu is open or over a resize grip (`ChatSize::Grab`). Moving starts past
+  Dear ImGui's drag threshold, so a plain click, which only takes the field's
+  focus until the button is released, moves and saves nothing. While moving,
+  the cursor is the move one.
+- During the drag the corner follows the cursor by the whole pixel and stops
+  where the chat at its configured size, not the size the room leaves it,
+  touches a screen edge (`ChatPosition::Follow`). A drag never shrinks the
+  chat, then; one grabbed from a slider's position whose room had narrowed it
+  first grows back to its configured size within the screen. `GetUnits`
+  allows half a pixel, so a chat against the right or top edge, whose room is
+  exactly its size, keeps that size. The player list's side is chosen anew
+  each frame, so it goes left as the chat nears the right edge.
+- Releasing the button, or the chat losing focus mid-drag
+  (`ChatPosition::Release`), stores the nearest whole percentages, applies
+  them with `Config::Apply` only if they changed, and logs them. A nearest
+  percentage whose corner would leave the chat less room than the drag did is
+  rounded toward the lower left corner instead, so a chat dragged against the
+  right or top edge keeps its size. The chat therefore settles up to half a
+  percent from where it was dropped, about 10 px across and 5 px up and down
+  at 1080p, or a whole percent beside the right or top edge.
 
 ### Window and input
 
@@ -3074,6 +3107,16 @@ To verify in game:
     against the lower left corner, over the magicka bar. Defaults puts it back
     above the magicka bar, and the positions are in `PlayerHub.ini` after a
     restart.
+37. Dragging the open chat by its left or bottom strip, a gap in the
+    filters' row, or the lines away from a name moves it with the cursor and
+    the move cursor, keeping its size; it stops at each screen edge, wholly on
+    the screen. A press on a filter, the players chip, the target chip, the
+    field, the scrollbar, or a name does what it did before and moves nothing,
+    as does a click without a drag. On release the chat stays within a few
+    pixels of where it was dropped, at its size, the `[UI]` page's sliders
+    show the new percentages, and the chat is there after a restart. Dragged
+    into the upper right corner with the player list open, the list opens on
+    the chat's left.
 
 ## Known limitations
 
@@ -3100,7 +3143,8 @@ To verify in game:
 - Lists, tooltips, notices, notes, and recent chat lines have no menu frame: its corners need
   about 65 px of height at 1080p at the default thickness. The settings window's
   resize grip and edge highlight and the chat's grips are not drawn, so only
-  the cursor shows where each resizes.
+  the cursor shows where each resizes. Nothing shows where the chat can be
+  grabbed to move it, and the move cursor shows only once it moves.
 - `BorderThickness` sizes the whole frame; thinner lines with knots of the same
   size would need another shape. Below about 60 the knots are hard to read at
   1080p.

@@ -113,26 +113,27 @@ namespace UI
         settled = ToExtent(size, a_units);
     }
 
-    void ChatSize::Grab(const Grip& a_grip, const Units& a_units)
+    bool ChatSize::Grab(const Grip& a_grip, const Units& a_units)
     {
         if (edges != kNone)
         {
-            return;
+            return true;
         }
         const auto hovered = FindEdges(a_grip);
         if (hovered == kNone)
         {
-            return;
+            return false;
         }
         ShowResizeCursor(hovered);
         if (!ImGui::IsMouseClicked(ImGuiMouseButton_Left))
         {
-            return;
+            return true;
         }
         origin = Get(a_units);
         size = origin;
         settled = ToExtent(size, a_units);
         edges = hovered;
+        return true;
     }
 
     void ChatSize::Release()

@@ -33,7 +33,8 @@ namespace UI
 
         void Follow(const Units& a_units);
 
-        void Grab(const Grip& a_grip, const Units& a_units);
+        // Whether a drag is held or the cursor is on a grip.
+        bool Grab(const Grip& a_grip, const Units& a_units);
 
         void Release();
 

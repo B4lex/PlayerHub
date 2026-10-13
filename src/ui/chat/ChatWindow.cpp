@@ -9,6 +9,7 @@
 #include "ui/chat/ChatInput.h"
 #include "ui/chat/ChatPlayerManager.h"
 #include "ui/chat/ChatPlayers.h"
+#include "ui/chat/ChatPosition.h"
 #include "ui/chat/ChatSize.h"
 #include "ui/chat/ChatStyle.h"
 
@@ -29,6 +30,10 @@ namespace UI
     namespace
     {
         constexpr float kPlayerListGapFonts = 0.5F;
+
+        // So a chat dragged against an edge, whose room is exactly its size,
+        // keeps that size through the division by the step.
+        constexpr float kRoomTolerancePixels = 0.5F;
 
         constexpr float kOpenBackgroundAlpha = 0.6F;
         constexpr float kManagerBackgroundAlpha = 0.9F;
@@ -54,22 +59,18 @@ namespace UI
             return (ImGui::GetStyle().WindowPadding.x + GetFramePadding()) * 2.0F;
         }
 
-        // The lower left corner of the open chat's frame.
-        ImVec2 GetChatAnchor()
+        ImVec2 GetStep()
         {
-            const auto& display = ImGui::GetIO().DisplaySize;
-            const auto config = Config::Get();
-            return ImVec2{ std::floor(static_cast<float>(config->ui.chatPositionHorizontal) * 0.01F * display.x),
-                std::floor(display.y - static_cast<float>(config->ui.chatPositionVertical) * 0.01F * display.y) };
+            return ImVec2{ ImGui::GetFontSize(), ChatHistory::GetLinePitch() };
         }
 
         // The room from the anchor to the right and top edges.
         ChatSize::Units GetUnits(const ImVec2& a_anchor, const ImVec2& a_around)
         {
             const auto& display = ImGui::GetIO().DisplaySize;
-            const ImVec2 step{ ImGui::GetFontSize(), ChatHistory::GetLinePitch() };
-            const auto width = display.x - a_anchor.x - a_around.x;
-            const auto height = a_anchor.y - a_around.y;
+            const auto step = GetStep();
+            const auto width = display.x - a_anchor.x - a_around.x + kRoomTolerancePixels;
+            const auto height = a_anchor.y - a_around.y + kRoomTolerancePixels;
             return ChatSize::Units{ .step = step,
                 .maximum = { .width = static_cast<std::uint32_t>((std::max)(width / step.x, 0.0F)),
                     .lines = static_cast<std::uint32_t>((std::max)(height / step.y, 0.0F)) } };
@@ -179,6 +180,7 @@ namespace UI
                     return;
                 }
                 size.Release();
+                position.Release();
                 if (managerShown)
                 {
                     DrawManagerOnly();
@@ -200,6 +202,14 @@ namespace UI
 
             [[nodiscard]] bool IsManagerOnly() const { return managerOnly.load(std::memory_order_acquire); }
 
+            [[nodiscard]] ImVec2 GetConfiguredFrameSize() const
+            {
+                const auto lines = size.Get(ChatSize::Units{ .step = GetStep(),
+                    .maximum = { .width = Config::UISettings::kMaximumChatWidth,
+                        .lines = Config::UISettings::kMaximumChatLines } });
+                return ImVec2{ lines.x + GetSidePadding(), lines.y + aroundHeight };
+            }
+
             [[nodiscard]] ImVec2 GetClosedFrameSize(const ImVec2& a_anchor) const
             {
                 const auto sidePadding = GetSidePadding();
@@ -216,7 +226,7 @@ namespace UI
                 }
 
                 const Theme::Scope theme;
-                const auto anchor = GetChatAnchor();
+                const auto anchor = position.Get();
                 const auto frameSize = GetClosedFrameSize(anchor);
                 const auto width = frameSize.x - GetSidePadding();
                 // Inside where the open chat's frame would be, so the lines stay in their
@@ -238,7 +248,8 @@ namespace UI
             {
                 const Theme::Scope theme;
                 const auto sidePadding = GetSidePadding();
-                const auto anchor = GetChatAnchor();
+                position.Follow(GetConfiguredFrameSize());
+                const auto anchor = position.Get();
                 auto units = GetUnits(anchor, ImVec2{ sidePadding, aroundHeight });
                 const auto listWidth = players.IsOpen() ? GetPlayerListGap() + GetPlayerListWidth() : 0.0F;
                 const auto listSide = players.IsOpen()
@@ -295,13 +306,15 @@ namespace UI
                 aroundHeight = ImGui::GetCursorScreenPos().y - ImGui::GetWindowPos().y + inputRowHeight + padding.y
                     + framePadding;
                 const ImVec2 grip{ padding.x + framePadding, padding.y + framePadding };
-                size.Grab(ChatSize::Grip{ .depth = grip,
-                              .corner = (std::max)({ MenuFrame::GetMetrics().corner, grip.x, grip.y }) },
-                    units);
-                if (const auto player = history.DrawLines(
-                        a_input, ImVec2{ 0.0F, -inputRowHeight }, closeMenu, players.IsHovered() || manager.IsHovered()))
+                const bool resizing = !position.IsHeld()
+                    && size.Grab(ChatSize::Grip{ .depth = grip,
+                                     .corner = (std::max)({ MenuFrame::GetMetrics().corner, grip.x, grip.y }) },
+                        units);
+                const auto picked = history.DrawLines(
+                    a_input, ImVec2{ 0.0F, -inputRowHeight }, closeMenu, players.IsHovered() || manager.IsHovered());
+                if (picked)
                 {
-                    Whisper(*player);
+                    Whisper(*picked);
                 }
 
                 input.DrawListing();
@@ -318,6 +331,12 @@ namespace UI
                 {
                     WindowManager::ReleaseFocus(*this);
                     manager.Close();
+                }
+                // After every item, so Dear ImGui knows whether one is under the cursor.
+                // A name takes its click without being an item.
+                if (!resizing && !picked && !menuOpen)
+                {
+                    position.Grab(corner);
                 }
 
                 const auto windowPos = ImGui::GetWindowPos();
@@ -447,6 +466,7 @@ namespace UI
             ChatPlayers players;
             ChatPlayerManager manager;
             ChatSize size;
+            ChatPosition position;
             float aroundHeight{ 0.0F };
             ChatSync::ChatTarget shownTarget;
             std::vector<std::string> rejections;
