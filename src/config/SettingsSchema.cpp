@@ -240,6 +240,7 @@ namespace Config
                 UISettings::kMaximumNameplateDistance, "", 1);
 
             a_visitor.Comment("Chat");
+            a_visitor.LabelNext("Close on send");
             a_visitor.Bool("CloseChatOnSend", a_settings.closeChatOnSend,
                 "Closes the chat when Enter sends a line. Otherwise Enter only sends, and an\n"
                 "empty line does nothing.");
@@ -249,10 +250,12 @@ namespace Config
             a_visitor.Layout("ChatLines", a_settings.chatLines,
                 "Lines of history the open chat shows. Dragging its top edge sets it.",
                 UISettings::kMinimumChatLines, UISettings::kMaximumChatLines);
+            a_visitor.LabelNext("Horizontal position");
             a_visitor.Percent("ChatPositionHorizontal", a_settings.chatPositionHorizontal,
                 "Distance of the chat's left edge from the screen's left edge, as a share of the\n"
                 "screen's width. The chat stays on the screen.",
                 0, UISettings::kMaximumChatPosition, 1);
+            a_visitor.LabelNext("Vertical position");
             a_visitor.Percent("ChatPositionVertical", a_settings.chatPositionVertical,
                 "Distance of the chat's bottom edge from the screen's bottom edge, as a share of\n"
                 "the screen's height. The chat stays on the screen.",

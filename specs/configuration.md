@@ -168,7 +168,10 @@ digits (`FormatColor`, upper case); reading also takes lower case and a leading
 an unsigned value within both limits, read and saved as any other, which the
 settings window does not show. `ShowNextIf` makes the next setting depend on a
 value described before it; reading and saving ignore it, and the settings
-window leaves the row out while the value is false.
+window leaves the row out while the value is false. `LabelNext` gives the next
+setting a label that the settings window shows in place of its key split into
+words; reading and saving ignore it, so a label changes without renaming the
+key. The chat group's shown settings use it to drop the group's name.
 `Comment` names a group of the settings after it: a comment line above them
 in a new file, and a group heading in the settings window.
 `Config::Describe` describes the sections in the order Connection,

@@ -98,6 +98,18 @@ namespace UI
             }
         }
 
+        void FormatSettingLabel(std::string_view a_key, std::string_view a_label, std::string& a_result)
+        {
+            if (a_label.empty())
+            {
+                FormatDisplayName(a_key, a_result);
+            }
+            else
+            {
+                a_result.assign(a_label);
+            }
+        }
+
         void FormatSectionTitle(std::string_view a_name, std::string& a_result)
         {
             for (const auto& [name, title] : kSectionTitles)
@@ -295,6 +307,7 @@ namespace UI
             {
                 EndSection();
                 hideNext = false;
+                nextLabel = {};
                 sections.push_back(a_name);
                 if (openSection.empty())
                 {
@@ -334,6 +347,8 @@ namespace UI
             }
 
             void ShowNextIf(bool a_shown) override { hideNext = !a_shown; }
+
+            void LabelNext(std::string_view a_label) override { nextLabel = a_label; }
 
             void Comment(std::string_view a_comment) override
             {
@@ -546,7 +561,8 @@ namespace UI
             void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
                 std::uint32_t a_cleared) override
             {
-                bindings.push_back(KeyBinding{ .name = a_key, .value = &a_value, .cleared = a_cleared });
+                bindings.push_back(
+                    KeyBinding{ .name = a_key, .label = nextLabel, .value = &a_value, .cleared = a_cleared });
                 if (!BeginRow(a_key, a_comment))
                 {
                     return;
@@ -568,7 +584,10 @@ namespace UI
                 EndRow();
             }
 
-            void Layout(std::string_view, std::uint32_t&, std::string_view, std::uint32_t, std::uint32_t) override {}
+            void Layout(std::string_view, std::uint32_t&, std::string_view, std::uint32_t, std::uint32_t) override
+            {
+                nextLabel = {};
+            }
 
         private:
             struct TextField
@@ -581,6 +600,7 @@ namespace UI
             struct KeyBinding
             {
                 std::string_view name;
+                std::string_view label;
                 std::uint32_t* value;
                 std::uint32_t cleared;
             };
@@ -683,7 +703,7 @@ namespace UI
                     if (other != bindings.end())
                     {
                         captureRejected = true;
-                        FormatDisplayName(other->name, label);
+                        FormatSettingLabel(other->name, other->label, label);
                         captureNote = std::format("{} is already used by {}", keyLabel, label);
                         return;
                     }
@@ -697,7 +717,7 @@ namespace UI
             {
                 sectionEmpty = false;
                 ImGui::PushID(a_key.data(), a_key.data() + a_key.size());
-                FormatDisplayName(a_key, label);
+                FormatSettingLabel(a_key, std::exchange(nextLabel, {}), label);
                 DrawText(label);
 
                 auto& field = GetField([&a_value] { return a_value; });
@@ -749,6 +769,7 @@ namespace UI
             bool BeginRow(std::string_view a_key, std::string_view a_comment, bool a_labeled = true)
             {
                 const bool hidden = std::exchange(hideNext, false);
+                const auto customLabel = std::exchange(nextLabel, {});
                 if (!sectionOpen)
                 {
                     return false;
@@ -776,7 +797,7 @@ namespace UI
                 controlWidth = std::floor(width * kControlWidth);
                 controlLeft = left + width - controlWidth;
 
-                FormatDisplayName(a_key, label);
+                FormatSettingLabel(a_key, customLabel, label);
                 ImGui::AlignTextToFramePadding();
                 DrawText(label);
                 DrawTooltip(a_comment);
@@ -862,6 +883,7 @@ namespace UI
             // Describe passes literals, so the views outlive the pass.
             std::vector<std::string_view> sections;
             std::string_view openSection;
+            std::string_view nextLabel;
             ImVec2 padding;
             float buttonFooterHeight{ 0.0F };
             float plainFooterHeight{ 0.0F };

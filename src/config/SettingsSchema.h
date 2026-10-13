@@ -22,6 +22,8 @@ namespace Config
         virtual void Comment(std::string_view a_comment) = 0;
         // Applies to the next setting. Only the settings window hides one.
         virtual void ShowNextIf(bool) {}
+        // Applies to the next setting in place of its key. Only the settings window draws labels.
+        virtual void LabelNext(std::string_view) {}
         virtual void Bool(std::string_view a_key, bool& a_value, std::string_view a_comment) = 0;
         // Only the settings window's slider keeps to the step; any value up to the maximum is valid.
         virtual void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,

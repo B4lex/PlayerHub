@@ -2163,8 +2163,9 @@ peers keep seeing the player.
   the footer stay in view. The close button and the end of the settings of a
   section without a footer stay out of the knots' squares.
 - Widgets come from the same `Config::Describe` visitor that reads and writes the
-  file, so a new setting appears without UI code. A row is the key split
-  into words and, in the right 58% of the row,
+  file, so a new setting appears without UI code. A row is its label, the
+  schema's `LabelNext` label or else the key split into words
+  (`FormatSettingLabel`), and, in the right 58% of the row,
   its control: a switch at the right edge for a bool, a slider for an
   unsigned value or a percentage, a text field for a string, an item picker for a form, a combo for a choice, a button showing
   the key for a key ([Key bindings](#key-bindings)), and swatches for a color
@@ -2290,7 +2291,7 @@ by pressing it, as games' control menus do.
   an action that can be unbound.
 - A reserved key, one without a name, shows a red line under the button
   saying it cannot be bound, and a key another action has a line naming
-  that action; listening goes on, so the player
+  that action by its row label; listening goes on, so the player
   presses another key or cancels.
 - Losing focus or reopening the window ends listening.
 - The page's Defaults button ([Settings window](#settings-window)) restores

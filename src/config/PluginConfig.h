@@ -79,7 +79,7 @@ namespace Config
         static constexpr std::uint32_t kMinimumChatLines = 9;
         static constexpr std::uint32_t kMaximumChatLines = 40;
         static constexpr std::uint32_t kMaximumChatPosition = 100;
-        static constexpr std::uint32_t kMaximumNameplateDistance = 6000;
+        static constexpr std::uint32_t kMaximumNameplateDistance = 4000;
 
         std::uint32_t fontScale{ 100 };
         std::uint32_t accentColor{ kAccentSwatches[0] };
@@ -87,10 +87,10 @@ namespace Config
         std::uint32_t frameThickness{ 60 };
         bool itemPreview{ true };
         bool nameplates{ true };
-        std::uint32_t nameplateDistance{ 2100 };
+        std::uint32_t nameplateDistance{ 2000 };
         bool closeChatOnSend{ true };
         std::uint32_t chatWidth{ 30 };
-        std::uint32_t chatLines{ 10 };
+        std::uint32_t chatLines{ 15 };
         // Close to the left edge and above the vanilla magicka bar.
         std::uint32_t chatPositionHorizontal{ 1 };
         std::uint32_t chatPositionVertical{ 8 };
