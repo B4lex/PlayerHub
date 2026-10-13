@@ -1,4 +1,5 @@
 #include "ui/hud/NoticeStack.h"
+#include "network/ServerClient.h"
 #include "runtime/GameSession.h"
 #include "sync/filters/PlayerFilters.h"
 #include "sync/notices/Notices.h"
@@ -9,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -68,10 +70,21 @@ namespace UI
         private:
             void Collect(double a_now)
             {
+                // Every welcome, a reconnect's too, starts a generation; one that already ended is not announced.
+                const auto generation = Network::GetConnectionGeneration();
+                if (generation != connectionGeneration)
+                {
+                    connectionGeneration = generation;
+                    if (Network::IsConnected())
+                    {
+                        Add("Connected to the server", a_now);
+                    }
+                }
+
                 PlayerFilters::CollectArrivedFriends(friends);
                 for (const auto& player : friends)
                 {
-                    Add(player.name + " is online.", a_now);
+                    Add(player.name + " is online", a_now);
                 }
                 friends.clear();
 
@@ -132,6 +145,7 @@ namespace UI
             }
 
             std::vector<Toast> toasts;
+            std::uint64_t connectionGeneration{ 0 };
             std::vector<std::string> incoming;
             std::vector<Multiplayer::RosterEntry> friends;
         };

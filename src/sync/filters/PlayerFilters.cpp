@@ -61,7 +61,7 @@ namespace PlayerFilters
             if (!Network::PlayerFilterStore::Save(a_server, a_entry))
             {
                 Notices::Post("Could not save your list of friends, muted, and vanished players; the change lasts "
-                              "until the game exits.");
+                              "until the game exits");
             }
         }
 
@@ -162,7 +162,7 @@ namespace PlayerFilters
                 return;
             case Change::kFull:
                 Notices::Post(
-                    std::format("You can vanish at most {} players on a server.", Multiplayer::kMaximumVanishedSessions));
+                    std::format("You can vanish at most {} players on a server", Multiplayer::kMaximumVanishedSessions));
                 return;
             case Change::kChanged:
                 break;

@@ -129,13 +129,13 @@ namespace TradeSync
             switch (a_block)
             {
                 case Forms::OfferBlock::kQuestItem:
-                    return "A quest needs it.";
+                    return "A quest needs it";
                 case Forms::OfferBlock::kPlayerMade:
-                    return "Made by you, so other games do not have it.";
+                    return "Made by you, so other games do not have it";
                 case Forms::OfferBlock::kUnreferenceable:
                     break;
             }
-            return "It cannot be described to another game.";
+            return "It cannot be described to another game";
         }
 
         std::string DescribeRejection(const Multiplayer::TradeSkip& a_skip, const Multiplayer::TradeItem& a_item)
@@ -143,19 +143,19 @@ namespace TradeSync
             const auto& peer = PeerName();
             if (!a_skip.plugin.empty())
             {
-                return peer + " does not have " + a_skip.plugin + " installed.";
+                return peer + " does not have " + a_skip.plugin + " installed";
             }
             switch (a_skip.reason)
             {
                 case Multiplayer::TradeSkipReason::kMissingItem:
                 case Multiplayer::TradeSkipReason::kWrongType:
-                    return peer + " has a different version of " + a_item.item.plugin + ".";
+                    return peer + " has a different version of " + a_item.item.plugin;
                 case Multiplayer::TradeSkipReason::kMissingEffect:
-                    return peer + "'s game does not have the enchantment.";
+                    return peer + "'s game does not have the enchantment";
                 case Multiplayer::TradeSkipReason::kBadEnchantment:
                     break;
             }
-            return peer + "'s game cannot rebuild the enchantment.";
+            return peer + "'s game cannot rebuild the enchantment";
         }
 
         bool ReferencesPlugin(const Multiplayer::TradeItem& a_item, std::string_view a_plugin)
@@ -258,7 +258,7 @@ namespace TradeSync
                 if (!s_inventory[i].block && s_rowChecks[i].rejected.empty()
                     && ReferencesPlugin(s_inventory[i].item, a_plugin))
                 {
-                    if (RejectRow(i, PeerName() + " does not have " + a_plugin + " installed."))
+                    if (RejectRow(i, PeerName() + " does not have " + a_plugin + " installed"))
                     {
                         a_rejected(i);
                     }
@@ -412,7 +412,7 @@ namespace TradeSync
                 });
             if (bytes > Multiplayer::kMaximumTradeOfferBytes)
             {
-                Notices::Post("Your offer is full; these items carry too much data to send together.");
+                Notices::Post("Your offer is full; these items carry too much data to send together");
                 return;
             }
             s_offer = std::move(offer);
@@ -437,7 +437,7 @@ namespace TradeSync
             {
                 return true;
             }
-            Notices::Post("You no longer have " + FormatItems(missing) + "; the trade shows what you hold now.");
+            Notices::Post("You no longer have " + FormatItems(missing) + "; the trade shows what you hold now");
             CaptureInventory(a_player);
             s_session.SetOwnItems({});
             return false;
@@ -507,7 +507,7 @@ namespace TradeSync
             }
             logs::info("Trade with {} completed: gave {} entries, received {} entries", a_peer, given, received);
             TradeInventory::PlayPickUpSound(a_player);
-            Notices::Post("You successfully traded.");
+            Notices::Post("You successfully traded");
         }
 
         void ReportPeerOffer()
@@ -556,34 +556,34 @@ namespace TradeSync
             switch (a_result.reason)
             {
                 case TradeCloseReason::kBusy:
-                    Notices::Post(a_peer + " is busy with another trade.");
+                    Notices::Post(a_peer + " is busy with another trade");
                     break;
                 case TradeCloseReason::kUnavailable:
-                    Notices::Post(a_peer + " cannot trade right now.");
+                    Notices::Post(a_peer + " cannot trade right now");
                     break;
                 case TradeCloseReason::kOutOfRange:
-                    Notices::Post(requested ? a_peer + " is too far away to trade."
-                                            : "The trade with " + a_peer + " ended: you are too far apart.");
+                    Notices::Post(requested ? a_peer + " is too far away to trade"
+                                            : "The trade with " + a_peer + " ended: you are too far apart");
                     break;
                 case TradeCloseReason::kDeclined:
-                    Notices::Post(a_peer + " declined your trade offer.");
+                    Notices::Post(a_peer + " declined your trade offer");
                     break;
                 case TradeCloseReason::kExpired:
-                    Notices::Post(inviting ? a_peer + " did not answer your trade offer."
-                                           : "The trade offer from " + a_peer + " expired.");
+                    Notices::Post(inviting ? a_peer + " did not answer your trade offer"
+                                           : "The trade offer from " + a_peer + " expired");
                     break;
                 case TradeCloseReason::kCombat:
-                    Notices::Post("The trade with " + a_peer + " ended: they are in combat.");
+                    Notices::Post("The trade with " + a_peer + " ended: they are in combat");
                     break;
                 case TradeCloseReason::kMenu:
                 case TradeCloseReason::kCancelled:
-                    Notices::Post(invited ? a_peer + " withdrew the trade offer." : a_peer + " cancelled the trade.");
+                    Notices::Post(invited ? a_peer + " withdrew the trade offer" : a_peer + " cancelled the trade");
                     break;
                 case TradeCloseReason::kDisconnected:
-                    Notices::Post(a_peer + " left; the trade ended.");
+                    Notices::Post(a_peer + " left; the trade ended");
                     break;
                 case TradeCloseReason::kFailed:
-                    Notices::Post("The trade with " + a_peer + " could not open.");
+                    Notices::Post("The trade with " + a_peer + " could not open");
                     break;
             }
         }
@@ -653,17 +653,17 @@ namespace TradeSync
                 case Command::Kind::kRequest:
                     if (phase != Phase::kIdle)
                     {
-                        Notices::Post("Finish your current trade first.");
+                        Notices::Post("Finish your current trade first");
                         return;
                     }
                     if (!a_inWorld || a_player.IsInCombat())
                     {
-                        Notices::Post("You cannot trade in combat or away from the world.");
+                        Notices::Post("You cannot trade in combat or away from the world");
                         return;
                     }
                     if (!Network::PublishTradeRequest(a_command.player.playerID))
                     {
-                        Notices::Post("Not connected to the server.");
+                        Notices::Post("Not connected to the server");
                         return;
                     }
                     s_session.BeginRequest(a_command.player);
@@ -676,12 +676,12 @@ namespace TradeSync
                     }
                     if (!a_command.accept)
                     {
-                        CancelTrade(TradeCloseReason::kDeclined, "You declined the trade offer from " + PeerName() + ".");
+                        CancelTrade(TradeCloseReason::kDeclined, "You declined the trade offer from " + PeerName());
                         return;
                     }
                     if (!a_inWorld || a_player.IsInCombat())
                     {
-                        Notices::Post("You cannot trade in combat or away from the world.");
+                        Notices::Post("You cannot trade in combat or away from the world");
                         return;
                     }
                     Network::PublishTradeAnswer(s_session.GetID(), true);
@@ -691,7 +691,7 @@ namespace TradeSync
                     if (phase == Phase::kInviting || phase == Phase::kOpen || phase == Phase::kInvited)
                     {
                         CancelTrade(a_command.reason, a_command.reason == TradeCloseReason::kFailed
-                                ? "The trade window could not open while another menu was open."
+                                ? "The trade window could not open while another menu was open"
                                 : std::string_view{});
                     }
                     return;
@@ -787,7 +787,7 @@ namespace TradeSync
         if (lost && s_session.IsActive())
         {
             logs::info("Trade with {} ended with the connection", PeerName());
-            Notices::Post("The trade with " + PeerName() + " ended: the connection to the server was lost.");
+            Notices::Post("The trade with " + PeerName() + " ended: the connection to the server was lost");
             ClearTrade();
             s_events.clear();
         }
@@ -818,7 +818,7 @@ namespace TradeSync
         }
         if (std::exchange(s_eventsLost, false) && s_session.IsActive())
         {
-            CancelTrade(TradeCloseReason::kFailed, "The trade with " + PeerName() + " ended: its messages were lost.");
+            CancelTrade(TradeCloseReason::kFailed, "The trade with " + PeerName() + " ended: its messages were lost");
         }
         for (const auto& event : s_events)
         {
@@ -843,8 +843,8 @@ namespace TradeSync
             if (phase != Phase::kRequesting && IsInCombat(a_player))
             {
                 CancelTrade(TradeCloseReason::kCombat, phase == Phase::kInvited
-                        ? "You are in combat; the trade offer from " + PeerName() + " was declined."
-                        : "You are in combat; the trade with " + PeerName() + " ended.");
+                        ? "You are in combat; the trade offer from " + PeerName() + " was declined"
+                        : "You are in combat; the trade with " + PeerName() + " ended");
             }
         }
 
@@ -854,7 +854,7 @@ namespace TradeSync
             if (tick.timedOut)
             {
                 logs::warn("Trade with {} timed out in phase {}", PeerName(), static_cast<int>(s_session.GetPhase()));
-                CancelTrade(TradeCloseReason::kExpired, "The trade with " + PeerName() + " got no answer.");
+                CancelTrade(TradeCloseReason::kExpired, "The trade with " + PeerName() + " got no answer");
             }
             else if (tick.offer)
             {

@@ -213,7 +213,9 @@ a request unanswered after 10 s, as for a lost message.
   report are the check, so the wire is unchanged. Checks and missing plugins
   carry over when the inventory is listed again. A rejected row is disabled
   with the reason, and a warning notice per reason names the items and
-  why:
+  why. The reasons end without a final period, like
+  [notices](ui-overlay.md#notices), since each is both the item card's
+  warning and part of a notice:
   - the peer lacks the plugin, when the report names it; every other row whose item, enchantment, or effect comes from
     that plugin is disabled at once with the same reason, and those already
     in the offer leave it and are named in the notice.

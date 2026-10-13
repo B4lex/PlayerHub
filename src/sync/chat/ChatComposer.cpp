@@ -160,13 +160,13 @@ namespace ChatSync
             {
                 if (typed.rest.empty())
                 {
-                    Fail("Type a player's name after @, then your message.");
+                    Fail("Type a player's name after @, then your message");
                     return SubmitResult::kStayOpen;
                 }
                 const auto addressee = ChatRoster::FindAddressee(typed.rest);
                 if (!addressee)
                 {
-                    Fail("No player with that name is online.");
+                    Fail("No player with that name is online");
                     return SubmitResult::kStayOpen;
                 }
                 SetTarget(Whisper(addressee->player));
@@ -175,7 +175,7 @@ namespace ChatSync
                 return a_draft.empty() ? SubmitResult::kStayOpen : Submit(a_draft);
             }
             default:
-                Fail(std::format("Unknown command /{}. Type /help for the list.", typed.rest));
+                Fail(std::format("Unknown command /{}. Type /help for the list", typed.rest));
                 return SubmitResult::kStayOpen;
         }
         a_draft = std::string{ typed.rest };
@@ -295,7 +295,7 @@ namespace ChatSync
         }
         else
         {
-            Fail("Nobody has whispered you yet.");
+            Fail("Nobody has whispered you yet");
         }
     }
 
@@ -311,7 +311,7 @@ namespace ChatSync
 
     void Composer::ShowHelp()
     {
-        Inform("! switches to Global and @name whispers. Tab steps through the channels.");
+        Inform("! switches to Global and @name whispers. Tab steps through the channels");
         for (const auto& command : ChatDraft::GetCommands())
         {
             Inform(command.argument.empty() ? std::format("/{}", command.name)
@@ -325,15 +325,15 @@ namespace ChatSync
         const auto count = ChatRoster::GetPlayerCount();
         if (count == 0)
         {
-            Fail("Not connected to the server.");
+            Fail("Not connected to the server");
         }
         else if (count == 1)
         {
-            Inform("You are the only player online.");
+            Inform("You are the only player online");
         }
         else
         {
-            Inform(std::format("{} players online.", count));
+            Inform(std::format("{} players online", count));
         }
     }
 

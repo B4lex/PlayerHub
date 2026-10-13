@@ -61,6 +61,7 @@ namespace UI
         constexpr const char* kDisplayNameHint = "Enter a display name";
         constexpr std::string_view kServerEndpointKey = "ServerEndpoint";
         constexpr const char* kServerEndpointHint = "Enter server endpoint URL";
+        constexpr const char* kInvalidServerEndpointText = "Invalid server URL.";
         constexpr std::string_view kStagedSection = "DefaultOutfit";
         constexpr std::string_view kUISection = "UI";
         constexpr std::string_view kControlsSection = "Controls";
@@ -227,12 +228,6 @@ namespace UI
                 fields.clear();
                 itemPicker.Reset();
                 StopKeyCapture();
-            }
-
-            [[nodiscard]] bool HasInvalidFields() const
-            {
-                return std::ranges::any_of(
-                    fields, [](const auto& a_field) { return !a_field.second.valid && !a_field.second.reportsItself; });
             }
 
             void FocusConnectionField()
@@ -445,6 +440,14 @@ namespace UI
                 if (!field.valid)
                 {
                     DrawTooltip(a_comment);
+                    if (endpoint)
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Text, Theme::kNegative);
+                        ImGui::PushTextWrapPos(0.0F);
+                        DrawText(kInvalidServerEndpointText);
+                        ImGui::PopTextWrapPos();
+                        ImGui::PopStyleColor();
+                    }
                 }
                 EndRow();
             }
@@ -594,7 +597,6 @@ namespace UI
             {
                 std::string text;
                 bool valid{ true };
-                bool reportsItself{ false };
             };
 
             struct KeyBinding
@@ -721,7 +723,6 @@ namespace UI
                 DrawText(label);
 
                 auto& field = GetField([&a_value] { return a_value; });
-                field.reportsItself = true;
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - ConnectionControls::GetButtonWidth()
                     - ImGui::GetStyle().ItemSpacing.x);
                 if (focusConnectionField)
@@ -745,12 +746,31 @@ namespace UI
                 {
                     DrawTooltip(lock, ImGuiHoveredFlags_AllowWhenDisabled);
                 }
+                else
+                {
+                    DrawTooltip(a_comment);
+                }
 
                 ImGui::SameLine();
                 ConnectionControls::DrawButton(entered);
-                FormatNote(a_comment);
-                ConnectionControls::DrawNotice(!field.valid, note);
+                if (const auto* buttonLock = ConnectionControls::GetButtonLock())
+                {
+                    DrawTooltip(buttonLock, ImGuiHoveredFlags_AllowWhenDisabled);
+                }
+                ConnectionControls::DrawNotice(!field.valid);
+                DrawConnectionDivider();
                 ImGui::PopID();
+            }
+
+            void DrawConnectionDivider()
+            {
+                const auto spacing = ImGui::GetStyle().ItemSpacing.y;
+                const auto gap = spacing * 2.0F + ImGui::GetTextLineHeight();
+                const auto position = ImGui::GetCursorScreenPos();
+                ImGui::GetWindowDrawList()->AddLine(position,
+                    ImVec2{ position.x + ImGui::GetContentRegionAvail().x, position.y },
+                    ImGui::GetColorU32(ImGuiCol_Separator), ImGui::GetStyle().WindowBorderSize);
+                ImGui::Dummy(ImVec2{ 0.0F, gap - spacing });
             }
 
             void EndSection()
@@ -776,8 +796,7 @@ namespace UI
                 }
                 if (hidden)
                 {
-                    // Forgets text in red, so a hidden field neither reports itself nor
-                    // comes back with it.
+                    // Forgets text in red, so a hidden field does not come back with it.
                     ImGui::PushID(a_key.data(), a_key.data() + a_key.size());
                     fields.erase(ImGui::GetID("##value"));
                     ImGui::PopID();
@@ -1229,14 +1248,7 @@ namespace UI
                 ImGui::EndDisabled();
             }
 
-            [[nodiscard]] const char* GetLiveError() const
-            {
-                if (editor.HasInvalidFields())
-                {
-                    return "Values in red are not applied";
-                }
-                return saveFailed ? kSaveFailedText : nullptr;
-            }
+            [[nodiscard]] const char* GetLiveError() const { return saveFailed ? kSaveFailedText : nullptr; }
 
             const Config::PluginConfig defaults;
             std::shared_ptr<const Config::PluginConfig> live;

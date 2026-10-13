@@ -18,17 +18,17 @@ namespace ChatSync
         {
             if (a_error == "rate limited")
             {
-                return "You are sending messages too quickly.";
+                return "You are sending messages too quickly";
             }
             if (a_error == "not in world")
             {
-                return "You are not in the world.";
+                return "You are not in the world";
             }
             if (a_error == "unknown recipient")
             {
-                return "That player is no longer online.";
+                return "That player is no longer online";
             }
-            return "The server did not accept your message.";
+            return "The server did not accept your message";
         }
 
         std::string FormatSender(const Multiplayer::ChatMessage& a_message)
@@ -53,19 +53,19 @@ namespace ChatSync
         }
         if (!Multiplayer::IsValidChatText(text))
         {
-            return std::unexpected{ "Your message contains characters that cannot be sent." };
+            return std::unexpected{ "Your message contains characters that cannot be sent" };
         }
         Multiplayer::PeerSlot recipient = 0;
         if (a_target.channel == Multiplayer::ChatChannel::kWhisper)
         {
             if (!Network::IsConnected())
             {
-                return std::unexpected{ "You are not connected to the server." };
+                return std::unexpected{ "You are not connected to the server" };
             }
             const auto player = ChatRoster::Resolve(a_target.player);
             if (!player)
             {
-                return std::unexpected{ a_target.player.name + " is offline." };
+                return std::unexpected{ a_target.player.name + " is offline" };
             }
             recipient = player->playerID;
         }
@@ -76,7 +76,7 @@ namespace ChatSync
                 s_rejections.push_back(std::move(rejection));
             }))
         {
-            return std::unexpected{ "You are not connected to the server." };
+            return std::unexpected{ "You are not connected to the server" };
         }
         logs::debug("Chat sent: channel={} recipient={} bytes={}", static_cast<int>(a_target.channel), recipient,
             text.size());

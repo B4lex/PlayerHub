@@ -107,7 +107,8 @@
   line, and Tab clearing the notes; the panel ending one item spacing above
   the field and as tall as its wrapped rows, and gone after `OnOpened`.
   The rasterized stack and panels were looked at. `ChatWindow`'s routing of
-  rejections ran only through the syntax check.
+  rejections, the connected notice, and the texts without final periods ran
+  only through the syntax check.
 - **Chat:** not built on Windows or run in game. Server unit tests cover
   routing, the roster, and whisper addressing ([Network](network.md#status)).
   On Linux, with g++ 16 and a logging stub:
@@ -426,13 +427,15 @@
   Enter and becomes the endpoint; switching off hides the field and goes
   back to the official server with the URL kept. The rest ran with the
   earlier, inverted switch, whose `ConnectionControls.cpp` behavior is
-  unchanged, while disconnected: `ftp://x` turns the footer line on, and
-  hiding the row hides the footer line, which stays away when the row is
-  shown again; with the custom server and an empty field, `[General]`'s
-  connection button is disabled with the reason under it; a typed URL saves
-  both lines, the button is enabled and the reason gone.
-  `ConnectionControls.cpp` with its current reason passed the g++ syntax
-  check only.
+  unchanged, while disconnected: `ftp://x` turned on the footer line that
+  invalid text then had, and hiding the row hid it, which stayed away when
+  the row was shown again; the red line under the field that replaced it
+  has not run. With the custom server and an empty field, `[General]`'s
+  connection button is disabled with the reason then shown under it; a typed
+  URL saves both lines, the button is enabled and the reason gone. The reason
+  as the button's tooltip, the divider under the connection bar, and the
+  display name's comment as the field's tooltip have not been compiled or
+  run.
 - **Mute and vanish:** not built on Windows or run in game; the server side is
   under [Network](network.md#status). On Linux, in the chat's headless Dear
   ImGui 1.92.9 harness with a stubbed transport and a deploy folder,
@@ -1292,8 +1295,20 @@ action on a notice. What answers the chat's own input is a
 - `NoticeStack` (`ui/hud/`) drains it every frame, with
   `PlayerFilters::CollectArrivedFriends` for friends coming online
   ([Friends](#friends)), and keeps at most 4: a fifth drops the oldest.
+- `NoticeStack` also announces each connection the server welcomes: when
+  `Network::GetConnectionGeneration` changes and `Network::IsConnected`
+  still holds, it adds a notice that the player is connected, ahead of
+  that frame's other notices. Automatic reconnects after a lost connection
+  are announced too, and the notice does not name the server: both the
+  user's choices. A generation that ended before the stack saw it is not
+  announced.
   Every notice is its own toast, a repeat too: the user chose not to merge
   them into one with a count.
+- Notices end without a final period, the user's choice. So do the
+  [notes](#notes) and a trade row's reason, which share their texts with
+  notices: a chat rejection is a note or a notice depending on whether the
+  chat is open, and a reason is both the item card's warning and part of a
+  notice.
 - A notice shows for 2 s plus its length at 15 characters a second, at least
   5 s and at most 10, and fades over its last second, timed by
   `ImGui::GetTime`. Notices keep their time while none is drawn, outside a
@@ -1439,7 +1454,8 @@ never a line, so the history holds only what players said.
 - `Composer` keeps the notes (`Composer::Note`: text, an optional muted
   detail, and whether it is a failure) and replaces them on every command or
   send. Any edit, a recalled line, a new target, Backspace leaving a whisper,
-  and opening the chat clear them; the field's text is kept.
+  and opening the chat clear them; the field's text is kept. Like
+  [notices](#notices), notes end without a final period.
 - `ChatInput::DrawNotes` draws them where the name and command list would be,
   which hides them while it shows: a child window as wide as the field with
   the popup's opaque background and border, as tall as its rows, ending one
@@ -2230,8 +2246,7 @@ peers keep seeing the player.
   the chat's [size](#size) is, is not drawn at all.
 - A row the schema shows only while a value is true (`ShowNextIf`,
   [Configuration](configuration.md#schema)) is left out while it is false, and
-  its text in red is dropped, so it neither holds the footer line nor comes
-  back red. `[Connection]` so shows `ServerEndpoint` only while `CustomServer`
+  its text in red is dropped, so it does not come back red. `[Connection]` so shows `ServerEndpoint` only while `CustomServer`
   is on ([Official and custom server](configuration.md#official-and-custom-server)),
   as a field without a label, spanning the row from the labels' left edge,
   with a placeholder while empty: the switch above it already names it. The official server's URL is never drawn.
@@ -2261,9 +2276,11 @@ peers keep seeing the player.
   reconnects. Escape in a text field puts
   back the text it had when editing started. Text that does not parse turns red
   and leaves the setting at its last valid value, while other edits still
-  apply. A red line appears below the settings only while values in red are
-  not applied or the file could not be saved; the display name reports its
-  own text under its field instead.
+  apply, and a red line under the field says that it is invalid: the display
+  name's under the [connection bar](#connection-controls), the
+  `ServerEndpoint`'s directly under its field, wrapped at the page's width. A
+  red line appears below the settings only while the file could not be
+  saved.
 - `[UI]`, `[Controls]`, and `[Advanced]` have a footer with one Defaults
   button at its right, enabled while a setting the page shows differs from
   the built-in one (`Config::GetDefaultConfig`); the red line shares the
@@ -2377,9 +2394,10 @@ those.
   it never connects, on Enter or otherwise.
 - The field is editable only while `Network::GetConnectionState` is
   `kDisconnected`, because a session takes its display name from the hello
-  ([Network](network.md#sessions)). Otherwise it is disabled, and hovering it
-  shows why (`ConnectionControls::GetDisplayNameLock`): the connection must
-  be cancelled while connecting, and ended while connected or disconnecting.
+  ([Network](network.md#sessions)), and hovering it then shows the setting's
+  comment. Otherwise it is disabled, and hovering it shows why instead
+  (`ConnectionControls::GetDisplayNameLock`): the connection must be
+  cancelled while connecting, and ended while connected or disconnecting.
 - Opening the window with no display name applied puts the keyboard in the
   field. Escape then leaves the field, and a second press closes the window.
 
@@ -2400,16 +2418,24 @@ Connecting goes by the field's text, not by the applied display name: pressing
 the button ends the field's editing, which applies the text before the press
 lands, so a name that was only typed connects with one click.
 
+While disconnected with `CustomServer` on and no URL, hovering the disabled
+button shows how to connect (`ConnectionControls::GetButtonLock`): enter a URL
+in the field below. This is the only place the plugin shows it.
+
 The line under the field and the button is wrapped at the page's width and
 shows the first of these that holds. It is the only place the plugin shows
-them:
+them. Otherwise it stays empty at one text line's height, so the rows below
+do not move when a message appears:
 
 | Condition | Line |
 | --- | --- |
-| The field's text is not a display name ([Network](network.md#sessions)) | that the name is invalid, red. The page's footer line does not count this field |
+| The field's text is not a display name ([Network](network.md#sessions)) | that the name is invalid, red |
 | Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`) | the sentence of `Network::GetConnectionRefusal`, red, until the button connects again |
-| Disconnected, `CustomServer` on without a URL | how to connect: enter a URL in the field below or switch `CustomServer` off, amber |
-| Otherwise | the `DisplayName` setting's comment, muted |
+
+A divider in the separator color (`DrawConnectionDivider`) follows the line
+and parts the bar from the rows below. The gap below it equals the gap from
+the field's bottom to the divider while the line is empty, so the divider sits
+midway between the field and the first switch.
 
 The sidebar's summary (`ConnectionControls::DrawSummary`) is an indicator and
 the state on one line, with the ping in muted text at the right while

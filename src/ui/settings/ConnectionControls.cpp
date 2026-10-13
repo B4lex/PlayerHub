@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdio>
 #include <optional>
+#include <string_view>
 
 namespace UI::ConnectionControls
 {
@@ -30,7 +31,7 @@ namespace UI::ConnectionControls
         constexpr const char* kInvalidDisplayNameText = "Invalid display name.";
         constexpr const char* kDisconnectToRenameText = "Disconnect to change the display name";
         constexpr const char* kCancelToRenameText = "Cancel the connection to change the display name";
-        constexpr const char* kNoEndpointText = "Enter a server URL below, or switch Custom Server off, to connect.";
+        constexpr const char* kNoEndpointText = "Enter a custom server URL to connect.";
 
         struct Status
         {
@@ -172,7 +173,16 @@ namespace UI::ConnectionControls
         }
     }
 
-    void DrawNotice(bool a_invalidText, std::string_view a_help)
+    const char* GetButtonLock()
+    {
+        if (Network::GetConnectionState() == ConnectionState::kDisconnected && !HasServerEndpoint())
+        {
+            return kNoEndpointText;
+        }
+        return nullptr;
+    }
+
+    void DrawNotice(bool a_invalidText)
     {
         if (a_invalidText)
         {
@@ -185,12 +195,8 @@ namespace UI::ConnectionControls
             DrawMessage(status.refusal->message, Theme::kNegative);
             return;
         }
-        if (status.state == ConnectionState::kDisconnected && !HasServerEndpoint())
-        {
-            DrawMessage(kNoEndpointText, Theme::kWarning);
-            return;
-        }
-        DrawMessage(a_help, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        // Keeps the line's height, so the rows below do not move when a message appears.
+        ImGui::Dummy(ImVec2{ 0.0F, ImGui::GetTextLineHeight() });
     }
 
     void DrawSummary(float a_width)

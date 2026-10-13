@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string_view>
-
 namespace UI::ConnectionControls
 {
     [[nodiscard]] float GetButtonWidth();
@@ -10,7 +8,9 @@ namespace UI::ConnectionControls
 
     [[nodiscard]] const char* GetDisplayNameLock();
 
-    void DrawNotice(bool a_invalidText, std::string_view a_help);
+    [[nodiscard]] const char* GetButtonLock();
+
+    void DrawNotice(bool a_invalidText);
 
     void DrawSummary(float a_width);
 }
