@@ -23,8 +23,9 @@ namespace Config
         // Applies to the next setting. Only the settings window hides one.
         virtual void ShowNextIf(bool) {}
         virtual void Bool(std::string_view a_key, bool& a_value, std::string_view a_comment) = 0;
+        // Only the settings window's slider keeps to the step; any value up to the maximum is valid.
         virtual void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-            std::uint32_t a_maximum, std::string_view a_zeroName) = 0;
+            std::uint32_t a_maximum, std::string_view a_zeroName, std::uint32_t a_step) = 0;
         // Valid values are the minimum plus whole steps.
         virtual void Percent(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
             std::uint32_t a_minimum, std::uint32_t a_maximum, std::uint32_t a_step) = 0;

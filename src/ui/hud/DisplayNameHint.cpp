@@ -38,7 +38,7 @@ namespace UI
                     return;
                 }
                 const auto config = Config::Get();
-                if (!config->general.displayName.empty() || !IsGameViewShown())
+                if (!config->connection.displayName.empty() || !IsGameViewShown())
                 {
                     return;
                 }
@@ -52,7 +52,7 @@ namespace UI
                     ImGui::SameLine(0.0F, space);
                     DrawWord("and enter a display name on the", false);
                     ImGui::SameLine(0.0F, space);
-                    DrawWord("General", true);
+                    DrawWord("Connection", true);
                     ImGui::SameLine(0.0F, space);
                     DrawWord("tab to connect", false);
                 }

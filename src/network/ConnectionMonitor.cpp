@@ -165,8 +165,8 @@ namespace Network
             }
             requirementsConfigRevision = revision;
             const auto config = Config::Get();
-            const bool nameSet = !config->general.displayName.empty();
-            const bool hasEndpoint = !Config::GetServerEndpoint(config->network).empty();
+            const bool nameSet = !config->connection.displayName.empty();
+            const bool hasEndpoint = !Config::GetServerEndpoint(config->connection).empty();
             if (displayNameSet.exchange(nameSet, std::memory_order_acq_rel) != nameSet)
             {
                 logs::info("Display name {}", nameSet ? "set" : "cleared; not connecting without one");
@@ -194,7 +194,7 @@ namespace Network
             {
                 return;
             }
-            const bool autoConnect = Config::Get()->network.autoConnect;
+            const bool autoConnect = Config::Get()->connection.autoConnect;
             const bool nameSet = displayNameSet.load(std::memory_order_acquire);
             const bool hasEndpoint = endpointSet.load(std::memory_order_acquire);
             const bool connect = autoConnect && nameSet && hasEndpoint;

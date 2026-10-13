@@ -56,8 +56,8 @@
   code, and `ConnectionMonitor.cpp` passed a syntax check, and
   `ConnectionMonitor.cpp` ran on Linux under the settings window against a
   stubbed transport ([UI overlay](ui-overlay.md#status)): a game start with
-  and without a display name and `AutoConnect`, a refusal for the display
-  name, the protocol version, and a replaced session, each leaving the player
+  and without a display name and `ConnectAutomatically`, a refusal for the
+  display name, the protocol version, and a replaced session, each leaving the player
   disconnected without a retry until Connect, and a lost connection reopened.
   The display name rule is covered by `internal/validate` and
   `internal/session` tests; the client's `Multiplayer::IsValidDisplayName` was
@@ -193,7 +193,7 @@ refused at the handshake ([Transport](#transport)).
   host is not compared with `Host`, since behind a proxy the plugin names the
   public host and port.
 - The endpoint (`Config::GetServerEndpoint`: the official server, or
-  `[Network] ServerEndpoint` with `CustomServer` on,
+  `[Connection] ServerEndpoint` with `CustomServer` on,
   [Configuration](configuration.md#official-and-custom-server)) keeps its
   `http://` or `https://` form; the client maps it to `ws://` or `wss://` and
   appends `/ws` when the endpoint has no path. TLS is terminated by a reverse proxy in front of the server.
@@ -253,7 +253,7 @@ retries. What a refusal means for the client is in [Connection](#connection).
 
 | Message | Handling |
 | --- | --- |
-| `Hello` | Handshake, above. `view_radius` is the client's `[Performance] ViewRadius` in game units, 0 for the server's ([Interest and delivery](interest-and-delivery.md#subscriptions)). `session_token` and `display_name` resume or issue the [session](#sessions). `vanished` lists the sessions the player [vanished](#vanish) on this server |
+| `Hello` | Handshake, above. `view_radius` is the client's `[Advanced] ViewRadius` in game units, 0 for the server's ([Interest and delivery](interest-and-delivery.md#subscriptions)). `session_token` and `display_name` resume or issue the [session](#sessions). `vanished` lists the sessions the player [vanished](#vanish) on this server |
 | `Enter`, `Exit` | World presence. `Exit` when not in the world does nothing |
 | `Context` | A checkpoint's space and graph epoch ([below](#checkpoint-and-context)) |
 | `Checkpoint` | One quantized sample |
@@ -807,7 +807,7 @@ Server messages:
   lets a player switch servers and back. The file is read once, on first use,
   and written through `PlayerHub.session.tmp`. Tokens are never logged.
 - When the socket opens, the transport thread sends the hello with the token
-  kept for the attempt's URL, or none, and `[General] DisplayName`.
+  kept for the attempt's URL, or none, and `[Connection] DisplayName`.
 - A `Welcome` with a token saves it, also when the connection is already being
   closed, since the session exists on the server either way. A failed save is
   logged as an error: the token lasts until the game exits.
@@ -852,7 +852,7 @@ the server's `PeerEnter` messages.
 ### Connection
 
 A connection is wanted only in a game, while the player's choice enables it,
-once `[General] DisplayName` is set
+once `[Connection] DisplayName` is set
 ([Appearance and equipment](appearance-and-equipment.md#display-name)), and
 while `Config::GetServerEndpoint` is not empty or a connection is welcomed.
 The endpoint is empty only with `CustomServer` on and no `ServerEndpoint`
@@ -865,9 +865,9 @@ client.
 - A game starts when `PresenceSync` first finds the player in the world, and
   ends when the main menu opens (`GameSession`). Loading screens keep the game
   and its connection.
-- At a game start the choice becomes `[Network] AutoConnect` (default `true`)
-  if a display name and an endpoint are set, and disabled otherwise. The settings window's
-  Connect, Cancel, and Disconnect change it with
+- At a game start the choice becomes `[Connection] ConnectAutomatically`
+  (default `true`) if a display name and an endpoint are set, and disabled
+  otherwise. The settings window's Connect, Cancel, and Disconnect change it with
   `Network::SetConnectionEnabled` until the game ends.
 - Applying a display name never opens a connection; only the choice does. The
   monitor reads the display name when the configuration revision changes, and
@@ -958,8 +958,8 @@ window, and are empty after a long gap. The status panel shows them.
    settings window and stays disconnected until Connect.
 4. A paused game (menu open) stays connected for minutes.
 5. Quantization shows no visible jitter in position or heading.
-6. A client without a display name opens no connection, whatever `AutoConnect`
-   says, and cannot press Connect; applying one does not connect until Connect
+6. A client without a display name opens no connection, whatever
+   `ConnectAutomatically` says, and cannot press Connect; applying one does not connect until Connect
    is pressed.
 7. A first connection to a server writes its line to `PlayerHub.session`; later
    games, and reconnects after a loss or a server restart, resume the same

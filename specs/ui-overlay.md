@@ -10,6 +10,19 @@
   a warning is logged. The status panel showing only the disconnected state
   without a display name is not built on Windows or run in game; on Linux,
   `StatusPanel.cpp` passed a syntax check against Dear ImGui 1.92.9.
+- **Number sliders and section defaults** (2026-10-13): not built on Windows or
+  run in game, and not run in the headless harness. On Linux,
+  `SettingsWindow.cpp`, `SettingsSchema.cpp`, and `PluginConfig.cpp` passed
+  the g++ syntax check. That Dear ImGui draws a format without a conversion
+  as it is follows its demo's enum slider and was not run here.
+- **Settings sections** (`[Connection]`, `[Advanced]`, and the `[UI]`
+  groups, 2026-10-13): not built on Windows or run in game, and not run in
+  the headless harness. On Linux, `SettingsSchema.cpp`, `PluginConfig.cpp`,
+  `SettingsWindow.cpp`, `ConnectionControls.cpp`, `DisplayNameHint.cpp`,
+  `StatusPanel.cpp`, `ConnectionMonitor.cpp`, `ServerClient.cpp`, and
+  `ActorLifecycle.cpp` passed the g++ syntax check, which a planted error
+  confirmed reaches `SettingsWindow.cpp`. The checks below that name
+  `[General]`, `[Network]`, or `[Performance]` ran before the merge.
 - **Display name hint** (2026-10-13): not built on Windows or run in game.
   On Linux, `DisplayNameHint.cpp`, `GameView.cpp`, `NameplateLayer.cpp`,
   `MenuFrame.cpp`, and `TradePrompt.cpp` passed the g++ syntax check, which a
@@ -1102,7 +1115,7 @@ Windows.
 
 The panel sits in the top-right corner, 12 px from both edges before scaling, on
 a translucent background, and takes no input. It is drawn only during a game
-(`GameSession::IsInGame`) and while `[UI] StatusPanel` is on, which it is not
+(`GameSession::IsInGame`) and while `[Advanced] StatusPanel` is on, which it is not
 by default; a change applies on the next frame.
 
 | State | Shows | Color |
@@ -1118,8 +1131,8 @@ value before the first window.
 
 The panel is a debugging readout, not player guidance. It does not say why a
 connection is down or that a display name is missing: those need a sentence
-and an action in the settings window, so the messages are on its `[General]`
-page ([Connection controls](#connection-controls)), and the
+and an action in the settings window, so the messages are on its
+`[Connection]` page ([Connection controls](#connection-controls)), and the
 [display name hint](#display-name-hint) leads there.
 
 ### Plugin time
@@ -1142,7 +1155,7 @@ dismiss control or a timeout: without a name the player cannot play online
 at all, so the hint stays until one is applied.
 
 - `DisplayNameHint`, registered after the trade prompt, draws while a game
-  is loaded (`GameSession::IsInGame`), the applied `[General] DisplayName`
+  is loaded (`GameSession::IsInGame`), the applied `[Connection] DisplayName`
   is empty, no overlay window holds focus, and `UI::IsGameViewShown` holds.
   It therefore shows exactly when `OpenSettings` would open the settings
   window ([Input focus](#input-focus)), and hides while that window is open.
@@ -1153,7 +1166,7 @@ at all, so the hint stays until one is applied.
   display name.
 - One line tells the player to press the `[Controls] OpenSettings` key,
   shown by its label (`Config::FormatKeyLabel`) in the accent, and to enter
-  a display name on the `[General]` page, its title also in the accent. The
+  a display name on the `[Connection]` page, its title also in the accent. The
   settings window then opens on that page with the keyboard in the field
   ([Settings window](#settings-window)).
 - `UI::IsGameViewShown` (`ui/hud/GameView`) is true while menus are shown
@@ -2064,7 +2077,7 @@ peers keep seeing the player.
 - Every opening starts from the live configuration; closing discards unapplied
   outfit edits and text still being typed. The section that was open stays
   open, except that an opening with no display name applied shows
-  `[General]` with the keyboard in its field.
+  `[Connection]` with the keyboard in its field.
 - Centered, 48 × 32 font sizes and at least 40 × 20, in the [theme](#theme)
   and the [menu frame](#menu-frame) over a 96% background, without a title bar:
   it is dragged by any empty part, resized from its lower corners and its
@@ -2074,10 +2087,10 @@ peers keep seeing the player.
   (`ImGuiCol_SeparatorHovered` and `ImGuiCol_SeparatorActive` around `Begin`),
   so resizing shows the resize cursor only.
 - A sidebar 11.5 font sizes wide, on a faint panel, lists one item per file
-  section in schema order under the [logo](#logo): `[General]`, which opens
-  first and is the display name beside the
-  [connection button](#connection-controls), then `[DefaultOutfit]`,
-  `[UI]`, `[Controls]`, `[Network]`, and `[Performance]` (the user's
+  section in schema order under the [logo](#logo): `[Connection]`, which
+  opens first and is the display name beside the
+  [connection button](#connection-controls) above its other settings, then
+  `[DefaultOutfit]`, `[UI]`, `[Controls]`, and `[Advanced]` (the user's
   order). `FormatSectionTitle` gives `[UI]` and `[Controls]` titles other
   than their keys. The
   open section's item has an accent tint and, like a [notice](#notices), a
@@ -2095,49 +2108,61 @@ peers keep seeing the player.
 - Widgets come from the same `Config::Describe` visitor that reads and writes the
   file, so a new setting appears without UI code. A row is the key split
   into words and, in the right 58% of the row,
-  its control: a switch at the right edge for a bool, a number field with step
-  buttons for an unsigned value, a slider for a percentage, a text field for a
-  string, an item picker for a form, a combo for a choice, a button showing
+  its control: a switch at the right edge for a bool, a slider for an
+  unsigned value or a percentage, a text field for a string, an item picker for a form, a combo for a choice, a button showing
   the key for a key ([Key bindings](#key-bindings)), and swatches for a color
   ([Accent color](#accent-color)). Group comments are small muted
-  capitals above their rows. `[General] DisplayName` is drawn beside the
+  capitals above their rows, as on `[DefaultOutfit]`, `[UI]`, and
+  `[Advanced]` ([Configuration](configuration.md#settings)).
+  `[Connection] DisplayName` is drawn beside the
   connection button instead of as a row
   ([Connection controls](#connection-controls)), and a `Layout` setting, as
   the chat's [size](#size) is, is not drawn at all.
 - A row the schema shows only while a value is true (`ShowNextIf`,
   [Configuration](configuration.md#schema)) is left out while it is false, and
   its text in red is dropped, so it neither holds the footer line nor comes
-  back red. `[Network]` so shows `ServerEndpoint` only while `CustomServer`
+  back red. `[Connection]` so shows `ServerEndpoint` only while `CustomServer`
   is on ([Official and custom server](configuration.md#official-and-custom-server)),
   as a field without a label, spanning the row from the labels' left edge,
   with a placeholder while empty: the switch above it already names it. The official server's URL is never drawn.
 - A setting's comment is not drawn; it is the tooltip of the row's label, and
   of a text field while its value is invalid.
-- A number's step buttons move it by a hundredth of its maximum, and typing
-  sets any value up to the maximum. Where the schema names zero
-  ([Configuration](configuration.md#schema)), a zero value shows that name
-  in the empty field, and clearing the field sets zero.
+- A number's slider runs from 0 to its maximum and shows the value. A drag
+  or a typed value is rounded to the nearest step the schema gives, `100`
+  for `ViewRadius` and `1` for the others; a value from the file off the
+  step shows as it is until the slider moves. Where
+  the schema names zero ([Configuration](configuration.md#schema)), it shows
+  that name at 0: the name is the slider's format, which Dear ImGui draws as
+  it is when it has no conversion. Ctrl and a click turn it into a field, and
+  a typed value is clamped to the range.
 - A percentage's slider runs between its limits and shows the value with a
   percent sign. Ctrl and a click turn it into a field, and a typed value is
   clamped to the limits; a dragged or typed value is rounded to the nearest
   step from the minimum.
 - Edits in every section but `[DefaultOutfit]` take effect and are saved as they
   are made, with no button: a switch, combo, or swatch at once, a key when
-  it is bound, a number when
-  its field or step button is released, a percentage when its slider is
-  released, so the frame does not resize the window's content under the cursor
-  mid-drag, a color from the picker when it is released or its hex field's
+  it is bound, a number when its slider is released, so a drag does not save
+  the file in every frame, a percentage when its slider is released, so the
+  frame does not resize the window's content under the cursor mid-drag, a
+  color from the picker when it is released or its hex field's
   editing ends, so a drag does not save the file in every frame, and
   text when editing ends, on Enter, on a click
   elsewhere, or on picking another section, so a half-typed endpoint never
   reconnects. Escape in a text field puts
   back the text it had when editing started. Text that does not parse turns red
   and leaves the setting at its last valid value, while other edits still
-  apply. These sections have no footer; a red line appears below the settings
-  only while values in red are not applied or the file could not be saved.
-  The display name reports its own text under its field instead.
-  Their settings have no way back to the built-in defaults other than editing
-  them or removing the line from the file.
+  apply. A red line appears below the settings only while values in red are
+  not applied or the file could not be saved; the display name reports its
+  own text under its field instead.
+- `[UI]`, `[Controls]`, and `[Advanced]` have a footer with one Defaults
+  button at its right, enabled while a setting the page shows differs from
+  the built-in one (`Config::GetDefaultConfig`); the red line shares the
+  footer, at its left. A click restores the page's settings at once and
+  applies them, without a confirmation; a listening
+  [key binding](#key-bindings) stops listening, as on any click. `[UI]`
+  keeps the chat's [size](#size), which the page does not show.
+  `[Connection]` has no footer, so its settings are reset by editing them or
+  removing the line from the file.
 - `[DefaultOutfit]` keeps its edits until Apply, since an outfit is put together
   from several picks and each apply can publish new equipment and appearance
   revisions to peers. Its footer has Defaults, enabled while the edits differ
@@ -2149,7 +2174,7 @@ peers keep seeing the player.
   successful save, or a failed one.
 - `SettingsWindow` holds one draft `Config::PluginConfig`. After drawing, it
   applies the live configuration with the draft's other sections whenever they
-  differ and no number field, slider, or color picker is active, and Apply does
+  differ and no slider or color picker is active, and Apply does
   the same with the draft's `defaultOutfit`.
 - The page is drawn before the sidebar, in one `Config::Describe` pass that
   also collects the section names the sidebar lists. A picked section
@@ -2211,6 +2236,8 @@ by pressing it, as games' control menus do.
   that action; listening goes on, so the player
   presses another key or cancels.
 - Losing focus or reopening the window ends listening.
+- The page's Defaults button ([Settings window](#settings-window)) restores
+  every key.
 - `SettingsEditor` collects every key setting of the `Config::Describe`
   pass, and after the pass starts or ends listening for the frame's clicks,
   then takes the key pressed. After the pass, so a click lands on the rows
@@ -2224,8 +2251,11 @@ by pressing it, as games' control menus do.
 
 ### Connection controls
 
-`[General]` is one step: the name peers see, and joining with it.
-`SettingsWindow` draws `[General] DisplayName` as a label over one line of
+`[Connection]` is one step: the name peers see, and joining with it. The
+rows below hold `ConnectAutomatically`, `CustomServer`, and
+`ServerEndpoint`, without a group heading, so every setting that enables or
+disables the button is on the same page. `SettingsWindow` draws `[Connection] DisplayName` as a label
+over one line of
 its text field and the connection button, as multiplayer clients lay out
 joining a server, and `ConnectionControls` draws the button (`DrawButton`)
 and one line under the two (`DrawNotice`). The section has no status, server
@@ -2268,7 +2298,7 @@ them:
 | --- | --- |
 | The field's text is not a display name ([Network](network.md#sessions)) | that the name is invalid, red. The page's footer line does not count this field |
 | Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`) | the sentence of `Network::GetConnectionRefusal`, red, until the button connects again |
-| Disconnected, `CustomServer` on without a URL | how to connect: enter a URL on `[Network]` or switch `CustomServer` off, amber |
+| Disconnected, `CustomServer` on without a URL | how to connect: enter a URL in the field below or switch `CustomServer` off, amber |
 | Otherwise | the `DisplayName` setting's comment, muted |
 
 The sidebar's summary (`ConnectionControls::DrawSummary`) is an indicator and
@@ -2283,7 +2313,8 @@ connected:
 | Disconnected, refused by the server | red |
 | Disconnected | grey |
 
-A game that starts with `AutoConnect` and a display name connects by itself;
+A game that starts with `ConnectAutomatically` and a display name connects
+by itself;
 nothing else connects without a press. A refusal leaves the player
 disconnected with the field editable, and the button then retries with
 whatever is applied, which clears the sentence. The refusals are in
@@ -2640,7 +2671,7 @@ To verify in game:
    chat or a settings field do not open its menu, and Delete opens it once
    the window is closed; `PlayerHub.log` has one line about detouring input
    dispatch again.
-5. The `[General]` page holds the display name field with one button beside
+5. The `[Connection]` page holds the display name field with one button beside
    it and a line under them. Opening the window with no display name puts the
    cursor in the field, the button cannot connect, and the status panel shows
    only that it is disconnected; typing a name and clicking the button once
@@ -2659,11 +2690,15 @@ To verify in game:
    and connecting clears it. A name ending in a space turns red with the
    reason under the field and disables connecting. The sidebar shows the
    same status in every section.
-6. `[General]`, `[Network]`, `[Performance]`, and `[UI]` have nothing below
-   their settings. Switching `StatusPanel` off hides the panel at once; typing
+6. `[Connection]` has nothing below its settings, and `[UI]` and
+   `[Advanced]` only a disabled Defaults button. Switching `StatusPanel` off hides the panel at once; typing
    a display name changes nothing until Enter or a click elsewhere, which
-   saves it without connecting. `[Network]` shows `CustomServer` off and no
-   URL. `ViewRadius` shows its zero name and its step button sets 1000. Each
+   saves it without connecting. `[Connection]` shows `ConnectAutomatically`
+   on, `CustomServer` off, and no URL, without a group heading.
+   `ViewRadius` is a slider showing its zero name at the left end and game
+   units up to 15000 in steps of 100 as it is dragged, saved on release. After changes on
+   `[UI]` and `[Advanced]`, each page's Defaults restores only its own
+   settings, leaves the chat's size as dragged, and is disabled again. Each
    change is in `PlayerHub.ini` without pressing anything. `[DefaultOutfit]`
    shows Defaults, Revert, and Apply; a picked item shows a reset icon and reaches
    peers only on Apply, and Defaults leaves the display name and endpoint as
@@ -2830,7 +2865,7 @@ To verify in game:
     nowhere in the settings window or `PlayerHub.ini`. Switching
     `CustomServer` on while connected keeps the connection and remote
     players, and a URL field without a label appears under it. Disconnecting
-    with the field empty disables connecting on `[General]` with a sentence
+    with the field empty disables connecting on `[Connection]` with a sentence
     saying why. A URL typed into the field applies on Enter, and connecting
     joins that server; an endpoint without `http://` turns red. Switching
     `CustomServer` off while connected to the custom server keeps that
@@ -2886,10 +2921,12 @@ To verify in game:
     from there, and it keeps its angle after other items were hovered
     and the grid thumbnails captured. The item picker's model shows on its
     dark panel as before and spins too.
-29. The settings window's sidebar lists `[General]`, `[DefaultOutfit]`,
-    `[UI]`, `[Controls]`, `[Network]`, and `[Performance]`. `[Controls]` lists
-    `OpenSettings`, `OpenChat`, `ManagePlayers`, `AcceptTrade`, and
-    `DeclineTrade` with their keys, and `[UI]` lists none. A click on
+29. The settings window's sidebar lists `[Connection]`, `[DefaultOutfit]`,
+    `[UI]`, `[Controls]`, and `[Advanced]`. `[UI]` shows its settings under
+    the Display, Players, Chat, and Items headings, and `[Advanced]` under
+    Performance and Diagnostics, `StatusPanel` alone in the last.
+    `[Controls]` lists `OpenSettings`, `OpenChat`, `ManagePlayers`,
+    `AcceptTrade`, and `DeclineTrade` with their keys, and `[UI]` lists none. A click on
     `AcceptTrade`'s key, then `H`, shows `H` and saves `AcceptTrade = H`
     under `[Controls]`; a trade invitation then shows `H` as the accept key
     and `H` accepts it. While a button listens, `F10` shows that
@@ -2900,7 +2937,10 @@ To verify in game:
     bound to `OpenSettings` keeps the letter and the window open. Backspace
     on `AcceptTrade`'s button shows it unbound, saves `AcceptTrade =`, and
     the next invitation shows only the decline hint; `Y` then reaches the
-    game. Backspace on `OpenSettings`' button restores `F10`.
+    game. Backspace on `OpenSettings`' button restores `F10`. The footer's
+    Defaults button is disabled with the default keys; after rebinding any,
+    a click restores `F10`, `Enter`, `O`, `Y`, and `N`, saves them, and is
+    disabled again.
 30. With `OpenChat` bound to `T`, `T` opens the chat with an empty field and
     Enter and keypad Enter reach the game; Enter still sends and closes it.
     Backspace on `OpenChat`'s button restores `Enter`. `O` opens the player
@@ -2934,11 +2974,11 @@ To verify in game:
     same speed. At 80 all of them shrink the same way. `FontScale = 107` or
     `150` in the file warns in the log and loads `100`.
 34. In a game with an empty `DisplayName`, the framed hint at the top center
-    names the `OpenSettings` key and the `[General]` page; rebinding
+    names the `OpenSettings` key and the `[Connection]` page; rebinding
     `OpenSettings` changes the key it names. It is gone in the pause,
     inventory, and map menus, in dialogue, with the HUD hidden (`tm`), and
     while the chat or settings window is open. Pressing the key opens
-    `[General]` with the keyboard in the field, and applying a name there
+    `[Connection]` with the keyboard in the field, and applying a name there
     leaves no hint after the window closes. Clearing the name brings it back.
 
 ## Known limitations

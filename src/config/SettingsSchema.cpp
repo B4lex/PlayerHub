@@ -164,17 +164,13 @@ namespace Config
             return a_value.empty() || Multiplayer::IsValidDisplayName(a_value);
         }
 
-        void DescribeGeneral(GeneralSettings& a_settings, SettingsVisitor& a_visitor)
+        void DescribeConnection(ConnectionSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("General", "");
+            a_visitor.Section("Connection", "");
             a_visitor.String("DisplayName", a_settings.displayName,
                 "Shown to other players above your character and in chat.", IsValidDisplayName);
-        }
-
-        void DescribeNetwork(NetworkSettings& a_settings, SettingsVisitor& a_visitor)
-        {
-            a_visitor.Section("Network", "");
-            a_visitor.Bool("ConnectAutomatically", a_settings.autoConnect, "Connects to the server automatically after the game is loaded.");
+            a_visitor.Bool("ConnectAutomatically", a_settings.autoConnect,
+                "Connects to the server automatically after the game is loaded.");
             a_visitor.Bool("CustomServer", a_settings.customServer,
                 "Connects to the server at the URL below instead of the official server.");
             a_visitor.ShowNextIf(a_settings.customServer);
@@ -215,24 +211,10 @@ namespace Config
             a_visitor.Form("Bolt", a_settings.bolt, defaults.bolt, kOutfitBoltFilter);
         }
 
-        void DescribePerformance(PerformanceSettings& a_settings, SettingsVisitor& a_visitor)
-        {
-            a_visitor.Section(
-                "Performance", "");
-            a_visitor.Unsigned("ViewRadius", a_settings.viewRadius,
-                "Game units within which other players are shown. Applies\n"
-                "on the next connection.",
-                100000, "Auto");
-            a_visitor.Unsigned("SpawnsPerSecond", a_settings.spawnsPerSecond,
-                "Remote players and mounts spawned per second at most. Many players joining or\n"
-                "arriving at once then appear over a few seconds instead of in one long frame.\n"
-                "0 spawns every due player at once.",
-                1000, "Unlimited");
-        }
-
         void DescribeUI(UISettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("UI", "");
+            a_visitor.Comment("Display");
             a_visitor.Percent("FontScale", a_settings.fontScale,
                 "Size of the text in the settings window, the chat, and the rest of the\n"
                 "multiplayer interface. Windows grow and shrink with it.",
@@ -247,26 +229,30 @@ namespace Config
             a_visitor.Percent("BorderThickness", a_settings.frameThickness,
                 "Thickness of the frame around the settings window and the chat.",
                 UISettings::kMinimumFrameThickness, UISettings::kMaximumFrameThickness, 1);
+
+            a_visitor.Comment("Players");
             a_visitor.Bool("Nameplates", a_settings.nameplates,
                 "Shows other players' names above their heads while they are in sight.");
             a_visitor.ShowNextIf(a_settings.nameplates);
             a_visitor.Unsigned("NameplateDistance", a_settings.nameplateDistance,
                 "Game units within which names are shown above players' heads, about 70 to a\n"
                 "meter.",
-                UISettings::kMaximumNameplateDistance, "");
+                UISettings::kMaximumNameplateDistance, "", 1);
+
+            a_visitor.Comment("Chat");
             a_visitor.Bool("CloseChatOnSend", a_settings.closeChatOnSend,
                 "Closes the chat when Enter sends a line. Otherwise Enter only sends, and an\n"
                 "empty line does nothing.");
-            a_visitor.Bool("ItemPreview", a_settings.itemPreview,
-                "Shows a 3D model of the hovered item in item lists.");
-            a_visitor.Bool("StatusPanel", a_settings.statusPanel,
-                "Displays the in-game debug status panel.");
             a_visitor.Layout("ChatWidth", a_settings.chatWidth,
                 "Width of the chat in font sizes. Dragging the open chat's right edge sets it.",
                 UISettings::kMinimumChatWidth, UISettings::kMaximumChatWidth);
             a_visitor.Layout("ChatLines", a_settings.chatLines,
                 "Lines of history the open chat shows. Dragging its top edge sets it.",
                 UISettings::kMinimumChatLines, UISettings::kMaximumChatLines);
+
+            a_visitor.Comment("Items");
+            a_visitor.Bool("ItemPreview", a_settings.itemPreview,
+                "Shows a 3D model of the hovered item in item lists.");
         }
 
         void DescribeControls(ControlsSettings& a_settings, SettingsVisitor& a_visitor)
@@ -282,6 +268,26 @@ namespace Config
             a_visitor.Key("DeclineTrade", a_settings.tradeDeclineKey,
                 "Declines another player's trade offer, or withdraws your own, while it waits\n"
                 "for an answer.", 0);
+        }
+
+        void DescribeAdvanced(AdvancedSettings& a_settings, SettingsVisitor& a_visitor)
+        {
+            a_visitor.Section("Advanced", "");
+            a_visitor.Comment("Performance");
+            a_visitor.Unsigned("ViewRadius", a_settings.viewRadius,
+                "Game units within which other players are shown. Applies\n"
+                "on the next connection.",
+                AdvancedSettings::kMaximumViewRadius, "Auto", AdvancedSettings::kViewRadiusStep);
+            a_visitor.Unsigned("SpawnsPerSecond", a_settings.spawnsPerSecond,
+                "Remote players and mounts spawned per second at most. Many players joining or\n"
+                "arriving at once then appear over a few seconds instead of in one long frame.\n"
+                "0 spawns every due player at once.",
+                AdvancedSettings::kMaximumSpawnsPerSecond, "Unlimited", 1);
+
+            a_visitor.Comment("Diagnostics");
+            a_visitor.Bool("StatusPanel", a_settings.statusPanel,
+                "Shows the ping, network traffic, and the plugin's time per frame in the\n"
+                "top-right corner.");
         }
 
         PluginConfig MakeDefaultConfig()
@@ -326,12 +332,11 @@ namespace Config
 
     void Describe(PluginConfig& a_config, SettingsVisitor& a_visitor)
     {
-        DescribeGeneral(a_config.general, a_visitor);
+        DescribeConnection(a_config.connection, a_visitor);
         DescribeDefaultOutfit(a_config.defaultOutfit, a_visitor);
         DescribeUI(a_config.ui, a_visitor);
         DescribeControls(a_config.controls, a_visitor);
-        DescribeNetwork(a_config.network, a_visitor);
-        DescribePerformance(a_config.performance, a_visitor);
+        DescribeAdvanced(a_config.advanced, a_visitor);
     }
 
     const PluginConfig& GetDefaultConfig()
@@ -345,7 +350,7 @@ namespace Config
         return kDefaultServerEndpoint;
     }
 
-    std::string_view GetServerEndpoint(const NetworkSettings& a_settings)
+    std::string_view GetServerEndpoint(const ConnectionSettings& a_settings)
     {
         return a_settings.customServer ? std::string_view{ a_settings.serverEndpoint } : kDefaultServerEndpoint;
     }

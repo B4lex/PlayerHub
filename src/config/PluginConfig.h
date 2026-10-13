@@ -13,20 +13,14 @@
 
 namespace Config
 {
-    struct GeneralSettings
+    struct ConnectionSettings
     {
         std::string displayName;
-
-        bool operator==(const GeneralSettings&) const = default;
-    };
-
-    struct NetworkSettings
-    {
+        bool autoConnect{ true };
         bool customServer{ false };
         std::string serverEndpoint;
-        bool autoConnect{ true };
 
-        bool operator==(const NetworkSettings&) const = default;
+        bool operator==(const ConnectionSettings&) const = default;
     };
 
     struct DefaultOutfitSettings
@@ -55,12 +49,17 @@ namespace Config
         bool operator==(const DefaultOutfitSettings&) const = default;
     };
 
-    struct PerformanceSettings
+    struct AdvancedSettings
     {
+        static constexpr std::uint32_t kMaximumViewRadius = 15000;
+        static constexpr std::uint32_t kViewRadiusStep = 100;
+        static constexpr std::uint32_t kMaximumSpawnsPerSecond = 100;
+
         std::uint32_t viewRadius{ 0 };
         std::uint32_t spawnsPerSecond{ 20 };
+        bool statusPanel{ false };
 
-        bool operator==(const PerformanceSettings&) const = default;
+        bool operator==(const AdvancedSettings&) const = default;
     };
 
     struct UISettings
@@ -73,22 +72,21 @@ namespace Config
         static constexpr std::uint32_t kMinimumFontScale = 80;
         static constexpr std::uint32_t kMaximumFontScale = 130;
         static constexpr std::uint32_t kFontScaleStep = 5;
-        static constexpr std::uint32_t kMinimumFrameThickness = 50;
+        static constexpr std::uint32_t kMinimumFrameThickness = 30;
         static constexpr std::uint32_t kMaximumFrameThickness = 100;
         static constexpr std::uint32_t kMinimumChatWidth = 24;
         static constexpr std::uint32_t kMaximumChatWidth = 100;
         static constexpr std::uint32_t kMinimumChatLines = 9;
         static constexpr std::uint32_t kMaximumChatLines = 40;
-        static constexpr std::uint32_t kMaximumNameplateDistance = 10000;
+        static constexpr std::uint32_t kMaximumNameplateDistance = 6000;
 
         std::uint32_t fontScale{ 100 };
         std::uint32_t accentColor{ kAccentSwatches[0] };
         std::uint32_t frameColor{ kVanillaFrame };
-        std::uint32_t frameThickness{ 70 };
+        std::uint32_t frameThickness{ 60 };
         bool itemPreview{ true };
         bool nameplates{ true };
         std::uint32_t nameplateDistance{ 2100 };
-        bool statusPanel{ false };
         bool closeChatOnSend{ true };
         std::uint32_t chatWidth{ 30 };
         std::uint32_t chatLines{ 10 };
@@ -110,12 +108,11 @@ namespace Config
 
     struct PluginConfig
     {
-        GeneralSettings general;
-        NetworkSettings network;
+        ConnectionSettings connection;
         DefaultOutfitSettings defaultOutfit;
-        PerformanceSettings performance;
         UISettings ui;
         ControlsSettings controls;
+        AdvancedSettings advanced;
 
         bool operator==(const PluginConfig&) const = default;
     };
@@ -132,5 +129,5 @@ namespace Config
 
     [[nodiscard]] std::string_view GetDefaultServerEndpoint();
 
-    [[nodiscard]] std::string_view GetServerEndpoint(const NetworkSettings& a_settings);
+    [[nodiscard]] std::string_view GetServerEndpoint(const ConnectionSettings& a_settings);
 }

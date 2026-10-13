@@ -55,14 +55,17 @@ namespace UI
         constexpr float kBrandScale = 1.125F;
         constexpr float kGroupScale = 0.8125F;
         constexpr float kControlWidth = 0.58F;
-        constexpr std::uint32_t kNumberSteps = 100;
 
-        constexpr std::string_view kConnectionSection = "General";
+        constexpr std::string_view kConnectionSection = "Connection";
         constexpr std::string_view kDisplayNameKey = "DisplayName";
         constexpr const char* kDisplayNameHint = "Enter a display name";
         constexpr std::string_view kServerEndpointKey = "ServerEndpoint";
         constexpr const char* kServerEndpointHint = "Enter server endpoint URL";
         constexpr std::string_view kStagedSection = "DefaultOutfit";
+        constexpr std::string_view kUISection = "UI";
+        constexpr std::string_view kControlsSection = "Controls";
+        constexpr std::string_view kAdvancedSection = "Advanced";
+        constexpr std::string_view kDefaultsSections[]{ kUISection, kControlsSection, kAdvancedSection };
         constexpr std::pair<std::string_view, std::string_view> kSectionTitles[]{ { "UI", "Interface" },
             { "Controls", "Keybinds" } };
 
@@ -228,17 +231,23 @@ namespace UI
 
             [[nodiscard]] bool IsStagedSectionOpen() const { return stagedSectionOpen; }
 
+            [[nodiscard]] std::string_view GetDefaultsSection() const
+            {
+                return defaultsSectionOpen ? openSection : std::string_view{};
+            }
+
             [[nodiscard]] bool IsEditing() const { return editing; }
 
             [[nodiscard]] float GetScrollbarWidth() const { return scrollbarWidth; }
 
-            void DrawPage(Config::PluginConfig& a_config, const ImVec2& a_padding, float a_stagedFooterHeight,
-                float a_liveFooterHeight)
+            void DrawPage(Config::PluginConfig& a_config, const ImVec2& a_padding, float a_buttonFooterHeight,
+                float a_plainFooterHeight)
             {
                 padding = a_padding;
-                stagedFooterHeight = a_stagedFooterHeight;
-                liveFooterHeight = a_liveFooterHeight;
+                buttonFooterHeight = a_buttonFooterHeight;
+                plainFooterHeight = a_plainFooterHeight;
                 stagedSectionOpen = false;
+                defaultsSectionOpen = false;
                 editing = false;
                 sections.clear();
                 bindings.clear();
@@ -298,6 +307,7 @@ namespace UI
                 sectionOpen = true;
                 sectionEmpty = true;
                 stagedSectionOpen = a_name == kStagedSection;
+                defaultsSectionOpen = std::ranges::contains(kDefaultsSections, a_name);
                 ImGui::PushID(a_name.data(), a_name.data() + a_name.size());
 
                 const auto& style = ImGui::GetStyle();
@@ -316,10 +326,10 @@ namespace UI
                 }
                 ImGui::Dummy(ImVec2{ 0.0F, std::floor(style.ItemSpacing.y * 0.5F) });
 
+                const auto footerHeight
+                    = stagedSectionOpen || defaultsSectionOpen ? buttonFooterHeight : plainFooterHeight;
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ padding.x, 0.0F });
-                ImGui::BeginChild("##Content",
-                    ImVec2{ 0.0F, -(stagedSectionOpen ? stagedFooterHeight : liveFooterHeight) },
-                    ImGuiChildFlags_AlwaysUseWindowPadding);
+                ImGui::BeginChild("##Content", ImVec2{ 0.0F, -footerHeight }, ImGuiChildFlags_AlwaysUseWindowPadding);
                 ImGui::PopStyleVar();
             }
 
@@ -359,31 +369,22 @@ namespace UI
             }
 
             void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-                std::uint32_t a_maximum, std::string_view a_zeroName) override
+                std::uint32_t a_maximum, std::string_view a_zeroName, std::uint32_t a_step) override
             {
                 if (!BeginRow(a_key, a_comment))
                 {
                     return;
                 }
-                const auto flags = a_zeroName.empty()
-                    ? ImGuiInputTextFlags_None
-                    : ImGuiInputTextFlags_DisplayEmptyRefVal | ImGuiInputTextFlags_ParseEmptyRefVal;
-                const std::uint32_t step = (std::max)(a_maximum / kNumberSteps, 1U);
-                if (ImGui::InputScalar("##value", ImGuiDataType_U32, &a_value, &step, nullptr, nullptr, flags))
+                // A format without a conversion is drawn as it is, so zero shows its name.
+                label.assign(a_value == 0 && !a_zeroName.empty() ? a_zeroName : "%u");
+                constexpr std::uint32_t kMinimum = 0;
+                if (ImGui::SliderScalar("##value", ImGuiDataType_U32, &a_value, &kMinimum, &a_maximum, label.c_str(),
+                        ImGuiSliderFlags_AlwaysClamp))
                 {
-                    a_value = (std::min)(a_value, a_maximum);
+                    a_value = (std::min)((a_value + a_step / 2) / a_step * a_step, a_maximum);
                 }
-                const bool active = ImGui::IsItemActive();
-                editing = editing || active;
-                if (a_value == 0 && !active && !a_zeroName.empty())
-                {
-                    const auto position = ImGui::GetItemRectMin();
-                    const auto& framePadding = ImGui::GetStyle().FramePadding;
-                    ImGui::GetWindowDrawList()->AddText(
-                        ImVec2{ position.x + framePadding.x, position.y + framePadding.y },
-                        ImGui::GetColorU32(ImGuiCol_TextDisabled), a_zeroName.data(),
-                        a_zeroName.data() + a_zeroName.size());
-                }
+                // Applied on release, so a drag does not save the file in every frame.
+                editing = editing || ImGui::IsItemActive();
                 EndRow();
             }
 
@@ -862,14 +863,15 @@ namespace UI
             std::vector<std::string_view> sections;
             std::string_view openSection;
             ImVec2 padding;
-            float stagedFooterHeight{ 0.0F };
-            float liveFooterHeight{ 0.0F };
+            float buttonFooterHeight{ 0.0F };
+            float plainFooterHeight{ 0.0F };
             float controlLeft{ 0.0F };
             float controlWidth{ 0.0F };
             float scrollbarWidth{ 0.0F };
             bool sectionOpen{ false };
             bool sectionEmpty{ false };
             bool stagedSectionOpen{ false };
+            bool defaultsSectionOpen{ false };
             bool editing{ false };
             bool focusConnectionField{ false };
             bool hideNext{ false };
@@ -878,9 +880,8 @@ namespace UI
 
         bool LiveSectionsMatch(const Config::PluginConfig& a_left, const Config::PluginConfig& a_right)
         {
-            return a_left.general == a_right.general && a_left.network == a_right.network
-                && a_left.performance == a_right.performance && a_left.ui == a_right.ui
-                && a_left.controls == a_right.controls;
+            return a_left.connection == a_right.connection && a_left.ui == a_right.ui
+                && a_left.controls == a_right.controls && a_left.advanced == a_right.advanced;
         }
 
         class SettingsWindow final : public Window
@@ -935,7 +936,7 @@ namespace UI
                 live = Config::Get();
                 draft = *live;
                 editor.Reset();
-                if (live->general.displayName.empty())
+                if (live->connection.displayName.empty())
                 {
                     editor.FocusConnectionField();
                 }
@@ -1057,9 +1058,10 @@ namespace UI
                 ApplyLiveSections();
 
                 const bool staged = editor.IsStagedSectionOpen();
-                if (staged || liveError)
+                const auto defaultsSection = editor.GetDefaultsSection();
+                if (staged || !defaultsSection.empty() || liveError)
                 {
-                    const auto top = ImGui::GetWindowHeight() - footerHeight;
+                    auto top = ImGui::GetWindowHeight() - footerHeight;
                     const auto position = ImGui::GetWindowPos();
                     ImGui::GetWindowDrawList()->AddLine(ImVec2{ position.x, position.y + top },
                         ImVec2{ position.x + ImGui::GetWindowWidth(), position.y + top },
@@ -1071,8 +1073,16 @@ namespace UI
                     }
                     else
                     {
-                        ImGui::AlignTextToFramePadding();
-                        ImGui::TextColored(Theme::kNegative, "%s", liveError);
+                        top = ImGui::GetCursorPosY();
+                        if (liveError)
+                        {
+                            ImGui::AlignTextToFramePadding();
+                            ImGui::TextColored(Theme::kNegative, "%s", liveError);
+                        }
+                        if (!defaultsSection.empty())
+                        {
+                            DrawDefaultsFooter(defaultsSection, padding.x + editor.GetScrollbarWidth(), top);
+                        }
                     }
                 }
 
@@ -1094,6 +1104,57 @@ namespace UI
                 auto config = draft;
                 config.defaultOutfit = live->defaultOutfit;
                 Apply(std::move(config));
+            }
+
+            void DrawDefaultsFooter(std::string_view a_section, float a_inset, float a_top)
+            {
+                const ImVec2 size{ std::floor(kFooterButtonWidthFonts * ImGui::GetFontSize()), 0.0F };
+                ImGui::SetCursorPos(ImVec2{ ImGui::GetWindowWidth() - a_inset - size.x, a_top });
+                ImGui::BeginDisabled(HasDefaults(a_section));
+                if (ImGui::Button("Defaults", size))
+                {
+                    RestoreDefaults(a_section);
+                    ApplyLiveSections();
+                }
+                ImGui::EndDisabled();
+            }
+
+            // The chat's size is set by dragging the chat, not on the page, so it is kept.
+            [[nodiscard]] Config::UISettings GetShownUIDefaults() const
+            {
+                auto ui = defaults.ui;
+                ui.chatWidth = draft.ui.chatWidth;
+                ui.chatLines = draft.ui.chatLines;
+                return ui;
+            }
+
+            [[nodiscard]] bool HasDefaults(std::string_view a_section) const
+            {
+                if (a_section == kUISection)
+                {
+                    return draft.ui == GetShownUIDefaults();
+                }
+                if (a_section == kControlsSection)
+                {
+                    return draft.controls == defaults.controls;
+                }
+                return draft.advanced == defaults.advanced;
+            }
+
+            void RestoreDefaults(std::string_view a_section)
+            {
+                if (a_section == kUISection)
+                {
+                    draft.ui = GetShownUIDefaults();
+                }
+                else if (a_section == kControlsSection)
+                {
+                    draft.controls = defaults.controls;
+                }
+                else
+                {
+                    draft.advanced = defaults.advanced;
+                }
             }
 
             void DrawStagedFooter(float a_inset)

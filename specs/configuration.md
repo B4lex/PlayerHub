@@ -97,6 +97,14 @@ the key loads as `true`; switching it off and on in the window saves each
 value. `ItemPreview` and `StatusPanel` moved afterwards (2026-10-12) to follow
 `CloseChatOnSend`, last among the shown `[UI]` keys; `SettingsSchema.cpp` was
 not rechecked.
+`[Connection]` and `[Advanced]` (2026-10-13), which replaced `[General]`,
+`[Network]`, and `[Performance]` and took `[UI] StatusPanel`, and the group
+comments in `[UI]` and `[Advanced]` passed the g++ syntax
+check only. The file checks above ran with the earlier sections, and with
+the earlier maximums of `ViewRadius`, `100000`, and `SpawnsPerSecond`,
+`1000`. A new file's
+sections and comments, and the warnings for an earlier file's lines, are not
+yet checked.
 
 ## Scope
 
@@ -142,8 +150,10 @@ in `Config::PluginConfig` plus one line there. `Config::SettingsVisitor::Form`
 takes the setting's item filter
 ([Appearance and equipment](appearance-and-equipment.md#item-filter-and-catalog)).
 `Unsigned` takes the setting's maximum, above which a value in the file is
-invalid, and a name for zero where zero is not a count, which only the settings
-window shows; the file stores `0`. `Percent` takes both limits, outside which a
+invalid, a name for zero where zero is not a count, which only the settings
+window shows (the file stores `0`), and a step for the settings window's
+slider. The file takes any value up to the maximum, off the step too, so a
+value written by hand loads as it is. `Percent` takes both limits, outside which a
 value in the file is invalid, and a step: a value that is not the minimum
 plus whole steps is invalid too. The file stores the number without a sign.
 `Color` is an opaque `0xRRGGBB` value that the file stores as six hexadecimal
@@ -154,18 +164,68 @@ an unsigned value within both limits, read and saved as any other, which the
 settings window does not show. `ShowNextIf` makes the next setting depend on a
 value described before it; reading and saving ignore it, and the settings
 window leaves the row out while the value is false.
-`Config::Describe` describes the sections in the order General,
-DefaultOutfit, UI, Controls, Network, Performance: the order of a new file's
-sections and of the settings window's sidebar
+`Comment` names a group of the settings after it: a comment line above them
+in a new file, and a group heading in the settings window.
+`Config::Describe` describes the sections in the order Connection,
+DefaultOutfit, UI, Controls, Advanced: the order of a new file's sections and
+of the settings window's sidebar
 ([UI overlay](ui-overlay.md#settings-window)).
 
 ## Settings
 
-### `[General]`
+`[Connection]` replaced `[General]` and `[Network]`, and `[Advanced]`
+replaced `[Performance]` and took `[UI] StatusPanel`, without migration: an
+earlier file's lines there are logged as unknown and the defaults apply, so a
+display name and a custom server are entered again. The same holds for the
+earlier `AutoConnect`, `ConnectToOfficialServer`, and `playerhub-server.txt`.
+
+### `[Connection]`
+
+Who the player is to peers and which server they join, in one group. They
+share one section so that the settings window's connection button and every
+setting it depends on are on one page
+([UI overlay](ui-overlay.md#connection-controls)).
 
 | Key | Meaning | Default |
 | --- | --- | --- |
 | `DisplayName` | The player's name as peers see it, in the player label over the actor and in chat ([Appearance and equipment](appearance-and-equipment.md#display-name)): 3..15 ASCII letters, digits, and underscores, as the server accepts (`Multiplayer::IsValidDisplayName`, [Network](network.md#sessions)). A file value that breaks the rule loads as not set. Empty means not set, and no connection is opened without one ([Network](network.md#connection)). It is the display name of the player's session, so the server refuses one another player holds ([Network](network.md#sessions)), and it reaches the server only when connecting: the settings window locks it while a connection is wanted or open ([UI overlay](ui-overlay.md#connection-controls)) | empty |
+| `ConnectAutomatically` | Whether each game connects when it loads, which it does only with a `DisplayName` set; otherwise the settings window's connection button does | `true` |
+| `CustomServer` | Whether the client connects to `ServerEndpoint` instead of the [official server](#official-and-custom-server) | `false` |
+| `ServerEndpoint` | The custom server's URL, starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; empty is valid and means none. Read only while `CustomServer` is `true`, and kept while it is `false` | empty |
+
+#### Official and custom server
+
+Goal: players connect to the official server bundled with the DLL without
+seeing or entering its URL, and only those who switch `CustomServer` on enter
+one. Non-goal: keeping the official URL
+secret; it is a plain string in the DLL and the key of its lines in
+`PlayerHub.session` and `PlayerHub.players` ([Network](network.md#client)).
+
+`Config::GetServerEndpoint` is the URL the client connects to: the build's
+default while `CustomServer` is `false`, `ServerEndpoint` while it is
+`true`, and empty when that is empty, in which case nothing connects
+([Network](network.md#connection)). `Config::GetDefaultServerEndpoint` is the
+build's default. The default is never written to the file, so a later build
+with another official server moves every player who did not switch, and the
+settings window never draws it ([UI overlay](ui-overlay.md#settings-window)).
+The log names it `the official server` instead of its URL
+([Network](network.md#client)).
+
+The repository does not name the public server. The `server_endpoint` xmake
+option holds it, set with `xmake f --server_endpoint=https://...` or in an
+IDE build profile's configure arguments, and kept in xmake's configuration
+cache. The PlayerHub target's `on_config` passes it as the
+`PLAYERHUB_DEFAULT_SERVER_ENDPOINT` string define, which `SettingsSchema.cpp`
+holds as the default endpoint. It is an option rather than an environment
+variable because an IDE's run configuration does not reach the build, and the
+configured value is visible in `xmake f --menu`. Release builds set it to the
+public server. Its default is `http://127.0.0.1:3000`, the local server's
+default address, so a build without it reaches a server run from `server/` on
+the same machine. A value that does not start with `http://` or `https://`, or
+that holds whitespace, a quote, or a backslash, fails the configuration, since
+the define is a C string literal and the client could not connect to it. xmake
+tracks each file's flags, so a changed value recompiles the plugin. The value
+is still a plain string in the DLL.
 
 ### `[DefaultOutfit]`
 
@@ -215,6 +275,10 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 
 ### `[UI]`
 
+Four groups: Display (`FontScale`, `AccentColor`, `BorderColor`,
+`BorderThickness`), Players (`Nameplates`, `NameplateDistance`), Chat
+(`CloseChatOnSend`, `ChatWidth`, `ChatLines`), and Items (`ItemPreview`).
+
 | Key | Meaning | Default |
 | --- | --- | --- |
 | `FontScale` | Size of the overlay's text in percent, `80..130` in steps of `5`; the windows laid out in font sizes grow and shrink with it ([UI overlay](ui-overlay.md#font-scale)) | `100` |
@@ -225,7 +289,6 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 | `NameplateDistance` | Game units from the player within which nameplates show, `0..10000`, about 70 to a meter; `0` shows none and skips their line-of-sight tests, as `Nameplates = false` does; the settings window shows it only while `Nameplates` is on | `2100` |
 | `CloseChatOnSend` | Closes the chat when Enter sends a line; when `false`, the chat stays open and Enter in an empty field does nothing ([UI overlay](ui-overlay.md#sending)) | `true` |
 | `ItemPreview` | Shows the 3D item model in item pickers and the trade window's preview column, and item thumbnails in the trade window's offers; off, the cells show names and the column only the item card | `true` |
-| `StatusPanel` | Shows the status panel | `false` |
 | `ChatWidth` | Width of the chat's lines in font sizes, `24..100`; set by dragging the open chat's right edge ([UI overlay](ui-overlay.md#size)) and not shown in the settings window | `30` |
 | `ChatLines` | Lines of history the open chat shows, `9..40`; set by dragging its top edge, and not shown in the settings window | `10` |
 
@@ -274,54 +337,22 @@ rather than its stored name.
   `TradeDeclineKey` without migrating them: an earlier file's lines are
   logged as unknown and the defaults apply.
 
-### `[Network]`
+### `[Advanced]`
+
+Settings most players leave alone, in two groups: Performance, then
+Diagnostics.
+
+The maximums are narrow so the settings window's sliders stay usable
+([UI overlay](ui-overlay.md#settings-window)): a server clamps `ViewRadius`
+to its enter radius, 8192 by default, so 15000 leaves room for a server with
+a larger one, and the default `SpawnsPerSecond` is 20. A file value above a
+maximum is invalid and loads as the default.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `CustomServer` | Whether the client connects to `ServerEndpoint` instead of the [official server](#official-and-custom-server). Replaces `ConnectToOfficialServer`, which is logged as unknown without migration, so a file that switched it off connects to the official server until `CustomServer` is switched on | `false` |
-| `ServerEndpoint` | The custom server's URL, starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; empty is valid and means none. Read only while `CustomServer` is `true`, and kept while it is `false`. Replaces `playerhub-server.txt`, which is no longer read | empty |
-| `AutoConnect` | Whether each game connects when it loads, which it does only with a `DisplayName` set; otherwise the settings window's connection button does | `true` |
-
-#### Official and custom server
-
-Goal: players connect to the official server bundled with the DLL without
-seeing or entering its URL, and only those who switch `CustomServer` on enter
-one. Non-goal: keeping the official URL
-secret; it is a plain string in the DLL and the key of its lines in
-`PlayerHub.session` and `PlayerHub.players` ([Network](network.md#client)).
-
-`Config::GetServerEndpoint` is the URL the client connects to: the build's
-default while `CustomServer` is `false`, `ServerEndpoint` while it is
-`true`, and empty when that is empty, in which case nothing connects
-([Network](network.md#connection)). `Config::GetDefaultServerEndpoint` is the
-build's default. The default is never written to the file, so a later build
-with another official server moves every player who did not switch, and the
-settings window never draws it ([UI overlay](ui-overlay.md#settings-window)).
-The log names it `the official server` instead of its URL
-([Network](network.md#client)).
-
-The repository does not name the public server. The `server_endpoint` xmake
-option holds it, set with `xmake f --server_endpoint=https://...` or in an
-IDE build profile's configure arguments, and kept in xmake's configuration
-cache. The PlayerHub target's `on_config` passes it as the
-`PLAYERHUB_DEFAULT_SERVER_ENDPOINT` string define, which `SettingsSchema.cpp`
-holds as the default endpoint. It is an option rather than an environment
-variable because an IDE's run configuration does not reach the build, and the
-configured value is visible in `xmake f --menu`. Release builds set it to the
-public server. Its default is `http://127.0.0.1:3000`, the local server's
-default address, so a build without it reaches a server run from `server/` on
-the same machine. A value that does not start with `http://` or `https://`, or
-that holds whitespace, a quote, or a backslash, fails the configuration, since
-the define is a C string literal and the client could not connect to it. xmake
-tracks each file's flags, so a changed value recompiles the plugin. The value
-is still a plain string in the DLL.
-
-### `[Performance]`
-
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `ViewRadius` | Game units within which other players are shown, `0..100000`; sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection. It is here rather than in `[Network]` because it bounds how many remote actors the client draws | `0`, the server's range, which the settings window shows by the schema's zero name |
-| `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..1000`; `0` is unlimited and shown by the schema's zero name ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
+| `ViewRadius` | Game units within which other players are shown, `0..15000`; the settings window's slider moves in steps of `100` (`AdvancedSettings::kViewRadiusStep`); sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection | `0`, the server's range, which the settings window shows by the schema's zero name |
+| `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..100`; `0` is unlimited and shown by the schema's zero name ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
+| `StatusPanel` | Shows the [status panel](ui-overlay.md#status-panel), a debugging readout | `false` |
 
 ## Snapshots
 
@@ -338,13 +369,13 @@ revision before the snapshot never misses a change.
 | `DefaultOutfit` | main loop | `Refresh`, first in `SyncCoordinator::OnFrame`, resolving every item again when `[DefaultOutfit]` differs |
 | `EquipmentSync` | main loop | the next capture selecting from the new outfit and publishing a new revision |
 | `AppearanceSync` | main loop | the next capture taking the new default race and sex, which publish a new revision for a modded race |
-| `ConnectionMonitor` | main loop | reading `AutoConnect` and whether `DisplayName` and an endpoint are set when a game starts; ending the player's choice to connect when `DisplayName` is cleared, or while the endpoint is empty and no connection is welcomed |
+| `ConnectionMonitor` | main loop | reading `ConnectAutomatically` and whether `DisplayName` and an endpoint are set when a game starts; ending the player's choice to connect when `DisplayName` is cleared, or while the endpoint is empty and no connection is welcomed |
 | `ServerClient` | transport, worker | reading `Config::GetServerEndpoint` for each attempt, and `DisplayName` and `ViewRadius` for each hello |
 | `ConnectionControls` | overlay | reading whether `Config::GetServerEndpoint` is empty each frame the General section draws |
 | `SettingsWindow` | overlay, input | reading `OpenSettings` on each focus key press |
 | `ChatWindow` | input | reading `OpenChat` and `ManagePlayers` on each focus key press |
 | `TradePrompt` | overlay, input | reading `AcceptTrade` and `DeclineTrade` on each focus key press and each frame it draws |
-| `StatusPanel`, item pickers, trade window | overlay | reading `StatusPanel` and `ItemPreview` each frame |
+| `StatusPanel`, item pickers, trade window | overlay | reading `[Advanced] StatusPanel` and `[UI] ItemPreview` each frame |
 | `ChatInput` | overlay | reading `CloseChatOnSend` on each Enter that sends or finds the field empty |
 | `Theme` | overlay | working out the accent and frame colors from `AccentColor` and `BorderColor` when the revision changes |
 | `MenuFrame` | overlay | reading `BorderThickness` for each framed window each frame |
@@ -386,11 +417,11 @@ under it ([UI overlay](ui-overlay.md#themed-faces)).
    not base-game items are logged and fall back to their defaults, or to no piece
    when the default is unusable too.
 3. The default file connects to the official server without naming it;
-   `[Network] CustomServer = true` connects to `ServerEndpoint`
-   instead, and with an empty one nothing connects. `[General] DisplayName` sets
+   `[Connection] CustomServer = true` connects to `ServerEndpoint`
+   instead, and with an empty one nothing connects. `[Connection] DisplayName` sets
    the name peers see; the default file has an empty `DisplayName`, and the
    plugin stays disconnected until one is entered and Connect is pressed.
-   `[Performance] SpawnsPerSecond` bounds spawns, so many players arriving at
+   `[Advanced] SpawnsPerSecond` bounds spawns, so many players arriving at
    once do not spawn in one frame.
 4. Applying changes takes effect without a restart, and the file keeps
    hand-written comments.

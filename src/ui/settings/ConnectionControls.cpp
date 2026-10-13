@@ -30,8 +30,7 @@ namespace UI::ConnectionControls
         constexpr const char* kInvalidDisplayNameText = "Invalid display name.";
         constexpr const char* kDisconnectToRenameText = "Disconnect to change the display name";
         constexpr const char* kCancelToRenameText = "Cancel the connection to change the display name";
-        constexpr const char* kNoEndpointText
-            = "Enter a server URL in Network, or switch Custom Server off, to connect.";
+        constexpr const char* kNoEndpointText = "Enter a server URL below, or switch Custom Server off, to connect.";
 
         struct Status
         {
@@ -106,7 +105,7 @@ namespace UI::ConnectionControls
         bool HasServerEndpoint()
         {
             const auto config = Config::Get();
-            return !Config::GetServerEndpoint(config->network).empty();
+            return !Config::GetServerEndpoint(config->connection).empty();
         }
 
         void DrawMessage(std::string_view a_text, const ImVec4& a_color)

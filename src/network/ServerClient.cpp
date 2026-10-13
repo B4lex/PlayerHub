@@ -152,7 +152,7 @@ namespace Network
             const auto token = SessionStore::Find(server);
             {
                 const std::scoped_lock lock{ attemptLock };
-                attemptDisplayName = config->general.displayName;
+                attemptDisplayName = config->connection.displayName;
             }
             const std::scoped_lock lock{ vanishLock };
             helloServer = server;
@@ -165,13 +165,13 @@ namespace Network
                 vanished.resize(Multiplayer::kMaximumVanishedSessions);
             }
             const auto hello
-                = Wire::EncodeHello(config->performance.viewRadius, config->general.displayName, token, vanished);
+                = Wire::EncodeHello(config->advanced.viewRadius, config->connection.displayName, token, vanished);
             if (hello.empty())
             {
                 logs::error("Could not encode the hello for the server");
                 return;
             }
-            logs::info("Sending hello: displayName=\"{}\" session={} vanished={}", config->general.displayName,
+            logs::info("Sending hello: displayName=\"{}\" session={} vanished={}", config->connection.displayName,
                 token ? "kept" : "none, asking for a new one", vanished.size());
             if (const auto info = a_socket.sendBinary(hello); info.success)
             {
@@ -711,7 +711,7 @@ namespace Network
 
         void OpenSocket()
         {
-            std::string endpoint{ Config::GetServerEndpoint(Config::Get()->network) };
+            std::string endpoint{ Config::GetServerEndpoint(Config::Get()->connection) };
             {
                 const std::scoped_lock lock{ attemptLock };
                 attemptEndpoint = endpoint;
@@ -945,7 +945,7 @@ namespace Network
             }
         }
         const auto config = Config::Get();
-        const auto endpoint = Config::GetServerEndpoint(config->network);
+        const auto endpoint = Config::GetServerEndpoint(config->connection);
         return endpoint.empty() ? std::string{} : ToWebSocketUrl(std::string{ endpoint });
     }
 

@@ -80,7 +80,7 @@ namespace Config
             }
 
             void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view, std::uint32_t a_maximum,
-                std::string_view) override
+                std::string_view, std::uint32_t) override
             {
                 ReadUnsigned(a_key, a_value, 0, a_maximum);
             }
@@ -247,7 +247,7 @@ namespace Config
             }
 
             void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t,
-                std::string_view) override
+                std::string_view, std::uint32_t) override
             {
                 Text(a_key, std::format("{}", a_value), a_comment);
             }

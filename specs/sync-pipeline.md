@@ -5,7 +5,7 @@
 Implemented, and every feature in the other system specs runs through it in
 game on Skyrim AE 1.7.104. The split into `runtime/`, `sync/`, and `actor/` was
 a behavior-preserving move of the former `FrameUpdate.cpp` and `NPCSpawner.cpp`.
-Spawn throttling (`[Performance] SpawnsPerSecond`) and save exclusion are not
+Spawn throttling (`[Advanced] SpawnsPerSecond`) and save exclusion are not
 separately checked in game.
 
 [Checkpoint playout](#checkpoint-playout) was run in game against a server
@@ -325,7 +325,7 @@ player rides, its mount ([Native interactions](native-interactions.md#mounts)).
   `AppearanceSync::GetSpawnBase` has a base. It is never created at the local
   player first. A failed spawn is retried after 1 s. A spawn records the cell
   and worldspace it was created in.
-- **Throttling.** `[Performance] SpawnsPerSecond` (default 20, `0` unlimited)
+- **Throttling.** `[Advanced] SpawnsPerSecond` (default 20, `0` unlimited)
   bounds actor and mount spawns. `RefillSpawnAllowance` adds the rate times the
   frame time once per pass, never saving up more than one pass's share, and a
   pass may always start one spawn. A held-back spawn accumulates its wait, and

@@ -244,7 +244,7 @@ namespace ActorLifecycle
     void RefillSpawnAllowance(float a_delta)
     {
         const float delta = FrameTime::Clamp(a_delta);
-        s_spawnsPerSecond = Config::Get()->performance.spawnsPerSecond;
+        s_spawnsPerSecond = Config::Get()->advanced.spawnsPerSecond;
         const float passShare = static_cast<float>(s_spawnsPerSecond) * delta;
         s_spawnAllowance = (std::min)(s_spawnAllowance + passShare, (std::max)(passShare, 1.0F));
         s_previousLongestSpawnWait = std::exchange(s_longestSpawnWait, 0.0F);

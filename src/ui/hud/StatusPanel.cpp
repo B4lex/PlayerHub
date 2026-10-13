@@ -86,7 +86,7 @@ namespace UI
 
     void StatusPanel::Draw(const WindowInput&)
     {
-        if (!GameSession::IsInGame() || !Config::Get()->ui.statusPanel)
+        if (!GameSession::IsInGame() || !Config::Get()->advanced.statusPanel)
         {
             return;
         }
