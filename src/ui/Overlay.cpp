@@ -8,6 +8,7 @@
 #include "ui/WindowManager.h"
 #include "ui/chat/ChatWindow.h"
 #include "ui/chat/WorldPlayerMenu.h"
+#include "ui/hud/DisplayNameHint.h"
 #include "ui/hud/NameplateLayer.h"
 #include "ui/hud/NoticeStack.h"
 #include "ui/hud/StatusPanel.h"
@@ -201,6 +202,7 @@ namespace UI::Overlay
         WindowManager::Register(CreateChatWindow());
         WindowManager::Register(CreateWorldPlayerMenu());
         WindowManager::Register(CreateTradePrompt());
+        WindowManager::Register(CreateDisplayNameHint());
         WindowManager::Register(CreateTradeWindow());
         WindowManager::Register(CreateSettingsWindow());
         InputCapture::Install();

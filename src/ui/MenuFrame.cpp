@@ -424,4 +424,30 @@ namespace UI::MenuFrame
         }
         return visible;
     }
+
+    bool BeginPrompt(const char* a_name)
+    {
+        constexpr float kTopFonts = 6.0F;
+        constexpr float kBackgroundAlpha = 0.65F;
+        constexpr ImGuiWindowFlags kFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
+            | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize
+            | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBackground;
+
+        const auto& display = ImGui::GetIO().DisplaySize;
+        ImGui::SetNextWindowPos(ImVec2{ display.x * 0.5F, std::floor(kTopFonts * ImGui::GetFontSize()) },
+            ImGuiCond_Always, ImVec2{ 0.5F, 0.0F });
+        const auto metrics = GetMetrics();
+        const auto& padding = ImGui::GetStyle().WindowPadding;
+        const auto inset = std::floor((metrics.inset + metrics.corner) * 0.5F);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ padding.x + inset, padding.y + inset });
+        const bool visible = ImGui::Begin(a_name, nullptr, kFlags);
+        ImGui::PopStyleVar();
+        if (visible)
+        {
+            auto background = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
+            background.w = kBackgroundAlpha;
+            Draw(ImGui::GetColorU32(Theme::GetFrameColor()), ImGui::GetColorU32(background));
+        }
+        return visible;
+    }
 }

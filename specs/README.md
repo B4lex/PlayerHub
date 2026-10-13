@@ -18,7 +18,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
 | [trade.md](trade.md) | Item exchange between two players: invitation, offers, reports, acceptance, commit, cancelling, the trade bot; the only change a peer makes to the local world | `sync/trade/`, `forms/ItemInstance`, `protocol/TradeState.h`, `server/internal/hub/trade.go`, `server/cmd/tradebot` |
 | [configuration.md](configuration.md) | `PlayerHub.ini`, schema, snapshots, saving | `src/config/` |
-| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, theme, menu frame, logo, nameplates, status panel, notices, chat, friends, mute and vanish, player menu, player menu in the world, settings window, item picker and preview | `src/ui/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
+| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, theme, menu frame, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, player menu, player menu in the world, settings window, item picker and preview | `src/ui/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `server/admin-ui/` |
 
 ## Features
@@ -44,6 +44,7 @@ criteria.
 | Combat and reaction isolation, Precision compatibility | [remote-actor](remote-actor.md#combat-isolation), [remote-actor](remote-actor.md#precision), [sync-pipeline](sync-pipeline.md#frame-sequence) |
 | World isolation and collision | [remote-actor](remote-actor.md#world-isolation), [native-interactions](native-interactions.md#collision) |
 | Connection, latency, traffic | [network](network.md#connection), [ui-overlay](ui-overlay.md#status-panel) |
+| Display name hint | [ui-overlay](ui-overlay.md#display-name-hint), [configuration](configuration.md#controls) |
 | Official and custom server | [configuration](configuration.md#official-and-custom-server), [network](network.md#connection), [ui-overlay](ui-overlay.md#settings-window) |
 | Player cap and join limits | [network](network.md#admission), [ui-overlay](ui-overlay.md#connection-controls) |
 | Proximity, exclusions, late join, peer enter and leave, batching | [interest-and-delivery](interest-and-delivery.md), [network](network.md#server-messages), [sync-pipeline](sync-pipeline.md#receive-state) |

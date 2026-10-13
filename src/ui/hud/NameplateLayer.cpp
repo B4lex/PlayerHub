@@ -5,6 +5,7 @@
 #include "sync/nameplates/NameplateSync.h"
 #include "ui/Fonts.h"
 #include "ui/Theme.h"
+#include "ui/hud/GameView.h"
 
 #include <imgui.h>
 
@@ -46,13 +47,6 @@ namespace UI
                 return std::nullopt;
             }
             return ImVec2{ x * a_display.x, (1.0F - y) * a_display.y };
-        }
-
-        bool IsGameViewShown()
-        {
-            auto* ui = RE::UI::GetSingleton();
-            return ui && ui->IsShowingMenus() && !ui->GameIsPaused() && !ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME)
-                && !ui->IsMenuOpen(RE::RaceSexMenu::MENU_NAME);
         }
 
         class NameplateLayer final : public Window

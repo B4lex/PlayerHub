@@ -36,4 +36,8 @@ namespace UI::MenuFrame
     // fixed, and focused when it appears or when a_focus is set. Call ImGui::End whatever it returns.
     [[nodiscard]] bool BeginWindow(
         const char* a_name, const WindowLayout& a_layout, ImGuiWindowFlags a_flags, bool a_focus);
+
+    // Begins an auto-sized window without inputs or focus, framed at the top center under
+    // the compass. Call ImGui::End whatever it returns.
+    [[nodiscard]] bool BeginPrompt(const char* a_name);
 }

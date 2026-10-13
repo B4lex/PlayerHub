@@ -191,22 +191,22 @@ namespace Network
                 case kProtocolMismatchCloseCode:
                     return Refusal{ RefusalReason::kProtocolMismatch,
                         "The server runs another protocol version (" + a_closeReason
-                            + "); update the plugin or the server." };
+                            + "). Upgrade mod to the latest version to connect." };
                 case kDisplayNameTakenCloseCode:
                     return Refusal{ RefusalReason::kDisplayNameTaken,
-                        "Another player has the display name \"" + displayName + "\"; choose another one." };
+                        "Another player has the display name \"" + displayName + "\"" };
                 case kDisplayNameInvalidCloseCode:
                     return Refusal{ RefusalReason::kDisplayNameInvalid,
-                        "The server does not accept the display name \"" + displayName + "\"; choose another one." };
+                        "The server does not accept the display name \"" + displayName + "\"" };
                 case kSessionReplacedCloseCode:
                     return Refusal{ RefusalReason::kSessionReplaced,
                         "Your session connected from another game, which closed this connection. Connect again "
                         "to take it back." };
                 case kServerFullCloseCode:
-                    return Refusal{ RefusalReason::kServerFull, "The server is full; connect again later." };
+                    return Refusal{ RefusalReason::kServerFull, "The server is full." };
                 case kTooManyNewSessionsCloseCode:
                     return Refusal{ RefusalReason::kTooManyNewSessions,
-                        "Too many new players joined this server from your address recently; connect again later." };
+                        "Too many new players joined this server from your address recently." };
                 default:
                     return std::nullopt;
             }

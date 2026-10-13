@@ -10,6 +10,10 @@
   a warning is logged. The status panel showing only the disconnected state
   without a display name is not built on Windows or run in game; on Linux,
   `StatusPanel.cpp` passed a syntax check against Dear ImGui 1.92.9.
+- **Display name hint** (2026-10-13): not built on Windows or run in game.
+  On Linux, `DisplayNameHint.cpp`, `GameView.cpp`, `NameplateLayer.cpp`,
+  `MenuFrame.cpp`, and `TradePrompt.cpp` passed the g++ syntax check, which a
+  planted error confirmed reaches the hint's file.
 - **Shared window setup and search field** (`MenuFrame::BeginWindow`,
   `Controls::SearchField`, `Controls::MutedTextWrapped`, 2026-10-07): Linux
   syntax check only; not rerun in the headless harness or in game.
@@ -598,7 +602,8 @@
 ## Scope
 
 The plugin's own UI layer: [nameplates](#nameplates) over other players'
-heads, a status panel, [notices](#notices), chat, the
+heads, a status panel, the [display name hint](#display-name-hint),
+[notices](#notices), chat, the
 settings window, the
 [trade window and prompt](#trade-window), and the reusable item picker with a
 3D preview. `ui/` never changes the game; it reaches
@@ -631,6 +636,8 @@ src/ui/
   Layout.h                    # placement helpers (screen corners)
   hud/NameplateLayer          # other players' names projected above their heads
   hud/StatusPanel             # connection, ping, traffic, plugin time
+  hud/DisplayNameHint         # where to enter a display name, while none is set
+  hud/GameView                # whether the world is on screen, for the HUD layers
   hud/NoticeStack             # notices on the right edge, friends coming online
   chat/ChatWindow             # open and closed chat, focus by its keys, the manager alone, the send target's channel kept shown
   chat/ChatHistory            # lines, channel filters, unread marks, scrolling, the line menu
@@ -948,6 +955,11 @@ is not part of the plugin.
   differs from the kept one, it is resized by their ratio around its kept
   center and clamped to the display. The kept rect, not the current one, is
   scaled because `Begin` has by then grown the window to the new minimum size.
+- `MenuFrame::BeginPrompt` begins the [trade prompt](#prompt) and the
+  [display name hint](#display-name-hint) the same way: sized to the content,
+  without inputs or focus, centered 5 font sizes from the top under the
+  compass, padded by half the frame's inset plus corner beyond the style's
+  padding, and framed over the window background at 85% opacity.
 - `MenuFrame::GetMetrics` gives a window those two lengths in pixels to lay its
   content out by. A knot stays inside the square of `corner` at its window
   corner, and cuts across it, so content is clear of it outside that square or
@@ -1105,8 +1117,10 @@ window. Always shown below: the [plugin time](#plugin-time) in ms, without a
 value before the first window.
 
 The panel is a debugging readout, not player guidance. It does not say why a
-connection is down or that a display name is missing: those need a sentence and an action in the settings window, so the messages are
-on its `[General]` page ([Connection controls](#connection-controls)).
+connection is down or that a display name is missing: those need a sentence
+and an action in the settings window, so the messages are on its `[General]`
+page ([Connection controls](#connection-controls)), and the
+[display name hint](#display-name-hint) leads there.
 
 ### Plugin time
 
@@ -1119,6 +1133,33 @@ passed, the total over the passes in the window becomes the published average
 and a new window starts, so the number changes once per second. It is always
 compiled in and costs two clock reads per hook call. Detailed profiling uses
 Tracy (`xmake f --tracy=y`, `runtime/Profiling.h`).
+
+## Display name hint
+
+Goal: a player without a display name, who therefore cannot connect
+([Network](network.md#sessions)), learns where to set one. Non-goals: a
+dismiss control or a timeout: without a name the player cannot play online
+at all, so the hint stays until one is applied.
+
+- `DisplayNameHint`, registered after the trade prompt, draws while a game
+  is loaded (`GameSession::IsInGame`), the applied `[General] DisplayName`
+  is empty, no overlay window holds focus, and `UI::IsGameViewShown` holds.
+  It therefore shows exactly when `OpenSettings` would open the settings
+  window ([Input focus](#input-focus)), and hides while that window is open.
+  A name applied in the settings window removes it on the next frame.
+- It is the trade prompt's panel (`MenuFrame::BeginPrompt`,
+  [Prompt](#prompt)): framed, at the top center under the compass, without
+  inputs or focus. Both share the spot because no trade can run without a
+  display name.
+- One line tells the player to press the `[Controls] OpenSettings` key,
+  shown by its label (`Config::FormatKeyLabel`) in the accent, and to enter
+  a display name on the `[General]` page, its title also in the accent. The
+  settings window then opens on that page with the keyboard in the field
+  ([Settings window](#settings-window)).
+- `UI::IsGameViewShown` (`ui/hud/GameView`) is true while menus are shown
+  (`UI::IsShowingMenus`), the game is not paused (`UI::GameIsPaused`), and
+  neither the dialogue nor the race menu is open. The
+  [nameplates](#nameplates) use it too.
 
 ## Nameplates
 
@@ -1166,9 +1207,9 @@ player's own character.
 - `NameplateLayer`, registered before every other window, draws them on Dear
   ImGui's background draw list, under every window and under the
   [backdrop](#backdrop), which hides them behind the trade window. It draws
-  nothing outside a game, with `[UI] Nameplates` off, while the game is
-  paused or menus are hidden (`UI::GameIsPaused`, `UI::IsShowingMenus`), or
-  while the dialogue or race menu is open.
+  nothing outside a game, with `[UI] Nameplates` off, or while
+  `UI::IsGameViewShown` is false: the game is paused, menus are hidden, or
+  the dialogue or race menu is open ([Display name hint](#display-name-hint)).
 - A plate's anchor is 30 units above the head node, times the node's world
   scale, projected each frame with `Main::WorldRootCamera`, so it follows
   the head as rendered. `NiCamera::WorldPtToScreenPt3` divides by the
@@ -2892,6 +2933,13 @@ To verify in game:
     around its center and stays on the display, and the cursor moves at the
     same speed. At 80 all of them shrink the same way. `FontScale = 107` or
     `150` in the file warns in the log and loads `100`.
+34. In a game with an empty `DisplayName`, the framed hint at the top center
+    names the `OpenSettings` key and the `[General]` page; rebinding
+    `OpenSettings` changes the key it names. It is gone in the pause,
+    inventory, and map menus, in dialogue, with the HUD hidden (`tm`), and
+    while the chat or settings window is open. Pressing the key opens
+    `[General]` with the keyboard in the field, and applying a name there
+    leaves no hint after the window closes. Clearing the name brings it back.
 
 ## Known limitations
 

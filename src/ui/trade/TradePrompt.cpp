@@ -9,7 +9,6 @@
 #include <imgui.h>
 
 #include <atomic>
-#include <cmath>
 #include <string>
 
 namespace UI
@@ -17,13 +16,6 @@ namespace UI
     namespace
     {
         using Phase = TradeSession::Phase;
-
-        // Below the compass.
-        constexpr float kTopFonts = 5.0F;
-        constexpr float kBackgroundAlpha = 0.85F;
-        constexpr ImGuiWindowFlags kWindowFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
-            | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize
-            | ImGuiWindowFlags_NoNav;
 
         class TradePrompt final : public Window
         {
@@ -81,21 +73,8 @@ namespace UI
             void DrawPrompt()
             {
                 const Theme::Scope theme;
-                const auto& display = ImGui::GetIO().DisplaySize;
-                const auto fontSize = ImGui::GetFontSize();
-                ImGui::SetNextWindowPos(
-                    ImVec2{ display.x * 0.5F, std::floor(kTopFonts * fontSize) }, ImGuiCond_Always, ImVec2{ 0.5F, 0.0F });
-                const auto frame = MenuFrame::GetMetrics();
-                const auto& padding = ImGui::GetStyle().WindowPadding;
-                const auto inset = std::floor((frame.inset + frame.corner) * 0.5F);
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ padding.x + inset, padding.y + inset });
-                const bool visible = ImGui::Begin("##TradePrompt", nullptr, kWindowFlags | ImGuiWindowFlags_NoBackground);
-                ImGui::PopStyleVar();
-                if (visible)
+                if (MenuFrame::BeginPrompt("##TradePrompt"))
                 {
-                    auto background = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
-                    background.w = kBackgroundAlpha;
-                    MenuFrame::Draw(ImGui::GetColorU32(Theme::GetFrameColor()), ImGui::GetColorU32(background));
                     DrawContent();
                 }
                 ImGui::End();
