@@ -19,6 +19,11 @@ Every graph loss or replacement resetting through
 `InvalidateAnimationDispatch`: Linux syntax check only; not built on Windows
 or run in game.
 
+Graph sneak reconciliation: the sneak branches' `IsSneaking` and `iState`
+writers were read from the vanilla behavior files and `BSIsActiveModifier`
+from the 1.7.104 executable; Linux syntax check only; not built on Windows or
+run in game.
+
 Jump sound attenuation: hook sites traced in the 1.7.104 executable and the
 sound records read from `Skyrim.esm`; Windows build and in-game behavior not
 yet verified. On SE 1.5.97 (2026-10-12) it hooks the footstep sink's call at
@@ -121,7 +126,9 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   returns false while an edge is already active or transitioning, so the result
   is not a reliable acknowledgement. Locomotion edges retry for 0.75 s instead:
   the graph refuses locomotion while it is still leaving an attack, and a power
-  attack's exit was measured holding it past 0.1 s.
+  attack's exit was measured holding it past 0.1 s. A latched sneak edge the
+  graph never took is repaired by [sneak
+  reconciliation](#sneak-reconciliation).
 - A graph that first appears, is replaced, or becomes unavailable (no 3D or no
   graph manager) drops all dispatch tracking through
   `InvalidateAnimationDispatch`, as recovery, furniture exit, and mounting do:
@@ -220,6 +227,38 @@ Several state machines re-enter at a standing state chosen from
 - Hand presentation lower bodies behave the same way
   ([Combat presentation](combat-presentation.md#moving-lower-body)).
 
+### Sneak reconciliation
+
+A sneak edge that ran out of retries is latched whether or not the graph took
+it, and sneak edges are sent only when the latched sneak changes, so the graph
+would keep the wrong stance until the source toggled sneak again. A bow draw's
+equip branch rejecting `sneakStop` for the whole retry window was logged
+leaving an actor crouched while its source stood and walked.
+
+- `ReadGraphSneak` reports the graph sneaking when `IsSneaking` is true or
+  `iState` is 2, and not sneaking only when both variables are readable and
+  neither holds. The vanilla sneak branches set `IsSneaking` through
+  `BSIsActiveModifier` and tag `iState` 2 through `BSiStateTaggingGenerator`,
+  and neither covers every branch: the magic-ready and casting sneak branches
+  only tag `iState`, and the unarmed, weapon, and bow sneak idles only set
+  `IsSneaking`. Transitional branches such as weapon equip set neither, so a
+  not-sneaking reading counts only while nothing else owns the graph.
+- `ReconcileGraphSneak` samples the graph every 0.1 s while the dispatch is
+  latched on the target and nothing else owns the graph: grounded and not
+  sprinting, no landing, swim, attack, or post-sneak `moveStart` pending, no
+  unsettled weapon transition, and no bow draw, cast, or block. A disagreement
+  held for 0.5 s, longer than a `sneakStop` blend, re-latches the opposite
+  sneak variant of the target (`ToggleSneak`), so the next dispatch sends the
+  missing edge with the usual ordering, retries, and post-sneak `moveStart`.
+  It does this at most three times per target state, so a custom graph that
+  reports sneak differently cannot keep sending edges.
+- A required `sneakStart` is not sent while the graph already reads as
+  sneaking. Skyrim rejects it from an active sneak branch, which held every
+  sneaking reassert after an attack, bow shot, or landing for the whole
+  locomotion retry window.
+- Dispatch logs carry the pre-event `graphSneak` and `sneakAlreadyEntered`; a
+  correction logs `graph sneak disagrees with the latched state`.
+
 ### Jumps
 
 - Takeoff restores `bInJumpState` and the jump sample's variables, then sends
@@ -300,7 +339,8 @@ support consistent with the source).
 
 ## Engine assumptions
 
-Read from the 1.7.104 executable and `Skyrim.esm`, not yet checked in game:
+Read from the 1.7.104 executable, `Skyrim.esm`, and the vanilla behavior files,
+not yet checked in game:
 
 1. The footstep sink plays a non-player actor's impact sound through
    `ImpactSoundData::pool` and its first sound only; the player takes the
@@ -310,6 +350,10 @@ Read from the 1.7.104 executable and `Skyrim.esm`, not yet checked in game:
    before the play message.
 3. An output model's five curve values are evenly spaced from its minimum to
    its maximum distance.
+4. A `BSIsActiveModifier` output returns to its inverted value when its branch
+   deactivates (vtable `deactivate` writes it), as the engine-read outputs
+   `bAnimationDriven`, `IsStaggering`, and `IsRecoiling` require, so a true
+   `IsSneaking` means a sneak branch is active.
 
 ## Acceptance criteria
 
@@ -328,6 +372,9 @@ Read from the 1.7.104 executable and `Skyrim.esm`, not yet checked in game:
 7. A remote jump is heard near the actor, fades with distance, and is silent
    beyond about 1800 units on stone, dirt, grass, snow, wood, and water. The
    local player's own jump sounds are unchanged.
+8. A remote actor that draws a bow, weapon, or spell while sneaking and then
+   stands up, walks, or runs is not left crouching, and one that sneaks during
+   a draw does not stay standing.
 
 ## Known limitations
 
@@ -337,5 +384,8 @@ Read from the 1.7.104 executable and `Skyrim.esm`, not yet checked in game:
   ([Sync pipeline](sync-pipeline.md#checkpoint-playout)).
 - A mod or behavior-graph mismatch between peers is not detected; missing
   variables and rejected or timed-out events are logged.
+- Sneak reconciliation needs a graph that sets `IsSneaking` or tags `iState` 2
+  in its sneak branches; with neither, a timed-out sneak edge stays latched as
+  before.
 - An attenuated jump sound keeps its fixed-speaker output: it fades with
   distance but has no direction.

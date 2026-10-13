@@ -32,7 +32,7 @@ namespace UI::MenuFrame
         std::optional<ImVec2> fixedPosition;
     };
 
-    // Begins a window inside the menu frame, resizable and centered when it appears unless it is
+    // Begins a window inside the menu frame, resizable and centered when first shown unless it is
     // fixed, and focused when it appears or when a_focus is set. Call ImGui::End whatever it returns.
     [[nodiscard]] bool BeginWindow(
         const char* a_name, const WindowLayout& a_layout, ImGuiWindowFlags a_flags, bool a_focus);

@@ -54,6 +54,15 @@ namespace ActorAnimation
         constexpr float kCastLowerBodyEntrySeconds = 0.5F;
         // SwimIdle rejects moveStart until the graph has taken SwimStart.
         constexpr float kSwimMoveStartFallbackSeconds = 0.5F;
+        // The vanilla sneak branches tag iState 2 (BSiStateTaggingGenerator) and set
+        // IsSneaking (BSIsActiveModifier, which clears it on deactivation) while
+        // active. Neither covers every branch: MagicBehavior's sneak branches only
+        // tag iState, and the unarmed, weapon, and bow sneak idles only set IsSneaking.
+        constexpr std::int32_t kSneakGraphStateTag = 2;
+        constexpr float kGraphSneakSampleSeconds = 0.1F;
+        // A sneakStop keeps the sneak branch active while it blends out.
+        constexpr float kGraphSneakMismatchSeconds = 0.5F;
+        constexpr std::uint32_t kMaximumGraphSneakCorrections = 3;
 
         // Counting passes rather than seconds is intended: this only throttles the log.
         constexpr bool ShouldReportEventRetry(std::uint32_t a_attempt) noexcept
@@ -110,6 +119,33 @@ namespace ActorAnimation
             return a_state;
         }
 
+        constexpr Multiplayer::MovementState ToggleSneak(Multiplayer::MovementState a_state) noexcept
+        {
+            using Multiplayer::MovementState;
+            switch (a_state)
+            {
+                case MovementState::kIdle:
+                    return MovementState::kSneakingIdle;
+                case MovementState::kWalking:
+                    return MovementState::kSneakingWalking;
+                case MovementState::kRunning:
+                    return MovementState::kSneakingRunning;
+                case MovementState::kSneakingIdle:
+                    return MovementState::kIdle;
+                case MovementState::kSneakingWalking:
+                    return MovementState::kWalking;
+                case MovementState::kSneakingRunning:
+                    return MovementState::kRunning;
+                default:
+                    return a_state;
+            }
+        }
+
+        static_assert(
+            ToggleSneak(Multiplayer::MovementState::kRunning) == Multiplayer::MovementState::kSneakingRunning);
+        static_assert(ToggleSneak(Multiplayer::MovementState::kSneakingIdle) == Multiplayer::MovementState::kIdle);
+        static_assert(ToggleSneak(Multiplayer::MovementState::kSprinting) == Multiplayer::MovementState::kSprinting);
+
         static_assert(GetWeaponReplayBaseState(Multiplayer::AnimationState{
                           .movementState = Multiplayer::MovementState::kSprinting, .jumping = true })
             == Multiplayer::AnimationState{ .movementState = Multiplayer::MovementState::kRunning });
@@ -127,6 +163,39 @@ namespace ActorAnimation
             static const RE::BSFixedString stateVariable{ "iState" };
             std::int32_t value = -1;
             return a_actor.GetGraphVariableInt(stateVariable, value) ? value : -1;
+        }
+
+        enum class GraphSneak
+        {
+            kUnknown,
+            kNotSneaking,
+            kSneaking
+        };
+
+        constexpr const char* GetGraphSneakName(GraphSneak a_sneak) noexcept
+        {
+            switch (a_sneak)
+            {
+                case GraphSneak::kNotSneaking:
+                    return "notSneaking";
+                case GraphSneak::kSneaking:
+                    return "sneaking";
+                default:
+                    return "unknown";
+            }
+        }
+
+        GraphSneak ReadGraphSneak(const RE::Actor& a_actor)
+        {
+            static const RE::BSFixedString isSneakingVariable{ "IsSneaking" };
+            bool isSneaking = false;
+            const bool isSneakingAvailable = a_actor.GetGraphVariableBool(isSneakingVariable, isSneaking);
+            const auto stateTag = GetGraphStateTag(a_actor);
+            if ((isSneakingAvailable && isSneaking) || stateTag == kSneakGraphStateTag)
+            {
+                return GraphSneak::kSneaking;
+            }
+            return isSneakingAvailable && stateTag >= 0 ? GraphSneak::kNotSneaking : GraphSneak::kUnknown;
         }
 
         bool IsActorInHitReaction(RE::Actor& a_actor)
@@ -547,6 +616,60 @@ namespace ActorAnimation
                 a_remote.handle.native_handle(), Multiplayer::GetMovementStateName(dispatched.movementState), accepted);
         }
 
+        // Skyrim's event result is not an acknowledgement, so a sneak edge that ran out
+        // of retries is latched as taken whether or not the graph took it. Later
+        // dispatches only send a sneak edge when the latched sneak changes.
+        void ReconcileGraphSneak(RE::Actor& a_actor, RemoteActor& a_remote, State& a_state, float a_deltaTime)
+        {
+            const auto& target = a_state.targetAnimationState;
+            const auto* actorState = a_actor.AsActorState();
+            const bool reconcilable = a_state.hasDispatched && a_state.lastDispatched == target
+                && IsAnimationStateSettled(a_remote) && !target.jumping && !IsSprinting(target.movementState)
+                && !a_state.landingLocomotionReassertPending && !a_state.swimLocomotionReassertPending
+                && !a_state.attackPlaybackPending && !a_state.attackLocomotionReassertPending
+                && !a_state.sneakMoveStartPending && !a_state.presentationMoveStartPending
+                && !a_state.graphRecoveryInProgress && !IsWeaponTransitionUnsettled(a_state)
+                && !IsBowOrCastPlaying(a_state) && !IsBlockPlaying(a_state)
+                && !(actorState && actorState->IsSwimming());
+            if (!reconcilable)
+            {
+                a_state.graphSneakSampleElapsed = 0.0F;
+                a_state.graphSneakMismatchElapsed = 0.0F;
+                return;
+            }
+            a_state.graphSneakSampleElapsed += FrameTime::Clamp(a_deltaTime);
+            if (a_state.graphSneakSampleElapsed < kGraphSneakSampleSeconds)
+            {
+                return;
+            }
+            const float sampledSeconds = a_state.graphSneakSampleElapsed;
+            a_state.graphSneakSampleElapsed = 0.0F;
+            const auto graphSneak = ReadGraphSneak(a_actor);
+            const bool targetSneaking = IsSneaking(target.movementState);
+            if (graphSneak != (targetSneaking ? GraphSneak::kNotSneaking : GraphSneak::kSneaking))
+            {
+                a_state.graphSneakMismatchElapsed = 0.0F;
+                return;
+            }
+            a_state.graphSneakMismatchElapsed += sampledSeconds;
+            if (a_state.graphSneakMismatchElapsed < kGraphSneakMismatchSeconds
+                || a_state.graphSneakCorrections >= kMaximumGraphSneakCorrections)
+            {
+                return;
+            }
+            a_state.graphSneakMismatchElapsed = 0.0F;
+            ++a_state.graphSneakCorrections;
+            // Latch what the graph shows, so the next dispatch sends the missing edge
+            // through the normal ordering, retries, and post-sneak moveStart.
+            a_state.lastDispatched.movementState = ToggleSneak(target.movementState);
+            logs::debug(
+                "Animation sync graph sneak disagrees with the latched state; reasserting: actor={:08X} state={} "
+                "graphSneak={} iState={} correction={}/{}",
+                a_remote.handle.native_handle(), Multiplayer::GetMovementStateName(target.movementState),
+                GetGraphSneakName(graphSneak), GetGraphStateTag(a_actor), a_state.graphSneakCorrections,
+                kMaximumGraphSneakCorrections);
+        }
+
         void ResetGraphDispatch(RE::Actor& a_actor, RemoteActor& a_remote)
         {
             AnimationFirewall::Disable(a_remote);
@@ -580,6 +703,7 @@ namespace ActorAnimation
         RequestAnimationUpdate(a_remote.animation);
         if (previousAnimationState != a_animationState)
         {
+            a_remote.animation.graphSneakCorrections = 0;
             logs::debug("Animation sync updated actor request: actor={:08X} revision={} previous={}/{} desired={}/{}",
                 a_remote.handle.native_handle(), static_cast<unsigned long long>(a_remote.animation.requestedRevision),
                 Multiplayer::GetMovementStateName(previousAnimationState.movementState),
@@ -1295,6 +1419,9 @@ namespace ActorAnimation
         a_state.failedDispatchAttempts = 0;
         a_state.rejectedEventAttempts = 0;
         a_state.rejectedEventElapsed = 0.0F;
+        a_state.graphSneakSampleElapsed = 0.0F;
+        a_state.graphSneakMismatchElapsed = 0.0F;
+        a_state.graphSneakCorrections = 0;
         SetLandingCompletionPending(a_state, false);
         a_state.landingLocomotionReassertPending = false;
         ResetWeaponTransition(a_state, false);
@@ -1865,13 +1992,13 @@ namespace ActorAnimation
                 logs::debug(
                     "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} "
                     "result=retrying-stop-events strings={} moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} "
-                    "jumpEvent=deferred/{} iState={} eventAttempt={}/{}",
+                    "jumpEvent=deferred/{} iState={} graphSneak={} eventAttempt={}/{}",
                     actorHandle.native_handle(), static_cast<unsigned long long>(requestedRevision), previousStateLabel,
                     hadPreviousState && previousState.jumping ? "jumping" : "grounded",
                     Multiplayer::GetMovementStateName(state.movementState), state.jumping ? "jumping" : "grounded",
                     stringsAvailable, moveAccepted, moveStopRequired, sneakAccepted, sneakStopRequired, sprintAccepted,
-                    sprintStopRequired, jumpLandRequired, GetGraphStateTag(*actor), stopEventAttempt,
-                    kMaximumEventDispatchAttempts);
+                    sprintStopRequired, jumpLandRequired, GetGraphStateTag(*actor),
+                    GetGraphSneakName(ReadGraphSneak(*actor)), stopEventAttempt, kMaximumEventDispatchAttempts);
             }
             ++animationState->rejectedEventAttempts;
             animationState->rejectedEventElapsed += FrameTime::Clamp(a_deltaTime);
@@ -1960,9 +2087,14 @@ namespace ActorAnimation
             {
                 moveAccepted = SendNetworkAnimationEvent(a_remote, moveStartEvent);
             }
+            bool sneakAlreadyEntered = false;
             if (sneakRequired && isSneaking && variablesAccepted)
             {
-                sneakAccepted = SendNetworkAnimationEvent(a_remote, sneakStartEvent);
+                // The graph rejects sneakStart while a sneak branch is active, which would
+                // hold this dispatch for the whole locomotion retry window. Only positive
+                // evidence counts: some sneak branches report neither variable.
+                sneakAlreadyEntered = ReadGraphSneak(*actor) == GraphSneak::kSneaking;
+                sneakAccepted = sneakAlreadyEntered || SendNetworkAnimationEvent(a_remote, sneakStartEvent);
             }
             if (sprintRequired && isSprinting && variablesAccepted)
             {
@@ -1996,8 +2128,8 @@ namespace ActorAnimation
                     "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} result={} "
                     "eventsAccepted={} strings={} speedVariable={} sampledSpeedVariable={} dampedSpeedVariable={} "
                     "directionVariable={} turnVariable={} sprintVariable={} syncSprintVariable={} jumpVariable={} "
-                    "moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} jumpEvent={}/{} graphSpeed={:.1f} iState={} "
-                    "variableAttempt={} eventAttempt={}/{}",
+                    "moveEvent={}/{} sneakEvent={}/{} sneakAlreadyEntered={} sprintEvent={}/{} jumpEvent={}/{} "
+                    "graphSpeed={:.1f} iState={} graphSneak={} variableAttempt={} eventAttempt={}/{}",
                     actorHandle.native_handle(), static_cast<unsigned long long>(requestedRevision), previousStateLabel,
                     hadPreviousState && previousState.jumping ? "jumping" : "grounded",
                     Multiplayer::GetMovementStateName(state.movementState), state.jumping ? "jumping" : "grounded",
@@ -2007,9 +2139,10 @@ namespace ActorAnimation
                                                  : "retrying-events",
                     eventsAccepted, stringsAvailable, speedAccepted, sampledSpeedAccepted, dampedSpeedAccepted,
                     directionAccepted, turnAccepted, sprintVariableAccepted, syncSprintStateAccepted,
-                    jumpVariableAccepted, moveAccepted, moveRequired, sneakAccepted, sneakRequired, sprintAccepted,
-                    sprintRequired, jumpAccepted, jumpRequired, graphSpeed, GetGraphStateTag(*actor), variableAttempt,
-                    eventAttempt, kMaximumEventDispatchAttempts);
+                    jumpVariableAccepted, moveAccepted, moveRequired, sneakAccepted, sneakRequired, sneakAlreadyEntered,
+                    sprintAccepted, sprintRequired, jumpAccepted, jumpRequired, graphSpeed, GetGraphStateTag(*actor),
+                    GetGraphSneakName(ReadGraphSneak(*actor)), variableAttempt, eventAttempt,
+                    kMaximumEventDispatchAttempts);
             }
 
             if (stateProcessed)
@@ -2066,7 +2199,8 @@ namespace ActorAnimation
                 animationState->failedDispatchAttempts = 0;
                 animationState->rejectedEventAttempts = 0;
                 animationState->rejectedEventElapsed = 0.0F;
-                animationState->sneakMoveStartPending = sneakRequired && sneakAccepted && isMoving && !state.jumping;
+                animationState->sneakMoveStartPending
+                    = sneakRequired && sneakAccepted && !sneakAlreadyEntered && isMoving && !state.jumping;
                 if (jumpLandRequired)
                 {
                     SetLandingCompletionPending(*animationState, true);
@@ -2126,6 +2260,7 @@ namespace ActorAnimation
         {
             ApplyAuthoritativeWeaponPresentation(*actor, a_remote, isMoving, moveRequired && isMoving && moveAccepted);
         }
+        ReconcileGraphSneak(*actor, a_remote, *animationState, a_deltaTime);
     }
 
     bool IsFurnitureEntryBlocked(const RemoteActor& a_remote)

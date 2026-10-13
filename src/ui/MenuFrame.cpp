@@ -262,9 +262,10 @@ namespace UI::MenuFrame
             }
         }
 
-        // A resizable window's size is set only when it appears, so a later overlay scale would
-        // leave its content in the old box. Begin has by then grown the window to the new minimum
-        // size, so the rect is scaled from the one kept last frame. Call between Begin and End.
+        // A resizable window's size is set only when it is first shown, so a later overlay scale,
+        // open or closed, would leave its content in the old box. Begin has by then grown the window
+        // to the new minimum size, so the rect is scaled from the one kept last drawn frame. Call
+        // between Begin and End.
         void FollowFontSize(float a_fontSize, const ImVec2& a_display)
         {
             auto& storage = *ImGui::GetStateStorage();
@@ -276,7 +277,7 @@ namespace UI::MenuFrame
 
             auto position = ImGui::GetWindowPos();
             auto size = ImGui::GetWindowSize();
-            if (!ImGui::IsWindowAppearing() && previous != a_fontSize)
+            if (previous != a_fontSize)
             {
                 const auto ratio = a_fontSize / previous;
                 const ImVec2 kept{ storage.GetFloat(rectIds[2]), storage.GetFloat(rectIds[3]) };
@@ -394,8 +395,8 @@ namespace UI::MenuFrame
         else
         {
             ImGui::SetNextWindowPos(
-                ImVec2{ display.x * 0.5F, display.y * 0.5F }, ImGuiCond_Appearing, ImVec2{ 0.5F, 0.5F });
-            ImGui::SetNextWindowSize(size, ImGuiCond_Appearing);
+                ImVec2{ display.x * 0.5F, display.y * 0.5F }, ImGuiCond_Once, ImVec2{ 0.5F, 0.5F });
+            ImGui::SetNextWindowSize(size, ImGuiCond_Once);
             ImGui::SetNextWindowSizeConstraints(
                 ImVec2{ a_layout.minimumSizeFonts.x * fontSize, a_layout.minimumSizeFonts.y * fontSize }, display);
         }

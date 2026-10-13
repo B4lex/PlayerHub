@@ -58,6 +58,9 @@ namespace ActorAnimation
         std::uint32_t swimMoveStartAttempts{ 0 };
         float swimMoveStartElapsed{ 0.0F };
         bool sneakMoveStartPending{ false };
+        float graphSneakSampleElapsed{ 0.0F };
+        float graphSneakMismatchElapsed{ 0.0F };
+        std::uint32_t graphSneakCorrections{ 0 };
         std::uint32_t turnStateOverrides{ 0 };
         bool lastVariableUpdateAccepted{ false };
         bool localInterruptionLatched{ false };
