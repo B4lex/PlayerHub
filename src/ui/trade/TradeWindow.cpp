@@ -383,10 +383,11 @@ namespace UI
                 const auto padding = frame.inset + kCardPaddingFonts * fontSize;
                 // The first and last lines clear the corner knots, which the sides need not.
                 const auto knotClearance = std::ceil((std::max)(frame.corner - padding, 0.0F));
-                const auto contentHeight =
-                    MeasureItemCard(*card, a_arrangement.previewWidth - 2.0F * padding);
-                const auto cardHeight = (std::min)(
-                    contentHeight + 2.0F * (padding + knotClearance), a_arrangement.maximumCardHeight);
+                const auto inset = padding + knotClearance;
+                const auto contentWidth = a_arrangement.previewWidth - 2.0F * padding;
+                const auto contentHeight = MeasureItemCard(*card, contentWidth);
+                const bool scrolls = contentHeight + 2.0F * inset > a_arrangement.maximumCardHeight;
+                const auto cardHeight = scrolls ? a_arrangement.maximumCardHeight : contentHeight + 2.0F * inset;
                 const MenuFrame::WindowLayout layout{
                     .sizeFonts = ImVec2{ a_arrangement.previewWidth / fontSize, cardHeight / fontSize },
                     .paddingFonts = kCardPaddingFonts,
@@ -398,11 +399,14 @@ namespace UI
                     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + knotClearance);
                     // A window clips its content only half its padding from its edge, so a long
                     // card scrolls in a child clipped to the content area instead.
-                    const auto visibleHeight = cardHeight - 2.0F * (padding + knotClearance);
-                    if (ImGui::BeginChild("##content", ImVec2{ 0.0F, visibleHeight }, ImGuiChildFlags_None,
-                            ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoNav))
+                    const auto visibleHeight = scrolls ? cardHeight - 2.0F * inset : contentHeight;
+                    const auto childFlags = ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoNav
+                        | (scrolls ? ImGuiWindowFlags_None
+                                   : ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+                    if (ImGui::BeginChild("##content", ImVec2{ contentWidth, visibleHeight }, ImGuiChildFlags_None,
+                            childFlags))
                     {
-                        DrawItemCard(*card);
+                        DrawItemCard(*card, scrolls ? contentWidth - ImGui::GetStyle().ScrollbarSize : contentWidth);
                     }
                     ImGui::EndChild();
                 }

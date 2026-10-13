@@ -422,11 +422,10 @@ namespace UI
         return std::ceil(pen.y);
     }
 
-    void DrawItemCard(const ItemCard& a_card)
+    void DrawItemCard(const ItemCard& a_card, float a_width)
     {
-        const auto width = ImGui::GetContentRegionAvail().x;
-        Pen pen{ .drawList = ImGui::GetWindowDrawList(), .origin = ImGui::GetCursorScreenPos(), .width = width };
+        Pen pen{ .drawList = ImGui::GetWindowDrawList(), .origin = ImGui::GetCursorScreenPos(), .width = a_width };
         Layout(pen, GetFaces(), a_card);
-        ImGui::Dummy(ImVec2{ width, std::ceil(pen.y) });
+        ImGui::Dummy(ImVec2{ a_width, std::ceil(pen.y) });
     }
 }

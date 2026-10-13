@@ -23,6 +23,6 @@ namespace UI
     // The height DrawItemCard takes at a_width, for sizing its window to it before Begin.
     [[nodiscard]] float MeasureItemCard(const ItemCard& a_card, float a_width);
 
-    // Draws at the cursor across the content region.
-    void DrawItemCard(const ItemCard& a_card);
+    // Draws at the cursor, a_width wide.
+    void DrawItemCard(const ItemCard& a_card, float a_width);
 }

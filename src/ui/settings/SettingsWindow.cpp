@@ -32,7 +32,7 @@ namespace UI
 {
     namespace
     {
-        constexpr ImVec2 kSizeFonts{ 48.0F, 32.0F };
+        constexpr ImVec2 kSizeFonts{ 54.0F, 36.0F };
         constexpr ImVec2 kMinimumSizeFonts{ 40.0F, 20.0F };
         constexpr float kSidebarWidthFonts = 11.5F;
         constexpr ImVec2 kSidebarPaddingFonts{ 0.5F, 1.25F };

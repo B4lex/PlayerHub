@@ -100,7 +100,7 @@ namespace UI
                         ImGui::TextUnformatted(name.c_str());
                         ImGui::PopStyleColor();
                         ImGui::SameLine(0.0F, ImGui::CalcTextSize(" ").x);
-                        ImGui::TextUnformatted("wants to trade");
+                        ImGui::TextUnformatted("wants to trade with you");
                         const bool accept = DrawKey(controls.tradeAcceptKey, "Accept", false);
                         DrawKey(controls.tradeDeclineKey, "Decline", accept);
                         DrawCountdown();

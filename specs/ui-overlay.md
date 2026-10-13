@@ -30,6 +30,15 @@
   `ActorLifecycle.cpp` passed the g++ syntax check, which a planted error
   confirmed reaches `SettingsWindow.cpp`. The checks below that name
   `[General]`, `[Network]`, or `[Performance]` ran before the merge.
+- **Settings window placement** (kept across openings, 54 × 36 font sizes,
+  2026-10-13): not built on Windows or run in game. On Linux, the real
+  `MenuFrame.cpp` ran in a headless Dear ImGui 1.92.9 test set up as the
+  settings window: it opened centered at 54 × 36 font sizes; moved, resized,
+  closed for a few frames, and reopened, it had the same rect; reopened after
+  the font size changed from 13 to 16 px while closed, it was scaled by that
+  ratio around its kept center and held there; scaling back while open still
+  followed. The committed `MenuFrame.cpp` failed the reopen and closed-scale
+  checks in the same test.
 - **Display name hint** (2026-10-13): not built on Windows or run in game.
   On Linux, `DisplayNameHint.cpp`, `GameView.cpp`, `NameplateLayer.cpp`,
   `MenuFrame.cpp`, and `TradePrompt.cpp` passed the g++ syntax check, which a
@@ -64,9 +73,9 @@
   `FollowFontSize` ran in a headless Dear ImGui 1.92.9 window set up as
   `BeginWindow` sets up the settings window: a window dragged and resized at
   100% grew to 130% around its center (900 × 600 to 1181 × 787 at a 21 px
-  font), held on later frames, reopened at 80% at 48 × 32 font sizes without
-  scaling twice, and a window in the display's corner scaled from its size
-  before `Begin` raised it to the new minimum and stayed on the display.
+  font) and held on later frames, and a window in the display's corner
+  scaled from its size before `Begin` raised it to the new minimum and
+  stayed on the display.
   The slider's step and the file's step check were not run.
 - **SE 1.5.97 IDs** (2026-10-12): a 1.5.97 crash log showed opening a
   menu with an item preview crash in `Forms::GetItemDetails`, which called
@@ -728,9 +737,10 @@ changes, from the next frame after the setting applies.
   1.7% taller than the display at any resolution (1098 px at 1080p), so the
   panel is placed at the display's top and its bottom is cut; at 125% it
   fits with 12 px to spare at 1080p.
-- The settings window's size is set only when it appears, so
-  `MenuFrame::BeginWindow` scales an open window's last size and keeps its
-  center when the font size changes ([Menu frame](#menu-frame)).
+- The settings window's size is set only when it is first shown, so
+  `MenuFrame::BeginWindow` scales its last size and keeps its center when the
+  font size changes, whether it changed while the window was open or closed
+  ([Menu frame](#menu-frame)).
 - The DX11 backend does not save the output merger, so the overlay binds the
   swap chain's render target view, draws, and restores the previous targets.
 - `ImGuiConfigFlags_NoMouse` and `NoMouseCursorChange` are set unless a window
@@ -968,12 +978,14 @@ is not part of the plugin.
   window's edge, and a knot fills 29 px of each corner; at 100 those are 3 px,
   13 px, and 41 px.
 - `MenuFrame::BeginWindow` begins the settings and trade windows the same way:
-  centered and sized in font units when they appear, focused on request,
+  centered and sized in font units the first time they are shown
+  (`ImGuiCond_Once`; a fixed window is placed every frame), focused on request,
   padded by the frame's inset (plus a font size for trade), with its rounding,
   and with the frame drawn behind the content. A resizable window keeps its
-  size and position in its ImGui state storage each frame; when the font size
-  differs from the kept one, it is resized by their ratio around its kept
-  center and clamped to the display. The kept rect, not the current one, is
+  size and position in its ImGui state storage each frame it is drawn; when
+  the font size differs from the kept one, including on the first frame after
+  reopening, it is resized by their ratio around its kept center and clamped
+  to the display. The kept rect, not the current one, is
   scaled because `Begin` has by then grown the window to the new minimum size.
 - `MenuFrame::BeginPrompt` begins the [trade prompt](#prompt) and the
   [display name hint](#display-name-hint) the same way: sized to the content,
@@ -2071,7 +2083,12 @@ tooltips; the only tooltip left in the window is Accept's blocker.
   a child exactly the content area's size, because a window clips its
   content only half its padding from its edge: lines scrolled past are cut
   at that margin, and a card scrolled to its end keeps the same space
-  under its last line as one that fits. It shows the item's
+  under its last line as one that fits. Whether the card scrolls comes from
+  the measurement, not from ImGui: a card that fits gets a child without a
+  scrollbar, since ImGui truncates window and child sizes to whole pixels
+  and could otherwise find the content a pixel too tall, and its scrollbar
+  would narrow the text into more lines that keep it shown. A scrolling
+  card lays its text out at the content width less the scrollbar. It shows the item's
   [details](trade.md#item-details):
   - the name in capitals in the heading font at 1.45 times, wrapped onto
     more lines when needed, with the count in parentheses after it for more
@@ -2115,8 +2132,11 @@ peers keep seeing the player.
   outfit edits and text still being typed. The section that was open stays
   open, except that an opening with no display name applied shows
   `[Connection]` with the keyboard in its field.
-- Centered, 48 × 32 font sizes and at least 40 × 20, in the [theme](#theme)
-  and the [menu frame](#menu-frame) over a 96% background, without a title bar:
+- Centered at 48 × 35 font sizes the first time it opens in a game session,
+  and at least 40 × 20. Later openings keep the position and size it was
+  closed with; they live in ImGui's window state only, so a restart centers it
+  again. In the [theme](#theme) and the [menu frame](#menu-frame) over a 96%
+  background, without a title bar:
   it is dragged by any empty part, resized from its lower corners and its
   edges, and uses the mouse. The sidebar and the page fill what the frame's
   lines enclose. The frame's backing covers ImGui's resize grip, and the line
@@ -3010,6 +3030,11 @@ To verify in game:
     around its center and stays on the display, and the cursor moves at the
     same speed. At 80 all of them shrink the same way. `FontScale = 107` or
     `150` in the file warns in the log and loads `100`.
+36. The settings window first opens centered at 48 × 35 font sizes
+    (768 × 560 px at a 16 px font). Dragged to a corner, resized, closed, and
+    opened again, during gameplay or after another menu, it is where and as
+    large as it was left; after a game restart it is centered again at the
+    default size.
 34. In a game with an empty `DisplayName`, the framed hint at the top center
     names the `OpenSettings` key and the `[Connection]` page; rebinding
     `OpenSettings` changes the key it names. It is gone in the pause,
