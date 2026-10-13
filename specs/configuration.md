@@ -234,14 +234,14 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 Keyboard keys, each a DirectInput scan code stored by name
 (`Config::FormatKey`, `ParseKey`, case-insensitive). The settings window
 binds them by a key press ([UI overlay](ui-overlay.md#key-bindings)) and
-shows each key's label (`FormatKeyLabel`), what a US layout prints on it:
-`Num 7` for `Numpad7`, `[` for `LeftBracket`.
+shows each key's label (`FormatKeyLabel`), what a US layout prints on it,
+rather than its stored name.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
 | `OpenSettings` | Opens and closes the settings window | `F10` |
 | `OpenChat` | Opens the chat ([UI overlay](ui-overlay.md#window-and-input)) | `Enter` |
-| `ManagePlayers` | Opens [Manage players](ui-overlay.md#manage-players) alone, without the chat | `O` |
+| `ManagePlayers` | Opens the [player manager](ui-overlay.md#player-manager) alone, without the chat | `O` |
 | `AcceptTrade` | Accepts another player's trade invitation while it waits for an answer ([Trade](trade.md#invitation)). It is the game's only while no invitation waits | `Y` |
 | `DeclineTrade` | Declines another player's trade invitation, or withdraws the player's own, while it waits | `N` |
 
@@ -280,7 +280,7 @@ shows each key's label (`FormatKeyLabel`), what a US layout prints on it:
 | --- | --- | --- |
 | `CustomServer` | Whether the client connects to `ServerEndpoint` instead of the [official server](#official-and-custom-server). Replaces `ConnectToOfficialServer`, which is logged as unknown without migration, so a file that switched it off connects to the official server until `CustomServer` is switched on | `false` |
 | `ServerEndpoint` | The custom server's URL, starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; empty is valid and means none. Read only while `CustomServer` is `true`, and kept while it is `false`. Replaces `playerhub-server.txt`, which is no longer read | empty |
-| `AutoConnect` | Whether each game connects when it loads, which it does only with a `DisplayName` set; otherwise the settings window's Connect does | `true` |
+| `AutoConnect` | Whether each game connects when it loads, which it does only with a `DisplayName` set; otherwise the settings window's connection button does | `true` |
 
 #### Official and custom server
 
@@ -320,8 +320,8 @@ is still a plain string in the DLL.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `ViewRadius` | Game units within which other players are shown, `0..100000`; sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection. It is here rather than in `[Network]` because it bounds how many remote actors the client draws | `0`, the server's range, named `Auto` |
-| `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..1000`; `0` is unlimited, named `Unlimited` ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
+| `ViewRadius` | Game units within which other players are shown, `0..100000`; sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection. It is here rather than in `[Network]` because it bounds how many remote actors the client draws | `0`, the server's range, which the settings window shows by the schema's zero name |
+| `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..1000`; `0` is unlimited and shown by the schema's zero name ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
 
 ## Snapshots
 

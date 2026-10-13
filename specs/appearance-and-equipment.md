@@ -133,7 +133,7 @@ each time.
 
 - An actor waits up to 3 s after its first checkpoint for an appearance, then
   spawns with a default base: `NordRace` male with the race's default look and
-  the label `Unknown`.
+  the [placeholder label](#player-label).
 - A newer revision retires the actor at the next pass, at least 2 s after the
   previous respawn for that player. The respawn uses the new base and rebuilds
   locomotion, stance, and furniture from the played checkpoint. Coordinate-space
@@ -175,7 +175,7 @@ under it. A replayed player keeps the name it was recorded with.
 ### Player label
 
 `PlayerLabel::Format` builds the label used for the actor base's name, chat
-senders, and [nameplates](ui-overlay.md#nameplates): the display name, or `Unknown` for an empty one, as before a
+senders, and [nameplates](ui-overlay.md#nameplates): the display name, or a placeholder for an empty one, as before a
 peer's appearance arrives.
 
 The level is not part of the label. It stays in `Appearance` and `ChatSpeaker`

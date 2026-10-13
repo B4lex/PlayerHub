@@ -7,8 +7,8 @@
   context order were checked against the 1.7.104 executable and address library.
   SE 1.5.97 uses the same IDs and offsets as other public ImGui overlays but was
   not checked here. Skyrim VR is not supported: the hooks are not installed and
-  a warning is logged. The status panel reading only `Disconnected` without a
-  display name is not built on Windows or run in game; on Linux,
+  a warning is logged. The status panel showing only the disconnected state
+  without a display name is not built on Windows or run in game; on Linux,
   `StatusPanel.cpp` passed a syntax check against Dear ImGui 1.92.9.
 - **Shared window setup and search field** (`MenuFrame::BeginWindow`,
   `Controls::SearchField`, `Controls::MutedTextWrapped`, 2026-10-07): Linux
@@ -140,7 +140,7 @@
     the saved size, and a new chat having it from the first frame it shows.
     Without the frame's shape the name list reaches 5 px over the filters at
     the smallest size. `SettingsWindow.cpp` ran with the real schema, and
-    its Interface section has no row for either key.
+    its `[UI]` page has no row for either key.
   - `[UI] CloseChatOnSend` ran in a smaller harness with the chat's sources
     and simulated keys: on, Enter sending and closing and Enter in an empty
     field closing without sending; off, Enter sending with the chat open and
@@ -149,8 +149,8 @@
     closing it, Escape after sending a draft kept from the last opening not
     bringing it back, which fails without that rule, and Up recalling the
     line sent; turned on while open, the next Enter closing it.
-    `SettingsWindow.cpp` ran with the real schema: Interface has a `Close
-    Chat On Send` switch, and clicking it applies and saves each value.
+    `SettingsWindow.cpp` ran with the real schema: the `[UI]` page has a
+    switch for the key, and clicking it applies and saves each value.
   - Limiting the second layout of the lines to a new wrap width
     ([Size](#size)) ran in a smaller harness at 1080p, with Dear ImGui's
     default font, the real menu frame, and the chat's sources, the bullet
@@ -170,8 +170,8 @@
     the chat and as high, its search field on the filters' row and its rows
     a line apart; players nearby first and in the Local color, moving back
     among the others when no longer nearby; the local player left out, and
-    `No other players online` when alone; a click on a name
-    and `Whisper` in a row's menu whispering that player, with typing
+    the empty-list row when alone; a click on a name
+    and the whisper item in a row's menu whispering that player, with typing
     reaching the chat's field after either; Escape closing a
     row's menu only; the search matching without case, the row for no
     match, Backspace, Tab kept in the field, and nothing typed there
@@ -181,8 +181,8 @@
     the list showing again when it opens; with 500 players only the rows in view
     drawn, the wheel over the list scrolling it and not the lines, and
     players nearby copied every half second; a chat dragged to the screen's
-    right edge leaving the list room; `Not connected to the server.` without
-    a roster. The resize checks of the bullet above passed again. With 300
+    right edge leaving the list room; the disconnected row without a
+    roster. The resize checks of the bullet above passed again. With 300
     lines and 500 players a frame took about 97 µs with the list closed and
     100 µs with it open, against 127 µs for the chat before it and the
     [menu frame](#menu-frame)'s kept triangles; a join or leave in every
@@ -204,8 +204,8 @@
   ran in a headless Dear ImGui 1.92.9 context against stubbed `Config::Apply`,
   `Network`, and `ItemPreview` functions and a fake catalog, with simulated
   mouse and keyboard input and the draw data rasterized to images over a
-  stand-in scene. With General as a row and a button below it:
-  - every section at 1080p, General at 720p and Default Outfit at 4K, the open
+  stand-in scene. With `[General]` as a row and a button below it:
+  - every section at 1080p, `[General]` at 720p and `[DefaultOutfit]` at 4K, the open
     sex and item lists, a label's tooltip, an invalid field with its
     footer, and a picked item with its reset button;
   - typing applies nothing; Enter and a click on another section each apply
@@ -216,28 +216,29 @@
   - the close button and Escape close the window; a drag on the sidebar or
     beside the title moves it and one on the lower right corner resizes it.
 
-  General ran the same way at 1080p only, with the real schema and a stand-in
-  item picker. Its layout ran against stubbed `Network` functions, before the
-  field was locked and `Connect` became the only way to connect:
+  `[General]` ran the same way at 1080p only, with the real schema and a
+  stand-in item picker. Its layout ran against stubbed `Network` functions,
+  before the field was locked and the connection button became the only way
+  to connect:
   - the field and the button share a line in every state; the field has the
     keyboard when the window opens without a display name and not with one;
-  - invalid or emptied text disables `Connect`, and a click does not connect
-    with it; Escape puts the name back; `Disconnect` and `Cancel` stop wanting
-    a connection, and a press while disconnecting does nothing.
+  - invalid or emptied text disables connecting, and a click does not connect
+    with it; Escape puts the name back; disconnecting and cancelling stop
+    wanting a connection, and a press while disconnecting does nothing.
 
-  General as it is now ran with the real `ConnectionMonitor` over a stubbed
-  transport and game state:
-  - typing applies nothing and enables `Connect`; Enter and a click elsewhere
-    each apply the name and do not connect, also in a game started with
-    `AutoConnect` and no display name; one click on `Connect` applies a typed
-    name and connects, once;
+  `[General]` as it is now ran with the real `ConnectionMonitor` over a
+  stubbed transport and game state:
+  - typing applies nothing and enables connecting; Enter and a click
+    elsewhere each apply the name and do not connect, also in a game started
+    with `AutoConnect` and no display name; one click on the button applies a
+    typed name and connects, once;
   - while connecting and while connected the field is disabled, a click,
     typing, and Enter change nothing, and hovering it shows its tooltip;
-    `Disconnect` unlocks it, and a name applied then does not connect;
+    disconnecting unlocks it, and a name applied then does not connect;
   - a refusal for the display name, for the protocol version, and of a
-    replaced session each leave `Connect`, an editable field, and the sentence
-    under it; applying another name keeps the sentence and does not connect;
-    `Connect` clears it and connects.
+    replaced session each leave the button connecting, an editable field, and
+    the refusal under it; applying another name keeps the refusal and does not
+    connect; connecting clears it.
 
   ImGui's style-stack checks passed. The mouse path of `InputCapture` was not
   run there. Closing with `OpenSettings` is not built on Windows or run in game;
@@ -251,7 +252,7 @@
   `Theme.cpp`, in a headless Dear ImGui 1.92.9 context against a folder laid
   out as the deploy step leaves it and stand-in system fonts, the draw data
   rasterized to images:
-  - every section at 1080p and Default Outfit at 4K, and a
+  - every section at 1080p and `[DefaultOutfit]` at 4K, and a
     label's tooltip are in Sovngarde with bold headings; a display name with
     `Ґ`, `ž`, and Han characters shows them from the fallbacks;
   - without `PlayerHub/fonts/` the log warns for each file and the window is
@@ -290,9 +291,9 @@
     the footer's buttons, the scrollbars, and the chat's lines and input clear
     of the knots;
   - the frame is grey in both windows with the default configuration; picking
-    `Accent` in the `Border Color` list applies it and both frames are orange
+    `Accent` for `[UI] BorderColor` applies it and both frames are orange
     from the next frame;
-  - the `Border Thickness` slider reads `70%` and has no step buttons; a drag
+  - the `[UI] BorderThickness` slider shows 70% and has no step buttons; a drag
     past its right end gives 100 and past its left end 50, one to its middle
     75, and the frame and the content inside it keep the previous value while
     the button is held and follow the new one once it is released, at 1080p
@@ -321,7 +322,7 @@
   mouse and keyboard input, and the draw data rasterized to images at 1080p:
   - the default accent, its text color, and the `Accent` frame are the
     `FF9000`, `kOnState`, and `DB7D03` the theme had before;
-  - Interface shows eight swatches and the custom swatch evenly across the
+  - `[UI] AccentColor` shows eight swatches and the custom swatch evenly across the
     control, ending at its right edge, no wider than the row is high, and
     still apart at the window's minimum width;
   - a click on the blue swatch applies and saves `4F8EF7` in one apply, and
@@ -343,56 +344,57 @@
   stubbed configuration, fonts, menu frame, connection controls, and item
   picker, simulated mouse input, and key presses handed to
   `Window::OnCapturedKey` as `InputCapture` would, checking the drawn text
-  and items, not images: Controls lists `Open Settings`, `Accept Trade`, and
-  `Decline Trade` with `F10`, `Y`, and `N`, and Interface lists no key; a
-  click shows `Press a key` with no line under it, and `H` binds and applies
-  once; `N` for another action shows `N is already used by Decline Trade`
-  and keeps listening, Escape then cancels without closing the window, Left
-  Shift
-  shows `This key cannot be bound`, and the bound key ends listening without
-  an apply; a click on the listening button, on another key's button, with
-  the right button on the empty page, and on another section each end it,
-  the second starting the other key's; of two keys pressed before a frame,
-  the first binds; `Numpad7` for `Open Settings` shows `Num 7` and becomes
-  the window's focus and release key; losing focus ends listening; the rows
-  below keep their place when a button starts listening and move down for a
-  rejection's line; Backspace unbinds Accept Trade, which then reads
-  `Not bound`, ends listening without an apply on an unbound action, and
-  leaves two actions unbound without a conflict; Backspace on Open Settings
-  restores `F10`, and shows `F10 is already used by Accept Trade` while
-  Accept Trade has it; Escape without listening still closes the window. `InputCapture.cpp` and
+  and items, not images: the `[Controls]` page lists `OpenSettings`,
+  `AcceptTrade`, and `DeclineTrade` with `F10`, `Y`, and `N`, and `[UI]`
+  lists no key; a click makes the button listen with no line under it, and
+  `H` binds and applies once; `N` for another action shows the conflict line
+  naming `DeclineTrade` and keeps listening, Escape then cancels without
+  closing the window, Left Shift shows the reserved-key line, and the bound
+  key ends listening without an apply; a click on the listening button, on
+  another key's button, with the right button on the empty page, and on
+  another section each end it, the second starting the other key's; of two
+  keys pressed before a frame, the first binds; `Numpad7` for
+  `OpenSettings` shows the keypad label and becomes the window's focus and
+  release key; losing focus ends listening; the rows below keep their place
+  when a button starts listening and move down for a rejection's line;
+  Backspace unbinds `AcceptTrade`, which then shows as unbound, ends
+  listening without an apply on an unbound action, and leaves two actions
+  unbound without a conflict; Backspace on `OpenSettings` restores `F10`,
+  and shows the conflict line while `AcceptTrade` has it; Escape without
+  listening still closes the window. `InputCapture.cpp` and
   `WindowManager.cpp`, which route the key presses, passed a g++ syntax
-  check only. The Keybinds title and the section order (2026-10-11) passed
-  the g++ syntax check only; the harness ran before them, when the section
-  was titled Controls and came last. With Open Chat and Manage Players
-  (2026-10-11) the harness
-  also showed them between Open Settings and Accept Trade with `Enter` and
-  `F11`, then the Manage Players default (now `O`, not rerun); `T` bound
-  Open Chat and Backspace restored `Enter`; Enter for Manage Players showed `Enter is already used by Open Chat`, keypad Enter
-  bound it as `Num Enter`, and Backspace unbound it. `ChatWindow.cpp`,
-  which shows the manager alone, and the dropped character of a typing
-  focus key in `InputCapture.cpp` passed the g++ syntax check only. The file side is under [Configuration](configuration.md#status).
+  check only. The section's sidebar position (2026-10-11) passed the g++
+  syntax check only; the harness ran when it came last. With `OpenChat` and
+  `ManagePlayers` (2026-10-11) the harness also showed them between
+  `OpenSettings` and `AcceptTrade` with `Enter` and `F11`, then the
+  `ManagePlayers` default (now `O`, not rerun); `T` bound `OpenChat` and
+  Backspace restored `Enter`; Enter for `ManagePlayers` showed the conflict
+  line naming `OpenChat`, keypad Enter bound it as the keypad key, and
+  Backspace unbound it. `ChatWindow.cpp`, which shows the manager alone, and
+  the dropped character of a typing focus key in `InputCapture.cpp` passed
+  the g++ syntax check only. The file side is under
+  [Configuration](configuration.md#status).
 - **Custom server switch:** not built on Windows or run in game. On Linux,
   `SettingsWindow.cpp`, `ConnectionControls.cpp`, `Controls.cpp`,
   `Theme.cpp`, and `MenuFrame.cpp` ran with the real `PluginConfig.cpp`,
   `SettingsSchema.cpp`, and `ConnectionMonitor.cpp` in a headless Dear ImGui
   1.92.9 context with a stubbed transport, fonts, and item picker and
   simulated mouse and keyboard input, checking the drawn text and items, not
-  images. The current `Custom Server` switch ran in the settings-only harness
+  images. The current `CustomServer` switch ran in the settings-only harness
   (real `SettingsSchema.cpp`, stubbed configuration store and connection
-  controls): Network shows `Custom Server` and `Auto Connect` and no endpoint
-  row or `Official`; switching it on applies it and shows an unlabeled field
-  reading `https://host:port` between the two toggles, from the labels' left
-  edge to the toggles' right edge, with no `Server Endpoint` text; a typed URL
-  applies on Enter and becomes the endpoint; switching off hides the field
-  and goes back to the official server with the URL kept. The rest ran
-  with the earlier, inverted `Connect To Official Server` switch, whose
-  `ConnectionControls.cpp` behavior is unchanged, while disconnected:
-  `ftp://x` turns the footer line on, and hiding the row hides the footer
-  line, which stays away when the row is shown again; with the custom server
-  and an empty field, General's `Connect` is disabled with the sentence under
-  it; a typed URL saves both lines, `Connect` is enabled and the sentence
-  gone. `ConnectionControls.cpp` with its new sentence passed the g++ syntax
+  controls): `[Network]` shows the `CustomServer` and `AutoConnect` switches
+  and no endpoint row or official URL; switching it on applies it and shows
+  an unlabeled field with a URL placeholder between the two switches, from
+  the labels' left edge to the switches' right edge; a typed URL applies on
+  Enter and becomes the endpoint; switching off hides the field and goes
+  back to the official server with the URL kept. The rest ran with the
+  earlier, inverted switch, whose `ConnectionControls.cpp` behavior is
+  unchanged, while disconnected: `ftp://x` turns the footer line on, and
+  hiding the row hides the footer line, which stays away when the row is
+  shown again; with the custom server and an empty field, `[General]`'s
+  connection button is disabled with the reason under it; a typed URL saves
+  both lines, the button is enabled and the reason gone.
+  `ConnectionControls.cpp` with its current reason passed the g++ syntax
   check only.
 - **Mute and vanish:** not built on Windows or run in game; the server side is
   under [Network](network.md#status). On Linux, in the chat's headless Dear
@@ -405,17 +407,18 @@
   mute hides the player's earlier lines and new ones on every channel, in the
   open and the closed chat, without a notice, and its whisper does not become
   `/r`; unmuting shows them all again. In the player list a muted player's
-  menu offers `Unmute` and `Vanish`, another's `Mute` and `Vanish`, the local
-  player has no menu, and the marks show (rasterized). `Manage players` sits
-  at the list's bottom and opens a window in the middle of the screen over the
-  chat, on Friends; Muted lists this server's muted players with an offline
-  one marked as connected (then as `Online`, since replaced by the
-  [Friends](#status) checks' dot); `Unmute` and `Unvanish` remove their
-  row at once; the search filters the tab shown and stays across tabs;
+  menu offers unmute and vanish, another's mute and vanish, the local
+  player has no menu, and the marks show (rasterized). The manager's button
+  sits at the list's bottom and opens a window in the middle of the screen
+  over the chat, on the friends tab; the muted tab lists this server's muted
+  players with an offline one marked as connected (then as text, since
+  replaced by the [Friends](#status) checks' dot); unmute and unvanish
+  remove their row at once; the search filters the tab shown and stays
+  across tabs;
   Escape closes the window and leaves the chat open, a second one
   closes the chat; Enter closing the chat closes the window; its close button
   closes only it; dragged and reopened, it is in the middle again and on
-  Friends (rasterized). With 500 players and 300 lines the open chat took the
+  the friends tab (rasterized). With 500 players and 300 lines the open chat took the
   same time as before, about 107 µs a frame.
 - **Friends:** not built on Windows or run in game; `ChatSync.cpp` and
   `ChatWindow.cpp` were only compiled. On Linux, in a headless Dear ImGui
@@ -427,14 +430,14 @@
   first roster announces nobody, a later join of a friend is announced and
   of anyone else not, a reconnect under a new slot announces nobody, also
   when the empty roster between was not seen; a renamed friend's new name is
-  saved when it appears. The Friends tab lists friends by name with a dot
-  whose tooltip reads `Online` or `Offline`, and `Remove`; a name under the
-  cursor shows a hand, a click on an online one whispers it and on an
-  offline one does nothing; a right click opens the menu with `Whisper` and
-  `Remove friend` before `Mute` and `Vanish`, also on an offline friend
-  (no race and level, `Whisper` disabled) and on a Muted row; a close
-  request shuts the menu first; `Remove` and `Remove friend` drop the row
-  at once, and an emptied tab reads its sentence without a search field.
+  saved when it appears. The friends tab lists friends by name with a dot
+  whose tooltip tells online from offline, and a remove button; a name under
+  the cursor shows a hand, a click on an online one whispers it and on an
+  offline one does nothing; a right click opens the menu with whisper and
+  remove friend before mute and vanish, also on an offline friend (no race
+  and level, whisper disabled) and on a muted tab's row; a close request
+  shuts the menu first; the remove button and menu item drop the row at
+  once, and an emptied tab shows its empty-tab line without a search field.
   Nothing was rasterized.
 - **Player menu in the world:** not built on Windows or run in game.
   `RemoteActorActivation.cpp` and the `SyncCoordinator` step need
@@ -444,22 +447,22 @@
   `WindowManager.cpp`, `PlayerActivation.cpp`, `ChatRoster.cpp`,
   `PlayerFilters.cpp`, and every `ui/chat/` file: an activated player's menu
   takes focus with the mouse and opens at the middle of the screen with
-  `Whisper`, `Mute`, and `Vanish`, the chat closed (rasterized); a player
-  the roster does not list opens nothing; `Mute` and `Unmute` act and close
+  whisper, mute, and vanish, the chat closed (rasterized); a player
+  the roster does not list opens nothing; mute and unmute act and close
   it; Escape, E, a remapped Activate key (E then no
   longer), a left or right click outside, and focus lost to a menu close it;
-  `Whisper` opens the chat and its line goes to that player; an activation
+  whisper opens the chat and its line goes to that player; an activation
   while the chat is open opens nothing and is not kept.
 - **Player menu heading:** an earlier build that showed it in the world
   menu only, with the race read from the character, ran in game on Windows
-  and the user saw the name and `<race> · Level <level>`; the shared menu,
+  and the user saw the name, race, and level; the shared menu,
   the accent color, and `PlayerDetails` are not built on Windows or run in
   game. On Linux, a headless Dear ImGui 1.92.9 harness ran the real
   `ChatPlayerMenu.cpp`, `WorldPlayerMenu.cpp`, `PlayerActivation.cpp`, and
   `PlayerDetails.cpp` with stubbed peers, transport, and race names (text,
   heights, and vertex colors, not rasterized): the world menu of a player
-  with an actor shows the name in the accent color, `Nord · Level 12`,
-  `Whisper`, and `Mute` in that order without asking the server, at the
+  with an actor shows the name in the accent color, the race and level,
+  whisper, and mute in that order without asking the server, at the
   same height before and after the details; the chat's menu of a player
   without an actor asks the server even with an old appearance kept, shows
   the reply at the same height, and drops a reply for another slot; an
@@ -499,10 +502,9 @@
   stack, a blocked row adding nothing, Accept disabled with its blocker
   and while accepted, Escape cancelling, focus lost to a menu cancelling
   with `MENU`, a window kept from focus giving up with `FAILED` after 2 s but
-  not at 1.8 s, a trade closed by the server releasing focus; `Trade`
-  disabled for a far player and while another invitation waits, `Accept
-  trade` and `Decline trade` for the inviting player, no entry for the local
-  player. The window and prompt were rasterized at 1080p in Dear ImGui's
+  not at 1.8 s, a trade closed by the server releasing focus; the trade
+  item disabled for a far player and while another invitation waits, accept
+  and decline items for the inviting player, no entry for the local player. The window and prompt were rasterized at 1080p in Dear ImGui's
   default style, which found and fixed a heading hint that pushed the lists
   past the window. The real theme, fonts, and frame were not drawn.
 - **Trade grids** (2026-10-07): not built on Windows or run in game. On
@@ -518,7 +520,7 @@
   in the frame the cursor reaches it, a count change shading only that line, a `TradeSync` blocker disabling
   Accept with its reason as the button's tooltip and no footer line; a
   click opening the popup, its step button
-  and `Remove all`, Escape closing the popup
+  and remove button, Escape closing the popup
   and not the trade, the popup closing when its line leaves; Escape
   cancelling otherwise; the inspected lines reset by a new trade; the green
   tint. The
@@ -636,8 +638,8 @@ src/ui/
   chat/ChatSize               # the open chat's size, the drag that sets it, saving it
   chat/ChatPlayers            # the players online: the button on the filters' row, the list beside the chat
   chat/ChatStyle.h            # channel and failure colors, the chips' frame, the rule under the filters
-  chat/ChatPlayerMenu         # a player's menu: heading, Whisper, Trade, Add friend, Mute and Vanish or their undoing
-  chat/ChatPlayerManager      # Manage players: Friends, Muted, and Vanished tabs, over the chat or alone
+  chat/ChatPlayerMenu         # a player's menu: heading, whisper, trade, friend, mute and vanish items or their undoing
+  chat/ChatPlayerManager      # player manager: friends, muted, and vanished tabs, over the chat or alone
   chat/WorldPlayerMenu        # a player's menu at the crosshair, opened by activating its character
   trade/TradePrompt           # a trade invitation waiting for an answer, answered by its keys
   trade/TradeWindow           # the open trade: a fixed panel with both offers as grids, own items, Accept and Cancel, and the preview column
@@ -826,8 +828,8 @@ scale and costs two quads a frame.
   whole pixels because Dear ImGui rounds font sizes; so the right edge can fall
   a few pixels short of the inset and never past it. A `Dummy` of the logo's
   size keeps the layout.
-- Without the file, the sidebar shows the title `Multiplayer` in the heading
-  face, and the log warns.
+- Without the file, the sidebar shows a text title in the heading face, and
+  the log warns.
 
 ### Theme
 
@@ -850,8 +852,8 @@ background and border.
   It marks what the player can act on or has selected: the border of the
   window's popups, the selected section, a switch that is on, the selected
   and hovered list rows, hovered and pressed buttons, fields, and scrollbar
-  grabs, selected text, the chat's player list button and Manage players tab
-  while shown, and the fill of the button a view leads to
+  grabs, selected text, the chat's player list button and the player manager's tab
+  shown, and the fill of the button a view leads to
   (`Controls::PrimaryButton`, 14% darker while pressed). Body text is never
   the accent, so amber warnings stay distinct.
 - Text on the accent fill is `Theme::GetOnAccent`: the near-black
@@ -1091,19 +1093,20 @@ a translucent background, and takes no input. It is drawn only during a game
 (`GameSession::IsInGame`) and while `[UI] StatusPanel` is on, which it is not
 by default; a change applies on the next frame.
 
-| State | Text | Color |
+| State | Shows | Color |
 | --- | --- | --- |
-| Not connected, whatever the reason | `Disconnected` | red |
-| Connected, no sample yet or timed out | `Ping -- ms` | grey |
-| ≤ 80 ms / ≤ 150 ms / > 150 ms | `Ping N ms` | green / yellow / red |
+| Not connected, whatever the reason | disconnected | red |
+| Connected, no sample yet or timed out | ping without a value | grey |
+| ≤ 80 ms / ≤ 150 ms / > 150 ms | ping in ms | green / yellow / red |
 
 While connected, two grey lines follow with the received and sent traffic in
-KB/s ([Network](network.md#traffic)), `--` before the first window. Always
-shown below: `Plugin N.NN ms`, or `Plugin -- ms` before the first window.
+KB/s ([Network](network.md#traffic)), without a value before the first
+window. Always shown below: the [plugin time](#plugin-time) in ms, without a
+value before the first window.
 
 The panel is a debugging readout, not player guidance. It does not say why a
 connection is down or that a display name is missing: those need a sentence and an action in the settings window, so the messages are
-in its General section ([Connection controls](#connection-controls)).
+on its `[General]` page ([Connection controls](#connection-controls)).
 
 ### Plugin time
 
@@ -1197,7 +1200,7 @@ action on a notice. What answers the chat's own input is a
   and `ChatWindow` for a server's rejection while the chat is closed
   ([Sending](#sending)).
 - `NoticeStack` (`ui/hud/`) drains it every frame, with
-  `PlayerFilters::CollectArrivedFriends` for `<name> is online.`
+  `PlayerFilters::CollectArrivedFriends` for friends coming online
   ([Friends](#friends)), and keeps at most 4: a fifth drops the oldest.
   Every notice is its own toast, a repeat too: the user chose not to merge
   them into one with a count.
@@ -1248,9 +1251,9 @@ has no Dear ImGui and no engine access.
 for a whisper a player by slot and name. It starts as Local, survives closing
 the chat, and is not saved. `ChatInput` shows it as a chip left of the text
 field, as high as the field and with its corners, in the channel's color over
-an 18% fill of it, 30% under the cursor: `Local`, `Global`, or `To <name>`,
-the name cut at 12 font sizes. The empty field reads
-`Press Tab to switch channel`.
+an 18% fill of it, 30% under the cursor, naming the channel or, for a
+whisper, the recipient, the name cut at 12 font sizes. The empty field's
+placeholder points to Tab.
 
 | Input | Effect |
 | --- | --- |
@@ -1259,10 +1262,10 @@ the name cut at 12 font sizes. The empty field reads
 | `@` as the first character | Opens the [name list](#name-list) |
 | `/l`, `/g` (`/local`, `/global`) | Local, Global |
 | `/w <name>` (`/whisper`) | As `@` |
-| `/r` (`/reply`) | The sender of the latest received whisper; `Nobody has whispered you yet.` without one |
+| `/r` (`/reply`) | The sender of the latest received whisper; a failure note without one |
 | Backspace in the empty field | From a whisper back to the channel it replaced |
 | A click on the chip | A menu of Global, Local, and the 5 latest partners |
-| A click on a sender's name, or `Whisper` in a line's menu | A whisper to that player |
+| A click on a sender's name, or the whisper item in a line's menu | A whisper to that player |
 
 - A prefix or a command is removed from the text when it is complete: `!` and
   `@` at once, a command when a space follows it or on Enter, where the chat
@@ -1301,8 +1304,8 @@ connected players whose names start with what follows, at most 8.
   `Ulf Stone`, and `@Ulf h` whispers `Ulf` with `h` left as the text.
   `ChatRoster::FindAddressee` takes the longest name followed by a space or
   the end.
-- With nobody matching, the list is one row, `No player with that name is
-  online`, and Enter shows that as a failure note and keeps the text.
+- With nobody matching, the list is one row saying so, and Enter shows that
+  as a failure note and keeps the text.
 - While the text is `/` and letters, the same list offers the commands whose
   names start with them, each with its description; accepting one applies it.
 
@@ -1323,10 +1326,9 @@ connected players whose names start with what follows, at most 8.
 - A whisper resolves its player with `ChatRoster::Resolve`: the slot while
   that connection lasts, otherwise the connection that has the name now.
 - When nothing was handed to the server, `ChatSync::Send` returns why, and
-  the chat stays open with the text and the target and a failure note:
-  `<name> is offline.`,
-  `You are not connected to the server.`, or
-  `Your message contains characters that cannot be sent.`
+  the chat stays open with the text and the target and a failure note: the
+  recipient is offline, the player is not connected, or the text has
+  characters that cannot be sent.
 - A rejecting `Result` runs its callback on the transport thread, which
   queues each server rejection (`rate limited`, `not in world`,
   `unknown recipient`) as a sentence. `ChatWindow` takes them every frame: a
@@ -1357,14 +1359,14 @@ never a line, so the history holds only what players said.
 
 - `ChatSync::DrainLines` returns received messages. A line carries
   its label and the other player: the sender, or the recipient of the local
-  player's own whisper, whose label reads `To <recipient>`, where a received
-  one reads `From <sender>`. Senders are shown as a player label
+  player's own whisper, whose label marks it as sent to the recipient, where
+  a received one's marks it as from the sender. Senders are shown as a player label
   ([Appearance and equipment](appearance-and-equipment.md#player-label)).
 - `ChatHistory` keeps the latest 100 lines of each channel,
   each stamped with `ImGui::GetTime()` when it arrived, so a busy channel only
   pushes out its own lines.
-- A row above the lines has a filter for each channel: `Global`, `Local`, and
-  `Whispers`. Each is a toggle of its own: a click turns its channel's lines
+- A row above the lines has a filter for each channel: Global, Local, and
+  Whisper. Each is a toggle of its own: a click turns its channel's lines
   off or on, in the open chat and among the closed chat's lines, and changes
   no other filter. All are on at first and any number may be off.
   `ChatHistory` keeps collecting the lines of a channel that
@@ -1413,7 +1415,7 @@ never a line, so the history holds only what players said.
   drawn as shapes, from the top of the digits to their baseline as the
   font's `0` glyph has them, and the number of connected players, the local
   one included (`ChatRoster::GetPlayerCount`, as `/who` counts them), or
-  `Offline` in the muted text color without a roster. It is a chip as the
+  an offline label in the muted text color without a roster. It is a chip as the
   filters are (`ChatStyle::DrawChipFrame`): closed, an outline in the
   theme's text color with the 8% fill under the cursor; open, in the accent
   with the chip fill. A click opens the list or closes it. The label is
@@ -1424,8 +1426,8 @@ never a line, so the history holds only what players said.
   (`BeginFramed`), after the chat, so it has the chat's size from the same
   frame; `ChatPlayers` draws what is inside.
 - A search field stands on the filters' row, as high as the filters, with
-  a rule under it as far as the chat's is, so the two line up. It reads
-  `Search` while empty and keeps names that contain its text, both
+  a rule under it as far as the chat's is, so the two line up. It has a
+  placeholder while empty and keeps names that contain its text, both
   folded as the [name list](#name-list) folds them. Tab stays in the field;
   Enter gives the keyboard back to the chat's field.
 - The names follow, a chat line apart, in the text face. Players
@@ -1437,20 +1439,19 @@ never a line, so the history holds only what players said.
   theme's text and disabled text; each group keeps the order
   `ChatRoster` sorts them in (by folded name). The local player is left
   out; the chip's count still includes it. A name wider than the list is
-  cut at its edge. With nothing matching the list reads
-  `No player with that name is online`, or `No other players online`
-  without a search, and without a roster `Not connected to the server.`
+  cut at its edge. With nothing to list it shows one row saying why: no
+  name matches the search, nobody else is online, or there is no roster.
 - A name acts as a sender's name does in the lines: under the cursor it is
   underlined and the cursor is a hand, a click whispers the player, and a
   right click opens its [player menu](#player-menu). The keyboard then
   returns to the chat's field.
 - A muted or vanished player has a mark at the list's right edge, in the
   muted text color, three quarters of a font size square: a speech bubble
-  struck through for muted, an eye struck through for vanished, both when both. Hovering them shows `Muted`, `Vanished`, or
-  `Muted and vanished`. A vanished player within Local chat is still
+  struck through for muted, an eye struck through for vanished, both when
+  both. Hovering them names the state. A vanished player within Local chat is still
   nearby, since its Local lines still arrive.
-- A `Manage players` button as wide as the list stands at its bottom,
-  below the names, and opens [Manage players](#manage-players).
+- A button as wide as the list stands at its bottom, below the names, and
+  opens the [player manager](#player-manager).
 - Only the button closes the list. A chat closed by Escape, also from the
   search field, by Enter, or by a menu that opens by itself shows the list
   again, with its search, when it opens. Closing the list empties the
@@ -1537,12 +1538,12 @@ never a line, so the history holds only what players said.
 - `[Controls] OpenChat` ([Configuration](configuration.md#controls)), Enter
   by default, during gameplay opens the chat and focuses its field; keypad
   Enter opens it only when bound. The key only opens: the chat closes by
-  Enter and Escape as below. `Whisper` in the
+  Enter and Escape as below. The whisper item in the
   [player menu in the world](#player-menu-in-the-world)
   opens it too, with that player as the send target.
   Typing goes only to the chat; the character does not move or look around, and
   keys already held keep acting until released.
-- Escape closes an open menu, else [Manage players](#manage-players), else
+- Escape closes an open menu, else the [player manager](#player-manager), else
   hides the name or command list, else discards the text typed since opening
   or since the last line sent ([Sending](#sending)) and closes the chat; an open [player list](#player-list) shows again
   when the chat opens. Every key,
@@ -1565,7 +1566,7 @@ never a line, so the history holds only what players said.
   New lines scroll down unless the history was scrolled back.
 - Closed, the newest lines (at most 6) show for 10 s on a faint background and
   fade out over the last 2; with nothing recent nothing is drawn. They follow
-  the filters, whispers included, so turning `Global` off is how a player
+  the filters, whispers included, so turning Global off is how a player
   keeps global chat off the screen. They have no
   frame: its corners alone are taller than a line or two. Their box is in from
   the chat's corner by the frame's padding, so the lines stay in the same
@@ -1600,7 +1601,7 @@ Goal: a player can stop seeing another player without leaving: mute hides
 what it says, vanish removes its character from this world. Either is chosen
 from a [player menu](#player-menu), in the chat's lines, the
 [player list](#player-list), or the world, shows as a mark in the list, can be undone
-there or in [Manage players](#manage-players), also while the player is
+there or in the [player manager](#player-manager), also while the player is
 offline, and lasts across games on the same server. Non-goals: telling the
 player, a mutual vanish (a vanished player still sees the one who vanished
 it), muting or vanishing by name, a vanished player's Local chat (mute
@@ -1619,10 +1620,9 @@ covers chat), and admin moderation.
   character already show the change. `SetVanished` then publishes it
   ([Network](network.md#vanish)). A player without a session cannot be
   either. At 1024 vanished players on a server another vanish is refused
-  with the notice `You can vanish at most 1024 players on a server.` A
-  failed save posts a notice that the change lasts until the game exits.
-- The [player menu](#player-menu) ends with a separator, `Mute` or `Unmute`,
-  and `Vanish` or `Unvanish`, each with a tooltip saying
+  with a notice giving the limit. A failed save posts a notice that the change lasts until the game exits.
+- The [player menu](#player-menu) ends with a separator, a mute or unmute
+  item, and a vanish or unvanish item, each with a tooltip saying
   what it does and that the player is not told. The local player
   (`ChatRoster::GetLocalSession`) and a player without a session get none.
 - Muting hides the player's lines on every channel, whispers included, in
@@ -1638,7 +1638,7 @@ covers chat), and admin moderation.
   remote actor leaves as for any `EXCLUDED` peer and returns, if in range,
   when the vanish is undone. It does not hide the player's chat.
 
-### Manage players
+### Player manager
 
 Where the friends, muted, and vanished players of the current server are
 listed, offline ones included, and undone.
@@ -1650,35 +1650,32 @@ listed, offline ones included, and undone.
   dragged by any empty part while it is open; every opening starts in the
   middle again. The open chat's windows
   have `ImGuiWindowFlags_NoBringToFrontOnFocus`, so a click in the chat or
-  the list leaves it in front. `Manage players` while it is open brings it
+  the list leaves it in front. The list's button while it is open brings it
   to the front.
-- It holds the title `Players` in the heading face with a close
-  button at the right, the tabs `Friends`, `Muted`, and `Vanished` as chips
+- It holds a title in the heading face with a close button at the right,
+  a tab each for friends, muted, and vanished players as chips
   (the one shown in the accent with the chip fill, the others outlines that
-  brighten under the cursor), and a rule. Every opening shows Friends;
+  brighten under the cursor), and a rule. Every opening shows the friends tab;
   nothing of the window is kept once it closes.
-- A tab with players has a search field, `Search` while empty, that keeps
+- A tab with players has a search field, with a placeholder, that keeps
   the names containing its text, folded as the [name list](#name-list)
   folds them; an empty tab has none. The search stays across tabs and
   empties when the window closes; Tab stays in the field. Then a row per
   player of the tab, the connected ones first, each group sorted by folded
   name: a dot of 0.4375 font sizes,
   green (`kOnlineColor`) while the player is connected and in the muted
-  text color otherwise, whose tooltip says `Online` or `Offline`; the name,
-  cut before the button, the roster's while the player is online and as
-  kept otherwise; and a `Remove`, `Unmute`, or `Unvanish` button, which
-  undoes it as the menu does and removes the row at once.
-  With nobody the tab reads `You have not added any friends on this
-  server.`, `You have not muted anyone on this server.`, or
-  `You have not vanished anyone on this server.`, and with nothing matching
-  `No player with that name`. `ImGuiListClipper` draws only the rows in
-  view.
+  text color otherwise, whose tooltip tells which; the name, cut before the
+  button, the roster's while the player is online and as kept otherwise;
+  and a button that removes the friend, unmutes, or unvanishes, as the menu
+  does, and removes the row at once. An empty tab shows a line saying it
+  has nobody on this server, and a search matching nobody a line saying so.
+  `ImGuiListClipper` draws only the rows in view.
 - A name acts as a sender's name does in the chat's lines, on every tab:
   under the cursor it is underlined and the cursor is a hand, a click
   whispers the player while it is online, and a right click opens its
   [player menu](#player-menu) (`##ManagePlayersMenu`), offline too. An
   offline player has no slot, so its menu has no race and level line and
-  `Whisper` is disabled. `Whisper` sets the chat's target as the list's
+  whisper is disabled. Whisper sets the chat's target as the list's
   does, and the window stays open. The chat counts the menu among its open
   menus (`ChatPlayerManager::IsMenuOpen`), so Escape closes it first and
   the field leaves the keyboard to it.
@@ -1686,7 +1683,7 @@ listed, offline ones included, and undone.
   change, and rebuilds the tab's rows then and when the tab changes.
 - Escape closes it before the chat, from any field. Its close button closes
   it alone. Closing the chat, by Escape, Enter, or a menu that opens by
-  itself, closes it too, and it does not show again until `Manage players`
+  itself, closes it too, and it does not show again until the list's button
   is pressed.
 - `[Controls] ManagePlayers` ([Configuration](configuration.md#controls)),
   `O` by default, during gameplay opens it alone, without the chat (the
@@ -1696,7 +1693,7 @@ listed, offline ones included, and undone.
   (`HidesIdleCursor` false), the recent lines show as with the chat closed,
   and the key only opens it. Escape closes an open menu, else the window,
   and its close button closes it; either gives input back to the game.
-  `Whisper`, by a name's click or its menu, closes it and opens the chat
+  A whisper, by a name's click or its menu, closes it and opens the chat
   with that player as the target, as a whisper from the world does. The
   chat's key does nothing while it is open. The wheel over it scrolls it and not the chat's lines
   (`ChatPlayerManager::IsHovered`). After a click the keyboard returns to
@@ -1706,7 +1703,7 @@ listed, offline ones included, and undone.
 
 Goal: a player can keep other players to find again: added from a
 [player menu](#player-menu), listed with whether they are online in
-[Manage players](#manage-players), kept across games on the same server,
+the [player manager](#player-manager), kept across games on the same server,
 and announced by a [notice](#notices) when they connect. Friendship is one way: the
 player is not told and need not add back. Non-goals: requests or mutual
 friendship, a mark for friends in the player list or chat lines (the
@@ -1717,8 +1714,8 @@ and a limit, since nothing about friends is sent.
 - `SetFriend` sets `friended` and saves the entry as `SetMuted` does,
   without a notice. A friend may also be muted or vanished; removing
   the last of the three drops the entry.
-- The [player menu](#player-menu) has `Add friend` or `Remove friend` right
-  after `Whisper`, with a tooltip on what it does. The local player and a
+- The [player menu](#player-menu) has an add or remove friend item right
+  after whisper, with a tooltip on what it does. The local player and a
   player without a session get neither, as for mute and vanish.
 - `PlayerFilters::CollectArrivedFriends`, called by the
   [notice stack](#notices) every frame, copies the roster only when its
@@ -1727,8 +1724,8 @@ and a limit, since nothing about friends is sent.
   before a connection's first `Roster` or after a disconnect, clears them.
   The first roster with a new local slot is a connection's first and lists
   who was already online, so it announces nobody; after it, each friend
-  whose session was not in the previous copy gets the notice
-  `<name> is online.` A muted or vanished friend is announced too. A friend
+  whose session was not in the previous copy gets a notice that it is
+  online. A muted or vanished friend is announced too. A friend
   who leaves and comes back between two copies is not announced; one who
   reconnects later is announced again.
 - The same pass refreshes the kept name of any entry, friend or not, whose
@@ -1740,24 +1737,24 @@ and a limit, since nothing about friends is sent.
 Goal: wherever another player's menu opens, a right click on its name in
 the chat's lines or the [player list](#player-list) or Activate on its
 character ([below](#player-menu-in-the-world)), it looks the same and says
-who the player is: its name, race, and level, then `Whisper`,
-[`Trade`](#trade-window), [`Add friend`](#friends), and
-[mute and vanish](#mute-and-vanish). Non-goals: the real name of a modded
+who the player is: its name, race, and level, then whisper,
+[trade](#trade-window), [friend](#friends), and
+[mute and vanish](#mute-and-vanish) items. Non-goals: the real name of a modded
 race the local game lacks (a race's name is not on the wire; the race the
 local game resolves it to is named, as on its character), and following a
 level-up while the menu is open.
 
 - `ChatPlayerMenu` is the menu's content. `ChatHistory`, `ChatPlayers`,
   `ChatPlayerManager`, and `WorldPlayerMenu` each hold one, call `Open` with the roster entry when
-  they open their popup, and `Draw` inside it, which reports `Whisper` for
+  they open their popup, and `Draw` inside it, which reports a whisper for
   each to handle as before.
 - It starts with the roster's name in the heading face (`Fonts::GetHeading`)
-  at the text size and in the accent color (`Theme::GetAccent`), then
-  `<race> · Level <level>` in the muted text color: `Level <level>` without
-  a race name, the race alone at level zero, and no line without either.
-  A separator, `Whisper`, `Add friend`, and Mute and Vanish follow.
-  `Whisper` is disabled for a player without a slot, which only an offline
-  row in [Manage players](#manage-players) opens the menu for.
+  at the text size and in the accent color (`Theme::GetAccent`), then a
+  line with the race and level in the muted text color: the level alone
+  without a race name, the race alone at level zero, and no line without
+  either. A separator and the items follow. Whisper is disabled for a
+  player without a slot, which only an offline
+  row in the [player manager](#player-manager) opens the menu for.
 - `Open` asks `PlayerDetails` (`sync/chat/`) for the player's slot,
   replacing any earlier request. The next pass serves it on the game thread
   ([Sync pipeline](sync-pipeline.md#frame-sequence)): a peer with an actor,
@@ -1787,7 +1784,7 @@ level-up while the menu is open.
 Goal: activating another player's character, or the mount it rides, with
 Skyrim's Activate key (E by default) opens that player's
 [player menu](#player-menu) at the crosshair. Non-goals: another crosshair
-prompt (Skyrim's `Talk` and the label stay) and gamepad navigation.
+prompt (Skyrim's own prompt and name stay) and gamepad navigation.
 
 - `RemoteActorActivation` (`runtime/`) is a `TESActivateEvent` sink on
   `ScriptEventSourceHolder`, registered once data is loaded. Remote actors
@@ -1812,7 +1809,7 @@ prompt (Skyrim's `Talk` and the label stay) and gamepad navigation.
   and give input back to the game, as does a menu taking over input. Escape
   and Activate are release keys, so neither the game nor the menu sees them:
   Escape does not open the journal, and Activate does not activate again.
-- `Whisper` releases focus and leaves the player with
+- Whisper releases focus and leaves the player with
   `PlayerActivation::RequestWhisper`. The chat takes it the next frame, takes
   focus, and opens with the whisper as its [send target](#send-target), its
   cursor hidden as when Enter opens it.
@@ -1840,12 +1837,12 @@ neither touches an engine object.
   first, draws while a trade is requested, invited, or inviting: a framed
   panel at the top center, 5 font sizes down, under the compass. It has
   no inputs and never takes focus to show.
-- Invited: the inviting player's name in the accent, `wants to trade`, then
-  `[Y] Accept`, `[N] Decline` with the configured keys' labels
-  ([Configuration](configuration.md#controls)) and the seconds left. Inviting:
-  `Waiting for <name> to answer your trade offer`, `[N] Withdraw`, and the
-  seconds left. Requesting: `Offering a trade to <name>...`. An unbound
-  action's key and label are left out; the invited player then answers from
+- Invited: the inviting player's name in the accent and the invitation,
+  then an accept and a decline hint, each with its configured key's label
+  ([Configuration](configuration.md#controls)), and the seconds left.
+  Inviting: that the other player has yet to answer, a withdraw hint with
+  the decline key, and the seconds left. Requesting: that the offer is
+  being sent. An unbound action's hint is left out; the invited player then answers from
   the player menu.
 - `IsFocusKey` takes `AcceptTrade` while invited and `DeclineTrade`
   while invited or inviting, and nothing otherwise, so the keys stay the
@@ -1869,10 +1866,10 @@ neither touches an engine object.
   on a narrow display while at least 12 fit within a 1 font size margin,
   and left out otherwise. Panel and column are centered together, and the
   panel vertically; the column is as tall as the panel.
-- The title is `Trade with <name>`, the name in the accent; the window has
-  no close button, Cancel and Escape close it. The left column holds the player's items, and the right column
-  `<name>'s offer` above `Your offer`, each a grid, the order Path of Exile
-  stacks them in.
+- The title names the other player, in the accent; the window has no close
+  button, Cancel and Escape close it. The left column holds the player's
+  items, and the right column the peer's offer above the player's own, each
+  a grid, the order Path of Exile stacks them in.
 - Each offer is a grid of 5 × 3 square cells, one line per cell in offer
   order, row by row; the player cannot move items in it (the user's choice,
   as Steam's trade does). An offer holds at most 15 lines
@@ -1901,40 +1898,40 @@ neither touches an engine object.
   background and the style's text color on the well;
   while one is captured, only the background. Hovering a cell frames it in
   the accent and shows the item in the preview column at once.
-- Your offer: the lines the other game confirmed; a clicked item appears
+- The player's offer: the lines the other game confirmed; a clicked item appears
   only once confirmed. Clicking a cell that offers one item, also one of a
   larger stack, removes its line at once (`TradeSync::SetOfferCount` with 0)
   (the user's choice).
   Clicking a cell that offers more opens a popup with the name, a count field
-  with steps of one (clamped to what the player holds) and `of <held>`, and
-  `Remove all`; the field is left out if the player comes to hold only one while
+  with steps of one (clamped to what the player holds) and the count held,
+  and a remove button; the field is left out if the player comes to hold only one while
   it is open. Stepping down from 1, or entering 0, removes the line and
   closes the popup (the user's choice); typed text applies only on Enter or
   focus loss (ImGui 1.92.9), so a 0 on the way to another count does not.
   Escape closes the popup, and it closes when its line leaves the offer.
-- `<name>'s offer`: names as the local game resolves them; lines it cannot
+- The peer's offer: names as the local game resolves them; lines it cannot
   receive are left out. Each line must be inspected, as in Path of Exile: a
   line the cursor has not been over is shaded dark, and Accept stays
-  disabled until none is left, with `Hover over items to inspect them
-  (<n> left)` after the grid's heading. Inspecting is local to the window and takes effect in
+  disabled until none is left, with a hint after the grid's heading
+  counting the lines left. Inspecting is local to the window and takes effect in
   the frame the cursor reaches the cell, so moving the cursor across the
   grid inspects every cell it passes (the user's choice). `TradeSync` keeps a line's `PeerLine::id` while the peer offers the same
   item and count, so only a line the peer adds or changes needs inspecting
   again; the inspected ids last for the trade.
 - While a player has accepted, its grid is tinted green with a green frame,
-  and its heading says `Accepted`, so the state does not rest on color
+  and its heading says it accepted, so the state does not rest on color
   alone.
-- Your items: a search field (case-insensitive, by name) and a category
-  (`All`, `Weapons`, `Apparel`, `Ammunition`, `Potions`, `Ingredients`,
-  `Books`, `Scrolls`, `Soul gems`, `Keys`, `Miscellaneous`), matched again
+- The player's items: a search field (case-insensitive, by name) and a
+  category (all, weapons, apparel, ammunition, potions, ingredients, books,
+  scrolls, soul gems, keys, miscellaneous), matched again
   only when either or the inventory changes; rows clipped to the visible
   ones, with counts above one. A click on a single item offers it. A click
   on a row not yet offered does nothing while the offer holds 15 lines, with
   no notice, since the full grid shows why. A click
   on a stack opens a popup with the name, a count field focused with its
   text selected, steps of one, clamped to 1 to what the player holds, and
-  `of <held>`, and a button: it starts at 1 with `Offer`, or for a stack
-  already offered at the offered count with `Update`. Only the button or
+  the count held, and a button: it starts at 1 and offers, or for a stack
+  already offered starts at the offered count and updates it. Only the button or
   Enter sends the count (`TradeSync::SetOfferCount`); Escape, also while
   typing, and a click outside close it without a change, and it closes when
   the inventory changes, since its row may then be another item. Right
@@ -1986,15 +1983,16 @@ tooltips; the only tooltip left in the window is Accept's blocker.
   under its last line as one that fits. It shows the item's
   [details](trade.md#item-details):
   - the name in capitals in the heading font at 1.45 times, wrapped onto
-    more lines when needed, with ` (count)` after it for more than one, as
-    the vanilla item list writes counts, over a rule the card's width.
+    more lines when needed, with the count in parentheses after it for more
+    than one, as the vanilla item list writes counts, over a rule the card's
+    width.
     Capitals are made for ASCII, Latin-1, Latin Extended-A, and Cyrillic;
     other letters are kept;
   - in amber at 0.9 times, why a row cannot be offered (a quest needs it,
     the peer cannot receive it, and the other [offer blocks](trade.md#offers-and-acceptance)),
     under the rule and before the stats, so it is read first (the user's
     choice);
-  - `DAMAGE` or `ARMOR` of one item, then `WEIGHT` and `VALUE` of the
+  - damage or armor rating of one item, then weight and value of the
     whole count it shows (held for an item list row, offered for a grid
     cell, held again once a stack leaves the offer), so a stack and a
     single item read the same: each a gray label at 0.95 times before its
@@ -2003,10 +2001,10 @@ tooltips; the only tooltip left in the window is Accept's blocker.
   - each effect as the game words it in gray with every number (digits
     with single `.` or `,` between them) white in the heading font, as the
     game shows magnitudes; an undiscovered ingredient effect is darker
-    without highlights; then `Charge <n> / <max>` in the same style (the
-    user kept it as text rather than the vanilla meter);
+    without highlights; then the charge, current over maximum, in the same
+    style (the user kept it as text rather than the vanilla meter);
 
-  The card shows no equipped, favorite, or `Enchanted` note: the user
+  The card shows no equipped, favorite, or enchanted note: the user
   dropped equipped and favorite, and an enchanted item is told by its
   effects and its cell.
 
@@ -2024,8 +2022,8 @@ peers keep seeing the player.
   closes it too.
 - Every opening starts from the live configuration; closing discards unapplied
   outfit edits and text still being typed. The section that was open stays
-  open, except that an opening with no display name applied shows General
-  with the keyboard in its field.
+  open, except that an opening with no display name applied shows
+  `[General]` with the keyboard in its field.
 - Centered, 48 × 32 font sizes and at least 40 × 20, in the [theme](#theme)
   and the [menu frame](#menu-frame) over a 96% background, without a title bar:
   it is dragged by any empty part, resized from its lower corners and its
@@ -2035,11 +2033,12 @@ peers keep seeing the player.
   (`ImGuiCol_SeparatorHovered` and `ImGuiCol_SeparatorActive` around `Begin`),
   so resizing shows the resize cursor only.
 - A sidebar 11.5 font sizes wide, on a faint panel, lists one item per file
-  section in schema order under the [logo](#logo): General, which opens
+  section in schema order under the [logo](#logo): `[General]`, which opens
   first and is the display name beside the
-  [connection button](#connection-controls), then Default Outfit,
-  Interface (`[UI]`), Keybinds (`[Controls]`), Network, and Performance
-  (the user's order). `FormatSectionTitle` maps the two renamed sections. The
+  [connection button](#connection-controls), then `[DefaultOutfit]`,
+  `[UI]`, `[Controls]`, `[Network]`, and `[Performance]` (the user's
+  order). `FormatSectionTitle` gives `[UI]` and `[Controls]` titles other
+  than their keys. The
   open section's item has an accent tint and, like a [notice](#notices), a
   strip in the accent 0.2 font sizes wide down its full height on its left,
   clipped from the item's rounded box (`Controls::StripedBox`). The
@@ -2053,8 +2052,8 @@ peers keep seeing the player.
   the footer stay in view. The close button and the end of the settings of a
   section without a footer stay out of the knots' squares.
 - Widgets come from the same `Config::Describe` visitor that reads and writes the
-  file, so a new setting appears without UI code. A row is the key as words
-  (`SpawnsPerSecond` is `Spawns Per Second`) and, in the right 58% of the row,
+  file, so a new setting appears without UI code. A row is the key split
+  into words and, in the right 58% of the row,
   its control: a switch at the right edge for a bool, a number field with step
   buttons for an unsigned value, a slider for a percentage, a text field for a
   string, an item picker for a form, a combo for a choice, a button showing
@@ -2067,22 +2066,21 @@ peers keep seeing the player.
 - A row the schema shows only while a value is true (`ShowNextIf`,
   [Configuration](configuration.md#schema)) is left out while it is false, and
   its text in red is dropped, so it neither holds the footer line nor comes
-  back red. Network so shows `ServerEndpoint` only while `Custom Server` is
-  on ([Official and custom server](configuration.md#official-and-custom-server)),
-  as a field without a label, spanning the row from the labels' left edge, and
-  reading `https://host:port` while empty: the switch above it already names
-  it. The official server's URL is never drawn.
+  back red. `[Network]` so shows `ServerEndpoint` only while `CustomServer`
+  is on ([Official and custom server](configuration.md#official-and-custom-server)),
+  as a field without a label, spanning the row from the labels' left edge,
+  with a placeholder while empty: the switch above it already names it. The official server's URL is never drawn.
 - A setting's comment is not drawn; it is the tooltip of the row's label, and
   of a text field while its value is invalid.
 - A number's step buttons move it by a hundredth of its maximum, and typing
   sets any value up to the maximum. Where the schema names zero
   ([Configuration](configuration.md#schema)), a zero value shows that name
-  (`Auto`, `Unlimited`) in the empty field, and clearing the field sets zero.
+  in the empty field, and clearing the field sets zero.
 - A percentage's slider runs between its limits and shows the value with a
   percent sign. Ctrl and a click turn it into a field, and a typed value is
   clamped to the limits; a dragged or typed value is rounded to the nearest
   step from the minimum.
-- Edits in every section but Default Outfit take effect and are saved as they
+- Edits in every section but `[DefaultOutfit]` take effect and are saved as they
   are made, with no button: a switch, combo, or swatch at once, a key when
   it is bound, a number when
   its field or step button is released, a percentage when its slider is
@@ -2099,7 +2097,7 @@ peers keep seeing the player.
   The display name reports its own text under its field instead.
   Their settings have no way back to the built-in defaults other than editing
   them or removing the line from the file.
-- Default Outfit keeps its edits until Apply, since an outfit is put together
+- `[DefaultOutfit]` keeps its edits until Apply, since an outfit is put together
   from several picks and each apply can publish new equipment and appearance
   revisions to peers. Its footer has Defaults, enabled while the edits differ
   from the built-in outfit, then Revert and Apply, enabled while they differ
@@ -2119,13 +2117,13 @@ peers keep seeing the player.
 
 ### Accent color
 
-The player picks the [theme](#theme)'s accent in Interface, so the settings
+The player picks the [theme](#theme)'s accent on the `[UI]` page, so the settings
 window, the open chat, and their lists can match a modpack's look.
 `[UI] AccentColor` ([Configuration](configuration.md#ui)) holds it, and
 `Config::SettingsVisitor::Color` passes the swatches
 `Config::UISettings::kAccentSwatches` with it.
 
-- The row `Accent Color` has, across the control, the eight swatches, amber
+- The `AccentColor` row has, across the control, the eight swatches, amber
   `FF9000` (the default), grey `909090`, gold `F2C14E`, red `E5484D`, pink
   `E0559C`, violet `9B6CF0`, blue `4F8EF7`, and teal `2EC4B6`, then a custom
   swatch. The grey is the one whose `Accent` [frame](#menu-frame) is the
@@ -2136,8 +2134,8 @@ window, the open chat, and their lists can match a modpack's look.
 - The swatch of the current color has a ring in the text color around it.
   The custom swatch shows a plus on the button fill while the color is a
   swatch's and, otherwise, that color with the ring. Hovering a swatch shows
-  its `#RRGGBB`, and the custom swatch `Custom color` with the color when it
-  is custom.
+  its `#RRGGBB`, and the custom swatch says it is custom, with the color
+  when it is.
 - A click on a swatch applies its color. A click on the custom swatch opens a
   picker below it, right-aligned: a saturation and value square, a hue bar,
   and a hex field, without alpha. A drag or a typed color shows in the custom
@@ -2150,26 +2148,26 @@ window, the open chat, and their lists can match a modpack's look.
 
 ### Key bindings
 
-Keybinds binds each `[Controls]` key ([Configuration](configuration.md#controls))
+The `[Controls]` page binds each key ([Configuration](configuration.md#controls))
 by pressing it, as games' control menus do.
 
-- A row's button shows its key's label, or `Not bound` in muted text. A
-  click on it, on the press, makes it listen: the button reads `Press a key`
-  with an accent tint and outline. Nothing is added under it, so the rows
+- A row's button shows its key's label, or that it is unbound in muted
+  text. A click on it, on the press, makes it listen: the button asks for a
+  key with an accent tint and outline. Nothing is added under it, so the rows
   below stay in place.
 - The next key pressed is bound and applied at once, and listening ends.
   Escape, the key it already has, and any mouse click end it without a
   change; a click on another key's button makes that one listen instead.
 - Backspace unbinds the action and applies at once; on an unbound action it
-  ends listening without a change. Open Settings and Open Chat are the only
+  ends listening without a change. `OpenSettings` and `OpenChat` are the only
   ways to open their windows, so Backspace there restores the default,
   `F10` or `Enter`, instead, checked against the other actions like a
   pressed key.
   `SettingsVisitor::Key` passes the value Backspace sets, `a_cleared`: 0 for
   an action that can be unbound.
-- A reserved key, one without a name, shows `This key cannot be bound` in
-  red under the button, and a key another action has shows
-  `<label> is already used by <action>`; listening goes on, so the player
+- A reserved key, one without a name, shows a red line under the button
+  saying it cannot be bound, and a key another action has a line naming
+  that action; listening goes on, so the player
   presses another key or cancels.
 - Losing focus or reopening the window ends listening.
 - `SettingsEditor` collects every key setting of the `Config::Describe`
@@ -2185,22 +2183,22 @@ by pressing it, as games' control menus do.
 
 ### Connection controls
 
-General is one step: the name peers see, and joining with it. `SettingsWindow`
-draws `[General] DisplayName` as the label `Display Name` over one line of its
-text field and the connection button, as multiplayer clients lay out joining
-a server, and `ConnectionControls` draws the button (`DrawButton`) and one
-line under the two (`DrawNotice`). The section has no status, server name, or
-ping of its own: the sidebar's summary and the status panel show those.
+`[General]` is one step: the name peers see, and joining with it.
+`SettingsWindow` draws `[General] DisplayName` as a label over one line of
+its text field and the connection button, as multiplayer clients lay out
+joining a server, and `ConnectionControls` draws the button (`DrawButton`)
+and one line under the two (`DrawNotice`). The section has no status, server
+name, or ping of its own: the sidebar's summary and the status panel show
+those.
 
-- The field takes the page's width less the button, reads
-  `Enter a display name` while empty, and applies like any text setting, when
-  its editing ends. Applying it never connects, on Enter or otherwise.
+- The field takes the page's width less the button, has a placeholder while
+  empty, and applies like any text setting, when its editing ends. Applying
+  it never connects, on Enter or otherwise.
 - The field is editable only while `Network::GetConnectionState` is
   `kDisconnected`, because a session takes its display name from the hello
   ([Network](network.md#sessions)). Otherwise it is disabled, and hovering it
-  shows why (`ConnectionControls::GetDisplayNameLock`):
-  `Cancel the connection to change the display name` while connecting, and
-  `Disconnect to change the display name` while connected or disconnecting.
+  shows why (`ConnectionControls::GetDisplayNameLock`): the connection must
+  be cancelled while connecting, and ended while connected or disconnecting.
 - Opening the window with no display name applied puts the keyboard in the
   field. Escape then leaves the field, and a second press closes the window.
 
@@ -2210,16 +2208,16 @@ has not reached, and keeps its width and identity when the label changes:
 
 | State | Button | Fill | Press |
 | --- | --- | --- | --- |
-| Connected | `Disconnect` | red | stops wanting a connection |
-| Connecting | `Cancel` | plain | stops wanting a connection |
-| Disconnecting | `Disconnecting...`, disabled | plain | — |
-| Disconnected, the field holds a display name | `Connect` | accent | wants a connection |
-| Disconnected, the field is empty or its text is invalid | `Connect`, disabled | plain | — |
-| Disconnected, `Custom Server` on without a URL | `Connect`, disabled | plain | — |
+| Connected | disconnect | red | stops wanting a connection |
+| Connecting | cancel | plain | stops wanting a connection |
+| Disconnecting | disconnecting, disabled | plain | — |
+| Disconnected, the field holds a display name | connect | accent | wants a connection |
+| Disconnected, the field is empty or its text is invalid | connect, disabled | plain | — |
+| Disconnected, `CustomServer` on without a URL | connect, disabled | plain | — |
 
-`Connect` goes by the field's text, not by the applied display name: pressing
-it ends the field's editing, which applies the text before the press lands,
-so a name that was only typed connects with one click.
+Connecting goes by the field's text, not by the applied display name: pressing
+the button ends the field's editing, which applies the text before the press
+lands, so a name that was only typed connects with one click.
 
 The line under the field and the button is wrapped at the page's width and
 shows the first of these that holds. It is the only place the plugin shows
@@ -2227,33 +2225,33 @@ them:
 
 | Condition | Line |
 | --- | --- |
-| The field's text is not a display name ([Network](network.md#sessions)) | `Invalid display name.`, red. The page's footer line does not count this field |
-| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`) | the sentence of `Network::GetConnectionRefusal`, red, until `Connect` is pressed |
-| Disconnected, `Custom Server` on without a URL | `Enter a server URL in Network, or switch Custom Server off, to connect.`, amber |
-| Otherwise | the setting's comment, `Shown to other players above your character and in chat.`, muted |
+| The field's text is not a display name ([Network](network.md#sessions)) | that the name is invalid, red. The page's footer line does not count this field |
+| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`) | the sentence of `Network::GetConnectionRefusal`, red, until the button connects again |
+| Disconnected, `CustomServer` on without a URL | how to connect: enter a URL on `[Network]` or switch `CustomServer` off, amber |
+| Otherwise | the `DisplayName` setting's comment, muted |
 
 The sidebar's summary (`ConnectionControls::DrawSummary`) is an indicator and
-the status on one line, with the ping in muted text at the right while
+the state on one line, with the ping in muted text at the right while
 connected:
 
-| State | Indicator | Status |
-| --- | --- | --- |
-| Connected | green | `Connected` |
-| Connecting | amber, pulsing | `Connecting...` |
-| Disconnecting | grey | `Disconnecting...` |
-| Disconnected, refused by the server | red | `Disconnected` |
-| Disconnected | grey | `Disconnected` |
+| State | Indicator |
+| --- | --- |
+| Connected | green |
+| Connecting | amber, pulsing |
+| Disconnecting | grey |
+| Disconnected, refused by the server | red |
+| Disconnected | grey |
 
 A game that starts with `AutoConnect` and a display name connects by itself;
 nothing else connects without a press. A refusal leaves the player
-disconnected with the field editable, and `Connect` then retries with whatever
-is applied, which clears the sentence. The refusals are in
+disconnected with the field editable, and the button then retries with
+whatever is applied, which clears the sentence. The refusals are in
 [Network](network.md#connection).
 
-Not wanting a connection closes it and removes every remote player until
-Connect. The button acts on the live settings, which a display name or endpoint
-reaches when its editing ends. Applying an endpoint or switching
-`Custom Server` keeps a live connection on its server; the next Connect, or
+Not wanting a connection closes it and removes every remote player until the
+next connect. The button acts on the live settings, which a display name or
+endpoint reaches when its editing ends. Applying an endpoint or switching
+`CustomServer` keeps a live connection on its server; the next connect, or
 a reconnect after a loss, goes to the server they now name
 ([Network](network.md#connection)).
 
@@ -2269,12 +2267,12 @@ catalog and filters are in
 - The picker has no colors or sizes of its own: it takes the style of the
   window that draws it, the [theme](#theme) in the settings window, and the
   theme's amber for warnings.
-- The closed field shows the item's name, `Plugin|0xID (not loaded)` in amber
-  for a missing plugin, or the name in amber for an item the filter rejects,
+- The closed field shows the item's name, its `Plugin|0xID` marked as not
+  loaded in amber for a missing plugin, or the name in amber for an item the filter rejects,
   each with an explaining tooltip. A value for a plugin that is not loaded can
   still be written to the file.
 - The open list is 40 × 22 font sizes, with a search field that takes keyboard
-  focus and a two-column table of name and plugin. There is no `None` row: a
+  focus and a two-column table of name and plugin. There is no empty row: a
   form setting always has an item. Only visible rows are drawn
   (`ImGuiListClipper`), and the current value is scrolled into view.
 - Clicking a row picks it, Enter picks the first match, Escape closes the list.
@@ -2296,7 +2294,7 @@ picker's panel) or as cached thumbnails for many cells.
 - `DrawModel(formID, size)` takes the area as an invisible button and draws
   the item's model fitted and centered in it over whatever is behind it; the
   item picker draws its dark panel first. A new item shows nothing for
-  0.3 s, then `Loading...`, and `No preview` once it fails. While the button
+  0.3 s, then a loading line, and a no-preview line once it fails. While the button
   is held, the mouse turns the model, one radian per 8 font sizes of
   movement, the horizontal part negated as the inventory menu's mouse
   handler does. A new item starts unturned.
@@ -2588,9 +2586,9 @@ To verify in game:
    fade after 10 s; the wheel and Page Up/Down scroll; sending while disconnected
    shows a failure note above the field and keeps the chat open with the
    text, and typing clears the note.
-3. The chip reads `Local` at first, and `hi` reaches players within 8192 units
+3. The chip shows Local at first, and `hi` reaches players within 8192 units
    or in the same interior with a lime name, and not a player farther away.
-   `!` as the first character turns the chip to `Global` and is not part of
+   `!` as the first character turns the chip to Global and is not part of
    the text; the line reaches every player with a gold name, and so does the
    next one, until Tab or `/l`.
 4. `F10` opens the settings window with a cursor, and the game receives no input
@@ -2601,31 +2599,32 @@ To verify in game:
    chat or a settings field do not open its menu, and Delete opens it once
    the window is closed; `PlayerHub.log` has one line about detouring input
    dispatch again.
-5. The General section holds the `Display Name` field with one button beside
+5. The `[General]` page holds the display name field with one button beside
    it and a line under them. Opening the window with no display name puts the
-   cursor in the field, `Connect` is disabled, and the status panel reads
-   only `Disconnected`; typing a name and clicking `Connect` once connects,
-   while Enter or a click elsewhere only saves the name. Once connected the
-   button is a red `Disconnect`, the field is greyed out and says on hover to
-   disconnect first, and the sidebar reads `Connected` with a green indicator
-   and the ping; Disconnect makes it an orange `Connect` with the field
-   editable and the sidebar `Disconnected` with a grey indicator, removes
-   remote players, and keeps them away through a save load until Connect.
-   Connect right after Disconnect shows a plain `Cancel` and a pulsing amber
-   indicator until the connection opens, never `Disconnect` while
-   disconnected. A display name another player holds shows a red indicator and
-   the refusal's sentence under the field beside `Connect`, and only
-   `Disconnected` in the status panel; entering another display name and
-   clicking `Connect` connects and clears it. A name ending in a space turns
-   red with the reason under the field and disables `Connect`. The sidebar
-   shows the same status in every section.
-6. General, Network, Performance, and Interface have nothing below their
-   settings. Switching `Status Panel` off hides the panel at once; typing a
-   display name changes nothing until Enter or a click elsewhere, which saves it
-   without connecting. Network shows `Custom Server` off and no URL.
-   `View Radius` reads `Auto` and `+` sets 1000. Each change is in
-   `PlayerHub.ini` without pressing anything. Default Outfit shows
-   Defaults, Revert, and Apply; a picked item shows a reset icon and reaches
+   cursor in the field, the button cannot connect, and the status panel shows
+   only that it is disconnected; typing a name and clicking the button once
+   connects, while Enter or a click elsewhere only saves the name. Once
+   connected the button is red and disconnects, the field is greyed out and
+   says on hover to disconnect first, and the sidebar shows the connected
+   state with a green indicator and the ping; disconnecting makes the button
+   orange and connecting with the field editable and the sidebar
+   disconnected with a grey indicator, removes remote players, and keeps
+   them away through a save load until the next connect. Connecting right
+   after disconnecting shows a plain cancel button and a pulsing amber
+   indicator until the connection opens, never a disconnect button while
+   disconnected. A display name another player holds shows a red indicator
+   and the refusal's sentence under the field beside the button, and only
+   the disconnected state in the status panel; entering another display name
+   and connecting clears it. A name ending in a space turns red with the
+   reason under the field and disables connecting. The sidebar shows the
+   same status in every section.
+6. `[General]`, `[Network]`, `[Performance]`, and `[UI]` have nothing below
+   their settings. Switching `StatusPanel` off hides the panel at once; typing
+   a display name changes nothing until Enter or a click elsewhere, which
+   saves it without connecting. `[Network]` shows `CustomServer` off and no
+   URL. `ViewRadius` shows its zero name and its step button sets 1000. Each
+   change is in `PlayerHub.ini` without pressing anything. `[DefaultOutfit]`
+   shows Defaults, Revert, and Apply; a picked item shows a reset icon and reaches
    peers only on Apply, and Defaults leaves the display name and endpoint as
    they are.
 7. The picker lists only matching base-game items and races. Hovering rows
@@ -2637,8 +2636,8 @@ To verify in game:
    `ItemPreview = false` removes the panel.
 
 8. With the default accent the settings window has no blue: the open
-   section's sidebar item, switches that are on, `Connect` and a pending
-   `Apply`, and hovered or pressed widgets are orange at 1080p and 4K, and the
+   section's sidebar item, switches that are on, the connection button and a
+   pending Apply, and hovered or pressed widgets are orange at 1080p and 4K, and the
    lists it opens have a rounded `FF9000` border. Picking a sidebar item shows that section, and the window can be
    dragged by its sidebar or title. The status panel looks as before.
 9. The settings window, its lists, and its tooltips are in Sovngarde, with
@@ -2654,30 +2653,30 @@ To verify in game:
    The sidebar is headed by the sharp PlayerHUB logo at 1080p and 4K, left-aligned
    with the section labels and as wide as the space between their insets, its bar
    in the accent color and following a new accent from the next frame; without
-   `PlayerHub Logo.ttf` the log warns and the sidebar shows `Multiplayer`.
+   `PlayerHub Logo.ttf` the log warns and the sidebar shows a text title.
 
 10. The settings window and the open chat have the game's menu frame in the
     game's grey, with a knot in each corner, at 1080p and 4K; nothing in
     either window touches a knot, and resizing the settings window keeps the
-    knots in its corners. The `Border Thickness` slider reads `70%`; dragging it
+    knots in its corners. The `BorderThickness` slider shows 70%; dragging it
     to its right end, 100, makes the frame as large as on a message box of the
     game once released, its left end is 50, and at each the content stays
     inside the lines and clear of the knots.
     Picking
-    `Accent` for `Border Color` in the Interface section turns both frames
+    `Accent` for `BorderColor` on the `[UI]` page turns both frames
     the accent at once and writes `BorderColor = Accent` to `PlayerHub.ini`;
     `Vanilla` turns them grey again. Recent chat lines have no frame and do
     not move sideways when the chat opens. The log has one
     `UI overlay: menu frame` line. With `PlayerHub/frame/` removed, the log
     warns and both windows have a rounded line in the frame color.
 11. With `Ulf Stone` online, `@u` lists it; Tab or Enter turns the chip to
-    `To Ulf Stone` and empties the field, and a line reaches only that player,
-    reading `To Ulf Stone` for the sender and `From <sender>` for the
-    recipient in violet. Enter, text, Enter whispers the same player again.
+    a whisper to that player and empties the field, and a line reaches only
+    that player, labeled in violet as sent to it for the sender and as from
+    the sender for the recipient. Enter, text, Enter whispers the same player again.
     `/r` after a received whisper targets its sender, and Backspace in the
     empty field returns to the channel before. A name nobody has shows one row
-    saying so. Once the player disconnects, a note above the field reads
-    `Ulf Stone is offline.` and the chat stays open with the text.
+    saying so. Once the player disconnects, a note above the field says it
+    is offline and the chat stays open with the text.
 12. Up in the field recalls the last sent line with its target, and Down
     returns the text that was being written. `/` lists the commands; `/who`
     shows the number of players online above the field and `/help` the
@@ -2686,16 +2685,16 @@ To verify in game:
 13. Moving the mouse in the open chat shows a cursor in the middle of the
     chat, and the character does not turn or attack. A click on another
     player's name turns the chip to that player; a right click on its line
-    offers `Whisper`, `Mute`, and `Vanish`; a click on the chip lists
+    offers whisper, mute, and vanish; a click on the chip lists
     Global, Local, and the latest partners. Typing continues after each click,
     and a click outside the chat changes nothing.
-14. The filters `Global`, `Local`, and `Whispers` are all on at first. A
-    click on `Global` turns its chip grey and leaves the other two and the
+14. The Global, Local, and Whisper filters are all on at first. A
+    click on Global turns its chip grey and leaves the other two and the
     send target as they were; a global line then shows neither in the open
-    chat nor among the closed chat's lines, and `Global` gets a dot on its
-    corner. With `Whispers` off a
+    chat nor among the closed chat's lines, and Global gets a dot on its
+    corner. With Whisper off a
     whisper stays out of the closed chat too. A second click shows the
-    channel again with the lines that arrived meanwhile. With `Global` off,
+    channel again with the lines that arrived meanwhile. With Global off,
     typing `!` turns it on, and so does the player's own global line coming
     back. With all three off no line shows.
 15. With the default accent the open chat has no blue and no square corners,
@@ -2718,13 +2717,14 @@ To verify in game:
     release the chat settles on whole lines and font sizes. After a drag
     `PlayerHub.ini` has `ChatWidth` and `ChatLines`, the closed chat's lines
     are as wide, the chat has that size after the game restarts, and the
-    Interface section shows neither key.
+    `[UI]` page shows neither key.
 17. The open chat's filter row ends with a chip showing a person and the
-    number of players online, or `Offline` while disconnected. A click opens
+    number of players online, or that it is offline while disconnected. A click opens
     a framed list right of the chat and as high, with a search field on the
     filters' row and the other players by name, the ones nearby first and
-    in the Local color. A click on a name turns the chip to `To <name>` and
-    typing continues in the field; a right click offers `Whisper`. Typing `ul` in the search leaves the names containing it,
+    in the Local color. A click on a name turns the chip to a whisper to
+    that player and typing continues in the field; a right click offers
+    whisper. Typing `ul` in the search leaves the names containing it,
     and Escape there closes the chat. After Escape or Enter
     closes the chat, the list shows again when it opens, until the button
     closes it. The wheel over the list
@@ -2732,76 +2732,78 @@ To verify in game:
     right edge the list is still on the screen. With hundreds of players
     online the frame rate with the list open is the same as with it closed.
 18. A right click on another player's name in the list or on its chat line
-    offers `Mute` and `Vanish`; on the local player's line, neither. After
-    `Mute` no notice shows, the player's lines vanish from the open and
+    offers mute and vanish; on the local player's line, neither. After
+    a mute no notice shows, the player's lines vanish from the open and
     closed chat, earlier ones included, and its new lines and whispers do
-    not show; `/r` still answers whoever whispered before. After `Vanish`
+    not show; `/r` still answers whoever whispered before. After a vanish
     its character disappears at once while the other player still sees this
     one and is told nothing, and it stays gone after either game reconnects
     or restarts. The list marks the player with a struck bubble or eye.
-    `Unmute` shows every held line again, and `Unvanish` brings the
+    Unmuting shows every held line again, and unvanishing brings the
     character back where the player stands, if it is in range.
-19. `Manage players` at the bottom of the player list opens a framed window
-    in the middle of the screen over the open chat, with the tabs Friends,
-    Muted, and Vanished. Each lists the connected server's players, offline
-    ones included, those connected first with a green dot and the others
-    after with a gray one, which say `Online` or `Offline` under the cursor, and a search
-    field while the tab has anyone; `Remove`, `Unmute`, or `Unvanish`
-    removes the row at once and has the effect the menu has. A name is
+19. The button at the bottom of the player list opens a framed window in
+    the middle of the screen over the open chat, with a tab each for
+    friends, muted, and vanished players. Each lists the connected server's
+    players, offline ones included, those connected first with a green dot
+    and the others after with a gray one, which tell online from offline
+    under the cursor, and a search field while the tab has anyone; a row's
+    button removes the row at once and has the effect the menu has. A name is
     underlined under the cursor; a click whispers an online player, and a
     right click opens the player's menu, an offline player's with
-    `Whisper` disabled. Escape closes the window
+    whisper disabled. Escape closes the window
     and leaves the chat open; closing the chat closes it too. Connecting to
     another server lists only that server's players.
-20. `Add friend` in another player's menu, from the chat, the player list,
-    or the world, adds it to Friends with no notice, and the menu then
-    offers `Remove friend`; the other player is told nothing. When that
-    player next connects, a notice on the right reads `<name> is online.`,
-    with the chat open or closed, and the chat's lines do not; friends already online when this game connects are not
-    announced. An offline friend shows its last name in Friends.
+20. Adding another player as a friend from its menu, in the chat, the
+    player list, or the world, adds it to the friends tab with no notice,
+    and the menu then offers to remove it; the other player is told nothing.
+    When that player next connects, a notice on the right says so, with the
+    chat open or closed, and the chat's lines do not; friends already online when this game connects are not
+    announced. An offline friend shows its last name in the friends tab.
     A friend stays one after either game restarts, and muting or vanishing
     a friend keeps the friend.
 21. Pressing E on another player's character, or the horse it rides,
     shows a cursor and a menu at the crosshair with the player's name, race,
-    and level, then `Whisper`, `Mute`, and `Vanish`, and no dialogue starts. `Mute` and `Vanish` act as
-    in the chat's menu. `Whisper` opens the chat with the chip whispering
+    and level, then whisper, mute, and vanish, and no dialogue starts. Mute
+    and vanish act as in the chat's menu. Whisper opens the chat with the
+    chip whispering
     that player. Escape, E again, or a click outside closes the menu without
     opening the journal or activating anything, and the character moves
     again at once.
-22. In Interface, a click on the blue swatch turns the settings window's
+22. On the `[UI]` page, a click on the blue swatch turns the settings window's
     sidebar mark, switches, slider, and hovered widgets blue at once, and
-    with `Border Color` at `Accent` its frame and the open chat's too; the
+    with `BorderColor` at `Accent` its frame and the open chat's too; the
     open chat's player list button and lists follow. `PlayerHub.ini` then
     has `AccentColor = 4F8EF7`, which the next game loads. The custom swatch
     opens a picker; dragging in it changes only the custom swatch until
     release, then the whole window, and a typed hex color applies on Enter.
-    A dark custom color gives `Connect` light text. Amber returns the
+    A dark custom color gives the connection button light text. Amber returns the
     default look. The status panel stays as it was.
 23. The menus a right click opens on a player's chat line or on its name in
     the player list look like the one E opens: its name in bold in the
-    accent color, then a muted line such as `Nord · Level 12`, also for a
+    accent color, then a muted line with its race and level, also for a
     player far away, whose line fills in a moment later without the menu
     changing height. A player using a race the local game lacks shows the
     race its character has locally. With the accent changed, the name
     follows it.
 24. A new install connects to the official server, and its URL appears
     nowhere in the settings window or `PlayerHub.ini`. Switching
-    `Custom Server` on while connected keeps the connection and remote
+    `CustomServer` on while connected keeps the connection and remote
     players, and a URL field without a label appears under it. Disconnecting
-    with the field empty disables General's `Connect` with a sentence saying
-    why. A URL typed into the field applies on Enter, and `Connect` joins that
-    server; an endpoint without `http://` turns red. Switching
-    `Custom Server` off while connected to the custom server keeps that
-    connection; Disconnect and Connect join the official server.
+    with the field empty disables connecting on `[General]` with a sentence
+    saying why. A URL typed into the field applies on Enter, and connecting
+    joins that server; an endpoint without `http://` turns red. Switching
+    `CustomServer` off while connected to the custom server keeps that
+    connection; disconnecting and connecting join the official server.
 
-25. Activating a nearby player and picking `Trade` shows both players the
+25. Activating a nearby player and picking trade shows both players the
     prompt at the top, which `Y` and `N` answer for the other player,
     without moving the character or opening a game menu. Accepting opens
     the trade window on both screens with the cursor, also over an open
-    chat. A click on a stack asks how many, starting at 1, and only `Offer`
-    or Enter offers them; they show in the own grid as its thumbnail with
-    its count. Clicking the stack's row again starts at that count with
-    `Update`. Clicking the cell opens its count and `Remove all`, and
+    chat. A click on a stack asks how many, starting at 1, and only the
+    popup's button or Enter offers them; they show in the own grid as its
+    thumbnail with its count. Clicking the stack's row again starts at that
+    count and updates it. Clicking the cell opens its count and a remove
+    button, and
     stepping the count down from 1 removes it; clicking a cell that offers
     one item removes it with no popup, and right clicks do
     nothing. The other window shows it
@@ -2824,9 +2826,8 @@ To verify in game:
     in a dark interior, outside by day, and outside at night, with no face
     left black, and the world's lighting is unchanged while they capture.
 27. Notices stack on the right edge from 40% of the screen's height, at
-    1080p and 4K, each with a strip in the accent: `You successfully
-    traded.` after a trade, the other player's decline, a friend
-    connecting. Each fades after about 5 s, a long one later; the same
+    1080p and 4K, each with a strip in the accent: a completed trade, the
+    other player's decline, a friend connecting. Each fades after about 5 s, a long one later; the same
     notice twice shows twice; a fifth pushes out the oldest. They show over the inventory and under the open chat or trade
     window, and never add a chat line.
 28. The open trade takes the screen at 1080p, 1440p, 4K, and 21:9: the
@@ -2844,30 +2845,29 @@ To verify in game:
     from there, and it keeps its angle after other items were hovered
     and the grid thumbnails captured. The item picker's model shows on its
     dark panel as before and spins too.
-29. The settings window's sidebar lists General, Default Outfit, Interface,
-    Keybinds, Network, and Performance. Keybinds lists Open Settings, Open Chat,
-    Manage Players, Accept Trade, and Decline Trade with their keys, and
-    Interface lists none. A
-    click on Accept Trade's key, then `H`, shows `H` and saves
-    `AcceptTrade = H` under `[Controls]`; a trade invitation then shows
-    `[H] Accept` and `H` accepts it. While a button reads `Press a key`,
-    `F10` shows that it is used by Open Settings and does not close the
-    window, Escape cancels without closing it, the game sees none of these
-    presses, and a click anywhere cancels. Binding Open Settings to Num 7
-    makes Num 7 open and close the window and F10 do nothing. A display name
-    typed with a letter bound to Open Settings keeps the letter and the
-    window open. Backspace on Accept Trade's button shows `Not bound`, saves
-    `AcceptTrade =`, and the next invitation shows only `[N] Decline`; `Y`
-    then reaches the game. Backspace on Open Settings' button restores
-    `F10`.
-30. With Open Chat bound to `T`, `T` opens the chat with an empty field and
+29. The settings window's sidebar lists `[General]`, `[DefaultOutfit]`,
+    `[UI]`, `[Controls]`, `[Network]`, and `[Performance]`. `[Controls]` lists
+    `OpenSettings`, `OpenChat`, `ManagePlayers`, `AcceptTrade`, and
+    `DeclineTrade` with their keys, and `[UI]` lists none. A click on
+    `AcceptTrade`'s key, then `H`, shows `H` and saves `AcceptTrade = H`
+    under `[Controls]`; a trade invitation then shows `H` as the accept key
+    and `H` accepts it. While a button listens, `F10` shows that
+    `OpenSettings` has it and does not close the window, Escape cancels
+    without closing it, the game sees none of these presses, and a click
+    anywhere cancels. Binding `OpenSettings` to Num 7 makes Num 7 open and
+    close the window and F10 do nothing. A display name typed with a letter
+    bound to `OpenSettings` keeps the letter and the window open. Backspace
+    on `AcceptTrade`'s button shows it unbound, saves `AcceptTrade =`, and
+    the next invitation shows only the decline hint; `Y` then reaches the
+    game. Backspace on `OpenSettings`' button restores `F10`.
+30. With `OpenChat` bound to `T`, `T` opens the chat with an empty field and
     Enter and keypad Enter reach the game; Enter still sends and closes it.
-    Backspace on Open Chat's button restores `Enter`. `O` opens Manage
-    players alone in the middle of the screen with the cursor shown and the
+    Backspace on `OpenChat`'s button restores `Enter`. `O` opens the player
+    manager alone in the middle of the screen with the cursor shown and the
     chat closed, its recent lines still fading; `O` again changes nothing,
     and Escape or its close button returns input to the game. Clicking an
     online friend's name there closes it and opens the chat whispering
-    that friend. With Manage Players unbound, `O` reaches the game.
+    that friend. With `ManagePlayers` unbound, `O` reaches the game.
 31. On Windows with English and Ukrainian layouts, switching the input
     language with the Windows hotkey while the chat's field is open makes
     the next letters Cyrillic, and switching back makes them Latin, without
@@ -2885,7 +2885,7 @@ To verify in game:
     with the HUD hidden (`tm`), behind the trade window, or with
     `Nameplates` off. Many players in view do not lower the frame rate
     noticeably.
-33. `Font Scale` at the top of the Interface section reads `100%` and moves
+33. The `FontScale` slider at the top of the `[UI]` page shows 100% and moves
     in steps of 5 between 80 and 130. Releasing it at 130 makes the text and
     every overlay window, the chat, notices, and nameplates larger from the
     next frame and writes `FontScale = 130`; the open settings window grows
@@ -2965,7 +2965,7 @@ To verify in game:
 - A click made before the mouse has moved since the chat opened is dropped.
 - The send target, the filters, the whisper partners, and the sent lines last
   until the game exits.
-- An offline player in Manage players shows the name the roster last gave
+- An offline player in the player manager shows the name the roster last gave
   it while this game ran, or the kept one; online, the roster's. The window lists the last
   server that welcomed the client, or the configured endpoint's before the
   first connection of a game, so an endpoint changed while disconnected

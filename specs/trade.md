@@ -165,8 +165,8 @@ a request unanswered after 10 s, as for a lost message.
   since the prompt already says it. The invited one answers without losing
   input:
   `[Controls] AcceptTrade` (`Y`) accepts and `DeclineTrade` (`N`) declines,
-  unless unbound, and its menu for the inviting player offers
-  `Accept trade` and `Decline trade`. The inviting player's prompt waits, and the decline key
+  unless unbound, and its menu for the inviting player offers accept and
+  decline items. The inviting player's prompt waits, and the decline key
   withdraws it.
 - Accepting is refused locally, with a notice, in combat or out of
   the world.
@@ -212,18 +212,16 @@ a request unanswered after 10 s, as for a lost message.
   skipped line leaves the offer, which sends a new revision. The offer and
   report are the check, so the wire is unchanged. Checks and missing plugins
   carry over when the inventory is listed again. A rejected row is disabled
-  with the reason, and a warning notice names the items and why
-  (`You cannot offer <items>: <reason>`, one per reason):
-  - `<name> does not have <plugin> installed.` when the report names the
-    plugin; every other row whose item, enchantment, or effect comes from
+  with the reason, and a warning notice per reason names the items and
+  why:
+  - the peer lacks the plugin, when the report names it; every other row whose item, enchantment, or effect comes from
     that plugin is disabled at once with the same reason, and those already
     in the offer leave it and are named in the notice.
-  - `<name> has a different version of <plugin>.` for a missing form in a
+  - the peer has another version of the plugin, for a missing form in a
     loaded plugin, or a form of another kind (`MISSING_ITEM` without a
     plugin, `WRONG_TYPE`).
-  - `<name>'s game does not have the enchantment.` (`MISSING_EFFECT` without
-    a plugin) and `<name>'s game cannot rebuild the enchantment.`
-    (`BAD_ENCHANTMENT`).
+  - the peer's game lacks the enchantment (`MISSING_EFFECT` without a
+    plugin) or cannot rebuild it (`BAD_ENCHANTMENT`).
 - `Accept` is possible once the window holds something on either side, the
   own offer is sent, the peer reported on it, this game reported on the
   peer's, and the player has had the cursor over each of the peer's lines
@@ -281,7 +279,7 @@ choice), and the item card that shows them is in
   (`EffectSetting::magicItemDescription`) with `<mag>`, `<dur>`, and `<area>`
   filled (any case; magnitudes whole unless fractional), or its name when it
   has none. An ingredient's effects the local player has not discovered
-  (`IngredientItem::gamedata.knownEffectFlags`) are `Unknown effect`, as in
+  (`IngredientItem::gamedata.knownEffectFlags`) are shown as unknown, as in
   the game (the user's choice).
 - Charge, for an enchanted weapon: the sent charge and maximum, or for a
   base form's enchantment the full `amountofEnchantment`, which is what
@@ -325,7 +323,7 @@ revision holds none.
    `kPickupSoundGeneric` default object, so a modpack's override applies) at the
    player, on both sides and whatever moved. The single unit pickups in
    step 2 stay silent so it plays once.
-4. The notice `You successfully traded.` says it is done; what
+4. A notice says the trade is done; what
    moved is in the log (counts of entries given and received, and each
    shortfall), not the notice, which the user chose to keep short.
 
@@ -337,7 +335,7 @@ is not sent and it arrives full.
 | Event | Reason | Where |
 | --- | --- | --- |
 | Cancel, Escape | `CANCELLED` | client |
-| The decline key, `Decline trade` | `DECLINED` | client (`TradeAnswer`) |
+| The decline key or menu item | `DECLINED` | client (`TradeAnswer`) |
 | Combat (`IsInCombat`) or a `TESHitEvent` on the player while a trade is invited or open | `COMBAT` | client |
 | Anything taking input from the open window: a game menu, the console, dialogue, a loading screen | `MENU` | client |
 | The window cannot take input within 2 s of opening | `FAILED` | client |
@@ -355,8 +353,8 @@ Each outcome reaches the player as a [notice](ui-overlay.md#notices)
 (`Notices::Post` from `TradeSync`), not a chat line. Every end of a trade
 names the other player and why (declined, busy, unavailable, too far, no
 answer, combat, withdrawn or cancelled, left, could not open, the
-connection lost, or the player's own decline); a commit is
-`You successfully traded.` Refusals of the player's own actions (a trade
+connection lost, or the player's own decline); a commit has a notice of
+its own. Refusals of the player's own actions (a trade
 already under way, combat, no connection, a full offer, items gone, an item
 the other game cannot receive) are notices too. Sending an invitation and receiving one post nothing:
 the [prompt](ui-overlay.md#prompt) shows both.

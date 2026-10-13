@@ -62,6 +62,15 @@ a peer does not have a matching modded asset or behavior.
   decisions with their reasons. Leave out line numbers, code listings, and
   details that are obvious from the code. Link to another spec's section rather
   than repeating it.
+- Describe UI by its structure, behavior, and the symbols behind it, not by its
+  copy. Do not quote or paraphrase displayed text such as labels, captions,
+  section titles, tooltips, placeholders, notices, and error or status
+  sentences, so a wording change does not require a spec change. Refer to a
+  control by its config key, code symbol, or role (for example "the
+  `[UI] BorderThickness` slider", "a line naming the action that already holds
+  the key"), and to a message by what it tells the player. Quote a string only
+  when its exact text is a contract: a wire value, a chat command or prefix, a
+  config key or value, a file name, or a log line that agents search for.
 
 ## Code style guidelines
 - Comment only what a reader cannot get from the code:
