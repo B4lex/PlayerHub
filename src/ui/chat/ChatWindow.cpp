@@ -2,7 +2,6 @@
 #include "config/PluginConfig.h"
 #include "sync/chat/PlayerActivation.h"
 #include "sync/notices/Notices.h"
-#include "ui/Layout.h"
 #include "ui/MenuFrame.h"
 #include "ui/Theme.h"
 #include "ui/WindowManager.h"
@@ -29,8 +28,6 @@ namespace UI
 {
     namespace
     {
-        // The bottom margin keeps the chat above the vanilla magicka bar.
-        constexpr ImVec2 kMarginFonts{ 0.75F, 5.5F };
         constexpr float kPlayerListGapFonts = 0.5F;
 
         constexpr float kOpenBackgroundAlpha = 0.6F;
@@ -57,13 +54,22 @@ namespace UI
             return (ImGui::GetStyle().WindowPadding.x + GetFramePadding()) * 2.0F;
         }
 
-        ChatSize::Units GetUnits(const ImVec2& a_around)
+        // The lower left corner of the open chat's frame.
+        ImVec2 GetChatAnchor()
         {
             const auto& display = ImGui::GetIO().DisplaySize;
-            const auto fontSize = ImGui::GetFontSize();
-            const ImVec2 step{ fontSize, ChatHistory::GetLinePitch() };
-            const auto width = display.x - kMarginFonts.x * fontSize * 2.0F - a_around.x;
-            const auto height = display.y - (kMarginFonts.x + kMarginFonts.y) * fontSize - a_around.y;
+            const auto config = Config::Get();
+            return ImVec2{ std::floor(static_cast<float>(config->ui.chatPositionHorizontal) * 0.01F * display.x),
+                std::floor(display.y - static_cast<float>(config->ui.chatPositionVertical) * 0.01F * display.y) };
+        }
+
+        // The room from the anchor to the right and top edges.
+        ChatSize::Units GetUnits(const ImVec2& a_anchor, const ImVec2& a_around)
+        {
+            const auto& display = ImGui::GetIO().DisplaySize;
+            const ImVec2 step{ ImGui::GetFontSize(), ChatHistory::GetLinePitch() };
+            const auto width = display.x - a_anchor.x - a_around.x;
+            const auto height = a_anchor.y - a_around.y;
             return ChatSize::Units{ .step = step,
                 .maximum = { .width = static_cast<std::uint32_t>((std::max)(width / step.x, 0.0F)),
                     .lines = static_cast<std::uint32_t>((std::max)(height / step.y, 0.0F)) } };
@@ -97,11 +103,19 @@ namespace UI
             return visible;
         }
 
-        void SetNextChatWindowPosition(float a_inset)
+        // Moves the anchor only for a frame at its minimum size, which the room
+        // does not hold.
+        ImVec2 KeepOnScreen(const ImVec2& a_anchor, const ImVec2& a_frameSize)
         {
-            const auto fontSize = ImGui::GetFontSize();
-            SetNextWindowCorner(ScreenCorner::kBottomLeft,
-                ImVec2{ kMarginFonts.x * fontSize + a_inset, kMarginFonts.y * fontSize + a_inset });
+            const auto& display = ImGui::GetIO().DisplaySize;
+            return ImVec2{ std::floor(std::clamp(a_anchor.x, 0.0F, (std::max)(display.x - a_frameSize.x, 0.0F))),
+                std::floor(std::clamp(a_anchor.y, (std::min)(a_frameSize.y, display.y), display.y)) };
+        }
+
+        void SetNextChatWindowPosition(const ImVec2& a_corner, float a_inset)
+        {
+            ImGui::SetNextWindowPos(
+                ImVec2{ a_corner.x + a_inset, a_corner.y - a_inset }, ImGuiCond_Always, ImVec2{ 0.0F, 1.0F });
         }
 
         class ChatWindow final : public Window
@@ -178,9 +192,20 @@ namespace UI
             }
 
         private:
+            enum class ListSide : std::uint8_t
+            {
+                kRight,
+                kLeft
+            };
+
             [[nodiscard]] bool IsManagerOnly() const { return managerOnly.load(std::memory_order_acquire); }
 
-            [[nodiscard]] float GetLinesWidth() const { return size.Get(GetUnits(ImVec2{ GetSidePadding(), 0.0F })).x; }
+            [[nodiscard]] ImVec2 GetClosedFrameSize(const ImVec2& a_anchor) const
+            {
+                const auto sidePadding = GetSidePadding();
+                const auto lines = size.Get(GetUnits(a_anchor, ImVec2{ sidePadding, aroundHeight }));
+                return ImVec2{ lines.x + sidePadding, lines.y + aroundHeight };
+            }
 
             void DrawRecent(double a_now)
             {
@@ -191,10 +216,12 @@ namespace UI
                 }
 
                 const Theme::Scope theme;
-                const auto width = GetLinesWidth();
+                const auto anchor = GetChatAnchor();
+                const auto frameSize = GetClosedFrameSize(anchor);
+                const auto width = frameSize.x - GetSidePadding();
                 // Inside where the open chat's frame would be, so the lines stay in their
                 // column when it opens.
-                SetNextChatWindowPosition(GetFramePadding());
+                SetNextChatWindowPosition(KeepOnScreen(anchor, frameSize), GetFramePadding());
                 ImGui::SetNextWindowSizeConstraints(ImVec2{ width, 0.0F }, ImVec2{ width, FLT_MAX });
                 ImGui::SetNextWindowBgAlpha(kRecentBackgroundAlpha * alpha);
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
@@ -211,16 +238,30 @@ namespace UI
             {
                 const Theme::Scope theme;
                 const auto sidePadding = GetSidePadding();
+                const auto anchor = GetChatAnchor();
+                auto units = GetUnits(anchor, ImVec2{ sidePadding, aroundHeight });
                 const auto listWidth = players.IsOpen() ? GetPlayerListGap() + GetPlayerListWidth() : 0.0F;
-                const auto units = GetUnits(ImVec2{ sidePadding + listWidth, aroundHeight });
+                const auto listSide = players.IsOpen()
+                    ? ChooseListSide(anchor.x, size.Get(units).x + sidePadding, listWidth)
+                    : ListSide::kRight;
+                if (players.IsOpen() && listSide == ListSide::kRight)
+                {
+                    units = GetUnits(anchor, ImVec2{ sidePadding + listWidth, aroundHeight });
+                }
                 size.Follow(units);
                 const auto linesSize = size.Get(units);
-                SetNextChatWindowPosition(0.0F);
+                const ImVec2 frameSize{ linesSize.x + sidePadding, linesSize.y + aroundHeight };
+                auto corner = KeepOnScreen(anchor, frameSize);
+                if (listSide == ListSide::kRight)
+                {
+                    corner.x = std::floor((std::min)(
+                        corner.x, (std::max)(ImGui::GetIO().DisplaySize.x - frameSize.x - listWidth, 0.0F)));
+                }
+                SetNextChatWindowPosition(corner, 0.0F);
                 // Both given, so the window has the size in the frame a drag
                 // moves it. Sized to its content, it would follow a frame late in
                 // height and never get narrower in width.
-                ImGui::SetNextWindowSize(
-                    ImVec2{ linesSize.x + sidePadding, aroundHeight > 0.0F ? linesSize.y + aroundHeight : 0.0F });
+                ImGui::SetNextWindowSize(ImVec2{ frameSize.x, aroundHeight > 0.0F ? frameSize.y : 0.0F });
                 if (focusInput)
                 {
                     ImGui::SetNextWindowFocus();
@@ -286,7 +327,7 @@ namespace UI
 
                 if (players.IsOpen())
                 {
-                    DrawPlayerList(windowPos, windowSize, ruleGap, closeMenu);
+                    DrawPlayerList(windowPos, windowSize, listSide, ruleGap, closeMenu);
                 }
                 if (closeManager)
                 {
@@ -344,10 +385,24 @@ namespace UI
                 ImGui::End();
             }
 
-            void DrawPlayerList(const ImVec2& a_chatPos, const ImVec2& a_chatSize, float a_ruleGap, bool a_closeMenu)
+            // Decided from the configured size rather than the one the list leaves, so
+            // the side does not change as the chat narrows for the list.
+            static ListSide ChooseListSide(float a_left, float a_frameWidth, float a_listWidth)
             {
-                ImGui::SetNextWindowPos(ImVec2{ a_chatPos.x + a_chatSize.x + GetPlayerListGap(), a_chatPos.y });
-                ImGui::SetNextWindowSize(ImVec2{ GetPlayerListWidth(), a_chatSize.y });
+                return a_left + a_frameWidth + a_listWidth <= ImGui::GetIO().DisplaySize.x || a_left < a_listWidth
+                    ? ListSide::kRight
+                    : ListSide::kLeft;
+            }
+
+            void DrawPlayerList(const ImVec2& a_chatPos, const ImVec2& a_chatSize, ListSide a_side, float a_ruleGap,
+                bool a_closeMenu)
+            {
+                const auto gap = GetPlayerListGap();
+                const auto width = GetPlayerListWidth();
+                ImGui::SetNextWindowPos(ImVec2{
+                    a_side == ListSide::kLeft ? a_chatPos.x - gap - width : a_chatPos.x + a_chatSize.x + gap,
+                    a_chatPos.y });
+                ImGui::SetNextWindowSize(ImVec2{ width, a_chatSize.y });
                 if (BeginFramed("##ChatPlayers"))
                 {
                     const auto outcome = players.DrawList(a_ruleGap, a_closeMenu);

@@ -37,6 +37,11 @@ On Linux the same two files were checked the same way: the default file has
 and `40` load; `23`, `101`, `8`, `41`, `0`, text, and an empty value warn and
 keep the default; applying each adds its line to a file without it, keeping
 the file's comments, and both load back.
+`[UI] ChatPositionHorizontal` and `ChatPositionVertical` (2026-10-13) are not
+yet built on Windows or run in game under these names (as signed `ChatOffsetX`
+and `ChatOffsetY` the sliders worked in game), and the file was not run
+through the stubbed checks: on Linux, `SettingsSchema.cpp` and
+`PluginConfig.cpp` passed the g++ syntax check only.
 `[UI] AccentColor` is not yet built on Windows or run in game. On Linux the
 same two files ran with the settings window's harness
 ([UI overlay](ui-overlay.md#status)): the default file has
@@ -277,7 +282,8 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 
 Four groups: Display (`FontScale`, `AccentColor`, `BorderColor`,
 `BorderThickness`), Players (`Nameplates`, `NameplateDistance`), Chat
-(`CloseChatOnSend`, `ChatWidth`, `ChatLines`), and Items (`ItemPreview`).
+(`CloseChatOnSend`, `ChatWidth`, `ChatLines`, `ChatPositionHorizontal`,
+`ChatPositionVertical`), and Items (`ItemPreview`).
 
 | Key | Meaning | Default |
 | --- | --- | --- |
@@ -291,6 +297,8 @@ Four groups: Display (`FontScale`, `AccentColor`, `BorderColor`,
 | `ItemPreview` | Shows the 3D item model in item pickers and the trade window's preview column, and item thumbnails in the trade window's offers; off, the cells show names and the column only the item card | `true` |
 | `ChatWidth` | Width of the chat's lines in font sizes, `24..100`; set by dragging the open chat's right edge ([UI overlay](ui-overlay.md#size)) and not shown in the settings window | `30` |
 | `ChatLines` | Lines of history the open chat shows, `9..40`; set by dragging its top edge, and not shown in the settings window | `10` |
+| `ChatPositionHorizontal` | Distance of the open chat's left edge from the screen's left edge in percent of the screen's width, `0..100`; the chat stays there and its size is limited to the room left on the screen ([UI overlay](ui-overlay.md#position)) | `1` |
+| `ChatPositionVertical` | Distance of the open chat's bottom edge from the screen's bottom edge in percent of the screen's height, `0..100`; the default keeps it above the magicka bar | `8` |
 
 ### `[Controls]`
 
@@ -380,6 +388,7 @@ revision before the snapshot never misses a change.
 | `Theme` | overlay | working out the accent and frame colors from `AccentColor` and `BorderColor` when the revision changes |
 | `MenuFrame` | overlay | reading `BorderThickness` for each framed window each frame |
 | `ChatSize` | overlay | reading `ChatWidth` and `ChatLines` each frame the chat draws, outside a drag |
+| `ChatWindow` | overlay | reading `ChatPositionHorizontal` and `ChatPositionVertical` each frame the chat or its recent lines draw |
 
 ## Saving
 

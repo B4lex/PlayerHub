@@ -78,6 +78,7 @@ namespace Config
         static constexpr std::uint32_t kMaximumChatWidth = 100;
         static constexpr std::uint32_t kMinimumChatLines = 9;
         static constexpr std::uint32_t kMaximumChatLines = 40;
+        static constexpr std::uint32_t kMaximumChatPosition = 100;
         static constexpr std::uint32_t kMaximumNameplateDistance = 6000;
 
         std::uint32_t fontScale{ 100 };
@@ -90,6 +91,9 @@ namespace Config
         bool closeChatOnSend{ true };
         std::uint32_t chatWidth{ 30 };
         std::uint32_t chatLines{ 10 };
+        // Close to the left edge and above the vanilla magicka bar.
+        std::uint32_t chatPositionHorizontal{ 1 };
+        std::uint32_t chatPositionVertical{ 8 };
 
         bool operator==(const UISettings&) const = default;
     };

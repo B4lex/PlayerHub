@@ -15,6 +15,13 @@
   `SettingsWindow.cpp`, `SettingsSchema.cpp`, and `PluginConfig.cpp` passed
   the g++ syntax check. That Dear ImGui draws a format without a conversion
   as it is follows its demo's enum slider and was not run here.
+- **Chat position** (`[UI] ChatPositionHorizontal` and
+  `ChatPositionVertical`, 2026-10-13): as offsets from the former default place, with the size limited to the room
+  from the chat's corner and the player list's side choice, it worked in game
+  on Windows (the user's check). As positions from the screen's corner, without
+  the margins, it is not yet built on Windows or run in game; on Linux,
+  `ChatWindow.cpp`, `SettingsSchema.cpp`, `PluginConfig.cpp`, and
+  `SettingsWindow.cpp` passed the g++ syntax check.
 - **Settings sections** (`[Connection]`, `[Advanced]`, and the `[UI]`
   groups, 2026-10-13): not built on Windows or run in game, and not run in
   the headless harness. On Linux, `SettingsSchema.cpp`, `PluginConfig.cpp`,
@@ -1285,9 +1292,11 @@ Goal: talk to everyone, to players nearby, or to one player; always see where
 the next line goes and change it with a key, a prefix, a command, or a click;
 whisper by a few letters of a name, and keep whispering the same player
 without naming it again; see who is online and whisper one from a list; tell the channels apart at a glance, and turn each
-off and on; see as many lines as the player wants, by dragging the chat larger.
+off and on; see as many lines as the player wants, by dragging the chat larger;
+place the chat elsewhere on the screen.
 Non-goals: chat
-history for late joiners, a saved log, moving the chat, and
+history for late joiners, a saved log, moving the chat by dragging it (its
+[position](#position) is set in the settings window), and
 staying open after a line is sent.
 
 | Channel | Reaches | Color |
@@ -1474,8 +1483,8 @@ never a line, so the history holds only what players said.
   theme's text color with the 8% fill under the cursor; open, in the accent
   with the chip fill. A click opens the list or closes it. The label is
   formatted only when the number changes.
-- The list is a window of its own, half a font size right of the open chat
-  and as high, with 13 font sizes of content, in the chat's menu frame and
+- The list is a window of its own, half a font size right of the open chat,
+  or left of it when the screen has no room on the right, and as high, with 13 font sizes of content, in the chat's menu frame and
   background. `ChatWindow` places and begins it as it begins the chat
   (`BeginFramed`), after the chat, so it has the chat's size from the same
   frame; `ChatPlayers` draws what is inside.
@@ -1538,9 +1547,10 @@ never a line, so the history holds only what players said.
 - During a drag the size follows the cursor by the pixel, as the settings
   window's does, so the top row of the lines may show in part. A drag in
   whole steps was dropped: at a font size a step it looked like a low frame
-  rate. The size stops at the limits and at what the screen has room for
-  with the chat's margin on every side (`GetUnits` in `ChatWindow.cpp`) and,
-  while it is open, the [player list](#player-list) beside it. A
+  rate. The size stops at the limits and at the room from the chat's
+  [position](#position) to the right and top edges (`GetUnits` in
+  `ChatWindow.cpp`), and, while it is open on the right, the
+  [player list](#player-list) beside it. A
   configured size the screen has no room for is drawn at that room and stays
   in the file.
 - Releasing the button settles the size on the nearest whole font size
@@ -1587,6 +1597,33 @@ never a line, so the history holds only what players said.
   Linux benchmark, and one that changes only the height costs nothing more.
 - The closed chat's box is as wide as the lines and still shows at most 6.
 
+### Position
+
+- `[UI] ChatPositionHorizontal` and `ChatPositionVertical`
+  ([Configuration](configuration.md#ui)) place the lower left corner of the
+  open chat's frame (`GetChatAnchor`) at a percentage of the screen's width
+  from its left edge and of its height from its bottom edge, so `0` and `0` is
+  the screen's lower left corner and the place is the same share of any
+  resolution, independent of the font scale. The defaults, `1` and `8`, keep
+  the chat where it was placed in font sizes before, near the left edge and
+  above the magicka bar: at 1080p and the default font scale about 7 px
+  further right and 2 px lower.
+- The chat stays at its position: its [size](#size) is limited to the room
+  from that corner to the right and top edges, rather than the chat being
+  moved back onto the screen. So a drag on the right edge grows the chat to
+  the right up to the screen's edge. Only a chat at its minimum size, which the room does not hold, is
+  moved until it fits (`KeepOnScreen`). The recent lines are placed from the
+  same corner with the open chat's size as last measured, so they keep their
+  column when the chat opens.
+- The [player list](#player-list) goes right of the chat when the chat at its
+  configured size and the list fit there. Otherwise it goes left when there is
+  room on the left, so the chat keeps its size; without that room it stays
+  right and the chat narrows for it (`ChatWindow::ChooseListSide`). The side is
+  chosen from the configured size, not the narrowed one, so it does not change
+  back and forth.
+- The settings window shows both as percentage sliders; Defaults on `[UI]`
+  resets them. The chat moves when a slider is released.
+
 ### Window and input
 
 - `[Controls] OpenChat` ([Configuration](configuration.md#controls)), Enter
@@ -1609,7 +1646,7 @@ never a line, so the history holds only what players said.
   appears in the middle of the chat. After any click the keyboard returns to
   the field, except one in the player list's search field; a click outside
   the chat and the list does nothing.
-- Open, it sits in the lower-left corner above the magicka bar, with the
+- Open, it sits at its [position](#position), with the
   filter row, the lines at the chat's [size](#size), and the input row,
   inside the [menu frame](#menu-frame) over a 60% background. The frame adds half of its
   inset and corner to the padding on
@@ -2980,6 +3017,18 @@ To verify in game:
     while the chat or settings window is open. Pressing the key opens
     `[Connection]` with the keyboard in the field, and applying a name there
     leaves no hint after the window closes. Clearing the name brings it back.
+35. The `[UI]` page's `ChatPositionHorizontal` and `ChatPositionVertical`
+    sliders show 1% and 8%, with the chat above the magicka bar as before; at `50` and `40`
+    the open chat and the recent lines sit around the
+    screen's middle, in the same column, at 1080p and 4K alike; a chat
+    dragged wider there grows to the right up to the screen's edge and its
+    left edge stays put, and one too large for the room at `70` is narrowed
+    and shortened to fit while `PlayerHub.ini` keeps its size. At `100` and
+    `100` the chat is at its minimum size against the upper right corner and
+    wholly on the screen, and the player list opens on its left; at `0` and `0` it is
+    against the lower left corner, over the magicka bar. Defaults puts it back
+    above the magicka bar, and the positions are in `PlayerHub.ini` after a
+    restart.
 
 ## Known limitations
 
@@ -3041,7 +3090,8 @@ To verify in game:
 - `@Ulf Stone cold` typed in full whispers `Ulf Stone` while that player is
   online, since the longest name wins; whispering `Ulf` then takes picking
   the name from the list.
-- The chat is resized with the mouse only and cannot be moved. A word wider
+- The chat is resized with the mouse only, and moved only from the settings
+  window. A word wider
   than the chat is cut at the row's end wherever that falls, not at a
   syllable or after punctuation.
 - The player list sorts by folded bytes, so `Aela 194` comes before
