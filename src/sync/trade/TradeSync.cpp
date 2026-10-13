@@ -864,9 +864,10 @@ namespace TradeSync
                 s_viewDirty = true;
             }
             const auto phase = s_session.GetPhase();
-            const auto secondsLeft = phase == Phase::kInviting || phase == Phase::kInvited
-                ? static_cast<std::uint32_t>(
-                      std::ceil((std::max)(TradeSession::kInviteSeconds - s_session.GetWaited(), 0.0F)))
+            // The invitation's time starts when the server sends it, so a request shows all of it.
+            const auto waited = phase == Phase::kRequesting ? 0.0F : s_session.GetWaited();
+            const auto secondsLeft = phase == Phase::kRequesting || phase == Phase::kInviting || phase == Phase::kInvited
+                ? static_cast<std::uint32_t>(std::ceil((std::max)(TradeSession::kInviteSeconds - waited, 0.0F)))
                 : 0;
             if (secondsLeft != s_secondsLeft)
             {

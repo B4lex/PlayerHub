@@ -233,7 +233,6 @@ namespace Config
             a_visitor.Comment("Players");
             a_visitor.Bool("Nameplates", a_settings.nameplates,
                 "Shows other players' names above their heads while they are in sight.");
-            a_visitor.ShowNextIf(a_settings.nameplates);
             a_visitor.Unsigned("NameplateDistance", a_settings.nameplateDistance,
                 "Game units within which names are shown above players' heads, about 70 to a\n"
                 "meter.",

@@ -569,6 +569,15 @@
   checked; it was not rasterized. A click removing a cell that offers one
   of a larger stack, and the popup's count removing the line at 0
   (2026-10-11), passed only the g++ syntax check of `TradeWindow.cpp`.
+  The requesting prompt drawn as the inviting one, the accent name, and the
+  fixed-width seconds (2026-10-13) passed only the g++ syntax check of
+  `TradePrompt.cpp`, `MenuFrame.cpp`, and `TradeSync.cpp`, a planted error
+  confirming it is checked. A headless test against ImGui 1.92.9 showed a
+  reappearing auto-resized window rendering one frame at its old width, and
+  `BeginPrompt`'s hidden appearing frame removing it. The two centered
+  lines (2026-10-13) passed the g++ syntax check of `TradePrompt.cpp`, and
+  a headless ImGui 1.92.9 test of the same line code centered the narrower
+  line and kept the window's width as the seconds went from 30 to 9.
 - **Trade screen, preview column, backdrop, and turning model**
   (2026-10-09): not built on Windows or run in game. On Linux,
   `TradeWindow.cpp` with the real `Theme.cpp`, `MenuFrame.cpp`, and
@@ -989,9 +998,12 @@ is not part of the plugin.
   scaled because `Begin` has by then grown the window to the new minimum size.
 - `MenuFrame::BeginPrompt` begins the [trade prompt](#prompt) and the
   [display name hint](#display-name-hint) the same way: sized to the content,
-  without inputs or focus, centered 5 font sizes from the top under the
+  without inputs or focus, centered 6 font sizes from the top under the
   compass, padded by half the frame's inset plus corner beyond the style's
-  padding, and framed over the window background at 85% opacity.
+  padding, and framed over the window background at 65% opacity. On the frame
+  it reappears it lays out but is not rendered (`ImGuiWindow::Hidden`), since
+  ImGui sizes a reappearing auto-resized window from the contents it last
+  had and hides only new windows and popups for that frame.
 - `MenuFrame::GetMetrics` gives a window those two lengths in pixels to lay its
   content out by. A knot stays inside the square of `corner` at its window
   corner, and cuts across it, so content is clear of it outside that square or
@@ -1938,18 +1950,25 @@ neither touches an engine object.
 
 - `TradePrompt`, registered before the settings window so its keys come
   first, draws while a trade is requested, invited, or inviting: a framed
-  panel at the top center, 5 font sizes down, under the compass. It has
+  panel at the top center, 6 font sizes down, under the compass. It has
   no inputs and never takes focus to show.
+- Two lines, each measured before it is drawn and centered on the wider
+  one, `kHintGapFonts` (0.5) font sizes apart beyond the item spacing: the
+  message, then the key hints and the seconds left.
 - Invited: the inviting player's name in the accent and the invitation,
   then an accept and a decline hint, each with its configured key's label
   ([Configuration](configuration.md#controls)), and the seconds left.
-  Inviting: that the other player has yet to answer, a withdraw hint with
-  the decline key, and the seconds left. Requesting: that the offer is
-  being sent. An unbound action's hint is left out; the invited player then answers from
-  the player menu.
+  Requesting and inviting look the same, so the prompt keeps its size when
+  the server's invitation arrives: that the other player, named in the
+  accent, has yet to answer, then a withdraw hint with the decline key and
+  the seconds left, which stay at the whole `TradeSession::kInviteSeconds`
+  while requesting. The seconds take the width of the longest count, so the
+  centered panel does not shift as they lose a digit. An unbound action's
+  hint is left out; the invited player then answers from the player menu.
 - `IsFocusKey` takes `AcceptTrade` while invited and `DeclineTrade`
   while invited or inviting, and nothing otherwise, so the keys stay the
-  game's. The key that gave focus answers, and the prompt gives focus back
+  game's. While requesting there is no trade ID to cancel yet, so the
+  withdraw hint shows but its key stays the game's. The key that gave focus answers, and the prompt gives focus back
   in the same frame, so neither the game nor another window sees it.
 
 ### Window

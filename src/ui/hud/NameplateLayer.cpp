@@ -23,7 +23,7 @@ namespace UI
     namespace
     {
         // World units above the head node's origin, at the node's scale.
-        constexpr float kHeadClearance = 30.0F;
+        constexpr float kHeadClearance = 20.0F;
         constexpr float kNearFontScale = 1.2F;
         constexpr float kFarFontScale = 0.8F;
         constexpr float kDistanceFadeFraction = 0.15F;

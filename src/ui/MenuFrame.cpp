@@ -3,6 +3,8 @@
 #include "config/PluginFiles.h"
 #include "ui/Theme.h"
 
+#include <imgui_internal.h>
+
 #include <algorithm>
 #include <array>
 #include <charconv>
@@ -443,6 +445,13 @@ namespace UI::MenuFrame
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ padding.x + inset, padding.y + inset });
         const bool visible = ImGui::Begin(a_name, nullptr, kFlags);
         ImGui::PopStyleVar();
+        // An auto-resized window that reappears takes the size of the contents it had when last
+        // shown, and fits the new ones only the next frame. ImGui hides only new windows and
+        // popups for that frame, so this one is kept from rendering while its items still lay out.
+        if (ImGui::IsWindowAppearing())
+        {
+            ImGui::GetCurrentWindow()->Hidden = true;
+        }
         if (visible)
         {
             auto background = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
