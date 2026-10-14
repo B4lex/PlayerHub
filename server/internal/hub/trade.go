@@ -32,6 +32,8 @@ type trade struct {
 	// The other side's offer revision this side reported on.
 	reported [2]uint64
 	accepted [2]bool
+	// The plugin counts of each side's queries the other side has not answered, oldest first.
+	queries [2][]int
 }
 
 func (t *trade) side(slot uint32) int {
@@ -170,6 +172,41 @@ func (h *Hub) reportTrade(m *member, report *pb.TradeReport) error {
 	}
 	t.reported[side] = report.GetRevision()
 	h.sendTrade(h.tradeMember(t, other), &pb.ServerMessage{Message: &pb.ServerMessage_TradeReport{TradeReport: report}})
+	return nil
+}
+
+func (h *Hub) queryTradePlugins(m *member, query *pb.TradePluginQuery) error {
+	t, side, err := h.openTrade(m, query.GetTradeId(), true)
+	if err != nil {
+		return err
+	}
+	if len(t.queries[side]) >= tradePendingPluginQueries ||
+		!m.tradeOffers.Allow(h.opts.Clock.Now(), tradeOffersPerSecond, tradeOfferBurst) {
+		return ErrRateLimited
+	}
+	t.queries[side] = append(t.queries[side], len(query.GetPlugins()))
+	h.sendTrade(h.tradeMember(t, 1-side),
+		&pb.ServerMessage{Message: &pb.ServerMessage_TradePluginQuery{TradePluginQuery: query}})
+	return nil
+}
+
+func (h *Hub) replyTradePlugins(m *member, reply *pb.TradePluginReply) error {
+	t, side, err := h.openTrade(m, reply.GetTradeId(), true)
+	if err != nil {
+		return err
+	}
+	other := 1 - side
+	if len(t.queries[other]) == 0 {
+		return ErrStaleTrade
+	}
+	for _, index := range reply.GetMissing() {
+		if int(index) >= t.queries[other][0] {
+			return ErrStaleTrade
+		}
+	}
+	t.queries[other] = t.queries[other][1:]
+	h.sendTrade(h.tradeMember(t, other),
+		&pb.ServerMessage{Message: &pb.ServerMessage_TradePluginReply{TradePluginReply: reply}})
 	return nil
 }
 

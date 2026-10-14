@@ -41,6 +41,8 @@ namespace Network::Wire
     [[nodiscard]] std::string EncodeTradeAnswer(Multiplayer::TradeID a_trade, bool a_accept);
     [[nodiscard]] std::string EncodeTradeOffer(const Multiplayer::TradeOffer& a_offer);
     [[nodiscard]] std::string EncodeTradeReport(const Multiplayer::TradeReport& a_report);
+    [[nodiscard]] std::string EncodeTradePluginQuery(const Multiplayer::TradePluginQuery& a_query);
+    [[nodiscard]] std::string EncodeTradePluginReply(const Multiplayer::TradePluginReply& a_reply);
     [[nodiscard]] std::string EncodeTradeAccept(const Multiplayer::TradeAcceptance& a_acceptance);
     [[nodiscard]] std::string EncodeTradeCancel(Multiplayer::TradeID a_trade, Multiplayer::TradeCloseReason a_reason);
 

@@ -42,6 +42,8 @@ type trade struct {
 	reportedPeer uint64
 
 	ownAccepted, peerAccepted bool
+	// The bot's plugin queries the peer has not answered, oldest first.
+	pluginQueries [][]string
 }
 
 func (b *bot) handle(m *pb.ServerMessage) {
@@ -71,6 +73,7 @@ func (b *bot) handle(m *pb.ServerMessage) {
 		t.phase = phaseOpen
 		t.sent = make(map[uint64][]*pb.TradeItem)
 		say("trade %d: open with %s", t.id, t.peer)
+		b.queryPlugins()
 		if len(b.offer) > 0 {
 			b.sendOffer()
 		}
@@ -78,6 +81,10 @@ func (b *bot) handle(m *pb.ServerMessage) {
 		b.receiveOffer(body.TradeOffer)
 	case *pb.ServerMessage_TradeReport:
 		b.receiveReport(body.TradeReport)
+	case *pb.ServerMessage_TradePluginQuery:
+		b.answerPlugins(body.TradePluginQuery)
+	case *pb.ServerMessage_TradePluginReply:
+		b.receivePluginReply(body.TradePluginReply)
 	case *pb.ServerMessage_TradeAccept:
 		accept := body.TradeAccept
 		if accept.GetTradeId() != t.id || t.phase != phaseOpen {
@@ -134,6 +141,71 @@ func (b *bot) receiveOffer(offer *pb.TradeOffer) {
 	if b.mirror {
 		b.copyPeer(nil)
 	}
+}
+
+// queryPlugins asks about the plugins of the bot's offer as the plugin does for its inventory.
+func (b *bot) queryPlugins() {
+	t := &b.trade
+	var plugins []string
+	for _, item := range b.offer {
+		forms := append([]*pb.FormRef{item.GetItem(), item.GetEnchantment()}, effectForms(item)...)
+		for _, f := range forms {
+			if f != nil && len(plugins) < validate.MaximumTradePlugins && !slices.ContainsFunc(plugins,
+				func(p string) bool { return strings.EqualFold(p, f.GetPlugin()) }) {
+				plugins = append(plugins, f.GetPlugin())
+			}
+		}
+	}
+	if len(plugins) == 0 {
+		return
+	}
+	t.pluginQueries = append(t.pluginQueries, plugins)
+	b.post(&pb.ClientMessage{Message: &pb.ClientMessage_TradePluginQuery{TradePluginQuery: &pb.TradePluginQuery{
+		TradeId: t.id, Plugins: plugins}}})
+	say("trade %d: asked %s about %d plugin(s)", t.id, t.peer, len(plugins))
+}
+
+// answerPlugins reports the plugins the bot's skip rules say it lacks.
+func (b *bot) answerPlugins(query *pb.TradePluginQuery) {
+	t := &b.trade
+	if query.GetTradeId() != t.id || t.phase != phaseOpen {
+		return
+	}
+	var missing []uint32
+	var names []string
+	for i, plugin := range query.GetPlugins() {
+		if slices.ContainsFunc(b.skips, func(r skipRule) bool { return r.form == nil && strings.EqualFold(r.plugin, plugin) }) {
+			missing = append(missing, uint32(i))
+			names = append(names, plugin)
+		}
+	}
+	b.post(&pb.ClientMessage{Message: &pb.ClientMessage_TradePluginReply{TradePluginReply: &pb.TradePluginReply{
+		TradeId: t.id, Missing: missing}}})
+	say("trade %d: %s asked about %d plugin(s); reported missing: %s", t.id, t.peer, len(query.GetPlugins()),
+		listOrNone(names))
+}
+
+func (b *bot) receivePluginReply(reply *pb.TradePluginReply) {
+	t := &b.trade
+	if reply.GetTradeId() != t.id || t.phase != phaseOpen || len(t.pluginQueries) == 0 {
+		return
+	}
+	query := t.pluginQueries[0]
+	t.pluginQueries = t.pluginQueries[1:]
+	var names []string
+	for _, index := range reply.GetMissing() {
+		if int(index) < len(query) {
+			names = append(names, query[index])
+		}
+	}
+	say("trade %d: %s lacks: %s", t.id, t.peer, listOrNone(names))
+}
+
+func listOrNone(names []string) string {
+	if len(names) == 0 {
+		return "none"
+	}
+	return strings.Join(names, ", ")
 }
 
 func (b *bot) receiveReport(report *pb.TradeReport) {

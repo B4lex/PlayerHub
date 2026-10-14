@@ -18,6 +18,7 @@
 #include <cfloat>
 #include <cmath>
 #include <format>
+#include <numbers>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -66,6 +67,7 @@ namespace UI
         constexpr ImU32 kEnchantedTextColor = IM_COL32(20, 20, 24, 255);
         constexpr ImU32 kUninspectedShade = IM_COL32(0, 0, 0, 150);
         constexpr ImU32 kCountShadow = IM_COL32(0, 0, 0, 220);
+        constexpr float kCheckingPulsesPerSecond = 0.8F;
         constexpr float kAcceptedTintAlpha = 0.14F;
 
         // The same background as the item's cell, so both draw the same still.
@@ -638,21 +640,26 @@ namespace UI
                             a_min, a_max);
                         if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
                         {
-                            if (line.count > 1)
-                            {
-                                popupRow = line.row;
-                                openPopup = true;
-                            }
-                            else
-                            {
-                                TradeSync::SetOfferCount(view.inventoryRevision, line.row, 0);
-                            }
+                            ClickOffered(line.row, line.count);
                         }
                         if (a_hovered)
                         {
                             Show(ShownItem::Source::kOffer, line.row, 0);
                         }
                     });
+            }
+
+            void ClickOffered(std::size_t a_row, std::uint32_t a_offered)
+            {
+                if (a_offered > 1)
+                {
+                    popupRow = a_row;
+                    openPopup = true;
+                }
+                else
+                {
+                    TradeSync::SetOfferCount(view.inventoryRevision, a_row, 0);
+                }
             }
 
             // A clicked line of the own offer: its count and Remove all. The count field stays conditional because
@@ -704,7 +711,7 @@ namespace UI
                 ImGui::EndPopup();
             }
 
-            // A clicked stack of the item list: how many to offer, sent only by Offer or Enter.
+            // A clicked stack of the item list that is not offered yet: how many to offer, sent only by Offer or Enter.
             void DrawPickPopup()
             {
                 if (std::exchange(openPick, false))
@@ -741,8 +748,7 @@ namespace UI
                 ImGui::SameLine();
                 ImGui::AlignTextToFramePadding();
                 ImGui::TextDisabled("of %u", item.count);
-                const char* label = OfferedCount(pickRow) > 0 ? "Update" : "Offer";
-                if (Controls::PrimaryButton(label, ImVec2{ -FLT_MIN, 0.0F }) || entered)
+                if (Controls::PrimaryButton("Offer", ImVec2{ -FLT_MIN, 0.0F }) || entered)
                 {
                     TradeSync::SetOfferCount(pickRevision, pickRow, pickCount);
                     ImGui::CloseCurrentPopup();
@@ -755,6 +761,15 @@ namespace UI
                 ImGui::BeginGroup();
                 ImGui::AlignTextToFramePadding();
                 ImGui::TextUnformatted("Your inventory");
+                if (view.checkingPlugins)
+                {
+                    ImGui::SameLine();
+                    const auto angle = static_cast<float>(ImGui::GetTime()) * kCheckingPulsesPerSecond * 2.0F
+                        * std::numbers::pi_v<float>;
+                    auto color = ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+                    color.w *= 0.65F + 0.35F * std::sin(angle);
+                    ImGui::TextColored(color, "Checking mods...");
+                }
                 const auto& style = ImGui::GetStyle();
                 const auto comboWidth = std::floor(a_size.x * 0.4F);
                 ImGui::SetNextItemWidth(a_size.x - comboWidth - style.ItemSpacing.x);
@@ -810,15 +825,19 @@ namespace UI
                 ImGui::PushID(static_cast<int>(a_row));
                 const bool blocked = !line.blocked.empty();
                 const bool full = offered == 0 && view.offer.size() >= Multiplayer::kMaximumTradeItems;
-                ImGui::BeginDisabled(blocked || full);
+                ImGui::BeginDisabled(blocked || full || line.checking);
                 if (ImGui::Selectable(line.name.c_str(), offered > 0,
                         ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap))
                 {
-                    if (line.count > 1)
+                    if (offered > 0)
+                    {
+                        ClickOffered(a_row, offered);
+                    }
+                    else if (line.count > 1)
                     {
                         pickRow = a_row;
                         pickRevision = view.inventoryRevision;
-                        pickCount = std::clamp(offered, 1U, line.count);
+                        pickCount = 1;
                         openPick = true;
                     }
                     else

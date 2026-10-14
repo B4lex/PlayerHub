@@ -9,8 +9,8 @@ namespace
 {
     using Multiplayer::TradeCloseReason;
 
-    // A commit names a revision at most a round trip old, which a quiet edit
-    // interval of 0.2 s keeps well inside this many.
+    // A commit names a revision at most a round trip old, which offers sent at
+    // most every 0.5 s keep well inside this many.
     constexpr std::size_t kKeptOfferRevisions = 16;
 
     bool IsSkipped(const std::vector<Multiplayer::TradeSkip>& a_skips, std::size_t a_index)
@@ -62,6 +62,13 @@ TradeSession::Blocker TradeSession::GetAcceptBlocker() const
         return Blocker::kAwaitingReport;
     }
     return Blocker::kNone;
+}
+
+bool TradeSession::IsCheckingPlugin(std::string_view a_plugin) const
+{
+    return !pluginCheckExpired && std::ranges::any_of(pluginQueries, [a_plugin](const auto& a_query) {
+        return std::ranges::find(a_query, a_plugin) != a_query.end();
+    });
 }
 
 bool TradeSession::BeginRequest(const Multiplayer::RosterEntry& a_peer)
@@ -175,6 +182,29 @@ TradeSession::EventResult TradeSession::OnEvent(const Multiplayer::TradeEvent& a
                         ownSkips = a_value.skipped;
                         return { .outcome = Outcome::kReport };
                     }
+                    else if constexpr (std::is_same_v<T, Multiplayer::TradePluginQuery>)
+                    {
+                        return { .outcome = Outcome::kPluginQuery, .plugins = a_value.plugins };
+                    }
+                    else if constexpr (std::is_same_v<T, Multiplayer::TradePluginReply>)
+                    {
+                        if (pluginQueries.empty())
+                        {
+                            return {};
+                        }
+                        auto query = std::move(pluginQueries.front());
+                        pluginQueries.pop_front();
+                        EventResult result{ .outcome = Outcome::kPluginReply };
+                        for (const auto index : a_value.missing)
+                        {
+                            // The server refuses an index past the query.
+                            if (index < query.size())
+                            {
+                                result.plugins.push_back(std::move(query[index]));
+                            }
+                        }
+                        return result;
+                    }
                     else if constexpr (std::is_same_v<T, Multiplayer::TradeAcceptance>)
                     {
                         // Sent as the peer names them: its own offer first.
@@ -245,8 +275,11 @@ bool TradeSession::SetOwnItems(std::vector<Multiplayer::TradeItem> a_items)
         return false;
     }
     ownItems = std::move(a_items);
+    if (!ownDirty)
+    {
+        sinceEdit = 0.0F;
+    }
     ownDirty = true;
-    sinceEdit = 0.0F;
     ownAccepted = false;
     peerAccepted = false;
     return true;
@@ -269,6 +302,43 @@ std::optional<Multiplayer::TradeAcceptance> TradeSession::Accept()
     return Multiplayer::TradeAcceptance{ .id = id, .ownRevision = ownRevision, .peerRevision = peerRevision };
 }
 
+std::vector<Multiplayer::TradePluginQuery> TradeSession::QueryPlugins(std::span<const std::string> a_plugins)
+{
+    std::vector<Multiplayer::TradePluginQuery> queries;
+    if (phase != Phase::kOpen)
+    {
+        return queries;
+    }
+    std::size_t bytes = 0;
+    for (const auto& plugin : a_plugins)
+    {
+        if (plugin.empty() || std::ranges::find(askedPlugins, plugin) != askedPlugins.end())
+        {
+            continue;
+        }
+        const auto size = Multiplayer::EstimateTradePluginBytes(plugin);
+        if (queries.empty() || queries.back().plugins.size() >= Multiplayer::kMaximumTradePlugins
+            || bytes + size > Multiplayer::kMaximumTradePluginQueryBytes)
+        {
+            queries.push_back(Multiplayer::TradePluginQuery{ .id = id });
+            bytes = 0;
+        }
+        queries.back().plugins.push_back(plugin);
+        bytes += size;
+        askedPlugins.push_back(plugin);
+    }
+    if (!queries.empty())
+    {
+        for (const auto& query : queries)
+        {
+            pluginQueries.push_back(query.plugins);
+        }
+        pluginWait = 0.0F;
+        pluginCheckExpired = false;
+    }
+    return queries;
+}
+
 TradeSession::Tick TradeSession::Advance(float a_seconds)
 {
     Tick tick;
@@ -284,7 +354,16 @@ TradeSession::Tick TradeSession::Advance(float a_seconds)
             break;
         case Phase::kOpen:
             sinceEdit += a_seconds;
-            if (ownDirty && sinceEdit >= kOfferQuietSeconds)
+            if (!pluginQueries.empty() && !pluginCheckExpired)
+            {
+                pluginWait += a_seconds;
+                if (pluginWait >= kPluginCheckSeconds)
+                {
+                    pluginCheckExpired = true;
+                    tick.pluginCheckExpired = true;
+                }
+            }
+            if (ownDirty && sinceEdit >= kOfferBatchSeconds)
             {
                 ownDirty = false;
                 ++ownRevision;

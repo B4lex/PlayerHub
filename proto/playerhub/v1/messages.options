@@ -17,3 +17,5 @@ playerhub.v1.TradeItem.effects max_count:4
 playerhub.v1.TradeItem.name max_size:129
 playerhub.v1.TradeReport.skipped max_count:15
 playerhub.v1.TradeSkip.plugin max_size:261
+playerhub.v1.TradePluginQuery.plugins type:FT_CALLBACK
+playerhub.v1.TradePluginReply.missing max_count:256

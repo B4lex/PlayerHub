@@ -32,6 +32,16 @@ func tradeReport(id uint32, revision uint64, skipped ...uint32) *pb.ClientMessag
 	return &pb.ClientMessage{Message: &pb.ClientMessage_TradeReport{TradeReport: report}}
 }
 
+func tradePluginQuery(id uint32, plugins ...string) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_TradePluginQuery{TradePluginQuery: &pb.TradePluginQuery{
+		TradeId: id, Plugins: plugins}}}
+}
+
+func tradePluginReply(id uint32, missing ...uint32) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_TradePluginReply{TradePluginReply: &pb.TradePluginReply{
+		TradeId: id, Missing: missing}}}
+}
+
 func tradeAccept(id uint32, own, peer uint64) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_TradeAccept{TradeAccept: &pb.TradeAccept{
 		TradeId: id, OwnRevision: own, PeerRevision: peer}}}
@@ -115,6 +125,47 @@ func TestTradeAcceptNeedsCurrentRevisionsAndReport(t *testing.T) {
 	f.send(a, tradeOffer(1, 3, 0))
 	f.reject(b, tradeAccept(1, 0, 1), ErrStaleTrade)
 	f.reject(b, tradeAccept(1, 0, 3), ErrStaleTrade)
+}
+
+func TestTradePluginQueriesAreAnsweredInOrder(t *testing.T) {
+	f, a, b := traders(t)
+	f.reject(a, tradePluginQuery(1, "Mod.esp"), ErrUnknownTrade)
+	f.send(a, tradeRequest(b))
+	f.received(a)
+	f.received(b)
+	f.reject(a, tradePluginQuery(1, "Mod.esp"), ErrStaleTrade)
+	f.send(b, tradeAnswer(1, true))
+	f.received(a)
+	f.received(b)
+
+	f.reject(b, tradePluginReply(1), ErrStaleTrade)
+	f.send(a, tradePluginQuery(1, "Skyrim.esm", "Mod.esp"))
+	f.send(a, tradePluginQuery(1, "Other.esp"))
+	expect(t, f.received(b), "trade plugins 1 query Skyrim.esm Mod.esp", "trade plugins 1 query Other.esp")
+	// The answer to a player's own query is not its to give.
+	f.reject(a, tradePluginReply(1), ErrStaleTrade)
+	f.reject(b, tradePluginReply(1, 2), ErrStaleTrade)
+	f.send(b, tradePluginReply(1, 1))
+	f.reject(b, tradePluginReply(1, 1), ErrStaleTrade)
+	f.send(b, tradePluginReply(1, 0))
+	expect(t, f.received(a), "trade plugins 1 missing [1]", "trade plugins 1 missing [0]")
+	f.reject(b, tradePluginReply(1), ErrStaleTrade)
+
+	f.send(b, tradePluginQuery(1, "Dawnguard.esm"))
+	f.send(a, tradePluginReply(1))
+	expect(t, f.received(a), "trade plugins 1 query Dawnguard.esm")
+	expect(t, f.received(b), "trade plugins 1 missing []")
+}
+
+func TestTradePluginQueriesAreLimited(t *testing.T) {
+	f, a, b := traders(t)
+	f.openTrade(1, a, b)
+	for range tradePendingPluginQueries {
+		f.send(a, tradePluginQuery(1, "Mod.esp"))
+	}
+	f.reject(a, tradePluginQuery(1, "Mod.esp"), ErrRateLimited)
+	f.send(b, tradePluginReply(1))
+	f.send(a, tradePluginQuery(1, "Mod.esp"))
 }
 
 func TestTradeRequestRefusals(t *testing.T) {

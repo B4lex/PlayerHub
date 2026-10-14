@@ -115,6 +115,64 @@ func TestTradeReport(t *testing.T) {
 	}
 }
 
+func TestTradePluginQuery(t *testing.T) {
+	query := func(plugins ...string) *pb.ClientMessage {
+		return &pb.ClientMessage{Message: &pb.ClientMessage_TradePluginQuery{TradePluginQuery: &pb.TradePluginQuery{
+			TradeId: 1, Plugins: plugins}}}
+	}
+	full := make([]string, MaximumTradePlugins)
+	for i := range full {
+		full[i] = "Mod.esp"
+	}
+	for name, m := range map[string]*pb.ClientMessage{
+		"one":     query("Skyrim.esm"),
+		"longest": query(strings.Repeat("p", 260)),
+		"full":    query(full...),
+	} {
+		if err := Message(m); err != nil {
+			t.Errorf("%s rejected: %v", name, err)
+		}
+	}
+	for name, m := range map[string]*pb.ClientMessage{
+		"empty":       query(),
+		"over":        query(append(full, "Mod.esp")...),
+		"no name":     query(""),
+		"long name":   query(strings.Repeat("p", 261)),
+		"control":     query("a\x01"),
+		"invalid utf": query("\xff"),
+		"no trade": {Message: &pb.ClientMessage_TradePluginQuery{TradePluginQuery: &pb.TradePluginQuery{
+			Plugins: []string{"Mod.esp"}}}},
+	} {
+		if Message(m) != ErrTrade {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}
+
+func TestTradePluginReply(t *testing.T) {
+	reply := func(id uint32, missing ...uint32) *pb.ClientMessage {
+		return &pb.ClientMessage{Message: &pb.ClientMessage_TradePluginReply{TradePluginReply: &pb.TradePluginReply{
+			TradeId: id, Missing: missing}}}
+	}
+	for name, m := range map[string]*pb.ClientMessage{
+		"none":    reply(1),
+		"several": reply(1, 3, 0, 255),
+	} {
+		if err := Message(m); err != nil {
+			t.Errorf("%s rejected: %v", name, err)
+		}
+	}
+	for name, m := range map[string]*pb.ClientMessage{
+		"no trade":  reply(0),
+		"index 256": reply(1, 256),
+		"duplicate": reply(1, 4, 4),
+	} {
+		if Message(m) != ErrTrade {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}
+
 func TestTradeMessages(t *testing.T) {
 	accepted := []*pb.ClientMessage{
 		{Message: &pb.ClientMessage_TradeRequest{TradeRequest: &pb.TradeRequest{Slot: 4}}},

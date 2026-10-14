@@ -595,6 +595,12 @@
   The full mark on the own grid's heading and the unoffered rows
   disabled while it shows (2026-10-14) passed only the g++ syntax check of `TradeWindow.cpp`, a planted error confirming it is
   checked; it was not rasterized.
+  Offer lines shown at once and the rows and pulsing note of the
+  [plugin check](trade.md#plugin-check) (2026-10-14) passed only the g++
+  syntax check of `TradeWindow.cpp` and `TradeSync.cpp`, a planted error
+  confirming both are checked; nothing was drawn.
+  Offered rows of the item list toggling through the offer cell's click
+  (2026-10-14) passed only the g++ syntax check of `TradeWindow.cpp`.
   The requesting prompt drawn as the inviting one, the accent name, and the
   fixed-width seconds (2026-10-13) passed only the g++ syntax check of
   `TradePrompt.cpp`, `MenuFrame.cpp`, and `TradeSync.cpp`, a planted error
@@ -2086,8 +2092,9 @@ neither touches an engine object.
   background and the style's text color on the well;
   while one is captured, only the background. Hovering a cell frames it in
   the accent and shows the item in the preview column at once.
-- The player's offer: the lines the other game confirmed; a clicked item appears
-  only once confirmed. Clicking a cell that offers one item, also one of a
+- The player's offer: a clicked item appears at once; a line the other game
+  [cannot receive](trade.md#offers-and-acceptance) leaves it when that
+  game's report arrives. Clicking a cell that offers one item, also one of a
   larger stack, removes its line at once (`TradeSync::SetOfferCount` with 0)
   (the user's choice).
   Clicking a cell that offers more opens a popup with the name, a count field
@@ -2116,22 +2123,30 @@ neither touches an engine object.
   category (all, weapons, apparel, ammunition, potions, ingredients, books,
   scrolls, soul gems, keys, miscellaneous), matched again
   only when either or the inventory changes; rows clipped to the visible
-  ones, with counts above one. A click on a single item offers it. While
+  ones, with counts above one. Rows toggle (the user's choice): a click on
+  an offered row does what a click on its own offer cell does, removing the
+  line or opening the offer popup above, and a click on a single item not
+  yet offered offers it. While
   the offer holds 15 lines, rows not yet offered are disabled, with no
   notice, since the full mark on the own grid's heading shows why; offered rows,
   hovering, the search field, and the category stay usable (the user's
   choice). A click
-  on a stack opens a popup with the name, a count field focused with its
+  on a stack not yet offered opens a popup with the name, a count field focused with its
   text selected, steps of one, clamped to 1 to what the player holds, and
-  the count held, and a button: it starts at 1 and offers, or for a stack
-  already offered starts at the offered count and updates it. Only the button or
+  the count held, and a button that offers, starting at 1. Only the button or
   Enter sends the count (`TradeSync::SetOfferCount`); Escape, also while
   typing, and a click outside close it without a change, and it closes when
   the inventory changes, since its row may then be another item. Right
   clicks do nothing (the user's choice, for now). Offered rows are
   highlighted; rows that cannot be offered, also those the other game
-  [cannot receive](trade.md#offers-and-acceptance), are disabled. A hovered
-  row, also a disabled one, shows its item in the preview column at once.
+  [cannot receive](trade.md#offers-and-acceptance), are disabled. Rows
+  whose plugins the other game has not yet reported on
+  (`InventoryLine::checking`, [plugin check](trade.md#plugin-check)) are
+  disabled too, and while any is (`View::checkingPlugins`) a note in the
+  disabled text color, its alpha pulsing 0.8 times a second, follows the
+  item list's heading (the user asked for a sign that the list is still
+  loading). A hovered row, also a disabled one, shows its item in the
+  preview column at once.
 - The footer holds only Accept, disabled while blocked, uninspected, or
   accepted, and Cancel.
   Acceptance shows on the grids alone, and a change taking it back shows as

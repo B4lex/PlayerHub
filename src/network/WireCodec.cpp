@@ -9,6 +9,7 @@
 #include <cstring>
 #include <format>
 #include <limits>
+#include <numeric>
 
 namespace Network::Wire
 {
@@ -526,6 +527,64 @@ namespace Network::Wire
             return Multiplayer::TradeEvent{ std::move(offer) };
         }
 
+        std::expected<ServerMessage, std::string> DecodeTradePluginQuery(pb_istream_t& a_stream)
+        {
+            Multiplayer::TradePluginQuery query;
+            pb_istream_t message;
+            if (!pb_make_string_substream(&a_stream, &message))
+            {
+                return std::unexpected("trade plugin query framing");
+            }
+            while (message.bytes_left > 0)
+            {
+                pb_wire_type_t wireType;
+                std::uint32_t tag = 0;
+                bool eof = false;
+                if (!pb_decode_tag(&message, &wireType, &tag, &eof))
+                {
+                    return std::unexpected("trade plugin query field tag");
+                }
+                if (tag == playerhub_v1_TradePluginQuery_trade_id_tag && wireType == PB_WT_VARINT)
+                {
+                    if (!pb_decode_varint32(&message, &query.id))
+                    {
+                        return std::unexpected("trade plugin query id");
+                    }
+                    continue;
+                }
+                if (tag != playerhub_v1_TradePluginQuery_plugins_tag || wireType != PB_WT_STRING)
+                {
+                    if (!pb_skip_field(&message, wireType))
+                    {
+                        return std::unexpected("trade plugin query field");
+                    }
+                    continue;
+                }
+                pb_istream_t plugin;
+                if (query.plugins.size() >= Multiplayer::kMaximumTradePlugins
+                    || !pb_make_string_substream(&message, &plugin)
+                    || plugin.bytes_left > Multiplayer::FormReference::kMaximumPluginNameLength)
+                {
+                    return std::unexpected("trade plugin query plugin");
+                }
+                auto& name = query.plugins.emplace_back(plugin.bytes_left, '\0');
+                if (!pb_read(&plugin, reinterpret_cast<pb_byte_t*>(name.data()), name.size())
+                    || !pb_close_string_substream(&message, &plugin))
+                {
+                    return std::unexpected("trade plugin query plugin");
+                }
+            }
+            if (!pb_close_string_substream(&a_stream, &message))
+            {
+                return std::unexpected("trade plugin query framing");
+            }
+            if (query.id == 0 || !Multiplayer::IsValidTradePlugins(query.plugins))
+            {
+                return std::unexpected("trade plugin query");
+            }
+            return Multiplayer::TradeEvent{ std::move(query) };
+        }
+
         std::expected<ServerMessage, std::string> DecodePeerStates(pb_istream_t& a_stream)
         {
             PeerStates states;
@@ -1015,6 +1074,51 @@ namespace Network::Wire
         return EncodeClientMessage(playerhub_v1_ClientMessage_trade_report_tag, playerhub_v1_TradeReport_fields, report.get());
     }
 
+    std::string EncodeTradePluginQuery(const Multiplayer::TradePluginQuery& a_query)
+    {
+        const auto bytes = std::accumulate(a_query.plugins.begin(), a_query.plugins.end(), std::size_t{ 0 },
+            [](std::size_t a_sum, const std::string& a_plugin) {
+                return a_sum + Multiplayer::EstimateTradePluginBytes(a_plugin);
+            });
+        if (!Multiplayer::IsValidTradePlugins(a_query.plugins) || bytes > Multiplayer::kMaximumTradePluginQueryBytes)
+        {
+            return {};
+        }
+        playerhub_v1_TradePluginQuery query = playerhub_v1_TradePluginQuery_init_zero;
+        query.trade_id = a_query.id;
+        query.plugins.arg = const_cast<std::vector<std::string>*>(&a_query.plugins);
+        query.plugins.funcs.encode = [](pb_ostream_t* a_stream, const pb_field_t* a_field, void* const* a_arg) {
+            for (const auto& plugin : *static_cast<const std::vector<std::string>*>(*a_arg))
+            {
+                if (!pb_encode_tag_for_field(a_stream, a_field)
+                    || !pb_encode_string(a_stream, reinterpret_cast<const pb_byte_t*>(plugin.data()), plugin.size()))
+                {
+                    return false;
+                }
+            }
+            return true;
+        };
+        return EncodeClientMessage(
+            playerhub_v1_ClientMessage_trade_plugin_query_tag, playerhub_v1_TradePluginQuery_fields, &query);
+    }
+
+    std::string EncodeTradePluginReply(const Multiplayer::TradePluginReply& a_reply)
+    {
+        if (a_reply.missing.size() > Multiplayer::kMaximumTradePlugins
+            || !Multiplayer::IsValidTradePluginIndices(a_reply.missing))
+        {
+            return {};
+        }
+        // About 1 KB; kept off the stack.
+        auto reply = std::make_unique<playerhub_v1_TradePluginReply>();
+        *reply = playerhub_v1_TradePluginReply_init_zero;
+        reply->trade_id = a_reply.id;
+        reply->missing_count = static_cast<pb_size_t>(a_reply.missing.size());
+        std::ranges::copy(a_reply.missing, reply->missing);
+        return EncodeClientMessage(
+            playerhub_v1_ClientMessage_trade_plugin_reply_tag, playerhub_v1_TradePluginReply_fields, reply.get());
+    }
+
     std::string EncodeTradeAccept(const Multiplayer::TradeAcceptance& a_acceptance)
     {
         playerhub_v1_TradeAccept accept{ a_acceptance.id, a_acceptance.ownRevision, a_acceptance.peerRevision };
@@ -1087,6 +1191,15 @@ namespace Network::Wire
                     return std::unexpected("trailing envelope fields");
                 }
                 return offer;
+            }
+            if (tag == playerhub_v1_ServerMessage_trade_plugin_query_tag && wireType == PB_WT_STRING)
+            {
+                auto query = DecodeTradePluginQuery(stream);
+                if (query && stream.bytes_left != 0)
+                {
+                    return std::unexpected("trailing envelope fields");
+                }
+                return query;
             }
         }
 
@@ -1332,6 +1445,24 @@ namespace Network::Wire
                 if (result.id == 0 || result.revision == 0 || !Multiplayer::IsValidTradeSkips(result.skipped))
                 {
                     return std::unexpected("trade report");
+                }
+                return Multiplayer::TradeEvent{ std::move(result) };
+            }
+            case playerhub_v1_ServerMessage_trade_plugin_reply_tag:
+            {
+                const auto& reply = message.message.trade_plugin_reply;
+                Multiplayer::TradePluginReply result{ .id = reply.trade_id };
+                for (pb_size_t i = 0; i < reply.missing_count; ++i)
+                {
+                    if (reply.missing[i] >= Multiplayer::kMaximumTradePlugins)
+                    {
+                        return std::unexpected("trade plugin reply index");
+                    }
+                    result.missing.push_back(static_cast<std::uint16_t>(reply.missing[i]));
+                }
+                if (result.id == 0 || !Multiplayer::IsValidTradePluginIndices(result.missing))
+                {
+                    return std::unexpected("trade plugin reply");
                 }
                 return Multiplayer::TradeEvent{ std::move(result) };
             }

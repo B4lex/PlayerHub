@@ -239,6 +239,12 @@ func describe(m *pb.ServerMessage) string {
 			s += fmt.Sprintf(" %d", skip.Index)
 		}
 		return s
+	case *pb.ServerMessage_TradePluginQuery:
+		q := body.TradePluginQuery
+		return fmt.Sprintf("trade plugins %d query %s", q.TradeId, strings.Join(q.Plugins, " "))
+	case *pb.ServerMessage_TradePluginReply:
+		r := body.TradePluginReply
+		return fmt.Sprintf("trade plugins %d missing %v", r.TradeId, r.Missing)
 	case *pb.ServerMessage_TradeAccept:
 		a := body.TradeAccept
 		return fmt.Sprintf("trade accept %d own %d peer %d", a.TradeId, a.OwnRevision, a.PeerRevision)

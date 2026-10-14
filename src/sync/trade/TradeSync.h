@@ -27,6 +27,8 @@ namespace TradeSync
         Forms::TradeCategory category{ Forms::TradeCategory::kMisc };
         Forms::ItemDetails details;
         bool enchanted{ false };
+        // Disabled until the peer's game reports on the row's plugins.
+        bool checking{ false };
         // Why it cannot be offered, or empty.
         std::string blocked;
     };
@@ -56,7 +58,8 @@ namespace TradeSync
         std::uint32_t secondsLeft{ 0 };
         std::uint64_t inventoryRevision{ 0 };
         std::vector<InventoryLine> inventory;
-        // Only the lines the peer's game confirmed it can receive.
+        // Whether any row is checking.
+        bool checkingPlugins{ false };
         std::vector<OfferLine> offer;
         std::vector<PeerLine> peerOffer;
         bool ownAccepted{ false };

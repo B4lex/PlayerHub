@@ -4,10 +4,12 @@
 #include "protocol/TradeState.h"
 
 #include <cstdint>
+#include <deque>
 #include <map>
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 class TradeSession
@@ -48,6 +50,8 @@ public:
         kOpened,
         kPeerOffer,
         kReport,
+        kPluginQuery,
+        kPluginReply,
         kPeerAccepted,
         kCommitted,
         kClosed
@@ -60,13 +64,18 @@ public:
         // The phase before a close.
         Phase closedPhase{ Phase::kIdle };
         std::optional<Commit> commit;
+        // The peer's queried plugins for kPluginQuery; the plugins the peer lacks for kPluginReply.
+        std::vector<std::string> plugins;
     };
 
     static constexpr float kRequestTimeoutSeconds = 10.0F;
     static constexpr float kInviteSeconds = 30.0F;
     // The server expires an invitation; this only ends one whose close was lost.
     static constexpr float kInviteGraceSeconds = 5.0F;
-    static constexpr float kOfferQuietSeconds = 0.2F;
+    // Edits are sent together this long after the first one not yet sent.
+    static constexpr float kOfferBatchSeconds = 0.5F;
+    // Rows wait this long for the peer's plugin reply, then the offer's report checks them.
+    static constexpr float kPluginCheckSeconds = 5.0F;
 
     [[nodiscard]] Phase GetPhase() const noexcept { return phase; }
     [[nodiscard]] Multiplayer::TradeID GetID() const noexcept { return id; }
@@ -84,6 +93,8 @@ public:
     [[nodiscard]] bool IsOwnAccepted() const noexcept { return ownAccepted; }
     [[nodiscard]] bool IsPeerAccepted() const noexcept { return peerAccepted; }
     [[nodiscard]] Blocker GetAcceptBlocker() const;
+    // Whether the plugin is in an unanswered own query that has not yet waited kPluginCheckSeconds.
+    [[nodiscard]] bool IsCheckingPlugin(std::string_view a_plugin) const;
 
     bool BeginRequest(const Multiplayer::RosterEntry& a_peer);
     EventResult OnEvent(const Multiplayer::TradeEvent& a_event);
@@ -95,13 +106,16 @@ public:
     // Returns the report to send on the peer's current offer.
     [[nodiscard]] Multiplayer::TradeReport ReportPeerOffer(std::vector<Multiplayer::TradeSkip> a_skips);
     [[nodiscard]] std::optional<Multiplayer::TradeAcceptance> Accept();
+    // Returns the queries to send for the plugins not asked about yet in this trade.
+    [[nodiscard]] std::vector<Multiplayer::TradePluginQuery> QueryPlugins(std::span<const std::string> a_plugins);
 
-    // Advances timers; returns the offer to publish once edits are quiet, or a timed-out
-    // phase to end.
+    // Advances timers; returns the offer to publish once its batch is due, a timed-out phase
+    // to end, or the plugin check running out.
     struct Tick
     {
         std::optional<Multiplayer::TradeOffer> offer;
         bool timedOut{ false };
+        bool pluginCheckExpired{ false };
     };
     [[nodiscard]] Tick Advance(float a_seconds);
 
@@ -127,6 +141,12 @@ private:
     std::vector<Multiplayer::TradeItem> peerItems;
     std::vector<Multiplayer::TradeSkip> peerSkips;
     std::uint64_t reportedPeerRevision{ 0 };
+
+    std::vector<std::string> askedPlugins;
+    // Unanswered own queries, oldest first: the server relays the replies in order.
+    std::deque<std::vector<std::string>> pluginQueries;
+    float pluginWait{ 0.0F };
+    bool pluginCheckExpired{ false };
 
     bool ownAccepted{ false };
     bool peerAccepted{ false };

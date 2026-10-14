@@ -18,6 +18,7 @@ const (
 	MaximumTradeCharge      = 0xFFFF
 	MaximumTradeHealth      = 100
 	MaximumTradeSoul        = 5
+	MaximumTradePlugins     = 256
 )
 
 var ErrTrade = errors.New("invalid trade message")
@@ -34,6 +35,10 @@ func trade(m *pb.ClientMessage) (bool, error) {
 		return true, TradeReport(body.TradeReport)
 	case *pb.ClientMessage_TradeAccept:
 		return true, check(body.TradeAccept.GetTradeId() != 0)
+	case *pb.ClientMessage_TradePluginQuery:
+		return true, TradePluginQuery(body.TradePluginQuery)
+	case *pb.ClientMessage_TradePluginReply:
+		return true, TradePluginReply(body.TradePluginReply)
 	case *pb.ClientMessage_TradeCancel:
 		c := body.TradeCancel
 		switch c.GetReason() {
@@ -105,6 +110,33 @@ func TradeReport(r *pb.TradeReport) error {
 			return ErrTrade
 		}
 		seen |= 1 << index
+	}
+	return nil
+}
+
+func TradePluginQuery(q *pb.TradePluginQuery) error {
+	plugins := q.GetPlugins()
+	if q.GetTradeId() == 0 || len(plugins) == 0 || len(plugins) > MaximumTradePlugins {
+		return ErrTrade
+	}
+	for _, plugin := range plugins {
+		if len(plugin) == 0 || len(plugin) > MaximumPluginNameBytes || !utf8.ValidString(plugin) || hasControl(plugin) {
+			return ErrTrade
+		}
+	}
+	return nil
+}
+
+func TradePluginReply(r *pb.TradePluginReply) error {
+	if r.GetTradeId() == 0 || len(r.GetMissing()) > MaximumTradePlugins {
+		return ErrTrade
+	}
+	var seen [MaximumTradePlugins]bool
+	for _, index := range r.GetMissing() {
+		if index >= MaximumTradePlugins || seen[index] {
+			return ErrTrade
+		}
+		seen[index] = true
 	}
 	return nil
 }

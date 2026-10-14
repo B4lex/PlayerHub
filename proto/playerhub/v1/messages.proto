@@ -8,7 +8,7 @@ option go_package = "playerhub/server/internal/wire/pb;pb";
 
 enum Protocol {
   PROTOCOL_UNSPECIFIED = 0;
-  PROTOCOL_VERSION = 8;
+  PROTOCOL_VERSION = 9;
 }
 
 message Hello {
@@ -134,6 +134,20 @@ message TradeCancel {
   TradeCloseReason reason = 2;
 }
 
+// From a client: the plugins its offerable items come from, for the other game to
+// check. From the server: the peer's query.
+message TradePluginQuery {
+  uint32 trade_id = 1;
+  repeated string plugins = 2;
+}
+
+// From a client: the indices into the peer's oldest unanswered query of the plugins
+// this game has not loaded. From the server: the peer's reply to this client's query.
+message TradePluginReply {
+  uint32 trade_id = 1;
+  repeated uint32 missing = 2;
+}
+
 message ClientMessage {
   oneof message {
     Hello hello = 1;
@@ -154,6 +168,8 @@ message ClientMessage {
     TradeReport trade_report = 16;
     TradeAccept trade_accept = 17;
     TradeCancel trade_cancel = 18;
+    TradePluginQuery trade_plugin_query = 19;
+    TradePluginReply trade_plugin_reply = 20;
   }
 }
 
@@ -299,5 +315,7 @@ message ServerMessage {
     TradeCommit trade_commit = 18;
     TradeClose trade_close = 19;
     NearbyPlayers nearby_players = 20;
+    TradePluginQuery trade_plugin_query = 21;
+    TradePluginReply trade_plugin_reply = 22;
   }
 }

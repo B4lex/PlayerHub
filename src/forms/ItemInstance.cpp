@@ -18,16 +18,10 @@ namespace Forms
         constexpr std::array<std::pair<float, std::string_view>, 6> kTemperNames{ { { 1.6F, "Legendary" },
             { 1.5F, "Epic" }, { 1.4F, "Flawless" }, { 1.3F, "Exquisite" }, { 1.2F, "Superior" }, { 1.1F, "Fine" } } };
 
-        bool IsPluginLoaded(const Multiplayer::FormReference& a_reference)
-        {
-            auto* dataHandler = RE::TESDataHandler::GetSingleton();
-            return dataHandler && dataHandler->LookupModByName(a_reference.plugin);
-        }
-
         TradeSkip MissingFrom(TradeSkipReason a_reason, const Multiplayer::FormReference& a_reference)
         {
             return TradeSkip{ .reason = a_reason,
-                .plugin = IsPluginLoaded(a_reference) ? std::string{} : a_reference.plugin };
+                .plugin = FormLookup::IsPluginLoaded(a_reference.plugin) ? std::string{} : a_reference.plugin };
         }
 
         std::string ReadCustomName(const RE::ExtraTextDisplayData& a_text)

@@ -12,7 +12,9 @@ Implemented 2026-10-06; not built on Windows and not run in game.
   refusals (`UNAVAILABLE` for oneself, an unknown slot, and the rate limit,
   `OUT_OF_RANGE`, `BUSY` for either player); decline and cancel; an invitation
   hidden from a player who vanished the requester and its expiry; closing on
-  moving apart, `Exit`, and a disconnect. `internal/validate` covers every
+  moving apart, `Exit`, and a disconnect; plugin queries relayed, replies
+  matched to the oldest unanswered query and refused without one, for one's
+  own query, or with an index past it, and the limit of pending queries. `internal/validate` covers every
   item, report, and cancel rule in [Network](network.md#trade).
 - Plugin, on Linux with g++ 16:
   - `WireCodec.cpp` with the regenerated nanopb code decoded Go-encoded trade
@@ -45,11 +47,23 @@ Implemented 2026-10-06; not built on Windows and not run in game.
   - Since its outcomes became [notices](#notices), `TradeSync.cpp` passed
     the syntax check again; no post ran. The stack that shows them ran in
     the [UI overlay](ui-overlay.md#status)'s notices harness.
-  - [Confirmed offer lines](#offers-and-acceptance) (2026-10-07): the
-    changed `TradeSync.cpp`, `TradeSession.cpp`, and `TradeWindow.cpp`
-    passed the syntax check, which a planted error confirmed reaches them.
-    Nothing ran: the 119 session checks and the window harness predate the
-    change.
+  - The [plugin check](#plugin-check) and offer lines shown at once
+    (2026-10-14): the nanopb code was regenerated; `WireCodec.cpp` decoded
+    Go-encoded `TradePluginQuery` and `TradePluginReply` messages, including
+    a 260-byte name and an empty reply, and rejected an empty query, 257
+    names, a 261-byte name, a control character, a duplicate index, and a
+    reply without a trade. Its encoded query (3 names; 256 names, 4870 bytes)
+    and replies passed the server's `validate.Message`, and it encoded
+    nothing for 257 names, a query over 15 KiB, or a duplicate index.
+    `TradeSession.cpp` ran 37 new checks: queries split by count and bytes,
+    asked plugins not asked again, replies matched in query order, the
+    check running out after 5 s and a later query restarting it, a late
+    reply still applying, and edits sent 0.5 s after the first unsent one
+    however often the player edits. `TradeSync.cpp`, `TradeWindow.cpp`,
+    `FormLookup.cpp`, `ItemInstance.cpp`, and `ServerClient.cpp` passed the
+    syntax check, which a planted error confirmed reaches each. Nothing of
+    `TradeSync` ran, and the 119 session checks and the window harnesses
+    predate the change.
   - Offer grids and inspecting the peer's lines (2026-10-07): the window
     ran in a new harness, see [UI overlay](ui-overlay.md#status);
     `TradeSync.cpp` with `PeerLine::id` passed only the syntax check.
@@ -85,6 +99,10 @@ Implemented 2026-10-06; not built on Windows and not run in game.
   revision, both acceptances and the commit, an edit after an acceptance,
   `cancel menu`, a decline, `leave` closing the trade with `OUT_OF_RANGE`,
   and a quit closing it with `DISCONNECTED`. Not run against the game.
+  On 2026-10-14 two bots repeated an invitation and an offer with the
+  [plugin check](#plugin-check): the giver's query of its kit's two
+  plugins was answered with `TradeBotMissing.esp` missing, ahead of the
+  report on its first revision.
 
 ## Scope
 
@@ -132,10 +150,10 @@ The wire messages and their validation are in
 | `server/internal/hub/trade.go` | A trade's two players, its phase, both offer revisions, item counts, reports, and acceptances; range, busy, vanish, expiry, and commit |
 | `forms/ItemInstance` | An inventory stack to a `TradeItem` or the reason it cannot be offered; a `TradeItem` to local forms or a skip reason; rebuilding a player enchantment; putting extra data on a reference |
 | `forms/ItemDetails` | A resolved item's [details](#item-details) for the trade window's item card: damage or armor, weight, value, effects, charge |
-| `sync/trade/TradeSession` | The state machine of one trade, without engine types: phases, the own offer and the revisions sent, the peer's offer, both reports, acceptances, and what a commit applies |
+| `sync/trade/TradeSession` | The state machine of one trade, without engine types: phases, the own offer and the revisions sent, the peer's offer, both reports, the plugin queries sent and their replies, acceptances, and what a commit applies |
 | `sync/trade/TradeInventory` | The player's offerable inventory, how many of an item it holds, removing and adding items |
 | `server/cmd/tradebot` | A scripted trade partner for testing alone ([Trade bot](#trade-bot)) |
-| `sync/trade/TradeSync` | The game-thread stage: trade events and the overlay's commands, cancelling on combat or a hit, sending offers once edits are quiet, which rows the peer's game confirmed or rejected, applying a commit, [notices](#notices), and the `View` the overlay draws |
+| `sync/trade/TradeSync` | The game-thread stage: trade events and the overlay's commands, cancelling on combat or a hit, sending offers in batches, the [plugin check](#plugin-check) both ways, which rows the peer's game rejected, applying a commit, [notices](#notices), and the `View` the overlay draws |
 
 ## Phases
 
@@ -194,9 +212,11 @@ a request unanswered after 10 s, as for a lost message.
   added: the rows not yet offered are disabled without a notice, and a
   mark beside the own grid's heading shows why (the user's choice); an
   edit over the byte limit is refused with a warning notice.
-- Edits are sent as a whole `TradeOffer` with the next revision once none
-  came for 0.2 s of frame time. Any edit, and any new offer from the peer,
-  clears both players' acceptances.
+- Edits are sent as a whole `TradeOffer` with the next revision 0.5 s of
+  frame time after the first edit not yet sent (`kOfferBatchSeconds`, the
+  user's interval). Later edits join that batch without delaying it, so
+  steady clicking cannot hold an offer back. Any edit, and any new offer
+  from the peer, clears both players' acceptances.
 - Each received offer is resolved at once (`Forms::ResolveItem`) and answered
   with a `TradeReport` of the lines this game cannot receive: an item whose
   plugin or form is missing (`MISSING_ITEM`, with the plugin when it is not
@@ -204,17 +224,16 @@ a request unanswered after 10 s, as for a lost message.
   enchantment or an effect whose plugin or form is missing
   (`MISSING_EFFECT`), or an enchantment that is not one, or on an item that
   takes none (`BAD_ENCHANTMENT`). The receiver never shows those lines.
-- An item is in the offer only once the peer's game confirmed it (the
-  user's choice, so neither window shows a line that is then taken back).
-  `TradeSync` keeps each inventory row's check (`RowCheck`) for the trade:
-  a click sends the line in the next revision, but the window shows it only
-  after a report on a revision that holds it without skipping it. From then
-  on the row is confirmed, and count changes and removals show at once. A
-  skipped line leaves the offer, which sends a new revision. The offer and
-  report are the check, so the wire is unchanged. Checks and missing plugins
-  carry over when the inventory is listed again. A rejected row is disabled
-  with the reason, and a warning notice per reason names the items and
-  why. The reasons end without a final period, like
+- A clicked line shows in the own offer at once (the user's choice). Lines
+  used to show only once the peer's game confirmed them, which delayed
+  every click by a batch and a round trip; the [plugin check](#plugin-check)
+  now disables rows from plugins the peer lacks before the player clicks,
+  so a line taken back is rare. A line the peer's report skips leaves the
+  offer, which sends a new revision. `TradeSync` keeps each inventory row's
+  check (`RowCheck`) for the trade; rejections and missing plugins carry
+  over when the inventory is listed again. A rejected row is disabled with
+  the reason, and a warning notice per reason names the items that left
+  the offer and why. The reasons end without a final period, like
   [notices](ui-overlay.md#notices), since each is both the item card's
   warning and part of a notice:
   - the peer lacks the plugin, when the report names it; every other row whose item, enchantment, or effect comes from
@@ -239,6 +258,38 @@ a request unanswered after 10 s, as for a lost message.
   stands, sends both a `TradeCommit`. A player never accepts an own revision
   with skipped lines: the report that names them takes them out of the
   offer in the same pass, so Accept waits for the new revision's report.
+
+## Plugin check
+
+Before the player can offer a row, the peer's game says whether it has the
+row's plugins, so an item from a mod the peer lacks is disabled ahead of a
+click rather than shown and taken back.
+
+- When the trade opens, and after each later inventory listing, `TradeSync`
+  collects the plugins of every offerable row (its item, enchantment, and
+  effects), sorted and without duplicates. `TradeSession::QueryPlugins`
+  sends those not asked about in this trade as `TradePluginQuery`s, split at
+  256 names (`kMaximumTradePlugins`) or 15 KiB by `EstimateTradePluginBytes`.
+  Only plugin names travel (the user's choice): the peer learns which mods
+  the player's items come from, not what the player carries.
+- The peer's game answers each query with a `TradePluginReply` naming the
+  indices of the plugins it has not loaded (`FormLookup::IsPluginLoaded`).
+  The server relays replies in query order, so `TradeSession` matches each
+  to its oldest unanswered query.
+- Until its reply, a row with a plugin in an unanswered query is disabled
+  (`RowCheck::checking`), and the item list shows that it is being checked
+  ([UI overlay](ui-overlay.md#trade-window)), usually for one round trip
+  after the window opens.
+- A missing plugin disables every row that uses it with the reason that the
+  peer lacks it, as a report naming the plugin would, and the reason carries
+  over later listings. No notice is posted, since the player has not tried
+  to offer anything (the user's choice).
+- A reply that has not come within 5 s of frame time
+  (`kPluginCheckSeconds`) releases the rows, with a warning in the log; the
+  offer's report still checks each line. A late reply still disables
+  rows, and those already offered leave the offer with the usual notice.
+- The check knows only names: a plugin the peer has in another version
+  passes, and the report catches its items after the click.
 
 ## Item details
 
@@ -377,7 +428,9 @@ server treats it as any player, and it can only send what a client may.
   It jumps next to the target from another space or past 2500 units. The
   admin state places the target only while the relay has been quiet for
   1.5 s, since it lags. A target that disconnects is chosen again by name.
-- It mirrors the plugin's side of the protocol: it reports on every offer
+- It mirrors the plugin's side of the protocol: it asks about the plugins
+  of its offer when a trade opens and prints the reply, answers a plugin
+  query with the plugins its `skip plugin` rules name, reports on every offer
   at once, and on a report naming its own lines it drops them and sends a
   new revision, so it never accepts a revision with skipped lines. It keeps
   the last 16 revisions it sent for a commit that names an older one, and
@@ -437,6 +490,10 @@ To verify in game:
 11. A `BSSoundHandle` from `BSAudioManager::GetSoundHandle` for the generic
    pickup descriptor, positioned at the player and following the player's
    3D, plays audibly in first and third person.
+12. A plugin in Data that is not active has compile index `0xFF` in
+   `TESDataHandler::files`, if that list holds it at all, so
+   `FormLookup::IsPluginLoaded` reports it missing to the
+   [plugin check](#plugin-check) and in a report's `plugin`.
 
 ## Acceptance criteria
 
@@ -452,11 +509,14 @@ To verify in game:
    disabled until the player hovers it.
 5. A completed trade moves exactly the offered items and counts, with their
    enchantments, tempering, names, and souls, both ways, and nothing else.
-6. An item, or an enchantment's effect, from a plugin the receiver lacks
-   never shows in either window's offer: the giver gets a notice naming the
-   plugin, and that item and every other one from the plugin are disabled
-   with the reason. Items both games have show on both sides once the
-   receiver's game confirmed them.
+6. Items, and items with an enchantment or effect, from a plugin the
+   receiver lacks are disabled with the reason, without a notice, a moment
+   after the window opens; until then the item list shows it is checking
+   and its rows are disabled. A clicked item shows in the giver's offer at
+   once and in the receiver's after the batch and a round trip. An item the
+   receiver cannot receive for another reason, such as another version of
+   its plugin, never shows in the receiver's window and leaves the giver's
+   offer with a notice.
 7. Cancel, Escape, a disconnect, combat, a hit, any game menu, a loading
    screen, and walking apart each close both windows without changes.
 8. Quest items and player-made potions show why they cannot be offered.
@@ -475,12 +535,16 @@ To verify in game:
   the inventory shows after the player's skills and perks.
 - The tempering bonuses rest on 1.7.104 Address Library IDs, which another
   runtime would need checked again.
-- A new line shows in the giver's offer only a quiet interval (0.2 s) and a
-  round trip after the click.
+- Accept waits for the last edit's batch and its report: 0.5 s and a round
+  trip after the last click.
+- A line the peer's game cannot receive although it has the plugin shows in
+  the giver's offer until the report on its batch, 0.5 s and a round trip
+  after the click.
+- An inventory with plugins for more than 8 queries (2048 names) waits out
+  the 5 s for the queries past the server's pending limit.
 - A receiver that accepts in the moment before the giver's game drops a
   line it cannot receive has the acceptance taken back by the new revision,
   though its window did not change: the server clears both acceptances on
   every offer.
-- Only a reported plugin disables other rows ahead of a click; an item from
-  a plugin the peer has, but in another version, is found one click at a
-  time.
+- The plugin check compares names only: an item from a plugin the peer has,
+  but in another version, is found one click at a time.

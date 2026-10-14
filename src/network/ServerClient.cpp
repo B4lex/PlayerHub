@@ -919,6 +919,22 @@ namespace Network
         }
     }
 
+    void PublishTradePluginQuery(const Multiplayer::TradePluginQuery& a_query)
+    {
+        if (IsConnected())
+        {
+            Send(Wire::EncodeTradePluginQuery(a_query));
+        }
+    }
+
+    void PublishTradePluginReply(const Multiplayer::TradePluginReply& a_reply)
+    {
+        if (IsConnected())
+        {
+            Send(Wire::EncodeTradePluginReply(a_reply));
+        }
+    }
+
     void PublishTradeAccept(const Multiplayer::TradeAcceptance& a_acceptance)
     {
         if (IsConnected())

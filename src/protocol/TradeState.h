@@ -3,6 +3,8 @@
 #include "protocol/ChatMessage.h"
 #include "protocol/FormReference.h"
 
+#include <algorithm>
+#include <bitset>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -183,6 +185,38 @@ namespace Multiplayer
         return a_skips.size() <= kMaximumTradeItems;
     }
 
+    inline constexpr std::size_t kMaximumTradePlugins = 256;
+    // Under the server's 16 KiB message limit, with room for the envelope.
+    inline constexpr std::size_t kMaximumTradePluginQueryBytes = 15 * 1024;
+
+    // An upper bound of a plugin name's encoded size in a query: a tag and a two-byte length.
+    [[nodiscard]] inline std::size_t EstimateTradePluginBytes(std::string_view a_plugin)
+    {
+        return a_plugin.size() + 3;
+    }
+
+    [[nodiscard]] inline bool IsValidTradePlugins(const std::vector<std::string>& a_plugins)
+    {
+        return !a_plugins.empty() && a_plugins.size() <= kMaximumTradePlugins
+            && std::ranges::all_of(a_plugins, [](const std::string& a_plugin) {
+                   return !a_plugin.empty() && Detail::IsTradeText(a_plugin, FormReference::kMaximumPluginNameLength);
+               });
+    }
+
+    [[nodiscard]] inline bool IsValidTradePluginIndices(const std::vector<std::uint16_t>& a_missing)
+    {
+        std::bitset<kMaximumTradePlugins> seen;
+        for (const auto index : a_missing)
+        {
+            if (index >= kMaximumTradePlugins || seen.test(index))
+            {
+                return false;
+            }
+            seen.set(index);
+        }
+        return true;
+    }
+
     enum class TradeCloseReason : std::uint8_t
     {
         kDeclined = 1,
@@ -253,6 +287,19 @@ namespace Multiplayer
         std::vector<TradeSkip> skipped;
     };
 
+    struct TradePluginQuery
+    {
+        TradeID id{ 0 };
+        std::vector<std::string> plugins;
+    };
+
+    // Indices into the plugins of the oldest unanswered query.
+    struct TradePluginReply
+    {
+        TradeID id{ 0 };
+        std::vector<std::uint16_t> missing;
+    };
+
     // Both revisions as the accepting player names them: its own offer, then the other's.
     struct TradeAcceptance
     {
@@ -275,6 +322,6 @@ namespace Multiplayer
         TradeCloseReason reason{ TradeCloseReason::kCancelled };
     };
 
-    using TradeEvent
-        = std::variant<TradeInvite, TradeOpen, TradeOffer, TradeReport, TradeAcceptance, TradeCommit, TradeClose>;
+    using TradeEvent = std::variant<TradeInvite, TradeOpen, TradeOffer, TradeReport, TradePluginQuery,
+        TradePluginReply, TradeAcceptance, TradeCommit, TradeClose>;
 }

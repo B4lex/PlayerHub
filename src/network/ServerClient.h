@@ -83,6 +83,8 @@ namespace Network
     void PublishTradeAnswer(Multiplayer::TradeID a_trade, bool a_accept);
     void PublishTradeOffer(const Multiplayer::TradeOffer& a_offer);
     void PublishTradeReport(const Multiplayer::TradeReport& a_report);
+    void PublishTradePluginQuery(const Multiplayer::TradePluginQuery& a_query);
+    void PublishTradePluginReply(const Multiplayer::TradePluginReply& a_reply);
     void PublishTradeAccept(const Multiplayer::TradeAcceptance& a_acceptance);
     void PublishTradeCancel(Multiplayer::TradeID a_trade, Multiplayer::TradeCloseReason a_reason);
 

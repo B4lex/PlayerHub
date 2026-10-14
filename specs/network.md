@@ -214,7 +214,7 @@ refused at the handshake ([Transport](#transport)).
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
   within `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (8) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (9) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
@@ -263,7 +263,7 @@ retries. What a refusal means for the client is in [Connection](#connection).
 | `Ping` | `{request_id}`, answered with `Result{ok}` by the connection at once; the latency probe |
 | `Vanish` | `{session_id, vanished}`: stop or resume receiving a session's player ([Vanish](#vanish)) |
 | `Inspect` | `{slot}`: ask for a player's level and race, answered with an `Inspection` ([Inspection](#inspection)) |
-| `TradeRequest`, `TradeAnswer`, `TradeOffer`, `TradeReport`, `TradeAccept`, `TradeCancel` | A trade between two players ([Trade](#trade)) |
+| `TradeRequest`, `TradeAnswer`, `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept`, `TradeCancel` | A trade between two players ([Trade](#trade)) |
 
 A rejected message is dropped and logged on the server (at most one summary
 per connection every 5 s); only `ChatSend` and `Ping` get a `Result`, an
@@ -419,7 +419,7 @@ same list.
 | `Roster` | `joined`, a list of `RosterEntry{slot, name, session_id}`, and `left`, a slot or 0 ([Roster](#roster)) |
 | `NearbyPlayers` | `joined` and `left`, packed slots entering and leaving the recipient's Nearby chat reach ([Nearby players](#nearby-players)) |
 | `Inspection` | `slot`, `level`, `race`, `default_race` of the player an `Inspect` named ([Inspection](#inspection)) |
-| `TradeInvite`, `TradeOpen`, `TradeOffer`, `TradeReport`, `TradeAccept`, `TradeCommit`, `TradeClose` | A trade's progress ([Trade](#trade)) |
+| `TradeInvite`, `TradeOpen`, `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept`, `TradeCommit`, `TradeClose` | A trade's progress ([Trade](#trade)) |
 
 When each is sent and in what order is
 [Interest and delivery](interest-and-delivery.md#ordering).
@@ -695,6 +695,8 @@ Client messages:
 | `TradeAnswer` | `trade_id`, `accept` | `trade_id` non-zero; only the invited player, while invited (`unknown trade`, `stale trade message`). Declining closes with `DECLINED`; accepting opens the trade, or closes it with `OUT_OF_RANGE` when the players are over `trade.keep_radius` apart |
 | `TradeOffer` | `trade_id`, `revision`, `items` | `trade_id` and `revision` non-zero, at most 15 items, each a valid `TradeItem`; only while open, with a revision above the player's last. 10 per s, burst 20 (`tradeOffersPerSecond`, `tradeOfferBurst`). Clears both acceptances and is relayed to the other player as it is |
 | `TradeReport` | `trade_id`, `revision`, `skipped` | `trade_id` and `revision` non-zero, at most 15 `TradeSkip`s with unique `index` `0..14`, a known `reason`, and `plugin` of at most 260 bytes without control characters. Only while open, for the other player's current revision, once per revision, with indices below that offer's item count. Relayed to the other player |
+| `TradePluginQuery` | `trade_id`, `plugins` | `trade_id` non-zero, 1 to 256 plugin names (`validate.MaximumTradePlugins`), each 1 to 260 UTF-8 bytes without control characters; duplicates are allowed. Only while open, at most 8 unanswered per player (`tradePendingPluginQueries`, `rate limited`), and sharing `TradeOffer`'s rate. The hub keeps each query's name count and relays it to the other player as it is ([plugin check](trade.md#plugin-check)) |
+| `TradePluginReply` | `trade_id`, `missing` | `trade_id` non-zero, at most 256 unique indices below 256. Only while open, answering the other player's oldest unanswered query, with every index below its name count (`stale trade message` otherwise, also without a query). Relayed to the other player |
 | `TradeAccept` | `trade_id`, `own_revision`, `peer_revision` | `trade_id` non-zero; only while open, with both revisions current and this player's report on the other's revision received. Relayed to the other player, or, when that player's acceptance stands, both get `TradeCommit` and the trade ends |
 | `TradeCancel` | `trade_id`, `reason` | `trade_id` non-zero, `reason` one of `CANCELLED`, `COMBAT`, `MENU`, `FAILED`; either player, invited or open. Both get `TradeClose` with the reason |
 
@@ -717,7 +719,7 @@ Server messages:
 | --- | --- |
 | `TradeInvite` | `trade_id`, `sender` and `recipient` as `ChatSpeaker`s; sent to both players |
 | `TradeOpen` | `trade_id`; to both |
-| `TradeOffer`, `TradeReport`, `TradeAccept` | The other player's message as it sent it, so `TradeAccept.own_revision` is that player's |
+| `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept` | The other player's message as it sent it, so `TradeAccept.own_revision` is that player's and a `TradePluginReply` answers the recipient's oldest unanswered query |
 | `TradeCommit` | `trade_id`, `own_revision` (the recipient's), `peer_revision` |
 | `TradeClose` | `trade_id`, 0 for a refused request; `reason`: `DECLINED`, `EXPIRED`, `CANCELLED`, `BUSY`, `OUT_OF_RANGE`, `COMBAT`, `MENU`, `DISCONNECTED`, `FAILED`, `UNAVAILABLE` |
 
@@ -780,9 +782,11 @@ Server messages:
   official URL: a failed or abandoned connection, vanishes over the limit,
   saving a session, and muting or vanishing a player.
 - Trade messages are decoded like the rest, a `TradeOffer` entry by entry
-  as for `PeerStates`, and validated as the server does, plus a
-  `TradeClose` with an unknown reason, a `TradeInvite` without both
-  speakers, and a report index over 31 are rejected. `TradeInvite` is marked
+  and a `TradePluginQuery` name by name as for `PeerStates`, and validated
+  as the server does, plus a `TradeClose` with an unknown reason, a
+  `TradeInvite` without both speakers, and a report index of 15 or more are
+  rejected. A query is encoded only within
+  15 KiB by `EstimateTradePluginBytes`, under the server's message limit. `TradeInvite` is marked
   `outgoing` when its sender is the connection's own slot. The events are
   queued in arrival order and drained as
   `RemotePlayerChanges::tradeEvents`; over 256 waiting they are dropped and

@@ -7,6 +7,7 @@ namespace FormLookup
         constexpr std::uint32_t kLightPluginLocalFormIDMask = 0x00000FFF;
         constexpr std::uint32_t kPluginLocalFormIDMask = 0x00FFFFFF;
         constexpr std::uint8_t kLightPluginCompileIndex = 0xFE;
+        constexpr std::uint8_t kUnloadedCompileIndex = 0xFF;
     }
 
     const RE::TESFile* GetDefiningFile(const RE::TESForm* a_form)
@@ -46,6 +47,15 @@ namespace FormLookup
         return Multiplayer::FormReference{ .plugin = std::string{ fileName },
             .localFormID
             = a_form->GetFormID() & (file->IsLight() ? kLightPluginLocalFormIDMask : kPluginLocalFormIDMask) };
+    }
+
+    bool IsPluginLoaded(std::string_view a_plugin)
+    {
+        auto* dataHandler = RE::TESDataHandler::GetSingleton();
+        // TESDataHandler::files also lists plugins in Data that are not active, with
+        // compile index 0xFF.
+        const auto* file = dataHandler ? dataHandler->LookupModByName(a_plugin) : nullptr;
+        return file && file->compileIndex != kUnloadedCompileIndex;
     }
 
     RE::FormID ResolveFormID(const Multiplayer::FormReference& a_reference)

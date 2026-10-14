@@ -13,7 +13,7 @@
 /* Enum definitions */
 typedef enum _playerhub_v1_Protocol {
     playerhub_v1_Protocol_PROTOCOL_UNSPECIFIED = 0,
-    playerhub_v1_Protocol_PROTOCOL_VERSION = 8
+    playerhub_v1_Protocol_PROTOCOL_VERSION = 9
 } playerhub_v1_Protocol;
 
 typedef enum _playerhub_v1_ChatChannel {
@@ -159,6 +159,21 @@ typedef struct _playerhub_v1_TradeCancel {
     playerhub_v1_TradeCloseReason reason;
 } playerhub_v1_TradeCancel;
 
+/* From a client: the plugins its offerable items come from, for the other game to
+ check. From the server: the peer's query. */
+typedef struct _playerhub_v1_TradePluginQuery {
+    uint32_t trade_id;
+    pb_callback_t plugins;
+} playerhub_v1_TradePluginQuery;
+
+/* From a client: the indices into the peer's oldest unanswered query of the plugins
+ this game has not loaded. From the server: the peer's reply to this client's query. */
+typedef struct _playerhub_v1_TradePluginReply {
+    uint32_t trade_id;
+    pb_size_t missing_count;
+    uint32_t missing[256];
+} playerhub_v1_TradePluginReply;
+
 typedef struct _playerhub_v1_ClientMessage {
     pb_size_t which_message;
     union {
@@ -180,6 +195,8 @@ typedef struct _playerhub_v1_ClientMessage {
         playerhub_v1_TradeReport trade_report;
         playerhub_v1_TradeAccept trade_accept;
         playerhub_v1_TradeCancel trade_cancel;
+        playerhub_v1_TradePluginQuery trade_plugin_query;
+        playerhub_v1_TradePluginReply trade_plugin_reply;
     } message;
 } playerhub_v1_ClientMessage;
 
@@ -332,6 +349,8 @@ typedef struct _playerhub_v1_ServerMessage {
         playerhub_v1_TradeCommit trade_commit;
         playerhub_v1_TradeClose trade_close;
         playerhub_v1_NearbyPlayers nearby_players;
+        playerhub_v1_TradePluginQuery trade_plugin_query;
+        playerhub_v1_TradePluginReply trade_plugin_reply;
     } message;
 } playerhub_v1_ServerMessage;
 
@@ -386,6 +405,8 @@ extern "C" {
 
 
 
+
+
 #define playerhub_v1_PeerLeave_reason_ENUMTYPE playerhub_v1_LeaveReason
 
 
@@ -422,6 +443,8 @@ extern "C" {
 #define playerhub_v1_TradeReport_init_default    {0, 0, 0, {playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default}}
 #define playerhub_v1_TradeAccept_init_default    {0, 0, 0}
 #define playerhub_v1_TradeCancel_init_default    {0, _playerhub_v1_TradeCloseReason_MIN}
+#define playerhub_v1_TradePluginQuery_init_default {0, {{NULL}, NULL}}
+#define playerhub_v1_TradePluginReply_init_default {0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}
 #define playerhub_v1_ClientMessage_init_default  {0, {playerhub_v1_Hello_init_default}}
 #define playerhub_v1_Welcome_init_default        {0, 0, "", {0, {0}}}
 #define playerhub_v1_Result_init_default         {0, 0, ""}
@@ -459,6 +482,8 @@ extern "C" {
 #define playerhub_v1_TradeReport_init_zero       {0, 0, 0, {playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero}}
 #define playerhub_v1_TradeAccept_init_zero       {0, 0, 0}
 #define playerhub_v1_TradeCancel_init_zero       {0, _playerhub_v1_TradeCloseReason_MIN}
+#define playerhub_v1_TradePluginQuery_init_zero  {0, {{NULL}, NULL}}
+#define playerhub_v1_TradePluginReply_init_zero  {0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}
 #define playerhub_v1_ClientMessage_init_zero     {0, {playerhub_v1_Hello_init_zero}}
 #define playerhub_v1_Welcome_init_zero           {0, 0, "", {0, {0}}}
 #define playerhub_v1_Result_init_zero            {0, 0, ""}
@@ -526,6 +551,10 @@ extern "C" {
 #define playerhub_v1_TradeAccept_peer_revision_tag 3
 #define playerhub_v1_TradeCancel_trade_id_tag    1
 #define playerhub_v1_TradeCancel_reason_tag      2
+#define playerhub_v1_TradePluginQuery_trade_id_tag 1
+#define playerhub_v1_TradePluginQuery_plugins_tag 2
+#define playerhub_v1_TradePluginReply_trade_id_tag 1
+#define playerhub_v1_TradePluginReply_missing_tag 2
 #define playerhub_v1_ClientMessage_hello_tag     1
 #define playerhub_v1_ClientMessage_enter_tag     2
 #define playerhub_v1_ClientMessage_exit_tag      3
@@ -544,6 +573,8 @@ extern "C" {
 #define playerhub_v1_ClientMessage_trade_report_tag 16
 #define playerhub_v1_ClientMessage_trade_accept_tag 17
 #define playerhub_v1_ClientMessage_trade_cancel_tag 18
+#define playerhub_v1_ClientMessage_trade_plugin_query_tag 19
+#define playerhub_v1_ClientMessage_trade_plugin_reply_tag 20
 #define playerhub_v1_Welcome_slot_tag            1
 #define playerhub_v1_Welcome_session_id_tag      2
 #define playerhub_v1_Welcome_display_name_tag    3
@@ -615,6 +646,8 @@ extern "C" {
 #define playerhub_v1_ServerMessage_trade_commit_tag 18
 #define playerhub_v1_ServerMessage_trade_close_tag 19
 #define playerhub_v1_ServerMessage_nearby_players_tag 20
+#define playerhub_v1_ServerMessage_trade_plugin_query_tag 21
+#define playerhub_v1_ServerMessage_trade_plugin_reply_tag 22
 
 /* Struct field encoding specification for nanopb */
 #define playerhub_v1_Hello_FIELDLIST(X, a) \
@@ -733,6 +766,18 @@ X(a, STATIC,   SINGULAR, UENUM,    reason,            2)
 #define playerhub_v1_TradeCancel_CALLBACK NULL
 #define playerhub_v1_TradeCancel_DEFAULT NULL
 
+#define playerhub_v1_TradePluginQuery_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   trade_id,          1) \
+X(a, CALLBACK, REPEATED, STRING,   plugins,           2)
+#define playerhub_v1_TradePluginQuery_CALLBACK pb_default_field_callback
+#define playerhub_v1_TradePluginQuery_DEFAULT NULL
+
+#define playerhub_v1_TradePluginReply_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   trade_id,          1) \
+X(a, STATIC,   REPEATED, UINT32,   missing,           2)
+#define playerhub_v1_TradePluginReply_CALLBACK NULL
+#define playerhub_v1_TradePluginReply_DEFAULT NULL
+
 #define playerhub_v1_ClientMessage_FIELDLIST(X, a) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,hello,message.hello),   1) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,enter,message.enter),   2) \
@@ -751,7 +796,9 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_answer,message.trade_answer), 
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_offer,message.trade_offer),  15) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_report,message.trade_report),  16) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_accept,message.trade_accept),  17) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_cancel,message.trade_cancel),  18)
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_cancel,message.trade_cancel),  18) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_plugin_query,message.trade_plugin_query),  19) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_plugin_reply,message.trade_plugin_reply),  20)
 #define playerhub_v1_ClientMessage_CALLBACK NULL
 #define playerhub_v1_ClientMessage_DEFAULT NULL
 #define playerhub_v1_ClientMessage_message_hello_MSGTYPE playerhub_v1_Hello
@@ -772,6 +819,8 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_cancel,message.trade_cancel), 
 #define playerhub_v1_ClientMessage_message_trade_report_MSGTYPE playerhub_v1_TradeReport
 #define playerhub_v1_ClientMessage_message_trade_accept_MSGTYPE playerhub_v1_TradeAccept
 #define playerhub_v1_ClientMessage_message_trade_cancel_MSGTYPE playerhub_v1_TradeCancel
+#define playerhub_v1_ClientMessage_message_trade_plugin_query_MSGTYPE playerhub_v1_TradePluginQuery
+#define playerhub_v1_ClientMessage_message_trade_plugin_reply_MSGTYPE playerhub_v1_TradePluginReply
 
 #define playerhub_v1_Welcome_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   slot,              1) \
@@ -936,7 +985,9 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_report,message.trade_report), 
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_accept,message.trade_accept),  17) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_commit,message.trade_commit),  18) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_close,message.trade_close),  19) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,nearby_players,message.nearby_players),  20)
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,nearby_players,message.nearby_players),  20) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_plugin_query,message.trade_plugin_query),  21) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_plugin_reply,message.trade_plugin_reply),  22)
 #define playerhub_v1_ServerMessage_CALLBACK NULL
 #define playerhub_v1_ServerMessage_DEFAULT NULL
 #define playerhub_v1_ServerMessage_message_welcome_MSGTYPE playerhub_v1_Welcome
@@ -959,6 +1010,8 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,nearby_players,message.nearby_player
 #define playerhub_v1_ServerMessage_message_trade_commit_MSGTYPE playerhub_v1_TradeCommit
 #define playerhub_v1_ServerMessage_message_trade_close_MSGTYPE playerhub_v1_TradeClose
 #define playerhub_v1_ServerMessage_message_nearby_players_MSGTYPE playerhub_v1_NearbyPlayers
+#define playerhub_v1_ServerMessage_message_trade_plugin_query_MSGTYPE playerhub_v1_TradePluginQuery
+#define playerhub_v1_ServerMessage_message_trade_plugin_reply_MSGTYPE playerhub_v1_TradePluginReply
 
 extern const pb_msgdesc_t playerhub_v1_Hello_msg;
 extern const pb_msgdesc_t playerhub_v1_Enter_msg;
@@ -976,6 +1029,8 @@ extern const pb_msgdesc_t playerhub_v1_TradeSkip_msg;
 extern const pb_msgdesc_t playerhub_v1_TradeReport_msg;
 extern const pb_msgdesc_t playerhub_v1_TradeAccept_msg;
 extern const pb_msgdesc_t playerhub_v1_TradeCancel_msg;
+extern const pb_msgdesc_t playerhub_v1_TradePluginQuery_msg;
+extern const pb_msgdesc_t playerhub_v1_TradePluginReply_msg;
 extern const pb_msgdesc_t playerhub_v1_ClientMessage_msg;
 extern const pb_msgdesc_t playerhub_v1_Welcome_msg;
 extern const pb_msgdesc_t playerhub_v1_Result_msg;
@@ -1015,6 +1070,8 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_TradeReport_fields &playerhub_v1_TradeReport_msg
 #define playerhub_v1_TradeAccept_fields &playerhub_v1_TradeAccept_msg
 #define playerhub_v1_TradeCancel_fields &playerhub_v1_TradeCancel_msg
+#define playerhub_v1_TradePluginQuery_fields &playerhub_v1_TradePluginQuery_msg
+#define playerhub_v1_TradePluginReply_fields &playerhub_v1_TradePluginReply_msg
 #define playerhub_v1_ClientMessage_fields &playerhub_v1_ClientMessage_msg
 #define playerhub_v1_Welcome_fields &playerhub_v1_Welcome_msg
 #define playerhub_v1_Result_fields &playerhub_v1_Result_msg
@@ -1040,6 +1097,7 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 /* Maximum encoded size of messages (where known) */
 /* playerhub_v1_Hello_size depends on runtime parameters */
 /* playerhub_v1_TradeOffer_size depends on runtime parameters */
+/* playerhub_v1_TradePluginQuery_size depends on runtime parameters */
 /* playerhub_v1_ClientMessage_size depends on runtime parameters */
 /* playerhub_v1_PeerStates_size depends on runtime parameters */
 /* playerhub_v1_Roster_size depends on runtime parameters */
@@ -1071,6 +1129,7 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_TradeInvite_size            320
 #define playerhub_v1_TradeItem_size              1891
 #define playerhub_v1_TradeOpen_size              6
+#define playerhub_v1_TradePluginReply_size       1542
 #define playerhub_v1_TradeReport_size            4127
 #define playerhub_v1_TradeRequest_size           6
 #define playerhub_v1_TradeSkip_size              271

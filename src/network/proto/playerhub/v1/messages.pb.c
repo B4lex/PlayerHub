@@ -54,6 +54,12 @@ PB_BIND(playerhub_v1_TradeAccept, playerhub_v1_TradeAccept, AUTO)
 PB_BIND(playerhub_v1_TradeCancel, playerhub_v1_TradeCancel, AUTO)
 
 
+PB_BIND(playerhub_v1_TradePluginQuery, playerhub_v1_TradePluginQuery, AUTO)
+
+
+PB_BIND(playerhub_v1_TradePluginReply, playerhub_v1_TradePluginReply, 2)
+
+
 PB_BIND(playerhub_v1_ClientMessage, playerhub_v1_ClientMessage, 4)
 
 

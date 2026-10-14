@@ -305,6 +305,10 @@ func (h *Hub) Handle(slot uint32, message *pb.ClientMessage) error {
 		return h.acceptTrade(m, body.TradeAccept)
 	case *pb.ClientMessage_TradeCancel:
 		return h.cancelTrade(m, body.TradeCancel)
+	case *pb.ClientMessage_TradePluginQuery:
+		return h.queryTradePlugins(m, body.TradePluginQuery)
+	case *pb.ClientMessage_TradePluginReply:
+		return h.replyTradePlugins(m, body.TradePluginReply)
 	default:
 		return validate.ErrUnexpected
 	}

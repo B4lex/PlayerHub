@@ -13,6 +13,8 @@ const (
 	tradeRequestBurst      = 3.0
 	tradeOffersPerSecond   = 10.0
 	tradeOfferBurst        = 20.0
+	// Plugin queries share the offers' rate.
+	tradePendingPluginQueries = 8
 )
 
 type chatThrottle struct {

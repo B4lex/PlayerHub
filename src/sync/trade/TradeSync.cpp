@@ -73,7 +73,8 @@ namespace TradeSync
 
         struct RowCheck
         {
-            bool confirmed{ false };
+            // A plugin of the row waits for the peer's reply.
+            bool checking{ false };
             // Why the peer's game cannot receive it, or empty.
             std::string rejected;
         };
@@ -81,7 +82,6 @@ namespace TradeSync
         // Parallel to s_inventory.
         std::vector<RowCheck> s_rowChecks;
         std::vector<std::string> s_peerMissingPlugins;
-        // Includes lines the peer's game has not confirmed yet.
         std::vector<OfferLine> s_offer;
         std::vector<PeerLine> s_peerOffer;
         // Parallel to s_peerOffer.
@@ -159,6 +159,20 @@ namespace TradeSync
             return std::format("{}'s game cannot rebuild the enchantment", peer);
         }
 
+        template <class Callback>
+        void ForEachPlugin(const Multiplayer::TradeItem& a_item, Callback&& a_callback)
+        {
+            a_callback(a_item.item.plugin);
+            if (!a_item.enchantment.IsEmpty())
+            {
+                a_callback(a_item.enchantment.plugin);
+            }
+            for (const auto& effect : a_item.effects)
+            {
+                a_callback(effect.effect.plugin);
+            }
+        }
+
         bool ReferencesPlugin(const Multiplayer::TradeItem& a_item, std::string_view a_plugin)
         {
             return a_item.item.plugin == a_plugin || a_item.enchantment.plugin == a_plugin
@@ -175,6 +189,40 @@ namespace TradeSync
             return std::accumulate(std::next(a_names.begin()), a_names.end(), a_names.front(),
                 [](std::string a_left, const std::string& a_right) { return std::move(a_left) + ", " + a_right; });
         }
+
+        // Offered rows the peer's game cannot receive, posted as one notice per reason.
+        class RejectionNotices
+        {
+        public:
+            void Add(std::size_t a_row)
+            {
+                const auto& reason = s_rowChecks[a_row].rejected;
+                auto entry = std::ranges::find(rejections, reason, &Rejection::reason);
+                if (entry == rejections.end())
+                {
+                    entry = rejections.insert(rejections.end(), Rejection{ .reason = reason });
+                }
+                entry->names.push_back(s_inventory[a_row].name);
+            }
+
+            void Post() const
+            {
+                for (const auto& rejection : rejections)
+                {
+                    Notices::Post(
+                        std::format("You cannot offer {}: {}", FormatItems(rejection.names), rejection.reason));
+                }
+            }
+
+        private:
+            struct Rejection
+            {
+                std::string reason;
+                std::vector<std::string> names;
+            };
+
+            std::vector<Rejection> rejections;
+        };
 
         void ClearTrade()
         {
@@ -196,6 +244,7 @@ namespace TradeSync
                 .peer = s_session.GetPeer(),
                 .secondsLeft = s_secondsLeft,
                 .inventoryRevision = s_inventoryRevision,
+                .offer = s_offer,
                 .peerOffer = s_peerOffer,
                 .ownAccepted = s_session.IsOwnAccepted(),
                 .peerAccepted = s_session.IsPeerAccepted() };
@@ -213,20 +262,20 @@ namespace TradeSync
                 default:
                     break;
             }
-            std::ranges::copy_if(s_offer, std::back_inserter(view.offer),
-                [](const OfferLine& a_line) { return s_rowChecks[a_line.row].confirmed; });
             view.inventory.reserve(s_inventory.size());
             for (std::size_t i = 0; i < s_inventory.size(); ++i)
             {
                 const auto& row = s_inventory[i];
-                const auto& rejected = s_rowChecks[i].rejected;
+                const auto& check = s_rowChecks[i];
                 view.inventory.push_back(InventoryLine{ .name = row.name,
                     .count = row.item.count,
                     .formID = row.formID,
                     .category = row.category,
                     .details = row.details,
                     .enchanted = row.item.IsEnchanted(),
-                    .blocked = row.block ? DescribeBlock(*row.block) : rejected });
+                    .checking = check.checking,
+                    .blocked = row.block ? DescribeBlock(*row.block) : check.rejected });
+                view.checkingPlugins = view.checkingPlugins || check.checking;
             }
             s_phase.store(view.phase, std::memory_order_release);
             s_invitingPlayer.store(view.phase == Phase::kInvited ? view.peer.playerID : 0, std::memory_order_release);
@@ -267,6 +316,46 @@ namespace TradeSync
             }
         }
 
+        // Disables the rows with a plugin the peer's game has not reported on yet.
+        void UpdateRowChecks()
+        {
+            for (std::size_t i = 0; i < s_inventory.size(); ++i)
+            {
+                bool checking = false;
+                if (!s_inventory[i].block && s_rowChecks[i].rejected.empty())
+                {
+                    ForEachPlugin(s_inventory[i].item, [&checking](const std::string& a_plugin) {
+                        checking = checking || s_session.IsCheckingPlugin(a_plugin);
+                    });
+                }
+                s_rowChecks[i].checking = checking;
+            }
+            s_viewDirty = true;
+        }
+
+        // Asks the peer's game about the plugins of the offerable rows it was not asked about.
+        void QueryInventoryPlugins()
+        {
+            std::vector<std::string> plugins;
+            for (std::size_t i = 0; i < s_inventory.size(); ++i)
+            {
+                if (!s_inventory[i].block && s_rowChecks[i].rejected.empty())
+                {
+                    ForEachPlugin(
+                        s_inventory[i].item, [&plugins](const std::string& a_plugin) { plugins.push_back(a_plugin); });
+                }
+            }
+            std::ranges::sort(plugins);
+            const auto duplicates = std::ranges::unique(plugins);
+            plugins.erase(duplicates.begin(), duplicates.end());
+            for (const auto& query : s_session.QueryPlugins(plugins))
+            {
+                logs::debug("Trade {} asking about {} plugins", query.id, query.plugins.size());
+                Network::PublishTradePluginQuery(query);
+            }
+            UpdateRowChecks();
+        }
+
         void CaptureInventory(RE::PlayerCharacter& a_player)
         {
             auto inventory = TradeInventory::Capture(a_player);
@@ -274,7 +363,7 @@ namespace TradeSync
             // A capture during the trade may order the rows differently.
             for (std::size_t i = 0; i < s_inventory.size(); ++i)
             {
-                if (!s_rowChecks[i].confirmed && s_rowChecks[i].rejected.empty())
+                if (s_rowChecks[i].rejected.empty())
                 {
                     continue;
                 }
@@ -293,8 +382,8 @@ namespace TradeSync
             {
                 RejectPluginRows(plugin, [](std::size_t) {});
             }
-            s_viewDirty = true;
             logs::debug("Trade captured the inventory: rows={}", s_inventory.size());
+            QueryInventoryPlugins();
         }
 
         std::vector<Multiplayer::TradeItem> BuildOwnItems()
@@ -310,7 +399,7 @@ namespace TradeSync
             return items;
         }
 
-        // Confirms the lines the peer's report accepts and takes the others out of the offer.
+        // Takes the lines the peer's report skips out of the offer.
         void ApplyOwnReport()
         {
             const auto* items = s_session.FindReportedOffer();
@@ -319,22 +408,7 @@ namespace TradeSync
                 return;
             }
             const auto& skips = s_session.GetReportedSkips();
-            // One notice for each reason.
-            struct Rejection
-            {
-                std::string reason;
-                std::vector<std::string> names;
-            };
-            std::vector<Rejection> rejections;
-            const auto note = [&rejections](std::size_t a_row) {
-                const auto& reason = s_rowChecks[a_row].rejected;
-                auto entry = std::ranges::find(rejections, reason, &Rejection::reason);
-                if (entry == rejections.end())
-                {
-                    entry = rejections.insert(rejections.end(), Rejection{ .reason = reason });
-                }
-                entry->names.push_back(s_inventory[a_row].name);
-            };
+            RejectionNotices notices;
             bool offerChanged = false;
             for (std::size_t i = 0; i < items->size(); ++i)
             {
@@ -347,27 +421,23 @@ namespace TradeSync
                 const auto skip = std::ranges::find(skips, i, &Multiplayer::TradeSkip::index);
                 if (skip == skips.end())
                 {
-                    s_rowChecks[*row].confirmed = true;
                     continue;
                 }
                 logs::info("Trade {}: {} cannot receive {}|{:06X}: reason={} plugin={}", s_session.GetID(), PeerName(),
                     item.item.plugin, item.item.localFormID, static_cast<int>(skip->reason), skip->plugin);
                 offerChanged = RejectRow(*row, DescribeRejection(*skip, item)) || offerChanged;
-                note(*row);
+                notices.Add(*row);
                 if (!skip->plugin.empty()
                     && std::ranges::find(s_peerMissingPlugins, skip->plugin) == s_peerMissingPlugins.end())
                 {
                     s_peerMissingPlugins.push_back(skip->plugin);
                     RejectPluginRows(skip->plugin, [&](std::size_t a_row) {
                         offerChanged = true;
-                        note(a_row);
+                        notices.Add(a_row);
                     });
                 }
             }
-            for (const auto& rejection : rejections)
-            {
-                Notices::Post(std::format("You cannot offer {}: {}", FormatItems(rejection.names), rejection.reason));
-            }
+            notices.Post();
             if (offerChanged)
             {
                 s_session.SetOwnItems(BuildOwnItems());
@@ -375,11 +445,53 @@ namespace TradeSync
             s_viewDirty = true;
         }
 
+        // Rows the peer lacks a plugin for are disabled without a notice, since the player
+        // has not tried to offer them, except those offered after the check ran out of time.
+        void ApplyPluginReply(const std::vector<std::string>& a_missing)
+        {
+            RejectionNotices notices;
+            bool offerChanged = false;
+            for (const auto& plugin : a_missing)
+            {
+                logs::info("Trade {}: {} does not have {}", s_session.GetID(), PeerName(), plugin);
+                if (std::ranges::find(s_peerMissingPlugins, plugin) != s_peerMissingPlugins.end())
+                {
+                    continue;
+                }
+                s_peerMissingPlugins.push_back(plugin);
+                RejectPluginRows(plugin, [&](std::size_t a_row) {
+                    offerChanged = true;
+                    notices.Add(a_row);
+                });
+            }
+            notices.Post();
+            if (offerChanged)
+            {
+                s_session.SetOwnItems(BuildOwnItems());
+            }
+            UpdateRowChecks();
+        }
+
+        void ReplyPluginQuery(const std::vector<std::string>& a_plugins)
+        {
+            Multiplayer::TradePluginReply reply{ .id = s_session.GetID() };
+            for (std::size_t i = 0; i < a_plugins.size(); ++i)
+            {
+                if (!FormLookup::IsPluginLoaded(a_plugins[i]))
+                {
+                    reply.missing.push_back(static_cast<std::uint16_t>(i));
+                }
+            }
+            logs::debug("Trade {}: {} asked about {} plugins, {} not loaded here", reply.id, PeerName(),
+                a_plugins.size(), reply.missing.size());
+            Network::PublishTradePluginReply(reply);
+        }
+
         void SetOfferCount(const Command& a_command)
         {
             if (s_session.GetPhase() != Phase::kOpen || a_command.inventoryRevision != s_inventoryRevision
                 || a_command.row >= s_inventory.size() || s_inventory[a_command.row].block
-                || !s_rowChecks[a_command.row].rejected.empty())
+                || s_rowChecks[a_command.row].checking || !s_rowChecks[a_command.row].rejected.empty())
             {
                 return;
             }
@@ -626,6 +738,12 @@ namespace TradeSync
                 case TradeSession::Outcome::kReport:
                     ApplyOwnReport();
                     break;
+                case TradeSession::Outcome::kPluginQuery:
+                    ReplyPluginQuery(result.plugins);
+                    break;
+                case TradeSession::Outcome::kPluginReply:
+                    ApplyPluginReply(result.plugins);
+                    break;
                 case TradeSession::Outcome::kPeerAccepted:
                     logs::debug("Trade {}: {} accepted", s_session.GetID(), PeerName());
                     break;
@@ -860,6 +978,12 @@ namespace TradeSync
                     static_cast<unsigned long long>(tick.offer->revision), tick.offer->items.size());
                 Network::PublishTradeOffer(*tick.offer);
                 s_viewDirty = true;
+            }
+            if (tick.pluginCheckExpired)
+            {
+                logs::warn("Trade {}: {} did not report on the plugins within {} s; the offer's report checks them",
+                    s_session.GetID(), PeerName(), TradeSession::kPluginCheckSeconds);
+                UpdateRowChecks();
             }
             const auto phase = s_session.GetPhase();
             // The invitation's time starts when the server sends it, so a request shows all of it.

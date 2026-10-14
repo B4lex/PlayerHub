@@ -5,6 +5,7 @@
 #include <RE/Skyrim.h>
 
 #include <optional>
+#include <string_view>
 
 namespace FormLookup
 {
@@ -14,6 +15,8 @@ namespace FormLookup
     // Dynamic (FF) forms and forms without a defining file cannot be referenced
     // across game sessions.
     [[nodiscard]] std::optional<Multiplayer::FormReference> MakeFormReference(const RE::TESForm* a_form);
+
+    [[nodiscard]] bool IsPluginLoaded(std::string_view a_plugin);
 
     [[nodiscard]] RE::FormID ResolveFormID(const Multiplayer::FormReference& a_reference);
 
