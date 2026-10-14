@@ -37,10 +37,8 @@ namespace UI::ItemPreview
         constexpr float kLoadWaitLogSeconds = 1.0F;
         constexpr float kCaptureTimeoutSeconds = 5.0F;
         constexpr float kRefreshDelaySeconds = 1.5F;
-        // The game attaches an enchantment's glow a frame or two after the model (2026-10-10 log),
-        // so an enchanted model keeps being captured this long after a load's first capture, and
-        // an enchanted thumbnail waits up to this long for it.
         constexpr float kEffectWatchSeconds = 0.5F;
+        constexpr float kStillEffectWaitSeconds = 0.25F;
         // Captures of an animated model whose effect state is logged, for checking that it advances.
         constexpr std::uint32_t kEffectSampleLogs = 6;
         // Dragging across this many font sizes turns the model by one radian.
@@ -56,8 +54,6 @@ namespace UI::ItemPreview
         constexpr float kThumbnailCaptureSide = 2.0F * kThumbnailSize;
         constexpr std::uint32_t kThumbnailColumns = kTextureSize / kThumbnailSize;
         constexpr std::size_t kThumbnailSlots = kThumbnailColumns * kThumbnailColumns;
-        constexpr std::size_t kModelTarget = kThumbnailSlots;
-        constexpr std::size_t kNoTarget = kThumbnailSlots + 1;
 
         // Over black a pixel holds the model's color times its coverage; over white the
         // background adds one minus the coverage, so the difference gives the coverage.
@@ -133,7 +129,11 @@ float4 Separate(Vertex input) : SV_Target
             CaptureState state{ CaptureState::kPending };
             std::uint64_t order{ 0 };
             int usedFrame{ -1 };
+            float requestedAt{ 0.0F };
             float capturedAt{ 0.0F };
+            // Seconds it waited for its glow across loads, so a model taking the renderer back
+            // does not start the wait over.
+            float effectWaited{ 0.0F };
             std::uint32_t width{ 0 };
             std::uint32_t height{ 0 };
         };
@@ -161,18 +161,25 @@ float4 Separate(Vertex input) : SV_Target
             float watchedUntil{ 0.0F };
         };
 
-        // The item the renderer loads and what it is captured for.
+        // The item the renderer loads, which serves the model and every still of its form.
         struct CaptureJob
         {
-            std::size_t target{ kNoTarget };
+            float loadedAt{ 0.0F };
             bool attached{ false };
-            bool captured{ false };
+            float attachedAt{ 0.0F };
+            bool modelCaptured{ false };
             bool texturesLogged{ false };
             bool waitLogged{ false };
             float waited{ 0.0F };
             bool enchanted{ false };
-            // Seconds a thumbnail waited for its glow.
-            float watched{ 0.0F };
+            bool effectSeen{ false };
+        };
+
+        // The form the next update needs loaded, loaded again unless its load started after freshAfter.
+        struct Work
+        {
+            std::uint32_t formID{ 0 };
+            float freshAfter{ -1.0F };
         };
 
         struct GameTransform
@@ -264,12 +271,12 @@ float4 Separate(Vertex input) : SV_Target
             }
         }
 
-        // Starts a job for a_target; returns whether the form is an item the renderer was asked to load.
-        bool Load(RE::Inventory3DManager& a_manager, std::size_t a_target, std::uint32_t a_formID)
+        // Starts a job for a_formID; returns whether the form is an item the renderer was asked to load.
+        bool Load(RE::Inventory3DManager& a_manager, std::uint32_t a_formID)
         {
             a_manager.UnloadInventoryItem();
             loadedFormID = a_formID;
-            job = CaptureJob{ .target = a_target };
+            job = CaptureJob{ .loadedAt = clock };
             if (a_formID == 0)
             {
                 return false;
@@ -609,8 +616,6 @@ float4 Separate(Vertex input) : SV_Target
             {
                 return nullptr;
             }
-            // After UnloadInventoryItem and a new load, the previous item's model was seen
-            // still attached for a frame (2026-10-08 log), so the entry must be the loaded form's.
             const auto& loaded = models.back();
             auto* object = loaded.spModel.get();
             return loaded.itemBase && loaded.itemBase->GetFormID() == loadedFormID && object
@@ -768,9 +773,16 @@ float4 Separate(Vertex input) : SV_Target
             return gameTransforms.emplace_back(loadedFormID, a_model.local).transform;
         }
 
+        // A still starts from the game's transform and the model from the one it was fitted and
+        // turned to, whichever capture last moved the shared load.
+        void SetTransform(RE::NiAVObject& a_model, const RE::NiTransform& a_transform)
+        {
+            a_model.local = a_transform;
+            UpdateWorld(a_model);
+        }
+
         // The loaded model once it can be captured: attached, given one more engine update pass,
-        // and with every texture present unless a_force. A model loaded again is given back the
-        // transform the player turned it to, and a still the game's.
+        // and with every texture present unless a_force.
         RE::NiAVObject* ReadyModel(
             RE::Inventory3DManager& a_manager, RE::UI& a_ui, bool a_force, TextureCheck& a_textures)
         {
@@ -781,9 +793,9 @@ float4 Separate(Vertex input) : SV_Target
             }
             if (!std::exchange(job.attached, true))
             {
-                const auto& game = GameTransformOf(*object);
-                object->local = job.target == kModelTarget && model.transform ? *model.transform : game;
-                UpdateWorld(*object);
+                // Kept before any capture fits or turns it.
+                GameTransformOf(*object);
+                job.attachedAt = clock;
                 return nullptr;
             }
             a_textures = InspectTextures(*object);
@@ -965,6 +977,7 @@ float4 Separate(Vertex input) : SV_Target
                 return false;
             }
             const auto& description = frame->description;
+            SetTransform(a_model, GameTransformOf(a_model));
             const float depth
                 = FitModel(a_model, *scene, kThumbnailCaptureSide, description.width, description.height);
             const std::array layers{ Layer{ ImGui::ColorConvertU32ToFloat4(a_slot.background),
@@ -992,9 +1005,10 @@ float4 Separate(Vertex input) : SV_Target
             context.CopySubresourceRegion(thumbnailTextures.atlas.Get(), 0, index % kThumbnailColumns * kThumbnailSize,
                 index / kThumbnailColumns * kThumbnailSize, 0, thumbnailTextures.scratch.Get(), level, &source);
             logs::debug(
-                "Item thumbnail captured: formID={:08X} box={}x{} level={} refresh={} textures={} pending={} "
-                "diffuse={}",
+                "Item thumbnail captured: formID={:08X} box={}x{} level={} refresh={} sinceRequest={:.3f} "
+                "sinceLoad={:.3f} sinceAttach={:.3f} effect={} textures={} pending={} diffuse={}",
                 a_slot.formID, box->width, box->height, level, a_slot.state == CaptureState::kCaptured,
+                clock - a_slot.requestedAt, clock - job.loadedAt, clock - job.attachedAt, job.effectSeen,
                 a_textures.total, a_textures.pending, a_textures.firstDiffuse);
             return true;
         }
@@ -1023,219 +1037,298 @@ float4 Separate(Vertex input) : SV_Target
                     claimed = std::addressof(slot);
                 }
             }
-            if (claimed && static_cast<std::size_t>(claimed - thumbnailSlots.data()) == job.target)
-            {
-                job.target = kNoTarget;
-            }
             return claimed;
         }
 
-        // Among the slots a window drew last frame, the earliest requested one waiting for its
-        // still, else the earliest one due for its refresh.
-        ThumbnailSlot* NextThumbnail()
+        // Update runs before ImGui::NewFrame, so this is the frame the windows last drew.
+        bool IsDrawn(const ThumbnailSlot& a_slot)
         {
-            // Update runs before ImGui::NewFrame, so this is the frame the windows last drew.
-            const int frame = ImGui::GetFrameCount();
-            ThumbnailSlot* next = nullptr;
-            bool nextPending = false;
-            for (auto& slot : thumbnailSlots)
-            {
-                if (slot.formID == 0 || slot.usedFrame != frame)
-                {
-                    continue;
-                }
-                const bool pending = slot.state == CaptureState::kPending;
-                const bool refresh
-                    = slot.state == CaptureState::kCaptured && clock - slot.capturedAt >= kRefreshDelaySeconds;
-                if (!pending && !refresh)
-                {
-                    continue;
-                }
-                if (!next || (pending && !nextPending) || (pending == nextPending && slot.order < next->order))
-                {
-                    next = std::addressof(slot);
-                    nextPending = pending;
-                }
-            }
-            return next;
+            return a_slot.formID != 0 && a_slot.usedFrame == ImGui::GetFrameCount();
         }
 
-        // A capture, a refresh, a turn, or a fresh load being watched waits for the model.
-        bool IsModelDue()
+        bool IsStillPending(const ThumbnailSlot& a_slot) { return a_slot.state == CaptureState::kPending; }
+
+        bool IsStillRefreshDue(const ThumbnailSlot& a_slot)
+        {
+            return a_slot.state == CaptureState::kCaptured && clock - a_slot.capturedAt >= kRefreshDelaySeconds;
+        }
+
+        // A refresh is captured from a load that started after the capture it replaces.
+        bool IsFreshLoad(std::uint32_t a_formID, float a_capturedAt)
+        {
+            return loadedFormID == a_formID && job.loadedAt > a_capturedAt;
+        }
+
+        // Among the stills a window drew last frame that a_due accepts, one of the loaded form,
+        // which needs no load of its own, else the earliest requested.
+        template <class Due>
+        ThumbnailSlot* FindStill(Due a_due)
+        {
+            ThumbnailSlot* found = nullptr;
+            bool foundLoaded = false;
+            for (auto& slot : thumbnailSlots)
+            {
+                if (!IsDrawn(slot) || !a_due(slot))
+                {
+                    continue;
+                }
+                const bool loaded = slot.formID == loadedFormID;
+                if (!found || (loaded && !foundLoaded) || (loaded == foundLoaded && slot.order < found->order))
+                {
+                    found = std::addressof(slot);
+                    foundLoaded = loaded;
+                }
+            }
+            return found;
+        }
+
+        bool IsModelCaptured()
+        {
+            return model.state == CaptureState::kCaptured || model.state == CaptureState::kSettled;
+        }
+
+        bool IsModelRefreshDue()
+        {
+            return model.state == CaptureState::kCaptured && clock - model.capturedAt >= kRefreshDelaySeconds;
+        }
+
+        // Its first capture, a turn, or a new size, which the player is looking at.
+        bool IsModelUrgent()
         {
             if (model.formID == 0 || modelUnavailable)
             {
                 return false;
             }
-            switch (model.state)
-            {
-            case CaptureState::kPending:
-                return true;
-            case CaptureState::kCaptured:
-                return clock - model.capturedAt >= kRefreshDelaySeconds || clock < model.watchedUntil
-                    || model.turn.x != 0.0F || model.turn.y != 0.0F || model.side != model.capturedSide;
-            case CaptureState::kSettled:
-                return clock < model.watchedUntil || model.turn.x != 0.0F || model.turn.y != 0.0F
-                    || model.side != model.capturedSide;
-            case CaptureState::kFailed:
-                return false;
-            }
-            return false;
+            return model.state == CaptureState::kPending
+                || (IsModelCaptured()
+                    && (model.turn.x != 0.0F || model.turn.y != 0.0F || model.side != model.capturedSide));
+        }
+
+        bool IsModelWatched() { return IsModelCaptured() && clock < model.watchedUntil; }
+
+        bool IsModelMaintained()
+        {
+            return model.formID != 0 && !modelUnavailable && (IsModelRefreshDue() || IsModelWatched());
         }
 
         // Captured on every update while nothing else is due, as the inventory menu renders it.
-        bool IsModelAnimating()
+        bool IsModelAnimating() { return model.animated && !modelUnavailable && IsModelCaptured(); }
+
+        bool IsModelSpinning() { return model.spins && !model.held && !modelUnavailable && IsModelCaptured(); }
+
+        // The model goes first, since the item the player hovers is the one a click adds and its
+        // load then serves the new still at once. A pending still comes before the model's own
+        // refresh and glow watch, which held stills back for seconds while the player moved
+        // between items (2026-10-14 log).
+        Work ChooseWork()
         {
-            return model.animated && !modelUnavailable
-                && (model.state == CaptureState::kCaptured || model.state == CaptureState::kSettled);
+            if (IsModelUrgent())
+            {
+                return { .formID = model.formID };
+            }
+            if (const auto* still = FindStill(IsStillPending))
+            {
+                return { .formID = still->formID };
+            }
+            if (IsModelMaintained())
+            {
+                return { .formID = model.formID, .freshAfter = IsModelRefreshDue() ? model.capturedAt : -1.0F };
+            }
+            if (const auto* still = FindStill(IsStillRefreshDue))
+            {
+                return { .formID = still->formID, .freshAfter = still->capturedAt };
+            }
+            if (IsModelAnimating() || IsModelSpinning())
+            {
+                return { .formID = model.formID };
+            }
+            return {};
         }
 
-        bool IsModelSpinning()
+        bool IsModelServed()
         {
-            return model.spins && !model.held && !modelUnavailable
-                && (model.state == CaptureState::kCaptured || model.state == CaptureState::kSettled);
+            if (model.formID != loadedFormID || model.formID == 0)
+            {
+                return false;
+            }
+            return IsModelUrgent() || (IsModelRefreshDue() && IsFreshLoad(model.formID, model.capturedAt))
+                || IsModelWatched() || IsModelAnimating() || IsModelSpinning();
         }
 
-        void UpdateModel(RE::Inventory3DManager& a_manager, RE::UI& a_ui, float a_delta)
+        bool IsStillServed(const ThumbnailSlot& a_slot)
         {
-            Start(a_manager);
-            const bool refresh
-                = model.state == CaptureState::kCaptured && clock - model.capturedAt >= kRefreshDelaySeconds;
-            // A refresh loads the item again; a turn reuses the loaded model.
-            if (job.target != kModelTarget || loadedFormID != model.formID || (refresh && job.captured))
+            return a_slot.formID == loadedFormID && IsDrawn(a_slot)
+                && (IsStillPending(a_slot)
+                    || (IsStillRefreshDue(a_slot) && IsFreshLoad(a_slot.formID, a_slot.capturedAt)));
+        }
+
+        // A refresh or a turn that cannot render keeps the image it has.
+        void FinishModel(bool a_captured)
+        {
+            if (a_captured)
             {
-                if (!Load(a_manager, kModelTarget, model.formID))
-                {
-                    model.state = CaptureState::kFailed;
-                    return;
-                }
+                model.state = model.state == CaptureState::kPending ? CaptureState::kCaptured : CaptureState::kSettled;
             }
-            const bool timedOut = job.waited > kCaptureTimeoutSeconds;
-            TextureCheck check;
-            if (auto* object = ReadyModel(a_manager, a_ui, timedOut, check))
+            else
             {
-                // Advanced only by updates that render the model, so it pauses rather than jumps
-                // while thumbnails hold the renderer.
-                if (IsModelSpinning())
-                {
-                    model.turn.x -= kSpinRadiansPerSecond * a_delta;
-                }
-                if (model.turn.x != 0.0F || model.turn.y != 0.0F)
-                {
-                    Turn(a_manager, std::exchange(model.turn, ImVec2{}));
-                }
-                if (CaptureModel(a_manager, a_ui, *object))
-                {
-                    if (!job.captured)
-                    {
-                        logs::debug("Item model captured: formID={:08X} size={}x{} refresh={} textures={} pending={} "
-                                    "diffuse={}",
-                            model.formID, model.size.x, model.size.y, refresh, check.total, check.pending,
-                            check.firstDiffuse);
-                    }
-                    if (!job.captured && job.enchanted)
-                    {
-                        model.watchedUntil = clock + kEffectWatchSeconds;
-                    }
-                    job.captured = true;
-                    CheckAnimation(*object);
-                    if (model.state == CaptureState::kPending || refresh)
-                    {
-                        model.state = refresh ? CaptureState::kSettled : CaptureState::kCaptured;
-                        model.capturedAt = clock;
-                    }
-                    return;
-                }
+                model.state = model.state == CaptureState::kPending ? CaptureState::kFailed : CaptureState::kSettled;
+                model.turn = {};
+                model.watchedUntil = 0.0F;
             }
-            job.waited += a_delta;
-            if (job.waited >= kLoadWaitLogSeconds && !std::exchange(job.waitLogged, true))
+            model.capturedAt = clock;
+        }
+
+        void FinishStill(ThumbnailSlot& a_slot, bool a_captured)
+        {
+            if (a_slot.state == CaptureState::kPending)
             {
-                LogLoadWait(a_manager);
+                a_slot.state = a_captured ? CaptureState::kCaptured : CaptureState::kFailed;
             }
-            if (timedOut || modelUnavailable)
+            else
             {
-                if (!modelUnavailable && model.state == CaptureState::kPending)
+                a_slot.state = CaptureState::kSettled;
+            }
+            a_slot.capturedAt = clock;
+            a_slot.effectWaited = 0.0F;
+        }
+
+        // Gives up on whatever the loaded form was asked for.
+        void FailLoaded(bool a_timedOut)
+        {
+            if (model.formID == loadedFormID && IsModelServed())
+            {
+                if (a_timedOut && model.state == CaptureState::kPending)
                 {
                     logs::warn(
                         "Item model: form {:08X} did not render within {} s", model.formID, kCaptureTimeoutSeconds);
                 }
-                // A refresh or a turn that cannot render keeps the image it has.
-                model.state
-                    = model.state == CaptureState::kPending ? CaptureState::kFailed : CaptureState::kSettled;
-                model.turn = {};
-                job.captured = true;
+                FinishModel(false);
+            }
+            bool logged = false;
+            for (auto& slot : thumbnailSlots)
+            {
+                if (!IsStillServed(slot))
+                {
+                    continue;
+                }
+                if (a_timedOut && !std::exchange(logged, true))
+                {
+                    logs::warn("Item thumbnail: form {:08X} did not render within {} s", slot.formID,
+                        kCaptureTimeoutSeconds);
+                }
+                FinishStill(slot, false);
             }
         }
 
-        void UpdateThumbnails(RE::Inventory3DManager& a_manager, RE::UI& a_ui, float a_delta)
+        bool CaptureLoadedModel(RE::Inventory3DManager& a_manager, RE::UI& a_ui, RE::NiAVObject& a_object,
+            float a_delta, const TextureCheck& a_textures)
         {
-            auto* slot = NextThumbnail();
-            if (!slot)
+            const bool refresh = IsModelRefreshDue() && IsFreshLoad(model.formID, model.capturedAt);
+            SetTransform(a_object, model.transform ? *model.transform : GameTransformOf(a_object));
+            // Advanced only by updates that render the model, so it pauses rather than jumps
+            // while stills hold the renderer.
+            if (IsModelSpinning())
             {
-                StopRenderer();
-                return;
+                model.turn.x -= kSpinRadiansPerSecond * a_delta;
             }
-            Start(a_manager);
-            const auto index = static_cast<std::size_t>(slot - thumbnailSlots.data());
-            const bool refresh = slot->state == CaptureState::kCaptured;
-            // A refresh that cannot render keeps the still it has.
-            const auto finish = [&](bool a_captured) {
-                if (refresh)
-                {
-                    slot->state = CaptureState::kSettled;
-                }
-                else
-                {
-                    slot->state = a_captured ? CaptureState::kCaptured : CaptureState::kFailed;
-                }
-                slot->capturedAt = clock;
-                job.target = kNoTarget;
-            };
-            if (job.target != index || loadedFormID != slot->formID)
+            if (model.turn.x != 0.0F || model.turn.y != 0.0F)
             {
-                if (!Load(a_manager, index, slot->formID))
+                Turn(a_manager, std::exchange(model.turn, ImVec2{}));
+            }
+            if (!CaptureModel(a_manager, a_ui, a_object))
+            {
+                return false;
+            }
+            if (!std::exchange(job.modelCaptured, true))
+            {
+                logs::debug("Item model captured: formID={:08X} size={}x{} refresh={} textures={} pending={} "
+                            "diffuse={}",
+                    model.formID, model.size.x, model.size.y, refresh, a_textures.total, a_textures.pending,
+                    a_textures.firstDiffuse);
+                if (job.enchanted)
                 {
-                    finish(false);
-                    return;
+                    model.watchedUntil = clock + kEffectWatchSeconds;
                 }
             }
+            CheckAnimation(a_object);
+            if (model.state == CaptureState::kPending || refresh)
+            {
+                FinishModel(true);
+            }
+            return true;
+        }
+
+        // Captures everything the loaded form is due for: its stills, then its model, whichever of
+        // them asked for the load.
+        void ServeLoaded(RE::Inventory3DManager& a_manager, RE::UI& a_ui, float a_delta)
+        {
             const bool timedOut = job.waited > kCaptureTimeoutSeconds;
             TextureCheck check;
             auto* object = ReadyModel(a_manager, a_ui, timedOut, check);
-            // A still is captured once, so an enchanted item's waits for its glow. Meanwhile only
-            // Render's update pass runs, which draws nothing with the count at zero.
-            if (object && job.enchanted && job.watched < kEffectWatchSeconds && InspectEffects(*object).effects == 0)
+            bool failed = !object;
+            if (object)
             {
-                const PauseMenuDisabledCountScope updateOnly{ a_ui, 0 };
-                a_manager.Render();
-                job.watched += a_delta;
-                return;
+                bool effectChecked = false;
+                bool stillWaits = false;
+                for (auto& slot : thumbnailSlots)
+                {
+                    if (!IsStillServed(slot))
+                    {
+                        continue;
+                    }
+                    if (job.enchanted && !job.effectSeen && !std::exchange(effectChecked, true))
+                    {
+                        job.effectSeen = InspectEffects(*object).effects > 0;
+                    }
+                    // A still is captured once per load, so an enchanted item's waits for its glow.
+                    const bool awaitingEffect
+                        = job.enchanted && !job.effectSeen && clock - job.attachedAt < kStillEffectWaitSeconds;
+                    if (awaitingEffect && slot.effectWaited < kStillEffectWaitSeconds)
+                    {
+                        slot.effectWaited += a_delta;
+                        stillWaits = true;
+                    }
+                    else if (CaptureThumbnail(a_manager, a_ui, *object, slot, check))
+                    {
+                        if (job.texturesLogged)
+                        {
+                            logs::warn("Item thumbnail: form {:08X} captured after {:.2f} s waiting for textures",
+                                slot.formID, job.waited);
+                        }
+                        FinishStill(slot, true);
+                    }
+                    else
+                    {
+                        failed = true;
+                    }
+                }
+                if (IsModelServed())
+                {
+                    failed = !CaptureLoadedModel(a_manager, a_ui, *object, a_delta, check) || failed;
+                }
+                else if (stillWaits)
+                {
+                    // Only Render's update pass runs, which draws nothing with the count at zero.
+                    const PauseMenuDisabledCountScope updateOnly{ a_ui, 0 };
+                    a_manager.Render();
+                }
             }
-            if (object && CaptureThumbnail(a_manager, a_ui, *object, *slot, check))
+            if (!failed)
             {
-                if (job.texturesLogged)
-                {
-                    logs::warn("Item thumbnail: form {:08X} captured after {:.2f} s waiting for textures",
-                        slot->formID, job.waited);
-                }
-                if (job.enchanted)
-                {
-                    logs::debug("Item thumbnail: form {:08X} waited {:.3f} s for its effect", slot->formID,
-                        job.watched);
-                }
-                finish(true);
                 return;
             }
             job.waited += a_delta;
-            if (timedOut || thumbnailsUnavailable)
+            if (!object && job.waited >= kLoadWaitLogSeconds && !std::exchange(job.waitLogged, true))
             {
-                if (!thumbnailsUnavailable)
+                LogLoadWait(a_manager);
+            }
+            if (timedOut)
+            {
+                if (!object)
                 {
-                    logs::warn("Item thumbnail: form {:08X} did not render within {} s", slot->formID,
-                        kCaptureTimeoutSeconds);
                     LogLoadWait(a_manager);
                 }
-                finish(false);
+                FailLoaded(true);
             }
         }
 
@@ -1335,7 +1428,9 @@ float4 Separate(Vertex input) : SV_Target
             {
                 return Thumbnail::kUnavailable;
             }
-            *slot = ThumbnailSlot{ .formID = a_formID, .background = a_background, .order = ++thumbnailOrder };
+            *slot = ThumbnailSlot{
+                .formID = a_formID, .background = a_background, .order = ++thumbnailOrder, .requestedAt = clock
+            };
         }
         slot->usedFrame = ImGui::GetFrameCount();
         if (slot->state == CaptureState::kFailed)
@@ -1400,23 +1495,18 @@ float4 Separate(Vertex input) : SV_Target
         PROFILE_SCOPE("ItemPreview");
         const float delta = FrameTime::Clamp(ImGui::GetIO().DeltaTime);
         clock += delta;
-        if (IsModelDue())
-        {
-            UpdateModel(*manager, *ui, delta);
-        }
-        // An animated or spinning model gives way to stills only while one is due, so the loaded
-        // item does not switch every frame.
-        else if (thumbnails && NextThumbnail())
-        {
-            UpdateThumbnails(*manager, *ui, delta);
-        }
-        else if (IsModelAnimating() || IsModelSpinning())
-        {
-            UpdateModel(*manager, *ui, delta);
-        }
-        else
+        const auto work = ChooseWork();
+        if (work.formID == 0)
         {
             StopRenderer();
+            return;
         }
+        Start(*manager);
+        if ((loadedFormID != work.formID || job.loadedAt <= work.freshAfter) && !Load(*manager, work.formID))
+        {
+            FailLoaded(false);
+            return;
+        }
+        ServeLoaded(*manager, *ui, delta);
     }
 }

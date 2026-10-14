@@ -646,7 +646,12 @@
   game's transform and fitting thumbnails to 512 px, after the user saw
   stills missing (2026-10-10), passed only the g++ syntax check. The
   model's [spin](#3d-preview) (2026-10-11) passed only the g++ syntax check
-  of `ItemPreview.cpp`, a planted error confirming it is checked.
+  of `ItemPreview.cpp`, a planted error confirming it is checked. In the
+  2026-10-14 log, stills of items added to the offer appeared up to 3 s
+  late; the scheduler that serves a whole form from one load, puts pending
+  stills before the model's refresh and glow watch, and bounds a still's
+  glow wait (2026-10-14) passed only the g++ syntax check of
+  `ItemPreview.cpp`, a planted error confirming it is checked.
 - **Vanilla item card** (2026-10-10): not built on Windows or run in game.
   On Linux, `ItemCard.cpp` with the real `MenuFrame.cpp` and `Theme.cpp`
   ran headless in Dear ImGui 1.92.9 with Sovngarde (16 px at 1080p,
@@ -2547,12 +2552,24 @@ picker's panel) or as cached thumbnails for many cells.
   (`FormType::Light`) does not spin, since ID 51778 does not turn it.
 - `Update` runs in `Overlay::DrawFrame` before `ImGui::NewFrame`, when the
   game frame is finished and the overlay has not drawn. It advances a clock
-  by the clamped frame time and does one job: the model when it is due (its
-  first capture, its refresh, a turn, or a fresh load being watched), else the next thumbnail due, else
-  an [animated](#3d-preview) or spinning model, else nothing, which stops the
-  renderer (`End3D`) and keeps the images. A job
-  calls `Inventory3DManager::Begin3D(kInventory)` once and
-  `LoadInventoryItem` for its form. A model loading in the background is
+  by the clamped frame time and picks one form to have loaded
+  (`ChooseWork`): the model's when it is urgent (its first capture, a turn,
+  or a new size), else a still waiting for its first capture (the loaded
+  form's, else the earliest requested), else the model's for its refresh
+  or while a fresh load is watched, else a still due for its refresh, else
+  an [animated](#3d-preview) or spinning model's, else none, which stops
+  the renderer (`End3D`) and keeps the images. Pending stills come before
+  the model's refresh and glow watch because those held stills back for up
+  to 3 s while the player moved between items (2026-10-14 log).
+  `Inventory3DManager::Begin3D(kInventory)` is called once, and
+  `LoadInventoryItem` only when the form changes or a refresh needs a load
+  that started after the capture it replaces.
+- A load serves its whole form (`ServeLoaded`): once it is ready, the same
+  update captures every still of the form that a window drew last frame
+  and that is due, then the model if it is the form's and due, animated,
+  or spinning. So adding the hovered item to an offer captures its cell's
+  still from the model's load on the next update, without loading again.
+  A model loading in the background is
   attached only by `Render`, so while none is attached, `Update` calls
   `Render` with `UI::numDisablePauseMenu` at zero, which draws nothing. A
   model counts as attached only when the last `loadedModels` entry's
@@ -2562,7 +2579,9 @@ picker's panel) or as cached thumbnails for many cells.
   texture of its lighting materials has a `rendererTexture` with a D3D
   texture and view; a model that has not rendered within
   `kCaptureTimeoutSeconds` (5) of frame time fails and logs why, and one
-  whose textures are still missing then is captured as it is.
+  whose textures are still missing then is captured as it is. The timeout
+  counts only updates on which the load was not ready or a capture failed,
+  and it fails every request of the form the load was serving.
 - A capture projects the model's world bound through
   `UI3DSceneManager::viewFrustum` to a screen rectangle, saves that
   rectangle of the back buffer, clears it
@@ -2623,9 +2642,9 @@ picker's panel) or as cached thumbnails for many cells.
 - A turn calls the inventory menu's own rotation (1.7.104 ID 51778, SE 50902)
   with the angles dragged since the last capture, then captures, so a drag
   re-renders every frame while the renderer holds the model. The model's local
-  transform as fitted and turned is kept after each capture and set again when
-  it is attached after thumbnails took the renderer, so it neither snaps back
-  nor is fitted twice.
+  transform as fitted and turned is kept after each capture and set again
+  before the next, also after stills took the renderer, so it neither snaps
+  back nor is fitted twice.
 - Loads share models. In 1.7.104 `LoadInventoryItem` (ID 51758) reuses a
   model still in `loadedModels` (up to 7, keyed by model object) as it was
   left, and only `End3D` (ID 51756) releases them, so a still captured
@@ -2633,8 +2652,9 @@ picker's panel) or as cached thumbnails for many cells.
   (2026-10-10 log: thumbnail boxes of about 1176 px right after a model
   capture of the form). The first time a form attaches after `Begin3D`,
   `ItemPreview` keeps its local transform as the game's (`gameTransforms`,
-  cleared on stop), and each load starts from it, or from the panel's kept
-  transform for the model.
+  cleared on stop). Each still capture starts from it, and each model
+  capture from the model's kept transform (`SetTransform`), since both
+  share one load.
 - A model is animated when a node, geometry,
   or geometry property in its scene graph has a time controller, or a
   shader property has effect data (`BSShaderProperty::effectData`, which
@@ -2645,12 +2665,17 @@ picker's panel) or as cached thumbnails for many cells.
   (`TESEnchantableForm::formEnchanting`; items load without extra data, so
   no other can glow) is therefore watched: after the first capture of each of its loads, the
   refresh's included, the model is captured on every update for
-  `kEffectWatchSeconds` (0.5) before thumbnails get the renderer, as
-  otherwise it showed its glow only once turned. A thumbnail, captured
-  once per load, instead waits up to as long before its capture for effect
-  data to appear, running only `Render`'s update pass with the count at
-  zero meanwhile, and logs how long it waited (`waited ... for its
-  effect`); one without a glow by then is captured as it is. An animated model is captured on every
+  `kEffectWatchSeconds` (0.5) while no still waits for its first capture,
+  as otherwise it showed its glow only once turned. A still, captured
+  once per load, instead waits for effect data until
+  `kStillEffectWaitSeconds` (0.25) have passed since its load attached or
+  in all across its loads (`ThumbnailSlot::effectWaited`, so a model
+  taking the renderer back does not restart it), running only `Render`'s
+  update pass with the count at zero meanwhile; one without a glow by then
+  is captured as it is. The glow came within 6 to 9 ms of the first
+  capture (2026-10-14 log), and Ruin's Edge (FE002D63), enchanted but
+  animated by a time controller, never got effect data, so the earlier
+  0.5 s wait from each load held back every still after it. An animated model is captured on every
   update that has no other job, as the inventory menu renders it each
   frame; captured only when due, its glow froze between captures and
   jumped at each turn, which a drag showed as flicker (user report,
@@ -2686,9 +2711,11 @@ picker's panel) or as cached thumbnails for many cells.
   the caller draws something else. A still is kept per form and background
   in one of 64 slots of 256² in a 2048² atlas; a new one takes a free slot,
   else the one drawn longest ago that no window drew this frame.
-- The next thumbnail is one a window drew last frame: the earliest requested
-  one waiting for its still, else the earliest one due for its refresh.
-  `FitModel` sizes it to a 512 px square capture
+- A still is due when a window drew it last frame and it waits for its
+  first capture or its refresh. Its capture logs `Item thumbnail captured`
+  with the seconds since it was requested, since its load started, and
+  since the load attached (`sinceRequest`, `sinceLoad`, `sinceAttach`),
+  and whether the glow was seen (`effect`). `FitModel` sizes it to a 512 px square capture
   (`kThumbnailCaptureSide`, twice a slot) and its box is projected at the
   bound center's depth, as the model's is. It
   is captured on its background into a 2048² scratch texture with a full mip
