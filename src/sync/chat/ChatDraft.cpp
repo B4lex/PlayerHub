@@ -53,10 +53,6 @@ namespace ChatDraft
     Interpretation Interpret(std::string_view a_draft, bool a_submitted)
     {
         const auto draft = TrimLeft(a_draft);
-        if (draft.starts_with('!'))
-        {
-            return { Kind::kChannel, Multiplayer::ChatChannel::kGlobal, TrimLeft(draft.substr(1)) };
-        }
         if (draft.starts_with('@'))
         {
             return { Kind::kWhisper, Multiplayer::ChatChannel::kWhisper, TrimLeft(draft.substr(1)) };

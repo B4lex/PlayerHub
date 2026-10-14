@@ -329,10 +329,6 @@ namespace UI
             {
                 composer.CycleTarget(-1);
             }
-            if (ImGui::IsKeyPressed(ImGuiKey_Backspace, false) && draft.empty())
-            {
-                composer.LeaveWhisper();
-            }
         }
         else
         {

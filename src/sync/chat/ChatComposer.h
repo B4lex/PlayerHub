@@ -44,7 +44,6 @@ namespace ChatSync
         [[nodiscard]] const ChatTarget& GetTarget() const { return target; }
         void SetTarget(const ChatTarget& a_target);
         void CycleTarget(int a_direction);
-        bool LeaveWhisper();
 
         bool OnEdited(std::string& a_draft);
 
@@ -82,7 +81,6 @@ namespace ChatSync
         void ShowPlayerCount();
 
         ChatTarget target;
-        Multiplayer::ChatChannel previousChannel{ Multiplayer::ChatChannel::kNearby };
 
         Listing listing{ Listing::kNone };
         std::vector<Suggestion> suggestions;

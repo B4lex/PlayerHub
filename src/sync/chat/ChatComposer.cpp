@@ -23,10 +23,6 @@ namespace ChatSync
     void Composer::SetTarget(const ChatTarget& a_target)
     {
         notes.clear();
-        if (target.channel != Multiplayer::ChatChannel::kWhisper)
-        {
-            previousChannel = target.channel;
-        }
         target = a_target;
     }
 
@@ -50,17 +46,6 @@ namespace ChatSync
         const auto index = static_cast<std::ptrdiff_t>(current == targets.end() ? 0 : current - targets.begin());
         const auto count = static_cast<std::ptrdiff_t>(targets.size());
         SetTarget(targets[static_cast<std::size_t>(((index + a_direction) % count + count) % count)]);
-    }
-
-    bool Composer::LeaveWhisper()
-    {
-        if (target.channel != Multiplayer::ChatChannel::kWhisper)
-        {
-            return false;
-        }
-        target = ChatTarget{ .channel = previousChannel };
-        notes.clear();
-        return true;
     }
 
     bool Composer::OnEdited(std::string& a_draft)
@@ -311,7 +296,7 @@ namespace ChatSync
 
     void Composer::ShowHelp()
     {
-        Inform("! switches to Global and @name whispers. Tab steps through the channels");
+        Inform("@name whispers. Tab steps through the channels");
         for (const auto& command : ChatDraft::GetCommands())
         {
             Inform(command.argument.empty() ? std::format("/{}", command.name)

@@ -132,7 +132,7 @@
     1.92.9 context against a folder laid out as the deploy step leaves it,
     with simulated keys and mouse and the draw data rasterized to images, at
     1080p, at 4K, with `BorderColor = Accent`, and without `PlayerHub/`:
-    typing, `!`, Tab, Shift+Tab, and Backspace; the name list by
+    typing, Tab, and Shift+Tab; the name list by
     keys and by a click; Escape closing the list, then the chat, with the
     text kept and discarded; the command list; Up and Down; each filter
     turning its channel off and on by itself, in the open chat and among the
@@ -710,7 +710,7 @@ src/ui/
   render/Backdrop             # the game's frame blurred and darkened behind a full-screen window
 src/sync/chat/ChatSync        # send to a target and why it failed, the server's rejections, lines to display
 src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners, the list's copy
-src/sync/chat/ChatDraft       # syntax of prefixes and commands
+src/sync/chat/ChatDraft       # syntax of the `@` prefix and commands
 src/sync/chat/ChatComposer    # send target, name and command list, notes, sent lines
 src/sync/notices/Notices      # the notices queue any feature posts to
 src/sync/nameplates/NameplateSync # per peer: head node, line of sight, fade, label; the pass's plates
@@ -1369,12 +1369,10 @@ placeholder points to Tab.
 | Input | Effect |
 | --- | --- |
 | Tab, Shift+Tab | The next or previous of Global, Nearby, and the 3 latest whisper partners, most recent first. A whisper target that is not among them yet stands after Nearby |
-| `!` as the first character | Global |
 | `@` as the first character | Opens the [name list](#name-list) |
 | `/n`, `/g` (`/nearby`, `/global`) | Nearby, Global |
 | `/w <name>` (`/whisper`) | As `@` |
 | `/r` (`/reply`) | The sender of the latest received whisper; a failure note without one |
-| Backspace in the empty field | From a whisper back to the channel it replaced |
 | A click on the chip | A menu of Global, Nearby, and the 5 latest partners |
 | A click on a sender's name, or the whisper item in a line's menu | A whisper to that player |
 
@@ -1382,14 +1380,14 @@ placeholder points to Tab.
   naming the partner for a whisper. `DrawRow` reports the row's
   `ImGuiHoveredFlags_ForTooltip` hover from its selectable, so the whole row
   shows it, not only its text.
-- A prefix or a command is removed from the text when it is complete: `!` and
+- The `@` prefix or a command is removed from the text when it is complete:
   `@` at once, a command when a space follows it or on Enter, where the chat
   then stays open. `ChatDraft::Interpret` decides that from the text alone,
   comparing command names without case, and `Composer::OnEdited` applies it
   after every edit, so the chip is always where Enter sends. Removing one can
   uncover another, as in `/g @name`, which is applied in the same edit.
 - `/who` shows a [note](#notes) with the number of connected players and
-  `/help` one with the prefixes and a row per command, its description in the
+  `/help` one with the `@` prefix and a row per command, its description in the
   muted color. An unknown command is a failure note on Enter and is not sent,
   so text that starts with `/` never is.
 - `ChatRoster` keeps the whisper partners, at most 8, moved to the front by
@@ -1461,9 +1459,9 @@ never a line, so the history holds only what players said.
 
 - `Composer` keeps the notes (`Composer::Note`: text, an optional muted
   detail, and whether it is a failure) and replaces them on every command or
-  send. Any edit, a recalled line, a new target, Backspace leaving a whisper,
-  and opening the chat clear them; the field's text is kept. Like
-  [notices](#notices), notes end without a final period.
+  send. Any edit, a recalled line, a new target, and opening the chat clear
+  them; the field's text is kept. Like [notices](#notices), notes end without
+  a final period.
 - `ChatInput::DrawNotes` draws them where the name and command list would be,
   which hides them while it shows: a child window as wide as the field with
   the popup's opaque background and border, as tall as its rows, ending one
@@ -2806,9 +2804,9 @@ To verify in game:
    text, and typing clears the note.
 3. The chip shows Nearby at first, and `hi` reaches players within 8192 units
    or in the same interior with a lime name, and not a player farther away.
-   `!` as the first character turns the chip to Global and is not part of
-   the text; the line reaches every player with a gold name, and so does the
-   next one, until Tab or `/n`.
+   `/g ` turns the chip to Global and is not part of the text; the line
+   reaches every player with a gold name, and so does the next one, until Tab
+   or `/n`.
 4. `F10` opens the settings window with a cursor, and the game receives no input
    until it closes; `F10` again closes it. A new `OpenSettings` key opens and
    closes it and the old one no longer does, as soon as it is bound.
@@ -2896,7 +2894,7 @@ To verify in game:
     that player, labeled in violet as sent to it for the sender and as from
     the sender for the recipient. Enter, text, Enter whispers the same player again.
     `/r` after a received whisper targets its sender, and Backspace in the
-    empty field returns to the channel before. A name nobody has shows one row
+    empty field leaves the chip as it is. A name nobody has shows one row
     saying so. Once the player disconnects, a note above the field says it
     is offline and the chat stays open with the text.
 12. Up in the field recalls the last sent line with its target, and Down
@@ -2917,7 +2915,7 @@ To verify in game:
     corner. With Whisper off a
     whisper stays out of the closed chat too. A second click shows the
     channel again with the lines that arrived meanwhile. With Global off,
-    typing `!` turns it on, and so does the player's own global line coming
+    typing `/g ` turns it on, and so does the player's own global line coming
     back. With all three off no line shows.
 15. With the default accent the open chat has no blue and no square corners,
     at 1080p and 4K: the
