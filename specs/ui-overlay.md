@@ -592,6 +592,9 @@
   checked; it was not rasterized. A click removing a cell that offers one
   of a larger stack, and the popup's count removing the line at 0
   (2026-10-11), passed only the g++ syntax check of `TradeWindow.cpp`.
+  The full mark on the own grid's heading and the unoffered rows
+  disabled while it shows (2026-10-14) passed only the g++ syntax check of `TradeWindow.cpp`, a planted error confirming it is
+  checked; it was not rasterized.
   The requesting prompt drawn as the inviting one, the accent name, and the
   fixed-width seconds (2026-10-13) passed only the g++ syntax check of
   `TradePrompt.cpp`, `MenuFrame.cpp`, and `TradeSync.cpp`, a planted error
@@ -2098,6 +2101,9 @@ neither touches an engine object.
   grid inspects every cell it passes (the user's choice). `TradeSync` keeps a line's `PeerLine::id` while the peer offers the same
   item and count, so only a line the peer adds or changes needs inspecting
   again; the inspected ids last for the trade.
+- While the own offer holds 15 lines (`kMaximumTradeItems`), a warning-colored
+  mark saying it is full follows the own grid's heading label, before the
+  accepted state (the user's placement).
 - While a player has accepted, its grid is tinted green with a green frame,
   and its heading says it accepted, so the state does not rest on color
   alone.
@@ -2105,9 +2111,11 @@ neither touches an engine object.
   category (all, weapons, apparel, ammunition, potions, ingredients, books,
   scrolls, soul gems, keys, miscellaneous), matched again
   only when either or the inventory changes; rows clipped to the visible
-  ones, with counts above one. A click on a single item offers it. A click
-  on a row not yet offered does nothing while the offer holds 15 lines, with
-  no notice, since the full grid shows why. A click
+  ones, with counts above one. A click on a single item offers it. While
+  the offer holds 15 lines, rows not yet offered are disabled, with no
+  notice, since the full mark on the own grid's heading shows why; offered rows,
+  hovering, the search field, and the category stay usable (the user's
+  choice). A click
   on a stack opens a popup with the name, a count field focused with its
   text selected, steps of one, clamped to 1 to what the player holds, and
   the count held, and a button: it starts at 1 and offers, or for a stack
@@ -3054,9 +3062,11 @@ To verify in game:
     every one textured within about 2 s (`latest.log` shows `pending=0`
     on each `Item thumbnail captured` line), and keep them while the
     window is open; FPS stays steady meanwhile. With 15 lines offered
-    every cell is filled, the grid does not scroll, and clicking a row not
-    yet offered does nothing and posts no notice, while an offered row's
-    count can still change. With `ItemPreview = false` the cells show names
+    every cell is filled, the grid does not scroll, the full mark shows
+    right after the own grid's heading label and goes when a line is
+    removed, rows not yet offered are grayed out, clicking one does nothing
+    and posts no notice, and hovering one still shows it in the preview
+    column, while an offered row's count can still change. With `ItemPreview = false` the cells show names
     and the preview column only the card. The inventory looks normal
     afterwards. An item's thumbnail and preview model look equally bright
     in a dark interior, outside by day, and outside at night, with no face

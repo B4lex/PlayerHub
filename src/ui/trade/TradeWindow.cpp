@@ -500,10 +500,15 @@ namespace UI
                 ImGui::Separator();
             }
 
-            static void DrawGridHeading(const char* a_label, bool a_accepted)
+            static void DrawGridHeading(const char* a_label, bool a_accepted, bool a_full = false)
             {
                 ImGui::AlignTextToFramePadding();
                 ImGui::TextUnformatted(a_label);
+                if (a_full)
+                {
+                    ImGui::SameLine();
+                    ImGui::TextColored(Theme::kWarning, "(full)");
+                }
                 if (a_accepted)
                 {
                     ImGui::SameLine();
@@ -615,7 +620,8 @@ namespace UI
 
             void DrawOwnOffer(float a_cell)
             {
-                DrawGridHeading("Your offer", view.ownAccepted);
+                DrawGridHeading(
+                    "Your offer", view.ownAccepted, view.offer.size() >= Multiplayer::kMaximumTradeItems);
                 DrawGrid("##own", view.offer.size(), a_cell, view.ownAccepted,
                     [this](std::size_t a_index, const ImVec2& a_min, const ImVec2& a_max, bool a_hovered) {
                         const auto& line = view.offer[a_index];
@@ -803,12 +809,10 @@ namespace UI
                 ImGui::TableNextColumn();
                 ImGui::PushID(static_cast<int>(a_row));
                 const bool blocked = !line.blocked.empty();
-                ImGui::BeginDisabled(blocked);
-                // A full grid already shows why a new line is not added, so the click does nothing.
                 const bool full = offered == 0 && view.offer.size() >= Multiplayer::kMaximumTradeItems;
+                ImGui::BeginDisabled(blocked || full);
                 if (ImGui::Selectable(line.name.c_str(), offered > 0,
-                        ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap)
-                    && !full)
+                        ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap))
                 {
                     if (line.count > 1)
                     {

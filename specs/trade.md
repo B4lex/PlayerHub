@@ -190,8 +190,9 @@ a request unanswered after 10 s, as for a lost message.
   or one from a dynamic effect).
 - An offer holds at most 15 lines (`kMaximumTradeItems`), as many as its
   [grid](ui-overlay.md#trade-window) shows without scrolling, and at most
-  15 KiB by `EstimateTradeItemBytes`. A line past the 15th is refused
-  silently, since the full grid already shows why (the user's choice); an
+  15 KiB by `EstimateTradeItemBytes`. A line past the 15th cannot be
+  added: the rows not yet offered are disabled without a notice, and a
+  mark beside the own grid's heading shows why (the user's choice); an
   edit over the byte limit is refused with a warning notice.
 - Edits are sent as a whole `TradeOffer` with the next revision once none
   came for 0.2 s of frame time. Any edit, and any new offer from the peer,
