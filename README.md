@@ -1,6 +1,14 @@
-# Wanderbound
+# PlayerHub
 
-Lightweight Skyrim Multiplayer mod
+Non-intrusive multiplayer for Skyrim. Each player keeps their own world and sees
+other players as remote actors: movement, animations, combat, appearance, and
+equipment are shared, while loot, quests, and enemies stay local. Players can
+trade items and chat.
+
+- `src/` — SKSE plugin (C++23, built with [XMake](https://xmake.io): `xmake`)
+- `server/` — Go server ([server/README.md](server/README.md))
+- `proto/` — wire schema
+- `specs/` — how each system works ([specs/README.md](specs/README.md))
 
 ## Licenses
 

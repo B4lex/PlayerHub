@@ -56,9 +56,9 @@ namespace RemoteCollision
         // root motion through its character controller, which pushes out of and
         // pushes local bodies, and then feeds the achieved motion back into the
         // graph. For a network-placed actor all of that fights the network
-        // transform, so it is skipped. Otherwise, as in powerofthree's Tweaks' TCL
-        // fix, the character body a moving controller bumped into ignores
-        // collision for that update when either character is remote.
+        // transform, so it is skipped. Otherwise, the character body a moving
+        // controller bumped into ignores collision for that update when either
+        // character is remote.
         //
         // The player's proxy controller also collides with remote skeleton
         // bodies, such as a seated rider's legs at its mount's flanks. Its

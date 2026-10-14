@@ -321,9 +321,8 @@ A remote actor keeps full actor processing, so its AI still evaluates the local
 world. Flags reasserted from the main loop remove a reaction only after the
 engine chose it, and some paths ignore them: a hit remote actor still spoke hit
 lines with `kCanSpeak` cleared. Three functions are therefore hooked where the
-reaction is decided. The approach and two IDs come from TiltedEvolution
-(`Code/client/Games/Skyrim/Actor.cpp`); AE Address Library IDs are stable, and
-the 1.6.640 and 1.7.104 layouts were compared.
+reaction is decided. AE Address Library IDs are stable, and the 1.6.640 and
+1.7.104 layouts were compared.
 
 | ID | Function | Moved entry bytes | Registered remote actor |
 | --- | --- | --- | --- |
@@ -331,20 +330,19 @@ the 1.6.640 and 1.7.104 layouts were compared.
 | 37577 | `Actor::IsFleeing` | `push rbx; sub rsp, 20h` | returns false |
 | 42704 | `ActorKnowledge::SetDetectionState(state)` | `push rbx; sub rsp, 20h` | as knowledge owner: returns without storing or notifying |
 
-- 39643 takes a fifth byte argument on the stack that TiltedEvolution's
-  signature omits; the thunk forwards all five. The item is a by-value copy the
+- 39643 takes a fifth byte argument on the stack; the thunk forwards all
+  five. The item is a by-value copy the
   caller (ID 39642) took a reference for, and 39643 releases it. The thunk
   releases it the same way when it blocks, through the engine destructor (ID
   35221) and sized delete (ID 109588); CommonLib's defaulted destructor would not
-  free the responses, and TiltedEvolution's hook leaks the item.
+  free the responses.
 - `IsFleeing` has 22 callers. The thunk calls the original and logs only calls
   that would have returned true.
 - 42704 stores the state at `ActorKnowledge+0x20`, stamps
   `detectionQueuedTimeStamp`, and notifies listeners. It takes its own reference
   to the state, so skipping it releases nothing. The owner is compared by handle
-  (`ActorRegistry::IsRegistered(ActorHandle)`). TiltedEvolution blocks only a
-  remote player's detection of the local player; here the remote actor detects
-  no one.
+  (`ActorRegistry::IsRegistered(ActorHandle)`). The remote actor detects no
+  one, not only the local player.
 - The dialogue log names speaker, listener, topic, and topic info, so a bark
   that still plays can be traced.
 
@@ -655,12 +653,11 @@ Not yet checked in game:
   greetings, pathing) is not suppressed. Explosions and magic from other sources
   than the actor's own draws and casts are not isolated.
 - Candidates not adopted, each needing its own in-game check:
-  - voice playback (ID 37542, TiltedEvolution's `SpeakSoundFunction`, four
-    callers), only if hit lines still play; it mutes every voice line;
+  - voice playback (ID 37542, four callers), only if hit lines still play; it
+    mutes every voice line;
   - package selection (IDs 39114 `CheckForNewPackage`, 38959
     `InitFromPackage`), which would remove the frame a reaction package runs;
-    TiltedEvolution compiles both out, and `AssertDoNothingPackage` and furniture
-    packages must still pass;
+    `AssertDoNothingPackage` and furniture packages must still pass;
   - health regeneration (ID 37448), low value since `SurvivalPolicy` owns
     health;
   - engine position writes (ID 19790), for callers other than the movement

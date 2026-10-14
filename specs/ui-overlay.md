@@ -66,9 +66,9 @@
   `Controls::SearchField`, `Controls::MutedTextWrapped`, 2026-10-07): Linux
   syntax check only; not rerun in the headless harness or in game.
 - **Input ahead of other plugins:** not built on Windows or run in game. That
-  Modex 3.0.0 and Open Animation Replacer 3.2.1 detour the same call was read
-  from their binaries, and that Modex does it after this plugin from
-  `skse64.log`. On Linux, `InputCapture.cpp` and `WindowManager.cpp` ran
+  Open Animation Replacer 3.2.1 and another plugin with an ImGui menu detour
+  the same call was read from their binaries, and that the latter does it after
+  this plugin from `skse64.log`. On Linux, `InputCapture.cpp` and `WindowManager.cpp` ran
   against stubbed engine input and a stand-in call site with plugins detouring
   it before and after the hook: a later plugin sees only the dispatch it took
   over; after that neither plugin nor the game sees the focus key or keys
@@ -1107,8 +1107,8 @@ keyboard and the game receives no keyboard or mouse input.
   and `PushOntoInputQueue` resets each event's `next`, so the thunk relinks the
   list to drop the events the game must not see. It refuses to patch anything
   but a `call`.
-- Other plugins with ImGui menus, such as Modex and Open Animation Replacer,
-  detour the same `call`, and whichever detours last runs first. A plugin
+- Other plugins with ImGui menus, such as Open Animation Replacer, detour the
+  same `call`, and whichever detours last runs first. A plugin
   running before the hook would act on keys a focused window owns, such as
   opening its menu on Delete typed into the chat. After each dispatch the
   thunk therefore compares the call's destination with its own
@@ -2546,8 +2546,8 @@ catalog and filters are in
 ### 3D preview
 
 `UI::ItemPreview` renders one item at a time through the game's own inventory
-renderer, following `Item3DPreview` in ModExplorerMenu: as the model of one
-panel (the trade window's [preview column](#preview-column) and the item
+renderer: as the model of one panel (the trade window's
+[preview column](#preview-column) and the item
 picker's panel) or as cached thumbnails for many cells.
 
 - `DrawModel(formID, size)` takes the area as an invisible button and draws
@@ -2709,12 +2709,11 @@ picker's panel) or as cached thumbnails for many cells.
   (`GameThread::IsAuthoritative`), the inventory renderer is missing, or
   capture textures cannot be created for the back buffer format. The model
   alone turns off when its textures or its shader cannot be created.
-- Unlike ModExplorerMenu, the game is not paused. In 1.7.104 `Render` attaches a
+- The game is not paused. In 1.7.104 `Render` attaches a
   finished load (load task state 5), updates the model, and tail-calls the UI 3D
   scene render (ID 52727), which draws nothing unless the scene's light scheme
   matches and `UI::numDisablePauseMenu` (`UI + 0x168`) is positive. The count is
-  positive while an inventory menu is open, and while ModExplorerMenu's menu is,
-  because it sets `kDisablePauseMenu` only when it pauses. The overlay is not a menu, and opening one would take input
+  positive while an inventory menu is open. The overlay is not a menu, and opening one would take input
   focus, so `ItemPreview` sets the count for the call and restores it. The scene
   draws into the engine's current render target, which a one-time pixel readback
   confirmed is the back buffer at the overlay hook; with the count at zero every
@@ -2876,8 +2875,8 @@ To verify in game:
    until it closes; `F10` again closes it. A new `OpenSettings` key opens and
    closes it and the old one no longer does, as soon as it is bound.
    Chat still opens with Enter and shows no cursor until the mouse moves.
-   With Modex installed and bound to Delete, Delete and letters typed into the
-   chat or a settings field do not open its menu, and Delete opens it once
+   With another plugin's ImGui menu bound to Delete, Delete and letters typed
+   into the chat or a settings field do not open its menu, and Delete opens it once
    the window is closed; `PlayerHub.log` has one line about detouring input
    dispatch again.
 5. The `[Connection]` page holds the display name field with one button beside
