@@ -99,18 +99,6 @@ namespace UI
             }
         }
 
-        void FormatSettingLabel(std::string_view a_key, std::string_view a_label, std::string& a_result)
-        {
-            if (a_label.empty())
-            {
-                FormatDisplayName(a_key, a_result);
-            }
-            else
-            {
-                a_result.assign(a_label);
-            }
-        }
-
         void FormatSectionTitle(std::string_view a_name, std::string& a_result)
         {
             for (const auto& [name, title] : kSectionTitles)
@@ -302,7 +290,6 @@ namespace UI
             {
                 EndSection();
                 hideNext = false;
-                nextLabel = {};
                 sections.push_back(a_name);
                 if (openSection.empty())
                 {
@@ -343,8 +330,6 @@ namespace UI
 
             void ShowNextIf(bool a_shown) override { hideNext = !a_shown; }
 
-            void LabelNext(std::string_view a_label) override { nextLabel = a_label; }
-
             void Comment(std::string_view a_comment) override
             {
                 if (!sectionOpen)
@@ -367,9 +352,10 @@ namespace UI
                 ImGui::PopFont();
             }
 
-            void Bool(std::string_view a_key, bool& a_value, std::string_view a_comment) override
+            void Bool(
+                std::string_view a_key, std::string_view a_label, bool& a_value, std::string_view a_comment) override
             {
-                if (!BeginRow(a_key, a_comment))
+                if (!BeginRow(a_key, a_label, a_comment))
                 {
                     return;
                 }
@@ -378,10 +364,11 @@ namespace UI
                 EndRow();
             }
 
-            void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-                std::uint32_t a_maximum, std::string_view a_zeroName, std::uint32_t a_step) override
+            void Unsigned(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
+                std::string_view a_comment, std::uint32_t a_maximum, std::string_view a_zeroName,
+                std::uint32_t a_step) override
             {
-                if (!BeginRow(a_key, a_comment))
+                if (!BeginRow(a_key, a_label, a_comment))
                 {
                     return;
                 }
@@ -398,10 +385,11 @@ namespace UI
                 EndRow();
             }
 
-            void Percent(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-                std::uint32_t a_minimum, std::uint32_t a_maximum, std::uint32_t a_step) override
+            void Percent(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
+                std::string_view a_comment, std::uint32_t a_minimum, std::uint32_t a_maximum,
+                std::uint32_t a_step) override
             {
-                if (!BeginRow(a_key, a_comment))
+                if (!BeginRow(a_key, a_label, a_comment))
                 {
                     return;
                 }
@@ -415,16 +403,16 @@ namespace UI
                 EndRow();
             }
 
-            void String(std::string_view a_key, std::string& a_value, std::string_view a_comment,
-                bool (*a_isValid)(std::string_view)) override
+            void String(std::string_view a_key, std::string_view a_label, std::string& a_value,
+                std::string_view a_comment, bool (*a_isValid)(std::string_view)) override
             {
                 if (sectionOpen && openSection == kConnectionSection && a_key == kDisplayNameKey)
                 {
-                    DrawConnectionBar(a_key, a_value, a_comment, a_isValid);
+                    DrawConnectionBar(a_key, a_label, a_value, a_comment, a_isValid);
                     return;
                 }
                 const bool endpoint = a_key == kServerEndpointKey;
-                if (!BeginRow(a_key, a_comment, !endpoint))
+                if (!BeginRow(a_key, a_label, a_comment, !endpoint))
                 {
                     return;
                 }
@@ -452,10 +440,10 @@ namespace UI
                 EndRow();
             }
 
-            void Form(std::string_view a_key, Multiplayer::FormReference& a_value,
+            void Form(std::string_view a_key, std::string_view a_label, Multiplayer::FormReference& a_value,
                 const Multiplayer::FormReference& a_default, const Forms::ItemFilter& a_filter) override
             {
-                if (!BeginRow(a_key, {}))
+                if (!BeginRow(a_key, a_label, {}))
                 {
                     return;
                 }
@@ -463,10 +451,10 @@ namespace UI
                 EndRow();
             }
 
-            void Choice(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-                std::span<const std::string_view> a_options) override
+            void Choice(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
+                std::string_view a_comment, std::span<const std::string_view> a_options) override
             {
-                if (!BeginRow(a_key, a_comment))
+                if (!BeginRow(a_key, a_label, a_comment))
                 {
                     return;
                 }
@@ -491,10 +479,10 @@ namespace UI
                 EndRow();
             }
 
-            void Color(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-                std::span<const std::uint32_t> a_swatches) override
+            void Color(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
+                std::string_view a_comment, std::span<const std::uint32_t> a_swatches) override
             {
-                if (!BeginRow(a_key, a_comment))
+                if (!BeginRow(a_key, a_label, a_comment))
                 {
                     return;
                 }
@@ -561,12 +549,12 @@ namespace UI
                 EndRow();
             }
 
-            void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-                std::uint32_t a_cleared) override
+            void Key(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
+                std::string_view a_comment, std::uint32_t a_cleared) override
             {
                 bindings.push_back(
-                    KeyBinding{ .name = a_key, .label = nextLabel, .value = &a_value, .cleared = a_cleared });
-                if (!BeginRow(a_key, a_comment))
+                    KeyBinding{ .name = a_key, .label = a_label, .value = &a_value, .cleared = a_cleared });
+                if (!BeginRow(a_key, a_label, a_comment))
                 {
                     return;
                 }
@@ -587,10 +575,7 @@ namespace UI
                 EndRow();
             }
 
-            void Layout(std::string_view, std::uint32_t&, std::string_view, std::uint32_t, std::uint32_t) override
-            {
-                nextLabel = {};
-            }
+            void Layout(std::string_view, std::uint32_t&, std::string_view, std::uint32_t, std::uint32_t) override {}
 
         private:
             struct TextField
@@ -705,8 +690,7 @@ namespace UI
                     if (other != bindings.end())
                     {
                         captureRejected = true;
-                        FormatSettingLabel(other->name, other->label, label);
-                        captureNote = std::format("{} is already used by {}", keyLabel, label);
+                        captureNote = std::format("{} is already used by {}", keyLabel, other->label);
                         return;
                     }
                 }
@@ -714,13 +698,12 @@ namespace UI
                 StopKeyCapture();
             }
 
-            void DrawConnectionBar(std::string_view a_key, std::string& a_value, std::string_view a_comment,
-                bool (*a_isValid)(std::string_view))
+            void DrawConnectionBar(std::string_view a_key, std::string_view a_label, std::string& a_value,
+                std::string_view a_comment, bool (*a_isValid)(std::string_view))
             {
                 sectionEmpty = false;
                 ImGui::PushID(a_key.data(), a_key.data() + a_key.size());
-                FormatSettingLabel(a_key, std::exchange(nextLabel, {}), label);
-                DrawText(label);
+                DrawText(a_label);
 
                 auto& field = GetField([&a_value] { return a_value; });
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - ConnectionControls::GetButtonWidth()
@@ -786,10 +769,10 @@ namespace UI
                 sectionOpen = false;
             }
 
-            bool BeginRow(std::string_view a_key, std::string_view a_comment, bool a_labeled = true)
+            bool BeginRow(
+                std::string_view a_key, std::string_view a_label, std::string_view a_comment, bool a_labeled = true)
             {
                 const bool hidden = std::exchange(hideNext, false);
-                const auto customLabel = std::exchange(nextLabel, {});
                 if (!sectionOpen)
                 {
                     return false;
@@ -816,9 +799,8 @@ namespace UI
                 controlWidth = std::floor(width * kControlWidth);
                 controlLeft = left + width - controlWidth;
 
-                FormatSettingLabel(a_key, customLabel, label);
                 ImGui::AlignTextToFramePadding();
-                DrawText(label);
+                DrawText(a_label);
                 DrawTooltip(a_comment);
                 ImGui::SameLine(controlLeft);
                 ImGui::SetNextItemWidth(controlWidth);
@@ -902,7 +884,6 @@ namespace UI
             // Describe passes literals, so the views outlive the pass.
             std::vector<std::string_view> sections;
             std::string_view openSection;
-            std::string_view nextLabel;
             ImVec2 padding;
             float buttonFooterHeight{ 0.0F };
             float plainFooterHeight{ 0.0F };

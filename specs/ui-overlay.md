@@ -2231,9 +2231,9 @@ peers keep seeing the player.
   the footer stay in view. The close button and the end of the settings of a
   section without a footer stay out of the knots' squares.
 - Widgets come from the same `Config::Describe` visitor that reads and writes the
-  file, so a new setting appears without UI code. A row is its label, the
-  schema's `LabelNext` label or else the key split into words
-  (`FormatSettingLabel`), and, in the right 58% of the row,
+  file, so a new setting appears without UI code. A row is the label the
+  schema gives the setting
+  ([Schema](configuration.md#schema)), and, in the right 58% of the row,
   its control: a switch at the right edge for a bool, a slider for an
   unsigned value or a percentage, a text field for a string, an item picker for a form, a combo for a choice, a button showing
   the key for a key ([Key bindings](#key-bindings)), and swatches for a color

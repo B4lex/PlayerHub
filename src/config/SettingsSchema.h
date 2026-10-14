@@ -22,25 +22,24 @@ namespace Config
         virtual void Comment(std::string_view a_comment) = 0;
         // Applies to the next setting. Only the settings window hides one.
         virtual void ShowNextIf(bool) {}
-        // Applies to the next setting in place of its key. Only the settings window draws labels.
-        virtual void LabelNext(std::string_view) {}
-        virtual void Bool(std::string_view a_key, bool& a_value, std::string_view a_comment) = 0;
+        virtual void Bool(
+            std::string_view a_key, std::string_view a_label, bool& a_value, std::string_view a_comment) = 0;
         // Only the settings window's slider keeps to the step; any value up to the maximum is valid.
-        virtual void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-            std::uint32_t a_maximum, std::string_view a_zeroName, std::uint32_t a_step) = 0;
+        virtual void Unsigned(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
+            std::string_view a_comment, std::uint32_t a_maximum, std::string_view a_zeroName, std::uint32_t a_step) = 0;
         // Valid values are the minimum plus whole steps.
-        virtual void Percent(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-            std::uint32_t a_minimum, std::uint32_t a_maximum, std::uint32_t a_step) = 0;
-        virtual void String(std::string_view a_key, std::string& a_value, std::string_view a_comment,
-            bool (*a_isValid)(std::string_view)) = 0;
-        virtual void Form(std::string_view a_key, Multiplayer::FormReference& a_value,
+        virtual void Percent(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
+            std::string_view a_comment, std::uint32_t a_minimum, std::uint32_t a_maximum, std::uint32_t a_step) = 0;
+        virtual void String(std::string_view a_key, std::string_view a_label, std::string& a_value,
+            std::string_view a_comment, bool (*a_isValid)(std::string_view)) = 0;
+        virtual void Form(std::string_view a_key, std::string_view a_label, Multiplayer::FormReference& a_value,
             const Multiplayer::FormReference& a_default, const Forms::ItemFilter& a_filter) = 0;
-        virtual void Choice(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-            std::span<const std::string_view> a_options) = 0;
-        virtual void Color(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
-            std::span<const std::uint32_t> a_swatches) = 0;
-        virtual void Key(
-            std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t a_cleared) = 0;
+        virtual void Choice(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
+            std::string_view a_comment, std::span<const std::string_view> a_options) = 0;
+        virtual void Color(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
+            std::string_view a_comment, std::span<const std::uint32_t> a_swatches) = 0;
+        virtual void Key(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
+            std::string_view a_comment, std::uint32_t a_cleared) = 0;
         virtual void Layout(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
             std::uint32_t a_minimum, std::uint32_t a_maximum) = 0;
     };

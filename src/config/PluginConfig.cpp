@@ -64,7 +64,7 @@ namespace Config
 
             void Comment(std::string_view) override {}
 
-            void Bool(std::string_view a_key, bool& a_value, std::string_view) override
+            void Bool(std::string_view a_key, std::string_view, bool& a_value, std::string_view) override
             {
                 const auto value = Take(a_key);
                 if (!value)
@@ -79,19 +79,19 @@ namespace Config
                 WarnInvalid(a_key, *value, a_value ? "true" : "false");
             }
 
-            void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view, std::uint32_t a_maximum,
-                std::string_view, std::uint32_t) override
+            void Unsigned(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view,
+                std::uint32_t a_maximum, std::string_view, std::uint32_t) override
             {
                 ReadUnsigned(a_key, a_value, 0, a_maximum);
             }
 
-            void Percent(std::string_view a_key, std::uint32_t& a_value, std::string_view, std::uint32_t a_minimum,
-                std::uint32_t a_maximum, std::uint32_t a_step) override
+            void Percent(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view,
+                std::uint32_t a_minimum, std::uint32_t a_maximum, std::uint32_t a_step) override
             {
                 ReadUnsigned(a_key, a_value, a_minimum, a_maximum, a_step);
             }
 
-            void String(std::string_view a_key, std::string& a_value, std::string_view,
+            void String(std::string_view a_key, std::string_view, std::string& a_value, std::string_view,
                 bool (*a_isValid)(std::string_view)) override
             {
                 auto value = Take(a_key);
@@ -107,8 +107,8 @@ namespace Config
                 WarnInvalid(a_key, *value, a_value);
             }
 
-            void Form(
-                std::string_view a_key, FormReference& a_value, const FormReference&, const Forms::ItemFilter&) override
+            void Form(std::string_view a_key, std::string_view, FormReference& a_value, const FormReference&,
+                const Forms::ItemFilter&) override
             {
                 const auto value = Take(a_key);
                 if (!value)
@@ -123,7 +123,7 @@ namespace Config
                 WarnInvalid(a_key, *value, FormatFormReference(a_value));
             }
 
-            void Choice(std::string_view a_key, std::uint32_t& a_value, std::string_view,
+            void Choice(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view,
                 std::span<const std::string_view> a_options) override
             {
                 const auto value = Take(a_key);
@@ -139,7 +139,7 @@ namespace Config
                 WarnInvalid(a_key, *value, FormatChoice(a_value, a_options));
             }
 
-            void Color(std::string_view a_key, std::uint32_t& a_value, std::string_view,
+            void Color(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view,
                 std::span<const std::uint32_t>) override
             {
                 const auto value = Take(a_key);
@@ -155,7 +155,8 @@ namespace Config
                 WarnInvalid(a_key, *value, FormatColor(a_value));
             }
 
-            void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view, std::uint32_t a_cleared) override
+            void Key(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view,
+                std::uint32_t a_cleared) override
             {
                 const auto value = Take(a_key);
                 if (!value)
@@ -241,48 +242,49 @@ namespace Config
         class TextVisitor : public SettingsVisitor
         {
         public:
-            void Bool(std::string_view a_key, bool& a_value, std::string_view a_comment) override
+            void Bool(std::string_view a_key, std::string_view, bool& a_value, std::string_view a_comment) override
             {
                 Text(a_key, a_value ? "true" : "false", a_comment);
             }
 
-            void Unsigned(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t,
-                std::string_view, std::uint32_t) override
+            void Unsigned(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view a_comment,
+                std::uint32_t, std::string_view, std::uint32_t) override
             {
                 Text(a_key, std::format("{}", a_value), a_comment);
             }
 
-            void Percent(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t,
-                std::uint32_t, std::uint32_t) override
+            void Percent(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view a_comment,
+                std::uint32_t, std::uint32_t, std::uint32_t) override
             {
                 Text(a_key, std::format("{}", a_value), a_comment);
             }
 
-            void String(std::string_view a_key, std::string& a_value, std::string_view a_comment,
+            void String(std::string_view a_key, std::string_view, std::string& a_value, std::string_view a_comment,
                 bool (*)(std::string_view)) override
             {
                 Text(a_key, a_value, a_comment);
             }
 
-            void Form(
-                std::string_view a_key, FormReference& a_value, const FormReference&, const Forms::ItemFilter&) override
+            void Form(std::string_view a_key, std::string_view, FormReference& a_value, const FormReference&,
+                const Forms::ItemFilter&) override
             {
                 Text(a_key, FormatFormReference(a_value), {});
             }
 
-            void Choice(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+            void Choice(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view a_comment,
                 std::span<const std::string_view> a_options) override
             {
                 Text(a_key, FormatChoice(a_value, a_options), a_comment);
             }
 
-            void Color(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
+            void Color(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view a_comment,
                 std::span<const std::uint32_t>) override
             {
                 Text(a_key, FormatColor(a_value), a_comment);
             }
 
-            void Key(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t) override
+            void Key(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view a_comment,
+                std::uint32_t) override
             {
                 Text(a_key, FormatKey(a_value), a_comment);
             }

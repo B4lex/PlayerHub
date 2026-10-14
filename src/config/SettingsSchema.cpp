@@ -30,6 +30,13 @@ namespace Config
             "HandToHandMelee", "OneHandSword", "OneHandDagger", "OneHandAxe", "OneHandMace", "TwoHandSword",
             "TwoHandAxe", "Bow", "Staff", "Crossbow"
         };
+        constexpr std::array<std::string_view, DefaultOutfitSettings::kArmorSlotCount> kArmorSlotLabels{ "Head", "Body",
+            "Hands", "Amulet", "Feet", "Shield", "Circlet", "Backpack" };
+        // TwoHandAxe covers warhammers too.
+        constexpr std::array<std::string_view, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> kWeaponTypeLabels{
+            "Unarmed", "Sword", "Dagger", "War axe", "Mace", "Greatsword", "Battleaxe or warhammer", "Bow", "Staff",
+            "Crossbow"
+        };
 
         struct BindableKey
         {
@@ -167,16 +174,16 @@ namespace Config
         void DescribeConnection(ConnectionSettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("Connection", "");
-            a_visitor.String("DisplayName", a_settings.displayName,
+            a_visitor.String("DisplayName", "Display name", a_settings.displayName,
                 "Shown to other players above your character and in chat.", IsValidDisplayName);
-            a_visitor.Bool("ConnectAutomatically", a_settings.autoConnect,
+            a_visitor.Bool("ConnectAutomatically", "Connect automatically", a_settings.autoConnect,
                 "Connects to the server automatically after the game is loaded.");
-            a_visitor.Bool("CustomServer", a_settings.customServer,
+            a_visitor.Bool("CustomServer", "Custom server", a_settings.customServer,
                 "Connects to the server at the URL below instead of the official server.");
             a_visitor.ShowNextIf(a_settings.customServer);
-            a_visitor.String("ServerEndpoint", a_settings.serverEndpoint,
-                "Custom server URL, starting with http:// or https://. Used only while\n"
-                "Custom Server is on.",
+            a_visitor.String("ServerEndpoint", "Server URL", a_settings.serverEndpoint,
+                "Custom server URL, starting with http:// or https://. Used only while the\n"
+                "custom server is on.",
                 IsValidServerEndpoint);
         }
 
@@ -188,59 +195,58 @@ namespace Config
             const auto& defaults = GetDefaultConfig().defaultOutfit;
 
             a_visitor.Comment("Character");
-            a_visitor.Form("Race", a_settings.race, defaults.race, kOutfitRaceFilter);
-            a_visitor.Choice("Sex", a_settings.sex, "", DefaultOutfitSettings::kSexNames);
+            a_visitor.Form("Race", "Race", a_settings.race, defaults.race, kOutfitRaceFilter);
+            a_visitor.Choice("Sex", "Sex", a_settings.sex, "", DefaultOutfitSettings::kSexNames);
 
             a_visitor.Comment("Apparel");
             for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)
             {
-                a_visitor.Form(
-                    GetOutfitArmorKey(slot), a_settings.armor[slot], defaults.armor[slot], GetOutfitArmorFilter(slot));
+                a_visitor.Form(GetOutfitArmorKey(slot), kArmorSlotLabels[slot], a_settings.armor[slot],
+                    defaults.armor[slot], GetOutfitArmorFilter(slot));
             }
 
             a_visitor.Comment("Weapons");
             for (std::size_t type = Multiplayer::PlayerEquipment::kMinimumWeaponType; type < a_settings.weapons.size();
                 ++type)
             {
-                a_visitor.Form(GetOutfitWeaponKey(type), a_settings.weapons[type], defaults.weapons[type],
-                    GetOutfitWeaponFilter(type));
+                a_visitor.Form(GetOutfitWeaponKey(type), kWeaponTypeLabels[type], a_settings.weapons[type],
+                    defaults.weapons[type], GetOutfitWeaponFilter(type));
             }
 
             a_visitor.Comment("Miscellaneous");
-            a_visitor.Form("Arrow", a_settings.arrow, defaults.arrow, kOutfitArrowFilter);
-            a_visitor.Form("Bolt", a_settings.bolt, defaults.bolt, kOutfitBoltFilter);
+            a_visitor.Form("Arrow", "Arrow", a_settings.arrow, defaults.arrow, kOutfitArrowFilter);
+            a_visitor.Form("Bolt", "Bolt", a_settings.bolt, defaults.bolt, kOutfitBoltFilter);
         }
 
         void DescribeUI(UISettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("UI", "");
             a_visitor.Comment("Display");
-            a_visitor.Percent("FontScale", a_settings.fontScale,
+            a_visitor.Percent("FontScale", "Font scale", a_settings.fontScale,
                 "Size of the text in the settings window, the chat, and the rest of the\n"
                 "multiplayer interface. Windows grow and shrink with it.",
                 UISettings::kMinimumFontScale, UISettings::kMaximumFontScale, UISettings::kFontScaleStep);
-            a_visitor.Color("AccentColor", a_settings.accentColor,
+            a_visitor.Color("AccentColor", "Accent color", a_settings.accentColor,
                 "Color that marks what can be selected or is selected in the settings window and\n"
                 "the chat, as hexadecimal RRGGBB.",
                 UISettings::kAccentSwatches);
-            a_visitor.Choice("BorderColor", a_settings.frameColor,
+            a_visitor.Choice("BorderColor", "Border color", a_settings.frameColor,
                 "Color of the frame around the settings window and the chat.",
                 UISettings::kFrameColorNames);
-            a_visitor.Percent("BorderThickness", a_settings.frameThickness,
+            a_visitor.Percent("BorderThickness", "Border thickness", a_settings.frameThickness,
                 "Thickness of the frame around the settings window and the chat.",
                 UISettings::kMinimumFrameThickness, UISettings::kMaximumFrameThickness, 1);
 
             a_visitor.Comment("Players");
-            a_visitor.Bool("Nameplates", a_settings.nameplates,
+            a_visitor.Bool("Nameplates", "Nameplates", a_settings.nameplates,
                 "Shows other players' names above their heads while they are in sight.");
-            a_visitor.Unsigned("NameplateDistance", a_settings.nameplateDistance,
+            a_visitor.Unsigned("NameplateDistance", "Nameplate distance", a_settings.nameplateDistance,
                 "Game units within which names are shown above players' heads, about 70 to a\n"
                 "meter.",
                 UISettings::kMaximumNameplateDistance, "", 1);
 
             a_visitor.Comment("Chat");
-            a_visitor.LabelNext("Close on send");
-            a_visitor.Bool("CloseChatOnSend", a_settings.closeChatOnSend,
+            a_visitor.Bool("CloseChatOnSend", "Close on send", a_settings.closeChatOnSend,
                 "Closes the chat when Enter sends a line. Otherwise Enter only sends, and an\n"
                 "empty line does nothing.");
             a_visitor.Layout("ChatWidth", a_settings.chatWidth,
@@ -249,33 +255,31 @@ namespace Config
             a_visitor.Layout("ChatLines", a_settings.chatLines,
                 "Lines of history the open chat shows. Dragging its top edge sets it.",
                 UISettings::kMinimumChatLines, UISettings::kMaximumChatLines);
-            a_visitor.LabelNext("Horizontal position");
-            a_visitor.Percent("ChatPositionHorizontal", a_settings.chatPositionHorizontal,
+            a_visitor.Percent("ChatPositionHorizontal", "Horizontal position", a_settings.chatPositionHorizontal,
                 "Distance of the chat's left edge from the screen's left edge, as a share of the\n"
                 "screen's width. The chat stays on the screen.",
                 0, UISettings::kMaximumChatPosition, 1);
-            a_visitor.LabelNext("Vertical position");
-            a_visitor.Percent("ChatPositionVertical", a_settings.chatPositionVertical,
+            a_visitor.Percent("ChatPositionVertical", "Vertical position", a_settings.chatPositionVertical,
                 "Distance of the chat's bottom edge from the screen's bottom edge, as a share of\n"
                 "the screen's height. The chat stays on the screen.",
                 0, UISettings::kMaximumChatPosition, 1);
 
             a_visitor.Comment("Items");
-            a_visitor.Bool("ItemPreview", a_settings.itemPreview,
+            a_visitor.Bool("ItemPreview", "Item preview", a_settings.itemPreview,
                 "Shows a 3D model of the hovered item in item lists.");
         }
 
         void DescribeControls(ControlsSettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("Controls", "");
-            a_visitor.Key(
-                "OpenSettings", a_settings.settingsKey, "Opens and closes the settings window.", kDefaultSettingsKey);
-            a_visitor.Key("OpenChat", a_settings.chatKey, "Opens the chat.", kDefaultChatKey);
-            a_visitor.Key("ManagePlayers", a_settings.playersKey,
+            a_visitor.Key("OpenSettings", "Open settings", a_settings.settingsKey,
+                "Opens and closes the settings window.", kDefaultSettingsKey);
+            a_visitor.Key("OpenChat", "Open chat", a_settings.chatKey, "Opens the chat.", kDefaultChatKey);
+            a_visitor.Key("ManagePlayers", "Manage players", a_settings.playersKey,
                 "Opens the window that lists your friends and the players you muted or vanished.", 0);
-            a_visitor.Key("AcceptTrade", a_settings.tradeAcceptKey,
+            a_visitor.Key("AcceptTrade", "Accept trade", a_settings.tradeAcceptKey,
                 "Accepts another player's trade offer while it waits for an answer.", 0);
-            a_visitor.Key("DeclineTrade", a_settings.tradeDeclineKey,
+            a_visitor.Key("DeclineTrade", "Decline trade", a_settings.tradeDeclineKey,
                 "Declines another player's trade offer, or withdraws your own, while it waits\n"
                 "for an answer.", 0);
         }
@@ -284,18 +288,18 @@ namespace Config
         {
             a_visitor.Section("Advanced", "");
             a_visitor.Comment("Performance");
-            a_visitor.Unsigned("ViewRadius", a_settings.viewRadius,
+            a_visitor.Unsigned("ViewRadius", "View radius", a_settings.viewRadius,
                 "Game units within which other players are shown. Applies\n"
                 "on the next connection.",
                 AdvancedSettings::kMaximumViewRadius, "Auto", AdvancedSettings::kViewRadiusStep);
-            a_visitor.Unsigned("SpawnsPerSecond", a_settings.spawnsPerSecond,
+            a_visitor.Unsigned("SpawnsPerSecond", "Spawns per second", a_settings.spawnsPerSecond,
                 "Remote players and mounts spawned per second at most. Many players joining or\n"
                 "arriving at once then appear over a few seconds instead of in one long frame.\n"
                 "0 spawns every due player at once.",
                 AdvancedSettings::kMaximumSpawnsPerSecond, "Unlimited", 1);
 
             a_visitor.Comment("Diagnostics");
-            a_visitor.Bool("StatusPanel", a_settings.statusPanel,
+            a_visitor.Bool("StatusPanel", "Status panel", a_settings.statusPanel,
                 "Shows the ping, network traffic, and the plugin's time per frame in the\n"
                 "top-right corner.");
         }

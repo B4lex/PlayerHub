@@ -151,8 +151,12 @@ read once when SKSE loads the plugin, before any other plugin work.
 
 Each setting is described once in `SettingsSchema.cpp`, through a visitor that
 reads the file, writes it, and draws the settings window. A new option is a field
-in `Config::PluginConfig` plus one line there. `Config::SettingsVisitor::Form`
-takes the setting's item filter
+in `Config::PluginConfig` plus one line there. Every setting the settings window
+shows takes, after its key, the label the window shows; reading and saving
+ignore it, so a label changes without renaming the key, and a setting without
+one does not compile. The outfit's slots and weapon types take theirs from
+`kArmorSlotLabels` and `kWeaponTypeLabels`. `Layout` takes none.
+`Config::SettingsVisitor::Form` takes the setting's item filter
 ([Appearance and equipment](appearance-and-equipment.md#item-filter-and-catalog)).
 `Unsigned` takes the setting's maximum, above which a value in the file is
 invalid, a name for zero where zero is not a count, which only the settings
@@ -168,10 +172,7 @@ digits (`FormatColor`, upper case); reading also takes lower case and a leading
 an unsigned value within both limits, read and saved as any other, which the
 settings window does not show. `ShowNextIf` makes the next setting depend on a
 value described before it; reading and saving ignore it, and the settings
-window leaves the row out while the value is false. `LabelNext` gives the next
-setting a label that the settings window shows in place of its key split into
-words; reading and saving ignore it, so a label changes without renaming the
-key. The chat group's shown settings use it to drop the group's name.
+window leaves the row out while the value is false.
 `Comment` names a group of the settings after it: a comment line above them
 in a new file, and a group heading in the settings window.
 `Config::Describe` describes the sections in the order Connection,
