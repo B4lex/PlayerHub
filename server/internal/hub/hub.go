@@ -61,6 +61,7 @@ type member struct {
 	distributed *pb.Checkpoint
 	forceNext   bool
 	touched     bool
+	phase       int
 
 	actions limit.TokenBucket
 	chat    chatThrottle
@@ -98,7 +99,10 @@ type Hub struct {
 	nextSlot   uint32
 	sessions   map[uint64]uint32
 	changed    []*member
-	touched    []*member
+
+	phase     int
+	touched   [][]*member
+	phaseLoad []int
 
 	rules      *interest.Rules
 	grid       *interest.Grid
@@ -146,7 +150,13 @@ func New(opts Options) *Hub {
 		nearbyGrid: interest.NewGrid(opts.ChatNearbyRadius), trades: make(map[uint32]*trade),
 	}
 	h.rules = interest.NewRules(opts.Interest, h.hidden, h.pairs, interest.Vanished{})
+	h.usePhases(1)
 	return h
+}
+
+// usePhases must run before the first recipient connects.
+func (h *Hub) usePhases(phases int) {
+	h.phase, h.touched, h.phaseLoad = 0, make([][]*member, phases), make([]int, phases)
 }
 
 func (h *Hub) Connect(kind world.Kind, outbox *delivery.Outbox) uint32 {
@@ -204,6 +214,8 @@ func (h *Hub) connect(kind world.Kind, outbox *delivery.Outbox, identity Identit
 	m.view.Slot, m.view.Session = m.Slot, identity.Session
 	h.members[m.Slot] = m
 	if outbox != nil {
+		m.phase = slices.Index(h.phaseLoad, slices.Min(h.phaseLoad))
+		h.phaseLoad[m.phase]++
 		h.recipients = append(h.recipients, m)
 		outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Welcome{
 			Welcome: &pb.Welcome{Slot: m.Slot, SessionId: identity.Session, DisplayName: identity.DisplayName,
@@ -245,6 +257,7 @@ func (h *Hub) Disconnect(slot uint32) {
 	delete(h.members, slot)
 	if m.outbox != nil {
 		h.recipients = remove(h.recipients, m)
+		h.phaseLoad[m.phase]--
 	}
 	h.grid.Remove(slot)
 	h.nearbyGrid.Remove(slot)
@@ -323,12 +336,14 @@ func (h *Hub) Tick() {
 	}
 	clear(h.changed)
 	h.changed = h.changed[:0]
-	for _, r := range h.touched {
+	touched := h.touched[h.phase]
+	for _, r := range touched {
 		r.touched = false
 		r.outbox.Signal()
 	}
-	clear(h.touched)
-	h.touched = h.touched[:0]
+	clear(touched)
+	h.touched[h.phase] = touched[:0]
+	h.phase = (h.phase + 1) % len(h.touched)
 }
 
 func (h *Hub) UpdateInterest() {
@@ -975,7 +990,7 @@ func (h *Hub) distribute(m *member) {
 		r.outbox.SetCheckpoint(m.Slot, sequence, m.Entry, now)
 		if !r.touched {
 			r.touched = true
-			h.touched = append(h.touched, r)
+			h.touched[r.phase] = append(h.touched[r.phase], r)
 		}
 	}
 }

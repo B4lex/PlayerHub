@@ -346,6 +346,40 @@ func TestCheckpointsAreBatchedPerTick(t *testing.T) {
 	expect(t, f.received(c), "states 1:3 2:2")
 }
 
+func TestTicksWakeOnePhaseOfRecipients(t *testing.T) {
+	f := newFixture(t)
+	f.hub.usePhases(2)
+	a, b, c, d := f.connect(), f.connect(), f.connect(), f.connect()
+	for _, slot := range []uint32{a, b, c, d} {
+		f.place(slot, 1)
+	}
+	for _, slot := range []uint32{b, c, d} {
+		f.received(slot)
+		signalled(f.boxes[slot])
+	}
+	f.send(a, checkpoint(2))
+	f.hub.Tick()
+	if !signalled(f.boxes[c]) || signalled(f.boxes[b]) || signalled(f.boxes[d]) {
+		t.Fatal("the first tick should wake only the first phase")
+	}
+	f.hub.Tick()
+	if !signalled(f.boxes[b]) || !signalled(f.boxes[d]) {
+		t.Fatal("the second tick should wake the second phase")
+	}
+	for _, slot := range []uint32{b, c, d} {
+		expect(t, f.received(slot), "states 1:2")
+	}
+}
+
+func signalled(box *delivery.Outbox) bool {
+	select {
+	case <-box.Ready():
+		return true
+	default:
+		return false
+	}
+}
+
 func TestActionIsPrecededByItsCheckpoint(t *testing.T) {
 	f := newFixture(t)
 	a, b := f.connect(), f.connect()

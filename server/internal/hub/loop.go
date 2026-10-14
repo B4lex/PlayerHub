@@ -2,8 +2,11 @@ package hub
 
 import (
 	"context"
+	"math"
 	"time"
 )
+
+const sendPhaseSeconds = 0.005
 
 type Loop struct {
 	hub              *Hub
@@ -14,11 +17,13 @@ type Loop struct {
 }
 
 func NewLoop(h *Hub, sendRateHz float64) *Loop {
+	phases := max(1, int(math.Round(1/sendRateHz/sendPhaseSeconds)))
+	h.usePhases(phases)
 	return &Loop{
 		hub:              h,
 		work:             make(chan func(*Hub), 8192),
 		done:             make(chan struct{}),
-		interval:         time.Duration(float64(time.Second) / sendRateHz),
+		interval:         time.Duration(float64(time.Second) / sendRateHz / float64(phases)),
 		interestInterval: time.Duration(float64(time.Second) / h.opts.Interest.UpdateHz),
 	}
 }

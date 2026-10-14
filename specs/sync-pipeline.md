@@ -254,7 +254,7 @@ reconstructable; historical attacks are not.
 ## Checkpoint playout
 
 Checkpoints leave the source every 0.05 s but arrive unevenly: the server
-batches them once per tick (`send_rate_hz`, 20) and replaces one that a newer
+batches them once per send interval (`send_rate_hz`, 20) and replaces one that a newer
 one overtook, sends far peers at `far_rate_hz`, and suppresses idle repeats
 ([Interest and delivery](interest-and-delivery.md#batching)), and the network
 adds jitter. Following the newest checkpoint as it arrived made the actor

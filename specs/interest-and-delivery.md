@@ -5,7 +5,7 @@
 Implemented in `server/internal/interest`, `server/internal/hub`, and
 `server/internal/delivery`. Covered by rule and grid tests (`interest_test.go`),
 hub tests with a fake clock (`hub_test.go`: welcome first, enter order, an
-unplaced viewer, a paused sender seen by a newcomer, batching, the action
+unplaced viewer, a paused sender seen by a newcomer, batching, send phases, the action
 anchor, context order, range hysteresis and time in view, exclusions taking
 effect at once, a space change, presentation kept across exit and re-enter,
 disconnect reaching presentation holders, virtual players, chat on each channel,
@@ -50,6 +50,21 @@ Egress stays under the 5 MB/s the budget allows. With 64 peers in view, the
 nearest peers' p99 misses 60 ms by 8 ms because the budget is below demand; a
 cap of 32 meets it, so the homelab example uses 32.
 
+Send phases were measured with 100 bots replaying the recording
+`20261013-193225-f4d31e` over loopback with the homelab budget (cap 32),
+bucketing the bots' received bytes per millisecond and feeding them through a
+simulated FIFO uplink sized for each load:
+
+| Ticks per interval | Peak 1 ms | Queue delay at 70% load, mean / p99 | At 85% | Entry p50 / p99 | Server CPU |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 54× mean | 11.3 / 35.5 ms | 17.1 / 44.4 ms | 25 / 51 ms | 11% |
+| 10 phases | 29× mean | 1.9 / 13.6 ms | 3.7 / 19.2 ms | 20 / 49 ms | 11% |
+
+Egress was 1.7 MB/s in both. A probe connection answering `Ping` stayed near
+0.1 ms throughout, so the server's own reply path adds nothing; the
+improvement is in the bytes queued ahead of other traffic on a real uplink,
+which was not measured through the tunnel.
+
 ## Scope
 
 This system decides which peers each client receives and delivers them in an
@@ -71,7 +86,7 @@ client which players it reaches without them
 | `interest.Grid` | Placed players by space and square cell of the leave radius |
 | `interest.Hidden`, `interest.Pairs` | The admin exclusion rules |
 | `hub.Hub` | All world state; subscriptions; turns accepted messages into outbox traffic. Methods run on one goroutine and take an injectable clock |
-| `hub.Loop` | Runs a hub: submitted work in order, a tick at `send_rate_hz`, and the interest pass at `interest.update_hz` |
+| `hub.Loop` | Runs a hub: submitted work in order, a tick per send phase, and the interest pass at `interest.update_hz` |
 | `delivery.Outbox` | One recipient's pending traffic: latest-wins checkpoints, ordered messages, latest-wins presentation; rate classes and the budget's choice of checkpoints |
 | `delivery.Budget` | The uplink shared by every recipient |
 | `delivery.Batch` | One drain of an outbox, written as WebSocket messages |
@@ -176,8 +191,9 @@ leave and when the recipient disconnects.
   at most `interest.far_rate_hz` (10) times a second; nearer peers get every
   checkpoint. The periodic pass sets each pair's class
   (`Outbox.SetClass`). A far peer's newer checkpoint waits in the outbox
-  until due and is never lost; the writer's timer fires one tick after the due
-  time, so a tick's batch usually carries it without a separate write. An
+  until due and is never lost; the writer's timer fires one send interval
+  after the due time, so the recipient's phase usually carries it without a
+  separate write. An
   ordered message about the peer still takes its pending checkpoint along at
   once.
 - A checkpoint equal to the last one handed to subscribers, except for its
@@ -213,19 +229,29 @@ what limits the rate, or every player's latency rises.
 ## Batching
 
 - A checkpoint accepted by the hub is encoded once as a `PeerStates` entry
-  (`wire.AppendEntry`) and marked changed. Every tick (`send_rate_hz`, default
-  20), each changed sender's entry is set in its subscribers' outboxes,
-  replacing an unsent older one, and each touched outbox is signalled once.
+  (`wire.AppendEntry`) and marked changed. Each send interval
+  (`send_rate_hz`, default 20) is split into phases of about 5 ms
+  (`sendPhaseSeconds`; 10 at 20 Hz, one at 200 Hz and above), and the loop
+  ticks once per phase. Every tick sets each changed sender's entry in its
+  subscribers' outboxes, replacing an unsent older one.
+- Each recipient is given the phase with the fewest recipients when it
+  connects and keeps it. A tick signals, once, only the touched outboxes of
+  its phase; the others wait for their own tick. All writers waking on the
+  same tick made the server's egress leave in one burst per interval, which
+  queued in the router's upload buffer and delayed every player's traffic,
+  pings included, even below the link's rate.
 - The writer drains the outbox and writes: consecutive entries in the ordered
   stream as one `PeerStates`, every ordered message as its own WebSocket
   message, and the remaining latest-wins entries as one final `PeerStates`. A
   batch is the entries' bytes placed one after another behind one header, so
   each entry is encoded once however many recipients receive it.
-- Ordered messages wake the writer at once; checkpoints wait for the tick, so
-  batching adds at most one tick of delay. The ticker drops missed ticks
-  instead of bursting after a stall.
-- At 20 Hz the tick runs at the source's publishing rate, so with frame
-  timing some ticks carry no checkpoint of a sender and the next carries only
+- Ordered messages wake the writer at once and take every pending
+  checkpoint along; otherwise checkpoints wait for the recipient's phase, so
+  batching adds at most one send interval of delay. The ticker drops missed
+  ticks instead of bursting after a stall; a dropped tick shifts the phases
+  that follow but skips none.
+- At 20 Hz the send interval matches the source's publishing rate, so with
+  frame timing some batches carry no checkpoint of a sender and the next carries only
   the newer of two. Clients absorb that spacing with the [checkpoint
   playout](sync-pipeline.md#checkpoint-playout); 40 Hz halves the batching
   delay at twice the batch count.
