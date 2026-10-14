@@ -13,32 +13,10 @@ namespace ChatSync
     class Composer
     {
     public:
-        enum class Listing
-        {
-            kNone,
-            kPlayers,
-            kCommands
-        };
-
-        struct Suggestion
-        {
-            std::string label;
-            std::string detail;
-            Multiplayer::RosterEntry player;
-            std::string_view command;
-        };
-
         enum class SubmitResult
         {
             kClose,
             kStayOpen
-        };
-
-        struct Note
-        {
-            std::string text;
-            std::string detail;
-            bool failure{ false };
         };
 
         [[nodiscard]] const ChatTarget& GetTarget() const { return target; }
@@ -49,8 +27,8 @@ namespace ChatSync
 
         SubmitResult Submit(std::string& a_draft);
 
-        [[nodiscard]] Listing GetListing() const { return dismissed ? Listing::kNone : listing; }
-        [[nodiscard]] std::span<const Suggestion> GetSuggestions() const;
+        [[nodiscard]] bool IsListing() const { return listing && !dismissed; }
+        [[nodiscard]] std::span<const Multiplayer::RosterEntry> GetSuggestions() const;
         [[nodiscard]] std::size_t GetSelection() const { return selection; }
         void MoveSelection(int a_direction);
         void AcceptSuggestion(std::size_t a_index, std::string& a_draft);
@@ -60,7 +38,7 @@ namespace ChatSync
         bool RecallNext(std::string& a_draft);
         void StopRecalling() { recalled = sent.size(); }
 
-        [[nodiscard]] std::span<const Note> GetNotes() const { return notes; }
+        [[nodiscard]] std::span<const std::string> GetNotes() const { return notes; }
         void Fail(std::string a_text);
         void ClearNotes() { notes.clear(); }
 
@@ -72,23 +50,18 @@ namespace ChatSync
         };
 
         void ListPlayers(std::string_view a_prefix);
-        void ListCommands(std::string_view a_prefix);
         void ClearListing();
-        void Reply();
         void Remember(std::string_view a_text);
-        void Inform(std::string a_text, std::string a_detail = {});
-        void ShowHelp();
-        void ShowPlayerCount();
 
         ChatTarget target;
 
-        Listing listing{ Listing::kNone };
-        std::vector<Suggestion> suggestions;
+        bool listing{ false };
+        std::vector<Multiplayer::RosterEntry> suggestions;
         std::size_t selection{ 0 };
         bool dismissed{ false };
         std::vector<Multiplayer::RosterEntry> players;
 
-        std::vector<Note> notes;
+        std::vector<std::string> notes;
 
         std::deque<Sent> sent;
         std::size_t recalled{ 0 };

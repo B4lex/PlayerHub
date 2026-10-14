@@ -187,7 +187,7 @@ namespace UI
                         ImGui::SetTooltip("Send to players near you.");
                         break;
                     case Multiplayer::ChatChannel::kWhisper:
-                        ImGui::SetTooltip("Send privately to %s.", a_target.player.name.c_str());
+                        ImGui::SetTooltip("Send wh to %s.", a_target.player.name.c_str());
                         break;
                 }
             }

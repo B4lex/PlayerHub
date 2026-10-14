@@ -99,16 +99,15 @@
 - **Notices and notes:** not built on Windows or run in game. On Linux, the
   changed `sync/` and `ui/` files passed a g++ 16 syntax check against
   CommonLibSSE-NG, and `NoticeStack.cpp`, `Notices.cpp`, `ChatComposer.cpp`,
-  `ChatDraft.cpp`, `ChatInput.cpp`, and `Theme.cpp` ran in a headless Dear
+  `ChatInput.cpp`, and `Theme.cpp` ran in a headless Dear
   ImGui 1.92.9 context with stubbed roster, filters, and sending, without
   the themed fonts or the frame (47 checks): a fifth notice dropping the
   oldest, a friend's arrival, a repeat shown as a toast of its own, the
   strip in the accent, 5 s for a short
   notice and 8.9 s for the 105-character save failure, half alpha halfway
   through the fade, nothing drawn once expired or outside a game, the
-  stack's right edge and top where this spec puts them; `/who`, `/help`,
-  an unknown command, a failed send keeping its text, an edit, a recalled
-  line, and Tab clearing the notes; the panel ending one item spacing above
+  stack's right edge and top where this spec puts them; a failed send
+  keeping its text, an edit, a recalled line, and Tab clearing the notes; the panel ending one item spacing above
   the field and as tall as its wrapped rows, and gone after `OnOpened`.
   The rasterized stack and panels were looked at. `ChatWindow`'s routing of
   rejections, the connected notice, and the texts without final periods ran
@@ -116,13 +115,15 @@
 - **Chat:** not built on Windows or run in game. Server unit tests cover
   routing, the roster, and whisper addressing ([Network](network.md#status)).
   On Linux, with g++ 16 and a logging stub:
-  - `ChatRoster.cpp`, `ChatDraft.cpp`, `ChatComposer.cpp`, and `ChatSync.cpp`
-    ran against a stubbed transport: draft syntax for every prefix and
-    command; names compared without case in ASCII, Latin Extended-A, and
-    Cyrillic; the order of the name list; the longest-name rule; a prefix or
-    command switching the target as it is typed; a name binding at its space
-    only when no longer name continues it; `/r`, `/who`, `/help`, an unknown
-    command; Tab order with and without partners; a partner under another
+  - Removing the chat commands, which folded `ChatDraft` into `Composer` and
+    left notes failure-only, passed only the g++ syntax check, which a
+    planted error confirmed reaches `ChatComposer.cpp` and `ChatInput.cpp`;
+    the harness runs below predate it.
+  - `ChatRoster.cpp`, `ChatComposer.cpp`, and `ChatSync.cpp` ran against a stubbed transport: the `@` prefix; names compared without
+    case in ASCII, Latin Extended-A, and Cyrillic; the order of the name
+    list; the longest-name rule; the prefix switching the target as it is
+    typed; a name binding at its space only when no longer name continues
+    it; Tab order with and without partners; a partner under another
     slot found by name and one who left reported offline; sent lines recalled
     with their targets; the messages for a player who left, text that cannot
     be sent, no connection, and the server's `unknown recipient`, checked
@@ -134,7 +135,7 @@
     1080p, at 4K, with `BorderColor = Accent`, and without `PlayerHub/`:
     typing, Tab, and Shift+Tab; the name list by
     keys and by a click; Escape closing the list, then the chat, with the
-    text kept and discarded; the command list; Up and Down; each filter
+    text kept and discarded; Up and Down; each filter
     turning its channel off and on by itself, in the open chat and among the
     closed chat's lines, with the send target unchanged; the unread dots; a
     target and the player's own line turning a channel back on; a click on a sender's name; the chip's menu; a
@@ -187,7 +188,7 @@
     and simulated keys: on, Enter sending and closing and Enter in an empty
     field closing without sending; off, Enter sending with the chat open and
     the field keeping the keyboard for the next line, Enter in an empty or
-    blank field and a command leaving it open without sending, Escape
+    blank field leaving it open without sending, Escape
     closing it, Escape after sending a draft kept from the last opening not
     bringing it back, which fails without that rule, and Up recalling the
     line sent; turned on while open, the next Enter closing it.
@@ -450,7 +451,7 @@
   server's list follows a new connection, and the 1025th vanish is refused; a
   mute hides the player's earlier lines and new ones on every channel, in the
   open and the closed chat, without a notice, and its whisper does not become
-  `/r`; unmuting shows them all again. In the player list a muted player's
+  a partner; unmuting shows them all again. In the player list a muted player's
   menu offers unmute and vanish, another's mute and vanish, the local
   player has no menu, and the marks show (rasterized). The manager's button
   sits at the list's bottom and opens a window in the middle of the screen
@@ -690,7 +691,7 @@ src/ui/
   hud/NoticeStack             # notices on the right edge, friends coming online
   chat/ChatWindow             # open and closed chat, focus by its keys, the manager alone, the send target's channel kept shown
   chat/ChatHistory            # lines, channel filters, unread marks, scrolling, the line menu
-  chat/ChatInput              # target chip and its menu, text field, name and command list, notes
+  chat/ChatInput              # target chip and its menu, text field, name list, notes
   chat/ChatSize               # the open chat's size, the drag that sets it, saving it
   chat/ChatPosition           # the open chat's corner, the drag that moves it, saving it
   chat/ChatPlayers            # the players online: the button on the filters' row, the list beside the chat
@@ -710,8 +711,7 @@ src/ui/
   render/Backdrop             # the game's frame blurred and darkened behind a full-screen window
 src/sync/chat/ChatSync        # send to a target and why it failed, the server's rejections, lines to display
 src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners, the list's copy
-src/sync/chat/ChatDraft       # syntax of the `@` prefix and commands
-src/sync/chat/ChatComposer    # send target, name and command list, notes, sent lines
+src/sync/chat/ChatComposer    # send target, the `@` prefix, name list, notes, sent lines
 src/sync/notices/Notices      # the notices queue any feature posts to
 src/sync/nameplates/NameplateSync # per peer: head node, line of sight, fade, label; the pass's plates
 src/sync/filters/PlayerFilters # friends, muted and vanished players of the current server, publishing, friends coming online
@@ -1337,12 +1337,14 @@ Players talk in plain text on three channels. Chat is presentation only. The
 wire, the roster, routing, and server rules are in [Network](network.md#chat).
 
 Goal: talk to everyone, to players nearby, or to one player; always see where
-the next line goes and change it with a key, a prefix, a command, or a click;
+the next line goes and change it with a key, a prefix, or a click;
 whisper by a few letters of a name, and keep whispering the same player
 without naming it again; see who is online and whisper one from a list; tell the channels apart at a glance, and turn each
 off and on; see as many lines as the player wants, by dragging the chat larger;
 place the chat elsewhere on the screen.
 Non-goals: chat
+commands (text starting with `/` is sent as written; Tab, the chip, the
+`@` prefix, and the player list cover what they did), chat
 history for late joiners, a saved log, moving the chat by dragging it (its
 [position](#position) is set in the settings window), and
 staying open after a line is sent.
@@ -1370,9 +1372,6 @@ placeholder points to Tab.
 | --- | --- |
 | Tab, Shift+Tab | The next or previous of Global, Nearby, and the 3 latest whisper partners, most recent first. A whisper target that is not among them yet stands after Nearby |
 | `@` as the first character | Opens the [name list](#name-list) |
-| `/n`, `/g` (`/nearby`, `/global`) | Nearby, Global |
-| `/w <name>` (`/whisper`) | As `@` |
-| `/r` (`/reply`) | The sender of the latest received whisper; a failure note without one |
 | A click on the chip | A menu of Global, Nearby, and the 5 latest partners |
 | A click on a sender's name, or the whisper item in a line's menu | A whisper to that player |
 
@@ -1380,23 +1379,18 @@ placeholder points to Tab.
   naming the partner for a whisper. `DrawRow` reports the row's
   `ImGuiHoveredFlags_ForTooltip` hover from its selectable, so the whole row
   shows it, not only its text.
-- The `@` prefix or a command is removed from the text when it is complete:
-  `@` at once, a command when a space follows it or on Enter, where the chat
-  then stays open. `ChatDraft::Interpret` decides that from the text alone,
-  comparing command names without case, and `Composer::OnEdited` applies it
-  after every edit, so the chip is always where Enter sends. Removing one can
-  uncover another, as in `/g @name`, which is applied in the same edit.
-- `/who` shows a [note](#notes) with the number of connected players and
-  `/help` one with the `@` prefix and a row per command, its description in the
-  muted color. An unknown command is a failure note on Enter and is not sent,
-  so text that starts with `/` never is.
+- The `@` prefix, after any spaces, is removed from the text once its name
+  binds ([Name list](#name-list)), or on Enter, where the chat then stays
+  open. `Composer::OnEdited` applies it after every edit, so the chip is
+  always where Enter sends. Removing one can uncover another, as in
+  `@Ulf @Bera hi`, which is applied in the same edit.
 - `ChatRoster` keeps the whisper partners, at most 8, moved to the front by
   every whisper sent or received except one to oneself, and compared by name
   as well as slot, since a player who connects again has another slot.
 
 ### Name list
 
-While the text starts with `@` or `/w `, a list above the field offers the
+While the text starts with `@`, a list above the field offers the
 connected players whose names start with what follows, at most 8.
 
 - `ChatRoster` copies the roster from the transport when its revision changes
@@ -1419,8 +1413,6 @@ connected players whose names start with what follows, at most 8.
   the end.
 - With nobody matching, the list is one row saying so, and Enter shows that
   as a failure note and keeps the text.
-- While the text is `/` and letters, the same list offers the commands whose
-  names start with them, each with its description; accepting one applies it.
 
 ### Sending
 
@@ -1457,17 +1449,15 @@ connected players whose names start with what follows, at most 8.
 What the chat answers to the player's own input is a note above the field,
 never a line, so the history holds only what players said.
 
-- `Composer` keeps the notes (`Composer::Note`: text, an optional muted
-  detail, and whether it is a failure) and replaces them on every command or
-  send. Any edit, a recalled line, a new target, and opening the chat clear
+- Every note is a failure. `Composer` keeps them as text and replaces them
+  on every send. Any edit, a recalled line, a new target, and opening the chat clear
   them; the field's text is kept. Like [notices](#notices), notes end without
   a final period.
-- `ChatInput::DrawNotes` draws them where the name and command list would be,
-  which hides them while it shows: a child window as wide as the field with
-  the popup's opaque background and border, as tall as its rows, ending one
-  item spacing above the field. A note with a detail is one row; one without
-  wraps. Failures are `ChatStyle::kFailureColor` (orange-red), the rest the
-  theme's text. The panel takes no input.
+- `ChatInput::DrawNotes` draws them where the name list would be, which
+  hides them while it shows: a child window as wide as the field with the
+  popup's opaque background and border, as tall as its wrapped rows, ending
+  one item spacing above the field, in `ChatStyle::kFailureColor`
+  (orange-red). The panel takes no input.
 
 ### Lines and filters
 
@@ -1530,7 +1520,7 @@ never a line, so the history holds only what players said.
 - The filters' row ends, at the field's column, with a button: a person
   drawn as shapes, from the top of the digits to their baseline as the
   font's `0` glyph has them, and the number of connected players, the local
-  one included (`ChatRoster::GetPlayerCount`, as `/who` counts them), or
+  one included (`ChatRoster::GetPlayerCount`), or
   an offline label in the muted text color without a roster. It is a chip as the
   filters are (`ChatStyle::DrawChipFrame`): closed, an outline in the
   theme's text color with the 8% fill under the cursor; open, in the accent
@@ -1716,7 +1706,7 @@ never a line, so the history holds only what players said.
   Typing goes only to the chat; the character does not move or look around, and
   keys already held keep acting until released.
 - Escape closes an open menu, else the [player manager](#player-manager), else
-  hides the name or command list, else discards the text typed since opening
+  hides the name list, else discards the text typed since opening
   or since the last line sent ([Sending](#sending)) and closes the chat; an open [player list](#player-list) shows again
   when the chat opens. Every key,
   console and menu keys included, goes to the chat while it is open, but a
@@ -1748,7 +1738,7 @@ never a line, so the history holds only what players said.
   `ChatStyle`'s channel and failure colors: the field is the theme's white
   tint with 6 px corners, the scrollbar its thin grab, the chip's and a
   line's menus its opaque popups with the accent border, and their hovered
-  and selected rows the accent. The name and command list is a child window
+  and selected rows the accent. The name list is a child window
   with the popup's background, so it looks the same. Text is Sovngarde Light
   ([Themed faces](#themed-faces)).
 - The filters, the lines, the chip, the list, and the recent lines start at one
@@ -1804,7 +1794,7 @@ covers chat), and admin moderation.
   player's own lines), set when a line arrives and recomputed
   for all lines only when `PlayerFilters`' revision changes. A muted line
   marks no filter unread. A muted player's whisper does not become a whisper
-  partner or `/r` (`ChatSync::DrainLines`).
+  partner (`ChatSync::DrainLines`).
 - Vanishing is the server's: the client stops receiving the player
   ([Interest and delivery](interest-and-delivery.md#subscriptions)), so its
   remote actor leaves as for any `EXCLUDED` peer and returns, if in range,
@@ -2804,9 +2794,9 @@ To verify in game:
    text, and typing clears the note.
 3. The chip shows Nearby at first, and `hi` reaches players within 8192 units
    or in the same interior with a lime name, and not a player farther away.
-   `/g ` turns the chip to Global and is not part of the text; the line
-   reaches every player with a gold name, and so does the next one, until Tab
-   or `/n`.
+   Tab turns the chip to Global; the line reaches every player with a gold
+   name, and so does the next one, until Tab again. `/g hi` is sent as
+   written.
 4. `F10` opens the settings window with a cursor, and the game receives no input
    until it closes; `F10` again closes it. A new `OpenSettings` key opens and
    closes it and the old one no longer does, as soon as it is bound.
@@ -2893,15 +2883,12 @@ To verify in game:
     a whisper to that player and empties the field, and a line reaches only
     that player, labeled in violet as sent to it for the sender and as from
     the sender for the recipient. Enter, text, Enter whispers the same player again.
-    `/r` after a received whisper targets its sender, and Backspace in the
-    empty field leaves the chip as it is. A name nobody has shows one row
+    Backspace in the empty field leaves the chip as it is. A name nobody has shows one row
     saying so. Once the player disconnects, a note above the field says it
     is offline and the chat stays open with the text.
 12. Up in the field recalls the last sent line with its target, and Down
-    returns the text that was being written. `/` lists the commands; `/who`
-    shows the number of players online above the field and `/help` the
-    commands, neither adding a chat line; `/dance` shows a failure note and
-    sends nothing. Closing and opening the chat clears a note.
+    returns the text that was being written. Closing and opening the chat
+    clears a note.
 13. Moving the mouse in the open chat shows a cursor in the middle of the
     chat, and the character does not turn or attack. A click on another
     player's name turns the chip to that player; a right click on its line
@@ -2915,7 +2902,7 @@ To verify in game:
     corner. With Whisper off a
     whisper stays out of the closed chat too. A second click shows the
     channel again with the lines that arrived meanwhile. With Global off,
-    typing `/g ` turns it on, and so does the player's own global line coming
+    Tab to Global turns it on, and so does the player's own global line coming
     back. With all three off no line shows.
 15. With the default accent the open chat has no blue and no square corners,
     at 1080p and 4K: the
@@ -2955,7 +2942,7 @@ To verify in game:
     offers mute and vanish; on the local player's line, neither. After
     a mute no notice shows, the player's lines vanish from the open and
     closed chat, earlier ones included, and its new lines and whispers do
-    not show; `/r` still answers whoever whispered before. After a vanish
+    not show, and its whispers do not move it in the Tab order. After a vanish
     its character disappears at once while the other player still sees this
     one and is told nothing, and it stays gone after either game reconnects
     or restarts. The list marks the player with a struck bubble or eye.

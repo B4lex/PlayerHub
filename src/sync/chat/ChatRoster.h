@@ -47,9 +47,7 @@ namespace ChatRoster
 
     void CopyNearbyPlayers(std::vector<Multiplayer::PeerSlot>& a_players);
 
-    void NoteWhisper(const Player& a_player, bool a_incoming);
+    void NoteWhisper(const Player& a_player);
 
     void GetRecentPartners(std::vector<Player>& a_players, std::size_t a_maximum);
-
-    [[nodiscard]] std::optional<Player> GetLastWhisperer();
 }

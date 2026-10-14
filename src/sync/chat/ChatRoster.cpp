@@ -23,7 +23,6 @@ namespace ChatRoster
         std::vector<Entry> s_entries;
         Multiplayer::SessionID s_localSession = 0;
         std::deque<Player> s_partners;
-        std::optional<Player> s_lastWhisperer;
         std::vector<Multiplayer::PeerSlot> s_nearby;
 
         char32_t FoldCodePoint(char32_t a_code)
@@ -307,7 +306,7 @@ namespace ChatRoster
         Network::CopyNearbyPlayers(a_players);
     }
 
-    void NoteWhisper(const Player& a_player, bool a_incoming)
+    void NoteWhisper(const Player& a_player)
     {
         const std::scoped_lock lock{ s_lock };
         const auto folded = Fold(a_player.name);
@@ -319,10 +318,6 @@ namespace ChatRoster
         {
             s_partners.pop_back();
         }
-        if (a_incoming)
-        {
-            s_lastWhisperer = a_player;
-        }
     }
 
     void GetRecentPartners(std::vector<Player>& a_players, std::size_t a_maximum)
@@ -332,11 +327,5 @@ namespace ChatRoster
         {
             a_players.push_back(s_partners[i]);
         }
-    }
-
-    std::optional<Player> GetLastWhisperer()
-    {
-        const std::scoped_lock lock{ s_lock };
-        return s_lastWhisperer;
     }
 }

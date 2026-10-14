@@ -1,9 +1,8 @@
 #include "sync/chat/ChatComposer.h"
-#include "sync/chat/ChatDraft.h"
 #include "sync/chat/ChatRoster.h"
 
 #include <algorithm>
-#include <format>
+#include <optional>
 #include <utility>
 
 namespace ChatSync
@@ -17,6 +16,17 @@ namespace ChatSync
         ChatTarget Whisper(const Multiplayer::RosterEntry& a_player)
         {
             return ChatTarget{ .channel = Multiplayer::ChatChannel::kWhisper, .player = a_player };
+        }
+
+        std::optional<std::string_view> AfterWhisperPrefix(std::string_view a_draft)
+        {
+            const auto prefix = a_draft.find_first_not_of(' ');
+            if (prefix == std::string_view::npos || a_draft[prefix] != '@')
+            {
+                return std::nullopt;
+            }
+            const auto text = a_draft.find_first_not_of(' ', prefix + 1);
+            return text == std::string_view::npos ? std::string_view{} : a_draft.substr(text);
         }
     }
 
@@ -56,50 +66,20 @@ namespace ChatSync
         bool rewritten = false;
         for (;;)
         {
-            const auto typed = ChatDraft::Interpret(a_draft, false);
-            switch (typed.kind)
+            const auto typed = AfterWhisperPrefix(a_draft);
+            if (!typed)
             {
-                case ChatDraft::Kind::kChannel:
-                    SetTarget(ChatTarget{ .channel = typed.channel });
-                    break;
-                case ChatDraft::Kind::kReply:
-                    Reply();
-                    break;
-                case ChatDraft::Kind::kWho:
-                    ShowPlayerCount();
-                    break;
-                case ChatDraft::Kind::kHelp:
-                    ShowHelp();
-                    break;
-                case ChatDraft::Kind::kWhisper:
-                {
-                    ListPlayers(typed.rest);
-                    const auto addressee
-                        = suggestions.empty() ? ChatRoster::FindAddressee(typed.rest) : std::nullopt;
-                    if (!addressee || addressee->nameLength == typed.rest.size())
-                    {
-                        return rewritten;
-                    }
-                    SetTarget(Whisper(addressee->player));
-                    a_draft = std::string{ addressee->text };
-                    rewritten = true;
-                    continue;
-                }
-                case ChatDraft::Kind::kIncompleteCommand:
-                    if (a_draft.find(' ') == std::string::npos)
-                    {
-                        ListCommands(typed.rest);
-                    }
-                    else
-                    {
-                        ClearListing();
-                    }
-                    return rewritten;
-                default:
-                    ClearListing();
-                    return rewritten;
+                ClearListing();
+                return rewritten;
             }
-            a_draft = std::string{ typed.rest };
+            ListPlayers(*typed);
+            const auto addressee = suggestions.empty() ? ChatRoster::FindAddressee(*typed) : std::nullopt;
+            if (!addressee || addressee->nameLength == typed->size())
+            {
+                return rewritten;
+            }
+            SetTarget(Whisper(addressee->player));
+            a_draft = std::string{ addressee->text };
             rewritten = true;
         }
     }
@@ -107,70 +87,46 @@ namespace ChatSync
     Composer::SubmitResult Composer::Submit(std::string& a_draft)
     {
         notes.clear();
-        if (GetListing() != Listing::kNone && !suggestions.empty())
+        if (IsListing() && !suggestions.empty())
         {
             AcceptSuggestion(selection, a_draft);
             return SubmitResult::kStayOpen;
         }
 
-        const auto typed = ChatDraft::Interpret(a_draft, true);
-        switch (typed.kind)
+        if (const auto typed = AfterWhisperPrefix(a_draft))
         {
-            case ChatDraft::Kind::kText:
+            if (typed->empty())
             {
-                const auto text = Multiplayer::TrimChatText(typed.rest);
-                if (const auto result = Send(target, text); !result)
-                {
-                    Fail(result.error());
-                    return SubmitResult::kStayOpen;
-                }
-                Remember(text);
-                a_draft.clear();
-                ClearListing();
-                return SubmitResult::kClose;
-            }
-            case ChatDraft::Kind::kChannel:
-                SetTarget(ChatTarget{ .channel = typed.channel });
-                break;
-            case ChatDraft::Kind::kReply:
-                Reply();
-                break;
-            case ChatDraft::Kind::kWho:
-                ShowPlayerCount();
-                break;
-            case ChatDraft::Kind::kHelp:
-                ShowHelp();
-                break;
-            case ChatDraft::Kind::kWhisper:
-            {
-                if (typed.rest.empty())
-                {
-                    Fail("Type a player's name after @, then your message");
-                    return SubmitResult::kStayOpen;
-                }
-                const auto addressee = ChatRoster::FindAddressee(typed.rest);
-                if (!addressee)
-                {
-                    Fail("No player with that name is online");
-                    return SubmitResult::kStayOpen;
-                }
-                SetTarget(Whisper(addressee->player));
-                a_draft = std::string{ addressee->text };
-                ClearListing();
-                return a_draft.empty() ? SubmitResult::kStayOpen : Submit(a_draft);
-            }
-            default:
-                Fail(std::format("Unknown command /{}. Type /help for the list", typed.rest));
+                Fail("Type a player's name after @, then your message");
                 return SubmitResult::kStayOpen;
+            }
+            const auto addressee = ChatRoster::FindAddressee(*typed);
+            if (!addressee)
+            {
+                Fail("No player with that name is online");
+                return SubmitResult::kStayOpen;
+            }
+            SetTarget(Whisper(addressee->player));
+            a_draft = std::string{ addressee->text };
+            ClearListing();
+            return a_draft.empty() ? SubmitResult::kStayOpen : Submit(a_draft);
         }
-        a_draft = std::string{ typed.rest };
+
+        const auto text = Multiplayer::TrimChatText(a_draft);
+        if (const auto result = Send(target, text); !result)
+        {
+            Fail(result.error());
+            return SubmitResult::kStayOpen;
+        }
+        Remember(text);
+        a_draft.clear();
         ClearListing();
-        return SubmitResult::kStayOpen;
+        return SubmitResult::kClose;
     }
 
-    std::span<const Composer::Suggestion> Composer::GetSuggestions() const
+    std::span<const Multiplayer::RosterEntry> Composer::GetSuggestions() const
     {
-        return dismissed ? std::span<const Suggestion>{} : std::span<const Suggestion>{ suggestions };
+        return dismissed ? std::span<const Multiplayer::RosterEntry>{} : std::span{ suggestions };
     }
 
     void Composer::MoveSelection(int a_direction)
@@ -190,16 +146,9 @@ namespace ChatSync
         {
             return;
         }
-        const auto accepted = suggestions[a_index];
-        if (accepted.command.empty())
-        {
-            SetTarget(Whisper(accepted.player));
-            a_draft.clear();
-            ClearListing();
-            return;
-        }
-        a_draft = std::format("/{} ", accepted.command);
-        OnEdited(a_draft);
+        SetTarget(Whisper(suggestions[a_index]));
+        a_draft.clear();
+        ClearListing();
     }
 
     bool Composer::RecallPrevious(std::string& a_draft)
@@ -236,90 +185,22 @@ namespace ChatSync
 
     void Composer::ListPlayers(std::string_view a_prefix)
     {
-        players.clear();
-        ChatRoster::Complete(a_prefix, players, kMaximumSuggestions);
         suggestions.clear();
-        for (auto& player : players)
-        {
-            suggestions.push_back(Suggestion{ .label = player.name, .player = std::move(player) });
-        }
-        listing = Listing::kPlayers;
-        selection = 0;
-    }
-
-    void Composer::ListCommands(std::string_view a_prefix)
-    {
-        suggestions.clear();
-        for (const auto& command : ChatDraft::GetCommands())
-        {
-            if (command.name.starts_with(a_prefix))
-            {
-                suggestions.push_back(Suggestion{ .label = command.argument.empty()
-                                                              ? std::format("/{}", command.name)
-                                                              : std::format("/{} {}", command.name, command.argument),
-                    .detail = std::string{ command.description },
-                    .command = command.name });
-            }
-        }
-        listing = suggestions.empty() ? Listing::kNone : Listing::kCommands;
+        ChatRoster::Complete(a_prefix, suggestions, kMaximumSuggestions);
+        listing = true;
         selection = 0;
     }
 
     void Composer::ClearListing()
     {
-        listing = Listing::kNone;
+        listing = false;
         suggestions.clear();
         selection = 0;
     }
 
-    void Composer::Reply()
-    {
-        if (const auto whisperer = ChatRoster::GetLastWhisperer())
-        {
-            SetTarget(Whisper(*whisperer));
-        }
-        else
-        {
-            Fail("Nobody has whispered you yet");
-        }
-    }
-
     void Composer::Fail(std::string a_text)
     {
-        notes.push_back(Note{ .text = std::move(a_text), .failure = true });
-    }
-
-    void Composer::Inform(std::string a_text, std::string a_detail)
-    {
-        notes.push_back(Note{ .text = std::move(a_text), .detail = std::move(a_detail) });
-    }
-
-    void Composer::ShowHelp()
-    {
-        Inform("@name whispers. Tab steps through the channels");
-        for (const auto& command : ChatDraft::GetCommands())
-        {
-            Inform(command.argument.empty() ? std::format("/{}", command.name)
-                                            : std::format("/{} {}", command.name, command.argument),
-                std::string{ command.description });
-        }
-    }
-
-    void Composer::ShowPlayerCount()
-    {
-        const auto count = ChatRoster::GetPlayerCount();
-        if (count == 0)
-        {
-            Fail("Not connected to the server");
-        }
-        else if (count == 1)
-        {
-            Inform("You are the only player online");
-        }
-        else
-        {
-            Inform(std::format("{} players online", count));
-        }
+        notes.push_back(std::move(a_text));
     }
 
     void Composer::Remember(std::string_view a_text)

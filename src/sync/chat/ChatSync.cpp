@@ -97,11 +97,11 @@ namespace ChatSync
                 .player = { .playerID = other.playerID, .name = other.name, .session = other.session },
                 .outgoing = message.outgoing };
             // A note to oneself is not a conversation, and a muted player's whispers are
-            // hidden, so neither changes /r.
+            // hidden, so neither makes a whisper partner.
             if (whisper && message.sender.playerID != message.recipient.playerID
                 && (message.outgoing || !PlayerFilters::IsMuted(message.sender.session)))
             {
-                ChatRoster::NoteWhisper(line.player, !message.outgoing);
+                ChatRoster::NoteWhisper(line.player);
             }
             a_lines.push_back(std::move(line));
         }
