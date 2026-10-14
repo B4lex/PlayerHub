@@ -121,6 +121,7 @@ if inWorld:
     CombatSync::CaptureLocalAttack
     CombatSync::CaptureLocalHandPresentation
     AnimationSync::ObserveLocalGraphEpoch
+    AnimationSync::ObserveLocalMovementInput   # stop hold timer, input history
     EquipmentSync::SyncEquipment           # flushed when an attack or presentation started
     CombatSync::QueueLocalAttacks
     CheckpointPublisher::PublishLocalCheckpoint

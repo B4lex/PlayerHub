@@ -18,6 +18,7 @@ namespace AnimationSync
     };
 
     [[nodiscard]] LocalGraphEpoch ObserveLocalGraphEpoch(const LocalFrame& a_local);
+    void ObserveLocalMovementInput(const LocalFrame& a_local, float a_delta);
 
     [[nodiscard]] Multiplayer::AnimationState SampleLocalAnimation(
         const LocalFrame& a_local, std::uint64_t a_sequence, const MovementSync::LocalSample& a_movement);

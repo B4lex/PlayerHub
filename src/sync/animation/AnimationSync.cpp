@@ -3,8 +3,12 @@
 #include "actor/ActorFurniture.h"
 #include "actor/ActorMovement.h"
 #include "actor/RemoteActor.h"
+#include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
 
+#include <array>
+#include <format>
+#include <iterator>
 #include <limits>
 
 namespace AnimationSync
@@ -257,6 +261,100 @@ namespace AnimationSync
         }
     }
 
+    namespace
+    {
+        // Diagnostic: the local player's raw movement input over recent passes,
+        // logged when a published sample stops moving, to tell a one-pass flag
+        // dropout from a real stop.
+        struct MovementInputPass
+        {
+            float delta{ 0.0F };
+            bool forward{ false };
+            bool back{ false };
+            bool left{ false };
+            bool right{ false };
+            bool running{ false };
+            bool sprinting{ false };
+            bool sneaking{ false };
+            float inputX{ 0.0F };
+            float inputY{ 0.0F };
+            bool movementControls{ false };
+            bool autoMove{ false };
+            bool controlsRunning{ false };
+            std::uint32_t weaponState{ 0 };
+            std::uint32_t attackState{ 0 };
+            bool midair{ false };
+        };
+
+        // Main-loop passes: the history is meant per pass.
+        constexpr std::size_t kMovementInputHistoryPasses = 12;
+        std::array<MovementInputPass, kMovementInputHistoryPasses> s_movementInputHistory{};
+        std::size_t s_movementInputNext = 0;
+        std::size_t s_movementInputCount = 0;
+        bool s_reportNextLocalSample = false;
+
+        // Direction-key changes left the move input zero for 6-24 ms, and chained
+        // attacks dropped the movement bits for about 6 ms with the input held
+        // (observed in game); a 20 Hz sample inside such a gap published a stop that
+        // peers played as a stop and restart.
+        constexpr float kLocalStopHoldSeconds = 0.06F;
+        float s_localNotMovingElapsed = 0.0F;
+
+        std::string DescribeMovementInputHistory()
+        {
+            std::string description;
+            float age = 0.0F;
+            for (std::size_t offset = 1; offset <= s_movementInputCount; ++offset)
+            {
+                const auto& pass = s_movementInputHistory[(s_movementInputNext + kMovementInputHistoryPasses - offset)
+                    % kMovementInputHistoryPasses];
+                std::format_to(std::back_inserter(description),
+                    "{}-{:.3f}:{}{}{}{}{}{}{} in=({:.2f},{:.2f}){}{}{} weapon={} attack={}{}",
+                    description.empty() ? "" : " | ", age, pass.forward ? "F" : "", pass.back ? "B" : "",
+                    pass.left ? "L" : "", pass.right ? "R" : "", pass.running ? "r" : "", pass.sprinting ? "s" : "",
+                    pass.sneaking ? "k" : "", pass.inputX, pass.inputY, pass.movementControls ? "" : " noMoveControls",
+                    pass.autoMove ? " auto" : "", pass.controlsRunning ? " run" : "", pass.weaponState,
+                    pass.attackState, pass.midair ? " midair" : "");
+                age += pass.delta;
+            }
+            return description;
+        }
+    }
+
+    void ObserveLocalMovementInput(const LocalFrame& a_local, float a_delta)
+    {
+        MovementInputPass pass{ .delta = a_delta };
+        if (const auto* state = a_local.player.AsActorState())
+        {
+            pass.forward = state->actorState1.movingForward;
+            pass.back = state->actorState1.movingBack;
+            pass.left = state->actorState1.movingLeft;
+            pass.right = state->actorState1.movingRight;
+            pass.running = state->actorState1.running;
+            pass.sprinting = state->actorState1.sprinting;
+            pass.sneaking = state->actorState1.sneaking;
+            pass.weaponState = static_cast<std::uint32_t>(state->GetWeaponState());
+            pass.attackState = static_cast<std::uint32_t>(state->GetAttackState());
+        }
+        if (const auto* controls = RE::PlayerControls::GetSingleton())
+        {
+            pass.inputX = controls->data.moveInputVec.x;
+            pass.inputY = controls->data.moveInputVec.y;
+            pass.autoMove = controls->data.autoMove;
+            pass.controlsRunning = controls->data.running;
+        }
+        if (const auto* controlMap = RE::ControlMap::GetSingleton())
+        {
+            pass.movementControls = controlMap->IsMovementControlsEnabled();
+        }
+        pass.midair = a_local.player.IsInMidair();
+        const bool moving = pass.forward || pass.back || pass.left || pass.right;
+        s_localNotMovingElapsed = moving ? 0.0F : s_localNotMovingElapsed + FrameTime::Clamp(a_delta);
+        s_movementInputHistory[s_movementInputNext] = pass;
+        s_movementInputNext = (s_movementInputNext + 1) % kMovementInputHistoryPasses;
+        s_movementInputCount = (std::min)(s_movementInputCount + 1, kMovementInputHistoryPasses);
+    }
+
     LocalGraphEpoch ObserveLocalGraphEpoch(const LocalFrame& a_local)
     {
         PROFILE_FUNCTION();
@@ -306,7 +404,15 @@ namespace AnimationSync
         static Multiplayer::AnimationState previousAnimationState{};
         static bool hasPreviousAnimationState = false;
 
-        const auto animationState = GetAnimationState(a_local.player);
+        auto animationState = GetAnimationState(a_local.player);
+        if (hasPreviousAnimationState && Multiplayer::IsMoving(previousAnimationState.movementState)
+            && !Multiplayer::IsMoving(animationState.movementState) && s_localNotMovingElapsed < kLocalStopHoldSeconds)
+        {
+            logs::debug("Animation sync held local stop: sequence={} notMovingSeconds={:.3f} held={}",
+                static_cast<unsigned long long>(a_sequence), s_localNotMovingElapsed,
+                Multiplayer::GetMovementStateName(previousAnimationState.movementState));
+            animationState.movementState = previousAnimationState.movementState;
+        }
         if (!hasPreviousAnimationState || animationState != previousAnimationState)
         {
             logs::debug(
@@ -320,8 +426,31 @@ namespace AnimationSync
                 animationState.jumping ? "jumping" : "grounded", a_movement.position.x, a_movement.position.y,
                 a_movement.position.z, a_movement.speed, a_movement.direction, a_local.player.IsInJumpState(),
                 a_local.player.IsInMidair());
+            const bool stopped = hasPreviousAnimationState
+                && Multiplayer::IsMoving(previousAnimationState.movementState)
+                && !Multiplayer::IsMoving(animationState.movementState);
+            if (stopped || s_reportNextLocalSample)
+            {
+                logs::debug(
+                    "Animation sync local movement input: sequence={} reason={} state={} speed={:.1f} "
+                    "passes=[{}]",
+                    static_cast<unsigned long long>(a_sequence), stopped ? "stopped" : "after-stop",
+                    Multiplayer::GetMovementStateName(animationState.movementState), a_movement.speed,
+                    DescribeMovementInputHistory());
+            }
+            s_reportNextLocalSample = stopped;
             previousAnimationState = animationState;
             hasPreviousAnimationState = true;
+        }
+        else if (s_reportNextLocalSample)
+        {
+            logs::debug(
+                "Animation sync local movement input: sequence={} reason=after-stop state={} speed={:.1f} "
+                "passes=[{}]",
+                static_cast<unsigned long long>(a_sequence),
+                Multiplayer::GetMovementStateName(animationState.movementState), a_movement.speed,
+                DescribeMovementInputHistory());
+            s_reportNextLocalSample = false;
         }
         return animationState;
     }

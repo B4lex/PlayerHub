@@ -288,6 +288,7 @@ namespace SyncCoordinator
             const auto capturedAttack = CombatSync::CaptureLocalAttack(local);
             const bool handPresentationStarted = CombatSync::CaptureLocalHandPresentation(local);
             const auto graphEpoch = AnimationSync::ObserveLocalGraphEpoch(local);
+            AnimationSync::ObserveLocalMovementInput(local, a_delta);
             // Flush equipment before a captured attack or hand presentation is published, so
             // peers receive a weapon swap ahead of its use.
             EquipmentSync::SyncEquipment(local, a_delta, capturedAttack.has_value() || handPresentationStarted);
@@ -364,7 +365,7 @@ namespace SyncCoordinator
             if (lifecycle.actor && MountSync::SyncMount(remote, a_peer, a_delta))
             {
                 auto& actor = *lifecycle.actor;
-                CombatSync::ClearRemoteActions(a_peer.combat);
+                CombatSync::ClearRemoteActions(a_peer.combat, actor);
                 EquipmentSync::SyncEquipment(a_peer.equipment, a_playerID, actor, a_delta);
                 const bool readyForWeaponDraw = EquipmentSync::IsReadyForWeaponDraw(a_peer.equipment);
                 if (!MountSync::UpdateRider(remote, a_peer, readyForWeaponDraw, a_delta))

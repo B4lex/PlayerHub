@@ -61,6 +61,7 @@ namespace ActorRegistry
             float gaitSpeed{ 0.0F };
             bool networkPlaced{ false };
             float authoritativeSpeed{ 0.0F };
+            float attackSpeedScale{ 1.0F };
             bool landingCompletionObservationAllowed{ false };
             bool observeJumpLandEndEvent{ false };
             bool observeWeaponTransitionEndEvent{ false };
@@ -74,6 +75,8 @@ namespace ActorRegistry
         std::unordered_map<std::uint32_t, Registration*> s_byHandle;
         std::atomic<std::size_t> s_gaitDrivenCount{ 0 };
         std::atomic<std::size_t> s_networkPlacedCount{ 0 };
+        // Registrations whose attackSpeedScale is not 1.
+        std::atomic<std::size_t> s_attackSpeedScaledCount{ 0 };
         std::atomic<std::size_t> s_nativeFurnitureExitCount{ 0 };
 
         template <class Key>
@@ -124,6 +127,10 @@ namespace ActorRegistry
             if (registration->second.networkPlaced)
             {
                 s_networkPlacedCount.fetch_sub(1, std::memory_order_relaxed);
+            }
+            if (registration->second.attackSpeedScale != 1.0F)
+            {
+                s_attackSpeedScaledCount.fetch_sub(1, std::memory_order_relaxed);
             }
             s_registrations.erase(registration);
         }
@@ -399,6 +406,44 @@ namespace ActorRegistry
         const auto* registration = Find(a_actor);
         // A dead actor is left to Skyrim's death and ragdoll.
         return registration && registration->networkPlaced && !registration->dead;
+    }
+
+    void SetAttackSpeedScale(const RemoteActor& a_remote, float a_scale)
+    {
+        auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        if (!registration || registration->attackSpeedScale == a_scale)
+        {
+            return;
+        }
+        LockForWrite(lock);
+        const bool wasScaled = registration->attackSpeedScale != 1.0F;
+        const bool scaled = a_scale != 1.0F;
+        registration->attackSpeedScale = a_scale;
+        if (scaled && !wasScaled)
+        {
+            s_attackSpeedScaledCount.fetch_add(1, std::memory_order_relaxed);
+        }
+        else if (!scaled && wasScaled)
+        {
+            s_attackSpeedScaledCount.fetch_sub(1, std::memory_order_relaxed);
+        }
+    }
+
+    std::optional<float> GetAttackSpeedScale(const RE::Actor* a_actor)
+    {
+        if (!a_actor || s_attackSpeedScaledCount.load(std::memory_order_relaxed) == 0)
+        {
+            return std::nullopt;
+        }
+
+        const auto lock = LockSharedUnlessMainThread();
+        const auto* registration = Find(a_actor);
+        if (!registration || registration->attackSpeedScale == 1.0F)
+        {
+            return std::nullopt;
+        }
+        return registration->attackSpeedScale;
     }
 
     void SetAuthoritativeSpeed(const RemoteActor& a_remote, float a_speed)

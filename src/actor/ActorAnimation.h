@@ -1,5 +1,6 @@
 #pragma once
 
+#include "actor/GraphProbe.h"
 #include "protocol/MovementState.h"
 #include "protocol/PlayerState.h"
 
@@ -36,7 +37,9 @@ namespace ActorAnimation
         // Main-loop passes, only used to throttle logs.
         std::uint32_t landingCompletionWaitFrames{ 0 };
         float landingCompletionWaitElapsed{ 0.0F };
-        bool landingLocomotionReassertPending{ false };
+        // Set when a landing, attack, hand presentation, or swim releases the graph;
+        // names the release for the log.
+        const char* locomotionReassertReason{ nullptr };
         bool hasDispatched{ false };
         bool hasAttempted{ false };
         bool hasVariableUpdateResult{ false };
@@ -48,19 +51,18 @@ namespace ActorAnimation
         bool weaponTransitionExitForced{ false };
         bool weaponDefaultStateDispatched{ false };
         bool weaponReplayBaseDispatched{ false };
-        bool weaponTransitionMoveStartDispatched{ false };
         bool weaponRestoredWithoutCompletion{ false };
-        bool swimLocomotionReassertPending{ false };
-        // SwimStart enters Swim_Behavior at the state iSyncIdleLocomotion selects,
-        // which stays 0 (SwimIdle) on a remote actor.
+        // A graph that took SwimStart in SwimIdle while moving leaves it only on
+        // moveStart.
         bool swimMoveStartPending{ false };
         std::uint32_t swimMoveStartWaitPasses{ 0 };
         std::uint32_t swimMoveStartAttempts{ 0 };
         float swimMoveStartElapsed{ 0.0F };
-        bool sneakMoveStartPending{ false };
-        float graphSneakSampleElapsed{ 0.0F };
+        float graphStanceSampleElapsed{ 0.0F };
         float graphSneakMismatchElapsed{ 0.0F };
+        float graphStandingMismatchElapsed{ 0.0F };
         std::uint32_t graphSneakCorrections{ 0 };
+        std::uint32_t graphStandingCorrections{ 0 };
         std::uint32_t turnStateOverrides{ 0 };
         bool lastVariableUpdateAccepted{ false };
         bool localInterruptionLatched{ false };
@@ -82,7 +84,6 @@ namespace ActorAnimation
         Network::AttackAction attackPlaybackAction{ Network::AttackAction::kNormal };
         bool attackPlaybackPower{ false };
         bool attackChainDispatched{ false };
-        bool attackLocomotionReassertPending{ false };
         bool bowDrawHeld{ false };
         bool bowReleasePending{ false };
         float bowPhaseElapsed{ 0.0F };
@@ -98,12 +99,13 @@ namespace ActorAnimation
         bool blockStopAccepted{ false };
         float blockStopElapsed{ 0.0F };
         float blockEventRetryElapsed{ 0.0F };
-        // The block, bow draw, and cast lower bodies choose their standing or moving
-        // state from iSyncIdleLocomotion when entered, which stays 0 on a remote
-        // actor.
-        bool presentationMoveStartPending{ false };
-        std::uint32_t presentationMoveStartWaitPasses{ 0 };
-        float presentationMoveStartElapsed{ 0.0F };
+#ifndef NDEBUG
+        // Diagnostic: a set reason arms a graph probe for when the dispatch settles.
+        const char* graphProbeReason{ nullptr };
+        float graphProbeElapsed{ 0.0F };
+        Multiplayer::AnimationState graphProbeState{};
+        GraphProbe::Snapshot graphProbeSnapshot{};
+#endif
     };
 
     [[nodiscard]] Multiplayer::AnimationState GetTargetState(const RemoteActor& a_remote);
@@ -127,7 +129,6 @@ namespace ActorAnimation
     void ApplyBowDraw(RemoteActor& a_remote, bool a_drawn, bool a_mayStart, float a_deltaTime);
     void ApplySpellCast(RemoteActor& a_remote, bool a_leftHand, bool a_casting, bool a_mayStart, float a_deltaTime);
     void ApplyBlock(RemoteActor& a_remote, bool a_blocking, bool a_mayStart, float a_deltaTime);
-    void AdvancePresentationLocomotion(RemoteActor& a_remote, float a_deltaTime);
     [[nodiscard]] bool IsHandPresentationPlaying(const RemoteActor& a_remote);
     [[nodiscard]] bool IsWeaponTransitionPlaying(const RemoteActor& a_remote);
     void ApplyRiderWeaponState(RE::Actor& a_actor, RemoteActor& a_remote, bool a_weaponDrawn);

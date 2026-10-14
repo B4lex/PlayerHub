@@ -273,6 +273,43 @@ namespace AnimationFirewall
 
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
+
+        // The weapon speed channels feed weaponSpeedMult and leftWeaponSpeedMult,
+        // which scale the playback of the vanilla attack clips (hkbClipGenerator
+        // playbackSpeed bindings in the behavior files). Unlike the Speed and
+        // Direction channels they keep no cached value: the Actor is at 0x20, and
+        // vfunc 1 rewrites the value at 0x18 from the actor on every poll (1.7.104
+        // disassembly), so scaling it there cannot compound.
+        constexpr std::ptrdiff_t kWeaponSpeedChannelActorOffset = 0x20;
+
+        template <class Tag>
+        struct WeaponSpeedChannelHook
+        {
+            static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
+            {
+                _original(a_channel, a_arg);
+                if (!a_channel)
+                {
+                    return;
+                }
+
+                auto* bytes = reinterpret_cast<std::byte*>(a_channel);
+                const RE::Actor* actor = nullptr;
+                std::memcpy(&actor, bytes + kWeaponSpeedChannelActorOffset, sizeof(actor));
+                if (const auto scale = ActorRegistry::GetAttackSpeedScale(actor))
+                {
+                    float value = 0.0F;
+                    std::memcpy(&value, bytes + kChannelGraphValueOffset, sizeof(value));
+                    value *= *scale;
+                    std::memcpy(bytes + kChannelGraphValueOffset, &value, sizeof(value));
+                }
+            }
+
+            static inline REL::Relocation<decltype(Thunk)> _original;
+        };
+
+        struct RightWeaponSpeedTag;
+        struct LeftWeaponSpeedTag;
     }
 
     void InstallHooks()
@@ -295,6 +332,16 @@ namespace AnimationFirewall
             RE::VTABLE_BSTAnimationGraphDataChannel_Actor_float_ActorTurnDeltaChannel_[0]
         };
         TurnDeltaChannelHook::_original = turnDeltaChannelVTable.write_vfunc(0x1, TurnDeltaChannelHook::Thunk);
+        REL::Relocation<std::uintptr_t> weaponSpeedChannelVTable{
+            RE::VTABLE_BSTAnimationGraphDataChannel_Actor_float_ActorWeaponSpeedChannel_[0]
+        };
+        WeaponSpeedChannelHook<RightWeaponSpeedTag>::_original
+            = weaponSpeedChannelVTable.write_vfunc(0x1, WeaponSpeedChannelHook<RightWeaponSpeedTag>::Thunk);
+        REL::Relocation<std::uintptr_t> leftWeaponSpeedChannelVTable{
+            RE::VTABLE_BSTAnimationGraphDataChannel_Actor_float_ActorLeftWeaponSpeedChannel_[0]
+        };
+        WeaponSpeedChannelHook<LeftWeaponSpeedTag>::_original
+            = leftWeaponSpeedChannelVTable.write_vfunc(0x1, WeaponSpeedChannelHook<LeftWeaponSpeedTag>::Thunk);
     }
 
     void Enable(RemoteActor& a_remote)

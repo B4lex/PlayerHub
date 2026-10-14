@@ -37,6 +37,10 @@ namespace ActorRegistry
     void SetGaitSpeed(const RemoteActor& a_remote, float a_speed);
     void SetNetworkPlaced(const RemoteActor& a_remote, bool a_networkPlaced);
     [[nodiscard]] bool IsNetworkPlaced(const RE::Actor* a_actor);
+    // Scales the actor's polled weapon speeds while its attacks catch up with the
+    // source; 1 leaves them to Skyrim.
+    void SetAttackSpeedScale(const RemoteActor& a_remote, float a_scale);
+    [[nodiscard]] std::optional<float> GetAttackSpeedScale(const RE::Actor* a_actor);
     void SetAuthoritativeSpeed(const RemoteActor& a_remote, float a_speed);
     [[nodiscard]] std::optional<float> GetAuthoritativeSpeed(const RE::Actor* a_actor);
 

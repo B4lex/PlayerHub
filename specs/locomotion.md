@@ -24,6 +24,68 @@ writers were read from the vanilla behavior files and `BSIsActiveModifier`
 from the 1.7.104 executable; Linux syntax check only; not built on Windows or
 run in game.
 
+Movement input diagnostic (2026-10-14): run in game. Of 66 published stops, 9
+were one-sample flickers: 4 direction-key changes where the move input read
+zero for 6–24 ms between releasing one key and pressing the other, 1 real
+release of about 36 ms, 1 movement-bit drop of about 6 ms between chained
+attacks with the input held, 1 attack recovery with the player really
+standing, and 1 bit drop of about 30 ms while starting to move. The source
+samples what the engine reports; the 20 Hz sample lands inside gaps far
+shorter than its interval. The 0.06 s stop hold added for it ran in game: it held
+99 gaps of 6–30 ms, and the 11 stops published and reversed on the next sample
+were real stops at 0–16 units per second after the bits had been clear for at
+least 0.06 s. No issue was seen in game.
+
+Graph probe: run in game on a replay (2026-10-14); it read the vanilla state
+machine, clip, and variable names correctly. Compiling it only into debug
+builds and moving the stance selector read to `actor/GraphStance` were checked
+with a Linux g++ syntax check with and without `NDEBUG`; the Windows build was
+not run.
+
+Sneak selector reading (2026-10-14): the selectors and their `SneakStart` and
+`SneakStop` transitions were read from the vanilla behavior files. Run in game
+with a live peer: 190 of 216 dispatch readings came from the selectors, never
+mixed, and the variable fallback was used only in jump, landing, and
+unequip branches. Sneak toggled every 0.15–0.4 s while running with a
+one-handed weapon was taken on the first attempt each time, with no retries
+or translation hold, and every probe with an active selector agreed with the
+latched sneak state. The `sneakStop` skip did not occur in that run.
+
+`iSyncIdleLocomotion` hold (2026-10-14): the bindings and state IDs were read
+from the vanilla behavior files. Run in game with a live peer: locomotion
+reasserts that found the graph re-entered standing fell from 35 (the capture
+before it) to 4, all weapon-transition replays, two after the forced default
+state of a sheathe; the post-sneak `moveStart` was accepted 0 of 22 times
+(before: 5 of 24) and the presentation lower body's 0 of 7 (before: 6 of 7),
+since those branches now start moving; mixed readings fell from 14 to 1. That
+run showed sprinting landings now exit straight into `Sprint_State`, so the
+reassert's `SprintStart` was rejected for the whole retry window three times;
+the sprint skip added for it ran in game in the next capture: 14 sprinting
+landings, `SprintStart` skipped 4 times as already sprinting, and no event
+timeout or translation hold.
+
+Removing the one-shot sneak, presentation, and weapon-transition `moveStart`
+repairs and merging the landing, attack, presentation, and swim-stop reasserts
+into one (2026-10-14): run in game with a live peer (attacks, bow shots, casts,
+sprinting jumps, sneak, draws while running): all 41 reasserts found the graph
+already in the target state, with no stance correction, event timeout, or
+moving branch entered standing except one force equip that began on a
+one-checkpoint source idle at running speed and took `moveStart` 85 ms later.
+Blocking and swimming were not exercised.
+
+Standing/moving selector reading (2026-10-14): the selectors and their
+`moveStart` and `moveStop` transitions were read from the vanilla behavior
+files, and the table read every probe of the in-game run correctly
+(unarmed, one-handed, bow, magic, sneak, sprint), never mixed; the one
+disagreement with the latched state was a real desync, a force equip's
+standing branch under a running latch. Run in game with a live peer
+(2026-10-14): `moveStop` was skipped twice on a standing graph and `moveStart`
+once on a moving one, with no rejected move edge left but one taken 37 ms
+after a landing; no standing correction fired. Mixed readings (14) occurred
+only at hand-offs, a weapon equip exit, a cast stop, or a bow release, while
+that branch's lower body blended out under the base locomotion, and the edge
+was then sent as before.
+
 Jump sound attenuation: hook sites traced in the 1.7.104 executable and the
 sound records read from `Skyrim.esm`; Windows build and in-game behavior not
 yet verified. On SE 1.5.97 (2026-10-12) it hooks the footstep sink's call at
@@ -57,6 +119,9 @@ graphs may slide or miss transitions.
 | `sync/animation/AnimationSync` | Source movement state, jump, stance, and graph epoch; receiver staging and the translation gate |
 | `actor/ActorMovement` | Direct translation and heading on the actor |
 | `actor/ActorAnimation` | The actor's graph state machine: variables, events, staging, retries, landing, swim, weapon and presentation transitions, recovery |
+| `actor/GraphStance` | The sneak, standing/moving, and sprint selector states of the actor's active behavior |
+| `actor/GraphProbe` | Debug builds only: the diagnostic dump of active states, clips, and variables |
+| `actor/BehaviorGraphLayout` | Havok layout reads shared by both: state names, the current state, the active behavior |
 | `actor/JumpSound` | Distance attenuation of the actor's takeoff and landing footstep sounds |
 
 `ActorAnimation` is one controller on purpose: landing, draw and sheathe, swim,
@@ -75,7 +140,15 @@ At each checkpoint, from the carrier (the player, or its mount while riding):
   source graph's `Direction`, or derived from horizontal travel when a custom
   graph lacks it.
 - **Movement state**: `idle`, `walking`, `running`, `sprinting`, and the three
-  sneaking states, from the player's `ActorState`.
+  sneaking states, from the player's `ActorState`. A change from moving to
+  idle is published only once the movement bits have been clear for 0.06 s of
+  clamped frame time (`ObserveLocalMovementInput`, every pass); until then the
+  previous moving state is published and `held local stop` is logged.
+  Direction-key changes left the move input zero for 6–24 ms, and chained
+  attacks dropped the bits for about 6 ms with the input held, so a 20 Hz
+  sample inside such a gap published a stop that peers played as a stop and
+  restart. A genuine stop reaches peers up to one checkpoint later; starts and
+  every other change are published at once.
 - **Jumping**: the graph's `bInJumpState` gives the responsive takeoff edge
   (physical jump or midair state when the graph lacks it). Once the player has
   actually been airborne, physical ground contact is the landing, since the
@@ -89,6 +162,16 @@ At each checkpoint, from the carrier (the player, or its mount while riding):
 - **Graph epoch**: observed every pass, and advanced when the player's graph
   manager is replaced or becomes unavailable
   ([Combat presentation](combat-presentation.md#action-stream)).
+- **Movement input diagnostic**: `ObserveLocalMovementInput` also keeps the last 12
+  passes of the player's `ActorState` movement, run, sprint, and sneak bits,
+  `PlayerControls` move input, auto-move and run flags, whether movement
+  controls are enabled, weapon and attack state, and midair. When a published
+  sample stops moving, and on the sample after it, `local movement input`
+  logs them newest first with each pass's age (`reason=stopped` or
+  `after-stop`). Peers were seen receiving a single idle sample at running
+  speed between moving ones, often at a weapon swap, and the local player
+  published the same ([Status](#status) has the causes), which led to the stop
+hold above.
 
 ## Receiver
 
@@ -107,9 +190,9 @@ when the applied checkpoint changes jump phase; no jump events are queued.
 
 ### Graph state
 
-- Variables `Speed`, `SpeedSampled`, `Direction`, `TurnDelta`, `IsSprinting`, and
-  `iSyncSprintState` are refreshed every pass with the checkpoint's speed and
-  direction, in the same pass as translation and before it. `Speed` uses the
+- Variables `Speed`, `SpeedSampled`, `Direction`, `TurnDelta`, `IsSprinting`,
+  `iSyncSprintState`, and `iSyncIdleLocomotion` are refreshed every pass with
+  the checkpoint's speed and direction, in the same pass as translation and before it. `Speed` uses the
   checkpoint speed, with the actor's own speed only as a fallback for an invalid
   or zero sample while moving.
 - Compound changes are staged one graph update apart, so dependent events are
@@ -126,9 +209,10 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   returns false while an edge is already active or transitioning, so the result
   is not a reliable acknowledgement. Locomotion edges retry for 0.75 s instead:
   the graph refuses locomotion while it is still leaving an attack, and a power
-  attack's exit was measured holding it past 0.1 s. A latched sneak edge the
-  graph never took is repaired by [sneak
-  reconciliation](#sneak-reconciliation).
+  attack's exit was measured holding it past 0.1 s. An edge into the state the
+  graph already holds is skipped, and a latched sneak edge the graph never took
+  or a standing graph under a moving latch is repaired by [stance
+  reconciliation](#stance-reconciliation).
 - A graph that first appears, is replaced, or becomes unavailable (no 3D or no
   graph manager) drops all dispatch tracking through
   `InvalidateAnimationDispatch`, as recovery, furniture exit, and mounting do:
@@ -205,11 +289,25 @@ or a stop, it entered a turn clip it leaves only on the blocked `turnStop`.
 
 ### Standing re-entry
 
-Several state machines re-enter at a standing state chosen from
-`iSyncIdleLocomotion`, which stays 0 on a remote actor:
+Every vanilla standing/moving machine, from the base locomotion of each stance
+(`MT_Default_Behavior`, `1HM_Standing_Locomotion_Behavior`,
+`Bow_Standing_Locomotion_Behavior`, `DefaultMagicReadyBehavior`,
+`SneakMagicReadyBehavior`) to `Swim_Behavior`, `Torch_Ready_Behavior`, the block,
+bow, and cast lower bodies, and the equip and unequip lower bodies, binds its
+start state to `iSyncIdleLocomotion`, with standing as state 0 and moving as
+state 1. No vanilla behavior node writes the variable, and on a remote actor it
+stayed 0, so each of these machines entered while moving started standing. The
+receiver writes `iSyncIdleLocomotion` every pass with the other variables: 1
+while the dispatched state moves, 0 otherwise. A graph without the variable
+only logs `syncIdleVariable=false`; it does not hold the dispatch.
 
-- Vanilla `JumpLandEnd` exits into that standing state, so a landing has no
-  `SprintStop` edge until `moveStart` re-enters locomotion.
+- One-shot `moveStart` repairs used to follow a sneak edge taken while moving
+  (the spell-ready `MagicReadyRootBehavior` branches re-entered standing), a
+  block, bow draw, or cast started while moving, and a weapon transition. With
+  the hold, two captures showed them rejected or redundant every time (0 of 46,
+  0 of 14, and 11 of 11 already moving), so they were removed.
+- `Swim_Behavior` keeps its `moveStart` after `SwimStart`
+  ([Swimming](#swimming)); it is skipped once the selectors read moving.
 - The locomotion, sneak, jump, and landing machines (`MT_Locomotion_Behavior`,
   `Melee_Locomotion_Behavior`, `Sneak_Locomotion_Behavior`,
   `JumpLand_Behavior`, ...) start in the sprint or non-sprint state stored in
@@ -217,47 +315,150 @@ Several state machines re-enter at a standing state chosen from
   at sprint, so later walking, running, and backward movement kept the sprint
   clip. The receiver writes `iSyncSprintState` from the replicated state with the
   other variables.
-- With a spell readied, locomotion runs in `MagicReadyRootBehavior`, whose
-  `DefaultMagicReady` and `SneakMagicReady` branches re-enter their standing
-  machine. A `SneakStart` or `SneakStop` taken while moving left the actor
-  standing while it translated, and the next `moveStop` had no edge. The
-  receiver sends one `moveStart` on the graph update after a sneak edge taken
-  while moving; the unarmed and melee graphs keep sneak inside locomotion and
-  reject it.
-- Hand presentation lower bodies behave the same way
-  ([Combat presentation](combat-presentation.md#moving-lower-body)).
+- When a landing completes, an attack, bow shot, cast, or block ends, or swimming
+  stops (`locomotionReassertReason`: `landing`, `attack`, `bow-shot`, `cast`,
+  `block`, `swim-stop`), the next dispatch asserts the target's locomotion edges
+  once no attack plays and the actor no longer swims. Edges the graph already
+  holds are skipped ([Stance reconciliation](#stance-reconciliation)), so only
+  missing ones are sent; in the last capture before the merge, every landing
+  and presentation reassert found the graph already in the target state. A
+  pending reassert also counts as owning the graph for hand presentation
+  starts, attack dispatch, and stance reconciliation. It logs `reasserted
+  locomotion` with its reason.
+- A standing re-entry none of these covers, such as a force equip's standing
+  branch, is repaired by [stance reconciliation](#stance-reconciliation).
 
-### Sneak reconciliation
+### Stance reconciliation
 
-A sneak edge that ran out of retries is latched whether or not the graph took
-it, and sneak edges are sent only when the latched sneak changes, so the graph
-would keep the wrong stance until the source toggled sneak again. A bow draw's
-equip branch rejecting `sneakStop` for the whole retry window was logged
-leaving an actor crouched while its source stood and walked.
+A sneak or move edge that ran out of retries is latched whether or not the
+graph took it, edges are sent only when the latched state changes, and a branch
+entered standing ([Standing re-entry](#standing-re-entry)) leaves the graph
+standing under a moving latch. The graph would keep the wrong stance until the
+source changed state again. A bow draw's equip branch rejecting `sneakStop` for
+the whole retry window was logged leaving an actor crouched while its source
+stood and walked, and a one-handed force equip that entered its standing branch
+rejected `moveStop` for the whole retry window while already standing.
 
-- `ReadGraphSneak` reports the graph sneaking when `IsSneaking` is true or
-  `iState` is 2, and not sneaking only when both variables are readable and
-  neither holds. The vanilla sneak branches set `IsSneaking` through
-  `BSIsActiveModifier` and tag `iState` 2 through `BSiStateTaggingGenerator`,
-  and neither covers every branch: the magic-ready and casting sneak branches
-  only tag `iState`, and the unarmed, weapon, and bow sneak idles only set
-  `IsSneaking`. Transitional branches such as weapon equip set neither, so a
-  not-sneaking reading counts only while nothing else owns the graph.
-- `ReconcileGraphSneak` samples the graph every 0.1 s while the dispatch is
+- `GraphStance::ReadStanceSelectors` reads the three axes in one walk of the active
+  nodes. In the vanilla third-person behaviors, every `SneakStart`,
+  `SneakStop`, `moveStart`, `moveStop`, `SprintStart`, and `SprintStop`
+  transition belongs to a two-state machine that picks a default or a sneak
+  variant (`MT_LocomotionType_Behavior`,
+  `Melee_DirectionType_Behavior`, `Weap_IdleType_Behavior`,
+  `BowLoweredType_Behavior`, `MagicReadyRootBehavior`, the equip and block
+  selectors, ...) or a standing or moving variant (`MT_Default_Behavior`,
+  `1HM_Standing_Locomotion_Behavior`, `Bow_Standing_Locomotion_Behavior`,
+  `DefaultMagicReadyBehavior`, `SneakMagicReadyBehavior`, the cast, block, and
+  bow lower bodies, `Swim_Behavior`, `Torch_Ready_Behavior`, and the equip and
+  unequip lower bodies), or a locomotion or sprint variant
+  (`MT_Locomotion_Behavior`, `Sneak_Locomotion_Behavior`,
+  `Melee_Locomotion_Behavior`, `MagicReadyLocomotion_Behavior`, the cast, sneak
+  magic, torch, and unarmed arm pose locomotion). The machine's current state switches when the event
+  is taken, while the branch it leaves still blends out. Turn, shout,
+  first-person, horse, flinch, stagger, bleedout, drunk, and crossbow aim and
+  reload selectors are left out, and so are the magic locomotion speed
+  samplers, which re-enter idle inside a moving branch, the jump and landing
+  sprint variants, which linger while a landing blends out, and machines that
+  pick a variant only on entry. Each axis reads off or on when every active selector
+  of it agrees, mixed when they disagree (one stance's branch blending into
+  another's), and none when no selector is active.
+- `ReadGraphSneak` uses the sneak selectors and, with none active (a custom
+  graph, or a branch without one), falls back to the variables: sneaking when
+  `IsSneaking` is true or `iState` is 2, and not sneaking only when both are
+  readable and neither holds. Those variables stay set while a sneak branch
+  blends out after `SneakStop`: in a replay where the source toggled sneak
+  every 0.15–0.2 s while running, the next `sneakStart` was skipped as already
+  entered while the graph was leaving sneak, and the following `sneakStop` was
+  then rejected for the whole 0.75 s retry window, with translation held and
+  the actor running upright while latched sneaking. The vanilla sneak branches
+  set `IsSneaking` through `BSIsActiveModifier` and tag `iState` 2 through
+  `BSiStateTaggingGenerator`; the magic-ready and casting sneak branches only
+  tag `iState`, the unarmed, weapon, and bow sneak idles only set `IsSneaking`,
+  and transitional branches such as weapon equip set neither, so a
+  not-sneaking reading counts only while nothing else owns the graph. Standing,
+  moving, and sprinting have no variable fallback: `bInMoveState` and
+  `iState` do not tell standing and moving apart in every stance
+  ([Graph probe](#graph-probe)), so without a selector their edges are sent as
+  before.
+- The dispatch reads the selectors once before sending any event of the pass,
+  and skips an edge into the state the graph already holds: `moveStop` while
+  standing, `moveStart` while moving, `SprintStop` while not sprinting,
+  `SprintStart` while sprinting, `sneakStop` while the sneak selectors read
+  not sneaking, and `sneakStart` while the graph reads sneaking by selectors or
+  variables. Skyrim rejects such an edge, which held the dispatch for the whole
+  locomotion retry window. The variables alone never skip `sneakStop`, since
+  they also read not sneaking in branches without a sneak transition. A
+  skipped `moveStart` does not count as entering `Sprint_State` for a rejected
+  `SprintStart`.
+- `ReconcileGraphStance` samples the graph every 0.1 s while the dispatch is
   latched on the target and nothing else owns the graph: grounded and not
-  sprinting, no landing, swim, attack, or post-sneak `moveStart` pending, no
-  unsettled weapon transition, and no bow draw, cast, or block. A disagreement
-  held for 0.5 s, longer than a `sneakStop` blend, re-latches the opposite
-  sneak variant of the target (`ToggleSneak`), so the next dispatch sends the
-  missing edge with the usual ordering, retries, and post-sneak `moveStart`.
-  It does this at most three times per target state, so a custom graph that
-  reports sneak differently cannot keep sending edges.
-- A required `sneakStart` is not sent while the graph already reads as
-  sneaking. Skyrim rejects it from an active sneak branch, which held every
-  sneaking reassert after an attack, bow shot, or landing for the whole
-  locomotion retry window.
-- Dispatch logs carry the pre-event `graphSneak` and `sneakAlreadyEntered`; a
-  correction logs `graph sneak disagrees with the latched state`.
+  sprinting, no attack or locomotion reassert pending, no unsettled weapon
+  transition, and no bow draw, cast, or block.
+  - A sneak disagreement held for 0.5 s, longer than a `sneakStop` blend
+    through the variable fallback, re-latches the opposite sneak variant of the
+    target (`ToggleSneak`).
+  - Standing selectors under a moving target for 0.2 s (two samples, since the
+    selector switches as the edge is taken) re-latch the standing variant of
+    the target (`ToStanding`). Moving selectors under an idle target are left
+    alone: the graph rejected `moveStop` once `Speed` was zeroed, and `Speed` is
+    written 0 every pass while the target is idle.
+  - The next dispatch then sends the missing edge with the usual ordering,
+    and retries. Each axis does this at most three
+    times per target state, so a custom graph that reports stance differently
+    cannot keep sending edges. A sneak correction takes the sample; the moving
+    axis waits for the next.
+- Dispatch logs carry the pre-event `graphMoving` (`standing`, `moving`,
+  `mixed`, `unknown` with no selector active, or `unread` when no move or sneak
+  edge was required), `moveAlreadyStarted`, `moveAlreadyStopped`, `sprintAlreadyStarted`,
+  `sprintAlreadyStopped`, and
+  `graphSneak` with its source (`sneaking/states`, `notSneaking/states`,
+  `mixed/states`, `sneaking/variables`, `notSneaking/variables`, or
+  `unknown`), `sneakAlreadyEntered`, and `sneakAlreadyLeft`. A correction logs
+  `graph sneak disagrees with the latched state` or `graph stands while the
+  latched state moves`. A mixed reading logs `stance selectors disagree` with
+  every active selector and its state, at most on the first and every 60th
+  retry of an edge.
+
+### Graph probe
+
+A diagnostic for finding a graph reading that tells a standing actor from a
+moving one in every stance; `iState` does not (spell-ready locomotion reads 9
+standing and moving). Nothing acts on the probe lines; the stance selector read
+shares their layout reads ([Stance reconciliation](#stance-reconciliation)).
+The probe is compiled only when `NDEBUG` is not defined (the XMake `debug`
+mode, not `releasedbg`): each probe builds and logs several kilobytes under the
+graph lock and keeps a copy of the graph's variables per actor, which does not
+scale to hundreds of actors.
+
+The first replay (unarmed, one-handed, dual wield, bow, magic, sneak, sprint,
+jumps) showed that no variable does: `bInMoveState` is set only in the weapon
+and bow locomotion and sprint states and reads 0 in running magic, unarmed,
+and sneak locomotion, and `iState` reads 0 for both unarmed states and 9 for
+both magic states. The active state names do, one machine below the stance
+root: `MT_Default_Behavior` `MT_Standing_State` or `MT_LocomotionType_State`,
+`1HM_Standing_Locomotion_Behavior` and `Bow_Standing_Locomotion_Behavior`
+`*_Standing_State` or `*_Locomotion_State`, and `DefaultMagicReadyBehavior`
+`MagicReadyStandingState` or `MagicReadyLocomotionState`.
+
+- `Animation graph probe` lines carry the latched state, `iState`, and from
+  `GraphProbe::Describe`: every active `hkbStateMachine` with its current
+  state's name, every active `hkbClipGenerator`'s animation, and the root
+  graph's word-sized variables (bool, int, real) that changed since the
+  actor's previous probe, or all of them on the first probe of a graph.
+- `reason=state` is logged once the latched state changed and the dispatch
+  stayed settled for 0.5 s with no attack, hand presentation, unsettled weapon
+  transition, or recovery; `reason=reassert` and
+  `reason=weapon-replay` the same way after a locomotion reassert or the
+  replay that ends a weapon transition. A
+  `reason=unsettled-translation` probe follows the `resumed translation while
+  its locomotion dispatch is unsettled` line at once.
+- It reads `hkbBehaviorGraph::activeNodes` and `variableValueSet` under the
+  graph manager's `updateLock`, with two Havok 2010 layouts CommonLib leaves
+  unnamed: the value set's word array right after `hkReferencedObject`, and a
+  state info's name at 0x60 and state ID at 0x68. The stance selector read
+  walks the same active nodes and recognizes a state machine by an exact
+  `VTABLE_hkbStateMachine` match instead of an RTTI cast per node, since
+  reconciliation reads it every 0.1 s per actor.
 
 ### Jumps
 
@@ -320,10 +521,11 @@ Skyrim manages the swim transitions locally; the firewall admits `SwimStart` and
 support consistent with the source).
 
 - `Swim_Behavior` enters `SwimIdle` or `SwimLocomotion` from
-  `iSyncIdleLocomotion` and leaves `SwimIdle` only on `moveStart`. When
+  `iSyncIdleLocomotion` ([Standing re-entry](#standing-re-entry)) and leaves
+  `SwimIdle` only on `moveStart`. When
   `SwimStart` is accepted while both dispatched and target locomotion move, the
-  pass waits two main-loop passes for the swim branch, then sends `moveStart`
-  until it is accepted, the actor stops or leaves the water, or 0.5 s pass. A
+  pass waits two main-loop passes for the swim branch, then sends `moveStart`,
+  unless the selectors already read moving, until it is accepted, the actor stops or leaves the water, or 0.5 s pass. A
   swim started standing needs nothing: the later move sends its own `moveStart`.
 - After `swimStop` is accepted and the actor leaves the swimming state, the
   current locomotion events are reasserted, so a moving actor walks instead of
@@ -354,6 +556,23 @@ not yet checked in game:
    deactivates (vtable `deactivate` writes it), as the engine-read outputs
    `bAnimationDriven`, `IsStaggering`, and `IsRecoiling` require, so a true
    `IsSneaking` means a sneak branch is active.
+5. A stance selector's `currentStateID` changes as soon as the graph takes its
+   `SneakStart`, `SneakStop`, `moveStart`, or `moveStop` transition, before the
+   blend completes, and a sneak selector entered later starts in the variant
+   matching the actor's stance.
+6. Every hkbStateMachine node in `activeNodes` has exactly the
+   `hkbStateMachine` vtable (no engine subclass).
+7. A state machine reads its bound `startStateId` when it is entered, so a value
+   of `iSyncIdleLocomotion` written in the main loop applies to every later
+   entry, and nothing in the engine writes the variable for an actor that is not
+   paired with another (the only engine reference by name is the
+   `ActorCopyGraphVariableChannel<int>` built in ID 40358, a function that takes
+   two actors).
+
+The graph probe's value-set and state-info offsets come from the Havok 2010
+class layouts and were not checked against the executable; in game they read
+correct names and values, and `activeNodes` listed the active nodes of the
+referenced sub-behaviors when read from the main loop.
 
 ## Acceptance criteria
 
@@ -384,8 +603,12 @@ not yet checked in game:
   ([Sync pipeline](sync-pipeline.md#checkpoint-playout)).
 - A mod or behavior-graph mismatch between peers is not detected; missing
   variables and rejected or timed-out events are logged.
-- Sneak reconciliation needs a graph that sets `IsSneaking` or tags `iState` 2
-  in its sneak branches; with neither, a timed-out sneak edge stays latched as
-  before.
+- The stance selectors are recognized by their vanilla machine and state
+  names. A graph that renames them falls back to the sneak variables, with
+  their lag after `SneakStop`; reconciliation then needs a graph that sets
+  `IsSneaking` or tags `iState` 2 in its sneak branches, and with neither a
+  timed-out sneak edge stays latched. Such a graph gets no move skips or
+  standing correction.
+- A graph left moving under an idle target is not corrected.
 - An attenuated jump sound keeps its fixed-speaker output: it fades with
   distance but has no direction.

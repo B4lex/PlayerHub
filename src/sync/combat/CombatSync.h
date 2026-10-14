@@ -15,6 +15,8 @@ namespace CombatSync
     {
         Network::AnimationAction action;
         float age{ 0.0F };
+        // Time since its anchor checkpoint played.
+        float dueElapsed{ 0.0F };
         std::uint32_t dispatchAttempts{ 0 };
         float retryElapsed{ 0.0F };
     };
@@ -22,6 +24,8 @@ namespace CombatSync
     struct RemoteState
     {
         std::deque<PendingAnimationAction> pendingAnimationActions;
+        float attackSpeedScale{ 1.0F };
+        float attackCatchUpPeakScale{ 1.0F };
     };
 
     [[nodiscard]] std::optional<Network::Attack> CaptureLocalAttack(const LocalFrame& a_local);
@@ -37,6 +41,7 @@ namespace CombatSync
 
     void AgeRemoteActions(const RemoteFrame& a_remote, RemoteState& a_state, float a_delta);
     void ClearRemoteActions(RemoteState& a_state);
+    void ClearRemoteActions(RemoteState& a_state, RemoteActor& a_actor);
     void SyncCombat(const RemoteFrame& a_remote, RemoteState& a_state, RemoteActor& a_actor, bool a_handsSettled);
     void SyncHandPresentation(const RemoteFrame& a_remote, RemoteActor& a_actor, bool a_handsSettled, float a_delta);
 }

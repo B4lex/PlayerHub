@@ -13,6 +13,10 @@
   [Engine assumptions](#engine-assumptions).
 - **Left-hand and dual attacks, blocking, and bashes:** implemented; Windows
   build and in-game check pending.
+- **Attack catch-up** (2026-10-14): the weapon speed bindings were read from
+  the vanilla behavior files and the weapon speed channel layout from the
+  1.7.104 executable; Linux syntax check only; not built on Windows or run in
+  game; the channel layout on SE 1.5.97 is not checked.
 - **Power attacks:** implemented; Windows build and in-game check pending,
   except the observations noted below.
 
@@ -40,7 +44,7 @@ isolation of hits is in [Remote actor](remote-actor.md#combat-isolation).
 | --- | --- |
 | `sync/combat/CombatSync` | Source attack and hand-presentation capture; receiver action queue, dispatch gating, and hand presentation stage |
 | `sync/animation/AnimationSync` | Weapon stance as part of the presentable state; graph epoch |
-| `actor/ActorAnimation` | `CanDispatchAttack`, `CanChainAttack`, `CanPowerUpAttack`, `DispatchAttack`, `ApplyBlock`, bow and cast operations, `AdvancePresentationLocomotion` |
+| `actor/ActorAnimation` | `CanDispatchAttack`, `CanChainAttack`, `CanPowerUpAttack`, `DispatchAttack`, `ApplyBlock`, bow and cast operations |
 | `actor/AnimationEvents.h` | Event names and `GetPowerAttackEventDirection` |
 
 ## State or action
@@ -70,10 +74,10 @@ mean a request is outstanding, so the request is retried until the actor reaches
   exit. Readied spell hands draw through the magic equip branch, and
   `Magic_Equip_Out[Moving]` and `Magic_Unequip_Out[Moving]` complete it the same
   way; without them the draw never reached `kDrawn`.
-- After the base checkpoint settles, a draw or sheathe while moving is queued
-  before its transition-specific `moveStart`: the draw graph picks its standing
-  or moving branch at entry, so waiting for `Drawing` could show the standing
-  clip while the actor moves.
+- After the base checkpoint settles, a draw or sheathe is requested and retried
+  until it animates. The equip graph picks its standing or moving branch at
+  entry from `iSyncIdleLocomotion`, which the receiver holds at the dispatched
+  movement ([Locomotion](locomotion.md#standing-re-entry)).
 - After an unequip, when graph and actor are both sheathed,
   `IdleForceDefaultState` is forced before locomotion and jump are replayed. It
   is never forced after an equip, which would split the graph's sheathed state
@@ -163,7 +167,33 @@ known checkpoint, into a bounded FIFO (32). The front action waits until:
 - the preceding attack has completed or is in its combo window.
 
 A queued action times out after 3 s, a dispatch is retried at most four times,
-and a furniture checkpoint discards the queue. Late join, graph replacement,
+and a furniture checkpoint discards the queue.
+
+### Catching up
+
+A peer's replaced attack animations (for example player-only replacers) can
+play faster than the vanilla NPC clips a remote actor plays, so its swings
+arrive before the playing attack reaches its combo window. Chained swings were
+measured waiting 0.5–1.2 s with more queued behind them, and behind power
+attacks of 1.5–3.3 s a queued attack reached the 3 s timeout and was lost.
+
+- Each queued action counts how long it has been due (`dueElapsed`, from the
+  pass its anchor checkpoint played).
+- While an attack plays and the front action is due, the actor's weapon speed
+  is scaled by `1 + 0.5 × min(due / 0.5 s, 1)`, up to 1.5×, through
+  `ActorRegistry::SetAttackSpeedScale`, which the weapon speed channels apply
+  ([Remote actor](remote-actor.md#graph-channels)). The vanilla behavior files
+  bind the `playbackSpeed` of 110 attack clips, power and NPC variants
+  included, to `weaponSpeedMult` and 24 left-hand and dual-wield clips to
+  `leftWeaponSpeedMult`, so the swing and its combo window both arrive
+  sooner. The scale returns to 1 as soon as nothing waits.
+- A plain swing (not power, not a bash) still due after 1 s behind a playing
+  attack is dropped, so the actions behind it keep pace; power attacks and
+  bashes still only time out.
+- Clearing the queue resets the scale; while the actor rides, the rider's scale
+  is set back to 1 every pass.
+- Logs: `attack catch-up started`, `attack catch-up ended` with the peak speed,
+  and `dropped lagging queued attack` with the wait. Late join, graph replacement,
 respawn, and hit recovery first restore the current checkpoint; historical
 attacks are never replayed.
 
@@ -361,22 +391,20 @@ as long as the source casts, whatever the source's spell.
 
 The lower bodies of the block (`Blocking_LowerBody_Behavior`), bow draw
 (`Bow_Attack_LowerBodyBehavior`), and cast (`DefaultMagicCastingBehavior`) pick
-their standing or moving start state from `iSyncIdleLocomotion`, which stays 0
+their standing or moving start state from `iSyncIdleLocomotion`, which stayed 0
 on a remote actor even while running (observed in game), so a presentation
 started while moving entered the standing pose while translation continued.
-After such a start, `ActorAnimation::AdvancePresentationLocomotion` waits for the
-graph to enter the branch (two passes, and for a cast also its `IsCasting*`
-variable, at most 0.5 s) and sends `moveStart` once: a rejection means the lower
-body is not standing, and retries were never accepted in game. Nothing is sent
-while standing, while a bash owns the graph, or after the presentation ended.
-Later movement reaches the lower body through ordinary locomotion events.
+The receiver holds it at the dispatched movement
+([Locomotion](locomotion.md#standing-re-entry)), so the lower body starts in
+the right state; later movement reaches it through ordinary locomotion events.
 
-Leaving that lower body returns the graph to the base locomotion's standing
-state, so every presentation reasserts locomotion when it ends: the bow after its
-shot, the block once lowered, the cast once no hand still casts or stops. The
-replay sends `moveStart`, and `sneakStart`/`sprintStart` where they apply,
-without touching the stance. Without it the actor slid, and the graph then
-rejected the next `moveStop` until its retries ran out.
+When a presentation ends (the bow after its shot, the block once lowered, the
+cast once no hand still casts or stops), the graph returns to the base
+locomotion, and a locomotion reassert sends whichever of `moveStart`,
+`sneakStart`, and `SprintStart` the graph does not already hold, without
+touching the stance. Before the hold the base locomotion re-entered standing,
+the actor slid, and the graph then rejected the next `moveStop` until its
+retries ran out.
 
 ## Isolation
 

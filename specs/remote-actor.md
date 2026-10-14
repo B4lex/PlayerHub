@@ -182,6 +182,18 @@ direction, `ActorTurnDeltaChannel` reports 0, and `ActorSpeedChannel` reports
 the graph Speed `ActorAnimation` published (a mount or rider reports its gait
 speed). See [Graph speed](#graph-speed).
 
+`ActorWeaponSpeedChannel` and `ActorLeftWeaponSpeedChannel` (`weaponSpeedMult`,
+`leftWeaponSpeedMult`) keep the actor's own value multiplied by its attack
+speed scale while attacks catch up
+([Combat presentation](combat-presentation.md#catching-up)). Their layout
+differs from the Speed and Direction channels: the Actor is at 0x20 and there
+is no cached value, and vfunc 1 rewrites the value at 0x18 from the actor on
+every poll (1.7.104 disassembly), so the hook scales that value in place. The
+registry counts scaled actors (`s_attackSpeedScaledCount`), so the hooks,
+which run for every actor in the world, skip the lock while none is scaled. On SE 1.5.97 the layout is not checked; a different actor offset would only
+make the registry lookup, which compares pointers without dereferencing them,
+find nothing.
+
 ### Graph recovery
 
 Some hit reactions enter the graph below `NotifyAnimationGraph`, so filtering

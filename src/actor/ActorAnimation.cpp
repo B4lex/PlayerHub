@@ -2,6 +2,7 @@
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationFirewall.h"
+#include "actor/GraphStance.h"
 #include "actor/RemoteActor.h"
 #include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
@@ -55,8 +56,6 @@ namespace ActorAnimation
         // body, which then left the actor in the standing spell-ready state.
         constexpr std::int32_t kCastGraphStateTag = 10;
         constexpr float kBlockStopFallbackSeconds = 1.5F;
-        // A cast enters its graph state some updates after the caster's request.
-        constexpr float kCastLowerBodyEntrySeconds = 0.5F;
         // SwimIdle rejects moveStart until the graph has taken SwimStart.
         constexpr float kSwimMoveStartFallbackSeconds = 0.5F;
         // The vanilla sneak branches tag iState 2 (BSiStateTaggingGenerator) and set
@@ -64,10 +63,16 @@ namespace ActorAnimation
         // active. Neither covers every branch: MagicBehavior's sneak branches only
         // tag iState, and the unarmed, weapon, and bow sneak idles only set IsSneaking.
         constexpr std::int32_t kSneakGraphStateTag = 2;
-        constexpr float kGraphSneakSampleSeconds = 0.1F;
+        constexpr float kGraphStanceSampleSeconds = 0.1F;
         // A sneakStop keeps the sneak branch active while it blends out.
         constexpr float kGraphSneakMismatchSeconds = 0.5F;
-        constexpr std::uint32_t kMaximumGraphSneakCorrections = 3;
+        // A standing/moving selector switches as the edge is taken, with no blend to
+        // wait out; two samples rule out a single update between edge and switch.
+        constexpr float kGraphStandingMismatchSeconds = 0.2F;
+        constexpr std::uint32_t kMaximumGraphStanceCorrections = 3;
+#ifndef NDEBUG
+        constexpr float kGraphProbeSettleSeconds = 0.5F;
+#endif
 
         // Counting passes rather than seconds is intended: this only throttles the log.
         constexpr bool ShouldReportEventRetry(std::uint32_t a_attempt) noexcept
@@ -151,6 +156,15 @@ namespace ActorAnimation
         static_assert(ToggleSneak(Multiplayer::MovementState::kSneakingIdle) == Multiplayer::MovementState::kIdle);
         static_assert(ToggleSneak(Multiplayer::MovementState::kSprinting) == Multiplayer::MovementState::kSprinting);
 
+        constexpr Multiplayer::MovementState ToStanding(Multiplayer::MovementState a_state) noexcept
+        {
+            return IsSneaking(a_state) ? Multiplayer::MovementState::kSneakingIdle : Multiplayer::MovementState::kIdle;
+        }
+
+        static_assert(
+            ToStanding(Multiplayer::MovementState::kSneakingRunning) == Multiplayer::MovementState::kSneakingIdle);
+        static_assert(ToStanding(Multiplayer::MovementState::kRunning) == Multiplayer::MovementState::kIdle);
+
         static_assert(GetWeaponReplayBaseState(Multiplayer::AnimationState{
                           .movementState = Multiplayer::MovementState::kSprinting, .jumping = true })
             == Multiplayer::AnimationState{ .movementState = Multiplayer::MovementState::kRunning });
@@ -177,30 +191,86 @@ namespace ActorAnimation
             kSneaking
         };
 
-        constexpr const char* GetGraphSneakName(GraphSneak a_sneak) noexcept
+        struct GraphSneakReading
         {
-            switch (a_sneak)
+            GraphSneak sneak{ GraphSneak::kUnknown };
+            // Selector states, when any is active; otherwise the sneak variables.
+            GraphStance::SelectorState selectors{ GraphStance::SelectorState::kNone };
+        };
+
+        constexpr const char* GetGraphSneakName(const GraphSneakReading& a_reading) noexcept
+        {
+            using GraphStance::SelectorState;
+            switch (a_reading.selectors)
+            {
+                case SelectorState::kOff:
+                    return "notSneaking/states";
+                case SelectorState::kOn:
+                    return "sneaking/states";
+                case SelectorState::kMixed:
+                    return "mixed/states";
+                default:
+                    break;
+            }
+            switch (a_reading.sneak)
             {
                 case GraphSneak::kNotSneaking:
-                    return "notSneaking";
+                    return "notSneaking/variables";
                 case GraphSneak::kSneaking:
-                    return "sneaking";
+                    return "sneaking/variables";
                 default:
                     return "unknown";
             }
         }
 
-        GraphSneak ReadGraphSneak(const RE::Actor& a_actor)
+        constexpr const char* GetGraphMovingName(GraphStance::SelectorState a_selectors) noexcept
         {
+            using GraphStance::SelectorState;
+            switch (a_selectors)
+            {
+                case SelectorState::kOff:
+                    return "standing";
+                case SelectorState::kOn:
+                    return "moving";
+                case SelectorState::kMixed:
+                    return "mixed";
+                default:
+                    return "unknown";
+            }
+        }
+
+        GraphSneakReading ReadGraphSneak(RE::Actor& a_actor, GraphStance::SelectorState a_selectors)
+        {
+            using GraphStance::SelectorState;
+            switch (a_selectors)
+            {
+                case SelectorState::kOff:
+                    return { .sneak = GraphSneak::kNotSneaking, .selectors = a_selectors };
+                case SelectorState::kOn:
+                    return { .sneak = GraphSneak::kSneaking, .selectors = a_selectors };
+                case SelectorState::kMixed:
+                    // Selectors disagree while one stance's branch blends into another's.
+                    return { .sneak = GraphSneak::kUnknown, .selectors = a_selectors };
+                case SelectorState::kNone:
+                    break;
+            }
+
+            // Fallback for graphs without the vanilla selectors. A sneak branch keeps
+            // these set while it blends out after SneakStop.
             static const RE::BSFixedString isSneakingVariable{ "IsSneaking" };
             bool isSneaking = false;
             const bool isSneakingAvailable = a_actor.GetGraphVariableBool(isSneakingVariable, isSneaking);
             const auto stateTag = GetGraphStateTag(a_actor);
             if ((isSneakingAvailable && isSneaking) || stateTag == kSneakGraphStateTag)
             {
-                return GraphSneak::kSneaking;
+                return { .sneak = GraphSneak::kSneaking };
             }
-            return isSneakingAvailable && stateTag >= 0 ? GraphSneak::kNotSneaking : GraphSneak::kUnknown;
+            return { .sneak = isSneakingAvailable && stateTag >= 0 ? GraphSneak::kNotSneaking : GraphSneak::kUnknown };
+        }
+
+        GraphSneakReading ReadGraphSneak(RE::Actor& a_actor)
+        {
+            return ReadGraphSneak(a_actor, GraphStance::ReadStanceSelectors(a_actor).sneak);
         }
 
         bool IsActorInHitReaction(RE::Actor& a_actor)
@@ -275,8 +345,7 @@ namespace ActorAnimation
                 static_cast<const void*>(graphBeforeRecovery), recoveryCount);
         }
 
-        void ApplyAuthoritativeWeaponPresentation(
-            RE::Actor& a_actor, RemoteActor& a_remote, bool a_moving, bool a_moveStartAlreadyDispatched)
+        void ApplyAuthoritativeWeaponPresentation(RE::Actor& a_actor)
         {
             PROFILE_FUNCTION();
             const auto* actorState = a_actor.AsActorState();
@@ -291,32 +360,12 @@ namespace ActorAnimation
             const bool weaponTransitionPending = authoritativeWeaponDrawn ? weaponState != RE::WEAPON_STATE::kDrawn
                                                                           : weaponState != RE::WEAPON_STATE::kSheathed;
             const bool transitionWasAnimating = IsWeaponTransitionAnimating(weaponState, authoritativeWeaponDrawn);
-            // Queue (and retry) the native transition before selecting its moving
-            // branch. Draw samples that edge as it enters the equip graph; waiting for
-            // ActorState to report kDrawing costs a graph update and leaves the standing
-            // equip clip visible while network translation continues. WantToDraw and
-            // WantToSheathe only record an outstanding request, so keep retrying until
-            // the matching transition is actually animating.
+            // WantToDraw and WantToSheathe only record an outstanding request, so keep
+            // retrying until the matching transition is actually animating. The equip
+            // branch picks standing or moving from iSyncIdleLocomotion.
             if (weaponTransitionPending && !transitionWasAnimating)
             {
                 a_actor.DrawWeaponMagicHands(authoritativeWeaponDrawn);
-            }
-            if (weaponTransitionPending && a_moving && !a_remote.animation.weaponTransitionMoveStartDispatched)
-            {
-                static const RE::BSFixedString moveStartEvent{ "moveStart" };
-                // Enter the equip graph through its normal standing state, then take its
-                // explicit moveStart edge. Forcing iSyncIdleLocomotion before entry makes
-                // the graph emit transition annotations while masking the visible pose.
-                // A moveStart dispatched earlier in this update only counts if the
-                // transition was already active; otherwise it preceded graph entry.
-                const bool moveStartAccepted = (transitionWasAnimating && a_moveStartAlreadyDispatched)
-                    || SendNetworkAnimationEvent(a_remote, moveStartEvent);
-                if (moveStartAccepted)
-                {
-                    a_remote.animation.weaponTransitionMoveStartDispatched = true;
-                    logs::debug("Animation sync selected moving weapon-transition branch: actor={:08X} weaponDrawn={}",
-                        a_remote.handle.native_handle(), authoritativeWeaponDrawn);
-                }
             }
         }
 
@@ -373,6 +422,58 @@ namespace ActorAnimation
                 || (!target.weaponDrawn && !a_state.weaponDefaultStateDispatched);
         }
 
+        // The graph probe dumps every active node and variable, so release builds
+        // compile it out.
+#ifndef NDEBUG
+        void LogGraphProbe(RE::Actor& a_actor, RemoteActor& a_remote, const char* a_reason)
+        {
+            auto& state = a_remote.animation;
+            logs::debug("Animation graph probe: actor={:08X} reason={} latched={}/{} weaponDrawn={} iState={} {}",
+                a_remote.handle.native_handle(), a_reason,
+                Multiplayer::GetMovementStateName(state.lastDispatched.movementState),
+                state.lastDispatched.jumping ? "jumping" : "grounded", state.lastDispatched.weaponDrawn,
+                GetGraphStateTag(a_actor), GraphProbe::Describe(a_actor, state.graphProbeSnapshot));
+        }
+
+        void ArmGraphProbe(State& a_state, const char* a_reason)
+        {
+            a_state.graphProbeReason = a_reason;
+            a_state.graphProbeElapsed = 0.0F;
+        }
+
+        void AdvanceGraphProbe(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)
+        {
+            auto& state = a_remote.animation;
+            if (state.hasDispatched && state.lastDispatched != state.graphProbeState)
+            {
+                state.graphProbeState = state.lastDispatched;
+                ArmGraphProbe(state, "state");
+            }
+            if (!state.graphProbeReason)
+            {
+                return;
+            }
+            if (!IsAnimationStateSettled(a_remote) || state.attackPlaybackPending || state.locomotionReassertReason
+                || IsHandPresentationPlaying(a_remote) || IsWeaponTransitionUnsettled(state)
+                || state.graphRecoveryInProgress)
+            {
+                state.graphProbeElapsed = 0.0F;
+                return;
+            }
+            state.graphProbeElapsed += FrameTime::Clamp(a_deltaTime);
+            if (state.graphProbeElapsed < kGraphProbeSettleSeconds)
+            {
+                return;
+            }
+            LogGraphProbe(a_actor, a_remote, state.graphProbeReason);
+            state.graphProbeReason = nullptr;
+        }
+#else
+        void LogGraphProbe(RE::Actor&, RemoteActor&, const char*) {}
+        void ArmGraphProbe(State&, const char*) {}
+        void AdvanceGraphProbe(RE::Actor&, RemoteActor&, float) {}
+#endif
+
         constexpr bool IsBowAttackState(RE::ATTACK_STATE_ENUM a_state) noexcept
         {
             return a_state >= RE::ATTACK_STATE_ENUM::kBowDraw && a_state <= RE::ATTACK_STATE_ENUM::kBowFollowThrough;
@@ -390,7 +491,6 @@ namespace ActorAnimation
             a_state.weaponTransitionExitForced = false;
             a_state.weaponDefaultStateDispatched = false;
             a_state.weaponReplayBaseDispatched = false;
-            a_state.weaponTransitionMoveStartDispatched = false;
             a_state.weaponRestoredWithoutCompletion = false;
         }
 
@@ -417,16 +517,6 @@ namespace ActorAnimation
             a_state.blockStopAccepted = false;
             a_state.blockStopElapsed = 0.0F;
             a_state.blockEventRetryElapsed = kMinimumEventRetrySeconds;
-            a_state.presentationMoveStartPending = false;
-            a_state.presentationMoveStartWaitPasses = 0;
-            a_state.presentationMoveStartElapsed = 0.0F;
-        }
-
-        void RequestPresentationMoveStart(State& a_state)
-        {
-            a_state.presentationMoveStartPending = true;
-            a_state.presentationMoveStartWaitPasses = 0;
-            a_state.presentationMoveStartElapsed = 0.0F;
         }
 
         bool IsBowOrCastPlaying(const State& a_state)
@@ -525,7 +615,7 @@ namespace ActorAnimation
         {
             const auto& state = a_remote.animation;
             if (!a_remote.ready || !a_remote.animationGraphHolder || !IsAnimationStateSettled(a_remote)
-                || state.attackPlaybackPending || state.attackLocomotionReassertPending || state.bowReleasePending
+                || state.attackPlaybackPending || state.locomotionReassertReason || state.bowReleasePending
                 || IsWeaponTransitionUnsettled(state) || state.graphRecoveryInProgress
                 || state.targetAnimationState.jumping || !state.targetAnimationState.weaponDrawn)
             {
@@ -557,8 +647,8 @@ namespace ActorAnimation
             return accepted;
         }
 
-        void AdvanceSwimMoveStart(
-            RemoteActor& a_remote, State& a_state, const RE::ActorState* a_actorState, float a_deltaTime)
+        void AdvanceSwimMoveStart(RE::Actor& a_actor, RemoteActor& a_remote, State& a_state,
+            const RE::ActorState* a_actorState, float a_deltaTime)
         {
             if (!a_state.swimMoveStartPending)
             {
@@ -582,97 +672,103 @@ namespace ActorAnimation
 
             static const RE::BSFixedString moveStartEvent{ "moveStart" };
             ++a_state.swimMoveStartAttempts;
-            const bool accepted = SendNetworkAnimationEvent(a_remote, moveStartEvent);
+            const bool alreadyMoving
+                = GraphStance::ReadStanceSelectors(a_actor).moving == GraphStance::SelectorState::kOn;
+            const bool accepted = alreadyMoving || SendNetworkAnimationEvent(a_remote, moveStartEvent);
             if (!accepted && a_state.swimMoveStartElapsed < kSwimMoveStartFallbackSeconds)
             {
                 return;
             }
             a_state.swimMoveStartPending = false;
             logs::debug(
-                "Animation sync selected moving swim state: actor={:08X} state={} accepted={} attempts={} "
-                "elapsed={:.3f}",
+                "Animation sync selected moving swim state: actor={:08X} state={} accepted={} alreadyMoving={} "
+                "attempts={} elapsed={:.3f}",
                 a_remote.handle.native_handle(),
-                Multiplayer::GetMovementStateName(a_state.targetAnimationState.movementState), accepted,
+                Multiplayer::GetMovementStateName(a_state.targetAnimationState.movementState), accepted, alreadyMoving,
                 a_state.swimMoveStartAttempts, a_state.swimMoveStartElapsed);
         }
 
-        // Sent once, one graph update after the sneak edge. The unarmed and melee
-        // graphs toggle sneak inside locomotion and reject it; MagicBehavior's
-        // (Sneak)MagicReady branches enter standing and take it.
-        void AdvanceSneakMoveStart(RemoteActor& a_remote, State& a_state)
-        {
-            if (!a_state.sneakMoveStartPending)
-            {
-                return;
-            }
-            a_state.sneakMoveStartPending = false;
-            const auto& dispatched = a_state.lastDispatched;
-            const auto& target = a_state.targetAnimationState;
-            if (!a_state.hasDispatched || !IsMoving(dispatched.movementState) || dispatched.jumping
-                || !IsMoving(target.movementState) || target.jumping || a_state.attackPlaybackPending
-                || IsWeaponTransitionUnsettled(a_state))
-            {
-                return;
-            }
-
-            static const RE::BSFixedString moveStartEvent{ "moveStart" };
-            const bool accepted = SendNetworkAnimationEvent(a_remote, moveStartEvent);
-            logs::debug("Animation sync selected moving state after sneak edge: actor={:08X} state={} accepted={}",
-                a_remote.handle.native_handle(), Multiplayer::GetMovementStateName(dispatched.movementState), accepted);
-        }
-
-        // Skyrim's event result is not an acknowledgement, so a sneak edge that ran out
-        // of retries is latched as taken whether or not the graph took it. Later
-        // dispatches only send a sneak edge when the latched sneak changes.
-        void ReconcileGraphSneak(RE::Actor& a_actor, RemoteActor& a_remote, State& a_state, float a_deltaTime)
+        // Skyrim's event result is not an acknowledgement, so a sneak or move edge
+        // that ran out of retries is latched as taken whether or not the graph took
+        // it, and a branch entered standing leaves the graph standing under a moving
+        // latch. Later dispatches only send an edge when the latched state changes.
+        void ReconcileGraphStance(RE::Actor& a_actor, RemoteActor& a_remote, State& a_state, float a_deltaTime)
         {
             const auto& target = a_state.targetAnimationState;
             const auto* actorState = a_actor.AsActorState();
             const bool reconcilable = a_state.hasDispatched && a_state.lastDispatched == target
                 && IsAnimationStateSettled(a_remote) && !target.jumping && !IsSprinting(target.movementState)
-                && !a_state.landingLocomotionReassertPending && !a_state.swimLocomotionReassertPending
-                && !a_state.attackPlaybackPending && !a_state.attackLocomotionReassertPending
-                && !a_state.sneakMoveStartPending && !a_state.presentationMoveStartPending
+                && !a_state.locomotionReassertReason && !a_state.attackPlaybackPending
                 && !a_state.graphRecoveryInProgress && !IsWeaponTransitionUnsettled(a_state)
                 && !IsBowOrCastPlaying(a_state) && !IsBlockPlaying(a_state)
                 && !(actorState && actorState->IsSwimming());
             if (!reconcilable)
             {
-                a_state.graphSneakSampleElapsed = 0.0F;
+                a_state.graphStanceSampleElapsed = 0.0F;
                 a_state.graphSneakMismatchElapsed = 0.0F;
+                a_state.graphStandingMismatchElapsed = 0.0F;
                 return;
             }
-            a_state.graphSneakSampleElapsed += FrameTime::Clamp(a_deltaTime);
-            if (a_state.graphSneakSampleElapsed < kGraphSneakSampleSeconds)
+            a_state.graphStanceSampleElapsed += FrameTime::Clamp(a_deltaTime);
+            if (a_state.graphStanceSampleElapsed < kGraphStanceSampleSeconds)
             {
                 return;
             }
-            const float sampledSeconds = a_state.graphSneakSampleElapsed;
-            a_state.graphSneakSampleElapsed = 0.0F;
-            const auto graphSneak = ReadGraphSneak(a_actor);
+            const float sampledSeconds = a_state.graphStanceSampleElapsed;
+            a_state.graphStanceSampleElapsed = 0.0F;
+            const auto selectors = GraphStance::ReadStanceSelectors(a_actor);
+
+            const auto graphSneak = ReadGraphSneak(a_actor, selectors.sneak);
             const bool targetSneaking = IsSneaking(target.movementState);
-            if (graphSneak != (targetSneaking ? GraphSneak::kNotSneaking : GraphSneak::kSneaking))
+            if (graphSneak.sneak != (targetSneaking ? GraphSneak::kNotSneaking : GraphSneak::kSneaking))
             {
                 a_state.graphSneakMismatchElapsed = 0.0F;
+            }
+            else
+            {
+                a_state.graphSneakMismatchElapsed += sampledSeconds;
+                if (a_state.graphSneakMismatchElapsed >= kGraphSneakMismatchSeconds
+                    && a_state.graphSneakCorrections < kMaximumGraphStanceCorrections)
+                {
+                    a_state.graphSneakMismatchElapsed = 0.0F;
+                    a_state.graphStandingMismatchElapsed = 0.0F;
+                    ++a_state.graphSneakCorrections;
+                    // Latch what the graph shows, so the next dispatch sends the missing
+                    // edge through the normal ordering, retries, and post-sneak moveStart.
+                    a_state.lastDispatched.movementState = ToggleSneak(target.movementState);
+                    logs::debug(
+                        "Animation sync graph sneak disagrees with the latched state; reasserting: actor={:08X} "
+                        "state={} graphSneak={} iState={} correction={}/{}",
+                        a_remote.handle.native_handle(), Multiplayer::GetMovementStateName(target.movementState),
+                        GetGraphSneakName(graphSneak), GetGraphStateTag(a_actor), a_state.graphSneakCorrections,
+                        kMaximumGraphStanceCorrections);
+                    return;
+                }
+            }
+
+            // Only standing under a moving target is repaired: the graph rejected
+            // moveStop once Speed was zeroed, and the receiver writes Speed 0 every
+            // pass while the target is idle.
+            if (!IsMoving(target.movementState) || selectors.moving != GraphStance::SelectorState::kOff)
+            {
+                a_state.graphStandingMismatchElapsed = 0.0F;
                 return;
             }
-            a_state.graphSneakMismatchElapsed += sampledSeconds;
-            if (a_state.graphSneakMismatchElapsed < kGraphSneakMismatchSeconds
-                || a_state.graphSneakCorrections >= kMaximumGraphSneakCorrections)
+            a_state.graphStandingMismatchElapsed += sampledSeconds;
+            if (a_state.graphStandingMismatchElapsed < kGraphStandingMismatchSeconds
+                || a_state.graphStandingCorrections >= kMaximumGraphStanceCorrections)
             {
                 return;
             }
-            a_state.graphSneakMismatchElapsed = 0.0F;
-            ++a_state.graphSneakCorrections;
-            // Latch what the graph shows, so the next dispatch sends the missing edge
-            // through the normal ordering, retries, and post-sneak moveStart.
-            a_state.lastDispatched.movementState = ToggleSneak(target.movementState);
+            a_state.graphStandingMismatchElapsed = 0.0F;
+            ++a_state.graphStandingCorrections;
+            a_state.lastDispatched.movementState = ToStanding(target.movementState);
             logs::debug(
-                "Animation sync graph sneak disagrees with the latched state; reasserting: actor={:08X} state={} "
-                "graphSneak={} iState={} correction={}/{}",
+                "Animation sync graph stands while the latched state moves; reasserting: actor={:08X} state={} "
+                "graphMoving={} graphSneak={} iState={} correction={}/{}",
                 a_remote.handle.native_handle(), Multiplayer::GetMovementStateName(target.movementState),
-                GetGraphSneakName(graphSneak), GetGraphStateTag(a_actor), a_state.graphSneakCorrections,
-                kMaximumGraphSneakCorrections);
+                GetGraphMovingName(selectors.moving), GetGraphSneakName(graphSneak), GetGraphStateTag(a_actor),
+                a_state.graphStandingCorrections, kMaximumGraphStanceCorrections);
         }
 
         void ResetGraphDispatch(RE::Actor& a_actor, RemoteActor& a_remote)
@@ -709,6 +805,7 @@ namespace ActorAnimation
         if (previousAnimationState != a_animationState)
         {
             a_remote.animation.graphSneakCorrections = 0;
+            a_remote.animation.graphStandingCorrections = 0;
             logs::debug("Animation sync updated actor request: actor={:08X} revision={} previous={}/{} desired={}/{}",
                 a_remote.handle.native_handle(), static_cast<unsigned long long>(a_remote.animation.requestedRevision),
                 Multiplayer::GetMovementStateName(previousAnimationState.movementState),
@@ -775,6 +872,10 @@ namespace ActorAnimation
                 "dispatched={} heldSeconds={:.3f} rejectedEventAttempts={}",
                 a_remote.handle.native_handle(), Multiplayer::GetMovementStateName(state.lastDispatched.movementState),
                 state.unsettledTranslationHoldElapsed, state.rejectedEventAttempts);
+            if (auto actor = a_remote.handle.get())
+            {
+                LogGraphProbe(*actor, a_remote, "unsettled-translation");
+            }
         }
         return false;
     }
@@ -783,7 +884,7 @@ namespace ActorAnimation
     {
         if (!GameThread::Require("CanDispatchAttack") || !a_remote.ready || !a_remote.animationGraphHolder
             || !IsAnimationStateSettled(a_remote) || a_remote.animation.attackPlaybackPending
-            || a_remote.animation.attackLocomotionReassertPending || IsBowOrCastPlaying(a_remote.animation) ||
+            || a_remote.animation.locomotionReassertReason || IsBowOrCastPlaying(a_remote.animation) ||
             // Only a bash plays from a raised block; other attacks wait until it is lowered.
             (a_attack.action != Network::AttackAction::kBash && IsBlockPlaying(a_remote.animation)) ||
             // The reassert flag stays armed while idle after a completed draw, so only a
@@ -962,7 +1063,7 @@ namespace ActorAnimation
         a_remote.animation.attackPlaybackBash = a_attack.action == Network::AttackAction::kBash;
         a_remote.animation.attackPlaybackObserved = false;
         a_remote.animation.attackChainDispatched = false;
-        a_remote.animation.attackLocomotionReassertPending = false;
+        a_remote.animation.locomotionReassertReason = nullptr;
         const auto* actorState = actorPtr->AsActorState();
         a_remote.animation.attackPlaybackObserved
             = actorState && actorState->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone;
@@ -1024,7 +1125,7 @@ namespace ActorAnimation
                 a_remote.handle.native_handle(), state.bowPhaseElapsed, timedOut);
             state.bowReleasePending = false;
             state.bowPhaseElapsed = 0.0F;
-            state.attackLocomotionReassertPending = true;
+            state.locomotionReassertReason = "bow-shot";
             return;
         }
 
@@ -1075,7 +1176,6 @@ namespace ActorAnimation
         }
 
         state.bowDrawHeld = true;
-        RequestPresentationMoveStart(state);
         state.bowPhaseElapsed = 0.0F;
         state.bowReleaseRequestElapsed = 0.0F;
         // A release that is already due goes out on the next pass.
@@ -1156,7 +1256,7 @@ namespace ActorAnimation
             const bool presentationEnded = !IsBowOrCastPlaying(state) && !IsBlockPlaying(state);
             if (presentationEnded)
             {
-                state.attackLocomotionReassertPending = true;
+                state.locomotionReassertReason = "cast";
             }
             logs::debug(
                 "Animation sync stopped spell cast: actor={:08X} hand={} idle={} stopSeconds={:.3f} "
@@ -1220,7 +1320,6 @@ namespace ActorAnimation
         caster->RequestCastImpl();
 
         state.castHeld[hand] = true;
-        RequestPresentationMoveStart(state);
         state.castStopRequestElapsed[hand] = 0.0F;
         logs::debug("Animation sync started spell cast: actor={:08X} hand={} spell={:08X}",
             a_remote.handle.native_handle(), a_leftHand ? "left" : "right", spell ? spell->GetFormID() : 0);
@@ -1274,7 +1373,7 @@ namespace ActorAnimation
             state.blockStopping = false;
             state.blockStopAccepted = false;
             state.blockStopElapsed = 0.0F;
-            state.attackLocomotionReassertPending = true;
+            state.locomotionReassertReason = "block";
             return;
         }
 
@@ -1318,65 +1417,7 @@ namespace ActorAnimation
         }
 
         state.blockHeld = true;
-        RequestPresentationMoveStart(state);
         logs::debug("Animation sync raised block: actor={:08X}", a_remote.handle.native_handle());
-    }
-
-    void AdvancePresentationLocomotion(RemoteActor& a_remote, float a_deltaTime)
-    {
-        if (!GameThread::Require("AdvancePresentationLocomotion") || !a_remote.animation.presentationMoveStartPending)
-        {
-            return;
-        }
-        auto& state = a_remote.animation;
-        const bool castHeld = state.castHeld[0] || state.castHeld[1];
-        const bool presentationHeld = state.blockHeld || state.bowDrawHeld || castHeld;
-        auto actorPtr = a_remote.handle.get();
-        if (!actorPtr || !presentationHeld || !IsMoving(state.targetAnimationState.movementState))
-        {
-            // A standing start needs nothing; movement that starts later sends its own moveStart.
-            state.presentationMoveStartPending = false;
-            return;
-        }
-        if (state.attackPlaybackPending)
-        {
-            // A bash owns the graph; the locomotion replay after it sends moveStart.
-            return;
-        }
-
-        state.presentationMoveStartElapsed += FrameTime::Clamp(a_deltaTime);
-        // The start event is evaluated on the graph's next update. Counting passes
-        // rather than time is intended: the branch must have been entered once.
-        if (++state.presentationMoveStartWaitPasses < 2)
-        {
-            return;
-        }
-        if (castHeld && !state.blockHeld && !state.bowDrawHeld
-            && state.presentationMoveStartElapsed < kCastLowerBodyEntrySeconds)
-        {
-            static const RE::BSFixedString castingLeftVariable{ "IsCastingLeft" };
-            static const RE::BSFixedString castingRightVariable{ "IsCastingRight" };
-            bool castingLeft = false;
-            bool castingRight = false;
-            (void)actorPtr->GetGraphVariableBool(castingLeftVariable, castingLeft);
-            (void)actorPtr->GetGraphVariableBool(castingRightVariable, castingRight);
-            if (!castingLeft && !castingRight)
-            {
-                return;
-            }
-        }
-
-        // Sent once: the lower body takes it on the graph's first update in the
-        // branch, and a rejection means it is not standing, so a retry never helps.
-        static const RE::BSFixedString moveStartEvent{ "moveStart" };
-        const bool accepted = SendNetworkAnimationEvent(a_remote, moveStartEvent);
-        logs::debug(
-            "Animation sync selected moving presentation lower body: actor={:08X} state={} block={} bow={} cast={} "
-            "accepted={} elapsed={:.3f}",
-            a_remote.handle.native_handle(),
-            Multiplayer::GetMovementStateName(state.targetAnimationState.movementState), state.blockHeld,
-            state.bowDrawHeld, castHeld, accepted, state.presentationMoveStartElapsed);
-        state.presentationMoveStartPending = false;
     }
 
     bool IsHandPresentationPlaying(const RemoteActor& a_remote)
@@ -1431,18 +1472,19 @@ namespace ActorAnimation
         a_state.failedDispatchAttempts = 0;
         a_state.rejectedEventAttempts = 0;
         a_state.rejectedEventElapsed = 0.0F;
-        a_state.graphSneakSampleElapsed = 0.0F;
+        a_state.graphStanceSampleElapsed = 0.0F;
         a_state.graphSneakMismatchElapsed = 0.0F;
+        a_state.graphStandingMismatchElapsed = 0.0F;
         a_state.graphSneakCorrections = 0;
+        a_state.graphStandingCorrections = 0;
         SetLandingCompletionPending(a_state, false);
-        a_state.landingLocomotionReassertPending = false;
+        a_state.locomotionReassertReason = nullptr;
         ResetWeaponTransition(a_state, false);
         a_state.attackPlaybackPending = false;
         a_state.attackPlaybackObserved = false;
         a_state.attackChainDispatched = false;
         a_state.attackPlaybackPower = false;
         a_state.attackPlaybackElapsed = 0.0F;
-        a_state.attackLocomotionReassertPending = false;
         ResetHandPresentation(a_state);
         a_state.processedRevision = 0;
         a_state.graphManager = nullptr;
@@ -1487,7 +1529,7 @@ namespace ActorAnimation
         // Native attacks normally return to locomotion themselves. The explicit
         // replay keeps the drawn stance; a full graph reset would start another
         // equip lifecycle.
-        a_state.attackLocomotionReassertPending = true;
+        a_state.locomotionReassertReason = "attack";
     }
 
     bool RecoverAuthoritativeAnimation(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)
@@ -1744,7 +1786,7 @@ namespace ActorAnimation
                 ActorRegistry::SetLandingCompletionObservation(*actor, false);
                 // JumpLandEnd selects the graph's exit branch, which can exit into idle. Keep the dispatch
                 // history: forgetting it reads a drawn weapon as a new draw.
-                animationState->landingLocomotionReassertPending = true;
+                animationState->locomotionReassertReason = "landing";
                 animationState->failedDispatchAttempts = 0;
                 animationState->rejectedEventAttempts = 0;
                 animationState->rejectedEventElapsed = 0.0F;
@@ -1876,21 +1918,19 @@ namespace ActorAnimation
         const auto observedSwimStops = ActorRegistry::ConsumeSwimStops(a_remote);
         if (observedSwimStops != 0)
         {
-            animationState->swimLocomotionReassertPending = true;
+            animationState->locomotionReassertReason = "swim-stop";
             animationState->swimMoveStartPending = false;
         }
-        AdvanceSwimMoveStart(a_remote, *animationState, actorState, a_deltaTime);
-        AdvanceSneakMoveStart(a_remote, *animationState);
+        AdvanceSwimMoveStart(*actor, a_remote, *animationState, actorState, a_deltaTime);
         const bool authoritativeLocomotionActive
             = IsMoving(authoritativeState.movementState) || authoritativeState.jumping;
         const bool reassertLocomotionAfterWeaponTransition
             = ShouldReassertAfterWeaponTransition(animationState->weaponLocomotionReassertPending,
                 weaponTransitionCompleted, IsMoving(authoritativeState.movementState), authoritativeState.jumping);
-        const bool reassertLocomotionAfterSwimStop
-            = animationState->swimLocomotionReassertPending && actorState && !actorState->IsSwimming();
-        const bool reassertLocomotionAfterAttack
-            = animationState->attackLocomotionReassertPending && !animationState->attackPlaybackPending;
-        const bool reassertLocomotionAfterLanding = animationState->landingLocomotionReassertPending;
+        // A released graph may have left locomotion. Edges it already holds are
+        // skipped, so this asserts only the missing ones.
+        const bool reassertLocomotion = animationState->locomotionReassertReason
+            && !animationState->attackPlaybackPending && !(actorState && actorState->IsSwimming());
         // A weapon branch may consume locomotion events. Replay a valid base edge
         // first, then layer sprint/sneak movement/jump on a later graph update.
         // Sending every edge together can make each one report success while no
@@ -1944,23 +1984,16 @@ namespace ActorAnimation
         }
         const bool moveRequired = !jumpLandRequired
             && ((dispatchRequired && (hadPreviousState ? IsMoving(previousState.movementState) != isMoving : isMoving))
-                || ((replayingWeaponBase || reassertLocomotionAfterSwimStop || reassertLocomotionAfterAttack
-                        || reassertLocomotionAfterLanding)
-                    && isMoving));
+                || ((replayingWeaponBase || reassertLocomotion) && isMoving));
         const bool sneakRequired = !jumpLandRequired
             && ((dispatchRequired
                     && (hadPreviousState ? IsSneaking(previousState.movementState) != isSneaking : isSneaking))
-                || ((replayingWeaponBase || reassertLocomotionAfterSwimStop || reassertLocomotionAfterAttack
-                        || reassertLocomotionAfterLanding)
-                    && isSneaking));
-        const bool eventDispatchRequired = dispatchRequired || reassertLocomotionAfterSwimStop
-            || reassertLocomotionAfterAttack || reassertLocomotionAfterLanding;
+                || ((replayingWeaponBase || reassertLocomotion) && isSneaking));
+        const bool eventDispatchRequired = dispatchRequired || reassertLocomotion;
         const bool sprintRequired = !jumpLandRequired
             && ((dispatchRequired
                     && (hadPreviousState ? IsSprinting(previousState.movementState) != isSprinting : isSprinting))
-                || ((replayingWeaponBase || reassertLocomotionAfterSwimStop || reassertLocomotionAfterAttack
-                        || reassertLocomotionAfterLanding)
-                    && isSprinting));
+                || ((replayingWeaponBase || reassertLocomotion) && isSprinting));
         if (dispatchRequired && (!animationState->hasAttempted || animationState->lastAttempted != state))
         {
             animationState->lastAttempted = state;
@@ -1985,12 +2018,36 @@ namespace ActorAnimation
             // output only while the network-authoritative state is grounded.
             ActorRegistry::SetLandingCompletionObservation(*actor, jumpLandRequired);
         }
-        bool moveAccepted
-            = moveStopRequired && stringsAvailable ? SendNetworkAnimationEvent(a_remote, moveStopEvent) : false;
-        bool sneakAccepted
-            = sneakStopRequired && stringsAvailable ? SendNetworkAnimationEvent(a_remote, sneakStopEvent) : false;
-        bool sprintAccepted
-            = sprintStopRequired && stringsAvailable ? SendNetworkAnimationEvent(a_remote, sprintStopEvent) : false;
+        // Read before any event of this pass. Skyrim rejects an edge into the state a
+        // selector already holds, which would hold the dispatch for the whole retry
+        // window.
+        using GraphStance::SelectorState;
+        const bool stanceSelectorsRead = stringsAvailable && (moveRequired || sneakRequired || sprintRequired);
+        const auto stanceSelectors
+            = stanceSelectorsRead ? GraphStance::ReadStanceSelectors(*actor) : GraphStance::StanceSelectors{};
+        if ((stanceSelectors.moving == SelectorState::kMixed || stanceSelectors.sneak == SelectorState::kMixed
+                || stanceSelectors.sprinting == SelectorState::kMixed)
+            && ShouldReportEventRetry(animationState->rejectedEventAttempts + 1))
+        {
+            logs::debug("Animation sync stance selectors disagree: actor={:08X} desired={} selectors=[{}]",
+                actorHandle.native_handle(), Multiplayer::GetMovementStateName(state.movementState),
+                GraphStance::DescribeStanceSelectors(*actor));
+        }
+        const char* const graphMovingName = stanceSelectorsRead ? GetGraphMovingName(stanceSelectors.moving) : "unread";
+        const bool moveAlreadyStopped = moveStopRequired && stanceSelectors.moving == SelectorState::kOff;
+        bool moveAccepted = moveStopRequired && stringsAvailable
+            ? moveAlreadyStopped || SendNetworkAnimationEvent(a_remote, moveStopEvent)
+            : false;
+        // Only the selector states count: the sneak variables also read as not sneaking
+        // in branches without a sneak transition, such as weapon equip.
+        const bool sneakAlreadyLeft = sneakStopRequired && stanceSelectors.sneak == SelectorState::kOff;
+        bool sneakAccepted = sneakStopRequired && stringsAvailable
+            ? sneakAlreadyLeft || SendNetworkAnimationEvent(a_remote, sneakStopEvent)
+            : false;
+        const bool sprintAlreadyStopped = sprintStopRequired && stanceSelectors.sprinting == SelectorState::kOff;
+        bool sprintAccepted = sprintStopRequired && stringsAvailable
+            ? sprintAlreadyStopped || SendNetworkAnimationEvent(a_remote, sprintStopEvent)
+            : false;
         bool jumpAccepted = false;
         const bool stopEventsAccepted = (!moveStopRequired || moveAccepted) && (!sneakStopRequired || sneakAccepted)
             && (!sprintStopRequired || sprintAccepted);
@@ -2003,13 +2060,16 @@ namespace ActorAnimation
             {
                 logs::debug(
                     "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} "
-                    "result=retrying-stop-events strings={} moveEvent={}/{} sneakEvent={}/{} sprintEvent={}/{} "
-                    "jumpEvent=deferred/{} iState={} graphSneak={} eventAttempt={}/{}",
+                    "result=retrying-stop-events strings={} moveEvent={}/{} moveAlreadyStopped={} sneakEvent={}/{} "
+                    "sneakAlreadyLeft={} sprintEvent={}/{} sprintAlreadyStopped={} jumpEvent=deferred/{} iState={} "
+                    "graphMoving={} "
+                    "graphSneak={} eventAttempt={}/{}",
                     actorHandle.native_handle(), static_cast<unsigned long long>(requestedRevision), previousStateLabel,
                     hadPreviousState && previousState.jumping ? "jumping" : "grounded",
                     Multiplayer::GetMovementStateName(state.movementState), state.jumping ? "jumping" : "grounded",
-                    stringsAvailable, moveAccepted, moveStopRequired, sneakAccepted, sneakStopRequired, sprintAccepted,
-                    sprintStopRequired, jumpLandRequired, GetGraphStateTag(*actor),
+                    stringsAvailable, moveAccepted, moveStopRequired, moveAlreadyStopped, sneakAccepted,
+                    sneakStopRequired, sneakAlreadyLeft, sprintAccepted, sprintStopRequired, sprintAlreadyStopped,
+                    jumpLandRequired, GetGraphStateTag(*actor), graphMovingName,
                     GetGraphSneakName(ReadGraphSneak(*actor)), stopEventAttempt, kMaximumEventDispatchAttempts);
             }
             ++animationState->rejectedEventAttempts;
@@ -2049,6 +2109,7 @@ namespace ActorAnimation
         bool turnAccepted = false;
         bool sprintVariableAccepted = false;
         bool syncSprintStateAccepted = false;
+        bool syncIdleLocomotionAccepted = false;
         bool jumpVariableAccepted = false;
         if (strings)
         {
@@ -2065,6 +2126,12 @@ namespace ActorAnimation
             // sprint, so the moveStart after a running landing would re-enter
             // Sprint_State without a SprintStop.
             syncSprintStateAccepted = actor->SetGraphVariableInt(strings->iSyncSprintState, isSprinting ? 1 : 0);
+            // Every vanilla standing/moving machine binds its start state to
+            // iSyncIdleLocomotion (0 standing, 1 moving) and no graph node writes it,
+            // so on a remote actor it stayed 0 and each branch entered while moving,
+            // such as a landing exit, swim, sneak magic, an equip, or a block, bow, or
+            // cast lower body, started standing.
+            syncIdleLocomotionAccepted = actor->SetGraphVariableInt(strings->iSyncIdleLocomotion, isMoving ? 1 : 0);
             jumpVariableAccepted = actor->SetGraphVariableBool(inJumpStateVariable, state.jumping);
         }
         if (speedAccepted && graphSpeed != animationState->publishedGraphSpeed)
@@ -2095,25 +2162,28 @@ namespace ActorAnimation
         {
             // Takeoff, landing, and locomotion start edges are evaluated against
             // the new persistent graph variables.
+            bool moveAlreadyStarted = false;
             if (moveRequired && isMoving && variablesAccepted)
             {
-                moveAccepted = SendNetworkAnimationEvent(a_remote, moveStartEvent);
+                moveAlreadyStarted = stanceSelectors.moving == SelectorState::kOn;
+                moveAccepted = moveAlreadyStarted || SendNetworkAnimationEvent(a_remote, moveStartEvent);
             }
             bool sneakAlreadyEntered = false;
             if (sneakRequired && isSneaking && variablesAccepted)
             {
-                // The graph rejects sneakStart while a sneak branch is active, which would
-                // hold this dispatch for the whole locomotion retry window. Only positive
-                // evidence counts: some sneak branches report neither variable.
-                sneakAlreadyEntered = ReadGraphSneak(*actor) == GraphSneak::kSneaking;
+                // Only positive evidence counts: some sneak branches report neither
+                // variable.
+                sneakAlreadyEntered = ReadGraphSneak(*actor, stanceSelectors.sneak).sneak == GraphSneak::kSneaking;
                 sneakAccepted = sneakAlreadyEntered || SendNetworkAnimationEvent(a_remote, sneakStartEvent);
             }
+            bool sprintAlreadyStarted = false;
             if (sprintRequired && isSprinting && variablesAccepted)
             {
-                // An accepted moveStart has already entered Sprint_State through
+                // A landing exit or an accepted moveStart enters Sprint_State through
                 // iSyncSprintState, which leaves SprintStart without an edge.
-                sprintAccepted = SendNetworkAnimationEvent(a_remote, sprintStartEvent)
-                    || (moveRequired && moveAccepted && syncSprintStateAccepted);
+                sprintAlreadyStarted = stanceSelectors.sprinting == SelectorState::kOn;
+                sprintAccepted = sprintAlreadyStarted || SendNetworkAnimationEvent(a_remote, sprintStartEvent)
+                    || (moveRequired && moveAccepted && !moveAlreadyStarted && syncSprintStateAccepted);
             }
             if (jumpRequired && !landingInWater && variablesAccepted)
             {
@@ -2139,9 +2209,12 @@ namespace ActorAnimation
                 logs::debug(
                     "Animation sync graph dispatch: actor={:08X} revision={} previous={}/{} desired={}/{} result={} "
                     "eventsAccepted={} strings={} speedVariable={} sampledSpeedVariable={} dampedSpeedVariable={} "
-                    "directionVariable={} turnVariable={} sprintVariable={} syncSprintVariable={} jumpVariable={} "
-                    "moveEvent={}/{} sneakEvent={}/{} sneakAlreadyEntered={} sprintEvent={}/{} jumpEvent={}/{} "
-                    "graphSpeed={:.1f} iState={} graphSneak={} variableAttempt={} eventAttempt={}/{}",
+                    "directionVariable={} turnVariable={} sprintVariable={} syncSprintVariable={} "
+                    "syncIdleVariable={} jumpVariable={} "
+                    "moveEvent={}/{} moveAlreadyStarted={} moveAlreadyStopped={} sneakEvent={}/{} "
+                    "sneakAlreadyEntered={} sneakAlreadyLeft={} sprintEvent={}/{} sprintAlreadyStarted={} "
+                    "sprintAlreadyStopped={} jumpEvent={}/{} graphSpeed={:.1f} "
+                    "iState={} graphMoving={} graphSneak={} variableAttempt={} eventAttempt={}/{}",
                     actorHandle.native_handle(), static_cast<unsigned long long>(requestedRevision), previousStateLabel,
                     hadPreviousState && previousState.jumping ? "jumping" : "grounded",
                     Multiplayer::GetMovementStateName(state.movementState), state.jumping ? "jumping" : "grounded",
@@ -2151,8 +2224,10 @@ namespace ActorAnimation
                                                  : "retrying-events",
                     eventsAccepted, stringsAvailable, speedAccepted, sampledSpeedAccepted, dampedSpeedAccepted,
                     directionAccepted, turnAccepted, sprintVariableAccepted, syncSprintStateAccepted,
-                    jumpVariableAccepted, moveAccepted, moveRequired, sneakAccepted, sneakRequired, sneakAlreadyEntered,
-                    sprintAccepted, sprintRequired, jumpAccepted, jumpRequired, graphSpeed, GetGraphStateTag(*actor),
+                    syncIdleLocomotionAccepted, jumpVariableAccepted, moveAccepted, moveRequired, moveAlreadyStarted,
+                    moveAlreadyStopped, sneakAccepted, sneakRequired, sneakAlreadyEntered, sneakAlreadyLeft,
+                    sprintAccepted, sprintRequired, sprintAlreadyStarted, sprintAlreadyStopped, jumpAccepted,
+                    jumpRequired, graphSpeed, GetGraphStateTag(*actor), graphMovingName,
                     GetGraphSneakName(ReadGraphSneak(*actor)), variableAttempt, eventAttempt,
                     kMaximumEventDispatchAttempts);
             }
@@ -2189,30 +2264,20 @@ namespace ActorAnimation
                             state.jumping, state.weaponDrawn, weaponCompletionWasObserved,
                             static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(weaponState),
                             weaponTransitionWaitElapsed, eventAttemptsExhausted);
+                        ArmGraphProbe(*animationState, "weapon-replay");
                     }
                 }
-                if (reassertLocomotionAfterSwimStop)
+                if (reassertLocomotion)
                 {
-                    animationState->swimLocomotionReassertPending = false;
-                    logs::debug("Animation sync reasserted locomotion after swim stop: actor={:08X} state={}",
-                        actorHandle.native_handle(), Multiplayer::GetMovementStateName(state.movementState));
-                }
-                if (reassertLocomotionAfterLanding)
-                {
-                    animationState->landingLocomotionReassertPending = false;
-                }
-                if (reassertLocomotionAfterAttack)
-                {
-                    animationState->attackLocomotionReassertPending = false;
-                    logs::debug(
-                        "Animation sync reasserted locomotion after attack or hand presentation: actor={:08X} state={}",
-                        actorHandle.native_handle(), Multiplayer::GetMovementStateName(state.movementState));
+                    logs::debug("Animation sync reasserted locomotion: actor={:08X} reason={} state={}",
+                        actorHandle.native_handle(), animationState->locomotionReassertReason,
+                        Multiplayer::GetMovementStateName(state.movementState));
+                    animationState->locomotionReassertReason = nullptr;
+                    ArmGraphProbe(*animationState, "reassert");
                 }
                 animationState->failedDispatchAttempts = 0;
                 animationState->rejectedEventAttempts = 0;
                 animationState->rejectedEventElapsed = 0.0F;
-                animationState->sneakMoveStartPending
-                    = sneakRequired && sneakAccepted && !sneakAlreadyEntered && isMoving && !state.jumping;
                 if (jumpLandRequired)
                 {
                     SetLandingCompletionPending(*animationState, true);
@@ -2265,14 +2330,13 @@ namespace ActorAnimation
         }
 
         // Let the native transition start only after this checkpoint's persistent
-        // speed and locomotion events have settled. Once active, moveStart selects
-        // the equip graph's built-in locomotion blend without overriding its sync
-        // state variable.
+        // speed and locomotion events have settled.
         if (IsAnimationStateSettled(a_remote))
         {
-            ApplyAuthoritativeWeaponPresentation(*actor, a_remote, isMoving, moveRequired && isMoving && moveAccepted);
+            ApplyAuthoritativeWeaponPresentation(*actor);
         }
-        ReconcileGraphSneak(*actor, a_remote, *animationState, a_deltaTime);
+        ReconcileGraphStance(*actor, a_remote, *animationState, a_deltaTime);
+        AdvanceGraphProbe(*actor, a_remote, a_deltaTime);
     }
 
     bool IsFurnitureEntryBlocked(const RemoteActor& a_remote)

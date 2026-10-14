@@ -1,5 +1,6 @@
 #include "sync/combat/CombatSync.h"
 #include "actor/ActorAnimation.h"
+#include "actor/ActorRegistry.h"
 #include "actor/AnimationEvents.h"
 #include "actor/RemoteActor.h"
 #include "network/ServerClient.h"
@@ -18,6 +19,14 @@ namespace CombatSync
         constexpr std::uint32_t kMaximumAnimationActionAttempts = 4;
         constexpr float kMinimumAnimationActionRetrySeconds = 0.25F;
         constexpr std::size_t kMaximumQueuedAnimationActions = 32;
+        // A peer's replaced attack clips can be faster than the vanilla NPC clips a
+        // remote actor plays, so its swings arrive before the playing one reaches its
+        // combo window. While the front attack waits behind a playing one, weapon
+        // speed rises to the cap over this wait; a plain swing still waiting at the
+        // drop bound is dropped so the attacks behind it keep pace.
+        constexpr float kAttackCatchUpRampSeconds = 0.5F;
+        constexpr float kMaximumAttackSpeedScale = 1.5F;
+        constexpr float kLaggingAttackDropSeconds = 1.0F;
 
         std::deque<Network::Attack> s_pendingAttacks;
         Multiplayer::HandPresentation s_currentHandPresentation;
@@ -189,6 +198,51 @@ namespace CombatSync
                 // The block button zooms a bow (BowZoom sends blockStart) and bashes
                 // with a crossbow, so neither is presented as a block.
                 .blocking = IsBlocking(a_player, actorState->GetAttackState()) };
+        }
+    }
+
+    namespace
+    {
+        void UpdateAttackCatchUp(
+            const RemoteFrame& a_remote, RemoteState& a_state, RemoteActor& a_actor, bool a_playing)
+        {
+            auto& queue = a_state.pendingAnimationActions;
+            if (a_playing && !queue.empty() && queue.front().dueElapsed >= kLaggingAttackDropSeconds
+                && !queue.front().action.attack.power
+                && queue.front().action.attack.action != Network::AttackAction::kBash)
+            {
+                const auto& dropped = queue.front();
+                logs::debug(
+                    "Animation sync dropped lagging queued attack: player={} actor={:08X} action={} actionSequence={} "
+                    "waitedSeconds={:.3f} queued={}",
+                    a_remote.playerID, a_actor.handle.native_handle(),
+                    Network::GetAttackActionName(dropped.action.attack.action),
+                    static_cast<unsigned long long>(dropped.action.actionSequence), dropped.dueElapsed,
+                    queue.size() - 1);
+                queue.pop_front();
+            }
+
+            const float lag = a_playing && !queue.empty() ? queue.front().dueElapsed : 0.0F;
+            const float scale
+                = 1.0F + (kMaximumAttackSpeedScale - 1.0F) * (std::min)(lag / kAttackCatchUpRampSeconds, 1.0F);
+            if (scale == a_state.attackSpeedScale)
+            {
+                return;
+            }
+            if (a_state.attackSpeedScale == 1.0F)
+            {
+                logs::debug("Animation sync attack catch-up started: player={} actor={:08X} queued={}",
+                    a_remote.playerID, a_actor.handle.native_handle(), queue.size());
+                a_state.attackCatchUpPeakScale = 1.0F;
+            }
+            a_state.attackCatchUpPeakScale = (std::max)(a_state.attackCatchUpPeakScale, scale);
+            if (scale == 1.0F)
+            {
+                logs::debug("Animation sync attack catch-up ended: player={} actor={:08X} peakSpeed={:.2f} queued={}",
+                    a_remote.playerID, a_actor.handle.native_handle(), a_state.attackCatchUpPeakScale, queue.size());
+            }
+            a_state.attackSpeedScale = scale;
+            ActorRegistry::SetAttackSpeedScale(a_actor, scale);
         }
     }
 
@@ -378,6 +432,10 @@ namespace CombatSync
         for (auto& pending : a_state.pendingAnimationActions)
         {
             pending.age += FrameTime::Clamp(a_delta);
+            if (pending.action.checkpointSequence <= a_remote.checkpoint.sequence)
+            {
+                pending.dueElapsed += FrameTime::Clamp(a_delta);
+            }
             if (pending.dispatchAttempts != 0)
             {
                 pending.retryElapsed += FrameTime::Clamp(a_delta);
@@ -397,16 +455,25 @@ namespace CombatSync
     void ClearRemoteActions(RemoteState& a_state)
     {
         a_state.pendingAnimationActions.clear();
+        a_state.attackSpeedScale = 1.0F;
+    }
+
+    void ClearRemoteActions(RemoteState& a_state, RemoteActor& a_actor)
+    {
+        // The actor stays registered, so its weapon speed must return to Skyrim's.
+        ClearRemoteActions(a_state);
+        ActorRegistry::SetAttackSpeedScale(a_actor, 1.0F);
     }
 
     void SyncCombat(const RemoteFrame& a_remote, RemoteState& a_state, RemoteActor& a_actor, bool a_handsSettled)
     {
         PROFILE_FUNCTION();
+        const bool playing = ActorAnimation::IsAnimationActionPlaying(a_actor);
+        UpdateAttackCatchUp(a_remote, a_state, a_actor, playing);
         if (a_state.pendingAnimationActions.empty())
         {
             return;
         }
-        const bool playing = ActorAnimation::IsAnimationActionPlaying(a_actor);
         if (!playing && a_state.pendingAnimationActions.size() >= 2)
         {
             const auto& plain = a_state.pendingAnimationActions[0].action;
@@ -491,6 +558,5 @@ namespace CombatSync
             ActorAnimation::ApplySpellCast(
                 a_actor, leftHand, stanceAllows && target.IsCasting(leftHand), mayStart, a_delta);
         }
-        ActorAnimation::AdvancePresentationLocomotion(a_actor, a_delta);
     }
 }
