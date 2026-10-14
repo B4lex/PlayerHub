@@ -1,4 +1,5 @@
 includes("lib/commonlibsse-ng")
+includes("locale")
 
 set_project("PlayerHub")
 set_version("0.1.3")
@@ -55,6 +56,7 @@ target("PlayerHub")
         description = "Shows other players as actors in your own Skyrim world"
     })
 
+    add_rules("locale")
     -- Translated text literals are UTF-8.
     set_encodings("utf-8")
     add_files("src/**.cpp", "src/**.c")

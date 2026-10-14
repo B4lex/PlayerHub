@@ -1,6 +1,6 @@
 #include "text/Text.h"
 #include "text/AsciiCase.h"
-#include "text/TextTables.h"
+#include "text/locale/Catalog.h"
 
 #include <algorithm>
 #include <array>
@@ -13,68 +13,42 @@ namespace Text
     namespace
     {
         constexpr std::size_t kIdCount = static_cast<std::size_t>(Id::kCount);
-        constexpr std::size_t kMaximumPluralForms = 3;
         constexpr std::size_t kMaximumFields = 8;
-        constexpr char kPluralSeparator = '|';
+        using Catalogs::kMaximumPluralForms;
+        using Catalogs::kPluralSeparator;
 
         struct LanguageInfo
         {
             Language language;
             // sLanguage:General, which also names the game's string tables.
             std::string_view gameName;
-            std::span<const Tables::Entry> (*entries)();
-            std::size_t pluralForms;
+            Catalogs::Catalog (*catalog)();
         };
 
         constexpr std::array kLanguages{
-            LanguageInfo{ Language::kEnglish, "ENGLISH", &Tables::GetEnglish, 2 },
-            LanguageInfo{ Language::kFrench, "FRENCH", &Tables::GetFrench, 2 },
-            LanguageInfo{ Language::kGerman, "GERMAN", &Tables::GetGerman, 2 },
-            LanguageInfo{ Language::kItalian, "ITALIAN", &Tables::GetItalian, 2 },
-            LanguageInfo{ Language::kSpanish, "SPANISH", &Tables::GetSpanish, 2 },
-            LanguageInfo{ Language::kPolish, "POLISH", &Tables::GetPolish, 3 },
-            LanguageInfo{ Language::kRussian, "RUSSIAN", &Tables::GetRussian, 3 },
-            LanguageInfo{ Language::kJapanese, "JAPANESE", &Tables::GetJapanese, 1 },
-            LanguageInfo{ Language::kChinese, "CHINESE", &Tables::GetChinese, 1 },
+            LanguageInfo{ Language::kEnglish, "ENGLISH", &Catalogs::GetEnglish },
+            LanguageInfo{ Language::kFrench, "FRENCH", &Catalogs::GetFrench },
+            LanguageInfo{ Language::kGerman, "GERMAN", &Catalogs::GetGerman },
+            LanguageInfo{ Language::kItalian, "ITALIAN", &Catalogs::GetItalian },
+            LanguageInfo{ Language::kSpanish, "SPANISH", &Catalogs::GetSpanish },
+            LanguageInfo{ Language::kPolish, "POLISH", &Catalogs::GetPolish },
+            LanguageInfo{ Language::kRussian, "RUSSIAN", &Catalogs::GetRussian },
+            LanguageInfo{ Language::kJapanese, "JAPANESE", &Catalogs::GetJapanese },
+            LanguageInfo{ Language::kChinese, "CHINESE", &Catalogs::GetChinese },
         };
 
-        const LanguageInfo& GetInfo(Language a_language)
-        {
-            return kLanguages[static_cast<std::size_t>(a_language)];
-        }
-
         using Forms = std::array<std::string_view, kMaximumPluralForms>;
+        using PluralRule = std::size_t (*)(std::uint64_t);
 
         struct Table
         {
             std::array<std::string_view, kIdCount> text{};
             std::array<Forms, kIdCount> plurals{};
-            // The language whose plural rule picks among an Id's forms; English where a
+            // The rule that picks among an Id's forms: its catalog's, or English's where a
             // translation's forms were rejected.
-            std::array<Language, kIdCount> pluralRules{};
+            std::array<PluralRule, kIdCount> pluralRules{};
             Language language{ Language::kEnglish };
         };
-
-        std::size_t GetPluralIndex(Language a_language, std::uint64_t a_count)
-        {
-            const auto lastDigit = a_count % 10;
-            const auto lastTwoDigits = a_count % 100;
-            const bool few = lastDigit >= 2 && lastDigit <= 4 && (lastTwoDigits < 12 || lastTwoDigits > 14);
-            switch (a_language)
-            {
-                case Language::kFrench:
-                    return a_count <= 1 ? 0 : 1;
-                case Language::kPolish:
-                    return a_count == 1 ? 0 : few ? 1 : 2;
-                case Language::kRussian:
-                    return lastDigit == 1 && lastTwoDigits != 11 ? 0 : few ? 1 : 2;
-                case Language::kJapanese:
-                case Language::kChinese:
-                    return 0;
-                default:
-                    return a_count == 1 ? 0 : 1;
-            }
-        }
 
         // Splits at the separator; returns the count, or 0 if there are more than the maximum.
         std::size_t SplitForms(std::string_view a_text, Forms& a_forms)
@@ -243,7 +217,9 @@ namespace Text
             Table table;
             // A literal, so even a missing text is NUL-terminated.
             table.text.fill("");
-            for (const auto& entry : Tables::GetEnglish())
+            const auto catalog = Catalogs::GetEnglish();
+            table.pluralRules.fill(catalog.pluralForm);
+            for (const auto& entry : catalog.entries)
             {
                 const auto index = static_cast<std::size_t>(entry.id);
                 if (index >= kIdCount)
@@ -315,7 +291,8 @@ namespace Text
             }
         }
 
-        bool Translate(Table& a_table, const LanguageInfo& a_info, std::size_t a_index, std::string_view a_text)
+        bool Translate(
+            Table& a_table, const Catalogs::Catalog& a_catalog, std::size_t a_index, std::string_view a_text)
         {
             const auto english = GetEnglishFields(s_english, a_index);
             if (!english)
@@ -332,11 +309,11 @@ namespace Text
                 return true;
             }
             Forms forms{};
-            if (SplitForms(a_text, forms) != a_info.pluralForms)
+            if (SplitForms(a_text, forms) != a_catalog.pluralForms)
             {
                 return false;
             }
-            for (std::size_t form = 0; form < a_info.pluralForms; ++form)
+            for (std::size_t form = 0; form < a_catalog.pluralForms; ++form)
             {
                 if (!MatchesEnglish(*english, forms[form], false))
                 {
@@ -345,7 +322,7 @@ namespace Text
             }
             a_table.text[a_index] = a_text;
             a_table.plurals[a_index] = forms;
-            a_table.pluralRules[a_index] = a_info.language;
+            a_table.pluralRules[a_index] = a_catalog.pluralForm;
             return true;
         }
 
@@ -356,7 +333,8 @@ namespace Text
             table.language = a_info.language;
             std::array<bool, kIdCount> translated{};
             std::size_t rejected = 0;
-            for (const auto& entry : a_info.entries())
+            const auto catalog = a_info.catalog();
+            for (const auto& entry : catalog.entries)
             {
                 const auto index = static_cast<std::size_t>(entry.id);
                 if (index == 0 || index >= kIdCount || translated[index])
@@ -364,7 +342,7 @@ namespace Text
                     logs::warn("Localization: {} lists ID {} twice or out of range", a_info.gameName, index);
                     continue;
                 }
-                if (!Translate(table, a_info, index, entry.text))
+                if (!Translate(table, catalog, index, entry.text))
                 {
                     ++rejected;
                     logs::warn(
@@ -437,7 +415,8 @@ namespace Text
             return {};
         }
         const auto& table = *s_active.load(std::memory_order_acquire);
-        const auto form = table.plurals[index][GetPluralIndex(table.pluralRules[index], a_count)];
+        const auto rule = table.plurals[index][0].empty() ? 0 : table.pluralRules[index](a_count);
+        const auto form = table.plurals[index][(std::min)(rule, kMaximumPluralForms - 1)];
         return form.empty() ? table.text[index] : form;
     }
 

@@ -3,7 +3,7 @@
 #include "config/PluginConfig.h"
 #include "forms/ItemFilter.h"
 #include "protocol/FormReference.h"
-#include "text/TextId.h"
+#include "text/locale/TextId.h"
 
 #include <cstddef>
 #include <cstdint>

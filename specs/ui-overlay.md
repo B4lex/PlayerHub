@@ -11,6 +11,16 @@
   counts 0 to 25, that a text with a wrong field or form count is rejected for
   English, and that an unknown or missing language gives English. The
   translations are machine drafts no native speaker has reviewed.
+  [Catalogs](#catalogs) (2026-10-15): on Linux, `generate.lua` (host xmake
+  3.0.6) produced the same tables as the former hand-written ones, text for
+  text. A scratch xmake project with the `locale` rule, a PCH, and `Text.cpp`
+  over stubbed engine calls built with g++ from a clean tree. Each translation
+  loaded 283 of 283 texts, and the `Plural-Forms` rules pick the same forms as
+  the former switch for counts 0 to 1999. Editing one `.po` file recompiled only
+  its catalog, a new template key recompiled the `TextId.h` users, and a bad
+  translation failed the build. `msgfmt -c` passes every `.po` file, and
+  `msgmerge` marks an entry whose English changed as fuzzy, which the build then
+  rejects. The rule has not run under the Windows xmake or with MSVC.
 - **Overlay, input, status panel:** implemented and built on Windows; the
   settings UI runs in game. The renderer and input hook sites and the input
   context order were checked against the 1.7.104 executable and address library.
@@ -754,9 +764,9 @@ src/sync/filters/PlayerFilters # friends, muted and vanished players of the curr
 src/sync/chat/PlayerActivation # the activated player, and a whisper picked in its menu
 src/runtime/PluginTime        # plugin time per pass
 src/text/Text                 # the game's language, text lookup, formatting, plural forms, field splitting
-src/text/TextId.h             # one Text::Id per displayed text
-src/text/TextTables.h         # a language's table: Text::Id and its text
-src/text/lang/                # English and the eight translations, compiled in
+locale/                       # gettext sources: the English template, one .po per translation
+locale/generate.lua           # checks them and writes Text::Id and each language's Text::Catalogs::Catalog
+locale/xmake.lua              # the `locale` rule that runs it and compiles its output
 src/text/Utf8Case             # capitals of Latin and Cyrillic letters in UTF-8
 assets/fonts/                 # Sovngarde Light and Bold with their license, the logo font, deployed beside the DLL
 assets/logo/                  # the logo's SVG and the script that makes its font
@@ -2799,11 +2809,11 @@ English. There is no setting for it: the game cannot change its language
 while it runs, so the text follows `sLanguage:General` from the game's INI,
 the setting that also picks its string tables.
 
-- Every displayed text has a `Text::Id` (`TextId.h`). Its text comes from
-  `Text::Get`, `Format`, or `FormatPlural`. Each language is a table of
-  `Text::Tables::Entry` in `src/text/lang/`, compiled into the plugin; there
-  are no files to load. English is complete and is the fallback for any ID a
-  table lacks or has rejected.
+- Every displayed text has a `Text::Id`. Its text comes from `Text::Get`,
+  `Format`, or `FormatPlural`. English is complete and is the fallback for any
+  ID a translation lacks or has rejected. The texts are compiled into the
+  plugin; there are no files to load. See [Catalogs](#catalogs) for where they
+  come from.
 - `Text::Initialize` reads the language once, on the overlay's first frame
   before the fonts load, and again when the game's data loads in case the
   overlay never started; `std::call_once` makes the later call do nothing.
@@ -2817,12 +2827,12 @@ the setting that also picks its string tables.
   form must use all of them. Mixed automatic and numbered fields, a stray
   brace, or a nested field reject it. So formatting cannot throw, and a
   translation can reorder its arguments with `{0}` and `{1}`.
-- A plural text lists its forms separated by `|`, as many as the language
-  has: one for Japanese and Chinese, two for English, French, German,
-  Italian, and Spanish, three for Polish and Russian (one, few, many).
-  `Text::GetPlural` picks the form by the language's rule for the count, and
-  `FormatPlural` passes the count as argument 0. A form may leave out a field,
-  but a translation with the wrong number of forms is rejected.
+- A plural text has as many forms as the language has: one for Japanese and
+  Chinese, two for English, French, German, Italian, and Spanish, three for
+  Polish and Russian (one, few, many). `Text::GetPlural` picks the form with
+  the rule of the catalog the text came from, and `FormatPlural` passes the
+  count as argument 0. A form may leave out a field, but a translation with
+  the wrong number of forms is rejected.
 - A sentence that draws an argument in the accent color, such as the
   [display name hint](#display-name-hint), the trade window's title, and the
   [trade prompt](#prompt), is a format whose fields `Text::Split` cuts out.
@@ -2842,6 +2852,55 @@ the setting that also picks its string tables.
 - Controls sized for English text fit longer text instead: the settings and
   trade footers' buttons and the connection button take the widest of their
   labels.
+
+### Catalogs
+
+The texts are kept as gettext PO files in `locale/`, and the build turns them
+into C++. Gettext was chosen so standard tools (`msgmerge`, `msgfmt -c`, PO
+editors) work on the texts, while the plugin still ships one DLL with no files
+to read.
+
+- `locale/playerhub.pot` is the English source and the list of IDs. Each entry's
+  `msgctxt` is its `Text::Id` without the `k` prefix, `msgid` its English text,
+  and `msgid_plural` the plural form, if any. A `#.` comment tells translators
+  what each field is. An entry with fields needs the `c++-format` flag, so
+  `msgfmt -c` checks the translations' fields. The header's `Plural-Forms` is
+  English's rule.
+- Each translation is `locale/<code>.po`: `fr`, `de`, `it`, `es`, `pl`, `ru`,
+  `ja`, and `zh_TW` (the game's Chinese is Traditional). Its `Language` header
+  is the file's code, and `kLanguages` in `generate.lua` maps the code to the
+  catalog's name. An empty `msgstr` leaves the text in English, and the build
+  warns how many texts such a file translates.
+- The `locale` rule (`locale/xmake.lua`, added to the plugin target) runs
+  `generate.lua` in xmake's prepare stage, before anything compiles. Its output
+  goes to `rules/locale/text/locale/` in the target's autogen directory, which
+  is on the include path, so code includes `text/locale/TextId.h`. The rule
+  adds the generated `.cpp` files to the target at load with `always_added`,
+  as they do not exist until the prepare stage. A file is written only when
+  its content changes, so editing one translation recompiles only that catalog,
+  and only a change to the template's IDs recompiles the users of `TextId.h`.
+  Nothing generated is committed, and the generator is xmake Lua because the
+  Windows build runs under wine without Python.
+- The output is `TextId.h` (`Text::Id` in template order, then `kCount`),
+  `Catalog.h`, and one `<Language>.cpp` per catalog with a
+  `Text::Catalogs::Get<Language>` function. A `Catalog` has the translated
+  entries, the language's form count, and its plural rule. The rule is the
+  `Plural-Forms` expression compiled as C++. A plural entry's forms are joined
+  by `kPluralSeparator` (`|`).
+- The build fails, naming the file and line, on what the plugin would reject
+  at load: a key not in the template or listed twice, a translation of an
+  older English text, an entry marked `fuzzy`, a missing plural form, an
+  invalid format, or fields that differ from English (see above). It also fails
+  on a `|` in any text, a `.po` file missing from `kLanguages`, and a
+  `Plural-Forms` with more than `kMaximumPluralForms` (3) forms or a rule that
+  gives a form out of range, or divides by zero, for counts 0 to 9999.
+  `xmake l locale/generate.lua [outdir]` runs the same checks without a build
+  and prints each translation's count.
+- `Text.cpp` still checks every text when it loads a catalog, as a safety net.
+  `kLanguages` there maps `sLanguage:General` to each catalog.
+- To change a text, edit the template, run `msgmerge -U <code>.po
+  playerhub.pot` for each translation (it marks entries whose English changed
+  as `fuzzy`), update the translations, and build.
 
 ## Engine assumptions
 

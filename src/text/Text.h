@@ -1,6 +1,6 @@
 #pragma once
 
-#include "text/TextId.h"
+#include "text/locale/TextId.h"
 
 #include <cstddef>
 #include <cstdint>

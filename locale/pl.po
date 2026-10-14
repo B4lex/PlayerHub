@@ -1,0 +1,1326 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PlayerHub\n"
+"Language: pl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n == 1 ? 0 : n % 10 >= 2 && n % 10 <= 4 && "
+"(n % 100 < 10 || n % 100 >= 20) ? 1 : 2);\n"
+
+msgctxt "SectionConnection"
+msgid "Connection"
+msgstr "Połączenie"
+
+msgctxt "SectionDefaultOutfit"
+msgid "Default Outfit"
+msgstr "Domyślny strój"
+
+msgctxt "SectionUI"
+msgid "Interface"
+msgstr "Interfejs"
+
+msgctxt "SectionControls"
+msgid "Keybinds"
+msgstr "Klawisze"
+
+msgctxt "SectionAdvanced"
+msgid "Advanced"
+msgstr "Zaawansowane"
+
+msgctxt "ConnectionDisplayName"
+msgid "Display name"
+msgstr "Nazwa wyświetlana"
+
+msgctxt "ConnectionDisplayNameComment"
+msgid "Shown to other players above your character and in chat."
+msgstr "Widoczna dla innych graczy nad twoją postacią i na czacie."
+
+msgctxt "ConnectionAutoConnect"
+msgid "Connect automatically"
+msgstr "Łącz automatycznie"
+
+msgctxt "ConnectionAutoConnectComment"
+msgid "Connects to the server automatically after the game is loaded."
+msgstr "Łączy z serwerem automatycznie po wczytaniu gry."
+
+msgctxt "ConnectionCustomServer"
+msgid "Custom server"
+msgstr "Własny serwer"
+
+msgctxt "ConnectionCustomServerComment"
+msgid "Connects to the server at the URL below instead of the official server."
+msgstr ""
+"Łączy z serwerem o adresie URL podanym niżej zamiast z serwerem oficjalnym."
+
+msgctxt "ConnectionServerEndpoint"
+msgid "Server URL"
+msgstr "Adres URL serwera"
+
+msgctxt "ConnectionServerEndpointComment"
+msgid ""
+"Custom server URL, starting with http:// or https://. Used only while the\n"
+"custom server is on."
+msgstr ""
+"Adres URL własnego serwera, zaczynający się od http:// lub https://. Używany "
+"tylko, gdy własny serwer jest włączony."
+
+msgctxt "OutfitComment"
+msgid ""
+"Player appearance and equipment shown to others in place of your\n"
+"modded assets they do not have."
+msgstr ""
+"Wygląd i wyposażenie pokazywane innym zamiast twoich modyfikowanych zasobów, "
+"których oni nie mają."
+
+msgctxt "OutfitGroupCharacter"
+msgid "Character"
+msgstr "Postać"
+
+msgctxt "OutfitRace"
+msgid "Race"
+msgstr "Rasa"
+
+msgctxt "OutfitSex"
+msgid "Sex"
+msgstr "Płeć"
+
+msgctxt "OutfitMale"
+msgid "Male"
+msgstr "Mężczyzna"
+
+msgctxt "OutfitFemale"
+msgid "Female"
+msgstr "Kobieta"
+
+msgctxt "OutfitGroupApparel"
+msgid "Apparel"
+msgstr "Ubiór"
+
+msgctxt "OutfitHead"
+msgid "Head"
+msgstr "Głowa"
+
+msgctxt "OutfitBody"
+msgid "Body"
+msgstr "Tułów"
+
+msgctxt "OutfitHands"
+msgid "Hands"
+msgstr "Dłonie"
+
+msgctxt "OutfitAmulet"
+msgid "Amulet"
+msgstr "Amulet"
+
+msgctxt "OutfitFeet"
+msgid "Feet"
+msgstr "Stopy"
+
+msgctxt "OutfitShield"
+msgid "Shield"
+msgstr "Tarcza"
+
+msgctxt "OutfitCirclet"
+msgid "Circlet"
+msgstr "Diadem"
+
+msgctxt "OutfitBackpack"
+msgid "Backpack"
+msgstr "Plecak"
+
+msgctxt "OutfitGroupWeapons"
+msgid "Weapons"
+msgstr "Broń"
+
+msgctxt "OutfitSword"
+msgid "Sword"
+msgstr "Miecz"
+
+msgctxt "OutfitDagger"
+msgid "Dagger"
+msgstr "Sztylet"
+
+msgctxt "OutfitWarAxe"
+msgid "War axe"
+msgstr "Topór bojowy"
+
+msgctxt "OutfitMace"
+msgid "Mace"
+msgstr "Buława"
+
+msgctxt "OutfitGreatsword"
+msgid "Greatsword"
+msgstr "Miecz dwuręczny"
+
+msgctxt "OutfitBattleaxe"
+msgid "Battleaxe or warhammer"
+msgstr "Topór dwuręczny lub młot bojowy"
+
+msgctxt "OutfitBow"
+msgid "Bow"
+msgstr "Łuk"
+
+msgctxt "OutfitStaff"
+msgid "Staff"
+msgstr "Kostur"
+
+msgctxt "OutfitCrossbow"
+msgid "Crossbow"
+msgstr "Kusza"
+
+msgctxt "OutfitGroupMiscellaneous"
+msgid "Miscellaneous"
+msgstr "Różne"
+
+msgctxt "OutfitArrow"
+msgid "Arrow"
+msgstr "Strzała"
+
+msgctxt "OutfitBolt"
+msgid "Bolt"
+msgstr "Bełt"
+
+msgctxt "UIGroupDisplay"
+msgid "Display"
+msgstr "Wyświetlanie"
+
+msgctxt "UIFontScale"
+msgid "Font scale"
+msgstr "Rozmiar tekstu"
+
+msgctxt "UIFontScaleComment"
+msgid ""
+"Size of the text in the settings window, the chat, and the rest of the\n"
+"multiplayer interface. Windows grow and shrink with it."
+msgstr ""
+"Rozmiar tekstu w oknie ustawień, na czacie i w pozostałej części interfejsu "
+"trybu wieloosobowego. Okna rosną i maleją razem z nim."
+
+msgctxt "UIAccentColor"
+msgid "Accent color"
+msgstr "Kolor wyróżnienia"
+
+msgctxt "UIAccentColorComment"
+msgid ""
+"Color that marks what can be selected or is selected in the settings window "
+"and\n"
+"the chat, as hexadecimal RRGGBB."
+msgstr ""
+"Kolor oznaczający to, co można wybrać lub co jest wybrane w oknie ustawień i "
+"na czacie, w zapisie szesnastkowym RRGGBB."
+
+msgctxt "UIBorderColor"
+msgid "Border color"
+msgstr "Kolor ramki"
+
+msgctxt "UIBorderColorComment"
+msgid "Color of the frame around the settings window and the chat."
+msgstr "Kolor ramki wokół okna ustawień i czatu."
+
+msgctxt "UIBorderVanilla"
+msgid "Vanilla"
+msgstr "Vanilla"
+
+msgctxt "UIBorderAccent"
+msgid "Accent"
+msgstr "Wyróżnienie"
+
+msgctxt "UIBorderThickness"
+msgid "Border thickness"
+msgstr "Grubość ramki"
+
+msgctxt "UIBorderThicknessComment"
+msgid "Thickness of the frame around the settings window and the chat."
+msgstr "Grubość ramki wokół okna ustawień i czatu."
+
+msgctxt "UIGroupPlayers"
+msgid "Players"
+msgstr "Gracze"
+
+msgctxt "UINameplates"
+msgid "Nameplates"
+msgstr "Nazwy nad graczami"
+
+msgctxt "UINameplatesComment"
+msgid "Shows other players' names above their heads while they are in sight."
+msgstr "Pokazuje nazwy innych graczy nad ich głowami, gdy są w zasięgu wzroku."
+
+msgctxt "UINameplateDistance"
+msgid "Nameplate distance"
+msgstr "Odległość nazw"
+
+msgctxt "UINameplateDistanceComment"
+msgid ""
+"Game units within which names are shown above players' heads, about 70 to a\n"
+"meter."
+msgstr ""
+"Odległość w jednostkach gry, w której nazwy są pokazywane nad graczami, "
+"około 70 na metr."
+
+msgctxt "UIGroupChat"
+msgid "Chat"
+msgstr "Czat"
+
+msgctxt "UICloseChatOnSend"
+msgid "Close on send"
+msgstr "Zamykaj po wysłaniu"
+
+msgctxt "UICloseChatOnSendComment"
+msgid ""
+"Closes the chat when Enter sends a line. Otherwise Enter only sends, and an\n"
+"empty line does nothing."
+msgstr ""
+"Zamyka czat, gdy Enter wysyła wiersz. W przeciwnym razie Enter tylko wysyła, "
+"a pusty wiersz nic nie robi."
+
+msgctxt "UIChatHorizontal"
+msgid "Horizontal position"
+msgstr "Położenie w poziomie"
+
+msgctxt "UIChatHorizontalComment"
+msgid ""
+"Distance of the chat's left edge from the screen's left edge, as a share of "
+"the\n"
+"screen's width. The chat stays on the screen."
+msgstr ""
+"Odległość lewej krawędzi czatu od lewej krawędzi ekranu jako część "
+"szerokości ekranu. Czat pozostaje na ekranie."
+
+msgctxt "UIChatVertical"
+msgid "Vertical position"
+msgstr "Położenie w pionie"
+
+msgctxt "UIChatVerticalComment"
+msgid ""
+"Distance of the chat's bottom edge from the screen's bottom edge, as a share "
+"of\n"
+"the screen's height. The chat stays on the screen."
+msgstr ""
+"Odległość dolnej krawędzi czatu od dolnej krawędzi ekranu jako część "
+"wysokości ekranu. Czat pozostaje na ekranie."
+
+msgctxt "UIGroupItems"
+msgid "Items"
+msgstr "Przedmioty"
+
+msgctxt "UIItemPreview"
+msgid "Item preview"
+msgstr "Podgląd przedmiotów"
+
+msgctxt "UIItemPreviewComment"
+msgid "Shows a 3D model of the hovered item in item lists."
+msgstr "Pokazuje model 3D wskazanego przedmiotu na listach przedmiotów."
+
+msgctxt "ControlsOpenSettings"
+msgid "Open settings"
+msgstr "Otwórz ustawienia"
+
+msgctxt "ControlsOpenSettingsComment"
+msgid "Opens and closes the settings window."
+msgstr "Otwiera i zamyka okno ustawień."
+
+msgctxt "ControlsOpenChat"
+msgid "Open chat"
+msgstr "Otwórz czat"
+
+msgctxt "ControlsOpenChatComment"
+msgid "Opens the chat."
+msgstr "Otwiera czat."
+
+msgctxt "ControlsManagePlayers"
+msgid "Manage players"
+msgstr "Zarządzaj graczami"
+
+msgctxt "ControlsManagePlayersComment"
+msgid ""
+"Opens the window that lists your friends and the players you muted or "
+"vanished."
+msgstr ""
+"Otwiera okno z listą twoich znajomych oraz graczy wyciszonych i ukrytych."
+
+msgctxt "ControlsAcceptTrade"
+msgid "Accept trade"
+msgstr "Przyjmij wymianę"
+
+msgctxt "ControlsAcceptTradeComment"
+msgid "Accepts another player's trade offer while it waits for an answer."
+msgstr "Przyjmuje ofertę wymiany innego gracza, gdy czeka ona na odpowiedź."
+
+msgctxt "ControlsDeclineTrade"
+msgid "Decline trade"
+msgstr "Odrzuć wymianę"
+
+msgctxt "ControlsDeclineTradeComment"
+msgid ""
+"Declines another player's trade offer, or withdraws your own, while it "
+"waits\n"
+"for an answer."
+msgstr ""
+"Odrzuca ofertę wymiany innego gracza lub wycofuje twoją, gdy czeka ona na "
+"odpowiedź."
+
+msgctxt "AdvancedGroupPerformance"
+msgid "Performance"
+msgstr "Wydajność"
+
+msgctxt "AdvancedViewRadius"
+msgid "View radius"
+msgstr "Zasięg widzenia"
+
+msgctxt "AdvancedViewRadiusComment"
+msgid ""
+"Game units within which other players are shown. Applies\n"
+"on the next connection."
+msgstr ""
+"Odległość w jednostkach gry, w której pokazywani są inni gracze. Działa od "
+"następnego połączenia."
+
+msgctxt "AdvancedViewRadiusAuto"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "AdvancedSpawnsPerSecond"
+msgid "Spawns per second"
+msgstr "Pojawienia na sekundę"
+
+msgctxt "AdvancedSpawnsPerSecondComment"
+msgid ""
+"Remote players and mounts spawned per second at most. Many players joining "
+"or\n"
+"arriving at once then appear over a few seconds instead of in one long "
+"frame.\n"
+"0 spawns every due player at once."
+msgstr ""
+"Największa liczba zdalnych graczy i wierzchowców pojawiających się w ciągu "
+"sekundy. Wielu graczy przybywających naraz pojawia się wtedy przez kilka "
+"sekund zamiast w jednej długiej klatce. 0 pokazuje wszystkich od razu."
+
+msgctxt "AdvancedSpawnsUnlimited"
+msgid "Unlimited"
+msgstr "Bez limitu"
+
+msgctxt "AdvancedGroupDiagnostics"
+msgid "Diagnostics"
+msgstr "Diagnostyka"
+
+msgctxt "AdvancedStatusPanel"
+msgid "Status panel"
+msgstr "Panel stanu"
+
+msgctxt "AdvancedStatusPanelComment"
+msgid ""
+"Shows the ping, network traffic, and the plugin's time per frame in the\n"
+"top-right corner."
+msgstr ""
+"Pokazuje ping, ruch sieciowy i czas działania wtyczki na klatkę w prawym "
+"górnym rogu."
+
+msgctxt "KeySpace"
+msgid "Space"
+msgstr "Spacja"
+
+msgctxt "KeyEnter"
+msgid "Enter"
+msgstr "Enter"
+
+msgctxt "KeyCapsLock"
+msgid "Caps Lock"
+msgstr "Caps Lock"
+
+msgctxt "KeyInsert"
+msgid "Insert"
+msgstr "Insert"
+
+msgctxt "KeyDelete"
+msgid "Delete"
+msgstr "Delete"
+
+msgctxt "KeyHome"
+msgid "Home"
+msgstr "Home"
+
+msgctxt "KeyEnd"
+msgid "End"
+msgstr "End"
+
+msgctxt "KeyPageUp"
+msgid "Page Up"
+msgstr "Page Up"
+
+msgctxt "KeyPageDown"
+msgid "Page Down"
+msgstr "Page Down"
+
+msgctxt "KeyUp"
+msgid "Up"
+msgstr "Góra"
+
+msgctxt "KeyDown"
+msgid "Down"
+msgstr "Dół"
+
+msgctxt "KeyLeft"
+msgid "Left"
+msgstr "Lewo"
+
+msgctxt "KeyRight"
+msgid "Right"
+msgstr "Prawo"
+
+msgctxt "KeyPause"
+msgid "Pause"
+msgstr "Pause"
+
+msgctxt "KeyScrollLock"
+msgid "Scroll Lock"
+msgstr "Scroll Lock"
+
+msgctxt "KeyNumLock"
+msgid "Num Lock"
+msgstr "Num Lock"
+
+msgctxt "KeyNumpadEnter"
+msgid "Num Enter"
+msgstr "Num Enter"
+
+msgctxt "SettingsBrand"
+msgid "Multiplayer"
+msgstr "Tryb wieloosobowy"
+
+msgctxt "SettingsDisplayNameHint"
+msgid "Enter a display name"
+msgstr "Wpisz nazwę wyświetlaną"
+
+msgctxt "SettingsServerEndpointHint"
+msgid "Enter server endpoint URL"
+msgstr "Wpisz adres URL serwera"
+
+msgctxt "SettingsServerEndpointInvalid"
+msgid "Invalid server URL."
+msgstr "Nieprawidłowy adres URL serwera."
+
+msgctxt "SettingsCustomColor"
+msgid "Custom color"
+msgstr "Własny kolor"
+
+msgctxt "SettingsKeyPrompt"
+msgid "Press a key"
+msgstr "Naciśnij klawisz"
+
+msgctxt "SettingsKeyUnbound"
+msgid "Not bound"
+msgstr "Nieprzypisany"
+
+msgctxt "SettingsKeyReserved"
+msgid "This key cannot be bound"
+msgstr "Tego klawisza nie można przypisać"
+
+#. {0} is a key name, {1} the name of the action already bound to it
+#, c++-format
+msgctxt "SettingsKeyInUse"
+msgid "{} is already used by {}"
+msgstr "{0} jest już przypisany do: {1}"
+
+msgctxt "SettingsDefaults"
+msgid "Defaults"
+msgstr "Domyślne"
+
+msgctxt "SettingsRevert"
+msgid "Revert"
+msgstr "Cofnij"
+
+msgctxt "SettingsApply"
+msgid "Apply"
+msgstr "Zastosuj"
+
+msgctxt "SettingsUnapplied"
+msgid "Unapplied changes"
+msgstr "Niezastosowane zmiany"
+
+msgctxt "SettingsSaved"
+msgid "Saved"
+msgstr "Zapisano"
+
+#. {} is the settings file name
+#, c++-format
+msgctxt "SettingsSaveFailed"
+msgid "Could not save {}"
+msgstr "Nie udało się zapisać {}"
+
+msgctxt "ConnectionConnect"
+msgid "Connect"
+msgstr "Połącz"
+
+msgctxt "ConnectionCancel"
+msgid "Cancel"
+msgstr "Anuluj"
+
+msgctxt "ConnectionDisconnect"
+msgid "Disconnect"
+msgstr "Rozłącz"
+
+msgctxt "ConnectionConnected"
+msgid "Connected"
+msgstr "Połączono"
+
+msgctxt "ConnectionConnecting"
+msgid "Connecting..."
+msgstr "Łączenie..."
+
+msgctxt "ConnectionDisconnecting"
+msgid "Disconnecting..."
+msgstr "Rozłączanie..."
+
+msgctxt "ConnectionDisconnected"
+msgid "Disconnected"
+msgstr "Rozłączono"
+
+msgctxt "ConnectionDisconnectToRename"
+msgid "Disconnect to change the display name"
+msgstr "Rozłącz się, aby zmienić nazwę wyświetlaną"
+
+msgctxt "ConnectionCancelToRename"
+msgid "Cancel the connection to change the display name"
+msgstr "Anuluj łączenie, aby zmienić nazwę wyświetlaną"
+
+msgctxt "ConnectionNoEndpoint"
+msgid "Enter a custom server URL to connect."
+msgstr "Wpisz adres URL własnego serwera, aby się połączyć."
+
+#. {} is the minimum number of characters
+#, c++-format
+msgctxt "ConnectionShortName"
+msgid "The name must be at least {} character long."
+msgid_plural "The name must be at least {} characters long."
+msgstr[0] "Nazwa musi mieć co najmniej {} znak."
+msgstr[1] "Nazwa musi mieć co najmniej {} znaki."
+msgstr[2] "Nazwa musi mieć co najmniej {} znaków."
+
+#. {} is the reason the server gave
+#, c++-format
+msgctxt "RefusalProtocolMismatch"
+msgid "The server runs another protocol version ({})."
+msgstr "Serwer używa innej wersji protokołu ({})."
+
+msgctxt "RefusalDisplayNameTaken"
+msgid "The display name is already taken by another player."
+msgstr "Ta nazwa wyświetlana jest już zajęta przez innego gracza."
+
+msgctxt "RefusalDisplayNameInvalid"
+msgid "The server does not accept the display name."
+msgstr "Serwer nie akceptuje tej nazwy wyświetlanej."
+
+msgctxt "RefusalSessionReplaced"
+msgid ""
+"Your session connected from another game, which closed this connection. "
+"Connect again to take it back."
+msgstr ""
+"Twoja sesja połączyła się z innej gry, co zamknęło to połączenie. Połącz się "
+"ponownie, aby ją odzyskać."
+
+msgctxt "RefusalServerFull"
+msgid "The server is full."
+msgstr "Serwer jest pełny."
+
+msgctxt "RefusalTooManyNewSessions"
+msgid "Too many new players joined this server from your IP address recently."
+msgstr ""
+"Z twojego adresu IP dołączyło ostatnio do tego serwera zbyt wielu nowych "
+"graczy."
+
+msgctxt "StatusPing"
+msgid "Ping"
+msgstr "Ping"
+
+msgctxt "StatusPlugin"
+msgid "Plugin"
+msgstr "Wtyczka"
+
+msgctxt "NoticeConnected"
+msgid "Connected to the server"
+msgstr "Połączono z serwerem"
+
+#. {} is a player's name
+#, c++-format
+msgctxt "NoticeFriendOnline"
+msgid "{} is online"
+msgstr "{} jest dostępny"
+
+#. {0} is the key that opens the settings, {1} the name of the Connection tab
+#, c++-format
+msgctxt "DisplayNameHint"
+msgid "Press {0} and enter a display name on the {1} tab to connect"
+msgstr "Naciśnij {0} i wpisz nazwę wyświetlaną na karcie {1}, aby się połączyć"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradePromptWaiting"
+msgid "Waiting for {} to answer your trade offer"
+msgstr "Czekasz, aż {} odpowie na twoją ofertę wymiany"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradePromptInvited"
+msgid "{} wants to trade with you"
+msgstr "{} chce się z tobą wymienić"
+
+msgctxt "TradePromptWithdraw"
+msgid "Withdraw"
+msgstr "Wycofaj"
+
+msgctxt "TradePromptAccept"
+msgid "Accept"
+msgstr "Przyjmij"
+
+msgctxt "TradePromptDecline"
+msgid "Decline"
+msgstr "Odrzuć"
+
+#. {} is the number of seconds left
+#, c++-format
+msgctxt "TradePromptSeconds"
+msgid "{} s"
+msgstr "{} s"
+
+msgctxt "ChatGlobal"
+msgid "Global"
+msgstr "Globalny"
+
+msgctxt "ChatNearby"
+msgid "Nearby"
+msgstr "W pobliżu"
+
+msgctxt "ChatWhispers"
+msgid "Whispers"
+msgstr "Szepty"
+
+#. {} is a player's name
+#, c++-format
+msgctxt "ChatTo"
+msgid "To {}"
+msgstr "Do: {}"
+
+#. {} is a player's name
+#, c++-format
+msgctxt "ChatFrom"
+msgid "From {}"
+msgstr "Od: {}"
+
+msgctxt "ChatGlobalTargetHint"
+msgid "Send to every player on the server."
+msgstr "Wyślij do wszystkich graczy na serwerze."
+
+msgctxt "ChatNearbyTargetHint"
+msgid "Send to players near you."
+msgstr "Wyślij do graczy w pobliżu."
+
+#. {} is a player's name
+#, c++-format
+msgctxt "ChatWhisperTargetHint"
+msgid "Send a whisper to {}."
+msgstr "Szepnij do: {}."
+
+msgctxt "ChatGlobalFilterHint"
+msgid "Messages to every player on the server."
+msgstr "Wiadomości do wszystkich graczy na serwerze."
+
+msgctxt "ChatNearbyFilterHint"
+msgid "Messages from players near you."
+msgstr "Wiadomości od graczy w pobliżu."
+
+msgctxt "ChatWhispersFilterHint"
+msgid "Private messages between you and one other player."
+msgstr "Prywatne wiadomości między tobą a innym graczem."
+
+msgctxt "ChatNoPlayerNamed"
+msgid "No player with that name is online"
+msgstr "Żaden gracz o tej nazwie nie jest dostępny"
+
+msgctxt "ChatInputHint"
+msgid "Press Tab to switch channel"
+msgstr "Naciśnij Tab, aby zmienić kanał"
+
+msgctxt "PlayersTitle"
+msgid "Players"
+msgstr "Gracze"
+
+msgctxt "PlayersFriends"
+msgid "Friends"
+msgstr "Znajomi"
+
+msgctxt "PlayersMuted"
+msgid "Muted"
+msgstr "Wyciszeni"
+
+msgctxt "PlayersVanished"
+msgid "Vanished"
+msgstr "Ukryci"
+
+msgctxt "PlayersRemoveFriend"
+msgid "Remove"
+msgstr "Usuń"
+
+msgctxt "PlayersUnmute"
+msgid "Unmute"
+msgstr "Wyłącz wyciszenie"
+
+msgctxt "PlayersUnvanish"
+msgid "Unvanish"
+msgstr "Pokaż"
+
+msgctxt "PlayersNoFriends"
+msgid "You have not added any friends on this server."
+msgstr "Nie dodano żadnych znajomych na tym serwerze."
+
+msgctxt "PlayersNoMuted"
+msgid "You have not muted anyone on this server."
+msgstr "Nikogo nie wyciszono na tym serwerze."
+
+msgctxt "PlayersNoVanished"
+msgid "You have not vanished anyone on this server."
+msgstr "Nikogo nie ukryto na tym serwerze."
+
+msgctxt "PlayersNoMatch"
+msgid "No player with that name"
+msgstr "Brak gracza o tej nazwie"
+
+msgctxt "PlayersOnline"
+msgid "Online"
+msgstr "Dostępny"
+
+msgctxt "PlayersOffline"
+msgid "Offline"
+msgstr "Niedostępny"
+
+#. {} is the player's level
+#, c++-format
+msgctxt "PlayerMenuLevel"
+msgid "Level {}"
+msgstr "Poziom {}"
+
+#. {0} is the player's race, {1} their level
+#, c++-format
+msgctxt "PlayerMenuRaceLevel"
+msgid "{} · Level {}"
+msgstr "{} · Poziom {}"
+
+msgctxt "PlayerMenuWhisper"
+msgid "Whisper"
+msgstr "Szepnij"
+
+msgctxt "PlayerMenuAcceptTrade"
+msgid "Accept trade"
+msgstr "Przyjmij wymianę"
+
+msgctxt "PlayerMenuDeclineTrade"
+msgid "Decline trade"
+msgstr "Odrzuć wymianę"
+
+msgctxt "PlayerMenuTrade"
+msgid "Trade"
+msgstr "Wymień się"
+
+msgctxt "PlayerMenuTradeBusy"
+msgid "Finish your current trade first."
+msgstr "Najpierw dokończ bieżącą wymianę."
+
+msgctxt "PlayerMenuTradeHint"
+msgid "Offer to exchange items with them."
+msgstr "Zaproponuj wymianę przedmiotów."
+
+msgctxt "PlayerMenuTradeChecking"
+msgid "Checking whether they are near..."
+msgstr "Sprawdzanie, czy gracz jest w pobliżu..."
+
+msgctxt "PlayerMenuTradeTooFar"
+msgid "Stand next to their character to trade."
+msgstr "Stań obok jego postaci, aby się wymienić."
+
+msgctxt "PlayerMenuAddFriend"
+msgid "Add friend"
+msgstr "Dodaj do znajomych"
+
+msgctxt "PlayerMenuRemoveFriend"
+msgid "Remove friend"
+msgstr "Usuń ze znajomych"
+
+msgctxt "PlayerMenuAddFriendHint"
+msgid "Keep them in your friends list and see when they come online."
+msgstr "Zachowaj go na liście znajomych i wiedz, kiedy się połączy."
+
+msgctxt "PlayerMenuRemoveFriendHint"
+msgid "Take them off your friends list."
+msgstr "Usuń go z listy znajomych."
+
+msgctxt "PlayerMenuMute"
+msgid "Mute"
+msgstr "Wycisz"
+
+msgctxt "PlayerMenuMuteHint"
+msgid "Hide their messages in every channel."
+msgstr "Ukryj jego wiadomości we wszystkich kanałach."
+
+msgctxt "PlayerMenuUnmuteHint"
+msgid "Show their messages again."
+msgstr "Znów pokazuj jego wiadomości."
+
+msgctxt "PlayerMenuVanish"
+msgid "Vanish"
+msgstr "Ukryj"
+
+msgctxt "PlayerMenuVanishHint"
+msgid "Remove their character from your world."
+msgstr "Usuń jego postać z twojego świata."
+
+msgctxt "PlayerMenuUnvanishHint"
+msgid "Show their character in your world again."
+msgstr "Znów pokazuj jego postać w twoim świecie."
+
+msgctxt "ChatNotConnected"
+msgid "Not connected to the server."
+msgstr "Brak połączenia z serwerem."
+
+msgctxt "ChatNoOtherPlayers"
+msgid "No other players online"
+msgstr "Brak innych dostępnych graczy"
+
+msgctxt "ChatMutedAndVanished"
+msgid "Muted and vanished"
+msgstr "Wyciszony i ukryty"
+
+msgctxt "SearchHint"
+msgid "Search"
+msgstr "Szukaj"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeTitle"
+msgid "Trade with {}"
+msgstr "Wymiana z: {}"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradePeerOffer"
+msgid "{}'s offer"
+msgstr "Oferta: {}"
+
+msgctxt "TradeOwnOffer"
+msgid "Your offer"
+msgstr "Twoja oferta"
+
+msgctxt "TradeOfferFull"
+msgid "(full)"
+msgstr "(pełna)"
+
+msgctxt "TradeAccepted"
+msgid "Accepted"
+msgstr "Przyjęta"
+
+#. {} is the number of offered items not inspected yet
+#, c++-format
+msgctxt "TradeUninspected"
+msgid "Hover over items to inspect them ({} left)"
+msgid_plural "Hover over items to inspect them ({} left)"
+msgstr[0] "Wskaż przedmioty, aby je obejrzeć (został {})"
+msgstr[1] "Wskaż przedmioty, aby je obejrzeć (zostały {})"
+msgstr[2] "Wskaż przedmioty, aby je obejrzeć (zostało {})"
+
+#. Follows the field for how many to offer; {} is how many the player carries
+#, c++-format
+msgctxt "TradeCountOf"
+msgid "of {}"
+msgstr "z {}"
+
+msgctxt "TradeRemoveAll"
+msgid "Remove all"
+msgstr "Usuń wszystko"
+
+msgctxt "TradeOffer"
+msgid "Offer"
+msgstr "Zaoferuj"
+
+msgctxt "TradeInventory"
+msgid "Your inventory"
+msgstr "Twój ekwipunek"
+
+msgctxt "TradeCheckingMods"
+msgid "Checking mods..."
+msgstr "Sprawdzanie modów..."
+
+msgctxt "TradeNothingToTrade"
+msgid "You carry nothing to trade."
+msgstr "Nie masz niczego na wymianę."
+
+msgctxt "TradeAccept"
+msgid "Accept"
+msgstr "Przyjmij"
+
+msgctxt "TradeCancel"
+msgid "Cancel"
+msgstr "Anuluj"
+
+msgctxt "TradeCategoryAll"
+msgid "All"
+msgstr "Wszystko"
+
+msgctxt "TradeCategoryWeapons"
+msgid "Weapons"
+msgstr "Broń"
+
+msgctxt "TradeCategoryApparel"
+msgid "Apparel"
+msgstr "Ubiór"
+
+msgctxt "TradeCategoryAmmunition"
+msgid "Ammunition"
+msgstr "Amunicja"
+
+msgctxt "TradeCategoryPotions"
+msgid "Potions"
+msgstr "Mikstury"
+
+msgctxt "TradeCategoryIngredients"
+msgid "Ingredients"
+msgstr "Składniki"
+
+msgctxt "TradeCategoryBooks"
+msgid "Books"
+msgstr "Książki"
+
+msgctxt "TradeCategoryScrolls"
+msgid "Scrolls"
+msgstr "Zwoje"
+
+msgctxt "TradeCategorySoulGems"
+msgid "Soul gems"
+msgstr "Klejnoty dusz"
+
+msgctxt "TradeCategoryKeys"
+msgid "Keys"
+msgstr "Klucze"
+
+msgctxt "TradeCategoryMiscellaneous"
+msgid "Miscellaneous"
+msgstr "Różne"
+
+msgctxt "ItemsNoMatch"
+msgid "No item matches."
+msgstr "Brak pasujących przedmiotów."
+
+msgctxt "ItemPickerNone"
+msgid "None"
+msgstr "Brak"
+
+#. {} is the item's plugin and form ID
+#, c++-format
+msgctxt "ItemPickerMismatch"
+msgid "{} does not fit this setting, so it is not used."
+msgstr "{} nie pasuje do tego ustawienia, więc nie jest używany."
+
+#. {} is a plugin file name
+#, c++-format
+msgctxt "ItemPickerPluginMissing"
+msgid "{} is not loaded, so this item is not used."
+msgstr "{} nie jest wczytany, więc ten przedmiot nie jest używany."
+
+#. {} is the default item's name
+#, c++-format
+msgctxt "ItemPickerReset"
+msgid "Reset to {}"
+msgstr "Przywróć: {}"
+
+#. {} is the item's plugin and form ID
+#, c++-format
+msgctxt "ItemPickerNotLoaded"
+msgid "{} (not loaded)"
+msgstr "{} (niewczytany)"
+
+msgctxt "ItemPickerNotReady"
+msgid "Items are listed once the game has loaded its data."
+msgstr "Przedmioty pojawią się na liście, gdy gra wczyta swoje dane."
+
+msgctxt "ItemPickerSearchHint"
+msgid "Search by name or plugin"
+msgstr "Szukaj po nazwie lub wtyczce"
+
+msgctxt "ItemCardDamage"
+msgid "DAMAGE"
+msgstr "OBRAŻENIA"
+
+msgctxt "ItemCardArmor"
+msgid "ARMOR"
+msgstr "PANCERZ"
+
+msgctxt "ItemCardWeight"
+msgid "WEIGHT"
+msgstr "WAGA"
+
+msgctxt "ItemCardValue"
+msgid "VALUE"
+msgstr "WARTOŚĆ"
+
+#. {0} is the current charge, {1} the maximum
+#, c++-format
+msgctxt "ItemCardCharge"
+msgid "Charge {} / {}"
+msgstr "Ładunek {} / {}"
+
+msgctxt "ItemPreviewUnavailable"
+msgid "No preview"
+msgstr "Brak podglądu"
+
+msgctxt "ItemPreviewLoading"
+msgid "Loading..."
+msgstr "Wczytywanie..."
+
+#. Separates the items of a list
+msgctxt "ListSeparator"
+msgid ", "
+msgstr ", "
+
+msgctxt "NotConnected"
+msgid "Not connected to the server"
+msgstr "Brak połączenia z serwerem"
+
+#. Stands for an empty list of items
+msgctxt "TradeNothing"
+msgid "nothing"
+msgstr "nic"
+
+msgctxt "TradeBlockQuest"
+msgid "A quest needs it"
+msgstr "Jest potrzebny do zadania"
+
+msgctxt "TradeBlockPlayerMade"
+msgid "Made by you, so other games do not have it"
+msgstr "Wykonany przez ciebie, więc inne gry go nie mają"
+
+msgctxt "TradeBlockUnreferenceable"
+msgid "It cannot be described to another game"
+msgstr "Nie da się go opisać innej grze"
+
+#. {0} is the other player's name, {1} a plugin file name
+#, c++-format
+msgctxt "TradeRejectMissingPlugin"
+msgid "{0} does not have {1} installed"
+msgstr "{0} nie ma zainstalowanego {1}"
+
+#. {0} is the other player's name, {1} a plugin file name
+#, c++-format
+msgctxt "TradeRejectPluginVersion"
+msgid "{0} has a different version of {1}"
+msgstr "{0} ma inną wersję {1}"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeRejectMissingEffect"
+msgid "{}'s game does not have the enchantment"
+msgstr "Gra gracza {} nie ma tego zaklęcia"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeRejectBadEnchantment"
+msgid "{}'s game cannot rebuild the enchantment"
+msgstr "Gra gracza {} nie może odtworzyć tego zaklęcia"
+
+#. {0} lists items, {1} is the reason
+#, c++-format
+msgctxt "TradeCannotOffer"
+msgid "You cannot offer {0}: {1}"
+msgstr "Nie możesz zaoferować: {0} ({1})"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeBlockerEmpty"
+msgid "Add an item, or wait for {} to add one."
+msgstr "Dodaj przedmiot albo poczekaj, aż {} jakiś doda."
+
+msgctxt "TradeBlockerSending"
+msgid "Sending your offer..."
+msgstr "Wysyłanie twojej oferty..."
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeBlockerChecking"
+msgid "Waiting for {}'s game to check the offers..."
+msgstr "Czekanie, aż gra gracza {} sprawdzi oferty..."
+
+msgctxt "TradeOfferTooLarge"
+msgid "Your offer is full; these items carry too much data to send together"
+msgstr ""
+"Twoja oferta jest pełna; te przedmioty zawierają za dużo danych, by wysłać "
+"je razem"
+
+#. {} lists items
+#, c++-format
+msgctxt "TradeItemsMissing"
+msgid "You no longer have {}"
+msgstr "Nie masz już: {}"
+
+msgctxt "TradeCompleted"
+msgid "You successfully traded"
+msgstr "Wymiana zakończona powodzeniem"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedBusy"
+msgid "{} is busy with another trade"
+msgstr "{} jest zajęty inną wymianą"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedUnavailable"
+msgid "{} cannot trade right now"
+msgstr "{} nie może teraz się wymieniać"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedOutOfRange"
+msgid "{} is too far away to trade"
+msgstr "{} jest za daleko, by się wymienić"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedEnded"
+msgid "The trade with {} ended"
+msgstr "Wymiana z graczem {} została zakończona"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedDeclined"
+msgid "{} declined your trade offer"
+msgstr "{} odrzucił twoją ofertę wymiany"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedNoAnswer"
+msgid "{} did not answer your trade offer"
+msgstr "{} nie odpowiedział na twoją ofertę wymiany"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedOfferExpired"
+msgid "The trade offer from {} expired"
+msgstr "Oferta wymiany od gracza {} wygasła"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedWithdrawn"
+msgid "{} withdrew the trade offer"
+msgstr "{} wycofał ofertę wymiany"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedCancelled"
+msgid "{} cancelled the trade"
+msgstr "{} anulował wymianę"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedFailed"
+msgid "The trade with {} could not open"
+msgstr "Nie udało się otworzyć wymiany z graczem {}"
+
+msgctxt "TradeFinishCurrent"
+msgid "Finish your current trade first"
+msgstr "Najpierw dokończ bieżącą wymianę"
+
+msgctxt "TradeCannotTradeNow"
+msgid "You cannot trade now"
+msgstr "Nie możesz się teraz wymieniać"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeYouDeclined"
+msgid "You declined the trade offer from {}"
+msgstr "Odrzucono ofertę wymiany od gracza {}"
+
+msgctxt "TradeCannotAccept"
+msgid "You cannot trade in combat or away from the world"
+msgstr "Nie możesz się wymieniać podczas walki ani poza światem"
+
+msgctxt "TradeWindowBlocked"
+msgid "The trade window could not open while another menu was open"
+msgstr "Okno wymiany nie mogło się otworzyć, gdy było otwarte inne menu"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeCombatDeclined"
+msgid ""
+"You are in combat\n"
+"The trade offer from {} was declined"
+msgstr ""
+"Walczysz\n"
+"Oferta wymiany od gracza {} została odrzucona"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeCombatEnded"
+msgid ""
+"You are in combat\n"
+"The trade with {} ended"
+msgstr ""
+"Walczysz\n"
+"Wymiana z graczem {} została zakończona"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeGotNoAnswer"
+msgid "The trade with {} got no answer"
+msgstr "Wymiana z graczem {} nie otrzymała odpowiedzi"
+
+msgctxt "UnknownPlayer"
+msgid "Unknown"
+msgstr "Nieznany"
+
+msgctxt "PlayersSaveFailed"
+msgid ""
+"Could not save your list of friends, muted, and vanished players; the change "
+"lasts until the game exits"
+msgstr ""
+"Nie udało się zapisać listy znajomych oraz wyciszonych i ukrytych graczy; "
+"zmiana obowiązuje do zamknięcia gry"
+
+#. {} is the maximum number of players
+#, c++-format
+msgctxt "PlayersVanishLimit"
+msgid "You can vanish at most {} player on a server"
+msgid_plural "You can vanish at most {} players on a server"
+msgstr[0] "Na jednym serwerze możesz ukryć najwyżej {} gracza"
+msgstr[1] "Na jednym serwerze możesz ukryć najwyżej {} graczy"
+msgstr[2] "Na jednym serwerze możesz ukryć najwyżej {} graczy"
+
+msgctxt "ChatWhisperNeedsName"
+msgid "Type a player's name after @, then your message"
+msgstr "Wpisz nazwę gracza po @, a potem wiadomość"
+
+msgctxt "ChatRateLimited"
+msgid "You are sending messages too quickly"
+msgstr "Wysyłasz wiadomości zbyt szybko"
+
+msgctxt "ChatNotInWorld"
+msgid "You are not in the world"
+msgstr "Nie jesteś w świecie gry"
+
+msgctxt "ChatRecipientGone"
+msgid "That player is no longer online"
+msgstr "Ten gracz nie jest już dostępny"
+
+msgctxt "ChatRejected"
+msgid "The server did not accept your message"
+msgstr "Serwer nie przyjął twojej wiadomości"
+
+msgctxt "ChatInvalidText"
+msgid "Your message contains characters that cannot be sent"
+msgstr "Twoja wiadomość zawiera znaki, których nie można wysłać"
+
+#. {} is a player's name
+#, c++-format
+msgctxt "ChatPlayerOffline"
+msgid "{} is offline"
+msgstr "{} jest niedostępny"
+
+msgctxt "ItemUnknownEffect"
+msgid "Unknown effect"
+msgstr "Nieznany efekt"

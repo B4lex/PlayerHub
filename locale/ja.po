@@ -1,0 +1,1313 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PlayerHub\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgctxt "SectionConnection"
+msgid "Connection"
+msgstr "接続"
+
+msgctxt "SectionDefaultOutfit"
+msgid "Default Outfit"
+msgstr "既定の装備"
+
+msgctxt "SectionUI"
+msgid "Interface"
+msgstr "インターフェース"
+
+msgctxt "SectionControls"
+msgid "Keybinds"
+msgstr "キー設定"
+
+msgctxt "SectionAdvanced"
+msgid "Advanced"
+msgstr "詳細設定"
+
+msgctxt "ConnectionDisplayName"
+msgid "Display name"
+msgstr "表示名"
+
+msgctxt "ConnectionDisplayNameComment"
+msgid "Shown to other players above your character and in chat."
+msgstr "キャラクターの頭上とチャットで他のプレイヤーに表示されます。"
+
+msgctxt "ConnectionAutoConnect"
+msgid "Connect automatically"
+msgstr "自動接続"
+
+msgctxt "ConnectionAutoConnectComment"
+msgid "Connects to the server automatically after the game is loaded."
+msgstr "ゲームの読み込み後、自動的にサーバーに接続します。"
+
+msgctxt "ConnectionCustomServer"
+msgid "Custom server"
+msgstr "カスタムサーバー"
+
+msgctxt "ConnectionCustomServerComment"
+msgid "Connects to the server at the URL below instead of the official server."
+msgstr "公式サーバーの代わりに、下のURLのサーバーに接続します。"
+
+msgctxt "ConnectionServerEndpoint"
+msgid "Server URL"
+msgstr "サーバーURL"
+
+msgctxt "ConnectionServerEndpointComment"
+msgid ""
+"Custom server URL, starting with http:// or https://. Used only while the\n"
+"custom server is on."
+msgstr ""
+"http:// または https:// で始まるカスタムサーバーのURL。カスタムサーバーが有効"
+"な間だけ使われます。"
+
+msgctxt "OutfitComment"
+msgid ""
+"Player appearance and equipment shown to others in place of your\n"
+"modded assets they do not have."
+msgstr ""
+"相手が持っていないMODのアセットの代わりに、他のプレイヤーに見せる外見と装備で"
+"す。"
+
+msgctxt "OutfitGroupCharacter"
+msgid "Character"
+msgstr "キャラクター"
+
+msgctxt "OutfitRace"
+msgid "Race"
+msgstr "種族"
+
+msgctxt "OutfitSex"
+msgid "Sex"
+msgstr "性別"
+
+msgctxt "OutfitMale"
+msgid "Male"
+msgstr "男性"
+
+msgctxt "OutfitFemale"
+msgid "Female"
+msgstr "女性"
+
+msgctxt "OutfitGroupApparel"
+msgid "Apparel"
+msgstr "衣服"
+
+msgctxt "OutfitHead"
+msgid "Head"
+msgstr "頭"
+
+msgctxt "OutfitBody"
+msgid "Body"
+msgstr "胴体"
+
+msgctxt "OutfitHands"
+msgid "Hands"
+msgstr "手"
+
+msgctxt "OutfitAmulet"
+msgid "Amulet"
+msgstr "首飾り"
+
+msgctxt "OutfitFeet"
+msgid "Feet"
+msgstr "足"
+
+msgctxt "OutfitShield"
+msgid "Shield"
+msgstr "盾"
+
+msgctxt "OutfitCirclet"
+msgid "Circlet"
+msgstr "サークレット"
+
+msgctxt "OutfitBackpack"
+msgid "Backpack"
+msgstr "バックパック"
+
+msgctxt "OutfitGroupWeapons"
+msgid "Weapons"
+msgstr "武器"
+
+msgctxt "OutfitSword"
+msgid "Sword"
+msgstr "剣"
+
+msgctxt "OutfitDagger"
+msgid "Dagger"
+msgstr "ダガー"
+
+msgctxt "OutfitWarAxe"
+msgid "War axe"
+msgstr "戦斧"
+
+msgctxt "OutfitMace"
+msgid "Mace"
+msgstr "メイス"
+
+msgctxt "OutfitGreatsword"
+msgid "Greatsword"
+msgstr "両手剣"
+
+msgctxt "OutfitBattleaxe"
+msgid "Battleaxe or warhammer"
+msgstr "バトルアックスまたはウォーハンマー"
+
+msgctxt "OutfitBow"
+msgid "Bow"
+msgstr "弓"
+
+msgctxt "OutfitStaff"
+msgid "Staff"
+msgstr "杖"
+
+msgctxt "OutfitCrossbow"
+msgid "Crossbow"
+msgstr "クロスボウ"
+
+msgctxt "OutfitGroupMiscellaneous"
+msgid "Miscellaneous"
+msgstr "その他"
+
+msgctxt "OutfitArrow"
+msgid "Arrow"
+msgstr "矢"
+
+msgctxt "OutfitBolt"
+msgid "Bolt"
+msgstr "ボルト"
+
+msgctxt "UIGroupDisplay"
+msgid "Display"
+msgstr "表示"
+
+msgctxt "UIFontScale"
+msgid "Font scale"
+msgstr "文字サイズ"
+
+msgctxt "UIFontScaleComment"
+msgid ""
+"Size of the text in the settings window, the chat, and the rest of the\n"
+"multiplayer interface. Windows grow and shrink with it."
+msgstr ""
+"設定ウィンドウ、チャット、その他のマルチプレイ画面の文字サイズです。ウィンド"
+"ウもそれに合わせて拡大・縮小します。"
+
+msgctxt "UIAccentColor"
+msgid "Accent color"
+msgstr "アクセントカラー"
+
+msgctxt "UIAccentColorComment"
+msgid ""
+"Color that marks what can be selected or is selected in the settings window "
+"and\n"
+"the chat, as hexadecimal RRGGBB."
+msgstr ""
+"設定ウィンドウとチャットで、選択できるものや選択中のものを示す色です（16進数 "
+"RRGGBB）。"
+
+msgctxt "UIBorderColor"
+msgid "Border color"
+msgstr "枠の色"
+
+msgctxt "UIBorderColorComment"
+msgid "Color of the frame around the settings window and the chat."
+msgstr "設定ウィンドウとチャットを囲む枠の色です。"
+
+msgctxt "UIBorderVanilla"
+msgid "Vanilla"
+msgstr "バニラ"
+
+msgctxt "UIBorderAccent"
+msgid "Accent"
+msgstr "アクセント"
+
+msgctxt "UIBorderThickness"
+msgid "Border thickness"
+msgstr "枠の太さ"
+
+msgctxt "UIBorderThicknessComment"
+msgid "Thickness of the frame around the settings window and the chat."
+msgstr "設定ウィンドウとチャットを囲む枠の太さです。"
+
+msgctxt "UIGroupPlayers"
+msgid "Players"
+msgstr "プレイヤー"
+
+msgctxt "UINameplates"
+msgid "Nameplates"
+msgstr "ネームプレート"
+
+msgctxt "UINameplatesComment"
+msgid "Shows other players' names above their heads while they are in sight."
+msgstr "他のプレイヤーが見えている間、頭上に名前を表示します。"
+
+msgctxt "UINameplateDistance"
+msgid "Nameplate distance"
+msgstr "ネームプレートの距離"
+
+msgctxt "UINameplateDistanceComment"
+msgid ""
+"Game units within which names are shown above players' heads, about 70 to a\n"
+"meter."
+msgstr ""
+"プレイヤーの頭上に名前を表示する距離（ゲーム内単位、1メートルあたり約70）。"
+
+msgctxt "UIGroupChat"
+msgid "Chat"
+msgstr "チャット"
+
+msgctxt "UICloseChatOnSend"
+msgid "Close on send"
+msgstr "送信時に閉じる"
+
+msgctxt "UICloseChatOnSendComment"
+msgid ""
+"Closes the chat when Enter sends a line. Otherwise Enter only sends, and an\n"
+"empty line does nothing."
+msgstr ""
+"Enterで送信したときにチャットを閉じます。オフの場合、Enterは送信だけを行い、"
+"空の行では何もしません。"
+
+msgctxt "UIChatHorizontal"
+msgid "Horizontal position"
+msgstr "横位置"
+
+msgctxt "UIChatHorizontalComment"
+msgid ""
+"Distance of the chat's left edge from the screen's left edge, as a share of "
+"the\n"
+"screen's width. The chat stays on the screen."
+msgstr ""
+"画面の左端からチャットの左端までの距離（画面の幅に対する割合）。チャットは画"
+"面内に収まります。"
+
+msgctxt "UIChatVertical"
+msgid "Vertical position"
+msgstr "縦位置"
+
+msgctxt "UIChatVerticalComment"
+msgid ""
+"Distance of the chat's bottom edge from the screen's bottom edge, as a share "
+"of\n"
+"the screen's height. The chat stays on the screen."
+msgstr ""
+"画面の下端からチャットの下端までの距離（画面の高さに対する割合）。チャットは"
+"画面内に収まります。"
+
+msgctxt "UIGroupItems"
+msgid "Items"
+msgstr "アイテム"
+
+msgctxt "UIItemPreview"
+msgid "Item preview"
+msgstr "アイテムのプレビュー"
+
+msgctxt "UIItemPreviewComment"
+msgid "Shows a 3D model of the hovered item in item lists."
+msgstr "アイテム一覧で、カーソルを合わせたアイテムの3Dモデルを表示します。"
+
+msgctxt "ControlsOpenSettings"
+msgid "Open settings"
+msgstr "設定を開く"
+
+msgctxt "ControlsOpenSettingsComment"
+msgid "Opens and closes the settings window."
+msgstr "設定ウィンドウを開閉します。"
+
+msgctxt "ControlsOpenChat"
+msgid "Open chat"
+msgstr "チャットを開く"
+
+msgctxt "ControlsOpenChatComment"
+msgid "Opens the chat."
+msgstr "チャットを開きます。"
+
+msgctxt "ControlsManagePlayers"
+msgid "Manage players"
+msgstr "プレイヤー管理"
+
+msgctxt "ControlsManagePlayersComment"
+msgid ""
+"Opens the window that lists your friends and the players you muted or "
+"vanished."
+msgstr ""
+"フレンドと、ミュートまたは非表示にしたプレイヤーの一覧ウィンドウを開きます。"
+
+msgctxt "ControlsAcceptTrade"
+msgid "Accept trade"
+msgstr "取引を承諾"
+
+msgctxt "ControlsAcceptTradeComment"
+msgid "Accepts another player's trade offer while it waits for an answer."
+msgstr "返答待ちの他のプレイヤーからの取引の申し出を承諾します。"
+
+msgctxt "ControlsDeclineTrade"
+msgid "Decline trade"
+msgstr "取引を断る"
+
+msgctxt "ControlsDeclineTradeComment"
+msgid ""
+"Declines another player's trade offer, or withdraws your own, while it "
+"waits\n"
+"for an answer."
+msgstr ""
+"返答待ちの他のプレイヤーからの取引の申し出を断るか、自分の申し出を取り下げま"
+"す。"
+
+msgctxt "AdvancedGroupPerformance"
+msgid "Performance"
+msgstr "パフォーマンス"
+
+msgctxt "AdvancedViewRadius"
+msgid "View radius"
+msgstr "表示範囲"
+
+msgctxt "AdvancedViewRadiusComment"
+msgid ""
+"Game units within which other players are shown. Applies\n"
+"on the next connection."
+msgstr ""
+"他のプレイヤーを表示する距離（ゲーム内単位）。次回の接続から適用されます。"
+
+msgctxt "AdvancedViewRadiusAuto"
+msgid "Auto"
+msgstr "自動"
+
+msgctxt "AdvancedSpawnsPerSecond"
+msgid "Spawns per second"
+msgstr "毎秒の出現数"
+
+msgctxt "AdvancedSpawnsPerSecondComment"
+msgid ""
+"Remote players and mounts spawned per second at most. Many players joining "
+"or\n"
+"arriving at once then appear over a few seconds instead of in one long "
+"frame.\n"
+"0 spawns every due player at once."
+msgstr ""
+"1秒あたりに出現させるリモートプレイヤーと乗用動物の最大数。大勢が一度に来て"
+"も、1回の長いフレームではなく数秒かけて現れます。0にすると全員を一度に出現さ"
+"せます。"
+
+msgctxt "AdvancedSpawnsUnlimited"
+msgid "Unlimited"
+msgstr "無制限"
+
+msgctxt "AdvancedGroupDiagnostics"
+msgid "Diagnostics"
+msgstr "診断"
+
+msgctxt "AdvancedStatusPanel"
+msgid "Status panel"
+msgstr "ステータスパネル"
+
+msgctxt "AdvancedStatusPanelComment"
+msgid ""
+"Shows the ping, network traffic, and the plugin's time per frame in the\n"
+"top-right corner."
+msgstr ""
+"右上にPing、通信量、プラグインの1フレームあたりの処理時間を表示します。"
+
+msgctxt "KeySpace"
+msgid "Space"
+msgstr "Space"
+
+msgctxt "KeyEnter"
+msgid "Enter"
+msgstr "Enter"
+
+msgctxt "KeyCapsLock"
+msgid "Caps Lock"
+msgstr "Caps Lock"
+
+msgctxt "KeyInsert"
+msgid "Insert"
+msgstr "Insert"
+
+msgctxt "KeyDelete"
+msgid "Delete"
+msgstr "Delete"
+
+msgctxt "KeyHome"
+msgid "Home"
+msgstr "Home"
+
+msgctxt "KeyEnd"
+msgid "End"
+msgstr "End"
+
+msgctxt "KeyPageUp"
+msgid "Page Up"
+msgstr "Page Up"
+
+msgctxt "KeyPageDown"
+msgid "Page Down"
+msgstr "Page Down"
+
+msgctxt "KeyUp"
+msgid "Up"
+msgstr "↑"
+
+msgctxt "KeyDown"
+msgid "Down"
+msgstr "↓"
+
+msgctxt "KeyLeft"
+msgid "Left"
+msgstr "←"
+
+msgctxt "KeyRight"
+msgid "Right"
+msgstr "→"
+
+msgctxt "KeyPause"
+msgid "Pause"
+msgstr "Pause"
+
+msgctxt "KeyScrollLock"
+msgid "Scroll Lock"
+msgstr "Scroll Lock"
+
+msgctxt "KeyNumLock"
+msgid "Num Lock"
+msgstr "Num Lock"
+
+msgctxt "KeyNumpadEnter"
+msgid "Num Enter"
+msgstr "Num Enter"
+
+msgctxt "SettingsBrand"
+msgid "Multiplayer"
+msgstr "マルチプレイ"
+
+msgctxt "SettingsDisplayNameHint"
+msgid "Enter a display name"
+msgstr "表示名を入力"
+
+msgctxt "SettingsServerEndpointHint"
+msgid "Enter server endpoint URL"
+msgstr "サーバーURLを入力"
+
+msgctxt "SettingsServerEndpointInvalid"
+msgid "Invalid server URL."
+msgstr "サーバーURLが無効です。"
+
+msgctxt "SettingsCustomColor"
+msgid "Custom color"
+msgstr "カスタムカラー"
+
+msgctxt "SettingsKeyPrompt"
+msgid "Press a key"
+msgstr "キーを押してください"
+
+msgctxt "SettingsKeyUnbound"
+msgid "Not bound"
+msgstr "未設定"
+
+msgctxt "SettingsKeyReserved"
+msgid "This key cannot be bound"
+msgstr "このキーは割り当てられません"
+
+#. {0} is a key name, {1} the name of the action already bound to it
+#, c++-format
+msgctxt "SettingsKeyInUse"
+msgid "{} is already used by {}"
+msgstr "{0} は「{1}」に割り当て済みです"
+
+msgctxt "SettingsDefaults"
+msgid "Defaults"
+msgstr "初期設定"
+
+msgctxt "SettingsRevert"
+msgid "Revert"
+msgstr "元に戻す"
+
+msgctxt "SettingsApply"
+msgid "Apply"
+msgstr "適用"
+
+msgctxt "SettingsUnapplied"
+msgid "Unapplied changes"
+msgstr "未適用の変更があります"
+
+msgctxt "SettingsSaved"
+msgid "Saved"
+msgstr "保存しました"
+
+#. {} is the settings file name
+#, c++-format
+msgctxt "SettingsSaveFailed"
+msgid "Could not save {}"
+msgstr "{} を保存できませんでした"
+
+msgctxt "ConnectionConnect"
+msgid "Connect"
+msgstr "接続"
+
+msgctxt "ConnectionCancel"
+msgid "Cancel"
+msgstr "キャンセル"
+
+msgctxt "ConnectionDisconnect"
+msgid "Disconnect"
+msgstr "切断"
+
+msgctxt "ConnectionConnected"
+msgid "Connected"
+msgstr "接続済み"
+
+msgctxt "ConnectionConnecting"
+msgid "Connecting..."
+msgstr "接続中..."
+
+msgctxt "ConnectionDisconnecting"
+msgid "Disconnecting..."
+msgstr "切断中..."
+
+msgctxt "ConnectionDisconnected"
+msgid "Disconnected"
+msgstr "未接続"
+
+msgctxt "ConnectionDisconnectToRename"
+msgid "Disconnect to change the display name"
+msgstr "表示名を変更するには切断してください"
+
+msgctxt "ConnectionCancelToRename"
+msgid "Cancel the connection to change the display name"
+msgstr "表示名を変更するには接続をキャンセルしてください"
+
+msgctxt "ConnectionNoEndpoint"
+msgid "Enter a custom server URL to connect."
+msgstr "接続するにはカスタムサーバーのURLを入力してください。"
+
+#. {} is the minimum number of characters
+#, c++-format
+msgctxt "ConnectionShortName"
+msgid "The name must be at least {} character long."
+msgid_plural "The name must be at least {} characters long."
+msgstr[0] "名前は{}文字以上にしてください。"
+
+#. {} is the reason the server gave
+#, c++-format
+msgctxt "RefusalProtocolMismatch"
+msgid "The server runs another protocol version ({})."
+msgstr "サーバーのプロトコルのバージョンが異なります（{}）。"
+
+msgctxt "RefusalDisplayNameTaken"
+msgid "The display name is already taken by another player."
+msgstr "この表示名は他のプレイヤーが使用しています。"
+
+msgctxt "RefusalDisplayNameInvalid"
+msgid "The server does not accept the display name."
+msgstr "サーバーはこの表示名を受け付けません。"
+
+msgctxt "RefusalSessionReplaced"
+msgid ""
+"Your session connected from another game, which closed this connection. "
+"Connect again to take it back."
+msgstr ""
+"別のゲームからあなたのセッションが接続したため、この接続は閉じられました。取"
+"り戻すには再接続してください。"
+
+msgctxt "RefusalServerFull"
+msgid "The server is full."
+msgstr "サーバーが満員です。"
+
+msgctxt "RefusalTooManyNewSessions"
+msgid "Too many new players joined this server from your IP address recently."
+msgstr ""
+"最近、あなたのIPアドレスからこのサーバーに参加した新規プレイヤーが多すぎま"
+"す。"
+
+msgctxt "StatusPing"
+msgid "Ping"
+msgstr "Ping"
+
+msgctxt "StatusPlugin"
+msgid "Plugin"
+msgstr "プラグイン"
+
+msgctxt "NoticeConnected"
+msgid "Connected to the server"
+msgstr "サーバーに接続しました"
+
+#. {} is a player's name
+#, c++-format
+msgctxt "NoticeFriendOnline"
+msgid "{} is online"
+msgstr "{} がオンラインになりました"
+
+#. {0} is the key that opens the settings, {1} the name of the Connection tab
+#, c++-format
+msgctxt "DisplayNameHint"
+msgid "Press {0} and enter a display name on the {1} tab to connect"
+msgstr "{0} を押し、「{1}」タブで表示名を入力すると接続できます"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradePromptWaiting"
+msgid "Waiting for {} to answer your trade offer"
+msgstr "{} の返答を待っています"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradePromptInvited"
+msgid "{} wants to trade with you"
+msgstr "{} が取引を申し込んでいます"
+
+msgctxt "TradePromptWithdraw"
+msgid "Withdraw"
+msgstr "取り下げる"
+
+msgctxt "TradePromptAccept"
+msgid "Accept"
+msgstr "承諾"
+
+msgctxt "TradePromptDecline"
+msgid "Decline"
+msgstr "断る"
+
+#. {} is the number of seconds left
+#, c++-format
+msgctxt "TradePromptSeconds"
+msgid "{} s"
+msgstr "{}秒"
+
+msgctxt "ChatGlobal"
+msgid "Global"
+msgstr "全体"
+
+msgctxt "ChatNearby"
+msgid "Nearby"
+msgstr "近く"
+
+msgctxt "ChatWhispers"
+msgid "Whispers"
+msgstr "ささやき"
+
+#. {} is a player's name
+#, c++-format
+msgctxt "ChatTo"
+msgid "To {}"
+msgstr "{} へ"
+
+#. {} is a player's name
+#, c++-format
+msgctxt "ChatFrom"
+msgid "From {}"
+msgstr "{} から"
+
+msgctxt "ChatGlobalTargetHint"
+msgid "Send to every player on the server."
+msgstr "サーバーの全プレイヤーに送信します。"
+
+msgctxt "ChatNearbyTargetHint"
+msgid "Send to players near you."
+msgstr "近くのプレイヤーに送信します。"
+
+#. {} is a player's name
+#, c++-format
+msgctxt "ChatWhisperTargetHint"
+msgid "Send a whisper to {}."
+msgstr "{} にささやきます。"
+
+msgctxt "ChatGlobalFilterHint"
+msgid "Messages to every player on the server."
+msgstr "サーバーの全プレイヤー宛てのメッセージ。"
+
+msgctxt "ChatNearbyFilterHint"
+msgid "Messages from players near you."
+msgstr "近くのプレイヤーからのメッセージ。"
+
+msgctxt "ChatWhispersFilterHint"
+msgid "Private messages between you and one other player."
+msgstr "あなたと他の1人のプレイヤーとの個人メッセージ。"
+
+msgctxt "ChatNoPlayerNamed"
+msgid "No player with that name is online"
+msgstr "その名前のプレイヤーはオンラインではありません"
+
+msgctxt "ChatInputHint"
+msgid "Press Tab to switch channel"
+msgstr "Tabでチャンネルを切り替え"
+
+msgctxt "PlayersTitle"
+msgid "Players"
+msgstr "プレイヤー"
+
+msgctxt "PlayersFriends"
+msgid "Friends"
+msgstr "フレンド"
+
+msgctxt "PlayersMuted"
+msgid "Muted"
+msgstr "ミュート"
+
+msgctxt "PlayersVanished"
+msgid "Vanished"
+msgstr "非表示"
+
+msgctxt "PlayersRemoveFriend"
+msgid "Remove"
+msgstr "削除"
+
+msgctxt "PlayersUnmute"
+msgid "Unmute"
+msgstr "ミュート解除"
+
+msgctxt "PlayersUnvanish"
+msgid "Unvanish"
+msgstr "表示する"
+
+msgctxt "PlayersNoFriends"
+msgid "You have not added any friends on this server."
+msgstr "このサーバーではまだフレンドを追加していません。"
+
+msgctxt "PlayersNoMuted"
+msgid "You have not muted anyone on this server."
+msgstr "このサーバーでは誰もミュートしていません。"
+
+msgctxt "PlayersNoVanished"
+msgid "You have not vanished anyone on this server."
+msgstr "このサーバーでは誰も非表示にしていません。"
+
+msgctxt "PlayersNoMatch"
+msgid "No player with that name"
+msgstr "その名前のプレイヤーはいません"
+
+msgctxt "PlayersOnline"
+msgid "Online"
+msgstr "オンライン"
+
+msgctxt "PlayersOffline"
+msgid "Offline"
+msgstr "オフライン"
+
+#. {} is the player's level
+#, c++-format
+msgctxt "PlayerMenuLevel"
+msgid "Level {}"
+msgstr "レベル {}"
+
+#. {0} is the player's race, {1} their level
+#, c++-format
+msgctxt "PlayerMenuRaceLevel"
+msgid "{} · Level {}"
+msgstr "{} · レベル {}"
+
+msgctxt "PlayerMenuWhisper"
+msgid "Whisper"
+msgstr "ささやく"
+
+msgctxt "PlayerMenuAcceptTrade"
+msgid "Accept trade"
+msgstr "取引を承諾"
+
+msgctxt "PlayerMenuDeclineTrade"
+msgid "Decline trade"
+msgstr "取引を断る"
+
+msgctxt "PlayerMenuTrade"
+msgid "Trade"
+msgstr "取引"
+
+msgctxt "PlayerMenuTradeBusy"
+msgid "Finish your current trade first."
+msgstr "先に現在の取引を終えてください。"
+
+msgctxt "PlayerMenuTradeHint"
+msgid "Offer to exchange items with them."
+msgstr "アイテムの交換を申し込みます。"
+
+msgctxt "PlayerMenuTradeChecking"
+msgid "Checking whether they are near..."
+msgstr "近くにいるか確認しています..."
+
+msgctxt "PlayerMenuTradeTooFar"
+msgid "Stand next to their character to trade."
+msgstr "取引するには相手のキャラクターのそばに立ってください。"
+
+msgctxt "PlayerMenuAddFriend"
+msgid "Add friend"
+msgstr "フレンドに追加"
+
+msgctxt "PlayerMenuRemoveFriend"
+msgid "Remove friend"
+msgstr "フレンドから削除"
+
+msgctxt "PlayerMenuAddFriendHint"
+msgid "Keep them in your friends list and see when they come online."
+msgstr "フレンドリストに追加し、オンラインになったときに分かるようにします。"
+
+msgctxt "PlayerMenuRemoveFriendHint"
+msgid "Take them off your friends list."
+msgstr "フレンドリストから外します。"
+
+msgctxt "PlayerMenuMute"
+msgid "Mute"
+msgstr "ミュート"
+
+msgctxt "PlayerMenuMuteHint"
+msgid "Hide their messages in every channel."
+msgstr "すべてのチャンネルでこのプレイヤーのメッセージを隠します。"
+
+msgctxt "PlayerMenuUnmuteHint"
+msgid "Show their messages again."
+msgstr "このプレイヤーのメッセージを再び表示します。"
+
+msgctxt "PlayerMenuVanish"
+msgid "Vanish"
+msgstr "非表示にする"
+
+msgctxt "PlayerMenuVanishHint"
+msgid "Remove their character from your world."
+msgstr "このプレイヤーのキャラクターをあなたの世界から消します。"
+
+msgctxt "PlayerMenuUnvanishHint"
+msgid "Show their character in your world again."
+msgstr "このプレイヤーのキャラクターを再びあなたの世界に表示します。"
+
+msgctxt "ChatNotConnected"
+msgid "Not connected to the server."
+msgstr "サーバーに接続していません。"
+
+msgctxt "ChatNoOtherPlayers"
+msgid "No other players online"
+msgstr "他にオンラインのプレイヤーはいません"
+
+msgctxt "ChatMutedAndVanished"
+msgid "Muted and vanished"
+msgstr "ミュート・非表示中"
+
+msgctxt "SearchHint"
+msgid "Search"
+msgstr "検索"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeTitle"
+msgid "Trade with {}"
+msgstr "{} との取引"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradePeerOffer"
+msgid "{}'s offer"
+msgstr "{} の提示"
+
+msgctxt "TradeOwnOffer"
+msgid "Your offer"
+msgstr "あなたの提示"
+
+msgctxt "TradeOfferFull"
+msgid "(full)"
+msgstr "（満杯）"
+
+msgctxt "TradeAccepted"
+msgid "Accepted"
+msgstr "承諾済み"
+
+#. {} is the number of offered items not inspected yet
+#, c++-format
+msgctxt "TradeUninspected"
+msgid "Hover over items to inspect them ({} left)"
+msgid_plural "Hover over items to inspect them ({} left)"
+msgstr[0] "アイテムにカーソルを合わせて確認してください（残り{}）"
+
+#. Follows the field for how many to offer; {} is how many the player carries
+#, c++-format
+msgctxt "TradeCountOf"
+msgid "of {}"
+msgstr "/ {}"
+
+msgctxt "TradeRemoveAll"
+msgid "Remove all"
+msgstr "すべて外す"
+
+msgctxt "TradeOffer"
+msgid "Offer"
+msgstr "提示する"
+
+msgctxt "TradeInventory"
+msgid "Your inventory"
+msgstr "所持品"
+
+msgctxt "TradeCheckingMods"
+msgid "Checking mods..."
+msgstr "MODを確認中..."
+
+msgctxt "TradeNothingToTrade"
+msgid "You carry nothing to trade."
+msgstr "取引できるものを持っていません。"
+
+msgctxt "TradeAccept"
+msgid "Accept"
+msgstr "承諾"
+
+msgctxt "TradeCancel"
+msgid "Cancel"
+msgstr "キャンセル"
+
+msgctxt "TradeCategoryAll"
+msgid "All"
+msgstr "すべて"
+
+msgctxt "TradeCategoryWeapons"
+msgid "Weapons"
+msgstr "武器"
+
+msgctxt "TradeCategoryApparel"
+msgid "Apparel"
+msgstr "衣服"
+
+msgctxt "TradeCategoryAmmunition"
+msgid "Ammunition"
+msgstr "矢弾"
+
+msgctxt "TradeCategoryPotions"
+msgid "Potions"
+msgstr "薬"
+
+msgctxt "TradeCategoryIngredients"
+msgid "Ingredients"
+msgstr "錬金素材"
+
+msgctxt "TradeCategoryBooks"
+msgid "Books"
+msgstr "本"
+
+msgctxt "TradeCategoryScrolls"
+msgid "Scrolls"
+msgstr "巻物"
+
+msgctxt "TradeCategorySoulGems"
+msgid "Soul gems"
+msgstr "魂石"
+
+msgctxt "TradeCategoryKeys"
+msgid "Keys"
+msgstr "鍵"
+
+msgctxt "TradeCategoryMiscellaneous"
+msgid "Miscellaneous"
+msgstr "その他"
+
+msgctxt "ItemsNoMatch"
+msgid "No item matches."
+msgstr "一致するアイテムはありません。"
+
+msgctxt "ItemPickerNone"
+msgid "None"
+msgstr "なし"
+
+#. {} is the item's plugin and form ID
+#, c++-format
+msgctxt "ItemPickerMismatch"
+msgid "{} does not fit this setting, so it is not used."
+msgstr "{} はこの設定に合わないため使われません。"
+
+#. {} is a plugin file name
+#, c++-format
+msgctxt "ItemPickerPluginMissing"
+msgid "{} is not loaded, so this item is not used."
+msgstr "{} が読み込まれていないため、このアイテムは使われません。"
+
+#. {} is the default item's name
+#, c++-format
+msgctxt "ItemPickerReset"
+msgid "Reset to {}"
+msgstr "{} に戻す"
+
+#. {} is the item's plugin and form ID
+#, c++-format
+msgctxt "ItemPickerNotLoaded"
+msgid "{} (not loaded)"
+msgstr "{}（未読み込み）"
+
+msgctxt "ItemPickerNotReady"
+msgid "Items are listed once the game has loaded its data."
+msgstr "ゲームがデータを読み込むとアイテムが一覧に表示されます。"
+
+msgctxt "ItemPickerSearchHint"
+msgid "Search by name or plugin"
+msgstr "名前またはプラグインで検索"
+
+msgctxt "ItemCardDamage"
+msgid "DAMAGE"
+msgstr "ダメージ"
+
+msgctxt "ItemCardArmor"
+msgid "ARMOR"
+msgstr "防御力"
+
+msgctxt "ItemCardWeight"
+msgid "WEIGHT"
+msgstr "重量"
+
+msgctxt "ItemCardValue"
+msgid "VALUE"
+msgstr "価値"
+
+#. {0} is the current charge, {1} the maximum
+#, c++-format
+msgctxt "ItemCardCharge"
+msgid "Charge {} / {}"
+msgstr "チャージ {} / {}"
+
+msgctxt "ItemPreviewUnavailable"
+msgid "No preview"
+msgstr "プレビューなし"
+
+msgctxt "ItemPreviewLoading"
+msgid "Loading..."
+msgstr "読み込み中..."
+
+#. Separates the items of a list
+msgctxt "ListSeparator"
+msgid ", "
+msgstr "、"
+
+msgctxt "NotConnected"
+msgid "Not connected to the server"
+msgstr "サーバーに接続していません"
+
+#. Stands for an empty list of items
+msgctxt "TradeNothing"
+msgid "nothing"
+msgstr "なし"
+
+msgctxt "TradeBlockQuest"
+msgid "A quest needs it"
+msgstr "クエストに必要です"
+
+msgctxt "TradeBlockPlayerMade"
+msgid "Made by you, so other games do not have it"
+msgstr "あなたが作ったもので、他のゲームにはありません"
+
+msgctxt "TradeBlockUnreferenceable"
+msgid "It cannot be described to another game"
+msgstr "他のゲームに伝えられないアイテムです"
+
+#. {0} is the other player's name, {1} a plugin file name
+#, c++-format
+msgctxt "TradeRejectMissingPlugin"
+msgid "{0} does not have {1} installed"
+msgstr "{0} は {1} を導入していません"
+
+#. {0} is the other player's name, {1} a plugin file name
+#, c++-format
+msgctxt "TradeRejectPluginVersion"
+msgid "{0} has a different version of {1}"
+msgstr "{0} の {1} はバージョンが異なります"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeRejectMissingEffect"
+msgid "{}'s game does not have the enchantment"
+msgstr "{} のゲームにはこの付呪がありません"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeRejectBadEnchantment"
+msgid "{}'s game cannot rebuild the enchantment"
+msgstr "{} のゲームではこの付呪を再現できません"
+
+#. {0} lists items, {1} is the reason
+#, c++-format
+msgctxt "TradeCannotOffer"
+msgid "You cannot offer {0}: {1}"
+msgstr "{0} は提示できません：{1}"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeBlockerEmpty"
+msgid "Add an item, or wait for {} to add one."
+msgstr "アイテムを追加するか、{} が追加するのを待ってください。"
+
+msgctxt "TradeBlockerSending"
+msgid "Sending your offer..."
+msgstr "提示内容を送信中..."
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeBlockerChecking"
+msgid "Waiting for {}'s game to check the offers..."
+msgstr "{} のゲームが提示内容を確認するのを待っています..."
+
+msgctxt "TradeOfferTooLarge"
+msgid "Your offer is full; these items carry too much data to send together"
+msgstr "提示がいっぱいです。これらのアイテムはデータが多すぎて一度に送れません"
+
+#. {} lists items
+#, c++-format
+msgctxt "TradeItemsMissing"
+msgid "You no longer have {}"
+msgstr "{} を持っていません"
+
+msgctxt "TradeCompleted"
+msgid "You successfully traded"
+msgstr "取引が成立しました"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedBusy"
+msgid "{} is busy with another trade"
+msgstr "{} は別の取引中です"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedUnavailable"
+msgid "{} cannot trade right now"
+msgstr "{} は今は取引できません"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedOutOfRange"
+msgid "{} is too far away to trade"
+msgstr "{} は遠すぎて取引できません"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedEnded"
+msgid "The trade with {} ended"
+msgstr "{} との取引が終了しました"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedDeclined"
+msgid "{} declined your trade offer"
+msgstr "{} が取引の申し出を断りました"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedNoAnswer"
+msgid "{} did not answer your trade offer"
+msgstr "{} から取引の申し出に返答がありませんでした"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedOfferExpired"
+msgid "The trade offer from {} expired"
+msgstr "{} からの取引の申し出は期限切れになりました"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedWithdrawn"
+msgid "{} withdrew the trade offer"
+msgstr "{} が取引の申し出を取り下げました"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedCancelled"
+msgid "{} cancelled the trade"
+msgstr "{} が取引をキャンセルしました"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedFailed"
+msgid "The trade with {} could not open"
+msgstr "{} との取引を開始できませんでした"
+
+msgctxt "TradeFinishCurrent"
+msgid "Finish your current trade first"
+msgstr "先に現在の取引を終えてください"
+
+msgctxt "TradeCannotTradeNow"
+msgid "You cannot trade now"
+msgstr "今は取引できません"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeYouDeclined"
+msgid "You declined the trade offer from {}"
+msgstr "{} からの取引の申し出を断りました"
+
+msgctxt "TradeCannotAccept"
+msgid "You cannot trade in combat or away from the world"
+msgstr "戦闘中やワールド外では取引できません"
+
+msgctxt "TradeWindowBlocked"
+msgid "The trade window could not open while another menu was open"
+msgstr "他のメニューが開いていたため、取引ウィンドウを開けませんでした"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeCombatDeclined"
+msgid ""
+"You are in combat\n"
+"The trade offer from {} was declined"
+msgstr ""
+"戦闘中です\n"
+"{} からの取引の申し出を断りました"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeCombatEnded"
+msgid ""
+"You are in combat\n"
+"The trade with {} ended"
+msgstr ""
+"戦闘中です\n"
+"{} との取引が終了しました"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeGotNoAnswer"
+msgid "The trade with {} got no answer"
+msgstr "{} との取引は応答がありませんでした"
+
+msgctxt "UnknownPlayer"
+msgid "Unknown"
+msgstr "不明"
+
+msgctxt "PlayersSaveFailed"
+msgid ""
+"Could not save your list of friends, muted, and vanished players; the change "
+"lasts until the game exits"
+msgstr ""
+"フレンド、ミュート、非表示のプレイヤーのリストを保存できませんでした。変更は"
+"ゲームを終了するまで有効です"
+
+#. {} is the maximum number of players
+#, c++-format
+msgctxt "PlayersVanishLimit"
+msgid "You can vanish at most {} player on a server"
+msgid_plural "You can vanish at most {} players on a server"
+msgstr[0] "1つのサーバーで非表示にできるプレイヤーは最大{}人です"
+
+msgctxt "ChatWhisperNeedsName"
+msgid "Type a player's name after @, then your message"
+msgstr "@ の後にプレイヤー名、続けてメッセージを入力してください"
+
+msgctxt "ChatRateLimited"
+msgid "You are sending messages too quickly"
+msgstr "メッセージの送信が速すぎます"
+
+msgctxt "ChatNotInWorld"
+msgid "You are not in the world"
+msgstr "ワールドにいません"
+
+msgctxt "ChatRecipientGone"
+msgid "That player is no longer online"
+msgstr "そのプレイヤーはもうオンラインではありません"
+
+msgctxt "ChatRejected"
+msgid "The server did not accept your message"
+msgstr "サーバーがメッセージを受け付けませんでした"
+
+msgctxt "ChatInvalidText"
+msgid "Your message contains characters that cannot be sent"
+msgstr "メッセージに送信できない文字が含まれています"
+
+#. {} is a player's name
+#, c++-format
+msgctxt "ChatPlayerOffline"
+msgid "{} is offline"
+msgstr "{} はオフラインです"
+
+msgctxt "ItemUnknownEffect"
+msgid "Unknown effect"
+msgstr "不明な効果"
