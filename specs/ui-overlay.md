@@ -43,6 +43,17 @@
   ratio around its kept center and held there; scaling back while open still
   followed. The committed `MenuFrame.cpp` failed the reopen and closed-scale
   checks in the same test.
+- **Display name field filter and Enter to connect** (2026-10-14): not built
+  on Windows or run in game, and not run with the real `ConnectionMonitor`.
+  On Linux, `SettingsWindow.cpp` and `ConnectionControls.cpp` passed the g++
+  syntax check, which a planted error confirmed reaches `SettingsWindow.cpp`.
+  `FilterDisplayName`, copied from it, ran in a headless Dear ImGui 1.92.9
+  test on the field's `InputTextWithHint` call: typed punctuation, spaces,
+  and non-ASCII letters are dropped; typing stops at 15 characters; a paste
+  is filtered and cut to 15, also into a full field; Enter and keypad Enter,
+  with and without an edit, end editing in the frame the key is pressed, with
+  the edit applied in that frame. The notice naming the minimum length
+  passed the syntax check only.
 - **Display name hint** (2026-10-13): not built on Windows or run in game.
   On Linux, `DisplayNameHint.cpp`, `GameView.cpp`, `NameplateLayer.cpp`,
   `MenuFrame.cpp`, and `TradePrompt.cpp` passed the g++ syntax check, which a
@@ -271,10 +282,10 @@
 
   `[General]` as it is now ran with the real `ConnectionMonitor` over a
   stubbed transport and game state:
-  - typing applies nothing and enables connecting; Enter and a click
-    elsewhere each apply the name and do not connect, also in a game started
-    with `AutoConnect` and no display name; one click on the button applies a
-    typed name and connects, once;
+  - typing applies nothing and enables connecting; a click elsewhere applies
+    the name and does not connect, also in a game started with `AutoConnect`
+    and no display name; one click on the button applies a typed name and
+    connects, once; Enter did not connect when this ran;
   - while connecting and while connected the field is disabled, a click,
     typing, and Enter change nothing, and hovering it shows its tooltip;
     disconnecting unlocks it, and a name applied then does not connect;
@@ -2389,7 +2400,20 @@ those.
 
 - The field takes the page's width less the button, has a placeholder while
   empty, and applies like any text setting, when its editing ends. Applying
-  it never connects, on Enter or otherwise.
+  it by a click elsewhere never connects.
+- The field takes only the characters a display name may hold
+  (`Multiplayer::IsDisplayNameCharacter`) and at most
+  `Multiplayer::kMaximumDisplayNameLength` of them (`FilterDisplayName`):
+  other typed or pasted characters are dropped, and a paste past the limit
+  is cut at it. Text shorter than `kMinimumDisplayNameLength` is still
+  invalid, so the field can be red while a name is being typed, with the
+  minimum under it.
+- Enter or keypad Enter in the field applies its text and, when the button
+  could connect (`ConnectionControls::CanConnect`), connects like a press of
+  the button; otherwise it only applies. The window stays open. The editor
+  only records the request, and the window connects after
+  `ApplyLiveSections`, so the hello never carries the display name from
+  before the edit ([Network](network.md#sessions)).
 - The field is editable only while `Network::GetConnectionState` is
   `kDisconnected`, because a session takes its display name from the hello
   ([Network](network.md#sessions)), and hovering it then shows the setting's
@@ -2399,7 +2423,8 @@ those.
 - Opening the window with no display name applied puts the keyboard in the
   field. Escape then leaves the field, and a second press closes the window.
 
-The button is the only control that connects. It follows
+The button and Enter in the field are the only controls that connect. The
+button follows
 `Network::GetConnectionState`, so its label never claims a state the transport
 has not reached, and keeps its width and identity when the label changes:
 
@@ -2427,7 +2452,7 @@ do not move when a message appears:
 
 | Condition | Line |
 | --- | --- |
-| The field's text is not a display name ([Network](network.md#sessions)) | that the name is invalid, red |
+| The field's text is not a display name ([Network](network.md#sessions)); the field's filter leaves being shorter than `kMinimumDisplayNameLength` as the only way | how many characters a name needs at least, red |
 | Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`) | the sentence of `Network::GetConnectionRefusal`, red, until the button connects again |
 
 A divider in the separator color (`DrawConnectionDivider`) follows the line
@@ -2808,8 +2833,12 @@ To verify in game:
 5. The `[Connection]` page holds the display name field with one button beside
    it and a line under them. Opening the window with no display name puts the
    cursor in the field, the button cannot connect, and the status panel shows
-   only that it is disconnected; typing a name and clicking the button once
-   connects, while Enter or a click elsewhere only saves the name. Once
+   only that it is disconnected; typing a name and then clicking the button
+   once or pressing Enter connects, and the window stays open, while a click
+   elsewhere only saves the name. Enter with an invalid name, or with
+   `CustomServer` on and no URL, only leaves the field. Spaces, punctuation,
+   and non-ASCII letters cannot be typed or pasted into the field, and it
+   takes no 16th character. Once
    connected the button is red and disconnects, the field is greyed out and
    says on hover to disconnect first, and the sidebar shows the connected
    state with a green indicator and the ping; disconnecting makes the button
@@ -2821,13 +2850,13 @@ To verify in game:
    disconnected. A display name another player holds shows a red indicator
    and the refusal's sentence under the field beside the button, and only
    the disconnected state in the status panel; entering another display name
-   and connecting clears it. A name ending in a space turns red with the
-   reason under the field and disables connecting. The sidebar shows the
+   and connecting clears it. A name shorter than three characters turns red
+   with the minimum of three under the field and disables connecting. The sidebar shows the
    same status in every section.
 6. `[Connection]` has nothing below its settings, and `[UI]` and
    `[Advanced]` only a disabled Defaults button. Switching `StatusPanel` off hides the panel at once; typing
-   a display name changes nothing until Enter or a click elsewhere, which
-   saves it without connecting. `[Connection]` shows `ConnectAutomatically`
+   a display name changes nothing until a click elsewhere, which saves it
+   without connecting. `[Connection]` shows `ConnectAutomatically`
    on, `CustomServer` off, and no URL, without a group heading.
    `ViewRadius` is a slider showing its zero name at the left end and game
    units up to 15000 in steps of 100 as it is dragged, saved on release. After changes on

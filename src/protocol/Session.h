@@ -18,6 +18,12 @@ namespace Multiplayer
     inline constexpr std::size_t kMinimumDisplayNameLength = 3;
     inline constexpr std::size_t kMaximumDisplayNameLength = 15;
 
+    [[nodiscard]] constexpr bool IsDisplayNameCharacter(char a_character)
+    {
+        return (a_character >= 'a' && a_character <= 'z') || (a_character >= 'A' && a_character <= 'Z')
+            || (a_character >= '0' && a_character <= '9') || a_character == '_';
+    }
+
     [[nodiscard]] constexpr bool IsValidDisplayName(std::string_view a_name)
     {
         if (a_name.size() < kMinimumDisplayNameLength || a_name.size() > kMaximumDisplayNameLength)
@@ -26,8 +32,7 @@ namespace Multiplayer
         }
         for (const char character : a_name)
         {
-            if (!((character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z')
-                    || (character >= '0' && character <= '9') || character == '_'))
+            if (!IsDisplayNameCharacter(character))
             {
                 return false;
             }

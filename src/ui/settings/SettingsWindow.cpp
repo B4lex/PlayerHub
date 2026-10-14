@@ -1,6 +1,7 @@
 #include "ui/settings/SettingsWindow.h"
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
+#include "protocol/Session.h"
 #include "ui/Fonts.h"
 #include "ui/MenuFrame.h"
 #include "ui/Theme.h"
@@ -97,6 +98,22 @@ namespace UI
                 }
                 a_result += a_name[index];
             }
+        }
+
+        int FilterDisplayName(ImGuiInputTextCallbackData* a_data)
+        {
+            if (a_data->EventFlag == ImGuiInputTextFlags_CallbackCharFilter)
+            {
+                const auto character = a_data->EventChar;
+                return character < 0x80 && Multiplayer::IsDisplayNameCharacter(static_cast<char>(character)) ? 0 : 1;
+            }
+            // The std::string overload has no buffer limit, so a paste past the limit is cut after the edit.
+            constexpr auto maximum = static_cast<int>(Multiplayer::kMaximumDisplayNameLength);
+            if (a_data->BufTextLen > maximum)
+            {
+                a_data->DeleteChars(maximum, a_data->BufTextLen - maximum);
+            }
+            return 0;
         }
 
         void FormatSectionTitle(std::string_view a_name, std::string& a_result)
@@ -232,6 +249,8 @@ namespace UI
             }
 
             [[nodiscard]] bool IsEditing() const { return editing; }
+
+            [[nodiscard]] bool TakeConnectRequest() { return std::exchange(connectRequested, false); }
 
             [[nodiscard]] float GetScrollbarWidth() const { return scrollbarWidth; }
 
@@ -715,7 +734,8 @@ namespace UI
                 }
                 const auto* lock = ConnectionControls::GetDisplayNameLock();
                 ImGui::BeginDisabled(lock != nullptr);
-                if (DrawTextField(field, kDisplayNameHint))
+                if (DrawTextField(field, kDisplayNameHint,
+                        ImGuiInputTextFlags_CallbackCharFilter | ImGuiInputTextFlags_CallbackEdit, FilterDisplayName))
                 {
                     field.valid = a_isValid(field.text);
                 }
@@ -724,6 +744,12 @@ namespace UI
                 if (ImGui::IsItemDeactivatedAfterEdit() && field.valid)
                 {
                     a_value = field.text;
+                }
+                // Enter leaves the field in the frame it applies the typed text.
+                if (ImGui::IsItemDeactivated()
+                    && (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false)))
+                {
+                    connectRequested = ConnectionControls::CanConnect(entered);
                 }
                 if (lock)
                 {
@@ -855,14 +881,16 @@ namespace UI
                 return field->second;
             }
 
-            static bool DrawTextField(TextField& a_field, const char* a_hint)
+            static bool DrawTextField(TextField& a_field, const char* a_hint, ImGuiInputTextFlags a_flags = 0,
+                ImGuiInputTextCallback a_callback = nullptr)
             {
                 if (!a_field.valid)
                 {
                     ImGui::PushStyleColor(ImGuiCol_Text, Theme::kNegative);
                 }
-                const bool changed = a_hint ? ImGui::InputTextWithHint("##value", a_hint, &a_field.text)
-                                            : ImGui::InputText("##value", &a_field.text);
+                const bool changed = a_hint
+                    ? ImGui::InputTextWithHint("##value", a_hint, &a_field.text, a_flags, a_callback)
+                    : ImGui::InputText("##value", &a_field.text, a_flags, a_callback);
                 if (!a_field.valid)
                 {
                     ImGui::PopStyleColor();
@@ -896,6 +924,7 @@ namespace UI
             bool defaultsSectionOpen{ false };
             bool editing{ false };
             bool focusConnectionField{ false };
+            bool connectRequested{ false };
             bool hideNext{ false };
             bool captureRejected{ false };
         };
@@ -1078,6 +1107,11 @@ namespace UI
                 const auto knot = frame.corner - frame.inset;
                 editor.DrawPage(draft, padding, footerHeight, liveError ? footerHeight : (std::max)(padding.y, knot));
                 ApplyLiveSections();
+                // After applying: the hello reads the display name from the live configuration.
+                if (editor.TakeConnectRequest())
+                {
+                    ConnectionControls::Connect();
+                }
 
                 const bool staged = editor.IsStagedSectionOpen();
                 const auto defaultsSection = editor.GetDefaultsSection();

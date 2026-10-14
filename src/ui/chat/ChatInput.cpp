@@ -24,8 +24,7 @@ namespace UI
         };
 
         // Dear ImGui would parse "##" in a player's name.
-        RowOutcome DrawRow(
-            std::string_view a_text, const ImVec4& a_color, bool a_selected, std::string_view a_detail = {})
+        RowOutcome DrawRow(std::string_view a_text, const ImVec4& a_color, bool a_selected)
         {
             const auto start = ImGui::GetCursorPosX();
             RowOutcome outcome;
@@ -35,13 +34,6 @@ namespace UI
             ImGui::PushStyleColor(ImGuiCol_Text, a_color);
             ImGui::TextUnformatted(a_text.data(), a_text.data() + a_text.size());
             ImGui::PopStyleColor();
-            if (!a_detail.empty())
-            {
-                ImGui::SameLine();
-                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-                ImGui::TextUnformatted(a_detail.data(), a_detail.data() + a_detail.size());
-                ImGui::PopStyleColor();
-            }
             return outcome;
         }
 
@@ -84,7 +76,7 @@ namespace UI
             rewritten = composer.OnEdited(self.draft);
         }
 
-        const bool listed = composer.GetListing() != ChatSync::Composer::Listing::kNone;
+        const bool listed = composer.IsListing();
         if (a_data->EventFlag == ImGuiInputTextFlags_CallbackCompletion)
         {
             if (!listed)
@@ -216,8 +208,7 @@ namespace UI
 
     void ChatInput::DrawListing()
     {
-        const auto listing = composer.GetListing();
-        if (listing == ChatSync::Composer::Listing::kNone)
+        if (!composer.IsListing())
         {
             DrawNotes();
             return;
@@ -242,12 +233,9 @@ namespace UI
             }
             for (std::size_t index = 0; index < suggestions.size(); ++index)
             {
-                const auto& suggestion = suggestions[index];
                 ImGui::PushID(static_cast<int>(index));
-                const auto& color = listing == ChatSync::Composer::Listing::kPlayers
-                    ? ChatStyle::kWhisperColor
-                    : ImGui::GetStyleColorVec4(ImGuiCol_Text);
-                if (DrawRow(suggestion.label, color, index == composer.GetSelection(), suggestion.detail).clicked)
+                if (DrawRow(suggestions[index].name, ChatStyle::kWhisperColor, index == composer.GetSelection())
+                        .clicked)
                 {
                     accepted = index;
                 }
@@ -277,10 +265,8 @@ namespace UI
         float height = style.WindowPadding.y * 2.0F - style.ItemSpacing.y;
         for (const auto& note : notes)
         {
-            const auto textHeight = note.detail.empty()
-                ? ImGui::CalcTextSize(note.text.c_str(), note.text.c_str() + note.text.size(), false, wrapWidth).y
-                : ImGui::GetTextLineHeight();
-            height += textHeight + style.ItemSpacing.y;
+            height += ImGui::CalcTextSize(note.c_str(), note.c_str() + note.size(), false, wrapWidth).y
+                + style.ItemSpacing.y;
         }
 
         const auto row = ImGui::GetCursorScreenPos();
@@ -290,26 +276,14 @@ namespace UI
                 ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding,
                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoInputs))
         {
+            ImGui::PushStyleColor(ImGuiCol_Text, ChatStyle::kFailureColor);
+            ImGui::PushTextWrapPos(0.0F);
             for (const auto& note : notes)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text,
-                    note.failure ? ChatStyle::kFailureColor : ImGui::GetStyleColorVec4(ImGuiCol_Text));
-                if (note.detail.empty())
-                {
-                    ImGui::PushTextWrapPos(0.0F);
-                    ImGui::TextUnformatted(note.text.c_str(), note.text.c_str() + note.text.size());
-                    ImGui::PopTextWrapPos();
-                }
-                else
-                {
-                    ImGui::TextUnformatted(note.text.c_str(), note.text.c_str() + note.text.size());
-                    ImGui::SameLine();
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-                    ImGui::TextUnformatted(note.detail.c_str(), note.detail.c_str() + note.detail.size());
-                    ImGui::PopStyleColor();
-                }
-                ImGui::PopStyleColor();
+                ImGui::TextUnformatted(note.c_str(), note.c_str() + note.size());
             }
+            ImGui::PopTextWrapPos();
+            ImGui::PopStyleColor();
         }
         ImGui::EndChild();
         ImGui::PopStyleColor();
@@ -321,7 +295,7 @@ namespace UI
         DrawChip(a_frame.closeMenu);
         ImGui::SameLine();
 
-        const bool listed = composer.GetListing() != ChatSync::Composer::Listing::kNone;
+        const bool listed = composer.IsListing();
         if (fieldActive)
         {
             // Keys the field does not report.

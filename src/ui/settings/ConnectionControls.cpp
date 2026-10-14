@@ -1,6 +1,7 @@
 #include "ui/settings/ConnectionControls.h"
 #include "config/PluginConfig.h"
 #include "network/ConnectionMonitor.h"
+#include "protocol/Session.h"
 #include "ui/Theme.h"
 #include "ui/widgets/Controls.h"
 
@@ -9,7 +10,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <format>
 #include <optional>
+#include <string>
 #include <string_view>
 
 namespace UI::ConnectionControls
@@ -28,7 +31,6 @@ namespace UI::ConnectionControls
         constexpr const char* kCancelLabel = "Cancel###Connection";
         constexpr const char* kDisconnectLabel = "Disconnect###Connection";
         constexpr const char* kDisconnectingLabel = "Disconnecting...###Connection";
-        constexpr const char* kInvalidDisplayNameText = "Invalid display name.";
         constexpr const char* kDisconnectToRenameText = "Disconnect to change the display name";
         constexpr const char* kCancelToRenameText = "Cancel the connection to change the display name";
         constexpr const char* kNoEndpointText = "Enter a custom server URL to connect.";
@@ -109,6 +111,14 @@ namespace UI::ConnectionControls
             return !Config::GetServerEndpoint(config->connection).empty();
         }
 
+        // The field takes no other characters and no more than the maximum, so a short name is the only invalid one.
+        const std::string& GetShortDisplayNameText()
+        {
+            static const std::string text =
+                std::format("The name must be at least {} characters long.", Multiplayer::kMinimumDisplayNameLength);
+            return text;
+        }
+
         void DrawMessage(std::string_view a_text, const ImVec4& a_color)
         {
             ImGui::PushStyleColor(ImGuiCol_Text, a_color);
@@ -130,10 +140,21 @@ namespace UI::ConnectionControls
             kMinimumButtonWidthFonts * ImGui::GetFontSize());
     }
 
+    bool CanConnect(bool a_displayNameEntered)
+    {
+        return Network::GetConnectionState() == ConnectionState::kDisconnected && a_displayNameEntered
+            && HasServerEndpoint();
+    }
+
+    void Connect()
+    {
+        Network::SetConnectionEnabled(true);
+    }
+
     void DrawButton(bool a_displayNameEntered)
     {
         const auto state = Network::GetConnectionState();
-        const bool canConnect = state == ConnectionState::kDisconnected && a_displayNameEntered && HasServerEndpoint();
+        const bool canConnect = CanConnect(a_displayNameEntered);
         const auto* label = GetButtonLabel(state);
         const ImVec2 size{ GetButtonWidth(), 0.0F };
 
@@ -182,11 +203,11 @@ namespace UI::ConnectionControls
         return nullptr;
     }
 
-    void DrawNotice(bool a_invalidText)
+    void DrawNotice(bool a_shortText)
     {
-        if (a_invalidText)
+        if (a_shortText)
         {
-            DrawMessage(kInvalidDisplayNameText, Theme::kNegative);
+            DrawMessage(GetShortDisplayNameText(), Theme::kNegative);
             return;
         }
         const auto status = GetStatus();
