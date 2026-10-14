@@ -49,6 +49,11 @@ namespace ActorAnimation
         constexpr float kBowShotSeconds = 0.5F;
         constexpr float kBowShotFallbackSeconds = 2.0F;
         constexpr float kCastStopFallbackSeconds = 1.0F;
+        // iState read 10 while a cast played and still about 0.2 s after both casters
+        // were idle with IsCasting* cleared; spell-ready locomotion reads 9 (observed
+        // in game). A moveStart in that window was accepted by the exiting cast lower
+        // body, which then left the actor in the standing spell-ready state.
+        constexpr std::int32_t kCastGraphStateTag = 10;
         constexpr float kBlockStopFallbackSeconds = 1.5F;
         // A cast enters its graph state some updates after the caster's request.
         constexpr float kCastLowerBodyEntrySeconds = 0.5F;
@@ -1125,9 +1130,15 @@ namespace ActorAnimation
             // The caster returns to idle as soon as the cast is interrupted, but the
             // graph leaves its casting state later. A new cast waits for both, so it
             // does not enter a concentration loop that is still playing.
+            // The last cast to stop also waits for the graph to leave the cast branch,
+            // so the locomotion replay below reaches the spell-ready locomotion.
             bool graphCasting = false;
             actor.GetGraphVariableBool(castingVariable, graphCasting);
-            const bool idle = casterState == RE::MagicCaster::State::kNone && !graphCasting;
+            const std::size_t otherHand = 1 - hand;
+            const bool lastCast = !state.castHeld[otherHand] && !state.castStopping[otherHand];
+            const auto graphStateTag = GetGraphStateTag(actor);
+            const bool graphLeftCast = !lastCast || graphStateTag != kCastGraphStateTag;
+            const bool idle = casterState == RE::MagicCaster::State::kNone && !graphCasting && graphLeftCast;
             const bool timedOut = state.castStopRequestElapsed[hand] >= kCastStopFallbackSeconds;
             if (!idle && !timedOut)
             {
@@ -1149,8 +1160,9 @@ namespace ActorAnimation
             }
             logs::debug(
                 "Animation sync stopped spell cast: actor={:08X} hand={} idle={} stopSeconds={:.3f} "
-                "reassertedLocomotion={}",
-                a_remote.handle.native_handle(), a_leftHand ? "left" : "right", idle, stopSeconds, presentationEnded);
+                "reassertedLocomotion={} iState={}",
+                a_remote.handle.native_handle(), a_leftHand ? "left" : "right", idle, stopSeconds, presentationEnded,
+                graphStateTag);
             return;
         }
 

@@ -7,8 +7,10 @@
 - **Bow draws and spell casting:** implemented; a Windows build and a full
   in-game check are pending. Confirmed in game: `EquipSpell` on an actor that
   does not know the spell, the Healing Hands right-hand cast looping until
-  `InterruptCast`, a held bow draw, and spell fire suppression. The rest is
-  under [Engine assumptions](#engine-assumptions).
+  `InterruptCast`, a held bow draw, spell fire suppression, and the last cast
+  stop waiting for the graph to leave the cast branch before locomotion is
+  replayed (a replay with running casts, 2026-10-14). The rest is under
+  [Engine assumptions](#engine-assumptions).
 - **Left-hand and dual attacks, blocking, and bashes:** implemented; Windows
   build and in-game check pending.
 - **Power attacks:** implemented; Windows build and in-game check pending,
@@ -342,7 +344,12 @@ as long as the source casts, whatever the source's spell.
   caster to `kNone` but left the clip looping (observed in game). The stop
   completes once the caster is `kNone` and the hand's `IsCastingLeft` or
   `IsCastingRight` is false, or after 1 s; no new cast starts on that hand
-  before. A cast also stops when the hand loses its spell.
+  before. The last hand to stop also waits for the graph's `iState` to leave
+  10, the cast branch's tag (spell-ready locomotion reads 9). The graph kept 10
+  for about 0.2 s after both variables cleared, and a `moveStart` sent then was
+  accepted by the exiting cast lower body, which returned to the standing
+  spell-ready state, so the actor slid until its next stop (observed in game).
+  A cast also stops when the hand loses its spell.
 - While a cast is held or stopping, the registry marks cast ownership, and the
   firewall passes cast events, which the caster sends then and on later updates
   ([Remote actor](remote-actor.md#animation-firewall)). Names are matched
