@@ -4,6 +4,7 @@
 #include "sync/chat/ChatRoster.h"
 #include "sync/filters/PlayerFilters.h"
 
+#include <format>
 #include <mutex>
 #include <utility>
 
@@ -40,7 +41,8 @@ namespace ChatSync
             {
                 return format(a_message.sender);
             }
-            return a_message.outgoing ? "To " + format(a_message.recipient) : "From " + format(a_message.sender);
+            return a_message.outgoing ? std::format("To {}", format(a_message.recipient))
+                                      : std::format("From {}", format(a_message.sender));
         }
     }
 
@@ -65,7 +67,7 @@ namespace ChatSync
             const auto player = ChatRoster::Resolve(a_target.player);
             if (!player)
             {
-                return std::unexpected{ a_target.player.name + " is offline" };
+                return std::unexpected{ std::format("{} is offline", a_target.player.name) };
             }
             recipient = player->playerID;
         }

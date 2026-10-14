@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 #include <utility>
 
 namespace UI
@@ -162,7 +163,7 @@ namespace UI
             const bool whisperable = !line.player.name.empty()
                 && (line.channel == Multiplayer::ChatChannel::kWhisper || !line.outgoing);
             lines.push_back(Line{ .channel = line.channel,
-                .label = std::move(line.sender) + ":",
+                .label = std::format("{}:", line.sender),
                 .text = std::move(line.text),
                 .player = whisperable ? std::move(line.player) : Multiplayer::RosterEntry{},
                 .sender = sender,

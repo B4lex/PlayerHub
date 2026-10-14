@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <format>
 #include <string>
 #include <utility>
 #include <vector>
@@ -84,7 +85,7 @@ namespace UI
                 PlayerFilters::CollectArrivedFriends(friends);
                 for (const auto& player : friends)
                 {
-                    Add(player.name + " is online", a_now);
+                    Add(std::format("{} is online", player.name), a_now);
                 }
                 friends.clear();
 

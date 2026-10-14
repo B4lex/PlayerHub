@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <format>
 #include <limits>
 
 namespace Network::Wire
@@ -1217,7 +1218,7 @@ namespace Network::Wire
                 auto result = ReadAction(action.slot, action.action);
                 if (!result)
                 {
-                    return std::unexpected("peer action " + result.error());
+                    return std::unexpected(std::format("peer action {}", result.error()));
                 }
                 return *result;
             }

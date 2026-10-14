@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <format>
 #include <iterator>
 #include <mutex>
 #include <numeric>
@@ -143,19 +144,19 @@ namespace TradeSync
             const auto& peer = PeerName();
             if (!a_skip.plugin.empty())
             {
-                return peer + " does not have " + a_skip.plugin + " installed";
+                return std::format("{} does not have {} installed", peer, a_skip.plugin);
             }
             switch (a_skip.reason)
             {
                 case Multiplayer::TradeSkipReason::kMissingItem:
                 case Multiplayer::TradeSkipReason::kWrongType:
-                    return peer + " has a different version of " + a_item.item.plugin;
+                    return std::format("{} has a different version of {}", peer, a_item.item.plugin);
                 case Multiplayer::TradeSkipReason::kMissingEffect:
-                    return peer + "'s game does not have the enchantment";
+                    return std::format("{}'s game does not have the enchantment", peer);
                 case Multiplayer::TradeSkipReason::kBadEnchantment:
                     break;
             }
-            return peer + "'s game cannot rebuild the enchantment";
+            return std::format("{}'s game cannot rebuild the enchantment", peer);
         }
 
         bool ReferencesPlugin(const Multiplayer::TradeItem& a_item, std::string_view a_plugin)
@@ -201,13 +202,13 @@ namespace TradeSync
             switch (blocker)
             {
                 case TradeSession::Blocker::kEmpty:
-                    view.acceptBlocker = "Add an item, or wait for " + PeerName() + " to add one.";
+                    view.acceptBlocker = std::format("Add an item, or wait for {} to add one.", PeerName());
                     break;
                 case TradeSession::Blocker::kSending:
                     view.acceptBlocker = "Sending your offer...";
                     break;
                 case TradeSession::Blocker::kAwaitingReport:
-                    view.acceptBlocker = "Waiting for " + PeerName() + "'s game to check the offers...";
+                    view.acceptBlocker = std::format("Waiting for {}'s game to check the offers...", PeerName());
                     break;
                 default:
                     break;
@@ -258,7 +259,7 @@ namespace TradeSync
                 if (!s_inventory[i].block && s_rowChecks[i].rejected.empty()
                     && ReferencesPlugin(s_inventory[i].item, a_plugin))
                 {
-                    if (RejectRow(i, PeerName() + " does not have " + a_plugin + " installed"))
+                    if (RejectRow(i, std::format("{} does not have {} installed", PeerName(), a_plugin)))
                     {
                         a_rejected(i);
                     }
@@ -365,7 +366,7 @@ namespace TradeSync
             }
             for (const auto& rejection : rejections)
             {
-                Notices::Post("You cannot offer " + FormatItems(rejection.names) + ": " + rejection.reason);
+                Notices::Post(std::format("You cannot offer {}: {}", FormatItems(rejection.names), rejection.reason));
             }
             if (offerChanged)
             {
@@ -437,7 +438,8 @@ namespace TradeSync
             {
                 return true;
             }
-            Notices::Post("You no longer have " + FormatItems(missing) + "; the trade shows what you hold now");
+            Notices::Post(
+                std::format("You no longer have {}", FormatItems(missing)));
             CaptureInventory(a_player);
             s_session.SetOwnItems({});
             return false;
@@ -556,34 +558,33 @@ namespace TradeSync
             switch (a_result.reason)
             {
                 case TradeCloseReason::kBusy:
-                    Notices::Post(a_peer + " is busy with another trade");
+                    Notices::Post(std::format("{} is busy with another trade", a_peer));
                     break;
                 case TradeCloseReason::kUnavailable:
-                    Notices::Post(a_peer + " cannot trade right now");
+                    Notices::Post(std::format("{} cannot trade right now", a_peer));
                     break;
                 case TradeCloseReason::kOutOfRange:
-                    Notices::Post(requested ? a_peer + " is too far away to trade"
-                                            : "The trade with " + a_peer + " ended: you are too far apart");
+                    Notices::Post(requested ? std::format("{} is too far away to trade", a_peer)
+                                            : std::format("The trade with {} ended", a_peer));
                     break;
                 case TradeCloseReason::kDeclined:
-                    Notices::Post(a_peer + " declined your trade offer");
+                    Notices::Post(std::format("{} declined your trade offer", a_peer));
                     break;
                 case TradeCloseReason::kExpired:
-                    Notices::Post(inviting ? a_peer + " did not answer your trade offer"
-                                           : "The trade offer from " + a_peer + " expired");
+                    Notices::Post(inviting ? std::format("{} did not answer your trade offer", a_peer)
+                                           : std::format("The trade offer from {} expired", a_peer));
                     break;
                 case TradeCloseReason::kCombat:
-                    Notices::Post("The trade with " + a_peer + " ended: they are in combat");
+                case TradeCloseReason::kDisconnected:
+                    Notices::Post(std::format("The trade with {} ended", a_peer));
                     break;
                 case TradeCloseReason::kMenu:
                 case TradeCloseReason::kCancelled:
-                    Notices::Post(invited ? a_peer + " withdrew the trade offer" : a_peer + " cancelled the trade");
-                    break;
-                case TradeCloseReason::kDisconnected:
-                    Notices::Post(a_peer + " left; the trade ended");
+                    Notices::Post(invited ? std::format("{} withdrew the trade offer", a_peer)
+                                          : std::format("{} cancelled the trade", a_peer));
                     break;
                 case TradeCloseReason::kFailed:
-                    Notices::Post("The trade with " + a_peer + " could not open");
+                    Notices::Post(std::format("The trade with {} could not open", a_peer));
                     break;
             }
         }
@@ -658,7 +659,7 @@ namespace TradeSync
                     }
                     if (!a_inWorld || a_player.IsInCombat())
                     {
-                        Notices::Post("You cannot trade in combat or away from the world");
+                        Notices::Post("You cannot trade now");
                         return;
                     }
                     if (!Network::PublishTradeRequest(a_command.player.playerID))
@@ -667,7 +668,6 @@ namespace TradeSync
                         return;
                     }
                     s_session.BeginRequest(a_command.player);
-                    logs::info("Trade requested with {} (slot {})", a_command.player.name, a_command.player.playerID);
                     break;
                 case Command::Kind::kAnswer:
                     if (phase != Phase::kInvited)
@@ -676,7 +676,8 @@ namespace TradeSync
                     }
                     if (!a_command.accept)
                     {
-                        CancelTrade(TradeCloseReason::kDeclined, "You declined the trade offer from " + PeerName());
+                        CancelTrade(TradeCloseReason::kDeclined,
+                            std::format("You declined the trade offer from {}", PeerName()));
                         return;
                     }
                     if (!a_inWorld || a_player.IsInCombat())
@@ -685,7 +686,6 @@ namespace TradeSync
                         return;
                     }
                     Network::PublishTradeAnswer(s_session.GetID(), true);
-                    logs::info("Trade {} accepted by the local player", s_session.GetID());
                     break;
                 case Command::Kind::kCancel:
                     if (phase == Phase::kInviting || phase == Phase::kOpen || phase == Phase::kInvited)
@@ -705,9 +705,6 @@ namespace TradeSync
                     }
                     if (const auto acceptance = s_session.Accept())
                     {
-                        logs::info("Trade {} accepted offers {} and {}", acceptance->id,
-                            static_cast<unsigned long long>(acceptance->ownRevision),
-                            static_cast<unsigned long long>(acceptance->peerRevision));
                         Network::PublishTradeAccept(*acceptance);
                     }
                     break;
@@ -786,8 +783,7 @@ namespace TradeSync
         const bool lost = !a_changes.connected || a_changes.connectionGeneration != s_connectionGeneration;
         if (lost && s_session.IsActive())
         {
-            logs::info("Trade with {} ended with the connection", PeerName());
-            Notices::Post("The trade with " + PeerName() + " ended: the connection to the server was lost");
+            Notices::Post(std::format("The trade with {} ended", PeerName()));
             ClearTrade();
             s_events.clear();
         }
@@ -818,7 +814,8 @@ namespace TradeSync
         }
         if (std::exchange(s_eventsLost, false) && s_session.IsActive())
         {
-            CancelTrade(TradeCloseReason::kFailed, "The trade with " + PeerName() + " ended: its messages were lost");
+            CancelTrade(
+                TradeCloseReason::kFailed, std::format("The trade with {} ended", PeerName()));
         }
         for (const auto& event : s_events)
         {
@@ -842,9 +839,10 @@ namespace TradeSync
             // Leaving the world needs nothing here: the server closes the trade on Exit.
             if (phase != Phase::kRequesting && IsInCombat(a_player))
             {
-                CancelTrade(TradeCloseReason::kCombat, phase == Phase::kInvited
-                        ? "You are in combat; the trade offer from " + PeerName() + " was declined"
-                        : "You are in combat; the trade with " + PeerName() + " ended");
+                CancelTrade(TradeCloseReason::kCombat,
+                    phase == Phase::kInvited
+                        ? std::format("You are in combat\nThe trade offer from {} was declined", PeerName())
+                        : std::format("You are in combat\nThe trade with {} ended", PeerName()));
             }
         }
 
@@ -854,7 +852,7 @@ namespace TradeSync
             if (tick.timedOut)
             {
                 logs::warn("Trade with {} timed out in phase {}", PeerName(), static_cast<int>(s_session.GetPhase()));
-                CancelTrade(TradeCloseReason::kExpired, "The trade with " + PeerName() + " got no answer");
+                CancelTrade(TradeCloseReason::kExpired, std::format("The trade with {} got no answer", PeerName()));
             }
             else if (tick.offer)
             {

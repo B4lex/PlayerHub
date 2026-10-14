@@ -7,6 +7,7 @@
 #include <cfloat>
 #include <cmath>
 #include <cstring>
+#include <format>
 #include <string_view>
 
 namespace UI
@@ -46,7 +47,7 @@ namespace UI
                 case Multiplayer::ChatChannel::kWhisper:
                     break;
             }
-            return "To " + a_target.player.name;
+            return std::format("To {}", a_target.player.name);
         }
     }
 

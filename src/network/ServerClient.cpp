@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <deque>
 #include <exception>
+#include <format>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -190,7 +191,7 @@ namespace Network
             {
                 case kProtocolMismatchCloseCode:
                     return Refusal{ RefusalReason::kProtocolMismatch,
-                        "The server runs another protocol version (" + a_closeReason + ")." };
+                        std::format("The server runs another protocol version ({}).", a_closeReason) };
                 case kDisplayNameTakenCloseCode:
                     return Refusal{ RefusalReason::kDisplayNameTaken,
                         "The display name is already taken by another player." };
