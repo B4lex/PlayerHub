@@ -1,0 +1,380 @@
+#include "text/TextTables.h"
+
+#include <array>
+
+namespace Text::Tables
+{
+    namespace
+    {
+        constexpr std::array kEntries{
+            // Settings sections
+            Entry{ Id::kSectionConnection, "Połączenie" },
+            Entry{ Id::kSectionDefaultOutfit, "Domyślny strój" },
+            Entry{ Id::kSectionUI, "Interfejs" },
+            Entry{ Id::kSectionControls, "Klawisze" },
+            Entry{ Id::kSectionAdvanced, "Zaawansowane" },
+
+            // Connection settings
+            Entry{ Id::kConnectionDisplayName, "Nazwa wyświetlana" },
+            Entry{ Id::kConnectionDisplayNameComment, "Widoczna dla innych graczy nad twoją postacią i na czacie." },
+            Entry{ Id::kConnectionAutoConnect, "Łącz automatycznie" },
+            Entry{ Id::kConnectionAutoConnectComment, "Łączy z serwerem automatycznie po wczytaniu gry." },
+            Entry{ Id::kConnectionCustomServer, "Własny serwer" },
+            Entry{ Id::kConnectionCustomServerComment,
+                "Łączy z serwerem o adresie URL podanym niżej zamiast z serwerem oficjalnym." },
+            Entry{ Id::kConnectionServerEndpoint, "Adres URL serwera" },
+            Entry{ Id::kConnectionServerEndpointComment,
+                "Adres URL własnego serwera, zaczynający się od http:// lub https://. Używany tylko, gdy własny serwer "
+                "jest włączony." },
+
+            // Default outfit settings
+            Entry{ Id::kOutfitComment,
+                "Wygląd i wyposażenie pokazywane innym zamiast twoich modyfikowanych zasobów, których oni nie mają." },
+            Entry{ Id::kOutfitGroupCharacter, "Postać" },
+            Entry{ Id::kOutfitRace, "Rasa" },
+            Entry{ Id::kOutfitSex, "Płeć" },
+            Entry{ Id::kOutfitMale, "Mężczyzna" },
+            Entry{ Id::kOutfitFemale, "Kobieta" },
+            Entry{ Id::kOutfitGroupApparel, "Ubiór" },
+            Entry{ Id::kOutfitHead, "Głowa" },
+            Entry{ Id::kOutfitBody, "Tułów" },
+            Entry{ Id::kOutfitHands, "Dłonie" },
+            Entry{ Id::kOutfitAmulet, "Amulet" },
+            Entry{ Id::kOutfitFeet, "Stopy" },
+            Entry{ Id::kOutfitShield, "Tarcza" },
+            Entry{ Id::kOutfitCirclet, "Diadem" },
+            Entry{ Id::kOutfitBackpack, "Plecak" },
+            Entry{ Id::kOutfitGroupWeapons, "Broń" },
+            Entry{ Id::kOutfitSword, "Miecz" },
+            Entry{ Id::kOutfitDagger, "Sztylet" },
+            Entry{ Id::kOutfitWarAxe, "Topór bojowy" },
+            Entry{ Id::kOutfitMace, "Buława" },
+            Entry{ Id::kOutfitGreatsword, "Miecz dwuręczny" },
+            Entry{ Id::kOutfitBattleaxe, "Topór dwuręczny lub młot bojowy" },
+            Entry{ Id::kOutfitBow, "Łuk" },
+            Entry{ Id::kOutfitStaff, "Kostur" },
+            Entry{ Id::kOutfitCrossbow, "Kusza" },
+            Entry{ Id::kOutfitGroupMiscellaneous, "Różne" },
+            Entry{ Id::kOutfitArrow, "Strzała" },
+            Entry{ Id::kOutfitBolt, "Bełt" },
+
+            // Interface settings
+            Entry{ Id::kUIGroupDisplay, "Wyświetlanie" },
+            Entry{ Id::kUIFontScale, "Rozmiar tekstu" },
+            Entry{ Id::kUIFontScaleComment,
+                "Rozmiar tekstu w oknie ustawień, na czacie i w pozostałej części interfejsu trybu wieloosobowego. "
+                "Okna rosną i maleją razem z nim." },
+            Entry{ Id::kUIAccentColor, "Kolor wyróżnienia" },
+            Entry{ Id::kUIAccentColorComment,
+                "Kolor oznaczający to, co można wybrać lub co jest wybrane w oknie ustawień i na czacie, w zapisie "
+                "szesnastkowym RRGGBB." },
+            Entry{ Id::kUIBorderColor, "Kolor ramki" },
+            Entry{ Id::kUIBorderColorComment, "Kolor ramki wokół okna ustawień i czatu." },
+            Entry{ Id::kUIBorderVanilla, "Vanilla" },
+            Entry{ Id::kUIBorderAccent, "Wyróżnienie" },
+            Entry{ Id::kUIBorderThickness, "Grubość ramki" },
+            Entry{ Id::kUIBorderThicknessComment, "Grubość ramki wokół okna ustawień i czatu." },
+            Entry{ Id::kUIGroupPlayers, "Gracze" },
+            Entry{ Id::kUINameplates, "Nazwy nad graczami" },
+            Entry{ Id::kUINameplatesComment, "Pokazuje nazwy innych graczy nad ich głowami, gdy są w zasięgu wzroku." },
+            Entry{ Id::kUINameplateDistance, "Odległość nazw" },
+            Entry{ Id::kUINameplateDistanceComment,
+                "Odległość w jednostkach gry, w której nazwy są pokazywane nad graczami, około 70 na metr." },
+            Entry{ Id::kUIGroupChat, "Czat" },
+            Entry{ Id::kUICloseChatOnSend, "Zamykaj po wysłaniu" },
+            Entry{ Id::kUICloseChatOnSendComment,
+                "Zamyka czat, gdy Enter wysyła wiersz. W przeciwnym razie Enter tylko wysyła, a pusty wiersz nic nie "
+                "robi." },
+            Entry{ Id::kUIChatHorizontal, "Położenie w poziomie" },
+            Entry{ Id::kUIChatHorizontalComment,
+                "Odległość lewej krawędzi czatu od lewej krawędzi ekranu jako część szerokości ekranu. Czat pozostaje "
+                "na ekranie." },
+            Entry{ Id::kUIChatVertical, "Położenie w pionie" },
+            Entry{ Id::kUIChatVerticalComment,
+                "Odległość dolnej krawędzi czatu od dolnej krawędzi ekranu jako część wysokości ekranu. Czat pozostaje "
+                "na ekranie." },
+            Entry{ Id::kUIGroupItems, "Przedmioty" },
+            Entry{ Id::kUIItemPreview, "Podgląd przedmiotów" },
+            Entry{ Id::kUIItemPreviewComment, "Pokazuje model 3D wskazanego przedmiotu na listach przedmiotów." },
+
+            // Keybind settings
+            Entry{ Id::kControlsOpenSettings, "Otwórz ustawienia" },
+            Entry{ Id::kControlsOpenSettingsComment, "Otwiera i zamyka okno ustawień." },
+            Entry{ Id::kControlsOpenChat, "Otwórz czat" },
+            Entry{ Id::kControlsOpenChatComment, "Otwiera czat." },
+            Entry{ Id::kControlsManagePlayers, "Zarządzaj graczami" },
+            Entry{ Id::kControlsManagePlayersComment,
+                "Otwiera okno z listą twoich znajomych oraz graczy wyciszonych i ukrytych." },
+            Entry{ Id::kControlsAcceptTrade, "Przyjmij wymianę" },
+            Entry{ Id::kControlsAcceptTradeComment,
+                "Przyjmuje ofertę wymiany innego gracza, gdy czeka ona na odpowiedź." },
+            Entry{ Id::kControlsDeclineTrade, "Odrzuć wymianę" },
+            Entry{ Id::kControlsDeclineTradeComment,
+                "Odrzuca ofertę wymiany innego gracza lub wycofuje twoją, gdy czeka ona na odpowiedź." },
+
+            // Advanced settings
+            Entry{ Id::kAdvancedGroupPerformance, "Wydajność" },
+            Entry{ Id::kAdvancedViewRadius, "Zasięg widzenia" },
+            Entry{ Id::kAdvancedViewRadiusComment,
+                "Odległość w jednostkach gry, w której pokazywani są inni gracze. Działa od następnego połączenia." },
+            Entry{ Id::kAdvancedViewRadiusAuto, "Auto" },
+            Entry{ Id::kAdvancedSpawnsPerSecond, "Pojawienia na sekundę" },
+            Entry{ Id::kAdvancedSpawnsPerSecondComment,
+                "Największa liczba zdalnych graczy i wierzchowców pojawiających się w ciągu sekundy. Wielu graczy "
+                "przybywających naraz pojawia się wtedy przez kilka sekund zamiast w jednej długiej klatce. 0 pokazuje "
+                "wszystkich od razu." },
+            Entry{ Id::kAdvancedSpawnsUnlimited, "Bez limitu" },
+            Entry{ Id::kAdvancedGroupDiagnostics, "Diagnostyka" },
+            Entry{ Id::kAdvancedStatusPanel, "Panel stanu" },
+            Entry{ Id::kAdvancedStatusPanelComment,
+                "Pokazuje ping, ruch sieciowy i czas działania wtyczki na klatkę w prawym górnym rogu." },
+
+            // Key names
+            Entry{ Id::kKeySpace, "Spacja" },
+            Entry{ Id::kKeyEnter, "Enter" },
+            Entry{ Id::kKeyCapsLock, "Caps Lock" },
+            Entry{ Id::kKeyInsert, "Insert" },
+            Entry{ Id::kKeyDelete, "Delete" },
+            Entry{ Id::kKeyHome, "Home" },
+            Entry{ Id::kKeyEnd, "End" },
+            Entry{ Id::kKeyPageUp, "Page Up" },
+            Entry{ Id::kKeyPageDown, "Page Down" },
+            Entry{ Id::kKeyUp, "Góra" },
+            Entry{ Id::kKeyDown, "Dół" },
+            Entry{ Id::kKeyLeft, "Lewo" },
+            Entry{ Id::kKeyRight, "Prawo" },
+            Entry{ Id::kKeyPause, "Pause" },
+            Entry{ Id::kKeyScrollLock, "Scroll Lock" },
+            Entry{ Id::kKeyNumLock, "Num Lock" },
+            Entry{ Id::kKeyNumpadEnter, "Num Enter" },
+
+            // Settings window
+            Entry{ Id::kSettingsBrand, "Tryb wieloosobowy" },
+            Entry{ Id::kSettingsDisplayNameHint, "Wpisz nazwę wyświetlaną" },
+            Entry{ Id::kSettingsServerEndpointHint, "Wpisz adres URL serwera" },
+            Entry{ Id::kSettingsServerEndpointInvalid, "Nieprawidłowy adres URL serwera." },
+            Entry{ Id::kSettingsCustomColor, "Własny kolor" },
+            Entry{ Id::kSettingsKeyPrompt, "Naciśnij klawisz" },
+            Entry{ Id::kSettingsKeyUnbound, "Nieprzypisany" },
+            Entry{ Id::kSettingsKeyReserved, "Tego klawisza nie można przypisać" },
+            Entry{ Id::kSettingsKeyInUse, "{0} jest już przypisany do: {1}" },
+            Entry{ Id::kSettingsDefaults, "Domyślne" },
+            Entry{ Id::kSettingsRevert, "Cofnij" },
+            Entry{ Id::kSettingsApply, "Zastosuj" },
+            Entry{ Id::kSettingsUnapplied, "Niezastosowane zmiany" },
+            Entry{ Id::kSettingsSaved, "Zapisano" },
+            Entry{ Id::kSettingsSaveFailed, "Nie udało się zapisać {}" },
+
+            // Connection controls
+            Entry{ Id::kConnectionConnect, "Połącz" },
+            Entry{ Id::kConnectionCancel, "Anuluj" },
+            Entry{ Id::kConnectionDisconnect, "Rozłącz" },
+            Entry{ Id::kConnectionConnected, "Połączono" },
+            Entry{ Id::kConnectionConnecting, "Łączenie..." },
+            Entry{ Id::kConnectionDisconnecting, "Rozłączanie..." },
+            Entry{ Id::kConnectionDisconnected, "Rozłączono" },
+            Entry{ Id::kConnectionDisconnectToRename, "Rozłącz się, aby zmienić nazwę wyświetlaną" },
+            Entry{ Id::kConnectionCancelToRename, "Anuluj łączenie, aby zmienić nazwę wyświetlaną" },
+            Entry{ Id::kConnectionNoEndpoint, "Wpisz adres URL własnego serwera, aby się połączyć." },
+            Entry{ Id::kConnectionShortName,
+                "Nazwa musi mieć co najmniej {} znak.|Nazwa musi mieć co najmniej {} znaki.|Nazwa musi mieć co "
+                "najmniej {} znaków." },
+
+            // Server refusals
+            Entry{ Id::kRefusalProtocolMismatch, "Serwer używa innej wersji protokołu ({})." },
+            Entry{ Id::kRefusalDisplayNameTaken, "Ta nazwa wyświetlana jest już zajęta przez innego gracza." },
+            Entry{ Id::kRefusalDisplayNameInvalid, "Serwer nie akceptuje tej nazwy wyświetlanej." },
+            Entry{ Id::kRefusalSessionReplaced,
+                "Twoja sesja połączyła się z innej gry, co zamknęło to połączenie. Połącz się ponownie, aby ją "
+                "odzyskać." },
+            Entry{ Id::kRefusalServerFull, "Serwer jest pełny." },
+            Entry{ Id::kRefusalTooManyNewSessions,
+                "Z twojego adresu IP dołączyło ostatnio do tego serwera zbyt wielu nowych graczy." },
+
+            // Status panel
+            Entry{ Id::kStatusPing, "Ping" },
+            Entry{ Id::kStatusPlugin, "Wtyczka" },
+
+            // Notices
+            Entry{ Id::kNoticeConnected, "Połączono z serwerem" },
+            Entry{ Id::kNoticeFriendOnline, "{} jest dostępny" },
+
+            // Display name hint; {0} is the key that opens the settings, {1} the Connection tab
+            Entry{ Id::kDisplayNameHint, "Naciśnij {0} i wpisz nazwę wyświetlaną na karcie {1}, aby się połączyć" },
+
+            // Trade prompt; {} is the other player's name
+            Entry{ Id::kTradePromptWaiting, "Czekasz, aż {} odpowie na twoją ofertę wymiany" },
+            Entry{ Id::kTradePromptInvited, "{} chce się z tobą wymienić" },
+            Entry{ Id::kTradePromptWithdraw, "Wycofaj" },
+            Entry{ Id::kTradePromptAccept, "Przyjmij" },
+            Entry{ Id::kTradePromptDecline, "Odrzuć" },
+            Entry{ Id::kTradePromptSeconds, "{} s" },
+
+            // Chat channels and input; {} is a player's name
+            Entry{ Id::kChatGlobal, "Globalny" },
+            Entry{ Id::kChatNearby, "W pobliżu" },
+            Entry{ Id::kChatWhispers, "Szepty" },
+            Entry{ Id::kChatTo, "Do: {}" },
+            Entry{ Id::kChatFrom, "Od: {}" },
+            Entry{ Id::kChatGlobalTargetHint, "Wyślij do wszystkich graczy na serwerze." },
+            Entry{ Id::kChatNearbyTargetHint, "Wyślij do graczy w pobliżu." },
+            Entry{ Id::kChatWhisperTargetHint, "Szepnij do: {}." },
+            Entry{ Id::kChatGlobalFilterHint, "Wiadomości do wszystkich graczy na serwerze." },
+            Entry{ Id::kChatNearbyFilterHint, "Wiadomości od graczy w pobliżu." },
+            Entry{ Id::kChatWhispersFilterHint, "Prywatne wiadomości między tobą a innym graczem." },
+            Entry{ Id::kChatNoPlayerNamed, "Żaden gracz o tej nazwie nie jest dostępny" },
+            Entry{ Id::kChatInputHint, "Naciśnij Tab, aby zmienić kanał" },
+
+            // Manage players window
+            Entry{ Id::kPlayersTitle, "Gracze" },
+            Entry{ Id::kPlayersFriends, "Znajomi" },
+            Entry{ Id::kPlayersMuted, "Wyciszeni" },
+            Entry{ Id::kPlayersVanished, "Ukryci" },
+            Entry{ Id::kPlayersRemoveFriend, "Usuń" },
+            Entry{ Id::kPlayersUnmute, "Wyłącz wyciszenie" },
+            Entry{ Id::kPlayersUnvanish, "Pokaż" },
+            Entry{ Id::kPlayersNoFriends, "Nie dodano żadnych znajomych na tym serwerze." },
+            Entry{ Id::kPlayersNoMuted, "Nikogo nie wyciszono na tym serwerze." },
+            Entry{ Id::kPlayersNoVanished, "Nikogo nie ukryto na tym serwerze." },
+            Entry{ Id::kPlayersNoMatch, "Brak gracza o tej nazwie" },
+            Entry{ Id::kPlayersOnline, "Dostępny" },
+            Entry{ Id::kPlayersOffline, "Niedostępny" },
+
+            // Player menu; {0} is a race, {1} a level
+            Entry{ Id::kPlayerMenuLevel, "Poziom {}" },
+            Entry{ Id::kPlayerMenuRaceLevel, "{} · Poziom {}" },
+            Entry{ Id::kPlayerMenuWhisper, "Szepnij" },
+            Entry{ Id::kPlayerMenuAcceptTrade, "Przyjmij wymianę" },
+            Entry{ Id::kPlayerMenuDeclineTrade, "Odrzuć wymianę" },
+            Entry{ Id::kPlayerMenuTrade, "Wymień się" },
+            Entry{ Id::kPlayerMenuTradeBusy, "Najpierw dokończ bieżącą wymianę." },
+            Entry{ Id::kPlayerMenuTradeHint, "Zaproponuj wymianę przedmiotów." },
+            Entry{ Id::kPlayerMenuTradeChecking, "Sprawdzanie, czy gracz jest w pobliżu..." },
+            Entry{ Id::kPlayerMenuTradeTooFar, "Stań obok jego postaci, aby się wymienić." },
+            Entry{ Id::kPlayerMenuAddFriend, "Dodaj do znajomych" },
+            Entry{ Id::kPlayerMenuRemoveFriend, "Usuń ze znajomych" },
+            Entry{ Id::kPlayerMenuAddFriendHint, "Zachowaj go na liście znajomych i wiedz, kiedy się połączy." },
+            Entry{ Id::kPlayerMenuRemoveFriendHint, "Usuń go z listy znajomych." },
+            Entry{ Id::kPlayerMenuMute, "Wycisz" },
+            Entry{ Id::kPlayerMenuMuteHint, "Ukryj jego wiadomości we wszystkich kanałach." },
+            Entry{ Id::kPlayerMenuUnmuteHint, "Znów pokazuj jego wiadomości." },
+            Entry{ Id::kPlayerMenuVanish, "Ukryj" },
+            Entry{ Id::kPlayerMenuVanishHint, "Usuń jego postać z twojego świata." },
+            Entry{ Id::kPlayerMenuUnvanishHint, "Znów pokazuj jego postać w twoim świecie." },
+
+            // Chat player list
+            Entry{ Id::kChatNotConnected, "Brak połączenia z serwerem." },
+            Entry{ Id::kChatNoOtherPlayers, "Brak innych dostępnych graczy" },
+            Entry{ Id::kChatMutedAndVanished, "Wyciszony i ukryty" },
+
+            // Shared controls
+            Entry{ Id::kSearchHint, "Szukaj" },
+
+            // Trade window; {} is the other player's name unless noted
+            Entry{ Id::kTradeTitle, "Wymiana z: {}" },
+            Entry{ Id::kTradePeerOffer, "Oferta: {}" },
+            Entry{ Id::kTradeOwnOffer, "Twoja oferta" },
+            Entry{ Id::kTradeOfferFull, "(pełna)" },
+            Entry{ Id::kTradeAccepted, "Przyjęta" },
+            Entry{ Id::kTradeUninspected,
+                "Wskaż przedmioty, aby je obejrzeć (został {})|Wskaż przedmioty, aby je obejrzeć (zostały {})|Wskaż "
+                "przedmioty, aby je obejrzeć (zostało {})" },
+            Entry{ Id::kTradeCountOf, "z {}" },
+            Entry{ Id::kTradeRemoveAll, "Usuń wszystko" },
+            Entry{ Id::kTradeOffer, "Zaoferuj" },
+            Entry{ Id::kTradeInventory, "Twój ekwipunek" },
+            Entry{ Id::kTradeCheckingMods, "Sprawdzanie modów..." },
+            Entry{ Id::kTradeNothingToTrade, "Nie masz niczego na wymianę." },
+            Entry{ Id::kTradeAccept, "Przyjmij" },
+            Entry{ Id::kTradeCancel, "Anuluj" },
+            Entry{ Id::kTradeCategoryAll, "Wszystko" },
+            Entry{ Id::kTradeCategoryWeapons, "Broń" },
+            Entry{ Id::kTradeCategoryApparel, "Ubiór" },
+            Entry{ Id::kTradeCategoryAmmunition, "Amunicja" },
+            Entry{ Id::kTradeCategoryPotions, "Mikstury" },
+            Entry{ Id::kTradeCategoryIngredients, "Składniki" },
+            Entry{ Id::kTradeCategoryBooks, "Książki" },
+            Entry{ Id::kTradeCategoryScrolls, "Zwoje" },
+            Entry{ Id::kTradeCategorySoulGems, "Klejnoty dusz" },
+            Entry{ Id::kTradeCategoryKeys, "Klucze" },
+            Entry{ Id::kTradeCategoryMiscellaneous, "Różne" },
+
+            // Item lists and cards
+            Entry{ Id::kItemsNoMatch, "Brak pasujących przedmiotów." },
+            Entry{ Id::kItemPickerNone, "Brak" },
+            Entry{ Id::kItemPickerMismatch, "{} nie pasuje do tego ustawienia, więc nie jest używany." },
+            Entry{ Id::kItemPickerPluginMissing, "{} nie jest wczytany, więc ten przedmiot nie jest używany." },
+            Entry{ Id::kItemPickerReset, "Przywróć: {}" },
+            Entry{ Id::kItemPickerNotLoaded, "{} (niewczytany)" },
+            Entry{ Id::kItemPickerNotReady, "Przedmioty pojawią się na liście, gdy gra wczyta swoje dane." },
+            Entry{ Id::kItemPickerSearchHint, "Szukaj po nazwie lub wtyczce" },
+            Entry{ Id::kItemCardDamage, "OBRAŻENIA" },
+            Entry{ Id::kItemCardArmor, "PANCERZ" },
+            Entry{ Id::kItemCardWeight, "WAGA" },
+            Entry{ Id::kItemCardValue, "WARTOŚĆ" },
+            Entry{ Id::kItemCardCharge, "Ładunek {} / {}" },
+            Entry{ Id::kItemPreviewUnavailable, "Brak podglądu" },
+            Entry{ Id::kItemPreviewLoading, "Wczytywanie..." },
+
+            // Trade notices and reasons; {} is the other player's name unless noted
+            Entry{ Id::kListSeparator, ", " },
+            Entry{ Id::kNotConnected, "Brak połączenia z serwerem" },
+            Entry{ Id::kTradeNothing, "nic" },
+            Entry{ Id::kTradeBlockQuest, "Jest potrzebny do zadania" },
+            Entry{ Id::kTradeBlockPlayerMade, "Wykonany przez ciebie, więc inne gry go nie mają" },
+            Entry{ Id::kTradeBlockUnreferenceable, "Nie da się go opisać innej grze" },
+            Entry{ Id::kTradeRejectMissingPlugin, "{0} nie ma zainstalowanego {1}" },
+            Entry{ Id::kTradeRejectPluginVersion, "{0} ma inną wersję {1}" },
+            Entry{ Id::kTradeRejectMissingEffect, "Gra gracza {} nie ma tego zaklęcia" },
+            Entry{ Id::kTradeRejectBadEnchantment, "Gra gracza {} nie może odtworzyć tego zaklęcia" },
+            Entry{ Id::kTradeCannotOffer, "Nie możesz zaoferować: {0} ({1})" },
+            Entry{ Id::kTradeBlockerEmpty, "Dodaj przedmiot albo poczekaj, aż {} jakiś doda." },
+            Entry{ Id::kTradeBlockerSending, "Wysyłanie twojej oferty..." },
+            Entry{ Id::kTradeBlockerChecking, "Czekanie, aż gra gracza {} sprawdzi oferty..." },
+            Entry{ Id::kTradeOfferTooLarge,
+                "Twoja oferta jest pełna; te przedmioty zawierają za dużo danych, by wysłać je razem" },
+            Entry{ Id::kTradeItemsMissing, "Nie masz już: {}" },
+            Entry{ Id::kTradeCompleted, "Wymiana zakończona powodzeniem" },
+            Entry{ Id::kTradeClosedBusy, "{} jest zajęty inną wymianą" },
+            Entry{ Id::kTradeClosedUnavailable, "{} nie może teraz się wymieniać" },
+            Entry{ Id::kTradeClosedOutOfRange, "{} jest za daleko, by się wymienić" },
+            Entry{ Id::kTradeClosedEnded, "Wymiana z graczem {} została zakończona" },
+            Entry{ Id::kTradeClosedDeclined, "{} odrzucił twoją ofertę wymiany" },
+            Entry{ Id::kTradeClosedNoAnswer, "{} nie odpowiedział na twoją ofertę wymiany" },
+            Entry{ Id::kTradeClosedOfferExpired, "Oferta wymiany od gracza {} wygasła" },
+            Entry{ Id::kTradeClosedWithdrawn, "{} wycofał ofertę wymiany" },
+            Entry{ Id::kTradeClosedCancelled, "{} anulował wymianę" },
+            Entry{ Id::kTradeClosedFailed, "Nie udało się otworzyć wymiany z graczem {}" },
+            Entry{ Id::kTradeFinishCurrent, "Najpierw dokończ bieżącą wymianę" },
+            Entry{ Id::kTradeCannotTradeNow, "Nie możesz się teraz wymieniać" },
+            Entry{ Id::kTradeYouDeclined, "Odrzucono ofertę wymiany od gracza {}" },
+            Entry{ Id::kTradeCannotAccept, "Nie możesz się wymieniać podczas walki ani poza światem" },
+            Entry{ Id::kTradeWindowBlocked, "Okno wymiany nie mogło się otworzyć, gdy było otwarte inne menu" },
+            Entry{ Id::kTradeCombatDeclined, "Walczysz\nOferta wymiany od gracza {} została odrzucona" },
+            Entry{ Id::kTradeCombatEnded, "Walczysz\nWymiana z graczem {} została zakończona" },
+            Entry{ Id::kTradeGotNoAnswer, "Wymiana z graczem {} nie otrzymała odpowiedzi" },
+
+            // Chat messages and failures
+            Entry{ Id::kUnknownPlayer, "Nieznany" },
+            Entry{ Id::kPlayersSaveFailed,
+                "Nie udało się zapisać listy znajomych oraz wyciszonych i ukrytych graczy; zmiana obowiązuje do "
+                "zamknięcia gry" },
+            Entry{ Id::kPlayersVanishLimit,
+                "Na jednym serwerze możesz ukryć najwyżej {} gracza|Na jednym serwerze możesz ukryć najwyżej {} "
+                "graczy|Na jednym serwerze możesz ukryć najwyżej {} graczy" },
+            Entry{ Id::kChatWhisperNeedsName, "Wpisz nazwę gracza po @, a potem wiadomość" },
+            Entry{ Id::kChatRateLimited, "Wysyłasz wiadomości zbyt szybko" },
+            Entry{ Id::kChatNotInWorld, "Nie jesteś w świecie gry" },
+            Entry{ Id::kChatRecipientGone, "Ten gracz nie jest już dostępny" },
+            Entry{ Id::kChatRejected, "Serwer nie przyjął twojej wiadomości" },
+            Entry{ Id::kChatInvalidText, "Twoja wiadomość zawiera znaki, których nie można wysłać" },
+            Entry{ Id::kChatPlayerOffline, "{} jest niedostępny" },
+            Entry{ Id::kItemUnknownEffect, "Nieznany efekt" },
+        };
+    }
+
+    std::span<const Entry> GetPolish()
+    {
+        return kEntries;
+    }
+}

@@ -3,8 +3,8 @@
 #include "sync/PlayerLabel.h"
 #include "sync/chat/ChatRoster.h"
 #include "sync/filters/PlayerFilters.h"
+#include "text/Text.h"
 
-#include <format>
 #include <mutex>
 #include <utility>
 
@@ -19,17 +19,17 @@ namespace ChatSync
         {
             if (a_error == "rate limited")
             {
-                return "You are sending messages too quickly";
+                return std::string{ Text::Get(Text::Id::kChatRateLimited) };
             }
             if (a_error == "not in world")
             {
-                return "You are not in the world";
+                return std::string{ Text::Get(Text::Id::kChatNotInWorld) };
             }
             if (a_error == "unknown recipient")
             {
-                return "That player is no longer online";
+                return std::string{ Text::Get(Text::Id::kChatRecipientGone) };
             }
-            return "The server did not accept your message";
+            return std::string{ Text::Get(Text::Id::kChatRejected) };
         }
 
         std::string FormatSender(const Multiplayer::ChatMessage& a_message)
@@ -41,8 +41,8 @@ namespace ChatSync
             {
                 return format(a_message.sender);
             }
-            return a_message.outgoing ? std::format("To {}", format(a_message.recipient))
-                                      : std::format("From {}", format(a_message.sender));
+            return a_message.outgoing ? Text::Format(Text::Id::kChatTo, format(a_message.recipient))
+                                      : Text::Format(Text::Id::kChatFrom, format(a_message.sender));
         }
     }
 
@@ -55,30 +55,30 @@ namespace ChatSync
         }
         if (!Multiplayer::IsValidChatText(text))
         {
-            return std::unexpected{ "Your message contains characters that cannot be sent" };
+            return std::unexpected{ std::string{ Text::Get(Text::Id::kChatInvalidText) } };
         }
         Multiplayer::PeerSlot recipient = 0;
         if (a_target.channel == Multiplayer::ChatChannel::kWhisper)
         {
             if (!Network::IsConnected())
             {
-                return std::unexpected{ "You are not connected to the server" };
+                return std::unexpected{ std::string{ Text::Get(Text::Id::kNotConnected) } };
             }
             const auto player = ChatRoster::Resolve(a_target.player);
             if (!player)
             {
-                return std::unexpected{ std::format("{} is offline", a_target.player.name) };
+                return std::unexpected{ Text::Format(Text::Id::kChatPlayerOffline, a_target.player.name) };
             }
             recipient = player->playerID;
         }
         if (!Network::PublishChatMessage(a_target.channel, recipient, text, [](std::string_view a_error) {
+                logs::debug("Chat rejected: {}", a_error);
                 auto rejection = DescribeRejection(a_error);
-                logs::debug("Chat rejected: {}", rejection);
                 const std::scoped_lock lock{ s_rejectionsLock };
                 s_rejections.push_back(std::move(rejection));
             }))
         {
-            return std::unexpected{ "You are not connected to the server" };
+            return std::unexpected{ std::string{ Text::Get(Text::Id::kNotConnected) } };
         }
         logs::debug("Chat sent: channel={} recipient={} bytes={}", static_cast<int>(a_target.channel), recipient,
             text.size());

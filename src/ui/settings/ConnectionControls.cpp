@@ -2,12 +2,14 @@
 #include "config/PluginConfig.h"
 #include "network/ConnectionMonitor.h"
 #include "protocol/Session.h"
+#include "text/Text.h"
 #include "ui/Theme.h"
 #include "ui/widgets/Controls.h"
 
 #include <imgui.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <format>
@@ -26,14 +28,7 @@ namespace UI::ConnectionControls
         constexpr float kIndicatorGapFonts = 0.5F;
         constexpr float kPulsesPerSecond = 0.8F;
         constexpr float kTwoPi = 6.2831853F;
-        // The label changes, so the ID after ### keeps the button's identity.
-        constexpr const char* kConnectLabel = "Connect###Connection";
-        constexpr const char* kCancelLabel = "Cancel###Connection";
-        constexpr const char* kDisconnectLabel = "Disconnect###Connection";
-        constexpr const char* kDisconnectingLabel = "Disconnecting...###Connection";
-        constexpr const char* kDisconnectToRenameText = "Disconnect to change the display name";
-        constexpr const char* kCancelToRenameText = "Cancel the connection to change the display name";
-        constexpr const char* kNoEndpointText = "Enter a custom server URL to connect.";
+        using Text::Id;
 
         struct Status
         {
@@ -48,34 +43,52 @@ namespace UI::ConnectionControls
                 .refusal = state == ConnectionState::kDisconnected ? Network::GetConnectionRefusal() : std::nullopt };
         }
 
-        const char* GetStatusText(ConnectionState a_state)
+        Id GetStatusText(ConnectionState a_state)
         {
             switch (a_state)
             {
                 case ConnectionState::kConnected:
-                    return "Connected";
+                    return Id::kConnectionConnected;
                 case ConnectionState::kConnecting:
-                    return "Connecting...";
+                    return Id::kConnectionConnecting;
                 case ConnectionState::kDisconnecting:
-                    return "Disconnecting...";
+                    return Id::kConnectionDisconnecting;
                 default:
-                    return "Disconnected";
+                    return Id::kConnectionDisconnected;
             }
+        }
+
+        // The label changes, so the ID after ### keeps the button's identity. Built on first
+        // use, after the language is read.
+        const std::array<std::string, 4>& GetButtonLabels()
+        {
+            static const std::array<std::string, 4> labels{
+                std::format("{}###Connection", Text::Get(Id::kConnectionConnect)),
+                std::format("{}###Connection", Text::Get(Id::kConnectionCancel)),
+                std::format("{}###Connection", Text::Get(Id::kConnectionDisconnect)),
+                std::format("{}###Connection", Text::Get(Id::kConnectionDisconnecting)),
+            };
+            return labels;
         }
 
         const char* GetButtonLabel(ConnectionState a_state)
         {
+            std::size_t index = 0;
             switch (a_state)
             {
-                case ConnectionState::kConnected:
-                    return kDisconnectLabel;
                 case ConnectionState::kConnecting:
-                    return kCancelLabel;
+                    index = 1;
+                    break;
+                case ConnectionState::kConnected:
+                    index = 2;
+                    break;
                 case ConnectionState::kDisconnecting:
-                    return kDisconnectingLabel;
+                    index = 3;
+                    break;
                 default:
-                    return kConnectLabel;
+                    break;
             }
+            return GetButtonLabels()[index].c_str();
         }
 
         void DrawIndicator(const Status& a_status)
@@ -114,9 +127,29 @@ namespace UI::ConnectionControls
         // The field takes no other characters and no more than the maximum, so a short name is the only invalid one.
         const std::string& GetShortDisplayNameText()
         {
-            static const std::string text =
-                std::format("The name must be at least {} characters long.", Multiplayer::kMinimumDisplayNameLength);
+            static const std::string text
+                = Text::FormatPlural(Id::kConnectionShortName, Multiplayer::kMinimumDisplayNameLength);
             return text;
+        }
+
+        std::string FormatRefusal(const Network::Refusal& a_refusal)
+        {
+            switch (a_refusal.reason)
+            {
+                case Network::RefusalReason::kProtocolMismatch:
+                    return Text::Format(Id::kRefusalProtocolMismatch, a_refusal.detail);
+                case Network::RefusalReason::kDisplayNameTaken:
+                    return std::string{ Text::Get(Id::kRefusalDisplayNameTaken) };
+                case Network::RefusalReason::kDisplayNameInvalid:
+                    return std::string{ Text::Get(Id::kRefusalDisplayNameInvalid) };
+                case Network::RefusalReason::kSessionReplaced:
+                    return std::string{ Text::Get(Id::kRefusalSessionReplaced) };
+                case Network::RefusalReason::kServerFull:
+                    return std::string{ Text::Get(Id::kRefusalServerFull) };
+                case Network::RefusalReason::kTooManyNewSessions:
+                    return std::string{ Text::Get(Id::kRefusalTooManyNewSessions) };
+            }
+            return {};
         }
 
         void DrawMessage(std::string_view a_text, const ImVec4& a_color)
@@ -132,9 +165,9 @@ namespace UI::ConnectionControls
     float GetButtonWidth()
     {
         float textWidth = 0.0F;
-        for (const auto* label : { kConnectLabel, kCancelLabel, kDisconnectLabel, kDisconnectingLabel })
+        for (const auto& label : GetButtonLabels())
         {
-            textWidth = (std::max)(textWidth, ImGui::CalcTextSize(label, nullptr, true).x);
+            textWidth = (std::max)(textWidth, ImGui::CalcTextSize(label.c_str(), nullptr, true).x);
         }
         return (std::max)(textWidth + ImGui::GetStyle().FramePadding.x * 2.0F,
             kMinimumButtonWidthFonts * ImGui::GetFontSize());
@@ -188,9 +221,9 @@ namespace UI::ConnectionControls
             case ConnectionState::kDisconnected:
                 return nullptr;
             case ConnectionState::kConnecting:
-                return kCancelToRenameText;
+                return Text::GetCString(Id::kConnectionCancelToRename);
             default:
-                return kDisconnectToRenameText;
+                return Text::GetCString(Id::kConnectionDisconnectToRename);
         }
     }
 
@@ -198,7 +231,7 @@ namespace UI::ConnectionControls
     {
         if (Network::GetConnectionState() == ConnectionState::kDisconnected && !HasServerEndpoint())
         {
-            return kNoEndpointText;
+            return Text::GetCString(Id::kConnectionNoEndpoint);
         }
         return nullptr;
     }
@@ -213,7 +246,7 @@ namespace UI::ConnectionControls
         const auto status = GetStatus();
         if (status.refusal)
         {
-            DrawMessage(status.refusal->message, Theme::kNegative);
+            DrawMessage(FormatRefusal(*status.refusal), Theme::kNegative);
             return;
         }
         // Keeps the line's height, so the rows below do not move when a message appears.
@@ -225,7 +258,7 @@ namespace UI::ConnectionControls
         const auto status = GetStatus();
         const auto left = ImGui::GetCursorPosX();
         DrawIndicator(status);
-        ImGui::TextUnformatted(GetStatusText(status.state));
+        ImGui::TextUnformatted(Text::GetCString(GetStatusText(status.state)));
 
         const auto latency = status.state == ConnectionState::kConnected ? Network::GetLatency() : std::nullopt;
         if (!latency)

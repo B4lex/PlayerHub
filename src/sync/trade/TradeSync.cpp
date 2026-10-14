@@ -5,11 +5,11 @@
 #include "sync/filters/PlayerFilters.h"
 #include "sync/notices/Notices.h"
 #include "sync/trade/TradeInventory.h"
+#include "text/Text.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
-#include <format>
 #include <iterator>
 #include <mutex>
 #include <numeric>
@@ -125,18 +125,18 @@ namespace TradeSync
             return s_session.GetPeer().name;
         }
 
-        const char* DescribeBlock(Forms::OfferBlock a_block)
+        std::string_view DescribeBlock(Forms::OfferBlock a_block)
         {
             switch (a_block)
             {
                 case Forms::OfferBlock::kQuestItem:
-                    return "A quest needs it";
+                    return Text::Get(Text::Id::kTradeBlockQuest);
                 case Forms::OfferBlock::kPlayerMade:
-                    return "Made by you, so other games do not have it";
+                    return Text::Get(Text::Id::kTradeBlockPlayerMade);
                 case Forms::OfferBlock::kUnreferenceable:
                     break;
             }
-            return "It cannot be described to another game";
+            return Text::Get(Text::Id::kTradeBlockUnreferenceable);
         }
 
         std::string DescribeRejection(const Multiplayer::TradeSkip& a_skip, const Multiplayer::TradeItem& a_item)
@@ -144,19 +144,19 @@ namespace TradeSync
             const auto& peer = PeerName();
             if (!a_skip.plugin.empty())
             {
-                return std::format("{} does not have {} installed", peer, a_skip.plugin);
+                return Text::Format(Text::Id::kTradeRejectMissingPlugin, peer, a_skip.plugin);
             }
             switch (a_skip.reason)
             {
                 case Multiplayer::TradeSkipReason::kMissingItem:
                 case Multiplayer::TradeSkipReason::kWrongType:
-                    return std::format("{} has a different version of {}", peer, a_item.item.plugin);
+                    return Text::Format(Text::Id::kTradeRejectPluginVersion, peer, a_item.item.plugin);
                 case Multiplayer::TradeSkipReason::kMissingEffect:
-                    return std::format("{}'s game does not have the enchantment", peer);
+                    return Text::Format(Text::Id::kTradeRejectMissingEffect, peer);
                 case Multiplayer::TradeSkipReason::kBadEnchantment:
                     break;
             }
-            return std::format("{}'s game cannot rebuild the enchantment", peer);
+            return Text::Format(Text::Id::kTradeRejectBadEnchantment, peer);
         }
 
         template <class Callback>
@@ -184,10 +184,13 @@ namespace TradeSync
         {
             if (a_names.empty())
             {
-                return "nothing";
+                return std::string{ Text::Get(Text::Id::kTradeNothing) };
             }
+            const auto separator = Text::Get(Text::Id::kListSeparator);
             return std::accumulate(std::next(a_names.begin()), a_names.end(), a_names.front(),
-                [](std::string a_left, const std::string& a_right) { return std::move(a_left) + ", " + a_right; });
+                [separator](std::string a_left, const std::string& a_right) {
+                    return (std::move(a_left) += separator) += a_right;
+                });
         }
 
         // Offered rows the peer's game cannot receive, posted as one notice per reason.
@@ -209,8 +212,7 @@ namespace TradeSync
             {
                 for (const auto& rejection : rejections)
                 {
-                    Notices::Post(
-                        std::format("You cannot offer {}: {}", FormatItems(rejection.names), rejection.reason));
+                    Notices::Post(Text::Format(Text::Id::kTradeCannotOffer, FormatItems(rejection.names), rejection.reason));
                 }
             }
 
@@ -251,13 +253,13 @@ namespace TradeSync
             switch (blocker)
             {
                 case TradeSession::Blocker::kEmpty:
-                    view.acceptBlocker = std::format("Add an item, or wait for {} to add one.", PeerName());
+                    view.acceptBlocker = Text::Format(Text::Id::kTradeBlockerEmpty, PeerName());
                     break;
                 case TradeSession::Blocker::kSending:
-                    view.acceptBlocker = "Sending your offer...";
+                    view.acceptBlocker = Text::Get(Text::Id::kTradeBlockerSending);
                     break;
                 case TradeSession::Blocker::kAwaitingReport:
-                    view.acceptBlocker = std::format("Waiting for {}'s game to check the offers...", PeerName());
+                    view.acceptBlocker = Text::Format(Text::Id::kTradeBlockerChecking, PeerName());
                     break;
                 default:
                     break;
@@ -274,7 +276,7 @@ namespace TradeSync
                     .details = row.details,
                     .enchanted = row.item.IsEnchanted(),
                     .checking = check.checking,
-                    .blocked = row.block ? DescribeBlock(*row.block) : check.rejected });
+                    .blocked = row.block ? std::string{ DescribeBlock(*row.block) } : check.rejected });
                 view.checkingPlugins = view.checkingPlugins || check.checking;
             }
             s_phase.store(view.phase, std::memory_order_release);
@@ -308,7 +310,7 @@ namespace TradeSync
                 if (!s_inventory[i].block && s_rowChecks[i].rejected.empty()
                     && ReferencesPlugin(s_inventory[i].item, a_plugin))
                 {
-                    if (RejectRow(i, std::format("{} does not have {} installed", PeerName(), a_plugin)))
+                    if (RejectRow(i, Text::Format(Text::Id::kTradeRejectMissingPlugin, PeerName(), a_plugin)))
                     {
                         a_rejected(i);
                     }
@@ -525,7 +527,7 @@ namespace TradeSync
                 });
             if (bytes > Multiplayer::kMaximumTradeOfferBytes)
             {
-                Notices::Post("Your offer is full; these items carry too much data to send together");
+                Notices::Post(std::string{ Text::Get(Text::Id::kTradeOfferTooLarge) });
                 return;
             }
             s_offer = std::move(offer);
@@ -550,8 +552,7 @@ namespace TradeSync
             {
                 return true;
             }
-            Notices::Post(
-                std::format("You no longer have {}", FormatItems(missing)));
+            Notices::Post(Text::Format(Text::Id::kTradeItemsMissing, FormatItems(missing)));
             CaptureInventory(a_player);
             s_session.SetOwnItems({});
             return false;
@@ -621,7 +622,7 @@ namespace TradeSync
             }
             logs::info("Trade with {} completed: gave {} entries, received {} entries", a_peer, given, received);
             TradeInventory::PlayPickUpSound(a_player);
-            Notices::Post("You successfully traded");
+            Notices::Post(std::string{ Text::Get(Text::Id::kTradeCompleted) });
         }
 
         void ReportPeerOffer()
@@ -670,33 +671,33 @@ namespace TradeSync
             switch (a_result.reason)
             {
                 case TradeCloseReason::kBusy:
-                    Notices::Post(std::format("{} is busy with another trade", a_peer));
+                    Notices::Post(Text::Format(Text::Id::kTradeClosedBusy, a_peer));
                     break;
                 case TradeCloseReason::kUnavailable:
-                    Notices::Post(std::format("{} cannot trade right now", a_peer));
+                    Notices::Post(Text::Format(Text::Id::kTradeClosedUnavailable, a_peer));
                     break;
                 case TradeCloseReason::kOutOfRange:
-                    Notices::Post(requested ? std::format("{} is too far away to trade", a_peer)
-                                            : std::format("The trade with {} ended", a_peer));
+                    Notices::Post(Text::Format(
+                        requested ? Text::Id::kTradeClosedOutOfRange : Text::Id::kTradeClosedEnded, a_peer));
                     break;
                 case TradeCloseReason::kDeclined:
-                    Notices::Post(std::format("{} declined your trade offer", a_peer));
+                    Notices::Post(Text::Format(Text::Id::kTradeClosedDeclined, a_peer));
                     break;
                 case TradeCloseReason::kExpired:
-                    Notices::Post(inviting ? std::format("{} did not answer your trade offer", a_peer)
-                                           : std::format("The trade offer from {} expired", a_peer));
+                    Notices::Post(Text::Format(
+                        inviting ? Text::Id::kTradeClosedNoAnswer : Text::Id::kTradeClosedOfferExpired, a_peer));
                     break;
                 case TradeCloseReason::kCombat:
                 case TradeCloseReason::kDisconnected:
-                    Notices::Post(std::format("The trade with {} ended", a_peer));
+                    Notices::Post(Text::Format(Text::Id::kTradeClosedEnded, a_peer));
                     break;
                 case TradeCloseReason::kMenu:
                 case TradeCloseReason::kCancelled:
-                    Notices::Post(invited ? std::format("{} withdrew the trade offer", a_peer)
-                                          : std::format("{} cancelled the trade", a_peer));
+                    Notices::Post(Text::Format(
+                        invited ? Text::Id::kTradeClosedWithdrawn : Text::Id::kTradeClosedCancelled, a_peer));
                     break;
                 case TradeCloseReason::kFailed:
-                    Notices::Post(std::format("The trade with {} could not open", a_peer));
+                    Notices::Post(Text::Format(Text::Id::kTradeClosedFailed, a_peer));
                     break;
             }
         }
@@ -772,17 +773,17 @@ namespace TradeSync
                 case Command::Kind::kRequest:
                     if (phase != Phase::kIdle)
                     {
-                        Notices::Post("Finish your current trade first");
+                        Notices::Post(std::string{ Text::Get(Text::Id::kTradeFinishCurrent) });
                         return;
                     }
                     if (!a_inWorld || a_player.IsInCombat())
                     {
-                        Notices::Post("You cannot trade now");
+                        Notices::Post(std::string{ Text::Get(Text::Id::kTradeCannotTradeNow) });
                         return;
                     }
                     if (!Network::PublishTradeRequest(a_command.player.playerID))
                     {
-                        Notices::Post("Not connected to the server");
+                        Notices::Post(std::string{ Text::Get(Text::Id::kNotConnected) });
                         return;
                     }
                     s_session.BeginRequest(a_command.player);
@@ -794,13 +795,12 @@ namespace TradeSync
                     }
                     if (!a_command.accept)
                     {
-                        CancelTrade(TradeCloseReason::kDeclined,
-                            std::format("You declined the trade offer from {}", PeerName()));
+                        CancelTrade(TradeCloseReason::kDeclined, Text::Format(Text::Id::kTradeYouDeclined, PeerName()));
                         return;
                     }
                     if (!a_inWorld || a_player.IsInCombat())
                     {
-                        Notices::Post("You cannot trade in combat or away from the world");
+                        Notices::Post(std::string{ Text::Get(Text::Id::kTradeCannotAccept) });
                         return;
                     }
                     Network::PublishTradeAnswer(s_session.GetID(), true);
@@ -809,7 +809,7 @@ namespace TradeSync
                     if (phase == Phase::kInviting || phase == Phase::kOpen || phase == Phase::kInvited)
                     {
                         CancelTrade(a_command.reason, a_command.reason == TradeCloseReason::kFailed
-                                ? "The trade window could not open while another menu was open"
+                                ? Text::Get(Text::Id::kTradeWindowBlocked)
                                 : std::string_view{});
                     }
                     return;
@@ -901,7 +901,7 @@ namespace TradeSync
         const bool lost = !a_changes.connected || a_changes.connectionGeneration != s_connectionGeneration;
         if (lost && s_session.IsActive())
         {
-            Notices::Post(std::format("The trade with {} ended", PeerName()));
+            Notices::Post(Text::Format(Text::Id::kTradeClosedEnded, PeerName()));
             ClearTrade();
             s_events.clear();
         }
@@ -932,8 +932,7 @@ namespace TradeSync
         }
         if (std::exchange(s_eventsLost, false) && s_session.IsActive())
         {
-            CancelTrade(
-                TradeCloseReason::kFailed, std::format("The trade with {} ended", PeerName()));
+            CancelTrade(TradeCloseReason::kFailed, Text::Format(Text::Id::kTradeClosedEnded, PeerName()));
         }
         for (const auto& event : s_events)
         {
@@ -958,9 +957,8 @@ namespace TradeSync
             if (phase != Phase::kRequesting && IsInCombat(a_player))
             {
                 CancelTrade(TradeCloseReason::kCombat,
-                    phase == Phase::kInvited
-                        ? std::format("You are in combat\nThe trade offer from {} was declined", PeerName())
-                        : std::format("You are in combat\nThe trade with {} ended", PeerName()));
+                    Text::Format(phase == Phase::kInvited ? Text::Id::kTradeCombatDeclined : Text::Id::kTradeCombatEnded,
+                        PeerName()));
             }
         }
 
@@ -970,7 +968,7 @@ namespace TradeSync
             if (tick.timedOut)
             {
                 logs::warn("Trade with {} timed out in phase {}", PeerName(), static_cast<int>(s_session.GetPhase()));
-                CancelTrade(TradeCloseReason::kExpired, std::format("The trade with {} got no answer", PeerName()));
+                CancelTrade(TradeCloseReason::kExpired, Text::Format(Text::Id::kTradeGotNoAnswer, PeerName()));
             }
             else if (tick.offer)
             {

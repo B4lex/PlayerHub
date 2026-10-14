@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
+#include "text/Text.h"
 #include "ui/Fonts.h"
 #include "ui/InputLanguage.h"
 #include "ui/MenuFrame.h"
@@ -55,6 +56,8 @@ namespace UI::Overlay
             // Skyrim reads the mouse through DirectInput as relative motion.
             io.ConfigFlags |= ImGuiConfigFlags_NoMouse | ImGuiConfigFlags_NoMouseCursorChange;
 
+            // Before the fonts, whose order follows the game's language.
+            Text::Initialize();
             Fonts::Load(*io.Fonts, kBaseFontSize);
             MenuFrame::Load();
 

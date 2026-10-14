@@ -1,5 +1,6 @@
 #include "ui/chat/ChatPlayers.h"
 #include "sync/filters/PlayerFilters.h"
+#include "text/Text.h"
 #include "ui/Theme.h"
 #include "ui/chat/ChatHistory.h"
 #include "ui/chat/ChatStyle.h"
@@ -100,7 +101,7 @@ namespace UI
             *written.out = '\0';
         }
         const bool online = count > 0;
-        const char* text = online ? label.data() : "Offline";
+        const char* text = online ? label.data() : Text::GetCString(Text::Id::kPlayersOffline);
 
         const auto& style = ImGui::GetStyle();
         const auto fontSize = ImGui::GetFontSize();
@@ -222,7 +223,7 @@ namespace UI
 
         ListOutcome outcome;
         DrawRows(outcome.whisper, a_closeMenu);
-        outcome.manage = ImGui::Button("Manage players", ImVec2{ -FLT_MIN, 0.0F });
+        outcome.manage = ImGui::Button(Text::GetCString(Text::Id::kControlsManagePlayers), ImVec2{ -FLT_MIN, 0.0F });
 
         shownMin = ImGui::GetWindowPos();
         const auto size = ImGui::GetWindowSize();
@@ -236,12 +237,12 @@ namespace UI
         {
             if (players.empty())
             {
-                Controls::MutedTextWrapped("Not connected to the server.");
+                Controls::MutedTextWrapped(Text::GetCString(Text::Id::kChatNotConnected));
             }
             else if (matches.empty())
             {
                 Controls::MutedTextWrapped(
-                    foldedSearch.empty() ? "No other players online" : "No player with that name is online");
+                    Text::GetCString(foldedSearch.empty() ? Text::Id::kChatNoOtherPlayers : Text::Id::kChatNoPlayerNamed));
             }
 
             // The chat's field is active while the player types, which would
@@ -298,9 +299,10 @@ namespace UI
                         }
                         if (hovered && ImGui::IsMouseHoveringRect(ImVec2{ marksLeft, min.y }, max))
                         {
-                            ImGui::SetTooltip("%s", isMuted && isVanished ? "Muted and vanished"
-                                    : isMuted                            ? "Muted"
-                                                                         : "Vanished");
+                            const auto marks = isMuted && isVanished ? Text::Id::kChatMutedAndVanished
+                                : isMuted                            ? Text::Id::kPlayersMuted
+                                                                     : Text::Id::kPlayersVanished;
+                            ImGui::SetTooltip("%s", Text::GetCString(marks));
                         }
                     }
                     if (!hovered)

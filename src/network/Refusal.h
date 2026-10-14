@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 namespace Network
 {
@@ -18,6 +19,27 @@ namespace Network
     struct Refusal
     {
         RefusalReason reason{ RefusalReason::kProtocolMismatch };
-        std::string message;
+        // The server's protocol version for kProtocolMismatch; empty otherwise.
+        std::string detail;
     };
+
+    [[nodiscard]] constexpr std::string_view GetRefusalName(RefusalReason a_reason)
+    {
+        switch (a_reason)
+        {
+            case RefusalReason::kProtocolMismatch:
+                return "protocol mismatch";
+            case RefusalReason::kDisplayNameTaken:
+                return "display name taken";
+            case RefusalReason::kDisplayNameInvalid:
+                return "display name invalid";
+            case RefusalReason::kSessionReplaced:
+                return "session replaced";
+            case RefusalReason::kServerFull:
+                return "server full";
+            case RefusalReason::kTooManyNewSessions:
+                return "too many new sessions";
+        }
+        return "unknown";
+    }
 }

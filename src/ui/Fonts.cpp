@@ -1,5 +1,6 @@
 #include "ui/Fonts.h"
 #include "config/PluginConfig.h"
+#include "text/Text.h"
 
 #include <REX/W32/KERNEL32.h>
 #include <REX/W32/OLE32.h>
@@ -24,20 +25,45 @@ namespace UI::Fonts
     namespace
     {
         // Windows and Proton ship some of these under different names.
-        constexpr std::array<std::wstring_view, 12> kSystemFiles{
+        constexpr std::array<std::wstring_view, 6> kScriptFiles{
             L"segoeui.ttf",  // Latin, Greek, Cyrillic, Arabic, Hebrew, Armenian, Georgian
             L"arial.ttf",
             L"tahoma.ttf",  // Arabic, Hebrew, Thai
             L"micross.ttf",
             L"Nirmala.ttc",  // Indic scripts
             L"nirmala.ttf",
-            L"msyh.ttc",  // Chinese
-            L"msyh.ttf",
-            L"YuGothM.ttc",  // Japanese
-            L"msgothic.ttc",
+        };
+        // Han characters are drawn by the first of these that has them, and their shapes
+        // differ between Simplified Chinese, Traditional Chinese, and Japanese.
+        constexpr std::array<std::wstring_view, 2> kSimplifiedChineseFiles{ L"msyh.ttc", L"msyh.ttf" };
+        constexpr std::array<std::wstring_view, 1> kTraditionalChineseFiles{ L"msjh.ttc" };
+        constexpr std::array<std::wstring_view, 2> kJapaneseFiles{ L"YuGothM.ttc", L"msgothic.ttc" };
+        constexpr std::array<std::wstring_view, 2> kLastFiles{
             L"malgun.ttf",  // Korean
             L"seguisym.ttf",  // Symbols
         };
+
+        // The game's language puts its own Han font first.
+        std::vector<std::wstring_view> GetSystemFiles()
+        {
+            std::vector<std::wstring_view> files{ kScriptFiles.begin(), kScriptFiles.end() };
+            std::array<std::span<const std::wstring_view>, 3> han{ kSimplifiedChineseFiles, kTraditionalChineseFiles,
+                kJapaneseFiles };
+            if (Text::GetLanguage() == Text::Language::kJapanese)
+            {
+                han = { kJapaneseFiles, kSimplifiedChineseFiles, kTraditionalChineseFiles };
+            }
+            else if (Text::GetLanguage() == Text::Language::kChinese)
+            {
+                han = { kTraditionalChineseFiles, kSimplifiedChineseFiles, kJapaneseFiles };
+            }
+            for (const auto group : han)
+            {
+                files.insert(files.end(), group.begin(), group.end());
+            }
+            files.insert(files.end(), kLastFiles.begin(), kLastFiles.end());
+            return files;
+        }
 
         // Sovngarde, under the SIL Open Font License beside the files.
         constexpr std::wstring_view kShippedDirectory = L"PlayerHub/fonts";
@@ -188,7 +214,7 @@ namespace UI::Fonts
         std::string loaded;
         if (const auto directory = GetFontsDirectory())
         {
-            for (const auto fileName : kSystemFiles)
+            for (const auto fileName : GetSystemFiles())
             {
                 const auto path = *directory / fileName;
                 const auto data = MapFile(path);

@@ -55,6 +55,8 @@ target("PlayerHub")
         description = "Shows other players as actors in your own Skyrim world"
     })
 
+    -- Translated text literals are UTF-8.
+    set_encodings("utf-8")
     add_files("src/**.cpp", "src/**.c")
     -- nanopb runtime from the lib/nanopb submodule, because the xmake package
     -- depends on protoc, which cannot run under wine. Keep its tag in step with

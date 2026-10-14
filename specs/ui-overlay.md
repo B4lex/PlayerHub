@@ -2,6 +2,15 @@
 
 ## Status
 
+- **[Localization](#localization):** not built on Windows or run in game.
+  On Linux, every changed source passed a g++ syntax check against
+  CommonLibSSE-NG and Dear ImGui 1.92.9, apart from `Fonts.cpp`'s existing
+  Windows-only path calls. A harness compiled `text/Text.cpp` with all nine
+  tables over a stubbed `sLanguage:General`. It confirmed that each
+  translation passes with 283 of 283 texts, that plural forms are picked for
+  counts 0 to 25, that a text with a wrong field or form count is rejected for
+  English, and that an unknown or missing language gives English. The
+  translations are machine drafts no native speaker has reviewed.
 - **Overlay, input, status panel:** implemented and built on Windows; the
   settings UI runs in game. The renderer and input hook sites and the input
   context order were checked against the 1.7.104 executable and address library.
@@ -683,7 +692,9 @@ settings window, the
 [trade window and prompt](#trade-window), and the reusable item picker with a
 3D preview. `ui/` never changes the game; it reaches
 the network only through the feature modules it presents, such as `ChatSync`,
-and the configuration through `Config`.
+and the configuration through `Config`. Its text, and the notices the
+feature modules post, come from the string tables in `src/text/`
+([Localization](#localization)).
 
 ## Technology
 
@@ -742,6 +753,11 @@ src/sync/nameplates/NameplateSync # per peer: head node, line of sight, fade, la
 src/sync/filters/PlayerFilters # friends, muted and vanished players of the current server, publishing, friends coming online
 src/sync/chat/PlayerActivation # the activated player, and a whisper picked in its menu
 src/runtime/PluginTime        # plugin time per pass
+src/text/Text                 # the game's language, text lookup, formatting, plural forms, field splitting
+src/text/TextId.h             # one Text::Id per displayed text
+src/text/TextTables.h         # a language's table: Text::Id and its text
+src/text/lang/                # English and the eight translations, compiled in
+src/text/Utf8Case             # capitals of Latin and Cyrillic letters in UTF-8
 assets/fonts/                 # Sovngarde Light and Bold with their license, the logo font, deployed beside the DLL
 assets/logo/                  # the logo's SVG and the script that makes its font
 assets/frame/                 # the menu frame's shape, deployed beside the DLL
@@ -835,7 +851,8 @@ font, and each later one is merged and only supplies glyphs the earlier lack:
 | `segoeui.ttf`, `arial.ttf` | Latin, Greek, Cyrillic |
 | `tahoma.ttf`, `micross.ttf` | Arabic, Hebrew, Thai |
 | `Nirmala.ttc`, `nirmala.ttf` | Indic scripts |
-| `msyh.ttc`, `msyh.ttf` | Chinese, and kana and Hangul in Proton's copy |
+| `msyh.ttc`, `msyh.ttf` | Simplified Chinese, and kana and Hangul in Proton's copy |
+| `msjh.ttc` | Traditional Chinese |
 | `YuGothM.ttc`, `msgothic.ttc` | Japanese |
 | `malgun.ttf` | Korean |
 | `seguisym.ttf` | Symbols |
@@ -847,8 +864,14 @@ memory-mapped read-only and given to the atlas with
 the views are never unmapped, and only pages with drawn glyphs are read: CJK
 fonts cost address space, not memory. Dear ImGui 1.92 rasterizes glyphs on
 demand, so no glyph ranges are needed. Without any file, ImGui's default font
-covers Latin only. The log lists the fonts loaded. Han characters take the
-Chinese forms of Microsoft YaHei, since it comes before the Japanese fonts.
+covers Latin only. The log lists the fonts loaded. Han characters take their
+shapes from the first Han font loaded, so `GetSystemFiles` puts the game
+language's own first: the Japanese fonts for Japanese, Microsoft JhengHei
+for Chinese, and otherwise Microsoft YaHei, then JhengHei, then the Japanese
+fonts. `Text::Initialize` therefore runs before `Fonts::Load`
+([Localization](#localization)). Sovngarde covers the Latin and Cyrillic
+letters of every translated language, so only Japanese and Chinese text uses
+the system fonts.
 
 #### Themed faces
 
@@ -2253,8 +2276,9 @@ peers keep seeing the player.
   opens first and is the display name beside the
   [connection button](#connection-controls) above its other settings, then
   `[DefaultOutfit]`, `[UI]`, `[Controls]`, and `[Advanced]` (the user's
-  order). `FormatSectionTitle` gives `[UI]` and `[Controls]` titles other
-  than their keys. The
+  order). Each section's title is the one its schema `Section` call gives
+  ([Schema](configuration.md#schema)), so `[UI]` and `[Controls]` have titles
+  other than their keys. The
   open section's item has an accent tint and, like a [notice](#notices), a
   strip in the accent 0.2 font sizes wide down its full height on its left,
   clipped from the item's rounded box (`Controls::StripedBox`). The
@@ -2275,7 +2299,7 @@ peers keep seeing the player.
   unsigned value or a percentage, a text field for a string, an item picker for a form, a combo for a choice, a button showing
   the key for a key ([Key bindings](#key-bindings)), and swatches for a color
   ([Accent color](#accent-color)). Group comments are small muted
-  capitals above their rows, as on `[DefaultOutfit]`, `[UI]`, and
+  capitals (`Utf8Case::AppendUpper`) above their rows, as on `[DefaultOutfit]`, `[UI]`, and
   `[Advanced]` ([Configuration](configuration.md#settings)).
   `[Connection] DisplayName` is drawn beside the
   connection button instead of as a row
@@ -2318,6 +2342,8 @@ peers keep seeing the player.
   `ServerEndpoint`'s directly under its field, wrapped at the page's width. A
   red line appears below the settings only while the file could not be
   saved.
+- The footer's buttons share one width: 5.5 font sizes, or more where the
+  longest of their labels needs it.
 - `[UI]`, `[Controls]`, and `[Advanced]` have a footer with one Defaults
   button at its right, enabled while a setting the page shows differs from
   the built-in one (`Config::GetDefaultConfig`); the red line shares the
@@ -2481,7 +2507,7 @@ do not move when a message appears:
 | Condition | Line |
 | --- | --- |
 | The field's text is not a display name ([Network](network.md#sessions)); the field's filter leaves being shorter than `kMinimumDisplayNameLength` as the only way | how many characters a name needs at least, red |
-| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`) | the sentence of `Network::GetConnectionRefusal`, red, until the button connects again |
+| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`) | a sentence for the reason of `Network::GetConnectionRefusal` (`FormatRefusal`), with the server's protocol version for `kProtocolMismatch`, red, until the button connects again |
 
 A divider in the separator color (`DrawConnectionDivider`) follows the line
 and parts the bar from the rows below. The gap below it equals the gap from
@@ -2764,6 +2790,59 @@ picker's panel) or as cached thumbnails for many cells.
   `Item thumbnail: form <id> did not render within 5 s` with the wait state,
   and `Item thumbnails unavailable: <reason>` once.
 
+## Localization
+
+The overlay's text and the notices are shown in the game's language when it
+is one of the game's official ones: English, French, German, Italian,
+Spanish, Polish, Russian, Japanese, and Chinese. Any other language gets
+English. There is no setting for it: the game cannot change its language
+while it runs, so the text follows `sLanguage:General` from the game's INI,
+the setting that also picks its string tables.
+
+- Every displayed text has a `Text::Id` (`TextId.h`). Its text comes from
+  `Text::Get`, `Format`, or `FormatPlural`. Each language is a table of
+  `Text::Tables::Entry` in `src/text/lang/`, compiled into the plugin; there
+  are no files to load. English is complete and is the fallback for any ID a
+  table lacks or has rejected.
+- `Text::Initialize` reads the language once, on the overlay's first frame
+  before the fonts load, and again when the game's data loads in case the
+  overlay never started; `std::call_once` makes the later call do nothing.
+  It builds the table and then publishes it through an atomic pointer, so
+  `Get` from any thread is an index into it. Before that, text is English.
+  It logs the language with the number of texts translated and rejected,
+  and the English table's own errors.
+- A text is a `std::format` string. Each translated text is checked against
+  the English one when the table loads: it may use only fields the English
+  has, with the same index and format spec, and a text that is not a plural
+  form must use all of them. Mixed automatic and numbered fields, a stray
+  brace, or a nested field reject it. So formatting cannot throw, and a
+  translation can reorder its arguments with `{0}` and `{1}`.
+- A plural text lists its forms separated by `|`, as many as the language
+  has: one for Japanese and Chinese, two for English, French, German,
+  Italian, and Spanish, three for Polish and Russian (one, few, many).
+  `Text::GetPlural` picks the form by the language's rule for the count, and
+  `FormatPlural` passes the count as argument 0. A form may leave out a field,
+  but a translation with the wrong number of forms is rejected.
+- A sentence that draws an argument in the accent color, such as the
+  [display name hint](#display-name-hint), the trade window's title, and the
+  [trade prompt](#prompt), is a format whose fields `Text::Split` cuts out.
+  `Controls::AccentedText` and the prompt's centered line draw the literal
+  pieces with their own spaces and the arguments in between, so a translation
+  places the name or key where its word order needs.
+- What stays English: the INI file's comments and header, so the file is the
+  same whatever the language ([Schema](configuration.md#schema)); config keys
+  and values; wire values; log lines; and the `@` prefix. Chat lines are shown
+  as they were sent. Item, race, and effect names come from the game's own
+  data and so are in its language already, as are the tempering tiers in
+  [trade](trade.md#item-details) item names, which come from the
+  `sHealthDataPrefixWeap1`–`6` and `sHealthDataPrefixArmo1`–`6` settings.
+- The [item card](#preview-column) lets lines break between Japanese and
+  Chinese characters, which have no spaces between words. It does not break
+  before closing punctuation and small kana, or after opening brackets.
+- Controls sized for English text fit longer text instead: the settings and
+  trade footers' buttons and the connection button take the widest of their
+  labels.
+
 ## Engine assumptions
 
 To verify in game:
@@ -2850,6 +2929,17 @@ To verify in game:
     projection, but none of this was seen in game. The SE IDs (53029,
     69270, and 39444 for ID 40520, with the same layer) match the 1.5.97
     disassembly.
+15. `INISettingCollection` holds `sLanguage:General` with the game's language
+    by the overlay's first frame, since the renderer starts after the INI
+    files are read. The setting's name is in the 1.7.104 executable. Its
+    values for the official languages are assumed to be `ENGLISH`, `FRENCH`,
+    `GERMAN`, `ITALIAN`, `SPANISH`, `POLISH`, `RUSSIAN`, `JAPANESE`, and
+    `CHINESE`, matched without case, and `CHINESE` is assumed to be the
+    game's Traditional Chinese.
+16. The `sHealthDataPrefixWeap1`–`6` and `sHealthDataPrefixArmo1`–`6` game
+    settings hold the tempering tiers' names in the game's language, `Fine` to
+    `Legendary` in English. An empty or missing one falls back to the English
+    name.
 
 ## Acceptance criteria
 
@@ -3218,9 +3308,20 @@ To verify in game:
     show the new percentages, and the chat is there after a restart. Dragged
     into the upper right corner with the player list open, the list opens on
     the chat's left.
+38. With `sLanguage=GERMAN`, the settings window, chat, player menus, trade
+    window and prompt, notices, and status panel are in German, the log has
+    `Localization: GERMAN with 283 of 283 texts translated (0 rejected)`, and
+    `PlayerHub.ini` keeps its English comments. With `sLanguage=JAPANESE`,
+    Han characters have their Japanese shapes and a long Japanese effect
+    description wraps inside the item card. With a language the plugin has no
+    table for, everything is English.
 
 ## Known limitations
 
+- The translations are machine drafts. Arabic, Hebrew, and other scripts that
+  need right-to-left layout or glyph shaping are not translated, since Dear
+  ImGui draws neither. Numbers use `std::format`'s defaults, not the
+  language's decimal separator.
 - A player's menu shows the race and level of a player without a character
   in range a server round trip after it opens. Opening more than five menus
   within a few seconds can exceed the server's

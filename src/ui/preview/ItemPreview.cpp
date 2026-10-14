@@ -3,6 +3,7 @@
 #include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
+#include "text/Text.h"
 #include "ui/render/Gpu.h"
 
 #include <REX/W32/D3D11_1.h>
@@ -1399,9 +1400,10 @@ float4 Separate(Vertex input) : SV_Target
             }
         }
 
-        const char* note = unavailable || modelUnavailable || model.state == CaptureState::kFailed ? "No preview"
-            : now - model.requestedSince >= kLoadingNoteDelaySeconds                             ? "Loading..."
-                                                                                                 : nullptr;
+        const char* note = unavailable || modelUnavailable || model.state == CaptureState::kFailed
+            ? Text::GetCString(Text::Id::kItemPreviewUnavailable)
+            : now - model.requestedSince >= kLoadingNoteDelaySeconds ? Text::GetCString(Text::Id::kItemPreviewLoading)
+                                                                     : nullptr;
         if (note)
         {
             const auto textSize = ImGui::CalcTextSize(note);

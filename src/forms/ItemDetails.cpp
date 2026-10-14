@@ -1,5 +1,6 @@
 #include "forms/ItemDetails.h"
 #include "text/AsciiCase.h"
+#include "text/Text.h"
 
 #include <algorithm>
 #include <cmath>
@@ -127,7 +128,8 @@ namespace Forms
                 }
                 if (ingredient && (ingredient->gamedata.knownEffectFlags & (1U << i)) == 0)
                 {
-                    a_effects.push_back(ItemEffect{ .text = "Unknown effect", .known = false });
+                    a_effects.push_back(
+                        ItemEffect{ .text = std::string{ Text::Get(Text::Id::kItemUnknownEffect) }, .known = false });
                     continue;
                 }
                 a_effects.push_back(

@@ -1,10 +1,10 @@
 #include "sync/filters/PlayerFilters.h"
 #include "network/ServerClient.h"
 #include "sync/notices/Notices.h"
+#include "text/Text.h"
 
 #include <algorithm>
 #include <atomic>
-#include <format>
 #include <limits>
 #include <mutex>
 #include <string>
@@ -60,8 +60,7 @@ namespace PlayerFilters
         {
             if (!Network::PlayerFilterStore::Save(a_server, a_entry))
             {
-                Notices::Post("Could not save your list of friends, muted, and vanished players; the change lasts "
-                              "until the game exits");
+                Notices::Post(std::string{ Text::Get(Text::Id::kPlayersSaveFailed) });
             }
         }
 
@@ -161,8 +160,7 @@ namespace PlayerFilters
             case Change::kNone:
                 return;
             case Change::kFull:
-                Notices::Post(
-                    std::format("You can vanish at most {} players on a server", Multiplayer::kMaximumVanishedSessions));
+                Notices::Post(Text::FormatPlural(Text::Id::kPlayersVanishLimit, Multiplayer::kMaximumVanishedSessions));
                 return;
             case Change::kChanged:
                 break;

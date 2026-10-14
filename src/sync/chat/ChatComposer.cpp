@@ -1,5 +1,6 @@
 #include "sync/chat/ChatComposer.h"
 #include "sync/chat/ChatRoster.h"
+#include "text/Text.h"
 
 #include <algorithm>
 #include <optional>
@@ -97,13 +98,13 @@ namespace ChatSync
         {
             if (typed->empty())
             {
-                Fail("Type a player's name after @, then your message");
+                Fail(std::string{ Text::Get(Text::Id::kChatWhisperNeedsName) });
                 return SubmitResult::kStayOpen;
             }
             const auto addressee = ChatRoster::FindAddressee(*typed);
             if (!addressee)
             {
-                Fail("No player with that name is online");
+                Fail(std::string{ Text::Get(Text::Id::kChatNoPlayerNamed) });
                 return SubmitResult::kStayOpen;
             }
             SetTarget(Whisper(addressee->player));

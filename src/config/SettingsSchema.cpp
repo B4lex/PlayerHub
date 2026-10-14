@@ -1,6 +1,7 @@
 #include "config/SettingsSchema.h"
 #include "protocol/Session.h"
 #include "text/AsciiCase.h"
+#include "text/Text.h"
 
 #include <algorithm>
 #include <array>
@@ -14,6 +15,7 @@ namespace Config
     {
         using Multiplayer::FormReference;
         using KeyboardKey = RE::BSKeyboardDevice::Key;
+        using Text::Id;
 
         // DIK_OEM_102, the key between left Shift and Z on ISO keyboards.
         constexpr std::uint32_t kIntlBackslash = 0x56;
@@ -30,13 +32,17 @@ namespace Config
             "HandToHandMelee", "OneHandSword", "OneHandDagger", "OneHandAxe", "OneHandMace", "TwoHandSword",
             "TwoHandAxe", "Bow", "Staff", "Crossbow"
         };
-        constexpr std::array<std::string_view, DefaultOutfitSettings::kArmorSlotCount> kArmorSlotLabels{ "Head", "Body",
-            "Hands", "Amulet", "Feet", "Shield", "Circlet", "Backpack" };
-        // TwoHandAxe covers warhammers too.
-        constexpr std::array<std::string_view, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> kWeaponTypeLabels{
-            "Unarmed", "Sword", "Dagger", "War axe", "Mace", "Greatsword", "Battleaxe or warhammer", "Bow", "Staff",
-            "Crossbow"
-        };
+        constexpr std::array<Id, DefaultOutfitSettings::kArmorSlotCount> kArmorSlotLabels{ Id::kOutfitHead,
+            Id::kOutfitBody, Id::kOutfitHands, Id::kOutfitAmulet, Id::kOutfitFeet, Id::kOutfitShield,
+            Id::kOutfitCirclet, Id::kOutfitBackpack };
+        // Unarmed has no setting. TwoHandAxe covers warhammers too.
+        constexpr std::array<Id, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> kWeaponTypeLabels{ Id::kNone,
+            Id::kOutfitSword, Id::kOutfitDagger, Id::kOutfitWarAxe, Id::kOutfitMace, Id::kOutfitGreatsword,
+            Id::kOutfitBattleaxe, Id::kOutfitBow, Id::kOutfitStaff, Id::kOutfitCrossbow };
+        constexpr std::array<Id, DefaultOutfitSettings::kSexNames.size()> kSexLabels{ Id::kOutfitMale,
+            Id::kOutfitFemale };
+        constexpr std::array<Id, UISettings::kFrameColorNames.size()> kFrameColorLabels{ Id::kUIBorderVanilla,
+            Id::kUIBorderAccent };
 
         struct BindableKey
         {
@@ -44,6 +50,8 @@ namespace Config
             // Scan codes are physical positions; a label is what a US layout prints there.
             std::string_view label;
             std::uint32_t scanCode;
+            // Replaces the label for keys named by a word.
+            Id word{ Id::kNone };
         };
 
         constexpr std::array<BindableKey, 91> kBindableKeys{ {
@@ -106,22 +114,22 @@ namespace Config
             { "Comma", ",", KeyboardKey::kComma },
             { "Period", ".", KeyboardKey::kPeriod },
             { "Slash", "/", KeyboardKey::kSlash },
-            { "Space", "Space", KeyboardKey::kSpacebar },
-            { "Enter", "Enter", KeyboardKey::kEnter },
-            { "CapsLock", "Caps Lock", KeyboardKey::kCapsLock },
-            { "Insert", "Insert", KeyboardKey::kInsert },
-            { "Delete", "Delete", KeyboardKey::kDelete },
-            { "Home", "Home", KeyboardKey::kHome },
-            { "End", "End", KeyboardKey::kEnd },
-            { "PageUp", "Page Up", KeyboardKey::kPageUp },
-            { "PageDown", "Page Down", KeyboardKey::kPageDown },
-            { "Up", "Up", KeyboardKey::kUp },
-            { "Down", "Down", KeyboardKey::kDown },
-            { "Left", "Left", KeyboardKey::kLeft },
-            { "Right", "Right", KeyboardKey::kRight },
-            { "Pause", "Pause", KeyboardKey::kPause },
-            { "ScrollLock", "Scroll Lock", KeyboardKey::kScrollLock },
-            { "NumLock", "Num Lock", KeyboardKey::kNumLock },
+            { "Space", "Space", KeyboardKey::kSpacebar, Id::kKeySpace },
+            { "Enter", "Enter", KeyboardKey::kEnter, Id::kKeyEnter },
+            { "CapsLock", "Caps Lock", KeyboardKey::kCapsLock, Id::kKeyCapsLock },
+            { "Insert", "Insert", KeyboardKey::kInsert, Id::kKeyInsert },
+            { "Delete", "Delete", KeyboardKey::kDelete, Id::kKeyDelete },
+            { "Home", "Home", KeyboardKey::kHome, Id::kKeyHome },
+            { "End", "End", KeyboardKey::kEnd, Id::kKeyEnd },
+            { "PageUp", "Page Up", KeyboardKey::kPageUp, Id::kKeyPageUp },
+            { "PageDown", "Page Down", KeyboardKey::kPageDown, Id::kKeyPageDown },
+            { "Up", "Up", KeyboardKey::kUp, Id::kKeyUp },
+            { "Down", "Down", KeyboardKey::kDown, Id::kKeyDown },
+            { "Left", "Left", KeyboardKey::kLeft, Id::kKeyLeft },
+            { "Right", "Right", KeyboardKey::kRight, Id::kKeyRight },
+            { "Pause", "Pause", KeyboardKey::kPause, Id::kKeyPause },
+            { "ScrollLock", "Scroll Lock", KeyboardKey::kScrollLock, Id::kKeyScrollLock },
+            { "NumLock", "Num Lock", KeyboardKey::kNumLock, Id::kKeyNumLock },
             { "Numpad0", "Num 0", KeyboardKey::kKP_0 },
             { "Numpad1", "Num 1", KeyboardKey::kKP_1 },
             { "Numpad2", "Num 2", KeyboardKey::kKP_2 },
@@ -137,7 +145,7 @@ namespace Config
             { "NumpadMinus", "Num -", KeyboardKey::kKP_Subtract },
             { "NumpadMultiply", "Num *", KeyboardKey::kKP_Multiply },
             { "NumpadDivide", "Num /", KeyboardKey::kKP_Divide },
-            { "NumpadEnter", "Num Enter", KeyboardKey::kKP_Enter },
+            { "NumpadEnter", "Num Enter", KeyboardKey::kKP_Enter, Id::kKeyNumpadEnter },
         } };
 
         const BindableKey* FindKey(std::uint32_t a_scanCode)
@@ -173,39 +181,36 @@ namespace Config
 
         void DescribeConnection(ConnectionSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("Connection", "");
-            a_visitor.String("DisplayName", "Display name", a_settings.displayName,
-                "Shown to other players above your character and in chat.", IsValidDisplayName);
-            a_visitor.Bool("ConnectAutomatically", "Connect automatically", a_settings.autoConnect,
-                "Connects to the server automatically after the game is loaded.");
-            a_visitor.Bool("CustomServer", "Custom server", a_settings.customServer,
-                "Connects to the server at the URL below instead of the official server.");
+            a_visitor.Section("Connection", Id::kSectionConnection, Id::kNone);
+            a_visitor.String("DisplayName", Id::kConnectionDisplayName, a_settings.displayName,
+                Id::kConnectionDisplayNameComment, IsValidDisplayName);
+            a_visitor.Bool("ConnectAutomatically", Id::kConnectionAutoConnect, a_settings.autoConnect,
+                Id::kConnectionAutoConnectComment);
+            a_visitor.Bool("CustomServer", Id::kConnectionCustomServer, a_settings.customServer,
+                Id::kConnectionCustomServerComment);
             a_visitor.ShowNextIf(a_settings.customServer);
-            a_visitor.String("ServerEndpoint", "Server URL", a_settings.serverEndpoint,
-                "Custom server URL, starting with http:// or https://. Used only while the\n"
-                "custom server is on.",
-                IsValidServerEndpoint);
+            a_visitor.String("ServerEndpoint", Id::kConnectionServerEndpoint, a_settings.serverEndpoint,
+                Id::kConnectionServerEndpointComment, IsValidServerEndpoint);
         }
 
         void DescribeDefaultOutfit(DefaultOutfitSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("DefaultOutfit",
-                "Player appearance and equipment shown to others in place of your\n"
-                "modded assets they do not have.");
+            a_visitor.Section("DefaultOutfit", Id::kSectionDefaultOutfit, Id::kOutfitComment);
             const auto& defaults = GetDefaultConfig().defaultOutfit;
 
-            a_visitor.Comment("Character");
-            a_visitor.Form("Race", "Race", a_settings.race, defaults.race, kOutfitRaceFilter);
-            a_visitor.Choice("Sex", "Sex", a_settings.sex, "", DefaultOutfitSettings::kSexNames);
+            a_visitor.Comment(Id::kOutfitGroupCharacter);
+            a_visitor.Form("Race", Id::kOutfitRace, a_settings.race, defaults.race, kOutfitRaceFilter);
+            a_visitor.Choice(
+                "Sex", Id::kOutfitSex, a_settings.sex, Id::kNone, DefaultOutfitSettings::kSexNames, kSexLabels);
 
-            a_visitor.Comment("Apparel");
+            a_visitor.Comment(Id::kOutfitGroupApparel);
             for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)
             {
                 a_visitor.Form(GetOutfitArmorKey(slot), kArmorSlotLabels[slot], a_settings.armor[slot],
                     defaults.armor[slot], GetOutfitArmorFilter(slot));
             }
 
-            a_visitor.Comment("Weapons");
+            a_visitor.Comment(Id::kOutfitGroupWeapons);
             for (std::size_t type = Multiplayer::PlayerEquipment::kMinimumWeaponType; type < a_settings.weapons.size();
                 ++type)
             {
@@ -213,95 +218,77 @@ namespace Config
                     defaults.weapons[type], GetOutfitWeaponFilter(type));
             }
 
-            a_visitor.Comment("Miscellaneous");
-            a_visitor.Form("Arrow", "Arrow", a_settings.arrow, defaults.arrow, kOutfitArrowFilter);
-            a_visitor.Form("Bolt", "Bolt", a_settings.bolt, defaults.bolt, kOutfitBoltFilter);
+            a_visitor.Comment(Id::kOutfitGroupMiscellaneous);
+            a_visitor.Form("Arrow", Id::kOutfitArrow, a_settings.arrow, defaults.arrow, kOutfitArrowFilter);
+            a_visitor.Form("Bolt", Id::kOutfitBolt, a_settings.bolt, defaults.bolt, kOutfitBoltFilter);
         }
 
         void DescribeUI(UISettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("UI", "");
-            a_visitor.Comment("Display");
-            a_visitor.Percent("FontScale", "Font scale", a_settings.fontScale,
-                "Size of the text in the settings window, the chat, and the rest of the\n"
-                "multiplayer interface. Windows grow and shrink with it.",
+            a_visitor.Section("UI", Id::kSectionUI, Id::kNone);
+            a_visitor.Comment(Id::kUIGroupDisplay);
+            a_visitor.Percent("FontScale", Id::kUIFontScale, a_settings.fontScale, Id::kUIFontScaleComment,
                 UISettings::kMinimumFontScale, UISettings::kMaximumFontScale, UISettings::kFontScaleStep);
-            a_visitor.Color("AccentColor", "Accent color", a_settings.accentColor,
-                "Color that marks what can be selected or is selected in the settings window and\n"
-                "the chat, as hexadecimal RRGGBB.",
+            a_visitor.Color("AccentColor", Id::kUIAccentColor, a_settings.accentColor, Id::kUIAccentColorComment,
                 UISettings::kAccentSwatches);
-            a_visitor.Choice("BorderColor", "Border color", a_settings.frameColor,
-                "Color of the frame around the settings window and the chat.",
-                UISettings::kFrameColorNames);
-            a_visitor.Percent("BorderThickness", "Border thickness", a_settings.frameThickness,
-                "Thickness of the frame around the settings window and the chat.",
-                UISettings::kMinimumFrameThickness, UISettings::kMaximumFrameThickness, 1);
+            a_visitor.Choice("BorderColor", Id::kUIBorderColor, a_settings.frameColor, Id::kUIBorderColorComment,
+                UISettings::kFrameColorNames, kFrameColorLabels);
+            a_visitor.Percent("BorderThickness", Id::kUIBorderThickness, a_settings.frameThickness,
+                Id::kUIBorderThicknessComment, UISettings::kMinimumFrameThickness, UISettings::kMaximumFrameThickness,
+                1);
 
-            a_visitor.Comment("Players");
-            a_visitor.Bool("Nameplates", "Nameplates", a_settings.nameplates,
-                "Shows other players' names above their heads while they are in sight.");
-            a_visitor.Unsigned("NameplateDistance", "Nameplate distance", a_settings.nameplateDistance,
-                "Game units within which names are shown above players' heads, about 70 to a\n"
-                "meter.",
-                UISettings::kMaximumNameplateDistance, "", 1);
+            a_visitor.Comment(Id::kUIGroupPlayers);
+            a_visitor.Bool("Nameplates", Id::kUINameplates, a_settings.nameplates, Id::kUINameplatesComment);
+            a_visitor.Unsigned("NameplateDistance", Id::kUINameplateDistance, a_settings.nameplateDistance,
+                Id::kUINameplateDistanceComment, UISettings::kMaximumNameplateDistance, Id::kNone, 1);
 
-            a_visitor.Comment("Chat");
-            a_visitor.Bool("CloseChatOnSend", "Close on send", a_settings.closeChatOnSend,
-                "Closes the chat when Enter sends a line. Otherwise Enter only sends, and an\n"
-                "empty line does nothing.");
+            a_visitor.Comment(Id::kUIGroupChat);
+            a_visitor.Bool(
+                "CloseChatOnSend", Id::kUICloseChatOnSend, a_settings.closeChatOnSend, Id::kUICloseChatOnSendComment);
             a_visitor.Layout("ChatWidth", a_settings.chatWidth,
                 "Width of the chat in font sizes. Dragging the open chat's right edge sets it.",
                 UISettings::kMinimumChatWidth, UISettings::kMaximumChatWidth);
             a_visitor.Layout("ChatLines", a_settings.chatLines,
                 "Lines of history the open chat shows. Dragging its top edge sets it.",
                 UISettings::kMinimumChatLines, UISettings::kMaximumChatLines);
-            a_visitor.Percent("ChatPositionHorizontal", "Horizontal position", a_settings.chatPositionHorizontal,
-                "Distance of the chat's left edge from the screen's left edge, as a share of the\n"
-                "screen's width. The chat stays on the screen.",
-                0, UISettings::kMaximumChatPosition, 1);
-            a_visitor.Percent("ChatPositionVertical", "Vertical position", a_settings.chatPositionVertical,
-                "Distance of the chat's bottom edge from the screen's bottom edge, as a share of\n"
-                "the screen's height. The chat stays on the screen.",
-                0, UISettings::kMaximumChatPosition, 1);
+            a_visitor.Percent("ChatPositionHorizontal", Id::kUIChatHorizontal, a_settings.chatPositionHorizontal,
+                Id::kUIChatHorizontalComment, 0, UISettings::kMaximumChatPosition, 1);
+            a_visitor.Percent("ChatPositionVertical", Id::kUIChatVertical, a_settings.chatPositionVertical,
+                Id::kUIChatVerticalComment, 0, UISettings::kMaximumChatPosition, 1);
 
-            a_visitor.Comment("Items");
-            a_visitor.Bool("ItemPreview", "Item preview", a_settings.itemPreview,
-                "Shows a 3D model of the hovered item in item lists.");
+            a_visitor.Comment(Id::kUIGroupItems);
+            a_visitor.Bool("ItemPreview", Id::kUIItemPreview, a_settings.itemPreview, Id::kUIItemPreviewComment);
         }
 
         void DescribeControls(ControlsSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("Controls", "");
-            a_visitor.Key("OpenSettings", "Open settings", a_settings.settingsKey,
-                "Opens and closes the settings window.", kDefaultSettingsKey);
-            a_visitor.Key("OpenChat", "Open chat", a_settings.chatKey, "Opens the chat.", kDefaultChatKey);
-            a_visitor.Key("ManagePlayers", "Manage players", a_settings.playersKey,
-                "Opens the window that lists your friends and the players you muted or vanished.", 0);
-            a_visitor.Key("AcceptTrade", "Accept trade", a_settings.tradeAcceptKey,
-                "Accepts another player's trade offer while it waits for an answer.", 0);
-            a_visitor.Key("DeclineTrade", "Decline trade", a_settings.tradeDeclineKey,
-                "Declines another player's trade offer, or withdraws your own, while it waits\n"
-                "for an answer.", 0);
+            a_visitor.Section("Controls", Id::kSectionControls, Id::kNone);
+            a_visitor.Key("OpenSettings", Id::kControlsOpenSettings, a_settings.settingsKey,
+                Id::kControlsOpenSettingsComment, kDefaultSettingsKey);
+            a_visitor.Key(
+                "OpenChat", Id::kControlsOpenChat, a_settings.chatKey, Id::kControlsOpenChatComment, kDefaultChatKey);
+            a_visitor.Key("ManagePlayers", Id::kControlsManagePlayers, a_settings.playersKey,
+                Id::kControlsManagePlayersComment, 0);
+            a_visitor.Key("AcceptTrade", Id::kControlsAcceptTrade, a_settings.tradeAcceptKey,
+                Id::kControlsAcceptTradeComment, 0);
+            a_visitor.Key("DeclineTrade", Id::kControlsDeclineTrade, a_settings.tradeDeclineKey,
+                Id::kControlsDeclineTradeComment, 0);
         }
 
         void DescribeAdvanced(AdvancedSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("Advanced", "");
-            a_visitor.Comment("Performance");
-            a_visitor.Unsigned("ViewRadius", "View radius", a_settings.viewRadius,
-                "Game units within which other players are shown. Applies\n"
-                "on the next connection.",
-                AdvancedSettings::kMaximumViewRadius, "Auto", AdvancedSettings::kViewRadiusStep);
-            a_visitor.Unsigned("SpawnsPerSecond", "Spawns per second", a_settings.spawnsPerSecond,
-                "Remote players and mounts spawned per second at most. Many players joining or\n"
-                "arriving at once then appear over a few seconds instead of in one long frame.\n"
-                "0 spawns every due player at once.",
-                AdvancedSettings::kMaximumSpawnsPerSecond, "Unlimited", 1);
+            a_visitor.Section("Advanced", Id::kSectionAdvanced, Id::kNone);
+            a_visitor.Comment(Id::kAdvancedGroupPerformance);
+            a_visitor.Unsigned("ViewRadius", Id::kAdvancedViewRadius, a_settings.viewRadius,
+                Id::kAdvancedViewRadiusComment, AdvancedSettings::kMaximumViewRadius, Id::kAdvancedViewRadiusAuto,
+                AdvancedSettings::kViewRadiusStep);
+            a_visitor.Unsigned("SpawnsPerSecond", Id::kAdvancedSpawnsPerSecond, a_settings.spawnsPerSecond,
+                Id::kAdvancedSpawnsPerSecondComment, AdvancedSettings::kMaximumSpawnsPerSecond,
+                Id::kAdvancedSpawnsUnlimited, 1);
 
-            a_visitor.Comment("Diagnostics");
-            a_visitor.Bool("StatusPanel", "Status panel", a_settings.statusPanel,
-                "Shows the ping, network traffic, and the plugin's time per frame in the\n"
-                "top-right corner.");
+            a_visitor.Comment(Id::kAdvancedGroupDiagnostics);
+            a_visitor.Bool(
+                "StatusPanel", Id::kAdvancedStatusPanel, a_settings.statusPanel, Id::kAdvancedStatusPanelComment);
         }
 
         PluginConfig MakeDefaultConfig()
@@ -485,7 +472,11 @@ namespace Config
     std::string_view FormatKeyLabel(std::uint32_t a_scanCode)
     {
         const auto* key = FindKey(a_scanCode);
-        return key ? key->label : std::string_view{};
+        if (!key)
+        {
+            return {};
+        }
+        return key->word == Id::kNone ? key->label : Text::Get(key->word);
     }
 
     std::string_view GetOutfitArmorKey(std::size_t a_slotIndex)

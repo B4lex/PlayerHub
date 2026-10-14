@@ -901,7 +901,8 @@ client.
 - A close with status 4001, 4004, 4005, 4006, 4007, or 4008 is a refusal:
   retrying at once cannot help, so the monitor disables the player's choice and closes the client,
   which leaves `kDisconnected`. `Network::GetConnectionRefusal` returns its
-  `Refusal{reason, message}` for the settings window's [connection
+  `Refusal{reason, detail}`, where `detail` is the server's protocol version
+for 4001 and otherwise empty, for the settings window's [connection
   controls](ui-overlay.md#connection-controls) until the player presses
   Connect or a game starts or ends. Nothing retries by itself, also not an
   applied display name or endpoint: the player changes what the refusal names

@@ -1,5 +1,7 @@
 #include "ui/trade/ItemCard.h"
 #include "forms/ItemDetails.h"
+#include "text/Text.h"
+#include "text/Utf8Case.h"
 #include "ui/Fonts.h"
 #include "ui/Theme.h"
 
@@ -101,57 +103,6 @@ namespace UI
             }
         }
 
-        // Latin-1, Latin Extended-A, and Cyrillic, whose letters and capitals are all two-byte
-        // UTF-8 sequences; anything else is kept.
-        char32_t ToUpper(char32_t a_char)
-        {
-            const bool odd = (a_char & 1U) != 0;
-            if ((a_char >= 0xE0 && a_char <= 0xFE && a_char != 0xF7) || (a_char >= 0x430 && a_char <= 0x44F))
-            {
-                return a_char - 0x20;
-            }
-            if (a_char >= 0x450 && a_char <= 0x45F)
-            {
-                return a_char - 0x50;
-            }
-            if (((a_char >= 0x100 && a_char <= 0x137) || (a_char >= 0x14A && a_char <= 0x177)
-                    || (a_char >= 0x460 && a_char <= 0x481) || (a_char >= 0x48A && a_char <= 0x4BF))
-                && odd)
-            {
-                return a_char - 1;
-            }
-            if (((a_char >= 0x139 && a_char <= 0x148) || (a_char >= 0x179 && a_char <= 0x17E)) && !odd)
-            {
-                return a_char - 1;
-            }
-            return a_char;
-        }
-
-        void AppendUpper(std::string& a_out, std::string_view a_text)
-        {
-            for (std::size_t i = 0; i < a_text.size();)
-            {
-                const auto lead = static_cast<unsigned char>(a_text[i]);
-                if (lead >= 'a' && lead <= 'z')
-                {
-                    a_out += static_cast<char>(lead - ('a' - 'A'));
-                    ++i;
-                    continue;
-                }
-                const auto trail = i + 1 < a_text.size() ? static_cast<unsigned char>(a_text[i + 1]) : 0U;
-                if ((lead & 0xE0U) != 0xC0U || (trail & 0xC0U) != 0x80U)
-                {
-                    a_out += a_text[i];
-                    ++i;
-                    continue;
-                }
-                const auto upper = ToUpper(((lead & 0x1FU) << 6) | (trail & 0x3FU));
-                a_out += static_cast<char>(0xC0U | (upper >> 6));
-                a_out += static_cast<char>(0x80U | (upper & 0x3FU));
-                i += 2;
-            }
-        }
-
         struct Piece
         {
             std::string_view text;
@@ -164,12 +115,15 @@ namespace UI
             std::size_t first{ 0 };
             std::size_t end{ 0 };
             float width{ 0.0F };
+            // False between CJK characters, which have no spaces between words.
+            bool spaced{ true };
         };
 
         // Kept between frames: the card is laid out twice in every one.
         std::vector<Piece> s_pieces;
         std::vector<Word> s_words;
         std::string s_title;
+        std::string s_charge;
 
         bool IsDigit(char a_char)
         {
@@ -199,9 +153,38 @@ namespace UI
             return length;
         }
 
-        void AddWord(std::string_view a_word, const Face& a_body, const Face* a_highlight)
+        char32_t Decode(std::string_view a_text, std::size_t& a_index)
         {
-            Word word{ .first = s_pieces.size() };
+            const auto lead = static_cast<unsigned char>(a_text[a_index++]);
+            const auto length = lead < 0xC0 ? 0 : lead < 0xE0 ? 1 : lead < 0xF0 ? 2 : 3;
+            char32_t code = length == 0 ? lead : lead & (0x3FU >> length);
+            for (int i = 0; i < length && a_index < a_text.size(); ++i)
+            {
+                code = (code << 6) | (static_cast<unsigned char>(a_text[a_index++]) & 0x3FU);
+            }
+            return code;
+        }
+
+        bool IsWide(char32_t a_code)
+        {
+            return (a_code >= 0x2E80 && a_code <= 0x9FFF) || (a_code >= 0xF900 && a_code <= 0xFAFF)
+                || (a_code >= 0xFF00 && a_code <= 0xFFEF);
+        }
+
+        // Japanese and Chinese punctuation and small kana that may not start a line, and
+        // opening brackets that may not end one.
+        constexpr std::u32string_view kNoLineStart = U"、。，．・：；？！ー」』）〕］｝〉》】ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ々";
+        constexpr std::u32string_view kNoLineEnd = U"「『（〔［｛〈《【";
+
+        bool CanBreak(char32_t a_before, char32_t a_after)
+        {
+            return (IsWide(a_before) || IsWide(a_after)) && kNoLineStart.find(a_after) == std::u32string_view::npos
+                && kNoLineEnd.find(a_before) == std::u32string_view::npos;
+        }
+
+        void AddWord(std::string_view a_word, bool a_spaced, const Face& a_body, const Face* a_highlight)
+        {
+            Word word{ .first = s_pieces.size(), .spaced = a_spaced };
             std::size_t start = 0;
             while (start < a_word.size())
             {
@@ -236,9 +219,24 @@ namespace UI
             {
                 auto end = a_text.find_first_of(" \n", start);
                 end = end == std::string_view::npos ? a_text.size() : end;
-                if (end > start)
+                const auto chunk = a_text.substr(start, end - start);
+                std::size_t wordStart = 0;
+                std::size_t index = 0;
+                char32_t previous = 0;
+                while (index < chunk.size())
                 {
-                    AddWord(a_text.substr(start, end - start), a_body, a_highlight);
+                    const auto codeStart = index;
+                    const auto code = Decode(chunk, index);
+                    if (codeStart > wordStart && CanBreak(previous, code))
+                    {
+                        AddWord(chunk.substr(wordStart, codeStart - wordStart), wordStart == 0, a_body, a_highlight);
+                        wordStart = codeStart;
+                    }
+                    previous = code;
+                }
+                if (chunk.size() > wordStart)
+                {
+                    AddWord(chunk.substr(wordStart), wordStart == 0, a_body, a_highlight);
                 }
                 start = end + 1;
             }
@@ -248,15 +246,16 @@ namespace UI
             {
                 auto width = s_words[first].width;
                 auto last = first + 1;
-                while (last < s_words.size() && width + space + s_words[last].width <= a_pen.width)
+                const auto gap = [&](std::size_t a_word) { return s_words[a_word].spaced ? space : 0.0F; };
+                while (last < s_words.size() && width + gap(last) + s_words[last].width <= a_pen.width)
                 {
-                    width += space + s_words[last].width;
+                    width += gap(last) + s_words[last].width;
                     ++last;
                 }
                 auto x = a_pen.origin.x + (std::max)((a_pen.width - width) * 0.5F, 0.0F);
                 for (auto word = first; word < last; ++word)
                 {
-                    x += word > first ? space : 0.0F;
+                    x += word > first ? gap(word) : 0.0F;
                     for (auto piece = s_words[word].first; piece < s_words[word].end; ++piece)
                     {
                         const auto& face = s_pieces[piece].highlighted ? *a_highlight : a_body;
@@ -338,7 +337,7 @@ namespace UI
         {
             const auto& details = *a_card.details;
             s_title.clear();
-            AppendUpper(s_title, a_card.name);
+            Utf8Case::AppendUpper(s_title, a_card.name);
             if (a_card.count > 1)
             {
                 std::format_to(std::back_inserter(s_title), " ({})", a_card.count);
@@ -367,16 +366,18 @@ namespace UI
             if (details.rating != Forms::ItemDetails::Rating::kNone)
             {
                 const auto end = std::format_to_n(rating.data(), rating.size(), "{}", details.ratingValue).out;
-                stats[statCount++]
-                    = Stat{ .label = details.rating == Forms::ItemDetails::Rating::kDamage ? "DAMAGE" : "ARMOR",
-                          .value = std::string_view{ rating.data(), end } };
+                stats[statCount++] = Stat{ .label = Text::Get(details.rating == Forms::ItemDetails::Rating::kDamage
+                                                   ? Text::Id::kItemCardDamage
+                                                   : Text::Id::kItemCardArmor),
+                    .value = std::string_view{ rating.data(), end } };
             }
             const auto count = (std::max)(a_card.count, 1U);
-            stats[statCount++]
-                = Stat{ .label = "WEIGHT", .value = FormatWeight(details.weight * static_cast<float>(count), weight) };
+            stats[statCount++] = Stat{ .label = Text::Get(Text::Id::kItemCardWeight),
+                .value = FormatWeight(details.weight * static_cast<float>(count), weight) };
             const auto valueEnd
                 = std::format_to_n(value.data(), value.size(), "{}", static_cast<long long>(details.value) * count).out;
-            stats[statCount++] = Stat{ .label = "VALUE", .value = std::string_view{ value.data(), valueEnd } };
+            stats[statCount++]
+                = Stat{ .label = Text::Get(Text::Id::kItemCardValue), .value = std::string_view{ value.data(), valueEnd } };
             Stats(a_pen, a_faces, std::span{ stats.data(), statCount });
 
             if (!details.effects.empty() || details.maximumCharge > 0)
@@ -404,11 +405,8 @@ namespace UI
                     {
                         Gap(a_pen, kParagraphGapFonts);
                     }
-                    std::array<char, 48> charge{};
-                    const auto end = std::format_to_n(
-                        charge.data(), charge.size(), "Charge {} / {}", details.charge, details.maximumCharge)
-                                         .out;
-                    Paragraph(a_pen, std::string_view{ charge.data(), end }, a_faces.body, &a_faces.highlight);
+                    Text::FormatTo(s_charge, Text::Id::kItemCardCharge, details.charge, details.maximumCharge);
+                    Paragraph(a_pen, s_charge, a_faces.body, &a_faces.highlight);
                 }
             }
         }

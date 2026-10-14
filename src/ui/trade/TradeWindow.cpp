@@ -1,6 +1,7 @@
 #include "ui/trade/TradeWindow.h"
 #include "sync/trade/TradeSync.h"
 #include "text/AsciiCase.h"
+#include "text/Text.h"
 #include "ui/Fonts.h"
 #include "ui/MenuFrame.h"
 #include "ui/Theme.h"
@@ -90,8 +91,10 @@ namespace UI
         constexpr const char* kOfferPopup = "##OfferLine";
         constexpr const char* kPickPopup = "##OfferCount";
 
-        constexpr std::array<const char*, 11> kCategoryNames{ "All", "Weapons", "Apparel", "Ammunition", "Potions",
-            "Ingredients", "Books", "Scrolls", "Soul gems", "Keys", "Miscellaneous" };
+        constexpr std::array<Text::Id, 11> kCategoryNames{ Text::Id::kTradeCategoryAll, Text::Id::kTradeCategoryWeapons,
+            Text::Id::kTradeCategoryApparel, Text::Id::kTradeCategoryAmmunition, Text::Id::kTradeCategoryPotions,
+            Text::Id::kTradeCategoryIngredients, Text::Id::kTradeCategoryBooks, Text::Id::kTradeCategoryScrolls,
+            Text::Id::kTradeCategorySoulGems, Text::Id::kTradeCategoryKeys, Text::Id::kTradeCategoryMiscellaneous };
 
         // Where the panel and the preview column go: the two centered together, the column's
         // model above its card, both as tall as the panel.
@@ -493,11 +496,8 @@ namespace UI
             {
                 const auto& style = ImGui::GetStyle();
                 ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kTitleScale);
-                ImGui::TextUnformatted("Trade with");
-                ImGui::SameLine();
-                ImGui::PushStyleColor(ImGuiCol_Text, Theme::GetAccent());
-                ImGui::TextUnformatted(view.peer.name.c_str());
-                ImGui::PopStyleColor();
+                const std::array<std::string_view, 1> name{ view.peer.name };
+                Controls::AccentedText(Text::Get(Text::Id::kTradeTitle), name);
                 ImGui::PopFont();
                 ImGui::Separator();
             }
@@ -509,12 +509,12 @@ namespace UI
                 if (a_full)
                 {
                     ImGui::SameLine();
-                    ImGui::TextColored(Theme::kWarning, "(full)");
+                    ImGui::TextColored(Theme::kWarning, "%s", Text::GetCString(Text::Id::kTradeOfferFull));
                 }
                 if (a_accepted)
                 {
                     ImGui::SameLine();
-                    ImGui::TextColored(Theme::kPositive, "Accepted");
+                    ImGui::TextColored(Theme::kPositive, "%s", Text::GetCString(Text::Id::kTradeAccepted));
                 }
             }
 
@@ -573,16 +573,15 @@ namespace UI
 
             void DrawPeerOffer(float a_cell)
             {
-                char heading[96];
-                const auto end = std::format_to_n(heading, sizeof(heading) - 1, "{}'s offer", view.peer.name).out;
-                *end = '\0';
-                DrawGridHeading(heading, view.peerAccepted);
+                Text::FormatTo(heading, Text::Id::kTradePeerOffer, view.peer.name);
+                DrawGridHeading(heading.c_str(), view.peerAccepted);
                 // Counted before the grid as well, so the hint shows on the window's first frame.
                 CountUninspected();
                 if (uninspected > 0)
                 {
                     ImGui::SameLine();
-                    ImGui::TextDisabled("Hover over items to inspect them (%zu left)", uninspected);
+                    ImGui::TextDisabled(
+                        "%s", Text::FormatPlural(Text::Id::kTradeUninspected, uninspected).c_str());
                 }
                 DrawGrid("##peer", view.peerOffer.size(), a_cell, view.peerAccepted,
                     [this](std::size_t a_index, const ImVec2& a_min, const ImVec2& a_max, bool a_hovered) {
@@ -622,8 +621,8 @@ namespace UI
 
             void DrawOwnOffer(float a_cell)
             {
-                DrawGridHeading(
-                    "Your offer", view.ownAccepted, view.offer.size() >= Multiplayer::kMaximumTradeItems);
+                DrawGridHeading(Text::GetCString(Text::Id::kTradeOwnOffer), view.ownAccepted,
+                    view.offer.size() >= Multiplayer::kMaximumTradeItems);
                 DrawGrid("##own", view.offer.size(), a_cell, view.ownAccepted,
                     [this](std::size_t a_index, const ImVec2& a_min, const ImVec2& a_max, bool a_hovered) {
                         const auto& line = view.offer[a_index];
@@ -701,9 +700,9 @@ namespace UI
                     }
                     ImGui::SameLine();
                     ImGui::AlignTextToFramePadding();
-                    ImGui::TextDisabled("of %u", item.count);
+                    ImGui::TextDisabled("%s", Text::Format(Text::Id::kTradeCountOf, item.count).c_str());
                 }
-                if (Controls::DangerButton("Remove all", ImVec2{ -FLT_MIN, 0.0F }))
+                if (Controls::DangerButton(Text::GetCString(Text::Id::kTradeRemoveAll), ImVec2{ -FLT_MIN, 0.0F }))
                 {
                     TradeSync::SetOfferCount(view.inventoryRevision, popupRow, 0);
                     ImGui::CloseCurrentPopup();
@@ -747,8 +746,8 @@ namespace UI
                     ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false);
                 ImGui::SameLine();
                 ImGui::AlignTextToFramePadding();
-                ImGui::TextDisabled("of %u", item.count);
-                if (Controls::PrimaryButton("Offer", ImVec2{ -FLT_MIN, 0.0F }) || entered)
+                ImGui::TextDisabled("%s", Text::Format(Text::Id::kTradeCountOf, item.count).c_str());
+                if (Controls::PrimaryButton(Text::GetCString(Text::Id::kTradeOffer), ImVec2{ -FLT_MIN, 0.0F }) || entered)
                 {
                     TradeSync::SetOfferCount(pickRevision, pickRow, pickCount);
                     ImGui::CloseCurrentPopup();
@@ -760,7 +759,7 @@ namespace UI
             {
                 ImGui::BeginGroup();
                 ImGui::AlignTextToFramePadding();
-                ImGui::TextUnformatted("Your inventory");
+                ImGui::TextUnformatted(Text::GetCString(Text::Id::kTradeInventory));
                 if (view.checkingPlugins)
                 {
                     ImGui::SameLine();
@@ -768,16 +767,18 @@ namespace UI
                         * std::numbers::pi_v<float>;
                     auto color = ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
                     color.w *= 0.65F + 0.35F * std::sin(angle);
-                    ImGui::TextColored(color, "Checking mods...");
+                    ImGui::TextColored(color, "%s", Text::GetCString(Text::Id::kTradeCheckingMods));
                 }
                 const auto& style = ImGui::GetStyle();
                 const auto comboWidth = std::floor(a_size.x * 0.4F);
                 ImGui::SetNextItemWidth(a_size.x - comboWidth - style.ItemSpacing.x);
-                bool changed = ImGui::InputTextWithHint("##search", "Search", &query);
+                bool changed = ImGui::InputTextWithHint("##search", Text::GetCString(Text::Id::kSearchHint), &query);
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(comboWidth);
-                changed = ImGui::Combo("##category", &category, kCategoryNames.data(),
-                              static_cast<int>(kCategoryNames.size()))
+                std::array<const char*, kCategoryNames.size()> categoryNames{};
+                std::ranges::transform(kCategoryNames, categoryNames.begin(), &Text::GetCString);
+                changed = ImGui::Combo(
+                              "##category", &category, categoryNames.data(), static_cast<int>(categoryNames.size()))
                     || changed;
                 if (changed)
                 {
@@ -803,7 +804,9 @@ namespace UI
                     {
                         ImGui::TableNextRow();
                         ImGui::TableNextColumn();
-                        ImGui::TextDisabled(view.inventory.empty() ? "You carry nothing to trade." : "No item matches.");
+                        ImGui::TextDisabled("%s",
+                            Text::GetCString(view.inventory.empty() ? Text::Id::kTradeNothingToTrade
+                                                                    : Text::Id::kItemsNoMatch));
                     }
                     ImGui::EndTable();
                 }
@@ -862,11 +865,15 @@ namespace UI
             {
                 const auto& style = ImGui::GetStyle();
                 const auto fontSize = ImGui::GetFontSize();
-                const auto buttonWidth = kFooterButtonWidthFonts * fontSize;
+                const auto* const accept = Text::GetCString(Text::Id::kTradeAccept);
+                const auto* const cancel = Text::GetCString(Text::Id::kTradeCancel);
+                const auto buttonWidth = (std::max)(kFooterButtonWidthFonts * fontSize,
+                    std::ceil((std::max)(ImGui::CalcTextSize(accept).x, ImGui::CalcTextSize(cancel).x)
+                        + style.FramePadding.x * 2.0F));
                 ImGui::SetCursorPosX(ImGui::GetContentRegionMax().x - buttonWidth * 2.0F - style.ItemSpacing.x);
                 const bool blocked = !view.acceptBlocker.empty();
                 ImGui::BeginDisabled(view.ownAccepted || blocked || uninspected > 0);
-                if (Controls::PrimaryButton("Accept", ImVec2{ buttonWidth, 0.0F }))
+                if (Controls::PrimaryButton(accept, ImVec2{ buttonWidth, 0.0F }))
                 {
                     TradeSync::Accept();
                 }
@@ -878,7 +885,7 @@ namespace UI
                     ImGui::SetTooltip("%s", view.acceptBlocker.c_str());
                 }
                 ImGui::SameLine();
-                if (Controls::DangerButton("Cancel", ImVec2{ buttonWidth, 0.0F }))
+                if (Controls::DangerButton(cancel, ImVec2{ buttonWidth, 0.0F }))
                 {
                     Close(Multiplayer::TradeCloseReason::kCancelled);
                 }
@@ -889,6 +896,8 @@ namespace UI
             std::uint64_t matchedRevision{ 0 };
             std::vector<std::size_t> matches;
             std::string query;
+            // Reused so the heading is formatted without allocating.
+            std::string heading;
             int category{ 0 };
             // Ids of the peer's lines the player hovered since the peer last changed them.
             std::vector<std::uint64_t> inspected;

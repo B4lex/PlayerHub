@@ -5,6 +5,7 @@
 #include "network/TrafficMeter.h"
 #include "runtime/GameSession.h"
 #include "runtime/PluginTime.h"
+#include "text/Text.h"
 #include "ui/Layout.h"
 
 #include <imgui.h>
@@ -22,7 +23,6 @@ namespace UI
         constexpr long long kGoodLatencyMilliseconds = 80;
         constexpr long long kFairLatencyMilliseconds = 150;
         constexpr double kBytesPerKilobyte = 1000.0;
-        // UTF-8 for the arrows, since the build does not set the source charset.
         constexpr const char* kDownloadArrow = "\xE2\x86\x93";
         constexpr const char* kUploadArrow = "\xE2\x86\x91";
 
@@ -39,7 +39,7 @@ namespace UI
         {
             if (!a_latency)
             {
-                ImGui::TextColored(kMutedColor, "Ping -- ms");
+                ImGui::TextColored(kMutedColor, "%s -- ms", Text::GetCString(Text::Id::kStatusPing));
                 return;
             }
 
@@ -47,7 +47,7 @@ namespace UI
             const auto& color = milliseconds <= kGoodLatencyMilliseconds ? kGoodColor
                 : milliseconds <= kFairLatencyMilliseconds               ? kFairColor
                                                                          : kPoorColor;
-            ImGui::TextColored(color, "Ping %lld ms", milliseconds);
+            ImGui::TextColored(color, "%s %lld ms", Text::GetCString(Text::Id::kStatusPing), milliseconds);
         }
 
         void DrawTraffic(std::optional<Network::TrafficRates> a_rates)
@@ -69,12 +69,13 @@ namespace UI
         {
             if (!a_average)
             {
-                ImGui::TextColored(kMutedColor, "Plugin -- ms");
+                ImGui::TextColored(kMutedColor, "%s -- ms", Text::GetCString(Text::Id::kStatusPlugin));
                 return;
             }
 
             const std::chrono::duration<double, std::milli> milliseconds = *a_average;
-            ImGui::TextColored(kMutedColor, "Plugin %.2f ms", milliseconds.count());
+            ImGui::TextColored(
+                kMutedColor, "%s %.2f ms", Text::GetCString(Text::Id::kStatusPlugin), milliseconds.count());
         }
 
         class StatusPanel final : public Window
@@ -101,7 +102,7 @@ namespace UI
 
         if (!Network::IsConnected())
         {
-            ImGui::TextColored(kPoorColor, "Disconnected");
+            ImGui::TextColored(kPoorColor, "%s", Text::GetCString(Text::Id::kConnectionDisconnected));
         }
         else
         {

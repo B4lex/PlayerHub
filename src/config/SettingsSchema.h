@@ -3,6 +3,7 @@
 #include "config/PluginConfig.h"
 #include "forms/ItemFilter.h"
 #include "protocol/FormReference.h"
+#include "text/TextId.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -18,28 +19,29 @@ namespace Config
     public:
         virtual ~SettingsVisitor() = default;
 
-        virtual void Section(std::string_view a_name, std::string_view a_comment) = 0;
-        virtual void Comment(std::string_view a_comment) = 0;
+        virtual void Section(std::string_view a_name, Text::Id a_title, Text::Id a_comment) = 0;
+        virtual void Comment(Text::Id a_comment) = 0;
         // Applies to the next setting. Only the settings window hides one.
         virtual void ShowNextIf(bool) {}
-        virtual void Bool(
-            std::string_view a_key, std::string_view a_label, bool& a_value, std::string_view a_comment) = 0;
+        virtual void Bool(std::string_view a_key, Text::Id a_label, bool& a_value, Text::Id a_comment) = 0;
         // Only the settings window's slider keeps to the step; any value up to the maximum is valid.
-        virtual void Unsigned(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
-            std::string_view a_comment, std::uint32_t a_maximum, std::string_view a_zeroName, std::uint32_t a_step) = 0;
+        virtual void Unsigned(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
+            std::uint32_t a_maximum, Text::Id a_zeroName, std::uint32_t a_step) = 0;
         // Valid values are the minimum plus whole steps.
-        virtual void Percent(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
-            std::string_view a_comment, std::uint32_t a_minimum, std::uint32_t a_maximum, std::uint32_t a_step) = 0;
-        virtual void String(std::string_view a_key, std::string_view a_label, std::string& a_value,
-            std::string_view a_comment, bool (*a_isValid)(std::string_view)) = 0;
-        virtual void Form(std::string_view a_key, std::string_view a_label, Multiplayer::FormReference& a_value,
+        virtual void Percent(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
+            std::uint32_t a_minimum, std::uint32_t a_maximum, std::uint32_t a_step) = 0;
+        virtual void String(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment,
+            bool (*a_isValid)(std::string_view)) = 0;
+        virtual void Form(std::string_view a_key, Text::Id a_label, Multiplayer::FormReference& a_value,
             const Multiplayer::FormReference& a_default, const Forms::ItemFilter& a_filter) = 0;
-        virtual void Choice(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
-            std::string_view a_comment, std::span<const std::string_view> a_options) = 0;
-        virtual void Color(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
-            std::string_view a_comment, std::span<const std::uint32_t> a_swatches) = 0;
-        virtual void Key(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
-            std::string_view a_comment, std::uint32_t a_cleared) = 0;
+        // a_options are the INI values; a_optionLabels are shown for them.
+        virtual void Choice(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
+            std::span<const std::string_view> a_options, std::span<const Text::Id> a_optionLabels) = 0;
+        virtual void Color(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
+            std::span<const std::uint32_t> a_swatches) = 0;
+        virtual void Key(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
+            std::uint32_t a_cleared) = 0;
+        // Not shown in the settings window, so the comment is only English.
         virtual void Layout(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
             std::uint32_t a_minimum, std::uint32_t a_maximum) = 0;
     };

@@ -1,6 +1,7 @@
 #include "config/PluginConfig.h"
 #include "config/PluginFiles.h"
 #include "config/SettingsSchema.h"
+#include "text/Text.h"
 
 #include <SimpleIni.h>
 
@@ -60,11 +61,11 @@ namespace Config
             {
             }
 
-            void Section(std::string_view a_name, std::string_view) override { section = a_name; }
+            void Section(std::string_view a_name, Text::Id, Text::Id) override { section = a_name; }
 
-            void Comment(std::string_view) override {}
+            void Comment(Text::Id) override {}
 
-            void Bool(std::string_view a_key, std::string_view, bool& a_value, std::string_view) override
+            void Bool(std::string_view a_key, Text::Id, bool& a_value, Text::Id) override
             {
                 const auto value = Take(a_key);
                 if (!value)
@@ -79,19 +80,19 @@ namespace Config
                 WarnInvalid(a_key, *value, a_value ? "true" : "false");
             }
 
-            void Unsigned(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view,
-                std::uint32_t a_maximum, std::string_view, std::uint32_t) override
+            void Unsigned(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id, std::uint32_t a_maximum,
+                Text::Id, std::uint32_t) override
             {
                 ReadUnsigned(a_key, a_value, 0, a_maximum);
             }
 
-            void Percent(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view,
-                std::uint32_t a_minimum, std::uint32_t a_maximum, std::uint32_t a_step) override
+            void Percent(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id, std::uint32_t a_minimum,
+                std::uint32_t a_maximum, std::uint32_t a_step) override
             {
                 ReadUnsigned(a_key, a_value, a_minimum, a_maximum, a_step);
             }
 
-            void String(std::string_view a_key, std::string_view, std::string& a_value, std::string_view,
+            void String(std::string_view a_key, Text::Id, std::string& a_value, Text::Id,
                 bool (*a_isValid)(std::string_view)) override
             {
                 auto value = Take(a_key);
@@ -107,7 +108,7 @@ namespace Config
                 WarnInvalid(a_key, *value, a_value);
             }
 
-            void Form(std::string_view a_key, std::string_view, FormReference& a_value, const FormReference&,
+            void Form(std::string_view a_key, Text::Id, FormReference& a_value, const FormReference&,
                 const Forms::ItemFilter&) override
             {
                 const auto value = Take(a_key);
@@ -123,8 +124,8 @@ namespace Config
                 WarnInvalid(a_key, *value, FormatFormReference(a_value));
             }
 
-            void Choice(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view,
-                std::span<const std::string_view> a_options) override
+            void Choice(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id,
+                std::span<const std::string_view> a_options, std::span<const Text::Id>) override
             {
                 const auto value = Take(a_key);
                 if (!value)
@@ -139,7 +140,7 @@ namespace Config
                 WarnInvalid(a_key, *value, FormatChoice(a_value, a_options));
             }
 
-            void Color(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view,
+            void Color(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id,
                 std::span<const std::uint32_t>) override
             {
                 const auto value = Take(a_key);
@@ -155,8 +156,7 @@ namespace Config
                 WarnInvalid(a_key, *value, FormatColor(a_value));
             }
 
-            void Key(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view,
-                std::uint32_t a_cleared) override
+            void Key(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id, std::uint32_t a_cleared) override
             {
                 const auto value = Take(a_key);
                 if (!value)
@@ -239,79 +239,80 @@ namespace Config
             std::string section;
         };
 
-        class TextVisitor : public SettingsVisitor
+        // Writes the English text: the file is the same whatever the game's language.
+        class ValueVisitor : public SettingsVisitor
         {
         public:
-            void Bool(std::string_view a_key, std::string_view, bool& a_value, std::string_view a_comment) override
+            void Bool(std::string_view a_key, Text::Id, bool& a_value, Text::Id a_comment) override
             {
-                Text(a_key, a_value ? "true" : "false", a_comment);
+                Write(a_key, a_value ? "true" : "false", Text::GetEnglish(a_comment));
             }
 
-            void Unsigned(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view a_comment,
-                std::uint32_t, std::string_view, std::uint32_t) override
+            void Unsigned(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment, std::uint32_t,
+                Text::Id, std::uint32_t) override
             {
-                Text(a_key, std::format("{}", a_value), a_comment);
+                Write(a_key, std::format("{}", a_value), Text::GetEnglish(a_comment));
             }
 
-            void Percent(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view a_comment,
-                std::uint32_t, std::uint32_t, std::uint32_t) override
+            void Percent(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment, std::uint32_t,
+                std::uint32_t, std::uint32_t) override
             {
-                Text(a_key, std::format("{}", a_value), a_comment);
+                Write(a_key, std::format("{}", a_value), Text::GetEnglish(a_comment));
             }
 
-            void String(std::string_view a_key, std::string_view, std::string& a_value, std::string_view a_comment,
+            void String(std::string_view a_key, Text::Id, std::string& a_value, Text::Id a_comment,
                 bool (*)(std::string_view)) override
             {
-                Text(a_key, a_value, a_comment);
+                Write(a_key, a_value, Text::GetEnglish(a_comment));
             }
 
-            void Form(std::string_view a_key, std::string_view, FormReference& a_value, const FormReference&,
+            void Form(std::string_view a_key, Text::Id, FormReference& a_value, const FormReference&,
                 const Forms::ItemFilter&) override
             {
-                Text(a_key, FormatFormReference(a_value), {});
+                Write(a_key, FormatFormReference(a_value), {});
             }
 
-            void Choice(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view a_comment,
-                std::span<const std::string_view> a_options) override
+            void Choice(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment,
+                std::span<const std::string_view> a_options, std::span<const Text::Id>) override
             {
-                Text(a_key, FormatChoice(a_value, a_options), a_comment);
+                Write(a_key, FormatChoice(a_value, a_options), Text::GetEnglish(a_comment));
             }
 
-            void Color(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view a_comment,
+            void Color(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment,
                 std::span<const std::uint32_t>) override
             {
-                Text(a_key, FormatColor(a_value), a_comment);
+                Write(a_key, FormatColor(a_value), Text::GetEnglish(a_comment));
             }
 
-            void Key(std::string_view a_key, std::string_view, std::uint32_t& a_value, std::string_view a_comment,
+            void Key(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment,
                 std::uint32_t) override
             {
-                Text(a_key, FormatKey(a_value), a_comment);
+                Write(a_key, FormatKey(a_value), Text::GetEnglish(a_comment));
             }
 
             void Layout(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment, std::uint32_t,
                 std::uint32_t) override
             {
-                Text(a_key, std::format("{}", a_value), a_comment);
+                Write(a_key, std::format("{}", a_value), a_comment);
             }
 
         protected:
-            virtual void Text(std::string_view a_key, std::string_view a_value, std::string_view a_comment) = 0;
+            virtual void Write(std::string_view a_key, std::string_view a_value, std::string_view a_comment) = 0;
         };
 
-        class DefaultFileWriter final : public TextVisitor
+        class DefaultFileWriter final : public ValueVisitor
         {
         public:
             DefaultFileWriter() { file.SetUnicode(true); }
 
-            void Section(std::string_view a_name, std::string_view a_comment) override
+            void Section(std::string_view a_name, Text::Id, Text::Id a_comment) override
             {
                 section = a_name;
-                const auto comment = TakeComment(a_comment);
+                const auto comment = TakeComment(Text::GetEnglish(a_comment));
                 file.SetValue(section.c_str(), nullptr, nullptr, comment.empty() ? nullptr : comment.c_str());
             }
 
-            void Comment(std::string_view a_comment) override { pendingComment = a_comment; }
+            void Comment(Text::Id a_comment) override { pendingComment = Text::GetEnglish(a_comment); }
 
             [[nodiscard]] std::optional<std::string> Save() const
             {
@@ -324,7 +325,7 @@ namespace Config
             }
 
         protected:
-            void Text(std::string_view a_key, std::string_view a_value, std::string_view a_comment) override
+            void Write(std::string_view a_key, std::string_view a_value, std::string_view a_comment) override
             {
                 const auto comment = TakeComment(a_comment);
                 file.SetValue(section.c_str(), std::string{ a_key }.c_str(), std::string{ a_value }.c_str(),
@@ -344,22 +345,22 @@ namespace Config
             std::string pendingComment{ kFileHeader };
         };
 
-        class ValueCollector final : public TextVisitor
+        class ValueCollector final : public ValueVisitor
         {
         public:
-            void Section(std::string_view, std::string_view) override {}
-            void Comment(std::string_view) override {}
+            void Section(std::string_view, Text::Id, Text::Id) override {}
+            void Comment(Text::Id) override {}
 
             std::vector<std::string> values;
 
         protected:
-            void Text(std::string_view, std::string_view a_value, std::string_view) override
+            void Write(std::string_view, std::string_view a_value, std::string_view) override
             {
                 values.emplace_back(a_value);
             }
         };
 
-        class FileUpdater final : public TextVisitor
+        class FileUpdater final : public ValueVisitor
         {
         public:
             FileUpdater(CSimpleIniA& a_file, std::span<const std::string> a_defaults)
@@ -368,16 +369,16 @@ namespace Config
             {
             }
 
-            void Section(std::string_view a_name, std::string_view a_comment) override
+            void Section(std::string_view a_name, Text::Id, Text::Id a_comment) override
             {
                 section = a_name;
-                sectionComment = a_comment;
+                sectionComment = Text::GetEnglish(a_comment);
             }
 
-            void Comment(std::string_view) override {}
+            void Comment(Text::Id) override {}
 
         protected:
-            void Text(std::string_view a_key, std::string_view a_value, std::string_view a_comment) override
+            void Write(std::string_view a_key, std::string_view a_value, std::string_view a_comment) override
             {
                 const auto& defaultValue = defaults[next++];
                 const std::string key{ a_key };

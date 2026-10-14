@@ -152,14 +152,21 @@ read once when SKSE loads the plugin, before any other plugin work.
 Each setting is described once in `SettingsSchema.cpp`, through a visitor that
 reads the file, writes it, and draws the settings window. A new option is a field
 in `Config::PluginConfig` plus one line there. Every setting the settings window
-shows takes, after its key, the label the window shows; reading and saving
-ignore it, so a label changes without renaming the key, and a setting without
-one does not compile. The outfit's slots and weapon types take theirs from
-`kArmorSlotLabels` and `kWeaponTypeLabels`. `Layout` takes none.
+shows takes, after its key, the `Text::Id` of the label the window shows;
+reading and saving ignore it, so a label changes without renaming the key, and
+a setting without one does not compile. The outfit's slots and weapon types
+take theirs from `kArmorSlotLabels` and `kWeaponTypeLabels`. A section takes the
+`Text::Id` of its title, and comments and group comments are `Text::Id`s too:
+the settings window shows them in the game's language
+([Localization](ui-overlay.md#localization)), and the file gets their English
+text (`Text::GetEnglish`), so it is the same whatever the language. `Layout`
+takes no label, and its comment, which only the file shows, is plain English.
+`Choice` takes the values the file stores and, beside them, the `Text::Id`s
+the settings window shows for them.
 `Config::SettingsVisitor::Form` takes the setting's item filter
 ([Appearance and equipment](appearance-and-equipment.md#item-filter-and-catalog)).
 `Unsigned` takes the setting's maximum, above which a value in the file is
-invalid, a name for zero where zero is not a count, which only the settings
+invalid, a `Text::Id` naming zero where zero is not a count, which only the settings
 window shows (the file stores `0`), and a step for the settings window's
 slider. The file takes any value up to the maximum, off the step too, so a
 value written by hand loads as it is. `Percent` takes both limits, outside which a
@@ -310,7 +317,8 @@ Keyboard keys, each a DirectInput scan code stored by name
 (`Config::FormatKey`, `ParseKey`, case-insensitive). The settings window
 binds them by a key press ([UI overlay](ui-overlay.md#key-bindings)) and
 shows each key's label (`FormatKeyLabel`), what a US layout prints on it,
-rather than its stored name.
+rather than its stored name. A key named by a word, such as Space, Enter, or
+the arrows, has that word in the game's language.
 
 | Key | Meaning | Default |
 | --- | --- | --- |

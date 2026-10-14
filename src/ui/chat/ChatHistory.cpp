@@ -1,5 +1,6 @@
 #include "ui/chat/ChatHistory.h"
 #include "sync/filters/PlayerFilters.h"
+#include "text/Text.h"
 #include "ui/Fonts.h"
 #include "ui/chat/ChatStyle.h"
 
@@ -22,16 +23,15 @@ namespace UI
 
         struct Filter
         {
-            const char* label;
+            Text::Id label;
             Multiplayer::ChatChannel channel;
-            const char* hint;
+            Text::Id hint;
         };
 
         constexpr std::array kFilters{
-            Filter{ "Global", Multiplayer::ChatChannel::kGlobal, "Messages to every player on the server." },
-            Filter{ "Nearby", Multiplayer::ChatChannel::kNearby, "Messages from players near you." },
-            Filter{
-                "Whispers", Multiplayer::ChatChannel::kWhisper, "Private messages between you and one other player." },
+            Filter{ Text::Id::kChatGlobal, Multiplayer::ChatChannel::kGlobal, Text::Id::kChatGlobalFilterHint },
+            Filter{ Text::Id::kChatNearby, Multiplayer::ChatChannel::kNearby, Text::Id::kChatNearbyFilterHint },
+            Filter{ Text::Id::kChatWhispers, Multiplayer::ChatChannel::kWhisper, Text::Id::kChatWhispersFilterHint },
         };
 
         float GetRecentAlpha(double a_receivedAt, double a_now)
@@ -229,12 +229,13 @@ namespace UI
         for (std::size_t index = 0; index < kFilters.size(); ++index)
         {
             const auto& filter = kFilters[index];
+            const auto* const label = Text::GetCString(filter.label);
             const auto channel = static_cast<std::size_t>(filter.channel);
             if (index > 0)
             {
                 ImGui::SameLine(0.0F, std::floor(kFilterSpacingFonts * fontSize));
             }
-            const auto textSize = ImGui::CalcTextSize(filter.label);
+            const auto textSize = ImGui::CalcTextSize(label);
             ImGui::PushID(static_cast<int>(index));
             if (ImGui::InvisibleButton(
                     "##ChatFilter", ImVec2{ textSize.x + padding.x * 2.0F, textSize.y + padding.y * 2.0F }))
@@ -248,7 +249,7 @@ namespace UI
                 ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
             }
             const bool on = shown[channel];
-            ImGui::SetItemTooltip("%s", filter.hint);
+            ImGui::SetItemTooltip("%s", Text::GetCString(filter.hint));
             if (on)
             {
                 unread[channel] = false;
@@ -261,7 +262,7 @@ namespace UI
             const auto fillAlpha = on ? (hovered ? ChatStyle::kHoveredChipFillAlpha : ChatStyle::kChipFillAlpha)
                                       : (hovered ? ChatStyle::kHoveredOffChipFillAlpha : 0.0F);
             ChatStyle::DrawChipFrame(color, fillAlpha);
-            drawList->AddText(ImVec2{ min.x + padding.x, min.y + padding.y }, ImGui::GetColorU32(color), filter.label);
+            drawList->AddText(ImVec2{ min.x + padding.x, min.y + padding.y }, ImGui::GetColorU32(color), label);
             if (!on && unread[channel])
             {
                 const auto radius = fontSize * kFilterDotFonts;

@@ -14,9 +14,34 @@ namespace Forms
         using Multiplayer::TradeSkip;
         using Multiplayer::TradeSkipReason;
 
+        struct TemperTier
+        {
+            float health;
+            // Game settings that name the tier in the game's language.
+            const char* weaponSetting;
+            const char* armorSetting;
+            std::string_view fallback;
+        };
+
         // The tempering tiers the inventory names, by item health.
-        constexpr std::array<std::pair<float, std::string_view>, 6> kTemperNames{ { { 1.6F, "Legendary" },
-            { 1.5F, "Epic" }, { 1.4F, "Flawless" }, { 1.3F, "Exquisite" }, { 1.2F, "Superior" }, { 1.1F, "Fine" } } };
+        constexpr std::array<TemperTier, 6> kTemperTiers{ {
+            { 1.6F, "sHealthDataPrefixWeap6", "sHealthDataPrefixArmo6", "Legendary" },
+            { 1.5F, "sHealthDataPrefixWeap5", "sHealthDataPrefixArmo5", "Epic" },
+            { 1.4F, "sHealthDataPrefixWeap4", "sHealthDataPrefixArmo4", "Flawless" },
+            { 1.3F, "sHealthDataPrefixWeap3", "sHealthDataPrefixArmo3", "Exquisite" },
+            { 1.2F, "sHealthDataPrefixWeap2", "sHealthDataPrefixArmo2", "Superior" },
+            { 1.1F, "sHealthDataPrefixWeap1", "sHealthDataPrefixArmo1", "Fine" },
+        } };
+
+        std::string_view GetTemperName(const TemperTier& a_tier, bool a_weapon)
+        {
+            auto* settings = RE::GameSettingCollection::GetSingleton();
+            const auto* setting = settings ? settings->GetSetting(a_weapon ? a_tier.weaponSetting : a_tier.armorSetting)
+                                           : nullptr;
+            const char* name =
+                setting && setting->GetType() == RE::Setting::Type::kString ? setting->GetString() : nullptr;
+            return name && *name ? std::string_view{ name } : a_tier.fallback;
+        }
 
         TradeSkip MissingFrom(TradeSkipReason a_reason, const Multiplayer::FormReference& a_reference)
         {
@@ -270,10 +295,10 @@ namespace Forms
     {
         std::string name = a_item.name.empty() ? std::string{ a_object.GetName() } : a_item.name;
         const auto tier = std::ranges::find_if(
-            kTemperNames, [&](const auto& a_tier) { return a_item.health >= a_tier.first - 0.001F; });
-        if (tier != kTemperNames.end())
+            kTemperTiers, [&](const TemperTier& a_tier) { return a_item.health >= a_tier.health - 0.001F; });
+        if (tier != kTemperTiers.end())
         {
-            name += std::format(" ({})", tier->second);
+            name += std::format(" ({})", GetTemperName(*tier, a_object.IsWeapon()));
         }
         return name;
     }

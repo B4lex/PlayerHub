@@ -1,4 +1,5 @@
 #include "ui/chat/ChatPlayerManager.h"
+#include "text/Text.h"
 #include "ui/Fonts.h"
 #include "ui/Theme.h"
 #include "ui/chat/ChatStyle.h"
@@ -20,18 +21,19 @@ namespace UI
 
         struct TabLabel
         {
-            const char* label;
+            Text::Id label;
             bool PlayerFilters::Entry::* listed;
-            const char* action;
-            const char* empty;
+            Text::Id action;
+            Text::Id empty;
         };
 
         constexpr std::array kTabs{
-            TabLabel{ "Friends", &PlayerFilters::Entry::friended, "Remove",
-                "You have not added any friends on this server." },
-            TabLabel{ "Muted", &PlayerFilters::Entry::muted, "Unmute", "You have not muted anyone on this server." },
-            TabLabel{ "Vanished", &PlayerFilters::Entry::vanished, "Unvanish",
-                "You have not vanished anyone on this server." },
+            TabLabel{ Text::Id::kPlayersFriends, &PlayerFilters::Entry::friended, Text::Id::kPlayersRemoveFriend,
+                Text::Id::kPlayersNoFriends },
+            TabLabel{ Text::Id::kPlayersMuted, &PlayerFilters::Entry::muted, Text::Id::kPlayersUnmute,
+                Text::Id::kPlayersNoMuted },
+            TabLabel{ Text::Id::kPlayersVanished, &PlayerFilters::Entry::vanished, Text::Id::kPlayersUnvanish,
+                Text::Id::kPlayersNoVanished },
         };
 
     }
@@ -140,7 +142,7 @@ namespace UI
         const auto top = ImGui::GetCursorPosY();
         const auto right = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
         ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kTitleScale);
-        ImGui::TextUnformatted("Players");
+        ImGui::TextUnformatted(Text::GetCString(Text::Id::kPlayersTitle));
         ImGui::PopFont();
         const auto titleBottom = ImGui::GetCursorPosY();
         ImGui::SetCursorPos(ImVec2{ right - ImGui::GetFrameHeight(), top });
@@ -176,7 +178,7 @@ namespace UI
         auto* drawList = ImGui::GetWindowDrawList();
         for (std::size_t index = 0; index < kTabs.size(); ++index)
         {
-            const auto* label = kTabs[index].label;
+            const auto* label = Text::GetCString(kTabs[index].label);
             if (index > 0)
             {
                 ImGui::SameLine(0.0F, std::floor(kTabSpacingFonts * ImGui::GetFontSize()));
@@ -218,11 +220,11 @@ namespace UI
         const auto& current = kTabs[static_cast<std::size_t>(tab)];
         if (rows.empty())
         {
-            Controls::MutedTextWrapped(current.empty);
+            Controls::MutedTextWrapped(Text::GetCString(current.empty));
         }
         else if (matches.empty())
         {
-            Controls::MutedTextWrapped("No player with that name");
+            Controls::MutedTextWrapped(Text::GetCString(Text::Id::kPlayersNoMatch));
         }
 
         // The chat's field keeps the keyboard, which would otherwise keep the rows from being hovered.
@@ -231,7 +233,7 @@ namespace UI
         auto buttonWidth = 0.0F;
         for (const auto& label : kTabs)
         {
-            buttonWidth = (std::max)(buttonWidth, ImGui::CalcTextSize(label.action).x);
+            buttonWidth = (std::max)(buttonWidth, ImGui::CalcTextSize(Text::GetCString(label.action)).x);
         }
         buttonWidth += style.FramePadding.x * 2.0F;
         const auto right = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
@@ -261,7 +263,8 @@ namespace UI
                     dotSize * 0.5F, row.online ? ImGui::GetColorU32(kOnlineColor) : offlineColor);
                 if (ImGui::IsItemHovered(kHover))
                 {
-                    ImGui::SetTooltip("%s", row.online ? "Online" : "Offline");
+                    ImGui::SetTooltip(
+                        "%s", Text::GetCString(row.online ? Text::Id::kPlayersOnline : Text::Id::kPlayersOffline));
                 }
 
                 ImGui::SameLine();
@@ -290,7 +293,7 @@ namespace UI
                 }
 
                 ImGui::SameLine(buttonLeft);
-                if (ImGui::Button(current.action, ImVec2{ buttonWidth, 0.0F }))
+                if (ImGui::Button(Text::GetCString(current.action), ImVec2{ buttonWidth, 0.0F }))
                 {
                     undone = row.player;
                 }

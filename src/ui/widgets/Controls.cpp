@@ -1,7 +1,9 @@
 #include "ui/widgets/Controls.h"
+#include "text/Text.h"
 #include "ui/Theme.h"
 
 #include <algorithm>
+#include <array>
 #include <cfloat>
 #include <cmath>
 #include <numbers>
@@ -155,7 +157,8 @@ namespace UI::Controls
     {
         ImGui::SetNextItemWidth(-FLT_MIN);
         return ImGui::InputTextWithHint(
-            a_id, "Search", a_buffer.data(), a_buffer.size(), ImGuiInputTextFlags_CallbackCompletion, &KeepTab);
+            a_id, Text::GetCString(Text::Id::kSearchHint), a_buffer.data(), a_buffer.size(),
+            ImGuiInputTextFlags_CallbackCompletion, &KeepTab);
     }
 
     void MutedTextWrapped(const char* a_text)
@@ -163,6 +166,31 @@ namespace UI::Controls
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
         ImGui::TextWrapped("%s", a_text);
         ImGui::PopStyleColor();
+    }
+
+    void AccentedText(std::string_view a_format, std::span<const std::string_view> a_arguments)
+    {
+        std::array<Text::Piece, 8> pieces;
+        const auto count = Text::Split(a_format, pieces);
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            if (i > 0)
+            {
+                ImGui::SameLine(0.0F, 0.0F);
+            }
+            const auto argument = static_cast<std::size_t>(pieces[i].argument);
+            const bool accented = pieces[i].argument >= 0 && argument < a_arguments.size();
+            const auto text = accented ? a_arguments[argument] : pieces[i].text;
+            if (accented)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, Theme::GetAccent());
+            }
+            ImGui::TextUnformatted(text.data(), text.data() + text.size());
+            if (accented)
+            {
+                ImGui::PopStyleColor();
+            }
+        }
     }
 
     void StripedBox(ImDrawList& a_list, const ImVec2& a_min, const ImVec2& a_max, float a_strip, ImU32 a_stripColor,

@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
 #include "forms/ItemCatalog.h"
+#include "text/Text.h"
 #include "ui/Theme.h"
 #include "ui/preview/ItemPreview.h"
 #include "ui/widgets/Controls.h"
@@ -25,7 +26,6 @@ namespace UI
         constexpr float kPluginColumnWidthFonts = 11.0F;
 
         constexpr ImGuiTableFlags kListFlags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg;
-        constexpr const char* kNoneText = "None";
     }
 
     bool ItemPicker::Draw(
@@ -65,11 +65,11 @@ namespace UI
             switch (label.kind)
             {
                 case LabelKind::kMismatch:
-                    ImGui::SetTooltip("%s does not fit this setting, so it is not used.",
-                        Config::FormatFormReference(a_value).c_str());
+                    ImGui::SetTooltip("%s",
+                        Text::Format(Text::Id::kItemPickerMismatch, Config::FormatFormReference(a_value)).c_str());
                     break;
                 case LabelKind::kPluginMissing:
-                    ImGui::SetTooltip("%s is not loaded, so this item is not used.", a_value.plugin.c_str());
+                    ImGui::SetTooltip("%s", Text::Format(Text::Id::kItemPickerPluginMissing, a_value.plugin).c_str());
                     break;
                 case LabelKind::kItem:
                     ImGui::SetTooltip("%s", Config::FormatFormReference(a_value).c_str());
@@ -92,7 +92,9 @@ namespace UI
             const bool reset = Controls::IconButton("##reset", Controls::Icon::kReset);
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip))
             {
-                ImGui::SetTooltip("Reset to %s", GetLabel(ImGui::GetID("##default"), a_default, a_filter).text.c_str());
+                ImGui::SetTooltip("%s",
+                    Text::Format(Text::Id::kItemPickerReset, GetLabel(ImGui::GetID("##default"), a_default, a_filter).text)
+                        .c_str());
             }
             if (reset)
             {
@@ -125,7 +127,7 @@ namespace UI
         if (a_value.IsEmpty())
         {
             label.kind = LabelKind::kNone;
-            label.text = kNoneText;
+            label.text = Text::Get(Text::Id::kItemPickerNone);
         }
         else if (item)
         {
@@ -135,7 +137,7 @@ namespace UI
         else if (catalog && !catalog->IsPluginLoaded(a_value.plugin))
         {
             label.kind = LabelKind::kPluginMissing;
-            label.text = std::format("{} (not loaded)", Config::FormatFormReference(a_value));
+            label.text = Text::Format(Text::Id::kItemPickerNotLoaded, Config::FormatFormReference(a_value));
         }
         else
         {
@@ -149,7 +151,7 @@ namespace UI
     {
         if (!catalog)
         {
-            ImGui::TextDisabled("Items are listed once the game has loaded its data.");
+            ImGui::TextDisabled("%s", Text::GetCString(Text::Id::kItemPickerNotReady));
             return false;
         }
 
@@ -168,7 +170,7 @@ namespace UI
         }
 
         ImGui::SetNextItemWidth(-FLT_MIN);
-        if (ImGui::InputTextWithHint("##search", "Search by name or plugin", &query))
+        if (ImGui::InputTextWithHint("##search", Text::GetCString(Text::Id::kItemPickerSearchHint), &query))
         {
             Search(a_filter);
         }
@@ -233,7 +235,7 @@ namespace UI
             {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
-                ImGui::TextDisabled("No item matches.");
+                ImGui::TextDisabled("%s", Text::GetCString(Text::Id::kItemsNoMatch));
             }
             ImGui::EndTable();
         }

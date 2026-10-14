@@ -18,7 +18,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
 | [trade.md](trade.md) | Item exchange between two players: invitation, plugin check, offers, reports, acceptance, commit, cancelling, the trade bot; the only change a peer makes to the local world | `sync/trade/`, `forms/ItemInstance`, `protocol/TradeState.h`, `server/internal/hub/trade.go`, `server/cmd/tradebot` |
 | [configuration.md](configuration.md) | `PlayerHub.ini`, schema, snapshots, saving | `src/config/` |
-| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, theme, menu frame, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, player menu, player menu in the world, settings window, item picker and preview | `src/ui/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
+| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, localization, theme, menu frame, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, player menu, player menu in the world, settings window, item picker and preview | `src/ui/`, `src/text/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `server/admin-ui/` |
 
 ## Features
@@ -61,6 +61,7 @@ criteria.
 | Font scale | [ui-overlay](ui-overlay.md#font-scale), [configuration](configuration.md#ui) |
 | Key bindings | [ui-overlay](ui-overlay.md#key-bindings), [ui-overlay](ui-overlay.md#input-focus), [configuration](configuration.md#controls) |
 | Input language switching while typing | [ui-overlay](ui-overlay.md#input-language) |
+| Localization (the game's language for the plugin's text) | [ui-overlay](ui-overlay.md#localization), [configuration](configuration.md#schema), [trade](trade.md#item-details) |
 | Item trade | [trade](trade.md), [network](network.md#trade), [ui-overlay](ui-overlay.md#trade-window), [sync-pipeline](sync-pipeline.md#frame-sequence), [interest-and-delivery](interest-and-delivery.md#ordering), [configuration](configuration.md#controls) |
 | Item picker and preview | [ui-overlay](ui-overlay.md#item-picker), [appearance-and-equipment](appearance-and-equipment.md#item-filter-and-catalog) |
 | Replay and load testing | [recording-and-replay](recording-and-replay.md) |

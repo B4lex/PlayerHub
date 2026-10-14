@@ -2,6 +2,8 @@
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
 #include "protocol/Session.h"
+#include "text/Text.h"
+#include "text/Utf8Case.h"
 #include "ui/Fonts.h"
 #include "ui/MenuFrame.h"
 #include "ui/Theme.h"
@@ -15,7 +17,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cctype>
 #include <cfloat>
 #include <cmath>
 #include <cstdint>
@@ -59,23 +60,15 @@ namespace UI
 
         constexpr std::string_view kConnectionSection = "Connection";
         constexpr std::string_view kDisplayNameKey = "DisplayName";
-        constexpr const char* kDisplayNameHint = "Enter a display name";
         constexpr std::string_view kServerEndpointKey = "ServerEndpoint";
-        constexpr const char* kServerEndpointHint = "Enter server endpoint URL";
-        constexpr const char* kInvalidServerEndpointText = "Invalid server URL.";
         constexpr std::string_view kStagedSection = "DefaultOutfit";
         constexpr std::string_view kUISection = "UI";
         constexpr std::string_view kControlsSection = "Controls";
         constexpr std::string_view kAdvancedSection = "Advanced";
         constexpr std::string_view kDefaultsSections[]{ kUISection, kControlsSection, kAdvancedSection };
-        constexpr std::pair<std::string_view, std::string_view> kSectionTitles[]{ { "UI", "Interface" },
-            { "Controls", "Keybinds" } };
 
         constexpr float kBackgroundAlpha = 0.96F;
-        constexpr const char* kSaveFailedText = "Could not save PlayerHub.ini";
-        constexpr std::string_view kCapturePrompt = "Press a key";
-        constexpr std::string_view kUnboundText = "Not bound";
-        constexpr std::string_view kReservedKeyText = "This key cannot be bound";
+        constexpr std::string_view kConfigFileName = "PlayerHub.ini";
         constexpr std::uint32_t kEscapeScanCode = RE::BSKeyboardDevice::Key::kEscape;
         constexpr std::uint32_t kBackspaceScanCode = RE::BSKeyboardDevice::Key::kBackspace;
         // U+E000 and U+E001 of the logo font: the letters and the bar.
@@ -85,20 +78,6 @@ namespace UI
         constexpr ImGuiWindowFlags kFixedFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
         constexpr ImGuiWindowFlags kWindowFlags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse
             | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBackground | kFixedFlags;
-
-        void FormatDisplayName(std::string_view a_name, std::string& a_result)
-        {
-            a_result.clear();
-            for (std::size_t index = 0; index < a_name.size(); ++index)
-            {
-                const auto character = static_cast<unsigned char>(a_name[index]);
-                if (index > 0 && std::isupper(character) && std::islower(static_cast<unsigned char>(a_name[index - 1])))
-                {
-                    a_result += ' ';
-                }
-                a_result += a_name[index];
-            }
-        }
 
         int FilterDisplayName(ImGuiInputTextCallbackData* a_data)
         {
@@ -116,19 +95,6 @@ namespace UI
             return 0;
         }
 
-        void FormatSectionTitle(std::string_view a_name, std::string& a_result)
-        {
-            for (const auto& [name, title] : kSectionTitles)
-            {
-                if (name == a_name)
-                {
-                    a_result.assign(title);
-                    return;
-                }
-            }
-            FormatDisplayName(a_name, a_result);
-        }
-
         void DrawText(std::string_view a_text)
         {
             ImGui::TextUnformatted(a_text.data(), a_text.data() + a_text.size());
@@ -141,12 +107,14 @@ namespace UI
             ImGui::PopStyleColor();
         }
 
-        bool DrawNavigationItem(const std::string& a_label, bool a_selected)
+        bool DrawNavigationItem(std::string_view a_id, const char* a_label, bool a_selected)
         {
             const auto fontSize = ImGui::GetFontSize();
             const auto position = ImGui::GetCursorScreenPos();
             const ImVec2 size{ ImGui::GetContentRegionAvail().x, std::floor(kNavigationHeightFonts * fontSize) };
-            const bool pressed = ImGui::InvisibleButton(a_label.c_str(), size);
+            ImGui::PushID(a_id.data(), a_id.data() + a_id.size());
+            const bool pressed = ImGui::InvisibleButton("##section", size);
+            ImGui::PopID();
             const bool hovered = ImGui::IsItemHovered();
 
             auto& list = *ImGui::GetWindowDrawList();
@@ -163,8 +131,7 @@ namespace UI
             }
             list.AddText(ImVec2{ position.x + std::floor(kNavigationInsetFonts * fontSize),
                              position.y + std::floor((size.y - fontSize) * 0.5F) },
-                ImGui::GetColorU32(ImGuiCol_Text, a_selected || hovered ? 1.0F : kNavigationIdleAlpha),
-                a_label.c_str());
+                ImGui::GetColorU32(ImGuiCol_Text, a_selected || hovered ? 1.0F : kNavigationIdleAlpha), a_label);
             return pressed;
         }
 
@@ -294,22 +261,21 @@ namespace UI
             {
                 ImGui::PushStyleVar(
                     ImGuiStyleVar_ItemSpacing, ImVec2{ 0.0F, std::floor(kNavigationGapFonts * ImGui::GetFontSize()) });
-                for (const auto name : sections)
+                for (const auto& section : sections)
                 {
-                    FormatSectionTitle(name, label);
-                    if (DrawNavigationItem(label, name == openSection))
+                    if (DrawNavigationItem(section.name, Text::GetCString(section.title), section.name == openSection))
                     {
-                        openSection = name;
+                        openSection = section.name;
                     }
                 }
                 ImGui::PopStyleVar();
             }
 
-            void Section(std::string_view a_name, std::string_view a_comment) override
+            void Section(std::string_view a_name, Text::Id a_title, Text::Id a_comment) override
             {
                 EndSection();
                 hideNext = false;
-                sections.push_back(a_name);
+                sections.push_back(SectionEntry{ .name = a_name, .title = a_title });
                 if (openSection.empty())
                 {
                     openSection = a_name;
@@ -326,14 +292,13 @@ namespace UI
 
                 const auto& style = ImGui::GetStyle();
                 ImGui::SetCursorPos(padding);
-                FormatSectionTitle(a_name, label);
                 ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kTitleScale);
-                DrawText(label);
+                DrawText(Text::Get(a_title));
                 ImGui::PopFont();
-                if (!a_comment.empty())
+                if (a_comment != Text::Id::kNone)
                 {
                     ImGui::SetCursorPosX(padding.x);
-                    FormatNote(a_comment);
+                    FormatNote(Text::Get(a_comment));
                     ImGui::PushTextWrapPos(ImGui::GetWindowWidth() - padding.x);
                     DrawMutedText(note);
                     ImGui::PopTextWrapPos();
@@ -349,7 +314,7 @@ namespace UI
 
             void ShowNextIf(bool a_shown) override { hideNext = !a_shown; }
 
-            void Comment(std::string_view a_comment) override
+            void Comment(Text::Id a_comment) override
             {
                 if (!sectionOpen)
                 {
@@ -362,17 +327,13 @@ namespace UI
                 }
                 sectionEmpty = false;
                 note.clear();
-                for (const auto character : a_comment)
-                {
-                    note += static_cast<char>(std::toupper(static_cast<unsigned char>(character)));
-                }
+                Utf8Case::AppendUpper(note, Text::Get(a_comment));
                 ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kGroupScale);
                 DrawMutedText(note);
                 ImGui::PopFont();
             }
 
-            void Bool(
-                std::string_view a_key, std::string_view a_label, bool& a_value, std::string_view a_comment) override
+            void Bool(std::string_view a_key, Text::Id a_label, bool& a_value, Text::Id a_comment) override
             {
                 if (!BeginRow(a_key, a_label, a_comment))
                 {
@@ -383,16 +344,15 @@ namespace UI
                 EndRow();
             }
 
-            void Unsigned(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
-                std::string_view a_comment, std::uint32_t a_maximum, std::string_view a_zeroName,
-                std::uint32_t a_step) override
+            void Unsigned(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
+                std::uint32_t a_maximum, Text::Id a_zeroName, std::uint32_t a_step) override
             {
                 if (!BeginRow(a_key, a_label, a_comment))
                 {
                     return;
                 }
                 // A format without a conversion is drawn as it is, so zero shows its name.
-                label.assign(a_value == 0 && !a_zeroName.empty() ? a_zeroName : "%u");
+                label.assign(a_value == 0 && a_zeroName != Text::Id::kNone ? Text::Get(a_zeroName) : "%u");
                 constexpr std::uint32_t kMinimum = 0;
                 if (ImGui::SliderScalar("##value", ImGuiDataType_U32, &a_value, &kMinimum, &a_maximum, label.c_str(),
                         ImGuiSliderFlags_AlwaysClamp))
@@ -404,9 +364,8 @@ namespace UI
                 EndRow();
             }
 
-            void Percent(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
-                std::string_view a_comment, std::uint32_t a_minimum, std::uint32_t a_maximum,
-                std::uint32_t a_step) override
+            void Percent(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
+                std::uint32_t a_minimum, std::uint32_t a_maximum, std::uint32_t a_step) override
             {
                 if (!BeginRow(a_key, a_label, a_comment))
                 {
@@ -422,8 +381,8 @@ namespace UI
                 EndRow();
             }
 
-            void String(std::string_view a_key, std::string_view a_label, std::string& a_value,
-                std::string_view a_comment, bool (*a_isValid)(std::string_view)) override
+            void String(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment,
+                bool (*a_isValid)(std::string_view)) override
             {
                 if (sectionOpen && openSection == kConnectionSection && a_key == kDisplayNameKey)
                 {
@@ -436,7 +395,7 @@ namespace UI
                     return;
                 }
                 auto& field = GetField([&a_value] { return a_value; });
-                if (DrawTextField(field, endpoint ? kServerEndpointHint : nullptr))
+                if (DrawTextField(field, endpoint ? Text::GetCString(Text::Id::kSettingsServerEndpointHint) : nullptr))
                 {
                     field.valid = a_isValid(field.text);
                 }
@@ -446,12 +405,12 @@ namespace UI
                 }
                 if (!field.valid)
                 {
-                    DrawTooltip(a_comment);
+                    DrawTooltip(Text::Get(a_comment));
                     if (endpoint)
                     {
                         ImGui::PushStyleColor(ImGuiCol_Text, Theme::kNegative);
                         ImGui::PushTextWrapPos(0.0F);
-                        DrawText(kInvalidServerEndpointText);
+                        DrawText(Text::Get(Text::Id::kSettingsServerEndpointInvalid));
                         ImGui::PopTextWrapPos();
                         ImGui::PopStyleColor();
                     }
@@ -459,10 +418,10 @@ namespace UI
                 EndRow();
             }
 
-            void Form(std::string_view a_key, std::string_view a_label, Multiplayer::FormReference& a_value,
+            void Form(std::string_view a_key, Text::Id a_label, Multiplayer::FormReference& a_value,
                 const Multiplayer::FormReference& a_default, const Forms::ItemFilter& a_filter) override
             {
-                if (!BeginRow(a_key, a_label, {}))
+                if (!BeginRow(a_key, a_label, Text::Id::kNone))
                 {
                     return;
                 }
@@ -470,21 +429,23 @@ namespace UI
                 EndRow();
             }
 
-            void Choice(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
-                std::string_view a_comment, std::span<const std::string_view> a_options) override
+            void Choice(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
+                std::span<const std::string_view>, std::span<const Text::Id> a_optionLabels) override
             {
                 if (!BeginRow(a_key, a_label, a_comment))
                 {
                     return;
                 }
-                label.assign(Config::FormatChoice(a_value, a_options));
-                if (ImGui::BeginCombo("##value", label.c_str()))
+                const auto* preview = a_value < a_optionLabels.size() ? Text::GetCString(a_optionLabels[a_value]) : "";
+                if (ImGui::BeginCombo("##value", preview))
                 {
-                    for (std::uint32_t index = 0; index < a_options.size(); ++index)
+                    for (std::uint32_t index = 0; index < a_optionLabels.size(); ++index)
                     {
-                        label.assign(a_options[index]);
                         const bool selected = index == a_value;
-                        if (ImGui::Selectable(label.c_str(), selected))
+                        ImGui::PushID(static_cast<int>(index));
+                        const bool pressed = ImGui::Selectable(Text::GetCString(a_optionLabels[index]), selected);
+                        ImGui::PopID();
+                        if (pressed)
                         {
                             a_value = index;
                         }
@@ -498,8 +459,8 @@ namespace UI
                 EndRow();
             }
 
-            void Color(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
-                std::string_view a_comment, std::span<const std::uint32_t> a_swatches) override
+            void Color(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
+                std::span<const std::uint32_t> a_swatches) override
             {
                 if (!BeginRow(a_key, a_label, a_comment))
                 {
@@ -536,7 +497,7 @@ namespace UI
                 }
                 if (!ImGui::IsPopupOpen("##picker"))
                 {
-                    DrawColorTooltip("Custom color", custom ? std::optional{ a_value } : std::nullopt);
+                    DrawColorTooltip(Text::Get(Text::Id::kSettingsCustomColor), custom ? std::optional{ a_value } : std::nullopt);
                 }
                 const auto anchor = ImGui::GetItemRectMax();
                 ImGui::SetNextWindowPos(ImVec2{ anchor.x, anchor.y + ImGui::GetStyle().ItemSpacing.y },
@@ -568,8 +529,8 @@ namespace UI
                 EndRow();
             }
 
-            void Key(std::string_view a_key, std::string_view a_label, std::uint32_t& a_value,
-                std::string_view a_comment, std::uint32_t a_cleared) override
+            void Key(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
+                std::uint32_t a_cleared) override
             {
                 bindings.push_back(
                     KeyBinding{ .name = a_key, .label = a_label, .value = &a_value, .cleared = a_cleared });
@@ -578,7 +539,8 @@ namespace UI
                     return;
                 }
                 const bool capturing = capturingKey == a_key;
-                if (DrawKeyButton(capturing ? kCapturePrompt : Config::FormatKeyLabel(a_value), capturing))
+                if (DrawKeyButton(
+                        capturing ? Text::Get(Text::Id::kSettingsKeyPrompt) : Config::FormatKeyLabel(a_value), capturing))
                 {
                     pressedKey = a_key;
                 }
@@ -603,10 +565,16 @@ namespace UI
                 bool valid{ true };
             };
 
+            struct SectionEntry
+            {
+                std::string_view name;
+                Text::Id title;
+            };
+
             struct KeyBinding
             {
                 std::string_view name;
-                std::string_view label;
+                Text::Id label;
                 std::uint32_t* value;
                 std::uint32_t cleared;
             };
@@ -627,7 +595,7 @@ namespace UI
             bool DrawKeyButton(std::string_view a_text, bool a_capturing)
             {
                 const bool unbound = a_text.empty();
-                label.assign(unbound ? kUnboundText : a_text);
+                label.assign(unbound ? Text::Get(Text::Id::kSettingsKeyUnbound) : a_text);
                 label += "###value";
                 if (a_capturing)
                 {
@@ -701,7 +669,7 @@ namespace UI
                     if (keyLabel.empty())
                     {
                         captureRejected = true;
-                        captureNote.assign(kReservedKeyText);
+                        captureNote.assign(Text::Get(Text::Id::kSettingsKeyReserved));
                         return;
                     }
                     const auto other = std::ranges::find(
@@ -709,7 +677,7 @@ namespace UI
                     if (other != bindings.end())
                     {
                         captureRejected = true;
-                        captureNote = std::format("{} is already used by {}", keyLabel, other->label);
+                        Text::FormatTo(captureNote, Text::Id::kSettingsKeyInUse, keyLabel, Text::Get(other->label));
                         return;
                     }
                 }
@@ -717,12 +685,12 @@ namespace UI
                 StopKeyCapture();
             }
 
-            void DrawConnectionBar(std::string_view a_key, std::string_view a_label, std::string& a_value,
-                std::string_view a_comment, bool (*a_isValid)(std::string_view))
+            void DrawConnectionBar(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment,
+                bool (*a_isValid)(std::string_view))
             {
                 sectionEmpty = false;
                 ImGui::PushID(a_key.data(), a_key.data() + a_key.size());
-                DrawText(a_label);
+                DrawText(Text::Get(a_label));
 
                 auto& field = GetField([&a_value] { return a_value; });
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - ConnectionControls::GetButtonWidth()
@@ -734,7 +702,7 @@ namespace UI
                 }
                 const auto* lock = ConnectionControls::GetDisplayNameLock();
                 ImGui::BeginDisabled(lock != nullptr);
-                if (DrawTextField(field, kDisplayNameHint,
+                if (DrawTextField(field, Text::GetCString(Text::Id::kSettingsDisplayNameHint),
                         ImGuiInputTextFlags_CallbackCharFilter | ImGuiInputTextFlags_CallbackEdit, FilterDisplayName))
                 {
                     field.valid = a_isValid(field.text);
@@ -757,7 +725,7 @@ namespace UI
                 }
                 else
                 {
-                    DrawTooltip(a_comment);
+                    DrawTooltip(Text::Get(a_comment));
                 }
 
                 ImGui::SameLine();
@@ -795,8 +763,7 @@ namespace UI
                 sectionOpen = false;
             }
 
-            bool BeginRow(
-                std::string_view a_key, std::string_view a_label, std::string_view a_comment, bool a_labeled = true)
+            bool BeginRow(std::string_view a_key, Text::Id a_label, Text::Id a_comment, bool a_labeled = true)
             {
                 const bool hidden = std::exchange(hideNext, false);
                 if (!sectionOpen)
@@ -826,8 +793,8 @@ namespace UI
                 controlLeft = left + width - controlWidth;
 
                 ImGui::AlignTextToFramePadding();
-                DrawText(a_label);
-                DrawTooltip(a_comment);
+                DrawText(Text::Get(a_label));
+                DrawTooltip(Text::Get(a_comment));
                 ImGui::SameLine(controlLeft);
                 ImGui::SetNextItemWidth(controlWidth);
                 return true;
@@ -910,7 +877,7 @@ namespace UI
             std::string label;
             std::string note;
             // Describe passes literals, so the views outlive the pass.
-            std::vector<std::string_view> sections;
+            std::vector<SectionEntry> sections;
             std::string_view openSection;
             ImVec2 padding;
             float buttonFooterHeight{ 0.0F };
@@ -998,6 +965,10 @@ namespace UI
             void Apply(Config::PluginConfig a_config)
             {
                 saveFailed = !Config::Apply(std::move(a_config));
+                if (saveFailed && saveFailedText.empty())
+                {
+                    saveFailedText = Text::Format(Text::Id::kSettingsSaveFailed, kConfigFileName);
+                }
                 live = Config::Get();
             }
 
@@ -1079,7 +1050,7 @@ namespace UI
                 if (!logo)
                 {
                     ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kBrandScale);
-                    ImGui::TextUnformatted("Multiplayer");
+                    ImGui::TextUnformatted(Text::GetCString(Text::Id::kSettingsBrand));
                     ImGui::PopFont();
                     return;
                 }
@@ -1162,12 +1133,24 @@ namespace UI
                 Apply(std::move(config));
             }
 
+            // One width for every footer button, so the staged footer's three line up.
+            static ImVec2 GetFooterButtonSize()
+            {
+                float width = std::floor(kFooterButtonWidthFonts * ImGui::GetFontSize());
+                for (const auto id : { Text::Id::kSettingsDefaults, Text::Id::kSettingsRevert, Text::Id::kSettingsApply })
+                {
+                    width = (std::max)(width,
+                        std::ceil(ImGui::CalcTextSize(Text::GetCString(id)).x + ImGui::GetStyle().FramePadding.x * 2.0F));
+                }
+                return ImVec2{ width, 0.0F };
+            }
+
             void DrawDefaultsFooter(std::string_view a_section, float a_inset, float a_top)
             {
-                const ImVec2 size{ std::floor(kFooterButtonWidthFonts * ImGui::GetFontSize()), 0.0F };
+                const auto size = GetFooterButtonSize();
                 ImGui::SetCursorPos(ImVec2{ ImGui::GetWindowWidth() - a_inset - size.x, a_top });
                 ImGui::BeginDisabled(HasDefaults(a_section));
-                if (ImGui::Button("Defaults", size))
+                if (ImGui::Button(Text::GetCString(Text::Id::kSettingsDefaults), size))
                 {
                     RestoreDefaults(a_section);
                     ApplyLiveSections();
@@ -1225,22 +1208,22 @@ namespace UI
                 ImGui::AlignTextToFramePadding();
                 if (changed)
                 {
-                    ImGui::TextDisabled("Unapplied changes");
+                    ImGui::TextDisabled("%s", Text::GetCString(Text::Id::kSettingsUnapplied));
                 }
                 else if (saveFailed)
                 {
-                    ImGui::TextColored(Theme::kNegative, "%s", kSaveFailedText);
+                    ImGui::TextColored(Theme::kNegative, "%s", saveFailedText.c_str());
                 }
                 else if (stagedApplied)
                 {
-                    ImGui::TextColored(Theme::kPositive, "Saved");
+                    ImGui::TextColored(Theme::kPositive, "%s", Text::GetCString(Text::Id::kSettingsSaved));
                 }
 
-                const ImVec2 size{ std::floor(kFooterButtonWidthFonts * ImGui::GetFontSize()), 0.0F };
+                const auto size = GetFooterButtonSize();
                 ImGui::SetCursorPos(ImVec2{
                     ImGui::GetWindowWidth() - a_inset - size.x * 3.0F - ImGui::GetStyle().ItemSpacing.x * 2.0F, top });
                 ImGui::BeginDisabled(draft.defaultOutfit == defaults.defaultOutfit);
-                if (ImGui::Button("Defaults", size))
+                if (ImGui::Button(Text::GetCString(Text::Id::kSettingsDefaults), size))
                 {
                     ReplaceStaged(defaults.defaultOutfit);
                 }
@@ -1248,12 +1231,13 @@ namespace UI
 
                 ImGui::SameLine();
                 ImGui::BeginDisabled(!changed);
-                if (ImGui::Button("Revert", size))
+                if (ImGui::Button(Text::GetCString(Text::Id::kSettingsRevert), size))
                 {
                     ReplaceStaged(live->defaultOutfit);
                 }
                 ImGui::SameLine();
-                if (changed ? Controls::PrimaryButton("Apply", size) : ImGui::Button("Apply", size))
+                const auto* apply = Text::GetCString(Text::Id::kSettingsApply);
+                if (changed ? Controls::PrimaryButton(apply, size) : ImGui::Button(apply, size))
                 {
                     auto config = *live;
                     config.defaultOutfit = draft.defaultOutfit;
@@ -1263,13 +1247,14 @@ namespace UI
                 ImGui::EndDisabled();
             }
 
-            [[nodiscard]] const char* GetLiveError() const { return saveFailed ? kSaveFailedText : nullptr; }
+            [[nodiscard]] const char* GetLiveError() const { return saveFailed ? saveFailedText.c_str() : nullptr; }
 
             const Config::PluginConfig defaults;
             std::shared_ptr<const Config::PluginConfig> live;
             Config::PluginConfig draft;
             SettingsEditor editor;
             MenuFrame::Metrics frame;
+            std::string saveFailedText;
             bool stagedApplied{ false };
             bool saveFailed{ false };
             bool wasFocused{ false };

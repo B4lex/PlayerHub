@@ -182,31 +182,20 @@ namespace Network
 
         std::optional<Refusal> MakeRefusal(std::uint16_t a_closeCode, const std::string& a_closeReason)
         {
-            std::string displayName;
-            {
-                const std::scoped_lock lock{ attemptLock };
-                displayName = attemptDisplayName;
-            }
             switch (a_closeCode)
             {
                 case kProtocolMismatchCloseCode:
-                    return Refusal{ RefusalReason::kProtocolMismatch,
-                        std::format("The server runs another protocol version ({}).", a_closeReason) };
+                    return Refusal{ RefusalReason::kProtocolMismatch, a_closeReason };
                 case kDisplayNameTakenCloseCode:
-                    return Refusal{ RefusalReason::kDisplayNameTaken,
-                        "The display name is already taken by another player." };
+                    return Refusal{ RefusalReason::kDisplayNameTaken };
                 case kDisplayNameInvalidCloseCode:
-                    return Refusal{ RefusalReason::kDisplayNameInvalid,
-                        "The server does not accept the display name." };
+                    return Refusal{ RefusalReason::kDisplayNameInvalid };
                 case kSessionReplacedCloseCode:
-                    return Refusal{ RefusalReason::kSessionReplaced,
-                        "Your session connected from another game, which closed this connection. Connect again "
-                        "to take it back." };
+                    return Refusal{ RefusalReason::kSessionReplaced };
                 case kServerFullCloseCode:
-                    return Refusal{ RefusalReason::kServerFull, "The server is full." };
+                    return Refusal{ RefusalReason::kServerFull };
                 case kTooManyNewSessionsCloseCode:
-                    return Refusal{ RefusalReason::kTooManyNewSessions,
-                        "Too many new players joined this server from your IP address recently." };
+                    return Refusal{ RefusalReason::kTooManyNewSessions };
                 default:
                     return std::nullopt;
             }

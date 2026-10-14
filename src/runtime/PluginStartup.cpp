@@ -18,6 +18,7 @@
 #include "sync/outfit/DefaultOutfit.h"
 #include "sync/presence/PresenceSync.h"
 #include "sync/trade/TradeSync.h"
+#include "text/Text.h"
 #include "ui/Overlay.h"
 
 namespace PluginStartup
@@ -42,6 +43,8 @@ namespace PluginStartup
 
         void OnDataLoaded()
         {
+            // Usually done already by the overlay's first frame.
+            Text::Initialize();
             SurvivalPolicy::RegisterEventSinks();
             PrecisionIsolation::Initialize();
             Forms::BuildItemCatalog();

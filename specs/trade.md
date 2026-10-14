@@ -340,7 +340,10 @@ choice), and the item card that shows them is in
   arrives.
 - Weight is the base form's, at least 0: `TESForm::GetWeight` returns -1
   for a form it counts as weightless, such as ammo outside Survival Mode.
-  The tempering tier is already in the name.
+  The tempering tier is already in the name: `Forms::GetDisplayName` adds
+  it in parentheses from the item's health, named by the game's
+  `sHealthDataPrefixWeap1`–`6` or `sHealthDataPrefixArmo1`–`6` setting, so in
+  the game's language ([Localization](ui-overlay.md#localization)).
 - A row that cannot be offered has no instance data, so its details are its
   base form's.
 
@@ -411,7 +414,9 @@ connection lost, or the player's own decline); a commit has a notice of
 its own. Refusals of the player's own actions (a trade
 already under way, combat, no connection, a full offer, items gone, an item
 the other game cannot receive) are notices too. Sending an invitation and receiving one post nothing:
-the [prompt](ui-overlay.md#prompt) shows both.
+the [prompt](ui-overlay.md#prompt) shows both. The notices, the reasons a row cannot be offered, and
+the Accept button's tooltips come from the string tables, so they are in the
+game's language.
 
 ## Trade bot
 

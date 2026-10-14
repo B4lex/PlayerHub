@@ -3,6 +3,7 @@
 #include "runtime/GameSession.h"
 #include "sync/filters/PlayerFilters.h"
 #include "sync/notices/Notices.h"
+#include "text/Text.h"
 #include "ui/Theme.h"
 #include "ui/widgets/Controls.h"
 
@@ -11,7 +12,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <format>
 #include <string>
 #include <utility>
 #include <vector>
@@ -78,14 +78,14 @@ namespace UI
                     connectionGeneration = generation;
                     if (Network::IsConnected())
                     {
-                        Add("Connected to the server", a_now);
+                        Add(std::string{ Text::Get(Text::Id::kNoticeConnected) }, a_now);
                     }
                 }
 
                 PlayerFilters::CollectArrivedFriends(friends);
                 for (const auto& player : friends)
                 {
-                    Add(std::format("{} is online", player.name), a_now);
+                    Add(Text::Format(Text::Id::kNoticeFriendOnline, player.name), a_now);
                 }
                 friends.clear();
 

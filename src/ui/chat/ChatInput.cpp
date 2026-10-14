@@ -1,13 +1,13 @@
 #include "ui/chat/ChatInput.h"
 #include "config/PluginConfig.h"
 #include "sync/chat/ChatRoster.h"
+#include "text/Text.h"
 #include "ui/chat/ChatStyle.h"
 
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
 #include <cstring>
-#include <format>
 #include <string_view>
 
 namespace UI
@@ -42,13 +42,13 @@ namespace UI
             switch (a_target.channel)
             {
                 case Multiplayer::ChatChannel::kNearby:
-                    return "Nearby";
+                    return std::string{ Text::Get(Text::Id::kChatNearby) };
                 case Multiplayer::ChatChannel::kGlobal:
-                    return "Global";
+                    return std::string{ Text::Get(Text::Id::kChatGlobal) };
                 case Multiplayer::ChatChannel::kWhisper:
                     break;
             }
-            return std::format("To {}", a_target.player.name);
+            return Text::Format(Text::Id::kChatTo, a_target.player.name);
         }
     }
 
@@ -173,13 +173,14 @@ namespace UI
                 switch (a_target.channel)
                 {
                     case Multiplayer::ChatChannel::kGlobal:
-                        ImGui::SetTooltip("Send to every player on the server.");
+                        ImGui::SetTooltip("%s", Text::GetCString(Text::Id::kChatGlobalTargetHint));
                         break;
                     case Multiplayer::ChatChannel::kNearby:
-                        ImGui::SetTooltip("Send to players near you.");
+                        ImGui::SetTooltip("%s", Text::GetCString(Text::Id::kChatNearbyTargetHint));
                         break;
                     case Multiplayer::ChatChannel::kWhisper:
-                        ImGui::SetTooltip("Send wh to %s.", a_target.player.name.c_str());
+                        ImGui::SetTooltip(
+                            "%s", Text::Format(Text::Id::kChatWhisperTargetHint, a_target.player.name).c_str());
                         break;
                 }
             }
@@ -190,8 +191,8 @@ namespace UI
             }
             ImGui::PopID();
         };
-        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kGlobal }, "Global", 0);
-        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kNearby }, "Nearby", 1);
+        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kGlobal }, Text::Get(Text::Id::kChatGlobal), 0);
+        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kNearby }, Text::Get(Text::Id::kChatNearby), 1);
         partners.clear();
         ChatRoster::GetRecentPartners(partners, kMaximumMenuPartners);
         if (!partners.empty())
@@ -229,7 +230,7 @@ namespace UI
         {
             if (suggestions.empty())
             {
-                DrawRow("No player with that name is online", ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), false);
+                DrawRow(Text::Get(Text::Id::kChatNoPlayerNamed), ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), false);
             }
             for (std::size_t index = 0; index < suggestions.size(); ++index)
             {
@@ -320,7 +321,7 @@ namespace UI
             ImGui::SetKeyboardFocusHere();
         }
         ImGui::SetNextItemWidth(-FLT_MIN);
-        const bool entered = ImGui::InputTextWithHint("##ChatInput", "Press Tab to switch channel",
+        const bool entered = ImGui::InputTextWithHint("##ChatInput", Text::GetCString(Text::Id::kChatInputHint),
             field.data(), field.size(),
             ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackAlways
                 | ImGuiInputTextFlags_CallbackHistory | ImGuiInputTextFlags_CallbackCompletion,

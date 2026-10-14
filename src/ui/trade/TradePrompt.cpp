@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
 #include "sync/trade/TradeSync.h"
+#include "text/Text.h"
 #include "ui/MenuFrame.h"
 #include "ui/Theme.h"
 #include "ui/WindowManager.h"
@@ -89,9 +90,8 @@ namespace UI
 
             void DrawContent() const
             {
+                using Text::Id;
                 const auto& controls = Config::Get()->controls;
-                const std::string_view name = view.peer.name;
-                const auto space = ImGui::CalcTextSize(" ").x;
                 Line message;
                 Line hints;
                 switch (view.phase)
@@ -100,31 +100,26 @@ namespace UI
                     // answer arrives.
                     case Phase::kRequesting:
                     case Phase::kInviting:
-                        message.Add("Waiting for", Tone::kNormal, 0.0F);
-                        message.Add(name, Tone::kAccent, space);
-                        message.Add("to answer your trade offer", Tone::kNormal, space);
-                        AddKey(hints, controls.tradeDeclineKey, "Withdraw");
+                        AddMessage(message, Text::Get(Id::kTradePromptWaiting), view.peer.name);
+                        AddKey(hints, controls.tradeDeclineKey, Text::Get(Id::kTradePromptWithdraw));
                         break;
                     case Phase::kInvited:
-                        message.Add(name, Tone::kAccent, 0.0F);
-                        message.Add("wants to trade with you", Tone::kNormal, space);
-                        AddKey(hints, controls.tradeAcceptKey, "Accept");
-                        AddKey(hints, controls.tradeDeclineKey, "Decline");
+                        AddMessage(message, Text::Get(Id::kTradePromptInvited), view.peer.name);
+                        AddKey(hints, controls.tradeAcceptKey, Text::Get(Id::kTradePromptAccept));
+                        AddKey(hints, controls.tradeDeclineKey, Text::Get(Id::kTradePromptDecline));
                         break;
                     default:
                         return;
                 }
 
-                std::array<char, 16> seconds{};
-                const auto secondsEnd = std::format_to_n(seconds.data(), seconds.size(), "{} s", view.secondsLeft).out;
-                std::array<char, 16> longest{};
-                const auto longestEnd = std::format_to_n(longest.data(), longest.size(), "{} s",
-                    static_cast<std::uint32_t>(std::ceil(TradeSession::kInviteSeconds))).out;
+                // Short enough for the small-string buffer, so no allocation per frame.
+                const auto seconds = Text::Format(Id::kTradePromptSeconds, view.secondsLeft);
+                const auto longest = Text::Format(
+                    Id::kTradePromptSeconds, static_cast<std::uint32_t>(std::ceil(TradeSession::kInviteSeconds)));
                 // Laid out at the width of the longest count, so the centered line does not shift
                 // as the count loses a digit.
-                hints.Add(std::string_view{ seconds.data(), secondsEnd }, Tone::kDisabled,
-                    hints.count == 0 ? 0.0F : ImGui::GetStyle().ItemSpacing.x,
-                    ImGui::CalcTextSize(longest.data(), longestEnd).x);
+                hints.Add(seconds, Tone::kDisabled, hints.count == 0 ? 0.0F : ImGui::GetStyle().ItemSpacing.x,
+                    ImGui::CalcTextSize(longest.c_str()).x);
 
                 const auto width = (std::max)(message.GetWidth(), hints.GetWidth());
                 message.Draw(width);
@@ -206,6 +201,18 @@ namespace UI
                 std::array<Piece, 8> pieces{};
                 std::size_t count{ 0 };
             };
+
+            // The name in the accent color where the format has its field.
+            static void AddMessage(Line& a_line, std::string_view a_format, std::string_view a_name)
+            {
+                std::array<Text::Piece, 4> pieces;
+                const auto count = Text::Split(a_format, pieces);
+                for (std::size_t i = 0; i < count; ++i)
+                {
+                    const bool name = pieces[i].argument == 0;
+                    a_line.Add(name ? a_name : pieces[i].text, name ? Tone::kAccent : Tone::kNormal, 0.0F);
+                }
+            }
 
             static void AddKey(Line& a_line, std::uint32_t a_scanCode, std::string_view a_action)
             {
