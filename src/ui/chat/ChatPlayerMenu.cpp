@@ -36,7 +36,7 @@ namespace UI
     {
         player = a_player;
         details.clear();
-        nearby = false;
+        inTradeRange = false;
         waited = 0.0F;
         pending = player.playerID != 0;
         if (pending)
@@ -62,7 +62,7 @@ namespace UI
             if (const auto found = PlayerDetails::Find(player.playerID))
             {
                 details = FormatDetails(*found);
-                nearby = found->nearby;
+                inTradeRange = found->inTradeRange;
                 pending = false;
             }
             else
@@ -109,14 +109,14 @@ namespace UI
             return;
         }
         const bool idle = TradeSync::GetPhase() == TradeSession::Phase::kIdle;
-        if (ImGui::MenuItem("Trade", nullptr, false, idle && nearby))
+        if (ImGui::MenuItem("Trade", nullptr, false, idle && inTradeRange))
         {
             TradeSync::RequestTrade(player);
         }
         const char* tooltip = !idle ? "Finish your current trade first."
-            : nearby               ? "Offer to exchange items with them."
-            : pending              ? "Checking whether they are near..."
-                                   : "Stand next to their character to trade.";
+            : inTradeRange          ? "Offer to exchange items with them."
+            : pending               ? "Checking whether they are near..."
+                                    : "Stand next to their character to trade.";
         ImGui::SetItemTooltip("%s", tooltip);
     }
 

@@ -72,7 +72,7 @@ namespace Network
         std::mutex rosterLock;
         Multiplayer::Roster roster;
         std::atomic_uint64_t rosterRevision{ 0 };
-        std::vector<PeerSlot> localPlayers;
+        std::vector<PeerSlot> nearbyPlayers;
 
         std::mutex requestsLock;
         std::uint32_t lastRequestID = 0;
@@ -252,7 +252,7 @@ namespace Network
             const std::scoped_lock lock{ rosterLock };
             roster.localPlayerID = a_localSlot;
             roster.players.clear();
-            localPlayers.clear();
+            nearbyPlayers.clear();
             rosterRevision.fetch_add(1, std::memory_order_acq_rel);
         }
 
@@ -525,7 +525,7 @@ namespace Network
             {
                 std::erase_if(roster.players,
                     [&](const Multiplayer::RosterEntry& a_player) { return a_player.playerID == a_change.left; });
-                std::erase(localPlayers, a_change.left);
+                std::erase(nearbyPlayers, a_change.left);
             }
             for (auto& joined : a_change.joined)
             {
@@ -542,16 +542,16 @@ namespace Network
             rosterRevision.fetch_add(1, std::memory_order_acq_rel);
         }
 
-        void OnLocalPlayersChange(const Wire::LocalPlayersChange& a_change)
+        void OnNearbyPlayersChange(const Wire::NearbyPlayersChange& a_change)
         {
-            logs::debug("Local players changed: joined={} left={}", a_change.joined.size(), a_change.left.size());
+            logs::debug("Nearby players changed: joined={} left={}", a_change.joined.size(), a_change.left.size());
             const std::scoped_lock lock{ rosterLock };
-            std::erase_if(localPlayers, [&](PeerSlot a_slot) { return std::ranges::contains(a_change.left, a_slot); });
+            std::erase_if(nearbyPlayers, [&](PeerSlot a_slot) { return std::ranges::contains(a_change.left, a_slot); });
             for (const auto slot : a_change.joined)
             {
-                if (const auto at = std::ranges::lower_bound(localPlayers, slot); at == localPlayers.end() || *at != slot)
+                if (const auto at = std::ranges::lower_bound(nearbyPlayers, slot); at == nearbyPlayers.end() || *at != slot)
                 {
-                    localPlayers.insert(at, slot);
+                    nearbyPlayers.insert(at, slot);
                 }
             }
         }
@@ -612,9 +612,9 @@ namespace Network
                     {
                         OnRosterChange(std::move(a_value));
                     }
-                    else if constexpr (std::is_same_v<T, Wire::LocalPlayersChange>)
+                    else if constexpr (std::is_same_v<T, Wire::NearbyPlayersChange>)
                     {
-                        OnLocalPlayersChange(a_value);
+                        OnNearbyPlayersChange(a_value);
                     }
                     else if constexpr (std::is_same_v<T, Multiplayer::PlayerInspection>)
                     {
@@ -1119,7 +1119,7 @@ namespace Network
     void CopyNearbyPlayers(std::vector<PeerSlot>& a_players)
     {
         const std::scoped_lock lock{ rosterLock };
-        a_players.insert(a_players.end(), localPlayers.begin(), localPlayers.end());
+        a_players.insert(a_players.end(), nearbyPlayers.begin(), nearbyPlayers.end());
     }
 
     bool CopyRosterIfChanged(std::uint64_t& a_revision, Multiplayer::Roster& a_roster)

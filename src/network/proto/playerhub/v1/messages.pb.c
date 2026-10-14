@@ -96,7 +96,7 @@ PB_BIND(playerhub_v1_RosterEntry, playerhub_v1_RosterEntry, AUTO)
 PB_BIND(playerhub_v1_Roster, playerhub_v1_Roster, AUTO)
 
 
-PB_BIND(playerhub_v1_LocalPlayers, playerhub_v1_LocalPlayers, AUTO)
+PB_BIND(playerhub_v1_NearbyPlayers, playerhub_v1_NearbyPlayers, AUTO)
 
 
 PB_BIND(playerhub_v1_Inspection, playerhub_v1_Inspection, 2)

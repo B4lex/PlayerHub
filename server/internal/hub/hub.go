@@ -36,7 +36,7 @@ type Options struct {
 	ActionBurst        float64
 	Interest           interest.Config
 	EntersPerSecond    float64
-	ChatLocalRadius    float64
+	ChatNearbyRadius   float64
 	TradeRequestRadius float64
 	TradeKeepRadius    float64
 	TradeInviteSeconds float64
@@ -54,8 +54,8 @@ type member struct {
 	subscribed     map[uint32]*subscription
 	heldAppearance map[uint32]uint64
 	heldEquipment  map[uint32]uint64
-	local          map[uint32]uint64
-	localDue       time.Time
+	nearby         map[uint32]uint64
+	nearbyDue      time.Time
 
 	changed     bool
 	distributed *pb.Checkpoint
@@ -106,10 +106,10 @@ type Hub struct {
 	pairs      interest.Pairs
 	candidates []candidate
 
-	localGrid   *interest.Grid
-	localPass   uint64
-	localJoined []uint32
-	localLeft   []uint32
+	nearbyGrid   *interest.Grid
+	nearbyPass   uint64
+	nearbyJoined []uint32
+	nearbyLeft   []uint32
 
 	trades    map[uint32]*trade
 	nextTrade uint32
@@ -131,8 +131,8 @@ func New(opts Options) *Hub {
 	if opts.Interest == (interest.Config{}) {
 		opts.Interest = interest.DefaultConfig()
 	}
-	if opts.ChatLocalRadius == 0 {
-		opts.ChatLocalRadius = 8192
+	if opts.ChatNearbyRadius == 0 {
+		opts.ChatNearbyRadius = 8192
 	}
 	if opts.TradeRequestRadius == 0 {
 		opts.TradeRequestRadius, opts.TradeKeepRadius = 400, 1000
@@ -143,7 +143,7 @@ func New(opts Options) *Hub {
 	h := &Hub{
 		opts: opts, members: make(map[uint32]*member), sessions: make(map[uint64]uint32),
 		grid: interest.NewGrid(opts.Interest.LeaveRadius), hidden: interest.Hidden{}, pairs: interest.Pairs{},
-		localGrid: interest.NewGrid(opts.ChatLocalRadius), trades: make(map[uint32]*trade),
+		nearbyGrid: interest.NewGrid(opts.ChatNearbyRadius), trades: make(map[uint32]*trade),
 	}
 	h.rules = interest.NewRules(opts.Interest, h.hidden, h.pairs, interest.Vanished{})
 	return h
@@ -199,7 +199,7 @@ func (h *Hub) connect(kind world.Kind, outbox *delivery.Outbox, identity Identit
 		subscribed:     make(map[uint32]*subscription),
 		heldAppearance: make(map[uint32]uint64),
 		heldEquipment:  make(map[uint32]uint64),
-		local:          make(map[uint32]uint64),
+		nearby:         make(map[uint32]uint64),
 	}
 	m.view.Slot, m.view.Session = m.Slot, identity.Session
 	h.members[m.Slot] = m
@@ -229,8 +229,8 @@ func (h *Hub) Disconnect(slot uint32) {
 	}
 	leave := leaveMessage(slot, pb.LeaveReason_LEAVE_REASON_DISCONNECTED)
 	for _, r := range h.recipients {
-		// The roster's leave takes the slot out of the client's local players too.
-		delete(r.local, slot)
+		// The roster's leave takes the slot out of the client's nearby players too.
+		delete(r.nearby, slot)
 		_, subscribed := r.subscribed[slot]
 		_, holdsAppearance := r.heldAppearance[slot]
 		_, holdsEquipment := r.heldEquipment[slot]
@@ -247,7 +247,7 @@ func (h *Hub) Disconnect(slot uint32) {
 		h.recipients = remove(h.recipients, m)
 	}
 	h.grid.Remove(slot)
-	h.localGrid.Remove(slot)
+	h.nearbyGrid.Remove(slot)
 	delete(h.hidden, slot)
 	for pair := range h.pairs {
 		if pair.Viewer == slot || pair.Target == slot {
@@ -334,7 +334,7 @@ func (h *Hub) UpdateInterest() {
 			h.evaluateViewer(r, now)
 		}
 	}
-	h.updateLocalPlayers(now)
+	h.updateNearbyPlayers(now)
 	h.expireTrades(now)
 }
 
@@ -504,7 +504,7 @@ func (h *Hub) exit(m *member, message *pb.ClientMessage) {
 
 func (h *Hub) unplace(m *member, reason pb.LeaveReason) {
 	h.grid.Remove(m.Slot)
-	h.localGrid.Remove(m.Slot)
+	h.nearbyGrid.Remove(m.Slot)
 	h.unsubscribeAll(m, reason)
 	for peer := range m.subscribed {
 		h.unsubscribe(m, h.members[peer], pb.LeaveReason_LEAVE_REASON_VIEWER_UNPLACED)
@@ -551,8 +551,8 @@ func (h *Hub) setCheckpoint(m *member, c *pb.Checkpoint, message *pb.ClientMessa
 	h.opts.OnChange()
 	m.view.Space, m.view.X, m.view.Y = interest.SpaceOf(m.Context), float64(c.X), float64(c.Y)
 	h.grid.Update(&m.view)
-	local := localView(&m.view)
-	h.localGrid.Update(&local)
+	nearby := nearbyView(&m.view)
+	h.nearbyGrid.Update(&nearby)
 	h.checkTradeRange(m)
 	if !wasPlaced {
 		// PeerEnter carries this checkpoint.
@@ -643,7 +643,7 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 	var recipient *member
 	if err == nil {
 		switch line.Channel {
-		case pb.ChatChannel_CHAT_CHANNEL_LOCAL:
+		case pb.ChatChannel_CHAT_CHANNEL_NEARBY:
 			if !m.Placed() {
 				err = ErrNotPlaced
 			}
@@ -673,9 +673,9 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 	}
 	bytes := wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_ChatMessage{ChatMessage: line}})
 	switch line.Channel {
-	case pb.ChatChannel_CHAT_CHANNEL_LOCAL:
+	case pb.ChatChannel_CHAT_CHANNEL_NEARBY:
 		for _, r := range h.recipients {
-			if h.hearsLocally(r, m) {
+			if h.hearsNearby(r, m) {
 				r.outbox.AppendGlobal(bytes)
 			}
 		}
@@ -694,16 +694,16 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 	return nil
 }
 
-func (h *Hub) hearsLocally(r, sender *member) bool {
+func (h *Hub) hearsNearby(r, sender *member) bool {
 	if !r.Placed() || r.view.Space != sender.view.Space {
 		return false
 	}
 	dx, dy := r.view.X-sender.view.X, r.view.Y-sender.view.Y
-	return r.view.Space.Worldspace == 0 || dx*dx+dy*dy <= h.opts.ChatLocalRadius*h.opts.ChatLocalRadius
+	return r.view.Space.Worldspace == 0 || dx*dx+dy*dy <= h.opts.ChatNearbyRadius*h.opts.ChatNearbyRadius
 }
 
-// localView places a whole interior in one cell of localGrid, since Local chat ignores distance there.
-func localView(v *interest.View) interest.View {
+// nearbyView places a whole interior in one cell of nearbyGrid, since Nearby chat ignores distance there.
+func nearbyView(v *interest.View) interest.View {
 	if v.Space.Worldspace == 0 {
 		return interest.View{Slot: v.Slot, Space: v.Space}
 	}
@@ -712,54 +712,54 @@ func localView(v *interest.View) interest.View {
 
 // A scan checks every player in reach, so in a crowd each viewer is rescanned once a second, the
 // viewers spread over the interest passes.
-const localPlayersInterval = time.Second
+const nearbyPlayersInterval = time.Second
 
-func (h *Hub) updateLocalPlayers(now time.Time) {
+func (h *Hub) updateNearbyPlayers(now time.Time) {
 	for _, r := range h.recipients {
-		if r.listed() && !now.Before(r.localDue) {
-			r.localDue = now.Add(localPlayersInterval)
-			h.updateLocal(r)
+		if r.listed() && !now.Before(r.nearbyDue) {
+			r.nearbyDue = now.Add(nearbyPlayersInterval)
+			h.updateNearby(r)
 		}
 	}
 }
 
-func (h *Hub) updateLocal(r *member) {
-	joined, left := h.localJoined[:0], h.localLeft[:0]
+func (h *Hub) updateNearby(r *member) {
+	joined, left := h.nearbyJoined[:0], h.nearbyLeft[:0]
 	kept := 0
-	h.nearLocal(r, func(slot uint32) {
-		if _, known := r.local[slot]; known {
+	h.eachNearby(r, func(slot uint32) {
+		if _, known := r.nearby[slot]; known {
 			kept++
 		} else {
 			joined = append(joined, slot)
 		}
 	})
-	if kept < len(r.local) {
-		h.localPass++
-		h.nearLocal(r, func(slot uint32) { r.local[slot] = h.localPass })
-		for slot, pass := range r.local {
-			if pass != h.localPass {
+	if kept < len(r.nearby) {
+		h.nearbyPass++
+		h.eachNearby(r, func(slot uint32) { r.nearby[slot] = h.nearbyPass })
+		for slot, pass := range r.nearby {
+			if pass != h.nearbyPass {
 				left = append(left, slot)
-				delete(r.local, slot)
+				delete(r.nearby, slot)
 			}
 		}
 	}
 	for _, slot := range joined {
-		r.local[slot] = h.localPass
+		r.nearby[slot] = h.nearbyPass
 	}
 	if len(joined) > 0 || len(left) > 0 {
-		r.outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_LocalPlayers{
-			LocalPlayers: &pb.LocalPlayers{Joined: joined, Left: left}}}))
+		r.outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_NearbyPlayers{
+			NearbyPlayers: &pb.NearbyPlayers{Joined: joined, Left: left}}}))
 	}
-	h.localJoined, h.localLeft = joined, left
+	h.nearbyJoined, h.nearbyLeft = joined, left
 }
 
-func (h *Hub) nearLocal(r *member, f func(slot uint32)) {
+func (h *Hub) eachNearby(r *member, f func(slot uint32)) {
 	if !r.Placed() {
 		return
 	}
-	view := localView(&r.view)
-	h.localGrid.Near(&view, func(slot uint32) {
-		if peer := h.members[slot]; peer != r && peer.listed() && h.hearsLocally(r, peer) {
+	view := nearbyView(&r.view)
+	h.nearbyGrid.Near(&view, func(slot uint32) {
+		if peer := h.members[slot]; peer != r && peer.listed() && h.hearsNearby(r, peer) {
 			f(slot)
 		}
 	})

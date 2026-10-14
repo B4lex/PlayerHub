@@ -17,7 +17,7 @@ namespace PlayerDetails
         bool s_untaken = false;
         std::optional<Details> s_details;
 
-        bool IsNearby(const PeerState& a_peer)
+        bool IsInTradeRange(const PeerState& a_peer)
         {
             const auto actor = a_peer.lifecycle.actor ? a_peer.lifecycle.actor->handle.get() : nullptr;
             auto* player = RE::PlayerCharacter::GetSingleton();
@@ -79,7 +79,7 @@ namespace PlayerDetails
             Publish(a_playerID,
                 Details{ .race = AppearanceSync::GetRaceName(a_playerID, appearance.race, appearance.defaultRace),
                     .level = appearance.level,
-                    .nearby = IsNearby(*a_peer) });
+                    .inTradeRange = IsInTradeRange(*a_peer) });
             return;
         }
         const bool requested = Network::RequestInspection(a_playerID);

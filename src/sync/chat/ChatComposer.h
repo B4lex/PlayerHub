@@ -82,7 +82,7 @@ namespace ChatSync
         void ShowPlayerCount();
 
         ChatTarget target;
-        Multiplayer::ChatChannel previousChannel{ Multiplayer::ChatChannel::kLocal };
+        Multiplayer::ChatChannel previousChannel{ Multiplayer::ChatChannel::kNearby };
 
         Listing listing{ Listing::kNone };
         std::vector<Suggestion> suggestions;

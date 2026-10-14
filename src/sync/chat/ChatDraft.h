@@ -22,7 +22,7 @@ namespace ChatDraft
     struct Interpretation
     {
         Kind kind{ Kind::kText };
-        Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kLocal };
+        Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kNearby };
         std::string_view rest;
     };
 

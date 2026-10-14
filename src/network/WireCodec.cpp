@@ -361,8 +361,8 @@ namespace Network::Wire
             {
                 case playerhub_v1_ChatChannel_CHAT_CHANNEL_GLOBAL:
                     return Multiplayer::ChatChannel::kGlobal;
-                case playerhub_v1_ChatChannel_CHAT_CHANNEL_LOCAL:
-                    return Multiplayer::ChatChannel::kLocal;
+                case playerhub_v1_ChatChannel_CHAT_CHANNEL_NEARBY:
+                    return Multiplayer::ChatChannel::kNearby;
                 case playerhub_v1_ChatChannel_CHAT_CHANNEL_WHISPER:
                     return Multiplayer::ChatChannel::kWhisper;
             }
@@ -373,8 +373,8 @@ namespace Network::Wire
         {
             switch (a_channel)
             {
-                case Multiplayer::ChatChannel::kLocal:
-                    return playerhub_v1_ChatChannel_CHAT_CHANNEL_LOCAL;
+                case Multiplayer::ChatChannel::kNearby:
+                    return playerhub_v1_ChatChannel_CHAT_CHANNEL_NEARBY;
                 case Multiplayer::ChatChannel::kWhisper:
                     return playerhub_v1_ChatChannel_CHAT_CHANNEL_WHISPER;
                 case Multiplayer::ChatChannel::kGlobal:
@@ -631,13 +631,13 @@ namespace Network::Wire
             return change;
         }
 
-        std::expected<ServerMessage, std::string> DecodeLocalPlayers(pb_istream_t& a_stream)
+        std::expected<ServerMessage, std::string> DecodeNearbyPlayers(pb_istream_t& a_stream)
         {
-            LocalPlayersChange change;
-            pb_istream_t local;
-            if (!pb_make_string_substream(&a_stream, &local))
+            NearbyPlayersChange change;
+            pb_istream_t nearby;
+            if (!pb_make_string_substream(&a_stream, &nearby))
             {
-                return std::unexpected("local players framing");
+                return std::unexpected("nearby players framing");
             }
             const auto read = [](pb_istream_t& a_values, std::vector<Multiplayer::PeerSlot>& a_slots) {
                 Multiplayer::PeerSlot slot = 0;
@@ -648,54 +648,54 @@ namespace Network::Wire
                 a_slots.push_back(slot);
                 return true;
             };
-            while (local.bytes_left > 0)
+            while (nearby.bytes_left > 0)
             {
                 pb_wire_type_t wireType;
                 std::uint32_t tag = 0;
                 bool eof = false;
-                if (!pb_decode_tag(&local, &wireType, &tag, &eof))
+                if (!pb_decode_tag(&nearby, &wireType, &tag, &eof))
                 {
-                    return std::unexpected("local players field tag");
+                    return std::unexpected("nearby players field tag");
                 }
-                auto* slots = tag == playerhub_v1_LocalPlayers_joined_tag ? &change.joined
-                    : tag == playerhub_v1_LocalPlayers_left_tag           ? &change.left
+                auto* slots = tag == playerhub_v1_NearbyPlayers_joined_tag ? &change.joined
+                    : tag == playerhub_v1_NearbyPlayers_left_tag           ? &change.left
                                                                           : nullptr;
                 if (!slots)
                 {
-                    if (!pb_skip_field(&local, wireType))
+                    if (!pb_skip_field(&nearby, wireType))
                     {
-                        return std::unexpected("local players field");
+                        return std::unexpected("nearby players field");
                     }
                     continue;
                 }
                 if (wireType == PB_WT_VARINT)
                 {
-                    if (!read(local, *slots))
+                    if (!read(nearby, *slots))
                     {
-                        return std::unexpected("local players slot");
+                        return std::unexpected("nearby players slot");
                     }
                     continue;
                 }
                 pb_istream_t packed;
-                if (wireType != PB_WT_STRING || !pb_make_string_substream(&local, &packed))
+                if (wireType != PB_WT_STRING || !pb_make_string_substream(&nearby, &packed))
                 {
-                    return std::unexpected("local players framing");
+                    return std::unexpected("nearby players framing");
                 }
                 while (packed.bytes_left > 0)
                 {
                     if (!read(packed, *slots))
                     {
-                        return std::unexpected("local players slot");
+                        return std::unexpected("nearby players slot");
                     }
                 }
-                if (!pb_close_string_substream(&local, &packed))
+                if (!pb_close_string_substream(&nearby, &packed))
                 {
-                    return std::unexpected("local players framing");
+                    return std::unexpected("nearby players framing");
                 }
             }
-            if (!pb_close_string_substream(&a_stream, &local))
+            if (!pb_close_string_substream(&a_stream, &nearby))
             {
-                return std::unexpected("local players framing");
+                return std::unexpected("nearby players framing");
             }
             return change;
         }
@@ -1070,14 +1070,14 @@ namespace Network::Wire
                 }
                 return roster;
             }
-            if (tag == playerhub_v1_ServerMessage_local_players_tag && wireType == PB_WT_STRING)
+            if (tag == playerhub_v1_ServerMessage_nearby_players_tag && wireType == PB_WT_STRING)
             {
-                auto local = DecodeLocalPlayers(stream);
-                if (local && stream.bytes_left != 0)
+                auto nearby = DecodeNearbyPlayers(stream);
+                if (nearby && stream.bytes_left != 0)
                 {
                     return std::unexpected("trailing envelope fields");
                 }
-                return local;
+                return nearby;
             }
             if (tag == playerhub_v1_ServerMessage_trade_offer_tag && wireType == PB_WT_STRING)
             {

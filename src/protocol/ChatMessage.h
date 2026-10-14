@@ -14,7 +14,7 @@ namespace Multiplayer
     enum class ChatChannel : std::uint8_t
     {
         kGlobal,
-        kLocal,
+        kNearby,
         kWhisper
     };
 

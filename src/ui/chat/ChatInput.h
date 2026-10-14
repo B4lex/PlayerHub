@@ -49,7 +49,7 @@ namespace UI
         bool fieldActive{ false };
 
         ChatSync::ChatTarget chipTarget;
-        std::string chipLabel{ "Local" };
+        std::string chipLabel{ "Nearby" };
         bool menuOpen{ false };
         std::vector<Multiplayer::RosterEntry> partners;
     };

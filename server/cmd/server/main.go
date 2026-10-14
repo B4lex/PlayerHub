@@ -92,7 +92,7 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 	}
 	h := hub.New(hub.Options{
 		EntersPerSecond:    entersPerSecond,
-		ChatLocalRadius:    c.Chat.LocalRadius,
+		ChatNearbyRadius:   c.Chat.NearbyRadius,
 		TradeRequestRadius: c.Trade.RequestRadius,
 		TradeKeepRadius:    c.Trade.KeepRadius,
 		TradeInviteSeconds: c.Trade.InviteSeconds,

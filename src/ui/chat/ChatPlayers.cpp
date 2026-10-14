@@ -281,7 +281,7 @@ namespace UI
                     const ImVec4 nameClip{ min.x, min.y, marksLeft, max.y };
 
                     const auto nameColor = ImGui::GetColorU32(
-                        index < nearbyMatches ? ChatStyle::kLocalColor : kDistantPlayerColor);
+                        index < nearbyMatches ? ChatStyle::kNearbyColor : kDistantPlayerColor);
                     drawList->AddText(nullptr, 0.0F, min, nameColor, name, nameEnd, 0.0F, &nameClip);
                     if (isMuted || isVanished)
                     {

@@ -8,7 +8,7 @@ namespace ChatDraft
     namespace
     {
         constexpr std::array kCommands{
-            Command{ "l", "", "Talk to players nearby" },
+            Command{ "n", "", "Talk to players nearby" },
             Command{ "g", "", "Talk to everyone" },
             Command{ "w", "name", "Whisper to a player" },
             Command{ "r", "", "Whisper back to the last player who whispered you" },
@@ -20,12 +20,12 @@ namespace ChatDraft
         {
             std::string_view name;
             Kind kind;
-            Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kLocal };
+            Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kNearby };
         };
 
         constexpr std::array kAliases{
-            Alias{ "l", Kind::kChannel, Multiplayer::ChatChannel::kLocal },
-            Alias{ "local", Kind::kChannel, Multiplayer::ChatChannel::kLocal },
+            Alias{ "n", Kind::kChannel, Multiplayer::ChatChannel::kNearby },
+            Alias{ "nearby", Kind::kChannel, Multiplayer::ChatChannel::kNearby },
             Alias{ "g", Kind::kChannel, Multiplayer::ChatChannel::kGlobal },
             Alias{ "global", Kind::kChannel, Multiplayer::ChatChannel::kGlobal },
             Alias{ "w", Kind::kWhisper, Multiplayer::ChatChannel::kWhisper },
@@ -63,14 +63,14 @@ namespace ChatDraft
         }
         if (!draft.starts_with('/'))
         {
-            return { Kind::kText, Multiplayer::ChatChannel::kLocal, draft };
+            return { Kind::kText, Multiplayer::ChatChannel::kNearby, draft };
         }
 
         const auto space = draft.find(' ');
         const auto name = draft.substr(1, space == std::string_view::npos ? space : space - 1);
         if (space == std::string_view::npos && !a_submitted)
         {
-            return { Kind::kIncompleteCommand, Multiplayer::ChatChannel::kLocal, name };
+            return { Kind::kIncompleteCommand, Multiplayer::ChatChannel::kNearby, name };
         }
         const auto rest = space == std::string_view::npos ? std::string_view{} : TrimLeft(draft.substr(space));
         for (const auto& alias : kAliases)
@@ -81,7 +81,7 @@ namespace ChatDraft
             }
         }
         // Not reported while it is typed: more text may still follow.
-        return { a_submitted ? Kind::kUnknownCommand : Kind::kIncompleteCommand, Multiplayer::ChatChannel::kLocal, name };
+        return { a_submitted ? Kind::kUnknownCommand : Kind::kIncompleteCommand, Multiplayer::ChatChannel::kNearby, name };
     }
 
     std::span<const Command> GetCommands()

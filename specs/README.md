@@ -51,7 +51,7 @@ criteria.
 | Chat | [ui-overlay](ui-overlay.md#chat), [network](network.md#chat) |
 | Nameplates above players' heads | [ui-overlay](ui-overlay.md#nameplates), [sync-pipeline](sync-pipeline.md#frame-sequence), [configuration](configuration.md#ui), [appearance-and-equipment](appearance-and-equipment.md#player-label) |
 | Notices (toasts on the right) and chat notes | [ui-overlay](ui-overlay.md#notices), [ui-overlay](ui-overlay.md#notes), [trade](trade.md#notices) |
-| Players online list | [ui-overlay](ui-overlay.md#player-list), [network](network.md#roster), [network](network.md#local-players) |
+| Players online list | [ui-overlay](ui-overlay.md#player-list), [network](network.md#roster), [network](network.md#nearby-players) |
 | Friends | [ui-overlay](ui-overlay.md#friends), [network](network.md#player-filters) |
 | Mute and vanish | [ui-overlay](ui-overlay.md#mute-and-vanish), [network](network.md#vanish), [interest-and-delivery](interest-and-delivery.md#subscriptions) |
 | Player menu in the world (Activate on a player) | [ui-overlay](ui-overlay.md#player-menu-in-the-world), [remote-actor](remote-actor.md#spawn), [sync-pipeline](sync-pipeline.md#frame-sequence) |

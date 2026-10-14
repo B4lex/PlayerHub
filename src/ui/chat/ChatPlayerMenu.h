@@ -24,6 +24,6 @@ namespace UI
         std::string details;
         float waited{ 0.0F };
         bool pending{ false };
-        bool nearby{ false };
+        bool inTradeRange{ false };
     };
 }

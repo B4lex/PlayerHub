@@ -79,7 +79,7 @@ per_recipient_bytes_per_second = 0  # caps one client's share; 0 is an equal sha
 enters_per_second = 20      # new peers per client and second, nearest first
 
 [chat]
-local_radius = 8192         # game units, horizontal; an interior is heard whole
+nearby_radius = 8192        # game units, horizontal; an interior is heard whole
 
 [trade]
 request_radius = 400        # game units, horizontal; both players for an invitation

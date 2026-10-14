@@ -47,6 +47,10 @@
   On Linux, `DisplayNameHint.cpp`, `GameView.cpp`, `NameplateLayer.cpp`,
   `MenuFrame.cpp`, and `TradePrompt.cpp` passed the g++ syntax check, which a
   planted error confirmed reaches the hint's file.
+- **Chat filter and send target tooltips** (2026-10-14): not built on
+  Windows, run in game, or run in the headless harness. On Linux,
+  `ChatHistory.cpp` and `ChatInput.cpp` passed the g++ syntax check, which a
+  planted error confirmed reaches `ChatHistory.cpp`.
 - **Shared window setup and search field** (`MenuFrame::BeginWindow`,
   `Controls::SearchField`, `Controls::MutedTextWrapped`, 2026-10-07): Linux
   syntax check only; not rerun in the headless harness or in game.
@@ -206,7 +210,7 @@
     images: the button on the filters' row, as high as the filters and
     ending at the field's column with 5 and with 500 players; the list beside
     the chat and as high, its search field on the filters' row and its rows
-    a line apart; players nearby first and in the Local color, moving back
+    a line apart; players nearby first and in the Nearby color, moving back
     among the others when no longer nearby; the local player left out, and
     the empty-list row when alone; a click on a name
     and the whisper item in a row's menu whispering that player, with typing
@@ -1345,7 +1349,7 @@ staying open after a line is sent.
 
 | Channel | Reaches | Color |
 | --- | --- | --- |
-| Local | placed players within `chat.local_radius` (8192) in the same worldspace, or in the same interior | lime |
+| Nearby | placed players within `chat.nearby_radius` (8192) in the same worldspace, or in the same interior | lime |
 | Global | every connected player | gold |
 | Whisper | one player | violet |
 
@@ -1355,7 +1359,7 @@ has no Dear ImGui and no engine access.
 ### Send target
 
 `ChatSync::Composer` holds the target (`ChatSync::ChatTarget`): a channel, and
-for a whisper a player by slot and name. It starts as Local, survives closing
+for a whisper a player by slot and name. It starts as Nearby, survives closing
 the chat, and is not saved. `ChatInput` shows it as a chip left of the text
 field, as high as the field and with its corners, in the channel's color over
 an 18% fill of it, 30% under the cursor, naming the channel or, for a
@@ -1364,16 +1368,20 @@ placeholder points to Tab.
 
 | Input | Effect |
 | --- | --- |
-| Tab, Shift+Tab | The next or previous of Global, Local, and the 3 latest whisper partners, most recent first. A whisper target that is not among them yet stands after Local |
+| Tab, Shift+Tab | The next or previous of Global, Nearby, and the 3 latest whisper partners, most recent first. A whisper target that is not among them yet stands after Nearby |
 | `!` as the first character | Global |
 | `@` as the first character | Opens the [name list](#name-list) |
-| `/l`, `/g` (`/local`, `/global`) | Local, Global |
+| `/n`, `/g` (`/nearby`, `/global`) | Nearby, Global |
 | `/w <name>` (`/whisper`) | As `@` |
 | `/r` (`/reply`) | The sender of the latest received whisper; a failure note without one |
 | Backspace in the empty field | From a whisper back to the channel it replaced |
-| A click on the chip | A menu of Global, Local, and the 5 latest partners |
+| A click on the chip | A menu of Global, Nearby, and the 5 latest partners |
 | A click on a sender's name, or the whisper item in a line's menu | A whisper to that player |
 
+- Each row of the chip's menu has a tooltip saying who its target reaches,
+  naming the partner for a whisper. `DrawRow` reports the row's
+  `ImGuiHoveredFlags_ForTooltip` hover from its selectable, so the whole row
+  shows it, not only its text.
 - A prefix or a command is removed from the text when it is complete: `!` and
   `@` at once, a command when a space follows it or on Enter, where the chat
   then stays open. `ChatDraft::Interpret` decides that from the text alone,
@@ -1396,7 +1404,7 @@ connected players whose names start with what follows, at most 8.
 - `ChatRoster` copies the roster from the transport when its revision changes
   ([Network](network.md#client)) and sorts it by folded name. `Complete`
   returns the player named exactly as typed, then whisper partners, then
-  players within Local chat ([Network](network.md#local-players),
+  players within Nearby chat ([Network](network.md#nearby-players),
   `Network::CopyNearbyPlayers`), then
   the rest by name, without the local player. It runs when the text changes,
   not per frame.
@@ -1473,7 +1481,7 @@ never a line, so the history holds only what players said.
 - `ChatHistory` keeps the latest 100 lines of each channel,
   each stamped with `ImGui::GetTime()` when it arrived, so a busy channel only
   pushes out its own lines.
-- A row above the lines has a filter for each channel: Global, Local, and
+- A row above the lines has a filter for each channel: Global, Nearby, and
   Whisper. Each is a toggle of its own: a click turns its channel's lines
   off or on, in the open chat and among the closed chat's lines, and changes
   no other filter. All are on at first and any number may be off.
@@ -1497,6 +1505,8 @@ never a line, so the history holds only what players said.
   can be turned off again and then stays off until either happens.
 - A filter that is off has a dot in its color on its upper right corner while
   lines of its channel arrived that the open chat has not shown.
+- Each filter has a tooltip (`ImGui::SetItemTooltip`) saying which lines its
+  channel holds and whether a click shows or hides them.
 - A line's label, everything up to and with its colon, takes the channel's
   color and the heading face ([Themed faces](#themed-faces)). Text is the
   theme's, in the text face. Under the cursor a label is underlined; a right click on a line with
@@ -1539,10 +1549,10 @@ never a line, so the history holds only what players said.
   folded as the [name list](#name-list) folds them. Tab stays in the field;
   Enter gives the keyboard back to the chat's field.
 - The names follow, a chat line apart, in the text face. Players
-  nearby, the ones Local chat reaches (`ChatRoster::CopyNearbyPlayers`,
-  [Network](network.md#local-players)), so in the same interior at any
-  distance, come first in the Local color, as the chat names a sender in
-  Local; the
+  nearby, the ones Nearby chat reaches (`ChatRoster::CopyNearbyPlayers`,
+  [Network](network.md#nearby-players)), so in the same interior at any
+  distance, come first in the Nearby color, as the chat names a sender in
+  Nearby; the
   others follow in a light gray (`kDistantPlayerColor`), between the
   theme's text and disabled text; each group keeps the order
   `ChatRoster` sorts them in (by folded name). The local player is left
@@ -1556,8 +1566,8 @@ never a line, so the history holds only what players said.
 - A muted or vanished player has a mark at the list's right edge, in the
   muted text color, three quarters of a font size square: a speech bubble
   struck through for muted, an eye struck through for vanished, both when
-  both. Hovering them names the state. A vanished player within Local chat is still
-  nearby, since its Local lines still arrive.
+  both. Hovering them names the state. A vanished player within Nearby chat is still
+  nearby, since its Nearby lines still arrive.
 - A button as wide as the list stands at its bottom, below the names, and
   opens the [player manager](#player-manager).
 - Only the button closes the list. A chat closed by Escape, also from the
@@ -1768,7 +1778,7 @@ from a [player menu](#player-menu), in the chat's lines, the
 there or in the [player manager](#player-manager), also while the player is
 offline, and lasts across games on the same server. Non-goals: telling the
 player, a mutual vanish (a vanished player still sees the one who vanished
-it), muting or vanishing by name, a vanished player's Local chat (mute
+it), muting or vanishing by name, a vanished player's Nearby chat (mute
 covers chat), and admin moderation.
 
 - `PlayerFilters` (`sync/filters/`) holds the current server's entries by
@@ -1933,7 +1943,7 @@ level-up while the menu is open.
   character gets. The level is `Appearance.level`, zero before the player
   sent an appearance.
 - The local answer also says whether the player's character is near
-  enough to trade (`Details::nearby`, [Trade](trade.md#invitation)); a
+  enough to trade (`Details::inTradeRange`, [Trade](trade.md#invitation)); a
   server answer never is, since a player without a character is not near.
 - `PlayerDetails` keeps only the latest request and its answer, under one
   lock; an answer for another slot is dropped. While the answer is due the
@@ -2794,11 +2804,11 @@ To verify in game:
    fade after 10 s; the wheel and Page Up/Down scroll; sending while disconnected
    shows a failure note above the field and keeps the chat open with the
    text, and typing clears the note.
-3. The chip shows Local at first, and `hi` reaches players within 8192 units
+3. The chip shows Nearby at first, and `hi` reaches players within 8192 units
    or in the same interior with a lime name, and not a player farther away.
    `!` as the first character turns the chip to Global and is not part of
    the text; the line reaches every player with a gold name, and so does the
-   next one, until Tab or `/l`.
+   next one, until Tab or `/n`.
 4. `F10` opens the settings window with a cursor, and the game receives no input
    until it closes; `F10` again closes it. A new `OpenSettings` key opens and
    closes it and the old one no longer does, as soon as it is bound.
@@ -2898,9 +2908,9 @@ To verify in game:
     chat, and the character does not turn or attack. A click on another
     player's name turns the chip to that player; a right click on its line
     offers whisper, mute, and vanish; a click on the chip lists
-    Global, Local, and the latest partners. Typing continues after each click,
+    Global, Nearby, and the latest partners. Typing continues after each click,
     and a click outside the chat changes nothing.
-14. The Global, Local, and Whisper filters are all on at first. A
+14. The Global, Nearby, and Whisper filters are all on at first. A
     click on Global turns its chip grey and leaves the other two and the
     send target as they were; a global line then shows neither in the open
     chat nor among the closed chat's lines, and Global gets a dot on its
@@ -2934,7 +2944,7 @@ To verify in game:
     number of players online, or that it is offline while disconnected. A click opens
     a framed list right of the chat and as high, with a search field on the
     filters' row and the other players by name, the ones nearby first and
-    in the Local color. A click on a name turns the chip to a whisper to
+    in the Nearby color. A click on a name turns the chip to a whisper to
     that player and typing continues in the field; a right click offers
     whisper. Typing `ul` in the search leaves the names containing it,
     and Escape there closes the chat. After Escape or Enter

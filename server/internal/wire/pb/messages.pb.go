@@ -71,7 +71,7 @@ type ChatChannel int32
 
 const (
 	ChatChannel_CHAT_CHANNEL_GLOBAL  ChatChannel = 0
-	ChatChannel_CHAT_CHANNEL_LOCAL   ChatChannel = 1
+	ChatChannel_CHAT_CHANNEL_NEARBY  ChatChannel = 1
 	ChatChannel_CHAT_CHANNEL_WHISPER ChatChannel = 2
 )
 
@@ -79,12 +79,12 @@ const (
 var (
 	ChatChannel_name = map[int32]string{
 		0: "CHAT_CHANNEL_GLOBAL",
-		1: "CHAT_CHANNEL_LOCAL",
+		1: "CHAT_CHANNEL_NEARBY",
 		2: "CHAT_CHANNEL_WHISPER",
 	}
 	ChatChannel_value = map[string]int32{
 		"CHAT_CHANNEL_GLOBAL":  0,
-		"CHAT_CHANNEL_LOCAL":   1,
+		"CHAT_CHANNEL_NEARBY":  1,
 		"CHAT_CHANNEL_WHISPER": 2,
 	}
 )
@@ -2329,8 +2329,8 @@ func (x *Roster) GetLeft() uint32 {
 	return 0
 }
 
-// Roster players entering and leaving the recipient's Local chat reach, which is mutual.
-type LocalPlayers struct {
+// Roster players entering and leaving the recipient's Nearby chat reach, which is mutual.
+type NearbyPlayers struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Joined        []uint32               `protobuf:"varint,1,rep,packed,name=joined,proto3" json:"joined,omitempty"`
 	Left          []uint32               `protobuf:"varint,2,rep,packed,name=left,proto3" json:"left,omitempty"`
@@ -2338,20 +2338,20 @@ type LocalPlayers struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *LocalPlayers) Reset() {
-	*x = LocalPlayers{}
+func (x *NearbyPlayers) Reset() {
+	*x = NearbyPlayers{}
 	mi := &file_playerhub_v1_messages_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *LocalPlayers) String() string {
+func (x *NearbyPlayers) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*LocalPlayers) ProtoMessage() {}
+func (*NearbyPlayers) ProtoMessage() {}
 
-func (x *LocalPlayers) ProtoReflect() protoreflect.Message {
+func (x *NearbyPlayers) ProtoReflect() protoreflect.Message {
 	mi := &file_playerhub_v1_messages_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2363,19 +2363,19 @@ func (x *LocalPlayers) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use LocalPlayers.ProtoReflect.Descriptor instead.
-func (*LocalPlayers) Descriptor() ([]byte, []int) {
+// Deprecated: Use NearbyPlayers.ProtoReflect.Descriptor instead.
+func (*NearbyPlayers) Descriptor() ([]byte, []int) {
 	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{30}
 }
 
-func (x *LocalPlayers) GetJoined() []uint32 {
+func (x *NearbyPlayers) GetJoined() []uint32 {
 	if x != nil {
 		return x.Joined
 	}
 	return nil
 }
 
-func (x *LocalPlayers) GetLeft() []uint32 {
+func (x *NearbyPlayers) GetLeft() []uint32 {
 	if x != nil {
 		return x.Left
 	}
@@ -2691,7 +2691,7 @@ type ServerMessage struct {
 	//	*ServerMessage_TradeAccept
 	//	*ServerMessage_TradeCommit
 	//	*ServerMessage_TradeClose
-	//	*ServerMessage_LocalPlayers
+	//	*ServerMessage_NearbyPlayers
 	Message       isServerMessage_Message `protobuf_oneof:"message"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2905,10 +2905,10 @@ func (x *ServerMessage) GetTradeClose() *TradeClose {
 	return nil
 }
 
-func (x *ServerMessage) GetLocalPlayers() *LocalPlayers {
+func (x *ServerMessage) GetNearbyPlayers() *NearbyPlayers {
 	if x != nil {
-		if x, ok := x.Message.(*ServerMessage_LocalPlayers); ok {
-			return x.LocalPlayers
+		if x, ok := x.Message.(*ServerMessage_NearbyPlayers); ok {
+			return x.NearbyPlayers
 		}
 	}
 	return nil
@@ -2994,8 +2994,8 @@ type ServerMessage_TradeClose struct {
 	TradeClose *TradeClose `protobuf:"bytes,19,opt,name=trade_close,json=tradeClose,proto3,oneof"`
 }
 
-type ServerMessage_LocalPlayers struct {
-	LocalPlayers *LocalPlayers `protobuf:"bytes,20,opt,name=local_players,json=localPlayers,proto3,oneof"`
+type ServerMessage_NearbyPlayers struct {
+	NearbyPlayers *NearbyPlayers `protobuf:"bytes,20,opt,name=nearby_players,json=nearbyPlayers,proto3,oneof"`
 }
 
 func (*ServerMessage_Welcome) isServerMessage_Message() {}
@@ -3036,7 +3036,7 @@ func (*ServerMessage_TradeCommit) isServerMessage_Message() {}
 
 func (*ServerMessage_TradeClose) isServerMessage_Message() {}
 
-func (*ServerMessage_LocalPlayers) isServerMessage_Message() {}
+func (*ServerMessage_NearbyPlayers) isServerMessage_Message() {}
 
 var File_playerhub_v1_messages_proto protoreflect.FileDescriptor
 
@@ -3192,8 +3192,8 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"session_id\x18\x03 \x01(\x04R\tsessionId\"O\n" +
 	"\x06Roster\x121\n" +
 	"\x06joined\x18\x01 \x03(\v2\x19.playerhub.v1.RosterEntryR\x06joined\x12\x12\n" +
-	"\x04left\x18\x02 \x01(\rR\x04left\":\n" +
-	"\fLocalPlayers\x12\x16\n" +
+	"\x04left\x18\x02 \x01(\rR\x04left\";\n" +
+	"\rNearbyPlayers\x12\x16\n" +
 	"\x06joined\x18\x01 \x03(\rR\x06joined\x12\x12\n" +
 	"\x04left\x18\x02 \x03(\rR\x04left\"\x9f\x01\n" +
 	"\n" +
@@ -3215,7 +3215,7 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"\n" +
 	"TradeClose\x12\x19\n" +
 	"\btrade_id\x18\x01 \x01(\rR\atradeId\x126\n" +
-	"\x06reason\x18\x02 \x01(\x0e2\x1e.playerhub.v1.TradeCloseReasonR\x06reason\"\xdd\t\n" +
+	"\x06reason\x18\x02 \x01(\x0e2\x1e.playerhub.v1.TradeCloseReasonR\x06reason\"\xe0\t\n" +
 	"\rServerMessage\x121\n" +
 	"\awelcome\x18\x01 \x01(\v2\x15.playerhub.v1.WelcomeH\x00R\awelcome\x12.\n" +
 	"\x06result\x18\x02 \x01(\v2\x14.playerhub.v1.ResultH\x00R\x06result\x12;\n" +
@@ -3245,15 +3245,15 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"\ftrade_accept\x18\x11 \x01(\v2\x19.playerhub.v1.TradeAcceptH\x00R\vtradeAccept\x12>\n" +
 	"\ftrade_commit\x18\x12 \x01(\v2\x19.playerhub.v1.TradeCommitH\x00R\vtradeCommit\x12;\n" +
 	"\vtrade_close\x18\x13 \x01(\v2\x18.playerhub.v1.TradeCloseH\x00R\n" +
-	"tradeClose\x12A\n" +
-	"\rlocal_players\x18\x14 \x01(\v2\x1a.playerhub.v1.LocalPlayersH\x00R\flocalPlayersB\t\n" +
+	"tradeClose\x12D\n" +
+	"\x0enearby_players\x18\x14 \x01(\v2\x1b.playerhub.v1.NearbyPlayersH\x00R\rnearbyPlayersB\t\n" +
 	"\amessage*:\n" +
 	"\bProtocol\x12\x18\n" +
 	"\x14PROTOCOL_UNSPECIFIED\x10\x00\x12\x14\n" +
-	"\x10PROTOCOL_VERSION\x10\b*X\n" +
+	"\x10PROTOCOL_VERSION\x10\b*Y\n" +
 	"\vChatChannel\x12\x17\n" +
-	"\x13CHAT_CHANNEL_GLOBAL\x10\x00\x12\x16\n" +
-	"\x12CHAT_CHANNEL_LOCAL\x10\x01\x12\x18\n" +
+	"\x13CHAT_CHANNEL_GLOBAL\x10\x00\x12\x17\n" +
+	"\x13CHAT_CHANNEL_NEARBY\x10\x01\x12\x18\n" +
 	"\x14CHAT_CHANNEL_WHISPER\x10\x02*\xc7\x01\n" +
 	"\x0fTradeSkipReason\x12!\n" +
 	"\x1dTRADE_SKIP_REASON_UNSPECIFIED\x10\x00\x12\"\n" +
@@ -3332,7 +3332,7 @@ var file_playerhub_v1_messages_proto_goTypes = []any{
 	(*ChatMessage)(nil),    // 32: playerhub.v1.ChatMessage
 	(*RosterEntry)(nil),    // 33: playerhub.v1.RosterEntry
 	(*Roster)(nil),         // 34: playerhub.v1.Roster
-	(*LocalPlayers)(nil),   // 35: playerhub.v1.LocalPlayers
+	(*NearbyPlayers)(nil),  // 35: playerhub.v1.NearbyPlayers
 	(*Inspection)(nil),     // 36: playerhub.v1.Inspection
 	(*TradeInvite)(nil),    // 37: playerhub.v1.TradeInvite
 	(*TradeOpen)(nil),      // 38: playerhub.v1.TradeOpen
@@ -3413,7 +3413,7 @@ var file_playerhub_v1_messages_proto_depIdxs = []int32{
 	19, // 62: playerhub.v1.ServerMessage.trade_accept:type_name -> playerhub.v1.TradeAccept
 	39, // 63: playerhub.v1.ServerMessage.trade_commit:type_name -> playerhub.v1.TradeCommit
 	40, // 64: playerhub.v1.ServerMessage.trade_close:type_name -> playerhub.v1.TradeClose
-	35, // 65: playerhub.v1.ServerMessage.local_players:type_name -> playerhub.v1.LocalPlayers
+	35, // 65: playerhub.v1.ServerMessage.nearby_players:type_name -> playerhub.v1.NearbyPlayers
 	66, // [66:66] is the sub-list for method output_type
 	66, // [66:66] is the sub-list for method input_type
 	66, // [66:66] is the sub-list for extension type_name
@@ -3467,7 +3467,7 @@ func file_playerhub_v1_messages_proto_init() {
 		(*ServerMessage_TradeAccept)(nil),
 		(*ServerMessage_TradeCommit)(nil),
 		(*ServerMessage_TradeClose)(nil),
-		(*ServerMessage_LocalPlayers)(nil),
+		(*ServerMessage_NearbyPlayers)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

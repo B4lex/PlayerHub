@@ -20,7 +20,7 @@ namespace ChatSync
 
     struct ChatTarget
     {
-        Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kLocal };
+        Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kNearby };
         Multiplayer::RosterEntry player;
 
         [[nodiscard]] bool operator==(const ChatTarget& a_other) const

@@ -17,11 +17,20 @@ namespace UI
         constexpr std::size_t kMaximumMenuPartners = 5;
         constexpr float kMaximumChipTextFonts = 12.0F;
 
+        struct RowOutcome
+        {
+            bool clicked{ false };
+            bool hinted{ false };
+        };
+
         // Dear ImGui would parse "##" in a player's name.
-        bool DrawRow(std::string_view a_text, const ImVec4& a_color, bool a_selected, std::string_view a_detail = {})
+        RowOutcome DrawRow(
+            std::string_view a_text, const ImVec4& a_color, bool a_selected, std::string_view a_detail = {})
         {
             const auto start = ImGui::GetCursorPosX();
-            const bool clicked = ImGui::Selectable("##ChatRow", a_selected, ImGuiSelectableFlags_AllowOverlap);
+            RowOutcome outcome;
+            outcome.clicked = ImGui::Selectable("##ChatRow", a_selected, ImGuiSelectableFlags_AllowOverlap);
+            outcome.hinted = ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip);
             ImGui::SameLine(start);
             ImGui::PushStyleColor(ImGuiCol_Text, a_color);
             ImGui::TextUnformatted(a_text.data(), a_text.data() + a_text.size());
@@ -33,15 +42,15 @@ namespace UI
                 ImGui::TextUnformatted(a_detail.data(), a_detail.data() + a_detail.size());
                 ImGui::PopStyleColor();
             }
-            return clicked;
+            return outcome;
         }
 
         std::string DescribeTarget(const ChatSync::ChatTarget& a_target)
         {
             switch (a_target.channel)
             {
-                case Multiplayer::ChatChannel::kLocal:
-                    return "Local";
+                case Multiplayer::ChatChannel::kNearby:
+                    return "Nearby";
                 case Multiplayer::ChatChannel::kGlobal:
                     return "Global";
                 case Multiplayer::ChatChannel::kWhisper:
@@ -166,7 +175,23 @@ namespace UI
         }
         const auto pick = [&](const ChatSync::ChatTarget& a_target, std::string_view a_label, int a_id) {
             ImGui::PushID(a_id);
-            if (DrawRow(a_label, ChatStyle::GetChannelColor(a_target.channel), a_target == target))
+            const auto row = DrawRow(a_label, ChatStyle::GetChannelColor(a_target.channel), a_target == target);
+            if (row.hinted)
+            {
+                switch (a_target.channel)
+                {
+                    case Multiplayer::ChatChannel::kGlobal:
+                        ImGui::SetTooltip("Send to every player on the server.");
+                        break;
+                    case Multiplayer::ChatChannel::kNearby:
+                        ImGui::SetTooltip("Send to players near you.");
+                        break;
+                    case Multiplayer::ChatChannel::kWhisper:
+                        ImGui::SetTooltip("Send privately to %s.", a_target.player.name.c_str());
+                        break;
+                }
+            }
+            if (row.clicked)
             {
                 composer.SetTarget(a_target);
                 ImGui::CloseCurrentPopup();
@@ -174,7 +199,7 @@ namespace UI
             ImGui::PopID();
         };
         pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kGlobal }, "Global", 0);
-        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kLocal }, "Local", 1);
+        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kNearby }, "Nearby", 1);
         partners.clear();
         ChatRoster::GetRecentPartners(partners, kMaximumMenuPartners);
         if (!partners.empty())
@@ -222,7 +247,7 @@ namespace UI
                 const auto& color = listing == ChatSync::Composer::Listing::kPlayers
                     ? ChatStyle::kWhisperColor
                     : ImGui::GetStyleColorVec4(ImGuiCol_Text);
-                if (DrawRow(suggestion.label, color, index == composer.GetSelection(), suggestion.detail))
+                if (DrawRow(suggestion.label, color, index == composer.GetSelection(), suggestion.detail).clicked)
                 {
                     accepted = index;
                 }

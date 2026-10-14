@@ -24,12 +24,14 @@ namespace UI
         {
             const char* label;
             Multiplayer::ChatChannel channel;
+            const char* hint;
         };
 
         constexpr std::array kFilters{
-            Filter{ "Global", Multiplayer::ChatChannel::kGlobal },
-            Filter{ "Local", Multiplayer::ChatChannel::kLocal },
-            Filter{ "Whispers", Multiplayer::ChatChannel::kWhisper },
+            Filter{ "Global", Multiplayer::ChatChannel::kGlobal, "Messages to every player on the server." },
+            Filter{ "Nearby", Multiplayer::ChatChannel::kNearby, "Messages from players near you." },
+            Filter{
+                "Whispers", Multiplayer::ChatChannel::kWhisper, "Private messages between you and one other player." },
         };
 
         float GetRecentAlpha(double a_receivedAt, double a_now)
@@ -246,6 +248,7 @@ namespace UI
                 ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
             }
             const bool on = shown[channel];
+            ImGui::SetItemTooltip("%s", filter.hint);
             if (on)
             {
                 unread[channel] = false;

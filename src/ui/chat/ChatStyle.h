@@ -10,7 +10,7 @@
 namespace UI::ChatStyle
 {
     inline constexpr ImVec4 kGlobalColor{ 0.95F, 0.80F, 0.45F, 1.0F };
-    inline constexpr ImVec4 kLocalColor{ 0.60F, 0.95F, 0.35F, 1.0F };
+    inline constexpr ImVec4 kNearbyColor{ 0.60F, 0.95F, 0.35F, 1.0F };
     inline constexpr ImVec4 kWhisperColor{ 0.78F, 0.56F, 1.0F, 1.0F };
     inline constexpr ImVec4 kFailureColor{ 0.95F, 0.55F, 0.40F, 1.0F };
 
@@ -25,8 +25,8 @@ namespace UI::ChatStyle
     {
         switch (a_channel)
         {
-            case Multiplayer::ChatChannel::kLocal:
-                return kLocalColor;
+            case Multiplayer::ChatChannel::kNearby:
+                return kNearbyColor;
             case Multiplayer::ChatChannel::kWhisper:
                 return kWhisperColor;
             case Multiplayer::ChatChannel::kGlobal:

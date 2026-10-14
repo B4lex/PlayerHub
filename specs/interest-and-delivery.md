@@ -58,10 +58,10 @@ accepted message, subscriptions between recipients and peers, the per-pair
 record of presentation revisions, and the per-recipient outbox that batches
 checkpoints. Wire messages and validation are in [Network](network.md); how a
 client applies them is in [Sync pipeline](sync-pipeline.md#receive-state).
-Local chat compares the same spaces and horizontal distance but is routed
+Nearby chat compares the same spaces and horizontal distance but is routed
 without subscriptions ([Network](network.md#chat)), and the hub tells each
 client which players it reaches without them
-([Network](network.md#local-players)).
+([Network](network.md#nearby-players)).
 
 ## Components
 

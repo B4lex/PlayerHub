@@ -18,7 +18,7 @@ typedef enum _playerhub_v1_Protocol {
 
 typedef enum _playerhub_v1_ChatChannel {
     playerhub_v1_ChatChannel_CHAT_CHANNEL_GLOBAL = 0,
-    playerhub_v1_ChatChannel_CHAT_CHANNEL_LOCAL = 1,
+    playerhub_v1_ChatChannel_CHAT_CHANNEL_NEARBY = 1,
     playerhub_v1_ChatChannel_CHAT_CHANNEL_WHISPER = 2
 } playerhub_v1_ChatChannel;
 
@@ -269,11 +269,11 @@ typedef struct _playerhub_v1_Roster {
     uint32_t left;
 } playerhub_v1_Roster;
 
-/* Roster players entering and leaving the recipient's Local chat reach, which is mutual. */
-typedef struct _playerhub_v1_LocalPlayers {
+/* Roster players entering and leaving the recipient's Nearby chat reach, which is mutual. */
+typedef struct _playerhub_v1_NearbyPlayers {
     pb_callback_t joined;
     pb_callback_t left;
-} playerhub_v1_LocalPlayers;
+} playerhub_v1_NearbyPlayers;
 
 typedef struct _playerhub_v1_Inspection {
     uint32_t slot;
@@ -331,7 +331,7 @@ typedef struct _playerhub_v1_ServerMessage {
         playerhub_v1_TradeAccept trade_accept;
         playerhub_v1_TradeCommit trade_commit;
         playerhub_v1_TradeClose trade_close;
-        playerhub_v1_LocalPlayers local_players;
+        playerhub_v1_NearbyPlayers nearby_players;
     } message;
 } playerhub_v1_ServerMessage;
 
@@ -436,7 +436,7 @@ extern "C" {
 #define playerhub_v1_ChatMessage_init_default    {_playerhub_v1_ChatChannel_MIN, false, playerhub_v1_ChatSpeaker_init_default, false, playerhub_v1_ChatSpeaker_init_default, ""}
 #define playerhub_v1_RosterEntry_init_default    {0, "", 0}
 #define playerhub_v1_Roster_init_default         {{{NULL}, NULL}, 0}
-#define playerhub_v1_LocalPlayers_init_default   {{{NULL}, NULL}, {{NULL}, NULL}}
+#define playerhub_v1_NearbyPlayers_init_default  {{{NULL}, NULL}, {{NULL}, NULL}}
 #define playerhub_v1_Inspection_init_default     {0, 0, false, playerhub_v1_FormRef_init_default, false, playerhub_v1_DefaultRace_init_default}
 #define playerhub_v1_TradeInvite_init_default    {0, false, playerhub_v1_ChatSpeaker_init_default, false, playerhub_v1_ChatSpeaker_init_default}
 #define playerhub_v1_TradeOpen_init_default      {0}
@@ -473,7 +473,7 @@ extern "C" {
 #define playerhub_v1_ChatMessage_init_zero       {_playerhub_v1_ChatChannel_MIN, false, playerhub_v1_ChatSpeaker_init_zero, false, playerhub_v1_ChatSpeaker_init_zero, ""}
 #define playerhub_v1_RosterEntry_init_zero       {0, "", 0}
 #define playerhub_v1_Roster_init_zero            {{{NULL}, NULL}, 0}
-#define playerhub_v1_LocalPlayers_init_zero      {{{NULL}, NULL}, {{NULL}, NULL}}
+#define playerhub_v1_NearbyPlayers_init_zero     {{{NULL}, NULL}, {{NULL}, NULL}}
 #define playerhub_v1_Inspection_init_zero        {0, 0, false, playerhub_v1_FormRef_init_zero, false, playerhub_v1_DefaultRace_init_zero}
 #define playerhub_v1_TradeInvite_init_zero       {0, false, playerhub_v1_ChatSpeaker_init_zero, false, playerhub_v1_ChatSpeaker_init_zero}
 #define playerhub_v1_TradeOpen_init_zero         {0}
@@ -580,8 +580,8 @@ extern "C" {
 #define playerhub_v1_RosterEntry_session_id_tag  3
 #define playerhub_v1_Roster_joined_tag           1
 #define playerhub_v1_Roster_left_tag             2
-#define playerhub_v1_LocalPlayers_joined_tag     1
-#define playerhub_v1_LocalPlayers_left_tag       2
+#define playerhub_v1_NearbyPlayers_joined_tag    1
+#define playerhub_v1_NearbyPlayers_left_tag      2
 #define playerhub_v1_Inspection_slot_tag         1
 #define playerhub_v1_Inspection_level_tag        2
 #define playerhub_v1_Inspection_race_tag         3
@@ -614,7 +614,7 @@ extern "C" {
 #define playerhub_v1_ServerMessage_trade_accept_tag 17
 #define playerhub_v1_ServerMessage_trade_commit_tag 18
 #define playerhub_v1_ServerMessage_trade_close_tag 19
-#define playerhub_v1_ServerMessage_local_players_tag 20
+#define playerhub_v1_ServerMessage_nearby_players_tag 20
 
 /* Struct field encoding specification for nanopb */
 #define playerhub_v1_Hello_FIELDLIST(X, a) \
@@ -873,11 +873,11 @@ X(a, STATIC,   SINGULAR, UINT32,   left,              2)
 #define playerhub_v1_Roster_DEFAULT NULL
 #define playerhub_v1_Roster_joined_MSGTYPE playerhub_v1_RosterEntry
 
-#define playerhub_v1_LocalPlayers_FIELDLIST(X, a) \
+#define playerhub_v1_NearbyPlayers_FIELDLIST(X, a) \
 X(a, CALLBACK, REPEATED, UINT32,   joined,            1) \
 X(a, CALLBACK, REPEATED, UINT32,   left,              2)
-#define playerhub_v1_LocalPlayers_CALLBACK pb_default_field_callback
-#define playerhub_v1_LocalPlayers_DEFAULT NULL
+#define playerhub_v1_NearbyPlayers_CALLBACK pb_default_field_callback
+#define playerhub_v1_NearbyPlayers_DEFAULT NULL
 
 #define playerhub_v1_Inspection_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   slot,              1) \
@@ -936,7 +936,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_report,message.trade_report), 
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_accept,message.trade_accept),  17) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_commit,message.trade_commit),  18) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_close,message.trade_close),  19) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,local_players,message.local_players),  20)
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,nearby_players,message.nearby_players),  20)
 #define playerhub_v1_ServerMessage_CALLBACK NULL
 #define playerhub_v1_ServerMessage_DEFAULT NULL
 #define playerhub_v1_ServerMessage_message_welcome_MSGTYPE playerhub_v1_Welcome
@@ -958,7 +958,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,local_players,message.local_players)
 #define playerhub_v1_ServerMessage_message_trade_accept_MSGTYPE playerhub_v1_TradeAccept
 #define playerhub_v1_ServerMessage_message_trade_commit_MSGTYPE playerhub_v1_TradeCommit
 #define playerhub_v1_ServerMessage_message_trade_close_MSGTYPE playerhub_v1_TradeClose
-#define playerhub_v1_ServerMessage_message_local_players_MSGTYPE playerhub_v1_LocalPlayers
+#define playerhub_v1_ServerMessage_message_nearby_players_MSGTYPE playerhub_v1_NearbyPlayers
 
 extern const pb_msgdesc_t playerhub_v1_Hello_msg;
 extern const pb_msgdesc_t playerhub_v1_Enter_msg;
@@ -990,7 +990,7 @@ extern const pb_msgdesc_t playerhub_v1_ChatSpeaker_msg;
 extern const pb_msgdesc_t playerhub_v1_ChatMessage_msg;
 extern const pb_msgdesc_t playerhub_v1_RosterEntry_msg;
 extern const pb_msgdesc_t playerhub_v1_Roster_msg;
-extern const pb_msgdesc_t playerhub_v1_LocalPlayers_msg;
+extern const pb_msgdesc_t playerhub_v1_NearbyPlayers_msg;
 extern const pb_msgdesc_t playerhub_v1_Inspection_msg;
 extern const pb_msgdesc_t playerhub_v1_TradeInvite_msg;
 extern const pb_msgdesc_t playerhub_v1_TradeOpen_msg;
@@ -1029,7 +1029,7 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_ChatMessage_fields &playerhub_v1_ChatMessage_msg
 #define playerhub_v1_RosterEntry_fields &playerhub_v1_RosterEntry_msg
 #define playerhub_v1_Roster_fields &playerhub_v1_Roster_msg
-#define playerhub_v1_LocalPlayers_fields &playerhub_v1_LocalPlayers_msg
+#define playerhub_v1_NearbyPlayers_fields &playerhub_v1_NearbyPlayers_msg
 #define playerhub_v1_Inspection_fields &playerhub_v1_Inspection_msg
 #define playerhub_v1_TradeInvite_fields &playerhub_v1_TradeInvite_msg
 #define playerhub_v1_TradeOpen_fields &playerhub_v1_TradeOpen_msg
@@ -1043,7 +1043,7 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 /* playerhub_v1_ClientMessage_size depends on runtime parameters */
 /* playerhub_v1_PeerStates_size depends on runtime parameters */
 /* playerhub_v1_Roster_size depends on runtime parameters */
-/* playerhub_v1_LocalPlayers_size depends on runtime parameters */
+/* playerhub_v1_NearbyPlayers_size depends on runtime parameters */
 /* playerhub_v1_ServerMessage_size depends on runtime parameters */
 #define PLAYERHUB_V1_PLAYERHUB_V1_MESSAGES_PB_H_MAX_SIZE playerhub_v1_PeerEnter_size
 #define playerhub_v1_ChatMessage_size            831

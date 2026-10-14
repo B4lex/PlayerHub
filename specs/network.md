@@ -77,12 +77,12 @@
   on Linux and decoded Go-encoded rosters (3 and 500 entries, a leave, both
   at once, none) and a whisper, and rejected entries without a slot, without
   a name, with a control character, and with a 129-byte name; its `ChatSend`
-  for a whisper and for a local line passed the server's `validate.Chat`, and
+  for a whisper and for a nearby line passed the server's `validate.Chat`, and
   one with a recipient on another channel or a whisper without one did not.
   The roster kept in `ServerClient.cpp` passed a syntax check only.
-- **Local players:** not built on Windows or run in game. Server:
+- **Nearby players:** not built on Windows or run in game. Server:
   `go test -race ./...` covers the set in the hub
-  (`TestLocalPlayersFollowLocalChat`: the worldspace radius at 8192 and 8193
+  (`TestNearbyPlayersFollowNearbyChat`: the worldspace radius at 8192 and 8193
   units, a whole interior at 50000 units apart, a vanished player kept,
   unlisted players left out, a join and a leave in one message, a disconnect
   sent only as the roster's leave, an exit emptying the set, and no rescan
@@ -91,7 +91,7 @@
   against 567k entries/s and 82.8 ms before; scanning every viewer on every
   interest pass had cost 23% of the entries and 20 ms of p99, so a viewer is
   scanned once a second. Plugin: `WireCodec.cpp` with the regenerated nanopb
-  code was built on Linux and decoded Go-encoded `LocalPlayers` (a join and a
+  code was built on Linux and decoded Go-encoded `NearbyPlayers` (a join and a
   leave, none, 500 slots, the unpacked encoding) and rejected a zero slot and
   4097 slots; `ServerClient.cpp` and `ChatRoster.cpp` passed a syntax check
   only.
@@ -417,7 +417,7 @@ same list.
 | `PeerAction`, `PeerAppearance`, `PeerEquipment` | `slot` and the message |
 | `ChatMessage` | `channel`, `sender`, `recipient` (whisper only), `text`; a `ChatSpeaker` is `slot`, `name`, `level`, `session_id` |
 | `Roster` | `joined`, a list of `RosterEntry{slot, name, session_id}`, and `left`, a slot or 0 ([Roster](#roster)) |
-| `LocalPlayers` | `joined` and `left`, packed slots entering and leaving the recipient's Local chat reach ([Local players](#local-players)) |
+| `NearbyPlayers` | `joined` and `left`, packed slots entering and leaving the recipient's Nearby chat reach ([Nearby players](#nearby-players)) |
 | `Inspection` | `slot`, `level`, `race`, `default_race` of the player an `Inspect` named ([Inspection](#inspection)) |
 | `TradeInvite`, `TradeOpen`, `TradeOffer`, `TradeReport`, `TradeAccept`, `TradeCommit`, `TradeClose` | A trade's progress ([Trade](#trade)) |
 
@@ -542,15 +542,15 @@ in-server bots do not pass through it and do not count.
 
 ### Chat
 
-`ChatChannel` is `GLOBAL` (0), `LOCAL`, or `WHISPER`.
+`ChatChannel` is `GLOBAL` (0), `NEARBY`, or `WHISPER`.
 
 - The server trims surrounding spaces and rejects an unknown channel, empty
   text, control characters, more than 512 UTF-8 bytes, a `WHISPER` without a
   `recipient`, and a `recipient` on another channel
   (`invalid chat message`); protobuf already guarantees valid UTF-8.
 - `GLOBAL` goes to every connected client.
-- `LOCAL` needs a placed sender (`not in world` otherwise) and goes to every
-  placed client in the same space: in a worldspace within `chat.local_radius`
+- `NEARBY` needs a placed sender (`not in world` otherwise) and goes to every
+  placed client in the same space: in a worldspace within `chat.nearby_radius`
   (8192, horizontal like interest), and in an interior to the whole cell. It
   ignores exclusions, hiding, and the visible cap, which govern presentation
   only. Recipients are found by a scan of connected clients, which the rate
@@ -574,7 +574,7 @@ in-server bots do not pass through it and do not count.
   or with a recipient present exactly when the channel is not `WHISPER`, and
   validates speakers like appearance names, with a slot and a session ID, and
   text like `ChatSend`.
-- Chat does not require being in the world except for `LOCAL`, keeps no
+- Chat does not require being in the world except for `NEARBY`, keeps no
   history, and is not recorded. The client side is in
   [UI overlay](ui-overlay.md#chat).
 
@@ -602,31 +602,31 @@ player.
   name, or an invalid name, or with more than `kMaximumRosterEntries` (4096)
   entries.
 
-### Local players
+### Nearby players
 
-Every client knows which listed players its Local lines reach, so the
-[player list](ui-overlay.md#player-list) shows them in the Local color. The
+Every client knows which listed players its Nearby lines reach, so the
+[player list](ui-overlay.md#player-list) shows them in the Nearby color. The
 client cannot work it out: it receives at most `max_visible` peers within its
-view radius, while Local reaches a whole interior.
+view radius, while Nearby reaches a whole interior.
 
-- The set follows [Local chat](#chat) (`Hub.hearsLocally`): the listed
+- The set follows [Nearby chat](#chat) (`Hub.hearsNearby`): the listed
   players placed in the same space, in a worldspace within
-  `chat.local_radius`, and in an interior all of it. The rule is mutual, and
-  like Local chat it ignores exclusions, hiding, vanish, and the cap.
-- `Hub.updateLocalPlayers` runs after each interest pass and scans the
+  `chat.nearby_radius`, and in an interior all of it. The rule is mutual, and
+  like Nearby chat it ignores exclusions, hiding, vanish, and the cap.
+- `Hub.updateNearbyPlayers` runs after each interest pass and scans the
   listed clients due, each a second after its previous scan
-  (`localPlayersInterval`), so a crowd's scans spread over the passes and a
+  (`nearbyPlayersInterval`), so a crowd's scans spread over the passes and a
   change shows in the list up to about 1.2 s late, plus its half-second copy. A
-  scan finds candidates in `localGrid`, a second `interest.Grid` whose cells
-  are `chat.local_radius` wide, where an interior's players all share one
-  cell (`localView`). It checks each candidate against the slots it sent
+  scan finds candidates in `nearbyGrid`, a second `interest.Grid` whose cells
+  are `chat.nearby_radius` wide, where an interior's players all share one
+  cell (`nearbyView`). It checks each candidate against the slots it sent
   before and walks them again only when one may have left.
-- A change is sent as one `LocalPlayers` with the joined and left slots,
+- A change is sent as one `NearbyPlayers` with the joined and left slots,
   through `Outbox.AppendGlobal` and so in order with the roster. An unplaced
   client's set empties at its next scan. A disconnect is not sent: the
   roster's `left` removes the slot on the client too, and the hub forgets it
   in every set.
-- The client rejects a `LocalPlayers` with a zero slot or with more than
+- The client rejects a `NearbyPlayers` with a zero slot or with more than
   `kMaximumRosterEntries` (4096) slots in either list, and accepts both the
   packed and unpacked encoding.
 
@@ -769,8 +769,8 @@ Server messages:
   advances a revision, and `Network::CopyRosterIfChanged` copies the list,
   with the connection's own slot, only for a caller that holds an older one,
   so readers pay for a copy when a player joins or leaves and not per frame.
-- The transport keeps the [local players](#local-players) sorted, with the
-  roster under its lock: `LocalPlayers` adds and removes slots, a roster's
+- The transport keeps the [nearby players](#nearby-players) sorted, with the
+  roster under its lock: `NearbyPlayers` adds and removes slots, a roster's
   `left` removes one, and a welcome and a disconnect empty them.
   `Network::CopyNearbyPlayers` appends them; chat orders its name list and
   colors its player list by them.

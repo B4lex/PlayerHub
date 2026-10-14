@@ -136,14 +136,14 @@ namespace Network::Wire
         Multiplayer::PeerSlot left{ 0 };
     };
 
-    struct LocalPlayersChange
+    struct NearbyPlayersChange
     {
         std::vector<Multiplayer::PeerSlot> joined;
         std::vector<Multiplayer::PeerSlot> left;
     };
 
     using ServerMessage = std::variant<Welcome, Result, PeerStates, PeerEnter, PeerContext, PeerLeave, AnimationAction,
-        PeerAppearance, PeerEquipment, Multiplayer::ChatMessage, RosterChange, LocalPlayersChange,
+        PeerAppearance, PeerEquipment, Multiplayer::ChatMessage, RosterChange, NearbyPlayersChange,
         Multiplayer::PlayerInspection, Multiplayer::TradeEvent>;
 
     class Decoder
