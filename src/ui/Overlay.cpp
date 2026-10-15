@@ -151,6 +151,7 @@ namespace UI::Overlay
             ImGui::NewFrame();
             WindowManager::DrawAll(wheelSteps);
             ImGui::Render();
+            Backdrop::BlurPopups(*ImGui::GetDrawData());
 
             // The DX11 backend restores the pipeline state it changes, except the
             // output merger, so target the back buffer and restore it here.

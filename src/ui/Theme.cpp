@@ -16,6 +16,8 @@ namespace UI::Theme
         constexpr ImVec4 kRaisedSurface{ 0.09F, 0.09F, 0.095F, 1.0F };
         constexpr ImVec4 kTransparent{ 0.0F, 0.0F, 0.0F, 0.0F };
         constexpr ImVec4 kText{ 0.93F, 0.92F, 0.90F, 1.0F };
+        // WindowBg and PopupBg, pushed at [UI] BackgroundOpacity.
+        constexpr int kBackgroundColorCount = 2;
 
         // The game's 999999 at the 80% it draws its message box with, as it looks
         // over the dark backing.
@@ -31,8 +33,6 @@ namespace UI::Theme
         constexpr Color kColors[]{
             { ImGuiCol_Text, kText },
             { ImGuiCol_TextDisabled, ImVec4{ 0.56F, 0.55F, 0.53F, 1.0F } },
-            { ImGuiCol_WindowBg, kSurface },
-            { ImGuiCol_PopupBg, kRaisedSurface },
             { ImGuiCol_FrameBg, Tint(0.07F) },
             { ImGuiCol_TitleBg, kRaisedSurface },
             { ImGuiCol_TitleBgActive, kRaisedSurface },
@@ -90,6 +90,8 @@ namespace UI::Theme
             ImVec4 accent;
             ImVec4 onAccent;
             ImVec4 frame;
+            ImVec4 background;
+            ImVec4 raisedBackground;
         };
 
         ImVec4 Mix(const ImVec4& a_from, const ImVec4& a_to, float a_amount)
@@ -127,6 +129,9 @@ namespace UI::Theme
                 palette.frame = config->ui.frameColor == Config::UISettings::kAccentFrame
                     ? Mix(kSurface, palette.accent, kAccentFrameOpacity)
                     : kVanillaFrame;
+                const auto opacity = static_cast<float>(config->ui.backgroundOpacity) * 0.01F;
+                palette.background = ImVec4{ kSurface.x, kSurface.y, kSurface.z, opacity };
+                palette.raisedBackground = ImVec4{ kRaisedSurface.x, kRaisedSurface.y, kRaisedSurface.z, opacity };
             }
             return palette;
         }
@@ -202,6 +207,11 @@ namespace UI::Theme
         return GetPalette().frame;
     }
 
+    float GetBackgroundOpacity()
+    {
+        return GetPalette().background.w;
+    }
+
     Scope::Scope()
     {
         ImGui::PushFont(Fonts::GetText(), 0.0F);
@@ -210,6 +220,9 @@ namespace UI::Theme
         {
             ImGui::PushStyleColor(color.index, color.value);
         }
+        const auto& palette = GetPalette();
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, palette.background);
+        ImGui::PushStyleColor(ImGuiCol_PopupBg, palette.raisedBackground);
         for (const auto& color : kAccentColors)
         {
             ImGui::PushStyleColor(color.index, Accent(color.alpha));
@@ -228,7 +241,7 @@ namespace UI::Theme
     Scope::~Scope()
     {
         ImGui::PopStyleVar(static_cast<int>(std::size(kSizes) + std::size(kExtents)));
-        ImGui::PopStyleColor(static_cast<int>(std::size(kColors) + std::size(kAccentColors)));
+        ImGui::PopStyleColor(static_cast<int>(std::size(kColors) + kBackgroundColorCount + std::size(kAccentColors)));
         ImGui::PopFont();
     }
 }

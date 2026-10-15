@@ -24,6 +24,9 @@ namespace UI::Theme
 
     [[nodiscard]] ImVec4 GetFrameColor();
 
+    // [UI] BackgroundOpacity, 0 to 1.
+    [[nodiscard]] float GetBackgroundOpacity();
+
     class Scope
     {
     public:

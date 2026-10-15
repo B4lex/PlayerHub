@@ -292,7 +292,7 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 ### `[UI]`
 
 Four groups: Display (`FontScale`, `AccentColor`, `BorderColor`,
-`BorderThickness`), Players (`Nameplates`, `NameplateDistance`), Chat
+`BorderThickness`, `BackgroundOpacity`), Players (`Nameplates`, `NameplateDistance`), Chat
 (`CloseChatOnSend`, `ChatWidth`, `ChatLines`, `ChatPositionHorizontal`,
 `ChatPositionVertical`), and Items (`ItemPreview`).
 
@@ -301,13 +301,14 @@ Four groups: Display (`FontScale`, `AccentColor`, `BorderColor`,
 | `FontScale` | Size of the overlay's text in percent, `80..130` in steps of `5`; the windows laid out in font sizes grow and shrink with it ([UI overlay](ui-overlay.md#font-scale)) | `100` |
 | `AccentColor` | Color of the theme's accent in the settings window and the chat, as `RRGGBB` ([UI overlay](ui-overlay.md#accent-color)) | `FF9000` |
 | `BorderColor` | Color of the menu frame around the settings window and the open chat ([UI overlay](ui-overlay.md#menu-frame)): `Vanilla`, the grey of the game's menus, or `Accent`, the accent | `Vanilla` |
-| `BorderThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `50..100` | `70` |
+| `BorderThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `30..100` | `60` |
+| `BackgroundOpacity` | Opacity of the background of the overlay's windows, popups, prompts, and notices in percent, `25..100` in steps of `5`; below `100` the game shows blurred behind them ([UI overlay](ui-overlay.md#background-blur)) | `75` |
 | `Nameplates` | Shows other players' display names above their heads while in sight ([UI overlay](ui-overlay.md#nameplates)) | `true` |
-| `NameplateDistance` | Game units from the player within which nameplates show, `0..10000`, about 70 to a meter; `0` shows none and skips their line-of-sight tests, as `Nameplates = false` does | `2100` |
+| `NameplateDistance` | Game units from the player within which nameplates show, `0..4000`, about 70 to a meter; `0` shows none and skips their line-of-sight tests, as `Nameplates = false` does | `2000` |
 | `CloseChatOnSend` | Closes the chat when Enter sends a line; when `false`, the chat stays open and Enter in an empty field does nothing ([UI overlay](ui-overlay.md#sending)) | `true` |
 | `ItemPreview` | Shows the 3D item model in item pickers and the trade window's preview column, and item thumbnails in the trade window's offers; off, the cells show names and the column only the item card | `true` |
 | `ChatWidth` | Width of the chat's lines in font sizes, `24..100`; set by dragging the open chat's right edge ([UI overlay](ui-overlay.md#size)) and not shown in the settings window | `30` |
-| `ChatLines` | Lines of history the open chat shows, `9..40`; set by dragging its top edge, and not shown in the settings window | `10` |
+| `ChatLines` | Lines of history the open chat shows, `9..40`; set by dragging its top edge, and not shown in the settings window | `15` |
 | `ChatPositionHorizontal` | Distance of the open chat's left edge from the screen's left edge in percent of the screen's width, `0..100`; the chat stays there and its size is limited to the room left on the screen; also set by dragging the open chat ([UI overlay](ui-overlay.md#position)) | `1` |
 | `ChatPositionVertical` | Distance of the open chat's bottom edge from the screen's bottom edge in percent of the screen's height, `0..100`; the default keeps it above the magicka bar | `8` |
 
@@ -397,7 +398,7 @@ revision before the snapshot never misses a change.
 | `TradePrompt` | overlay, input | reading `AcceptTrade` and `DeclineTrade` on each focus key press and each frame it draws |
 | `StatusPanel`, item pickers, trade window | overlay | reading `[Advanced] StatusPanel` and `[UI] ItemPreview` each frame |
 | `ChatInput` | overlay | reading `CloseChatOnSend` on each Enter that sends or finds the field empty |
-| `Theme` | overlay | working out the accent and frame colors from `AccentColor` and `BorderColor` when the revision changes |
+| `Theme` | overlay | working out the accent, frame, and background colors from `AccentColor`, `BorderColor`, and `BackgroundOpacity` when the revision changes |
 | `MenuFrame` | overlay | reading `BorderThickness` for each framed window each frame |
 | `ChatSize` | overlay | reading `ChatWidth` and `ChatLines` each frame the chat draws, outside a drag |
 | `ChatPosition` | overlay | reading `ChatPositionHorizontal` and `ChatPositionVertical` each frame the chat or its recent lines draw, outside a drag |

@@ -35,8 +35,6 @@ namespace UI
         // keeps that size through the division by the step.
         constexpr float kRoomTolerancePixels = 0.5F;
 
-        constexpr float kOpenBackgroundAlpha = 0.6F;
-        constexpr float kManagerBackgroundAlpha = 0.9F;
         constexpr float kRecentBackgroundAlpha = 0.25F;
 
         constexpr ImGuiWindowFlags kWindowFlags
@@ -86,8 +84,7 @@ namespace UI
             return ChatPlayers::GetWidth() + GetSidePadding();
         }
 
-        bool BeginFramed(const char* a_name, ImGuiWindowFlags a_flags = kOpenWindowFlags,
-            float a_backgroundAlpha = kOpenBackgroundAlpha)
+        bool BeginFramed(const char* a_name, ImGuiWindowFlags a_flags = kOpenWindowFlags)
         {
             const auto framePadding = GetFramePadding();
             const auto& padding = ImGui::GetStyle().WindowPadding;
@@ -97,9 +94,7 @@ namespace UI
             ImGui::PopStyleVar();
             if (visible)
             {
-                auto background = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
-                background.w = a_backgroundAlpha;
-                MenuFrame::Draw(ImGui::GetColorU32(Theme::GetFrameColor()), ImGui::GetColorU32(background));
+                MenuFrame::Draw(ImGui::GetColorU32(Theme::GetFrameColor()), ImGui::GetColorU32(ImGuiCol_WindowBg));
             }
             return visible;
         }
@@ -389,7 +384,7 @@ namespace UI
                 {
                     ImGui::SetNextWindowFocus();
                 }
-                if (BeginFramed("##ChatPlayerManager", kManagerWindowFlags, kManagerBackgroundAlpha))
+                if (BeginFramed("##ChatPlayerManager", kManagerWindowFlags))
                 {
                     if (const auto player = manager.Draw(a_closeMenu))
                     {

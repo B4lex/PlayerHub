@@ -33,7 +33,6 @@ namespace UI
         using Phase = TradeSession::Phase;
 
         constexpr ImVec2 kPanelSizeFonts{ 56.0F, 52.8F };
-        constexpr float kBackgroundAlpha = 0.96F;
         constexpr float kPreviewWidthFonts = 28.0F;
         // Narrower than this, the preview column is left out.
         constexpr float kMinimumPreviewWidthFonts = 12.0F;
@@ -303,10 +302,9 @@ namespace UI
                 const Theme::Scope theme;
                 Backdrop::Draw();
                 const auto arrangement = Arrange();
-                const MenuFrame::WindowLayout layout{ .sizeFonts = kPanelSizeFonts,
-                    .paddingFonts = 1.0F,
-                    .backgroundAlpha = kBackgroundAlpha,
-                    .fixedPosition = arrangement.panel };
+                const MenuFrame::WindowLayout layout{
+                    .sizeFonts = kPanelSizeFonts, .paddingFonts = 1.0F, .fixedPosition = arrangement.panel
+                };
                 if (MenuFrame::BeginWindow("Trade###Trade", layout, kWindowFlags, std::exchange(focusWindow, false)))
                 {
                     DrawTitle();
@@ -396,9 +394,7 @@ namespace UI
                 const MenuFrame::WindowLayout layout{
                     .sizeFonts = ImVec2{ a_arrangement.previewWidth / fontSize, cardHeight / fontSize },
                     .paddingFonts = kCardPaddingFonts,
-                    .backgroundAlpha = kBackgroundAlpha,
-                    .fixedPosition = a_arrangement.card
-                };
+                    .fixedPosition = a_arrangement.card };
                 if (MenuFrame::BeginWindow("###TradeCard", layout, kCardFlags, false))
                 {
                     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + knotClearance);

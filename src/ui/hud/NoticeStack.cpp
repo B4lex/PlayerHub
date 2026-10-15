@@ -5,6 +5,7 @@
 #include "sync/notices/Notices.h"
 #include "text/Text.h"
 #include "ui/Theme.h"
+#include "ui/render/Backdrop.h"
 #include "ui/widgets/Controls.h"
 
 #include <imgui.h>
@@ -32,7 +33,6 @@ namespace UI
         constexpr float kMaximumWidthFonts = 22.0F;
         constexpr float kGapFonts = 0.375F;
         constexpr float kStripFonts = 0.2F;
-        constexpr float kBackgroundAlpha = 0.85F;
 
         struct Toast
         {
@@ -137,8 +137,12 @@ namespace UI
                     const ImVec2 min{ std::floor(right - (strip + padding.x * 2.0F + std::ceil(textSize.x))), top };
                     const ImVec2 max{ right, top + padding.y * 2.0F + textSize.y };
 
+                    if (background.w < 1.0F)
+                    {
+                        Backdrop::DrawBlur(*drawList, min, max, rounding, alpha);
+                    }
                     Controls::StripedBox(*drawList, min, max, strip, ImGui::GetColorU32(WithAlpha(accent, alpha)),
-                        ImGui::GetColorU32(WithAlpha(background, kBackgroundAlpha * alpha)), rounding);
+                        ImGui::GetColorU32(WithAlpha(background, alpha)), rounding);
                     drawList->AddText(font, fontSize, ImVec2{ min.x + strip + padding.x, min.y + padding.y },
                         ImGui::GetColorU32(WithAlpha(textColor, alpha)), text, textEnd, wrapWidth);
                     top = max.y + gap;

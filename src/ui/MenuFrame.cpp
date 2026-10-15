@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "config/PluginFiles.h"
 #include "ui/Theme.h"
+#include "ui/render/Backdrop.h"
 
 #include <imgui_internal.h>
 
@@ -12,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -72,11 +74,21 @@ namespace UI::MenuFrame
             }
         };
 
+        // Where a backing polygon's triangles are in the frame's vertices and indices.
+        struct Span
+        {
+            std::uint32_t firstVertex{ 0 };
+            std::uint32_t vertexCount{ 0 };
+            std::uint32_t firstIndex{ 0 };
+            std::uint32_t indexCount{ 0 };
+        };
+
         struct DrawnFrame
         {
             FrameKey key;
             std::vector<ImDrawVert> vertices;
             std::vector<ImDrawIdx> indices;
+            std::vector<Span> backing;
             int usedFrame{ -1 };
         };
 
@@ -226,6 +238,34 @@ namespace UI::MenuFrame
             }
         }
 
+        // The blurred frame under the backing, at the backing's anti-aliased coverage.
+        void CopyBlur(const DrawnFrame& a_frame, ImDrawList& a_list, const ImVec2& a_min, const Backdrop::Blur& a_blur)
+        {
+            const auto backingAlpha = (a_frame.key.backing >> IM_COL32_A_SHIFT) & 0xFF;
+            const auto tintAlpha = (a_blur.tint >> IM_COL32_A_SHIFT) & 0xFF;
+            const auto tintColor = a_blur.tint & ~IM_COL32_A_MASK;
+            a_list.PushTexture(a_blur.texture);
+            for (const auto& span : a_frame.backing)
+            {
+                a_list.PrimReserve(static_cast<int>(span.indexCount), static_cast<int>(span.vertexCount));
+                const auto first = a_list._VtxCurrentIdx;
+                for (std::uint32_t i = 0; i < span.indexCount; ++i)
+                {
+                    a_list.PrimWriteIdx(
+                        static_cast<ImDrawIdx>(first + a_frame.indices[span.firstIndex + i] - span.firstVertex));
+                }
+                for (std::uint32_t i = 0; i < span.vertexCount; ++i)
+                {
+                    const auto& vertex = a_frame.vertices[span.firstVertex + i];
+                    const auto coverage = (vertex.col >> IM_COL32_A_SHIFT) & 0xFF;
+                    const ImVec2 position{ a_min.x + vertex.pos.x, a_min.y + vertex.pos.y };
+                    a_list.PrimWriteVtx(position, a_blur.ToUv(position),
+                        tintColor | ((coverage * tintAlpha / backingAlpha) << IM_COL32_A_SHIFT));
+                }
+            }
+            a_list.PopTexture();
+        }
+
         void Triangulate(DrawnFrame& a_frame, ImDrawList& a_list, const ImVec2& a_min, const ImVec2& a_max)
         {
             const auto firstVertex = a_list.VtxBuffer.Size;
@@ -233,6 +273,7 @@ namespace UI::MenuFrame
             const auto first = a_list._VtxCurrentIdx;
             const auto vertexOffset = a_list._CmdHeader.VtxOffset;
 
+            a_frame.backing.clear();
             const auto scale = a_frame.key.scale;
             const auto* point = s_shape.points.data();
             for (const auto& polygon : s_shape.polygons)
@@ -244,7 +285,16 @@ namespace UI::MenuFrame
                     a_list.PathLineTo(ImVec2{ point->fromRight ? a_max.x - x : a_min.x + x,
                         point->fromBottom ? a_max.y - y : a_min.y + y });
                 }
+                const auto polygonVertex = static_cast<std::uint32_t>(a_list.VtxBuffer.Size - firstVertex);
+                const auto polygonIndex = static_cast<std::uint32_t>(a_list.IdxBuffer.Size - firstIndex);
                 a_list.PathFillConcave(polygon.backing ? a_frame.key.backing : a_frame.key.line);
+                if (polygon.backing)
+                {
+                    a_frame.backing.push_back(Span{ .firstVertex = polygonVertex,
+                        .vertexCount = static_cast<std::uint32_t>(a_list.VtxBuffer.Size - firstVertex) - polygonVertex,
+                        .firstIndex = polygonIndex,
+                        .indexCount = static_cast<std::uint32_t>(a_list.IdxBuffer.Size - firstIndex) - polygonIndex });
+                }
             }
 
             if (a_list._CmdHeader.VtxOffset != vertexOffset)
@@ -349,9 +399,19 @@ namespace UI::MenuFrame
         auto& list = *ImGui::GetWindowDrawList();
         // A window's own clip rectangle leaves out part of its padding.
         list.PushClipRect(min, max);
+        const auto backingAlpha = (a_backing >> IM_COL32_A_SHIFT) & 0xFF;
+        std::optional<Backdrop::Blur> blur;
+        if (backingAlpha > 0 && backingAlpha < 0xFF)
+        {
+            blur = Backdrop::GetBlur();
+        }
         if (s_shape.polygons.empty())
         {
             const auto& style = ImGui::GetStyle();
+            if (blur)
+            {
+                Backdrop::DrawBlur(list, min, max, style.WindowRounding, 1.0F);
+            }
             list.AddRectFilled(min, max, a_backing, style.WindowRounding);
             if (style.WindowBorderSize > 0.0F)
             {
@@ -368,6 +428,13 @@ namespace UI::MenuFrame
                 .flags = list.Flags,
                 .fringe = list._FringeScale };
             auto drawn = std::ranges::find(s_drawn, key, &DrawnFrame::key);
+            // The blur goes under the frame, but a frame triangulated this frame has its backing
+            // only once drawn.
+            if (blur)
+            {
+                list.ChannelsSplit(2);
+                list.ChannelsSetCurrent(1);
+            }
             if (drawn != s_drawn.end())
             {
                 Copy(*drawn, list, min);
@@ -377,6 +444,15 @@ namespace UI::MenuFrame
                 drawn = std::ranges::min_element(s_drawn, {}, &DrawnFrame::usedFrame);
                 drawn->key = key;
                 Triangulate(*drawn, list, min, max);
+            }
+            if (blur)
+            {
+                list.ChannelsSetCurrent(0);
+                if (drawn->key == key)
+                {
+                    CopyBlur(*drawn, list, min, *blur);
+                }
+                list.ChannelsMerge();
             }
             drawn->usedFrame = ImGui::GetFrameCount();
         }
@@ -422,8 +498,7 @@ namespace UI::MenuFrame
         }
         if (visible)
         {
-            Draw(ImGui::GetColorU32(Theme::GetFrameColor()),
-                ImGui::GetColorU32(ImGuiCol_WindowBg, a_layout.backgroundAlpha));
+            Draw(ImGui::GetColorU32(Theme::GetFrameColor()), ImGui::GetColorU32(ImGuiCol_WindowBg));
         }
         return visible;
     }
@@ -431,7 +506,6 @@ namespace UI::MenuFrame
     bool BeginPrompt(const char* a_name)
     {
         constexpr float kTopFonts = 6.0F;
-        constexpr float kBackgroundAlpha = 0.65F;
         constexpr ImGuiWindowFlags kFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
             | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize
             | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBackground;
@@ -454,9 +528,7 @@ namespace UI::MenuFrame
         }
         if (visible)
         {
-            auto background = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
-            background.w = kBackgroundAlpha;
-            Draw(ImGui::GetColorU32(Theme::GetFrameColor()), ImGui::GetColorU32(background));
+            Draw(ImGui::GetColorU32(Theme::GetFrameColor()), ImGui::GetColorU32(ImGuiCol_WindowBg));
         }
         return visible;
     }

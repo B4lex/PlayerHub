@@ -1,14 +1,19 @@
 #include "ui/render/Backdrop.h"
 #include "runtime/Profiling.h"
+#include "ui/Theme.h"
 #include "ui/render/Gpu.h"
 
-#include <imgui.h>
+#include <imgui_internal.h>
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <format>
+#include <memory>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace UI::Backdrop
 {
@@ -92,6 +97,9 @@ float4 BlurVertical(Vertex input) : SV_Target
         bool unavailable{ false };
         bool requested{ false };
         int drawnFrame{ -1 };
+        int blurredFrame{ -1 };
+        bool frameBlurred{ false };
+        std::vector<std::unique_ptr<ImDrawList>> popupLists;
 
         bool Disable(std::string_view a_reason)
         {
@@ -149,7 +157,7 @@ float4 BlurVertical(Vertex input) : SV_Target
         }
 
         // Leaves the blurred frame in textures.reduced.
-        bool Blur()
+        bool BlurFrame()
         {
             PROFILE_SCOPE("Backdrop");
             const auto frame = Gpu::GetFrame();
@@ -195,20 +203,98 @@ float4 BlurVertical(Vertex input) : SV_Target
         {
             return;
         }
-        requested = true;
         auto& drawList = *ImGui::GetBackgroundDrawList();
+        const ImVec2 origin{ 0.0F, 0.0F };
         const auto& display = ImGui::GetIO().DisplaySize;
-        if (!unavailable && Blur())
+        if (const auto blur = GetBlur())
         {
-            const auto& reduced = textures.reduced;
-            const auto texture = static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(reduced.view.Get()));
-            // Half a texel in, so filtering never wraps to the opposite edge.
-            const ImVec2 inset{ 0.5F / static_cast<float>(reduced.width), 0.5F / static_cast<float>(reduced.height) };
-            drawList.AddImage(ImTextureRef{ texture }, ImVec2{ 0.0F, 0.0F }, display, inset,
-                ImVec2{ 1.0F - inset.x, 1.0F - inset.y }, kTint);
+            drawList.AddImage(blur->texture, origin, display, blur->ToUv(origin), blur->ToUv(display), blur->tint);
             return;
         }
-        drawList.AddRectFilled(ImVec2{ 0.0F, 0.0F }, display, kDim);
+        drawList.AddRectFilled(origin, display, kDim);
+    }
+
+    std::optional<Blur> GetBlur()
+    {
+        requested = true;
+        if (unavailable)
+        {
+            return std::nullopt;
+        }
+        const int frame = ImGui::GetFrameCount();
+        if (std::exchange(blurredFrame, frame) != frame)
+        {
+            frameBlurred = BlurFrame();
+        }
+        if (!frameBlurred)
+        {
+            return std::nullopt;
+        }
+        const auto& reduced = textures.reduced;
+        const auto& display = ImGui::GetIO().DisplaySize;
+        const auto texture = static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(reduced.view.Get()));
+        // Half a texel in, so filtering never wraps to the opposite edge.
+        const ImVec2 inset{ 0.5F / static_cast<float>(reduced.width), 0.5F / static_cast<float>(reduced.height) };
+        return Blur{ .texture = ImTextureRef{ texture },
+            .tint = drawnFrame == frame ? kTint : IM_COL32_WHITE,
+            .uvOrigin = inset,
+            .uvPerPixel = ImVec2{ (1.0F - 2.0F * inset.x) / display.x, (1.0F - 2.0F * inset.y) / display.y } };
+    }
+
+    void DrawBlur(ImDrawList& a_list, const ImVec2& a_min, const ImVec2& a_max, float a_rounding, float a_alpha)
+    {
+        const auto blur = GetBlur();
+        if (!blur || a_alpha <= 0.0F)
+        {
+            return;
+        }
+        auto tint = ImGui::ColorConvertU32ToFloat4(blur->tint);
+        tint.w *= a_alpha;
+        a_list.AddImageRounded(blur->texture, a_min, a_max, blur->ToUv(a_min), blur->ToUv(a_max),
+            ImGui::ColorConvertFloat4ToU32(tint), a_rounding);
+    }
+
+    void BlurPopups(ImDrawData& a_drawData)
+    {
+        if (Theme::GetBackgroundOpacity() >= 1.0F)
+        {
+            return;
+        }
+        constexpr ImGuiWindowFlags kBlurred = ImGuiWindowFlags_Popup | ImGuiWindowFlags_Tooltip;
+        constexpr ImGuiWindowFlags kSkipped = ImGuiWindowFlags_ChildWindow | ImGuiWindowFlags_NoBackground;
+        std::optional<Blur> blur;
+        std::size_t used = 0;
+        for (auto* const window : GImGui->Windows)
+        {
+            if (!window->Active || window->Hidden || (window->Flags & kBlurred) == 0 || (window->Flags & kSkipped) != 0)
+            {
+                continue;
+            }
+            auto* const position = std::find(a_drawData.CmdLists.begin(), a_drawData.CmdLists.end(), window->DrawList);
+            if (position == a_drawData.CmdLists.end())
+            {
+                continue;
+            }
+            if (!blur && !(blur = GetBlur()))
+            {
+                return;
+            }
+            if (used == popupLists.size())
+            {
+                popupLists.push_back(std::make_unique<ImDrawList>(ImGui::GetDrawListSharedData()));
+            }
+            auto& list = *popupLists[used++];
+            list._ResetForNewFrame();
+            list.PushClipRectFullScreen();
+            const ImVec2 max{ window->Pos.x + window->Size.x, window->Pos.y + window->Size.y };
+            list.AddImageRounded(blur->texture, window->Pos, max, blur->ToUv(window->Pos), blur->ToUv(max), blur->tint,
+                window->WindowRounding);
+            list._PopUnusedDrawCmd();
+            // Drawn just before the popup's own list, so over every window under it.
+            a_drawData.CmdLists.insert(position, &list);
+            a_drawData.TotalVtxCount += list.VtxBuffer.Size;
+            a_drawData.TotalIdxCount += list.IdxBuffer.Size;
+        }
     }
 
     void Update()

@@ -21,6 +21,19 @@
   translation failed the build. `msgfmt -c` passes every `.po` file, and
   `msgmerge` marks an entry whose English changed as fuzzy, which the build then
   rejects. The rule has not run under the Windows xmake or with MSVC.
+- **[Background opacity](#background-opacity)** (2026-10-15): the opacity
+  works, as the user reported. The [blur](#background-blur)
+  behind translucent surfaces is not built on Windows or run in game. On
+  Linux, its sources passed the g++ syntax check against CommonLibSSE-NG, and
+  a headless harness ran the real `MenuFrame.cpp`, `Theme.cpp`, and
+  `Backdrop.cpp` against Dear ImGui 1.92.9 with stubbed D3D11 objects. That
+  harness confirmed the following. At 100% nothing is blurred and the frame is
+  never copied. At 75% the blur's triangles come first in a framed window's
+  list, fully opaque inside the silhouette, the same on the frame that
+  triangulates the shape and on one that copies it, with the frame's own
+  triangles unchanged. A popup and a tooltip each get a blur list just before
+  their own, the draw data's vertex and index totals stay right, and the game
+  frame is copied once per frame however many surfaces use it.
 - **Overlay, input, status panel:** implemented and built on Windows; the
   settings UI runs in game. The renderer and input hook sites and the input
   context order were checked against the 1.7.104 executable and address library.
@@ -820,12 +833,16 @@ changes, from the next frame after the setting applies.
 
 ### Backdrop
 
-`Backdrop::Draw` covers the display behind every overlay window (ImGui's
-background draw list) with the finished game frame, blurred and darkened;
-the [trade window](#trade-window) draws it each frame. The game keeps
+`Backdrop::GetBlur` gives the finished game frame, blurred, as a texture
+with the UV of each display pixel (`Blur::ToUv`). `Backdrop::Draw` covers the
+display behind every overlay window (ImGui's background draw list) with it,
+darkened; the [trade window](#trade-window) draws it each frame.
+`Backdrop::DrawBlur` puts it in a rounded rectangle and `BlurPopups` under
+popups, for [translucent surfaces](#background-blur). The game keeps
 running, so the blur is made again each frame from the back buffer as the
 overlay hook finds it, HUD and menus included, after `ItemPreview::Update`
-has put back what its capture changed.
+has put back what its capture changed, and at most once a frame however many
+callers ask for it.
 
 - It copies the back buffer, reduces it to a quarter in each dimension with
   four bilinear taps per pixel, and blurs that with a 17-tap Gaussian
@@ -846,9 +863,9 @@ has put back what its capture changed.
 - A multisampled back buffer, a shader that does not compile, or textures
   or states that cannot be created turn the blur off for the session with
   one warning (`UI backdrop blur unavailable: <reason>`); the backdrop is
-  then a 40% black fill.
+  then a 40% black fill, and translucent surfaces are drawn without a blur.
 - `Backdrop::Update`, before `ImGui::NewFrame`, frees the copy and the
-  reduced textures when nothing drew the backdrop in the last frame.
+  reduced textures when nothing asked for the blur in the last frame.
 
 ### Fonts
 
@@ -975,8 +992,9 @@ background and border.
 - Text on the accent fill is `Theme::GetOnAccent`: the near-black
   `Theme::kOnState` or the body text color, whichever has the higher WCAG
   contrast with the accent, so a dark accent takes light text.
-- `Theme` works out the accent, its text color, and the
-  [frame color](#menu-frame) again only when `Config::GetRevision` changes, so
+- `Theme` works out the accent, its text color, the
+  [frame color](#menu-frame), and the [backgrounds](#background-opacity) again
+  only when `Config::GetRevision` changes, so
   a call costs one atomic load. These calls and `Scope` are for the overlay
   thread. `Scope` pushes the accent at each accent style color's alpha.
 - A state is `Theme::kPositive` (green), `kWarning` (amber), or `kNegative`
@@ -987,7 +1005,8 @@ background and border.
 - Surfaces are neutral and near black. Fields and buttons are a white tint
   (`Theme::Tint`) with no border of their own, text is off-white, secondary
   text is `ImGuiCol_TextDisabled`, and separators are a faint white line.
-  Popups are opaque, so the rows under an open list do not show through it.
+  Popups are a slightly lighter surface than windows; both are at the
+  [background opacity](#background-opacity).
 - Borders are 1 px rounded lines: 8 px corners on popups and cards, 6 px on
   fields, buttons, and grabs, and 10 px on a window that has no menu frame.
   Padding is 10 × 6 px in a field and 12 × 10 px in a popup, with 8 × 8 px
@@ -1001,6 +1020,67 @@ as a frame: `Toggle`, a switch whose knob slides over 0.12 s of frame time;
 `PrimaryButton` and `DangerButton`, which differ only in their fill; and
 `IconButton`, whose icons (close, reset) are drawn as lines, so they do not
 depend on a font having the glyph.
+
+### Background opacity
+
+Goal: one background opacity, set by the player, for every overlay surface
+the player reads or acts in. Non-goal: an opacity per window.
+
+- `[UI] BackgroundOpacity` ([Configuration](configuration.md#ui)) is a
+  percentage from 25 to 100 in steps of 5, 75 by default; the scope, the
+  slider, and the default are the user's choices; the range is unconfirmed. Below 25
+  text over a bright scene is hard to read.
+- `Theme::Scope` pushes `ImGuiCol_WindowBg` and `ImGuiCol_PopupBg` with the
+  opacity as their alpha, so a change shows from the next frame. Everything
+  drawn from those colors follows it: the backing of each
+  [menu frame](#menu-frame) (`MenuFrame::BeginWindow` for the settings window,
+  the trade panel, and the item card; `ChatWindow`'s `BeginFramed` for the open
+  chat, the player list, and the player manager; `MenuFrame::BeginPrompt` for
+  the trade prompt and the display name hint), [notices](#notices), and
+  Dear ImGui's popups, lists, and tooltips, with the chat's name list and
+  notes, which take the popup color.
+- A popup or child over a window covers more than either alone: at 75%, the
+  name list over the open chat is about 94% opaque.
+- Keeping their own lighter background, which the user chose: the
+  [status panel](#status-panel) (35%, `SetNextWindowBgAlpha`) and the closed
+  chat's recent lines (25%, fading with them), which stay on screen over the
+  game while the player is not using the overlay. Also unaffected are the
+  trade cells' wells and thumbnail backgrounds, which must be opaque
+  ([3D preview](#3d-preview)), and the trade [backdrop](#backdrop).
+
+#### Background blur
+
+Goal: a translucent surface shows the game blurred behind it rather than
+sharp. Non-goals: a blur strength or switch of its own, and blurring other
+overlay windows behind a surface.
+
+- While `[UI] BackgroundOpacity` is below 100, every surface it applies to
+  draws the [backdrop](#backdrop)'s blurred frame (`Backdrop::GetBlur`) under
+  its background: the [menu frame](#menu-frame)'s silhouette, each
+  [notice](#notices) (fading with it), and every Dear ImGui popup and
+  tooltip. At 100 nothing is blurred and the frame is not copied. The
+  strength is the trade backdrop's (the user's choice).
+- Popups and tooltips are windows Dear ImGui begins, so nothing in the
+  plugin draws before their background. After `ImGui::Render`,
+  `Backdrop::BlurPopups` finds each active popup or tooltip that is not a
+  child and has a background, and inserts one of its own draw lists, holding
+  the blurred frame in the window's rounded rectangle, into the draw data
+  just before the window's list, adding its counts to the totals. The lists
+  are kept in a pool registered with the context's shared draw data, which
+  the overlay never destroys.
+- The blur is the game's frame, HUD and menus included, as it was before the
+  overlay drew. A popup or tooltip over an overlay window therefore shows the
+  game blurred where the window is, not the window: the user chose to blur
+  them anyway. Child windows that take the popup color, such as the chat's
+  name list and notes, are not blurred, since the window they are in is.
+- The status panel and the closed chat's recent lines keep their own
+  backgrounds and are not blurred either.
+- While the full-screen backdrop is drawn in the same frame, the blur is
+  tinted as it is (`Blur::tint`), so a surface over the trade window matches
+  what is around it.
+- Blurring costs a full-resolution copy of the back buffer and three
+  quarter-resolution passes once per frame while any translucent surface is
+  shown, notices included.
 
 ### Menu frame
 
@@ -1032,14 +1112,20 @@ is not part of the plugin.
   the shape empty.
 - `MenuFrame::Draw(line, backing)` fills the current window's rectangle: the
   silhouette in the backing color, then the pieces in the line color, each with
-  `ImDrawList::PathFillConcave`, which anti-aliases the edges. The window is
+  `ImDrawList::PathFillConcave`, which anti-aliases the edges. With a
+  translucent backing, the [blurred frame](#background-blur) goes under the
+  silhouette first: the backing's triangles again, textured with the blur at
+  each vertex's anti-aliased coverage. A frame triangulated in this frame has
+  those triangles only once drawn, so the frame goes into a second draw list
+  channel and the blur into the first. The window is
   begun with `ImGuiWindowFlags_NoBackground`, and the clip rectangle is the
   whole window, since a window's own leaves out part of its padding.
 - Triangulating the 21 concave pieces is most of what a frame costs, about
   30 µs in a Linux benchmark, so `Draw` keeps the triangles of the 4 frames
   it drew last, keyed by everything that shapes them: the window's size, the
   scale, both colors, the font atlas's white pixel, and the draw list's
-  anti-aliasing flags and fringe. A window drawn again with the same key
+  anti-aliasing flags and fringe, and where the backing's triangles are among
+  them. A window drawn again with the same key
   copies them, moved to its corner; a drag that resizes it triangulates in
   every frame, as before. A frame during which the draw list started its
   vertices over is not kept. Nothing is allocated once the draw list and the
@@ -1049,13 +1135,12 @@ is not part of the plugin.
   an opaque color hides the overlap and a translucent one shows it as brighter
   specks.
 - A pixel of the art is 1.5 / 16 of the font size times `[UI] BorderThickness`
-  ([Configuration](configuration.md#ui)), a percentage from 50 to 100 read
-  each frame. The game lays its menus out for 720p, so 100 is the size the
-  game draws the frame at, at any resolution. The setting has no line weight
-  of its own: lines, knots, and inset grow and shrink together. At the default,
-  70, the lines are a little over 2 px thick at 1080p and end 9 px in from the
-  window's edge, and a knot fills 29 px of each corner; at 100 those are 3 px,
-  13 px, and 41 px.
+  ([Configuration](configuration.md#ui)), a percentage from 30 to 100 read
+  each frame, 60 by default. The game lays its menus out for 720p, so 100 is
+  the size the game draws the frame at, at any resolution. The setting has no
+  line weight of its own: lines, knots, and inset grow and shrink together. At
+  100 the lines are 3 px thick at 1080p and end 13 px in from the window's
+  edge, and a knot fills 41 px of each corner.
 - `MenuFrame::BeginWindow` begins the settings and trade windows the same way:
   centered and sized in font units the first time they are shown
   (`ImGuiCond_Once`; a fixed window is placed every frame), focused on request,
@@ -1070,7 +1155,7 @@ is not part of the plugin.
   [display name hint](#display-name-hint) the same way: sized to the content,
   without inputs or focus, centered 6 font sizes from the top under the
   compass, padded by half the frame's inset plus corner beyond the style's
-  padding, and framed over the window background at 65% opacity. On the frame
+  padding, and framed over the window background. On the frame
   it reappears it lays out but is not rendered (`ImGuiWindow::Hidden`), since
   ImGui sizes a reappearing auto-resized window from the contents it last
   had and hides only new windows and popups for that frame.
@@ -1085,7 +1170,8 @@ is not part of the plugin.
   `7D7D7D`, and `Accent` is the [accent](#theme) as it looks at 85% over the
   theme's surface color, `DB7D03` for the default `FF9000`, so it follows
   `[UI] AccentColor` too. The backing is the window's own background color,
-  and a window's popups keep their accent border with either.
+  at the [background opacity](#background-opacity), and a window's popups keep
+  their accent border with either.
 - Without a shape, `Draw` fills the style's rounded rectangle and, where the
   style has a window border, outlines it in the line color; the metrics are
   then the style's border width and rounding, so a window lays itself out the
@@ -1378,7 +1464,9 @@ action on a notice. What answers the chat's own input is a
 - They stack on the right edge, the first one's top at 40% of the screen
   height, the oldest on top, 0.375 font sizes apart, each right-aligned
   0.75 font sizes from the edge, like the chat from the left. Each is a box
-  with the theme's surface at 85% and its corners, its text in the theme's
+  with the theme's window background ([background opacity](#background-opacity))
+  over the [blurred frame](#background-blur) and its corners, fading with the
+  notice, its text in the theme's
   text and face, wrapped at 22 font sizes less the padding, and a strip in
   the accent on its left edge. The strip and the surface are clipped from
   one rounded box (`Controls::StripedBox`), so the strip follows the box's left corners: a
@@ -1513,7 +1601,7 @@ never a line, so the history holds only what players said.
   a final period.
 - `ChatInput::DrawNotes` draws them where the name list would be, which
   hides them while it shows: a child window as wide as the field with the
-  popup's opaque background and border, as tall as its wrapped rows, ending
+  popup's background and border, as tall as its wrapped rows, ending
   one item spacing above the field, in `ChatStyle::kFailureColor`
   (orange-red). The panel takes no input.
 
@@ -1777,7 +1865,7 @@ never a line, so the history holds only what players said.
   the chat and the list does nothing.
 - Open, it sits at its [position](#position), with the
   filter row, the lines at the chat's [size](#size), and the input row,
-  inside the [menu frame](#menu-frame) over a 60% background. The frame adds half of its
+  inside the [menu frame](#menu-frame) over the theme's background. The frame adds half of its
   inset and corner to the padding on
   every side, 19 px at 1080p at the default thickness, which keeps the content
   clear of the knots. The wheel scrolls 3 lines per notch and Page
@@ -1795,7 +1883,7 @@ never a line, so the history holds only what players said.
   ([Theme](#theme)), so the chat has no colors or sizes of its own beyond
   `ChatStyle`'s channel and failure colors: the field is the theme's white
   tint with 6 px corners, the scrollbar its thin grab, the chip's and a
-  line's menus its opaque popups with the accent border, and their hovered
+  line's menus its popups with the accent border, and their hovered
   and selected rows the accent. The name list is a child window
   with the popup's background, so it looks the same. Text is Sovngarde Light
   ([Themed faces](#themed-faces)).
@@ -1865,7 +1953,7 @@ listed, offline ones included, and undone.
 
 - `ChatPlayerManager` draws it and `ChatWindow` places and begins it
   (`BeginFramed`) after the chat and the player list, or alone, in the menu frame
-  over 90% of the theme's background, with 26 × 22 font sizes of content.
+  over the theme's background, with 26 × 22 font sizes of content.
   It opens in the middle of the screen (`ImGuiCond_Appearing`) and can be
   dragged by any empty part while it is open; every opening starts in the
   middle again. The open chat's windows
@@ -2273,8 +2361,8 @@ peers keep seeing the player.
 - Centered at 48 × 35 font sizes the first time it opens in a game session,
   and at least 40 × 20. Later openings keep the position and size it was
   closed with; they live in ImGui's window state only, so a restart centers it
-  again. In the [theme](#theme) and the [menu frame](#menu-frame) over a 96%
-  background, without a title bar:
+  again. In the [theme](#theme) and the [menu frame](#menu-frame) over the
+  theme's background, without a title bar:
   it is dragged by any empty part, resized from its lower corners and its
   edges, and uses the mouse. The sidebar and the page fill what the frame's
   lines enclose. The frame's backing covers ImGui's resize grip, and the line
@@ -3095,9 +3183,9 @@ To verify in game:
 10. The settings window and the open chat have the game's menu frame in the
     game's grey, with a knot in each corner, at 1080p and 4K; nothing in
     either window touches a knot, and resizing the settings window keeps the
-    knots in its corners. The `BorderThickness` slider shows 70%; dragging it
+    knots in its corners. The `BorderThickness` slider shows 60%; dragging it
     to its right end, 100, makes the frame as large as on a message box of the
-    game once released, its left end is 50, and at each the content stays
+    game once released, its left end is 30, and at each the content stays
     inside the lines and clear of the knots.
     Picking
     `Accent` for `BorderColor` on the `[UI]` page turns both frames
@@ -3369,14 +3457,37 @@ To verify in game:
     the chat's left.
 38. With `sLanguage=GERMAN`, the settings window, chat, player menus, trade
     window and prompt, notices, and status panel are in German, the log has
-    `Localization: GERMAN with 283 of 283 texts translated (0 rejected)`, and
+    `Localization: GERMAN with 285 of 285 texts translated (0 rejected)`, and
     `PlayerHub.ini` keeps its English comments. With `sLanguage=JAPANESE`,
     Han characters have their Japanese shapes and a long Japanese effect
     description wraps inside the item card. With a language the plugin has no
     table for, everything is English.
+39. The `BackgroundOpacity` slider on the `[UI]` page shows 75% and moves in
+    steps of 5 between 25 and 100. Dragging it changes the background of the
+    settings window and its open lists and tooltips together, from the next
+    frame. Released at 100, it writes `BackgroundOpacity = 100`, and the
+    settings window, the open chat with its player list and menus, the player
+    manager, the trade window, item card, and prompt, the display name hint,
+    and new notices are all fully opaque. At 25 the game shows through each of
+    them alike, while the status panel and the closed chat's recent lines look
+    as they did. `BackgroundOpacity = 20` or `77` in the file warns in the log
+    and loads `75`.
+40. With `BackgroundOpacity` at 75 over a detailed scene, the settings
+    window, the open chat and its player list, the player manager, the trade
+    prompt, the display name hint, notices, and an open list, menu, or tooltip
+    each show the scene blurred behind them, the blur ending at each frame's
+    silhouette and rounded corners without a seam, and a notice's blur
+    fading with it. Moving the camera moves the blur with the scene. Over the
+    trade window, the offer and pick popups match the darkened backdrop
+    around them. At 100 nothing is blurred. The status panel and the closed
+    chat's recent lines are never blurred. The frame rate with the chat open
+    does not drop noticeably.
 
 ## Known limitations
 
+- A [blurred](#background-blur) popup or tooltip over an overlay window shows
+  the game behind that window, blurred, rather than the window: the blur is
+  taken from the frame before the overlay draws.
 - The translations are machine drafts. Arabic, Hebrew, and other scripts that
   need right-to-left layout or glyph shaping are not translated, since Dear
   ImGui draws neither. Numbers use `std::format`'s defaults, not the

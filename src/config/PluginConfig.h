@@ -74,6 +74,9 @@ namespace Config
         static constexpr std::uint32_t kFontScaleStep = 5;
         static constexpr std::uint32_t kMinimumFrameThickness = 30;
         static constexpr std::uint32_t kMaximumFrameThickness = 100;
+        static constexpr std::uint32_t kMinimumBackgroundOpacity = 25;
+        static constexpr std::uint32_t kMaximumBackgroundOpacity = 100;
+        static constexpr std::uint32_t kBackgroundOpacityStep = 5;
         static constexpr std::uint32_t kMinimumChatWidth = 24;
         static constexpr std::uint32_t kMaximumChatWidth = 100;
         static constexpr std::uint32_t kMinimumChatLines = 9;
@@ -85,6 +88,7 @@ namespace Config
         std::uint32_t accentColor{ kAccentSwatches[0] };
         std::uint32_t frameColor{ kVanillaFrame };
         std::uint32_t frameThickness{ 60 };
+        std::uint32_t backgroundOpacity{ 75 };
         bool itemPreview{ true };
         bool nameplates{ true };
         std::uint32_t nameplateDistance{ 2000 };

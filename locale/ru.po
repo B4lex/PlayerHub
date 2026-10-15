@@ -233,6 +233,17 @@ msgctxt "UIBorderThicknessComment"
 msgid "Thickness of the frame around the settings window and the chat."
 msgstr "Толщина рамки вокруг окна настроек и чата."
 
+msgctxt "UIBackgroundOpacity"
+msgid "Background opacity"
+msgstr "Непрозрачность фона"
+
+msgctxt "UIBackgroundOpacityComment"
+msgid ""
+"Opacity of the background behind the multiplayer interface's windows,\n"
+"menus, prompts, and notices."
+msgstr ""
+"Непрозрачность фона за окнами, меню, подсказками и уведомлениями интерфейса."
+
 msgctxt "UIGroupPlayers"
 msgid "Players"
 msgstr "Игроки"

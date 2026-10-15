@@ -236,6 +236,9 @@ namespace Config
             a_visitor.Percent("BorderThickness", Id::kUIBorderThickness, a_settings.frameThickness,
                 Id::kUIBorderThicknessComment, UISettings::kMinimumFrameThickness, UISettings::kMaximumFrameThickness,
                 1);
+            a_visitor.Percent("BackgroundOpacity", Id::kUIBackgroundOpacity, a_settings.backgroundOpacity,
+                Id::kUIBackgroundOpacityComment, UISettings::kMinimumBackgroundOpacity,
+                UISettings::kMaximumBackgroundOpacity, UISettings::kBackgroundOpacityStep);
 
             a_visitor.Comment(Id::kUIGroupPlayers);
             a_visitor.Bool("Nameplates", Id::kUINameplates, a_settings.nameplates, Id::kUINameplatesComment);

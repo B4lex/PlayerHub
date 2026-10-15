@@ -67,7 +67,6 @@ namespace UI
         constexpr std::string_view kAdvancedSection = "Advanced";
         constexpr std::string_view kDefaultsSections[]{ kUISection, kControlsSection, kAdvancedSection };
 
-        constexpr float kBackgroundAlpha = 0.96F;
         constexpr std::string_view kConfigFileName = "PlayerHub.ini";
         constexpr std::uint32_t kEscapeScanCode = RE::BSKeyboardDevice::Key::kEscape;
         constexpr std::uint32_t kBackspaceScanCode = RE::BSKeyboardDevice::Key::kBackspace;
@@ -982,9 +981,7 @@ namespace UI
             {
                 const Theme::Scope theme;
                 frame = MenuFrame::GetMetrics();
-                const MenuFrame::WindowLayout layout{
-                    .sizeFonts = kSizeFonts, .minimumSizeFonts = kMinimumSizeFonts, .backgroundAlpha = kBackgroundAlpha
-                };
+                const MenuFrame::WindowLayout layout{ .sizeFonts = kSizeFonts, .minimumSizeFonts = kMinimumSizeFonts };
                 if (MenuFrame::BeginWindow(
                         "Multiplayer Settings###Settings", layout, kWindowFlags, std::exchange(focusWindow, false)))
                 {

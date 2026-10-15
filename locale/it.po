@@ -237,6 +237,18 @@ msgid "Thickness of the frame around the settings window and the chat."
 msgstr ""
 "Spessore della cornice attorno alla finestra delle impostazioni e alla chat."
 
+msgctxt "UIBackgroundOpacity"
+msgid "Background opacity"
+msgstr "Opacità sfondo"
+
+msgctxt "UIBackgroundOpacityComment"
+msgid ""
+"Opacity of the background behind the multiplayer interface's windows,\n"
+"menus, prompts, and notices."
+msgstr ""
+"Opacità dello sfondo dietro finestre, menu, richieste e avvisi "
+"dell'interfaccia."
+
 msgctxt "UIGroupPlayers"
 msgid "Players"
 msgstr "Giocatori"

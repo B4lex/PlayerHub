@@ -26,7 +26,6 @@ namespace UI::MenuFrame
         ImVec2 minimumSizeFonts;
         // Added to the frame's inset.
         float paddingFonts{ 0.0F };
-        float backgroundAlpha{ 1.0F };
         // Places the window's top left corner here at sizeFonts each frame; the player can then
         // neither move nor resize it.
         std::optional<ImVec2> fixedPosition;
