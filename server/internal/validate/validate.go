@@ -31,6 +31,8 @@ const (
 	MaximumHeadPartType     = 6
 	FaceMorphCount          = 19
 	FacePartCount           = 4
+	MinimumFacePart         = -1
+	MaximumFacePart         = 255
 	MaximumTints            = 64
 	MaximumTintIndex        = 0xFFFF
 	MaximumTintType         = 14
@@ -152,6 +154,11 @@ func Appearance(a *pb.Appearance) error {
 	}
 	for _, morph := range a.GetFaceMorphs() {
 		if !finite(morph) {
+			return ErrAppearance
+		}
+	}
+	for _, part := range a.GetFaceParts() {
+		if part < MinimumFacePart || part > MaximumFacePart {
 			return ErrAppearance
 		}
 	}

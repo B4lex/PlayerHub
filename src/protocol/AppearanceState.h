@@ -3,6 +3,7 @@
 #include "protocol/FormReference.h"
 #include "protocol/PeerSlot.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -69,6 +70,10 @@ namespace Multiplayer
         static constexpr float kMaximumWeight = 100.0F;
         static constexpr float kMinimumHeight = 0.25F;
         static constexpr float kMaximumHeight = 4.0F;
+        // -1 is the engine's unset part. The race preset bitmasks hold 256 bits per
+        // part type (TESRace +0x4A8), so no preset index exceeds 255.
+        static constexpr std::int32_t kMinimumFacePart = -1;
+        static constexpr std::int32_t kMaximumFacePart = 255;
 
         std::string name;
         std::uint16_t level{ 0 };
@@ -100,6 +105,11 @@ namespace Multiplayer
             return name == a_other.name && level == a_other.level;
         }
     };
+
+    [[nodiscard]] constexpr std::int32_t ClampFacePart(std::int32_t a_part) noexcept
+    {
+        return std::clamp(a_part, PlayerAppearance::kMinimumFacePart, PlayerAppearance::kMaximumFacePart);
+    }
 
     struct PlayerInspection
     {

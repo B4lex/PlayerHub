@@ -97,7 +97,7 @@ func validAppearance() *pb.Appearance {
 		HairColor:   &pb.Color{R: 59, G: 42, B: 30},
 		BodyTint:    &pb.Color{R: 222, G: 188, B: 170},
 		FaceMorphs:  make([]float32, FaceMorphCount),
-		FaceParts:   []int32{0, -1, math.MaxInt32, math.MinInt32},
+		FaceParts:   []int32{0, -1, 255, 3},
 		Tints:       []*pb.Tint{{Index: 44, Type: 6, Color: &pb.Color{R: 1}, Alpha: 1}},
 		DefaultRace: &pb.DefaultRace{Race: ref("skyrim.ESM", 1), Female: true},
 	}
@@ -126,6 +126,8 @@ func TestAppearance(t *testing.T) {
 		"18 face morphs":       func(a *pb.Appearance) { a.FaceMorphs = a.FaceMorphs[:18] },
 		"infinite face morph":  func(a *pb.Appearance) { a.FaceMorphs[3] = float32(math.Inf(1)) },
 		"3 face parts":         func(a *pb.Appearance) { a.FaceParts = a.FaceParts[:3] },
+		"face part above 255":  func(a *pb.Appearance) { a.FaceParts[2] = 256 },
+		"face part below -1":   func(a *pb.Appearance) { a.FaceParts[1] = math.MinInt32 },
 		"too many tints":       func(a *pb.Appearance) { a.Tints = make([]*pb.Tint, 65) },
 		"tint type":            func(a *pb.Appearance) { a.Tints[0].Type = 15 },
 		"tint alpha":           func(a *pb.Appearance) { a.Tints[0].Alpha = 1.01 },

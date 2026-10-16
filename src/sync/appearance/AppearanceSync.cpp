@@ -265,7 +265,7 @@ namespace AppearanceSync
                 }
                 for (std::size_t i = 0; i < AppearanceData::kFacePartCount; ++i)
                 {
-                    appearance.faceParts[i] = base->faceData->parts[i];
+                    appearance.faceParts[i] = Multiplayer::ClampFacePart(base->faceData->parts[i]);
                 }
             }
 

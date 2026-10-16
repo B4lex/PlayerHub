@@ -376,7 +376,7 @@ every receiver.
 | `face_details` | form reference, unset for none |
 | `body_tint` | required, RGB `0..255` |
 | `face_morphs` | exactly 19 finite floats; unset morphs hold `FLT_MAX` |
-| `face_parts` | exactly 4 `sint32` |
+| `face_parts` | exactly 4 `sint32`, each `-1..255` (`-1` for none); the plugin clamps to this range when capturing and parsing |
 | `tints` | at most 64; `index` `0..65535`, `type` `0..14`, a color, `alpha` `0..1` |
 | `default_race` | `{race, female}` with a base-game race, unset for none |
 

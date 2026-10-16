@@ -6,7 +6,9 @@
   base copied from the local player base. The current base, built from engine
   defaults, and the default race are not yet built on Windows or run in game.
   The face tint render on SE 1.5.97 (ID 26454, 2026-10-12; before that AE
-  only) passed a Linux syntax check only and was not run on SE.
+  only) passed a Linux syntax check only and was not run on SE. The face
+  preset clamp (2026-10-17) is covered by server unit tests and a Linux syntax
+  check; not built on Windows or run in game.
 - **Equipment:** run in game, including an earlier receiver-configured fallback.
   `UnequipSpell` on SE 1.5.97 (ID 37946, 2026-10-12; before that `DeselectSpell`
   off AE) passed a Linux syntax check only, as did spell hands carrying the
@@ -78,7 +80,9 @@ On the game thread, once per second:
 - `defaultRace`: the configured `[DefaultOutfit]` race and sex when `race` is
   not from a base-game plugin, else unset.
 - `female`, `weight`, `height`, `headParts[0..numHeadParts)`, the hair color
-  form's RGB, `faceDetails`, and `faceData` morphs and parts.
+  form's RGB, `faceDetails`, and `faceData` morphs and parts. Parts (presets)
+  are clamped to `-1..255` (`ClampFacePart`), with `-1` for none; see
+  [face presets](#engine-assumptions).
 - `bodyTint`: `TESNPC::bodyTintColor`, or the skin tone mask's color if black.
 - `tints`: `PlayerCharacter` runtime `tintMasks` in blend order. On 1.7.104 the
   array is at `0xB20` (CommonLibSSE-NG reads `0xB18`); it is used only when it
@@ -456,9 +460,21 @@ Verified against the 1.7.104 executable for [fake lights](#fake-lights):
     `BGSDestructibleObjectForm` 14144, `BGSEquipType` 14217) casts its source
     by RTTI and copies its data.
 
+Verified against the 1.7.104 executable for face presets, which the receiver
+also clamps to `-1..255` when parsing:
+
+11. `TESNPC::FaceData::parts` default to `-1` when the engine allocates face
+    data (ID 24689). Outside `RaceSexMenu` (ID 52402), which edits only the
+    player's own base, the parts are read only to format a morph name
+    (IDs 24713, 24714, 24766): `NoseType`, `BrowType`, `EyesType`, or
+    `LipType` followed by the number, or a fixed name for `0`. An unknown
+    preset therefore names a morph that is not found rather than indexing a
+    table. The race preset bitmasks (`TESRace` +0x4A8, ID 25378) hold 256 bits
+    per part type, so presets stop at 255. SE 1.5.97 was not checked.
+
 To verify in game:
 
-11. A factory-built `TESObjectLIGH` with copied components and data equips as a
+12. A factory-built `TESObjectLIGH` with copied components and data equips as a
     torch, raises the torch arm, and shows the same flame, light, and flicker,
     and a spell's hand light accepts it.
 

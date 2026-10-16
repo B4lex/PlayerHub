@@ -235,7 +235,10 @@ namespace Network::Wire
             {
                 return "faceParts";
             }
-            std::copy_n(a_appearance.face_parts, PlayerAppearance::kFacePartCount, a_result.faceParts.begin());
+            for (std::size_t i = 0; i < PlayerAppearance::kFacePartCount; ++i)
+            {
+                a_result.faceParts[i] = Multiplayer::ClampFacePart(a_appearance.face_parts[i]);
+            }
 
             a_result.tints.clear();
             for (pb_size_t i = 0; i < a_appearance.tints_count; ++i)
