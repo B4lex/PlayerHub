@@ -389,12 +389,13 @@ create dynamic color forms.
 | --- | --- |
 | `armor` | at most 32, unique references; `slot_mask` non-zero (bit 0 is slot 30) |
 | `right_hand`, `left_hand` | a hand, unset for empty |
-| hand `kind` | `WEAPON`, `TORCH` (left hand only), or `SPELL` (no form, no weapon type) |
+| hand `kind` | `WEAPON`, `TORCH` (left hand only), or `SPELL` (no weapon type; the spell or scroll as `form`, unset when unreferenceable) |
+| hand `casting_art`, `casting_light` | only for `SPELL`, each a form reference or unset: the spell's hand look, used when the receiver lacks the spell ([Combat presentation](combat-presentation.md#spell-look)) |
 | hand `weapon_type` | `WEAPON_TYPE` `1..9`, only for a weapon; two-handed types (5, 6, 7, 9) only in the right hand, which then requires an empty left hand |
 | `ammo` | form reference, unset for none |
 | `default_outfit` | unset is empty |
 | outfit `armor` | at most 8, non-zero slot masks |
-| outfit `hands` | at most 2, a weapon with a weapon type or a torch, no two with the same kind and weapon type |
+| outfit `hands` | at most 2, a weapon with a weapon type or a torch, no casting art or light, no two with the same kind and weapon type |
 | outfit references and `default_race.race` | from a base-game plugin, compared without case |
 
 `slot_mask` and `weapon_type` are hints that select the default outfit piece;

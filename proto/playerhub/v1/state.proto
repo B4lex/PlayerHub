@@ -136,6 +136,8 @@ message Hand {
   HandKind kind = 1;
   FormRef form = 2;
   uint32 weapon_type = 3;
+  FormRef casting_art = 4;
+  FormRef casting_light = 5;
 }
 
 message DefaultOutfit {

@@ -32,6 +32,8 @@ namespace Multiplayer
         EquipmentHandKind kind{ EquipmentHandKind::kWeapon };
         // RE::TESObjectWEAP::WEAPON_TYPE.
         std::uint8_t weaponType{ 0 };
+        FormReference castingArt;
+        FormReference castingLight;
 
         bool operator==(const EquipmentHand&) const = default;
     };
@@ -114,9 +116,10 @@ namespace Multiplayer
     {
         if (a_hand.kind == EquipmentHandKind::kSpell)
         {
-            return a_hand.form.IsEmpty() && a_hand.weaponType == 0;
+            return IsValidFormReference(a_hand.form, true) && a_hand.weaponType == 0
+                && IsValidFormReference(a_hand.castingArt, true) && IsValidFormReference(a_hand.castingLight, true);
         }
-        if (!IsValidFormReference(a_hand.form, false))
+        if (!IsValidFormReference(a_hand.form, false) || !a_hand.castingArt.IsEmpty() || !a_hand.castingLight.IsEmpty())
         {
             return false;
         }
@@ -149,7 +152,7 @@ namespace Multiplayer
         for (std::size_t i = 0; i < a_outfit.hands.size(); ++i)
         {
             const auto& hand = a_outfit.hands[i];
-            if (!isBaseGameItem(hand.form))
+            if (!isBaseGameItem(hand.form) || !hand.castingArt.IsEmpty() || !hand.castingLight.IsEmpty())
             {
                 return false;
             }

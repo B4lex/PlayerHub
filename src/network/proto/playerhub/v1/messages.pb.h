@@ -1114,8 +1114,8 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_PeerAction_size             47
 #define playerhub_v1_PeerAppearance_size         8141
 #define playerhub_v1_PeerContext_size            304
-#define playerhub_v1_PeerEnter_size              21445
-#define playerhub_v1_PeerEquipment_size          12939
+#define playerhub_v1_PeerEnter_size              23621
+#define playerhub_v1_PeerEquipment_size          15115
 #define playerhub_v1_PeerLeave_size              8
 #define playerhub_v1_Ping_size                   6
 #define playerhub_v1_Result_size                 73

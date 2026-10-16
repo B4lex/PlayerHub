@@ -270,7 +270,7 @@ func defaultOutfit(o *pb.DefaultOutfit) bool {
 		default:
 			return false
 		}
-		if h.Form == nil || !baseGameFormRef(h.Form) {
+		if h.Form == nil || !baseGameFormRef(h.Form) || h.CastingArt != nil || h.CastingLight != nil {
 			return false
 		}
 		k := key{h.GetKind(), h.GetWeaponType()}
@@ -287,9 +287,14 @@ func armorEntry(a *pb.Armor) bool {
 }
 
 func hand(h *pb.Hand, left bool) bool {
+	if h.GetKind() == pb.HandKind_HAND_KIND_SPELL {
+		return optionalFormRef(h.Form) && h.GetWeaponType() == 0 && optionalFormRef(h.CastingArt) &&
+			optionalFormRef(h.CastingLight)
+	}
+	if h.CastingArt != nil || h.CastingLight != nil {
+		return false
+	}
 	switch h.GetKind() {
-	case pb.HandKind_HAND_KIND_SPELL:
-		return h.Form == nil && h.GetWeaponType() == 0
 	case pb.HandKind_HAND_KIND_TORCH:
 		return left && h.Form != nil && formRef(h.Form) && h.GetWeaponType() == 0
 	case pb.HandKind_HAND_KIND_WEAPON:
@@ -315,6 +320,10 @@ func twoHanded(h *pb.Hand) bool {
 func formRef(f *pb.FormRef) bool {
 	plugin := f.GetPlugin()
 	return len(plugin) >= 1 && len(plugin) <= MaximumPluginNameBytes && f.GetFormId() <= MaximumLocalFormID
+}
+
+func optionalFormRef(f *pb.FormRef) bool {
+	return f == nil || formRef(f)
 }
 
 func baseGameFormRef(f *pb.FormRef) bool {

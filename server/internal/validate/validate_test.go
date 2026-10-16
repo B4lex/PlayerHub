@@ -172,6 +172,11 @@ func TestEquipment(t *testing.T) {
 			e.LeftHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_TORCH, Form: ref("Skyrim.esm", 1)}
 		},
 		"no default outfit": func(e *pb.Equipment) { e.DefaultOutfit = nil },
+		"spell with look": func(e *pb.Equipment) {
+			e.LeftHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL, Form: ref("Mod.esp", 1),
+				CastingArt: ref("Skyrim.esm", 2), CastingLight: ref("Skyrim.esm", 3)}
+		},
+		"right spell": func(e *pb.Equipment) { e.RightHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL} },
 	}
 	for name, mutate := range accepted {
 		e := validEquipment()
@@ -188,13 +193,22 @@ func TestEquipment(t *testing.T) {
 		"right torch": func(e *pb.Equipment) {
 			e.RightHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_TORCH, Form: ref("Skyrim.esm", 1)}
 		},
-		"spell with form":      func(e *pb.Equipment) { e.LeftHand.Form = ref("Skyrim.esm", 1) },
-		"weapon without type":  func(e *pb.Equipment) { e.RightHand.WeaponType = 0 },
-		"weapon type 10":       func(e *pb.Equipment) { e.RightHand.WeaponType = 10 },
-		"left two-handed":      func(e *pb.Equipment) { e.LeftHand = weapon(6) },
-		"two-handed with left": func(e *pb.Equipment) { e.RightHand = weapon(9) },
-		"unspecified hand":     func(e *pb.Equipment) { e.LeftHand = &pb.Hand{} },
-		"modded outfit armor":  func(e *pb.Equipment) { e.DefaultOutfit.Armor[0].Form = ref("Mod.esp", 1) },
+		"spell with weapon type":  func(e *pb.Equipment) { e.LeftHand.WeaponType = 1 },
+		"invalid spell":           func(e *pb.Equipment) { e.LeftHand.Form = ref("", 1) },
+		"invalid casting art":     func(e *pb.Equipment) { e.LeftHand.CastingArt = ref("Skyrim.esm", 0x1000000) },
+		"invalid casting light":   func(e *pb.Equipment) { e.LeftHand.CastingLight = ref("", 1) },
+		"weapon with casting art": func(e *pb.Equipment) { e.RightHand.CastingArt = ref("Skyrim.esm", 1) },
+		"torch with casting light": func(e *pb.Equipment) {
+			e.LeftHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_TORCH, Form: ref("Skyrim.esm", 1),
+				CastingLight: ref("Skyrim.esm", 2)}
+		},
+		"outfit hand with casting art": func(e *pb.Equipment) { e.DefaultOutfit.Hands[0].CastingArt = ref("Skyrim.esm", 1) },
+		"weapon without type":          func(e *pb.Equipment) { e.RightHand.WeaponType = 0 },
+		"weapon type 10":               func(e *pb.Equipment) { e.RightHand.WeaponType = 10 },
+		"left two-handed":              func(e *pb.Equipment) { e.LeftHand = weapon(6) },
+		"two-handed with left":         func(e *pb.Equipment) { e.RightHand = weapon(9) },
+		"unspecified hand":             func(e *pb.Equipment) { e.LeftHand = &pb.Hand{} },
+		"modded outfit armor":          func(e *pb.Equipment) { e.DefaultOutfit.Armor[0].Form = ref("Mod.esp", 1) },
 		"creation club outfit armor": func(e *pb.Equipment) {
 			e.DefaultOutfit.Armor[0].Form = ref("ccBGSSSE052-BA_Iron.esl", 0x801)
 		},

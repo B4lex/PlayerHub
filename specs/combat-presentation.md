@@ -11,6 +11,9 @@
   stop waiting for the graph to leave the cast branch before locomotion is
   replayed (a replay with running casts, 2026-10-14). The rest is under
   [Engine assumptions](#engine-assumptions).
+- **Spell look** (2026-10-15): the hand look's source and the form copies were
+  read from the 1.7.104 executable; server unit tests and a Linux syntax check
+  only; not built on Windows or run in game, and not checked on SE 1.5.97.
 - **Left-hand and dual attacks, blocking, and bashes:** implemented; Windows
   build and in-game check pending.
 - **Attack catch-up** (2026-10-14): the weapon speed bindings were read from
@@ -34,7 +37,7 @@ damaged, spent, or targeted, and no arrow, projectile, or spell effect is
 created.
 
 The wire fields are in [Network](network.md#checkpoint-and-context) and
-[Network](network.md#actions); the synchronized weapons, spell placeholder, and
+[Network](network.md#actions); the synchronized weapons, spell hands, and
 ammo are in [Appearance and equipment](appearance-and-equipment.md#equipment);
 isolation of hits is in [Remote actor](remote-actor.md#combat-isolation).
 
@@ -45,6 +48,7 @@ isolation of hits is in [Remote actor](remote-actor.md#combat-isolation).
 | `sync/combat/CombatSync` | Source attack and hand-presentation capture; receiver action queue, dispatch gating, and hand presentation stage |
 | `sync/animation/AnimationSync` | Weapon stance as part of the presentable state; graph epoch |
 | `actor/ActorAnimation` | `CanDispatchAttack`, `CanChainAttack`, `CanPowerUpAttack`, `DispatchAttack`, `ApplyBlock`, bow and cast operations |
+| `sync/equipment/SpellStandIn` | Spell hand look capture, resolution, and the stand-in spells |
 | `actor/AnimationEvents.h` | Event names and `GetPowerAttackEventDirection` |
 
 ## State or action
@@ -349,10 +353,11 @@ Crossbows (`crossbowAttackStart`) are not replicated.
 
 ### Spells
 
-A hand holding any spell or scroll holds one placeholder, Healing Hands
-(`Skyrim.esm` `0x04D3F2`, a concentration spell aimed at a target actor), and
-shows its hand effect while drawn. A cast plays Healing Hands from that hand for
-as long as the source casts, whatever the source's spell.
+A hand holding any spell or scroll holds a stand-in of one placeholder,
+Healing Hands (`Skyrim.esm` `0x04D3F2`, a concentration spell aimed at a target
+actor), that looks like the source's spell ([Spell look](#spell-look)). A cast
+plays Healing Hands' cast from that hand for as long as the source casts,
+whatever the source's spell.
 
 - **Cast.** The hand's own `ActorMagicCaster` casts it, as NPC casting does:
   `SetCurrentSpell` if needed, then `RequestCastImpl`. Sending the graph's cast
@@ -386,6 +391,41 @@ as long as the source casts, whatever the source's spell.
   ignoring case: the left release idle sends `MLH_SpellRelease_event`.
 - A dual cast plays the one-handed cast in each hand. Staves stay weapons and
   play no cast.
+
+### Spell look
+
+Goal: a peer recognizes the source's spell in hand by its hand art, hand light,
+and hand sounds, while the cast animation and its isolation stay the
+placeholder's. Non-goals: the source's casting type, delivery, dual casting,
+projectile, beam, hit effects, and release and hit sounds.
+
+The magic caster takes a hand's art (`castingArt`), light (`light`), and sounds
+from the costliest effect of the hand's spell (`MagicItem::GetAVEffect`). A
+stand-in is a runtime copy of Healing Hands whose effect is a runtime copy of
+Healing Hands' effect with that art, light, and the draw/sheathe, charge, ready
+loop, and cast loop sounds replaced; the release and hit sounds are left out.
+Its casting type, delivery, charge time, and equip slot stay Healing Hands', so
+the cast plays and is suppressed exactly as above.
+
+- **Capture.** A spell or scroll hand sends the spell's reference and, as a
+  fallback, the costliest effect's casting art and casting light references
+  ([Network](network.md#equipment)). An unreferenceable (dynamic) spell is sent
+  without a form. If the art or light exists but cannot be referenced, neither
+  is sent, since a partial look would read as a spell without that part.
+- **Resolution**, in order:
+  1. The spell resolves to a `SpellItem` or `ScrollItem`: its art, light, and
+     sounds, as the receiver's version, so the receiver's visual mods apply.
+  2. At least one of the art and light is sent and each sent one resolves
+     (`BGSArtObject`, `TESObjectLIGH`): those, with Healing Hands' sounds; an
+     unsent one is none. Many modded spells reuse vanilla art.
+  3. Otherwise Healing Hands itself.
+- **Stand-ins** are created on the game thread with `DynamicForm::Create` and
+  `TESForm::Copy` (`MagicItem::Copy` copies the data and effects, not the equip
+  slot; `EffectSetting::Copy` not the sounds), cached by the form IDs of the
+  art, light, and four sounds, shared by every hand and peer with that look, and
+  never deleted. `Spell stand-in created` logs each one with its forms.
+- A spell change swaps the stand-in through `EquipSpell`, like any hand swap
+  ([Appearance and equipment](appearance-and-equipment.md#reconciliation)).
 
 ### Moving lower body
 
@@ -464,6 +504,15 @@ To verify in game:
 10. The graph takes `attackRelease` and locomotion events during a draw, the
     release clip ends within 0.5 s, `ArrowReleaseHandler` is the only launch path,
     and the release clip's own annotations still remove the nocked arrow.
+11. The hand art (ID 38784 via `GetAVEffect`), light
+    (`ActorMagicCaster::CheckAttachCastingArt`), and sounds
+    (`ActorMagicCaster::PrepareSound`, ID 34438) come only from the selected
+    spell's `GetAVEffect` (read from 1.7.104), so a stand-in shows the source's
+    look with Healing Hands' clips, and swapping stand-ins on a drawn hand
+    replaces the art and light.
+12. The copied stand-in plays the same cast clips as Healing Hands, and the
+    runtime forms stay valid across save loads, as runtime actor bases do
+    ([Appearance and equipment](appearance-and-equipment.md#actor-base)).
 
 ## Acceptance criteria
 
@@ -482,17 +531,21 @@ To verify in game:
    block.
 5. Drawing, holding, and releasing a bow plays the same on peers with the
    source's arrows in the quiver; nothing is fired or spent.
-6. A spell or scroll hand shows Healing Hands' hand effect while drawn, and a
-   cast plays in that hand for as long as the source casts; no projectile, beam,
-   effect, or sound of a released spell appears.
+6. A spell or scroll hand shows the source spell's hand art and light while
+   drawn and plays its draw, charge, and loop sounds; a peer without the spell
+   shows its art and light if it has those, and Healing Hands' look otherwise. A
+   cast plays Healing Hands' cast in that hand for as long as the source casts;
+   no projectile, beam, effect, or sound of a released spell appears.
 7. Sheathing, jumping, or sitting ends a draw, cast, or block first. A late
    joiner sees an ongoing draw, cast, or block.
 8. Nothing is hit, staggered, or damaged.
 
 ## Known limitations
 
-- The source's actual spell, its art, sound, casting type, and dual casting are
-  not shown.
+- The source's casting type, delivery, and dual casting are not shown: every
+  cast plays the aimed concentration clip. A fire-and-forget spell has no cast
+  loop sound, so a held cast may be quieter than the source's held charge.
+- A peer without the spell plays Healing Hands' sounds with the fallback art.
 - Crossbow attacks and bashes, shield charge (`BlockBashSprint`), block hit
   reactions, bash failures, sprint power attacks as their own animation (they
   start from idle records with perk conditions,

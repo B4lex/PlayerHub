@@ -9,7 +9,8 @@
   only) passed a Linux syntax check only and was not run on SE.
 - **Equipment:** run in game, including an earlier receiver-configured fallback.
   `UnequipSpell` on SE 1.5.97 (ID 37946, 2026-10-12; before that `DeselectSpell`
-  off AE) passed a Linux syntax check only. The items under [Engine
+  off AE) passed a Linux syntax check only, as did spell hands carrying the
+  spell and its look (2026-10-15). The items under [Engine
   assumptions](#engine-assumptions) are not individually checked.
 - **Default outfit:** the sender's outfit and the receiver's ranked armor
   selection (`SelectArmor`) are not yet built on Windows or run in game. The
@@ -44,10 +45,12 @@ configured is in [Configuration](configuration.md#settings).
 | --- | --- |
 | `sync/appearance/AppearanceSync` | Capture and publish; receive, build the actor base, respawn requests, hair, skin, and face tint presentation |
 | `sync/equipment/EquipmentSync` | Capture and publish; receive, resolve, reconcile the actor's inventory; hand readiness |
+| `sync/equipment/SpellStandIn` | Capture a spell hand's spell and look; resolve it to a runtime stand-in spell ([Combat presentation](combat-presentation.md#spell-look)) |
 | `sync/outfit/DefaultOutfit` | Resolve `[DefaultOutfit]` and select the pieces for a capture |
 | `sync/PlayerLabel.h` | `PlayerLabel::Format` |
 | `protocol/AppearanceState.h`, `EquipmentState.h`, `FormReference.h` | Plain data and validators shared by capture and the network parser |
 | `forms/FormLookup` | Encode and resolve `{plugin, formId}` |
+| `forms/DynamicForm.h` | `DynamicForm::Create`: a factory-built form with a dynamic form ID |
 | `forms/ItemFilter.h`, `ItemCatalog`, `ItemForms` | Item traits, filters, and the searchable catalog |
 
 ## Appearance
@@ -213,8 +216,9 @@ Capture, skipped for a non-playable race:
   enchantment reduction. Skin armor never appears in inventory.
 - Hands from `Actor::GetEquippedObject(false/true)`: a `TESObjectWEAP` other
   than hand-to-hand is `weapon` with its type; a carriable `TESObjectLIGH` in the
-  left hand is `torch`; a `SpellItem` or `ScrollItem` is a `SPELL` hand,
-  whose spell is never sent; bare fists or anything else is an unset hand. A two-handed
+  left hand is `torch`; a `SpellItem` or `ScrollItem` is a `SPELL` hand with
+  the spell and its look ([Combat presentation](combat-presentation.md#spell-look));
+  bare fists or anything else is an unset hand. A two-handed
   weapon, bow, or crossbow is reported in the right hand only. Dual-wielding one
   weapon sends it in both hands.
 - `ammo`: the worn `TESAmmo` entry, since `Actor::GetCurrentAmmo` returns nothing
@@ -240,11 +244,13 @@ An entry is accepted if `TESDataHandler::LookupForm` resolves it to the expected
 type: `TESObjectARMO`, `TESObjectWEAP`, a carriable `TESObjectLIGH`, or
 `TESAmmo`. Any loaded plugin qualifies, at any local load-order index. A
 reference names the defining plugin, so a form overridden by a local mod still
-resolves, as the receiver's version. A spell hand resolves to the placeholder
-spell ([Combat presentation](combat-presentation.md#spells)). Each drop is
-logged once per revision with player, plugin, form ID, and reason (`missing`,
-`wrong-type`). The filter is one policy function returning a form or a drop
-reason, whose drop branch selects the default outfit.
+resolves, as the receiver's version. A spell hand resolves to a stand-in
+spell ([Combat presentation](combat-presentation.md#spell-look)). Each drop is
+logged once per revision with player, plugin, form ID, reason (`missing`,
+`wrong-type`, and for a spell `unsent`), and the stand-in; a spell drop also
+names the look it fell back to (`look`, `placeholder`). The filter is one
+policy function returning a form or a drop reason, whose drop branch selects
+the default outfit.
 
 ### Reconciliation
 
@@ -257,8 +263,8 @@ worn armor, and equipped hand objects with the resolved set. When they differ:
    dual-wielding one weapon), plus 20 of the resolved ammo.
 2. Every other object, and any excess, is removed and deleted, never
    transferred to a container or the player: gold, leveled items, script items.
-3. Equipped armor and hand objects outside the set are unequipped. A placeholder
-   spell in a hand that should be empty is removed with
+3. Equipped armor and hand objects outside the set are unequipped. A spell in
+   a hand that should be empty is removed with
    `ActorEquipManager::UnequipSpell` (ID 38902, SE 37946, Papyrus
    `Actor.UnequipSpell`), whose `ActionForceEquip` lowers a drawn hand;
    `Actor::DeselectSpell` sent no graph event and left the hand raised.
@@ -266,7 +272,8 @@ worn armor, and equipped hand objects with the resolved set. When they differ:
 5. Armor, then the right hand, then the left, are equipped with
    `ActorEquipManager::EquipObject` in the matching `BGSEquipSlot` (either for
    two-handed), `queueEquip=false`, `forceEquip=true`, `playSounds=false`. A
-   spell hand uses `EquipSpell` in its slot and never counts as inventory. The
+   spell hand uses `EquipSpell` in its slot, which also replaces a stand-in
+   with another, and never counts as inventory. The
    ammo is equipped, which fills the quiver; remote shots never spend it.
 
 A mismatch is checked every frame until the first mutation pass, so a new

@@ -79,7 +79,9 @@ namespace Network::Wire
         {
             a_result.kind = WriteHandKind(a_hand.kind);
             a_result.weapon_type = a_hand.weaponType;
-            return WriteOptionalFormReference(a_hand.form, a_result.has_form, a_result.form);
+            return WriteOptionalFormReference(a_hand.form, a_result.has_form, a_result.form)
+                && WriteOptionalFormReference(a_hand.castingArt, a_result.has_casting_art, a_result.casting_art)
+                && WriteOptionalFormReference(a_hand.castingLight, a_result.has_casting_light, a_result.casting_light);
         }
 
         bool WriteArmor(const Multiplayer::EquipmentArmor& a_armor, playerhub_v1_Armor& a_result)
@@ -285,7 +287,9 @@ namespace Network::Wire
                 return false;
             }
             a_result.weaponType = static_cast<std::uint8_t>(a_hand.weapon_type);
-            return ReadOptionalFormReference(a_hand.has_form, a_hand.form, a_result.form);
+            return ReadOptionalFormReference(a_hand.has_form, a_hand.form, a_result.form)
+                && ReadOptionalFormReference(a_hand.has_casting_art, a_hand.casting_art, a_result.castingArt)
+                && ReadOptionalFormReference(a_hand.has_casting_light, a_hand.casting_light, a_result.castingLight);
         }
 
         bool ReadArmor(const playerhub_v1_Armor& a_armor, Multiplayer::EquipmentArmor& a_result)

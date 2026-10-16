@@ -1,4 +1,5 @@
 #include "sync/appearance/AppearanceSync.h"
+#include "forms/DynamicForm.h"
 #include "forms/FormLookup.h"
 #include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
@@ -307,23 +308,6 @@ namespace AppearanceSync
             return appearance;
         }
 
-        bool AssignDynamicFormID(RE::TESForm& a_form)
-        {
-            if (a_form.GetFormID() != 0)
-            {
-                return true;
-            }
-
-            auto* dataHandler = RE::TESDataHandler::GetSingleton();
-            const auto formID = dataHandler ? dataHandler->GetNextID() : 0;
-            if (formID == 0)
-            {
-                return false;
-            }
-            a_form.SetFormID(formID, false);
-            return a_form.GetFormID() == formID;
-        }
-
         RE::TESRace* LookupFallbackRace()
         {
             auto* dataHandler = RE::TESDataHandler::GetSingleton();
@@ -426,9 +410,8 @@ namespace AppearanceSync
 
         RE::BGSColorForm* CreateHairColor(const AppearanceColor& a_color)
         {
-            auto* factory = RE::IFormFactory::GetConcreteFormFactoryByType<RE::BGSColorForm>();
-            auto* colorForm = factory ? factory->Create() : nullptr;
-            if (!colorForm || !AssignDynamicFormID(*colorForm))
+            auto* colorForm = DynamicForm::Create<RE::BGSColorForm>();
+            if (!colorForm)
             {
                 return nullptr;
             }
@@ -467,9 +450,8 @@ namespace AppearanceSync
         RE::TESNPC* BuildActorBase(
             Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance, RE::TESRace& a_race)
         {
-            auto* factory = RE::IFormFactory::GetConcreteFormFactoryByType<RE::TESNPC>();
-            auto* npc = factory ? factory->Create() : nullptr;
-            if (!npc || !AssignDynamicFormID(*npc))
+            auto* npc = DynamicForm::Create<RE::TESNPC>();
+            if (!npc)
             {
                 logs::error("Appearance sync could not create an actor base: player={} revision={}", a_playerID,
                     static_cast<unsigned long long>(a_appearance.revision));

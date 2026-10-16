@@ -5,6 +5,7 @@
 #include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
+#include "sync/equipment/SpellStandIn.h"
 #include "sync/outfit/DefaultOutfit.h"
 
 #include <algorithm>
@@ -40,8 +41,6 @@ namespace EquipmentSync
         using Multiplayer::EquipmentHand;
         using Multiplayer::EquipmentHandKind;
         using EquipmentData = Multiplayer::PlayerEquipment;
-
-        const Multiplayer::FormReference kPlaceholderSpell{ .plugin = "Skyrim.esm", .localFormID = 0x04D3F2 };
 
         std::atomic_bool localEquipmentDirty{ true };
 
@@ -117,7 +116,7 @@ namespace EquipmentSync
 
             if (a_form->Is(RE::FormType::Spell) || a_form->Is(RE::FormType::Scroll))
             {
-                return EquipmentHand{ .kind = EquipmentHandKind::kSpell };
+                return SpellStandIn::Capture(*a_form->As<RE::MagicItem>(), a_skipped);
             }
 
             auto* light = a_form->As<RE::TESObjectLIGH>();
@@ -253,15 +252,6 @@ namespace EquipmentSync
 
         Resolution<RE::TESBoundObject> ResolveHand(const EquipmentHand& a_entry)
         {
-            if (a_entry.kind == EquipmentHandKind::kSpell)
-            {
-                auto* spell = FormLookup::ResolveForm<RE::SpellItem>(kPlaceholderSpell);
-                if (!spell)
-                {
-                    return { .dropReason = "missing-placeholder-spell" };
-                }
-                return { .form = spell };
-            }
             auto* form = FormLookup::ResolveForm(a_entry.form);
             if (!form)
             {
@@ -316,14 +306,24 @@ namespace EquipmentSync
             {
                 return {};
             }
+            if (a_entry->kind == EquipmentHandKind::kSpell)
+            {
+                const auto resolution = SpellStandIn::Resolve(*a_entry);
+                if (!resolution.dropReason.empty())
+                {
+                    LogUnresolvedEntry(a_playerID, a_revision, a_slot, a_entry->form, resolution.dropReason,
+                        std::format(
+                            "{}:{}", resolution.spell ? resolution.source : "none", FormatStandIn(resolution.spell)));
+                }
+                return resolution.spell ? ResolvedHand{ .object = resolution.spell, .spell = true } : ResolvedHand{};
+            }
             const auto resolution = ResolveHand(*a_entry);
-            const bool spell = a_entry->kind == EquipmentHandKind::kSpell;
             auto* object = resolution.form;
             if (!object)
             {
                 object = DefaultOutfit::FindHand(a_outfit, *a_entry);
-                LogUnresolvedEntry(a_playerID, a_revision, a_slot, spell ? kPlaceholderSpell : a_entry->form,
-                    resolution.dropReason, FormatStandIn(object));
+                LogUnresolvedEntry(
+                    a_playerID, a_revision, a_slot, a_entry->form, resolution.dropReason, FormatStandIn(object));
                 if (!object)
                 {
                     return {};
@@ -332,8 +332,7 @@ namespace EquipmentSync
             const auto* weapon = object->As<RE::TESObjectWEAP>();
             return ResolvedHand{ .object = object,
                 .twoHanded
-                = weapon && Multiplayer::IsTwoHandedWeaponType(static_cast<std::uint8_t>(weapon->GetWeaponType())),
-                .spell = spell };
+                = weapon && Multiplayer::IsTwoHandedWeaponType(static_cast<std::uint8_t>(weapon->GetWeaponType())) };
         }
 
         void ResetReconciliation(RemoteState& a_remote)

@@ -1090,6 +1090,8 @@ type Hand struct {
 	Kind          HandKind               `protobuf:"varint,1,opt,name=kind,proto3,enum=playerhub.v1.HandKind" json:"kind,omitempty"`
 	Form          *FormRef               `protobuf:"bytes,2,opt,name=form,proto3" json:"form,omitempty"`
 	WeaponType    uint32                 `protobuf:"varint,3,opt,name=weapon_type,json=weaponType,proto3" json:"weapon_type,omitempty"`
+	CastingArt    *FormRef               `protobuf:"bytes,4,opt,name=casting_art,json=castingArt,proto3" json:"casting_art,omitempty"`
+	CastingLight  *FormRef               `protobuf:"bytes,5,opt,name=casting_light,json=castingLight,proto3" json:"casting_light,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1143,6 +1145,20 @@ func (x *Hand) GetWeaponType() uint32 {
 		return x.WeaponType
 	}
 	return 0
+}
+
+func (x *Hand) GetCastingArt() *FormRef {
+	if x != nil {
+		return x.CastingArt
+	}
+	return nil
+}
+
+func (x *Hand) GetCastingLight() *FormRef {
+	if x != nil {
+		return x.CastingLight
+	}
+	return nil
 }
 
 type DefaultOutfit struct {
@@ -1364,12 +1380,15 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\fdefault_race\x18\x0f \x01(\v2\x19.playerhub.v1.DefaultRaceR\vdefaultRace\"O\n" +
 	"\x05Armor\x12)\n" +
 	"\x04form\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\x04form\x12\x1b\n" +
-	"\tslot_mask\x18\x02 \x01(\rR\bslotMask\"~\n" +
+	"\tslot_mask\x18\x02 \x01(\rR\bslotMask\"\xf2\x01\n" +
 	"\x04Hand\x12*\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x16.playerhub.v1.HandKindR\x04kind\x12)\n" +
 	"\x04form\x18\x02 \x01(\v2\x15.playerhub.v1.FormRefR\x04form\x12\x1f\n" +
 	"\vweapon_type\x18\x03 \x01(\rR\n" +
-	"weaponType\"\x8f\x01\n" +
+	"weaponType\x126\n" +
+	"\vcasting_art\x18\x04 \x01(\v2\x15.playerhub.v1.FormRefR\n" +
+	"castingArt\x12:\n" +
+	"\rcasting_light\x18\x05 \x01(\v2\x15.playerhub.v1.FormRefR\fcastingLight\"\x8f\x01\n" +
 	"\rDefaultOutfit\x12)\n" +
 	"\x05armor\x18\x01 \x03(\v2\x13.playerhub.v1.ArmorR\x05armor\x12(\n" +
 	"\x05hands\x18\x02 \x03(\v2\x12.playerhub.v1.HandR\x05hands\x12)\n" +
@@ -1471,19 +1490,21 @@ var file_playerhub_v1_state_proto_depIdxs = []int32{
 	5,  // 13: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
 	4,  // 14: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
 	5,  // 15: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
-	14, // 16: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
-	15, // 17: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
-	5,  // 18: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
-	14, // 19: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
-	15, // 20: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
-	15, // 21: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
-	5,  // 22: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
-	16, // 23: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
-	24, // [24:24] is the sub-list for method output_type
-	24, // [24:24] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	5,  // 16: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
+	5,  // 17: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
+	14, // 18: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
+	15, // 19: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
+	5,  // 20: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
+	14, // 21: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
+	15, // 22: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
+	15, // 23: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
+	5,  // 24: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
+	16, // 25: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
+	26, // [26:26] is the sub-list for method output_type
+	26, // [26:26] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_state_proto_init() }
