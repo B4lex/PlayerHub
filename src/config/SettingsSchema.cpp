@@ -288,6 +288,8 @@ namespace Config
             a_visitor.Unsigned("SpawnsPerSecond", Id::kAdvancedSpawnsPerSecond, a_settings.spawnsPerSecond,
                 Id::kAdvancedSpawnsPerSecondComment, AdvancedSettings::kMaximumSpawnsPerSecond,
                 Id::kAdvancedSpawnsUnlimited, 1);
+            a_visitor.Unsigned("RemoteLights", Id::kAdvancedRemoteLights, a_settings.remoteLights,
+                Id::kAdvancedRemoteLightsComment, AdvancedSettings::kMaximumRemoteLights, Id::kNone, 1);
 
             a_visitor.Comment(Id::kAdvancedGroupDiagnostics);
             a_visitor.Bool(

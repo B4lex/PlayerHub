@@ -2,6 +2,7 @@
 #include "forms/DynamicForm.h"
 #include "forms/FormLookup.h"
 #include "runtime/GameThread.h"
+#include "sync/equipment/FakeLight.h"
 
 #include <array>
 #include <map>
@@ -117,7 +118,8 @@ namespace SpellStandIn
 
             effect->Copy(std::addressof(a_placeholderEffect));
             effect->data.castingArt = a_look.castingArt;
-            effect->data.light = a_look.castingLight;
+            effect->data.light
+                = a_look.castingLight ? std::addressof(FakeLight::Get(*a_look.castingLight)) : nullptr;
             effect->effectSounds.clear();
             for (std::size_t i = 0; i < kHandSounds.size(); ++i)
             {

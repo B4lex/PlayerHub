@@ -11,10 +11,10 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [sync-pipeline.md](sync-pipeline.md) | Main-loop pass, game thread, peer receive state, checkpoint publishing and playout, world presence, actor lifecycle | `src/runtime/`, `src/sync/` (top level, `presence/`) |
 | [network.md](network.md) | Wire protocol, client transport and connection, server connections, player sessions, and validation | `proto/`, `src/protocol/`, `src/network/`, `server/internal/{session,auth,admission,validate,wire,world}` |
 | [interest-and-delivery.md](interest-and-delivery.md) | Which peers each client receives, exclusions, per-recipient outboxes, ordering, batching | `server/internal/{interest,hub,delivery}` |
-| [remote-actor.md](remote-actor.md) | Spawn, update order, registry, animation firewall, graph recovery, survival, combat and reaction isolation, world isolation | `src/actor/` |
+| [remote-actor.md](remote-actor.md) | Spawn, update order, registry, animation firewall, graph recovery, survival, combat and reaction isolation, world isolation, light budget | `src/actor/` |
 | [locomotion.md](locomotion.md) | Transform, movement state, direction, turning, jumps, swimming | `sync/movement/`, `sync/animation/`, `actor/ActorMovement`, `actor/ActorAnimation`, `actor/JumpSound` |
 | [combat-presentation.md](combat-presentation.md) | Weapon stance, attack action stream, power attacks, bashes, blocking, bow draws, spell casts, spell look | `sync/combat/`, `actor/ActorAnimation`, `sync/equipment/SpellStandIn` |
-| [appearance-and-equipment.md](appearance-and-equipment.md) | Appearance, actor base, player label, equipment, default outfit, item filter and catalog | `sync/appearance/`, `sync/equipment/`, `sync/outfit/`, `src/forms/` |
+| [appearance-and-equipment.md](appearance-and-equipment.md) | Appearance, actor base, player label, equipment, fake lights, default outfit, item filter and catalog | `sync/appearance/`, `sync/equipment/`, `sync/outfit/`, `src/forms/` |
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
 | [trade.md](trade.md) | Item exchange between two players: invitation, plugin check, offers, reports, acceptance, commit, cancelling, the trade bot; the only change a peer makes to the local world | `sync/trade/`, `forms/ItemInstance`, `protocol/TradeState.h`, `server/internal/hub/trade.go`, `server/cmd/tradebot` |
 | [configuration.md](configuration.md) | `PlayerHub.ini`, schema, snapshots, saving | `src/config/` |
@@ -44,6 +44,8 @@ criteria.
 | World presence, fast travel, spawn throttling | [sync-pipeline](sync-pipeline.md) |
 | Combat and reaction isolation, Precision compatibility | [remote-actor](remote-actor.md#combat-isolation), [remote-actor](remote-actor.md#precision), [sync-pipeline](sync-pipeline.md#frame-sequence) |
 | World isolation and collision | [remote-actor](remote-actor.md#world-isolation), [native-interactions](native-interactions.md#collision) |
+| Light budget for remote players' torches and spells | [remote-actor](remote-actor.md#light-budget), [configuration](configuration.md#advanced), [sync-pipeline](sync-pipeline.md#frame-sequence) |
+| Fake lights for remote torches and spell hand lights | [appearance-and-equipment](appearance-and-equipment.md#fake-lights), [combat-presentation](combat-presentation.md#spell-look), [remote-actor](remote-actor.md#light-budget) |
 | Connection, latency, traffic | [network](network.md#connection), [ui-overlay](ui-overlay.md#status-panel) |
 | Display name hint | [ui-overlay](ui-overlay.md#display-name-hint), [configuration](configuration.md#controls) |
 | Official and custom server | [configuration](configuration.md#official-and-custom-server), [network](network.md#connection), [ui-overlay](ui-overlay.md#settings-window) |

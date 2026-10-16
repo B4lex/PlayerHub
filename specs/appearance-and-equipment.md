@@ -12,6 +12,10 @@
   off AE) passed a Linux syntax check only, as did spell hands carrying the
   spell and its look (2026-10-15). The items under [Engine
   assumptions](#engine-assumptions) are not individually checked.
+- **Fake lights (2026-10-16):** the shadow flag test in `GenDynamic`
+  and the copy components were read in the 1.7.104 disassembly; Linux syntax
+  check only. Not built on Windows or run in game, and SE 1.5.97 was not
+  checked.
 - **Default outfit:** the sender's outfit and the receiver's ranked armor
   selection (`SelectArmor`) are not yet built on Windows or run in game. The
   default form IDs were checked against `Skyrim.esm` and `Dawnguard.esm` records
@@ -46,6 +50,7 @@ configured is in [Configuration](configuration.md#settings).
 | `sync/appearance/AppearanceSync` | Capture and publish; receive, build the actor base, respawn requests, hair, skin, and face tint presentation |
 | `sync/equipment/EquipmentSync` | Capture and publish; receive, resolve, reconcile the actor's inventory; hand readiness |
 | `sync/equipment/SpellStandIn` | Capture a spell hand's spell and look; resolve it to a runtime stand-in spell ([Combat presentation](combat-presentation.md#spell-look)) |
+| `sync/equipment/FakeLight` | A shadow-casting light's runtime copy without its shadow flags |
 | `sync/outfit/DefaultOutfit` | Resolve `[DefaultOutfit]` and select the pieces for a capture |
 | `sync/PlayerLabel.h` | `PlayerLabel::Format` |
 | `protocol/AppearanceState.h`, `EquipmentState.h`, `FormReference.h` | Plain data and validators shared by capture and the network parser |
@@ -250,7 +255,32 @@ logged once per revision with player, plugin, form ID, reason (`missing`,
 `wrong-type`, and for a spell `unsent`), and the stand-in; a spell drop also
 names the look it fell back to (`look`, `placeholder`). The filter is one
 policy function returning a form or a drop reason, whose drop branch selects
-the default outfit.
+the default outfit. A resolved or outfit torch is then replaced by its
+[fake light](#fake-lights) version.
+
+### Fake lights
+
+Goal: a remote actor's light never takes one of the engine's few
+shadow-casting light slots, so remote players cannot crowd out the world's
+shadows, while it looks the same. Vanilla `Skyrim.esm` has a shadow-casting
+torch, `Torch01Shadow` (`00036343`, Shadow Omni), beside the plain `Torch01`
+(`0001D4EC`), with the same mesh; a player who picks it up, or a mod that
+flags torches, would otherwise carry a shadow light into every peer's world.
+
+`FakeLight::Get` returns a light without `kSpotShadow`, `kHemiShadow`,
+and `kOmniShadow` as it is. For one with any of them it returns a runtime copy,
+created on the game thread with `DynamicForm::Create`, that has the same name,
+model and texture swaps, icons, weight, value, destruction data, equip slot,
+bounds, light data (radius, color, flicker, falloff, FOV), fade, sound,
+emittance, and lens flare, and none of the shadow flags, so the engine makes
+it a fake light, the usual Skyrim name for a light that casts no shadow.
+Copies are cached by the source's form ID, shared by every actor and peer,
+never deleted, and logged once as `Fake light created`.
+
+It applies to a remote torch in `ResolveHandEntry`, whether the source's own
+or the outfit's, and to the hand light of every spell stand-in
+([Combat presentation](combat-presentation.md#spell-look)). The scene light
+budget still counts these lights ([Remote actor](remote-actor.md#light-budget)).
 
 ### Reconciliation
 
@@ -416,6 +446,22 @@ To verify in game:
    objects before the next check, 0.25 s later; twenty equipped arrows show in
    the quiver.
 
+Verified against the 1.7.104 executable for [fake lights](#fake-lights):
+
+10. `TESObjectLIGH::GenDynamic` (ID 17610) creates a shadow light exactly when
+    the form's flags (+0xEC) have a bit of `0x1C00`. The light's `Copy` is
+    TESForm's empty one (ID 14657). The `CopyComponent` of each of its
+    components (`TESFullName` 14716, `TESModelTextureSwap` 14829, `TESIcon`
+    14957, `BGSMessageIcon` 14278, `TESWeightForm` 14987, `TESValueForm` 14977,
+    `BGSDestructibleObjectForm` 14144, `BGSEquipType` 14217) casts its source
+    by RTTI and copies its data.
+
+To verify in game:
+
+11. A factory-built `TESObjectLIGH` with copied components and data equips as a
+    torch, raises the torch arm, and shows the same flame, light, and flicker,
+    and a spell's hand light accepts it.
+
 ## Acceptance criteria
 
 1. A remote actor shows the source's race, sex, weight, hair, eyes, hair color,
@@ -439,7 +485,10 @@ To verify in game:
 6. Player-enchanted items appear as their unenchanted base item.
 7. Drawing right after spawn or a swap draws the synchronized weapon, and the
    next attack uses its animation.
-8. A player's label shows the configured display name whatever the character is
+8. A remote player carrying `Torch01Shadow`, or a spell whose hand light casts
+   shadows, shows the same torch or hand light, and the light casts no shadow
+   and leaves the world's shadow-casting lights as they are.
+9. A player's label shows the configured display name whatever the character is
    called, and whatever name its client put in the appearance. A display name
    changed while disconnected shows to peers from the next connection. Without
    a display name the player never appears to peers.
@@ -454,3 +503,5 @@ To verify in game:
 - An outfit piece stands in only for its slot and weapon type, not for the
   missing item's look. A default race shows its own default face.
 - Tint capture is off on VR.
+- Lights built into a mesh (an `NiLight` in the model, not a `TESObjectLIGH`),
+  such as some modded armor or weapons, keep their shadows.

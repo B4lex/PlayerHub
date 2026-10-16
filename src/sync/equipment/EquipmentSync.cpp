@@ -5,6 +5,7 @@
 #include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
+#include "sync/equipment/FakeLight.h"
 #include "sync/equipment/SpellStandIn.h"
 #include "sync/outfit/DefaultOutfit.h"
 
@@ -328,6 +329,10 @@ namespace EquipmentSync
                 {
                     return {};
                 }
+            }
+            if (auto* light = object->As<RE::TESObjectLIGH>())
+            {
+                object = std::addressof(FakeLight::Get(*light));
             }
             const auto* weapon = object->As<RE::TESObjectWEAP>();
             return ResolvedHand{ .object = object,

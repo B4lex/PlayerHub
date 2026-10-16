@@ -2,6 +2,7 @@
 #include "actor/ActorAnimation.h"
 #include "actor/ActorRuntime.h"
 #include "actor/PrecisionIsolation.h"
+#include "actor/RemoteLights.h"
 #include "network/ServerClient.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
@@ -470,6 +471,10 @@ namespace SyncCoordinator
             SyncPeer(playerID, peer, local, localCellID, localWorldspaceID, localFurniture.get(), a_delta);
         }
         NameplateSync::Update(s_peers, *a_player, a_delta);
+        if (const auto* camera = RE::Main::WorldRootCamera())
+        {
+            RemoteLights::Update(camera->world.translate, !s_peers.empty());
+        }
     }
 
     void QueueLocalFurnitureActivation(RE::FormID a_furnitureRefID, bool a_deferred)

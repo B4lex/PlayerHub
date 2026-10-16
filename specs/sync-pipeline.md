@@ -134,6 +134,7 @@ if no local cell: return
 PrecisionIsolation::Update                # reassert after the player's Havok world changes
 for each peer: SyncPeer
 NameplateSync::Update                     # head nodes, line of sight, the plates the overlay draws
+RemoteLights::Update                      # with a world camera: the remote light budget
 ```
 
 `SyncPeer` for one remote player:

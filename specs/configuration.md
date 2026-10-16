@@ -110,6 +110,8 @@ the earlier maximums of `ViewRadius`, `100000`, and `SpawnsPerSecond`,
 `1000`. A new file's
 sections and comments, and the warnings for an earlier file's lines, are not
 yet checked.
+`[Advanced] RemoteLights` (2026-10-16) passed the g++ syntax check only; it
+is not yet built on Windows or run in game.
 
 ## Scope
 
@@ -373,6 +375,7 @@ maximum is invalid and loads as the default.
 | --- | --- | --- |
 | `ViewRadius` | Game units within which other players are shown, `0..15000`; the settings window's slider moves in steps of `100` (`AdvancedSettings::kViewRadiusStep`); sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection | `0`, the server's range, which the settings window shows by the schema's zero name |
 | `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..100`; `0` is unlimited and shown by the schema's zero name ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
+| `RemoteLights` | Lights on remote actors that light the scene at most, nearest to the camera first, `0..8` (`AdvancedSettings::kMaximumRemoteLights`); `0` leaves every one dark and has no zero name; the effects stay ([Remote actor](remote-actor.md#light-budget)) | `4` |
 | `StatusPanel` | Shows the [status panel](ui-overlay.md#status-panel), a debugging readout | `false` |
 
 ## Snapshots
@@ -387,6 +390,7 @@ revision before the snapshot never misses a change.
 | Consumer | Thread | Follows a change by |
 | --- | --- | --- |
 | `ActorLifecycle` | main loop | reading `SpawnsPerSecond` once per pass in `RefillSpawnAllowance` |
+| `RemoteLights` | main loop | reading `RemoteLights` in the first pass after the revision changes |
 | `DefaultOutfit` | main loop | `Refresh`, first in `SyncCoordinator::OnFrame`, resolving every item again when `[DefaultOutfit]` differs |
 | `EquipmentSync` | main loop | the next capture selecting from the new outfit and publishing a new revision |
 | `AppearanceSync` | main loop | the next capture taking the new default race and sex, which publish a new revision for a modded race |

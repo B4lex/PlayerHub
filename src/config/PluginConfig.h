@@ -54,9 +54,11 @@ namespace Config
         static constexpr std::uint32_t kMaximumViewRadius = 15000;
         static constexpr std::uint32_t kViewRadiusStep = 100;
         static constexpr std::uint32_t kMaximumSpawnsPerSecond = 100;
+        static constexpr std::uint32_t kMaximumRemoteLights = 8;
 
         std::uint32_t viewRadius{ 0 };
         std::uint32_t spawnsPerSecond{ 20 };
+        std::uint32_t remoteLights{ 0 };
         bool statusPanel{ false };
 
         bool operator==(const AdvancedSettings&) const = default;

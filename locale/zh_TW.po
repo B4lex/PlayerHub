@@ -389,6 +389,18 @@ msgctxt "AdvancedSpawnsUnlimited"
 msgid "Unlimited"
 msgstr "無限制"
 
+msgctxt "AdvancedRemoteLights"
+msgid "Lights limit"
+msgstr "光源上限"
+
+msgctxt "AdvancedRemoteLightsComment"
+msgid ""
+"Limits player-emitted fake lights (e.g. torch).\n"
+"Shadow-casting lights are always converted to fake ones."
+msgstr ""
+"限制玩家發出的模擬光源（例如火把）。\n"
+"投射陰影的光源一律轉換為模擬光源。"
+
 msgctxt "AdvancedGroupDiagnostics"
 msgid "Diagnostics"
 msgstr "診斷"

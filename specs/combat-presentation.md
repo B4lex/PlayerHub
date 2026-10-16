@@ -423,7 +423,9 @@ the cast plays and is suppressed exactly as above.
   `TESForm::Copy` (`MagicItem::Copy` copies the data and effects, not the equip
   slot; `EffectSetting::Copy` not the sounds), cached by the form IDs of the
   art, light, and four sounds, shared by every hand and peer with that look, and
-  never deleted. `Spell stand-in created` logs each one with its forms.
+  never deleted. `Spell stand-in created` logs each one with its forms. The
+  stand-in's light is the look's [fake light](appearance-and-equipment.md#fake-lights)
+  version.
 - A spell change swaps the stand-in through `EquipSpell`, like any hand swap
   ([Appearance and equipment](appearance-and-equipment.md#reconciliation)).
 

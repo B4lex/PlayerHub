@@ -31,13 +31,18 @@ Implemented for Skyrim AE 1.7.104, and run in game there.
 - **World isolation:** placement verified in game with a replayed player
   walking, idling, mounting, riding, and dismounting. Its other acceptance
   criteria are not yet checked.
+- **Light budget (2026-10-16):** the light update paths in
+  [assumption 18](#engine-assumptions) were read in the 1.7.104 disassembly;
+  Linux syntax check only. Not built on Windows or run in game, and SE 1.5.97
+  was not checked.
 
 ## Scope
 
 A remote actor is a local `RE::Actor` that stands in for a player who lives in
 another world. This system owns what makes it one: spawning and registration,
 readiness, the per-actor engine update, the animation firewall, graph recovery,
-survival, and isolation from the local world in both directions. The local
+survival, isolation from the local world in both directions, and the budget
+of scene lights its torches and spells take. The local
 world neither fights, moves, nor is moved by a remote actor, and the actor's
 own AI does not react to the local world. Local gameplay continues as if it
 were not there.
@@ -63,6 +68,7 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/ReactionSuppression` | Dialogue, flee, and detection hooks |
 | `actor/ScenePackageSuppression` | Scene package action hooks |
 | `actor/RemoteCollision` | Placement ownership, the skipped movement update, collision, support, and Speed channel |
+| `actor/RemoteLights` | Keeps the configured number of remote actors' scene lights lit and culls the rest |
 | `runtime/CodeDetour` | Shared entry detour: copies checked entry bytes, at the entry or past an entry guard, into a trampoline gateway |
 
 ## Spawn
@@ -538,6 +544,45 @@ overlaps is ignored for the player's own movement update, which also lets the
 player walk through a seated rider's legs
 ([Native interactions](native-interactions.md#mounts)).
 
+## Light budget
+
+Skyrim lights each geometry with a few dynamic lights only, so many remote
+players carrying torches or holding spells make the world's lights flicker
+or drop out. `[Advanced] RemoteLights` ([Configuration](configuration.md#advanced),
+default 4, `0..8`) caps how many of their lights light the scene. A culled
+light loses only its light: the torch's flame, the spell's hand art and
+sounds, and every other effect stay. A torch or spell hand light that would
+cast shadows is already a fake light by then
+([Appearance and equipment](appearance-and-equipment.md#fake-lights)).
+
+`RemoteLights::Update` runs at the end of `SyncCoordinator::OnFrame` with the
+world camera's position ([Sync pipeline](sync-pipeline.md#frame-sequence)),
+and returns at once while there are no peers and nothing is culled. Under
+the scene's `lightQueueLock` it:
+
+1. walks `ShadowSceneNode` `activeLights` and `activeShadowLights`. A light
+   counts when `NiAVObject::GetUserData` of its `NiLight` is a registered
+   remote actor, so torches, spell hand lights, and any light in a modded mesh
+   or art attached to the actor all count, one per light. A light the engine
+   already keeps dark (app-culled, or fade below 0.05) takes no slot and is
+   left alone, unless this module culled it;
+2. ranks the counted lights by squared distance to the camera, a lit light's
+   scaled by `kLitRankScale` (0.64), so a lit light keeps its slot until an
+   unlit one is a fifth closer and players at about the same distance do not
+   trade the light;
+3. keeps the nearest `RemoteLights` lit (`std::nth_element`) and app-culls the
+   rest's `NiLight`, setting the flag again every pass in case something
+   clears it; a lit light it had culled gets the flag cleared;
+4. clears the flag on, and forgets, every light it culled that was not
+   counted this pass: one that left the scene or whose actor was
+   unregistered, so no light stays dark untracked.
+
+A culled light is held as `NiPointer<BSLight>`, never its `NiLight`: the
+engine drops a light from the scene once the `BSLight` holds the last
+reference to the `NiLight`, and an extra one would leave the light behind
+after its torch or spell is gone. `Remote light budget` logs the limit and
+the counted and culled lights whenever one of them changes.
+
 ## Engine assumptions
 
 Verified against the 1.7.104 executable:
@@ -611,6 +656,30 @@ Not yet checked in game:
     guard. No branch in the executable targets the interior of a replaced SE
     prologue. On SE the hit frame calls the actor hit once (+0x38B).
 
+Verified against the 1.7.104 executable for the [light budget](#light-budget):
+
+18. `ShadowSceneNode`'s light update (ID 106342, called for each light queued
+    to add or update by ID 106335) and its per-pass dynamic point light update
+    (ID 106392) detach a light from every geometry (ID 108285) instead of
+    lighting with it while its `NiLight` has `kHidden` (flags +0xF4 bit 0) or
+    its fade (+0x134) is below 0.05; clearing the flag lights it again on the
+    next update. ID 106392 removes a light whose `NiLight` reference count is
+    1. ID 106335 adds queued lights to the active arrays under
+    `lightQueueLock` (+0x1A8).
+19. A spell's hand light is `TESObjectLIGH::GenDynamic` (ID 17610) on the
+    caster's magic node, with forced dynamic (ID 34151), stored in
+    `ActorMagicCaster::light`.
+
+Not yet checked:
+
+20. A torch's light, like the hand light, is an `NiLight` under the actor's
+    3D, and the first `userData` above every light on an actor is the actor;
+    actor lights are dynamic point lights, which ID 106392 updates every pass,
+    so the flag takes effect without moving the light.
+21. The engine never app-culls an actor's `NiLight` itself, so clearing the
+    flag never shows a light Skyrim meant to hide; and SE 1.5.97 treats the
+    flag and fade the same way.
+
 ## Acceptance criteria
 
 1. Bandits, draugr, and predators never detect, draw on, or attack a remote
@@ -640,6 +709,13 @@ Not yet checked in game:
 9. Placement owners log `owner=furniture`, `owner=mount`, `owner=death`, and
    `owner=network` around each interaction. A dying actor still ragdolls onto
    the ground. A remote actor on a pressure plate does not trigger it.
+10. With more remote players holding torches or flame spells than
+    `[Advanced] RemoteLights`, only that many nearest the camera light their
+    surroundings, the others still show their flames, and walking between two
+    groups hands the light over without flicker between players at about the
+    same distance. At `0` none lights anything; raising the limit lights more
+    at once, and a torch put away or a player leaving frees a slot for the
+    next one. The world's own lights stop flickering.
 
 ## Known limitations
 
@@ -649,6 +725,11 @@ Not yet checked in game:
   reapplying it after a 3D rebuild, and restoring it on death so the ragdoll
   lands. The player's own movement ignores them, and a seated rider's are
   isolated.
+- The light budget counts only remote actors' lights, not the local world's;
+  a crowd of local NPCs with torches can still exceed the engine's per-object
+  lights. A light whose `NiLight` is not under the actor's 3D, such as a
+  spell's projectile or impact, is not counted. A remote light can show for
+  the pass between its creation and the next `RemoteLights::Update`.
 - Local actors' non-combat awareness of the actor (detection, head tracking,
   greetings, pathing) is not suppressed. Explosions and magic from other sources
   than the actor's own draws and casts are not isolated.

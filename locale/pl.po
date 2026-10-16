@@ -410,6 +410,18 @@ msgctxt "AdvancedSpawnsUnlimited"
 msgid "Unlimited"
 msgstr "Bez limitu"
 
+msgctxt "AdvancedRemoteLights"
+msgid "Lights limit"
+msgstr "Limit świateł"
+
+msgctxt "AdvancedRemoteLightsComment"
+msgid ""
+"Limits player-emitted fake lights (e.g. torch).\n"
+"Shadow-casting lights are always converted to fake ones."
+msgstr ""
+"Ogranicza sztuczne światła emitowane przez graczy (np. pochodnie).\n"
+"Światła rzucające cienie są zawsze zamieniane na sztuczne."
+
 msgctxt "AdvancedGroupDiagnostics"
 msgid "Diagnostics"
 msgstr "Diagnostyka"
