@@ -16,6 +16,12 @@
   only; not built on Windows or run in game, and not checked on SE 1.5.97.
 - **Left-hand and dual attacks, blocking, and bashes:** implemented; Windows
   build and in-game check pending.
+- **Chain capture from `kHit` and `kDraw`, and single dual-wield bashes**
+  (2026-10-16): a peer with an attack replacer published one attack per chain
+  and two per bash (`latest.log`, consecutive `actionSequence` values); the
+  attack state writers were read from the 1.7.104 executable and the vanilla
+  clip annotations from `animationdatasinglefile.txt`. Linux syntax check
+  only; not built on Windows or run in game.
 - **Attack catch-up** (2026-10-14): the weapon speed bindings were read from
   the vanilla behavior files and the weapon speed channel layout from the
   1.7.104 executable; Linux syntax check only; not built on Windows or run in
@@ -112,9 +118,23 @@ transforms stay latest-wins.
 `CombatSync::CaptureLocalAttack` watches the player's melee `ATTACK_STATE_ENUM`
 every pass, downstream of input mapping:
 
-- An attack starts on an edge into a swing, including a new swing after
-  `NextAttack` or `FollowThrough`, a swing after a bash (the bash state accepts
-  `attackStart`), and entering `kBash` from any state.
+- An attack starts when the attack window opens, on any change into `kDraw`,
+  on entering `kBash` from any state, and on a change into `kSwing` from
+  `kNextAttack`, `kFollowThrough`, `kBash` (the bash state accepts
+  `attackStart`), or `kHit`.
+- The engine writes `kDraw` (or `kBash` for bash data) each time the graph
+  accepts an attack event, while annotations only advance a swing:
+  `weaponSwing`/`weaponLeftSwing` write `kSwing` from any state, `HitFrame`
+  writes `kHit` only from `kSwing`, then `attackWinStart`, `attackWinEnd`, and
+  `attackStop` (read from the 1.7.104 executable). A pass can see a chained
+  swing only as `kSwing`, so a swing after a hit counts as well: every vanilla
+  plain attack clip swings and hits once (`animationdatasinglefile.txt`), and
+  attack replacers whose clips have no `attackWinStart` chain from `kHit`.
+- Changes into `kSwing` do not count while the attack data is bash data, since
+  the dual-wield bash clips (`DW1HM1HMBlockBash`, `DW1HM1HMBlockBashPower`)
+  fire `weaponSwing` at their first frame; nor does `kHit` to `kSwing` during a
+  power attack, since the vanilla dual-wield special, two-handed three-slash,
+  and unarmed forward power attacks swing again after a hit.
 - With a bow or crossbow in the right hand only bashes count, since a shot
   passes through `kNextAttack` and `kFollowThrough` too.
 - Captured actions keep their order in a bounded queue (32). A captured attack
@@ -154,7 +174,8 @@ plain action followed by a power action of the same hand, which keeps plain
 attacks as responsive as before.
 
 The log lines `observed local attack state edge` and
-`observed local power attack of the playing swing` show the action, power, direction, and event.
+`observed local power attack of the playing swing` show the action, power, direction, and event;
+the edge line also shows the attack state it left (`previousState`).
 
 ### Receiver queue
 
@@ -555,5 +576,8 @@ To verify in game:
   does not replicate), kill moves, and creature or werewolf attacks are not
   replicated.
 - A cancelled bow draw shows as a release.
+- A replacer clip that swings again after a hit in a plain attack is captured
+  as a chained attack, and a chained replacer swing that writes `kSwing`
+  without a hit in between, with no pass seeing `kDraw`, is not captured.
 - Stamina, perks, power attack slow motion, damage, and targeting are out of
   scope.

@@ -252,6 +252,7 @@ namespace CombatSync
         static RE::ATTACK_STATE_ENUM previousAttackState = RE::ATTACK_STATE_ENUM::kNone;
         static bool attackWindowActive = false;
         static bool attackPowerResolved = false;
+        static bool playingPowerAttack = false;
 
         const auto* actorState = a_local.player.AsActorState();
         const auto attackState = actorState ? actorState->GetAttackState() : RE::ATTACK_STATE_ENUM::kNone;
@@ -259,25 +260,41 @@ namespace CombatSync
         // A bow or crossbow shot passes through kNextAttack and kFollowThrough too.
         const bool attackActive
             = bashing || (!IsHoldingRangedWeapon(a_local.player) && IsMeleeAttackState(attackState));
-        const bool priorAttackFinishing = previousAttackState == RE::ATTACK_STATE_ENUM::kNextAttack
-            || previousAttackState == RE::ATTACK_STATE_ENUM::kFollowThrough ||
-            // The bash clip takes attackStart as a follow-up swing.
-            previousAttackState == RE::ATTACK_STATE_ENUM::kBash;
-        const bool nextSwingStarted = attackWindowActive && priorAttackFinishing
-            && (attackState == RE::ATTACK_STATE_ENUM::kDraw || attackState == RE::ATTACK_STATE_ENUM::kSwing);
-        const bool bashStarted = attackWindowActive && bashing && previousAttackState != RE::ATTACK_STATE_ENUM::kBash;
-        const bool attackStarted = attackActive && (!attackWindowActive || nextSwingStarted || bashStarted);
+        const auto* process = a_local.player.GetActorRuntimeData().currentProcess;
+        const auto* attackData = process && process->high ? process->high->attackData.get() : nullptr;
+        const bool bashData = attackData && attackData->data.flags.any(RE::AttackData::AttackFlag::kBashAttack);
+
+        // 1.7.104: the attack action's success path (ID 39004) writes kDraw, or kBash for
+        // bash data, each time the graph accepts an attack event. Annotations only advance
+        // the swing: weaponSwing and weaponLeftSwing write kSwing from any state, HitFrame
+        // writes kHit only from kSwing, then attackWinStart kNextAttack, attackWinEnd
+        // kFollowThrough, attackStop kNone. Chained swings were observed in game entering
+        // kSwing with no kDraw between passes.
+        const bool drawEntered = attackState == RE::ATTACK_STATE_ENUM::kDraw
+            && previousAttackState != RE::ATTACK_STATE_ENUM::kDraw;
+        // Vanilla plain attack clips swing and hit once (animation data), so a swing after
+        // a hit starts a new attack, as in replacer clips without attackWinStart. Vanilla
+        // power attacks can swing again after a hit, and the dual-wield bash clips swing
+        // at their first frame.
+        const bool swingRestarted = attackState == RE::ATTACK_STATE_ENUM::kSwing && !bashData
+            && (previousAttackState == RE::ATTACK_STATE_ENUM::kNextAttack
+                || previousAttackState == RE::ATTACK_STATE_ENUM::kFollowThrough
+                || previousAttackState == RE::ATTACK_STATE_ENUM::kBash
+                || (previousAttackState == RE::ATTACK_STATE_ENUM::kHit && !playingPowerAttack));
+        const bool bashStarted = bashing && previousAttackState != RE::ATTACK_STATE_ENUM::kBash;
+        const bool attackStarted
+            = attackActive && (!attackWindowActive || drawEntered || swingRestarted || bashStarted);
+        const auto priorAttackState = previousAttackState;
 
         attackWindowActive = attackActive;
         previousAttackState = attackState;
         if (!attackActive)
         {
             attackPowerResolved = false;
+            playingPowerAttack = false;
             return std::nullopt;
         }
 
-        const auto* process = a_local.player.GetActorRuntimeData().currentProcess;
-        const auto* attackData = process && process->high ? process->high->attackData.get() : nullptr;
         const auto* attackEvent = attackData ? attackData->event.c_str() : nullptr;
         if (!attackStarted)
         {
@@ -290,6 +307,7 @@ namespace CombatSync
                 return std::nullopt;
             }
             attackPowerResolved = true;
+            playingPowerAttack = true;
             const auto attack = ClassifyAttack(attackData, attackState);
             logs::debug(
                 "Animation sync observed local power attack of the playing swing: state={} "
@@ -302,10 +320,12 @@ namespace CombatSync
 
         const auto attack = ClassifyAttack(attackData, attackState);
         attackPowerResolved = attack.power || attack.action == Network::AttackAction::kBash;
+        playingPowerAttack = attack.power;
         logs::debug(
-            "Animation sync observed local attack state edge: state={} normalizedAction=attack/{} power={} "
-            "direction={} attackEvent={} powerAttacking={}",
+            "Animation sync observed local attack state edge: state={} previousState={} normalizedAction=attack/{} "
+            "power={} direction={} attackEvent={} powerAttacking={}",
             static_cast<std::underlying_type_t<RE::ATTACK_STATE_ENUM>>(attackState),
+            static_cast<std::underlying_type_t<RE::ATTACK_STATE_ENUM>>(priorAttackState),
             Network::GetAttackActionName(attack.action), attack.power,
             Network::GetPowerAttackDirectionName(attack.direction), attackEvent ? attackEvent : "<none>",
             a_local.player.IsPowerAttacking());
