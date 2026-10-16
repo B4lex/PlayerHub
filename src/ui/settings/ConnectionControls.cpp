@@ -58,16 +58,21 @@ namespace UI::ConnectionControls
             }
         }
 
-        // The label changes, so the ID after ### keeps the button's identity. Built on first
-        // use, after the language is read.
+        // The label changes, so the ID after ### keeps the button's identity.
         const std::array<std::string, 4>& GetButtonLabels()
         {
-            static const std::array<std::string, 4> labels{
-                std::format("{}###Connection", Text::Get(Id::kConnectionConnect)),
-                std::format("{}###Connection", Text::Get(Id::kConnectionCancel)),
-                std::format("{}###Connection", Text::Get(Id::kConnectionDisconnect)),
-                std::format("{}###Connection", Text::Get(Id::kConnectionDisconnecting)),
-            };
+            static std::array<std::string, 4> labels;
+            static std::optional<Text::Language> language;
+            if (language != Text::GetLanguage())
+            {
+                language = Text::GetLanguage();
+                labels = {
+                    std::format("{}###Connection", Text::Get(Id::kConnectionConnect)),
+                    std::format("{}###Connection", Text::Get(Id::kConnectionCancel)),
+                    std::format("{}###Connection", Text::Get(Id::kConnectionDisconnect)),
+                    std::format("{}###Connection", Text::Get(Id::kConnectionDisconnecting)),
+                };
+            }
             return labels;
         }
 
@@ -127,8 +132,13 @@ namespace UI::ConnectionControls
         // The field takes no other characters and no more than the maximum, so a short name is the only invalid one.
         const std::string& GetShortDisplayNameText()
         {
-            static const std::string text
-                = Text::FormatPlural(Id::kConnectionShortName, Multiplayer::kMinimumDisplayNameLength);
+            static std::string text;
+            static std::optional<Text::Language> language;
+            if (language != Text::GetLanguage())
+            {
+                language = Text::GetLanguage();
+                text = Text::FormatPlural(Id::kConnectionShortName, Multiplayer::kMinimumDisplayNameLength);
+            }
             return text;
         }
 

@@ -180,6 +180,62 @@ msgctxt "UIGroupDisplay"
 msgid "Display"
 msgstr "顯示"
 
+msgctxt "UILanguage"
+msgid "Language"
+msgstr "語言"
+
+msgctxt "UILanguageComment"
+msgid ""
+"Language of the multiplayer interface's text. Until one is picked, it\n"
+"follows the game's language."
+msgstr ""
+"多人遊戲介面的文字語言。在選擇之前，會沿用遊戲的語言。"
+
+#. The language's name in itself, so it reads the same in every language
+msgctxt "UILanguageEnglish"
+msgid "English"
+msgstr "English"
+
+#. The language's name in itself, so it reads the same in every language
+msgctxt "UILanguageFrench"
+msgid "Français"
+msgstr "Français"
+
+#. The language's name in itself, so it reads the same in every language
+msgctxt "UILanguageGerman"
+msgid "Deutsch"
+msgstr "Deutsch"
+
+#. The language's name in itself, so it reads the same in every language
+msgctxt "UILanguageItalian"
+msgid "Italiano"
+msgstr "Italiano"
+
+#. The language's name in itself, so it reads the same in every language
+msgctxt "UILanguageSpanish"
+msgid "Español"
+msgstr "Español"
+
+#. The language's name in itself, so it reads the same in every language
+msgctxt "UILanguagePolish"
+msgid "Polski"
+msgstr "Polski"
+
+#. The language's name in itself, so it reads the same in every language
+msgctxt "UILanguageRussian"
+msgid "Русский"
+msgstr "Русский"
+
+#. The language's name in itself, so it reads the same in every language
+msgctxt "UILanguageJapanese"
+msgid "日本語"
+msgstr "日本語"
+
+#. The language's name in itself, so it reads the same in every language
+msgctxt "UILanguageChinese"
+msgid "繁體中文"
+msgstr "繁體中文"
+
 msgctxt "UIFontScale"
 msgid "Font scale"
 msgstr "字型大小"

@@ -2,6 +2,30 @@
 
 ## Status
 
+- **[Language setting](#localization)** (2026-10-16): not built on Windows or
+  run in game. On Linux, the changed sources passed the g++ syntax check
+  against CommonLibSSE-NG and Dear ImGui 1.92.9, apart from `Fonts.cpp`'s
+  existing Windows-only path calls, and `generate.lua` and `msgfmt -c` passed
+  every catalog with 298 of 298 texts. A harness ran `text/Text.cpp` with the
+  generated catalogs over a stubbed `sLanguage:General` of `GERMAN`. It
+  confirmed the following. `Text::Select` switches to each language and back
+  to the game's with `std::nullopt`. Each table is built once. A view taken
+  before a switch still reads its text. A second thread reading and
+  formatting text while the main thread switched 20,000 times read valid
+  text throughout. That check was not run under a thread sanitizer, which
+  this host lacks. A headless Dear ImGui 1.92.9 program ran the same
+  clear and reload between frames that `Fonts::Update` does. It freed the old
+  font data each time and drew merged Latin, Cyrillic, and Han text
+  afterwards, with no invalid reads under valgrind. In game, switching back
+  from Japanese left specks at the glyphs' edges. The same program then
+  copied only the rectangles ImGui asks the DX11 backend to upload. After a
+  Japanese round trip with `ClearFonts`, 7,202 texels next to the new glyphs
+  were still lit; with `Clear`, none were. The `Clear` fix was not run in
+  game.
+  The settings window's combo and the INI's empty value were not run. The
+  chat's target chip stayed in the earlier language after a switch in game,
+  and was English before any target change in every language; it now follows
+  the language (syntax check only).
 - **[Localization](#localization):** not built on Windows or run in game.
   On Linux, every changed source passed a g++ syntax check against
   CommonLibSSE-NG and Dear ImGui 1.92.9, apart from `Fonts.cpp`'s existing
@@ -887,16 +911,17 @@ font, and each later one is merged and only supplies glyphs the earlier lack:
 Windows has Segoe UI; Proton prefixes have Arial and the rest except Segoe UI,
 Yu Gothic, and Segoe UI Symbol. Missing files are skipped. Each file is
 memory-mapped read-only and given to the atlas with
-`FontDataOwnedByAtlas = false`, which since 1.92 means the atlas reads it in place for its lifetime, so
-the views are never unmapped, and only pages with drawn glyphs are read: CJK
+`FontDataOwnedByAtlas = false`, which since 1.92 means the atlas reads it in
+place for as long as it has the font, so the views are unmapped only after
+`ImFontAtlas::Clear` drops the fonts ([Localization](#localization)), and only pages with drawn glyphs are read: CJK
 fonts cost address space, not memory. Dear ImGui 1.92 rasterizes glyphs on
 demand, so no glyph ranges are needed. Without any file, ImGui's default font
 covers Latin only. The log lists the fonts loaded. Han characters take their
-shapes from the first Han font loaded, so `GetSystemFiles` puts the game
+shapes from the first Han font loaded, so `GetSystemFiles` puts the text
 language's own first: the Japanese fonts for Japanese, Microsoft JhengHei
 for Chinese, and otherwise Microsoft YaHei, then JhengHei, then the Japanese
-fonts. `Text::Initialize` therefore runs before `Fonts::Load`
-([Localization](#localization)). Sovngarde covers the Latin and Cyrillic
+fonts. `Text::Initialize` and the `[UI] Language` setting are therefore
+applied before `Fonts::Load` ([Localization](#localization)). Sovngarde covers the Latin and Cyrillic
 letters of every translated language, so only Japanese and Chinese text uses
 the system fonts.
 
@@ -2399,6 +2424,9 @@ peers keep seeing the player.
   ([Accent color](#accent-color)). Group comments are small muted
   capitals (`Utf8Case::AppendUpper`) above their rows, as on `[DefaultOutfit]`, `[UI]`, and
   `[Advanced]` ([Configuration](configuration.md#settings)).
+  A choice whose schema lets it be unset, `[UI] Language`, shows the option
+  the schema names for an unset value, selected, until one is picked; picking
+  that option sets it ([Configuration](configuration.md#schema)).
   `[Connection] DisplayName` is drawn beside the
   connection button instead of as a row
   ([Connection controls](#connection-controls)), and a `Layout` setting, as
@@ -2890,25 +2918,53 @@ picker's panel) or as cached thumbnails for many cells.
 
 ## Localization
 
-The overlay's text and the notices are shown in the game's language when it
-is one of the game's official ones: English, French, German, Italian,
-Spanish, Polish, Russian, Japanese, and Chinese. Any other language gets
-English. There is no setting for it: the game cannot change its language
-while it runs, so the text follows `sLanguage:General` from the game's INI,
-the setting that also picks its string tables.
+The overlay's text and the notices are shown in one of the game's official
+languages: English, French, German, Italian, Spanish, Polish, Russian,
+Japanese, and Chinese. Until the player picks one with `[UI] Language`
+([Configuration](configuration.md#ui)), it is the game's language,
+`sLanguage:General` from the game's INI, the setting that also picks its
+string tables; a game language without a translation gets English.
 
+- The `[UI] Language` combo, the first row of the `[UI]` page, lists the nine
+  languages, each by its own name (`kUILanguageEnglish` to
+  `kUILanguageChinese`, whose translations repeat the English entry), so a
+  player can find theirs whatever language the text is in. While the setting
+  is empty it shows the game's language selected
+  ([Settings window](#settings-window)). A picked language stays, even if the
+  game's changes, until the page's Defaults button empties it again.
+- The overlay applies the setting before `Fonts::Load` and then in every
+  frame where `Config::GetRevision` has changed, before `ImGui::NewFrame`:
+  `Text::Select` with the picked language, or `std::nullopt` for the game's.
+  The new language shows from that frame without a restart. When it puts
+  another Han font first ([Fonts](#fonts)), `Fonts::Update`, between frames,
+  calls `ImFontAtlas::Clear`, unmaps the old files, and loads the fonts
+  again in the new order. `Clear` rather than `ClearFonts`: after
+  `ClearFonts`, ImGui packs the new glyphs into the same texture without
+  erasing it, and the DX11 backend uploads only each new glyph's rectangle,
+  so pixels of the old glyphs beside them showed at their edges. `Clear`
+  starts a new texture, uploaded whole, and retires the old one. A switch between other languages keeps the fonts.
+- Text drawn each frame follows at once. The connection button's labels, the
+  short-name line, the item pickers' labels, the chat's target chip, and
+  [nameplates](#nameplates) (whose label is localized without a name) are
+  cached with the language they were made in and made again after a switch. Text already composed
+  keeps the language it was made in: chat lines and notes, notices, trade
+  rejection reasons, and the item card's unknown effect line.
 - Every displayed text has a `Text::Id`. Its text comes from `Text::Get`,
   `Format`, or `FormatPlural`. English is complete and is the fallback for any
   ID a translation lacks or has rejected. The texts are compiled into the
   plugin; there are no files to load. See [Catalogs](#catalogs) for where they
   come from.
-- `Text::Initialize` reads the language once, on the overlay's first frame
-  before the fonts load, and again when the game's data loads in case the
-  overlay never started; `std::call_once` makes the later call do nothing.
-  It builds the table and then publishes it through an atomic pointer, so
-  `Get` from any thread is an index into it. Before that, text is English.
-  It logs the language with the number of texts translated and rejected,
-  and the English table's own errors.
+- `Text::Initialize` reads the game's language once, on the overlay's first
+  frame before the fonts load, and again when the game's data loads in case
+  the overlay never started; `std::call_once` makes the later call do
+  nothing. It keeps the language for `Text::GetGameLanguage` and selects it.
+  Before that, text is English. A language's table is built the first time
+  it is selected, logged with the number of texts translated and rejected,
+  and kept for the session; selecting publishes it through an atomic
+  pointer, so `Get` from any thread is an index into the current table, and
+  a thread still reading the previous one reads valid text. A switch is
+  logged as `Localization: switched to <LANGUAGE>`. Initialize also logs the
+  English table's own errors.
 - A text is a `std::format` string. Each translated text is checked against
   the English one when the table loads: it may use only fields the English
   has, with the same index and format spec, and a text that is not a plural
@@ -3457,11 +3513,18 @@ To verify in game:
     the chat's left.
 38. With `sLanguage=GERMAN`, the settings window, chat, player menus, trade
     window and prompt, notices, and status panel are in German, the log has
-    `Localization: GERMAN with 285 of 285 texts translated (0 rejected)`, and
+    `Localization: GERMAN with 298 of 298 texts translated (0 rejected)`, and
     `PlayerHub.ini` keeps its English comments. With `sLanguage=JAPANESE`,
     Han characters have their Japanese shapes and a long Japanese effect
     description wraps inside the item card. With a language the plugin has no
     table for, everything is English.
+    With `sLanguage=GERMAN` and no `Language` line, the `[UI]` page's
+    `Language` combo shows German selected. Picking Russian turns the open
+    settings window, the chat, and the status panel Russian in the next
+    frame, writes `Language = Russian`, and keeps Russian after a restart.
+    Picking Japanese then gives Han characters their Japanese shapes without
+    a restart, and the page's Defaults button returns to German and empties
+    the line.
 39. The `BackgroundOpacity` slider on the `[UI]` page shows 75% and moves in
     steps of 5 between 25 and 100. Dragging it changes the background of the
     settings window and its open lists and tooltips together, from the next
@@ -3488,6 +3551,9 @@ To verify in game:
 - A [blurred](#background-blur) popup or tooltip over an overlay window shows
   the game behind that window, blurred, rather than the window: the blur is
   taken from the frame before the overlay draws.
+- After a [language switch](#localization), text composed before it, such
+  as chat lines, notices, and trade rejection reasons, stays in the earlier
+  language.
 - The translations are machine drafts. Arabic, Hebrew, and other scripts that
   need right-to-left layout or glyph shaping are not translated, since Dear
   ImGui draws neither. Numbers use `std::format`'s defaults, not the

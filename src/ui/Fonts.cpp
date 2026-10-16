@@ -43,17 +43,25 @@ namespace UI::Fonts
             L"seguisym.ttf",  // Symbols
         };
 
-        // The game's language puts its own Han font first.
-        std::vector<std::wstring_view> GetSystemFiles()
+        // The language whose Han font comes first, or English for the default order.
+        Text::Language GetHanLanguage(Text::Language a_language)
+        {
+            return a_language == Text::Language::kJapanese || a_language == Text::Language::kChinese
+                ? a_language
+                : Text::Language::kEnglish;
+        }
+
+        // The text's language puts its own Han font first.
+        std::vector<std::wstring_view> GetSystemFiles(Text::Language a_hanLanguage)
         {
             std::vector<std::wstring_view> files{ kScriptFiles.begin(), kScriptFiles.end() };
             std::array<std::span<const std::wstring_view>, 3> han{ kSimplifiedChineseFiles, kTraditionalChineseFiles,
                 kJapaneseFiles };
-            if (Text::GetLanguage() == Text::Language::kJapanese)
+            if (a_hanLanguage == Text::Language::kJapanese)
             {
                 han = { kJapaneseFiles, kSimplifiedChineseFiles, kTraditionalChineseFiles };
             }
-            else if (Text::GetLanguage() == Text::Language::kChinese)
+            else if (a_hanLanguage == Text::Language::kChinese)
             {
                 han = { kTraditionalChineseFiles, kSimplifiedChineseFiles, kJapaneseFiles };
             }
@@ -104,6 +112,7 @@ namespace UI::Fonts
         ImFont* s_text = nullptr;
         ImFont* s_heading = nullptr;
         ImFont* s_logo = nullptr;
+        Text::Language s_loadedHanLanguage{ Text::Language::kEnglish };
 
         std::optional<std::filesystem::path> GetFontsDirectory()
         {
@@ -212,9 +221,10 @@ namespace UI::Fonts
     {
         std::vector<std::span<const std::byte>> system;
         std::string loaded;
+        s_loadedHanLanguage = GetHanLanguage(Text::GetLanguage());
         if (const auto directory = GetFontsDirectory())
         {
-            for (const auto fileName : GetSystemFiles())
+            for (const auto fileName : GetSystemFiles(s_loadedHanLanguage))
             {
                 const auto path = *directory / fileName;
                 const auto data = MapFile(path);
@@ -259,6 +269,24 @@ namespace UI::Fonts
         s_text = AddShipped(a_atlas, a_sizePixels, shipped / kTextFile, system);
         s_heading = AddShipped(a_atlas, a_sizePixels, shipped / kHeadingFile, system);
         s_logo = AddLogo(a_atlas, a_sizePixels, shipped / kLogoFile);
+    }
+
+    void Update(ImFontAtlas& a_atlas, float a_sizePixels)
+    {
+        if (GetHanLanguage(Text::GetLanguage()) == s_loadedHanLanguage)
+        {
+            return;
+        }
+        // Clear, not ClearFonts: the latter packs new glyphs into the same texture without
+        // erasing it, and the renderer uploads only each glyph's rectangle, so the old
+        // glyphs' pixels around them show at their edges. Clear starts a new texture.
+        // Either drops the atlas's sources before their views are unmapped.
+        a_atlas.Clear();
+        s_views.clear();
+        s_text = nullptr;
+        s_heading = nullptr;
+        s_logo = nullptr;
+        Load(a_atlas, a_sizePixels);
     }
 
     ImFont* GetText()

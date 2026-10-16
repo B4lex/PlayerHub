@@ -65,7 +65,7 @@ criteria.
 | Background opacity and blur | [ui-overlay](ui-overlay.md#background-opacity), [configuration](configuration.md#ui) |
 | Key bindings | [ui-overlay](ui-overlay.md#key-bindings), [ui-overlay](ui-overlay.md#input-focus), [configuration](configuration.md#controls) |
 | Input language switching while typing | [ui-overlay](ui-overlay.md#input-language) |
-| Localization (the game's language for the plugin's text) | [ui-overlay](ui-overlay.md#localization), [configuration](configuration.md#schema), [trade](trade.md#item-details) |
+| Localization and the language setting (the plugin's text in the game's or a picked language) | [ui-overlay](ui-overlay.md#localization), [configuration](configuration.md#ui), [configuration](configuration.md#schema), [trade](trade.md#item-details) |
 | Item trade | [trade](trade.md), [network](network.md#trade), [ui-overlay](ui-overlay.md#trade-window), [sync-pipeline](sync-pipeline.md#frame-sequence), [interest-and-delivery](interest-and-delivery.md#ordering), [configuration](configuration.md#controls) |
 | Item picker and preview | [ui-overlay](ui-overlay.md#item-picker), [appearance-and-equipment](appearance-and-equipment.md#item-filter-and-catalog) |
 | Replay and load testing | [recording-and-replay](recording-and-replay.md) |

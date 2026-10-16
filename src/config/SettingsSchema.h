@@ -34,9 +34,11 @@ namespace Config
             bool (*a_isValid)(std::string_view)) = 0;
         virtual void Form(std::string_view a_key, Text::Id a_label, Multiplayer::FormReference& a_value,
             const Multiplayer::FormReference& a_default, const Forms::ItemFilter& a_filter) = 0;
-        // a_options are the INI values; a_optionLabels are shown for them.
+        // a_options are the INI values; a_optionLabels are shown for them. With a_unset, the
+        // value a_options.size() is an empty INI value, shown as the option a_unset returns.
         virtual void Choice(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
-            std::span<const std::string_view> a_options, std::span<const Text::Id> a_optionLabels) = 0;
+            std::span<const std::string_view> a_options, std::span<const Text::Id> a_optionLabels,
+            std::uint32_t (*a_unset)()) = 0;
         virtual void Color(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
             std::span<const std::uint32_t> a_swatches) = 0;
         virtual void Key(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,

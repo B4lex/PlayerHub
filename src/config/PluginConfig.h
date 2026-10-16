@@ -69,6 +69,10 @@ namespace Config
         static constexpr std::uint32_t kVanillaFrame = 0;
         static constexpr std::uint32_t kAccentFrame = 1;
         static constexpr std::array<std::string_view, 2> kFrameColorNames{ "Vanilla", "Accent" };
+        // In Text::Language order.
+        static constexpr std::array<std::string_view, 9> kLanguageNames{ "English", "French", "German", "Italian",
+            "Spanish", "Polish", "Russian", "Japanese", "Chinese" };
+        static constexpr auto kGameLanguage = static_cast<std::uint32_t>(kLanguageNames.size());
         static constexpr std::array<std::uint32_t, 8> kAccentSwatches{ 0xFF9000, 0x909090, 0xF2C14E, 0xE5484D, 0xE0559C, 0x9B6CF0,
             0x4F8EF7, 0x2EC4B6 };
         static constexpr std::uint32_t kMinimumFontScale = 80;
@@ -86,6 +90,7 @@ namespace Config
         static constexpr std::uint32_t kMaximumChatPosition = 100;
         static constexpr std::uint32_t kMaximumNameplateDistance = 4000;
 
+        std::uint32_t language{ kGameLanguage };
         std::uint32_t fontScale{ 100 };
         std::uint32_t accentColor{ kAccentSwatches[0] };
         std::uint32_t frameColor{ kVanillaFrame };

@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 
 namespace UI::Overlay
 {
@@ -38,6 +39,20 @@ namespace UI::Overlay
         bool initializationFailed = false;
         ImGuiStyle baseStyle;
         float appliedScale = 0.0F;
+        std::optional<std::uint64_t> appliedLanguageRevision;
+
+        void ApplyLanguage()
+        {
+            const auto revision = Config::GetRevision();
+            if (revision == appliedLanguageRevision)
+            {
+                return;
+            }
+            appliedLanguageRevision = revision;
+            const auto language = Config::Get()->ui.language;
+            Text::Select(language < Text::kLanguageCount ? std::optional{ static_cast<Text::Language>(language) }
+                                                         : std::nullopt);
+        }
 
         bool Initialize(RE::BSGraphics::RendererData& a_data)
         {
@@ -56,8 +71,9 @@ namespace UI::Overlay
             // Skyrim reads the mouse through DirectInput as relative motion.
             io.ConfigFlags |= ImGuiConfigFlags_NoMouse | ImGuiConfigFlags_NoMouseCursorChange;
 
-            // Before the fonts, whose order follows the game's language.
+            // Before the fonts, whose order follows the language.
             Text::Initialize();
+            ApplyLanguage();
             Fonts::Load(*io.Fonts, kBaseFontSize);
             MenuFrame::Load();
 
@@ -146,6 +162,8 @@ namespace UI::Overlay
             io.DisplaySize = ImVec2{ static_cast<float>(swapChainDesc.bufferDesc.width),
                 static_cast<float>(swapChainDesc.bufferDesc.height) };
             ApplyScale(io.DisplaySize.y);
+            ApplyLanguage();
+            Fonts::Update(*io.Fonts, kBaseFontSize);
             const auto wheelSteps = InputCapture::ForwardToImGui();
 
             ImGui::NewFrame();

@@ -120,9 +120,11 @@ namespace UI
     void ChatInput::DrawChip(bool a_closeMenu)
     {
         const auto& target = composer.GetTarget();
-        if (!(target == chipTarget) || target.player.name != chipTarget.player.name)
+        if (!(target == chipTarget) || target.player.name != chipTarget.player.name
+            || chipLanguage != Text::GetLanguage())
         {
             chipTarget = target;
+            chipLanguage = Text::GetLanguage();
             chipLabel = DescribeTarget(target);
         }
 

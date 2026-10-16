@@ -143,7 +143,9 @@ namespace NameplateSync
         const auto delta = FrameTime::Clamp(a_delta);
         const auto range = static_cast<float>(ui.nameplateDistance);
         const auto origin = a_player.GetPosition();
-        const LabelRevision revision{ .roster = ChatRoster::GetRevision(), .filters = PlayerFilters::GetRevision() };
+        const LabelRevision revision{ .roster = ChatRoster::GetRevision(),
+            .filters = PlayerFilters::GetRevision(),
+            .language = Text::GetLanguage() };
         std::uint32_t raycasts = 0;
         for (auto& [playerID, peer] : a_peers)
         {

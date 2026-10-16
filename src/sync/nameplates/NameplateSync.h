@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol/PeerSlot.h"
+#include "text/Text.h"
 
 #include <RE/Skyrim.h>
 
@@ -19,6 +20,8 @@ namespace NameplateSync
     {
         std::uint64_t roster{ 0 };
         std::uint64_t filters{ 0 };
+        // A label without a name is localized.
+        Text::Language language{ Text::Language::kEnglish };
 
         bool operator==(const LabelRevision&) const = default;
     };

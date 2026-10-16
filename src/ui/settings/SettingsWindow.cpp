@@ -429,18 +429,20 @@ namespace UI
             }
 
             void Choice(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
-                std::span<const std::string_view>, std::span<const Text::Id> a_optionLabels) override
+                std::span<const std::string_view>, std::span<const Text::Id> a_optionLabels,
+                std::uint32_t (*a_unset)()) override
             {
                 if (!BeginRow(a_key, a_label, a_comment))
                 {
                     return;
                 }
-                const auto* preview = a_value < a_optionLabels.size() ? Text::GetCString(a_optionLabels[a_value]) : "";
+                const auto shown = a_value >= a_optionLabels.size() && a_unset ? a_unset() : a_value;
+                const auto* preview = shown < a_optionLabels.size() ? Text::GetCString(a_optionLabels[shown]) : "";
                 if (ImGui::BeginCombo("##value", preview))
                 {
                     for (std::uint32_t index = 0; index < a_optionLabels.size(); ++index)
                     {
-                        const bool selected = index == a_value;
+                        const bool selected = index == shown;
                         ImGui::PushID(static_cast<int>(index));
                         const bool pressed = ImGui::Selectable(Text::GetCString(a_optionLabels[index]), selected);
                         ImGui::PopID();
@@ -964,7 +966,7 @@ namespace UI
             void Apply(Config::PluginConfig a_config)
             {
                 saveFailed = !Config::Apply(std::move(a_config));
-                if (saveFailed && saveFailedText.empty())
+                if (saveFailed)
                 {
                     saveFailedText = Text::Format(Text::Id::kSettingsSaveFailed, kConfigFileName);
                 }

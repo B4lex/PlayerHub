@@ -116,13 +116,16 @@ namespace UI
     {
         auto& label = labels[a_id];
         const bool catalogReady = catalog != nullptr;
-        if (!label.text.empty() && label.value == a_value && label.catalogReady == catalogReady)
+        const auto language = Text::GetLanguage();
+        if (!label.text.empty() && label.value == a_value && label.catalogReady == catalogReady
+            && label.language == language)
         {
             return label;
         }
 
         label.value = a_value;
         label.catalogReady = catalogReady;
+        label.language = language;
         const auto* item = catalog ? catalog->Find(a_value) : nullptr;
         if (a_value.IsEmpty())
         {

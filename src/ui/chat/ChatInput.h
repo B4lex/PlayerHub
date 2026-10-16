@@ -2,10 +2,12 @@
 
 #include "protocol/ChatMessage.h"
 #include "sync/chat/ChatComposer.h"
+#include "text/Text.h"
 
 #include <imgui.h>
 
 #include <array>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -49,7 +51,8 @@ namespace UI
         bool fieldActive{ false };
 
         ChatSync::ChatTarget chipTarget;
-        std::string chipLabel{ "Nearby" };
+        std::string chipLabel;
+        std::optional<Text::Language> chipLanguage;
         bool menuOpen{ false };
         std::vector<Multiplayer::RosterEntry> partners;
     };

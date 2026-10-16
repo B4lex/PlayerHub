@@ -125,11 +125,17 @@ namespace Config
             }
 
             void Choice(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id,
-                std::span<const std::string_view> a_options, std::span<const Text::Id>) override
+                std::span<const std::string_view> a_options, std::span<const Text::Id>,
+                std::uint32_t (*a_unset)()) override
             {
                 const auto value = Take(a_key);
                 if (!value)
                 {
+                    return;
+                }
+                if (a_unset && value->empty())
+                {
+                    a_value = static_cast<std::uint32_t>(a_options.size());
                     return;
                 }
                 if (const auto parsed = ParseChoice(*value, a_options))
@@ -273,7 +279,7 @@ namespace Config
             }
 
             void Choice(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment,
-                std::span<const std::string_view> a_options, std::span<const Text::Id>) override
+                std::span<const std::string_view> a_options, std::span<const Text::Id>, std::uint32_t (*)()) override
             {
                 Write(a_key, FormatChoice(a_value, a_options), Text::GetEnglish(a_comment));
             }

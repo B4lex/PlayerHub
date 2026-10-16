@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <optional>
 
@@ -36,6 +37,17 @@ namespace Text
             LanguageInfo{ Language::kJapanese, "JAPANESE", &Catalogs::GetJapanese },
             LanguageInfo{ Language::kChinese, "CHINESE", &Catalogs::GetChinese },
         };
+        static_assert(kLanguages.size() == kLanguageCount);
+        static_assert([] {
+            for (std::size_t index = 0; index < kLanguages.size(); ++index)
+            {
+                if (kLanguages[index].language != static_cast<Language>(index))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }());
 
         using Forms = std::array<std::string_view, kMaximumPluralForms>;
         using PluralRule = std::size_t (*)(std::uint64_t);
@@ -236,8 +248,12 @@ namespace Text
         }
 
         const Table s_english = BuildEnglish();
-        Table s_translated;
+        // Built on first use and never freed: another thread may still be reading a
+        // table after another one is selected.
+        std::array<std::unique_ptr<const Table>, kLanguageCount> s_translated;
+        std::mutex s_translatedLock;
         std::atomic<const Table*> s_active{ &s_english };
+        std::atomic<Language> s_gameLanguage{ Language::kEnglish };
         std::once_flag s_initialized;
 
         bool IsPlural(const Table& a_english, std::size_t a_index)
@@ -326,10 +342,10 @@ namespace Text
             return true;
         }
 
-        void Load(const LanguageInfo& a_info)
+        std::unique_ptr<const Table> Load(const LanguageInfo& a_info)
         {
-            auto& table = s_translated;
-            table = s_english;
+            auto loaded = std::make_unique<Table>(s_english);
+            auto& table = *loaded;
             table.language = a_info.language;
             std::array<bool, kIdCount> translated{};
             std::size_t rejected = 0;
@@ -356,7 +372,23 @@ namespace Text
             const auto missing = static_cast<std::size_t>(std::count(translated.begin() + 1, translated.end(), false));
             logs::info("Localization: {} with {} of {} texts translated ({} rejected)", a_info.gameName,
                 kIdCount - 1 - missing, kIdCount - 1, rejected);
-            s_active.store(&table, std::memory_order_release);
+            return loaded;
+        }
+
+        const Table& GetTable(Language a_language)
+        {
+            const auto index = static_cast<std::size_t>(a_language);
+            if (a_language == Language::kEnglish || index >= kLanguageCount)
+            {
+                return s_english;
+            }
+            const std::scoped_lock lock{ s_translatedLock };
+            auto& table = s_translated[index];
+            if (!table)
+            {
+                table = Load(kLanguages[index]);
+            }
+            return *table;
         }
 
         std::string_view ReadGameLanguage()
@@ -381,18 +413,36 @@ namespace Text
                 logs::info("Localization: game language '{}' has no translation; using English", gameLanguage);
                 return;
             }
+            s_gameLanguage.store(info->language, std::memory_order_relaxed);
             if (info->language == Language::kEnglish)
             {
                 logs::info("Localization: ENGLISH");
                 return;
             }
-            Load(*info);
+            s_active.store(&GetTable(info->language), std::memory_order_release);
         });
+    }
+
+    void Select(std::optional<Language> a_language)
+    {
+        const auto language = a_language.value_or(GetGameLanguage());
+        if (language == GetLanguage())
+        {
+            return;
+        }
+        s_active.store(&GetTable(language), std::memory_order_release);
+        logs::info("Localization: switched to {}{}", kLanguages[static_cast<std::size_t>(language)].gameName,
+            a_language ? "" : " (the game's)");
     }
 
     Language GetLanguage()
     {
         return s_active.load(std::memory_order_acquire)->language;
+    }
+
+    Language GetGameLanguage()
+    {
+        return s_gameLanguage.load(std::memory_order_relaxed);
     }
 
     std::string_view Get(Id a_id)

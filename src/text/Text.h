@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <format>
 #include <iterator>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -24,12 +25,19 @@ namespace Text
         kJapanese,
         kChinese
     };
+    inline constexpr std::size_t kLanguageCount = 9;
 
-    // Reads the game's language on the first call. Call on the main thread once the
-    // game has read its INI files; before that, text is English.
+    // Reads the game's language on the first call and selects it. Call on the main
+    // thread once the game has read its INI files; before that, text is English.
     void Initialize();
 
+    // a_language, or the game's without one. Call on the main thread after Initialize.
+    void Select(std::optional<Language> a_language);
+
     [[nodiscard]] Language GetLanguage();
+
+    // English before Initialize, or for a language without a translation.
+    [[nodiscard]] Language GetGameLanguage();
 
     // The view is NUL-terminated.
     [[nodiscard]] std::string_view Get(Id a_id);

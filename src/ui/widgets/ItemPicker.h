@@ -2,6 +2,7 @@
 
 #include "forms/ItemFilter.h"
 #include "protocol/FormReference.h"
+#include "text/Text.h"
 
 #include <imgui.h>
 
@@ -43,6 +44,7 @@ namespace UI
             std::string text;
             LabelKind kind{ LabelKind::kNone };
             bool catalogReady{ false };
+            Text::Language language{ Text::Language::kEnglish };
         };
 
         const Label& GetLabel(
