@@ -525,12 +525,13 @@ in-server bots do not pass through it and do not count.
   reconnect never waits for its dead connection's timeout. A new session
   issued in the race between that check and admission is deleted again. The
   cap also bounds the roster every client receives.
-- `limits.new_sessions_per_address_per_hour` (5; 0 is no limit) is a token
-  bucket per address with that burst, refilled at that many per hour.
+- `limits.new_sessions_per_address_per_month` (10; 0 is no limit) is a token
+  bucket per address with that burst, refilled at that many per 30 days. The
+  buckets live in memory, so a server restart refills every allowance.
   Resuming a session never spends it, and neither does a session issued
   through the admin API ([Sessions](#sessions)). An IPv6 address counts with
   its /64, which one subscriber usually holds whole. `Server.Maintain` prunes
-  refilled buckets hourly.
+  full buckets hourly.
 - The address is the TCP peer's, unless the peer is in `trusted_proxies`
   (addresses or CIDR prefixes, empty by default). Then it is the rightmost
   `X-Forwarded-For` hop not in `trusted_proxies`: each proxy appends the
@@ -1004,7 +1005,7 @@ window, and are empty after a long gap. The status panel shows them.
   whose plugin could not write it, gets a new session, and the old one keeps
   its display name until it expires.
 - Display names can still be squatted from many addresses, slowly from one
-  (`limits.new_sessions_per_address_per_hour`), or by a program, which the
+  (`limits.new_sessions_per_address_per_month`), or by a program, which the
   `Origin` rule does not stop. Resumed hellos are not limited per address.
 - A full server or an exhausted allowance leaves the player disconnected until
   Connect; nothing retries when a place frees.

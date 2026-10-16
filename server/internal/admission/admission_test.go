@@ -46,7 +46,7 @@ func TestPlayersAreCapped(t *testing.T) {
 }
 
 func TestNewSessionsPerAddress(t *testing.T) {
-	g := NewGate(Limits{NewSessionsPerAddressPerHour: 2})
+	g := NewGate(Limits{NewSessionsPerAddressPerMonth: 2})
 	start := time.Unix(0, 0)
 	first := netip.MustParseAddr("203.0.113.7")
 	for range 2 {
@@ -60,8 +60,8 @@ func TestNewSessionsPerAddress(t *testing.T) {
 	if !g.MayIssue(netip.MustParseAddr("::ffff:203.0.113.8"), start) {
 		t.Fatal("another address shares the allowance")
 	}
-	if g.MayIssue(first, start.Add(29*time.Minute)) || !g.MayIssue(first, start.Add(31*time.Minute)) {
-		t.Fatal("the allowance does not refill at its hourly rate")
+	if g.MayIssue(first, start.Add(359*time.Hour)) || !g.MayIssue(first, start.Add(361*time.Hour)) {
+		t.Fatal("the allowance does not refill at its monthly rate")
 	}
 
 	subnet := netip.MustParseAddr("2001:db8:1:2::1")
@@ -74,7 +74,7 @@ func TestNewSessionsPerAddress(t *testing.T) {
 		t.Fatal("another /64 shares the allowance")
 	}
 
-	g.Prune(start.Add(2 * time.Hour))
+	g.Prune(start.Add(2 * month))
 	if len(g.issued) != 0 {
 		t.Fatalf("refilled allowances kept: %d", len(g.issued))
 	}

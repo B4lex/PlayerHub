@@ -62,15 +62,15 @@ type Interest struct {
 }
 
 type Limits struct {
-	MessagesPerSecond            float64 `toml:"messages_per_second"`
-	MessageBurst                 float64 `toml:"message_burst"`
-	ActionsPerSecond             float64 `toml:"actions_per_second"`
-	ActionBurst                  float64 `toml:"action_burst"`
-	OrderedBacklog               int     `toml:"ordered_backlog"`
-	HelloTimeoutSeconds          float64 `toml:"hello_timeout_seconds"`
-	MaxPlayers                   int     `toml:"max_players"`
-	MaxPendingHellos             int     `toml:"max_pending_hellos"`
-	NewSessionsPerAddressPerHour float64 `toml:"new_sessions_per_address_per_hour"`
+	MessagesPerSecond             float64 `toml:"messages_per_second"`
+	MessageBurst                  float64 `toml:"message_burst"`
+	ActionsPerSecond              float64 `toml:"actions_per_second"`
+	ActionBurst                   float64 `toml:"action_burst"`
+	OrderedBacklog                int     `toml:"ordered_backlog"`
+	HelloTimeoutSeconds           float64 `toml:"hello_timeout_seconds"`
+	MaxPlayers                    int     `toml:"max_players"`
+	MaxPendingHellos              int     `toml:"max_pending_hellos"`
+	NewSessionsPerAddressPerMonth float64 `toml:"new_sessions_per_address_per_month"`
 }
 
 type Liveness struct {
@@ -86,15 +86,15 @@ func Default() Config {
 		AdminUIDirectory:    "admin-ui/dist",
 		SendRateHz:          20,
 		Limits: Limits{
-			MessagesPerSecond:            120,
-			MessageBurst:                 240,
-			ActionsPerSecond:             10,
-			ActionBurst:                  10,
-			OrderedBacklog:               4096,
-			HelloTimeoutSeconds:          5,
-			MaxPlayers:                   100,
-			MaxPendingHellos:             64,
-			NewSessionsPerAddressPerHour: 5,
+			MessagesPerSecond:             120,
+			MessageBurst:                  240,
+			ActionsPerSecond:              10,
+			ActionBurst:                   10,
+			OrderedBacklog:                4096,
+			HelloTimeoutSeconds:           5,
+			MaxPlayers:                    100,
+			MaxPendingHellos:              64,
+			NewSessionsPerAddressPerMonth: 10,
 		},
 		Liveness: Liveness{PingIntervalSeconds: 5, TimeoutSeconds: 10},
 		Interest: Interest{EnterRadius: 8192, LeaveRadius: 9830, MinDwellSeconds: 1, UpdateHz: 5, MaxVisible: 64,
@@ -138,8 +138,8 @@ func (c Config) Validate() error {
 		return errors.New("limits.ordered_backlog must be at least 64")
 	case c.Limits.HelloTimeoutSeconds <= 0:
 		return errors.New("limits.hello_timeout_seconds must be positive")
-	case c.Limits.MaxPlayers < 0 || c.Limits.NewSessionsPerAddressPerHour < 0:
-		return errors.New("limits.max_players and new_sessions_per_address_per_hour must be >= 0")
+	case c.Limits.MaxPlayers < 0 || c.Limits.NewSessionsPerAddressPerMonth < 0:
+		return errors.New("limits.max_players and new_sessions_per_address_per_month must be >= 0")
 	case c.Limits.MaxPendingHellos < 1:
 		return errors.New("limits.max_pending_hellos must be at least 1")
 	case c.Liveness.PingIntervalSeconds <= 0 || c.Liveness.TimeoutSeconds <= 0:

@@ -48,10 +48,10 @@ visible peer went without an update:
 
 Egress stays under the 5 MB/s the budget allows. With 64 peers in view, the
 nearest peers' p99 misses 60 ms by 8 ms because the budget is below demand; a
-cap of 32 meets it, so the homelab example uses 32.
+cap of 32 meets it.
 
 Send phases were measured with 100 bots replaying the recording
-`20261013-193225-f4d31e` over loopback with the homelab budget (cap 32),
+`20261013-193225-f4d31e` over loopback with the 50 Mbit/s budget (cap 32),
 bucketing the bots' received bytes per millisecond and feeding them through a
 simulated FIFO uplink sized for each load:
 
@@ -205,7 +205,7 @@ leave and when the recipient disconnects.
 ## Budget
 
 Optional (`budget.enabled`), for an uplink that cannot carry the unbudgeted
-traffic, such as a 50 Mbit/s homelab. The router's upload buffer must never be
+traffic, such as a 50 Mbit/s upload. The router's upload buffer must never be
 what limits the rate, or every player's latency rises.
 
 - The server sends at most 80% of `budget.uplink_bytes_per_second` (default

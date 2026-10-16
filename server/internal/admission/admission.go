@@ -11,10 +11,12 @@ import (
 )
 
 type Limits struct {
-	MaxPlayers                   int
-	MaxPendingHellos             int
-	NewSessionsPerAddressPerHour float64
+	MaxPlayers                    int
+	MaxPendingHellos              int
+	NewSessionsPerAddressPerMonth float64
 }
+
+const month = 30 * 24 * time.Hour
 
 type Gate struct {
 	limits Limits
@@ -76,7 +78,7 @@ func (g *Gate) Leave(session uint64) {
 }
 
 func (g *Gate) MayIssue(address netip.Addr, now time.Time) bool {
-	rate := g.limits.NewSessionsPerAddressPerHour
+	rate := g.limits.NewSessionsPerAddressPerMonth
 	if rate <= 0 {
 		return true
 	}
@@ -88,15 +90,15 @@ func (g *Gate) MayIssue(address netip.Addr, now time.Time) bool {
 		bucket = &limit.TokenBucket{}
 		g.issued[key] = bucket
 	}
-	return bucket.Allow(now, rate/3600, rate)
+	return bucket.Allow(now, rate/month.Seconds(), rate)
 }
 
 func (g *Gate) Prune(now time.Time) {
-	rate := g.limits.NewSessionsPerAddressPerHour
+	rate := g.limits.NewSessionsPerAddressPerMonth
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	for key, bucket := range g.issued {
-		if bucket.Full(now, rate/3600, rate) {
+		if bucket.Full(now, rate/month.Seconds(), rate) {
 			delete(g.issued, key)
 		}
 	}

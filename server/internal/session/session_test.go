@@ -521,7 +521,7 @@ func TestFullServerRefusesNewPlayers(t *testing.T) {
 
 func TestNewSessionsPerAddressAreLimited(t *testing.T) {
 	c := config.Default()
-	c.Limits.NewSessionsPerAddressPerHour = 2
+	c.Limits.NewSessionsPerAddressPerMonth = 2
 	s := startServer(t, c)
 	first, lydia := resume(t, s, "Lydia", nil)
 	join(t, s, "Serana")
@@ -537,7 +537,7 @@ func TestNewSessionsPerAddressAreLimited(t *testing.T) {
 
 func TestNewSessionsAreLimitedByForwardedAddress(t *testing.T) {
 	c := config.Default()
-	c.Limits.NewSessionsPerAddressPerHour = 1
+	c.Limits.NewSessionsPerAddressPerMonth = 1
 	c.TrustedProxies = []string{"127.0.0.0/8", "::1"}
 	s := startServer(t, c)
 	joinFrom := func(address, displayName string) *client {

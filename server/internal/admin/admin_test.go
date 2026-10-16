@@ -303,7 +303,7 @@ type issuedSession struct {
 
 func TestIssuedSessionsSkipTheAllowance(t *testing.T) {
 	s := startStack(t)
-	allowance := int(config.Default().Limits.NewSessionsPerAddressPerHour)
+	allowance := int(config.Default().Limits.NewSessionsPerAddressPerMonth)
 	var first issuedSession
 	for i := range allowance + 2 {
 		var issued issuedSession

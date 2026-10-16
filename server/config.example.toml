@@ -1,0 +1,16 @@
+# A server on a 50 Mbit/s upload behind a reverse proxy on the same host.
+# Egress stays under 80% of the link, and 32 visible peers keep the nearest
+# ones smooth when 250 players crowd together. Every key is listed with its
+# default in README.md.
+# Run with: go run ./cmd/server --config config.toml
+
+# The proxy appends each player's address to X-Forwarded-For; without this,
+# every player shares the proxy's allowance of new sessions.
+trusted_proxies = ["127.0.0.1", "::1"]
+
+[interest]
+max_visible = 32
+
+[budget]
+enabled = true
+uplink_bytes_per_second = 6250000

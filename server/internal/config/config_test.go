@@ -7,7 +7,7 @@ func TestAdminHosts(t *testing.T) {
 		hosts []string
 		valid bool
 	}{
-		{[]string{"panel.lan", "homelab"}, true},
+		{[]string{"panel.lan", "panel"}, true},
 		{[]string{"panel.lan:3001"}, false},
 		{[]string{"http://panel.lan"}, false},
 		{[]string{"[::1]"}, false},

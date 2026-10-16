@@ -33,13 +33,13 @@ On `admin_listen` only:
 
 ## Configuration
 
-Every key is optional. Link-dependent limits live here, so a homelab and a
-remote server differ only in this file.
+Every key is optional. Link-dependent limits live here, so servers on
+different links differ only in this file.
 
 ```toml
 listen = "0.0.0.0:3000"
 admin_listen = "127.0.0.1:3001"   # admin panel, API, and pprof; "" serves none of them
-admin_hosts = []            # host names besides localhost and IP addresses that may reach admin_listen, e.g. ["homelab.lan"]
+admin_hosts = []            # host names besides localhost and IP addresses that may reach admin_listen, e.g. ["panel.lan"]
 trusted_proxies = []        # e.g. ["127.0.0.1"] behind a local proxy; X-Forwarded-For then names the player
 recordings_directory = "recordings"
 admin_ui_directory = "admin-ui/dist"
@@ -56,7 +56,7 @@ ordered_backlog = 4096      # unsent ordered messages before a slow client is dr
 hello_timeout_seconds = 5
 max_players = 100           # connected at once; 0 is no cap; replays and bots do not count
 max_pending_hellos = 64     # connections still waiting for their hello; over it, upgrades answer 503
-new_sessions_per_address_per_hour = 5  # IPv6 per /64; 0 is no limit; resuming is never limited
+new_sessions_per_address_per_month = 10  # refilled over 30 days; IPv6 per /64; 0 is no limit; resuming is never limited
 
 [liveness]
 ping_interval_seconds = 5   # WebSocket pings, answered by the client's transport thread
@@ -96,9 +96,10 @@ Players are identified by sessions (`../specs/network.md`, Sessions). The
 session database is created on first start, with its write-ahead log next to
 it. Deleting it gives every player a new session and frees every display name.
 
-For a homelab with a 50 Mbit/s upload, see `homelab.toml`: the budget on and
-32 visible peers, which keeps the nearest peers' p99 under 60 ms with 250
-players in one crowd.
+`config.example.toml` is a starting point for a 50 Mbit/s upload behind a
+proxy on the same host: copy it to an untracked `*.toml` in this directory. It
+turns the budget on and shows 32 visible peers, which keeps the nearest peers'
+p99 under 60 ms with 250 players in one crowd.
 
 `--pprof` serves `net/http/pprof` under `/debug/pprof/` on the admin address
 for profiling under loadgen.
@@ -122,7 +123,7 @@ go run ./cmd/convert-recordings recordings
   same sessions under the same names. Two runs at once against one server need
   different `--sessions` files. More bots than `max_players` need it raised.
   `--admin ""` takes new sessions as a player does, which needs
-  `new_sessions_per_address_per_hour = 0`.
+  `new_sessions_per_address_per_month = 0`.
 - `cmd/loadgen` connects bots as real WebSocket clients, walking in a square
   (`--spread`, `--speed`, `--idle` for a share standing still, `--view-radius`)
   or replaying a recording (`--recording`). Each bot
@@ -215,4 +216,4 @@ that can reach them.
 For a remote server, terminate TLS in a reverse proxy and use an `https://`
 endpoint; the plugin connects with `wss://`. Add the proxy's address to
 `trusted_proxies` (`127.0.0.1` for `cloudflared` or nginx on the same host),
-or every player shares the proxy's allowance of new sessions per hour.
+or every player shares the proxy's allowance of new sessions per month.

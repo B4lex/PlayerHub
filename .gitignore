@@ -31,4 +31,8 @@ plans/
 /server/*.db
 /server/*.db-*
 
+# Local server configurations
+/server/*.toml
+!/server/config.example.toml
+
 !.gitkeep

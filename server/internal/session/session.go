@@ -68,9 +68,9 @@ func NewServer(loop *hub.Loop, store *auth.Store, c config.Config, log *slog.Log
 	// config.Load validated the prefixes.
 	trusted, _ := c.TrustedProxyPrefixes()
 	gate := admission.NewGate(admission.Limits{
-		MaxPlayers:                   c.Limits.MaxPlayers,
-		MaxPendingHellos:             c.Limits.MaxPendingHellos,
-		NewSessionsPerAddressPerHour: c.Limits.NewSessionsPerAddressPerHour,
+		MaxPlayers:                    c.Limits.MaxPlayers,
+		MaxPendingHellos:              c.Limits.MaxPendingHellos,
+		NewSessionsPerAddressPerMonth: c.Limits.NewSessionsPerAddressPerMonth,
 	})
 	return &Server{loop: loop, store: store, config: c, log: log, gate: gate, trusted: trusted,
 		refusals: newRejectionLog(log, "refused connections"), connections: make(map[uint32]*connection)}
