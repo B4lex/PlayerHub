@@ -9,15 +9,53 @@ import (
 
 func TestPendingHellosAreCapped(t *testing.T) {
 	g := NewGate(Limits{MaxPendingHellos: 2})
-	if !g.BeginHello() || !g.BeginHello() {
+	first := netip.MustParseAddr("203.0.113.1")
+	second := netip.MustParseAddr("203.0.113.2")
+	if g.BeginHello(first) != nil || g.BeginHello(second) != nil {
 		t.Fatal("refused below the cap")
 	}
-	if g.BeginHello() {
+	if g.BeginHello(netip.MustParseAddr("203.0.113.3")) != ErrPendingHellos {
 		t.Fatal("allowed beyond the cap")
 	}
-	g.EndHello()
-	if !g.BeginHello() {
+	g.EndHello(first)
+	if g.BeginHello(first) != nil {
 		t.Fatal("a finished hello did not free its place")
+	}
+}
+
+func TestPendingHellosPerAddressAreCapped(t *testing.T) {
+	g := NewGate(Limits{MaxPendingHellos: 8, MaxPendingHellosPerAddress: 2})
+	flooding := netip.MustParseAddr("203.0.113.1")
+	for range 2 {
+		if g.BeginHello(flooding) != nil {
+			t.Fatal("refused below the cap")
+		}
+	}
+	if g.BeginHello(netip.MustParseAddr("::ffff:203.0.113.1")) != ErrAddressPendingHellos {
+		t.Fatal("allowed beyond the address's cap")
+	}
+	if g.BeginHello(netip.MustParseAddr("203.0.113.2")) != nil {
+		t.Fatal("another address shares the cap")
+	}
+	g.BeginHello(netip.MustParseAddr("2001:db8:1:2::1"))
+	g.BeginHello(netip.MustParseAddr("2001:db8:1:2::2"))
+	if g.BeginHello(netip.MustParseAddr("2001:db8:1:2:ffff::9")) != ErrAddressPendingHellos {
+		t.Fatal("an IPv6 /64 has more than one cap")
+	}
+	g.EndHello(flooding)
+	if g.BeginHello(flooding) != nil {
+		t.Fatal("a finished hello did not free its address's place")
+	}
+	g.EndHello(flooding)
+	g.EndHello(flooding)
+	if _, kept := g.pendingByAddress[addressKey(flooding)]; kept {
+		t.Fatal("an address without pending hellos is kept")
+	}
+	unlimited := NewGate(Limits{MaxPendingHellos: 8})
+	for range 8 {
+		if unlimited.BeginHello(flooding) != nil {
+			t.Fatal("zero is a cap")
+		}
 	}
 }
 

@@ -577,3 +577,36 @@ func TestPendingHellosAreCapped(t *testing.T) {
 	}
 	join(t, s, "Serana")
 }
+
+func TestPendingHellosPerAddressAreCapped(t *testing.T) {
+	c := config.Default()
+	c.Limits.MaxPendingHellosPerAddress = 1
+	c.TrustedProxies = []string{"127.0.0.0/8", "::1"}
+	s := startServer(t, c)
+	from := func(address string) http.Header { return http.Header{"X-Forwarded-For": {address}} }
+	waiting := dialWith(t, s, from("203.0.113.1"))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, response, err := websocket.Dial(ctx, s.url, &websocket.DialOptions{HTTPHeader: from("203.0.113.1")})
+	if err == nil {
+		conn.CloseNow()
+		t.Fatal("connected beyond the address's cap")
+	}
+	if response == nil || response.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("got %v, want 429", err)
+	}
+	other := dialWith(t, s, from("203.0.113.2"))
+	other.send(hello("Serana", nil))
+	if other.receive().GetWelcome() == nil {
+		t.Fatal("another address shares the cap")
+	}
+	waiting.send(hello("Lydia", nil))
+	if waiting.receive().GetWelcome() == nil {
+		t.Fatal("no welcome")
+	}
+	again := dialWith(t, s, from("203.0.113.1"))
+	again.send(hello("Aela", nil))
+	if again.receive().GetWelcome() == nil {
+		t.Fatal("a finished hello did not free its address's place")
+	}
+}

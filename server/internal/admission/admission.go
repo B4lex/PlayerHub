@@ -1,6 +1,7 @@
 package admission
 
 import (
+	"errors"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -13,6 +14,7 @@ import (
 type Limits struct {
 	MaxPlayers                    int
 	MaxPendingHellos              int
+	MaxPendingHellosPerAddress    int
 	NewSessionsPerAddressPerMonth float64
 }
 
@@ -21,8 +23,9 @@ const month = 30 * 24 * time.Hour
 type Gate struct {
 	limits Limits
 
-	mu      sync.Mutex
-	pending int
+	mu               sync.Mutex
+	pending          int
+	pendingByAddress map[netip.Prefix]int
 	// A session that connects again is briefly admitted twice, until its earlier connection
 	// leaves.
 	players map[uint64]int
@@ -30,23 +33,38 @@ type Gate struct {
 }
 
 func NewGate(limits Limits) *Gate {
-	return &Gate{limits: limits, players: make(map[uint64]int), issued: make(map[netip.Prefix]*limit.TokenBucket)}
+	return &Gate{limits: limits, pendingByAddress: make(map[netip.Prefix]int), players: make(map[uint64]int),
+		issued: make(map[netip.Prefix]*limit.TokenBucket)}
 }
 
-func (g *Gate) BeginHello() bool {
+var (
+	ErrPendingHellos        = errors.New("too many connections waiting for their hello")
+	ErrAddressPendingHellos = errors.New("too many connections from one address waiting for their hello")
+)
+
+func (g *Gate) BeginHello(address netip.Addr) error {
+	key := addressKey(address)
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	if perAddress := g.limits.MaxPendingHellosPerAddress; perAddress > 0 && g.pendingByAddress[key] >= perAddress {
+		return ErrAddressPendingHellos
+	}
 	if g.pending >= g.limits.MaxPendingHellos {
-		return false
+		return ErrPendingHellos
 	}
 	g.pending++
-	return true
+	g.pendingByAddress[key]++
+	return nil
 }
 
-func (g *Gate) EndHello() {
+func (g *Gate) EndHello(address netip.Addr) {
+	key := addressKey(address)
 	g.mu.Lock()
+	defer g.mu.Unlock()
 	g.pending--
-	g.mu.Unlock()
+	if g.pendingByAddress[key]--; g.pendingByAddress[key] <= 0 {
+		delete(g.pendingByAddress, key)
+	}
 }
 
 func (g *Gate) Full() bool {

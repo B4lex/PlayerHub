@@ -70,6 +70,7 @@ func NewServer(loop *hub.Loop, store *auth.Store, c config.Config, log *slog.Log
 	gate := admission.NewGate(admission.Limits{
 		MaxPlayers:                    c.Limits.MaxPlayers,
 		MaxPendingHellos:              c.Limits.MaxPendingHellos,
+		MaxPendingHellosPerAddress:    c.Limits.MaxPendingHellosPerAddress,
 		NewSessionsPerAddressPerMonth: c.Limits.NewSessionsPerAddressPerMonth,
 	})
 	return &Server{loop: loop, store: store, config: c, log: log, gate: gate, trusted: trusted,
@@ -90,9 +91,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "browsers cannot join", http.StatusForbidden)
 		return
 	}
-	if !s.gate.BeginHello() {
-		s.refusals.note("too many connections waiting for their hello")
-		http.Error(w, "too many players are joining; try again", http.StatusServiceUnavailable)
+	address := admission.ClientAddress(r, s.trusted)
+	if err := s.gate.BeginHello(address); err != nil {
+		s.refusals.note(err.Error())
+		if errors.Is(err, admission.ErrAddressPendingHellos) {
+			http.Error(w, "too many connections from your address are joining; try again", http.StatusTooManyRequests)
+		} else {
+			http.Error(w, "too many players are joining; try again", http.StatusServiceUnavailable)
+		}
 		return
 	}
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
@@ -102,11 +108,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		s.gate.EndHello()
+		s.gate.EndHello(address)
 		return
 	}
 	conn.SetReadLimit(readLimitBytes)
-	s.serve(r.Context(), conn, admission.ClientAddress(r, s.trusted))
+	s.serve(r.Context(), conn, address)
 }
 
 // A browser always sends the page's origin, whose scheme is never ws or wss.
@@ -217,7 +223,7 @@ func (s *Server) readHello(ctx context.Context, conn *websocket.Conn) (*pb.Hello
 var errServerFull = errors.New("server full")
 
 func (s *Server) join(ctx context.Context, conn *websocket.Conn, address netip.Addr) (*pb.Hello, hub.Identity, error) {
-	defer s.gate.EndHello()
+	defer s.gate.EndHello(address)
 	hello, err := s.readHello(ctx, conn)
 	if err != nil {
 		return nil, hub.Identity{}, err

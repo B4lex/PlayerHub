@@ -70,6 +70,7 @@ type Limits struct {
 	HelloTimeoutSeconds           float64 `toml:"hello_timeout_seconds"`
 	MaxPlayers                    int     `toml:"max_players"`
 	MaxPendingHellos              int     `toml:"max_pending_hellos"`
+	MaxPendingHellosPerAddress    int     `toml:"max_pending_hellos_per_address"`
 	NewSessionsPerAddressPerMonth float64 `toml:"new_sessions_per_address_per_month"`
 }
 
@@ -94,6 +95,7 @@ func Default() Config {
 			HelloTimeoutSeconds:           5,
 			MaxPlayers:                    100,
 			MaxPendingHellos:              64,
+			MaxPendingHellosPerAddress:    8,
 			NewSessionsPerAddressPerMonth: 10,
 		},
 		Liveness: Liveness{PingIntervalSeconds: 5, TimeoutSeconds: 10},
@@ -138,8 +140,8 @@ func (c Config) Validate() error {
 		return errors.New("limits.ordered_backlog must be at least 64")
 	case c.Limits.HelloTimeoutSeconds <= 0:
 		return errors.New("limits.hello_timeout_seconds must be positive")
-	case c.Limits.MaxPlayers < 0 || c.Limits.NewSessionsPerAddressPerMonth < 0:
-		return errors.New("limits.max_players and new_sessions_per_address_per_month must be >= 0")
+	case c.Limits.MaxPlayers < 0 || c.Limits.MaxPendingHellosPerAddress < 0 || c.Limits.NewSessionsPerAddressPerMonth < 0:
+		return errors.New("limits.max_players, max_pending_hellos_per_address, and new_sessions_per_address_per_month must be >= 0")
 	case c.Limits.MaxPendingHellos < 1:
 		return errors.New("limits.max_pending_hellos must be at least 1")
 	case c.Liveness.PingIntervalSeconds <= 0 || c.Liveness.TimeoutSeconds <= 0:

@@ -56,6 +56,7 @@ ordered_backlog = 4096      # unsent ordered messages before a slow client is dr
 hello_timeout_seconds = 5
 max_players = 100           # connected at once; 0 is no cap; replays and bots do not count
 max_pending_hellos = 64     # connections still waiting for their hello; over it, upgrades answer 503
+max_pending_hellos_per_address = 8  # the same from one address (IPv6 per /64); over it, 429; 0 is no cap
 new_sessions_per_address_per_month = 10  # refilled over 30 days; IPv6 per /64; 0 is no limit; resuming is never limited
 
 [liveness]

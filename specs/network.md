@@ -517,6 +517,15 @@ in-server bots do not pass through it and do not count.
 - `limits.max_pending_hellos` (64) caps connections between the upgrade and
   the end of their hello, which bounds the hellos queued on the store's one
   connection. Over it, the upgrade answers HTTP 503 before a WebSocket exists.
+- `limits.max_pending_hellos_per_address` (8; 0 is no cap) caps the same per
+  address, counted like the session allowance below (IPv6 per /64), so one
+  host holding sockets that never send a hello cannot fill the shared cap and
+  refuse everyone else, including reconnecting players. It is checked first;
+  over it, the upgrade answers HTTP 429. Eight leaves room for players behind
+  one NAT joining together, since a hello normally ends within a round trip.
+  Spreading the flood over many addresses is left to the proxy in front,
+  which can rate-limit `/ws` per address before a connection reaches the
+  server.
 - `limits.max_players` (100; 0 is no cap) caps connected sessions. A hello
   without a token on a full server is closed with 4007 `server full` before
   the store is touched. Otherwise the session is admitted after it
@@ -539,8 +548,9 @@ in-server bots do not pass through it and do not count.
   hop that does not parse stops the walk at the last trusted address. Behind
   a proxy without `trusted_proxies`, every player shares the proxy's
   allowance.
-- Upgrades refused for the hello cap are logged as a throttled summary
-  (`refused connections`), since a flood would repeat them.
+- Upgrades refused for either hello cap are logged as a throttled summary
+  (`refused connections`, with the cap as its reason), since a flood would
+  repeat them.
 
 ### Chat
 
