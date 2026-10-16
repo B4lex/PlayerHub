@@ -8,8 +8,12 @@ Implemented in Go and verified on Linux:
   captures, markers (`internal/recording`), virtual-player numbering and replay
   sessions with a fake clock (`internal/playback`), bot layout
   (`internal/loadtest`), and, over a real WebSocket, capturing a live player,
-  replaying it to another client, and the admin API's errors
-  (`internal/admin`).
+  replaying it to another client, the admin API's errors, and its
+  [request guard](#admin-api) (`internal/admin`): Host names, a body other
+  than JSON, and cross-site or cross-origin writes. A server on ports
+  3100/3101 answered `curl` the same way, with `/admin/` and `/debug/pprof/`
+  refused under a foreign Host too, and a `/debug/pprof/profile` GET refused
+  as `cross-site` or `same-site` but served as `none`.
 - `cmd/loadgen` against a server on port 3100 with a file-backed session store
   and the default limits: two runs of 20 bots resumed the same 20 sessions
   (every connection `new_session=false`, the file kept 20 tokens); 500 bots'
@@ -175,6 +179,31 @@ The panel at `/admin/`, the API, and `--pprof` profiling are served only on
 the player address `listen`, so a reverse proxy that forwards the game port
 cannot expose them. `--admin-listen` overrides the setting, which must differ
 from `listen`, and `--pprof` needs it.
+
+The address has no authentication, so `admin.Guard` stops web pages the
+operator visits from driving it through the browser:
+
+- **Host:** every request, panel files and pprof included, must name the
+  address by an IP literal, `localhost`, or a name in `admin_hosts` (host
+  names without a port, compared without case; default empty); others get
+  403. This defeats DNS rebinding, where a page's own domain is made to resolve
+  to the admin address so the browser treats the API as same-origin. IP
+  literals stay allowed because a page served from elsewhere can never share
+  their origin.
+- **Other sites:** any request whose `Sec-Fetch-Site` is `cross-site` or
+  `same-site` gets 403, whatever its method: browsers set the header on
+  navigations and no-cors loads too, so this also covers GETs with a cost,
+  such as `/debug/pprof/profile` and a recording load. A page on another
+  port of the same host counts as same-site. Without the header,
+  `http.CrossOriginProtection` answers 403 to a non-GET/HEAD/OPTIONS request
+  whose `Origin` host differs from `Host`. Requests with neither header, such
+  as `adminclient`'s and typed URLs in browsers without fetch metadata, pass.
+- **JSON bodies:** a route that reads a body answers 415 unless
+  `Content-Type` is `application/json` (parameters allowed). Browsers send
+  only text, form, and multipart bodies cross-site without a preflight, and
+  the API answers no preflight.
+
+Refusals answer `{"detail": ...}` like other errors.
 Commands are REST under `/api` ([server README](../server/README.md#admin-panel));
 errors answer `{"detail": ...}`, and player IDs are slots as decimal strings.
 Live state is one full snapshot pushed as a server-sent event (`event: state`)
@@ -203,9 +232,13 @@ Not checked in game:
 ## Known limitations
 
 - The admin API has no authentication: it deletes recordings, spawns
-  virtual players, and issues sessions past the per-address allowance, so `admin_listen` must not face the Internet. It does not
-  check `Content-Type` or `Host` either, so a web page the operator visits can
-  send it simple cross-origin POSTs even on localhost.
+  virtual players, and issues sessions past the per-address allowance, so
+  `admin_listen` must not face the Internet, and every program and device that
+  reaches it is trusted. The [request guard](#admin-api) stops only web pages,
+  and browsers without fetch metadata (Safari before 16.4, Firefox before 90)
+  can still be made to send it cross-site GETs, such as a `--pprof` CPU
+  profile the page cannot read. A link to the panel from another site is
+  refused as well.
 - A replay reaches every connected client; recordings cannot be edited or
   renamed, and players are not captured automatically.
 - Batches do not survive a server restart.

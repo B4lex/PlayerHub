@@ -7,7 +7,7 @@ testing in `../specs/recording-and-replay.md`.
 
 ## Run
 
-From this directory, with Go 1.24 or newer:
+From this directory, with Go 1.25 or newer:
 
 ```sh
 go run ./cmd/server                       # players on 0.0.0.0:3000, admin on 127.0.0.1:3001
@@ -39,6 +39,7 @@ remote server differ only in this file.
 ```toml
 listen = "0.0.0.0:3000"
 admin_listen = "127.0.0.1:3001"   # admin panel, API, and pprof; "" serves none of them
+admin_hosts = []            # host names besides localhost and IP addresses that may reach admin_listen, e.g. ["homelab.lan"]
 trusted_proxies = []        # e.g. ["127.0.0.1"] behind a local proxy; X-Forwarded-For then names the player
 recordings_directory = "recordings"
 admin_ui_directory = "admin-ui/dist"
@@ -188,6 +189,10 @@ snapshot on connect and after changes, at most twice a second.
 | `DELETE /api/batches/{id}` | Stop a batch and remove its bots |
 
 Errors answer `{"detail": "..."}`. Player IDs are slots as decimal strings.
+Request bodies must be sent as `Content-Type: application/json`. Requests that
+name the address by a host other than an IP address, `localhost`, or one in
+`admin_hosts`, and any request from another site's web page, links
+included, get 403.
 
 ## Connecting from another computer
 
@@ -205,6 +210,8 @@ Allow inbound TCP port 3000 through the server machine's firewall. Sessions
 identify players. The admin panel and API have no authentication and listen
 on `admin_listen`, `127.0.0.1:3001` by default, apart from players; keep that
 address off the public Internet and reach it through an SSH tunnel if needed.
+They refuse web pages from other sites, but trust every program and device
+that can reach them.
 For a remote server, terminate TLS in a reverse proxy and use an `https://`
 endpoint; the plugin connects with `wss://`. Add the proxy's address to
 `trusted_proxies` (`127.0.0.1` for `cloudflared` or nginx on the same host),

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"mime"
 	"net/http"
 	"strconv"
 	"time"
@@ -220,7 +221,11 @@ func (c *Context) setHidden(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Hidden *bool `json:"hidden"`
 	}
-	if err := decode(r, &request); err != nil || request.Hidden == nil {
+	if err := decode(r, &request); err != nil {
+		invalid(w, err)
+		return
+	}
+	if request.Hidden == nil {
 		invalid(w, errInvalid("expected {\"hidden\": true|false}"))
 		return
 	}
@@ -371,7 +376,14 @@ func (e *invalidRequest) Error() string { return e.message }
 
 func errInvalid(message string) error { return &invalidRequest{message} }
 
+// Browsers send a text/plain or form body cross-site without a preflight;
+// requiring JSON makes them ask first, and the API grants no CORS.
+var errContentType = errors.New("Content-Type must be application/json")
+
 func decode(r *http.Request, into any) error {
+	if mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mediaType != "application/json" {
+		return errContentType
+	}
 	decoder := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 64*1024))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(into); err != nil {
@@ -381,6 +393,10 @@ func decode(r *http.Request, into any) error {
 }
 
 func invalid(w http.ResponseWriter, err error) {
+	if errors.Is(err, errContentType) {
+		fail(w, http.StatusUnsupportedMediaType, err.Error())
+		return
+	}
 	fail(w, http.StatusUnprocessableEntity, err.Error())
 }
 

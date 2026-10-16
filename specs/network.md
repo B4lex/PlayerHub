@@ -996,7 +996,8 @@ window, and are empty after a long gap. The status panel shows them.
 
 - Sessions authenticate players only. The admin API can delete recordings and
   spawn virtual players without one; it is served only on `admin_listen`,
-  which must not face the Internet.
+  which must not face the Internet, and refuses only browser requests from
+  other sites ([Recording and replay](recording-and-replay.md#admin-api)).
 - The `Origin` rule stops browsers only. Any other program can open
   connections and send hellos from its own address.
 - A session cannot be recovered: a player who loses `PlayerHub.session`, or

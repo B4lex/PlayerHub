@@ -147,7 +147,7 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 			panel.HandleFunc("/debug/pprof/", pprof.Index)
 			panel.HandleFunc("/debug/pprof/profile", pprof.Profile)
 		}
-		servers = append(servers, newServer(ctx, c.AdminListen, panel))
+		servers = append(servers, newServer(ctx, c.AdminListen, admin.Guard(panel, c.AdminHosts)))
 	}
 
 	serveErr := make(chan error, len(servers))

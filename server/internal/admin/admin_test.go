@@ -50,7 +50,7 @@ func startStack(t *testing.T) *stack {
 	mux := http.NewServeMux()
 	mux.Handle("GET /ws", session.NewServer(loop, identities, config.Default(), log))
 	c.Routes(mux)
-	server := httptest.NewServer(mux)
+	server := httptest.NewServer(Guard(mux, []string{"Panel.lan"}))
 	t.Cleanup(func() {
 		playbacks.CloseAll()
 		batches.CloseAll()
@@ -71,6 +71,9 @@ func (s *stack) call(method, path string, body any, into any) int {
 		reader = bytes.NewReader(data)
 	}
 	request, _ := http.NewRequest(method, s.server.URL+path, reader)
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		s.t.Fatal(err)
@@ -235,6 +238,60 @@ func TestRequestValidation(t *testing.T) {
 		if status := s.call(c.method, c.path, c.body, &body); status != c.status {
 			t.Errorf("%s %s: got %d, want %d (%v)", c.method, c.path, status, c.status, body)
 		}
+	}
+}
+
+func TestBrowserRequestsFromOtherSites(t *testing.T) {
+	s := startStack(t)
+	for _, c := range []struct {
+		name, method, path, body string
+		headers                  map[string]string
+		host                     string
+		status                   int
+	}{
+		{"loopback address", "GET", "/api/state", "", nil, "", 200},
+		{"localhost", "GET", "/api/state", "", nil, "localhost:3001", 200},
+		{"IPv6 literal", "GET", "/api/state", "", nil, "[::1]:3001", 200},
+		{"LAN address", "GET", "/api/state", "", nil, "192.168.1.20:3001", 200},
+		{"configured host", "GET", "/api/state", "", nil, "panel.LAN:3001", 200},
+		{"rebound domain", "GET", "/api/state", "", nil, "attacker.example:3001", 403},
+		{"rebound domain without port", "POST", "/api/sessions", `{"displayName":"Lydia"}`,
+			map[string]string{"Content-Type": "application/json"}, "attacker.example", 403},
+		{"text body", "POST", "/api/batches", `{"recordingId":"missing","players":3}`,
+			map[string]string{"Content-Type": "text/plain"}, "", 415},
+		{"no content type", "POST", "/api/sessions", `{"displayName":"Lydia"}`, nil, "", 415},
+		{"JSON with charset", "POST", "/api/batches", `{"recordingId":"missing","players":3}`,
+			map[string]string{"Content-Type": "application/json; charset=utf-8"}, "", 404},
+		{"cross-site fetch", "POST", "/api/batches", `{"recordingId":"missing","players":3}`,
+			map[string]string{"Content-Type": "application/json", "Sec-Fetch-Site": "cross-site"}, "", 403},
+		{"cross-origin without fetch metadata", "POST", "/api/batches", `{"recordingId":"missing","players":3}`,
+			map[string]string{"Content-Type": "application/json", "Origin": "https://attacker.example"}, "", 403},
+		{"cross-site GET", "GET", "/api/state", "", map[string]string{"Sec-Fetch-Site": "cross-site"}, "", 403},
+		{"cross-site navigation", "GET", "/admin/", "",
+			map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate"}, "", 403},
+		{"other port on the same host", "GET", "/api/recordings/x", "", map[string]string{"Sec-Fetch-Site": "same-site"}, "", 403},
+		{"typed URL", "GET", "/api/state", "", map[string]string{"Sec-Fetch-Site": "none"}, "", 200},
+		{"same-origin fetch", "POST", "/api/batches", `{"recordingId":"missing","players":3}`,
+			map[string]string{"Content-Type": "application/json", "Sec-Fetch-Site": "same-origin"}, "", 404},
+	} {
+		request, _ := http.NewRequest(c.method, s.server.URL+c.path, strings.NewReader(c.body))
+		for key, value := range c.headers {
+			request.Header.Set(key, value)
+		}
+		if c.host != "" {
+			request.Host = c.host
+		}
+		response, err := http.DefaultClient.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if response.StatusCode != c.status {
+			t.Errorf("%s: got %d, want %d", c.name, response.StatusCode, c.status)
+		}
+	}
+	if status := s.call("POST", "/api/sessions", map[string]string{"displayName": "Lydia"}, nil); status != 201 {
+		t.Errorf("a refused request took the display name: issuing it got %d", status)
 	}
 }
 

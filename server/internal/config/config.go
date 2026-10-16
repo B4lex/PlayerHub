@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -12,6 +13,7 @@ import (
 type Config struct {
 	Listen              string   `toml:"listen"`
 	AdminListen         string   `toml:"admin_listen"`
+	AdminHosts          []string `toml:"admin_hosts"`
 	TrustedProxies      []string `toml:"trusted_proxies"`
 	RecordingsDirectory string   `toml:"recordings_directory"`
 	AdminUIDirectory    string   `toml:"admin_ui_directory"`
@@ -161,6 +163,11 @@ func (c Config) Validate() error {
 		return errors.New("trade.invite_seconds must be positive")
 	case c.Sessions.LifetimeDays <= 0:
 		return errors.New("sessions.lifetime_days must be positive")
+	}
+	for _, host := range c.AdminHosts {
+		if host == "" || strings.ContainsAny(host, ":/[] \t") {
+			return fmt.Errorf("admin_hosts: %q is not a host name without a port", host)
+		}
 	}
 	_, err := c.TrustedProxyPrefixes()
 	return err
