@@ -127,8 +127,9 @@ a peer does not have a matching modded asset or behavior.
 - After editing a `.proto` or `.options` file, run `proto/generate.sh` from a
   Linux or Windows shell (never under wine) and commit the regenerated Go and
   nanopb code with the change.
-- The build generates the text catalogs from `locale/`. On Linux, check
-  translation edits with `xmake l locale/generate.lua`.
+- The build generates the English text catalog from `locale/` and checks the
+  translations there, which ship as files the plugin reads at startup. On
+  Linux, check translation edits with `xmake l locale/generate.lua`.
 - Validate untrusted network fields at the boundary, including types, finite
   numbers, ranges, sequence or revision ordering, and form references.
 - For server changes, run `go vet ./...` and the relevant package's tests from

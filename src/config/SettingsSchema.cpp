@@ -43,16 +43,6 @@ namespace Config
             Id::kOutfitFemale };
         constexpr std::array<Id, UISettings::kFrameColorNames.size()> kFrameColorLabels{ Id::kUIBorderVanilla,
             Id::kUIBorderAccent };
-        constexpr std::array<Id, UISettings::kLanguageNames.size()> kLanguageLabels{ Id::kUILanguageEnglish,
-            Id::kUILanguageFrench, Id::kUILanguageGerman, Id::kUILanguageItalian, Id::kUILanguageSpanish,
-            Id::kUILanguagePolish, Id::kUILanguageRussian, Id::kUILanguageJapanese, Id::kUILanguageChinese };
-        static_assert(UISettings::kLanguageNames.size() == Text::kLanguageCount);
-
-        std::uint32_t GetGameLanguage()
-        {
-            return static_cast<std::uint32_t>(Text::GetGameLanguage());
-        }
-
         struct BindableKey
         {
             std::string_view name;
@@ -210,7 +200,7 @@ namespace Config
             a_visitor.Comment(Id::kOutfitGroupCharacter);
             a_visitor.Form("Race", Id::kOutfitRace, a_settings.race, defaults.race, kOutfitRaceFilter);
             a_visitor.Choice("Sex", Id::kOutfitSex, a_settings.sex, Id::kNone, DefaultOutfitSettings::kSexNames,
-                kSexLabels, nullptr);
+                kSexLabels);
 
             a_visitor.Comment(Id::kOutfitGroupApparel);
             for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)
@@ -236,14 +226,13 @@ namespace Config
         {
             a_visitor.Section("UI", Id::kSectionUI, Id::kNone);
             a_visitor.Comment(Id::kUIGroupDisplay);
-            a_visitor.Choice("Language", Id::kUILanguage, a_settings.language, Id::kUILanguageComment,
-                UISettings::kLanguageNames, kLanguageLabels, &GetGameLanguage);
+            a_visitor.Language("Language", Id::kUILanguage, a_settings.language, Id::kUILanguageComment);
             a_visitor.Percent("FontScale", Id::kUIFontScale, a_settings.fontScale, Id::kUIFontScaleComment,
                 UISettings::kMinimumFontScale, UISettings::kMaximumFontScale, UISettings::kFontScaleStep);
             a_visitor.Color("AccentColor", Id::kUIAccentColor, a_settings.accentColor, Id::kUIAccentColorComment,
                 UISettings::kAccentSwatches);
             a_visitor.Choice("BorderColor", Id::kUIBorderColor, a_settings.frameColor, Id::kUIBorderColorComment,
-                UISettings::kFrameColorNames, kFrameColorLabels, nullptr);
+                UISettings::kFrameColorNames, kFrameColorLabels);
             a_visitor.Percent("BorderThickness", Id::kUIBorderThickness, a_settings.frameThickness,
                 Id::kUIBorderThicknessComment, UISettings::kMinimumFrameThickness, UISettings::kMaximumFrameThickness,
                 1);

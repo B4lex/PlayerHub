@@ -1,5 +1,6 @@
 #include "ui/Fonts.h"
 #include "config/PluginConfig.h"
+#include "text/AsciiCase.h"
 #include "text/Text.h"
 
 #include <REX/W32/KERNEL32.h>
@@ -43,25 +44,49 @@ namespace UI::Fonts
             L"seguisym.ttf",  // Symbols
         };
 
-        // The language whose Han font comes first, or English for the default order.
-        Text::Language GetHanLanguage(Text::Language a_language)
+        // Whose Han fonts come first.
+        enum class HanOrder
         {
-            return a_language == Text::Language::kJapanese || a_language == Text::Language::kChinese
-                ? a_language
-                : Text::Language::kEnglish;
+            kSimplifiedChinese,
+            kTraditionalChinese,
+            kJapanese
+        };
+
+        // From the language's gettext code: Chinese is Traditional for Taiwan, Hong Kong,
+        // Macau, and the Hant script, and Simplified otherwise, as for every other language.
+        HanOrder GetHanOrder(std::string_view a_code)
+        {
+            if (AsciiCase::StartsWith(a_code, "ja"))
+            {
+                return HanOrder::kJapanese;
+            }
+            if (AsciiCase::StartsWith(a_code, "zh")
+                && (AsciiCase::Contains(a_code, "_TW") || AsciiCase::Contains(a_code, "_HK")
+                    || AsciiCase::Contains(a_code, "_MO") || AsciiCase::Contains(a_code, "Hant")))
+            {
+                return HanOrder::kTraditionalChinese;
+            }
+            return HanOrder::kSimplifiedChinese;
+        }
+
+        HanOrder GetCurrentHanOrder()
+        {
+            const auto languages = Text::GetLanguages();
+            const auto language = static_cast<std::size_t>(Text::GetLanguage());
+            return language < languages.size() ? GetHanOrder(languages[language].code) : HanOrder::kSimplifiedChinese;
         }
 
         // The text's language puts its own Han font first.
-        std::vector<std::wstring_view> GetSystemFiles(Text::Language a_hanLanguage)
+        std::vector<std::wstring_view> GetSystemFiles(HanOrder a_order)
         {
             std::vector<std::wstring_view> files{ kScriptFiles.begin(), kScriptFiles.end() };
             std::array<std::span<const std::wstring_view>, 3> han{ kSimplifiedChineseFiles, kTraditionalChineseFiles,
                 kJapaneseFiles };
-            if (a_hanLanguage == Text::Language::kJapanese)
+            if (a_order == HanOrder::kJapanese)
             {
                 han = { kJapaneseFiles, kSimplifiedChineseFiles, kTraditionalChineseFiles };
             }
-            else if (a_hanLanguage == Text::Language::kChinese)
+            else if (a_order == HanOrder::kTraditionalChinese)
             {
                 han = { kTraditionalChineseFiles, kSimplifiedChineseFiles, kJapaneseFiles };
             }
@@ -112,7 +137,7 @@ namespace UI::Fonts
         ImFont* s_text = nullptr;
         ImFont* s_heading = nullptr;
         ImFont* s_logo = nullptr;
-        Text::Language s_loadedHanLanguage{ Text::Language::kEnglish };
+        HanOrder s_loadedHanOrder{ HanOrder::kSimplifiedChinese };
 
         std::optional<std::filesystem::path> GetFontsDirectory()
         {
@@ -221,10 +246,10 @@ namespace UI::Fonts
     {
         std::vector<std::span<const std::byte>> system;
         std::string loaded;
-        s_loadedHanLanguage = GetHanLanguage(Text::GetLanguage());
+        s_loadedHanOrder = GetCurrentHanOrder();
         if (const auto directory = GetFontsDirectory())
         {
-            for (const auto fileName : GetSystemFiles(s_loadedHanLanguage))
+            for (const auto fileName : GetSystemFiles(s_loadedHanOrder))
             {
                 const auto path = *directory / fileName;
                 const auto data = MapFile(path);
@@ -273,7 +298,7 @@ namespace UI::Fonts
 
     void Update(ImFontAtlas& a_atlas, float a_sizePixels)
     {
-        if (GetHanLanguage(Text::GetLanguage()) == s_loadedHanLanguage)
+        if (GetCurrentHanOrder() == s_loadedHanOrder)
         {
             return;
         }

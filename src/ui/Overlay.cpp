@@ -49,9 +49,7 @@ namespace UI::Overlay
                 return;
             }
             appliedLanguageRevision = revision;
-            const auto language = Config::Get()->ui.language;
-            Text::Select(language < Text::kLanguageCount ? std::optional{ static_cast<Text::Language>(language) }
-                                                         : std::nullopt);
+            Text::Select(Config::Get()->ui.language);
         }
 
         bool Initialize(RE::BSGraphics::RendererData& a_data)

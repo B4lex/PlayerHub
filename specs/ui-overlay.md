@@ -2,49 +2,52 @@
 
 ## Status
 
+- **[Translation files](#translation-files)** (2026-10-16): not built on
+  Windows or run in game, and the `after_build` copy to the deploy
+  directories has not run. On Linux, `generate.lua` (host xmake 3.0.6) and
+  `msgfmt -c` passed the eight shipped files with 290 of 290 texts each. A
+  scratch xmake project with the `locale` rule built `Text.cpp`,
+  `Gettext.cpp`, and the generated `English.cpp` with g++, and a stale entry
+  or an `en.po` in `locale/` failed that build. A harness ran the same sources
+  under valgrind, with no errors, over the shipped files copied into a stub
+  `PlayerHub/locale/`. It confirmed the following. Each shipped file loads
+  290 of 290 texts. A stubbed `sLanguage:General` of `GERMAN` selects `de`,
+  and `KOREAN` with a `ko.po` that has no `X-Skyrim-Language` gives English.
+  `Text::Select` switches by code in any case. An unknown code warns once
+  and gives the game's language. A six-form Arabic rule picks the expected
+  forms for counts 0 to 111, and a rule that divides by zero, gives a form
+  out of range, has seven forms, or nests 40 parentheses deep is rejected. A
+  Ukrainian copy of the Russian file, with a byte order mark, CRLF line
+  endings, a fuzzy entry, a stale entry, a wrong field, an unknown key, and
+  no `LanguageName`, loaded 286 of 290 texts. It logged each problem and was
+  listed by its code. A file with a bad escape, an `en.po`, a name with a
+  space, and a file without `Plural-Forms` were skipped with their reasons.
+  The changed sources passed the g++ syntax check against CommonLibSSE-NG
+  and Dear ImGui 1.92.9, apart from `Fonts.cpp`'s existing Windows-only path
+  calls. The settings combo, the INI's code values, and the Han order by
+  code were not run.
 - **[Language setting](#localization)** (2026-10-16): not built on Windows or
-  run in game. On Linux, the changed sources passed the g++ syntax check
-  against CommonLibSSE-NG and Dear ImGui 1.92.9, apart from `Fonts.cpp`'s
-  existing Windows-only path calls, and `generate.lua` and `msgfmt -c` passed
-  every catalog with 298 of 298 texts. A harness ran `text/Text.cpp` with the
-  generated catalogs over a stubbed `sLanguage:General` of `GERMAN`. It
-  confirmed the following. `Text::Select` switches to each language and back
-  to the game's with `std::nullopt`. Each table is built once. A view taken
-  before a switch still reads its text. A second thread reading and
-  formatting text while the main thread switched 20,000 times read valid
-  text throughout. That check was not run under a thread sanitizer, which
-  this host lacks. A headless Dear ImGui 1.92.9 program ran the same
-  clear and reload between frames that `Fonts::Update` does. It freed the old
-  font data each time and drew merged Latin, Cyrillic, and Han text
-  afterwards, with no invalid reads under valgrind. In game, switching back
-  from Japanese left specks at the glyphs' edges. The same program then
+  run in game. Before the translations moved to files, a harness ran
+  `text/Text.cpp` with compiled tables over a stubbed `sLanguage:General` of
+  `GERMAN`. It confirmed the following. `Text::Select` switches to each
+  language and back to the game's. A view taken before a switch still reads
+  its text. A second thread reading and formatting text while the main thread
+  switched 20,000 times read valid text throughout. That check was not run
+  under a thread sanitizer, which this host lacks, and selecting still
+  publishes a table the same way. A headless Dear ImGui 1.92.9 program ran
+  the same clear and reload between frames that `Fonts::Update` does. It
+  freed the old font data each time and drew merged Latin, Cyrillic, and Han
+  text afterwards, with no invalid reads under valgrind. In game, switching
+  back from Japanese left specks at the glyphs' edges. The same program then
   copied only the rectangles ImGui asks the DX11 backend to upload. After a
   Japanese round trip with `ClearFonts`, 7,202 texels next to the new glyphs
   were still lit; with `Clear`, none were. The `Clear` fix was not run in
-  game.
-  The settings window's combo and the INI's empty value were not run. The
-  chat's target chip stayed in the earlier language after a switch in game,
-  and was English before any target change in every language; it now follows
-  the language (syntax check only).
-- **[Localization](#localization):** not built on Windows or run in game.
-  On Linux, every changed source passed a g++ syntax check against
-  CommonLibSSE-NG and Dear ImGui 1.92.9, apart from `Fonts.cpp`'s existing
-  Windows-only path calls. A harness compiled `text/Text.cpp` with all nine
-  tables over a stubbed `sLanguage:General`. It confirmed that each
-  translation passes with 283 of 283 texts, that plural forms are picked for
-  counts 0 to 25, that a text with a wrong field or form count is rejected for
-  English, and that an unknown or missing language gives English. The
-  translations are machine drafts no native speaker has reviewed.
-  [Catalogs](#catalogs) (2026-10-15): on Linux, `generate.lua` (host xmake
-  3.0.6) produced the same tables as the former hand-written ones, text for
-  text. A scratch xmake project with the `locale` rule, a PCH, and `Text.cpp`
-  over stubbed engine calls built with g++ from a clean tree. Each translation
-  loaded 283 of 283 texts, and the `Plural-Forms` rules pick the same forms as
-  the former switch for counts 0 to 1999. Editing one `.po` file recompiled only
-  its catalog, a new template key recompiled the `TextId.h` users, and a bad
-  translation failed the build. `msgfmt -c` passes every `.po` file, and
-  `msgmerge` marks an entry whose English changed as fuzzy, which the build then
-  rejects. The rule has not run under the Windows xmake or with MSVC.
+  game. The chat's target chip stayed in the earlier language after a switch
+  in game, and was English before any target change in every language; it
+  now follows the language (syntax check only).
+- **[Localization](#localization):** not run in game. The translations are
+  machine drafts no native speaker has reviewed. `msgmerge` marks an entry
+  whose English changed as fuzzy, which the build then rejects.
 - **[Background opacity](#background-opacity)** (2026-10-15): the opacity
   works, as the user reported. The [blur](#background-blur)
   behind translucent surfaces is not built on Windows or run in game. On
@@ -800,9 +803,10 @@ src/sync/nameplates/NameplateSync # per peer: head node, line of sight, fade, la
 src/sync/filters/PlayerFilters # friends, muted and vanished players of the current server, publishing, friends coming online
 src/sync/chat/PlayerActivation # the activated player, and a whisper picked in its menu
 src/runtime/PluginTime        # plugin time per pass
-src/text/Text                 # the game's language, text lookup, formatting, plural forms, field splitting
-locale/                       # gettext sources: the English template, one .po per translation
-locale/generate.lua           # checks them and writes Text::Id and each language's Text::Catalogs::Catalog
+src/text/Text                 # the languages, the game's language, text lookup, formatting, plural forms, field splitting
+src/text/Gettext              # PO file parsing and Plural-Forms rules for the translations read at startup
+locale/                       # gettext sources: the English template, one .po per shipped translation, deployed to PlayerHub/locale/
+locale/generate.lua           # checks the translations and writes Text::Id and the English catalog
 locale/xmake.lua              # the `locale` rule that runs it and compiles its output
 src/text/Utf8Case             # capitals of Latin and Cyrillic letters in UTF-8
 assets/fonts/                 # Sovngarde Light and Bold with their license, the logo font, deployed beside the DLL
@@ -918,12 +922,14 @@ fonts cost address space, not memory. Dear ImGui 1.92 rasterizes glyphs on
 demand, so no glyph ranges are needed. Without any file, ImGui's default font
 covers Latin only. The log lists the fonts loaded. Han characters take their
 shapes from the first Han font loaded, so `GetSystemFiles` puts the text
-language's own first: the Japanese fonts for Japanese, Microsoft JhengHei
-for Chinese, and otherwise Microsoft YaHei, then JhengHei, then the Japanese
-fonts. `Text::Initialize` and the `[UI] Language` setting are therefore
+language's own first, by its code (`GetHanOrder`): the Japanese fonts for
+`ja`, Microsoft JhengHei for Traditional Chinese (`zh` with `_TW`, `_HK`,
+`_MO`, or `Hant`), and otherwise Microsoft YaHei, then JhengHei, then the
+Japanese fonts. `Text::Initialize` and the `[UI] Language` setting are therefore
 applied before `Fonts::Load` ([Localization](#localization)). Sovngarde covers the Latin and Cyrillic
-letters of every translated language, so only Japanese and Chinese text uses
-the system fonts.
+letters of every shipped translation, so of those only Japanese and Chinese
+text uses the system fonts; a translation added later in another script, such
+as Greek, Korean, or Thai, takes its glyphs from them too.
 
 #### Themed faces
 
@@ -2424,9 +2430,8 @@ peers keep seeing the player.
   ([Accent color](#accent-color)). Group comments are small muted
   capitals (`Utf8Case::AppendUpper`) above their rows, as on `[DefaultOutfit]`, `[UI]`, and
   `[Advanced]` ([Configuration](configuration.md#settings)).
-  A choice whose schema lets it be unset, `[UI] Language`, shows the option
-  the schema names for an unset value, selected, until one is picked; picking
-  that option sets it ([Configuration](configuration.md#schema)).
+  `[UI] Language` is a combo of the loaded languages
+  ([Localization](#localization)).
   `[Connection] DisplayName` is drawn beside the
   connection button instead of as a row
   ([Connection controls](#connection-controls)), and a `Layout` setting, as
@@ -2918,23 +2923,33 @@ picker's panel) or as cached thumbnails for many cells.
 
 ## Localization
 
-The overlay's text and the notices are shown in one of the game's official
-languages: English, French, German, Italian, Spanish, Polish, Russian,
-Japanese, and Chinese. Until the player picks one with `[UI] Language`
-([Configuration](configuration.md#ui)), it is the game's language,
-`sLanguage:General` from the game's INI, the setting that also picks its
-string tables; a game language without a translation gets English.
+The overlay's text and the notices are in English, compiled into the plugin,
+or in a translation read at startup from a gettext PO file in
+`PlayerHub/locale/` beside the DLL. The distribution ships the game's official
+languages there: French, German, Italian, Spanish, Polish, Russian, Japanese,
+and Traditional Chinese. Anyone can add a language by putting another
+`<code>.po` there and restarting ([Translation files](#translation-files)).
+Until the player picks one with `[UI] Language`
+([Configuration](configuration.md#ui)), the language is the game's: the
+translation whose `X-Skyrim-Language` header matches `sLanguage:General` from
+the game's INI, the setting that also picks its string tables, or English when
+none does.
 
-- The `[UI] Language` combo, the first row of the `[UI]` page, lists the nine
-  languages, each by its own name (`kUILanguageEnglish` to
-  `kUILanguageChinese`, whose translations repeat the English entry), so a
-  player can find theirs whatever language the text is in. While the setting
-  is empty it shows the game's language selected
-  ([Settings window](#settings-window)). A picked language stays, even if the
-  game's changes, until the page's Defaults button empties it again.
+- The `[UI] Language` combo, the first row of the `[UI]` page, lists English
+  and then every loaded translation (`Text::GetLanguages`), each by its own
+  name, so a player can find theirs whatever language the text is in. The
+  name is the translation's `LanguageName` text, or its code when it leaves
+  that untranslated. While the setting is empty, or names no loaded
+  translation, the combo shows the game's language selected
+  ([Settings window](#settings-window)). Picking a language stores its code.
+  A picked language stays, even if the game's changes, until the page's
+  Defaults button empties it again.
 - The overlay applies the setting before `Fonts::Load` and then in every
   frame where `Config::GetRevision` has changed, before `ImGui::NewFrame`:
-  `Text::Select` with the picked language, or `std::nullopt` for the game's.
+  `Text::Select` with the setting's code. An empty code selects the game's
+  language. So does a code with no loaded file, which logs
+  `Localization: no <code>.po in PlayerHub/locale; using the game's language`
+  once until the setting names another code.
   The new language shows from that frame without a restart. When it puts
   another Han font first ([Fonts](#fonts)), `Fonts::Update`, between frames,
   calls `ImFontAtlas::Clear`, unmaps the old files, and loads the fonts
@@ -2942,7 +2957,8 @@ string tables; a game language without a translation gets English.
   `ClearFonts`, ImGui packs the new glyphs into the same texture without
   erasing it, and the DX11 backend uploads only each new glyph's rectangle,
   so pixels of the old glyphs beside them showed at their edges. `Clear`
-  starts a new texture, uploaded whole, and retires the old one. A switch between other languages keeps the fonts.
+  starts a new texture, uploaded whole, and retires the old one. A switch
+  that keeps the Han order keeps the fonts.
 - Text drawn each frame follows at once. The connection button's labels, the
   short-name line, the item pickers' labels, the chat's target chip, and
   [nameplates](#nameplates) (whose label is localized without a name) are
@@ -2951,32 +2967,35 @@ string tables; a game language without a translation gets English.
   rejection reasons, and the item card's unknown effect line.
 - Every displayed text has a `Text::Id`. Its text comes from `Text::Get`,
   `Format`, or `FormatPlural`. English is complete and is the fallback for any
-  ID a translation lacks or has rejected. The texts are compiled into the
-  plugin; there are no files to load. See [Catalogs](#catalogs) for where they
-  come from.
-- `Text::Initialize` reads the game's language once, on the overlay's first
-  frame before the fonts load, and again when the game's data loads in case
-  the overlay never started; `std::call_once` makes the later call do
-  nothing. It keeps the language for `Text::GetGameLanguage` and selects it.
-  Before that, text is English. A language's table is built the first time
-  it is selected, logged with the number of texts translated and rejected,
-  and kept for the session; selecting publishes it through an atomic
-  pointer, so `Get` from any thread is an index into the current table, and
-  a thread still reading the previous one reads valid text. A switch is
-  logged as `Localization: switched to <LANGUAGE>`. Initialize also logs the
+  ID a translation leaves untranslated, marks fuzzy, or has rejected.
+- `Text::Initialize` runs once, on the overlay's first frame before the fonts
+  load, and again when the game's data loads in case the overlay never
+  started; `std::call_once` makes the later call do nothing. It loads every
+  translation file, reads the game's language, keeps it for
+  `Text::GetGameLanguage`, and selects it, logging
+  `Localization: the game's language <sLanguage> is <code>`. Before that, text
+  is English. Each language's table is built at load and kept for the session.
+  Selecting publishes a table through an atomic pointer, so `Get` from any
+  thread is an index into the current table, and a thread still reading the
+  previous one reads valid text. `Text::Language` is an index into
+  `Text::GetLanguages`, English first, which is what the caches above compare.
+  The list is built on the main thread and only read there. A switch is
+  logged as `Localization: switched to <code>`. Initialize also logs the
   English table's own errors.
 - A text is a `std::format` string. Each translated text is checked against
-  the English one when the table loads: it may use only fields the English
+  the English one when its file loads: it may use only fields the English
   has, with the same index and format spec, and a text that is not a plural
   form must use all of them. Mixed automatic and numbered fields, a stray
   brace, or a nested field reject it. So formatting cannot throw, and a
   translation can reorder its arguments with `{0}` and `{1}`.
-- A plural text has as many forms as the language has: one for Japanese and
-  Chinese, two for English, French, German, Italian, and Spanish, three for
-  Polish and Russian (one, few, many). `Text::GetPlural` picks the form with
-  the rule of the catalog the text came from, and `FormatPlural` passes the
-  count as argument 0. A form may leave out a field, but a translation with
-  the wrong number of forms is rejected.
+- A plural text has as many forms as its file's `Plural-Forms` header gives,
+  up to `kMaximumPluralForms` (6): one for Japanese and Chinese, two for
+  English, French, German, Italian, and Spanish, three for Polish and Russian
+  (one, few, many). `Text::GetPlural` picks the form with the rule of the file
+  the text came from, a `Text::Gettext::PluralRule` that evaluates the
+  header's C expression, and `FormatPlural` passes the count as argument 0. A
+  form may leave out a field, but a translation with the wrong number of forms
+  is rejected.
 - A sentence that draws an argument in the accent color, such as the
   [display name hint](#display-name-hint), the trade window's title, and the
   [trade prompt](#prompt), is a format whose fields `Text::Split` cuts out.
@@ -2997,54 +3016,86 @@ string tables; a game language without a translation gets English.
   trade footers' buttons and the connection button take the widest of their
   labels.
 
-### Catalogs
+### Translation files
 
-The texts are kept as gettext PO files in `locale/`, and the build turns them
-into C++. Gettext was chosen so standard tools (`msgmerge`, `msgfmt -c`, PO
-editors) work on the texts, while the plugin still ships one DLL with no files
-to read.
+The texts are gettext PO files. Gettext was chosen so standard tools
+(`msgmerge`, `msgfmt -c`, PO editors) work on them. The translations are read
+at startup rather than compiled in, so a community translator can make, fix,
+and share a language without a plugin build.
 
 - `locale/playerhub.pot` is the English source and the list of IDs. Each entry's
   `msgctxt` is its `Text::Id` without the `k` prefix, `msgid` its English text,
   and `msgid_plural` the plural form, if any. A `#.` comment tells translators
   what each field is. An entry with fields needs the `c++-format` flag, so
   `msgfmt -c` checks the translations' fields. The header's `Plural-Forms` is
-  English's rule.
-- Each translation is `locale/<code>.po`: `fr`, `de`, `it`, `es`, `pl`, `ru`,
-  `ja`, and `zh_TW` (the game's Chinese is Traditional). Its `Language` header
-  is the file's code, and `kLanguages` in `generate.lua` maps the code to the
-  catalog's name. An empty `msgstr` leaves the text in English, and the build
-  warns how many texts such a file translates.
+  English's rule. The `LanguageName` entry's English is `English`; each
+  translation gives its language's name in that language.
+- A translation is `<code>.po`, and the file name is its code, which
+  `[UI] Language` stores. Its `Language` header is the same code. Its
+  `X-Skyrim-Language` header, for a language the game has, names the
+  `sLanguage:General` value that selects it while the setting is empty. The
+  shipped files in `locale/` are `fr`, `de`, `it`, `es`, `pl`, `ru`, `ja`, and
+  `zh_TW` (the game's Chinese is Traditional). An empty `msgstr` leaves the
+  text in English.
+- The build's `after_build` step copies `locale/*.po` and the template, for
+  translators, to `PlayerHub/locale/` in each deploy directory.
+- `Text::Initialize` lists the `.po` files (extension in any case) in
+  `PlayerHub/locale/` under `Config::GetDirectory`, in file name order, and
+  loads each into a table. It skips a file, logging
+  `Localization: skipping <file>: <reason>`, when its name is not a language
+  code (`Text::IsLanguageCode`: a letter, then letters, digits, `_`, `@`, or
+  `-`, at most 32 characters) or is `en`; when another file has the same code
+  in any case; past 254 translations, since `Text::Language` is a byte; over
+  4 MiB; when it does not parse; or when its `Plural-Forms` is missing, has
+  more than 6 forms, or gives a form out of range or divides by zero for any
+  count from 0 to 9999.
+- Within a file, `msgctxt` matches an entry to its `Text::Id`. An entry with
+  no such ID, or one listed twice, is skipped with a warning. A fuzzy or
+  untranslated entry is not used, as gettext does not use one. An entry that
+  translates another English text than the template's (a different `msgid`
+  or `msgid_plural`), has the wrong number of forms, or has fields that differ
+  from English (see above) is rejected with a warning naming its file and
+  line. Each file then logs `Localization: <file> with <n> of <total> texts
+  translated (<f> fuzzy, <r> rejected)`, followed by ` for <sLanguage>` when
+  it has `X-Skyrim-Language`.
+- `Text::Gettext::Parse` reads what `msgmerge` and PO editors write:
+  `msgctxt`, `msgid`, `msgid_plural`, `msgstr` and `msgstr[N]`, continuation
+  lines, comments, and the `fuzzy` flag. It skips obsolete `#~` entries and
+  accepts a UTF-8 byte order mark and CRLF line endings. It knows the escapes
+  `\n`, `\t`, `\r`, `\\`, and `\"`; any other fails the file, with its line.
 - The `locale` rule (`locale/xmake.lua`, added to the plugin target) runs
   `generate.lua` in xmake's prepare stage, before anything compiles. Its output
   goes to `rules/locale/text/locale/` in the target's autogen directory, which
   is on the include path, so code includes `text/locale/TextId.h`. The rule
-  adds the generated `.cpp` files to the target at load with `always_added`,
-  as they do not exist until the prepare stage. A file is written only when
-  its content changes, so editing one translation recompiles only that catalog,
-  and only a change to the template's IDs recompiles the users of `TextId.h`.
+  adds the generated `English.cpp` to the target at load with `always_added`,
+  as it does not exist until the prepare stage. A file is written only when
+  its content changes, so editing a translation recompiles nothing, and only
+  a change to the template's IDs recompiles the users of `TextId.h`.
   Nothing generated is committed, and the generator is xmake Lua because the
   Windows build runs under wine without Python.
 - The output is `TextId.h` (`Text::Id` in template order, then `kCount`),
-  `Catalog.h`, and one `<Language>.cpp` per catalog with a
-  `Text::Catalogs::Get<Language>` function. A `Catalog` has the translated
-  entries, the language's form count, and its plural rule. The rule is the
-  `Plural-Forms` expression compiled as C++. A plural entry's forms are joined
-  by `kPluralSeparator` (`|`).
-- The build fails, naming the file and line, on what the plugin would reject
-  at load: a key not in the template or listed twice, a translation of an
-  older English text, an entry marked `fuzzy`, a missing plural form, an
-  invalid format, or fields that differ from English (see above). It also fails
-  on a `|` in any text, a `.po` file missing from `kLanguages`, and a
-  `Plural-Forms` with more than `kMaximumPluralForms` (3) forms or a rule that
-  gives a form out of range, or divides by zero, for counts 0 to 9999.
+  `English.h`, and `English.cpp` with `Text::Catalogs::GetEnglish`: each
+  entry's ID, key, text, and plural form, and the template's `Plural-Forms`,
+  which `Text.cpp` parses at startup as it does a translation's.
+- The build also checks every `locale/*.po` as the plugin does when it loads
+  one, so the shipped files load whole. It fails, naming the file and line, on
+  a key not in the template or listed twice, a translation of an older
+  English text, an entry marked `fuzzy`, a missing plural form, an invalid
+  format, or fields that differ from English. It also fails on a file name
+  that is not a code or is `en`, a `Language` header other than the file's
+  code, an `X-Skyrim-Language` not in capitals, and a `Plural-Forms` the
+  plugin would skip. It warns of a file that translates only some texts.
   `xmake l locale/generate.lua [outdir]` runs the same checks without a build
   and prints each translation's count.
-- `Text.cpp` still checks every text when it loads a catalog, as a safety net.
-  `kLanguages` there maps `sLanguage:General` to each catalog.
 - To change a text, edit the template, run `msgmerge -U <code>.po
   playerhub.pot` for each translation (it marks entries whose English changed
-  as `fuzzy`), update the translations, and build.
+  as `fuzzy`), update the translations, and build. A community translation
+  updates the same way from the shipped template. Until it does, the texts
+  whose English changed show in English.
+- To add a language, make `<code>.po` from the template (`msginit`, or a PO
+  editor), set its `Language`, `Plural-Forms`, and, if the game has the
+  language, `X-Skyrim-Language`, translate it, and put it in
+  `PlayerHub/locale/`, or in `locale/` to ship it with the plugin.
 
 ## Engine assumptions
 
@@ -3137,8 +3188,9 @@ To verify in game:
     files are read. The setting's name is in the 1.7.104 executable. Its
     values for the official languages are assumed to be `ENGLISH`, `FRENCH`,
     `GERMAN`, `ITALIAN`, `SPANISH`, `POLISH`, `RUSSIAN`, `JAPANESE`, and
-    `CHINESE`, matched without case, and `CHINESE` is assumed to be the
-    game's Traditional Chinese.
+    `CHINESE`, which the shipped files' `X-Skyrim-Language` headers name and
+    which are matched without case, and `CHINESE` is assumed to be the game's
+    Traditional Chinese.
 16. The `sHealthDataPrefixWeap1`–`6` and `sHealthDataPrefixArmo1`–`6` game
     settings hold the tempering tiers' names in the game's language, `Fine` to
     `Legendary` in English. An empty or missing one falls back to the English
@@ -3513,7 +3565,9 @@ To verify in game:
     the chat's left.
 38. With `sLanguage=GERMAN`, the settings window, chat, player menus, trade
     window and prompt, notices, and status panel are in German, the log has
-    `Localization: GERMAN with 298 of 298 texts translated (0 rejected)`, and
+    `Localization: de.po with 290 of 290 texts translated (0 fuzzy, 0
+    rejected) for GERMAN` and `Localization: the game's language GERMAN is
+    de`, and
     `PlayerHub.ini` keeps its English comments. With `sLanguage=JAPANESE`,
     Han characters have their Japanese shapes and a long Japanese effect
     description wraps inside the item card. With a language the plugin has no
@@ -3521,10 +3575,15 @@ To verify in game:
     With `sLanguage=GERMAN` and no `Language` line, the `[UI]` page's
     `Language` combo shows German selected. Picking Russian turns the open
     settings window, the chat, and the status panel Russian in the next
-    frame, writes `Language = Russian`, and keeps Russian after a restart.
+    frame, writes `Language = ru`, and keeps Russian after a restart.
     Picking Japanese then gives Han characters their Japanese shapes without
     a restart, and the page's Defaults button returns to German and empties
-    the line.
+    the line. A `uk.po` made from the deployed `playerhub.pot`, with
+    `Language: uk`, a three-form `Plural-Forms`, and a few texts and
+    `LanguageName` translated, appears in the combo by that name after a
+    restart, shows those texts in Ukrainian and the rest in English, and
+    `Language = uk` keeps it after a restart. Removing the file then logs that
+    no `uk.po` exists and shows the game's language.
 39. The `BackgroundOpacity` slider on the `[UI]` page shows 75% and moves in
     steps of 5 between 25 and 100. Dragging it changes the background of the
     settings window and its open lists and tooltips together, from the next
@@ -3554,10 +3613,13 @@ To verify in game:
 - After a [language switch](#localization), text composed before it, such
   as chat lines, notices, and trade rejection reasons, stays in the earlier
   language.
-- The translations are machine drafts. Arabic, Hebrew, and other scripts that
-  need right-to-left layout or glyph shaping are not translated, since Dear
-  ImGui draws neither. Numbers use `std::format`'s defaults, not the
-  language's decimal separator.
+- The shipped translations are machine drafts. Dear ImGui draws neither
+  right-to-left layout nor glyph shaping, so a translation into Arabic,
+  Hebrew, or an Indic script loads but does not display correctly, and a
+  script without a system font shows no glyphs. Numbers use
+  `std::format`'s defaults, not the language's decimal separator.
+- Translation files are read once at startup: a new or edited file needs a
+  restart.
 - A player's menu shows the race and level of a player without a character
   in range a server round trip after it opens. Opening more than five menus
   within a few seconds can exceed the server's

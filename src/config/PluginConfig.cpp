@@ -125,17 +125,11 @@ namespace Config
             }
 
             void Choice(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id,
-                std::span<const std::string_view> a_options, std::span<const Text::Id>,
-                std::uint32_t (*a_unset)()) override
+                std::span<const std::string_view> a_options, std::span<const Text::Id>) override
             {
                 const auto value = Take(a_key);
                 if (!value)
                 {
-                    return;
-                }
-                if (a_unset && value->empty())
-                {
-                    a_value = static_cast<std::uint32_t>(a_options.size());
                     return;
                 }
                 if (const auto parsed = ParseChoice(*value, a_options))
@@ -144,6 +138,22 @@ namespace Config
                     return;
                 }
                 WarnInvalid(a_key, *value, FormatChoice(a_value, a_options));
+            }
+
+            // The translations load later, so a code naming none is only warned of then.
+            void Language(std::string_view a_key, Text::Id, std::string& a_value, Text::Id) override
+            {
+                auto value = Take(a_key);
+                if (!value)
+                {
+                    return;
+                }
+                if (value->empty() || Text::IsLanguageCode(*value))
+                {
+                    a_value = std::move(*value);
+                    return;
+                }
+                WarnInvalid(a_key, *value, a_value);
             }
 
             void Color(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id,
@@ -279,9 +289,14 @@ namespace Config
             }
 
             void Choice(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment,
-                std::span<const std::string_view> a_options, std::span<const Text::Id>, std::uint32_t (*)()) override
+                std::span<const std::string_view> a_options, std::span<const Text::Id>) override
             {
                 Write(a_key, FormatChoice(a_value, a_options), Text::GetEnglish(a_comment));
+            }
+
+            void Language(std::string_view a_key, Text::Id, std::string& a_value, Text::Id a_comment) override
+            {
+                Write(a_key, a_value, Text::GetEnglish(a_comment));
             }
 
             void Color(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment,

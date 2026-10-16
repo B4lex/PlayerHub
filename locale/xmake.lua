@@ -1,4 +1,5 @@
--- Compiles the text catalogs generate.lua makes from the gettext files here.
+-- Compiles the English catalog generate.lua makes from the template here, after it
+-- checks every translation.
 rule("locale")
     on_load(function (target)
         import("generate")

@@ -19,9 +19,10 @@ with it was not compiled. `Config::GetDirectory` ran
 only through its fallback, since the stubs resolve no DLL path.
 `config/PluginFiles`, which now reads and replaces the file, passed a Linux
 syntax check only; the stubbed checks above predate it.
-`[UI] Language` (2026-10-16) is not built on Windows or run in game, and its
-reading and writing were not run; on Linux, `PluginConfig.cpp` and
-`SettingsSchema.cpp` passed a g++ syntax check against CommonLibSSE-NG only.
+`[UI] Language` (2026-10-16), now a translation's code, is not built on
+Windows or run in game, and its reading and writing were not run; on Linux,
+`PluginConfig.cpp` and `SettingsSchema.cpp` passed a g++ syntax check against
+CommonLibSSE-NG only, and `Text::IsLanguageCode` ran in a harness.
 `[UI] BorderColor` is not yet built on Windows or run in game. On Linux the same
 two files were checked the same way: the default file has `BorderColor = Vanilla`
 under its comment, `Accent` and `accent` load as the accent, `Orange` and an
@@ -167,13 +168,11 @@ the settings window shows them in the game's language
 text (`Text::GetEnglish`), so it is the same whatever the language. `Layout`
 takes no label, and its comment, which only the file shows, is plain English.
 `Choice` takes the values the file stores and, beside them, the `Text::Id`s
-the settings window shows for them. It also takes a function, or null, that
-lets the setting be unset: the value one past the last option, which the
-file stores as an empty value and reads back from one. The settings window
-shows the option that function returns for an unset value
-([UI overlay](ui-overlay.md#settings-window)). `[UI] Language` is unset by
-default, and its function returns the game's language
-(`Text::GetGameLanguage`).
+the settings window shows for them. `Language` takes a string: a
+translation's code, or empty for the game's language. Reading the file checks
+only that a value is a code (`Text::IsLanguageCode`), since the translations
+load later; `Text::Select` warns of a code with no file
+([UI overlay](ui-overlay.md#localization)).
 `Config::SettingsVisitor::Form` takes the setting's item filter
 ([Appearance and equipment](appearance-and-equipment.md#item-filter-and-catalog)).
 `Unsigned` takes the setting's maximum, above which a value in the file is
@@ -309,7 +308,7 @@ Four groups: Display (`Language`, `FontScale`, `AccentColor`, `BorderColor`,
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `Language` | Language of the overlay's text and notices: `English`, `French`, `German`, `Italian`, `Spanish`, `Polish`, `Russian`, `Japanese`, or `Chinese`, in any case; empty follows the game's language, and anything else warns and keeps the default ([UI overlay](ui-overlay.md#localization)) | empty |
+| `Language` | Language of the overlay's text and notices: `en`, or the code of a translation in `PlayerHub/locale/`, its file name without `.po` (`de`, `zh_TW`), in any case; empty follows the game's language. A value that is not a code warns and keeps the default; a code without a file uses the game's language ([UI overlay](ui-overlay.md#localization)) | empty |
 | `FontScale` | Size of the overlay's text in percent, `80..130` in steps of `5`; the windows laid out in font sizes grow and shrink with it ([UI overlay](ui-overlay.md#font-scale)) | `100` |
 | `AccentColor` | Color of the theme's accent in the settings window and the chat, as `RRGGBB` ([UI overlay](ui-overlay.md#accent-color)) | `FF9000` |
 | `BorderColor` | Color of the menu frame around the settings window and the open chat ([UI overlay](ui-overlay.md#menu-frame)): `Vanilla`, the grey of the game's menus, or `Accent`, the accent | `Vanilla` |

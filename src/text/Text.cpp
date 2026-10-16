@@ -1,13 +1,21 @@
 #include "text/Text.h"
+#include "config/PluginConfig.h"
+#include "config/PluginFiles.h"
 #include "text/AsciiCase.h"
-#include "text/locale/Catalog.h"
+#include "text/Gettext.h"
+#include "text/locale/English.h"
 
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <deque>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <system_error>
+#include <unordered_map>
+#include <vector>
 
 namespace Text
 {
@@ -16,71 +24,29 @@ namespace Text
         constexpr std::size_t kIdCount = static_cast<std::size_t>(Id::kCount);
         constexpr std::size_t kMaximumFields = 8;
         using Catalogs::kMaximumPluralForms;
-        using Catalogs::kPluralSeparator;
-
-        struct LanguageInfo
-        {
-            Language language;
-            // sLanguage:General, which also names the game's string tables.
-            std::string_view gameName;
-            Catalogs::Catalog (*catalog)();
-        };
-
-        constexpr std::array kLanguages{
-            LanguageInfo{ Language::kEnglish, "ENGLISH", &Catalogs::GetEnglish },
-            LanguageInfo{ Language::kFrench, "FRENCH", &Catalogs::GetFrench },
-            LanguageInfo{ Language::kGerman, "GERMAN", &Catalogs::GetGerman },
-            LanguageInfo{ Language::kItalian, "ITALIAN", &Catalogs::GetItalian },
-            LanguageInfo{ Language::kSpanish, "SPANISH", &Catalogs::GetSpanish },
-            LanguageInfo{ Language::kPolish, "POLISH", &Catalogs::GetPolish },
-            LanguageInfo{ Language::kRussian, "RUSSIAN", &Catalogs::GetRussian },
-            LanguageInfo{ Language::kJapanese, "JAPANESE", &Catalogs::GetJapanese },
-            LanguageInfo{ Language::kChinese, "CHINESE", &Catalogs::GetChinese },
-        };
-        static_assert(kLanguages.size() == kLanguageCount);
-        static_assert([] {
-            for (std::size_t index = 0; index < kLanguages.size(); ++index)
-            {
-                if (kLanguages[index].language != static_cast<Language>(index))
-                {
-                    return false;
-                }
-            }
-            return true;
-        }());
+        constexpr std::size_t kMaximumCodeLength = 32;
+        // Language is a std::uint8_t index.
+        constexpr std::size_t kMaximumLanguages = 255;
+        constexpr std::uintmax_t kMaximumFileSize = 4 * 1024 * 1024;
+        constexpr std::wstring_view kDirectory = L"PlayerHub/locale";
+        constexpr std::string_view kExtension = ".po";
+        constexpr std::string_view kEnglishGameName = "ENGLISH";
+        // The sLanguage:General value, which also names the game's string tables, that
+        // selects a translation while [UI] Language is empty.
+        constexpr std::string_view kGameLanguageHeader = "X-Skyrim-Language";
 
         using Forms = std::array<std::string_view, kMaximumPluralForms>;
-        using PluralRule = std::size_t (*)(std::uint64_t);
 
         struct Table
         {
             std::array<std::string_view, kIdCount> text{};
+            // Empty for an Id without plural forms.
             std::array<Forms, kIdCount> plurals{};
             // The rule that picks among an Id's forms: its catalog's, or English's where a
             // translation's forms were rejected.
-            std::array<PluralRule, kIdCount> pluralRules{};
+            std::array<const Gettext::PluralRule*, kIdCount> pluralRules{};
             Language language{ Language::kEnglish };
         };
-
-        // Splits at the separator; returns the count, or 0 if there are more than the maximum.
-        std::size_t SplitForms(std::string_view a_text, Forms& a_forms)
-        {
-            std::size_t count = 0;
-            while (true)
-            {
-                if (count == a_forms.size())
-                {
-                    return 0;
-                }
-                const auto separator = a_text.find(kPluralSeparator);
-                a_forms[count++] = a_text.substr(0, separator);
-                if (separator == std::string_view::npos)
-                {
-                    return count;
-                }
-                a_text.remove_prefix(separator + 1);
-            }
-        }
 
         struct Field
         {
@@ -224,14 +190,18 @@ namespace Text
             return true;
         }
 
+        const Gettext::PluralRule s_englishRule = [] {
+            auto rule = Gettext::PluralRule::Parse(Catalogs::GetEnglish().pluralForms, kMaximumPluralForms);
+            return rule ? std::move(*rule) : Gettext::PluralRule{};
+        }();
+
         Table BuildEnglish()
         {
             Table table;
             // A literal, so even a missing text is NUL-terminated.
             table.text.fill("");
-            const auto catalog = Catalogs::GetEnglish();
-            table.pluralRules.fill(catalog.pluralForm);
-            for (const auto& entry : catalog.entries)
+            table.pluralRules.fill(&s_englishRule);
+            for (const auto& entry : Catalogs::GetEnglish().entries)
             {
                 const auto index = static_cast<std::size_t>(entry.id);
                 if (index >= kIdCount)
@@ -239,36 +209,50 @@ namespace Text
                     continue;
                 }
                 table.text[index] = entry.text;
-                if (entry.text.find(kPluralSeparator) != std::string_view::npos)
+                if (!entry.plural.empty())
                 {
-                    SplitForms(entry.text, table.plurals[index]);
+                    table.plurals[index][0] = entry.text;
+                    table.plurals[index][1] = entry.plural;
                 }
             }
             return table;
         }
 
         const Table s_english = BuildEnglish();
-        // Built on first use and never freed: another thread may still be reading a
-        // table after another one is selected.
-        std::array<std::unique_ptr<const Table>, kLanguageCount> s_translated;
-        std::mutex s_translatedLock;
+
+        struct Translation
+        {
+            Gettext::PluralRule rule;
+            // The texts the table views; a deque never moves them.
+            std::deque<std::string> texts;
+            std::string gameName;
+            Table table;
+        };
+
+        // Built by Initialize and kept for the session: another thread may still be reading
+        // a table after another one is selected. Index 0, English, has no Translation.
+        std::vector<LanguageInfo> s_languages{ LanguageInfo{
+            std::string{ kEnglishCode }, std::string{ s_english.text[static_cast<std::size_t>(Id::kLanguageName)] } } };
+        std::vector<std::unique_ptr<const Translation>> s_translations(1);
         std::atomic<const Table*> s_active{ &s_english };
         std::atomic<Language> s_gameLanguage{ Language::kEnglish };
         std::once_flag s_initialized;
+        // The last code Select warned of, so a config change that keeps it does not repeat the warning.
+        std::string s_unknownCode;
 
-        bool IsPlural(const Table& a_english, std::size_t a_index)
+        bool IsPlural(std::size_t a_index)
         {
-            return !a_english.plurals[a_index][0].empty();
+            return !s_english.plurals[a_index][0].empty();
         }
 
-        std::optional<Fields> GetEnglishFields(const Table& a_english, std::size_t a_index)
+        std::optional<Fields> GetEnglishFields(std::size_t a_index)
         {
-            if (!IsPlural(a_english, a_index))
+            if (!IsPlural(a_index))
             {
-                return ParseFields(a_english.text[a_index]);
+                return ParseFields(s_english.text[a_index]);
             }
             Fields all;
-            for (const auto form : a_english.plurals[a_index])
+            for (const auto form : s_english.plurals[a_index])
             {
                 const auto fields = ParseFields(form);
                 if (!fields)
@@ -296,7 +280,7 @@ namespace Text
                     ++missing;
                     logs::error("Localization: English has no text for ID {}", index);
                 }
-                else if (!GetEnglishFields(s_english, index))
+                else if (!GetEnglishFields(index))
                 {
                     logs::error("Localization: English text for ID {} is not a valid format", index);
                 }
@@ -307,88 +291,208 @@ namespace Text
             }
         }
 
-        bool Translate(
-            Table& a_table, const Catalogs::Catalog& a_catalog, std::size_t a_index, std::string_view a_text)
+        enum class Outcome
         {
-            const auto english = GetEnglishFields(s_english, a_index);
+            kTranslated,
+            kUntranslated,
+            kFuzzy,
+            kRejected
+        };
+
+        // Gettext uses neither a fuzzy entry nor one with an empty msgstr.
+        Outcome Translate(Translation& a_translation, std::size_t a_index, const Gettext::Message& a_message,
+            std::string_view a_file)
+        {
+            const auto reject = [&](std::string_view a_reason) {
+                logs::warn("Localization: {}:{}: {} {}; using English", a_file, a_message.line, a_message.context,
+                    a_reason);
+                return Outcome::kRejected;
+            };
+            if (std::ranges::all_of(a_message.forms, [](const std::string& a_form) { return a_form.empty(); }))
+            {
+                return Outcome::kUntranslated;
+            }
+            if (a_message.fuzzy)
+            {
+                return Outcome::kFuzzy;
+            }
+            const bool plural = IsPlural(a_index);
+            if (a_message.id != s_english.text[a_index] || a_message.hasPlural != plural
+                || (plural && a_message.plural != s_english.plurals[a_index][1]))
+            {
+                return reject("translates another English text");
+            }
+            const auto english = GetEnglishFields(a_index);
             if (!english)
             {
-                return false;
+                return reject("has no valid English text");
             }
-            if (!IsPlural(s_english, a_index))
+            const auto count = plural ? a_translation.rule.GetFormCount() : 1;
+            if (a_message.forms.size() != count
+                || std::ranges::any_of(a_message.forms, [](const std::string& a_form) { return a_form.empty(); }))
             {
-                if (a_text.find(kPluralSeparator) != std::string_view::npos || !MatchesEnglish(*english, a_text, true))
+                return reject(std::format("needs {} translated form(s)", count));
+            }
+            for (const auto& form : a_message.forms)
+            {
+                if (!MatchesEnglish(*english, form, !plural))
                 {
-                    return false;
-                }
-                a_table.text[a_index] = a_text;
-                return true;
-            }
-            Forms forms{};
-            if (SplitForms(a_text, forms) != a_catalog.pluralForms)
-            {
-                return false;
-            }
-            for (std::size_t form = 0; form < a_catalog.pluralForms; ++form)
-            {
-                if (!MatchesEnglish(*english, forms[form], false))
-                {
-                    return false;
+                    return reject("does not match the English text's fields");
                 }
             }
-            a_table.text[a_index] = a_text;
-            a_table.plurals[a_index] = forms;
-            a_table.pluralRules[a_index] = a_catalog.pluralForm;
-            return true;
+
+            auto& table = a_translation.table;
+            for (std::size_t form = 0; form < count; ++form)
+            {
+                const std::string_view text = a_translation.texts.emplace_back(a_message.forms[form]);
+                if (plural)
+                {
+                    table.plurals[a_index][form] = text;
+                }
+                if (form == 0)
+                {
+                    table.text[a_index] = text;
+                }
+            }
+            if (plural)
+            {
+                table.pluralRules[a_index] = &a_translation.rule;
+            }
+            return Outcome::kTranslated;
         }
 
-        std::unique_ptr<const Table> Load(const LanguageInfo& a_info)
+        using KeyIndex = std::unordered_map<std::string_view, std::size_t>;
+
+        std::unique_ptr<const Translation> Load(
+            const Gettext::File& a_file, Gettext::PluralRule a_rule, Language a_language, std::string_view a_name,
+            const KeyIndex& a_keys)
         {
-            auto loaded = std::make_unique<Table>(s_english);
-            auto& table = *loaded;
-            table.language = a_info.language;
-            std::array<bool, kIdCount> translated{};
-            std::size_t rejected = 0;
-            const auto catalog = a_info.catalog();
-            for (const auto& entry : catalog.entries)
+            auto translation = std::make_unique<Translation>();
+            translation->rule = std::move(a_rule);
+            translation->table = s_english;
+            translation->gameName = a_file.GetHeader(kGameLanguageHeader);
+            translation->table.language = a_language;
+            std::array<bool, kIdCount> seen{};
+            std::array<std::size_t, 4> outcomes{};
+            for (const auto& message : a_file.messages)
             {
-                const auto index = static_cast<std::size_t>(entry.id);
-                if (index == 0 || index >= kIdCount || translated[index])
+                const auto key = a_keys.find(message.context);
+                if (key == a_keys.end())
                 {
-                    logs::warn("Localization: {} lists ID {} twice or out of range", a_info.gameName, index);
+                    logs::warn("Localization: {}:{}: {} is not a text this version has", a_name, message.line,
+                        message.context);
                     continue;
                 }
-                if (!Translate(table, catalog, index, entry.text))
+                if (seen[key->second])
                 {
-                    ++rejected;
-                    logs::warn(
-                        "Localization: {} text for ID {} does not match the English fields or plural forms; "
-                        "using English",
-                        a_info.gameName, index);
+                    logs::warn("Localization: {}:{}: {} is listed twice", a_name, message.line, message.context);
                     continue;
                 }
-                translated[index] = true;
+                seen[key->second] = true;
+                ++outcomes[static_cast<std::size_t>(Translate(*translation, key->second, message, a_name))];
             }
-            const auto missing = static_cast<std::size_t>(std::count(translated.begin() + 1, translated.end(), false));
-            logs::info("Localization: {} with {} of {} texts translated ({} rejected)", a_info.gameName,
-                kIdCount - 1 - missing, kIdCount - 1, rejected);
-            return loaded;
+            const auto translated = outcomes[static_cast<std::size_t>(Outcome::kTranslated)];
+            logs::info("Localization: {} with {} of {} texts translated ({} fuzzy, {} rejected){}", a_name, translated,
+                kIdCount - 1, outcomes[static_cast<std::size_t>(Outcome::kFuzzy)],
+                outcomes[static_cast<std::size_t>(Outcome::kRejected)],
+                translation->gameName.empty() ? std::string{} : std::format(" for {}", translation->gameName));
+            return translation;
+        }
+
+        std::vector<std::filesystem::path> FindFiles(const std::filesystem::path& a_directory)
+        {
+            std::vector<std::filesystem::path> files;
+            std::error_code error;
+            for (std::filesystem::directory_iterator entry{ a_directory, error }, end; !error && entry != end;
+                 entry.increment(error))
+            {
+                if (entry->is_regular_file(error)
+                    && AsciiCase::Equals(PluginFiles::ToUtf8(entry->path().extension()), kExtension))
+                {
+                    files.push_back(entry->path());
+                }
+            }
+            if (error)
+            {
+                logs::warn("Localization: could not list {}: {}", PluginFiles::ToUtf8(a_directory), error.message());
+            }
+            std::ranges::sort(files);
+            return files;
+        }
+
+        void LoadTranslations()
+        {
+            const auto base = Config::GetDirectory();
+            if (base.empty())
+            {
+                return;
+            }
+            const auto directory = base / kDirectory;
+            KeyIndex keys;
+            for (const auto& entry : Catalogs::GetEnglish().entries)
+            {
+                keys.emplace(entry.key, static_cast<std::size_t>(entry.id));
+            }
+            for (const auto& path : FindFiles(directory))
+            {
+                const auto name = PluginFiles::ToUtf8(path.filename());
+                const auto code = PluginFiles::ToUtf8(path.stem());
+                const auto skip = [&](std::string_view a_reason) {
+                    logs::warn("Localization: skipping {}: {}", name, a_reason);
+                };
+                if (!IsLanguageCode(code) || AsciiCase::Equals(code, kEnglishCode))
+                {
+                    skip("the file name is not a language code other than en");
+                    continue;
+                }
+                if (FindLanguage(code))
+                {
+                    skip("another file has the same code");
+                    continue;
+                }
+                if (s_languages.size() == kMaximumLanguages)
+                {
+                    skip(std::format("more than {} languages", kMaximumLanguages - 1));
+                    continue;
+                }
+                std::error_code error;
+                const auto size = std::filesystem::file_size(path, error);
+                if (error || size > kMaximumFileSize)
+                {
+                    skip(error ? error.message() : std::string{ "the file is too large" });
+                    continue;
+                }
+                const auto text = PluginFiles::ReadFile(path);
+                if (!text)
+                {
+                    skip("could not read the file");
+                    continue;
+                }
+                auto file = Gettext::Parse(*text);
+                if (!file)
+                {
+                    skip(file.error());
+                    continue;
+                }
+                auto rule = Gettext::PluralRule::Parse(file->GetHeader("Plural-Forms"), kMaximumPluralForms);
+                if (!rule)
+                {
+                    skip(std::format("Plural-Forms: {}", rule.error()));
+                    continue;
+                }
+                const auto language = static_cast<Language>(s_languages.size());
+                auto translation = Load(*file, std::move(*rule), language, name, keys);
+                const auto ownName = translation->table.text[static_cast<std::size_t>(Id::kLanguageName)];
+                s_languages.push_back(LanguageInfo{ code,
+                    std::string{ ownName == s_english.text[static_cast<std::size_t>(Id::kLanguageName)] ? code : ownName } });
+                s_translations.push_back(std::move(translation));
+            }
         }
 
         const Table& GetTable(Language a_language)
         {
             const auto index = static_cast<std::size_t>(a_language);
-            if (a_language == Language::kEnglish || index >= kLanguageCount)
-            {
-                return s_english;
-            }
-            const std::scoped_lock lock{ s_translatedLock };
-            auto& table = s_translated[index];
-            if (!table)
-            {
-                table = Load(kLanguages[index]);
-            }
-            return *table;
+            return index == 0 || index >= s_translations.size() ? s_english : s_translations[index]->table;
         }
 
         std::string_view ReadGameLanguage()
@@ -401,38 +505,76 @@ namespace Text
         }
     }
 
+    bool IsLanguageCode(std::string_view a_code)
+    {
+        return !a_code.empty() && a_code.size() <= kMaximumCodeLength
+            && AsciiCase::ToLower(a_code.front()) >= 'a' && AsciiCase::ToLower(a_code.front()) <= 'z'
+            && std::ranges::all_of(a_code, [](char a_character) {
+                   const auto lower = AsciiCase::ToLower(a_character);
+                   return (lower >= 'a' && lower <= 'z') || (a_character >= '0' && a_character <= '9')
+                       || a_character == '_' || a_character == '@' || a_character == '-';
+               });
+    }
+
     void Initialize()
     {
         std::call_once(s_initialized, [] {
             CheckEnglish();
-            const auto gameLanguage = ReadGameLanguage();
-            const auto info = std::ranges::find_if(kLanguages,
-                [&](const LanguageInfo& a_info) { return AsciiCase::Equals(a_info.gameName, gameLanguage); });
-            if (info == kLanguages.end())
+            LoadTranslations();
+            const auto gameName = ReadGameLanguage();
+            auto language = Language::kEnglish;
+            if (!AsciiCase::Equals(gameName, kEnglishGameName))
             {
-                logs::info("Localization: game language '{}' has no translation; using English", gameLanguage);
-                return;
+                const auto translation = std::ranges::find_if(s_translations, [&](const auto& a_translation) {
+                    return a_translation && AsciiCase::Equals(a_translation->gameName, gameName);
+                });
+                if (translation == s_translations.end())
+                {
+                    logs::info("Localization: no translation for the game's language '{}'; using English", gameName);
+                    return;
+                }
+                language = (*translation)->table.language;
             }
-            s_gameLanguage.store(info->language, std::memory_order_relaxed);
-            if (info->language == Language::kEnglish)
-            {
-                logs::info("Localization: ENGLISH");
-                return;
-            }
-            s_active.store(&GetTable(info->language), std::memory_order_release);
+            s_gameLanguage.store(language, std::memory_order_relaxed);
+            s_active.store(&GetTable(language), std::memory_order_release);
+            logs::info("Localization: the game's language {} is {}", gameName,
+                s_languages[static_cast<std::size_t>(language)].code);
         });
     }
 
-    void Select(std::optional<Language> a_language)
+    std::span<const LanguageInfo> GetLanguages()
     {
-        const auto language = a_language.value_or(GetGameLanguage());
+        return s_languages;
+    }
+
+    std::optional<Language> FindLanguage(std::string_view a_code)
+    {
+        const auto found = std::ranges::find_if(
+            s_languages, [&](const LanguageInfo& a_language) { return AsciiCase::Equals(a_language.code, a_code); });
+        return found == s_languages.end() ? std::nullopt
+                                          : std::optional{ static_cast<Language>(found - s_languages.begin()) };
+    }
+
+    void Select(std::string_view a_code)
+    {
+        auto language = GetGameLanguage();
+        if (const auto found = FindLanguage(a_code))
+        {
+            language = *found;
+        }
+        else if (!a_code.empty() && a_code != s_unknownCode)
+        {
+            s_unknownCode = a_code;
+            logs::warn("Localization: no {}{} in {}; using the game's language", a_code, kExtension,
+                PluginFiles::ToUtf8(std::filesystem::path{ kDirectory }));
+        }
         if (language == GetLanguage())
         {
             return;
         }
         s_active.store(&GetTable(language), std::memory_order_release);
-        logs::info("Localization: switched to {}{}", kLanguages[static_cast<std::size_t>(language)].gameName,
-            a_language ? "" : " (the game's)");
+        logs::info("Localization: switched to {}{}", s_languages[static_cast<std::size_t>(language)].code,
+            a_code.empty() ? " (the game's)" : "");
     }
 
     Language GetLanguage()
@@ -465,8 +607,12 @@ namespace Text
             return {};
         }
         const auto& table = *s_active.load(std::memory_order_acquire);
-        const auto rule = table.plurals[index][0].empty() ? 0 : table.pluralRules[index](a_count);
-        const auto form = table.plurals[index][(std::min)(rule, kMaximumPluralForms - 1)];
+        if (table.plurals[index][0].empty())
+        {
+            return table.text[index];
+        }
+        const auto form = table.plurals[index][(std::min)(table.pluralRules[index]->GetForm(a_count),
+            kMaximumPluralForms - 1)];
         return form.empty() ? table.text[index] : form;
     }
 

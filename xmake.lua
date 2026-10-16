@@ -96,6 +96,8 @@ after_build(function (target)
     local pdbfile = target:symbolfile()
     local fontfiles = path.join(os.projectdir(), "assets", "fonts", "*")
     local framefiles = path.join(os.projectdir(), "assets", "frame", "*")
+    -- The plugin reads the translations at startup; the template is for translators.
+    local localefiles = { path.join(os.projectdir(), "locale", "*.po"), path.join(os.projectdir(), "locale", "*.pot") }
     for _, deploy_dir in ipairs(deploy_dirs) do
         os.cp(dllfile, deploy_dir)
 
@@ -110,6 +112,12 @@ after_build(function (target)
         local frame_dir = path.join(deploy_dir, "PlayerHub", "frame")
         os.mkdir(frame_dir)
         os.cp(framefiles, frame_dir)
+
+        local locale_dir = path.join(deploy_dir, "PlayerHub", "locale")
+        os.mkdir(locale_dir)
+        for _, files in ipairs(localefiles) do
+            os.cp(files, locale_dir)
+        end
 
         print("Deployed to %s", deploy_dir)
     end

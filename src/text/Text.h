@@ -13,30 +13,42 @@
 
 namespace Text
 {
+    // An index into GetLanguages(), where English is first.
     enum class Language : std::uint8_t
     {
-        kEnglish,
-        kFrench,
-        kGerman,
-        kItalian,
-        kSpanish,
-        kPolish,
-        kRussian,
-        kJapanese,
-        kChinese
+        kEnglish
     };
-    inline constexpr std::size_t kLanguageCount = 9;
 
-    // Reads the game's language on the first call and selects it. Call on the main
-    // thread once the game has read its INI files; before that, text is English.
+    struct LanguageInfo
+    {
+        // A translation's file name without ".po", or kEnglishCode.
+        std::string code;
+        // Its name in itself, or its code if it does not translate LanguageName.
+        std::string name;
+    };
+
+    inline constexpr std::string_view kEnglishCode = "en";
+
+    [[nodiscard]] bool IsLanguageCode(std::string_view a_code);
+
+    // Loads the translations, reads the game's language, and selects it. Call on the main
+    // thread once the game has read its INI files and Config::Load has run; before that,
+    // text is English.
     void Initialize();
 
-    // a_language, or the game's without one. Call on the main thread after Initialize.
-    void Select(std::optional<Language> a_language);
+    // English, then the translations Initialize loaded, by code. Call on the main thread.
+    [[nodiscard]] std::span<const LanguageInfo> GetLanguages();
+
+    // The language whose code matches a_code in any case. Call on the main thread.
+    [[nodiscard]] std::optional<Language> FindLanguage(std::string_view a_code);
+
+    // FindLanguage(a_code), or the game's for an empty or unknown code. Call on the main
+    // thread after Initialize.
+    void Select(std::string_view a_code);
 
     [[nodiscard]] Language GetLanguage();
 
-    // English before Initialize, or for a language without a translation.
+    // English before Initialize, or for a game language no translation names.
     [[nodiscard]] Language GetGameLanguage();
 
     // The view is NUL-terminated.

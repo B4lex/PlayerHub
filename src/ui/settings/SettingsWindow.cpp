@@ -429,26 +429,56 @@ namespace UI
             }
 
             void Choice(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
-                std::span<const std::string_view>, std::span<const Text::Id> a_optionLabels,
-                std::uint32_t (*a_unset)()) override
+                std::span<const std::string_view>, std::span<const Text::Id> a_optionLabels) override
             {
                 if (!BeginRow(a_key, a_label, a_comment))
                 {
                     return;
                 }
-                const auto shown = a_value >= a_optionLabels.size() && a_unset ? a_unset() : a_value;
-                const auto* preview = shown < a_optionLabels.size() ? Text::GetCString(a_optionLabels[shown]) : "";
+                const auto* preview = a_value < a_optionLabels.size() ? Text::GetCString(a_optionLabels[a_value]) : "";
                 if (ImGui::BeginCombo("##value", preview))
                 {
                     for (std::uint32_t index = 0; index < a_optionLabels.size(); ++index)
                     {
-                        const bool selected = index == shown;
+                        const bool selected = index == a_value;
                         ImGui::PushID(static_cast<int>(index));
                         const bool pressed = ImGui::Selectable(Text::GetCString(a_optionLabels[index]), selected);
                         ImGui::PopID();
                         if (pressed)
                         {
                             a_value = index;
+                        }
+                        if (selected)
+                        {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+                EndRow();
+            }
+
+            void Language(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment) override
+            {
+                if (!BeginRow(a_key, a_label, a_comment))
+                {
+                    return;
+                }
+                const auto languages = Text::GetLanguages();
+                const auto shown
+                    = static_cast<std::size_t>(Text::FindLanguage(a_value).value_or(Text::GetGameLanguage()));
+                const auto* preview = shown < languages.size() ? languages[shown].name.c_str() : "";
+                if (ImGui::BeginCombo("##value", preview))
+                {
+                    for (std::size_t index = 0; index < languages.size(); ++index)
+                    {
+                        const bool selected = index == shown;
+                        ImGui::PushID(static_cast<int>(index));
+                        const bool pressed = ImGui::Selectable(languages[index].name.c_str(), selected);
+                        ImGui::PopID();
+                        if (pressed)
+                        {
+                            a_value = languages[index].code;
                         }
                         if (selected)
                         {

@@ -2,6 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PlayerHub\n"
 "Language: ja\n"
+"X-Skyrim-Language: JAPANESE\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -194,50 +195,11 @@ msgid ""
 msgstr ""
 "マルチプレイ画面の表示言語です。選ぶまではゲームの言語に従います。"
 
-#. The language's name in itself, so it reads the same in every language
-msgctxt "UILanguageEnglish"
+#. This language's name in itself. The language setting lists every language this
+#. way, so players find theirs whatever language the text is in.
+msgctxt "LanguageName"
 msgid "English"
-msgstr "English"
-
-#. The language's name in itself, so it reads the same in every language
-msgctxt "UILanguageFrench"
-msgid "Français"
-msgstr "Français"
-
-#. The language's name in itself, so it reads the same in every language
-msgctxt "UILanguageGerman"
-msgid "Deutsch"
-msgstr "Deutsch"
-
-#. The language's name in itself, so it reads the same in every language
-msgctxt "UILanguageItalian"
-msgid "Italiano"
-msgstr "Italiano"
-
-#. The language's name in itself, so it reads the same in every language
-msgctxt "UILanguageSpanish"
-msgid "Español"
-msgstr "Español"
-
-#. The language's name in itself, so it reads the same in every language
-msgctxt "UILanguagePolish"
-msgid "Polski"
-msgstr "Polski"
-
-#. The language's name in itself, so it reads the same in every language
-msgctxt "UILanguageRussian"
-msgid "Русский"
-msgstr "Русский"
-
-#. The language's name in itself, so it reads the same in every language
-msgctxt "UILanguageJapanese"
-msgid "日本語"
 msgstr "日本語"
-
-#. The language's name in itself, so it reads the same in every language
-msgctxt "UILanguageChinese"
-msgid "繁體中文"
-msgstr "繁體中文"
 
 msgctxt "UIFontScale"
 msgid "Font scale"
