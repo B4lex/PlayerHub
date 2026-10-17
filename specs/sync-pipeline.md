@@ -36,7 +36,7 @@ each feature's rules to its own system, the transport to
 
 | Module | Responsibility |
 | --- | --- |
-| `runtime/PluginStartup` | Loads the configuration, allocates the trampoline, installs every hook, and handles SKSE messages |
+| `runtime/PluginStartup` | Sizes the trampoline that `SKSE::Init` allocates, loads the configuration, installs every hook, and handles SKSE messages |
 | `runtime/MainLoopHook` | The one main-loop detour; binds the game thread and runs a pass |
 | `runtime/GameThread` | `Bind`, `IsAuthoritative`, `Require`: the engine-mutation thread guard |
 | `runtime/GameSession` | Whether a game is loaded, set by `PresenceSync` |

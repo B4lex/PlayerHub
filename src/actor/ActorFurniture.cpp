@@ -290,7 +290,7 @@ namespace ActorFurniture
                 if (!instant)
                 {
                     const auto releasedMarkerCount = ReleaseFurnitureMarkerReservations(a_actor, a_furniture);
-                    process->ClearFurniture();
+                    process->ClearFurniture(std::addressof(a_actor));
                     (void)SetActorSitSleepState(a_actor, RE::SIT_SLEEP_STATE::kNormal);
                     logs::warn(
                         "Animation sync instant furniture entry refused; using the entry idle: actor={:08X} "
@@ -304,7 +304,7 @@ namespace ActorFurniture
             {
                 // Occupancy is recorded before the entry point is chosen and is left
                 // behind when none is available.
-                process->ClearFurniture();
+                process->ClearFurniture(std::addressof(a_actor));
             }
             const auto* actorState = a_actor.AsActorState();
             logs::debug(
@@ -453,7 +453,7 @@ namespace ActorFurniture
                 static_cast<std::underlying_type_t<RE::SIT_SLEEP_STATE>>(a_sitSleepState),
                 actorState ? static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(actorState->GetWeaponState()) : 0,
                 a_remote.furniture.furnitureTransitionElapsed);
-            a_process.ClearFurniture();
+            a_process.ClearFurniture(std::addressof(a_actor));
             (void)SetActorSitSleepState(a_actor, RE::SIT_SLEEP_STATE::kNormal);
             SurvivalPolicy::AssertDoNothingPackage(a_actor);
             ResetFurnitureRequest(a_remote);
@@ -535,7 +535,7 @@ namespace ActorFurniture
         }
         if (auto* process = a_actor.GetActorRuntimeData().currentProcess)
         {
-            process->ClearFurniture();
+            process->ClearFurniture(std::addressof(a_actor));
         }
         (void)SetActorSitSleepState(a_actor, RE::SIT_SLEEP_STATE::kNormal);
         SetFurnitureAnimationOwnership(a_remote, false);
@@ -754,7 +754,7 @@ namespace ActorFurniture
                     releasedMarkerCount = ReleaseFurnitureMarkerReservations(a_actor, *occupiedFurniture);
                     if (auto* process = a_actor.GetActorRuntimeData().currentProcess)
                     {
-                        process->ClearFurniture();
+                        process->ClearFurniture(std::addressof(a_actor));
                     }
                 }
                 const auto cutSitSleepState = GetActorSitSleepState(a_actor);
@@ -812,7 +812,7 @@ namespace ActorFurniture
                 }
                 if (auto* process = a_actor.GetActorRuntimeData().currentProcess)
                 {
-                    process->ClearFurniture();
+                    process->ClearFurniture(std::addressof(a_actor));
                 }
                 (void)SetActorSitSleepState(a_actor, RE::SIT_SLEEP_STATE::kNormal);
                 // Clearing the engine's bookkeeping leaves the graph in the entry
@@ -921,7 +921,7 @@ namespace ActorFurniture
             {
                 if (auto* process = a_actor.GetActorRuntimeData().currentProcess)
                 {
-                    process->ClearFurniture();
+                    process->ClearFurniture(std::addressof(a_actor));
                 }
                 (void)SetActorSitSleepState(a_actor, RE::SIT_SLEEP_STATE::kNormal);
                 (void)AnimationFirewall::ForceDefaultGraphState(a_actor);

@@ -119,66 +119,6 @@ namespace AppearanceSync
             return nullptr;
         }
 
-        // CommonLibSSE-NG reads PlayerCharacter::tintMasks at 0xB18 on AE, but
-        // 1.7.104 keeps it at 0xB20 (PlayerCharacter::GetNumTints, ID 40700). Its
-        // 0xB10 on SE matches 1.5.97 (ID 39614).
-        std::vector<RE::TintMask*> GetPlayerTintMasks(RE::PlayerCharacter& a_player)
-        {
-            if (!REL::Module::IsAE())
-            {
-                const auto& tintMasks = a_player.GetPlayerRuntimeData().tintMasks;
-                return std::vector<RE::TintMask*>(tintMasks.begin(), tintMasks.end());
-            }
-
-            using GetNumTints = std::uint32_t(RE::PlayerCharacter*, std::uint32_t);
-            using GetTintMask = RE::TintMask*(RE::PlayerCharacter*, std::uint32_t, std::uint32_t);
-            static REL::Relocation<GetNumTints> getNumTints{ REL::ID(40700) };
-            static REL::Relocation<GetTintMask> getTintMask{ REL::ID(40698) };
-            constexpr auto kTypeCount = static_cast<std::uint32_t>(RE::TintMask::Type::kTotal);
-
-            std::array<std::uint32_t, kTypeCount> countByType{};
-            std::uint32_t total = 0;
-            for (std::uint32_t type = 0; type < kTypeCount; ++type)
-            {
-                countByType[type] = getNumTints(std::addressof(a_player), type);
-                total += countByType[type];
-            }
-
-            std::vector<RE::TintMask*> masks;
-            const auto& tintMasks = REL::RelocateMember<RE::BSTArray<RE::TintMask*>>(std::addressof(a_player), 0xB20);
-            bool consistent = tintMasks.size() == total;
-            std::array<std::uint32_t, kTypeCount> seenByType{};
-            for (std::uint32_t i = 0; consistent && i < tintMasks.size(); ++i)
-            {
-                auto* mask = tintMasks[i];
-                const auto type = mask ? mask->type.underlying() : kTypeCount;
-                consistent
-                    = type < kTypeCount && getTintMask(std::addressof(a_player), type, seenByType[type]++) == mask;
-                masks.push_back(mask);
-            }
-            if (consistent)
-            {
-                return masks;
-            }
-
-            static bool loggedFallback = false;
-            if (!loggedFallback)
-            {
-                loggedFallback = true;
-                logs::warn(
-                    "Appearance sync could not read the player tint mask array; listing {} masks by type", total);
-            }
-            masks.clear();
-            for (std::uint32_t type = 0; type < kTypeCount; ++type)
-            {
-                for (std::uint32_t i = 0; i < countByType[type]; ++i)
-                {
-                    masks.push_back(getTintMask(std::addressof(a_player), type, i));
-                }
-            }
-            return masks;
-        }
-
         void LogCaptureFailure(std::string_view a_reason)
         {
             static std::string lastReason;
@@ -275,7 +215,7 @@ namespace AppearanceSync
             if (!REL::Module::IsVR())
             {
                 const auto* faceData = GetFaceRelatedData(race, appearance.female);
-                for (const auto* mask : GetPlayerTintMasks(a_player))
+                for (const auto* mask : a_player.GetPlayerRuntimeData().tintMasks)
                 {
                     if (!mask)
                     {

@@ -8,7 +8,10 @@
   The face tint render on SE 1.5.97 (ID 26454, 2026-10-12; before that AE
   only) passed a Linux syntax check only and was not run on SE. The face
   preset clamp (2026-10-17) is covered by server unit tests and a Linux syntax
-  check; not built on Windows or run in game.
+  check; not built on Windows or run in game. Reading the player's face tints
+  through CommonLib on AE as well (2026-10-17, replacing an AE-only read of
+  `0xB20` checked against `GetNumTints`/`GetTintMask`) passed a Linux syntax
+  check only; not run in game, and AE 1.6.x offsets rest on CommonLib.
 - **Equipment:** run in game, including an earlier receiver-configured fallback.
   `UnequipSpell` on SE 1.5.97 (ID 37946, 2026-10-12; before that `DeselectSpell`
   off AE) passed a Linux syntax check only, as did spell hands carrying the
@@ -84,11 +87,10 @@ On the game thread, once per second:
   are clamped to `-1..255` (`ClampFacePart`), with `-1` for none; see
   [face presets](#engine-assumptions).
 - `bodyTint`: `TESNPC::bodyTintColor`, or the skin tone mask's color if black.
-- `tints`: `PlayerCharacter` runtime `tintMasks` in blend order. On 1.7.104 the
-  array is at `0xB20` (CommonLibSSE-NG reads `0xB18`); it is used only when it
-  matches `GetNumTints`/`GetTintMask` (IDs 40700/40698), which otherwise list
-  the masks by type. On SE it is CommonLib's `0xB10`, which SE `GetNumTints`
-  (ID 39614) also reads. Each mask maps to the race's `TintAsset` for the sex by
+- `tints`: `PlayerCharacter` runtime `tintMasks` in blend order, through
+  CommonLib's `GetPlayerRuntimeData`: `0xB10` on SE, the offset `GetNumTints`
+  reads there (ID 39614), and `0xB20` on 1.7.104, as `GetNumTints` (ID 40700)
+  reads it. Each mask maps to the race's `TintAsset` for the sex by
   texture (pointer, then case-insensitive path) for its stable `index`.
   Zero-alpha masks and masks without an asset are skipped.
 
@@ -230,8 +232,9 @@ Capture, skipped for a non-playable race:
   bare fists or anything else is an unset hand. A two-handed
   weapon, bow, or crossbow is reported in the right hand only. Dual-wielding one
   weapon sends it in both hands.
-- `ammo`: the worn `TESAmmo` entry, since `Actor::GetCurrentAmmo` returns nothing
-  for the player.
+- `ammo`: the worn `TESAmmo` entry. `Actor::GetCurrentAmmo` (vfunc 0x9E) reads
+  `MiddleHighProcessData::bothHands` instead, which an actor without
+  middle-high process data does not have.
 - `defaultOutfit`: the pieces for items that are not from base-game plugins
   ([Default outfit](#default-outfit)).
 

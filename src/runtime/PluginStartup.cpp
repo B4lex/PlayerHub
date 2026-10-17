@@ -57,14 +57,16 @@ namespace PluginStartup
         }
     }
 
+    std::size_t TrampolineSize()
+    {
+        return 14 + CombatIsolation::kTrampolineSize + ReactionSuppression::kTrampolineSize
+            + RemoteCollision::kTrampolineSize + ScenePackageSuppression::kTrampolineSize
+            + JumpSound::kTrampolineSize + UI::Overlay::kTrampolineSize;
+    }
+
     void Install()
     {
         Config::Load();
-
-        // The SKSE trampoline must be allocated before any hook writes through it.
-        SKSE::AllocTrampoline(14 + CombatIsolation::kTrampolineSize + ReactionSuppression::kTrampolineSize
-            + RemoteCollision::kTrampolineSize + ScenePackageSuppression::kTrampolineSize
-            + JumpSound::kTrampolineSize + UI::Overlay::kTrampolineSize);
         InstallRemoteActorHooks();
         MainLoopHook::Install();
         FurnitureActivationHook::Install();

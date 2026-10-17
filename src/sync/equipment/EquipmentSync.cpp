@@ -135,7 +135,8 @@ namespace EquipmentSync
         }
 
         // Equipped arrows or bolts are a worn inventory entry. Actor::GetCurrentAmmo
-        // reports nothing for the player.
+        // reads MiddleHighProcessData::bothHands, which is absent below the
+        // middle-high process level.
         RE::TESAmmo* GetWornAmmo(RE::Actor& a_actor)
         {
             const auto inventory = a_actor.GetInventory([](RE::TESBoundObject& a_object) { return a_object.IsAmmo(); });

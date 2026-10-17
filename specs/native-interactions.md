@@ -16,7 +16,9 @@
   and in-game behavior are not verified. Crafting stations and modded exit
   idles are not verified. The reset before a repeated entry after a sheathe
   ([Entry](#entry)) passed a Linux syntax check only; the Windows build and
-  in-game behavior are not verified. Plugin-qualified furniture references
+  in-game behavior are not verified. Passing the actor to `ClearFurniture`
+  ([assumption 12](#engine-assumptions), 2026-10-17) passed a Linux syntax
+  check only. Plugin-qualified furniture references
   ([Resolution](#source)) are covered by server tests only; peers with
   different load orders have not been run in game.
 - **Mounts:** implemented and run in game: a replayed rider was seated on its
@@ -607,6 +609,12 @@ Furniture entry, traced in the 1.7.104 binary:
     matched in the 1.5.97 disassembly by its instruction sequence, which
     differs only in `Actor` field offsets, and by calling the SE counterparts
     of the same functions; none was run on SE.
+12. `AIProcess::ClearFurniture` (ID 39798, SE 38773) takes the actor as its
+    second argument. With it, it releases the process's marker on the occupied
+    reference for that actor (ID 20159, SE 19764) before clearing the occupancy
+    handle and marker; without it, the reservation stays. Every receiver call
+    passes the remote actor. Traced in both binaries; the release itself was
+    not observed in game.
 
 ## Acceptance criteria
 
