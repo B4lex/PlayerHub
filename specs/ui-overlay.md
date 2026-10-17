@@ -945,10 +945,10 @@ status panel keeps the system font.
   `Config::GetDirectory` ([Configuration](configuration.md#file));
   `xmake.lua` copies the folder to every deploy directory after a build.
 - They are separate files rather than data in the DLL because Sovngarde is
-  under the SIL Open Font License 1.1 and the plugin under GPL-3.0: beside
-  the DLL the font stays a work of its own under its own license. The license
-  asks that its text and the copyright notice go with every copy, so the
-  text file is deployed with the fonts and belongs in any release archive;
+  under the SIL Open Font License 1.1 and the plugin under GPL-3.0-or-later:
+  beside the DLL the font stays a work of its own under its own license. The
+  license asks that its text and the copyright notice go with every copy, so
+  the text file is deployed with the fonts and belongs in any release archive;
   the notice is also in each font's name table. It has no reserved font name.
 - Each face is a font of its own with the system files that loaded merged
   after it, in the same order, so a character Sovngarde lacks comes from the
@@ -1134,7 +1134,7 @@ is not part of the plugin.
 - The file is `PlayerHub/frame/menu-frame.shape` under `Config::GetDirectory`,
   deployed by `xmake.lua`. It is a file rather than data in the DLL for the
   reason the [themed faces](#themed-faces) are: the art is Bethesda's and the
-  plugin is under GPL-3.0.
+  plugin is under GPL-3.0-or-later.
 - `MenuFrame::Load` runs once when the overlay initializes. It accepts
   `frame 1` as the first line, then `inset`, `corner`, and polygons as
   `backing N` or `line N` followed by N points; lengths must be finite and

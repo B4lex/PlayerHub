@@ -3,7 +3,7 @@ includes("locale")
 
 set_project("PlayerHub")
 set_version("0.1.3")
-set_license("GPL-3.0")
+set_license("GPL-3.0-or-later")
 set_languages("c++23")
 set_warnings("allextra")
 
@@ -98,6 +98,12 @@ after_build(function (target)
     local framefiles = path.join(os.projectdir(), "assets", "frame", "*")
     -- The plugin reads the translations at startup; the template is for translators.
     local localefiles = { path.join(os.projectdir(), "locale", "*.po"), path.join(os.projectdir(), "locale", "*.pot") }
+    -- The licenses must go with every copy of the DLL; .txt so Windows opens them.
+    local licensefiles = {
+        { "LICENSE", "LICENSE.txt" },
+        { "EXCEPTIONS", "EXCEPTIONS.txt" },
+        { "THIRD_PARTY_NOTICES.txt", "THIRD_PARTY_NOTICES.txt" }
+    }
     for _, deploy_dir in ipairs(deploy_dirs) do
         os.cp(dllfile, deploy_dir)
 
@@ -117,6 +123,10 @@ after_build(function (target)
         os.mkdir(locale_dir)
         for _, files in ipairs(localefiles) do
             os.cp(files, locale_dir)
+        end
+
+        for _, file in ipairs(licensefiles) do
+            os.cp(path.join(os.projectdir(), file[1]), path.join(deploy_dir, "PlayerHub", file[2]))
         end
 
         print("Deployed to %s", deploy_dir)

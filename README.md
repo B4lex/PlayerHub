@@ -25,8 +25,22 @@ the plugin are in [locale](locale), and
 
 ## Licenses
 
-The plugin and server are under the GNU General Public License 3.0
-([LICENSE](LICENSE)), with the exceptions in [EXCEPTIONS](EXCEPTIONS).
+Copyright (C) 2026 B4lex
+
+The plugin and server are licensed under [GPL-3.0-or-later](LICENSE) WITH
+[Modding Exception AND GPL-3.0 Linking Exception (with Corresponding Source)](EXCEPTIONS):
+you can redistribute and modify them under the terms of the GNU General Public
+License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version, with those exceptions. They are
+distributed in the hope that they will be useful, but WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+The plugin includes third-party libraries, among them
+[CommonLibSSE NG](https://github.com/alandtse/CommonLibSSE-NG) under the same
+license and exceptions. Each library and its license are listed in
+[THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt), which goes with every copy
+of the plugin together with [LICENSE](LICENSE) and [EXCEPTIONS](EXCEPTIONS).
 
 The settings window is set in [Sovngarde](https://mjorka.itch.io/sovngarde) by
 mjorka, shipped unmodified in [assets/fonts](assets/fonts) under the SIL Open
