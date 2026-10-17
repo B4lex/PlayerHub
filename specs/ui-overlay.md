@@ -180,8 +180,8 @@
   keeping its text, an edit, a recalled line, and Tab clearing the notes; the panel ending one item spacing above
   the field and as tall as its wrapped rows, and gone after `OnOpened`.
   The rasterized stack and panels were looked at. `ChatWindow`'s routing of
-  rejections, the connected notice, and the texts without final periods ran
-  only through the syntax check.
+  rejections, the connected notice, the `kAddressFull` refusal notice, and
+  the texts without final periods ran only through the syntax check.
 - **Chat:** not built on Windows or run in game. Server unit tests cover
   routing, the roster, and whisper addressing ([Network](network.md#status)).
   On Linux, with g++ 16 and a logging stub:
@@ -1481,6 +1481,13 @@ action on a notice. What answers the chat's own input is a
   are announced too, and the notice does not name the server: both the
   user's choices. A generation that ended before the stack saw it is not
   announced.
+- `NoticeStack` also announces a `kAddressFull` refusal
+  ([Network](network.md#admission)) when `Network::GetConnectionRefusal`
+  starts returning it, since that refusal can come from a connection the
+  player did not start, with the settings window closed. Like every refusal it
+  waits for Connect ([Connection controls](#connection-controls)); both are
+  the user's choices. Other refusals are not announced. A refusal cleared
+  and set again between two frames the stack draws is announced once.
   Every notice is its own toast, a repeat too: the user chose not to merge
   them into one with a count.
 - Notices end without a final period, the user's choice. So do the
@@ -2638,7 +2645,7 @@ do not move when a message appears:
 | Condition | Line |
 | --- | --- |
 | The field's text is not a display name ([Network](network.md#sessions)); the field's filter leaves being shorter than `kMinimumDisplayNameLength` as the only way | how many characters a name needs at least, red |
-| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`) | a sentence for the reason of `Network::GetConnectionRefusal` (`FormatRefusal`), with the server's protocol version for `kProtocolMismatch`, red, until the button connects again |
+| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`, `kAddressFull`) | a sentence for the reason of `Network::GetConnectionRefusal` (`FormatRefusal`), with the server's protocol version for `kProtocolMismatch`, red, until the button connects again |
 
 A divider in the separator color (`DrawConnectionDivider`) follows the line
 and parts the bar from the rows below. The gap below it equals the gap from

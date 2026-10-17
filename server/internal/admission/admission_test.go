@@ -61,24 +61,68 @@ func TestPendingHellosPerAddressAreCapped(t *testing.T) {
 
 func TestPlayersAreCapped(t *testing.T) {
 	g := NewGate(Limits{MaxPlayers: 2})
-	if !g.Admit(1) || !g.Admit(2) {
+	here := netip.MustParseAddr("203.0.113.7")
+	if g.Admit(1, here) != nil || g.Admit(2, here) != nil {
 		t.Fatal("refused below the cap")
 	}
-	if !g.Full() || g.Admit(3) {
+	if g.CheckNew(here) != ErrServerFull || g.Admit(3, here) != ErrServerFull {
 		t.Fatal("admitted beyond the cap")
 	}
-	if !g.Admit(2) {
+	if g.Admit(2, here) != nil {
 		t.Fatal("a connected session could not connect again")
 	}
-	g.Leave(2)
-	if !g.Full() {
+	g.Leave(2, here)
+	if g.CheckNew(here) != ErrServerFull {
 		t.Fatal("the replaced connection freed the session's place")
 	}
-	g.Leave(2)
-	if g.Full() || !g.Admit(3) {
+	g.Leave(2, here)
+	if g.CheckNew(here) != nil || g.Admit(3, here) != nil {
 		t.Fatal("a session that left kept its place")
 	}
-	if NewGate(Limits{}).Full() {
+	if NewGate(Limits{}).CheckNew(here) != nil {
+		t.Fatal("zero is a cap")
+	}
+}
+
+func TestPlayersPerAddressAreCapped(t *testing.T) {
+	g := NewGate(Limits{MaxPlayers: 8, MaxPlayersPerAddress: 2})
+	home := netip.MustParseAddr("203.0.113.7")
+	other := netip.MustParseAddr("203.0.113.8")
+	phone := netip.MustParseAddr("2001:db8:1:2::1")
+	if g.Admit(1, home) != nil || g.Admit(2, home) != nil {
+		t.Fatal("refused below the cap")
+	}
+	if g.CheckNew(home) != ErrAddressFull || g.Admit(3, home) != ErrAddressFull {
+		t.Fatal("admitted beyond the address's cap")
+	}
+	if g.Admit(3, other) != nil {
+		t.Fatal("another address shares the cap")
+	}
+	if g.Admit(2, home) != nil {
+		t.Fatal("a session could not connect again from its address")
+	}
+	if g.Admit(3, home) != ErrAddressFull {
+		t.Fatal("a session connected elsewhere moved in beyond the cap")
+	}
+	g.Leave(2, home)
+	if g.CheckNew(home) != ErrAddressFull {
+		t.Fatal("the replaced connection freed the session's place")
+	}
+	g.Leave(2, home)
+	if g.CheckNew(home) != nil || g.Admit(4, home) != nil {
+		t.Fatal("a session that left kept its place")
+	}
+
+	if g.Admit(5, phone) != nil || g.Admit(6, netip.MustParseAddr("2001:db8:1:2::ffff")) != nil {
+		t.Fatal("refused below the cap")
+	}
+	if g.CheckNew(netip.MustParseAddr("2001:db8:1:2:abcd::1")) != ErrAddressFull {
+		t.Fatal("an IPv6 address escaped its /64's cap")
+	}
+	if g.CheckNew(netip.MustParseAddr("2001:db8:1:3::1")) != nil {
+		t.Fatal("another /64 shares the cap")
+	}
+	if NewGate(Limits{MaxPlayers: 8}).CheckNew(home) != nil {
 		t.Fatal("zero is a cap")
 	}
 }

@@ -640,6 +640,10 @@ msgctxt "RefusalTooManyNewSessions"
 msgid "Too many new players joined this server from your IP address recently."
 msgstr "最近有太多新玩家從你的 IP 位址加入此伺服器。"
 
+msgctxt "RefusalAddressFull"
+msgid "Too many players from your IP address are connected to this server."
+msgstr "從你的 IP 位址連線到此伺服器的玩家過多。"
+
 msgctxt "StatusPing"
 msgid "Ping"
 msgstr "延遲"
@@ -651,6 +655,10 @@ msgstr "外掛"
 msgctxt "NoticeConnected"
 msgid "Connected to the server"
 msgstr "已連線到伺服器"
+
+msgctxt "NoticeRefusedAddressFull"
+msgid "Not connected: too many players from your IP address are on this server"
+msgstr "未連線：從你的 IP 位址在此伺服器上的玩家過多"
 
 #. {} is a player's name
 #, c++-format

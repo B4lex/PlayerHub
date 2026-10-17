@@ -13,6 +13,7 @@ import (
 
 type Limits struct {
 	MaxPlayers                    int
+	MaxPlayersPerAddress          int
 	MaxPendingHellos              int
 	MaxPendingHellosPerAddress    int
 	NewSessionsPerAddressPerMonth float64
@@ -27,19 +28,22 @@ type Gate struct {
 	pending          int
 	pendingByAddress map[netip.Prefix]int
 	// A session that connects again is briefly admitted twice, until its earlier connection
-	// leaves.
-	players map[uint64]int
-	issued  map[netip.Prefix]*limit.TokenBucket
+	// leaves, so both maps count connections per session.
+	players          map[uint64]int
+	playersByAddress map[netip.Prefix]map[uint64]int
+	issued           map[netip.Prefix]*limit.TokenBucket
 }
 
 func NewGate(limits Limits) *Gate {
 	return &Gate{limits: limits, pendingByAddress: make(map[netip.Prefix]int), players: make(map[uint64]int),
-		issued: make(map[netip.Prefix]*limit.TokenBucket)}
+		playersByAddress: make(map[netip.Prefix]map[uint64]int), issued: make(map[netip.Prefix]*limit.TokenBucket)}
 }
 
 var (
 	ErrPendingHellos        = errors.New("too many connections waiting for their hello")
 	ErrAddressPendingHellos = errors.New("too many connections from one address waiting for their hello")
+	ErrServerFull           = errors.New("server full")
+	ErrAddressFull          = errors.New("too many players from address")
 )
 
 func (g *Gate) BeginHello(address netip.Addr) error {
@@ -67,31 +71,62 @@ func (g *Gate) EndHello(address netip.Addr) {
 	}
 }
 
-func (g *Gate) Full() bool {
+// CheckNew refuses a session that cannot be admitted whatever it turns out to be, so a
+// hello without a token is refused before it touches the store or spends the allowance.
+func (g *Gate) CheckNew(address netip.Addr) error {
+	key := addressKey(address)
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return g.full()
+	switch {
+	case g.full():
+		return ErrServerFull
+	case g.addressFull(key):
+		return ErrAddressFull
+	}
+	return nil
 }
 
 func (g *Gate) full() bool {
 	return g.limits.MaxPlayers > 0 && len(g.players) >= g.limits.MaxPlayers
 }
 
-func (g *Gate) Admit(session uint64) bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if g.players[session] == 0 && g.full() {
-		return false
-	}
-	g.players[session]++
-	return true
+func (g *Gate) addressFull(key netip.Prefix) bool {
+	return g.limits.MaxPlayersPerAddress > 0 && len(g.playersByAddress[key]) >= g.limits.MaxPlayersPerAddress
 }
 
-func (g *Gate) Leave(session uint64) {
+func (g *Gate) Admit(session uint64, address netip.Addr) error {
+	key := addressKey(address)
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	here := g.playersByAddress[key]
+	switch {
+	case g.players[session] == 0 && g.full():
+		return ErrServerFull
+	case here[session] == 0 && g.addressFull(key):
+		return ErrAddressFull
+	}
+	g.players[session]++
+	if here == nil {
+		here = make(map[uint64]int)
+		g.playersByAddress[key] = here
+	}
+	here[session]++
+	return nil
+}
+
+func (g *Gate) Leave(session uint64, address netip.Addr) {
+	key := addressKey(address)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.players[session]--; g.players[session] <= 0 {
 		delete(g.players, session)
+	}
+	here := g.playersByAddress[key]
+	if here[session]--; here[session] <= 0 {
+		delete(here, session)
+	}
+	if len(here) == 0 {
+		delete(g.playersByAddress, key)
 	}
 }
 

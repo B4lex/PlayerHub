@@ -632,6 +632,10 @@ msgctxt "RefusalTooManyNewSessions"
 msgid "Too many new players joined this server from your IP address recently."
 msgstr ""
 
+msgctxt "RefusalAddressFull"
+msgid "Too many players from your IP address are connected to this server."
+msgstr ""
+
 msgctxt "StatusPing"
 msgid "Ping"
 msgstr ""
@@ -642,6 +646,10 @@ msgstr ""
 
 msgctxt "NoticeConnected"
 msgid "Connected to the server"
+msgstr ""
+
+msgctxt "NoticeRefusedAddressFull"
+msgid "Not connected: too many players from your IP address are on this server"
 msgstr ""
 
 #. {} is a player's name

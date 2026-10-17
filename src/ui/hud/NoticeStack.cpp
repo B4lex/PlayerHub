@@ -1,4 +1,5 @@
 #include "ui/hud/NoticeStack.h"
+#include "network/ConnectionMonitor.h"
 #include "network/ServerClient.h"
 #include "runtime/GameSession.h"
 #include "sync/filters/PlayerFilters.h"
@@ -82,6 +83,15 @@ namespace UI
                     }
                 }
 
+                // The refusal stays until the player connects again, so only its arrival is announced.
+                const auto refusal = Network::GetConnectionRefusal();
+                const bool addressFull = refusal && refusal->reason == Network::RefusalReason::kAddressFull;
+                if (addressFull && !refusedAddressFull)
+                {
+                    Add(std::string{ Text::Get(Text::Id::kNoticeRefusedAddressFull) }, a_now);
+                }
+                refusedAddressFull = addressFull;
+
                 PlayerFilters::CollectArrivedFriends(friends);
                 for (const auto& player : friends)
                 {
@@ -151,6 +161,7 @@ namespace UI
 
             std::vector<Toast> toasts;
             std::uint64_t connectionGeneration{ 0 };
+            bool refusedAddressFull{ false };
             std::vector<std::string> incoming;
             std::vector<Multiplayer::RosterEntry> friends;
         };

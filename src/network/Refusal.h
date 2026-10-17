@@ -13,7 +13,8 @@ namespace Network
         kDisplayNameInvalid,
         kSessionReplaced,
         kServerFull,
-        kTooManyNewSessions
+        kTooManyNewSessions,
+        kAddressFull
     };
 
     struct Refusal
@@ -39,6 +40,8 @@ namespace Network
                 return "server full";
             case RefusalReason::kTooManyNewSessions:
                 return "too many new sessions";
+            case RefusalReason::kAddressFull:
+                return "too many players from address";
         }
         return "unknown";
     }

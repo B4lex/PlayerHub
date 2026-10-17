@@ -55,6 +55,7 @@ action_burst = 10
 ordered_backlog = 4096      # unsent ordered messages before a slow client is dropped
 hello_timeout_seconds = 5
 max_players = 100           # connected at once; 0 is no cap; replays and bots do not count
+max_players_per_address = 3 # the same from one address (IPv6 per /64); 0 is no cap
 max_pending_hellos = 64     # connections still waiting for their hello; over it, upgrades answer 503
 max_pending_hellos_per_address = 8  # the same from one address (IPv6 per /64); over it, 429; 0 is no cap
 new_sessions_per_address_per_month = 10  # refilled over 30 days; IPv6 per /64; 0 is no limit; resuming is never limited
@@ -122,7 +123,9 @@ go run ./cmd/convert-recordings recordings
   sessions, and keeps their tokens in a file (`--sessions`, by default
   `loadgen-<host>.json` in the user cache directory), so later runs resume the
   same sessions under the same names. Two runs at once against one server need
-  different `--sessions` files. More bots than `max_players` need it raised.
+  different `--sessions` files. More bots than `max_players` need it raised,
+  and more than `max_players_per_address` need `max_players_per_address = 0`,
+  since every bot connects from the same address.
   `--admin ""` takes new sessions as a player does, which needs
   `new_sessions_per_address_per_month = 0`.
 - `cmd/loadgen` connects bots as real WebSocket clients, walking in a square

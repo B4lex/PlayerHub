@@ -679,6 +679,10 @@ msgstr ""
 "Troppi nuovi giocatori si sono uniti di recente a questo server dal tuo "
 "indirizzo IP."
 
+msgctxt "RefusalAddressFull"
+msgid "Too many players from your IP address are connected to this server."
+msgstr "Troppi giocatori dal tuo indirizzo IP sono connessi a questo server."
+
 msgctxt "StatusPing"
 msgid "Ping"
 msgstr "Ping"
@@ -690,6 +694,10 @@ msgstr "Plugin"
 msgctxt "NoticeConnected"
 msgid "Connected to the server"
 msgstr "Connesso al server"
+
+msgctxt "NoticeRefusedAddressFull"
+msgid "Not connected: too many players from your IP address are on this server"
+msgstr "Non connesso: troppi giocatori dal tuo indirizzo IP sono su questo server"
 
 #. {} is a player's name
 #, c++-format

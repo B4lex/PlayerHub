@@ -158,6 +158,8 @@ namespace UI::ConnectionControls
                     return std::string{ Text::Get(Id::kRefusalServerFull) };
                 case Network::RefusalReason::kTooManyNewSessions:
                     return std::string{ Text::Get(Id::kRefusalTooManyNewSessions) };
+                case Network::RefusalReason::kAddressFull:
+                    return std::string{ Text::Get(Id::kRefusalAddressFull) };
             }
             return {};
         }

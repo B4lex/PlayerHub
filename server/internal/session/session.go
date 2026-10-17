@@ -36,6 +36,7 @@ const (
 	StatusReplaced           websocket.StatusCode = 4006
 	StatusServerFull         websocket.StatusCode = 4007
 	StatusTooManyNewSessions websocket.StatusCode = 4008
+	StatusAddressFull        websocket.StatusCode = 4009
 )
 
 const maintenanceInterval = time.Hour
@@ -69,6 +70,7 @@ func NewServer(loop *hub.Loop, store *auth.Store, c config.Config, log *slog.Log
 	trusted, _ := c.TrustedProxyPrefixes()
 	gate := admission.NewGate(admission.Limits{
 		MaxPlayers:                    c.Limits.MaxPlayers,
+		MaxPlayersPerAddress:          c.Limits.MaxPlayersPerAddress,
 		MaxPendingHellos:              c.Limits.MaxPendingHellos,
 		MaxPendingHellosPerAddress:    c.Limits.MaxPendingHellosPerAddress,
 		NewSessionsPerAddressPerMonth: c.Limits.NewSessionsPerAddressPerMonth,
@@ -137,7 +139,7 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address net
 		s.log.Info("player refused", "address", address, "display_name", hello.GetDisplayName(), "error", err)
 		return
 	}
-	defer s.gate.Leave(identity.Session)
+	defer s.gate.Leave(identity.Session, address)
 
 	outbox := delivery.NewOutbox(s.config.Limits.OrderedBacklog)
 	if s.budget != nil {
@@ -220,32 +222,40 @@ func (s *Server) readHello(ctx context.Context, conn *websocket.Conn) (*pb.Hello
 	return hello, nil
 }
 
-var errServerFull = errors.New("server full")
-
 func (s *Server) join(ctx context.Context, conn *websocket.Conn, address netip.Addr) (*pb.Hello, hub.Identity, error) {
 	defer s.gate.EndHello(address)
 	hello, err := s.readHello(ctx, conn)
 	if err != nil {
 		return nil, hub.Identity{}, err
 	}
-	if len(hello.GetSessionToken()) == 0 && s.gate.Full() {
-		conn.Close(StatusServerFull, errServerFull.Error())
-		return hello, hub.Identity{}, errServerFull
+	if len(hello.GetSessionToken()) == 0 {
+		if err := s.gate.CheckNew(address); err != nil {
+			refuseAdmission(conn, err)
+			return hello, hub.Identity{}, err
+		}
 	}
 	identity, err := s.authenticate(conn, hello, address)
 	if err != nil {
 		return hello, hub.Identity{}, err
 	}
-	if !s.gate.Admit(identity.Session) {
-		conn.Close(StatusServerFull, errServerFull.Error())
+	if err := s.gate.Admit(identity.Session, address); err != nil {
+		refuseAdmission(conn, err)
 		if identity.Token != nil {
 			if _, err := s.store.Abandon(identity.Session); err != nil {
 				s.log.Error("cannot delete the unused session", "error", err)
 			}
 		}
-		return hello, hub.Identity{}, errServerFull
+		return hello, hub.Identity{}, err
 	}
 	return hello, identity, nil
+}
+
+func refuseAdmission(conn *websocket.Conn, err error) {
+	status := StatusServerFull
+	if errors.Is(err, admission.ErrAddressFull) {
+		status = StatusAddressFull
+	}
+	conn.Close(status, err.Error())
 }
 
 func (s *Server) authenticate(conn *websocket.Conn, hello *pb.Hello, address netip.Addr) (hub.Identity, error) {

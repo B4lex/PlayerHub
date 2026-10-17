@@ -167,7 +167,9 @@ once, including from one recording.
   their names would stay taken without a token. A display name another
   session holds stops the run before any bot connects. `--admin ""` keeps no
   file and takes new sessions under new digits, through the per-address
-  allowance like a player. Each stamps its checkpoint
+  allowance like a player. Issued or not, every bot connects from one address,
+  so more bots than `limits.max_players_per_address` need that cap off
+  ([Admission](network.md#admission)). Each stamps its checkpoint
   sequence with the send time in microseconds, which is strictly rising, so a
   receiver on the same host measures latency without a wire field, and its
   `time` with the send time; `--server-pid` adds the server's CPU from `/proc`.

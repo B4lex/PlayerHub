@@ -519,6 +519,59 @@ func TestFullServerRefusesNewPlayers(t *testing.T) {
 	}
 }
 
+func TestPlayersPerAddressAreCapped(t *testing.T) {
+	c := config.Default()
+	c.Limits.MaxPlayersPerAddress = 2
+	// Refusals at the cap must not spend it.
+	c.Limits.NewSessionsPerAddressPerMonth = 3
+	c.TrustedProxies = []string{"127.0.0.0/8", "::1"}
+	s := startServer(t, c)
+	joinFrom := func(address, displayName string, token []byte) *client {
+		c := dialWith(t, s, http.Header{"X-Forwarded-For": {address}})
+		c.send(hello(displayName, token))
+		return c
+	}
+	welcome := func(c *client) *pb.Welcome {
+		t.Helper()
+		m := c.receive()
+		if m.GetWelcome() == nil {
+			t.Fatalf("got %v", m)
+		}
+		c.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 1}}})
+		c.receive()
+		return m.GetWelcome()
+	}
+	first := joinFrom("203.0.113.1", "Lydia", nil)
+	lydia := welcome(first)
+	welcome(joinFrom("203.0.113.1", "Serana", nil))
+	for range 2 {
+		code, reason := closeStatus(t, joinFrom("203.0.113.1", "Aela", nil))
+		if code != StatusAddressFull || reason != "too many players from address" {
+			t.Fatalf("got %d %q", code, reason)
+		}
+	}
+	welcome(joinFrom("203.0.113.2", "Aela", nil))
+
+	second := joinFrom("203.0.113.1", "Lydia", lydia.GetSessionToken())
+	welcome(second)
+	if code, _ := closeStatus(t, first); code != StatusReplaced {
+		t.Fatalf("got %d", code)
+	}
+	second.conn.Close(websocket.StatusNormalClosure, "")
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		m, err := joinFrom("203.0.113.1", "Brynjolf", nil).tryReceive()
+		if err == nil && m.GetWelcome() != nil {
+			break
+		}
+		if websocket.CloseStatus(err) != StatusAddressFull || time.Now().After(deadline) {
+			t.Fatalf("got %v, %v", m, err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestNewSessionsPerAddressAreLimited(t *testing.T) {
 	c := config.Default()
 	c.Limits.NewSessionsPerAddressPerMonth = 2

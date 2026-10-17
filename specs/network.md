@@ -37,11 +37,17 @@
   session, every refusal, the earlier connection closed with 4006, an unused
   new session deleted and a resumed one kept, a full server refusing a new
   session but admitting a connected one, the per-address allowance by peer
-  and by forwarded address, and the pending hello cap); `internal/admission`
-  covers the gate and `X-Forwarded-For` parsing; `internal/admin` covers
+  and by forwarded address, the pending hello cap, and the per-address player
+  cap: 4009 at the cap without spending the allowance, another address
+  admitted, a session reconnecting from its address admitted, and a place
+  freed when a session leaves); `internal/admission` covers the gate,
+  including an IPv6 /64 sharing the per-address cap and a session connected
+  elsewhere refused at it, and `X-Forwarded-For` parsing; `internal/admin` covers
   `POST /api/sessions` issuing past the allowance, resuming, a hello resuming
-  an issued session, and its 409 and 422 answers. The plugin's 4007 and 4008
-  refusals are not compiled or run. `cmd/loadgen` ran 100 bots
+  an issued session, and its 409 and 422 answers. The plugin's 4007, 4008, and 4009
+  refusals are not built on Windows or run. `cmd/loadgen` with 5 bots on
+  port 3100 had 2 refused with 4009 at the default per-address cap and none
+  with it off. It ran 100 bots
   twice against one database on port 3100 without a refusal, and 20 bots
   against an in-memory store with protocol version 4. Plugin: `ServerClient`,
   `WireCodec`, `SessionStore`, and `ConnectionMonitor` were built on Linux
@@ -241,6 +247,7 @@ refused at the handshake ([Transport](#transport)).
 | 4006 `session connected elsewhere` | The session connected again | refusal |
 | 4007 `server full` | `limits.max_players` sessions are connected | refusal |
 | 4008 `too many new sessions` | The hello needs a new session and its address took its allowance | refusal |
+| 4009 `too many players from address` | `limits.max_players_per_address` sessions are connected from the hello's address | refusal |
 | 1008 | First message is not a hello, or `invalid session token` | reconnects |
 | 1011 `session store unavailable` | The session store failed | reconnects |
 
@@ -534,6 +541,19 @@ in-server bots do not pass through it and do not count.
   reconnect never waits for its dead connection's timeout. A new session
   issued in the race between that check and admission is deleted again. The
   cap also bounds the roster every client receives.
+- `limits.max_players_per_address` (3; 0 is no cap) caps the sessions
+  connected from one address, counted like the session allowance below (IPv6
+  per /64), so one host cannot hold more than a few of the `max_players`
+  places with the sessions its allowance issued. It is checked with
+  `max_players` and the same way, after it, and closes with 4009
+  `too many players from address`: a hello without a token is refused before
+  the store is touched, so a refused hello never spends the allowance, and a
+  session already connected from that address is always admitted. A session
+  connected from another address is not; it would add a player here.
+  Three admits a few players sharing a home connection; a larger group on one
+  address is refused, and players behind carrier-grade NAT share the cap with
+  strangers. It does not stop a flood spread over many addresses.
+  `cmd/loadgen` connects every bot from one address and needs the cap off.
 - `limits.new_sessions_per_address_per_month` (10; 0 is no limit) is a token
   bucket per address with that burst, refilled at that many per 30 days. The
   buckets live in memory, so a server restart refills every allowance.
@@ -910,7 +930,7 @@ client.
   once welcomed, `kConnecting` while one is wanted but not welcomed,
   `kDisconnecting` while none is wanted but the socket is open, and
   `kDisconnected` otherwise.
-- A close with status 4001, 4004, 4005, 4006, 4007, or 4008 is a refusal:
+- A close with status 4001 or 4004 through 4009 is a refusal:
   retrying at once cannot help, so the monitor disables the player's choice and closes the client,
   which leaves `kDisconnected`. `Network::GetConnectionRefusal` returns its
   `Refusal{reason, detail}`, where `detail` is the server's protocol version

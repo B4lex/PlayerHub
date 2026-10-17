@@ -662,6 +662,10 @@ msgstr ""
 "最近、あなたのIPアドレスからこのサーバーに参加した新規プレイヤーが多すぎま"
 "す。"
 
+msgctxt "RefusalAddressFull"
+msgid "Too many players from your IP address are connected to this server."
+msgstr "あなたのIPアドレスからこのサーバーに接続しているプレイヤーが多すぎます。"
+
 msgctxt "StatusPing"
 msgid "Ping"
 msgstr "Ping"
@@ -673,6 +677,10 @@ msgstr "プラグイン"
 msgctxt "NoticeConnected"
 msgid "Connected to the server"
 msgstr "サーバーに接続しました"
+
+msgctxt "NoticeRefusedAddressFull"
+msgid "Not connected: too many players from your IP address are on this server"
+msgstr "未接続：あなたのIPアドレスからこのサーバーにいるプレイヤーが多すぎます"
 
 #. {} is a player's name
 #, c++-format
