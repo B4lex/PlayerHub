@@ -144,7 +144,7 @@
   which a planted error confirmed reaches the first three. The player's
   line-of-sight path and the projection were read from the 1.7.104
   executable ([Engine assumptions](#engine-assumptions)).
-- **Font scale** (2026-10-12): not built on Windows or run in game. On
+- **Scale** (2026-10-12): not built on Windows or run in game. On
   Linux, `Overlay.cpp`, `MenuFrame.cpp`, `SettingsWindow.cpp`,
   `SettingsSchema.cpp`, and `PluginConfig.cpp` passed the g++ syntax check,
   a planted error confirming each is checked. `MenuFrame`'s
@@ -831,11 +831,11 @@ factory, such as `CreateChatWindow`, so its state stays in its `.cpp`.
   off for the session with an error.
 - `io.DisplaySize` comes from the swap chain's back buffer, not the window's
   client rectangle. Sizes and fonts are written for 1080p and scaled by
-  `backBufferHeight / 1080` (at least 0.5) times the [font scale](#font-scale).
+  `backBufferHeight / 1080` (at least 0.5) times the [scale](#scale).
 
-### Font scale
+### Scale
 
-`[UI] FontScale` ([Configuration](configuration.md#ui)), 80 to 130% in steps
+`[UI] Scale` ([Configuration](configuration.md#ui)), 80 to 130% in steps
 of 5, multiplies the overlay scale (`Overlay::ApplyScale`), which sets
 `FontScaleMain` and rescales the style from the unscaled one when the product
 changes, from the next frame after the setting applies.
@@ -1831,9 +1831,9 @@ never a line, so the history holds only what players said.
   open chat's frame (`ChatPosition::Get`) at a percentage of the screen's width
   from its left edge and of its height from its bottom edge, so `0` and `0` is
   the screen's lower left corner and the place is the same share of any
-  resolution, independent of the font scale. The defaults, `1` and `8`, keep
+  resolution, independent of the `Scale` setting. The defaults, `1` and `8`, keep
   the chat where it was placed in font sizes before, near the left edge and
-  above the magicka bar: at 1080p and the default font scale about 7 px
+  above the magicka bar: at 1080p and the default `Scale` about 7 px
   further right and 2 px lower.
 - The chat stays at its position: its [size](#size) is limited to the room
   from that corner to the right and top edges, rather than the chat being
@@ -2555,7 +2555,7 @@ by pressing it, as games' control menus do.
 - Backspace unbinds the action and applies at once; on an unbound action it
   ends listening without a change. `OpenSettings` and `OpenChat` are the only
   ways to open their windows, so Backspace there restores the default,
-  `F10` or `Enter`, instead, checked against the other actions like a
+  `F4` or `Enter`, instead, checked against the other actions like a
   pressed key.
   `SettingsVisitor::Key` passes the value Backspace sets, `a_cleared`: 0 for
   an action that can be unbound.
@@ -3223,8 +3223,8 @@ To verify in game:
    Tab turns the chip to Global; the line reaches every player with a gold
    name, and so does the next one, until Tab again. `/g hi` is sent as
    written.
-4. `F10` opens the settings window with a cursor, and the game receives no input
-   until it closes; `F10` again closes it. A new `OpenSettings` key opens and
+4. `F4` opens the settings window with a cursor, and the game receives no input
+   until it closes; `F4` again closes it. A new `OpenSettings` key opens and
    closes it and the old one no longer does, as soon as it is bound.
    Chat still opens with Enter and shows no cursor until the mouse moves.
    With another plugin's ImGui menu bound to Delete, Delete and letters typed
@@ -3298,7 +3298,7 @@ To verify in game:
 10. The settings window and the open chat have the game's menu frame in the
     game's grey, with a knot in each corner, at 1080p and 4K; nothing in
     either window touches a knot, and resizing the settings window keeps the
-    knots in its corners. The `BorderThickness` slider shows 60%; dragging it
+    knots in its corners. The `BorderThickness` slider shows 50%; dragging it
     to its right end, 100, makes the frame as large as on a message box of the
     game once released, its left end is 30, and at each the content stays
     inside the lines and clear of the knots.
@@ -3492,17 +3492,17 @@ To verify in game:
     `AcceptTrade`, and `DeclineTrade` with their keys, and `[UI]` lists none. A click on
     `AcceptTrade`'s key, then `H`, shows `H` and saves `AcceptTrade = H`
     under `[Controls]`; a trade invitation then shows `H` as the accept key
-    and `H` accepts it. While a button listens, `F10` shows that
+    and `H` accepts it. While a button listens, `F4` shows that
     `OpenSettings` has it and does not close the window, Escape cancels
     without closing it, the game sees none of these presses, and a click
     anywhere cancels. Binding `OpenSettings` to Num 7 makes Num 7 open and
-    close the window and F10 do nothing. A display name typed with a letter
+    close the window and F4 do nothing. A display name typed with a letter
     bound to `OpenSettings` keeps the letter and the window open. Backspace
     on `AcceptTrade`'s button shows it unbound, saves `AcceptTrade =`, and
     the next invitation shows only the decline hint; `Y` then reaches the
-    game. Backspace on `OpenSettings`' button restores `F10`. The footer's
+    game. Backspace on `OpenSettings`' button restores `F4`. The footer's
     Defaults button is disabled with the default keys; after rebinding any,
-    a click restores `F10`, `Enter`, `O`, `Y`, and `N`, saves them, and is
+    a click restores `F4`, `Enter`, `O`, `Y`, and `N`, saves them, and is
     disabled again.
 30. With `OpenChat` bound to `T`, `T` opens the chat with an empty field and
     Enter and keypad Enter reach the game; Enter still sends and closes it.
@@ -3529,12 +3529,12 @@ To verify in game:
     with the HUD hidden (`tm`), behind the trade window, or with
     `Nameplates` off. Many players in view do not lower the frame rate
     noticeably.
-33. The `FontScale` slider at the top of the `[UI]` page shows 100% and moves
+33. The `Scale` slider at the top of the `[UI]` page shows 100% and moves
     in steps of 5 between 80 and 130. Releasing it at 130 makes the text and
     every overlay window, the chat, notices, and nameplates larger from the
-    next frame and writes `FontScale = 130`; the open settings window grows
+    next frame and writes `Scale = 130`; the open settings window grows
     around its center and stays on the display, and the cursor moves at the
-    same speed. At 80 all of them shrink the same way. `FontScale = 107` or
+    same speed. At 80 all of them shrink the same way. `Scale = 107` or
     `150` in the file warns in the log and loads `100`.
 36. The settings window first opens centered at 48 × 35 font sizes
     (768 × 560 px at a 16 px font). Dragged to a corner, resized, closed, and

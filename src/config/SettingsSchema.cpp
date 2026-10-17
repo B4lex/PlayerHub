@@ -19,7 +19,7 @@ namespace Config
 
         // DIK_OEM_102, the key between left Shift and Z on ISO keyboards.
         constexpr std::uint32_t kIntlBackslash = 0x56;
-        constexpr std::uint32_t kDefaultSettingsKey = KeyboardKey::kF10;
+        constexpr std::uint32_t kDefaultSettingsKey = KeyboardKey::kF4;
         constexpr std::uint32_t kDefaultChatKey = KeyboardKey::kEnter;
 
         constexpr std::string_view kDefaultServerEndpoint = PLAYERHUB_DEFAULT_SERVER_ENDPOINT;
@@ -227,8 +227,8 @@ namespace Config
             a_visitor.Section("UI", Id::kSectionUI, Id::kNone);
             a_visitor.Comment(Id::kUIGroupDisplay);
             a_visitor.Language("Language", Id::kUILanguage, a_settings.language, Id::kUILanguageComment);
-            a_visitor.Percent("FontScale", Id::kUIFontScale, a_settings.fontScale, Id::kUIFontScaleComment,
-                UISettings::kMinimumFontScale, UISettings::kMaximumFontScale, UISettings::kFontScaleStep);
+            a_visitor.Percent("Scale", Id::kUIScale, a_settings.scale, Id::kUIScaleComment, UISettings::kMinimumScale,
+                UISettings::kMaximumScale, UISettings::kScaleStep);
             a_visitor.Color("AccentColor", Id::kUIAccentColor, a_settings.accentColor, Id::kUIAccentColorComment,
                 UISettings::kAccentSwatches);
             a_visitor.Choice("BorderColor", Id::kUIBorderColor, a_settings.frameColor, Id::kUIBorderColorComment,

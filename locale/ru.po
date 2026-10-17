@@ -203,11 +203,11 @@ msgctxt "LanguageName"
 msgid "English"
 msgstr "Русский"
 
-msgctxt "UIFontScale"
-msgid "Font scale"
-msgstr "Размер шрифта"
+msgctxt "UIScale"
+msgid "Scale"
+msgstr "Масштаб"
 
-msgctxt "UIFontScaleComment"
+msgctxt "UIScaleComment"
 msgid ""
 "Size of the text in the settings window, the chat, and the rest of the\n"
 "multiplayer interface. Windows grow and shrink with it."
@@ -703,7 +703,7 @@ msgstr "{} в сети"
 msgctxt "DisplayNameHint"
 msgid "Press {0} and enter a display name on the {1} tab to connect"
 msgstr ""
-"Нажмите {0} и введите отображаемое имя на вкладке «{1}», чтобы подключиться"
+"Нажмите {0} и введите отображаемое имя на вкладке {1}, чтобы подключиться"
 
 #. {} is the other player's name
 #, c++-format

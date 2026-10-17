@@ -107,8 +107,8 @@ namespace UI::Overlay
 
         void ApplyScale(float a_displayHeight)
         {
-            const auto fontScale = static_cast<float>(Config::Get()->ui.fontScale) * 0.01F;
-            const auto scale = (std::max)(a_displayHeight / kReferenceScreenHeight, kMinimumScale) * fontScale;
+            const auto userScale = static_cast<float>(Config::Get()->ui.scale) * 0.01F;
+            const auto scale = (std::max)(a_displayHeight / kReferenceScreenHeight, kMinimumScale) * userScale;
             if (scale == appliedScale)
             {
                 return;

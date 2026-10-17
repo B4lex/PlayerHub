@@ -301,7 +301,7 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 
 ### `[UI]`
 
-Four groups: Display (`Language`, `FontScale`, `AccentColor`, `BorderColor`,
+Four groups: Display (`Language`, `Scale`, `AccentColor`, `BorderColor`,
 `BorderThickness`, `BackgroundOpacity`), Players (`Nameplates`, `NameplateDistance`), Chat
 (`CloseChatOnSend`, `ChatWidth`, `ChatLines`, `ChatPositionHorizontal`,
 `ChatPositionVertical`), and Items (`ItemPreview`).
@@ -309,10 +309,10 @@ Four groups: Display (`Language`, `FontScale`, `AccentColor`, `BorderColor`,
 | Key | Meaning | Default |
 | --- | --- | --- |
 | `Language` | Language of the overlay's text and notices: `en`, or the code of a translation in `PlayerHub/locale/`, its file name without `.po` (`de`, `zh_TW`), in any case; empty follows the game's language. A value that is not a code warns and keeps the default; a code without a file uses the game's language ([UI overlay](ui-overlay.md#localization)) | empty |
-| `FontScale` | Size of the overlay's text in percent, `80..130` in steps of `5`; the windows laid out in font sizes grow and shrink with it ([UI overlay](ui-overlay.md#font-scale)) | `100` |
+| `Scale` | Size of the overlay and its text in percent, `80..130` in steps of `5`; the windows laid out in font sizes grow and shrink with it ([UI overlay](ui-overlay.md#scale)) | `100` |
 | `AccentColor` | Color of the theme's accent in the settings window and the chat, as `RRGGBB` ([UI overlay](ui-overlay.md#accent-color)) | `FF9000` |
 | `BorderColor` | Color of the menu frame around the settings window and the open chat ([UI overlay](ui-overlay.md#menu-frame)): `Vanilla`, the grey of the game's menus, or `Accent`, the accent | `Vanilla` |
-| `BorderThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `30..100` | `60` |
+| `BorderThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `30..100` | `50` |
 | `BackgroundOpacity` | Opacity of the background of the overlay's windows, popups, prompts, and notices in percent, `25..100` in steps of `5`; below `100` the game shows blurred behind them ([UI overlay](ui-overlay.md#background-blur)) | `75` |
 | `Nameplates` | Shows other players' display names above their heads while in sight ([UI overlay](ui-overlay.md#nameplates)) | `true` |
 | `NameplateDistance` | Game units from the player within which nameplates show, `0..4000`, about 70 to a meter; `0` shows none and skips their line-of-sight tests, as `Nameplates = false` does | `2000` |
@@ -334,7 +334,7 @@ the arrows, has that word in the game's language.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `OpenSettings` | Opens and closes the settings window | `F10` |
+| `OpenSettings` | Opens and closes the settings window | `F4` |
 | `OpenChat` | Opens the chat ([UI overlay](ui-overlay.md#window-and-input)) | `Enter` |
 | `ManagePlayers` | Opens the [player manager](ui-overlay.md#player-manager) alone, without the chat | `O` |
 | `AcceptTrade` | Accepts another player's trade invitation while it waits for an answer ([Trade](trade.md#invitation)). It is the game's only while no invitation waits | `Y` |
@@ -359,7 +359,7 @@ the arrows, has that word in the game's language.
 - An empty value leaves `ManagePlayers`, `AcceptTrade`, or `DeclineTrade`
   unbound (scan code 0), and the file keeps it as `AcceptTrade =`; an
   unbound action has no key and the prompt leaves it out. An empty
-  `OpenSettings` is `F10` and an empty `OpenChat` is `Enter`, since each key
+  `OpenSettings` is `F4` and an empty `OpenChat` is `Enter`, since each key
   is the only way to open its window (a whisper from the
   [world player menu](ui-overlay.md#player-menu-in-the-world) aside). Backspace in the
   window sets the same values.
