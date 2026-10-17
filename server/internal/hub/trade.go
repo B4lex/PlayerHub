@@ -85,6 +85,9 @@ func (h *Hub) requestTrade(m *member, request *pb.TradeRequest) error {
 	if !h.inTradeRange(m, target, h.opts.TradeRequestRadius) {
 		return refuse(pb.TradeCloseReason_TRADE_CLOSE_REASON_OUT_OF_RANGE, nil)
 	}
+	if m.Transformed() || target.Transformed() {
+		return refuse(pb.TradeCloseReason_TRADE_CLOSE_REASON_TRANSFORMED, nil)
+	}
 	h.nextTrade++
 	if h.nextTrade == 0 {
 		h.nextTrade++
@@ -274,6 +277,13 @@ func (h *Hub) checkTradeRange(m *member) {
 	other := h.members[t.slots[1-t.side(m.Slot)]]
 	if other == nil || !h.inTradeRange(m, other, h.opts.TradeKeepRadius) {
 		h.closeTrade(t, pb.TradeCloseReason_TRADE_CLOSE_REASON_OUT_OF_RANGE)
+	}
+}
+
+// A beast form has no inventory to trade from, so a transformation ends the trade.
+func (h *Hub) checkTradeForm(m *member) {
+	if m.trade != nil && m.Transformed() {
+		h.closeTrade(m.trade, pb.TradeCloseReason_TRADE_CLOSE_REASON_TRANSFORMED)
 	}
 }
 

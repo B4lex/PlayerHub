@@ -468,14 +468,26 @@ namespace Network
             }
 
             latestReceivedActionSequences.insert_or_assign(a_action.playerID, a_action.actionSequence);
-            logs::debug(
-                "Animation sync received attack: player={} action={} power={} direction={} actionSequence={} "
-                "graphEpoch={} checkpointSequence={}",
-                a_action.playerID, GetAttackActionName(a_action.attack.action), a_action.attack.power,
-                GetPowerAttackDirectionName(a_action.attack.direction),
-                static_cast<unsigned long long>(a_action.actionSequence),
-                static_cast<unsigned long long>(a_action.graphEpoch),
-                static_cast<unsigned long long>(a_action.checkpointSequence));
+            if (a_action.beast != Multiplayer::BeastAction::kNone)
+            {
+                logs::debug("Shapeshift sync received beast action: player={} action={} actionSequence={} "
+                            "graphEpoch={} checkpointSequence={}",
+                    a_action.playerID, static_cast<unsigned>(a_action.beast),
+                    static_cast<unsigned long long>(a_action.actionSequence),
+                    static_cast<unsigned long long>(a_action.graphEpoch),
+                    static_cast<unsigned long long>(a_action.checkpointSequence));
+            }
+            else
+            {
+                logs::debug(
+                    "Animation sync received attack: player={} action={} power={} direction={} actionSequence={} "
+                    "graphEpoch={} checkpointSequence={}",
+                    a_action.playerID, GetAttackActionName(a_action.attack.action), a_action.attack.power,
+                    GetPowerAttackDirectionName(a_action.attack.direction),
+                    static_cast<unsigned long long>(a_action.actionSequence),
+                    static_cast<unsigned long long>(a_action.graphEpoch),
+                    static_cast<unsigned long long>(a_action.checkpointSequence));
+            }
             pendingAnimationActions.push_back(std::move(a_action));
         }
 
@@ -792,9 +804,11 @@ namespace Network
         }
         if (contextChanged)
         {
-            logs::debug("Publishing context: cell={:08X} worldspace={:08X} graphEpoch={} furniture={}:{:06X}",
+            logs::debug(
+                "Publishing context: cell={:08X} worldspace={:08X} graphEpoch={} furniture={}:{:06X} shapeshift={}",
                 context.cellID, context.worldspaceID, static_cast<unsigned long long>(context.graphEpoch),
-                context.furniture.plugin, context.furniture.localFormID);
+                context.furniture.plugin, context.furniture.localFormID,
+                Multiplayer::GetShapeshiftName(context.shapeshift));
             Send(Wire::EncodeContext(context));
         }
         Send(Wire::EncodeCheckpoint(Quantize(a_transform)));
@@ -837,6 +851,26 @@ namespace Network
             static_cast<unsigned long long>(actionSequence), static_cast<unsigned long long>(a_graphEpoch),
             static_cast<unsigned long long>(a_checkpointSequence));
         Send(Wire::EncodeAction(actionSequence, a_graphEpoch, a_checkpointSequence, a_attack));
+    }
+
+    void PublishLocalBeastAction(
+        Multiplayer::BeastAction a_action, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence)
+    {
+        PROFILE_FUNCTION();
+        if (!IsConnected() || a_graphEpoch == 0 || a_checkpointSequence == 0)
+        {
+            return;
+        }
+        std::uint64_t actionSequence;
+        {
+            const std::scoped_lock lock{ publishLock };
+            actionSequence = ++localActionSequence;
+        }
+        logs::debug("Shapeshift sync publishing beast action: action={} actionSequence={} graphEpoch={} "
+                    "checkpointSequence={}",
+            static_cast<unsigned>(a_action), static_cast<unsigned long long>(actionSequence),
+            static_cast<unsigned long long>(a_graphEpoch), static_cast<unsigned long long>(a_checkpointSequence));
+        Send(Wire::EncodeBeastAction(actionSequence, a_graphEpoch, a_checkpointSequence, a_action));
     }
 
     bool PublishChatMessage(Multiplayer::ChatChannel a_channel, PeerSlot a_recipient, std::string_view a_text,

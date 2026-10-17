@@ -1268,6 +1268,32 @@ msgid ""
 "The trade with {} ended"
 msgstr ""
 
+msgctxt "TradeNotInBeastForm"
+msgid "You cannot trade in beast form"
+msgstr ""
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeTransformedDeclined"
+msgid ""
+"You are in beast form\n"
+"The trade offer from {} was declined"
+msgstr ""
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeTransformedEnded"
+msgid ""
+"You are in beast form\n"
+"The trade with {} ended"
+msgstr ""
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedTransformed"
+msgid "{} cannot trade in beast form"
+msgstr ""
+
 #. {} is the other player's name
 #, c++-format
 msgctxt "TradeGotNoAnswer"

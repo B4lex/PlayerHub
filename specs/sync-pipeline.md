@@ -42,6 +42,7 @@ each feature's rules to its own system, the transport to
 | `runtime/GameSession` | Whether a game is loaded, set by `PresenceSync` |
 | `runtime/RemoteActorActivation` | The local player's activation of a remote actor or mount, on its worker thread ([UI overlay](ui-overlay.md#player-menu-in-the-world)) |
 | `runtime/PluginTime` | Plugin time per pass, averaged each second ([UI overlay](ui-overlay.md#plugin-time)) |
+| `runtime/PlayerGraphEventHook` | The local player's accepted graph input events, for [beast actions](combat-presentation.md#beast-actions) |
 | `sync/SyncCoordinator` | One frame entry, the stage order, the single network drain, and the peer map |
 | `sync/PeerState` | A peer's complete receive state, composed of feature-owned members |
 | `sync/SyncFrame` | `LocalFrame`, `RemoteFrame`, `RemotePose`, and `CheckpointUpdate` views for one pass |
@@ -85,7 +86,9 @@ their detours and event sinks. `main.cpp` stays a small SKSE entry point.
   on the stack. The plugin never writes engine-owned movement-state fields.
 - Network callbacks only validate and queue plain values behind a lock. Hook
   callbacks on worker threads only query `ActorRegistry`, which keeps its
-  locking operations small and never touches `PeerState` or a graph.
+  locking operations small and never touches `PeerState` or a graph, or, for
+  the local player's graph input, queue a beast action behind
+  `ShapeshiftSync`'s own lock.
 
 ## Frame sequence
 
@@ -118,17 +121,19 @@ YieldActivatedFurniture                   # queued local furniture activations
 OpenActivatedPlayerMenu                   # the latest activated remote actor's player menu
 inWorld = PresenceSync::SyncPresence
 if inWorld:
-    CombatSync::CaptureLocalAttack
+    ShapeshiftSync::ObserveLocalForm       # the local beast form, for the graph input hook
+    CombatSync::CaptureLocalAttack         # dropped in a beast form
     CombatSync::CaptureLocalHandPresentation
     AnimationSync::ObserveLocalGraphEpoch
     AnimationSync::ObserveLocalMovementInput   # stop hold timer, input history
     EquipmentSync::SyncEquipment           # flushed when an attack or presentation started
     CombatSync::QueueLocalAttacks
+    ShapeshiftSync::QueueLocalActions      # beast actions the graph input hook captured
     CheckpointPublisher::PublishLocalCheckpoint
-        disconnected: discard queued attacks
-        published: CombatSync::PublishLocalAttacks after the checkpoint
+        disconnected: discard queued attacks and beast actions
+        published: CombatSync::PublishLocalAttacks, then ShapeshiftSync::PublishLocalActions
     AppearanceSync::SyncAppearance
-else: discard captured attacks
+else: discard captured attacks and beast actions
 TradeSync::Sync                           # trade events, overlay commands, cancels, offers, a commit
 if no local cell: return
 PrecisionIsolation::Update                # reassert after the player's Havok world changes
@@ -140,21 +145,23 @@ RemoteLights::Update                      # with a world camera: the remote ligh
 `SyncPeer` for one remote player:
 
 ```text
-AppearanceSync advance timers; retire on a new appearance revision
+AppearanceSync advance timers; retire on a new appearance revision, or else on a new form
 retire on a coordinate-space change
-CombatSync::AgeRemoteActions
-not in the local space: clear actions, stop
+CombatSync::AgeRemoteActions, ShapeshiftSync::AgeRemoteActions
+not in the local space: clear attacks and beast actions, stop
 DeathSync::SyncDeath                       # a killed actor keeps only handle and look
 ActorLifecycle::RetireWhenStranded
 FurnitureSync yield check                  # hide an actor that would block furniture
 MountSync::SyncMount                       # riding: equipment, rider update with weapon state, look only
 otherwise:
     MovementSync::SyncMovement             # played checkpoint's movement, then the pose
-    EquipmentSync::SyncEquipment           # -> handsSettled, readyForWeaponDraw
+    EquipmentSync::SyncEquipment           # -> handsSettled, readyForWeaponDraw; a beast: none, both true
     FurnitureSync::SyncFurniture           # exit or target change -> furniturePlaying
     AnimationSync::SyncAnimation           # unless an attack or furniture owns the graph
     FurnitureSync::SyncFurnitureEntry
-    CombatSync::SyncCombat, SyncHandPresentation   # unless furniture owns the actor
+    unless furniture owns the actor:
+        a beast: ShapeshiftSync::SyncBeast # beast actions, levitation, casts, Mist Form and bats
+        otherwise: CombatSync::SyncCombat, SyncHandPresentation
     AnimationSync::GetTranslationState
     ActorRuntime::Update
     AppearanceSync::ApplyActorPresentation
@@ -174,15 +181,16 @@ every 0.05 s of accumulated frame time while connected, keeping the remainder so
 the average rate holds, and drops whole missed intervals instead of sending a
 burst. A pass without a parent cell publishes nothing. The sequence wraps
 before `INT64_MAX`. `Network::PublishLocalPlayerTransform` sends the sample's
-context (cell, worldspace, graph epoch, furniture) first whenever it differs
+context (cell, worldspace, graph epoch, furniture, shapeshift) first whenever it differs
 from the last one sent since `Enter`, then the quantized checkpoint
 ([Network](network.md#checkpoint-and-context)).
 
 One checkpoint is one coherent sample: `MountSync::SampleLocalMount`,
 `MovementSync::SampleLocalMovement` (from the mount while riding),
 `AnimationSync::SampleLocalAnimation`, `FurnitureSync::SampleLocalFurniture`,
-`CombatSync::SampleLocalHandPresentation`, and `DeathSync::SampleLocalDeath`,
-with the graph epoch observed this pass. No stage publishes a partial
+`CombatSync::SampleLocalHandPresentation`, `DeathSync::SampleLocalDeath`, and
+`ShapeshiftSync::SampleLocalVampireLord`, with the graph epoch and the local
+form observed this pass. No stage publishes a partial
 checkpoint. The checkpoint always precedes the `Action` anchored to it, and a
 weapon swap is published before the attack or presentation that uses it.
 
@@ -329,7 +337,7 @@ player rides, its mount ([Native interactions](native-interactions.md#mounts)).
   and heading once the player is in the local space, the spawn location is
   loaded (`ActorSpawner::IsSpawnLocationLoaded`: an exterior cell containing
   the position, or the local player's interior), and
-  `AppearanceSync::GetSpawnBase` has a base. It is never created at the local
+  `AppearanceSync::GetSpawnBase` has a base for the played checkpoint's form. It is never created at the local
   player first. A failed spawn is retried after 1 s. A spawn records the cell
   and worldspace it was created in.
 - **Throttling.** `[Advanced] SpawnsPerSecond` (default 20, `0` unlimited)
@@ -338,11 +346,14 @@ player rides, its mount ([Native interactions](native-interactions.md#mounts)).
   pass may always start one spawn. A held-back spawn accumulates its wait, and
   a due spawn starts only once it has waited as long as the longest spawn held
   back in the previous pass, so a fixed peer order cannot starve later peers.
-- **Retirement** removes the actor and its mount, clears queued actions and the
+- **Retirement** removes the actor and its mount, clears queued attacks and the
   applied sequence, and keeps the latest reconstructable state for a respawn.
-  Reasons, each logged as `Recycling remote player actor ...`: a new appearance
-  revision, a coordinate-space change, fast travel, revival, dismount, a lost
-  mount, and death while riding.
+  Queued beast actions stay, since they may belong to the form the actor
+  respawns in, and age out after 3 s. Reasons, each logged as `Recycling
+  remote player actor ...`: a new appearance revision, a new
+  [beast form](appearance-and-equipment.md#shapeshifts), a coordinate-space
+  change, fast travel, revival, dismount, a lost mount, and death while
+  riding.
 - **Fast travel** within one space keeps the coordinate space, so it is found by
   displacement: an actor more than 4096 units (`kRelocationDistance`) from its
   checkpoint is retired, and so is one without 3D for 2 s whose target location

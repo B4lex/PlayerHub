@@ -246,6 +246,29 @@ func TestTradeClosesWhenPlayersPartOrLeave(t *testing.T) {
 	expect(t, tradeLines(f.received(a)), "trade close 3 DISCONNECTED")
 }
 
+func TestTradeNeedsBothPlayersInTheirOwnForm(t *testing.T) {
+	f, a, b := traders(t)
+	f.send(b, shapeshift(2, pb.Shapeshift_SHAPESHIFT_WEREWOLF))
+	f.send(a, tradeRequest(b))
+	expect(t, tradeLines(f.received(a)), "trade close 0 TRANSFORMED")
+	f.send(b, shapeshift(3, pb.Shapeshift_SHAPESHIFT_NONE))
+
+	f.clock.Advance(2)
+	f.send(a, tradeRequest(b))
+	f.send(a, shapeshift(2, pb.Shapeshift_SHAPESHIFT_VAMPIRE_LORD))
+	f.reject(b, tradeAnswer(1, true), ErrUnknownTrade)
+	expect(t, tradeLines(f.received(a)), "trade invite 1 1>2", "trade close 1 TRANSFORMED")
+	expect(t, tradeLines(f.received(b)), "trade invite 1 1>2", "trade close 1 TRANSFORMED")
+	f.send(a, shapeshift(3, pb.Shapeshift_SHAPESHIFT_NONE))
+
+	f.clock.Advance(2)
+	f.openTrade(2, a, b)
+	f.send(b, shapeshift(4, pb.Shapeshift_SHAPESHIFT_WEREBEAR))
+	expect(t, tradeLines(f.received(a)), "trade close 2 TRANSFORMED")
+	expect(t, tradeLines(f.received(b)), "trade close 2 TRANSFORMED")
+	f.reject(b, tradeCancel(2, pb.TradeCloseReason_TRADE_CLOSE_REASON_TRANSFORMED), ErrUnknownTrade)
+}
+
 func tradeLines(lines []string) []string {
 	var trades []string
 	for _, line := range lines {

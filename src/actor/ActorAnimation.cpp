@@ -796,6 +796,11 @@ namespace ActorAnimation
 
     void SetAnimationState(RemoteActor& a_remote, Multiplayer::AnimationState a_animationState)
     {
+        if (a_remote.form != Multiplayer::Shapeshift::kNone && IsSneaking(a_animationState.movementState))
+        {
+            // The beast graphs take no SneakStart: a sneaking beast walks or runs as usual.
+            a_animationState.movementState = ToggleSneak(a_animationState.movementState);
+        }
         const auto previousAnimationState = a_remote.animation.targetAnimationState;
         a_remote.animation.targetAnimationState = a_animationState;
         ActorRegistry::SetAuthoritativeJumpState(a_remote, a_animationState.jumping);
@@ -1068,6 +1073,20 @@ namespace ActorAnimation
         a_remote.animation.attackPlaybackObserved
             = actorState && actorState->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone;
         return true;
+    }
+
+    void OwnDispatchedAttack(RemoteActor& a_remote, const RE::Actor& a_actor)
+    {
+        auto& state = a_remote.animation;
+        state.attackPlaybackPending = true;
+        state.attackPlaybackElapsed = 0.0F;
+        state.attackPlaybackPower = false;
+        state.attackPlaybackAction = Network::AttackAction::kNormal;
+        state.attackPlaybackBash = false;
+        state.attackChainDispatched = false;
+        state.locomotionReassertReason = nullptr;
+        const auto* actorState = a_actor.AsActorState();
+        state.attackPlaybackObserved = actorState && actorState->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone;
     }
 
     bool IsAnimationActionPlaying(const RemoteActor& a_remote)
@@ -1860,6 +1879,16 @@ namespace ActorAnimation
             animationState->weaponTransitionAnimationObserved = true;
             animationState->weaponTransitionWaitElapsed = 0.0F;
         }
+        const bool beastGraph = a_remote.form != Multiplayer::Shapeshift::kNone;
+        if (beastGraph && animationState->weaponLocomotionReassertPending
+            && !animationState->weaponTransitionCompletionObserved
+            && weaponState == (authoritativeState.weaponDrawn ? RE::WEAPON_STATE::kDrawn : RE::WEAPON_STATE::kSheathed))
+        {
+            // The beast graphs have no equip or unequip clips with exit annotations
+            // (WerewolfBehavior.hkx takes weapEquip straight into CombatIdle), so the
+            // engine's weapon state completes the transition.
+            animationState->weaponTransitionCompletionObserved = true;
+        }
         if (animationState->weaponLocomotionReassertPending
             && animationState->weaponTransitionWaitElapsed < kWeaponTransitionFallbackSeconds)
         {
@@ -1869,8 +1898,14 @@ namespace ActorAnimation
             = animationState->weaponTransitionWaitElapsed >= kWeaponTransitionFallbackSeconds;
         const bool weaponTransitionCompleted
             = animationState->weaponTransitionCompletionObserved || weaponTransitionTimedOut;
+        if (beastGraph && weaponTransitionCompleted)
+        {
+            // No default state to force after a beast's sheathe.
+            animationState->weaponDefaultStateDispatched = true;
+        }
         if (animationState->weaponLocomotionReassertPending && weaponTransitionTimedOut
-            && !animationState->weaponTransitionCompletionObserved && !animationState->weaponTransitionExitForced)
+            && !animationState->weaponTransitionCompletionObserved && !animationState->weaponTransitionExitForced
+            && !beastGraph)
         {
             const bool authoritativeIsMoving = IsMoving(authoritativeState.movementState);
             const auto& transitionEndEvent = authoritativeState.weaponDrawn
@@ -1891,7 +1926,7 @@ namespace ActorAnimation
             }
         }
         if (animationState->weaponLocomotionReassertPending && weaponTransitionCompleted
-            && !authoritativeState.weaponDrawn && !animationState->weaponDefaultStateDispatched)
+            && !authoritativeState.weaponDrawn && !animationState->weaponDefaultStateDispatched && !beastGraph)
         {
             // The unequip exit annotation finishes the clip, but does not guarantee
             // that the behavior graph is in a state that can consume locomotion. A

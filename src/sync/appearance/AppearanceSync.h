@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol/AppearanceState.h"
+#include "protocol/Shapeshift.h"
 #include "sync/SyncFrame.h"
 
 #include <RE/Skyrim.h>
@@ -11,7 +12,7 @@
 
 namespace AppearanceSync
 {
-    void SyncAppearance(const LocalFrame& a_local, float a_delta);
+    void SyncAppearance(const LocalFrame& a_local, bool a_transformed, float a_delta);
 
     struct RemoteState
     {
@@ -20,10 +21,17 @@ namespace AppearanceSync
         RE::TESNPC* base{ nullptr };
         std::uint64_t baseRevision{ 0 };
         std::optional<std::uint64_t> failedRevision;
+        RE::TESNPC* beastBase{ nullptr };
+        Multiplayer::Shapeshift beastBaseForm{ Multiplayer::Shapeshift::kNone };
+        std::uint64_t beastBaseRevision{ 0 };
+        // A form whose race this game cannot resolve spawns as the player's own look.
+        Multiplayer::Shapeshift failedForm{ Multiplayer::Shapeshift::kNone };
         std::uint64_t spawnedRevision{ 0 };
         RE::TESNPC* spawnedBase{ nullptr };
+        Multiplayer::Shapeshift spawnedForm{ Multiplayer::Shapeshift::kNone };
         float appearanceWaitElapsed{ 0.0F };
         float respawnCooldown{ 0.0F };
+        float shapeshiftCooldown{ 0.0F };
         bool colorsApplied{ false };
         RE::NiPointer<RE::NiSourceTexture> faceTintTexture;
     };
@@ -36,11 +44,19 @@ namespace AppearanceSync
 
     void SyncAppearance(RemoteState& a_remote, float a_delta);
 
-    [[nodiscard]] RE::TESNPC* GetSpawnBase(RemoteState& a_remote, Multiplayer::PeerSlot a_playerID);
+    struct SpawnBase
+    {
+        RE::TESNPC* base{ nullptr };
+        Multiplayer::Shapeshift form{ Multiplayer::Shapeshift::kNone };
+    };
 
-    void OnActorSpawned(RemoteState& a_remote, RE::TESNPC* a_spawnedBase);
+    [[nodiscard]] SpawnBase GetSpawnBase(
+        RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, Multiplayer::Shapeshift a_form);
+
+    void OnActorSpawned(RemoteState& a_remote, const SpawnBase& a_spawned);
 
     [[nodiscard]] bool RequiresRespawn(const RemoteState& a_remote);
+    [[nodiscard]] bool RequiresShapeshift(const RemoteState& a_remote, Multiplayer::Shapeshift a_form);
 
     void ApplyActorPresentation(
         RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RE::Actor& a_actor, bool a_actorReady);

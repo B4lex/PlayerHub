@@ -122,6 +122,8 @@ namespace ActorAnimation
     [[nodiscard]] bool CanChainAttack(const RemoteActor& a_remote, const Network::Attack& a_attack);
     [[nodiscard]] bool CanPowerUpAttack(const RemoteActor& a_remote, const Network::Attack& a_attack);
     [[nodiscard]] bool DispatchAttack(RemoteActor& a_remote, const Network::Attack& a_attack);
+    // An attack event sent by another module, such as a beast attack.
+    void OwnDispatchedAttack(RemoteActor& a_remote, const RE::Actor& a_actor);
     [[nodiscard]] bool IsAnimationActionPlaying(const RemoteActor& a_remote);
     // A swimming actor's graph would play a land takeoff.
     [[nodiscard]] bool IsSwimming(const RemoteActor& a_remote);

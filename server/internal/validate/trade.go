@@ -43,7 +43,8 @@ func trade(m *pb.ClientMessage) (bool, error) {
 		c := body.TradeCancel
 		switch c.GetReason() {
 		case pb.TradeCloseReason_TRADE_CLOSE_REASON_CANCELLED, pb.TradeCloseReason_TRADE_CLOSE_REASON_COMBAT,
-			pb.TradeCloseReason_TRADE_CLOSE_REASON_MENU, pb.TradeCloseReason_TRADE_CLOSE_REASON_FAILED:
+			pb.TradeCloseReason_TRADE_CLOSE_REASON_MENU, pb.TradeCloseReason_TRADE_CLOSE_REASON_FAILED,
+			pb.TradeCloseReason_TRADE_CLOSE_REASON_TRANSFORMED:
 			return true, check(c.GetTradeId() != 0)
 		}
 		return true, ErrTrade

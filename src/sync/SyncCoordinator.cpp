@@ -23,6 +23,7 @@
 #include "sync/movement/MovementSync.h"
 #include "sync/outfit/DefaultOutfit.h"
 #include "sync/presence/PresenceSync.h"
+#include "sync/shapeshift/ShapeshiftSync.h"
 #include "sync/trade/TradeSync.h"
 
 #include <atomic>
@@ -91,6 +92,7 @@ namespace SyncCoordinator
             ActorLifecycle::RemoveActor(a_peer);
             a_peer.lifecycle = {};
             a_peer.combat = {};
+            a_peer.shapeshift = {};
             a_peer.furniture = {};
             a_peer.playout.Reset();
             a_peer.appliedSequence = 0;
@@ -158,8 +160,14 @@ namespace SyncCoordinator
             {
                 const auto peer = a_peers.find(action.playerID);
                 const bool known = peer != a_peers.end();
-                CombatSync::AcceptRemoteAction(known ? &peer->second.combat : nullptr,
-                    known ? peer->second.playout.GetNewest() : nullptr, std::move(action));
+                const auto* newest = known ? peer->second.playout.GetNewest() : nullptr;
+                if (action.beast != Multiplayer::BeastAction::kNone)
+                {
+                    ShapeshiftSync::AcceptRemoteAction(
+                        known ? &peer->second.shapeshift : nullptr, newest, std::move(action));
+                    continue;
+                }
+                CombatSync::AcceptRemoteAction(known ? &peer->second.combat : nullptr, newest, std::move(action));
             }
 
             PlayerDetails::Accept(changes.inspections);
@@ -176,6 +184,7 @@ namespace SyncCoordinator
                     FurnitureSync::OnCheckpointPlayed(peer.furniture, a_update);
                     AnimationSync::OnCheckpointPlayed(a_update);
                     CombatSync::OnCheckpointPlayed(peer.combat, a_update);
+                    ShapeshiftSync::OnCheckpointPlayed(peer.shapeshift, a_update);
                 });
             }
         }
@@ -286,7 +295,13 @@ namespace SyncCoordinator
             PROFILE_FUNCTION();
             const LocalFrame local{ .player = a_player };
 
-            const auto capturedAttack = CombatSync::CaptureLocalAttack(local);
+            const bool transformed = ShapeshiftSync::ObserveLocalForm(local) != Multiplayer::Shapeshift::kNone;
+            auto capturedAttack = CombatSync::CaptureLocalAttack(local);
+            if (transformed)
+            {
+                // A beast form's attacks travel as beast actions.
+                capturedAttack.reset();
+            }
             const bool handPresentationStarted = CombatSync::CaptureLocalHandPresentation(local);
             const auto graphEpoch = AnimationSync::ObserveLocalGraphEpoch(local);
             AnimationSync::ObserveLocalMovementInput(local, a_delta);
@@ -294,20 +309,23 @@ namespace SyncCoordinator
             // peers receive a weapon swap ahead of its use.
             EquipmentSync::SyncEquipment(local, a_delta, capturedAttack.has_value() || handPresentationStarted);
             CombatSync::QueueLocalAttacks(capturedAttack, graphEpoch.changed);
+            ShapeshiftSync::QueueLocalActions(graphEpoch.changed);
             const auto publication = CheckpointPublisher::PublishLocalCheckpoint(local, a_delta, graphEpoch.epoch);
             switch (publication.status)
             {
                 case CheckpointPublisher::Status::kDisconnected:
                     CombatSync::DiscardLocalAttacks();
+                    ShapeshiftSync::DiscardLocalActions();
                     break;
                 case CheckpointPublisher::Status::kPublished:
                     // The checkpoint always precedes the action it anchors.
                     CombatSync::PublishLocalAttacks(publication.checkpoint);
+                    ShapeshiftSync::PublishLocalActions(publication.checkpoint);
                     break;
                 default:
                     break;
             }
-            AppearanceSync::SyncAppearance(local, a_delta);
+            AppearanceSync::SyncAppearance(local, transformed, a_delta);
         }
 
         void SyncPeer(Multiplayer::PeerSlot a_playerID, PeerState& a_peer, const LocalFrame& a_local,
@@ -321,10 +339,17 @@ namespace SyncCoordinator
             const bool isInLocalSpace = MovementSync::IsInLocalSpace(remote, a_localCellID, a_localWorldspaceID);
             const bool changedSpawnedSpace = ActorLifecycle::HasChangedSpawnedSpace(a_peer);
             AppearanceSync::SyncAppearance(a_peer.appearance, a_delta);
-            if (lifecycle.actor && isInLocalSpace && !changedSpawnedSpace
-                && AppearanceSync::RequiresRespawn(a_peer.appearance))
+            if (lifecycle.actor && isInLocalSpace && !changedSpawnedSpace)
             {
-                ActorLifecycle::RetireForAppearanceChange(remote, a_peer);
+                // The appearance respawn also takes the current form.
+                if (AppearanceSync::RequiresRespawn(a_peer.appearance))
+                {
+                    ActorLifecycle::RetireForAppearanceChange(remote, a_peer);
+                }
+                else if (AppearanceSync::RequiresShapeshift(a_peer.appearance, remote.checkpoint.shapeshift))
+                {
+                    ActorLifecycle::RetireForShapeshift(remote, a_peer);
+                }
             }
             if (lifecycle.actor && (!isInLocalSpace || changedSpawnedSpace))
             {
@@ -332,9 +357,11 @@ namespace SyncCoordinator
             }
 
             CombatSync::AgeRemoteActions(remote, a_peer.combat, a_delta);
+            ShapeshiftSync::AgeRemoteActions(remote, a_peer.shapeshift, a_delta);
             if (!isInLocalSpace)
             {
                 CombatSync::ClearRemoteActions(a_peer.combat);
+                ShapeshiftSync::ClearRemoteActions(a_peer.shapeshift);
                 return;
             }
             if (lifecycle.actor && DeathSync::SyncDeath(remote, a_peer))
@@ -381,10 +408,15 @@ namespace SyncCoordinator
             else if (lifecycle.actor)
             {
                 auto& actor = *lifecycle.actor;
+                // A beast form holds and wears nothing.
+                const bool beast = actor.form != Multiplayer::Shapeshift::kNone;
                 MovementSync::SyncMovement(remote, a_peer.appliedSequence, actor);
-                EquipmentSync::SyncEquipment(a_peer.equipment, a_playerID, actor, a_delta);
-                const bool handsSettled = EquipmentSync::AreHandsSettled(a_peer.equipment);
-                const bool readyForWeaponDraw = EquipmentSync::IsReadyForWeaponDraw(a_peer.equipment);
+                if (!beast)
+                {
+                    EquipmentSync::SyncEquipment(a_peer.equipment, a_playerID, actor, a_delta);
+                }
+                const bool handsSettled = beast || EquipmentSync::AreHandsSettled(a_peer.equipment);
+                const bool readyForWeaponDraw = beast || EquipmentSync::IsReadyForWeaponDraw(a_peer.equipment);
 
                 bool furniturePlaying = FurnitureSync::SyncFurniture(remote, actor);
                 const bool attackPlaying = ActorAnimation::IsAnimationActionPlaying(actor);
@@ -393,7 +425,11 @@ namespace SyncCoordinator
                     AnimationSync::SyncAnimation(remote, actor, readyForWeaponDraw, a_delta);
                 }
                 furniturePlaying = FurnitureSync::SyncFurnitureEntry(remote, actor, attackPlaying, furniturePlaying);
-                if (!furniturePlaying)
+                if (!furniturePlaying && beast)
+                {
+                    ShapeshiftSync::SyncBeast(remote, a_peer.shapeshift, actor, a_delta);
+                }
+                else if (!furniturePlaying)
                 {
                     CombatSync::SyncCombat(remote, a_peer.combat, actor, handsSettled);
                     CombatSync::SyncHandPresentation(remote, actor, handsSettled, a_delta);
@@ -452,6 +488,7 @@ namespace SyncCoordinator
         {
             // Attacks captured before leaving would otherwise anchor to the first checkpoint after returning.
             CombatSync::DiscardLocalAttacks();
+            ShapeshiftSync::DiscardLocalActions();
         }
         TradeSync::Sync(*a_player, inWorld, a_delta);
 

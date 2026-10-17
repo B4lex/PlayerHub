@@ -13,7 +13,7 @@
 /* Enum definitions */
 typedef enum _playerhub_v1_Protocol {
     playerhub_v1_Protocol_PROTOCOL_UNSPECIFIED = 0,
-    playerhub_v1_Protocol_PROTOCOL_VERSION = 9
+    playerhub_v1_Protocol_PROTOCOL_VERSION = 10
 } playerhub_v1_Protocol;
 
 typedef enum _playerhub_v1_ChatChannel {
@@ -41,7 +41,8 @@ typedef enum _playerhub_v1_TradeCloseReason {
     playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_MENU = 7,
     playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_DISCONNECTED = 8,
     playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_FAILED = 9,
-    playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_UNAVAILABLE = 10
+    playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_UNAVAILABLE = 10,
+    playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_TRANSFORMED = 11
 } playerhub_v1_TradeCloseReason;
 
 typedef enum _playerhub_v1_LeaveReason {
@@ -373,8 +374,8 @@ extern "C" {
 #define _playerhub_v1_TradeSkipReason_ARRAYSIZE ((playerhub_v1_TradeSkipReason)(playerhub_v1_TradeSkipReason_TRADE_SKIP_REASON_BAD_ENCHANTMENT+1))
 
 #define _playerhub_v1_TradeCloseReason_MIN playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_UNSPECIFIED
-#define _playerhub_v1_TradeCloseReason_MAX playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_UNAVAILABLE
-#define _playerhub_v1_TradeCloseReason_ARRAYSIZE ((playerhub_v1_TradeCloseReason)(playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_UNAVAILABLE+1))
+#define _playerhub_v1_TradeCloseReason_MAX playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_TRANSFORMED
+#define _playerhub_v1_TradeCloseReason_ARRAYSIZE ((playerhub_v1_TradeCloseReason)(playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_TRANSFORMED+1))
 
 #define _playerhub_v1_LeaveReason_MIN playerhub_v1_LeaveReason_LEAVE_REASON_UNSPECIFIED
 #define _playerhub_v1_LeaveReason_MAX playerhub_v1_LeaveReason_LEAVE_REASON_VIEWER_UNPLACED
@@ -1111,10 +1112,10 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_Exit_size                   0
 #define playerhub_v1_Inspect_size                6
 #define playerhub_v1_Inspection_size             561
-#define playerhub_v1_PeerAction_size             47
+#define playerhub_v1_PeerAction_size             49
 #define playerhub_v1_PeerAppearance_size         8141
-#define playerhub_v1_PeerContext_size            304
-#define playerhub_v1_PeerEnter_size              23621
+#define playerhub_v1_PeerContext_size            306
+#define playerhub_v1_PeerEnter_size              23623
 #define playerhub_v1_PeerEquipment_size          15115
 #define playerhub_v1_PeerLeave_size              8
 #define playerhub_v1_Ping_size                   6

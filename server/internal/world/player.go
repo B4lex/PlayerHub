@@ -56,6 +56,10 @@ func (p *Player) Placed() bool {
 	return p.InWorld && p.Context != nil && p.Checkpoint != nil
 }
 
+func (p *Player) Transformed() bool {
+	return p.Context.GetShapeshift() != pb.Shapeshift_SHAPESHIFT_NONE
+}
+
 func (p *Player) Enter() bool {
 	if p.InWorld {
 		return false
@@ -116,6 +120,9 @@ func (p *Player) SetCheckpoint(c *pb.Checkpoint) error {
 	if p.lastSequence != 0 && c.GetSequence() <= p.lastSequence {
 		return ErrStaleSequence
 	}
+	if validate.VampireLordFlags(c) && p.Context.GetShapeshift() != pb.Shapeshift_SHAPESHIFT_VAMPIRE_LORD {
+		return ErrIncompatibleStep
+	}
 	p.lastSequence = c.GetSequence()
 	// The sender's slot, as every relayed copy carries it.
 	c.Player = p.Slot
@@ -126,8 +133,16 @@ func (p *Player) SetCheckpoint(c *pb.Checkpoint) error {
 
 func (p *Player) AcceptAction(a *pb.Action) error {
 	if !p.Placed() || a.GetGraphEpoch() != p.Context.GetGraphEpoch() ||
-		a.GetCheckpointSequence() > p.Checkpoint.GetSequence() ||
-		!validate.WeaponDrawn(p.Checkpoint) || p.Context.Furniture != nil {
+		a.GetCheckpointSequence() > p.Checkpoint.GetSequence() || p.Context.Furniture != nil {
+		return ErrIncompatibleStep
+	}
+	// A beast form's own graph decides what it accepts, including actions with
+	// claws sheathed, such as howling and feeding.
+	if beast := a.GetBeast(); beast != pb.BeastAction_BEAST_ACTION_UNSPECIFIED {
+		if !validate.SameBeastGraph(p.Context.GetShapeshift(), validate.BeastActionForm(beast)) {
+			return ErrIncompatibleStep
+		}
+	} else if !validate.WeaponDrawn(p.Checkpoint) || p.Context.GetShapeshift() != pb.Shapeshift_SHAPESHIFT_NONE {
 		return ErrIncompatibleStep
 	}
 	if p.ActionSequence != 0 && a.GetActionSequence() != p.ActionSequence+1 {
@@ -158,7 +173,8 @@ func (p *Player) SetEquipment(e *pb.Equipment) error {
 
 func sameContext(a, b *pb.Context) bool {
 	if a.GetCellId() != b.GetCellId() || a.GetWorldspaceId() != b.GetWorldspaceId() ||
-		a.GetGraphEpoch() != b.GetGraphEpoch() || (a.Furniture == nil) != (b.Furniture == nil) {
+		a.GetGraphEpoch() != b.GetGraphEpoch() || a.GetShapeshift() != b.GetShapeshift() ||
+		(a.Furniture == nil) != (b.Furniture == nil) {
 		return false
 	}
 	return a.Furniture == nil ||

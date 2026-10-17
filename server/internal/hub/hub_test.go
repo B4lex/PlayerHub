@@ -98,6 +98,21 @@ func action(sequence, anchor uint64) *pb.ClientMessage {
 		ActionSequence: sequence, GraphEpoch: 1, CheckpointSequence: anchor, Action: pb.AttackAction_ATTACK_ACTION_NORMAL}}}
 }
 
+func shapeshift(epoch uint64, form pb.Shapeshift) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{
+		CellId: 60, WorldspaceId: 60, GraphEpoch: epoch, Shapeshift: form}}}
+}
+
+func beastAction(sequence, epoch, anchor uint64, beast pb.BeastAction) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Action{Action: &pb.Action{
+		ActionSequence: sequence, GraphEpoch: epoch, CheckpointSequence: anchor, Beast: beast}}}
+}
+
+func vampireLordCheckpoint(sequence uint64, flag pb.CheckpointFlag) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{
+		Sequence: sequence, Flags: uint32(flag), Time: uint32(sequence * 50 % wire.TimeModulus)}}}
+}
+
 func appearance(revision uint64, name string) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Appearance{Appearance: &pb.Appearance{Revision: revision, Name: name}}}
 }
@@ -404,6 +419,30 @@ func TestActionValidation(t *testing.T) {
 	f.send(a, action(8, 4))
 	f.send(a, contextMessage(1, true))
 	f.reject(a, action(9, 4), world.ErrIncompatibleStep)
+}
+
+func TestBeastActionsFollowTheForm(t *testing.T) {
+	f := newFixture(t)
+	a, b := f.connect(), f.connect()
+	f.place(b, 1)
+	f.place(a, 1)
+	f.received(b)
+	f.reject(a, beastAction(1, 1, 1, pb.BeastAction_BEAST_ACTION_WEREWOLF_HOWL_START), world.ErrIncompatibleStep)
+	f.send(a, shapeshift(2, pb.Shapeshift_SHAPESHIFT_WEREBEAR))
+	f.send(a, vampireLordCheckpoint(2, pb.CheckpointFlag_CHECKPOINT_FLAG_NONE))
+	f.reject(a, action(1, 2), world.ErrIncompatibleStep)
+	f.reject(a, beastAction(1, 2, 2, pb.BeastAction_BEAST_ACTION_VAMPIRE_LORD_BATS_START), world.ErrIncompatibleStep)
+	f.send(a, beastAction(1, 2, 2, pb.BeastAction_BEAST_ACTION_WEREWOLF_HOWL_START))
+	for _, flag := range []pb.CheckpointFlag{pb.CheckpointFlag_CHECKPOINT_FLAG_LEVITATING,
+		pb.CheckpointFlag_CHECKPOINT_FLAG_MIST_FORM, pb.CheckpointFlag_CHECKPOINT_FLAG_BATS} {
+		f.reject(a, vampireLordCheckpoint(3, flag), world.ErrIncompatibleStep)
+	}
+	f.send(a, shapeshift(3, pb.Shapeshift_SHAPESHIFT_VAMPIRE_LORD))
+	f.send(a, vampireLordCheckpoint(3, pb.CheckpointFlag_CHECKPOINT_FLAG_LEVITATING|pb.CheckpointFlag_CHECKPOINT_FLAG_BATS))
+	f.send(a, beastAction(2, 3, 3, pb.BeastAction_BEAST_ACTION_VAMPIRE_LORD_BATS_START))
+	f.hub.Tick()
+	expect(t, f.received(b), "context 1 epoch 2", "states 1:2", "action 1:1", "context 1 epoch 3", "states 1:3",
+		"action 1:2")
 }
 
 func TestActionsAreRateLimited(t *testing.T) {

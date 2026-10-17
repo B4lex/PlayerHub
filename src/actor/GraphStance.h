@@ -6,7 +6,7 @@
 
 namespace GraphStance
 {
-    // kOff is not sneaking, standing, or not sprinting; kOn the opposite.
+    // kOff is not sneaking, standing, not sprinting, or on the ground; kOn the opposite.
     enum class SelectorState
     {
         kNone,
@@ -20,6 +20,7 @@ namespace GraphStance
         SelectorState sneak{ SelectorState::kNone };
         SelectorState moving{ SelectorState::kNone };
         SelectorState sprinting{ SelectorState::kNone };
+        SelectorState levitating{ SelectorState::kNone };
     };
 
     [[nodiscard]] StanceSelectors ReadStanceSelectors(RE::Actor& a_actor);

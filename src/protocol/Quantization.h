@@ -30,7 +30,10 @@ namespace Network
         inline constexpr std::uint32_t kDead = 1U << 9;
         inline constexpr std::uint32_t kMounted = 1U << 10;
         inline constexpr std::uint32_t kSwimming = 1U << 11;
-        inline constexpr std::uint32_t kKnown = 0xFFF;
+        inline constexpr std::uint32_t kLevitating = 1U << 12;
+        inline constexpr std::uint32_t kMistForm = 1U << 13;
+        inline constexpr std::uint32_t kBats = 1U << 14;
+        inline constexpr std::uint32_t kKnown = 0x7FFF;
     }
 
     struct QuantizedCheckpoint
@@ -53,6 +56,7 @@ namespace Network
         std::uint32_t worldspaceID{ 0 };
         std::uint64_t graphEpoch{ 0 };
         Multiplayer::FormReference furniture;
+        Multiplayer::Shapeshift shapeshift{ Multiplayer::Shapeshift::kNone };
 
         bool operator==(const CheckpointContext&) const = default;
     };
@@ -77,7 +81,8 @@ namespace Network
         return CheckpointContext{ .cellID = a_transform.cellID,
             .worldspaceID = a_transform.worldspaceID,
             .graphEpoch = a_transform.graphEpoch,
-            .furniture = a_transform.furniture };
+            .furniture = a_transform.furniture,
+            .shapeshift = a_transform.shapeshift };
     }
 
     [[nodiscard]] inline QuantizedCheckpoint Quantize(const PlayerTransform& a_transform)
@@ -110,6 +115,9 @@ namespace Network
         set(a_transform.dead, kDead);
         set(a_transform.mounted, kMounted);
         set(a_transform.swimming, kSwimming);
+        set(a_transform.levitating, kLevitating);
+        set(a_transform.mistForm, kMistForm);
+        set(a_transform.bats, kBats);
 
         return QuantizedCheckpoint{ .sequence = a_transform.sequence,
             .x = Detail::RoundToInt32(a_transform.x),
@@ -159,9 +167,13 @@ namespace Network
             .dead = (flags & kDead) != 0,
             .mounted = (flags & kMounted) != 0,
             .swimming = (flags & kSwimming) != 0,
+            .levitating = (flags & kLevitating) != 0,
+            .mistForm = (flags & kMistForm) != 0,
+            .bats = (flags & kBats) != 0,
             .cellID = a_context.cellID,
             .worldspaceID = a_context.worldspaceID,
             .furniture = a_context.furniture,
+            .shapeshift = a_context.shapeshift,
             .graphEpoch = a_context.graphEpoch,
             .sequence = a_checkpoint.sequence,
             .sampleTime = a_checkpoint.time };

@@ -67,6 +67,14 @@ func Markers(r *Recording) []Marker {
 					}
 					markers = append(markers, Marker{m.TMs, "furniture", label})
 				}
+				if c.GetShapeshift() != previousContext.GetShapeshift() {
+					label := "Returned to human form"
+					if c.GetShapeshift() != pb.Shapeshift_SHAPESHIFT_NONE {
+						label = "Transformed into " + strings.ToLower(strings.ReplaceAll(
+							strings.TrimPrefix(c.GetShapeshift().String(), "SHAPESHIFT_"), "_", " "))
+					}
+					markers = append(markers, Marker{m.TMs, "shapeshift", label})
+				}
 				kind, id := area(c)
 				previousKind, previousID := area(previousContext)
 				if kind != previousKind || id != previousID {

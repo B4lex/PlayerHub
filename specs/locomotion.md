@@ -64,6 +64,10 @@ the sprint skip added for it ran in game in the next capture: 14 sprinting
 landings, `SprintStart` skipped 4 times as already sprinting, and no event
 timeout or translation hold.
 
+Beast graphs (2026-10-17): the selectors and events below were read from the
+vanilla `WerewolfBehavior.hkx` and `VampireLord.hkx`; Linux syntax check
+only; not built on Windows or run in game.
+
 Removing the one-shot sneak, presentation, and weapon-transition `moveStart`
 repairs and merging the landing, attack, presentation, and swim-stop reasserts
 into one (2026-10-14): run in game with a live peer (attacks, bow shots, casts,
@@ -108,8 +112,9 @@ death owns it. Placement isolation is in
 
 The source's own graph state is authoritative: the receiver never infers an
 animation from speed or distance, and does not validate a transition against
-its previous local state. Vanilla humanoid graphs are the baseline; custom
-graphs may slide or miss transitions.
+its previous local state. Vanilla humanoid graphs are the baseline, and the
+vanilla beast graphs are driven the same way ([Beast graphs](#beast-graphs));
+custom graphs may slide or miss transitions.
 
 ## Components
 
@@ -425,6 +430,38 @@ rejected `moveStop` for the whole retry window while already standing.
   every active selector and its state, at most on the first and every 60th
   retry of an edge.
 
+### Beast graphs
+
+A remote actor in a [beast form](appearance-and-equipment.md#shapeshifts)
+plays `WerewolfBehavior.hkx` (also the werebear's) or `VampireLord.hkx`, whose
+locomotion inputs match the human ones: `moveStart` and `moveStop`,
+`sprintStart` and `sprintStop`, the jump and landing events, `SwimStart` and
+`SwimStop`, and `weapEquip` and `weapUnequip`, so the same dispatch drives
+them. The string pool folds case, so `SprintStart` names `sprintStart`.
+
+- Neither graph has a `SneakStart` transition: `SetAnimationState` turns a
+  beast's sneaking target into its walking, running, or idle variant, so no
+  sneak edge is sent and none is reconciled.
+- The selectors of `GraphStance` also list the beast graphs: standing or
+  moving in `MovementBehavior` (both), `Behavior03` and the swim machine
+  `Behavior06` (werewolf), and `CombatReadyBehavior`, `EquipBehavior`,
+  `UnequipBehavior`, `LevitationMovementBehavior`, `LevitateCombatBehavior`,
+  and `CastState_Ready_Behavior` (vampire lord); sprinting in `H2HBehavior`
+  (werewolf), `Ground_StateBehavior`, and `Levitation_Behavior` (vampire
+  lord). A fourth axis reads the vampire lord's levitation from its
+  `H2HBehavior`: `Ground_State_Cam` and `Levitate_End` off, `LevitationBase_State`
+  and `Levitate_Start` on, so a toggle counts as soon as it is taken
+  ([Combat presentation](combat-presentation.md#levitation)). A machine name
+  can carry several selectors; a state of another graph's machine of the same
+  name matches none of them.
+- A beast's draw and sheathe have no clip exit annotation (`weapEquip` takes
+  the werewolf straight into `CombatIdle`), so the transition completes once
+  Skyrim's weapon state reaches drawn or sheathed, or at the usual 2.5 s
+  bound; no exit event is forced and `IdleForceDefaultState`, which the beast
+  graphs lack, is never sent.
+- The idle turn machines number their states as the human ones do (1
+  standing), so the [idle turn hold](#turning) applies unchanged.
+
 ### Graph probe
 
 A diagnostic for finding a graph reading that tells a standing actor from a
@@ -574,6 +611,10 @@ not yet checked in game:
    paired with another (the only engine reference by name is the
    `ActorCopyGraphVariableChannel<int>` built in ID 40358, a function that takes
    two actors).
+8. The beast graphs take the human locomotion inputs as the human graph does
+   (`moveStart` entering `Locomotion_State`, `sprintStart` the sprint state,
+   the jump events the jump branch), and Skyrim's weapon state of a beast
+   reaches drawn and sheathed after a native draw and sheathe.
 
 The graph probe's value-set and state-info offsets come from the Havok 2010
 class layouts and were not checked against the executable; in game they read
@@ -600,6 +641,10 @@ referenced sub-behaviors when read from the main loop.
 8. A remote actor that draws a bow, weapon, or spell while sneaking and then
    stands up, walks, or runs is not left crouching, and one that sneaks during
    a draw does not stay standing.
+9. A remote werewolf, werebear, or vampire lord walks, runs, sprints (on all
+   fours as a werewolf), jumps, and swims with its own clips without sliding,
+   draws and sheathes its claws, and a vampire lord does so hovering and on
+   the ground.
 
 ## Known limitations
 

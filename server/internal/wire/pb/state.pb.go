@@ -95,21 +95,27 @@ const (
 	CheckpointFlag_CHECKPOINT_FLAG_DEAD          CheckpointFlag = 512
 	CheckpointFlag_CHECKPOINT_FLAG_MOUNTED       CheckpointFlag = 1024
 	CheckpointFlag_CHECKPOINT_FLAG_SWIMMING      CheckpointFlag = 2048
+	CheckpointFlag_CHECKPOINT_FLAG_LEVITATING    CheckpointFlag = 4096
+	CheckpointFlag_CHECKPOINT_FLAG_MIST_FORM     CheckpointFlag = 8192
+	CheckpointFlag_CHECKPOINT_FLAG_BATS          CheckpointFlag = 16384
 )
 
 // Enum value maps for CheckpointFlag.
 var (
 	CheckpointFlag_name = map[int32]string{
-		0:    "CHECKPOINT_FLAG_NONE",
-		8:    "CHECKPOINT_FLAG_JUMPING",
-		16:   "CHECKPOINT_FLAG_WEAPON_DRAWN",
-		32:   "CHECKPOINT_FLAG_BOW_DRAWN",
-		64:   "CHECKPOINT_FLAG_CASTING_LEFT",
-		128:  "CHECKPOINT_FLAG_CASTING_RIGHT",
-		256:  "CHECKPOINT_FLAG_BLOCKING",
-		512:  "CHECKPOINT_FLAG_DEAD",
-		1024: "CHECKPOINT_FLAG_MOUNTED",
-		2048: "CHECKPOINT_FLAG_SWIMMING",
+		0:     "CHECKPOINT_FLAG_NONE",
+		8:     "CHECKPOINT_FLAG_JUMPING",
+		16:    "CHECKPOINT_FLAG_WEAPON_DRAWN",
+		32:    "CHECKPOINT_FLAG_BOW_DRAWN",
+		64:    "CHECKPOINT_FLAG_CASTING_LEFT",
+		128:   "CHECKPOINT_FLAG_CASTING_RIGHT",
+		256:   "CHECKPOINT_FLAG_BLOCKING",
+		512:   "CHECKPOINT_FLAG_DEAD",
+		1024:  "CHECKPOINT_FLAG_MOUNTED",
+		2048:  "CHECKPOINT_FLAG_SWIMMING",
+		4096:  "CHECKPOINT_FLAG_LEVITATING",
+		8192:  "CHECKPOINT_FLAG_MIST_FORM",
+		16384: "CHECKPOINT_FLAG_BATS",
 	}
 	CheckpointFlag_value = map[string]int32{
 		"CHECKPOINT_FLAG_NONE":          0,
@@ -122,6 +128,9 @@ var (
 		"CHECKPOINT_FLAG_DEAD":          512,
 		"CHECKPOINT_FLAG_MOUNTED":       1024,
 		"CHECKPOINT_FLAG_SWIMMING":      2048,
+		"CHECKPOINT_FLAG_LEVITATING":    4096,
+		"CHECKPOINT_FLAG_MIST_FORM":     8192,
+		"CHECKPOINT_FLAG_BATS":          16384,
 	}
 )
 
@@ -150,6 +159,58 @@ func (x CheckpointFlag) Number() protoreflect.EnumNumber {
 // Deprecated: Use CheckpointFlag.Descriptor instead.
 func (CheckpointFlag) EnumDescriptor() ([]byte, []int) {
 	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{1}
+}
+
+type Shapeshift int32
+
+const (
+	Shapeshift_SHAPESHIFT_NONE         Shapeshift = 0
+	Shapeshift_SHAPESHIFT_WEREWOLF     Shapeshift = 1
+	Shapeshift_SHAPESHIFT_VAMPIRE_LORD Shapeshift = 2
+	Shapeshift_SHAPESHIFT_WEREBEAR     Shapeshift = 3
+)
+
+// Enum value maps for Shapeshift.
+var (
+	Shapeshift_name = map[int32]string{
+		0: "SHAPESHIFT_NONE",
+		1: "SHAPESHIFT_WEREWOLF",
+		2: "SHAPESHIFT_VAMPIRE_LORD",
+		3: "SHAPESHIFT_WEREBEAR",
+	}
+	Shapeshift_value = map[string]int32{
+		"SHAPESHIFT_NONE":         0,
+		"SHAPESHIFT_WEREWOLF":     1,
+		"SHAPESHIFT_VAMPIRE_LORD": 2,
+		"SHAPESHIFT_WEREBEAR":     3,
+	}
+)
+
+func (x Shapeshift) Enum() *Shapeshift {
+	p := new(Shapeshift)
+	*p = x
+	return p
+}
+
+func (x Shapeshift) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Shapeshift) Descriptor() protoreflect.EnumDescriptor {
+	return file_playerhub_v1_state_proto_enumTypes[2].Descriptor()
+}
+
+func (Shapeshift) Type() protoreflect.EnumType {
+	return &file_playerhub_v1_state_proto_enumTypes[2]
+}
+
+func (x Shapeshift) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Shapeshift.Descriptor instead.
+func (Shapeshift) EnumDescriptor() ([]byte, []int) {
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{2}
 }
 
 type AttackAction int32
@@ -191,11 +252,11 @@ func (x AttackAction) String() string {
 }
 
 func (AttackAction) Descriptor() protoreflect.EnumDescriptor {
-	return file_playerhub_v1_state_proto_enumTypes[2].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[3].Descriptor()
 }
 
 func (AttackAction) Type() protoreflect.EnumType {
-	return &file_playerhub_v1_state_proto_enumTypes[2]
+	return &file_playerhub_v1_state_proto_enumTypes[3]
 }
 
 func (x AttackAction) Number() protoreflect.EnumNumber {
@@ -204,7 +265,7 @@ func (x AttackAction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AttackAction.Descriptor instead.
 func (AttackAction) EnumDescriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{2}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{3}
 }
 
 type PowerDirection int32
@@ -249,11 +310,11 @@ func (x PowerDirection) String() string {
 }
 
 func (PowerDirection) Descriptor() protoreflect.EnumDescriptor {
-	return file_playerhub_v1_state_proto_enumTypes[3].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[4].Descriptor()
 }
 
 func (PowerDirection) Type() protoreflect.EnumType {
-	return &file_playerhub_v1_state_proto_enumTypes[3]
+	return &file_playerhub_v1_state_proto_enumTypes[4]
 }
 
 func (x PowerDirection) Number() protoreflect.EnumNumber {
@@ -262,7 +323,169 @@ func (x PowerDirection) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PowerDirection.Descriptor instead.
 func (PowerDirection) EnumDescriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{3}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{4}
+}
+
+// A beast form's action, from the vanilla behavior graph of that form. Werewolf
+// values also serve the werebear, which shares the werewolf's graph.
+type BeastAction int32
+
+const (
+	BeastAction_BEAST_ACTION_UNSPECIFIED                           BeastAction = 0
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_RIGHT                 BeastAction = 1
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_LEFT                  BeastAction = 2
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_POWER           BeastAction = 3
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_LEFT_POWER            BeastAction = 4
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_DUAL                  BeastAction = 5
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_BACKHAND              BeastAction = 6
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_SIDE            BeastAction = 7
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_LEFT_SIDE             BeastAction = 8
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_RUNNING_POWER   BeastAction = 9
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_LEFT_RUNNING_POWER    BeastAction = 10
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_DUAL_RUNNING          BeastAction = 11
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_DUAL_SPRINTING        BeastAction = 12
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_SPRINTING       BeastAction = 13
+	BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_LEFT_SPRINTING        BeastAction = 14
+	BeastAction_BEAST_ACTION_WEREWOLF_HOWL_START                   BeastAction = 15
+	BeastAction_BEAST_ACTION_WEREWOLF_HOWL_RELEASE                 BeastAction = 16
+	BeastAction_BEAST_ACTION_WEREWOLF_HOWL_END                     BeastAction = 17
+	BeastAction_BEAST_ACTION_WEREWOLF_FEED                         BeastAction = 18
+	BeastAction_BEAST_ACTION_WEREWOLF_FEED_PAIRED                  BeastAction = 19
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_ATTACK_RIGHT             BeastAction = 32
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_ATTACK_LEFT              BeastAction = 33
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_ATTACK_POWER_RIGHT       BeastAction = 34
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_ATTACK_POWER_LEFT        BeastAction = 35
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_BATS_START               BeastAction = 36
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_BATS_STOP                BeastAction = 37
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_FEED_FRONT               BeastAction = 38
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_FEED_BACK                BeastAction = 39
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_BEGIN_LEFT          BeastAction = 40
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_BEGIN_RIGHT         BeastAction = 41
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_AIMED_LEFT          BeastAction = 42
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_AIMED_RIGHT         BeastAction = 43
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_CONCENTRATION_LEFT  BeastAction = 44
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_CONCENTRATION_RIGHT BeastAction = 45
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_READY_LEFT          BeastAction = 46
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_READY_RIGHT         BeastAction = 47
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_RELEASE_LEFT        BeastAction = 48
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_RELEASE_RIGHT       BeastAction = 49
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_LEFT      BeastAction = 50
+	BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT     BeastAction = 51
+)
+
+// Enum value maps for BeastAction.
+var (
+	BeastAction_name = map[int32]string{
+		0:  "BEAST_ACTION_UNSPECIFIED",
+		1:  "BEAST_ACTION_WEREWOLF_ATTACK_RIGHT",
+		2:  "BEAST_ACTION_WEREWOLF_ATTACK_LEFT",
+		3:  "BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_POWER",
+		4:  "BEAST_ACTION_WEREWOLF_ATTACK_LEFT_POWER",
+		5:  "BEAST_ACTION_WEREWOLF_ATTACK_DUAL",
+		6:  "BEAST_ACTION_WEREWOLF_ATTACK_BACKHAND",
+		7:  "BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_SIDE",
+		8:  "BEAST_ACTION_WEREWOLF_ATTACK_LEFT_SIDE",
+		9:  "BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_RUNNING_POWER",
+		10: "BEAST_ACTION_WEREWOLF_ATTACK_LEFT_RUNNING_POWER",
+		11: "BEAST_ACTION_WEREWOLF_ATTACK_DUAL_RUNNING",
+		12: "BEAST_ACTION_WEREWOLF_ATTACK_DUAL_SPRINTING",
+		13: "BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_SPRINTING",
+		14: "BEAST_ACTION_WEREWOLF_ATTACK_LEFT_SPRINTING",
+		15: "BEAST_ACTION_WEREWOLF_HOWL_START",
+		16: "BEAST_ACTION_WEREWOLF_HOWL_RELEASE",
+		17: "BEAST_ACTION_WEREWOLF_HOWL_END",
+		18: "BEAST_ACTION_WEREWOLF_FEED",
+		19: "BEAST_ACTION_WEREWOLF_FEED_PAIRED",
+		32: "BEAST_ACTION_VAMPIRE_LORD_ATTACK_RIGHT",
+		33: "BEAST_ACTION_VAMPIRE_LORD_ATTACK_LEFT",
+		34: "BEAST_ACTION_VAMPIRE_LORD_ATTACK_POWER_RIGHT",
+		35: "BEAST_ACTION_VAMPIRE_LORD_ATTACK_POWER_LEFT",
+		36: "BEAST_ACTION_VAMPIRE_LORD_BATS_START",
+		37: "BEAST_ACTION_VAMPIRE_LORD_BATS_STOP",
+		38: "BEAST_ACTION_VAMPIRE_LORD_FEED_FRONT",
+		39: "BEAST_ACTION_VAMPIRE_LORD_FEED_BACK",
+		40: "BEAST_ACTION_VAMPIRE_LORD_CAST_BEGIN_LEFT",
+		41: "BEAST_ACTION_VAMPIRE_LORD_CAST_BEGIN_RIGHT",
+		42: "BEAST_ACTION_VAMPIRE_LORD_CAST_AIMED_LEFT",
+		43: "BEAST_ACTION_VAMPIRE_LORD_CAST_AIMED_RIGHT",
+		44: "BEAST_ACTION_VAMPIRE_LORD_CAST_CONCENTRATION_LEFT",
+		45: "BEAST_ACTION_VAMPIRE_LORD_CAST_CONCENTRATION_RIGHT",
+		46: "BEAST_ACTION_VAMPIRE_LORD_CAST_READY_LEFT",
+		47: "BEAST_ACTION_VAMPIRE_LORD_CAST_READY_RIGHT",
+		48: "BEAST_ACTION_VAMPIRE_LORD_CAST_RELEASE_LEFT",
+		49: "BEAST_ACTION_VAMPIRE_LORD_CAST_RELEASE_RIGHT",
+		50: "BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_LEFT",
+		51: "BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT",
+	}
+	BeastAction_value = map[string]int32{
+		"BEAST_ACTION_UNSPECIFIED":                           0,
+		"BEAST_ACTION_WEREWOLF_ATTACK_RIGHT":                 1,
+		"BEAST_ACTION_WEREWOLF_ATTACK_LEFT":                  2,
+		"BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_POWER":           3,
+		"BEAST_ACTION_WEREWOLF_ATTACK_LEFT_POWER":            4,
+		"BEAST_ACTION_WEREWOLF_ATTACK_DUAL":                  5,
+		"BEAST_ACTION_WEREWOLF_ATTACK_BACKHAND":              6,
+		"BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_SIDE":            7,
+		"BEAST_ACTION_WEREWOLF_ATTACK_LEFT_SIDE":             8,
+		"BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_RUNNING_POWER":   9,
+		"BEAST_ACTION_WEREWOLF_ATTACK_LEFT_RUNNING_POWER":    10,
+		"BEAST_ACTION_WEREWOLF_ATTACK_DUAL_RUNNING":          11,
+		"BEAST_ACTION_WEREWOLF_ATTACK_DUAL_SPRINTING":        12,
+		"BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_SPRINTING":       13,
+		"BEAST_ACTION_WEREWOLF_ATTACK_LEFT_SPRINTING":        14,
+		"BEAST_ACTION_WEREWOLF_HOWL_START":                   15,
+		"BEAST_ACTION_WEREWOLF_HOWL_RELEASE":                 16,
+		"BEAST_ACTION_WEREWOLF_HOWL_END":                     17,
+		"BEAST_ACTION_WEREWOLF_FEED":                         18,
+		"BEAST_ACTION_WEREWOLF_FEED_PAIRED":                  19,
+		"BEAST_ACTION_VAMPIRE_LORD_ATTACK_RIGHT":             32,
+		"BEAST_ACTION_VAMPIRE_LORD_ATTACK_LEFT":              33,
+		"BEAST_ACTION_VAMPIRE_LORD_ATTACK_POWER_RIGHT":       34,
+		"BEAST_ACTION_VAMPIRE_LORD_ATTACK_POWER_LEFT":        35,
+		"BEAST_ACTION_VAMPIRE_LORD_BATS_START":               36,
+		"BEAST_ACTION_VAMPIRE_LORD_BATS_STOP":                37,
+		"BEAST_ACTION_VAMPIRE_LORD_FEED_FRONT":               38,
+		"BEAST_ACTION_VAMPIRE_LORD_FEED_BACK":                39,
+		"BEAST_ACTION_VAMPIRE_LORD_CAST_BEGIN_LEFT":          40,
+		"BEAST_ACTION_VAMPIRE_LORD_CAST_BEGIN_RIGHT":         41,
+		"BEAST_ACTION_VAMPIRE_LORD_CAST_AIMED_LEFT":          42,
+		"BEAST_ACTION_VAMPIRE_LORD_CAST_AIMED_RIGHT":         43,
+		"BEAST_ACTION_VAMPIRE_LORD_CAST_CONCENTRATION_LEFT":  44,
+		"BEAST_ACTION_VAMPIRE_LORD_CAST_CONCENTRATION_RIGHT": 45,
+		"BEAST_ACTION_VAMPIRE_LORD_CAST_READY_LEFT":          46,
+		"BEAST_ACTION_VAMPIRE_LORD_CAST_READY_RIGHT":         47,
+		"BEAST_ACTION_VAMPIRE_LORD_CAST_RELEASE_LEFT":        48,
+		"BEAST_ACTION_VAMPIRE_LORD_CAST_RELEASE_RIGHT":       49,
+		"BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_LEFT":      50,
+		"BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT":     51,
+	}
+)
+
+func (x BeastAction) Enum() *BeastAction {
+	p := new(BeastAction)
+	*p = x
+	return p
+}
+
+func (x BeastAction) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BeastAction) Descriptor() protoreflect.EnumDescriptor {
+	return file_playerhub_v1_state_proto_enumTypes[5].Descriptor()
+}
+
+func (BeastAction) Type() protoreflect.EnumType {
+	return &file_playerhub_v1_state_proto_enumTypes[5]
+}
+
+func (x BeastAction) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use BeastAction.Descriptor instead.
+func (BeastAction) EnumDescriptor() ([]byte, []int) {
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{5}
 }
 
 type HandKind int32
@@ -301,11 +524,11 @@ func (x HandKind) String() string {
 }
 
 func (HandKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_playerhub_v1_state_proto_enumTypes[4].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[6].Descriptor()
 }
 
 func (HandKind) Type() protoreflect.EnumType {
-	return &file_playerhub_v1_state_proto_enumTypes[4]
+	return &file_playerhub_v1_state_proto_enumTypes[6]
 }
 
 func (x HandKind) Number() protoreflect.EnumNumber {
@@ -314,7 +537,7 @@ func (x HandKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HandKind.Descriptor instead.
 func (HandKind) EnumDescriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{4}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{6}
 }
 
 type FormRef struct {
@@ -499,6 +722,7 @@ type Context struct {
 	WorldspaceId  uint32                 `protobuf:"varint,2,opt,name=worldspace_id,json=worldspaceId,proto3" json:"worldspace_id,omitempty"`
 	GraphEpoch    uint64                 `protobuf:"varint,3,opt,name=graph_epoch,json=graphEpoch,proto3" json:"graph_epoch,omitempty"`
 	Furniture     *FormRef               `protobuf:"bytes,4,opt,name=furniture,proto3" json:"furniture,omitempty"`
+	Shapeshift    Shapeshift             `protobuf:"varint,5,opt,name=shapeshift,proto3,enum=playerhub.v1.Shapeshift" json:"shapeshift,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -561,6 +785,13 @@ func (x *Context) GetFurniture() *FormRef {
 	return nil
 }
 
+func (x *Context) GetShapeshift() Shapeshift {
+	if x != nil {
+		return x.Shapeshift
+	}
+	return Shapeshift_SHAPESHIFT_NONE
+}
+
 type Action struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	ActionSequence     uint64                 `protobuf:"varint,1,opt,name=action_sequence,json=actionSequence,proto3" json:"action_sequence,omitempty"`
@@ -569,6 +800,7 @@ type Action struct {
 	Action             AttackAction           `protobuf:"varint,4,opt,name=action,proto3,enum=playerhub.v1.AttackAction" json:"action,omitempty"`
 	Power              bool                   `protobuf:"varint,5,opt,name=power,proto3" json:"power,omitempty"`
 	Direction          PowerDirection         `protobuf:"varint,6,opt,name=direction,proto3,enum=playerhub.v1.PowerDirection" json:"direction,omitempty"`
+	Beast              BeastAction            `protobuf:"varint,7,opt,name=beast,proto3,enum=playerhub.v1.BeastAction" json:"beast,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -643,6 +875,13 @@ func (x *Action) GetDirection() PowerDirection {
 		return x.Direction
 	}
 	return PowerDirection_POWER_DIRECTION_NONE
+}
+
+func (x *Action) GetBeast() BeastAction {
+	if x != nil {
+		return x.Beast
+	}
+	return BeastAction_BEAST_ACTION_UNSPECIFIED
 }
 
 type Color struct {
@@ -1326,13 +1565,16 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\tdirection\x18\t \x01(\rR\tdirection\x12\x14\n" +
 	"\x05flags\x18\n" +
 	" \x01(\rR\x05flags\x12\x12\n" +
-	"\x04time\x18\v \x01(\rR\x04time\"\x9d\x01\n" +
+	"\x04time\x18\v \x01(\rR\x04time\"\xd7\x01\n" +
 	"\aContext\x12\x17\n" +
 	"\acell_id\x18\x01 \x01(\rR\x06cellId\x12#\n" +
 	"\rworldspace_id\x18\x02 \x01(\rR\fworldspaceId\x12\x1f\n" +
 	"\vgraph_epoch\x18\x03 \x01(\x04R\n" +
 	"graphEpoch\x123\n" +
-	"\tfurniture\x18\x04 \x01(\v2\x15.playerhub.v1.FormRefR\tfurniture\"\x89\x02\n" +
+	"\tfurniture\x18\x04 \x01(\v2\x15.playerhub.v1.FormRefR\tfurniture\x128\n" +
+	"\n" +
+	"shapeshift\x18\x05 \x01(\x0e2\x18.playerhub.v1.ShapeshiftR\n" +
+	"shapeshift\"\xba\x02\n" +
 	"\x06Action\x12'\n" +
 	"\x0faction_sequence\x18\x01 \x01(\x04R\x0eactionSequence\x12\x1f\n" +
 	"\vgraph_epoch\x18\x02 \x01(\x04R\n" +
@@ -1340,7 +1582,8 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x13checkpoint_sequence\x18\x03 \x01(\x04R\x12checkpointSequence\x122\n" +
 	"\x06action\x18\x04 \x01(\x0e2\x1a.playerhub.v1.AttackActionR\x06action\x12\x14\n" +
 	"\x05power\x18\x05 \x01(\bR\x05power\x12:\n" +
-	"\tdirection\x18\x06 \x01(\x0e2\x1c.playerhub.v1.PowerDirectionR\tdirection\"1\n" +
+	"\tdirection\x18\x06 \x01(\x0e2\x1c.playerhub.v1.PowerDirectionR\tdirection\x12/\n" +
+	"\x05beast\x18\a \x01(\x0e2\x19.playerhub.v1.BeastActionR\x05beast\"1\n" +
 	"\x05Color\x12\f\n" +
 	"\x01r\x18\x01 \x01(\rR\x01r\x12\f\n" +
 	"\x01g\x18\x02 \x01(\rR\x01g\x12\f\n" +
@@ -1408,7 +1651,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x18MOVEMENT_STATE_SPRINTING\x10\x03\x12 \n" +
 	"\x1cMOVEMENT_STATE_SNEAKING_IDLE\x10\x04\x12#\n" +
 	"\x1fMOVEMENT_STATE_SNEAKING_WALKING\x10\x05\x12#\n" +
-	"\x1fMOVEMENT_STATE_SNEAKING_RUNNING\x10\x06*\xc5\x02\n" +
+	"\x1fMOVEMENT_STATE_SNEAKING_RUNNING\x10\x06*\xa2\x03\n" +
 	"\x0eCheckpointFlag\x12\x18\n" +
 	"\x14CHECKPOINT_FLAG_NONE\x10\x00\x12\x1b\n" +
 	"\x17CHECKPOINT_FLAG_JUMPING\x10\b\x12 \n" +
@@ -1419,7 +1662,16 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x18CHECKPOINT_FLAG_BLOCKING\x10\x80\x02\x12\x19\n" +
 	"\x14CHECKPOINT_FLAG_DEAD\x10\x80\x04\x12\x1c\n" +
 	"\x17CHECKPOINT_FLAG_MOUNTED\x10\x80\b\x12\x1d\n" +
-	"\x18CHECKPOINT_FLAG_SWIMMING\x10\x80\x10*\x8f\x01\n" +
+	"\x18CHECKPOINT_FLAG_SWIMMING\x10\x80\x10\x12\x1f\n" +
+	"\x1aCHECKPOINT_FLAG_LEVITATING\x10\x80 \x12\x1e\n" +
+	"\x19CHECKPOINT_FLAG_MIST_FORM\x10\x80@\x12\x1a\n" +
+	"\x14CHECKPOINT_FLAG_BATS\x10\x80\x80\x01*p\n" +
+	"\n" +
+	"Shapeshift\x12\x13\n" +
+	"\x0fSHAPESHIFT_NONE\x10\x00\x12\x17\n" +
+	"\x13SHAPESHIFT_WEREWOLF\x10\x01\x12\x1b\n" +
+	"\x17SHAPESHIFT_VAMPIRE_LORD\x10\x02\x12\x17\n" +
+	"\x13SHAPESHIFT_WEREBEAR\x10\x03*\x8f\x01\n" +
 	"\fAttackAction\x12\x1d\n" +
 	"\x19ATTACK_ACTION_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14ATTACK_ACTION_NORMAL\x10\x01\x12\x16\n" +
@@ -1432,7 +1684,49 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x17POWER_DIRECTION_FORWARD\x10\x02\x12\x1c\n" +
 	"\x18POWER_DIRECTION_BACKWARD\x10\x03\x12\x18\n" +
 	"\x14POWER_DIRECTION_LEFT\x10\x04\x12\x19\n" +
-	"\x15POWER_DIRECTION_RIGHT\x10\x05*e\n" +
+	"\x15POWER_DIRECTION_RIGHT\x10\x05*\x9d\x0e\n" +
+	"\vBeastAction\x12\x1c\n" +
+	"\x18BEAST_ACTION_UNSPECIFIED\x10\x00\x12&\n" +
+	"\"BEAST_ACTION_WEREWOLF_ATTACK_RIGHT\x10\x01\x12%\n" +
+	"!BEAST_ACTION_WEREWOLF_ATTACK_LEFT\x10\x02\x12,\n" +
+	"(BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_POWER\x10\x03\x12+\n" +
+	"'BEAST_ACTION_WEREWOLF_ATTACK_LEFT_POWER\x10\x04\x12%\n" +
+	"!BEAST_ACTION_WEREWOLF_ATTACK_DUAL\x10\x05\x12)\n" +
+	"%BEAST_ACTION_WEREWOLF_ATTACK_BACKHAND\x10\x06\x12+\n" +
+	"'BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_SIDE\x10\a\x12*\n" +
+	"&BEAST_ACTION_WEREWOLF_ATTACK_LEFT_SIDE\x10\b\x124\n" +
+	"0BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_RUNNING_POWER\x10\t\x123\n" +
+	"/BEAST_ACTION_WEREWOLF_ATTACK_LEFT_RUNNING_POWER\x10\n" +
+	"\x12-\n" +
+	")BEAST_ACTION_WEREWOLF_ATTACK_DUAL_RUNNING\x10\v\x12/\n" +
+	"+BEAST_ACTION_WEREWOLF_ATTACK_DUAL_SPRINTING\x10\f\x120\n" +
+	",BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_SPRINTING\x10\r\x12/\n" +
+	"+BEAST_ACTION_WEREWOLF_ATTACK_LEFT_SPRINTING\x10\x0e\x12$\n" +
+	" BEAST_ACTION_WEREWOLF_HOWL_START\x10\x0f\x12&\n" +
+	"\"BEAST_ACTION_WEREWOLF_HOWL_RELEASE\x10\x10\x12\"\n" +
+	"\x1eBEAST_ACTION_WEREWOLF_HOWL_END\x10\x11\x12\x1e\n" +
+	"\x1aBEAST_ACTION_WEREWOLF_FEED\x10\x12\x12%\n" +
+	"!BEAST_ACTION_WEREWOLF_FEED_PAIRED\x10\x13\x12*\n" +
+	"&BEAST_ACTION_VAMPIRE_LORD_ATTACK_RIGHT\x10 \x12)\n" +
+	"%BEAST_ACTION_VAMPIRE_LORD_ATTACK_LEFT\x10!\x120\n" +
+	",BEAST_ACTION_VAMPIRE_LORD_ATTACK_POWER_RIGHT\x10\"\x12/\n" +
+	"+BEAST_ACTION_VAMPIRE_LORD_ATTACK_POWER_LEFT\x10#\x12(\n" +
+	"$BEAST_ACTION_VAMPIRE_LORD_BATS_START\x10$\x12'\n" +
+	"#BEAST_ACTION_VAMPIRE_LORD_BATS_STOP\x10%\x12(\n" +
+	"$BEAST_ACTION_VAMPIRE_LORD_FEED_FRONT\x10&\x12'\n" +
+	"#BEAST_ACTION_VAMPIRE_LORD_FEED_BACK\x10'\x12-\n" +
+	")BEAST_ACTION_VAMPIRE_LORD_CAST_BEGIN_LEFT\x10(\x12.\n" +
+	"*BEAST_ACTION_VAMPIRE_LORD_CAST_BEGIN_RIGHT\x10)\x12-\n" +
+	")BEAST_ACTION_VAMPIRE_LORD_CAST_AIMED_LEFT\x10*\x12.\n" +
+	"*BEAST_ACTION_VAMPIRE_LORD_CAST_AIMED_RIGHT\x10+\x125\n" +
+	"1BEAST_ACTION_VAMPIRE_LORD_CAST_CONCENTRATION_LEFT\x10,\x126\n" +
+	"2BEAST_ACTION_VAMPIRE_LORD_CAST_CONCENTRATION_RIGHT\x10-\x12-\n" +
+	")BEAST_ACTION_VAMPIRE_LORD_CAST_READY_LEFT\x10.\x12.\n" +
+	"*BEAST_ACTION_VAMPIRE_LORD_CAST_READY_RIGHT\x10/\x12/\n" +
+	"+BEAST_ACTION_VAMPIRE_LORD_CAST_RELEASE_LEFT\x100\x120\n" +
+	",BEAST_ACTION_VAMPIRE_LORD_CAST_RELEASE_RIGHT\x101\x121\n" +
+	"-BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_LEFT\x102\x122\n" +
+	".BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT\x103*e\n" +
 	"\bHandKind\x12\x19\n" +
 	"\x15HAND_KIND_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10HAND_KIND_WEAPON\x10\x01\x12\x13\n" +
@@ -1451,60 +1745,64 @@ func file_playerhub_v1_state_proto_rawDescGZIP() []byte {
 	return file_playerhub_v1_state_proto_rawDescData
 }
 
-var file_playerhub_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_playerhub_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
 var file_playerhub_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_playerhub_v1_state_proto_goTypes = []any{
 	(MovementState)(0),    // 0: playerhub.v1.MovementState
 	(CheckpointFlag)(0),   // 1: playerhub.v1.CheckpointFlag
-	(AttackAction)(0),     // 2: playerhub.v1.AttackAction
-	(PowerDirection)(0),   // 3: playerhub.v1.PowerDirection
-	(HandKind)(0),         // 4: playerhub.v1.HandKind
-	(*FormRef)(nil),       // 5: playerhub.v1.FormRef
-	(*Checkpoint)(nil),    // 6: playerhub.v1.Checkpoint
-	(*Context)(nil),       // 7: playerhub.v1.Context
-	(*Action)(nil),        // 8: playerhub.v1.Action
-	(*Color)(nil),         // 9: playerhub.v1.Color
-	(*HeadPart)(nil),      // 10: playerhub.v1.HeadPart
-	(*Tint)(nil),          // 11: playerhub.v1.Tint
-	(*DefaultRace)(nil),   // 12: playerhub.v1.DefaultRace
-	(*Appearance)(nil),    // 13: playerhub.v1.Appearance
-	(*Armor)(nil),         // 14: playerhub.v1.Armor
-	(*Hand)(nil),          // 15: playerhub.v1.Hand
-	(*DefaultOutfit)(nil), // 16: playerhub.v1.DefaultOutfit
-	(*Equipment)(nil),     // 17: playerhub.v1.Equipment
+	(Shapeshift)(0),       // 2: playerhub.v1.Shapeshift
+	(AttackAction)(0),     // 3: playerhub.v1.AttackAction
+	(PowerDirection)(0),   // 4: playerhub.v1.PowerDirection
+	(BeastAction)(0),      // 5: playerhub.v1.BeastAction
+	(HandKind)(0),         // 6: playerhub.v1.HandKind
+	(*FormRef)(nil),       // 7: playerhub.v1.FormRef
+	(*Checkpoint)(nil),    // 8: playerhub.v1.Checkpoint
+	(*Context)(nil),       // 9: playerhub.v1.Context
+	(*Action)(nil),        // 10: playerhub.v1.Action
+	(*Color)(nil),         // 11: playerhub.v1.Color
+	(*HeadPart)(nil),      // 12: playerhub.v1.HeadPart
+	(*Tint)(nil),          // 13: playerhub.v1.Tint
+	(*DefaultRace)(nil),   // 14: playerhub.v1.DefaultRace
+	(*Appearance)(nil),    // 15: playerhub.v1.Appearance
+	(*Armor)(nil),         // 16: playerhub.v1.Armor
+	(*Hand)(nil),          // 17: playerhub.v1.Hand
+	(*DefaultOutfit)(nil), // 18: playerhub.v1.DefaultOutfit
+	(*Equipment)(nil),     // 19: playerhub.v1.Equipment
 }
 var file_playerhub_v1_state_proto_depIdxs = []int32{
-	5,  // 0: playerhub.v1.Context.furniture:type_name -> playerhub.v1.FormRef
-	2,  // 1: playerhub.v1.Action.action:type_name -> playerhub.v1.AttackAction
-	3,  // 2: playerhub.v1.Action.direction:type_name -> playerhub.v1.PowerDirection
-	5,  // 3: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
-	9,  // 4: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
-	5,  // 5: playerhub.v1.DefaultRace.race:type_name -> playerhub.v1.FormRef
-	5,  // 6: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
-	10, // 7: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
-	9,  // 8: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
-	5,  // 9: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
-	9,  // 10: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
-	11, // 11: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
-	12, // 12: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.DefaultRace
-	5,  // 13: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
-	4,  // 14: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
-	5,  // 15: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
-	5,  // 16: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
-	5,  // 17: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
-	14, // 18: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
-	15, // 19: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
-	5,  // 20: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
-	14, // 21: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
-	15, // 22: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
-	15, // 23: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
-	5,  // 24: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
-	16, // 25: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
-	26, // [26:26] is the sub-list for method output_type
-	26, // [26:26] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	7,  // 0: playerhub.v1.Context.furniture:type_name -> playerhub.v1.FormRef
+	2,  // 1: playerhub.v1.Context.shapeshift:type_name -> playerhub.v1.Shapeshift
+	3,  // 2: playerhub.v1.Action.action:type_name -> playerhub.v1.AttackAction
+	4,  // 3: playerhub.v1.Action.direction:type_name -> playerhub.v1.PowerDirection
+	5,  // 4: playerhub.v1.Action.beast:type_name -> playerhub.v1.BeastAction
+	7,  // 5: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
+	11, // 6: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
+	7,  // 7: playerhub.v1.DefaultRace.race:type_name -> playerhub.v1.FormRef
+	7,  // 8: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
+	12, // 9: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
+	11, // 10: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
+	7,  // 11: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
+	11, // 12: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
+	13, // 13: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
+	14, // 14: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.DefaultRace
+	7,  // 15: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
+	6,  // 16: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
+	7,  // 17: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
+	7,  // 18: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
+	7,  // 19: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
+	16, // 20: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
+	17, // 21: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
+	7,  // 22: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
+	16, // 23: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
+	17, // 24: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
+	17, // 25: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
+	7,  // 26: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
+	18, // 27: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
+	28, // [28:28] is the sub-list for method output_type
+	28, // [28:28] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_state_proto_init() }
@@ -1517,7 +1815,7 @@ func file_playerhub_v1_state_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_playerhub_v1_state_proto_rawDesc), len(file_playerhub_v1_state_proto_rawDesc)),
-			NumEnums:      5,
+			NumEnums:      7,
 			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,

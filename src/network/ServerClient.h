@@ -71,6 +71,8 @@ namespace Network
     void PublishLocalEquipment(const Multiplayer::PlayerEquipment& a_equipment);
 
     void PublishLocalAttack(const Attack& a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
+    void PublishLocalBeastAction(
+        Multiplayer::BeastAction a_action, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
 
     [[nodiscard]] bool PublishChatMessage(Multiplayer::ChatChannel a_channel, Multiplayer::PeerSlot a_recipient,
         std::string_view a_text, std::function<void(std::string_view)> a_onRejected);

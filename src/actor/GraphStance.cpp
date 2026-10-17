@@ -3,11 +3,10 @@
 #include "actor/BehaviorGraphLayout.h"
 #include "runtime/Profiling.h"
 
-#include <algorithm>
 #include <array>
+#include <cstddef>
 #include <format>
 #include <iterator>
-#include <memory>
 #include <string_view>
 
 namespace GraphStance
@@ -20,7 +19,8 @@ namespace GraphStance
         {
             kSneak,
             kMoving,
-            kSprint
+            kSprint,
+            kLevitation
         };
 
         struct StanceSelector
@@ -138,13 +138,29 @@ namespace GraphStance
                 StanceAxis::kSprint, "MT_Torch_IdleLocomotion_Behavior", "MT_Torch_IdleLocomotion", "MT_Torch_Sprint" },
             StanceSelector{ StanceAxis::kSprint, "1HM_Torch_IdleLocomotion_Behavior", "MT_Torch_IdleLocomotion",
                 "MT_Torch_Sprint" },
+            // WerewolfBehavior.hkx, which the werebear shares, and VampireLord.hkx.
+            StanceSelector{ StanceAxis::kMoving, "MovementBehavior", "Standing_State", "Locomotion_State" },
+            StanceSelector{ StanceAxis::kMoving, "Behavior03", "IdleStanding_State", "LocomotionCombat" },
+            StanceSelector{ StanceAxis::kMoving, "Behavior06", "WW SwimTread.hkx", "SwimDirectionalBlend" },
+            StanceSelector{ StanceAxis::kMoving, "CombatReadyBehavior", "IdleStanding_State", "LocomotionCombat" },
+            StanceSelector{ StanceAxis::kMoving, "EquipBehavior", "StandingEquip", "MovingEquip" },
+            StanceSelector{ StanceAxis::kMoving, "UnequipBehavior", "UnequipStanding", "UnequipMoving" },
+            StanceSelector{ StanceAxis::kMoving, "LevitationMovementBehavior", "Levitate_NonCombatIdle",
+                "LevitationNonCombatLocomotion_State" },
+            StanceSelector{
+                StanceAxis::kMoving, "LevitateCombatBehavior", "LevitateCombatIdle", "Levitate_CombatLocomotion" },
+            StanceSelector{ StanceAxis::kMoving, "CastState_Ready_Behavior", "CastState_CombatIdle",
+                "CastState_CombatLocomotion" },
+            StanceSelector{ StanceAxis::kSprint, "H2HBehavior", "H2H_Idle_State", "Sprint" },
+            StanceSelector{ StanceAxis::kSprint, "Ground_StateBehavior", "GroundcombatNonCombat_State", "Sprint" },
+            StanceSelector{
+                StanceAxis::kSprint, "Levitation_Behavior", "LevitateCombatNonCombatState", "LevitationSprint" },
+            // LevitationToggle leaves either state through its start or end clip, which
+            // already belongs to the new stance.
+            StanceSelector{ StanceAxis::kLevitation, "H2HBehavior", "Ground_State_Cam", "LevitationBase_State" },
+            StanceSelector{ StanceAxis::kLevitation, "H2HBehavior", "Levitate_End", "Levitate_Start" },
         };
 
-        const StanceSelector* FindStanceSelector(std::string_view a_machine)
-        {
-            const auto selector = std::ranges::find(kStanceSelectors, a_machine, &StanceSelector::machine);
-            return selector != kStanceSelectors.end() ? std::addressof(*selector) : nullptr;
-        }
 
         struct SelectorVotes
         {
@@ -188,9 +204,16 @@ namespace GraphStance
                     continue;
                 }
                 const auto& machine = *static_cast<const RE::hkbStateMachine*>(node);
-                if (const auto* selector = FindStanceSelector(GetName(machine.name)))
+                const std::string_view machineName{ GetName(machine.name) };
+                const char* state = nullptr;
+                // A machine may select on more than one pair of states.
+                for (const auto& selector : kStanceSelectors)
                 {
-                    a_visitor(*selector, GetCurrentStateName(machine));
+                    if (selector.machine == machineName)
+                    {
+                        state = state ? state : GetCurrentStateName(machine);
+                        a_visitor(selector, state);
+                    }
                 }
             }
         }
@@ -199,17 +222,16 @@ namespace GraphStance
     StanceSelectors ReadStanceSelectors(RE::Actor& a_actor)
     {
         PROFILE_FUNCTION();
-        SelectorVotes sneak;
-        SelectorVotes moving;
-        SelectorVotes sprint;
+        std::array<SelectorVotes, 4> votes{};
         VisitStanceSelectors(a_actor, [&](const StanceSelector& a_selector, std::string_view a_state) {
-            auto& votes = a_selector.axis == StanceAxis::kSneak ? sneak
-                : a_selector.axis == StanceAxis::kMoving        ? moving
-                                                                : sprint;
-            votes.off = votes.off || a_state == a_selector.offState;
-            votes.on = votes.on || a_state == a_selector.onState;
+            auto& axis = votes[static_cast<std::size_t>(a_selector.axis)];
+            axis.off = axis.off || a_state == a_selector.offState;
+            axis.on = axis.on || a_state == a_selector.onState;
         });
-        return { .sneak = sneak.GetState(), .moving = moving.GetState(), .sprinting = sprint.GetState() };
+        return { .sneak = votes[static_cast<std::size_t>(StanceAxis::kSneak)].GetState(),
+            .moving = votes[static_cast<std::size_t>(StanceAxis::kMoving)].GetState(),
+            .sprinting = votes[static_cast<std::size_t>(StanceAxis::kSprint)].GetState(),
+            .levitating = votes[static_cast<std::size_t>(StanceAxis::kLevitation)].GetState() };
     }
 
     std::string DescribeStanceSelectors(RE::Actor& a_actor)

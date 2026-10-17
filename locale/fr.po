@@ -1326,6 +1326,36 @@ msgstr ""
 "Vous êtes en combat\n"
 "L'échange avec {} est terminé"
 
+msgctxt "TradeNotInBeastForm"
+msgid "You cannot trade in beast form"
+msgstr "Vous ne pouvez pas échanger sous forme bestiale"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeTransformedDeclined"
+msgid ""
+"You are in beast form\n"
+"The trade offer from {} was declined"
+msgstr ""
+"Vous êtes sous forme bestiale\n"
+"La proposition d'échange de {} a été refusée"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeTransformedEnded"
+msgid ""
+"You are in beast form\n"
+"The trade with {} ended"
+msgstr ""
+"Vous êtes sous forme bestiale\n"
+"L'échange avec {} est terminé"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedTransformed"
+msgid "{} cannot trade in beast form"
+msgstr "{} ne peut pas échanger sous forme bestiale"
+
 #. {} is the other player's name
 #, c++-format
 msgctxt "TradeGotNoAnswer"

@@ -20,23 +20,32 @@ namespace AnimationFirewall
         using AnimationEvents::IsWeaponTransitionEndEvent;
         using AnimationEvents::IsWeaponTransitionTraceEvent;
 
+        // Graph event names are case-insensitive, and the string pool keeps the first
+        // spelling it saw: the WerewolfSheathe idle sends weapUnequip, Dawnguard's
+        // vampire lord sheathe WeapUnEquip.
         constexpr bool IsClientManagedAnimationEvent(std::string_view a_eventName) noexcept
         {
-            return a_eventName == "SwimStart" || a_eventName == "swimStop" || a_eventName == "WeapEquip"
-                || a_eventName == "WeapUnequip" || a_eventName == "Equip" || a_eventName == "Unequip" ||
-                // Equipping over a drawn weapon plays this quick equip, whose weaponDraw
-                // annotation moves the new weapon from its sheath node into the hand.
-                a_eventName == "WeapOutRightReplaceForceEquip" || a_eventName == "WeapOutLeftReplaceForceEquip" ||
-                // Drawing spell hands, and equipping a spell or weapon over them.
-                a_eventName == "Magic_Equip" || a_eventName == "MagicForceEquip"
-                || a_eventName == "MagicForceEquipRight" || a_eventName == "MagicForceEquipLeft"
-                || a_eventName == "MagicWeap_ForceEquip" ||
-                // ActionForceEquip emptying the left hand beside a weapon or unarmed
-                // right hand, or beside a spell (the LeftH2HEquip and
-                // LeftMagicForceUnequip idles).
-                a_eventName == "WeapSoloEquip" || a_eventName == "Magic_Solo_Equip" ||
-                // Raises and lowers the left arm for a carried torch.
-                a_eventName == "torchEquip" || a_eventName == "torchUnequip";
+            for (const std::string_view name :
+                { "SwimStart", "swimStop", "WeapEquip", "WeapUnequip", "Equip", "Unequip",
+                    // Equipping over a drawn weapon plays this quick equip, whose weaponDraw
+                    // annotation moves the new weapon from its sheath node into the hand.
+                    "WeapOutRightReplaceForceEquip", "WeapOutLeftReplaceForceEquip",
+                    // Drawing spell hands, and equipping a spell or weapon over them.
+                    "Magic_Equip", "MagicForceEquip", "MagicForceEquipRight", "MagicForceEquipLeft",
+                    "MagicWeap_ForceEquip",
+                    // ActionForceEquip emptying the left hand beside a weapon or unarmed
+                    // right hand, or beside a spell (the LeftH2HEquip and
+                    // LeftMagicForceUnequip idles).
+                    "WeapSoloEquip", "Magic_Solo_Equip",
+                    // Raises and lowers the left arm for a carried torch.
+                    "torchEquip", "torchUnequip" })
+            {
+                if (AsciiCase::Equals(a_eventName, name))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         // Locomotion requests Skyrim's own movement logic may send a remote mount.
@@ -59,6 +68,8 @@ namespace AnimationFirewall
         static_assert(IsClientManagedAnimationEvent("SwimStart"));
         static_assert(IsClientManagedAnimationEvent("WeapEquip"));
         static_assert(IsClientManagedAnimationEvent("WeapUnequip"));
+        static_assert(IsClientManagedAnimationEvent("WeapUnEquip"));
+        static_assert(IsClientManagedAnimationEvent("weapUnequip"));
         static_assert(!IsClientManagedAnimationEvent("AttackStart"));
 
         class GraphOutputEventSink final : public RE::BSTEventSink<RE::BSAnimationGraphEvent>
@@ -154,8 +165,8 @@ namespace AnimationFirewall
                     // A seated rider's riding graph follows its mount.
                     blockMountGaitEvent
                         = registration->gaitDriven && !registration->mounted && IsMountGaitEvent(eventView);
-                    isSwimStartEvent = eventView == "SwimStart";
-                    isSwimStopEvent = eventView == "swimStop";
+                    isSwimStartEvent = AsciiCase::Equals(eventView, "SwimStart");
+                    isSwimStopEvent = AsciiCase::Equals(eventView, "swimStop");
                 }
 
                 // Filtering graph construction and do-nothing package setup events can

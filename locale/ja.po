@@ -1301,6 +1301,36 @@ msgstr ""
 "戦闘中です\n"
 "{} との取引が終了しました"
 
+msgctxt "TradeNotInBeastForm"
+msgid "You cannot trade in beast form"
+msgstr "獣の姿では取引できません"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeTransformedDeclined"
+msgid ""
+"You are in beast form\n"
+"The trade offer from {} was declined"
+msgstr ""
+"獣の姿です\n"
+"{} からの取引の申し出を断りました"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeTransformedEnded"
+msgid ""
+"You are in beast form\n"
+"The trade with {} ended"
+msgstr ""
+"獣の姿です\n"
+"{} との取引が終了しました"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedTransformed"
+msgid "{} cannot trade in beast form"
+msgstr "{} は獣の姿のため取引できません"
+
 #. {} is the other player's name
 #, c++-format
 msgctxt "TradeGotNoAnswer"

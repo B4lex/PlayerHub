@@ -25,18 +25,18 @@ type Protocol int32
 
 const (
 	Protocol_PROTOCOL_UNSPECIFIED Protocol = 0
-	Protocol_PROTOCOL_VERSION     Protocol = 9
+	Protocol_PROTOCOL_VERSION     Protocol = 10
 )
 
 // Enum value maps for Protocol.
 var (
 	Protocol_name = map[int32]string{
-		0: "PROTOCOL_UNSPECIFIED",
-		9: "PROTOCOL_VERSION",
+		0:  "PROTOCOL_UNSPECIFIED",
+		10: "PROTOCOL_VERSION",
 	}
 	Protocol_value = map[string]int32{
 		"PROTOCOL_UNSPECIFIED": 0,
-		"PROTOCOL_VERSION":     9,
+		"PROTOCOL_VERSION":     10,
 	}
 )
 
@@ -185,6 +185,7 @@ const (
 	TradeCloseReason_TRADE_CLOSE_REASON_DISCONNECTED TradeCloseReason = 8
 	TradeCloseReason_TRADE_CLOSE_REASON_FAILED       TradeCloseReason = 9
 	TradeCloseReason_TRADE_CLOSE_REASON_UNAVAILABLE  TradeCloseReason = 10
+	TradeCloseReason_TRADE_CLOSE_REASON_TRANSFORMED  TradeCloseReason = 11
 )
 
 // Enum value maps for TradeCloseReason.
@@ -201,6 +202,7 @@ var (
 		8:  "TRADE_CLOSE_REASON_DISCONNECTED",
 		9:  "TRADE_CLOSE_REASON_FAILED",
 		10: "TRADE_CLOSE_REASON_UNAVAILABLE",
+		11: "TRADE_CLOSE_REASON_TRANSFORMED",
 	}
 	TradeCloseReason_value = map[string]int32{
 		"TRADE_CLOSE_REASON_UNSPECIFIED":  0,
@@ -214,6 +216,7 @@ var (
 		"TRADE_CLOSE_REASON_DISCONNECTED": 8,
 		"TRADE_CLOSE_REASON_FAILED":       9,
 		"TRADE_CLOSE_REASON_UNAVAILABLE":  10,
+		"TRADE_CLOSE_REASON_TRANSFORMED":  11,
 	}
 )
 
@@ -3432,7 +3435,8 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"\amessage*:\n" +
 	"\bProtocol\x12\x18\n" +
 	"\x14PROTOCOL_UNSPECIFIED\x10\x00\x12\x14\n" +
-	"\x10PROTOCOL_VERSION\x10\t*Y\n" +
+	"\x10PROTOCOL_VERSION\x10\n" +
+	"*Y\n" +
 	"\vChatChannel\x12\x17\n" +
 	"\x13CHAT_CHANNEL_GLOBAL\x10\x00\x12\x17\n" +
 	"\x13CHAT_CHANNEL_NEARBY\x10\x01\x12\x18\n" +
@@ -3442,7 +3446,7 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"\x1eTRADE_SKIP_REASON_MISSING_ITEM\x10\x01\x12 \n" +
 	"\x1cTRADE_SKIP_REASON_WRONG_TYPE\x10\x02\x12$\n" +
 	" TRADE_SKIP_REASON_MISSING_EFFECT\x10\x03\x12%\n" +
-	"!TRADE_SKIP_REASON_BAD_ENCHANTMENT\x10\x04*\xff\x02\n" +
+	"!TRADE_SKIP_REASON_BAD_ENCHANTMENT\x10\x04*\xa3\x03\n" +
 	"\x10TradeCloseReason\x12\"\n" +
 	"\x1eTRADE_CLOSE_REASON_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bTRADE_CLOSE_REASON_DECLINED\x10\x01\x12\x1e\n" +
@@ -3455,7 +3459,8 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"\x1fTRADE_CLOSE_REASON_DISCONNECTED\x10\b\x12\x1d\n" +
 	"\x19TRADE_CLOSE_REASON_FAILED\x10\t\x12\"\n" +
 	"\x1eTRADE_CLOSE_REASON_UNAVAILABLE\x10\n" +
-	"*\xbf\x01\n" +
+	"\x12\"\n" +
+	"\x1eTRADE_CLOSE_REASON_TRANSFORMED\x10\v*\xbf\x01\n" +
 	"\vLeaveReason\x12\x1c\n" +
 	"\x18LEAVE_REASON_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19LEAVE_REASON_OUT_OF_RANGE\x10\x01\x12\x19\n" +

@@ -29,6 +29,7 @@ namespace ActorLifecycle
     [[nodiscard]] bool HasChangedSpawnedSpace(const PeerState& a_peer);
 
     void RetireForAppearanceChange(const RemoteFrame& a_remote, PeerState& a_peer);
+    void RetireForShapeshift(const RemoteFrame& a_remote, PeerState& a_peer);
     void RetireForSpaceChange(
         const RemoteFrame& a_remote, PeerState& a_peer, RE::FormID a_localCellID, RE::FormID a_localWorldspaceID);
     void RetireWhenStranded(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta);

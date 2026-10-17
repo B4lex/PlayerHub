@@ -4,6 +4,7 @@
 #include "runtime/Profiling.h"
 #include "sync/filters/PlayerFilters.h"
 #include "sync/notices/Notices.h"
+#include "sync/shapeshift/ShapeshiftSync.h"
 #include "sync/trade/TradeInventory.h"
 #include "text/Text.h"
 
@@ -661,6 +662,11 @@ namespace TradeSync
             s_viewDirty = true;
         }
 
+        bool IsTransformed()
+        {
+            return ShapeshiftSync::GetLocalForm() != Multiplayer::Shapeshift::kNone;
+        }
+
         void OnClosed(const TradeSession::EventResult& a_result, const std::string& a_peer)
         {
             const bool requested = a_result.closedPhase == Phase::kRequesting;
@@ -698,6 +704,14 @@ namespace TradeSync
                     break;
                 case TradeCloseReason::kFailed:
                     Notices::Post(Text::Format(Text::Id::kTradeClosedFailed, a_peer));
+                    break;
+                case TradeCloseReason::kTransformed:
+                    // The server may close for the local player's own transformation
+                    // before this game cancels it.
+                    Notices::Post(IsTransformed()
+                            ? Text::Format(invited ? Text::Id::kTradeTransformedDeclined : Text::Id::kTradeTransformedEnded,
+                                  a_peer)
+                            : Text::Format(Text::Id::kTradeClosedTransformed, a_peer));
                     break;
             }
         }
@@ -781,6 +795,11 @@ namespace TradeSync
                         Notices::Post(std::string{ Text::Get(Text::Id::kTradeCannotTradeNow) });
                         return;
                     }
+                    if (IsTransformed())
+                    {
+                        Notices::Post(std::string{ Text::Get(Text::Id::kTradeNotInBeastForm) });
+                        return;
+                    }
                     if (!Network::PublishTradeRequest(a_command.player.playerID))
                     {
                         Notices::Post(std::string{ Text::Get(Text::Id::kNotConnected) });
@@ -801,6 +820,11 @@ namespace TradeSync
                     if (!a_inWorld || a_player.IsInCombat())
                     {
                         Notices::Post(std::string{ Text::Get(Text::Id::kTradeCannotAccept) });
+                        return;
+                    }
+                    if (IsTransformed())
+                    {
+                        Notices::Post(std::string{ Text::Get(Text::Id::kTradeNotInBeastForm) });
                         return;
                     }
                     Network::PublishTradeAnswer(s_session.GetID(), true);
@@ -958,6 +982,13 @@ namespace TradeSync
             {
                 CancelTrade(TradeCloseReason::kCombat,
                     Text::Format(phase == Phase::kInvited ? Text::Id::kTradeCombatDeclined : Text::Id::kTradeCombatEnded,
+                        PeerName()));
+            }
+            else if (phase != Phase::kRequesting && IsTransformed())
+            {
+                CancelTrade(TradeCloseReason::kTransformed,
+                    Text::Format(phase == Phase::kInvited ? Text::Id::kTradeTransformedDeclined
+                                                          : Text::Id::kTradeTransformedEnded,
                         PeerName()));
             }
         }

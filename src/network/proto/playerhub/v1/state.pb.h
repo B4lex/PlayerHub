@@ -30,8 +30,18 @@ typedef enum _playerhub_v1_CheckpointFlag {
     playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BLOCKING = 256,
     playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_DEAD = 512,
     playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_MOUNTED = 1024,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SWIMMING = 2048
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SWIMMING = 2048,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_LEVITATING = 4096,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_MIST_FORM = 8192,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BATS = 16384
 } playerhub_v1_CheckpointFlag;
+
+typedef enum _playerhub_v1_Shapeshift {
+    playerhub_v1_Shapeshift_SHAPESHIFT_NONE = 0,
+    playerhub_v1_Shapeshift_SHAPESHIFT_WEREWOLF = 1,
+    playerhub_v1_Shapeshift_SHAPESHIFT_VAMPIRE_LORD = 2,
+    playerhub_v1_Shapeshift_SHAPESHIFT_WEREBEAR = 3
+} playerhub_v1_Shapeshift;
 
 typedef enum _playerhub_v1_AttackAction {
     playerhub_v1_AttackAction_ATTACK_ACTION_UNSPECIFIED = 0,
@@ -49,6 +59,51 @@ typedef enum _playerhub_v1_PowerDirection {
     playerhub_v1_PowerDirection_POWER_DIRECTION_LEFT = 4,
     playerhub_v1_PowerDirection_POWER_DIRECTION_RIGHT = 5
 } playerhub_v1_PowerDirection;
+
+/* A beast form's action, from the vanilla behavior graph of that form. Werewolf
+ values also serve the werebear, which shares the werewolf's graph. */
+typedef enum _playerhub_v1_BeastAction {
+    playerhub_v1_BeastAction_BEAST_ACTION_UNSPECIFIED = 0,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_RIGHT = 1,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_LEFT = 2,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_POWER = 3,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_LEFT_POWER = 4,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_DUAL = 5,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_BACKHAND = 6,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_SIDE = 7,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_LEFT_SIDE = 8,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_RUNNING_POWER = 9,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_LEFT_RUNNING_POWER = 10,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_DUAL_RUNNING = 11,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_DUAL_SPRINTING = 12,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_SPRINTING = 13,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_LEFT_SPRINTING = 14,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_HOWL_START = 15,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_HOWL_RELEASE = 16,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_HOWL_END = 17,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_FEED = 18,
+    playerhub_v1_BeastAction_BEAST_ACTION_WEREWOLF_FEED_PAIRED = 19,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_ATTACK_RIGHT = 32,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_ATTACK_LEFT = 33,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_ATTACK_POWER_RIGHT = 34,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_ATTACK_POWER_LEFT = 35,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_BATS_START = 36,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_BATS_STOP = 37,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_FEED_FRONT = 38,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_FEED_BACK = 39,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_BEGIN_LEFT = 40,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_BEGIN_RIGHT = 41,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_AIMED_LEFT = 42,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_AIMED_RIGHT = 43,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_CONCENTRATION_LEFT = 44,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_CONCENTRATION_RIGHT = 45,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_READY_LEFT = 46,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_READY_RIGHT = 47,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_RELEASE_LEFT = 48,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_RELEASE_RIGHT = 49,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_LEFT = 50,
+    playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT = 51
+} playerhub_v1_BeastAction;
 
 typedef enum _playerhub_v1_HandKind {
     playerhub_v1_HandKind_HAND_KIND_UNSPECIFIED = 0,
@@ -83,6 +138,7 @@ typedef struct _playerhub_v1_Context {
     uint64_t graph_epoch;
     bool has_furniture;
     playerhub_v1_FormRef furniture;
+    playerhub_v1_Shapeshift shapeshift;
 } playerhub_v1_Context;
 
 typedef struct _playerhub_v1_Action {
@@ -92,6 +148,7 @@ typedef struct _playerhub_v1_Action {
     playerhub_v1_AttackAction action;
     bool power;
     playerhub_v1_PowerDirection direction;
+    playerhub_v1_BeastAction beast;
 } playerhub_v1_Action;
 
 typedef struct _playerhub_v1_Color {
@@ -198,8 +255,12 @@ extern "C" {
 #define _playerhub_v1_MovementState_ARRAYSIZE ((playerhub_v1_MovementState)(playerhub_v1_MovementState_MOVEMENT_STATE_SNEAKING_RUNNING+1))
 
 #define _playerhub_v1_CheckpointFlag_MIN playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_NONE
-#define _playerhub_v1_CheckpointFlag_MAX playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SWIMMING
-#define _playerhub_v1_CheckpointFlag_ARRAYSIZE ((playerhub_v1_CheckpointFlag)(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SWIMMING+1))
+#define _playerhub_v1_CheckpointFlag_MAX playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BATS
+#define _playerhub_v1_CheckpointFlag_ARRAYSIZE ((playerhub_v1_CheckpointFlag)(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BATS+1))
+
+#define _playerhub_v1_Shapeshift_MIN playerhub_v1_Shapeshift_SHAPESHIFT_NONE
+#define _playerhub_v1_Shapeshift_MAX playerhub_v1_Shapeshift_SHAPESHIFT_WEREBEAR
+#define _playerhub_v1_Shapeshift_ARRAYSIZE ((playerhub_v1_Shapeshift)(playerhub_v1_Shapeshift_SHAPESHIFT_WEREBEAR+1))
 
 #define _playerhub_v1_AttackAction_MIN playerhub_v1_AttackAction_ATTACK_ACTION_UNSPECIFIED
 #define _playerhub_v1_AttackAction_MAX playerhub_v1_AttackAction_ATTACK_ACTION_BASH
@@ -209,15 +270,21 @@ extern "C" {
 #define _playerhub_v1_PowerDirection_MAX playerhub_v1_PowerDirection_POWER_DIRECTION_RIGHT
 #define _playerhub_v1_PowerDirection_ARRAYSIZE ((playerhub_v1_PowerDirection)(playerhub_v1_PowerDirection_POWER_DIRECTION_RIGHT+1))
 
+#define _playerhub_v1_BeastAction_MIN playerhub_v1_BeastAction_BEAST_ACTION_UNSPECIFIED
+#define _playerhub_v1_BeastAction_MAX playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT
+#define _playerhub_v1_BeastAction_ARRAYSIZE ((playerhub_v1_BeastAction)(playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT+1))
+
 #define _playerhub_v1_HandKind_MIN playerhub_v1_HandKind_HAND_KIND_UNSPECIFIED
 #define _playerhub_v1_HandKind_MAX playerhub_v1_HandKind_HAND_KIND_SPELL
 #define _playerhub_v1_HandKind_ARRAYSIZE ((playerhub_v1_HandKind)(playerhub_v1_HandKind_HAND_KIND_SPELL+1))
 
 
 
+#define playerhub_v1_Context_shapeshift_ENUMTYPE playerhub_v1_Shapeshift
 
 #define playerhub_v1_Action_action_ENUMTYPE playerhub_v1_AttackAction
 #define playerhub_v1_Action_direction_ENUMTYPE playerhub_v1_PowerDirection
+#define playerhub_v1_Action_beast_ENUMTYPE playerhub_v1_BeastAction
 
 
 
@@ -233,8 +300,8 @@ extern "C" {
 /* Initializer values for message structs */
 #define playerhub_v1_FormRef_init_default        {"", 0}
 #define playerhub_v1_Checkpoint_init_default     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-#define playerhub_v1_Context_init_default        {0, 0, 0, false, playerhub_v1_FormRef_init_default}
-#define playerhub_v1_Action_init_default         {0, 0, 0, _playerhub_v1_AttackAction_MIN, 0, _playerhub_v1_PowerDirection_MIN}
+#define playerhub_v1_Context_init_default        {0, 0, 0, false, playerhub_v1_FormRef_init_default, _playerhub_v1_Shapeshift_MIN}
+#define playerhub_v1_Action_init_default         {0, 0, 0, _playerhub_v1_AttackAction_MIN, 0, _playerhub_v1_PowerDirection_MIN, _playerhub_v1_BeastAction_MIN}
 #define playerhub_v1_Color_init_default          {0, 0, 0}
 #define playerhub_v1_HeadPart_init_default       {false, playerhub_v1_FormRef_init_default, 0}
 #define playerhub_v1_Tint_init_default           {0, 0, false, playerhub_v1_Color_init_default, 0}
@@ -246,8 +313,8 @@ extern "C" {
 #define playerhub_v1_Equipment_init_default      {0, 0, {playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default}, false, playerhub_v1_Hand_init_default, false, playerhub_v1_Hand_init_default, false, playerhub_v1_FormRef_init_default, false, playerhub_v1_DefaultOutfit_init_default}
 #define playerhub_v1_FormRef_init_zero           {"", 0}
 #define playerhub_v1_Checkpoint_init_zero        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-#define playerhub_v1_Context_init_zero           {0, 0, 0, false, playerhub_v1_FormRef_init_zero}
-#define playerhub_v1_Action_init_zero            {0, 0, 0, _playerhub_v1_AttackAction_MIN, 0, _playerhub_v1_PowerDirection_MIN}
+#define playerhub_v1_Context_init_zero           {0, 0, 0, false, playerhub_v1_FormRef_init_zero, _playerhub_v1_Shapeshift_MIN}
+#define playerhub_v1_Action_init_zero            {0, 0, 0, _playerhub_v1_AttackAction_MIN, 0, _playerhub_v1_PowerDirection_MIN, _playerhub_v1_BeastAction_MIN}
 #define playerhub_v1_Color_init_zero             {0, 0, 0}
 #define playerhub_v1_HeadPart_init_zero          {false, playerhub_v1_FormRef_init_zero, 0}
 #define playerhub_v1_Tint_init_zero              {0, 0, false, playerhub_v1_Color_init_zero, 0}
@@ -276,12 +343,14 @@ extern "C" {
 #define playerhub_v1_Context_worldspace_id_tag   2
 #define playerhub_v1_Context_graph_epoch_tag     3
 #define playerhub_v1_Context_furniture_tag       4
+#define playerhub_v1_Context_shapeshift_tag      5
 #define playerhub_v1_Action_action_sequence_tag  1
 #define playerhub_v1_Action_graph_epoch_tag      2
 #define playerhub_v1_Action_checkpoint_sequence_tag 3
 #define playerhub_v1_Action_action_tag           4
 #define playerhub_v1_Action_power_tag            5
 #define playerhub_v1_Action_direction_tag        6
+#define playerhub_v1_Action_beast_tag            7
 #define playerhub_v1_Color_r_tag                 1
 #define playerhub_v1_Color_g_tag                 2
 #define playerhub_v1_Color_b_tag                 3
@@ -351,7 +420,8 @@ X(a, STATIC,   SINGULAR, UINT32,   time,             11)
 X(a, STATIC,   SINGULAR, UINT32,   cell_id,           1) \
 X(a, STATIC,   SINGULAR, UINT32,   worldspace_id,     2) \
 X(a, STATIC,   SINGULAR, UINT64,   graph_epoch,       3) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  furniture,         4)
+X(a, STATIC,   OPTIONAL, MESSAGE,  furniture,         4) \
+X(a, STATIC,   SINGULAR, UENUM,    shapeshift,        5)
 #define playerhub_v1_Context_CALLBACK NULL
 #define playerhub_v1_Context_DEFAULT NULL
 #define playerhub_v1_Context_furniture_MSGTYPE playerhub_v1_FormRef
@@ -362,7 +432,8 @@ X(a, STATIC,   SINGULAR, UINT64,   graph_epoch,       2) \
 X(a, STATIC,   SINGULAR, UINT64,   checkpoint_sequence,   3) \
 X(a, STATIC,   SINGULAR, UENUM,    action,            4) \
 X(a, STATIC,   SINGULAR, BOOL,     power,             5) \
-X(a, STATIC,   SINGULAR, UENUM,    direction,         6)
+X(a, STATIC,   SINGULAR, UENUM,    direction,         6) \
+X(a, STATIC,   SINGULAR, UENUM,    beast,             7)
 #define playerhub_v1_Action_CALLBACK NULL
 #define playerhub_v1_Action_DEFAULT NULL
 
@@ -497,12 +568,12 @@ extern const pb_msgdesc_t playerhub_v1_Equipment_msg;
 
 /* Maximum encoded size of messages (where known) */
 #define PLAYERHUB_V1_PLAYERHUB_V1_STATE_PB_H_MAX_SIZE playerhub_v1_Equipment_size
-#define playerhub_v1_Action_size                 39
+#define playerhub_v1_Action_size                 41
 #define playerhub_v1_Appearance_size             8132
 #define playerhub_v1_Armor_size                  278
 #define playerhub_v1_Checkpoint_size             71
 #define playerhub_v1_Color_size                  18
-#define playerhub_v1_Context_size                295
+#define playerhub_v1_Context_size                297
 #define playerhub_v1_DefaultOutfit_size          4174
 #define playerhub_v1_DefaultRace_size            274
 #define playerhub_v1_Equipment_size              15106

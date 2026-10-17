@@ -121,6 +121,13 @@ namespace Network::Wire
             a_result.cellID = a_context.cell_id;
             a_result.worldspaceID = a_context.worldspace_id;
             a_result.graphEpoch = a_context.graph_epoch;
+            static_assert(static_cast<int>(Multiplayer::kMaximumShapeshift) == playerhub_v1_Shapeshift_SHAPESHIFT_WEREBEAR);
+            if (a_context.shapeshift < playerhub_v1_Shapeshift_SHAPESHIFT_NONE
+                || a_context.shapeshift > playerhub_v1_Shapeshift_SHAPESHIFT_WEREBEAR)
+            {
+                return false;
+            }
+            a_result.shapeshift = static_cast<Multiplayer::Shapeshift>(a_context.shapeshift);
             return a_result.graphEpoch != 0
                 && ReadOptionalFormReference(a_context.has_furniture, a_context.furniture, a_result.furniture);
         }
@@ -149,6 +156,20 @@ namespace Network::Wire
             if (result.actionSequence == 0 || result.graphEpoch == 0 || result.checkpointSequence == 0)
             {
                 return std::unexpected("action sequences");
+            }
+            if (a_action.beast != playerhub_v1_BeastAction_BEAST_ACTION_UNSPECIFIED)
+            {
+                static_assert(static_cast<int>(Multiplayer::BeastAction::kVampireLordCastInterruptRight)
+                    == playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT);
+                const auto value = static_cast<std::uint32_t>(a_action.beast);
+                if (Multiplayer::GetBeastActionGraph(value) == Multiplayer::Shapeshift::kNone
+                    || a_action.action != playerhub_v1_AttackAction_ATTACK_ACTION_UNSPECIFIED || a_action.power
+                    || a_action.direction != playerhub_v1_PowerDirection_POWER_DIRECTION_NONE)
+                {
+                    return std::unexpected("beast action");
+                }
+                result.beast = static_cast<Multiplayer::BeastAction>(value);
+                return result;
             }
             switch (a_action.action)
             {
@@ -457,12 +478,12 @@ namespace Network::Wire
         std::optional<Multiplayer::TradeCloseReason> ReadTradeCloseReason(playerhub_v1_TradeCloseReason a_reason)
         {
             if (a_reason < playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_DECLINED
-                || a_reason > playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_UNAVAILABLE)
+                || a_reason > playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_TRANSFORMED)
             {
                 return std::nullopt;
             }
-            static_assert(static_cast<int>(Multiplayer::TradeCloseReason::kUnavailable)
-                == playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_UNAVAILABLE);
+            static_assert(static_cast<int>(Multiplayer::TradeCloseReason::kTransformed)
+                == playerhub_v1_TradeCloseReason_TRADE_CLOSE_REASON_TRANSFORMED);
             return static_cast<Multiplayer::TradeCloseReason>(a_reason);
         }
 
@@ -815,6 +836,7 @@ namespace Network::Wire
         context.cell_id = a_context.cellID;
         context.worldspace_id = a_context.worldspaceID;
         context.graph_epoch = a_context.graphEpoch;
+        context.shapeshift = static_cast<playerhub_v1_Shapeshift>(a_context.shapeshift);
         if (!WriteOptionalFormReference(a_context.furniture, context.has_furniture, context.furniture))
         {
             return {};
@@ -865,6 +887,17 @@ namespace Network::Wire
             ? static_cast<playerhub_v1_PowerDirection>(
                   playerhub_v1_PowerDirection_POWER_DIRECTION_STANDING + static_cast<int>(a_attack.direction))
             : playerhub_v1_PowerDirection_POWER_DIRECTION_NONE;
+        return EncodeClientMessage(playerhub_v1_ClientMessage_action_tag, playerhub_v1_Action_fields, &action);
+    }
+
+    std::string EncodeBeastAction(std::uint64_t a_actionSequence, std::uint64_t a_graphEpoch,
+        std::uint64_t a_checkpointSequence, Multiplayer::BeastAction a_action)
+    {
+        playerhub_v1_Action action = playerhub_v1_Action_init_zero;
+        action.action_sequence = a_actionSequence;
+        action.graph_epoch = a_graphEpoch;
+        action.checkpoint_sequence = a_checkpointSequence;
+        action.beast = static_cast<playerhub_v1_BeastAction>(a_action);
         return EncodeClientMessage(playerhub_v1_ClientMessage_action_tag, playerhub_v1_Action_fields, &action);
     }
 

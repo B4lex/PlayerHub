@@ -228,7 +228,8 @@ namespace Multiplayer
         kMenu,
         kDisconnected,
         kFailed,
-        kUnavailable
+        kUnavailable,
+        kTransformed
     };
 
     [[nodiscard]] constexpr const char* GetTradeCloseReasonName(TradeCloseReason a_reason) noexcept
@@ -255,6 +256,8 @@ namespace Multiplayer
                 return "failed";
             case TradeCloseReason::kUnavailable:
                 return "unavailable";
+            case TradeCloseReason::kTransformed:
+                return "transformed";
         }
         return "unknown";
     }

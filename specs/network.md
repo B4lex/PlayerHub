@@ -134,6 +134,21 @@
   trades (`internal/hub`). Plugin: `WireCodec.cpp` decoded Go-encoded trade
   messages and its encoded ones passed `validate.Message`; the details are in
   [Trade](trade.md#status).
+- **Shapeshifts (2026-10-17):** not built on Windows or run in game. Server:
+  `go test` covers the context's `shapeshift` range, the `beast` action rules
+  and `validate.BeastActionForm` (`internal/validate`), and in the hub a beast
+  action refused before the form, for the other graph, and relayed after it,
+  a human attack refused in a beast form, `levitating`, `mistForm`, and
+  `bats` refused outside a vampire lord's context, and trades refused, closed while invited, and
+  closed while open with `TRANSFORMED` (`internal/hub`). Plugin: the nanopb
+  code was regenerated, and `WireCodec.cpp` was built on Linux with g++: its
+  vampire lord `Context`, a checkpoint with `levitating`, `mistForm`, and
+  `bats`, a beast action, and a `TRANSFORMED` cancel decoded in Go, passed
+  `validate.Message`, and met `world.Player`'s rules (the flags refused under
+  a human context); it decoded Go-encoded `PeerContext`, `PeerAction`, and
+  `PeerStates` with those values and a `TRANSFORMED` close, and rejected a
+  shapeshift of 7, a beast action of 20, and a beast action with an attack.
+  `ServerClient.cpp` passed a syntax check only.
 - **Official and custom server:** not built on Windows or run in game.
   `ConnectionMonitor.cpp` ran on Linux with the real `SettingsSchema.cpp`, a
   stubbed configuration store, and a fake transport whose attempts connect to
@@ -220,7 +235,7 @@ refused at the handshake ([Transport](#transport)).
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
   within `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (9) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (10) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
@@ -295,7 +310,7 @@ context.
 | `pitch` | `sint32`, radians × 1024 | `|pitch| <= 1609` (π/2) |
 | `speed` | `uint32`, units per second | `<= 100000` |
 | `direction` | `uint32`, graph `Direction` × 256, wrapping | `0..255` |
-| `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–11 `jumping`, `weaponDrawn`, `bowDrawn`, `castingLeft`, `castingRight`, `blocking`, `dead`, `mounted`, `swimming` | unknown bits rejected |
+| `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–14 `jumping`, `weaponDrawn`, `bowDrawn`, `castingLeft`, `castingRight`, `blocking`, `dead`, `mounted`, `swimming`, `levitating`, `mistForm`, `bats` | unknown bits rejected; the last three only in a `VAMPIRE_LORD` context (`validate.VampireLordFlags`, `incompatible animation checkpoint`) |
 | `time` | `uint32`, the sender's `steady_clock` in milliseconds when sampled, modulo 16384 | `0..16383` |
 
 | `Context` field | Validation |
@@ -303,6 +318,7 @@ context.
 | `cell_id`, `worldspace_id` | any `uint32`; worldspace `0` is an interior |
 | `graph_epoch` | `>= 1`, never decreasing while in the world |
 | `furniture` | occupied placed reference as a [form reference](#form-references), unset for none |
+| `shapeshift` | `NONE`, `WEREWOLF`, `VAMPIRE_LORD`, or `WEREBEAR`: the vanilla beast form the player is in ([Appearance and equipment](appearance-and-equipment.md#shapeshifts)) |
 
 `protocol/Quantization.h` and `server/internal/wire/quantize.go` hold the same
 rules: positions and speed round to whole units, heading is normalized to
@@ -328,23 +344,30 @@ the same order on every peer. Furniture is plugin-qualified.
 
 ## Actions
 
-`Action` carries one attack as a separate ordered stream, since a checkpoint
-field would collapse repeated attacks.
+`Action` carries one attack or one beast action as a separate ordered stream,
+since a checkpoint field would collapse repeated actions.
 
 | Field | Validation |
 | --- | --- |
-| `action_sequence` | `>= 1`, exactly the previous plus one per player; the first one a server sees sets the boundary |
+| `action_sequence` | `>= 1`, exactly the previous plus one per player, shared by attacks and beast actions; the first one a server sees sets the boundary |
 | `graph_epoch` | equal to the player's context epoch |
 | `checkpoint_sequence` | `>= 1`, a published checkpoint no newer than the latest |
-| `action` | `NORMAL`, `LEFT`, `DUAL`, or `BASH` |
-| `power` | boolean |
+| `action` | `NORMAL`, `LEFT`, `DUAL`, or `BASH`; `UNSPECIFIED` with `beast` |
+| `power` | boolean; false with `beast` |
 | `direction` | `STANDING`, `FORWARD`, `BACKWARD`, `LEFT`, `RIGHT` when `power`; `NONE` otherwise |
+| `beast` | `UNSPECIFIED` for an attack, or a `BeastAction`: the `WEREWOLF_` values `1..19` (also the werebear's) or the `VAMPIRE_LORD_` values `32..51`; any other value is rejected |
 
-The server also requires the latest checkpoint to have the weapon drawn and the
-context to have no furniture, and allows `limits.actions_per_second` (10, burst
-10) per player. A duplicate, stale, or gapped sequence is rejected rather than
-played out of order. The vocabulary's meaning is in
-[Combat presentation](combat-presentation.md#action-stream).
+For an attack, the server also requires the latest checkpoint to have the
+weapon drawn and the context to have no shapeshift. A beast action needs a
+context whose form plays that graph (`validate.SameBeastGraph`: a werebear
+plays the werewolf's), and not the weapon drawn, since a beast howls and feeds
+sheathed. Either needs a context without furniture, and the server allows
+`limits.actions_per_second` (10, burst 10) per player. A duplicate, stale, or
+gapped sequence is rejected rather than played out of order. Graph event names
+stay out of the wire: the plugin maps each value to its event. The
+vocabularies' meaning is in
+[Combat presentation](combat-presentation.md#action-stream) and
+[Combat presentation](combat-presentation.md#beast-actions).
 
 ## Appearance and equipment
 
@@ -723,14 +746,14 @@ Client messages:
 
 | Message | Fields | Validation and handling |
 | --- | --- | --- |
-| `TradeRequest` | `slot` | `slot` non-zero. Only a client with a session asks; replays and bots are ignored. Refused with `TradeClose{0, reason}`: `UNAVAILABLE` for an unlisted slot, oneself, a player the requester vanished, or over the rate limit (0.5 per s, burst 3, `tradeRequestsPerSecond`, `tradeRequestBurst`); `BUSY` when either player is in a trade; `OUT_OF_RANGE` unless both are placed in the same space within `trade.request_radius`, horizontally (`interest.Distance`). Otherwise both get `TradeInvite`, except that a target who vanished the requester is not told |
+| `TradeRequest` | `slot` | `slot` non-zero. Only a client with a session asks; replays and bots are ignored. Refused with `TradeClose{0, reason}`: `UNAVAILABLE` for an unlisted slot, oneself, a player the requester vanished, or over the rate limit (0.5 per s, burst 3, `tradeRequestsPerSecond`, `tradeRequestBurst`); `BUSY` when either player is in a trade; `OUT_OF_RANGE` unless both are placed in the same space within `trade.request_radius`, horizontally (`interest.Distance`); `TRANSFORMED` when either player's context has a shapeshift. Otherwise both get `TradeInvite`, except that a target who vanished the requester is not told |
 | `TradeAnswer` | `trade_id`, `accept` | `trade_id` non-zero; only the invited player, while invited (`unknown trade`, `stale trade message`). Declining closes with `DECLINED`; accepting opens the trade, or closes it with `OUT_OF_RANGE` when the players are over `trade.keep_radius` apart |
 | `TradeOffer` | `trade_id`, `revision`, `items` | `trade_id` and `revision` non-zero, at most 15 items, each a valid `TradeItem`; only while open, with a revision above the player's last. 10 per s, burst 20 (`tradeOffersPerSecond`, `tradeOfferBurst`). Clears both acceptances and is relayed to the other player as it is |
 | `TradeReport` | `trade_id`, `revision`, `skipped` | `trade_id` and `revision` non-zero, at most 15 `TradeSkip`s with unique `index` `0..14`, a known `reason`, and `plugin` of at most 260 bytes without control characters. Only while open, for the other player's current revision, once per revision, with indices below that offer's item count. Relayed to the other player |
 | `TradePluginQuery` | `trade_id`, `plugins` | `trade_id` non-zero, 1 to 256 plugin names (`validate.MaximumTradePlugins`), each 1 to 260 UTF-8 bytes without control characters; duplicates are allowed. Only while open, at most 8 unanswered per player (`tradePendingPluginQueries`, `rate limited`), and sharing `TradeOffer`'s rate. The hub keeps each query's name count and relays it to the other player as it is ([plugin check](trade.md#plugin-check)) |
 | `TradePluginReply` | `trade_id`, `missing` | `trade_id` non-zero, at most 256 unique indices below 256. Only while open, answering the other player's oldest unanswered query, with every index below its name count (`stale trade message` otherwise, also without a query). Relayed to the other player |
 | `TradeAccept` | `trade_id`, `own_revision`, `peer_revision` | `trade_id` non-zero; only while open, with both revisions current and this player's report on the other's revision received. Relayed to the other player, or, when that player's acceptance stands, both get `TradeCommit` and the trade ends |
-| `TradeCancel` | `trade_id`, `reason` | `trade_id` non-zero, `reason` one of `CANCELLED`, `COMBAT`, `MENU`, `FAILED`; either player, invited or open. Both get `TradeClose` with the reason |
+| `TradeCancel` | `trade_id`, `reason` | `trade_id` non-zero, `reason` one of `CANCELLED`, `COMBAT`, `MENU`, `FAILED`, `TRANSFORMED`; either player, invited or open. Both get `TradeClose` with the reason |
 
 `TradeItem`:
 
@@ -753,7 +776,7 @@ Server messages:
 | `TradeOpen` | `trade_id`; to both |
 | `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept` | The other player's message as it sent it, so `TradeAccept.own_revision` is that player's and a `TradePluginReply` answers the recipient's oldest unanswered query |
 | `TradeCommit` | `trade_id`, `own_revision` (the recipient's), `peer_revision` |
-| `TradeClose` | `trade_id`, 0 for a refused request; `reason`: `DECLINED`, `EXPIRED`, `CANCELLED`, `BUSY`, `OUT_OF_RANGE`, `COMBAT`, `MENU`, `DISCONNECTED`, `FAILED`, `UNAVAILABLE` |
+| `TradeClose` | `trade_id`, 0 for a refused request; `reason`: `DECLINED`, `EXPIRED`, `CANCELLED`, `BUSY`, `OUT_OF_RANGE`, `COMBAT`, `MENU`, `DISCONNECTED`, `FAILED`, `UNAVAILABLE`, `TRANSFORMED` |
 
 - Trade IDs are a `uint32` counter per server run, never 0. A trade is held
   by the hub (`trade`, `member.trade`), and each player's pointer is set
@@ -762,7 +785,9 @@ Server messages:
 - Each checkpoint, a context that moves to another space, and `Exit` of a
   player in a trade check the distance to the other player; over
   `trade.keep_radius`, in another space, or unplaced closes it with
-  `OUT_OF_RANGE`. A disconnect closes it with `DISCONNECTED`.
+  `OUT_OF_RANGE`. A disconnect closes it with `DISCONNECTED`. A context
+  with a shapeshift closes an invited or open trade with `TRANSFORMED`
+  (`checkTradeForm`), since a beast form has no inventory.
 - `Hub.UpdateInterest` expires invitations older than
   `trade.invite_seconds` with `EXPIRED`.
 - A commit is logged (`trade completed`, both slots and item counts).

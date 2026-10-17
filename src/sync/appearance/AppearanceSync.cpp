@@ -1,4 +1,5 @@
 #include "sync/appearance/AppearanceSync.h"
+#include "forms/BeastForms.h"
 #include "forms/DynamicForm.h"
 #include "forms/FormLookup.h"
 #include "network/ServerClient.h"
@@ -27,6 +28,9 @@ namespace AppearanceSync
         constexpr float kMinimumPublishIntervalSeconds = 3.0F;
         constexpr float kFirstAppearanceWaitSeconds = 3.0F;
         constexpr float kMinimumRespawnIntervalSeconds = 2.0F;
+        // Bounds respawns from a form that flips back and forth; vanilla transformations
+        // take far longer.
+        constexpr float kMinimumShapeshiftIntervalSeconds = 1.0F;
         constexpr std::string_view kFallbackRacePlugin = "Skyrim.esm";
         constexpr RE::FormID kFallbackRaceLocalFormID = 0x00013746; // NordRace
 
@@ -555,6 +559,24 @@ namespace AppearanceSync
             return BuildActorBase(a_playerID, MakeDefaultAppearance(*race, false), *race);
         }
 
+        // The beast races have no head data, so a beast base takes only the player's
+        // label, sex, weight, and height.
+        RE::TESNPC* CreateBeastBase(
+            Multiplayer::PeerSlot a_playerID, const std::optional<AppearanceData>& a_appearance, RE::TESRace& a_race)
+        {
+            AppearanceData look{ .race = MakeFormReference(&a_race).value_or(AppearanceFormReference{}) };
+            if (a_appearance)
+            {
+                look.revision = a_appearance->revision;
+                look.name = a_appearance->name;
+                look.level = a_appearance->level;
+                look.female = a_appearance->female;
+                look.weight = a_appearance->weight;
+                look.height = a_appearance->height;
+            }
+            return BuildActorBase(a_playerID, look, a_race);
+        }
+
         RE::NiSourceTexture* FindFaceTintTexture(RE::Actor& a_actor, const RE::TESNPC& a_base)
         {
             auto* faceNode = a_actor.GetFaceNodeSkinned();
@@ -635,7 +657,7 @@ namespace AppearanceSync
         }
     }
 
-    void SyncAppearance(const LocalFrame& a_local, float a_delta)
+    void SyncAppearance(const LocalFrame& a_local, bool a_transformed, float a_delta)
     {
         PROFILE_FUNCTION();
         static float captureElapsed = kCaptureIntervalSeconds;
@@ -665,6 +687,13 @@ namespace AppearanceSync
             }
         }
 
+        if (a_transformed && published)
+        {
+            // A beast race's originalRace is the player record's template race, not the
+            // player's own, and a revision would respawn the beast on every peer.
+            candidate.reset();
+            return;
+        }
         if (captureElapsed < kCaptureIntervalSeconds)
         {
             return;
@@ -743,13 +772,20 @@ namespace AppearanceSync
         if (relabelOnly)
         {
             const auto previousRevision = a_remote.latest->revision;
-            if (a_remote.base)
+            for (auto* base : { a_remote.base, a_remote.beastBase })
             {
-                a_remote.base->fullName = PlayerLabel::Format(a_appearance.name);
+                if (base)
+                {
+                    base->fullName = PlayerLabel::Format(a_appearance.name);
+                }
             }
             if (a_remote.baseRevision == previousRevision)
             {
                 a_remote.baseRevision = a_appearance.revision;
+            }
+            if (a_remote.beastBaseRevision == previousRevision)
+            {
+                a_remote.beastBaseRevision = a_appearance.revision;
             }
             if (a_remote.spawnedRevision == previousRevision)
             {
@@ -767,16 +803,43 @@ namespace AppearanceSync
             a_remote.appearanceWaitElapsed += delta;
         }
         a_remote.respawnCooldown = (std::max)(a_remote.respawnCooldown - delta, 0.0F);
+        a_remote.shapeshiftCooldown = (std::max)(a_remote.shapeshiftCooldown - delta, 0.0F);
     }
 
-    RE::TESNPC* GetSpawnBase(RemoteState& a_remote, Multiplayer::PeerSlot a_playerID)
+    SpawnBase GetSpawnBase(RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, Multiplayer::Shapeshift a_form)
     {
         if (!a_remote.latest && a_remote.appearanceWaitElapsed < kFirstAppearanceWaitSeconds)
         {
-            return nullptr;
+            return {};
         }
 
         const auto revision = a_remote.latest ? a_remote.latest->revision : 0;
+        if (a_form != Multiplayer::Shapeshift::kNone && a_form != a_remote.failedForm)
+        {
+            if (!a_remote.beastBase || a_remote.beastBaseForm != a_form || a_remote.beastBaseRevision != revision)
+            {
+                auto* race = Forms::GetBeastRace(a_form);
+                auto* base = race ? CreateBeastBase(a_playerID, a_remote.latest, *race) : nullptr;
+                if (!base)
+                {
+                    logs::error("Appearance sync could not build a beast base; showing the player's own look: "
+                                "player={} form={} raceResolved={}",
+                        a_playerID, Multiplayer::GetShapeshiftName(a_form), race != nullptr);
+                    a_remote.failedForm = a_form;
+                }
+                else
+                {
+                    a_remote.beastBase = base;
+                    a_remote.beastBaseForm = a_form;
+                    a_remote.beastBaseRevision = revision;
+                }
+            }
+            if (a_remote.beastBase && a_remote.beastBaseForm == a_form)
+            {
+                return { .base = a_remote.beastBase, .form = a_form };
+            }
+        }
+
         if ((!a_remote.base || a_remote.baseRevision != revision) && a_remote.failedRevision != revision)
         {
             auto* base
@@ -792,16 +855,18 @@ namespace AppearanceSync
             }
         }
 
-        return a_remote.base;
+        return { .base = a_remote.base };
     }
 
-    void OnActorSpawned(RemoteState& a_remote, RE::TESNPC* a_spawnedBase)
+    void OnActorSpawned(RemoteState& a_remote, const SpawnBase& a_spawned)
     {
         // A failed build also counts as spawned, so the actor is not retired every frame for
         // an appearance that cannot be built.
         a_remote.spawnedRevision = a_remote.latest ? a_remote.latest->revision : 0;
-        a_remote.spawnedBase = a_spawnedBase;
+        a_remote.spawnedBase = a_spawned.base;
+        a_remote.spawnedForm = a_spawned.form;
         a_remote.respawnCooldown = kMinimumRespawnIntervalSeconds;
+        a_remote.shapeshiftCooldown = kMinimumShapeshiftIntervalSeconds;
         a_remote.colorsApplied = false;
         a_remote.faceTintTexture.reset();
     }
@@ -810,6 +875,12 @@ namespace AppearanceSync
     {
         return a_remote.latest && a_remote.latest->revision != a_remote.spawnedRevision
             && a_remote.respawnCooldown <= 0.0F;
+    }
+
+    bool RequiresShapeshift(const RemoteState& a_remote, Multiplayer::Shapeshift a_form)
+    {
+        const auto shownForm = a_form == a_remote.failedForm ? Multiplayer::Shapeshift::kNone : a_form;
+        return shownForm != a_remote.spawnedForm && a_remote.shapeshiftCooldown <= 0.0F;
     }
 
     void ApplyActorPresentation(

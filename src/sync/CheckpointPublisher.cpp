@@ -8,6 +8,7 @@
 #include "sync/furniture/FurnitureSync.h"
 #include "sync/mount/MountSync.h"
 #include "sync/movement/MovementSync.h"
+#include "sync/shapeshift/ShapeshiftSync.h"
 
 #include <chrono>
 #include <cmath>
@@ -67,6 +68,7 @@ namespace CheckpointPublisher
         auto furniture = FurnitureSync::SampleLocalFurniture(a_local, sequence);
         const auto handPresentation = CombatSync::SampleLocalHandPresentation();
         const bool dead = DeathSync::SampleLocalDeath(a_local, sequence);
+        const auto vampireLord = ShapeshiftSync::SampleLocalVampireLord(a_local);
 
         const Network::PlayerTransform checkpoint{ .x = movement.position.x,
             .y = movement.position.y,
@@ -80,9 +82,13 @@ namespace CheckpointPublisher
             .dead = dead,
             .mounted = static_cast<bool>(mount),
             .swimming = movement.swimming,
+            .levitating = vampireLord.levitating,
+            .mistForm = vampireLord.mistForm,
+            .bats = vampireLord.bats,
             .cellID = movement.cellID,
             .worldspaceID = movement.worldspaceID,
             .furniture = std::move(furniture),
+            .shapeshift = ShapeshiftSync::GetLocalForm(),
             .graphEpoch = a_graphEpoch,
             .sequence = sequence,
             .sampleTime = GetSampleTime() };

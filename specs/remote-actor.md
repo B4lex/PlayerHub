@@ -173,8 +173,16 @@ is sent directly to the saved graph function, bypassing the hook.
 | `Magic_Equip`, `MagicForceEquip`, `MagicWeap_ForceEquip`, `MagicForceEquipRight`, `MagicForceEquipLeft`, `WeapSoloEquip`, `Magic_Solo_Equip` | Spell hand draw and single-hand swaps | [Combat presentation](combat-presentation.md#spells) |
 | `MLh_*`, `MRh_*`, `DualMagic_*`, names containing `Cast` (case-insensitive) | While a cast is owned | [Combat presentation](combat-presentation.md#spells) |
 | `SwimStart`, `swimStop` | Skyrim manages swimming locally | [Locomotion](locomotion.md#swimming) |
+| `WeapOutRightReplaceForceEquip`, `WeapOutLeftReplaceForceEquip` | Equipping over a drawn weapon | [Combat presentation](combat-presentation.md#weapon-stance) |
+| `torchEquip`, `torchUnequip` | A carried torch's arm | [Appearance and equipment](appearance-and-equipment.md#equipment) |
 | every event | While furniture, a mount, or death owns the actor | [Native interactions](native-interactions.md) |
 
+- Admitted names compare case-insensitively, as graph events do. The string
+  pool keeps the first spelling it interned, and the beast idles spell the
+  sheathe differently (`WerewolfSheathe` sends `weapUnequip`, the vampire
+  lord's `WeapUnEquip`, from `Skyrim.esm` and `Dawnguard.esm`). An
+  exact match left a remote werebear at `WantToSheathe` with its
+  `WeapUnEquip` rejected every frame (seen in game).
 - On a mount, the gait events Skyrim sends are blocked instead
   ([Native interactions](native-interactions.md#mounts)).
 - Local attack, hit, cast, combat-target, and AI-driven events never take

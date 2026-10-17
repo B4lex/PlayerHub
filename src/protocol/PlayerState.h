@@ -3,6 +3,7 @@
 #include "protocol/FormReference.h"
 #include "protocol/MovementState.h"
 #include "protocol/PeerSlot.h"
+#include "protocol/Shapeshift.h"
 
 #include <cstdint>
 
@@ -27,9 +28,13 @@ namespace Network
         bool dead{ false };
         bool mounted{ false };
         bool swimming{ false };
+        bool levitating{ false };
+        bool mistForm{ false };
+        bool bats{ false };
         std::uint32_t cellID{ 0 };
         std::uint32_t worldspaceID{ 0 };
         Multiplayer::FormReference furniture;
+        Multiplayer::Shapeshift shapeshift{ Multiplayer::Shapeshift::kNone };
         std::uint64_t graphEpoch{ 1 };
         std::uint64_t sequence{ 0 };
         std::uint32_t sampleTime{ 0 };
@@ -94,6 +99,8 @@ namespace Network
     struct AnimationAction
     {
         Multiplayer::PeerSlot playerID{ 0 };
+        // A beast action replaces the attack.
+        Multiplayer::BeastAction beast{ Multiplayer::BeastAction::kNone };
         Attack attack{};
         std::uint64_t actionSequence{ 0 };
         std::uint64_t graphEpoch{ 0 };

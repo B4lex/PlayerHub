@@ -1279,6 +1279,36 @@ msgstr ""
 "你正在戰鬥\n"
 "與 {} 的交易已結束"
 
+msgctxt "TradeNotInBeastForm"
+msgid "You cannot trade in beast form"
+msgstr "你在野獸形態下無法交易"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeTransformedDeclined"
+msgid ""
+"You are in beast form\n"
+"The trade offer from {} was declined"
+msgstr ""
+"你正處於野獸形態\n"
+"已拒絕來自 {} 的交易邀請"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeTransformedEnded"
+msgid ""
+"You are in beast form\n"
+"The trade with {} ended"
+msgstr ""
+"你正處於野獸形態\n"
+"與 {} 的交易已結束"
+
+#. {} is the other player's name
+#, c++-format
+msgctxt "TradeClosedTransformed"
+msgid "{} cannot trade in beast form"
+msgstr "{} 處於野獸形態，無法交易"
+
 #. {} is the other player's name
 #, c++-format
 msgctxt "TradeGotNoAnswer"

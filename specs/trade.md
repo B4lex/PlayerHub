@@ -92,6 +92,12 @@ Implemented 2026-10-06; not built on Windows and not run in game.
     passed the syntax check, which a planted error confirmed reaches
     `TradeWindow.cpp`. Nothing ran.
 
+- Beast forms (2026-10-17): `go test` covers a request refused with
+  `TRANSFORMED`, an invitation and an open trade closed by a player's
+  transformation (`internal/hub`), and `TRANSFORMED` as a cancel reason
+  (`internal/validate`); the four new texts passed `locale/generate.lua` in
+  every translation. `TradeSync.cpp` passed a Linux syntax check only; not
+  built on Windows or run in game.
 - [Trade bot](#trade-bot) (2026-10-07): two bots and an idle `cmd/loadgen`
   walker against a local server traded with each other: an invitation
   answered at once, offers with tempering, names, and a player enchantment,
@@ -177,8 +183,12 @@ a request unanswered after 10 s, as for a lost message.
   horizontal, the server's default; an interior needs the same cell) when the
   menu opened, and no trade is under way. The server checks again against its
   own `trade.request_radius` from both players' latest checkpoints, and
-  refuses with `OUT_OF_RANGE`, `BUSY`, or `UNAVAILABLE`, each a warning
-  notice.
+  refuses with `OUT_OF_RANGE`, `BUSY`, `UNAVAILABLE`, or `TRANSFORMED`, each a
+  warning notice.
+- A player in a [beast form](appearance-and-equipment.md#shapeshifts) has no
+  inventory to trade from: the server refuses a request when either player's
+  context has a shapeshift, and the local player's own request is refused
+  locally, with a notice, while it is transformed.
 - Both players get the [prompt](ui-overlay.md#trade-window), and no notice,
   since the prompt already says it. The invited one answers without losing
   input:
@@ -186,8 +196,8 @@ a request unanswered after 10 s, as for a lost message.
   unless unbound, and its menu for the inviting player offers accept and
   decline items. The inviting player's prompt waits, and the decline key
   withdraws it.
-- Accepting is refused locally, with a notice, in combat or out of
-  the world.
+- Accepting is refused locally, with a notice, in combat, out of
+  the world, or in a beast form.
 - An invitation from a muted player is ignored without an answer, and the
   server never shows one from a player the invited player vanished: both
   expire for the sender as if unanswered, so neither tells it apart from a
@@ -394,6 +404,8 @@ is not sent and it arrives full.
 | Cancel, Escape | `CANCELLED` | client |
 | The decline key or menu item | `DECLINED` | client (`TradeAnswer`) |
 | Combat (`IsInCombat`) or a `TESHitEvent` on the player while a trade is invited or open | `COMBAT` | client |
+| The local player in a beast form while a trade is invited or open | `TRANSFORMED` | client |
+| A context with a shapeshift, of either player, while invited or open | `TRANSFORMED` | server |
 | Anything taking input from the open window: a game menu, the console, dialogue, a loading screen | `MENU` | client |
 | The window cannot take input within 2 s of opening | `FAILED` | client |
 | Over `trade.keep_radius` (1000) apart, another space, `Exit` | `OUT_OF_RANGE` | server |
@@ -409,11 +421,13 @@ close for it is then ignored.
 Each outcome reaches the player as a [notice](ui-overlay.md#notices)
 (`Notices::Post` from `TradeSync`), not a chat line. Every end of a trade
 names the other player and why (declined, busy, unavailable, too far, no
-answer, combat, withdrawn or cancelled, left, could not open, the
-connection lost, or the player's own decline); a commit has a notice of
-its own. Refusals of the player's own actions (a trade
-already under way, combat, no connection, a full offer, items gone, an item
-the other game cannot receive) are notices too. Sending an invitation and receiving one post nothing:
+answer, combat, a beast form, withdrawn or cancelled, left, could not open,
+the connection lost, or the player's own decline); a commit has a notice of
+its own. A `TRANSFORMED` close names the local player's own form when it is
+transformed, since the server may close for it before this game cancels.
+Refusals of the player's own actions (a trade
+already under way, combat, a beast form, no connection, a full offer, items
+gone, an item the other game cannot receive) are notices too. Sending an invitation and receiving one post nothing:
 the [prompt](ui-overlay.md#prompt) shows both. The notices, the reasons a row cannot be offered, and
 the Accept button's tooltips come from the string tables, so they are in the
 game's language.

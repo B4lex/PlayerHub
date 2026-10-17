@@ -8,10 +8,12 @@
 #include "actor/ScenePackageSuppression.h"
 #include "actor/SurvivalPolicy.h"
 #include "config/PluginConfig.h"
+#include "forms/BeastForms.h"
 #include "forms/ItemForms.h"
 #include "network/ServerClient.h"
 #include "runtime/FurnitureActivationHook.h"
 #include "runtime/MainLoopHook.h"
+#include "runtime/PlayerGraphEventHook.h"
 #include "runtime/RemoteActorActivation.h"
 #include "sync/SyncCoordinator.h"
 #include "sync/equipment/EquipmentSync.h"
@@ -48,6 +50,7 @@ namespace PluginStartup
             SurvivalPolicy::RegisterEventSinks();
             PrecisionIsolation::Initialize();
             Forms::BuildItemCatalog();
+            Forms::ResolveBeastForms();
             DefaultOutfit::Initialize();
             EquipmentSync::RegisterEventSinks();
             PresenceSync::RegisterEventSinks();
@@ -70,6 +73,7 @@ namespace PluginStartup
         InstallRemoteActorHooks();
         MainLoopHook::Install();
         FurnitureActivationHook::Install();
+        PlayerGraphEventHook::Install();
         UI::Overlay::Install();
 
         SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* a_message) {

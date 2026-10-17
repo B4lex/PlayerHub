@@ -30,6 +30,8 @@ namespace Network::Wire
     [[nodiscard]] std::string EncodeCheckpoint(const QuantizedCheckpoint& a_checkpoint);
     [[nodiscard]] std::string EncodeAction(
         std::uint64_t a_actionSequence, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence, const Attack& a_attack);
+    [[nodiscard]] std::string EncodeBeastAction(std::uint64_t a_actionSequence, std::uint64_t a_graphEpoch,
+        std::uint64_t a_checkpointSequence, Multiplayer::BeastAction a_action);
     [[nodiscard]] std::string EncodeAppearance(const Multiplayer::PlayerAppearance& a_appearance);
     [[nodiscard]] std::string EncodeEquipment(const Multiplayer::PlayerEquipment& a_equipment);
     [[nodiscard]] std::string EncodeChat(std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel,

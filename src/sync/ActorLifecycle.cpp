@@ -87,6 +87,17 @@ namespace ActorLifecycle
             static_cast<unsigned long long>(a_peer.appearance.latest->revision));
     }
 
+    void RetireForShapeshift(const RemoteFrame& a_remote, PeerState& a_peer)
+    {
+        // A race is only applied when 3D loads, as for an appearance change.
+        const auto actorHandle = Retire(a_peer);
+        logs::debug("Recycling remote player actor {} actor {:08X} after shapeshift: spawnedForm={} form={} "
+                    "sequence={}",
+            a_remote.playerID, actorHandle, Multiplayer::GetShapeshiftName(a_peer.appearance.spawnedForm),
+            Multiplayer::GetShapeshiftName(a_remote.checkpoint.shapeshift),
+            static_cast<unsigned long long>(a_remote.checkpoint.sequence));
+    }
+
     void RetireForSpaceChange(
         const RemoteFrame& a_remote, PeerState& a_peer, RE::FormID a_localCellID, RE::FormID a_localWorldspaceID)
     {
@@ -268,8 +279,9 @@ namespace ActorLifecycle
             return;
         }
 
-        auto* spawnBase = AppearanceSync::GetSpawnBase(a_peer.appearance, a_remote.playerID);
-        if (!spawnBase)
+        const auto spawnBase
+            = AppearanceSync::GetSpawnBase(a_peer.appearance, a_remote.playerID, a_remote.checkpoint.shapeshift);
+        if (!spawnBase.base)
         {
             // Briefly wait for the first appearance so a late joiner is not spawned with the
             // default look and immediately replaced.
@@ -283,12 +295,13 @@ namespace ActorLifecycle
 
         const RE::NiPoint3 targetPosition{ a_remote.checkpoint.x, a_remote.checkpoint.y, a_remote.checkpoint.z };
         lifecycle.actor = ActorSpawner::Spawn(
-            spawnBase, targetPosition, a_remote.checkpoint.heading, kActorSpeed, kActorStoppingDistance);
+            spawnBase.base, targetPosition, a_remote.checkpoint.heading, kActorSpeed, kActorStoppingDistance);
         if (!lifecycle.actor)
         {
             lifecycle.spawnRetryRemaining = kSpawnRetryDelaySeconds;
             return;
         }
+        lifecycle.actor->form = spawnBase.form;
         AppearanceSync::OnActorSpawned(a_peer.appearance, spawnBase);
         EquipmentSync::OnActorSpawned(a_peer.equipment);
         FurnitureSync::OnActorSpawned(a_remote, *lifecycle.actor);
@@ -298,12 +311,13 @@ namespace ActorLifecycle
 
         logs::debug(
             "Allocated remote player actor {} as actor {:08X} at transform sequence={} with target animation "
-            "state={}/{} furniture={:08X} spawnAllowanceWait={:.2f}s; waiting for 3D and animation graph readiness",
+            "state={}/{} furniture={:08X} form={} spawnAllowanceWait={:.2f}s; waiting for 3D and animation graph "
+            "readiness",
             a_remote.playerID, lifecycle.actor->handle.native_handle(),
             static_cast<unsigned long long>(a_peer.appliedSequence),
             Multiplayer::GetMovementStateName(a_remote.checkpoint.animationState.movementState),
             a_remote.checkpoint.animationState.jumping ? "jumping" : "grounded", a_remote.furnitureRefID,
-            allowanceWait);
+            Multiplayer::GetShapeshiftName(spawnBase.form), allowanceWait);
     }
 
     void SpawnMountWhenDue(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)

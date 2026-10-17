@@ -29,6 +29,13 @@
   game ([UI overlay](ui-overlay.md#item-picker)). The main-slot armor filter is
   checked only in a standalone Linux test of `ItemFilter`, not yet built on
   Windows or run in game.
+- **Shapeshifts (2026-10-17):** the beast races' form IDs, behavior
+  projects, and lack of head data were read from `Skyrim.esm`,
+  `Dawnguard.esm`, and `Dragonborn.esm`; the wire rules are covered by server
+  unit tests ([Network](network.md#status)). Run in game on 2026-10-18 with
+  one peer: the local player's werewolf swaps both ways and the peer's swap
+  to a werebear, shown as expected; a vampire lord only on the local side. The appearance hold while transformed, added after that run,
+  passed a Linux syntax check only.
 - **Player labels:** level validation and chat fields covered by server unit
   tests; label rendering pending an in-game check. The display name, which comes
   from the player's session ([Network](network.md#sessions)), and the label
@@ -39,7 +46,8 @@
 
 A remote actor looks like its source player's character, carries the player's
 display name, and wears and wields what the source has
-equipped, from any plugin the receiver also has. What the receiver cannot
+equipped, from any plugin the receiver also has. While the source is in a
+vanilla beast form, the actor is that beast ([Shapeshifts](#shapeshifts)). What the receiver cannot
 resolve falls back to vanilla data or to the source's own default outfit, so
 players with different modpacks still see each other dressed and armed.
 
@@ -58,6 +66,8 @@ configured is in [Configuration](configuration.md#settings).
 | `sync/equipment/FakeLight` | A shadow-casting light's runtime copy without its shadow flags |
 | `sync/outfit/DefaultOutfit` | Resolve `[DefaultOutfit]` and select the pieces for a capture |
 | `sync/PlayerLabel.h` | `PlayerLabel::Format` |
+| `forms/BeastForms` | The vanilla beast races and their forms |
+| `sync/shapeshift/ShapeshiftSync` | The local form and levitation; beast actions both ways ([Combat presentation](combat-presentation.md#beast-actions)) |
 | `protocol/AppearanceState.h`, `EquipmentState.h`, `FormReference.h` | Plain data and validators shared by capture and the network parser |
 | `forms/FormLookup` | Encode and resolve `{plugin, formId}` |
 | `forms/DynamicForm.h` | `DynamicForm::Create`: a factory-built form with a dynamic form ID |
@@ -75,8 +85,9 @@ cheek color).
 On the game thread, once per second:
 
 - `race`: the actor base race; if it is not playable, `originalRace` when that
-  is playable, otherwise the capture is skipped (transformed). While
-  transformed, peers keep the last playable appearance.
+  is playable, otherwise the capture is skipped. While the player is in a
+  vanilla beast form, the last published revision stands and the form
+  travels apart ([Shapeshifts](#shapeshifts)).
 - `level`: `Actor::GetLevel`, so a level-up publishes a new revision. Peers
   receive it and show it nowhere yet ([Player label](#player-label)). `name`
   is left empty: the server sets the [display name](#display-name).
@@ -166,6 +177,58 @@ each time.
   texture, layer color, and `interpolationValue / 100` alpha, at most 16
   non-zero layers. It renders again whenever the head gets a new tint texture,
   such as after a 3D reset.
+
+### Shapeshifts
+
+Goal: a player in a vanilla beast form appears to peers as that beast, and as
+the character again once back, with no transition animation. Mod-added
+transformations are out of scope: peers keep showing the player's own look.
+
+| Form | Race | Behavior graph |
+| --- | --- | --- |
+| werewolf | `Skyrim.esm` `0CDD84` `WerewolfBeastRace` | `Actors\WerewolfBeast\WerewolfBeastProject.hkx` |
+| vampire lord | `Dawnguard.esm` `00283A` `DLC1VampireBeastRace` | `Actors\VampireLord\VampireLord.hkx` |
+| werebear | `Dragonborn.esm` `01E17B` `DLC2WerebearBeastRace` | the werewolf's |
+
+Vanilla gives the player no way to become a werebear, so only a mod triggers
+it; its race is still the vanilla one. All three masters are base-game
+plugins, so every receiver resolves them.
+
+- **Source:** `Forms::ResolveBeastForms` resolves the races at `kDataLoaded`.
+  `ShapeshiftSync::ObserveLocalForm` compares `Actor::GetRace` with them each
+  pass, and the context's `shapeshift` carries the form
+  ([Network](network.md#checkpoint-and-context)). A race switch rebuilds the
+  player's graph, so the graph epoch advances with it
+  ([assumption 14](#engine-assumptions)). The equipment capture skips a
+  non-playable race. The appearance capture does not run while the form is
+  not `none` once a revision is published (`SyncAppearance`'s
+  `a_transformed`): a beast race's `originalRace` is the player record's
+  race (Nord for an Argonian player, seen in game), and every revision would
+  respawn the beast on each peer. A game loaded in a beast form publishes its
+  first revision with that race; the swap back publishes the right one.
+- **Beast base:** `AppearanceSync::GetSpawnBase` builds, per form and
+  appearance revision, a base like the [actor base](#actor-base) with the
+  beast race and the race's attack data. The beast races have no head data,
+  so it takes only the label, sex, weight, and height; the sex picks the
+  vampire lord's model ([assumption 13](#engine-assumptions)). Hair, skin color, and face tint presentation never runs
+  for it (`ApplyActorPresentation` serves only the human base). A race that
+  does not resolve logs once and shows the player's own look (`failedForm`).
+- **Swap:** a played checkpoint whose form differs from the spawned one
+  retires the actor (`AppearanceSync::RequiresShapeshift`,
+  `ActorLifecycle::RetireForShapeshift`), at least 1 s after the previous
+  spawn (`kMinimumShapeshiftIntervalSeconds`), and it spawns again from the
+  played checkpoint in the new form, as a [respawn](#spawn-and-respawn) does.
+  An appearance respawn takes the current form too. `RemoteActor::form`
+  records the form the actor was built in.
+- **Equipment:** a beast actor runs no reconciliation and counts its hands as
+  settled: its runtime base has no inventory, and the beast races wear only
+  their skins. The human actor reconciles from the kept revision after the
+  swap back.
+- **Presentation:** locomotion drives the beast graphs
+  ([Locomotion](locomotion.md#beast-graphs)); beast actions, levitation, and
+  vampire lord casts are in
+  [Combat presentation](combat-presentation.md#beast-actions); a beast never
+  trades ([Trade](trade.md#invitation)).
 
 ### Display name
 
@@ -481,6 +544,17 @@ To verify in game:
     torch, raises the torch arm, and shows the same flame, light, and flicker,
     and a spell's hand light accepts it.
 
+To verify in game for [shapeshifts](#shapeshifts):
+
+13. `CreateReferenceAtLocation` completes 3D, character controller, and graph
+    for a runtime base of a beast race without head data, the race's skin
+    dresses it, a female base takes the vampire lord's female model, and the
+    beast races' own abilities stay behind the magic firewall.
+14. `Actor::GetRace` on the player returns the beast race from the pass the
+    race switch takes effect, and the original race from the pass it ends;
+    the switch replaces the player's graph manager, which advances the graph
+    epoch ([Locomotion](locomotion.md#source-capture)).
+
 ## Acceptance criteria
 
 1. A remote actor shows the source's race, sex, weight, hair, eyes, hair color,
@@ -511,12 +585,22 @@ To verify in game:
    called, and whatever name its client put in the appearance. A display name
    changed while disconnected shows to peers from the next connection. Without
    a display name the player never appears to peers.
+10. A player turning into a werewolf, vampire lord, or werebear appears to
+    peers as that beast at once after the race switch, holding nothing, with
+    the same label; turning back restores the character's look and equipment
+    with one more respawn. A late joiner sees the beast directly.
+11. A female player's vampire lord uses the female model.
+12. A mod's own transformation race leaves peers showing the player's own
+    look, as before.
 
 ## Known limitations
 
-- Voice type, actor values, transformation races and their graphs, and
+- Voice type, actor values, mod-added transformation races, and
   RaceMenu/NiOverride data (body morphs, overlays, node transforms, scaled bones)
-  are not synchronized. Custom skin armor and far skins use the resolved race's.
+  are not synchronized.
+- The transformation itself, its animation, effect shader, and sound, is not
+  shown: the player's choice is an instant swap. The swap waits for a respawn,
+  so the actor is briefly absent while the new form's 3D loads. Custom skin armor and far skins use the resolved race's.
 - Enchantments, tempering, poison, charge, player-given names, the equipped shout
   or power, and SMP/CBPC physics are not shown.
 - An outfit piece stands in only for its slot and weapon type, not for the

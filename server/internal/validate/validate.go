@@ -20,7 +20,7 @@ const (
 	MaximumTime            = 16383
 	MaximumMovementState   = 6
 	movementStateMask      = 0x7
-	knownFlags             = 0xFFF
+	knownFlags             = 0x7FFF
 
 	MaximumNameBytes        = 128
 	MinimumDisplayNameBytes = 3
@@ -108,15 +108,54 @@ func WeaponDrawn(c *pb.Checkpoint) bool {
 }
 
 func Context(c *pb.Context) error {
-	if c.GetGraphEpoch() == 0 || (c.Furniture != nil && !formRef(c.Furniture)) {
+	if c.GetGraphEpoch() == 0 || (c.Furniture != nil && !formRef(c.Furniture)) ||
+		c.GetShapeshift() < pb.Shapeshift_SHAPESHIFT_NONE || c.GetShapeshift() > pb.Shapeshift_SHAPESHIFT_WEREBEAR {
 		return ErrContext
 	}
 	return nil
 }
 
+// VampireLordFlags reports whether the checkpoint has a flag only a vampire lord
+// sets: levitating, Mist Form, or bats.
+func VampireLordFlags(c *pb.Checkpoint) bool {
+	const flags = pb.CheckpointFlag_CHECKPOINT_FLAG_LEVITATING | pb.CheckpointFlag_CHECKPOINT_FLAG_MIST_FORM |
+		pb.CheckpointFlag_CHECKPOINT_FLAG_BATS
+	return c.GetFlags()&uint32(flags) != 0
+}
+
+// BeastActionForm is the beast form whose graph plays the action: the werewolf's
+// for the werewolf and the werebear, and the vampire lord's. SHAPESHIFT_NONE for an
+// unknown action.
+func BeastActionForm(a pb.BeastAction) pb.Shapeshift {
+	switch {
+	case a >= pb.BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_RIGHT && a <= pb.BeastAction_BEAST_ACTION_WEREWOLF_FEED_PAIRED:
+		return pb.Shapeshift_SHAPESHIFT_WEREWOLF
+	case a >= pb.BeastAction_BEAST_ACTION_VAMPIRE_LORD_ATTACK_RIGHT &&
+		a <= pb.BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT:
+		return pb.Shapeshift_SHAPESHIFT_VAMPIRE_LORD
+	}
+	return pb.Shapeshift_SHAPESHIFT_NONE
+}
+
+// SameBeastGraph reports whether a form plays the actions of the given action form.
+func SameBeastGraph(form, actionForm pb.Shapeshift) bool {
+	if form == pb.Shapeshift_SHAPESHIFT_WEREBEAR {
+		form = pb.Shapeshift_SHAPESHIFT_WEREWOLF
+	}
+	return actionForm != pb.Shapeshift_SHAPESHIFT_NONE && form == actionForm
+}
+
 func Action(a *pb.Action) error {
 	if a.GetActionSequence() == 0 || a.GetGraphEpoch() == 0 || a.GetCheckpointSequence() == 0 {
 		return ErrAction
+	}
+	if a.GetBeast() != pb.BeastAction_BEAST_ACTION_UNSPECIFIED {
+		if BeastActionForm(a.GetBeast()) == pb.Shapeshift_SHAPESHIFT_NONE ||
+			a.GetAction() != pb.AttackAction_ATTACK_ACTION_UNSPECIFIED || a.GetPower() ||
+			a.GetDirection() != pb.PowerDirection_POWER_DIRECTION_NONE {
+			return ErrAction
+		}
+		return nil
 	}
 	if a.GetAction() < pb.AttackAction_ATTACK_ACTION_NORMAL || a.GetAction() > pb.AttackAction_ATTACK_ACTION_BASH {
 		return ErrAction

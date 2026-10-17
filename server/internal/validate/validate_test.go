@@ -25,7 +25,7 @@ func TestCheckpoint(t *testing.T) {
 		"direction above 255": func(c *pb.Checkpoint) { c.Direction = 256 },
 		"time above 16383":    func(c *pb.Checkpoint) { c.Time = 16384 },
 		"unknown movement":    func(c *pb.Checkpoint) { c.Flags = 7 },
-		"unknown flag bit":    func(c *pb.Checkpoint) { c.Flags = 1 << 12 },
+		"unknown flag bit":    func(c *pb.Checkpoint) { c.Flags = 1 << 15 },
 	}
 	if err := Checkpoint(valid); err != nil {
 		t.Fatalf("valid checkpoint rejected: %v", err)
@@ -46,11 +46,16 @@ func TestContext(t *testing.T) {
 	if err := Context(&pb.Context{GraphEpoch: 1, Furniture: ref("Skyrim.esm", 0xFFFFFF)}); err != nil {
 		t.Fatal(err)
 	}
+	if err := Context(&pb.Context{GraphEpoch: 1, Shapeshift: pb.Shapeshift_SHAPESHIFT_WEREBEAR}); err != nil {
+		t.Fatal(err)
+	}
 	for name, c := range map[string]*pb.Context{
 		"zero graph epoch":      {},
 		"empty furniture":       {GraphEpoch: 1, Furniture: ref("", 1)},
 		"long plugin":           {GraphEpoch: 1, Furniture: ref(strings.Repeat("a", 261), 1)},
 		"form ID above 24 bits": {GraphEpoch: 1, Furniture: ref("Skyrim.esm", 0x1000000)},
+		"unknown shapeshift":    {GraphEpoch: 1, Shapeshift: 4},
+		"negative shapeshift":   {GraphEpoch: 1, Shapeshift: -1},
 	} {
 		if Context(c) == nil {
 			t.Errorf("%s accepted", name)
@@ -64,6 +69,8 @@ func TestAction(t *testing.T) {
 		"bash":         {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: pb.AttackAction_ATTACK_ACTION_BASH},
 		"power right":  {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: pb.AttackAction_ATTACK_ACTION_DUAL, Power: true, Direction: pb.PowerDirection_POWER_DIRECTION_RIGHT},
 		"power stands": {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: pb.AttackAction_ATTACK_ACTION_LEFT, Power: true, Direction: pb.PowerDirection_POWER_DIRECTION_STANDING},
+		"howl":         {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Beast: pb.BeastAction_BEAST_ACTION_WEREWOLF_HOWL_START},
+		"last beast":   {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Beast: pb.BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT},
 	} {
 		if err := Action(a); err != nil {
 			t.Errorf("%s rejected", name)
@@ -78,10 +85,39 @@ func TestAction(t *testing.T) {
 		"power without dir":    {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: 1, Power: true},
 		"dir without power":    {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: 1, Direction: pb.PowerDirection_POWER_DIRECTION_LEFT},
 		"unknown direction":    {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: 1, Power: true, Direction: 6},
+		"beast gap value":      {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Beast: 20},
+		"beast past the last":  {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Beast: 52},
+		"beast with attack":    {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: 1, Beast: 1},
+		"beast with power":     {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Power: true, Direction: pb.PowerDirection_POWER_DIRECTION_STANDING, Beast: 1},
 	} {
 		if Action(a) == nil {
 			t.Errorf("%s accepted", name)
 		}
+	}
+}
+
+func TestBeastActionForm(t *testing.T) {
+	for _, c := range []struct {
+		action   pb.BeastAction
+		form     pb.Shapeshift
+		werebear bool
+	}{
+		{pb.BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_RIGHT, pb.Shapeshift_SHAPESHIFT_WEREWOLF, true},
+		{pb.BeastAction_BEAST_ACTION_WEREWOLF_FEED_PAIRED, pb.Shapeshift_SHAPESHIFT_WEREWOLF, true},
+		{pb.BeastAction_BEAST_ACTION_VAMPIRE_LORD_ATTACK_RIGHT, pb.Shapeshift_SHAPESHIFT_VAMPIRE_LORD, false},
+		{pb.BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT, pb.Shapeshift_SHAPESHIFT_VAMPIRE_LORD, false},
+		{pb.BeastAction_BEAST_ACTION_UNSPECIFIED, pb.Shapeshift_SHAPESHIFT_NONE, false},
+		{20, pb.Shapeshift_SHAPESHIFT_NONE, false},
+	} {
+		if got := BeastActionForm(c.action); got != c.form {
+			t.Errorf("%v: form %v, want %v", c.action, got, c.form)
+		}
+		if got := SameBeastGraph(pb.Shapeshift_SHAPESHIFT_WEREBEAR, BeastActionForm(c.action)); got != c.werebear {
+			t.Errorf("%v: werebear plays it %v, want %v", c.action, got, c.werebear)
+		}
+	}
+	if SameBeastGraph(pb.Shapeshift_SHAPESHIFT_NONE, pb.Shapeshift_SHAPESHIFT_NONE) {
+		t.Error("human form plays beast actions")
 	}
 }
 

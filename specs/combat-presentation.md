@@ -28,6 +28,18 @@
   game; the channel layout on SE 1.5.97 is not checked.
 - **Power attacks:** implemented; Windows build and in-game check pending,
   except the observations noted below.
+- **[Beast actions](#beast-actions)** (2026-10-17): the vocabulary was read
+  from the vanilla `WerewolfBehavior.hkx` and `VampireLord.hkx` transitions and
+  the beast races' attack data and IDLE records in `Skyrim.esm` and
+  `Dawnguard.esm`; that `PlayerCharacter`'s graph holder vfunc 1 is the
+  function Character's holder uses (ID 38048) was read from the 1.7.104
+  executable. Run in game on 2026-10-18 with one peer: werewolf attacks,
+  howls, and feeding were captured and relayed, and the peer's werebear
+  attacks all played on their first attempt; the vampire lord's actions,
+  levitation, casts, Mist Form, and bats were not exercised. The attack
+  ownership added after that run and the case-insensitive firewall match
+  ([Remote actor](remote-actor.md#animation-firewall)) passed a Linux syntax
+  check only.
 
 Graph event names, transitions, and conditions come from the vanilla
 `Skyrim - Animations.bsa` behavior files (`0_master.hkx`, `1hm_behavior.hkx`,
@@ -56,6 +68,10 @@ isolation of hits is in [Remote actor](remote-actor.md#combat-isolation).
 | `actor/ActorAnimation` | `CanDispatchAttack`, `CanChainAttack`, `CanPowerUpAttack`, `DispatchAttack`, `ApplyBlock`, bow and cast operations |
 | `sync/equipment/SpellStandIn` | Spell hand look capture, resolution, and the stand-in spells |
 | `actor/AnimationEvents.h` | Event names and `GetPowerAttackEventDirection` |
+| `actor/BeastActions` | The beast action vocabulary and its graph events |
+| `actor/ActorShapeshift` | Beast action dispatch, vampire lord levitation and cast requests |
+| `runtime/PlayerGraphEventHook` | The local player's graph input events |
+| `sync/shapeshift/ShapeshiftSync` | Beast action capture and publishing; receiver queue and dispatch gating |
 
 ## State or action
 
@@ -469,6 +485,112 @@ touching the stance. Before the hold the base locomotion re-entered standing,
 the actor slid, and the graph then rejected the next `moveStop` until its
 retries ran out.
 
+## Beast actions
+
+A player in a [beast form](appearance-and-equipment.md#shapeshifts) attacks,
+howls, feeds, and casts through the beast's own vanilla graph, whose events
+differ from the human ones. Peers replay the graph input events the source's
+graph accepted, from a fixed vanilla vocabulary per graph, as the `beast`
+value of an ordered `Action` ([Network](network.md#actions)). Only animations
+and the sounds their clips annotate play: nothing is hit, summoned, fed on,
+or drained.
+
+### Vocabulary
+
+`BeastActions` maps each value to one event, sent by the beasts' attack data
+(race `ATKE`), IDLE records, and casts:
+
+| Graph | Actions |
+| --- | --- |
+| werewolf (also the werebear) | the race's 14 attack events (`AttackStartRight`, `AttackStartLeft`, their power, side, running power, and sprinting variants, `AttackStartDual`, `AttackStartDualRunning`, `AttackStartDualSprinting`, `AttackStartBackHand`), `HowlStart`, `HowlRelease`, `HowlEnd`, `SpecialFeeding`, `pa_KillWerewolfPairedFeedingWithHuman` |
+| vampire lord | `AttackStartRight`, `AttackStartLeft`, `AttackPowerStart_Right`, `AttackPowerStart_Left`, `BatSprintStart`, `batSprintStop`, `pa_KillMoveVampireLordFeedFront`, `pa_KillMoveVampireLordFeedBack`, and per hand `BeginCast*`, `M?h_SpellAimedStart`, `M?h_SpellAimedConcentrationStart`, `M?h_SpellReady_Event`, `M?h_SpellRelease_Event`, `M?h_Equipped_Event` (the interrupt idle) |
+
+Locomotion, weapon stance, and levitation are state, not actions: the
+checkpoint carries them. The werewolf's `AttackStartHowlExplode` attack data
+has no transition in its graph and is left out.
+
+### Capture
+
+- `PlayerGraphEventHook` wraps `PlayerCharacter`'s
+  `IAnimationGraphManagerHolder::NotifyAnimationGraph` (vtable 3, vfunc 1) and
+  passes every accepted event to `ShapeshiftSync::ObserveLocalGraphEvent`, on
+  whichever thread raised it. That returns at once unless the local form is a
+  beast (an atomic the main loop sets), matches the event against the form's
+  vocabulary by pooled `BSFixedString`, and queues it, at most 32.
+- Each pass `QueueLocalActions` moves them to the publishing queue, cleared
+  when the graph epoch changes; after the next checkpoint is published,
+  `PublishLocalActions` publishes the ones of the checkpoint's form anchored to
+  it, so an action never precedes its checkpoint. Leaving the world or the
+  connection discards them.
+- In a beast form, the human [attack capture](#capture) result is dropped.
+
+### Receiver
+
+`ShapeshiftSync::AgeRemoteActions` ages the queue every pass, also while the
+actor respawns in the new form, and drops actions older than 3 s.
+`ShapeshiftSync::SyncBeast` runs each pass for an on-foot beast actor outside
+furniture:
+
+- The front action waits for its epoch and anchor checkpoint to play. Then
+  one for another graph than the played checkpoint's form is dropped; a graph
+  epoch boundary drops the old epoch's.
+- It waits for the actor to be ready in a form that plays its graph, then
+  `ActorShapeshift::DispatchAction` sends its event past the firewall, with
+  the replica policy's attacking and casting flags open for that call only, as
+  for a human attack. One
+  action per pass, so a burst never stacks edges in one graph update. A
+  rejected event is retried at most 4 times, 0.25 s apart.
+- An accepted attack (`Multiplayer::IsBeastAttack`: the werewolf attacks and
+  the vampire lord's melee) owns the graph as a human attack's
+  [dispatch](#dispatch) does (`ActorAnimation::OwnDispatchedAttack`), so
+  locomotion waits until its attack state ends and is then reasserted. Without
+  it, the werewolf graph's `CombatAttacks` state rejected `moveStart` and
+  `moveStop` over 100 times per attack and held translation (seen in game).
+- A beast actor runs none of the human attack queue or hand presentation.
+
+### Levitation
+
+The vampire lord hovers or stands, which `H2HBehavior` selects
+(`Ground_State_Cam` or `LevitationBase_State`, toggled by `LevitationToggle`
+through `Levitate_Start` and `Levitate_End`). The source publishes
+`levitating` from its own graph's [levitation
+selector](locomotion.md#beast-graphs). `ActorShapeshift::ReconcileLevitation`
+reads the actor's selector every 0.1 s and, after 0.3 s of disagreement,
+sends `LevitationToggle`, or `LevitationToggleMoving` while moving, as the
+vampire lord's toggle idles do: at most 3 toggles per published change,
+1.5 s apart. A late joiner thus starts in the source's stance.
+
+### Vampire lord casts
+
+The vampire lord's cast branch, like the human magic graph's, stays active
+only while `bWantCastLeft` or `bWantCastRight` is set.
+`ActorShapeshift::ApplyCastRequests` writes both from the checkpoint's
+`castingLeft` and `castingRight` on every pass of a cast and once after it.
+The relayed cast events start and stage the cast. No spell is equipped on the
+actor, so no hand art, light, or beam shows.
+
+### Mist Form and bats
+
+Both are vanilla magic effects on the vampire lord, not graph events
+(`Dawnguard.esm`): `DLC1MistformEffect` shows the hit shader
+`DLC1VampireMistform01FXS` and the hit art `DLC1VampMistFormFX`, and its
+scripts add `DLC1VampireMistform02FXS` and set the actor's alpha to 0.25;
+`DLC1BatsEffect` shows `DLC1VampireBatsFXS` and `DLC1VampLordBatsFX`, and
+the relayed `BatSprintStart` plays the dash. `Forms::ResolveBeastForms`
+resolves these at `kDataLoaded`.
+
+- The source sets `mistForm` and `bats` while an active effect of the
+  player, neither inactive nor dispelled, has that base effect
+  (`ShapeshiftSync::SampleLocalVampireLord`, once per checkpoint, only as a
+  vampire lord).
+- `ActorShapeshift::ApplyVampireLordPowers` applies the shaders
+  (`ApplyEffectShader`) and art (`ApplyArtObject`) without a duration, and the
+  Mist Form alpha (`Actor::SetAlpha`), when a flag rises on a ready, 3D-loaded
+  vampire lord actor, and ends them when it falls. The engine owns the
+  reference effects, so the end finds them again through `ProcessLists` by
+  target handle and form and marks them finished. A change the actor cannot
+  show yet is tried again on the next pass; a respawn starts without them.
+
 ## Isolation
 
 Draw and cast clips natively run the release paths. These hooks keep a
@@ -537,6 +659,25 @@ To verify in game:
     runtime forms stay valid across save loads, as runtime actor bases do
     ([Appearance and equipment](appearance-and-equipment.md#actor-base)).
 
+To verify in game, for [beast actions](#beast-actions):
+
+13. Every vocabulary event reaches the player's graph through the holder's
+    vfunc 1, called virtually, including the attack data events, idles
+    (feeding, howls, bats, casts), and casts; the string pool folds case, so
+    `attackStartRight` and `AttackStartRight` are one pooled string.
+14. A remote beast accepts each event at the time its source's graph did:
+    attacks once its claws are drawn, howls and feeding from the stance the
+    source used. A paired feeding clip plays alone without the victim.
+15. The casting branch of the vampire lord graph plays from the relayed
+    events and `bWantCast*` without a spell on the actor or its caster
+    interrupting it, and the source's `castingLeft` and `castingRight` follow
+    a vampire lord's casts: its hands hold the spells and it counts as drawn
+    while levitating.
+16. A shader or art applied without a duration stays until marked finished,
+    follows the actor, and `SetAlpha` holds while the engine updates the
+    actor; neither passes the remote actor's magic firewall, which only
+    stops active effects.
+
 ## Acceptance criteria
 
 1. A remote actor converges to the source's drawn or sheathed stance without
@@ -562,6 +703,12 @@ To verify in game:
 7. Sheathing, jumping, or sitting ends a draw, cast, or block first. A late
    joiner sees an ongoing draw, cast, or block.
 8. Nothing is hit, staggered, or damaged.
+9. A werewolf or werebear peer's claw swings, power, side, running, and
+   sprinting attacks, howls, and feeding play on its remote actor in order;
+   a vampire lord peer's melee attacks, bats, feeding, and casts play too, and
+   its actor hovers or stands as the source does, including for a late
+   joiner. Its Mist Form shows the mist and a faded body for as long as the
+   source's lasts, and its bats show the swarm for the dash.
 
 ## Known limitations
 
@@ -573,8 +720,17 @@ To verify in game:
   reactions, bash failures, sprint power attacks as their own animation (they
   start from idle records with perk conditions,
   `AttackRightForwardSprinting_2hand` and its children, which the action stream
-  does not replicate), kill moves, and creature or werewolf attacks are not
+  does not replicate), kill moves, and creature attacks are not
   replicated.
+- Beast actions are animations only: a howl's fear or summon, Raise Dead's
+  thrall, Vampiric Grip, the drain beam and its hand art, and the feeding
+  victim are not shown. Werewolf and vampire lord kill moves are not
+  relayed.
+- The source is invisible inside its bats (`DLC1BatsInvisEffect`); the remote
+  vampire lord stays visible inside the swarm: fading the actor is expected to
+  fade the bat art attached to its 3D as well. Mist Form's start and end sounds,
+  image space, and end shader, and the bats' reform shaders, come from the
+  effects' scripts and are not shown.
 - A cancelled bow draw shows as a release.
 - A replacer clip that swings again after a hit in a plain attack is captured
   as a chained attack, and a chained replacer swing that writes `kSwing`

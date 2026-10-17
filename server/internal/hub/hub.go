@@ -539,6 +539,7 @@ func (h *Hub) setContext(m *member, c *pb.Context, message *pb.ClientMessage) er
 	h.record(m.Slot, message)
 	h.opts.OnChange()
 	m.forceNext = true
+	h.checkTradeForm(m)
 	if change == world.ContextMoved {
 		// The stored position belonged to the old space; the next checkpoint places the player
 		// in the new one.
