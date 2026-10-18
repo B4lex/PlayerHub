@@ -32,4 +32,7 @@ namespace Forms
     };
 
     [[nodiscard]] const VampireLordPowerForms& GetVampireLordPower(VampireLordPower a_power);
+
+    // DLC1ClothesVampireLordArmor; null while Dawnguard is not loaded.
+    [[nodiscard]] RE::TESObjectARMO* GetVampireLordArmor();
 }

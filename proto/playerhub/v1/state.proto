@@ -210,4 +210,9 @@ message Equipment {
   Hand left_hand = 4;
   FormRef ammo = 5;
   DefaultOutfit default_outfit = 6;
+  // The spell hands and worn armor of a vampire lord; the fields above keep the
+  // character's items.
+  Hand beast_right_hand = 7;
+  Hand beast_left_hand = 8;
+  repeated Armor beast_armor = 9;
 }

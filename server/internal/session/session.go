@@ -25,7 +25,7 @@ import (
 	"playerhub/server/internal/wire/pb"
 )
 
-const readLimitBytes = 16 * 1024
+const readLimitBytes = 20 * 1024
 
 const (
 	StatusProtocolMismatch   websocket.StatusCode = 4001

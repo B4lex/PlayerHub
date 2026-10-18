@@ -1,6 +1,7 @@
 #include "sync/equipment/EquipmentSync.h"
 #include "actor/ActorAnimation.h"
 #include "actor/RemoteActor.h"
+#include "forms/BeastForms.h"
 #include "forms/FormLookup.h"
 #include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
@@ -134,6 +135,15 @@ namespace EquipmentSync
             return EquipmentHand{ .form = *reference, .kind = EquipmentHandKind::kTorch };
         }
 
+        std::optional<EquipmentHand> CaptureBeastHand(RE::TESForm* a_form, std::uint32_t& a_skipped)
+        {
+            if (!a_form || !a_form->Is(RE::FormType::Spell))
+            {
+                return std::nullopt;
+            }
+            return SpellStandIn::Capture(*a_form->As<RE::MagicItem>(), a_skipped);
+        }
+
         // Equipped arrows or bolts are a worn inventory entry. Actor::GetCurrentAmmo
         // reads MiddleHighProcessData::bothHands, which is absent below the
         // middle-high process level.
@@ -151,23 +161,17 @@ namespace EquipmentSync
             return nullptr;
         }
 
-        std::optional<EquipmentData> CaptureLocalEquipment(RE::PlayerCharacter& a_player, std::uint32_t& a_skipped)
+        void CaptureWornArmor(RE::Actor& a_actor, bool a_playableOnly, std::size_t a_maximum,
+            std::vector<EquipmentArmor>& a_armor, std::uint32_t& a_skipped)
         {
-            // Transformations unequip everything.
-            if (!IsPlayableRace(a_player.GetRace()))
-            {
-                return std::nullopt;
-            }
-
-            EquipmentData equipment;
-            const auto inventory
-                = a_player.GetInventory([](RE::TESBoundObject& a_object) { return a_object.IsArmor(); });
+            const auto inventory = a_actor.GetInventory([](RE::TESBoundObject& a_object) { return a_object.IsArmor(); });
             for (const auto& [object, data] : inventory)
             {
                 const auto& [count, entry] = data;
                 auto* armor = object ? object->As<RE::TESObjectARMO>() : nullptr;
                 if (!armor || count <= 0 || !entry || !entry->IsWorn()
-                    || (armor->GetFormFlags() & RE::TESObjectARMO::RecordFlags::kNonPlayable) != 0)
+                    || (a_playableOnly
+                        && (armor->GetFormFlags() & RE::TESObjectARMO::RecordFlags::kNonPlayable) != 0))
                 {
                     continue;
                 }
@@ -180,20 +184,43 @@ namespace EquipmentSync
                     ++a_skipped;
                     continue;
                 }
-                const bool duplicate = std::ranges::any_of(equipment.armor,
-                    [&reference](const EquipmentArmor& a_entry) { return a_entry.form == *reference; });
+                const bool duplicate = std::ranges::any_of(
+                    a_armor, [&reference](const EquipmentArmor& a_entry) { return a_entry.form == *reference; });
                 if (duplicate)
                 {
                     continue;
                 }
-                if (equipment.armor.size() >= EquipmentData::kMaximumArmor)
+                if (a_armor.size() >= a_maximum)
                 {
                     ++a_skipped;
                     continue;
                 }
-                equipment.armor.push_back(EquipmentArmor{ .form = *reference, .slotMask = slotMask });
+                a_armor.push_back(EquipmentArmor{ .form = *reference, .slotMask = slotMask });
+            }
+        }
+
+        std::optional<EquipmentData> CaptureLocalEquipment(
+            RE::PlayerCharacter& a_player, const std::optional<EquipmentData>& a_published, std::uint32_t& a_skipped)
+        {
+            // Transformations unequip everything, so the last published items stand. The
+            // vampire lord's transformation equips its spells and its armor, which may be
+            // non-playable.
+            if (const auto* race = a_player.GetRace(); !IsPlayableRace(race))
+            {
+                if (Forms::GetShapeshift(race) != Multiplayer::Shapeshift::kVampireLord)
+                {
+                    return std::nullopt;
+                }
+                auto equipment = a_published.value_or(EquipmentData{});
+                equipment.beastRightHand = CaptureBeastHand(a_player.GetEquippedObject(false), a_skipped);
+                equipment.beastLeftHand = CaptureBeastHand(a_player.GetEquippedObject(true), a_skipped);
+                equipment.beastArmor.clear();
+                CaptureWornArmor(a_player, false, EquipmentData::kMaximumBeastArmor, equipment.beastArmor, a_skipped);
+                return equipment;
             }
 
+            EquipmentData equipment;
+            CaptureWornArmor(a_player, true, EquipmentData::kMaximumArmor, equipment.armor, a_skipped);
             equipment.rightHand = CaptureHand(a_player.GetEquippedObject(false), false, a_skipped);
             equipment.leftHand = CaptureHand(a_player.GetEquippedObject(true), true, a_skipped);
             if (equipment.rightHand && Multiplayer::IsTwoHandedWeaponType(equipment.rightHand->weaponType))
@@ -368,6 +395,9 @@ namespace EquipmentSync
             a_remote.rightHand = {};
             a_remote.leftHand = {};
             a_remote.ammo = nullptr;
+            a_remote.beastRightHand = {};
+            a_remote.beastLeftHand = {};
+            a_remote.beastArmor.clear();
             const float handDeferralElapsed = a_remote.handDeferralElapsed;
             ResetReconciliation(a_remote);
             a_remote.handDeferralElapsed = handDeferralElapsed;
@@ -444,13 +474,35 @@ namespace EquipmentSync
                 }
             }
 
+            a_remote.beastRightHand = ResolveHandEntry(
+                a_playerID, revision, "beastRightHand", equipment.beastRightHand, equipment.defaultOutfit);
+            a_remote.beastLeftHand = ResolveHandEntry(
+                a_playerID, revision, "beastLeftHand", equipment.beastLeftHand, equipment.defaultOutfit);
+            for (const auto& entry : equipment.beastArmor)
+            {
+                const auto resolution = ResolveArmor(entry);
+                auto* armor = resolution.form ? resolution.form : Forms::GetVampireLordArmor();
+                if (!resolution.form)
+                {
+                    LogUnresolvedEntry(
+                        a_playerID, revision, "beastArmor", entry.form, resolution.dropReason, FormatStandIn(armor));
+                }
+                if (armor && std::ranges::find(a_remote.beastArmor, armor) == a_remote.beastArmor.end())
+                {
+                    a_remote.beastArmor.push_back(armor);
+                }
+            }
+
             logs::debug(
                 "Equipment sync resolved remote equipment: player={} revision={} armor={}/{} rightHand={:08X} "
-                "leftHand={:08X} ammo={:08X}",
+                "leftHand={:08X} ammo={:08X} beastRightHand={:08X} beastLeftHand={:08X} beastArmor={}/{}",
                 a_playerID, static_cast<unsigned long long>(revision), a_remote.armor.size(), equipment.armor.size(),
                 a_remote.rightHand.object ? a_remote.rightHand.object->GetFormID() : 0,
                 a_remote.leftHand.object ? a_remote.leftHand.object->GetFormID() : 0,
-                a_remote.ammo ? a_remote.ammo->GetFormID() : 0);
+                a_remote.ammo ? a_remote.ammo->GetFormID() : 0,
+                a_remote.beastRightHand.object ? a_remote.beastRightHand.object->GetFormID() : 0,
+                a_remote.beastLeftHand.object ? a_remote.beastLeftHand.object->GetFormID() : 0,
+                a_remote.beastArmor.size(), equipment.beastArmor.size());
         }
 
         const RE::BGSEquipSlot* GetHandSlot(bool a_leftHand)
@@ -522,6 +574,72 @@ namespace EquipmentSync
                 }
             }
             return wornArmor == a_remote.armor.size() && wornAmmo == a_remote.ammo;
+        }
+
+        // A beast actor's runtime base has no container, so each entry's delta is its count.
+        bool IsBeastArmorMatched(RE::Actor& a_actor, const RemoteState& a_remote)
+        {
+            auto* changes = a_actor.GetInventoryChanges();
+            if (!changes || !changes->entryList)
+            {
+                return a_remote.beastArmor.empty();
+            }
+            std::size_t wornArmor = 0;
+            for (const auto* entry : *changes->entryList)
+            {
+                if (!entry || !entry->object || entry->countDelta <= 0)
+                {
+                    continue;
+                }
+                const auto* armor = entry->object->As<RE::TESObjectARMO>();
+                if (!armor || entry->countDelta != 1 || !entry->IsWorn()
+                    || std::ranges::find(a_remote.beastArmor, armor) == a_remote.beastArmor.end())
+                {
+                    return false;
+                }
+                ++wornArmor;
+            }
+            return wornArmor == a_remote.beastArmor.size();
+        }
+
+        void ReconcileBeastArmor(RE::ActorEquipManager& a_equipManager, RE::Actor& a_actor, const RemoteState& a_remote,
+            std::uint32_t& a_removed, std::uint32_t& a_added, std::uint32_t& a_equipped)
+        {
+            for (const auto& [object, data] : a_actor.GetInventory())
+            {
+                const auto requiredCount
+                    = std::ranges::find(a_remote.beastArmor, object) != a_remote.beastArmor.end() ? 1 : 0;
+                if (data.first > requiredCount)
+                {
+                    a_actor.RemoveItem(
+                        object, data.first - requiredCount, RE::ITEM_REMOVE_REASON::kRemove, nullptr, nullptr);
+                    ++a_removed;
+                }
+            }
+            auto inventory = a_actor.GetInventory([](RE::TESBoundObject& a_object) { return a_object.IsArmor(); });
+            for (auto* armor : a_remote.beastArmor)
+            {
+                const auto entry = inventory.find(armor);
+                if (entry == inventory.end() || entry->second.first <= 0)
+                {
+                    a_actor.AddObjectToContainer(armor, nullptr, 1, nullptr);
+                    ++a_added;
+                }
+            }
+            if (a_added != 0)
+            {
+                inventory = a_actor.GetInventory([](RE::TESBoundObject& a_object) { return a_object.IsArmor(); });
+            }
+            for (auto* armor : a_remote.beastArmor)
+            {
+                const auto entry = inventory.find(armor);
+                if (entry != inventory.end() && entry->second.second && entry->second.second->IsWorn())
+                {
+                    continue;
+                }
+                a_equipManager.EquipObject(std::addressof(a_actor), armor, nullptr, 1, nullptr, false, true, false);
+                ++a_equipped;
+            }
         }
 
         bool IsHandSwapDeferred(const RE::Actor& a_actor, const RemoteActor& a_remoteActor)
@@ -642,7 +760,7 @@ namespace EquipmentSync
         if (captureDue)
         {
             pollElapsed = 0.0F;
-            if (auto captured = CaptureLocalEquipment(a_local.player, skipped))
+            if (auto captured = CaptureLocalEquipment(a_local.player, published, skipped))
             {
                 dirty = false;
                 if (published && published->HasSameItems(*captured))
@@ -676,7 +794,8 @@ namespace EquipmentSync
 
         logs::debug(
             "Equipment sync publishing local equipment: revision={} armor={} rightHand={}:{}|{:06X} "
-            "leftHand={}:{}|{:06X} ammo={}|{:06X} outfit={}/{}/{} skipped={} flush={}",
+            "leftHand={}:{}|{:06X} ammo={}|{:06X} outfit={}/{}/{} beastHands={}/{} beastArmor={} skipped={} "
+            "flush={}",
             static_cast<unsigned long long>(pending->revision), pending->armor.size(),
             pending->rightHand ? Multiplayer::GetEquipmentHandKindName(pending->rightHand->kind) : "none",
             pending->rightHand ? pending->rightHand->form.plugin : "",
@@ -686,7 +805,8 @@ namespace EquipmentSync
             pending->leftHand ? pending->leftHand->form.localFormID : 0,
             pending->ammo.IsEmpty() ? "<none>" : pending->ammo.plugin, pending->ammo.localFormID,
             pending->defaultOutfit.armor.size(), pending->defaultOutfit.hands.size(),
-            !pending->defaultOutfit.ammo.IsEmpty(), skipped, a_flush);
+            !pending->defaultOutfit.ammo.IsEmpty(), pending->beastRightHand.has_value(),
+            pending->beastLeftHand.has_value(), pending->beastArmor.size(), skipped, a_flush);
         Network::PublishLocalEquipment(*pending);
         published = std::move(pending);
         pending.reset();
@@ -977,6 +1097,129 @@ namespace EquipmentSync
             a_remote.rightHand.object ? a_remote.rightHand.object->GetFormID() : 0,
             a_remote.leftHand.object ? a_remote.leftHand.object->GetFormID() : 0,
             a_remote.ammo ? a_remote.ammo->GetFormID() : 0);
+    }
+
+    void SyncBeastEquipment(
+        RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RemoteActor& a_remoteActor, float a_delta)
+    {
+        PROFILE_FUNCTION();
+        // Only the vampire lord's transformation equips items.
+        if (a_remoteActor.form != Multiplayer::Shapeshift::kVampireLord)
+        {
+            return;
+        }
+        EnsureResolved(a_remote, a_playerID);
+        auto actorPtr = a_remoteActor.handle.get();
+        auto* actor = actorPtr.get();
+        if (!actor || !a_remoteActor.ready || !actor->Is3DLoaded())
+        {
+            return;
+        }
+        a_remote.checkElapsed += FrameTime::Clamp(a_delta);
+        const bool immediate
+            = !(a_remote.armorMatches && a_remote.handsMatch) && !a_remote.exhausted && a_remote.attempts == 0;
+        if (!immediate && a_remote.checkElapsed < kReconcileCheckIntervalSeconds)
+        {
+            return;
+        }
+        const float sinceLastCheck = a_remote.checkElapsed;
+        a_remote.checkElapsed = 0.0F;
+        a_remote.inventoryCheckElapsed += sinceLastCheck;
+
+        // Only spells are compared and swapped, so the race's own hand objects stay.
+        auto* equippedRight = AsSpell(GetEquippedHandObject(*actor, false));
+        auto* equippedLeft = AsSpell(GetEquippedHandObject(*actor, true));
+        auto* targetRight = AsSpell(a_remote.beastRightHand.object);
+        auto* targetLeft = AsSpell(a_remote.beastLeftHand.object);
+        a_remote.handsMatch = equippedRight == targetRight && equippedLeft == targetLeft;
+        if (!a_remote.armorMatches || a_remote.inventoryCheckElapsed >= kMatchedInventoryCheckIntervalSeconds)
+        {
+            a_remote.inventoryCheckElapsed = 0.0F;
+            a_remote.armorMatches = IsBeastArmorMatched(*actor, a_remote);
+        }
+        if (a_remote.armorMatches && a_remote.handsMatch)
+        {
+            if (a_remote.attempts != 0 || a_remote.exhausted)
+            {
+                logs::debug("Equipment sync reconciled beast equipment: player={} actor={:08X} revision={} attempts={}",
+                    a_playerID, a_remoteActor.handle.native_handle(),
+                    static_cast<unsigned long long>(a_remote.resolvedRevision), a_remote.attempts);
+            }
+            a_remote.attempts = 0;
+            a_remote.exhausted = false;
+            a_remote.handDeferralElapsed = 0.0F;
+            a_remote.handsDeferred = false;
+            return;
+        }
+        if (a_remote.exhausted)
+        {
+            return;
+        }
+        // A swap during a cast would end it. Armor does not touch the graph, so it never waits.
+        a_remote.handsDeferred = !a_remote.handsMatch
+            && (IsHandSwapDeferred(*actor, a_remoteActor) || a_remoteActor.shapeshift.castRequested)
+            && a_remote.handDeferralElapsed < kMaximumHandDeferralSeconds;
+        if (a_remote.handsDeferred)
+        {
+            a_remote.handDeferralElapsed += sinceLastCheck;
+            if (a_remote.armorMatches)
+            {
+                return;
+            }
+        }
+        if (a_remote.attempts >= kMaximumReconcileAttempts)
+        {
+            a_remote.exhausted = true;
+            logs::warn(
+                "Equipment sync gave up reconciling beast equipment: player={} actor={:08X} revision={} "
+                "armorMatches={} rightHand={:08X}/{:08X} leftHand={:08X}/{:08X}",
+                a_playerID, a_remoteActor.handle.native_handle(),
+                static_cast<unsigned long long>(a_remote.resolvedRevision), a_remote.armorMatches,
+                equippedRight ? equippedRight->GetFormID() : 0, targetRight ? targetRight->GetFormID() : 0,
+                equippedLeft ? equippedLeft->GetFormID() : 0, targetLeft ? targetLeft->GetFormID() : 0);
+            return;
+        }
+        auto* equipManager = RE::ActorEquipManager::GetSingleton();
+        if (!equipManager)
+        {
+            return;
+        }
+        ++a_remote.attempts;
+
+        std::uint32_t removed = 0;
+        std::uint32_t added = 0;
+        std::uint32_t equippedArmor = 0;
+        if (!a_remote.armorMatches)
+        {
+            ReconcileBeastArmor(*equipManager, *actor, a_remote, removed, added, equippedArmor);
+        }
+        if (!a_remote.handsMatch && !a_remote.handsDeferred)
+        {
+            a_remote.handDeferralElapsed = 0.0F;
+            const auto reconcileHand = [&](RE::SpellItem* a_equipped, RE::SpellItem* a_target, bool a_leftHand) {
+                if (a_equipped == a_target)
+                {
+                    return;
+                }
+                if (a_target)
+                {
+                    equipManager->EquipSpell(actor, a_target, GetHandSlot(a_leftHand));
+                }
+                else
+                {
+                    UnequipSpell(*equipManager, *actor, a_equipped, GetHandSlot(a_leftHand));
+                }
+            };
+            reconcileHand(equippedRight, targetRight, false);
+            reconcileHand(equippedLeft, targetLeft, true);
+        }
+        logs::debug(
+            "Equipment sync reconciling beast equipment: player={} actor={:08X} revision={} attempt={} removed={} "
+            "added={} equippedArmor={} handsDeferred={} rightHand={:08X} leftHand={:08X}",
+            a_playerID, a_remoteActor.handle.native_handle(),
+            static_cast<unsigned long long>(a_remote.resolvedRevision), a_remote.attempts, removed, added,
+            equippedArmor, a_remote.handsDeferred, targetRight ? targetRight->GetFormID() : 0,
+            targetLeft ? targetLeft->GetFormID() : 0);
     }
 
     bool AreHandsSettled(const RemoteState& a_remote)

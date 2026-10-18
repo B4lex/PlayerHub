@@ -34,6 +34,9 @@ namespace EquipmentSync
         ResolvedHand rightHand;
         ResolvedHand leftHand;
         RE::TESAmmo* ammo{ nullptr };
+        ResolvedHand beastRightHand;
+        ResolvedHand beastLeftHand;
+        std::vector<RE::TESObjectARMO*> beastArmor;
 
         float checkElapsed{ 0.0F };
         float inventoryCheckElapsed{ 0.0F };
@@ -52,6 +55,9 @@ namespace EquipmentSync
     void OnActorSpawned(RemoteState& a_remote);
 
     void SyncEquipment(RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RemoteActor& a_remoteActor, float a_delta);
+    // A beast actor only.
+    void SyncBeastEquipment(
+        RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RemoteActor& a_remoteActor, float a_delta);
 
     [[nodiscard]] bool AreHandsSettled(const RemoteState& a_remote);
 

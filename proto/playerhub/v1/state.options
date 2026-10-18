@@ -7,5 +7,6 @@ playerhub.v1.Appearance.face_morphs max_count:19
 playerhub.v1.Appearance.face_parts max_count:4
 playerhub.v1.Appearance.tints max_count:64
 playerhub.v1.Equipment.armor max_count:32
+playerhub.v1.Equipment.beast_armor max_count:8
 playerhub.v1.DefaultOutfit.armor max_count:8
 playerhub.v1.DefaultOutfit.hands max_count:2

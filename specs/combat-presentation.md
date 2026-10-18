@@ -39,7 +39,10 @@
   levitation, casts, Mist Form, and bats were not exercised. The attack
   ownership added after that run and the case-insensitive firewall match
   ([Remote actor](remote-actor.md#animation-firewall)) passed a Linux syntax
-  check only.
+  check only. A later run the same day against a server playback of the
+  local vampire lord showed its levitation and its
+  [casts](#vampire-lord-casts) with both hands, holding the spells' hand
+  art.
 
 Graph event names, transitions, and conditions come from the vanilla
 `Skyrim - Animations.bsa` behavior files (`0_master.hkx`, `1hm_behavior.hkx`,
@@ -566,8 +569,17 @@ The vampire lord's cast branch, like the human magic graph's, stays active
 only while `bWantCastLeft` or `bWantCastRight` is set.
 `ActorShapeshift::ApplyCastRequests` writes both from the checkpoint's
 `castingLeft` and `castingRight` on every pass of a cast and once after it.
-The relayed cast events start and stage the cast. No spell is equipped on the
-actor, so no hand art, light, or beam shows.
+The relayed cast events start and stage the cast.
+
+The actor holds stand-ins of the source's vampire lord spells, sent as
+`beast_right_hand` and `beast_left_hand`
+([Appearance and equipment](appearance-and-equipment.md#shapeshifts)), so
+its hands show their art and light and play their hand sounds as a human
+[spell look](#spell-look) does; the magic caster attaches the art once the
+hand has a selected spell, a casting art, and a magic node
+(`ActorMagicCaster::CheckAttachCastingArt`, ID 34185, from its `Update`,
+read in the 1.7.104 disassembly). The beam, projectile, and effects stay
+behind the [isolation](#isolation) hooks.
 
 ### Mist Form and bats
 
@@ -668,12 +680,7 @@ To verify in game, for [beast actions](#beast-actions):
 14. A remote beast accepts each event at the time its source's graph did:
     attacks once its claws are drawn, howls and feeding from the stance the
     source used. A paired feeding clip plays alone without the victim.
-15. The casting branch of the vampire lord graph plays from the relayed
-    events and `bWantCast*` without a spell on the actor or its caster
-    interrupting it, and the source's `castingLeft` and `castingRight` follow
-    a vampire lord's casts: its hands hold the spells and it counts as drawn
-    while levitating.
-16. A shader or art applied without a duration stays until marked finished,
+15. A shader or art applied without a duration stays until marked finished,
     follows the actor, and `SetAlpha` holds while the engine updates the
     actor; neither passes the remote actor's magic firewall, which only
     stops active effects.
@@ -723,8 +730,9 @@ To verify in game, for [beast actions](#beast-actions):
   does not replicate), kill moves, and creature attacks are not
   replicated.
 - Beast actions are animations only: a howl's fear or summon, Raise Dead's
-  thrall, Vampiric Grip, the drain beam and its hand art, and the feeding
-  victim are not shown. Werewolf and vampire lord kill moves are not
+  thrall, Vampiric Grip, the drain beam, and the feeding victim are not
+  shown. A vampire lord's spell hands show the spell's hand look, not its
+  casting type or delivery. Werewolf and vampire lord kill moves are not
   relayed.
 - The source is invisible inside its bats (`DLC1BatsInvisEffect`); the remote
   vampire lord stays visible inside the swarm: fading the actor is expected to

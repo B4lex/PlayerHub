@@ -215,6 +215,13 @@ func TestEquipment(t *testing.T) {
 				CastingArt: ref("Skyrim.esm", 2), CastingLight: ref("Skyrim.esm", 3)}
 		},
 		"right spell": func(e *pb.Equipment) { e.RightHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL} },
+		"beast spells": func(e *pb.Equipment) {
+			e.BeastRightHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL, Form: ref("Dawnguard.esm", 0x2DE)}
+			e.BeastLeftHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL, CastingArt: ref("Skyrim.esm", 2)}
+		},
+		"beast armor": func(e *pb.Equipment) {
+			e.BeastArmor = []*pb.Armor{{Form: ref("Dawnguard.esm", 0x11A84), SlotMask: 0x40}, {Form: ref("Mod.esp", 1), SlotMask: 1}}
+		},
 	}
 	for name, mutate := range accepted {
 		e := validEquipment()
@@ -255,6 +262,25 @@ func TestEquipment(t *testing.T) {
 		"outfit spell":           func(e *pb.Equipment) { e.DefaultOutfit.Hands[1] = &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL} },
 		"modded outfit ammo":     func(e *pb.Equipment) { e.DefaultOutfit.Ammo = ref("Mod.esp", 1) },
 		"invalid ammo reference": func(e *pb.Equipment) { e.Ammo = ref("", 1) },
+		"beast weapon":           func(e *pb.Equipment) { e.BeastRightHand = weapon(1) },
+		"beast torch": func(e *pb.Equipment) {
+			e.BeastLeftHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_TORCH, Form: ref("Skyrim.esm", 1)}
+		},
+		"invalid beast spell": func(e *pb.Equipment) {
+			e.BeastLeftHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL, Form: ref("", 1)}
+		},
+		"beast armor without slots": func(e *pb.Equipment) {
+			e.BeastArmor = []*pb.Armor{{Form: ref("Dawnguard.esm", 0x11A84)}}
+		},
+		"duplicate beast armor": func(e *pb.Equipment) {
+			piece := &pb.Armor{Form: ref("Dawnguard.esm", 0x11A84), SlotMask: 0x40}
+			e.BeastArmor = []*pb.Armor{piece, piece}
+		},
+		"too much beast armor": func(e *pb.Equipment) {
+			for i := range MaximumBeastArmor + 1 {
+				e.BeastArmor = append(e.BeastArmor, &pb.Armor{Form: ref("Mod.esp", uint32(i+1)), SlotMask: 1})
+			}
+		},
 	}
 	for name, mutate := range rejected {
 		e := validEquipment()

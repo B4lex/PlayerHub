@@ -408,10 +408,14 @@ namespace SyncCoordinator
             else if (lifecycle.actor)
             {
                 auto& actor = *lifecycle.actor;
-                // A beast form holds and wears nothing.
+                // Only a vampire lord holds and wears items in a beast form.
                 const bool beast = actor.form != Multiplayer::Shapeshift::kNone;
                 MovementSync::SyncMovement(remote, a_peer.appliedSequence, actor);
-                if (!beast)
+                if (beast)
+                {
+                    EquipmentSync::SyncBeastEquipment(a_peer.equipment, a_playerID, actor, a_delta);
+                }
+                else
                 {
                     EquipmentSync::SyncEquipment(a_peer.equipment, a_playerID, actor, a_delta);
                 }

@@ -1468,8 +1468,13 @@ type Equipment struct {
 	LeftHand      *Hand                  `protobuf:"bytes,4,opt,name=left_hand,json=leftHand,proto3" json:"left_hand,omitempty"`
 	Ammo          *FormRef               `protobuf:"bytes,5,opt,name=ammo,proto3" json:"ammo,omitempty"`
 	DefaultOutfit *DefaultOutfit         `protobuf:"bytes,6,opt,name=default_outfit,json=defaultOutfit,proto3" json:"default_outfit,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// The spell hands and worn armor of a vampire lord; the fields above keep the
+	// character's items.
+	BeastRightHand *Hand    `protobuf:"bytes,7,opt,name=beast_right_hand,json=beastRightHand,proto3" json:"beast_right_hand,omitempty"`
+	BeastLeftHand  *Hand    `protobuf:"bytes,8,opt,name=beast_left_hand,json=beastLeftHand,proto3" json:"beast_left_hand,omitempty"`
+	BeastArmor     []*Armor `protobuf:"bytes,9,rep,name=beast_armor,json=beastArmor,proto3" json:"beast_armor,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Equipment) Reset() {
@@ -1540,6 +1545,27 @@ func (x *Equipment) GetAmmo() *FormRef {
 func (x *Equipment) GetDefaultOutfit() *DefaultOutfit {
 	if x != nil {
 		return x.DefaultOutfit
+	}
+	return nil
+}
+
+func (x *Equipment) GetBeastRightHand() *Hand {
+	if x != nil {
+		return x.BeastRightHand
+	}
+	return nil
+}
+
+func (x *Equipment) GetBeastLeftHand() *Hand {
+	if x != nil {
+		return x.BeastLeftHand
+	}
+	return nil
+}
+
+func (x *Equipment) GetBeastArmor() []*Armor {
+	if x != nil {
+		return x.BeastArmor
 	}
 	return nil
 }
@@ -1635,7 +1661,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\rDefaultOutfit\x12)\n" +
 	"\x05armor\x18\x01 \x03(\v2\x13.playerhub.v1.ArmorR\x05armor\x12(\n" +
 	"\x05hands\x18\x02 \x03(\v2\x12.playerhub.v1.HandR\x05hands\x12)\n" +
-	"\x04ammo\x18\x03 \x01(\v2\x15.playerhub.v1.FormRefR\x04ammo\"\xa5\x02\n" +
+	"\x04ammo\x18\x03 \x01(\v2\x15.playerhub.v1.FormRefR\x04ammo\"\xd5\x03\n" +
 	"\tEquipment\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x12)\n" +
 	"\x05armor\x18\x02 \x03(\v2\x13.playerhub.v1.ArmorR\x05armor\x121\n" +
@@ -1643,7 +1669,11 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"right_hand\x18\x03 \x01(\v2\x12.playerhub.v1.HandR\trightHand\x12/\n" +
 	"\tleft_hand\x18\x04 \x01(\v2\x12.playerhub.v1.HandR\bleftHand\x12)\n" +
 	"\x04ammo\x18\x05 \x01(\v2\x15.playerhub.v1.FormRefR\x04ammo\x12B\n" +
-	"\x0edefault_outfit\x18\x06 \x01(\v2\x1b.playerhub.v1.DefaultOutfitR\rdefaultOutfit*\xea\x01\n" +
+	"\x0edefault_outfit\x18\x06 \x01(\v2\x1b.playerhub.v1.DefaultOutfitR\rdefaultOutfit\x12<\n" +
+	"\x10beast_right_hand\x18\a \x01(\v2\x12.playerhub.v1.HandR\x0ebeastRightHand\x12:\n" +
+	"\x0fbeast_left_hand\x18\b \x01(\v2\x12.playerhub.v1.HandR\rbeastLeftHand\x124\n" +
+	"\vbeast_armor\x18\t \x03(\v2\x13.playerhub.v1.ArmorR\n" +
+	"beastArmor*\xea\x01\n" +
 	"\rMovementState\x12\x17\n" +
 	"\x13MOVEMENT_STATE_IDLE\x10\x00\x12\x1a\n" +
 	"\x16MOVEMENT_STATE_WALKING\x10\x01\x12\x1a\n" +
@@ -1798,11 +1828,14 @@ var file_playerhub_v1_state_proto_depIdxs = []int32{
 	17, // 25: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
 	7,  // 26: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
 	18, // 27: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
-	28, // [28:28] is the sub-list for method output_type
-	28, // [28:28] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	17, // 28: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
+	17, // 29: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
+	16, // 30: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
+	31, // [31:31] is the sub-list for method output_type
+	31, // [31:31] is the sub-list for method input_type
+	31, // [31:31] is the sub-list for extension type_name
+	31, // [31:31] is the sub-list for extension extendee
+	0,  // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_state_proto_init() }

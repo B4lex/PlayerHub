@@ -39,6 +39,7 @@ const (
 
 	MaximumArmor        = 32
 	MaximumOutfitArmor  = 8
+	MaximumBeastArmor   = 8
 	MaximumOutfitHands  = 2
 	MinimumWeaponType   = 1
 	MaximumWeaponType   = 9
@@ -220,26 +221,19 @@ func Equipment(e *pb.Equipment) error {
 	if e.GetRevision() == 0 || len(e.GetArmor()) > MaximumArmor {
 		return ErrEquipment
 	}
-	type key struct {
-		plugin string
-		formID uint32
-	}
-	seen := make(map[key]struct{}, len(e.GetArmor()))
-	for _, armor := range e.GetArmor() {
-		if !armorEntry(armor) {
-			return ErrEquipment
-		}
-		k := key{armor.Form.GetPlugin(), armor.Form.GetFormId()}
-		if _, duplicate := seen[k]; duplicate {
-			return ErrEquipment
-		}
-		seen[k] = struct{}{}
+	if !armorList(e.GetArmor()) || len(e.GetBeastArmor()) > MaximumBeastArmor || !armorList(e.GetBeastArmor()) {
+		return ErrEquipment
 	}
 	if (e.RightHand != nil && !hand(e.RightHand, false)) || (e.LeftHand != nil && !hand(e.LeftHand, true)) {
 		return ErrEquipment
 	}
 	if right := e.RightHand; right != nil && twoHanded(right) && e.LeftHand != nil {
 		return ErrEquipment
+	}
+	for _, beast := range []*pb.Hand{e.BeastRightHand, e.BeastLeftHand} {
+		if beast != nil && (beast.GetKind() != pb.HandKind_HAND_KIND_SPELL || !hand(beast, false)) {
+			return ErrEquipment
+		}
 	}
 	if e.Ammo != nil && !formRef(e.Ammo) {
 		return ErrEquipment
@@ -326,6 +320,25 @@ func defaultOutfit(o *pb.DefaultOutfit) bool {
 		seen[k] = struct{}{}
 	}
 	return o.Ammo == nil || baseGameFormRef(o.Ammo)
+}
+
+func armorList(entries []*pb.Armor) bool {
+	type key struct {
+		plugin string
+		formID uint32
+	}
+	seen := make(map[key]struct{}, len(entries))
+	for _, armor := range entries {
+		if !armorEntry(armor) {
+			return false
+		}
+		k := key{armor.Form.GetPlugin(), armor.Form.GetFormId()}
+		if _, duplicate := seen[k]; duplicate {
+			return false
+		}
+		seen[k] = struct{}{}
+	}
+	return true
 }
 
 func armorEntry(a *pb.Armor) bool {

@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <limits>
 #include <optional>
 #include <string_view>
@@ -53,6 +54,7 @@ namespace Multiplayer
     struct PlayerEquipment
     {
         static constexpr std::size_t kMaximumArmor = 32;
+        static constexpr std::size_t kMaximumBeastArmor = 8;
         static constexpr std::uint8_t kMinimumWeaponType = 1;
         static constexpr std::uint8_t kMaximumWeaponType = 9;
 
@@ -61,19 +63,33 @@ namespace Multiplayer
         std::optional<EquipmentHand> leftHand;
         FormReference ammo;
         DefaultOutfit defaultOutfit;
+        // A vampire lord's items; its hands hold spells only.
+        std::optional<EquipmentHand> beastRightHand;
+        std::optional<EquipmentHand> beastLeftHand;
+        std::vector<EquipmentArmor> beastArmor;
         std::uint64_t revision{ 0 };
 
         [[nodiscard]] bool HasSameItems(const PlayerEquipment& a_other) const
         {
-            if (rightHand != a_other.rightHand || leftHand != a_other.leftHand || ammo != a_other.ammo
-                || defaultOutfit != a_other.defaultOutfit || armor.size() != a_other.armor.size())
+            return rightHand == a_other.rightHand && leftHand == a_other.leftHand && ammo == a_other.ammo
+                && defaultOutfit == a_other.defaultOutfit && beastRightHand == a_other.beastRightHand
+                && beastLeftHand == a_other.beastLeftHand && HasSameArmor(armor, a_other.armor)
+                && HasSameArmor(beastArmor, a_other.beastArmor);
+        }
+
+    private:
+        // Entries are unique, so equal sizes and containment mean the same set.
+        [[nodiscard]] static bool HasSameArmor(
+            const std::vector<EquipmentArmor>& a_armor, const std::vector<EquipmentArmor>& a_other)
+        {
+            if (a_armor.size() != a_other.size())
             {
                 return false;
             }
-            for (const auto& entry : armor)
+            for (const auto& entry : a_armor)
             {
                 bool found = false;
-                for (const auto& other : a_other.armor)
+                for (const auto& other : a_other)
                 {
                     if (entry == other)
                     {
@@ -175,30 +191,36 @@ namespace Multiplayer
         return true;
     }
 
-    [[nodiscard]] inline bool IsValidEquipment(const PlayerEquipment& a_equipment)
+    [[nodiscard]] inline bool IsValidArmorList(const std::vector<EquipmentArmor>& a_armor)
     {
-        if (a_equipment.revision == 0
-            || a_equipment.revision > static_cast<std::uint64_t>((std::numeric_limits<std::int64_t>::max)())
-            || a_equipment.armor.size() > PlayerEquipment::kMaximumArmor
-            || !IsValidFormReference(a_equipment.ammo, true) || !IsValidDefaultOutfit(a_equipment.defaultOutfit))
+        for (std::size_t i = 0; i < a_armor.size(); ++i)
         {
-            return false;
-        }
-
-        for (std::size_t i = 0; i < a_equipment.armor.size(); ++i)
-        {
-            const auto& entry = a_equipment.armor[i];
+            const auto& entry = a_armor[i];
             if (!IsValidFormReference(entry.form, false) || entry.slotMask == 0)
             {
                 return false;
             }
             for (std::size_t j = 0; j < i; ++j)
             {
-                if (a_equipment.armor[j].form == entry.form)
+                if (a_armor[j].form == entry.form)
                 {
                     return false;
                 }
             }
+        }
+        return true;
+    }
+
+    [[nodiscard]] inline bool IsValidEquipment(const PlayerEquipment& a_equipment)
+    {
+        if (a_equipment.revision == 0
+            || a_equipment.revision > static_cast<std::uint64_t>((std::numeric_limits<std::int64_t>::max)())
+            || a_equipment.armor.size() > PlayerEquipment::kMaximumArmor
+            || a_equipment.beastArmor.size() > PlayerEquipment::kMaximumBeastArmor
+            || !IsValidFormReference(a_equipment.ammo, true) || !IsValidDefaultOutfit(a_equipment.defaultOutfit)
+            || !IsValidArmorList(a_equipment.armor) || !IsValidArmorList(a_equipment.beastArmor))
+        {
+            return false;
         }
 
         if (a_equipment.rightHand && !IsValidEquipmentHand(*a_equipment.rightHand, false))
@@ -208,6 +230,14 @@ namespace Multiplayer
         if (a_equipment.leftHand && !IsValidEquipmentHand(*a_equipment.leftHand, true))
         {
             return false;
+        }
+        for (const auto* beastHand : { &a_equipment.beastRightHand, &a_equipment.beastLeftHand })
+        {
+            if (*beastHand
+                && ((*beastHand)->kind != EquipmentHandKind::kSpell || !IsValidEquipmentHand(**beastHand, false)))
+            {
+                return false;
+            }
         }
         return !(a_equipment.rightHand && a_equipment.leftHand
             && a_equipment.rightHand->kind == EquipmentHandKind::kWeapon

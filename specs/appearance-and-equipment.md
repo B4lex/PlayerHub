@@ -35,7 +35,14 @@
   unit tests ([Network](network.md#status)). Run in game on 2026-10-18 with
   one peer: the local player's werewolf swaps both ways and the peer's swap
   to a werebear, shown as expected; a vampire lord only on the local side. The appearance hold while transformed, added after that run,
-  passed a Linux syntax check only.
+  passed a Linux syntax check only. The vampire lord's spell hands
+  (2026-10-18), whose wire rules are covered by server unit tests, were run
+  in game on 2026-10-18 against a server playback of the local player: the
+  peer's vampire lord shows its spells, equipped on the first reconcile
+  attempt, and drops them on landing. The vampire lord's armor (2026-10-18)
+  shows on the peer's vampire lord in game. The armor form and the
+  transformation script's order were read from `Dawnguard.esm` and the
+  compiled `DLC1PlayerVampireChangeScript`.
 - **Player labels:** level validation and chat fields covered by server unit
   tests; label rendering pending an in-game check. The display name, which comes
   from the player's session ([Network](network.md#sessions)), and the label
@@ -61,12 +68,12 @@ configured is in [Configuration](configuration.md#settings).
 | Module | Responsibility |
 | --- | --- |
 | `sync/appearance/AppearanceSync` | Capture and publish; receive, build the actor base, respawn requests, hair, skin, and face tint presentation |
-| `sync/equipment/EquipmentSync` | Capture and publish; receive, resolve, reconcile the actor's inventory; hand readiness |
+| `sync/equipment/EquipmentSync` | Capture and publish; receive, resolve, reconcile the actor's inventory and a vampire lord actor's spells and armor; hand readiness |
 | `sync/equipment/SpellStandIn` | Capture a spell hand's spell and look; resolve it to a runtime stand-in spell ([Combat presentation](combat-presentation.md#spell-look)) |
 | `sync/equipment/FakeLight` | A shadow-casting light's runtime copy without its shadow flags |
 | `sync/outfit/DefaultOutfit` | Resolve `[DefaultOutfit]` and select the pieces for a capture |
 | `sync/PlayerLabel.h` | `PlayerLabel::Format` |
-| `forms/BeastForms` | The vanilla beast races and their forms |
+| `forms/BeastForms` | The vanilla beast races and their forms, including the vampire lord's armor |
 | `sync/shapeshift/ShapeshiftSync` | The local form and levitation; beast actions both ways ([Combat presentation](combat-presentation.md#beast-actions)) |
 | `protocol/AppearanceState.h`, `EquipmentState.h`, `FormReference.h` | Plain data and validators shared by capture and the network parser |
 | `forms/FormLookup` | Encode and resolve `{plugin, formId}` |
@@ -199,8 +206,9 @@ plugins, so every receiver resolves them.
   pass, and the context's `shapeshift` carries the form
   ([Network](network.md#checkpoint-and-context)). A race switch rebuilds the
   player's graph, so the graph epoch advances with it
-  ([assumption 14](#engine-assumptions)). The equipment capture skips a
-  non-playable race. The appearance capture does not run while the form is
+  ([assumption 14](#engine-assumptions)). The equipment capture keeps the
+  character's items in a non-playable race and adds a vampire lord's spell
+  hands and armor ([Equipment](#equipment)). The appearance capture does not run while the form is
   not `none` once a revision is published (`SyncAppearance`'s
   `a_transformed`): a beast race's `originalRace` is the player record's
   race (Nord for an Argonian player, seen in game), and every revision would
@@ -220,10 +228,32 @@ plugins, so every receiver resolves them.
   played checkpoint in the new form, as a [respawn](#spawn-and-respawn) does.
   An appearance respawn takes the current form too. `RemoteActor::form`
   records the form the actor was built in.
-- **Equipment:** a beast actor runs no reconciliation and counts its hands as
-  settled: its runtime base has no inventory, and the beast races wear only
-  their skins. The human actor reconciles from the kept revision after the
-  swap back.
+- **Equipment:** a beast actor counts its hands as settled and runs no human
+  armor, weapon, or inventory reconciliation: its runtime base has no
+  inventory, and the werewolf and werebear wear only their skins. The
+  vampire lord's transformation (`DLC1PlayerVampireChangeScript`) switches
+  the race, then unequips everything and equips `Dawnguard.esm` `011A84`
+  `DLC1ClothesVampireLordArmor` (the robe, spine, and loincloth over the
+  skin); turning back removes it before the race switch, so the armor is
+  only ever worn as the vampire lord. A vampire lord actor holds its
+  source's spells and wears its armor (`EquipmentSync::SyncBeastEquipment`):
+  - Each `beast_armor` entry resolves to its armor, or, when it does not
+    resolve, to that vanilla armor (`Forms::GetVampireLordArmor`). The
+    actor's inventory holds exactly one of each, worn; anything else is
+    removed. The match is read from the inventory changes without
+    allocating, every 5 s once matched.
+  - Each `beast_*_hand` resolves to a
+    [spell stand-in](combat-presentation.md#spell-look) as a human spell
+    hand does, and a hand whose equipped spell differs gets `EquipSpell`, or
+    `UnequipSpell` when it should be empty. Only spells are compared and
+    swapped, so the race's own hand objects stay. A swap waits while an
+    attack, a weapon transition, or a cast request owns the graph, at most
+    2 s; armor never waits, as it does not touch the graph.
+  - Checks run every 0.25 s, at once after a new revision or spawn, and at
+    most 4 passes run before both match.
+
+  The human actor reconciles from the character's items, which the revision
+  kept, after the swap back.
 - **Presentation:** locomotion drives the beast graphs
   ([Locomotion](locomotion.md#beast-graphs)); beast actions, levitation, and
   vampire lord casts are in
@@ -283,7 +313,7 @@ Triggers:
   changed, publishes immediately, bypassing the quiet window and the minimum
   interval, so the new weapon arrives before its use.
 
-Capture, skipped for a non-playable race:
+Capture, for a playable race:
 
 - `armor`: every worn inventory entry (`ExtraWorn` or `ExtraWornLeft`) whose
   object is a playable `TESObjectARMO`, including shields, deduplicated after
@@ -300,6 +330,16 @@ Capture, skipped for a non-playable race:
   middle-high process data does not have.
 - `defaultOutfit`: the pieces for items that are not from base-game plugins
   ([Default outfit](#default-outfit)).
+- `beast_right_hand`, `beast_left_hand`, `beast_armor`: unset or empty.
+
+A transformation unequips everything, so a non-playable race keeps the last
+published items. As a vampire lord, whose transformation equips its spells
+and armor, a `SpellItem` in either hand also becomes that `beast_*_hand`,
+with its look, as for a human spell hand; anything else in a hand is unset.
+Every worn armor entry, playable or not, becomes `beast_armor` by the same
+rules as `armor`, at most 8, so a mod that changes the vampire lord's armor
+shows it to peers who have that mod. Other beast races capture nothing. The human fields thus stay the character's, a human
+actor never takes up the vampire lord's spells, and a late joiner gets both.
 
 A player-enchanted item keeps its base form and carries the enchantment as
 `ExtraEnchantment`, so only the unenchanted form is sent. Vanilla pre-enchanted
@@ -586,8 +626,9 @@ To verify in game for [shapeshifts](#shapeshifts):
    changed while disconnected shows to peers from the next connection. Without
    a display name the player never appears to peers.
 10. A player turning into a werewolf, vampire lord, or werebear appears to
-    peers as that beast at once after the race switch, holding nothing, with
-    the same label; turning back restores the character's look and equipment
+    peers as that beast at once after the race switch, holding nothing but a
+    vampire lord's spells and wearing nothing but its armor, with the same
+    label; turning back restores the character's look and equipment
     with one more respawn. A late joiner sees the beast directly.
 11. A female player's vampire lord uses the female model.
 12. A mod's own transformation race leaves peers showing the player's own

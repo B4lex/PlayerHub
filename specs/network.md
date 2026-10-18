@@ -148,7 +148,15 @@
   a human context); it decoded Go-encoded `PeerContext`, `PeerAction`, and
   `PeerStates` with those values and a `TRANSFORMED` close, and rejected a
   shapeshift of 7, a beast action of 20, and a beast action with an attack.
-  `ServerClient.cpp` passed a syntax check only.
+  `ServerClient.cpp` passed a syntax check only. The `Equipment` fields
+  `beast_right_hand` and `beast_left_hand` (2026-10-18): `go test` covers them
+  accepted as spells and refused as a weapon, a torch, or an invalid spell;
+  they round-trip in game through a recording and its playback.
+  `beast_armor` (2026-10-18): `go test` covers it accepted and refused
+  without a slot mask, duplicated, or over 8 entries; a Linux-built
+  `WireCodec` encoded it, Go decoded and validated it and relayed it in a
+  `PeerEquipment`, and `WireCodec` decoded it back; it shows the vampire
+  lord's armor on peers in game.
 - **Official and custom server:** not built on Windows or run in game.
   `ConnectionMonitor.cpp` ran on Linux with the real `SettingsSchema.cpp`, a
   stubbed configuration store, and a fake transport whose attempts connect to
@@ -246,8 +254,8 @@ refused at the handshake ([Transport](#transport)).
   `liveness.ping_interval_seconds` (5) and closes a connection whose pong does
   not arrive within `liveness.timeout_seconds` (10). IXWebSocket answers pings
   on its own thread, so a paused game stays connected.
-- Boundary limits: 16 KiB per message (the largest valid `ClientMessage` is
-  about 12.9 KB); `limits.messages_per_second` (120, burst 240) per connection,
+- Boundary limits: 20 KiB per message (the largest valid `ClientMessage`, an
+  `Equipment`, is about 19 KB); `limits.messages_per_second` (120, burst 240) per connection,
   over which the connection is closed with 4003; a recipient whose unsent
   ordered messages exceed `limits.ordered_backlog` (4096) is closed with 4002.
   Compression is off on both ends.
@@ -424,6 +432,8 @@ create dynamic color forms.
 | hand `weapon_type` | `WEAPON_TYPE` `1..9`, only for a weapon; two-handed types (5, 6, 7, 9) only in the right hand, which then requires an empty left hand |
 | `ammo` | form reference, unset for none |
 | `default_outfit` | unset is empty |
+| `beast_right_hand`, `beast_left_hand` | a `SPELL` hand, unset for empty: a vampire lord's spells, while the fields above keep the character's items ([Appearance and equipment](appearance-and-equipment.md#shapeshifts)) |
+| `beast_armor` | at most 8, as `armor`: the vampire lord's worn armor |
 | outfit `armor` | at most 8, non-zero slot masks |
 | outfit `hands` | at most 2, a weapon with a weapon type or a torch, no casting art or light, no two with the same kind and weapon type |
 | outfit references and `default_race.race` | from a base-game plugin, compared without case |

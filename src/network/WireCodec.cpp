@@ -347,6 +347,26 @@ namespace Network::Wire
             {
                 return "ammo";
             }
+            a_result.beastRightHand.reset();
+            if (a_equipment.has_beast_right_hand
+                && !ReadHand(a_equipment.beast_right_hand, a_result.beastRightHand.emplace()))
+            {
+                return "beastRightHand";
+            }
+            a_result.beastLeftHand.reset();
+            if (a_equipment.has_beast_left_hand
+                && !ReadHand(a_equipment.beast_left_hand, a_result.beastLeftHand.emplace()))
+            {
+                return "beastLeftHand";
+            }
+            a_result.beastArmor.clear();
+            for (pb_size_t i = 0; i < a_equipment.beast_armor_count; ++i)
+            {
+                if (!ReadArmor(a_equipment.beast_armor[i], a_result.beastArmor.emplace_back()))
+                {
+                    return "beastArmor";
+                }
+            }
             a_result.defaultOutfit = {};
             if (a_equipment.has_default_outfit)
             {
@@ -969,8 +989,9 @@ namespace Network::Wire
         using Multiplayer::DefaultOutfit;
         using Multiplayer::PlayerEquipment;
         const auto& outfit = a_equipment.defaultOutfit;
-        if (a_equipment.armor.size() > PlayerEquipment::kMaximumArmor || outfit.armor.size() > DefaultOutfit::kMaximumArmor
-            || outfit.hands.size() > DefaultOutfit::kMaximumHands)
+        if (a_equipment.armor.size() > PlayerEquipment::kMaximumArmor
+            || a_equipment.beastArmor.size() > PlayerEquipment::kMaximumBeastArmor
+            || outfit.armor.size() > DefaultOutfit::kMaximumArmor || outfit.hands.size() > DefaultOutfit::kMaximumHands)
         {
             return {};
         }
@@ -995,6 +1016,21 @@ namespace Network::Wire
             written = written && WriteHand(*a_equipment.leftHand, equipment->left_hand);
         }
         written = written && WriteOptionalFormReference(a_equipment.ammo, equipment->has_ammo, equipment->ammo);
+        if (a_equipment.beastRightHand)
+        {
+            equipment->has_beast_right_hand = true;
+            written = written && WriteHand(*a_equipment.beastRightHand, equipment->beast_right_hand);
+        }
+        if (a_equipment.beastLeftHand)
+        {
+            equipment->has_beast_left_hand = true;
+            written = written && WriteHand(*a_equipment.beastLeftHand, equipment->beast_left_hand);
+        }
+        equipment->beast_armor_count = static_cast<pb_size_t>(a_equipment.beastArmor.size());
+        for (std::size_t i = 0; i < a_equipment.beastArmor.size(); ++i)
+        {
+            written = written && WriteArmor(a_equipment.beastArmor[i], equipment->beast_armor[i]);
+        }
         if (!outfit.armor.empty() || !outfit.hands.empty() || !outfit.ammo.IsEmpty())
         {
             auto& result = equipment->default_outfit;

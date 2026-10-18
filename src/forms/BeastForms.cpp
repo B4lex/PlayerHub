@@ -39,9 +39,15 @@ namespace Forms
             VampireLordPowerIDs{ 0x01571A, { 0x018EF0, 0 }, 0x018EEF, 1.0F },
         };
 
+        // Dawnguard.esm DLC1ClothesVampireLordArmor, the DLC1VampireLordArmor property
+        // of DLC1PlayerVampireQuest's DLC1PlayerVampireChangeScript, which equips it on
+        // transformation.
+        constexpr RE::FormID kVampireLordArmor = 0x011A84;
+
         // Written once at kDataLoaded, before the main loop reads them.
         std::array<RE::TESRace*, kBeastRaces.size()> s_races{};
         std::array<VampireLordPowerForms, kVampireLordPowers.size()> s_vampireLordPowers{};
+        RE::TESObjectARMO* s_vampireLordArmor{ nullptr };
 
         template <class T>
         T* Lookup(RE::TESDataHandler& a_dataHandler, RE::FormID a_localFormID)
@@ -79,6 +85,8 @@ namespace Forms
                 forms.effect ? forms.effect->GetFormID() : 0, forms.shaders[0] ? forms.shaders[0]->GetFormID() : 0,
                 forms.shaders[1] ? forms.shaders[1]->GetFormID() : 0, forms.art ? forms.art->GetFormID() : 0);
         }
+        s_vampireLordArmor = Lookup<RE::TESObjectARMO>(*dataHandler, kVampireLordArmor);
+        logs::info("Vampire lord armor: {:08X}", s_vampireLordArmor ? s_vampireLordArmor->GetFormID() : 0);
     }
 
     RE::TESRace* GetBeastRace(Multiplayer::Shapeshift a_form)
@@ -108,5 +116,10 @@ namespace Forms
     const VampireLordPowerForms& GetVampireLordPower(VampireLordPower a_power)
     {
         return s_vampireLordPowers[static_cast<std::size_t>(a_power)];
+    }
+
+    RE::TESObjectARMO* GetVampireLordArmor()
+    {
+        return s_vampireLordArmor;
     }
 }
