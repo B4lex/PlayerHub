@@ -1,6 +1,7 @@
 #include "ui/chat/ChatPlayers.h"
 #include "sync/filters/PlayerFilters.h"
 #include "text/Text.h"
+#include "ui/Fonts.h"
 #include "ui/Theme.h"
 #include "ui/chat/ChatHistory.h"
 #include "ui/chat/ChatStyle.h"
@@ -20,6 +21,9 @@ namespace UI
         constexpr float kIconGapFonts = 0.3F;
         constexpr float kIconWidthOfHeight = 0.9F;
         constexpr float kFilterMarkFonts = 0.75F;
+        // U+E003 and U+E004 of the logo font.
+        constexpr const char* kMutedGlyph = "\xEE\x80\x83";
+        constexpr const char* kVanishedGlyph = "\xEE\x80\x84";
         constexpr double kNearbySeconds = 0.5;
         constexpr ImVec4 kDistantPlayerColor{ 0.76F, 0.75F, 0.73F, 1.0F };
 
@@ -47,30 +51,6 @@ namespace UI
                 std::numbers::pi_v<float> * 2.0F);
             a_list.PathFillConvex(a_color);
         }
-
-        void DrawMutedMark(ImDrawList& a_list, const ImVec2& a_min, float a_size, ImU32 a_color, float a_thickness)
-        {
-            const ImVec2 bubbleMax{ a_min.x + a_size, a_min.y + a_size * 0.7F };
-            a_list.AddRect(ImVec2{ a_min.x, a_min.y + a_size * 0.05F }, bubbleMax, a_color, a_size * 0.2F,
-                ImDrawFlags_None, a_thickness);
-            a_list.AddTriangleFilled(ImVec2{ a_min.x + a_size * 0.2F, bubbleMax.y },
-                ImVec2{ a_min.x + a_size * 0.5F, bubbleMax.y }, ImVec2{ a_min.x + a_size * 0.15F, a_min.y + a_size },
-                a_color);
-            a_list.AddLine(ImVec2{ a_min.x, a_min.y + a_size }, ImVec2{ a_min.x + a_size, a_min.y }, a_color, a_thickness);
-        }
-
-        void DrawVanishedMark(ImDrawList& a_list, const ImVec2& a_min, float a_size, ImU32 a_color, float a_thickness)
-        {
-            const ImVec2 center{ a_min.x + a_size * 0.5F, a_min.y + a_size * 0.5F };
-            a_list.PathLineTo(ImVec2{ a_min.x, center.y });
-            a_list.PathBezierQuadraticCurveTo(ImVec2{ center.x, a_min.y - a_size * 0.1F }, ImVec2{ a_min.x + a_size, center.y });
-            a_list.PathBezierQuadraticCurveTo(ImVec2{ center.x, a_min.y + a_size * 1.1F }, ImVec2{ a_min.x, center.y });
-            a_list.PathStroke(a_color, ImDrawFlags_Closed, a_thickness);
-            a_list.AddCircleFilled(center, a_size * 0.16F, a_color);
-            a_list.AddLine(ImVec2{ a_min.x + a_size * 0.1F, a_min.y + a_size * 0.95F },
-                ImVec2{ a_min.x + a_size * 0.9F, a_min.y + a_size * 0.05F }, a_color, a_thickness);
-        }
-
     }
 
     float ChatPlayers::GetWidth()
@@ -254,7 +234,7 @@ namespace UI
             const auto pitch = ChatHistory::GetLinePitch();
             const auto markSize = std::round(kFilterMarkFonts * ImGui::GetFontSize());
             const auto markSpace = markSize + style.ItemSpacing.x;
-            const auto markLine = (std::max)(std::floor(ChatStyle::kChipOutlineFonts * ImGui::GetFontSize()), 1.0F);
+            auto* markFont = Fonts::GetLogo();
             auto* drawList = ImGui::GetWindowDrawList();
 
             // Rows a chat line apart, so the clipper can skip the ones out of view.
@@ -276,8 +256,8 @@ namespace UI
                     const auto max = ImGui::GetItemRectMax();
                     const char* name = player.name.c_str();
                     const char* nameEnd = name + player.name.size();
-                    const bool isMuted = std::ranges::binary_search(muted, player.session);
-                    const bool isVanished = std::ranges::binary_search(vanished, player.session);
+                    const bool isMuted = markFont && std::ranges::binary_search(muted, player.session);
+                    const bool isVanished = markFont && std::ranges::binary_search(vanished, player.session);
                     const auto marksLeft = max.x - markSpace * static_cast<float>(isMuted + isVanished);
                     const ImVec4 nameClip{ min.x, min.y, marksLeft, max.y };
 
@@ -290,12 +270,12 @@ namespace UI
                         ImVec2 markMin{ marksLeft + style.ItemSpacing.x, std::floor((min.y + max.y - markSize) * 0.5F) };
                         if (isMuted)
                         {
-                            DrawMutedMark(*drawList, markMin, markSize, markColor, markLine);
+                            drawList->AddText(markFont, markSize, markMin, markColor, kMutedGlyph);
                             markMin.x += markSpace;
                         }
                         if (isVanished)
                         {
-                            DrawVanishedMark(*drawList, markMin, markSize, markColor, markLine);
+                            drawList->AddText(markFont, markSize, markMin, markColor, kVanishedGlyph);
                         }
                         if (hovered && ImGui::IsMouseHoveringRect(ImVec2{ marksLeft, min.y }, max))
                         {
