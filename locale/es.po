@@ -534,6 +534,10 @@ msgctxt "SettingsBrand"
 msgid "Multiplayer"
 msgstr "Multijugador"
 
+msgctxt "SettingsDiscord"
+msgid "Join us on Discord"
+msgstr "Únete a nosotros en Discord"
+
 msgctxt "SettingsDisplayNameHint"
 msgid "Enter a display name"
 msgstr "Escribe un nombre visible"

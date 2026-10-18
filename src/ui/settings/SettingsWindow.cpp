@@ -9,6 +9,7 @@
 #include "ui/Theme.h"
 #include "ui/WindowManager.h"
 #include "ui/settings/ConnectionControls.h"
+#include "ui/settings/DiscordLink.h"
 #include "ui/widgets/Controls.h"
 #include "ui/widgets/ItemPicker.h"
 
@@ -787,7 +788,21 @@ namespace UI
                 {
                     return;
                 }
-                ImGui::Dummy(ImVec2{ 0.0F, std::floor(ImGui::GetStyle().ItemSpacing.y * 0.5F) });
+                const auto end = std::floor(ImGui::GetStyle().ItemSpacing.y * 0.5F);
+                if (openSection == kConnectionSection && DiscordLink::IsEnabled())
+                {
+                    // At the bottom right, without scrolling the page: the end's spacer still fits under it.
+                    const auto size = DiscordLink::GetSize();
+                    const auto available = ImGui::GetContentRegionAvail();
+                    const auto room = available.y - size.y - ImGui::GetStyle().ItemSpacing.y - end;
+                    if (room > 0.0F)
+                    {
+                        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + room);
+                    }
+                    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(available.x - size.x, 0.0F));
+                    DiscordLink::Draw();
+                }
+                ImGui::Dummy(ImVec2{ 0.0F, end });
                 scrollbarWidth = ImGui::GetScrollMaxY() > 0.0F ? ImGui::GetStyle().ScrollbarSize : 0.0F;
                 ImGui::EndChild();
                 ImGui::PopID();

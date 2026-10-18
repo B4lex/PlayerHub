@@ -18,7 +18,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
 | [trade.md](trade.md) | Item exchange between two players: invitation, plugin check, offers, reports, acceptance, commit, cancelling, the trade bot; the only change a peer makes to the local world | `sync/trade/`, `forms/ItemInstance`, `protocol/TradeState.h`, `server/internal/hub/trade.go`, `server/cmd/tradebot` |
 | [configuration.md](configuration.md) | `PlayerHub.ini`, schema, snapshots, saving | `src/config/` |
-| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, localization, theme, background opacity, menu frame, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, player menu, player menu in the world, settings window, item picker and preview | `src/ui/`, `src/text/`, `locale/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
+| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, localization, theme, background opacity, menu frame, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, player menu, player menu in the world, settings window, Discord link, item picker and preview | `src/ui/`, `src/text/`, `locale/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `server/admin-ui/` |
 
 ## Features
@@ -61,6 +61,7 @@ criteria.
 | Player menu in the world (Activate on a player) | [ui-overlay](ui-overlay.md#player-menu-in-the-world), [remote-actor](remote-actor.md#spawn), [sync-pipeline](sync-pipeline.md#frame-sequence) |
 | Player menu heading (name, race, level; inspection) | [ui-overlay](ui-overlay.md#player-menu), [network](network.md#inspection), [sync-pipeline](sync-pipeline.md#frame-sequence), [appearance-and-equipment](appearance-and-equipment.md#resolution-and-fallback) |
 | Settings | [ui-overlay](ui-overlay.md#settings-window), [configuration](configuration.md) |
+| Discord invitation on the Connection page | [ui-overlay](ui-overlay.md#discord-link) |
 | Accent color | [ui-overlay](ui-overlay.md#accent-color), [configuration](configuration.md#ui) |
 | Scale | [ui-overlay](ui-overlay.md#scale), [configuration](configuration.md#ui) |
 | Background opacity and blur | [ui-overlay](ui-overlay.md#background-opacity), [configuration](configuration.md#ui) |

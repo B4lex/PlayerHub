@@ -523,6 +523,10 @@ msgctxt "SettingsBrand"
 msgid "Multiplayer"
 msgstr "マルチプレイ"
 
+msgctxt "SettingsDiscord"
+msgid "Join us on Discord"
+msgstr "Discordで仲間になろう"
+
 msgctxt "SettingsDisplayNameHint"
 msgid "Enter a display name"
 msgstr "表示名を入力"

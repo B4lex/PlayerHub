@@ -505,6 +505,10 @@ msgctxt "SettingsBrand"
 msgid "Multiplayer"
 msgstr "多人遊戲"
 
+msgctxt "SettingsDiscord"
+msgid "Join us on Discord"
+msgstr "加入我們的 Discord"
+
 msgctxt "SettingsDisplayNameHint"
 msgid "Enter a display name"
 msgstr "輸入顯示名稱"

@@ -102,7 +102,7 @@ namespace UI::Fonts
         constexpr std::wstring_view kShippedDirectory = L"PlayerHub/fonts";
         constexpr std::wstring_view kTextFile = L"Sovngarde Light.ttf";
         constexpr std::wstring_view kHeadingFile = L"Sovngarde Bold.ttf";
-        constexpr std::wstring_view kLogoFile = L"PlayerHub Logo.ttf";
+        constexpr std::wstring_view kLogoFile = L"PlayerHub.ttf";
         // Sovngarde's letters are small for its line height.
         constexpr float kShippedGlyphScale = 1.25F;
 

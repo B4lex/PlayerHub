@@ -23,6 +23,13 @@ option("server_endpoint")
     set_description("Official server URL built into the plugin, starting with http:// or https://")
 option_end()
 
+-- Without it the settings window has no Discord link.
+option("discord_invite")
+    set_default("")
+    set_showmenu(true)
+    set_description("Discord invite URL the settings window links to, starting with https://")
+option_end()
+
 -- Rebuild a package when a dependency's version changes. Without this, a cached
 -- IXWebSocket compiled against one mbedtls major version is linked against
 -- another; its API selection is compile-time, so TLS setup fails at runtime.
@@ -75,6 +82,12 @@ target("PlayerHub")
             raise("server_endpoint must start with http:// or https:// and contain no whitespace, quotes, or backslashes")
         end
         target:add("defines", format('PLAYERHUB_DEFAULT_SERVER_ENDPOINT="%s"', endpoint))
+        -- Defined even when empty: xmake recompiles for a changed define, not an added one.
+        local invite = get_config("discord_invite") or ""
+        if invite ~= "" and (not invite:startswith("https://") or invite:find("[%s\"\\]")) then
+            raise("discord_invite must start with https:// and contain no whitespace, quotes, or backslashes")
+        end
+        target:add("defines", format('PLAYERHUB_DISCORD_INVITE="%s"', invite))
     end)
     if has_config("tracy") then
         add_packages("tracy")
