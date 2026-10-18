@@ -74,6 +74,32 @@
   `SettingsWindow.cpp`, `SettingsSchema.cpp`, and `PluginConfig.cpp` passed
   the g++ syntax check. That Dear ImGui draws a format without a conversion
   as it is follows its demo's enum slider and was not run here.
+- **Resizing from every side** (the open chat's four edges and corners, the
+  settings window's upper corners, 2026-10-18): with whole-percent chat
+  positions, it worked in game on Windows (the user's check). Fractional
+  positions and the transparent grip colors are not yet built on Windows or
+  run in game. On Linux, `MenuFrame.cpp`, `ChatSize.cpp`, `ChatPosition.cpp`, and
+  `ChatWindow.cpp` passed the g++ syntax check, which a planted error
+  confirmed reaches `MenuFrame.cpp` and `ChatSize.cpp`. So did `Theme.cpp`,
+  `PluginConfig.cpp`, `SettingsSchema.cpp`, and `SettingsWindow.cpp`, which a
+  planted error confirmed reaches the last three. A headless Dear ImGui
+  1.92.9 test ran the real `MenuFrame.cpp`, `ChatSize.cpp`, and
+  `ChatPosition.cpp` at 1080p. In it the settings window showed the diagonal
+  resize cursors over its upper corners, inside and just outside. A drag on
+  either corner resized it with the opposite lower corner in place. It stopped
+  at the minimum size and at the display's corner. Its edges, lower right
+  grip, and move from an empty part still worked. The chat ran in a stand-in
+  for `ChatWindow::DrawOpen` without the player list. It showed the matching
+  resize cursor over each edge, each corner, and each knot's square. A click
+  on an edge saved nothing and kept the slider's whole percent. During a left
+  or bottom drag the right or top edge stayed in place by the pixel. On
+  release, one `Config::Apply` saved the size and position, and the held edge
+  did not move. A drag past the screen's bottom or left edge stopped there.
+  Top and right drags still kept the lower left corner. A drag inside the
+  chat still moved it, and it stayed on the pixel it was dropped on. The
+  player list's side choice during a left drag, the settings window's
+  fractional slider, and reading and writing fractions in the file were not
+  run.
 - **Chat position** (`[UI] ChatPositionHorizontal` and
   `ChatPositionVertical`, 2026-10-13): as offsets from the former default place, with the size limited to the room
   from the chat's corner and the player list's side choice, it worked in game
@@ -1054,6 +1080,9 @@ background and border.
   applied, refusals, and save results. Red also fills the button that ends
   what is running (`Controls::DangerButton`, with `Theme::kOnState` text).
   States do not follow the accent.
+- Dear ImGui's resize grips are transparent, hovered and held too: the frame's
+  backing is translucent, so a grip would show through it. Only the cursor
+  shows where a window resizes.
 - Surfaces are neutral and near black. Fields and buttons are a white tint
   (`Theme::Tint`) with no border of their own, text is off-white, secondary
   text is `ImGuiCol_TextDisabled`, and separators are a faint white line.
@@ -1203,6 +1232,15 @@ is not part of the plugin.
   reopening, it is resized by their ratio around its kept center and clamped
   to the display. The kept rect, not the current one, is
   scaled because `Begin` has by then grown the window to the new minimum size.
+- Dear ImGui resizes a window from its edges and its lower corners only, so
+  `BeginWindow` adds grips on a resizable window's upper corners
+  (`GrabUpperCorners`). They have the hit areas of Dear ImGui's own corner grips,
+  which its edge strips stop short of. They are items added after `Begin` under a
+  clip rectangle widened to the display, so they also take the hover padding
+  outside the window. A drag on one keeps the opposite lower corner in place.
+  `FollowUpperCorner` gives the window the dragged rect before `Begin`, within
+  the minimum size and the display, so it moves in the same frame as the
+  cursor.
 - `MenuFrame::BeginPrompt` begins the [trade prompt](#prompt) and the
   [display name hint](#display-name-hint) the same way: sized to the content,
   without inputs or focus, centered 6 font sizes from the top under the
@@ -1784,29 +1822,35 @@ never a line, so the history holds only what players said.
   within 24 to 100 and 9 to 40. At 24 the field still has room beside the
   longest chip, and 9 lines keep the 8-row name list under the filters.
   Both are in font sizes, so the chat follows the overlay scale.
-- The player drags the open chat's top edge, its right edge, or the corner
-  between them. The chat stays in its lower left corner, so it grows upward
-  and to the right. The grips are the strips the menu frame runs in, the
-  window's padding and the frame's on that side, which hold nothing else to
-  click, and the corner is the knot's square (`MenuFrame::Metrics::corner`).
+- The player drags any of the open chat's four edges or four corners. The
+  opposite edge stays in place: a top or right drag keeps the chat's
+  [position](#position), and a left or bottom drag moves it
+  (`ChatSize::GetCorner`), so the right or top edge stays where it was by the
+  pixel. The grips are the strips the menu frame runs in, the window's padding
+  and the frame's on that side, which hold nothing else to click, and each
+  corner is its knot's square (`MenuFrame::Metrics::corner`).
   Over them the cursor is the vertical, horizontal, or diagonal resize one;
   nothing else marks them. `ChatSize::FindEdges` finds them by position:
   Dear ImGui items there would add to the window's content size.
 - During a drag the size follows the cursor by the pixel, as the settings
   window's does, so the top row of the lines may show in part. A drag in
   whole steps was dropped: at a font size a step it looked like a low frame
-  rate. The size stops at the limits and at the room from the chat's
-  [position](#position) to the right and top edges (`GetUnits` in
-  `ChatWindow.cpp`), and, while it is open on the right, the
-  [player list](#player-list) beside it. A
+  rate. The size stops at the limits and at the room on the screen
+  (`ChatSize::GetRoom`, `GetUnits` in `ChatWindow.cpp`). That room runs from
+  the chat's [position](#position) to the right and top screen edges, or,
+  during a left or bottom drag, from the edge held in place to the left or
+  bottom screen edge. On the side the chat grows toward it also leaves room
+  for an open [player list](#player-list). A
   configured size the screen has no room for is drawn at that room and stays
   in the file.
 - Releasing the button settles the size on the nearest whole font size
   across and line (`ChatHistory::GetLinePitch`) up, so the history ends on a
   whole line again, and applies it with `Config::Apply`, once and only if
   it changed, and logs it; a chat that loses focus mid-drag does the same
-  (`ChatSize::Release`). `ChatSize` reads the configuration each frame
-  outside a drag.
+  (`ChatSize::Release`). After a left or bottom drag the same apply stores
+  the [position](#position) for the settled size (`ChatPosition::Store`), so
+  the held edge stays where it was.
+  `ChatSize` reads the configuration each frame outside a drag.
 - The window has the dragged size in the frame the cursor moved.
   `ChatSize::Follow` runs before `ImGui::Begin`, and the window is given
   both its width and its height (`ImGui::SetNextWindowSize`): the lines'
@@ -1850,7 +1894,8 @@ never a line, so the history holds only what players said.
 - `[UI] ChatPositionHorizontal` and `ChatPositionVertical`
   ([Configuration](configuration.md#ui)) place the lower left corner of the
   open chat's frame (`ChatPosition::Get`) at a percentage of the screen's width
-  from its left edge and of its height from its bottom edge, so `0` and `0` is
+  from its left edge and of its height from its bottom edge, with any fraction
+  and rounded to the nearest pixel, so `0` and `0` is
   the screen's lower left corner and the place is the same share of any
   resolution, independent of the `Scale` setting. The defaults, `1` and `8`, keep
   the chat where it was placed in font sizes before, near the left edge and
@@ -1859,7 +1904,8 @@ never a line, so the history holds only what players said.
 - The chat stays at its position: its [size](#size) is limited to the room
   from that corner to the right and top edges, rather than the chat being
   moved back onto the screen. So a drag on the right edge grows the chat to
-  the right up to the screen's edge. Only a chat at its minimum size, which the room does not hold, is
+  the right up to the screen's edge. A drag on the left or bottom edge moves
+  the position with the edge. Only a chat at its minimum size, which the room does not hold, is
   moved until it fits (`KeepOnScreen`). The recent lines are placed from the
   same corner with the open chat's size as last measured, so they keep their
   column when the chat opens.
@@ -1869,12 +1915,13 @@ never a line, so the history holds only what players said.
   right and the chat narrows for it (`ChatWindow::ChooseListSide`). The side is
   chosen from the configured size, not the narrowed one, so it does not change
   back and forth.
-- The settings window shows both as percentage sliders; Defaults on `[UI]`
-  resets them. The chat moves when a slider is released.
-- The player also moves the open chat by dragging any part of it that takes
-  no click itself: the frame's left and bottom strips, the gaps in the
-  filters' row, and the lines away from senders' names. The top and right
-  strips stay the [size](#size) grips. `ChatPosition::Grab` runs after every
+- The settings window shows both as sliders in whole percents
+  (`SettingsVisitor::FinePercent`); a fraction a drag stored shows rounded
+  until the slider moves. Defaults on `[UI]` resets them. The chat moves when
+  a slider is released.
+- The player also moves the open chat by dragging any part inside the frame's
+  strips that takes no click itself: the gaps in the filters' row and the
+  lines away from senders' names. The strips are the [size](#size) grips. `ChatPosition::Grab` runs after every
   item in the window, so `ImGui::IsAnyItemHovered` covers the filters, the
   players chip, the target chip, the field, and the scrollbar; a sender's
   name takes its click without being an item, so a click that picked one
@@ -1892,13 +1939,11 @@ never a line, so the history holds only what players said.
   exactly its size, keeps that size. The player list's side is chosen anew
   each frame, so it goes left as the chat nears the right edge.
 - Releasing the button, or the chat losing focus mid-drag
-  (`ChatPosition::Release`), stores the nearest whole percentages, applies
-  them with `Config::Apply` only if they changed, and logs them. A nearest
-  percentage whose corner would leave the chat less room than the drag did is
-  rounded toward the lower left corner instead, so a chat dragged against the
-  right or top edge keeps its size. The chat therefore settles up to half a
-  percent from where it was dropped, about 10 px across and 5 px up and down
-  at 1080p, or a whole percent beside the right or top edge.
+  (`ChatPosition::Release`), stores the corner as exact percentages
+  (`ChatPosition::Store`), applies them with `Config::Apply` only if they
+  changed, and logs them, so the chat stays on the pixel it was dropped on. A
+  value that already puts the corner on that pixel is kept, so a slider's
+  whole percent survives a click on an edge.
 
 ### Window and input
 
@@ -2422,9 +2467,11 @@ peers keep seeing the player.
   closed with; they live in ImGui's window state only, so a restart centers it
   again. In the [theme](#theme) and the [menu frame](#menu-frame) over the
   theme's background, without a title bar:
-  it is dragged by any empty part, resized from its lower corners and its
-  edges, and uses the mouse. The sidebar and the page fill what the frame's
-  lines enclose. The frame's backing covers ImGui's resize grip, and the line
+  it is dragged by any empty part, resized from its edges and its four
+  corners (the upper ones by [`BeginWindow`'s grips](#menu-frame)), and uses
+  the mouse. The sidebar and the page fill what the frame's
+  lines enclose. ImGui's resize grips are transparent in every state
+  ([theme](#theme)), and the line
   ImGui draws along a hovered or dragged edge is transparent
   (`ImGuiCol_SeparatorHovered` and `ImGuiCol_SeparatorActive` around `Begin`),
   so resizing shows the resize cursor only.
@@ -2480,6 +2527,9 @@ peers keep seeing the player.
   that name at 0: the name is the slider's format, which Dear ImGui draws as
   it is when it has no conversion. Ctrl and a click turn it into a field, and
   a typed value is clamped to the range.
+- A fine percentage's slider (`FinePercent`) runs from 0 to its maximum in
+  whole percents and shows the value rounded with a percent sign; the
+  value can hold a fraction set elsewhere.
 - A percentage's slider runs between its limits and shows the value with a
   percent sign. Ctrl and a click turn it into a field, and a typed value is
   clamped to the limits; a dragged or typed value is rounded to the nearest
@@ -3405,16 +3455,18 @@ To verify in game:
     and the rule and the field end at one.
 16. A chat line wider than the chat continues from the left edge under its
     sender's name, in the open chat and among the closed chat's lines. Over
-    the open chat's top edge, right edge, and upper right knot the cursor is
-    a resize one; a drag grows or shrinks the chat from its lower left
-    corner with the cursor, as smoothly as a drag resizes the settings
-    window, between 24 by 9 and 100 by 40 or what the screen has room for.
+    each of the open chat's edges and knots the cursor is a resize one; a
+    drag grows or shrinks the chat with the cursor from the opposite edge or
+    corner, as smoothly as a drag resizes the settings window, between 24 by
+    9 and 100 by 40 or what the screen has room for. During a left or bottom
+    drag the right or top edge does not move, nor on release.
     Throughout, the filters, the field, and the chip keep their place in the
     window without flickering and the latest line stays at the bottom. On
     release the chat settles on whole lines and font sizes. After a drag
     `PlayerHub.ini` has `ChatWidth` and `ChatLines`, the closed chat's lines
     are as wide, the chat has that size after the game restarts, and the
-    `[UI]` page shows neither key.
+    `[UI]` page shows neither key. After a left or bottom drag the `[UI]`
+    page's position sliders show the new place.
 17. The open chat's filter row ends with a chip showing a person and the
     number of players online, or that it is offline while disconnected. A click opens
     a framed list right of the chat and as high, with a search field on the
@@ -3597,7 +3649,9 @@ To verify in game:
     same speed. At 80 all of them shrink the same way. `Scale = 107` or
     `150` in the file warns in the log and loads `100`.
 36. The settings window first opens centered at 48 × 35 font sizes
-    (768 × 560 px at a 16 px font). Dragged to a corner, resized, closed, and
+    (768 × 560 px at a 16 px font). Each of its four corners and edges resizes
+    it with the resize cursor, keeping the opposite corner or edge in place.
+    Dragged to a corner, resized, closed, and
     opened again, during gameplay or after another menu, it is where and as
     large as it was left; after a game restart it is centered again at the
     default size.
@@ -3620,13 +3674,13 @@ To verify in game:
     against the lower left corner, over the magicka bar. Defaults puts it back
     above the magicka bar, and the positions are in `PlayerHub.ini` after a
     restart.
-37. Dragging the open chat by its left or bottom strip, a gap in the
-    filters' row, or the lines away from a name moves it with the cursor and
+37. Dragging the open chat by a gap in the filters' row or the lines away
+    from a name moves it with the cursor and
     the move cursor, keeping its size; it stops at each screen edge, wholly on
     the screen. A press on a filter, the players chip, the target chip, the
     field, the scrollbar, or a name does what it did before and moves nothing,
-    as does a click without a drag. On release the chat stays within a few
-    pixels of where it was dropped, at its size, the `[UI]` page's sliders
+    as does a click without a drag. On release the chat stays where it was
+    dropped, at its size, the `[UI]` page's sliders
     show the new percentages, and the chat is there after a restart. Dragged
     into the upper right corner with the player list open, the list opens on
     the chat's left.
@@ -3746,8 +3800,7 @@ To verify in game:
 - `@Ulf Stone cold` typed in full whispers `Ulf Stone` while that player is
   online, since the longest name wins; whispering `Ulf` then takes picking
   the name from the list.
-- The chat is resized with the mouse only, and moved only from the settings
-  window. A word wider
+- The chat is resized with the mouse only. A word wider
   than the chat is cut at the row's end wherever that falls, not at a
   syllable or after punctuation.
 - The player list sorts by folded bytes, so `Aela 194` comes before

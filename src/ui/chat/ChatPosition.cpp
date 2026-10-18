@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
 #include <utility>
 
 namespace UI
@@ -12,17 +11,12 @@ namespace UI
     {
         using Config::UISettings;
 
-        ImVec2 ToCorner(std::uint32_t a_horizontal, std::uint32_t a_vertical)
+        // Rounded, so a corner stored from whole pixels comes back as the same pixels.
+        ImVec2 ToCorner(float a_horizontal, float a_vertical)
         {
             const auto& display = ImGui::GetIO().DisplaySize;
-            return ImVec2{ std::floor(static_cast<float>(a_horizontal) * 0.01F * display.x),
-                std::floor(display.y - static_cast<float>(a_vertical) * 0.01F * display.y) };
-        }
-
-        std::uint32_t ToPercent(float a_percent, bool a_nearest)
-        {
-            return static_cast<std::uint32_t>(std::clamp(a_nearest ? std::round(a_percent) : std::floor(a_percent),
-                0.0F, static_cast<float>(UISettings::kMaximumChatPosition)));
+            return ImVec2{ std::round(a_horizontal * 0.01F * display.x),
+                std::round(display.y - a_vertical * 0.01F * display.y) };
         }
     }
 
@@ -53,14 +47,13 @@ namespace UI
             return;
         }
         moved = true;
-        frameSize = a_frameSize;
         const auto& display = ImGui::GetIO().DisplaySize;
         const auto delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0.0F);
         // Whole pixels within whole-pixel bounds, so the room from the corner
         // holds the frame.
         corner = ImVec2{ std::clamp(std::round(origin.x + delta.x), 0.0F,
-                             std::floor((std::max)(display.x - frameSize.x, 0.0F))),
-            std::clamp(std::round(origin.y + delta.y), (std::min)(std::ceil(frameSize.y), display.y), display.y) };
+                             std::floor((std::max)(display.x - a_frameSize.x, 0.0F))),
+            std::clamp(std::round(origin.y + delta.y), (std::min)(std::ceil(a_frameSize.y), display.y), display.y) };
     }
 
     void ChatPosition::Grab(const ImVec2& a_corner)
@@ -100,27 +93,37 @@ namespace UI
             return;
         }
 
+        const auto live = Config::Get();
+        auto config = *live;
+        Store(config.ui, corner);
+        if (config.ui == live->ui)
+        {
+            return;
+        }
+        const auto horizontal = config.ui.chatPositionHorizontal;
+        const auto vertical = config.ui.chatPositionVertical;
+        const bool saved = Config::Apply(std::move(config));
+        logs::debug("Chat moved to {:.2f}% across and {:.2f}% up{}", horizontal, vertical, saved ? "" : "; not saved");
+    }
+
+    void ChatPosition::Store(Config::UISettings& a_ui, const ImVec2& a_corner)
+    {
         const auto& display = ImGui::GetIO().DisplaySize;
         if (display.x <= 0.0F || display.y <= 0.0F)
         {
             return;
         }
-        // The nearest percentage, unless its corner leaves the frame less room
-        // than the drag did; the one toward the lower left corner never does.
-        const ImVec2 exact{ corner.x / display.x * 100.0F, (display.y - corner.y) / display.y * 100.0F };
-        const auto nearest = ToCorner(ToPercent(exact.x, true), ToPercent(exact.y, true));
-        const auto horizontal = ToPercent(exact.x, nearest.x + frameSize.x <= display.x);
-        const auto vertical = ToPercent(exact.y, nearest.y >= frameSize.y);
-
-        const auto live = Config::Get();
-        if (horizontal == live->ui.chatPositionHorizontal && vertical == live->ui.chatPositionVertical)
+        // A value that already puts the corner there stays, such as a slider's whole percent.
+        const auto current = ToCorner(a_ui.chatPositionHorizontal, a_ui.chatPositionVertical);
+        if (current.x != a_corner.x)
         {
-            return;
+            a_ui.chatPositionHorizontal
+                = std::clamp(a_corner.x / display.x * 100.0F, 0.0F, UISettings::kMaximumChatPosition);
         }
-        auto config = *live;
-        config.ui.chatPositionHorizontal = horizontal;
-        config.ui.chatPositionVertical = vertical;
-        const bool saved = Config::Apply(std::move(config));
-        logs::debug("Chat moved to {}% across and {}% up{}", horizontal, vertical, saved ? "" : "; not saved");
+        if (current.y != a_corner.y)
+        {
+            a_ui.chatPositionVertical
+                = std::clamp((display.y - a_corner.y) / display.y * 100.0F, 0.0F, UISettings::kMaximumChatPosition);
+        }
     }
 }

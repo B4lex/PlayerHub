@@ -94,8 +94,20 @@ namespace UI::MenuFrame
 
         constexpr std::size_t kDrawnFrames = 4;
 
+        // A drag on an upper corner, which keeps the opposite lower one in place.
+        struct CornerDrag
+        {
+            ImGuiID id{ 0 };
+            ImGuiID window{ 0 };
+            ImVec2 fixed;
+            // From the dragged corner to the cursor at the click.
+            ImVec2 offset;
+            bool left{ false };
+        };
+
         Shape s_shape;
         std::array<DrawnFrame, kDrawnFrames> s_drawn;
+        CornerDrag s_cornerDrag;
 
         std::string_view NextWord(std::string_view& a_line)
         {
@@ -348,6 +360,77 @@ namespace UI::MenuFrame
             storage.SetFloat(rectIds[2], size.x);
             storage.SetFloat(rectIds[3], size.y);
         }
+
+        // Before Begin, so the window takes the dragged rect this frame.
+        void FollowUpperCorner(const char* a_name, const ImVec2& a_minimum, const ImVec2& a_display)
+        {
+            const auto& drag = s_cornerDrag;
+            if (drag.id == 0 || ImGui::GetActiveID() != drag.id || drag.window != ImHashStr(a_name))
+            {
+                return;
+            }
+            const auto mouse = ImGui::GetMousePos();
+            const ImVec2 corner{ std::clamp(mouse.x - drag.offset.x, 0.0F, a_display.x),
+                std::clamp(mouse.y - drag.offset.y, 0.0F, a_display.y) };
+            const ImVec2 size{
+                std::floor(std::clamp(drag.left ? drag.fixed.x - corner.x : corner.x - drag.fixed.x, a_minimum.x,
+                    (std::max)(a_minimum.x, a_display.x))),
+                std::floor(std::clamp(drag.fixed.y - corner.y, a_minimum.y, (std::max)(a_minimum.y, a_display.y)))
+            };
+            ImGui::SetNextWindowPos(
+                ImVec2{ drag.left ? drag.fixed.x - size.x : drag.fixed.x, drag.fixed.y - size.y }, ImGuiCond_Always);
+            ImGui::SetNextWindowSize(size, ImGuiCond_Always);
+        }
+
+        // Dear ImGui resizes a window from its edges and lower corners only. These grips
+        // take its lower ones' hit areas, which its edge strips stop short of. Call between
+        // Begin and End, before any item.
+        void GrabUpperCorners(const ImVec2& a_display)
+        {
+            const auto& context = *ImGui::GetCurrentContext();
+            const auto* window = ImGui::GetCurrentWindow();
+            if ((window->Flags & ImGuiWindowFlags_NoResize) != 0)
+            {
+                return;
+            }
+            const auto fontSize = context.FontSize;
+            const auto drawSize
+                = std::trunc((std::max)(fontSize * 1.35F, window->WindowRounding + 1.0F + fontSize * 0.2F));
+            const auto inside = std::trunc(drawSize * 0.75F);
+            const auto outside = context.WindowsBorderHoverPadding;
+            // The window's clip rectangle would leave out its padding and the hover
+            // padding outside it.
+            ImGui::PushClipRect(ImVec2{ 0.0F, 0.0F }, a_display, false);
+            ImGui::PushID("#UpperResize");
+            for (const bool left : { true, false })
+            {
+                const ImVec2 corner{ left ? window->Pos.x : window->Pos.x + window->Size.x, window->Pos.y };
+                const ImRect rect{ ImVec2{ left ? corner.x - outside : corner.x - inside, corner.y - outside },
+                    ImVec2{ left ? corner.x + inside : corner.x + outside, corner.y + inside } };
+                const auto id = ImGui::GetID(left ? 0 : 1);
+                ImGui::ItemAdd(rect, id, nullptr, ImGuiItemFlags_NoNav);
+                bool hovered = false;
+                bool held = false;
+                ImGui::ButtonBehavior(rect, id, &hovered, &held,
+                    ImGuiButtonFlags_FlattenChildren | ImGuiButtonFlags_NoNavFocus);
+                if (hovered || held)
+                {
+                    ImGui::SetMouseCursor(left ? ImGuiMouseCursor_ResizeNWSE : ImGuiMouseCursor_ResizeNESW);
+                }
+                if (held && context.ActiveIdIsJustActivated)
+                {
+                    const auto mouse = ImGui::GetMousePos();
+                    s_cornerDrag = CornerDrag{ .id = id,
+                        .window = window->ID,
+                        .fixed = ImVec2{ left ? window->Pos.x + window->Size.x : window->Pos.x,
+                            window->Pos.y + window->Size.y },
+                        .offset = ImVec2{ mouse.x - corner.x, mouse.y - corner.y },
+                        .left = left };
+                }
+            }
+            ImGui::PopID();
+            ImGui::PopClipRect();
+        }
     }
 
     void Load()
@@ -475,8 +558,9 @@ namespace UI::MenuFrame
             ImGui::SetNextWindowPos(
                 ImVec2{ display.x * 0.5F, display.y * 0.5F }, ImGuiCond_Once, ImVec2{ 0.5F, 0.5F });
             ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-            ImGui::SetNextWindowSizeConstraints(
-                ImVec2{ a_layout.minimumSizeFonts.x * fontSize, a_layout.minimumSizeFonts.y * fontSize }, display);
+            const ImVec2 minimum{ a_layout.minimumSizeFonts.x * fontSize, a_layout.minimumSizeFonts.y * fontSize };
+            ImGui::SetNextWindowSizeConstraints(minimum, display);
+            FollowUpperCorner(a_name, minimum, display);
         }
         if (a_focus)
         {
@@ -495,6 +579,10 @@ namespace UI::MenuFrame
         if (!a_layout.fixedPosition)
         {
             FollowFontSize(fontSize, display);
+            if (visible)
+            {
+                GrabUpperCorners(display);
+            }
         }
         if (visible)
         {

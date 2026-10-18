@@ -1,5 +1,6 @@
 #include "ui/chat/ChatSize.h"
 #include "config/PluginConfig.h"
+#include "ui/chat/ChatPosition.h"
 
 #include <algorithm>
 #include <cmath>
@@ -44,9 +45,15 @@ namespace UI
 
     void ChatSize::ShowResizeCursor(std::uint8_t a_edges)
     {
-        ImGui::SetMouseCursor(a_edges == kTop ? ImGuiMouseCursor_ResizeNS
-                : a_edges == kRight           ? ImGuiMouseCursor_ResizeEW
-                                              : ImGuiMouseCursor_ResizeNESW);
+        const bool vertical = (a_edges & (kTop | kBottom)) != 0;
+        const bool horizontal = (a_edges & (kLeft | kRight)) != 0;
+        if (vertical && horizontal)
+        {
+            ImGui::SetMouseCursor(((a_edges & kTop) != 0) == ((a_edges & kRight) != 0) ? ImGuiMouseCursor_ResizeNESW
+                                                                                         : ImGuiMouseCursor_ResizeNWSE);
+            return;
+        }
+        ImGui::SetMouseCursor(vertical ? ImGuiMouseCursor_ResizeNS : ImGuiMouseCursor_ResizeEW);
     }
 
     ImVec2 ChatSize::Get(const Units& a_units) const
@@ -60,6 +67,18 @@ namespace UI
             a_units.step);
     }
 
+    ImVec2 ChatSize::GetCorner(const ImVec2& a_corner) const
+    {
+        return ImVec2{ (edges & kLeft) != 0 ? corner.x : a_corner.x, (edges & kBottom) != 0 ? corner.y : a_corner.y };
+    }
+
+    ImVec2 ChatSize::GetRoom(const ImVec2& a_corner) const
+    {
+        const auto& display = ImGui::GetIO().DisplaySize;
+        return ImVec2{ (edges & kLeft) != 0 ? fixed.x : display.x - a_corner.x,
+            (edges & kBottom) != 0 ? display.y - fixed.y : a_corner.y };
+    }
+
     std::uint8_t ChatSize::FindEdges(const Grip& a_grip)
     {
         // The field is active while the player types, which would otherwise
@@ -69,22 +88,39 @@ namespace UI
             return kNone;
         }
         const auto mouse = ImGui::GetMousePos();
-        const auto top = ImGui::GetWindowPos().y;
-        const auto right = ImGui::GetWindowPos().x + ImGui::GetWindowWidth();
-        const bool onTop = mouse.y < top + a_grip.depth.y;
-        const bool onRight = mouse.x >= right - a_grip.depth.x;
-        if (!onTop && !onRight)
+        const auto min = ImGui::GetWindowPos();
+        const ImVec2 max{ min.x + ImGui::GetWindowWidth(), min.y + ImGui::GetWindowHeight() };
+        const auto find = [&](const ImVec2& a_depth) {
+            std::uint8_t found = kNone;
+            if (mouse.y < min.y + a_depth.y)
+            {
+                found |= kTop;
+            }
+            else if (mouse.y >= max.y - a_depth.y)
+            {
+                found |= kBottom;
+            }
+            if (mouse.x < min.x + a_depth.x)
+            {
+                found |= kLeft;
+            }
+            else if (mouse.x >= max.x - a_depth.x)
+            {
+                found |= kRight;
+            }
+            return found;
+        };
+        const auto strips = find(a_grip.depth);
+        if (strips == kNone)
         {
             return kNone;
         }
-        if (mouse.y < top + a_grip.corner && mouse.x >= right - a_grip.corner)
-        {
-            return kTop | kRight;
-        }
-        return onTop ? kTop : kRight;
+        const auto corners = find(ImVec2{ a_grip.corner, a_grip.corner });
+        const bool inCorner = (corners & (kTop | kBottom)) != 0 && (corners & (kLeft | kRight)) != 0;
+        return inCorner ? corners : strips;
     }
 
-    void ChatSize::Follow(const Units& a_units)
+    void ChatSize::Follow(const Units& a_units, const ImVec2& a_around)
     {
         if (edges == kNone)
         {
@@ -102,18 +138,30 @@ namespace UI
             = ToPixels(Limit(Extent{ .width = UISettings::kMaximumChatWidth, .lines = UISettings::kMaximumChatLines },
                            a_units.maximum),
                 a_units.step);
-        if ((edges & kRight) != 0)
+        if ((edges & (kLeft | kRight)) != 0)
         {
-            size.x = std::clamp(origin.x + delta.x, smallest.x, largest.x);
+            size.x = std::clamp(origin.x + ((edges & kLeft) != 0 ? -delta.x : delta.x), smallest.x, largest.x);
         }
-        if ((edges & kTop) != 0)
+        if ((edges & (kTop | kBottom)) != 0)
         {
-            size.y = std::clamp(origin.y - delta.y, smallest.y, largest.y);
+            size.y = std::clamp(origin.y + ((edges & kTop) != 0 ? -delta.y : delta.y), smallest.y, largest.y);
         }
         settled = ToExtent(size, a_units);
+        step = a_units.step;
+        around = a_around;
+        corner = Place(size);
     }
 
-    bool ChatSize::Grab(const Grip& a_grip, const Units& a_units)
+    ImVec2 ChatSize::Place(const ImVec2& a_size) const
+    {
+        // Dear ImGui truncates the window's size, so the edge held in place
+        // stays there by the pixel.
+        const ImVec2 frame{ std::floor(a_size.x + around.x), std::floor(a_size.y + around.y) };
+        return ImVec2{ (edges & kLeft) != 0 ? fixed.x - frame.x : corner.x,
+            (edges & kBottom) != 0 ? fixed.y + frame.y : corner.y };
+    }
+
+    bool ChatSize::Grab(const Grip& a_grip, const Units& a_units, const ImVec2& a_corner)
     {
         if (edges != kNone)
         {
@@ -132,6 +180,12 @@ namespace UI
         origin = Get(a_units);
         size = origin;
         settled = ToExtent(size, a_units);
+        step = a_units.step;
+        const auto position = ImGui::GetWindowPos();
+        const auto frame = ImGui::GetWindowSize();
+        around = ImVec2{ frame.x - size.x, frame.y - size.y };
+        fixed = ImVec2{ position.x + frame.x, position.y };
+        corner = a_corner;
         edges = hovered;
         return true;
     }
@@ -142,18 +196,24 @@ namespace UI
         {
             return;
         }
-        edges = kNone;
-
         const auto live = Config::Get();
-        if (settled == Extent{ .width = live->ui.chatWidth, .lines = live->ui.chatLines })
-        {
-            return;
-        }
         auto config = *live;
         config.ui.chatWidth = settled.width;
         config.ui.chatLines = settled.lines;
+        if ((edges & (kLeft | kBottom)) != 0)
+        {
+            // Placed for the settled size, so the held edge stays where it is.
+            ChatPosition::Store(config.ui, Place(ToPixels(settled, step)));
+        }
+        edges = kNone;
+        if (config.ui == live->ui)
+        {
+            return;
+        }
+        const auto horizontal = config.ui.chatPositionHorizontal;
+        const auto vertical = config.ui.chatPositionVertical;
         const bool saved = Config::Apply(std::move(config));
-        logs::debug(
-            "Chat resized to {} font sizes by {} lines{}", settled.width, settled.lines, saved ? "" : "; not saved");
+        logs::debug("Chat resized to {} font sizes by {} lines at {:.2f}% across and {:.2f}% up{}", settled.width,
+            settled.lines, horizontal, vertical, saved ? "" : "; not saved");
     }
 }

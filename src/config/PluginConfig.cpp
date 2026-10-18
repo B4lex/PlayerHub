@@ -92,6 +92,21 @@ namespace Config
                 ReadUnsigned(a_key, a_value, a_minimum, a_maximum, a_step);
             }
 
+            void FinePercent(std::string_view a_key, Text::Id, float& a_value, Text::Id, float a_maximum) override
+            {
+                const auto value = Take(a_key);
+                if (!value)
+                {
+                    return;
+                }
+                if (const auto parsed = ParseFloat(*value); parsed && *parsed >= 0.0F && *parsed <= a_maximum)
+                {
+                    a_value = *parsed;
+                    return;
+                }
+                WarnInvalid(a_key, *value, std::format("{}", a_value));
+            }
+
             void String(std::string_view a_key, Text::Id, std::string& a_value, Text::Id,
                 bool (*a_isValid)(std::string_view)) override
             {
@@ -272,6 +287,11 @@ namespace Config
 
             void Percent(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment, std::uint32_t,
                 std::uint32_t, std::uint32_t) override
+            {
+                Write(a_key, std::format("{}", a_value), Text::GetEnglish(a_comment));
+            }
+
+            void FinePercent(std::string_view a_key, Text::Id, float& a_value, Text::Id a_comment, float) override
             {
                 Write(a_key, std::format("{}", a_value), Text::GetEnglish(a_comment));
             }

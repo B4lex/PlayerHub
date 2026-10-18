@@ -31,10 +31,22 @@ namespace UI
 
         [[nodiscard]] ImVec2 Get(const Units& a_units) const;
 
-        void Follow(const Units& a_units);
+        // The lower left corner of the frame: a_corner, or where a drag on the
+        // left or bottom edge has moved it.
+        [[nodiscard]] ImVec2 GetCorner(const ImVec2& a_corner) const;
 
-        // Whether a drag is held or the cursor is on a grip.
-        bool Grab(const Grip& a_grip, const Units& a_units);
+        // The room for the frame from a_corner to the right and top screen edges,
+        // or, on an axis whose opposite edge a drag holds in place, from that edge.
+        [[nodiscard]] ImVec2 GetRoom(const ImVec2& a_corner) const;
+
+        [[nodiscard]] bool IsGrowingLeft() const { return (edges & kLeft) != 0; }
+
+        // a_around is the frame's size around the lines.
+        void Follow(const Units& a_units, const ImVec2& a_around);
+
+        // Whether a drag is held or the cursor is on a grip. a_corner is the
+        // frame's configured lower left corner.
+        bool Grab(const Grip& a_grip, const Units& a_units, const ImVec2& a_corner);
 
         void Release();
 
@@ -43,15 +55,25 @@ namespace UI
         {
             kNone = 0,
             kTop = 1 << 0,
-            kRight = 1 << 1
+            kRight = 1 << 1,
+            kBottom = 1 << 2,
+            kLeft = 1 << 3
         };
 
         [[nodiscard]] static std::uint8_t FindEdges(const Grip& a_grip);
+        // The lower left corner of a frame around lines of a_size.
+        [[nodiscard]] ImVec2 Place(const ImVec2& a_size) const;
         static void ShowResizeCursor(std::uint8_t a_edges);
 
         std::uint8_t edges{ kNone };
         ImVec2 origin;
         ImVec2 size;
         Extent settled;
+        ImVec2 step;
+        // The frame's size around the lines.
+        ImVec2 around;
+        // The frame's top right corner when grabbed.
+        ImVec2 fixed;
+        ImVec2 corner;
     };
 }

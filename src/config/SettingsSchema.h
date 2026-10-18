@@ -30,6 +30,10 @@ namespace Config
         // Valid values are the minimum plus whole steps.
         virtual void Percent(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
             std::uint32_t a_minimum, std::uint32_t a_maximum, std::uint32_t a_step) = 0;
+        // Any fraction from 0 up to the maximum is valid; the settings window's slider moves in
+        // whole percents.
+        virtual void FinePercent(std::string_view a_key, Text::Id a_label, float& a_value, Text::Id a_comment,
+            float a_maximum) = 0;
         virtual void String(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment,
             bool (*a_isValid)(std::string_view)) = 0;
         virtual void Form(std::string_view a_key, Text::Id a_label, Multiplayer::FormReference& a_value,
@@ -54,6 +58,8 @@ namespace Config
 
     [[nodiscard]] std::optional<bool> ParseBool(std::string_view a_value);
     [[nodiscard]] std::optional<std::uint32_t> ParseUnsigned(std::string_view a_value);
+    // Finite values only.
+    [[nodiscard]] std::optional<float> ParseFloat(std::string_view a_value);
     [[nodiscard]] std::optional<Multiplayer::FormReference> ParseFormReference(std::string_view a_value);
     [[nodiscard]] std::string FormatFormReference(const Multiplayer::FormReference& a_reference);
     [[nodiscard]] std::optional<std::uint32_t> ParseChoice(

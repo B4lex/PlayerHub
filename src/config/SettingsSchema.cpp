@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <cmath>
 #include <format>
 #include <system_error>
 
@@ -249,15 +250,15 @@ namespace Config
             a_visitor.Bool(
                 "CloseChatOnSend", Id::kUICloseChatOnSend, a_settings.closeChatOnSend, Id::kUICloseChatOnSendComment);
             a_visitor.Layout("ChatWidth", a_settings.chatWidth,
-                "Width of the chat in font sizes. Dragging the open chat's right edge sets it.",
+                "Width of the chat in font sizes. Dragging the open chat's left or right edge sets it.",
                 UISettings::kMinimumChatWidth, UISettings::kMaximumChatWidth);
             a_visitor.Layout("ChatLines", a_settings.chatLines,
-                "Lines of history the open chat shows. Dragging its top edge sets it.",
+                "Lines of history the open chat shows. Dragging its top or bottom edge sets it.",
                 UISettings::kMinimumChatLines, UISettings::kMaximumChatLines);
-            a_visitor.Percent("ChatPositionHorizontal", Id::kUIChatHorizontal, a_settings.chatPositionHorizontal,
-                Id::kUIChatHorizontalComment, 0, UISettings::kMaximumChatPosition, 1);
-            a_visitor.Percent("ChatPositionVertical", Id::kUIChatVertical, a_settings.chatPositionVertical,
-                Id::kUIChatVerticalComment, 0, UISettings::kMaximumChatPosition, 1);
+            a_visitor.FinePercent("ChatPositionHorizontal", Id::kUIChatHorizontal, a_settings.chatPositionHorizontal,
+                Id::kUIChatHorizontalComment, UISettings::kMaximumChatPosition);
+            a_visitor.FinePercent("ChatPositionVertical", Id::kUIChatVertical, a_settings.chatPositionVertical,
+                Id::kUIChatVerticalComment, UISettings::kMaximumChatPosition);
 
             a_visitor.Comment(Id::kUIGroupItems);
             a_visitor.Bool("ItemPreview", Id::kUIItemPreview, a_settings.itemPreview, Id::kUIItemPreviewComment);
@@ -385,6 +386,17 @@ namespace Config
         std::uint32_t value = 0;
         const auto [end, error] = std::from_chars(a_value.data(), a_value.data() + a_value.size(), value);
         if (a_value.empty() || error != std::errc{} || end != a_value.data() + a_value.size())
+        {
+            return std::nullopt;
+        }
+        return value;
+    }
+
+    std::optional<float> ParseFloat(std::string_view a_value)
+    {
+        float value = 0.0F;
+        const auto [end, error] = std::from_chars(a_value.data(), a_value.data() + a_value.size(), value);
+        if (a_value.empty() || error != std::errc{} || end != a_value.data() + a_value.size() || !std::isfinite(value))
         {
             return std::nullopt;
         }

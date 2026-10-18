@@ -41,7 +41,11 @@ namespace UI::Theme
             { ImGuiCol_ScrollbarGrab, Tint(0.18F) },
             { ImGuiCol_Button, Tint(0.10F) },
             { ImGuiCol_Separator, Tint(0.12F) },
+            // A grip would show through the frame's translucent backing; the cursor alone
+            // shows where a window resizes.
             { ImGuiCol_ResizeGrip, kTransparent },
+            { ImGuiCol_ResizeGripHovered, kTransparent },
+            { ImGuiCol_ResizeGripActive, kTransparent },
             { ImGuiCol_Tab, Tint(0.06F) },
             { ImGuiCol_TabDimmed, Tint(0.06F) },
             { ImGuiCol_TableBorderStrong, Tint(0.16F) },
@@ -73,8 +77,6 @@ namespace UI::Theme
             { ImGuiCol_HeaderActive, 0.50F },
             { ImGuiCol_SeparatorHovered, 0.60F },
             { ImGuiCol_SeparatorActive, 1.0F },
-            { ImGuiCol_ResizeGripHovered, 0.60F },
-            { ImGuiCol_ResizeGripActive, 1.0F },
             { ImGuiCol_TabHovered, 0.40F },
             { ImGuiCol_TabSelected, 0.28F },
             { ImGuiCol_TabSelectedOverline, 1.0F },

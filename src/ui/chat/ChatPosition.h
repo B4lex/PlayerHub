@@ -2,6 +2,11 @@
 
 #include <imgui.h>
 
+namespace Config
+{
+    struct UISettings;
+}
+
 namespace UI
 {
     class ChatPosition
@@ -18,11 +23,12 @@ namespace UI
 
         void Release();
 
+        static void Store(Config::UISettings& a_ui, const ImVec2& a_corner);
+
     private:
         bool held{ false };
         bool moved{ false };
         ImVec2 origin;
         ImVec2 corner;
-        ImVec2 frameSize;
     };
 }

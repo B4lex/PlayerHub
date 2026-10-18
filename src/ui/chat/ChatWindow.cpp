@@ -62,13 +62,11 @@ namespace UI
             return ImVec2{ ImGui::GetFontSize(), ChatHistory::GetLinePitch() };
         }
 
-        // The room from the anchor to the right and top edges.
-        ChatSize::Units GetUnits(const ImVec2& a_anchor, const ImVec2& a_around)
+        ChatSize::Units GetUnits(const ImVec2& a_room, const ImVec2& a_around)
         {
-            const auto& display = ImGui::GetIO().DisplaySize;
             const auto step = GetStep();
-            const auto width = display.x - a_anchor.x - a_around.x + kRoomTolerancePixels;
-            const auto height = a_anchor.y - a_around.y + kRoomTolerancePixels;
+            const auto width = a_room.x - a_around.x + kRoomTolerancePixels;
+            const auto height = a_room.y - a_around.y + kRoomTolerancePixels;
             return ChatSize::Units{ .step = step,
                 .maximum = { .width = static_cast<std::uint32_t>((std::max)(width / step.x, 0.0F)),
                     .lines = static_cast<std::uint32_t>((std::max)(height / step.y, 0.0F)) } };
@@ -208,7 +206,7 @@ namespace UI
             [[nodiscard]] ImVec2 GetClosedFrameSize(const ImVec2& a_anchor) const
             {
                 const auto sidePadding = GetSidePadding();
-                const auto lines = size.Get(GetUnits(a_anchor, ImVec2{ sidePadding, aroundHeight }));
+                const auto lines = size.Get(GetUnits(size.GetRoom(a_anchor), ImVec2{ sidePadding, aroundHeight }));
                 return ImVec2{ lines.x + sidePadding, lines.y + aroundHeight };
             }
 
@@ -244,19 +242,22 @@ namespace UI
                 const Theme::Scope theme;
                 const auto sidePadding = GetSidePadding();
                 position.Follow(GetConfiguredFrameSize());
-                const auto anchor = position.Get();
-                auto units = GetUnits(anchor, ImVec2{ sidePadding, aroundHeight });
+                const ImVec2 around{ sidePadding, aroundHeight };
+                const auto room = size.GetRoom(position.Get());
+                auto units = GetUnits(room, around);
                 const auto listWidth = players.IsOpen() ? GetPlayerListGap() + GetPlayerListWidth() : 0.0F;
                 const auto listSide = players.IsOpen()
-                    ? ChooseListSide(anchor.x, size.Get(units).x + sidePadding, listWidth)
+                    ? ChooseListSide(size.GetCorner(position.Get()).x, size.Get(units).x + sidePadding, listWidth)
                     : ListSide::kRight;
-                if (players.IsOpen() && listSide == ListSide::kRight)
+                // The list takes room only on the side the chat grows toward.
+                if (players.IsOpen() && (listSide == ListSide::kLeft) == size.IsGrowingLeft())
                 {
-                    units = GetUnits(anchor, ImVec2{ sidePadding + listWidth, aroundHeight });
+                    units = GetUnits(room, ImVec2{ sidePadding + listWidth, aroundHeight });
                 }
-                size.Follow(units);
+                size.Follow(units, around);
                 const auto linesSize = size.Get(units);
                 const ImVec2 frameSize{ linesSize.x + sidePadding, linesSize.y + aroundHeight };
+                const auto anchor = size.GetCorner(position.Get());
                 auto corner = KeepOnScreen(anchor, frameSize);
                 if (listSide == ListSide::kRight)
                 {
@@ -304,7 +305,7 @@ namespace UI
                 const bool resizing = !position.IsHeld()
                     && size.Grab(ChatSize::Grip{ .depth = grip,
                                      .corner = (std::max)({ MenuFrame::GetMetrics().corner, grip.x, grip.y }) },
-                        units);
+                        units, anchor);
                 const auto picked = history.DrawLines(
                     a_input, ImVec2{ 0.0F, -inputRowHeight }, closeMenu, players.IsHovered() || manager.IsHovered());
                 if (picked)
@@ -403,7 +404,10 @@ namespace UI
             // the side does not change as the chat narrows for the list.
             static ListSide ChooseListSide(float a_left, float a_frameWidth, float a_listWidth)
             {
-                return a_left + a_frameWidth + a_listWidth <= ImGui::GetIO().DisplaySize.x || a_left < a_listWidth
+                // The tolerance keeps a chat grown left against the list's room from
+                // sending the list to the right.
+                return a_left + a_frameWidth + a_listWidth <= ImGui::GetIO().DisplaySize.x
+                        || a_left + kRoomTolerancePixels < a_listWidth
                     ? ListSide::kRight
                     : ListSide::kLeft;
             }

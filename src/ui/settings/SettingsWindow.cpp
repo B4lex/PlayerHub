@@ -381,6 +381,20 @@ namespace UI
                 EndRow();
             }
 
+            void FinePercent(std::string_view a_key, Text::Id a_label, float& a_value, Text::Id a_comment,
+                float a_maximum) override
+            {
+                if (!BeginRow(a_key, a_label, a_comment))
+                {
+                    return;
+                }
+                // Dear ImGui rounds a moved slider's value to the format, so it moves in whole percents.
+                ImGui::SliderFloat("##value", &a_value, 0.0F, a_maximum, "%.0f%%", ImGuiSliderFlags_AlwaysClamp);
+                // Applied on release: a frame resized under the cursor would move the slider.
+                editing = editing || ImGui::IsItemActive();
+                EndRow();
+            }
+
             void String(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment,
                 bool (*a_isValid)(std::string_view)) override
             {

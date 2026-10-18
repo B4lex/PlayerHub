@@ -182,6 +182,10 @@ slider. The file takes any value up to the maximum, off the step too, so a
 value written by hand loads as it is. `Percent` takes both limits, outside which a
 value in the file is invalid, and a step: a value that is not the minimum
 plus whole steps is invalid too. The file stores the number without a sign.
+`FinePercent` takes a maximum: a finite number from 0 to it, with any fraction
+(`ParseFloat`), is valid, and the file stores the shortest text that reads back
+as the same `float`. The settings window's slider moves in whole percents; a
+drag on the open chat stores a fraction, so it stays on its pixel.
 `Color` is an opaque `0xRRGGBB` value that the file stores as six hexadecimal
 digits (`FormatColor`, upper case); reading also takes lower case and a leading
 `#` (`ParseColor`). It takes swatches, the colors the settings window offers.
@@ -318,10 +322,10 @@ Four groups: Display (`Language`, `Scale`, `AccentColor`, `BorderColor`,
 | `NameplateDistance` | Game units from the player within which nameplates show, `0..4000`, about 70 to a meter; `0` shows none and skips their line-of-sight tests, as `Nameplates = false` does | `2000` |
 | `CloseChatOnSend` | Closes the chat when Enter sends a line; when `false`, the chat stays open and Enter in an empty field does nothing ([UI overlay](ui-overlay.md#sending)) | `true` |
 | `ItemPreview` | Shows the 3D item model in item pickers and the trade window's preview column, and item thumbnails in the trade window's offers; off, the cells show names and the column only the item card | `true` |
-| `ChatWidth` | Width of the chat's lines in font sizes, `24..100`; set by dragging the open chat's right edge ([UI overlay](ui-overlay.md#size)) and not shown in the settings window | `30` |
-| `ChatLines` | Lines of history the open chat shows, `9..40`; set by dragging its top edge, and not shown in the settings window | `15` |
-| `ChatPositionHorizontal` | Distance of the open chat's left edge from the screen's left edge in percent of the screen's width, `0..100`; the chat stays there and its size is limited to the room left on the screen; also set by dragging the open chat ([UI overlay](ui-overlay.md#position)) | `1` |
-| `ChatPositionVertical` | Distance of the open chat's bottom edge from the screen's bottom edge in percent of the screen's height, `0..100`; the default keeps it above the magicka bar | `8` |
+| `ChatWidth` | Width of the chat's lines in font sizes, `24..100`; set by dragging the open chat's left or right edge ([UI overlay](ui-overlay.md#size)) and not shown in the settings window | `30` |
+| `ChatLines` | Lines of history the open chat shows, `9..40`; set by dragging its top or bottom edge, and not shown in the settings window | `15` |
+| `ChatPositionHorizontal` | Distance of the open chat's left edge from the screen's left edge in percent of the screen's width, `0..100` with any fraction; the chat stays there and its size is limited to the room left on the screen; also set by dragging the open chat or its left edge ([UI overlay](ui-overlay.md#position)) | `1` |
+| `ChatPositionVertical` | Distance of the open chat's bottom edge from the screen's bottom edge in percent of the screen's height, `0..100` with any fraction; the default keeps it above the magicka bar; also set by dragging the open chat or its bottom edge | `8` |
 
 ### `[Controls]`
 
