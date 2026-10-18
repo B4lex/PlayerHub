@@ -107,7 +107,7 @@ namespace MovementSync
                 a_remote.checkpoint.direction, a_remote.checkpoint.swimming);
             a_appliedSequence = a_remote.checkpoint.sequence;
         }
-        ActorMovement::SetTargetTransform(
-            a_actor, a_remote.pose.position, a_remote.pose.heading, a_remote.pose.pitch, a_remote.pose.speed);
+        ActorMovement::SetTargetTransform(a_actor, a_remote.pose.position, a_remote.pose.heading,
+            a_remote.pose.headingRate, a_remote.pose.pitch, a_remote.pose.speed);
     }
 }

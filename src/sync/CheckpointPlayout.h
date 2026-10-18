@@ -29,6 +29,7 @@ public:
             PlayNext();
         }
         UpdatePose();
+        ObserveDryPlayout(a_playerID);
     }
 
     void Reset();
@@ -48,6 +49,7 @@ private:
     [[nodiscard]] bool IsNextDue() const noexcept;
     void PlayNext();
     void UpdatePose();
+    void ObserveDryPlayout(Multiplayer::PeerSlot a_playerID);
     [[nodiscard]] double GetDelay() const noexcept;
 
     std::vector<Entry> pending;
@@ -69,4 +71,9 @@ private:
     bool clockStarted{ false };
     double playbackTime{ 0.0 };
     double advancedAt{ 0.0 };
+
+    bool dry{ false };
+    bool dryWhileMoving{ false };
+    double dryStartedAt{ 0.0 };
+    std::uint32_t dryRuns{ 0 };
 };

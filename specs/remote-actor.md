@@ -35,6 +35,10 @@ Implemented for Skyrim AE 1.7.104, and run in game there.
   [assumption 18](#engine-assumptions) were read in the 1.7.104 disassembly;
   Linux syntax check only. Not built on Windows or run in game, and SE 1.5.97
   was not checked.
+- **Graph channel layout (2026-10-18):** the Speed, Direction, and TurnDelta
+  channel state in [Graph speed](#graph-speed) was read in the 1.7.104
+  disassembly; the hooks writing only the polled value passed a Linux syntax
+  check only. SE 1.5.97 was not checked.
 
 ## Scope
 
@@ -481,6 +485,15 @@ The graph's Speed channel (ID 38330 → ID 42767) reads `Actor::GetMovementSpeed
 longer updates. `ActorAnimation` publishes the Speed it writes to the registry
 when it changes, and the channel hook reports it for a living network-placed
 actor.
+
+The hooks replace only the polled value at `channel + 0x18`. The channel's own
+state follows it: `+0x20` holds the last value polled from the actor, and the
+Speed channel keeps the actor's scale at `+0x24`, set by its reset (vfunc 2,
+ID 42768) with a 1.0 fallback, and divides every polled speed by it (Direction
+and TurnDelta, IDs 42777 and 42773, return `+0x20` the same way). The hooks used
+to write the network value to `+0x24` as well, taking it for a cached value;
+once Skyrim moved the actor again (furniture entry, death), its Speed was
+divided by the last network speed, which is 0 for an idle actor.
 
 ### Swimming
 

@@ -259,7 +259,13 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   it still carries forward; without this the actor fell behind and teleported
   on the idle checkpoint.
 - `SetPosition(next, true)` moves the reference and its controller. Heading
-  turns toward the pose's heading at up to one turn per second.
+  follows the pose like position: at the pose's `headingRate` plus the
+  remaining turn over 0.15 s, at most one turn per second, so an actor on the
+  pose turns with it exactly and a step in the pose is eased. Offsets within
+  0.5° are left alone only while the pose turns slower than 0.05 rad/s. The
+  old rule turned at up to one turn per second toward the pose, which closed
+  a 20 Hz step within a frame or two, so a turn whose pose stepped (a dry
+  playout, or one checkpoint batched over two) snapped at the checkpoint rate.
 
 ### Direction
 

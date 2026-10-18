@@ -23,8 +23,14 @@
   different load orders have not been run in game.
 - **Mounts:** implemented and run in game: a replayed rider was seated on its
   horse, which walked, trotted, and ran with the recorded speed and leaned on
-  slopes; dismount and death removed the horse without a crash. The gallop is a
-  [known limitation](#known-limitations). The rider's draw and sheathe
+  slopes; dismount and death removed the horse without a crash. The gait's
+  ground speed and its stop and gallop holds ([Gait](#gait)) ran in game on a
+  replay (2026-10-18): no gait change during a steady ride, and walking looked
+  smooth. The graph speed restore ran on the same replay and logged no restore.
+  The rider carry ([Rider placement](#rider-placement)) ran on the same replay
+  (2026-10-18) and the ride looked smoother; the trail it removes was not
+  measured.
+  The rider's draw and sheathe
   ([Weapon](#weapon)) passed a Linux syntax check only; the Windows build and
   in-game behavior are not verified. On SE 1.5.97 riders are seated through
   the IDs in [assumption 2](#engine-assumptions) since 2026-10-12 (before that
@@ -391,20 +397,34 @@ hand swap by its 2 s bound.
 
 ### Gait
 
-The mount's gait comes from the checkpoint speed. Vanilla horse movement types
-are walk 125, run 450 (`Horse_Default_MT`), and sprint 600 (`Horse_Sprint_MT`).
+The mount's gait comes from the checkpoint's ground speed: `ActorMovement`
+scales the checkpoint speed by the horizontal share of the travel from the
+previously applied checkpoint (`groundSpeed`). Vanilla horse movement types are
+walk 125, run 450 (`Horse_Default_MT`), and sprint 600 (`Horse_Sprint_MT`).
 
-- Below 20 the mount is idle (`moveStop`). The gallop (`SprintStart`,
-  `SprintStop`, `IsSprinting`) starts only after the speed stays at 560 or more
-  for 0.3 s, so a single relocation sample cannot start it, and stops below 490.
-  `SprintStop` is sent before `moveStop`.
-- `Speed` and `SpeedSampled` take the checkpoint speed once per new checkpoint,
+- The mount stops (`moveStop`) once the speed stays below 20 for 0.2 s; it
+  starts at once. The gallop (`SprintStart`, `SprintStop`, `IsSprinting`)
+  starts only after the speed stays at 560 or more for 0.3 s, so a single
+  relocation sample cannot start it, and stops once it stays below 490 for
+  0.5 s. `SprintStop` is sent before `moveStop`.
+- `Speed` and `SpeedSampled` take the ground speed once per new checkpoint,
   and `Direction` stays zero.
 - An edge records the request whether or not the graph accepts it. Every 0.25 s
   the graph's `IsMoving` and its gallop (the state tags `iState` with
   `iState_HorseSprint`) are compared with the request, and a mismatch sends
   `SprintStop`, `moveStart`, `moveStop`, or `SprintStart`, in that priority
-  (`Corrected remote … graph gait`).
+  (`Corrected remote … graph gait`). The same check restores the mount graph's
+  `Speed` when it reads back more than 1 away from the gait speed
+  (`Restored remote mount graph speed`, with the 3D, cull, process level, and
+  distance). A mount's graph once held 0 for two samples 2 s apart while it
+  ran; the cause is not known.
+
+Why ground speed and the holds: the checkpoint speed is measured in 3D, and a
+source horse jumping or dropping down a slope reached 726–808 while its ground
+speed was about 460, so the remote horse galloped for about 145 ms on each
+landing. A single slow sample inside a walk (12, then 23 92 ms later) sent
+`moveStop` and `moveStart` back to back. Each flap restarted the locomotion
+clips.
 
 Why: the first checkpoint after a mount spawns carries the relocation onto it
 (speeds of 1176 and 2442), which started a gallop; `moveStop` then left
@@ -470,6 +490,21 @@ is reached for a non-player actor only from the skipped movement update.
 Placement (ID 37314) sets them from the navmesh normal. `Actor::SetPosition` (ID 37309) and `SetHeading` (ID 37230) leave
 them alone. The move-finish sink (ID 37996) overwrites them from the body's
 rotation, but `kNoSim` suppresses it for a network-placed actor.
+
+### Rider placement
+
+Skyrim places a seated rider from its mount, and its movement update runs
+before the sync pass ([Remote actor](remote-actor.md#graph-speed)). If the
+placement is in that update, the rider renders where the mount was a frame
+earlier, trailing it by the mount's step (about 7.5 units per frame at a 450
+run and 60 fps). After the mount is moved, `ActorMount::CarryRider` therefore
+moves a seated rider by the mount's step and turns its offset and heading by the
+mount's turn; a placement later in the frame overwrites it. Where Skyrim places
+the rider is not traced.
+
+Whether the rider trailed is not measured: the previous frame's rendered 3D
+offset always matched the references' offset, which also holds if moving an
+actor refreshes its 3D at once.
 
 ### Collision
 
@@ -673,12 +708,11 @@ Death:
 
 ## Known limitations
 
-- The gallop rarely settles. A galloping source's measured speed swings between
-  about 345 and 615, so the gallop range is left within about a second and the
-  mount keeps blending in and out of `SprintForward`. The robust fix is to
-  publish the source mount's own sprint state (its `IsSprinting` or actor state)
-  rather than infer it from speed; a cheaper one is to hold the gallop until the
-  speed stays below its range for a while.
+- The gallop is inferred from speed. A galloping source's measured speed swung
+  between about 345 and 615, which left the gallop range within about a second;
+  the 0.5 s stop hold is meant to bridge those dips, and whether it does is not
+  verified in game. Publishing the source mount's own sprint state (its
+  `IsSprinting` or actor state) would remove the guess.
 - Furniture: a native exit plays its full clip while the source may already
   be walking away (3.3 s for a table, up to 8.3 s for a bed). The actor then
   catches up by running along the network path, or snaps to the source if the

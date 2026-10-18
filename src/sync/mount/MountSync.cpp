@@ -63,10 +63,15 @@ namespace MountSync
         auto& mount = *lifecycle.mount;
         auto& rider = *lifecycle.actor;
         MovementSync::SyncMovement(a_remote, mount.appliedSequence, mount.actor);
+        const auto mountBefore = mount.seated ? ActorMount::CapturePlacement(mount.actor) : ActorMount::Placement{};
         if (!ActorRuntime::UpdateMount(mount.actor, mount.gait, a_delta))
         {
             ActorLifecycle::RetireForMountLoss(a_remote, a_peer);
             return false;
+        }
+        if (mount.seated)
+        {
+            ActorMount::CarryRider(rider, mount.actor, mountBefore);
         }
 
         const float delta = FrameTime::Clamp(a_delta);
@@ -134,6 +139,6 @@ namespace MountSync
         const bool weaponDrawn = a_remote.checkpoint.animationState.weaponDrawn
             && (a_readyForWeaponDraw || ActorAnimation::GetTargetState(rider).weaponDrawn);
         return ActorRuntime::UpdateRider(
-            rider, mount.riderGait, mount.actor.movement.animationSpeed, weaponDrawn, a_delta);
+            rider, mount.riderGait, mount.actor.movement.groundSpeed, weaponDrawn, a_delta);
     }
 }

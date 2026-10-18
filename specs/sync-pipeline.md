@@ -294,15 +294,20 @@ presentation](combat-presentation.md#receiver-queue)).
   Checkpoints played in the same pass each reach `OnCheckpointPlayed` in order.
   At most 16 wait; beyond that the oldest is dropped.
 - **Pose.** Between the played checkpoint and the next waiting one, position
-  and pitch interpolate linearly and heading along the shorter arc, and
-  `RemotePose.speed` is the segment's distance over its duration. A gap over
+  and pitch interpolate linearly and heading along the shorter arc;
+  `RemotePose.speed` is the segment's distance over its duration and
+  `headingRate` its turn over its duration (0 once the segment is reached or
+  without one). A gap over
   0.25 s is not one stretch of movement: the player stood still, since idle
   repeats are not sent, or the connection stalled. The segment then starts
   only the next checkpoint's distance over its speed before it, at least one
   `interval` and at most the whole gap. Nothing interpolates across a
   coordinate-space change, a mount change, or more than 4096 units; the pose
   holds the played checkpoint until the next one plays. With nothing waiting,
-  the pose holds the played checkpoint too: there is no extrapolation.
+  the pose holds the played checkpoint too: there is no extrapolation. When
+  that lasts 0.02 s or more and began while the played checkpoint moved
+  at 50 or more, above an idle player's drift, the end of the wait is logged (`Checkpoint playout ran
+  dry`, with its duration and the estimates; the first 10, then every 100th).
 
 Every step is constant work per peer per pass with no allocation after a
 peer's first checkpoint.

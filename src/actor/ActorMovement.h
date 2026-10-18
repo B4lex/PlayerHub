@@ -15,9 +15,11 @@ namespace ActorMovement
         RE::NiPoint3 targetPosition{};
         RE::NiPoint3 checkpointPosition{};
         float targetHeading{ 0.0F };
+        float targetHeadingRate{ 0.0F };
         float targetPitch{ 0.0F };
         float translationSpeed{ 550.0F };
         float animationSpeed{ 550.0F };
+        float groundSpeed{ 550.0F };
         float animationDirection{ 0.0F };
         float stoppingDistance{ 1.0F };
         bool sourceSwimming{ false };
@@ -30,7 +32,7 @@ namespace ActorMovement
         float a_direction, bool a_swimming);
 
     void SetTargetTransform(RemoteActor& a_remote, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
-        float a_targetPitch, float a_pathSpeed);
+        float a_headingRate, float a_targetPitch, float a_pathSpeed);
 
     [[nodiscard]] bool ShouldDeferLanding(RemoteActor& a_remote, bool a_landingPending, float a_deltaTime);
 

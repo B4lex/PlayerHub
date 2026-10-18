@@ -210,7 +210,7 @@ namespace ActorRuntime
         RemoteCollision::PlaceByNetwork(*actor, a_remote);
 
         // The mount's own graph is never firewalled: only its gait is driven.
-        ActorMount::ApplyGait(*actor, a_remote, a_gait, a_remote.movement.animationSpeed, a_deltaTime, true, "mount");
+        ActorMount::ApplyGait(*actor, a_remote, a_gait, a_remote.movement.groundSpeed, a_deltaTime, true, "mount");
         const Multiplayer::AnimationState translationState{ .movementState
             = a_gait.moving ? Multiplayer::MovementState::kRunning : Multiplayer::MovementState::kIdle };
         ActorMovement::ApplyTranslation(*actor, a_remote, a_deltaTime, translationState);

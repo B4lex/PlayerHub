@@ -25,6 +25,11 @@ namespace
     constexpr float kMinimumTravelSpeed = 1.0F;
     constexpr std::size_t kMaximumPending = 16;
     constexpr float kTwoPi = 6.28318530717958647692F;
+    constexpr double kDryLogSeconds = 0.02;
+    // Above an idle player's drift of about 20 units per second.
+    constexpr float kDryLogMinimumSpeed = 50.0F;
+    constexpr std::uint32_t kInitialDryLogs = 10;
+    constexpr std::uint32_t kDryLogInterval = 100;
 
     double ToSeconds(CheckpointPlayout::Clock::time_point a_time)
     {
@@ -169,6 +174,37 @@ void CheckpointPlayout::PlayNext()
     pending.erase(pending.begin());
 }
 
+// The pose holds the played checkpoint until the next one arrives, so a moving actor
+// stops and then catches up. Idle checkpoints are sparse by design and not counted.
+void CheckpointPlayout::ObserveDryPlayout(Multiplayer::PeerSlot a_playerID)
+{
+    const bool nowDry = hasPlayed && pending.empty();
+    if (nowDry == dry)
+    {
+        return;
+    }
+    dry = nowDry;
+    if (dry)
+    {
+        dryStartedAt = advancedAt;
+        dryWhileMoving = played.speed >= kDryLogMinimumSpeed;
+        return;
+    }
+    const double duration = advancedAt - dryStartedAt;
+    if (!dryWhileMoving || duration < kDryLogSeconds)
+    {
+        return;
+    }
+    const auto runs = ++dryRuns;
+    if (runs <= kInitialDryLogs || runs % kDryLogInterval == 0)
+    {
+        logs::debug(
+            "Checkpoint playout ran dry: player={} duration={:.3f}s delay={:.3f}s jitter={:.3f}s "
+            "interval={:.3f}s sequence={} count={}",
+            a_playerID, duration, GetDelay(), jitter, interval, static_cast<unsigned long long>(played.sequence), runs);
+    }
+}
+
 void CheckpointPlayout::UpdatePose()
 {
     pose = RemotePose{
@@ -197,8 +233,10 @@ void CheckpointPlayout::UpdatePose()
     }
 
     const auto fraction = static_cast<float>(std::clamp((playbackTime - start) / duration, 0.0, 1.0));
+    const float turn = std::remainder(next.checkpoint.heading - played.heading, kTwoPi);
     pose.position = from + (to - from) * fraction;
-    pose.heading = played.heading + std::remainder(next.checkpoint.heading - played.heading, kTwoPi) * fraction;
+    pose.heading = played.heading + turn * fraction;
+    pose.headingRate = fraction < 1.0F ? static_cast<float>(turn / duration) : 0.0F;
     pose.pitch = played.pitch + (next.checkpoint.pitch - played.pitch) * fraction;
     pose.speed = static_cast<float>(distance / duration);
 }

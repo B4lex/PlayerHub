@@ -102,6 +102,7 @@ namespace ActorSpawner
                 .targetHeading = a_targetHeading,
                 .translationSpeed = a_speed,
                 .animationSpeed = a_speed,
+                .groundSpeed = a_speed,
                 .stoppingDistance = a_stoppingDistance },
             .animation = {},
             .initializationWaitFrames = 0,

@@ -9,6 +9,7 @@
 #include "runtime/Profiling.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -29,6 +30,12 @@ namespace ActorMount
         constexpr float kGaitDiagnosticSeconds = 2.0F;
         constexpr float kReconcileSeconds = 0.25F;
         constexpr float kGallopHoldSeconds = 0.3F;
+        constexpr float kGallopStopHoldSeconds = 0.5F;
+        constexpr float kStopHoldSeconds = 0.2F;
+        constexpr float kGraphSpeedTolerance = 1.0F;
+        constexpr float kMinimumCarryStep = 0.01F;
+        constexpr float kMinimumCarryTurn = 0.0001F;
+        constexpr float kTwoPi = 6.28318530717958647692F;
 
         // The comments below name 1.7.104 IDs. Each SE ID was matched against the
         // 1.5.97 disassembly by its code and the functions it calls.
@@ -84,6 +91,35 @@ namespace ActorMount
         {
             float value = -1.0F;
             return a_actor.GetGraphVariableFloat(a_variable, value) ? value : -1.0F;
+        }
+
+        // Speed is written once per checkpoint and the speed channel reports it on every
+        // poll, yet a mount's graph was seen holding 0 for two seconds of running.
+        void RestoreGraphSpeed(RE::Actor& a_actor, Gait& a_gait, float a_speed,
+            const RE::BSFixedString& a_speedVariable, const RE::BSFixedString& a_horseSpeedSampledVariable,
+            const char* a_role)
+        {
+            const float graphSpeed = GetGraphFloat(a_actor, a_speedVariable);
+            if (graphSpeed < 0.0F || std::abs(graphSpeed - a_speed) <= kGraphSpeedTolerance)
+            {
+                return;
+            }
+            const bool accepted = a_actor.SetGraphVariableFloat(a_speedVariable, a_speed);
+            const auto restorations = ++a_gait.speedRestorations;
+            if (!ShouldLogOccurrence(restorations))
+            {
+                return;
+            }
+            const auto* root = a_actor.Get3D(false);
+            const auto* process = a_actor.GetActorRuntimeData().currentProcess;
+            const auto* player = RE::PlayerCharacter::GetSingleton();
+            logs::debug(
+                "Restored remote {} graph speed: actor={:08X} speed={:.1f} graphSpeed={:.1f} "
+                "horseSpeedSampled={:.1f} accepted={} loaded3D={} culled={} processLevel={} distance={:.0f} count={}",
+                a_role, a_actor.GetHandle().native_handle(), a_speed, graphSpeed,
+                GetGraphFloat(a_actor, a_horseSpeedSampledVariable), accepted, root != nullptr,
+                root && root->GetAppCulled(), process ? static_cast<int>(process->processLevel.underlying()) : -1,
+                player ? a_actor.GetPosition().GetDistance(player->GetPosition()) : -1.0F, restorations);
         }
     }
 
@@ -152,6 +188,53 @@ namespace ActorMount
         return (riderPtr && IsGettingOnOrOff(*riderPtr)) || (mountPtr && IsGettingOnOrOff(*mountPtr));
     }
 
+    Placement CapturePlacement(const RemoteActor& a_mount)
+    {
+        const auto mount = a_mount.handle.get();
+        return mount ? Placement{ .position = mount->GetPosition(), .heading = mount->GetAngleZ(), .valid = true }
+                     : Placement{};
+    }
+
+    // Skyrim places a seated rider from its mount. If that happens in the movement update,
+    // which runs inside ID 40438 before the sync pass, the rider renders where the mount
+    // was a frame earlier. Carrying it by the mount's step gives what the next placement
+    // computes, and a placement later in the frame overwrites it.
+    void CarryRider(const RemoteActor& a_rider, const RemoteActor& a_mount, const Placement& a_before)
+    {
+        PROFILE_FUNCTION();
+        if (!a_before.valid || !GameThread::Require("CarryRemoteRider"))
+        {
+            return;
+        }
+        const auto rider = a_rider.handle.get();
+        const auto mount = a_mount.handle.get();
+        if (!rider || !mount)
+        {
+            return;
+        }
+
+        const auto riderPosition = rider->GetPosition();
+        const RE::NiPoint3 offset = riderPosition - a_before.position;
+        const auto after = mount->GetPosition();
+        const float turn = std::remainder(mount->GetAngleZ() - a_before.heading, kTwoPi);
+        const RE::NiPoint3 step = after - a_before.position;
+        const float stepLength = step.Length();
+
+        if (stepLength < kMinimumCarryStep && std::abs(turn) < kMinimumCarryTurn)
+        {
+            return;
+        }
+        const float sine = std::sin(turn);
+        const float cosine = std::cos(turn);
+        const RE::NiPoint3 turnedOffset{ offset.x * cosine + offset.y * sine, offset.y * cosine - offset.x * sine,
+            offset.z };
+        rider->SetPosition(after + turnedOffset, true);
+        if (std::abs(turn) >= kMinimumCarryTurn)
+        {
+            rider->SetHeading(rider->GetAngleZ() + turn);
+        }
+    }
+
     void ApplyGait(RE::Actor& a_actor, const RemoteActor& a_remote, Gait& a_gait, float a_speed, float a_deltaTime,
         bool a_sendEvents, const char* a_role)
     {
@@ -160,12 +243,18 @@ namespace ActorMount
         static const RE::BSFixedString horseSpeedSampledVariable{ "HorseSpeedSampled" };
 
         const float deltaTime = FrameTime::Clamp(a_deltaTime);
-        const bool moving = a_speed >= kMovingSpeed;
+        const bool movingSpeed = a_speed >= kMovingSpeed;
+        // A slow sample or two inside a walk must not restart locomotion.
+        a_gait.stopPendingElapsed = a_gait.moving && !movingSpeed ? a_gait.stopPendingElapsed + deltaTime : 0.0F;
+        const bool moving = movingSpeed || (a_gait.moving && a_gait.stopPendingElapsed < kStopHoldSeconds);
+        // A single fast sample, such as the relocation onto a new mount, must not start a gallop,
+        // and a galloping source's speed dips below the range without leaving the gallop.
         const bool inGallopRange = moving && a_speed >= (a_gait.sprinting ? kGallopStopSpeed : kGallopStartSpeed);
-        // A single fast sample, such as the relocation onto a new mount, must not start a gallop.
         a_gait.gallopPendingElapsed
-            = inGallopRange && !a_gait.sprinting ? a_gait.gallopPendingElapsed + deltaTime : 0.0F;
-        const bool sprinting = inGallopRange && (a_gait.sprinting || a_gait.gallopPendingElapsed >= kGallopHoldSeconds);
+            = inGallopRange != a_gait.sprinting ? a_gait.gallopPendingElapsed + deltaTime : 0.0F;
+        const bool sprinting = moving
+            && (a_gait.sprinting ? a_gait.gallopPendingElapsed < kGallopStopHoldSeconds
+                                 : a_gait.gallopPendingElapsed >= kGallopHoldSeconds);
 
         const bool firstUpdate = a_gait.graphSpeed < 0.0F;
         if (a_speed != a_gait.graphSpeed)
@@ -180,6 +269,7 @@ namespace ActorMount
         }
         if (firstUpdate || sprinting != a_gait.sprinting)
         {
+            a_gait.gallopPendingElapsed = 0.0F;
             static const RE::BSFixedString isSprintingVariable{ "IsSprinting" };
             (void)a_actor.SetGraphVariableBool(isSprintingVariable, sprinting);
         }
@@ -219,6 +309,7 @@ namespace ActorMount
             if (a_gait.reconcileElapsed >= kReconcileSeconds)
             {
                 a_gait.reconcileElapsed = 0.0F;
+                RestoreGraphSpeed(a_actor, a_gait, a_speed, speedVariable, horseSpeedSampledVariable, a_role);
                 static const RE::BSFixedString isMovingVariable{ "IsMoving" };
                 static const RE::BSFixedString stateVariable{ "iState" };
                 static const RE::BSFixedString sprintStateVariable{ "iState_HorseSprint" };

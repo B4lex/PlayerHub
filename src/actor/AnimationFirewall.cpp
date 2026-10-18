@@ -191,11 +191,14 @@ namespace AnimationFirewall
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
-        // BSTAnimationGraphDataChannel<Actor, float, Channel>:
-        // BSAnimationGraphChannel::value at 0x18, then the channel's cached value
-        // at 0x24 and its Actor at 0x28 (see RE::ActorSpeedChannel).
+        // BSTAnimationGraphDataChannel<Actor, float, Channel>: BSAnimationGraphChannel::value
+        // at 0x18, which vfunc 1 rewrites on every poll, and the Actor at 0x28. The
+        // channel's own state sits between them (1.7.104 disassembly, IDs 42767, 42768,
+        // 42773, 42777): 0x20 keeps the last polled value, and the Speed channel keeps
+        // the actor's scale at 0x24, set on reset with a 1.0 fallback, and divides
+        // every speed by it. Overwriting either would outlive the override, so only the
+        // graph value is replaced.
         constexpr std::ptrdiff_t kChannelGraphValueOffset = 0x18;
-        constexpr std::ptrdiff_t kChannelCachedValueOffset = 0x24;
         constexpr std::ptrdiff_t kChannelActorOffset = 0x28;
 
         const RE::Actor* GetChannelActor(const RE::BSAnimationGraphChannel* a_channel)
@@ -207,9 +210,7 @@ namespace AnimationFirewall
 
         void OverrideChannelValue(RE::BSAnimationGraphChannel* a_channel, float a_value)
         {
-            auto* bytes = reinterpret_cast<std::byte*>(a_channel);
-            std::memcpy(bytes + kChannelGraphValueOffset, &a_value, sizeof(float));
-            std::memcpy(bytes + kChannelCachedValueOffset, &a_value, sizeof(float));
+            std::memcpy(reinterpret_cast<std::byte*>(a_channel) + kChannelGraphValueOffset, &a_value, sizeof(float));
         }
 
         // Skyrim copies Actor-derived values into graph variables through channels

@@ -28,9 +28,11 @@ namespace ActorMovement
         constexpr float kTwoPi = 6.28318530717958647692F;
         constexpr float kHeadingDeadZone = 0.00872664625997164788F;
         constexpr float kMaximumHeadingRate = kTwoPi;
+        constexpr float kRestingHeadingRate = 0.05F;
+        constexpr float kHeadingBacklogDrainSeconds = 0.15F;
         constexpr float kPitchSmoothingSeconds = 0.1F;
 
-        void ApplySmoothedHeading(RE::Actor& a_actor, float a_targetHeading, float a_deltaTime)
+        void ApplySmoothedHeading(RE::Actor& a_actor, float a_targetHeading, float a_headingRate, float a_deltaTime)
         {
             if (!std::isfinite(a_targetHeading) || a_deltaTime <= 0.0F)
             {
@@ -46,25 +48,40 @@ namespace ActorMovement
 
             // Snapping the heading provokes Skyrim's native NPC_Turn transitions.
             const float headingDelta = std::remainder(a_targetHeading - currentHeading, kTwoPi);
-            if (std::abs(headingDelta) <= kHeadingDeadZone)
+            const float turnRate = std::isfinite(a_headingRate) ? std::abs(a_headingRate) : 0.0F;
+            if (turnRate < kRestingHeadingRate && std::abs(headingDelta) <= kHeadingDeadZone)
             {
                 return;
             }
 
-            const float maximumStep = kMaximumHeadingRate * a_deltaTime;
+            const float rate
+                = (std::min)(turnRate + std::abs(headingDelta) / kHeadingBacklogDrainSeconds, kMaximumHeadingRate);
+            const float maximumStep = rate * a_deltaTime;
             const float step = std::clamp(headingDelta, -maximumStep, maximumStep);
             a_actor.SetHeading(currentHeading + step);
+        }
+
+        float GetGroundSpeed(float a_speed, const RE::NiPoint3& a_travel)
+        {
+            const float travelled = a_travel.Length();
+            if (travelled <= kMinimumStep)
+            {
+                return a_speed;
+            }
+            return a_speed * std::sqrt(a_travel.x * a_travel.x + a_travel.y * a_travel.y) / travelled;
         }
     }
 
     void SetTargetMovement(RemoteActor& a_remote, const RE::NiPoint3& a_checkpointPosition, float a_speed,
         float a_direction, bool a_swimming)
     {
+        const auto travel = a_checkpointPosition - a_remote.movement.checkpointPosition;
         a_remote.movement.checkpointPosition = a_checkpointPosition;
         a_remote.movement.sourceSwimming = a_swimming;
         if (std::isfinite(a_speed) && a_speed >= 0.0F)
         {
             a_remote.movement.animationSpeed = a_speed;
+            a_remote.movement.groundSpeed = GetGroundSpeed(a_speed, travel);
             a_remote.movement.animationDirection = Multiplayer::NormalizeMovementDirection(a_direction);
             ActorAnimation::RequestAnimationUpdate(a_remote.animation);
             ActorRegistry::SetAuthoritativeDirection(a_remote);
@@ -72,10 +89,11 @@ namespace ActorMovement
     }
 
     void SetTargetTransform(RemoteActor& a_remote, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
-        float a_targetPitch, float a_pathSpeed)
+        float a_headingRate, float a_targetPitch, float a_pathSpeed)
     {
         a_remote.movement.targetPosition = a_targetPosition;
         a_remote.movement.targetHeading = a_targetHeading;
+        a_remote.movement.targetHeadingRate = a_headingRate;
         a_remote.movement.targetPitch = a_targetPitch;
         if (std::isfinite(a_pathSpeed) && a_pathSpeed >= 0.0F)
         {
@@ -136,7 +154,7 @@ namespace ActorMovement
     {
         PROFILE_FUNCTION();
         const float deltaTime = FrameTime::Clamp(a_deltaTime);
-        ApplySmoothedHeading(a_actor, a_remote.movement.targetHeading, deltaTime);
+        ApplySmoothedHeading(a_actor, a_remote.movement.targetHeading, a_remote.movement.targetHeadingRate, deltaTime);
 
         const auto current = a_actor.GetPosition();
         const auto target = a_remote.movement.landingPosition.value_or(a_remote.movement.targetPosition);

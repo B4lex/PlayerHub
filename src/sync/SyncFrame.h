@@ -16,6 +16,7 @@ struct RemotePose
 {
     RE::NiPoint3 position{};
     float heading{ 0.0F };
+    float headingRate{ 0.0F };
     float pitch{ 0.0F };
     float speed{ 0.0F };
 };
