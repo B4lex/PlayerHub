@@ -30,7 +30,14 @@ func Markers(r *Recording) []Marker {
 		switch body := m.Message.Message.(type) {
 		case *pb.ClientMessage_Action:
 			a := body.Action
-			name := attackNames[a.Action]
+			if a.Beast != pb.BeastAction_BEAST_ACTION_UNSPECIFIED {
+				markers = append(markers, Marker{m.TMs, "attack", enumLabel(a.Beast.String(), "BEAST_ACTION_")})
+				continue
+			}
+			name, known := attackNames[a.Action]
+			if !known {
+				continue
+			}
 			label := strings.ToUpper(name[:1]) + name[1:]
 			if a.Power {
 				direction := strings.ToLower(strings.TrimPrefix(a.Direction.String(), "POWER_DIRECTION_"))
@@ -92,4 +99,9 @@ func area(c *pb.Context) (string, uint32) {
 		return "worldspace", c.WorldspaceId
 	}
 	return "interior", c.CellId
+}
+
+func enumLabel(value, prefix string) string {
+	words := strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(value, prefix), "_", " "))
+	return strings.ToUpper(words[:1]) + words[1:]
 }

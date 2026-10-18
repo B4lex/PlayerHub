@@ -109,6 +109,21 @@ func TestMarkers(t *testing.T) {
 	}
 }
 
+func TestMarkersBeastAndUnknownActions(t *testing.T) {
+	action := func(a *pb.Action) Message {
+		return Message{10, &pb.ClientMessage{Message: &pb.ClientMessage_Action{Action: a}}}
+	}
+	r := &Recording{Messages: []Message{
+		action(&pb.Action{Beast: pb.BeastAction_BEAST_ACTION_WEREWOLF_ATTACK_RIGHT_POWER}),
+		action(&pb.Action{Action: pb.AttackAction_ATTACK_ACTION_UNSPECIFIED}),
+		action(&pb.Action{Action: pb.AttackAction(99)}),
+	}}
+	markers := Markers(r)
+	if len(markers) != 1 || markers[0].Label != "Werewolf attack right power" {
+		t.Fatalf("got %+v", markers)
+	}
+}
+
 func TestCaptureLifecycle(t *testing.T) {
 	directory := t.TempDir()
 	store := NewStore(directory, quietLog())
