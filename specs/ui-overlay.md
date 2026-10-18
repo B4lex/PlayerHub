@@ -2,6 +2,9 @@
 
 ## Status
 
+- **Vanilla intro hold** in the display name hint and the connection
+  controls (2026-10-18): syntax check only, see
+  [Network](network.md#status).
 - **[Translation files](#translation-files)** (2026-10-16): not built on
   Windows or run in game, and the `after_build` copy to the deploy
   directories has not run. On Linux, `generate.lua` (host xmake 3.0.6) and
@@ -1432,7 +1435,9 @@ dismiss control or a timeout: without a name the player cannot play online
 at all, so the hint stays until one is applied.
 
 - `DisplayNameHint`, registered after the trade prompt, draws while a game
-  is loaded (`GameSession::IsInGame`), the applied `[Connection] DisplayName`
+  is loaded (`GameSession::IsInGame`), the
+  [vanilla intro](network.md#vanilla-intro-hold) does not hold the connection
+  (`VanillaIntro::IsPlaying`), the applied `[Connection] DisplayName`
   is empty, no overlay window holds focus, and `UI::IsGameViewShown` holds.
   It therefore shows exactly when `OpenSettings` would open the settings
   window ([Input focus](#input-focus)), and hides while that window is open.
@@ -2699,14 +2704,18 @@ has not reached, and keeps its width and identity when the label changes:
 | Disconnected, the field holds a display name | connect | accent | wants a connection |
 | Disconnected, the field is empty or its text is invalid | connect, disabled | plain | — |
 | Disconnected, `CustomServer` on without a URL | connect, disabled | plain | — |
+| Disconnected while the [vanilla intro](network.md#vanilla-intro-hold) holds the connection | connect, disabled | plain | — |
 
 Connecting goes by the field's text, not by the applied display name: pressing
 the button ends the field's editing, which applies the text before the press
 lands, so a name that was only typed connects with one click.
 
-While disconnected with `CustomServer` on and no URL, hovering the disabled
-button shows how to connect (`ConnectionControls::GetButtonLock`): enter a URL
-in the field below. This is the only place the plugin shows it.
+While disconnected, hovering the disabled button shows why it cannot connect
+(`ConnectionControls::GetButtonLock`): while the vanilla intro holds the
+connection, that the player cannot connect at this point of the game
+(`kConnectionGameStage`), the only place the plugin shows that; otherwise, with `CustomServer` on and no URL, to enter a
+URL in the field below, which is the only place the plugin shows that.
+Enter in the field does not connect in either case (`CanConnect`).
 
 The line under the field and the button is wrapped at the page's width and
 shows the first of these that holds. It is the only place the plugin shows

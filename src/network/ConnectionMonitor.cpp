@@ -4,6 +4,7 @@
 #include "runtime/FrameTime.h"
 #include "runtime/GameSession.h"
 #include "runtime/Profiling.h"
+#include "runtime/VanillaIntro.h"
 
 #include <algorithm>
 #include <atomic>
@@ -217,8 +218,8 @@ namespace Network
 
         bool IsConnectionWanted()
         {
-            return GameSession::IsInGame() && connectionEnabled.load(std::memory_order_acquire)
-                && displayNameSet.load(std::memory_order_acquire)
+            return GameSession::IsInGame() && !VanillaIntro::IsPlaying()
+                && connectionEnabled.load(std::memory_order_acquire) && displayNameSet.load(std::memory_order_acquire)
                 && (endpointSet.load(std::memory_order_acquire) || IsConnected());
         }
 
@@ -295,11 +296,17 @@ namespace Network
         PROFILE_FUNCTION();
         const auto deltaSeconds = FrameTime::Clamp(a_deltaSeconds);
         const bool inGame = GameSession::IsInGame();
+        const bool introPlaying = VanillaIntro::IsPlaying();
         FollowRequirements();
-        FollowGameStart(inGame);
+        FollowGameStart(inGame && !introPlaying);
         if (!inGame)
         {
             Close("left the game");
+            return;
+        }
+        if (introPlaying)
+        {
+            Close("the vanilla intro is playing");
             return;
         }
         if (!displayNameSet.load(std::memory_order_acquire))

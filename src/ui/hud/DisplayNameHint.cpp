@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
 #include "runtime/GameSession.h"
+#include "runtime/VanillaIntro.h"
 #include "text/Text.h"
 #include "ui/MenuFrame.h"
 #include "ui/Theme.h"
@@ -23,7 +24,7 @@ namespace UI
         public:
             void Draw(const WindowInput&) override
             {
-                if (!GameSession::IsInGame() || WindowManager::HasFocus())
+                if (!GameSession::IsInGame() || VanillaIntro::IsPlaying() || WindowManager::HasFocus())
                 {
                     return;
                 }

@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "network/ConnectionMonitor.h"
 #include "protocol/Session.h"
+#include "runtime/VanillaIntro.h"
 #include "text/Text.h"
 #include "ui/Theme.h"
 #include "ui/widgets/Controls.h"
@@ -188,7 +189,7 @@ namespace UI::ConnectionControls
     bool CanConnect(bool a_displayNameEntered)
     {
         return Network::GetConnectionState() == ConnectionState::kDisconnected && a_displayNameEntered
-            && HasServerEndpoint();
+            && HasServerEndpoint() && !VanillaIntro::IsPlaying();
     }
 
     void Connect()
@@ -241,7 +242,15 @@ namespace UI::ConnectionControls
 
     const char* GetButtonLock()
     {
-        if (Network::GetConnectionState() == ConnectionState::kDisconnected && !HasServerEndpoint())
+        if (Network::GetConnectionState() != ConnectionState::kDisconnected)
+        {
+            return nullptr;
+        }
+        if (VanillaIntro::IsPlaying())
+        {
+            return Text::GetCString(Id::kConnectionGameStage);
+        }
+        if (!HasServerEndpoint())
         {
             return Text::GetCString(Id::kConnectionNoEndpoint);
         }

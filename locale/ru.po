@@ -635,6 +635,11 @@ msgctxt "ConnectionNoEndpoint"
 msgid "Enter a custom server URL to connect."
 msgstr "Введите адрес своего сервера, чтобы подключиться."
 
+#. Shown while the vanilla Helgen intro, before the player can move after the dragon attack, holds the connection
+msgctxt "ConnectionGameStage"
+msgid "You cannot connect at this game stage."
+msgstr "На этом этапе игры подключиться нельзя."
+
 #. {} is the minimum number of characters
 #, c++-format
 msgctxt "ConnectionShortName"

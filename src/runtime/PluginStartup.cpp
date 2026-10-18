@@ -15,6 +15,7 @@
 #include "runtime/MainLoopHook.h"
 #include "runtime/PlayerGraphEventHook.h"
 #include "runtime/RemoteActorActivation.h"
+#include "runtime/VanillaIntro.h"
 #include "sync/SyncCoordinator.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/outfit/DefaultOutfit.h"
@@ -56,6 +57,7 @@ namespace PluginStartup
             PresenceSync::RegisterEventSinks();
             RemoteActorActivation::RegisterEventSink();
             TradeSync::RegisterEventSinks();
+            VanillaIntro::Initialize();
             Network::Initialize();
         }
     }
@@ -82,8 +84,16 @@ namespace PluginStartup
                 case SKSE::MessagingInterface::kDataLoaded:
                     OnDataLoaded();
                     break;
+                case SKSE::MessagingInterface::kNewGame:
+                    // SKSE passes the quest the new game starts.
+                    VanillaIntro::OnNewGame(a_message->data);
+                    break;
                 case SKSE::MessagingInterface::kPreLoadGame:
                     PresenceSync::OnGameLoadStarted();
+                    VanillaIntro::OnGameLoadStarted();
+                    break;
+                case SKSE::MessagingInterface::kPostLoadGame:
+                    VanillaIntro::OnGameLoaded();
                     break;
                 case SKSE::MessagingInterface::kSaveGame:
                     // Dispatched before the engine writes the save.

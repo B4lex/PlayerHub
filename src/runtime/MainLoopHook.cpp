@@ -3,6 +3,7 @@
 #include "runtime/GameThread.h"
 #include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
+#include "runtime/VanillaIntro.h"
 #include "sync/SyncCoordinator.h"
 
 #include <cmath>
@@ -37,6 +38,8 @@ namespace MainLoopHook
                 // Frame time stops in the main menu and while the game is paused.
                 const auto delta = RE::Main::QFrameAnimTime();
                 const bool advancing = std::isfinite(delta) && delta > 0.0F;
+                // Before the pass that may start the game session, so the session never starts without the hold.
+                VanillaIntro::Update(advancing ? delta : 0.0F);
                 if (advancing)
                 {
                     SyncCoordinator::OnFrame(RE::PlayerCharacter::GetSingleton(), delta);

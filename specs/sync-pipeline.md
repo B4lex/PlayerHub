@@ -40,6 +40,7 @@ each feature's rules to its own system, the transport to
 | `runtime/MainLoopHook` | The one main-loop detour; binds the game thread and runs a pass |
 | `runtime/GameThread` | `Bind`, `IsAuthoritative`, `Require`: the engine-mutation thread guard |
 | `runtime/GameSession` | Whether a game is loaded, set by `PresenceSync` |
+| `runtime/VanillaIntro` | Whether the vanilla Helgen intro holds the connection ([Vanilla intro](#vanilla-intro)) |
 | `runtime/RemoteActorActivation` | The local player's activation of a remote actor or mount, on its worker thread ([UI overlay](ui-overlay.md#player-menu-in-the-world)) |
 | `runtime/PluginTime` | Plugin time per pass, averaged each second ([UI overlay](ui-overlay.md#plugin-time)) |
 | `runtime/PlayerGraphEventHook` | The local player's accepted graph input events, for [beast actions](combat-presentation.md#beast-actions) |
@@ -96,10 +97,13 @@ their detours and event sinks. `main.cpp` stays a small SKSE entry point.
 0x53). The thunk calls the original first, then, inside a `PluginTime::Scope`:
 
 1. binds or checks the game thread;
-2. reads `RE::Main::QFrameAnimTime()`. Only a finite positive delta runs
-   `SyncCoordinator::OnFrame`, so nothing advances in the main menu or while
-   paused;
-3. calls `Network::UpdateConnectionMonitor` with that delta, or zero when the
+2. reads `RE::Main::QFrameAnimTime()`;
+3. calls `VanillaIntro::Update` with that delta, or zero when the frame did
+   not advance. It runs before the pass that may start the game session, so
+   the overlay never sees a started session without the intro's hold;
+4. runs `SyncCoordinator::OnFrame` only for a finite positive delta, so
+   nothing advances in the main menu or while paused;
+5. calls `Network::UpdateConnectionMonitor` with that delta, or zero when the
    frame did not advance.
 
 The original call reaches Skyrim's per-frame actor movement jobs, so the engine
@@ -214,6 +218,42 @@ new connection generation ([Network](network.md#latest-wins-publishers)).
   main-loop pass, the published state is kept under a lock.
 - Attacks captured while out of the world are discarded, so they cannot anchor
   to the first checkpoint after returning.
+
+## Vanilla intro
+
+`VanillaIntro` tells the [connection](network.md#vanilla-intro-hold) and the
+overlay whether the vanilla Helgen intro is playing, from the state of the
+quest MQ101 (`Skyrim.esm` local form ID `0x0003372B`, looked up at
+`kDataLoaded`). `IsPlaying` reads an atomic, so the overlay may call it;
+`Update` sets it on the main loop.
+
+- It holds while MQ101 is running (`TESQuest::IsEnabled`) below stage 160
+  (`kPlayerControlStage`). Stage 160 unbinds the player, enables movement,
+  and shows the move help after Alduin's knockdown (stage 140), the first
+  point after the cart where the player plays freely. CommonLib's
+  `IsRunning` is not used: it is also true for a stopped quest.
+- A stopped, completed, or never started MQ101 never holds, so an alternate
+  start, a console skip, or a mod that sets a later stage connects as before.
+- The quest is checked only while the hold can change: from `kNewGame`, or
+  from `kPostLoadGame` once a save's quest state is restored, each pass until
+  the hold is off. `Update` then returns at its first check until the next
+  game, so a game past the intro checks once per load. Between `kPreLoadGame`
+  and `kPostLoadGame` nothing is checked, because the quest holds the
+  previous game's or a partly loaded state, and the hold keeps its last
+  value.
+- At `kNewGame`, SKSE passes the quest the new game starts. When it is MQ101,
+  the hold starts at once (`s_awaitingStart`), because the start may only be
+  queued and the player could reach the world before MQ101 runs. It ends
+  when MQ101 runs or completes, at `kPreLoadGame`, or after 5 s
+  (`kStartWaitSeconds`) of clamped frame time in the game without MQ101
+  running, logged as a start that did not happen. Any other start quest
+  starts no wait, so an alternate start is not delayed.
+- `IsPlaying` is false outside a game (`GameSession::IsInGame`), so the last
+  game's hold does not reach the main menu without a per-pass menu lookup.
+- Each check that ends with the hold off, and each change, is logged as
+  `Vanilla intro hold on` or `off`, with MQ101's running flag and stage and
+  whether the new-game wait is active. `kNewGame` logs whether its quest is
+  MQ101.
 
 ## Receive state
 
@@ -387,8 +427,26 @@ so it runs on `steady_clock` and catches up after a local pause instead of
 replaying it. `CheckpointPublisher` accumulates the unclamped delta, because
 the elapsed time divides the distance travelled into the published speed.
 
+## Engine assumptions
+
+- [Vanilla intro](#vanilla-intro): the stage meanings come from the 1.7.104
+  data files (`QF_MQ101_0003372B` Fragment_316 at stage 160:
+  `SetRestrained(false)`, `EnablePlayerControls` with movement, the move help;
+  Fragment_295 at stage 140: the knockdown idle). `skse64_1_7_104.dll`
+  dispatches `kNewGame` after the call to `TESQuest::EnsureQuestStarted`
+  (ID 25003) that it hooks returns, with that quest as `data`. The SE runtime's
+  SKSE is assumed to send the same; the pointer is only compared, never
+  dereferenced. That the player can reach the world before a queued MQ101
+  start runs is not observed; the new-game wait only guards against it.
+  `kPostLoadGame` is assumed to arrive before the loaded game's first pass
+  with the player in the world, so a save in the intro starts its session
+  with the hold already set.
+
 ## Known limitations
 
+- Once the [vanilla intro](#vanilla-intro) hold is off, nothing reads MQ101
+  until the next load or new game, so setting it back below stage 160 from
+  the console does not hold the connection again.
 - Cell and worldspace form IDs require matching load orders.
 - Interior and worldspace changes despawn and respawn the actor; there is no
   presentation through loading screens.

@@ -48,6 +48,7 @@ criteria.
 | Light budget for remote players' torches and spells | [remote-actor](remote-actor.md#light-budget), [configuration](configuration.md#advanced), [sync-pipeline](sync-pipeline.md#frame-sequence) |
 | Fake lights for remote torches and spell hand lights | [appearance-and-equipment](appearance-and-equipment.md#fake-lights), [combat-presentation](combat-presentation.md#spell-look), [remote-actor](remote-actor.md#light-budget) |
 | Connection, latency, traffic | [network](network.md#connection), [ui-overlay](ui-overlay.md#status-panel) |
+| No connection during the vanilla Helgen intro | [network](network.md#vanilla-intro-hold), [sync-pipeline](sync-pipeline.md#vanilla-intro), [ui-overlay](ui-overlay.md#connection-controls), [ui-overlay](ui-overlay.md#display-name-hint) |
 | Display name hint | [ui-overlay](ui-overlay.md#display-name-hint), [configuration](configuration.md#controls) |
 | Official and custom server | [configuration](configuration.md#official-and-custom-server), [network](network.md#connection), [ui-overlay](ui-overlay.md#settings-window) |
 | Player cap and join limits | [network](network.md#admission), [ui-overlay](ui-overlay.md#connection-controls) |

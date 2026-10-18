@@ -171,6 +171,13 @@
   starting without an endpoint not connecting. `ServerClient.cpp`,
   `SessionStore.cpp`, and `PlayerFilters.cpp` passed a syntax check only, so
   `DescribeServer` and `GetServerAddress` did not run.
+- **[Vanilla intro hold](#vanilla-intro-hold)** (2026-10-18): not built on
+  Windows or run in game. `VanillaIntro.cpp`, `ConnectionMonitor.cpp`,
+  `MainLoopHook.cpp`, `PluginStartup.cpp`, `DisplayNameHint.cpp`, and
+  `ConnectionControls.cpp` passed the g++ syntax check only. The MQ101 stages
+  were read from the 1.7.104 `Skyrim.esm` and `QF_MQ101_0003372B.pex`, and the
+  `kNewGame` payload from the `skse64_1_7_104.dll` disassembly
+  ([Sync pipeline](sync-pipeline.md#vanilla-intro)).
 
 ## Scope
 
@@ -935,7 +942,8 @@ client.
   the main menu never connects.
 - A game starts when `PresenceSync` first finds the player in the world, and
   ends when the main menu opens (`GameSession`). Loading screens keep the game
-  and its connection.
+  and its connection. For the connection, a game starts only once the
+  [vanilla intro](#vanilla-intro-hold) no longer holds it.
 - At a game start the choice becomes `[Connection] ConnectAutomatically`
   (default `true`) if a display name and an endpoint are set, and disabled
   otherwise. The settings window's Connect, Cancel, and Disconnect change it with
@@ -980,6 +988,33 @@ for 4001 and otherwise empty, for the settings window's [connection
 The monitor's timers accumulate the clamped frame delta, which is zero in the
 main menu and while paused, so they hold while opening and closing still follow
 the game.
+
+### Vanilla intro hold
+
+Goal: a player starting a new game is not put on a server during the vanilla
+Helgen intro (the cart ride, the execution, and Alduin's arrival), where
+they cannot move and other players would only watch the scripted scene.
+Multiplayer starts once the player gets control back after Alduin's
+knockdown. Non-goals: holding the connection in other scenes or cutscenes,
+or for intros a mod puts in place of the vanilla one; with a skipped intro
+the game connects as before.
+
+- While `VanillaIntro::IsPlaying` holds ([Sync pipeline](sync-pipeline.md#vanilla-intro)),
+  no connection is wanted (`IsConnectionWanted`), the monitor closes any open
+  one with the reason `the vanilla intro is playing`, and
+  `Network::GetConnectionState` reports `kDisconnected` once the socket is
+  closed. The hold is evaluated in the client only; the server knows nothing
+  of it.
+- The end of the hold is the game start for the connection, so
+  `ConnectAutomatically` connects then, and a refusal is cleared then, as at
+  any game start.
+- Loading a save from before the knockdown holds the connection again, and
+  closes one that is open.
+- During the hold the settings window cannot connect, and hovering its
+  disabled button says why ([UI overlay](ui-overlay.md#connection-controls));
+  the [display name hint](ui-overlay.md#display-name-hint) stays hidden. The
+  status panel, chat, and the rest of the overlay behave as while
+  disconnected.
 
 ### Loss and recovery
 
@@ -1057,6 +1092,13 @@ window, and are empty after a long gap. The status panel shows them.
 14. A web page cannot open a player connection, and players behind a
     configured reverse proxy are limited by their own address, not the
     proxy's.
+15. A new vanilla game with `ConnectAutomatically` and a display name opens
+    no connection during the cart ride, the execution, or Alduin's attack,
+    and connects by itself when the player can move after the knockdown. The
+    display name hint does not show before then, and Connect is disabled.
+16. A new game whose start quest is not MQ101 (an alternate start), or a save
+    past the knockdown, connects as before; a save from before the knockdown
+    loaded while connected disconnects until the player can move.
 
 ## Known limitations
 
