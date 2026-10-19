@@ -3,7 +3,9 @@
 ## Status
 
 - **Weapon stance and normal attacks:** implemented and run in game on Skyrim
-  AE 1.7.104.
+  AE 1.7.104, including sheathes cut off by a jump, which finish after the
+  landing. That `weaponDrawn` now changes when the sender's clip starts has
+  not been checked separately.
 - **Bow draws and spell casting:** implemented; a Windows build and a full
   in-game check are pending. Confirmed in game: `EquipSpell` on an actor that
   does not know the spell, the Healing Hands right-hand cast looping until
@@ -91,7 +93,11 @@ Hand presentation fields live in `Network::PlayerTransform::handPresentation`
 
 ## Weapon stance
 
-The source publishes `weaponDrawn`. On the receiver, the actor compares it with
+The source publishes `weaponDrawn` as the direction of its weapon clip: true
+from `Drawing` through `WantToSheathe`, false from `Sheathing` through
+`WantToDraw`. `ActorState::IsWeaponDrawn` changes only when a clip ends, which
+started every peer's draw or sheathe a whole clip late, so a jump right after a
+sheathe cut into the peer's sheathe. On the receiver, the actor compares it with
 Skyrim's weapon state and, when a transition is needed and none is in progress,
 invokes Skyrim's native draw or sheathe. `WantToDraw` and `WantToSheathe` only
 mean a request is outstanding, so the request is retried until the actor reaches
@@ -118,7 +124,10 @@ mean a request is outstanding, so the request is retried until the actor reaches
   about 1.4 s). A request that flips while the opposite clip still plays
   restarts the wait once the requested clip starts, since timing out mid-sheathe
   resets the graph before its `weaponSheathe` annotation and leaves the weapon
-  in hand. Recovery never holds newer checkpoints or translation.
+  in hand. For the same reason the wait restarts while a jump or its landing
+  owns the graph: a takeoff interrupts the clip while `WEAPON_STATE` still
+  reports it, and the landing exit plays the clip again from its start.
+  Recovery never holds newer checkpoints or translation.
 - A draw waits, at most 1 s, until equipment has reconciled the hands, so the
   actor does not draw fists and then pop the weapon in.
 

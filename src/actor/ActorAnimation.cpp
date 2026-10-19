@@ -1889,10 +1889,18 @@ namespace ActorAnimation
             // engine's weapon state completes the transition.
             animationState->weaponTransitionCompletionObserved = true;
         }
+        // A takeoff interrupts a playing draw or sheathe while WEAPON_STATE keeps
+        // reporting it, and the landing exit starts the clip over (tailUnequip and
+        // BeginWeaponSheathe again, observed in game). A wait that ran through the
+        // jump timed out mid-sheathe and left the weapon in hand.
+        const bool jumpOwnsGraph = animationState->lastDispatched.jumping || animationState->landingCompletionPending;
         if (animationState->weaponLocomotionReassertPending
             && animationState->weaponTransitionWaitElapsed < kWeaponTransitionFallbackSeconds)
         {
-            animationState->weaponTransitionWaitElapsed += FrameTime::Clamp(a_deltaTime);
+            animationState->weaponTransitionWaitElapsed
+                = jumpOwnsGraph && !animationState->weaponTransitionCompletionObserved
+                ? 0.0F
+                : animationState->weaponTransitionWaitElapsed + FrameTime::Clamp(a_deltaTime);
         }
         const bool weaponTransitionTimedOut
             = animationState->weaponTransitionWaitElapsed >= kWeaponTransitionFallbackSeconds;

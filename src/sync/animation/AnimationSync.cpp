@@ -134,6 +134,19 @@ namespace AnimationSync
             GetNextAnimationStep(Multiplayer::AnimationState{}, Multiplayer::AnimationState{ .weaponDrawn = true })
             == Multiplayer::AnimationState{ .weaponDrawn = true });
 
+        // ActorState::IsWeaponDrawn stays true through kSheathing and false through
+        // kDrawing, so it changes only when the clip ends.
+        constexpr bool IsWeaponDrawnOrDrawing(RE::WEAPON_STATE a_state) noexcept
+        {
+            return a_state == RE::WEAPON_STATE::kDrawing || a_state == RE::WEAPON_STATE::kDrawn
+                || a_state == RE::WEAPON_STATE::kWantToSheathe;
+        }
+
+        static_assert(IsWeaponDrawnOrDrawing(RE::WEAPON_STATE::kDrawing));
+        static_assert(!IsWeaponDrawnOrDrawing(RE::WEAPON_STATE::kWantToDraw));
+        static_assert(IsWeaponDrawnOrDrawing(RE::WEAPON_STATE::kWantToSheathe));
+        static_assert(!IsWeaponDrawnOrDrawing(RE::WEAPON_STATE::kSheathing));
+
         Multiplayer::AnimationState GetAnimationState(RE::Actor& a_player)
         {
             // bInJumpState can remain set throughout graph-owned landing cleanup.
@@ -233,9 +246,9 @@ namespace AnimationSync
                 observedMidair = physicalMidair;
             }
 
-            return Multiplayer::AnimationState{
-                .movementState = movementState, .jumping = replicatedJumping, .weaponDrawn = state->IsWeaponDrawn()
-            };
+            return Multiplayer::AnimationState{ .movementState = movementState,
+                .jumping = replicatedJumping,
+                .weaponDrawn = IsWeaponDrawnOrDrawing(state->GetWeaponState()) };
         }
 
         Multiplayer::AnimationState GetPresentableAnimationState(
