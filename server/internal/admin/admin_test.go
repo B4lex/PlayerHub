@@ -402,3 +402,22 @@ func TestHideAndExclude(t *testing.T) {
 		t.Fatalf("unknown player: %d", status)
 	}
 }
+
+func TestPlayersKeepJoinOrder(t *testing.T) {
+	s := startStack(t)
+	var want []string
+	for _, name := range []string{"Lydia", "Serana", "Aela"} {
+		want = append(want, slotID(s.join(name).slot))
+	}
+	for range 20 {
+		var state State
+		s.call("GET", "/api/state", nil, &state)
+		var got []string
+		for _, p := range state.Players {
+			got = append(got, p.ID)
+		}
+		if fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Fatalf("players %v, want join order %v", got, want)
+		}
+	}
+}

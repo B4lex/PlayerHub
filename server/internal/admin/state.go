@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"cmp"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -135,10 +137,23 @@ func (c *Context) players() ([]Player, []Exclusion) {
 		for _, pair := range h.Exclusions() {
 			exclusions = append(exclusions, Exclusion{slotID(pair.Viewer), slotID(pair.Target)})
 		}
+		type member struct {
+			player  *world.Player
+			visible int
+			outbox  *delivery.Outbox
+		}
+		var members []member
 		h.Players(func(p *world.Player, visible int, outbox *delivery.Outbox) {
-			if p.Kind != world.KindClient {
-				return
+			if p.Kind == world.KindClient {
+				members = append(members, member{p, visible, outbox})
 			}
+		})
+		// Hub members are a map, so its iteration order changes on every snapshot.
+		slices.SortFunc(members, func(a, b member) int {
+			return cmp.Or(a.player.ConnectedAt.Compare(b.player.ConnectedAt), cmp.Compare(a.player.Slot, b.player.Slot))
+		})
+		for _, m := range members {
+			p, visible, outbox := m.player, m.visible, m.outbox
 			present[p.Slot] = true
 			name := h.Name(p.Slot)
 			player := Player{
@@ -158,7 +173,7 @@ func (c *Context) players() ([]Player, []Exclusion) {
 				player.MovementState = optional(movementStateNames[wire.MovementState(c)])
 			}
 			players = append(players, player)
-		})
+		}
 	})
 	c.rates.forget(present)
 	for i := range players {

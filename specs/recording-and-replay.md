@@ -210,7 +210,9 @@ replay's position is not pushed while playing; the panel extrapolates from the
 last reported position and rate, and a per-playback `revision` decides between
 a command's response and a push that crossed it. Bots are not listed in
 `players`; each batch lists its bots with status, offset, rate, and position.
-Each player shows `visible`, the number of peers it receives, and the
+`players` lists connected players by connection time, then slot, followed by
+virtual players in the order their playbacks started, so rows keep their place
+across pushes. Each player shows `visible`, the number of peers it receives, and the
 interest controls and rates described in
 [Interest and delivery](interest-and-delivery.md#admin-controls).
 
