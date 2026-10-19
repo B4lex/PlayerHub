@@ -36,6 +36,11 @@ distributed in the hope that they will be useful, but WITHOUT ANY WARRANTY;
 without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
+[EXCEPTIONS](EXCEPTIONS) also holds additional terms under section 7 of the
+license: a page that offers this program or a work based on it for download
+must credit it as based on PlayerHub by B4lex with a link to this repository,
+and a modified version must use another name and not the PlayerHub logo.
+
 The plugin includes third-party libraries, among them
 [CommonLibSSE NG](https://github.com/alandtse/CommonLibSSE-NG) under the same
 license and exceptions. Each library and its license are listed in
@@ -48,3 +53,18 @@ Font License 1.1
 ([Sovngarde OFL License.txt](assets/fonts/Sovngarde%20OFL%20License.txt)). The
 font files are not covered by the plugin's license, and the license text goes
 with them wherever they are distributed.
+
+The frame around the settings window and the chat,
+[assets/frame/menu-frame.shape](assets/frame/menu-frame.shape), is exported from
+the message box art in Skyrim's `Interface/messagebox.swf`. That art belongs to
+Bethesda Softworks and is not covered by the plugin's license; it is included
+only so the overlay matches the game's own menus, for use with a copy of
+Skyrim. It is kept in its own file rather than built into the plugin for this
+reason, and the plugin works without it.
+
+The Discord symbol beside the community invitation,
+[assets/logo/discord.svg](assets/logo/discord.svg) and its glyph in
+`assets/fonts/PlayerHub.ttf`, is a trademark of Discord Inc., used unmodified
+in Discord's color under its [brand guidelines](https://discord.com/branding)
+to link to the mod's Discord server. It is not covered by the plugin's license,
+and PlayerHub is not affiliated with or endorsed by Discord.

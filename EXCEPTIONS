@@ -35,3 +35,20 @@ this Program grant you additional permission to convey the resulting
 work. Corresponding Source for a non-source form of such a combination
 shall include the source code for the parts of Modding Libraries used as
 well as that of the covered work.
+
+                            Additional Terms
+
+        Additional terms under GNU GPL version 3 section 7(b), 7(c),
+        and 7(e)
+
+These terms apply to the parts of this Program whose copyright is held by
+B4lex. They do not apply to the third-party libraries and assets listed in
+THIRD_PARTY_NOTICES.txt and README.md, which keep their own licenses.
+
+Author attribution (section 7(b)). Anyone who conveys this Program or a
+work based on it must preserve the following author attribution on every
+page or listing from which they offer it for download, such as a Nexus
+Mods page or a repository's README, in its description and visible to
+people who download it:
+
+    Based on PlayerHub by B4lex: https://github.com/B4lex/PlayerHub
