@@ -38,6 +38,9 @@
   in-game behavior are not verified. On SE 1.5.97 riders are seated through
   the IDs in [assumption 2](#engine-assumptions) since 2026-10-12 (before that
   never off AE); Linux syntax check only, not run on SE.
+  The random horse per spawn ([Receiver](#receiver), 2026-10-19) passed a
+  Linux syntax check only; the Windows build and in-game behavior are not
+  verified.
 - **Death:** implemented and run in game: a replayed player's deaths, standing
   and seated, collapsed the actor into a ragdoll that the next world exit
   removed. The remaining assumptions and criteria are not checked individually.
@@ -339,9 +342,14 @@ every on-foot stage:
 1. While the played checkpoint rides and the player is alive, a mount is spawned
    at the checkpoint through `ActorSpawner`, so it is registered like a remote
    actor: survival, combat, magic, hostility, and collision isolation, and
-   blocked activation, so it cannot be ridden or stolen. Every remote mount is
-   the vanilla `EncHorseSaddledBrown` (`Skyrim.esm:023AB2`), which exists in every
-   modpack.
+   blocked activation, so it cannot be ridden or stolen.
+   `ActorMount::PickMountBase` picks each spawn's base at random from the five
+   generic saddled vanilla horses, `EncHorseSaddledBrown`, `Black`, `BlackAndWhite`, `Grey`, and
+   `Palomino` (`Skyrim.esm:023AB2`, `068CFA`, `068D02`, `068D03`, `068D04`),
+   which exist in every modpack; one that does not resolve is left out. The
+   pick is local, so peers see different horses for the same rider, and a
+   respawned mount (remount, cell change, fast travel) may change color. The
+   allocation log names the base (`base=`).
 2. The mount takes each checkpoint as its target. Once ready,
    `ActorRuntime::UpdateMount` reasserts its policy, drives its gait, and
    translates it with the actor translation code.
@@ -761,9 +769,10 @@ Death:
   synchronized; there is no global reservation across clients; a peer without
   the furniture's plugin shows the actor standing, with no substitute furniture
   or seated idle.
-- Mounts: the source's mount appearance, mount and dismount animations, combat
-  on horseback (attacks, bows, spells; a drawn weapon is shown), horse jumps, a
-  mount left standing after a dismount, and the mount's approach are not shown.
+- Mounts: the source's mount appearance (a random vanilla horse stands in),
+  mount and dismount animations, combat on horseback (attacks, bows, spells; a
+  drawn weapon is shown), horse jumps, a mount left standing after a dismount,
+  and the mount's approach are not shown.
 - Death: the killer, kill moves, death animations (the actor always goes straight
   to ragdoll), where the body comes to rest (each peer simulates its own), and
   bleedout are not shown.

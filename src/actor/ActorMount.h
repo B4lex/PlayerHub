@@ -37,7 +37,7 @@ namespace ActorMount
         bool valid{ false };
     };
 
-    [[nodiscard]] RE::TESNPC* GetMountBase();
+    [[nodiscard]] RE::TESNPC* PickMountBase();
 
     [[nodiscard]] bool Seat(RemoteActor& a_rider, const RemoteActor& a_mount);
     [[nodiscard]] bool IsSeated(const RemoteActor& a_rider, const RemoteActor& a_mount);

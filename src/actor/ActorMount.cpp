@@ -9,10 +9,13 @@
 #include "runtime/Profiling.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <random>
+#include <vector>
 
 namespace ActorMount
 {
@@ -20,8 +23,9 @@ namespace ActorMount
     {
         using ActorConstants::ShouldLogOccurrence;
 
-        // Skyrim.esm EncHorseSaddledBrown: a generic, non-unique saddled horse.
-        constexpr RE::FormID kMountBaseID = 0x023AB2;
+        // Skyrim.esm EncHorseSaddled Brown, Black, BlackAndWhite, Grey, and Palomino:
+        // the generic, non-unique saddled horses.
+        constexpr std::array<RE::FormID, 5> kMountBaseIDs{ 0x023AB2, 0x068CFA, 0x068D02, 0x068D03, 0x068D04 };
         // Below the 125 walk speed of Horse_Default_MT.
         constexpr float kMovingSpeed = 20.0F;
         // Between the 450 run of Horse_Default_MT and the 600 of Horse_Sprint_MT.
@@ -95,22 +99,41 @@ namespace ActorMount
         }
     }
 
-    RE::TESNPC* GetMountBase()
+    RE::TESNPC* PickMountBase()
     {
-        static RE::TESNPC* s_mountBase = nullptr;
+        static std::vector<RE::TESNPC*> s_mountBases;
         static bool s_resolved = false;
         if (!s_resolved)
         {
             auto* dataHandler = RE::TESDataHandler::GetSingleton();
-            s_mountBase = dataHandler ? dataHandler->LookupForm<RE::TESNPC>(kMountBaseID, "Skyrim.esm") : nullptr;
-            s_resolved = dataHandler != nullptr;
-            if (s_resolved && !s_mountBase)
+            if (!dataHandler)
             {
-                logs::error(
-                    "Remote mount base Skyrim.esm:{:06X} is unavailable; remote players ride nothing", kMountBaseID);
+                return nullptr;
+            }
+            s_resolved = true;
+            for (const auto formID : kMountBaseIDs)
+            {
+                if (auto* base = dataHandler->LookupForm<RE::TESNPC>(formID, "Skyrim.esm"))
+                {
+                    s_mountBases.push_back(base);
+                }
+                else
+                {
+                    logs::warn("Remote mount base Skyrim.esm:{:06X} is unavailable; leaving it out", formID);
+                }
+            }
+            if (s_mountBases.empty())
+            {
+                logs::error("No remote mount base is available; remote players ride nothing");
             }
         }
-        return s_mountBase;
+        if (s_mountBases.empty())
+        {
+            return nullptr;
+        }
+        static std::mt19937 generator{ std::random_device{}() };
+        std::uniform_int_distribution<std::size_t> index{ 0, s_mountBases.size() - 1 };
+        return s_mountBases[index(generator)];
     }
 
     bool Seat(RemoteActor& a_rider, const RemoteActor& a_mount)
