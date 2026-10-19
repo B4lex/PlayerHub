@@ -25,6 +25,11 @@
 - Not verified in game: the connection policy and recovery
   ([Connection](#connection)), and whether quantization shows as jitter. The
   display name requirement is not built on Windows either.
+- **Quarter-unit positions** (protocol 11): server unit tests, `go test -race`,
+  and a `cmd/loadgen` comparison on port 3100 (100 bots within ±6000 units,
+  where every coordinate costs one byte more: 31.6 against 30.3 bytes per
+  relayed entry at the same entry rate); plugin Linux syntax check only, not
+  built on Windows or run in game.
 - **Form references:** plugin taken from the FormID's compile index
   (`FormLookup::GetDefiningFile`); not built on Windows or run in game. The
   `Update.esm|0DDFB3` misreport it fixes was seen in `PlayerHub.log`.
@@ -250,7 +255,7 @@ refused at the handshake ([Transport](#transport)).
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
   within `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (10) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (11) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
@@ -320,7 +325,7 @@ context.
 | --- | --- | --- |
 | `player` | sender slot | set by the server on relayed entries; ignored from clients |
 | `sequence` | `uint64` | strictly rising per player; `Exit` resets it |
-| `x`, `y`, `z` | `sint32`, whole game units | any |
+| `x`, `y`, `z` | `sint32`, quarter game units | any |
 | `heading` | `uint32`, 1/4096 turn | `0..4095` |
 | `pitch` | `sint32`, radians × 1024 | `|pitch| <= 1609` (π/2) |
 | `speed` | `uint32`, units per second | `<= 100000` |
@@ -336,8 +341,16 @@ context.
 | `shapeshift` | `NONE`, `WEREWOLF`, `VAMPIRE_LORD`, or `WEREBEAR`: the vanilla beast form the player is in ([Appearance and equipment](appearance-and-equipment.md#shapeshifts)) |
 
 `protocol/Quantization.h` and `server/internal/wire/quantize.go` hold the same
-rules: positions and speed round to whole units, heading is normalized to
-[0, 2π) first, pitch is clamped, and direction wraps (1.0 is 0). `time` is wall
+rules: positions round to quarter units (`kPositionScale`,
+`wire.PositionScale`, 4) and speed to whole units, heading is normalized to
+[0, 2π) first, pitch is clamped, and direction wraps (1.0 is 0). Whole-unit
+positions changed the length of a 50 ms walking segment by about 12% (about 4%
+running), and the receiver follows the interpolated path exactly, so it showed
+as a change in speed at every checkpoint; quarter units cut that to a quarter.
+A zigzag varint coordinate below 8192 in magnitude costs one byte more, others
+the same, and eighth units would add a byte above 131072. The server reads
+positions in world units only through `wire.Position` and `wire.Units` (interest,
+Nearby chat, trade range, the admin state, the bots). `time` is wall
 time, not accumulated frame time, so a paused or hitching source does not
 stretch it; receivers play checkpoints back at its spacing
 ([Sync pipeline](sync-pipeline.md#checkpoint-playout)). Sixteen seconds of range

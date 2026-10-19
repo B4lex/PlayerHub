@@ -55,7 +55,7 @@ func main() {
 	flag.Float64Var(&o.rateHz, "rate", 20, "checkpoints per second per walking bot")
 	flag.Float64Var(&o.spread, "spread", 20000, "walking bots stay within ±spread units: 20000 is dense, 100000 sparse")
 	flag.Float64Var(&o.speed, "speed", 350, "walking speed in units per second")
-	flag.StringVar(&o.recording, "recording", "", "replay this version 3 recording instead of walking")
+	flag.StringVar(&o.recording, "recording", "", "replay this recording instead of walking")
 	flag.Uint64Var(&o.seed, "seed", 1, "layout seed")
 	flag.DurationVar(&o.report, "report", 5*time.Second, "report interval")
 	flag.IntVar(&o.serverPID, "server-pid", 0, "report this local process's CPU use (Linux)")
@@ -231,7 +231,7 @@ func (b *bot) receive(ctx context.Context) {
 			if state.Sequence > 1_000_000_000_000_000 && state.Sequence <= now {
 				latency := time.Duration(now-state.Sequence) * time.Microsecond
 				window.add(latency)
-				if math.Hypot(float64(state.X-b.x.Load()), float64(state.Y-b.y.Load())) <= b.o.near {
+				if math.Hypot(wire.Units(state.X-b.x.Load()), wire.Units(state.Y-b.y.Load())) <= b.o.near {
 					near.add(latency)
 				}
 			}

@@ -11,6 +11,7 @@
 
 namespace Network
 {
+    inline constexpr float kPositionScale = 4.0F;
     inline constexpr std::uint32_t kHeadingSteps = 4096;
     inline constexpr float kPitchScale = 1024.0F;
     inline constexpr std::int32_t kMaximumQuantizedPitch = 1609;
@@ -120,9 +121,9 @@ namespace Network
         set(a_transform.bats, kBats);
 
         return QuantizedCheckpoint{ .sequence = a_transform.sequence,
-            .x = Detail::RoundToInt32(a_transform.x),
-            .y = Detail::RoundToInt32(a_transform.y),
-            .z = Detail::RoundToInt32(a_transform.z),
+            .x = Detail::RoundToInt32(a_transform.x * kPositionScale),
+            .y = Detail::RoundToInt32(a_transform.y * kPositionScale),
+            .z = Detail::RoundToInt32(a_transform.z * kPositionScale),
             .heading = static_cast<std::uint32_t>(std::lround(heading / kTwoPi * kHeadingSteps)) % kHeadingSteps,
             .pitch = pitch,
             .speed = static_cast<std::uint32_t>(std::clamp(std::round(speed), 0.0F,
@@ -149,9 +150,9 @@ namespace Network
         using namespace CheckpointFlags;
         constexpr float kTwoPi = 6.28318530717958647692F;
         const auto flags = a_checkpoint.flags;
-        return PlayerTransform{ .x = static_cast<float>(a_checkpoint.x),
-            .y = static_cast<float>(a_checkpoint.y),
-            .z = static_cast<float>(a_checkpoint.z),
+        return PlayerTransform{ .x = static_cast<float>(a_checkpoint.x) / kPositionScale,
+            .y = static_cast<float>(a_checkpoint.y) / kPositionScale,
+            .z = static_cast<float>(a_checkpoint.z) / kPositionScale,
             .heading = static_cast<float>(a_checkpoint.heading) * kTwoPi / static_cast<float>(kHeadingSteps),
             .pitch = static_cast<float>(a_checkpoint.pitch) / kPitchScale,
             .speed = static_cast<float>(a_checkpoint.speed),

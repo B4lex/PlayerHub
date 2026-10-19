@@ -21,6 +21,10 @@ Implemented in Go and verified on Linux:
   with the taken name, and an unreachable `--admin` with the connection
   error. With `--admin ""`, 5 of 8 bots got sessions and 3 were refused with
   4008.
+- `cmd/convert-recordings` converted copies of 11 version 3 recordings;
+  their segment lengths and timing matched the originals, and `cmd/loadgen`
+  replayed one with 20 bots without a rejected message. A test fixture covers
+  `ConvertV3`.
 - `cmd/convert-recordings` converted a version 2 fixture and left a converted
   file alone; `cmd/loadgen` replayed it with 20 bots and the server rejected
   none of their messages.
@@ -30,7 +34,7 @@ Implemented in Go and verified on Linux:
 
 Not verified: how a replayed player looks in game in every case (see
 [Engine assumptions](#engine-assumptions)), and real recordings made by the
-Python server converted to version 3.
+Python server converted to the current version.
 
 ## Scope
 
@@ -45,12 +49,12 @@ bots as real WebSocket clients out of process.
 
 | Module | Responsibility |
 | --- | --- |
-| `internal/recording` | Format version 3, `Store`, `Captures`, `ConvertV2`, `Markers` |
+| `internal/recording` | Format version 4, `Store`, `Captures`, `ConvertV2`, `ConvertV3`, `Markers` |
 | `internal/playback` | `VirtualPlayer` numbering, `Session` timeline, `Manager`, `HubPlayer` |
 | `internal/loadtest` | `PlanBots`, in-server `Batch`es and their `Manager` |
 | `internal/admin` | REST routes under `/api`, the `/api/events` feed, panel files |
 | `cmd/loadgen` | Networked bots, latency and throughput measurement |
-| `cmd/convert-recordings` | Version 2 to 3 conversion in place |
+| `cmd/convert-recordings` | Version 2 and 3 to 4 conversion in place |
 | `server/admin-ui/` | React and TypeScript panel: Dashboard, Replay management, Load testing |
 
 ## Recordings
@@ -58,7 +62,7 @@ bots as real WebSocket clients out of process.
 One append-only JSON Lines file per capture, `server/recordings/<id>.jsonl`:
 
 ```text
-{"type":"header","format":"playerhub-recording","version":3,"id":...,"label":...,"playerId":"7","playerName":...,"startedAt":...}
+{"type":"header","format":"playerhub-recording","version":4,"id":...,"label":...,"playerId":"7","playerName":...,"startedAt":...}
 {"type":"message","t":0,"message":{"enter":{}}}
 {"type":"end","t":75266,"reason":"stopped"}
 ```
@@ -70,11 +74,13 @@ with the player's session display name as its `name`
 missing `end` is an interrupted capture, and a torn last line is dropped. Every
 message is validated on load as the server validates a connection's. IDs become
 file names and URL segments, so they are restricted to
-`[A-Za-z0-9][A-Za-z0-9_-]{0,63}` and checked before any path is built. Version 2
-files, whose lines hold the Socket.IO JSON payloads, are not read;
-`cmd/convert-recordings` converts them in place, splitting each checkpoint into
-a `Context` (written when its space, epoch, or furniture changes, and after
-every enter) and a quantized `Checkpoint`, and keeps the original as `<id>.v2`.
+`[A-Za-z0-9][A-Za-z0-9_-]{0,63}` and checked before any path is built. Older
+versions are not read; `cmd/convert-recordings` converts them in place and
+keeps the original as `<id>.v<version>`. Version 2 lines hold the Socket.IO
+JSON payloads, and each checkpoint is split into a `Context` (written when its
+space, epoch, or furniture changes, and after every enter) and a quantized
+`Checkpoint`. Version 3 checkpoints hold whole-unit positions, which are
+multiplied into quarter units ([Network](network.md#checkpoint-and-context)).
 
 A capture is started per player from the panel and runs until stopped or the
 player disconnects. It starts with the player's presence (`Enter` or `Exit`),

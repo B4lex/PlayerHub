@@ -569,7 +569,8 @@ func (h *Hub) setCheckpoint(m *member, c *pb.Checkpoint, message *pb.ClientMessa
 	}
 	h.record(m.Slot, message)
 	h.opts.OnChange()
-	m.view.Space, m.view.X, m.view.Y = interest.SpaceOf(m.Context), float64(c.X), float64(c.Y)
+	m.view.Space = interest.SpaceOf(m.Context)
+	m.view.X, m.view.Y, _ = wire.Position(c)
 	h.grid.Update(&m.view)
 	nearby := nearbyView(&m.view)
 	h.nearbyGrid.Update(&nearby)
@@ -1002,9 +1003,16 @@ func (h *Hub) record(slot uint32, message *pb.ClientMessage) {
 	}
 }
 
+// sameSample compares positions in whole units, so an idle player's sub-unit drift, which
+// whole-unit checkpoints used to round away, still suppresses repeats.
 func sameSample(a, b *pb.Checkpoint) bool {
-	return a != nil && a.X == b.X && a.Y == b.Y && a.Z == b.Z && a.Heading == b.Heading && a.Pitch == b.Pitch &&
+	return a != nil && wholeUnits(a.X) == wholeUnits(b.X) && wholeUnits(a.Y) == wholeUnits(b.Y) &&
+		wholeUnits(a.Z) == wholeUnits(b.Z) && a.Heading == b.Heading && a.Pitch == b.Pitch &&
 		a.Speed == b.Speed && a.Direction == b.Direction && a.Flags == b.Flags
+}
+
+func wholeUnits(v int32) float64 {
+	return math.Round(wire.Units(v))
 }
 
 func leaveMessage(slot uint32, reason pb.LeaveReason) []byte {

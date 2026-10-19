@@ -345,7 +345,12 @@ presentation](combat-presentation.md#receiver-queue)).
   and pitch interpolate linearly and heading along the shorter arc;
   `RemotePose.speed` is the segment's distance over its duration and
   `headingRate` its turn over its duration (0 once the segment is reached or
-  without one). A gap over
+  without one). `sampledSpeed` interpolates the checkpoints' `speed` fields,
+  and `direction` their `direction` along the shorter way around while both
+  move and differ by less than 1/8 turn; otherwise it holds the played
+  checkpoint's, so a larger change steps and is cross-blended
+  ([Locomotion](locomotion.md#direction)), and an idle checkpoint's direction is
+  never blended toward. A gap over
   0.25 s is not one stretch of movement: the player stood still, since idle
   repeats are not sent, or the connection stalled. The segment then starts
   only the next checkpoint's distance over its speed before it, at least one

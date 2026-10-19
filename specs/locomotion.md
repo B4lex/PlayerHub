@@ -19,6 +19,10 @@ Every graph loss or replacement resetting through
 `InvalidateAnimationDispatch`: Linux syntax check only; not built on Windows
 or run in game.
 
+Graph `Speed` and `Direction` following the interpolated pose instead of
+stepping at each played checkpoint: Linux syntax check only; not built on
+Windows or run in game.
+
 Graph sneak reconciliation: the sneak branches' `IsSneaking` and `iState`
 writers were read from the vanilla behavior files and `BSIsActiveModifier`
 from the 1.7.104 executable; Linux syntax check only; not built on Windows or
@@ -184,22 +188,29 @@ hold above.
 
 Locomotion and jump phase are current state, not action history. Checkpoints
 play at their sampled spacing ([Sync pipeline](sync-pipeline.md#checkpoint-playout)),
-and speed, direction, movement state, and jump phase are applied from the
-played checkpoint; when several play in one pass, only the last is applied.
-Position, heading, and pitch follow the pose interpolated from the played
-checkpoint toward the next, so they never run ahead of the movement state
-sampled with them. Replaying skipped states would make the graph traverse
+and movement state and jump phase are applied from the played checkpoint;
+when several play in one pass, only the last is applied. Position, heading,
+pitch, and the graph's speed and direction follow the pose interpolated from
+the played checkpoint toward the next, so they never run ahead of the
+movement state sampled with them. Applied from the played checkpoint, speed
+and direction moved the walk/run and directional blends in 20 Hz steps while
+the position moved smoothly. Replaying skipped states would make the graph traverse
 obsolete states, and pairing a newer transform with an older locomotion state
 was an early cause of sliding. Takeoff and landing events are derived only
 when the applied checkpoint changes jump phase; no jump events are queued.
 
 ### Graph state
 
-- Variables `Speed`, `SpeedSampled`, `Direction`, `TurnDelta`, `IsSprinting`,
-  `iSyncSprintState`, and `iSyncIdleLocomotion` are refreshed every pass with
-  the checkpoint's speed and direction, in the same pass as translation and before it. `Speed` uses the
-  checkpoint speed, with the actor's own speed only as a fallback for an invalid
-  or zero sample while moving.
+- Variables `Speed`, `SpeedSampled`, `SpeedDamped`, `Direction`, `TurnDelta`,
+  `IsSprinting`, `iSyncSprintState`, and `iSyncIdleLocomotion` are refreshed
+  every pass, in the same pass as translation and before it. Speed and
+  direction are the pose's `sampledSpeed` and `direction`
+  (`ActorMovement::SetAnimationSample`, every pass), which the speed and
+  direction channels report too ([Remote actor](remote-actor.md#graph-channels)).
+  `Speed` falls back to the actor's own speed only for an invalid or zero
+  sample while moving. In the vanilla character behaviors only `0_master.hkx`
+  declares `SpeedDamped`, its one `hkbDampingModifier` damps another value,
+  and the executable never names it, so writing it removes no graph damping.
 - Compound changes are staged one graph update apart, so dependent events are
   not sent together: `idle -> running -> sprinting` and back; base movement
   before sprint; sneak movement after sneak idle; takeoff after grounded
@@ -282,7 +293,10 @@ after main-loop writes, which for a remote actor is always forward, so the
 channel reports the network direction instead. Like Skyrim does for the player,
 a direction change of at least 1/8 turn is cross-blended with `CyclicFreeze`,
 then `CyclicCrossBlend` one graph update later, at most once per 0.25 s so the
-0.2 s blend is not restarted while the source's `Direction` ramps.
+0.2 s blend is not restarted while the source's `Direction` ramps. Smaller
+changes between checkpoints are interpolated with the pose instead, and larger
+ones step at the played checkpoint, so the cross-blend covers them rather than
+a sweep through the clips in between.
 
 ### Turning
 

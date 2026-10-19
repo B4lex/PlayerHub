@@ -83,9 +83,10 @@ func checkpoint(sequence uint64) *pb.ClientMessage {
 	return checkpointAt(sequence, int32(sequence))
 }
 
+// checkpointAt places the player x world units along the X axis.
 func checkpointAt(sequence uint64, x int32) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{
-		Sequence: sequence, X: x, Flags: uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_WEAPON_DRAWN),
+		Sequence: sequence, X: x * wire.PositionScale, Flags: uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_WEAPON_DRAWN),
 		Time: uint32(sequence * 50 % wire.TimeModulus)}}}
 }
 
@@ -915,6 +916,19 @@ func TestIdleCheckpointsAreSuppressedButAnchorsAreNot(t *testing.T) {
 	f.send(a, checkpointAt(6, 11))
 	f.hub.Tick()
 	expect(t, f.received(b), "states 1:6")
+	// Sub-unit drift is suppressed as whole-unit checkpoints used to round it away.
+	f.send(a, quarterCheckpoint(7, 11*wire.PositionScale+1))
+	f.hub.Tick()
+	expect(t, f.received(b))
+	f.send(a, quarterCheckpoint(8, 11*wire.PositionScale+2))
+	f.hub.Tick()
+	expect(t, f.received(b), "states 1:8")
+}
+
+func quarterCheckpoint(sequence uint64, x int32) *pb.ClientMessage {
+	message := checkpointAt(sequence, 0)
+	message.GetCheckpoint().X = x
+	return message
 }
 
 func newFixtureWith(t *testing.T, change func(*interest.Config)) *fixture {

@@ -72,20 +72,28 @@ namespace ActorMovement
         }
     }
 
-    void SetTargetMovement(RemoteActor& a_remote, const RE::NiPoint3& a_checkpointPosition, float a_speed,
-        float a_direction, bool a_swimming)
+    void SetTargetMovement(
+        RemoteActor& a_remote, const RE::NiPoint3& a_checkpointPosition, float a_speed, bool a_swimming)
     {
         const auto travel = a_checkpointPosition - a_remote.movement.checkpointPosition;
         a_remote.movement.checkpointPosition = a_checkpointPosition;
         a_remote.movement.sourceSwimming = a_swimming;
         if (std::isfinite(a_speed) && a_speed >= 0.0F)
         {
-            a_remote.movement.animationSpeed = a_speed;
             a_remote.movement.groundSpeed = GetGroundSpeed(a_speed, travel);
-            a_remote.movement.animationDirection = Multiplayer::NormalizeMovementDirection(a_direction);
             ActorAnimation::RequestAnimationUpdate(a_remote.animation);
-            ActorRegistry::SetAuthoritativeDirection(a_remote);
         }
+    }
+
+    void SetAnimationSample(RemoteActor& a_remote, float a_speed, float a_direction)
+    {
+        if (!std::isfinite(a_speed) || a_speed < 0.0F)
+        {
+            return;
+        }
+        a_remote.movement.animationSpeed = a_speed;
+        a_remote.movement.animationDirection = Multiplayer::NormalizeMovementDirection(a_direction);
+        ActorRegistry::SetAuthoritativeDirection(a_remote);
     }
 
     void SetTargetTransform(RemoteActor& a_remote, const RE::NiPoint3& a_targetPosition, float a_targetHeading,

@@ -140,7 +140,8 @@ go run ./cmd/convert-recordings recordings
   player in the world (`--target` picks one), and is driven from its console
   (`help`). See `../specs/trade.md`, Trade bot.
 - `cmd/convert-recordings` converts version 2 recordings, from the Python
-  server, to version 3 in place and keeps each original as `<id>.v2`.
+  server, and version 3 recordings, with whole-unit positions, to version 4 in
+  place and keeps each original as `<id>.v2` or `<id>.v3`.
 - `../proto/generate.sh` regenerates `internal/wire/pb` and the plugin's
   nanopb code from `../proto/`.
 
@@ -161,7 +162,7 @@ go run ./cmd/convert-recordings recordings
 | `internal/world` | Player state and ordering rules, display name lookup |
 | `internal/delivery` | Per-recipient outboxes and batch writing |
 | `internal/wire` | Hand-written encoding of hot messages, quantization, generated `pb` |
-| `internal/recording` | Format version 3, store, captures, v2 converter, timeline markers |
+| `internal/recording` | Format version 4, store, captures, v2 and v3 converters, timeline markers |
 | `internal/playback` | Virtual players and replay sessions |
 | `internal/loadtest` | In-server bot batches |
 | `internal/admin` | REST API, event feed, panel files |

@@ -198,6 +198,9 @@ leave and when the recipient disconnects.
   once.
 - A checkpoint equal to the last one handed to subscribers, except for its
   sequence and time, is not distributed, so an idle player costs nothing on the wire.
+  Positions compare rounded to whole units (`sameSample`): an idle player's
+  sub-unit drift, which whole-unit checkpoints rounded away, would otherwise
+  send at quarter-unit precision.
   The stored checkpoint still advances, so `PeerEnter` and action anchors carry
   the newest. The checkpoint after a context change is always distributed,
   since clients apply a context with the next checkpoint they receive.

@@ -15,7 +15,7 @@ import (
 
 const (
 	FormatName    = "playerhub-recording"
-	FormatVersion = 3
+	FormatVersion = 4
 )
 
 type Error struct{ message string }
@@ -130,7 +130,7 @@ func parseHeader(line []byte) (Header, error) {
 		return Header{}, errorf("not a %s file", FormatName)
 	}
 	if h.Version != FormatVersion {
-		return Header{}, errorf("recording format version %d; version %d is needed (convert-recordings converts version 2)",
+		return Header{}, errorf("recording format version %d; version %d is needed (convert-recordings converts versions 2 and 3)",
 			h.Version, FormatVersion)
 	}
 	return h.Header, nil

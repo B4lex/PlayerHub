@@ -25,6 +25,9 @@ namespace
     constexpr float kMinimumTravelSpeed = 1.0F;
     constexpr std::size_t kMaximumPending = 16;
     constexpr float kTwoPi = 6.28318530717958647692F;
+    // ActorAnimation cross-blends a Direction change of at least this much, as Skyrim does
+    // for the player, so stepping it there keeps the blend instead of sweeping the clips.
+    constexpr float kMaximumInterpolatedDirectionChange = 0.125F;
     constexpr double kDryLogSeconds = 0.02;
     // Above an idle player's drift of about 20 units per second.
     constexpr float kDryLogMinimumSpeed = 50.0F;
@@ -34,6 +37,22 @@ namespace
     double ToSeconds(CheckpointPlayout::Clock::time_point a_time)
     {
         return std::chrono::duration<double>(a_time.time_since_epoch()).count();
+    }
+
+    float InterpolateDirection(
+        const Network::PlayerTransform& a_from, const Network::PlayerTransform& a_to, float a_fraction)
+    {
+        if (!Multiplayer::IsMoving(a_from.animationState.movementState)
+            || !Multiplayer::IsMoving(a_to.animationState.movementState))
+        {
+            return a_from.direction;
+        }
+        const float change = std::remainder(a_to.direction - a_from.direction, 1.0F);
+        if (std::abs(change) >= kMaximumInterpolatedDirectionChange)
+        {
+            return a_from.direction;
+        }
+        return Multiplayer::NormalizeMovementDirection(a_from.direction + change * a_fraction);
     }
 
     RE::NiPoint3 GetPosition(const Network::PlayerTransform& a_checkpoint)
@@ -207,9 +226,12 @@ void CheckpointPlayout::ObserveDryPlayout(Multiplayer::PeerSlot a_playerID)
 
 void CheckpointPlayout::UpdatePose()
 {
-    pose = RemotePose{
-        .position = GetPosition(played), .heading = played.heading, .pitch = played.pitch, .speed = played.speed
-    };
+    pose = RemotePose{ .position = GetPosition(played),
+        .heading = played.heading,
+        .pitch = played.pitch,
+        .speed = played.speed,
+        .sampledSpeed = played.speed,
+        .direction = played.direction };
     if (!hasPlayed || pending.empty() || !CanInterpolate(played, pending.front().checkpoint))
     {
         return;
@@ -239,4 +261,6 @@ void CheckpointPlayout::UpdatePose()
     pose.headingRate = fraction < 1.0F ? static_cast<float>(turn / duration) : 0.0F;
     pose.pitch = played.pitch + (next.checkpoint.pitch - played.pitch) * fraction;
     pose.speed = static_cast<float>(distance / duration);
+    pose.sampledSpeed = played.speed + (next.checkpoint.speed - played.speed) * fraction;
+    pose.direction = InterpolateDirection(played, next.checkpoint, fraction);
 }

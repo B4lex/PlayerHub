@@ -153,7 +153,8 @@ func (c *Context) players() ([]Player, []Exclusion) {
 				player.CellID, player.WorldspaceID = optional(p.Context.CellId), optional(p.Context.WorldspaceId)
 			}
 			if c := p.Checkpoint; c != nil {
-				player.Position = &Position{float64(c.X), float64(c.Y), float64(c.Z)}
+				x, y, z := wire.Position(c)
+				player.Position = &Position{x, y, z}
 				player.MovementState = optional(movementStateNames[wire.MovementState(c)])
 			}
 			players = append(players, player)

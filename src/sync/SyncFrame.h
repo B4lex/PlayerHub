@@ -19,6 +19,8 @@ struct RemotePose
     float headingRate{ 0.0F };
     float pitch{ 0.0F };
     float speed{ 0.0F };
+    float sampledSpeed{ 0.0F };
+    float direction{ 0.0F };
 };
 
 struct RemoteFrame

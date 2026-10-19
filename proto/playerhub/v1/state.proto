@@ -12,6 +12,7 @@ message FormRef {
 message Checkpoint {
   uint32 player = 1;
   uint64 sequence = 2;
+  // Position in quarter units.
   sint32 x = 3;
   sint32 y = 4;
   sint32 z = 5;

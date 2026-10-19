@@ -28,8 +28,10 @@ namespace ActorMovement
         bool landingApproachEnded{ false };
     };
 
-    void SetTargetMovement(RemoteActor& a_remote, const RE::NiPoint3& a_checkpointPosition, float a_speed,
-        float a_direction, bool a_swimming);
+    void SetTargetMovement(
+        RemoteActor& a_remote, const RE::NiPoint3& a_checkpointPosition, float a_speed, bool a_swimming);
+
+    void SetAnimationSample(RemoteActor& a_remote, float a_speed, float a_direction);
 
     void SetTargetTransform(RemoteActor& a_remote, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
         float a_headingRate, float a_targetPitch, float a_pathSpeed);

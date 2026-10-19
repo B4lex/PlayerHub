@@ -182,7 +182,8 @@ func (b *bot) chooseTarget(name string) {
 
 func (b *bot) observe(c *pb.Checkpoint) {
 	t := &b.target
-	t.pos = vec{float64(c.GetX()), float64(c.GetY()), float64(c.GetZ())}
+	x, y, z := wire.Position(c)
+	t.pos = vec{x, y, z}
 	t.heading = float64(c.GetHeading()) / wire.HeadingSteps * 2 * math.Pi
 	t.speed = float64(c.GetSpeed())
 	t.peerSeen = time.Now()

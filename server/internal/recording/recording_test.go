@@ -49,7 +49,7 @@ func TestConvertV2(t *testing.T) {
 		t.Fatalf("got %s\nwant %s", got, want)
 	}
 	first := r.Messages[4].Message.GetCheckpoint()
-	if first.X != 1 || first.Y != 3 || first.Z != -4 || first.Heading != 2048 || first.Pitch != 102 ||
+	if first.X != 6 || first.Y != 10 || first.Z != -14 || first.Heading != 2048 || first.Pitch != 102 ||
 		first.Speed != 400 || first.Direction != 128 || first.Flags != 2|16 {
 		t.Fatalf("checkpoint quantized as %v", first)
 	}
@@ -63,6 +63,36 @@ func TestConvertV2(t *testing.T) {
 	if e := r.Messages[1].Message.GetEquipment(); e.LeftHand.Kind != pb.HandKind_HAND_KIND_SPELL ||
 		len(e.DefaultOutfit.GetHands()) != 1 {
 		t.Fatalf("equipment converted as %v", e)
+	}
+}
+
+const v3Recording = `{"type":"header","format":"playerhub-recording","version":3,"id":"20261013-193225-f4d31e","label":"Test","playerId":"1","playerName":"Lydia","startedAt":"2026-10-13T19:32:25Z"}
+{"type":"message","t":0,"message":{"enter":{}}}
+{"type":"message","t":0,"message":{"context":{"cellId":1,"worldspaceId":60,"graphEpoch":"1"}}}
+{"type":"message","t":50,"message":{"checkpoint":{"sequence":"1","x":-100,"y":2,"z":3,"speed":400,"flags":2}}}
+{"type":"end","t":100,"reason":"stopped"}
+`
+
+func TestConvertV3(t *testing.T) {
+	converted, err := ConvertV3([]byte(v3Recording))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Parse(converted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Header.PlayerName != "Lydia" || len(r.Messages) != 3 || r.End == nil || r.End.TMs != 100 {
+		t.Fatalf("recording converted as %+v", r)
+	}
+	if c := r.Messages[1].Message.GetContext(); c.GetWorldspaceId() != 60 {
+		t.Fatalf("context converted as %v", c)
+	}
+	if c := r.Messages[2].Message.GetCheckpoint(); c.X != -400 || c.Y != 8 || c.Z != 12 || c.Speed != 400 || c.Flags != 2 {
+		t.Fatalf("checkpoint converted as %v", c)
+	}
+	if _, err := ConvertV3(converted); err == nil {
+		t.Fatal("converted a version 4 recording again")
 	}
 }
 

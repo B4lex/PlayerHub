@@ -4,31 +4,90 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
+
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"playerhub/server/internal/wire"
 	"playerhub/server/internal/wire/pb"
 )
 
-func ConvertV2(data []byte) ([]byte, error) {
-	lines := splitLines(data)
+func readVersionedHeader(lines [][]byte, version int) (Header, error) {
 	if len(lines) == 0 {
-		return nil, errorf("empty recording")
+		return Header{}, errorf("empty recording")
 	}
-	var header struct {
-		Type    string `json:"type"`
-		Format  string `json:"format"`
-		Version int    `json:"version"`
-		Header
-	}
+	var header headerLine
 	if err := json.Unmarshal(lines[0], &header); err != nil || header.Type != "header" || header.Format != FormatName {
-		return nil, errorf("not a %s file", FormatName)
+		return Header{}, errorf("not a %s file", FormatName)
 	}
-	if header.Version != 2 {
-		return nil, errorf("recording format version %d, expected 2", header.Version)
+	if header.Version != version {
+		return Header{}, errorf("recording format version %d, expected %d", header.Version, version)
+	}
+	return header.Header, nil
+}
+
+// ConvertV3 scales version 3's whole-unit checkpoint positions to quarter units.
+func ConvertV3(data []byte) ([]byte, error) {
+	lines := splitLines(data)
+	header, err := readVersionedHeader(lines, 3)
+	if err != nil {
+		return nil, err
 	}
 
 	var out bytes.Buffer
-	out.Write(EncodeHeader(header.Header))
+	out.Write(EncodeHeader(header))
+	out.WriteByte('\n')
+	for i, line := range lines[1:] {
+		number := i + 2
+		var body bodyLine
+		if err := json.Unmarshal(line, &body); err != nil {
+			if number == len(lines) {
+				break
+			}
+			return nil, errorf("line %d: invalid JSON: %v", number, err)
+		}
+		if body.Type != "message" || body.T == nil {
+			out.Write(line)
+			out.WriteByte('\n')
+			continue
+		}
+		message := &pb.ClientMessage{}
+		if err := protojson.Unmarshal(body.Message, message); err != nil {
+			return nil, errorf("line %d: invalid message: %v", number, err)
+		}
+		c := message.GetCheckpoint()
+		if c == nil {
+			out.Write(line)
+			out.WriteByte('\n')
+			continue
+		}
+		c.X, c.Y, c.Z = scalePosition(c.X), scalePosition(c.Y), scalePosition(c.Z)
+		encoded, err := EncodeMessage(Message{*body.T, message})
+		if err != nil {
+			return nil, err
+		}
+		out.Write(encoded)
+		out.WriteByte('\n')
+	}
+	if _, err := Parse(out.Bytes()); err != nil {
+		return nil, fmt.Errorf("converted recording is invalid: %w", err)
+	}
+	return out.Bytes(), nil
+}
+
+func scalePosition(v int32) int32 {
+	return int32(max(math.MinInt32, min(math.MaxInt32, int64(v)*wire.PositionScale)))
+}
+
+func ConvertV2(data []byte) ([]byte, error) {
+	lines := splitLines(data)
+	header, err := readVersionedHeader(lines, 2)
+	if err != nil {
+		return nil, err
+	}
+
+	var out bytes.Buffer
+	out.Write(EncodeHeader(header))
 	out.WriteByte('\n')
 	var context *pb.Context
 	for i, line := range lines[1:] {

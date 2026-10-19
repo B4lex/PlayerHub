@@ -8,6 +8,9 @@ import (
 )
 
 const (
+	// Checkpoint coordinates are quarter units: whole units varied a walking segment's
+	// length by about 12%, which the receiver showed as changes in speed.
+	PositionScale  = 4
 	HeadingSteps   = 4096
 	PitchScale     = 1024
 	DirectionSteps = 256
@@ -29,9 +32,9 @@ func Quantize(s Sample, sequence uint64) *pb.Checkpoint {
 	}
 	return &pb.Checkpoint{
 		Sequence:  sequence,
-		X:         roundInt32(s.X),
-		Y:         roundInt32(s.Y),
-		Z:         roundInt32(s.Z),
+		X:         roundInt32(s.X * PositionScale),
+		Y:         roundInt32(s.Y * PositionScale),
+		Z:         roundInt32(s.Z * PositionScale),
 		Heading:   uint32(math.Round(heading/(2*math.Pi)*HeadingSteps)) % HeadingSteps,
 		Pitch:     int32(max(-MaximumPitch, min(MaximumPitch, math.Round(s.Pitch*PitchScale)))),
 		Speed:     uint32(max(0, min(MaximumSpeed, math.Round(s.Speed)))),
@@ -46,6 +49,15 @@ func SampleTime(t time.Time) uint32 {
 
 func roundInt32(v float64) int32 {
 	return int32(max(math.MinInt32, min(math.MaxInt32, math.Round(v))))
+}
+
+// Units converts a checkpoint coordinate, or a difference of two, to world units.
+func Units(v int32) float64 {
+	return float64(v) / PositionScale
+}
+
+func Position(c *pb.Checkpoint) (x, y, z float64) {
+	return Units(c.GetX()), Units(c.GetY()), Units(c.GetZ())
 }
 
 func MovementState(c *pb.Checkpoint) pb.MovementState {

@@ -121,6 +121,7 @@ typedef struct _playerhub_v1_FormRef {
 typedef struct _playerhub_v1_Checkpoint {
     uint32_t player;
     uint64_t sequence;
+    /* Position in quarter units. */
     int32_t x;
     int32_t y;
     int32_t z;

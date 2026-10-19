@@ -593,18 +593,19 @@ func (x *FormRef) GetFormId() uint32 {
 }
 
 type Checkpoint struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Player        uint32                 `protobuf:"varint,1,opt,name=player,proto3" json:"player,omitempty"`
-	Sequence      uint64                 `protobuf:"varint,2,opt,name=sequence,proto3" json:"sequence,omitempty"`
-	X             int32                  `protobuf:"zigzag32,3,opt,name=x,proto3" json:"x,omitempty"`
-	Y             int32                  `protobuf:"zigzag32,4,opt,name=y,proto3" json:"y,omitempty"`
-	Z             int32                  `protobuf:"zigzag32,5,opt,name=z,proto3" json:"z,omitempty"`
-	Heading       uint32                 `protobuf:"varint,6,opt,name=heading,proto3" json:"heading,omitempty"`
-	Pitch         int32                  `protobuf:"zigzag32,7,opt,name=pitch,proto3" json:"pitch,omitempty"`
-	Speed         uint32                 `protobuf:"varint,8,opt,name=speed,proto3" json:"speed,omitempty"`
-	Direction     uint32                 `protobuf:"varint,9,opt,name=direction,proto3" json:"direction,omitempty"`
-	Flags         uint32                 `protobuf:"varint,10,opt,name=flags,proto3" json:"flags,omitempty"`
-	Time          uint32                 `protobuf:"varint,11,opt,name=time,proto3" json:"time,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Player   uint32                 `protobuf:"varint,1,opt,name=player,proto3" json:"player,omitempty"`
+	Sequence uint64                 `protobuf:"varint,2,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	// Position in quarter units.
+	X             int32  `protobuf:"zigzag32,3,opt,name=x,proto3" json:"x,omitempty"`
+	Y             int32  `protobuf:"zigzag32,4,opt,name=y,proto3" json:"y,omitempty"`
+	Z             int32  `protobuf:"zigzag32,5,opt,name=z,proto3" json:"z,omitempty"`
+	Heading       uint32 `protobuf:"varint,6,opt,name=heading,proto3" json:"heading,omitempty"`
+	Pitch         int32  `protobuf:"zigzag32,7,opt,name=pitch,proto3" json:"pitch,omitempty"`
+	Speed         uint32 `protobuf:"varint,8,opt,name=speed,proto3" json:"speed,omitempty"`
+	Direction     uint32 `protobuf:"varint,9,opt,name=direction,proto3" json:"direction,omitempty"`
+	Flags         uint32 `protobuf:"varint,10,opt,name=flags,proto3" json:"flags,omitempty"`
+	Time          uint32 `protobuf:"varint,11,opt,name=time,proto3" json:"time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
