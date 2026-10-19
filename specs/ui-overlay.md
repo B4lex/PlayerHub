@@ -999,7 +999,7 @@ status panel keeps the system font.
   [standalone release](https://mjorka.itch.io/sovngarde), with
   `Sovngarde OFL License.txt`, and are read from `PlayerHub/fonts/` under
   `Config::GetDirectory` ([Configuration](configuration.md#file));
-  `xmake.lua` copies the folder to every deploy directory after a build.
+  `xmake.lua` copies the folder to every install directory after a build.
 - They are separate files rather than data in the DLL because Sovngarde is
   under the SIL Open Font License 1.1 and the plugin under GPL-3.0-or-later:
   beside the DLL the font stays a work of its own under its own license. The
@@ -3181,7 +3181,7 @@ and share a language without a plugin build.
   `zh_TW` (the game's Chinese is Traditional). An empty `msgstr` leaves the
   text in English.
 - The build's `after_build` step copies `locale/*.po` and the template, for
-  translators, to `PlayerHub/locale/` in each deploy directory.
+  translators, to `PlayerHub/locale/` in each install directory.
 - `Text::Initialize` lists the `.po` files (extension in any case) in
   `PlayerHub/locale/` under `Config::GetDirectory`, in file name order, and
   loads each into a table. It skips a file, logging

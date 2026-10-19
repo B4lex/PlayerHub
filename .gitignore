@@ -18,7 +18,7 @@ compile_commands.json
 CMakeLists.txt
 
 # development utility
-deploy_dirs/*
+install_dirs/*
 *.log
 scripts/
 plans/

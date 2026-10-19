@@ -66,7 +66,7 @@ target("PlayerHub")
     add_rules("locale")
     -- Translated text literals are UTF-8.
     set_encodings("utf-8")
-    add_files("src/**.cpp", "src/**.c")
+    add_files("]src/**.cpp", "src/**.c")
     -- nanopb runtime from the lib/nanopb submodule, because the xmake package
     -- depends on protoc, which cannot run under wine. Keep its tag in step with
     -- the generator version in proto/generate.sh, which produces the code in
@@ -98,12 +98,7 @@ target("PlayerHub")
 
 after_build(function (target)
 
-    local deploy_root = path.join(os.projectdir(), "deploy_dirs")
-    local deploy_dirs = os.dirs(path.join(deploy_root, "*"))
-
-    if #deploy_dirs == 0 then
-        raise("No deployment directories found in %s", deploy_root)
-    end
+    local install_dirs = os.dirs(path.join(os.projectdir(), "install_dirs", "*"))
 
     local dllfile = target:targetfile()
     local pdbfile = target:symbolfile()
@@ -117,31 +112,31 @@ after_build(function (target)
         { "EXCEPTIONS", "EXCEPTIONS.txt" },
         { "THIRD_PARTY_NOTICES.txt", "THIRD_PARTY_NOTICES.txt" }
     }
-    for _, deploy_dir in ipairs(deploy_dirs) do
-        os.cp(dllfile, deploy_dir)
+    for _, install_dir in ipairs(install_dirs) do
+        os.cp(dllfile, install_dir)
 
         if pdbfile and os.isfile(pdbfile) then
-            os.cp(pdbfile, deploy_dir)
+            os.cp(pdbfile, install_dir)
         end
 
-        local fonts_dir = path.join(deploy_dir, "PlayerHub", "fonts")
+        local fonts_dir = path.join(install_dir, "PlayerHub", "fonts")
         os.mkdir(fonts_dir)
         os.cp(fontfiles, fonts_dir)
 
-        local frame_dir = path.join(deploy_dir, "PlayerHub", "frame")
+        local frame_dir = path.join(install_dir, "PlayerHub", "frame")
         os.mkdir(frame_dir)
         os.cp(framefiles, frame_dir)
 
-        local locale_dir = path.join(deploy_dir, "PlayerHub", "locale")
+        local locale_dir = path.join(install_dir, "PlayerHub", "locale")
         os.mkdir(locale_dir)
         for _, files in ipairs(localefiles) do
             os.cp(files, locale_dir)
         end
 
         for _, file in ipairs(licensefiles) do
-            os.cp(path.join(os.projectdir(), file[1]), path.join(deploy_dir, "PlayerHub", file[2]))
+            os.cp(path.join(os.projectdir(), file[1]), path.join(install_dir, "PlayerHub", file[2]))
         end
 
-        print("Deployed to %s", deploy_dir)
+        print("Installed to %s", install_dir)
     end
 end)
