@@ -26,7 +26,10 @@
   slopes; dismount and death removed the horse without a crash. The gait's
   ground speed and its stop and gallop holds ([Gait](#gait)) ran in game on a
   replay (2026-10-18): no gait change during a steady ride, and walking looked
-  smooth. The graph speed restore ran on the same replay and logged no restore.
+  smooth. The speed sampler hook ([Gait](#gait)) ran in game on a replay
+  (2026-10-19, 1.7.104): it replaced a zero `goalSpeed` about 600 times in
+  70 s of riding, and the run, which had shaken and stuttered, looked much
+  smoother. Not run on SE.
   The rider carry ([Rider placement](#rider-placement)) ran on the same replay
   (2026-10-18) and the ride looked smoother; the trail it removes was not
   measured.
@@ -413,11 +416,35 @@ walk 125, run 450 (`Horse_Default_MT`), and sprint 600 (`Horse_Sprint_MT`).
   the graph's `IsMoving` and its gallop (the state tags `iState` with
   `iState_HorseSprint`) are compared with the request, and a mismatch sends
   `SprintStop`, `moveStart`, `moveStop`, or `SprintStart`, in that priority
-  (`Corrected remote … graph gait`). The same check restores the mount graph's
-  `Speed` when it reads back more than 1 away from the gait speed
-  (`Restored remote mount graph speed`, with the 3D, cull, process level, and
-  distance). A mount's graph once held 0 for two samples 2 s apart while it
-  ran; the cause is not known.
+  (`Corrected remote … graph gait`). In the vanilla `HorseBehavior.hkx`,
+  `IsMoving` is the output of `BSIsActiveModifier_Locomotion` inside
+  `NonCombat_Behavior`'s `LocomotionState`, yet a running remote mount always
+  reads it false, so while moving this check sends `moveStart` every 0.25 s,
+  which the graph rejects. Why is not known: the horse may run in another
+  branch, or a patched behavior may differ. In a debug build, the first two
+  corrections and every 240th log `Remote … graph probe` with the graph's
+  active states and variables.
+- The speed sampler takes the gait speed: `AnimationFirewall` hooks
+  `BSSpeedSamplerModifier::Update`, and for a graph whose actor the gait drives
+  (`ActorRegistry::GetGaitSpeed`, mount and rider only) it sets the modifier's
+  `goalSpeed` to the gait speed before the sampler writes `speedOut`
+  (`Corrected remote gait speed sampler goal`, with the value it replaced).
+
+Why the sampler: the vanilla horse behaviors bind the sampler's `goalSpeed` to
+`Speed` and its `speedOut` to `HorseSpeedSampled`, which the locomotion blends
+read, and something sets a running mount's or rider's graph `Speed` to 0 several
+times a second. Each sampled zero snaps the run blend toward the slow walk for
+a frame, which showed as a trot that shook and stuttered; the walk barely
+changes toward the slow walk, and the gallop is a state that does not blend on
+speed. Restoring `Speed` from the sync pass did not prevent it, even every pass: on a
+replay (2026-10-19) every zero was gone one pass later, yet most had already
+reached `HorseSpeedSampled`, and they arrived 1 to 7 passes after the gait's
+own write. What writes the zero is not known. The vanilla horse behavior only reads
+`Speed`; the character has one `Speed` channel, whose value the plugin's
+override writes last (ID 38330); Skyrim's code names `Speed` only to read it;
+and no plugin code writes it apart from the gait. Skyrim's
+`GetGraphVariableFloat` reads the live value through the process's
+`BSAnimationGraphVariableCache`, so the zeros are not a stale copy.
 
 Why ground speed and the holds: the checkpoint speed is measured in 3D, and a
 source horse jumping or dropping down a slope reached 726–808 while its ground
@@ -459,7 +486,8 @@ For a mount, the firewall blocks the gait events Skyrim sends (`moveStart`,
 `BrakeStart`, `BrakeStop`, turns, and canned turns) and passes its other native
 events. The rider's registration is marked mounted while seated, which admits
 every native event on the rider, since the mount interaction drives its graph. A
-2 s gait sample per role logs `Speed` and `HorseSpeedSampled`.
+2 s gait sample per role logs `Speed`, `HorseSpeedSampled`, and the
+controller's pitch and its target.
 
 ### Terrain pitch
 
@@ -650,6 +678,16 @@ Furniture entry, traced in the 1.7.104 binary:
     handle and marker; without it, the reservation stays. Every receiver call
     passes the remote actor. Traced in both binaries; the release itself was
     not observed in game.
+
+Mount gait, traced in the 1.7.104 binary:
+
+13. `BSSpeedSamplerModifier` overrides only vfuncs 0, 5 (`Update`, ID 63306),
+    and 0xC; `Update` reads `state`, `direction`, and `goalSpeed` at 0x50,
+    0x54, and 0x58 and writes `speedOut` at 0x5C. A `BShkbAnimationGraph`
+    builds the `hkbContext` it updates its behavior with from its
+    `characterInstance` at 0xC0 (IDs 63562, 63563) and keeps its `Actor` at
+    0x210. The same layout is assumed on SE 1.5.97, whose vtable comes from
+    CommonLib (ID 282071); not checked in the SE binary.
 
 ## Acceptance criteria
 

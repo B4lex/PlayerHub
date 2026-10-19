@@ -32,7 +32,8 @@ namespace ActorMount
         constexpr float kGallopHoldSeconds = 0.3F;
         constexpr float kGallopStopHoldSeconds = 0.5F;
         constexpr float kStopHoldSeconds = 0.2F;
-        constexpr float kGraphSpeedTolerance = 1.0F;
+        constexpr std::uint32_t kGraphProbeCorrections = 2;
+        constexpr std::uint32_t kGraphProbeCorrectionInterval = 240;
         constexpr float kMinimumCarryStep = 0.01F;
         constexpr float kMinimumCarryTurn = 0.0001F;
         constexpr float kTwoPi = 6.28318530717958647692F;
@@ -91,35 +92,6 @@ namespace ActorMount
         {
             float value = -1.0F;
             return a_actor.GetGraphVariableFloat(a_variable, value) ? value : -1.0F;
-        }
-
-        // Speed is written once per checkpoint and the speed channel reports it on every
-        // poll, yet a mount's graph was seen holding 0 for two seconds of running.
-        void RestoreGraphSpeed(RE::Actor& a_actor, Gait& a_gait, float a_speed,
-            const RE::BSFixedString& a_speedVariable, const RE::BSFixedString& a_horseSpeedSampledVariable,
-            const char* a_role)
-        {
-            const float graphSpeed = GetGraphFloat(a_actor, a_speedVariable);
-            if (graphSpeed < 0.0F || std::abs(graphSpeed - a_speed) <= kGraphSpeedTolerance)
-            {
-                return;
-            }
-            const bool accepted = a_actor.SetGraphVariableFloat(a_speedVariable, a_speed);
-            const auto restorations = ++a_gait.speedRestorations;
-            if (!ShouldLogOccurrence(restorations))
-            {
-                return;
-            }
-            const auto* root = a_actor.Get3D(false);
-            const auto* process = a_actor.GetActorRuntimeData().currentProcess;
-            const auto* player = RE::PlayerCharacter::GetSingleton();
-            logs::debug(
-                "Restored remote {} graph speed: actor={:08X} speed={:.1f} graphSpeed={:.1f} "
-                "horseSpeedSampled={:.1f} accepted={} loaded3D={} culled={} processLevel={} distance={:.0f} count={}",
-                a_role, a_actor.GetHandle().native_handle(), a_speed, graphSpeed,
-                GetGraphFloat(a_actor, a_horseSpeedSampledVariable), accepted, root != nullptr,
-                root && root->GetAppCulled(), process ? static_cast<int>(process->processLevel.underlying()) : -1,
-                player ? a_actor.GetPosition().GetDistance(player->GetPosition()) : -1.0F, restorations);
         }
     }
 
@@ -309,7 +281,6 @@ namespace ActorMount
             if (a_gait.reconcileElapsed >= kReconcileSeconds)
             {
                 a_gait.reconcileElapsed = 0.0F;
-                RestoreGraphSpeed(a_actor, a_gait, a_speed, speedVariable, horseSpeedSampledVariable, a_role);
                 static const RE::BSFixedString isMovingVariable{ "IsMoving" };
                 static const RE::BSFixedString stateVariable{ "iState" };
                 static const RE::BSFixedString sprintStateVariable{ "iState_HorseSprint" };
@@ -352,6 +323,15 @@ namespace ActorMount
                                 a_role, a_actor.GetHandle().native_handle(), correction, accepted, a_speed, graphMoving,
                                 graphSprinting, GetGraphFloat(a_actor, horseSpeedSampledVariable), corrections);
                         }
+#ifndef NDEBUG
+                        // Shows which state the graph is in while the check disagrees with it.
+                        if (corrections <= kGraphProbeCorrections || corrections % kGraphProbeCorrectionInterval == 0)
+                        {
+                            logs::debug("Remote {} graph probe: actor={:08X} event={} count={} {}", a_role,
+                                a_actor.GetHandle().native_handle(), correction, corrections,
+                                GraphProbe::Describe(a_actor, a_gait.graphProbeSnapshot));
+                        }
+#endif
                     }
                 }
             }

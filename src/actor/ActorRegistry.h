@@ -35,6 +35,8 @@ namespace ActorRegistry
     // Skyrim polls the Speed channel from the actor's own movement, which is zero
     // for a mount moved by its transform and for a rider it carries.
     void SetGaitSpeed(const RemoteActor& a_remote, float a_speed);
+    // Only a mount or a rider the gait drives has one.
+    [[nodiscard]] std::optional<float> GetGaitSpeed(const RE::Actor* a_actor);
     void SetNetworkPlaced(const RemoteActor& a_remote, bool a_networkPlaced);
     [[nodiscard]] bool IsNetworkPlaced(const RE::Actor* a_actor);
     // Scales the actor's polled weapon speeds while its attacks catch up with the

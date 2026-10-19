@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef NDEBUG
+#include "actor/GraphProbe.h"
+#endif
+
 #include <RE/Skyrim.h>
 
 #include <cstdint>
@@ -20,8 +24,10 @@ namespace ActorMount
         float reconcileElapsed{ 0.0F };
         std::uint32_t rejectedEvents{ 0 };
         std::uint32_t corrections{ 0 };
-        std::uint32_t speedRestorations{ 0 };
         float diagnosticElapsed{ 0.0F };
+#ifndef NDEBUG
+        GraphProbe::Snapshot graphProbeSnapshot{};
+#endif
     };
 
     struct Placement

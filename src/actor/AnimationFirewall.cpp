@@ -6,7 +6,10 @@
 #include "runtime/Profiling.h"
 #include "text/AsciiCase.h"
 
+#include <atomic>
+#include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <string_view>
@@ -322,6 +325,55 @@ namespace AnimationFirewall
 
         struct RightWeaponSpeedTag;
         struct LeftWeaponSpeedTag;
+
+        // BSSpeedSamplerModifier::Update (vfunc 5, ID 63306) writes speedOut at 0x5C from
+        // state, direction, and goalSpeed at 0x50, 0x54, and 0x58, through Skyrim's global
+        // speed sampler or as a copy of goalSpeed. The vanilla horse behaviors bind goalSpeed
+        // to Speed and speedOut to HorseSpeedSampled, which their locomotion blends read. A
+        // graph builds its hkbContext from its BShkbAnimationGraph::characterInstance at
+        // 0xC0 (IDs 63562, 63563), and the graph keeps its Actor at 0x210 (1.7.104
+        // disassembly).
+        constexpr std::ptrdiff_t kSpeedSamplerGoalSpeedOffset = 0x58;
+        constexpr std::ptrdiff_t kGraphCharacterOffset = 0xC0;
+        constexpr std::ptrdiff_t kGraphActorOffset = 0x210;
+        constexpr float kSpeedSamplerTolerance = 1.0F;
+
+        // A mount's or rider's graph Speed reads 0 several times a second while it runs, and
+        // a graph update that samples the zero snaps the run blend toward the slow walk.
+        // What writes it is not known, so the sampler takes the gait speed itself.
+        struct SpeedSamplerHook
+        {
+            static void Thunk(std::byte* a_modifier, const RE::hkbContext& a_context, float a_timestep)
+            {
+                if (a_modifier && a_context.character)
+                {
+                    const auto* graph = reinterpret_cast<const std::byte*>(a_context.character) - kGraphCharacterOffset;
+                    const RE::Actor* actor = nullptr;
+                    std::memcpy(&actor, graph + kGraphActorOffset, sizeof(actor));
+                    if (const auto speed = ActorRegistry::GetGaitSpeed(actor))
+                    {
+                        float goalSpeed = 0.0F;
+                        std::memcpy(&goalSpeed, a_modifier + kSpeedSamplerGoalSpeedOffset, sizeof(goalSpeed));
+                        if (std::abs(goalSpeed - *speed) > kSpeedSamplerTolerance)
+                        {
+                            std::memcpy(a_modifier + kSpeedSamplerGoalSpeedOffset, &*speed, sizeof(float));
+                            const auto corrections = s_corrections.fetch_add(1, std::memory_order_relaxed) + 1;
+                            if (ShouldLogOccurrence(corrections))
+                            {
+                                logs::debug(
+                                    "Corrected remote gait speed sampler goal: actor={:08X} goalSpeed={:.1f} "
+                                    "speed={:.1f} count={}",
+                                    actor->GetFormID(), goalSpeed, *speed, corrections);
+                            }
+                        }
+                    }
+                }
+                _original(a_modifier, a_context, a_timestep);
+            }
+
+            static inline std::atomic<std::uint32_t> s_corrections{ 0 };
+            static inline REL::Relocation<decltype(Thunk)> _original;
+        };
     }
 
     void InstallHooks()
@@ -354,6 +406,8 @@ namespace AnimationFirewall
         };
         WeaponSpeedChannelHook<LeftWeaponSpeedTag>::_original
             = leftWeaponSpeedChannelVTable.write_vfunc(0x1, WeaponSpeedChannelHook<LeftWeaponSpeedTag>::Thunk);
+        REL::Relocation<std::uintptr_t> speedSamplerVTable{ RE::VTABLE_BSSpeedSamplerModifier[0] };
+        SpeedSamplerHook::_original = speedSamplerVTable.write_vfunc(0x5, SpeedSamplerHook::Thunk);
     }
 
     void Enable(RemoteActor& a_remote)

@@ -451,6 +451,19 @@ namespace ActorRegistry
         SetShared(a_remote, &Registration::authoritativeSpeed, a_speed);
     }
 
+    std::optional<float> GetGaitSpeed(const RE::Actor* a_actor)
+    {
+        if (!a_actor || s_gaitDrivenCount.load(std::memory_order_relaxed) == 0)
+        {
+            return std::nullopt;
+        }
+
+        const auto lock = LockSharedUnlessMainThread();
+        const auto* registration = Find(a_actor);
+        return registration && registration->gaitDriven ? std::optional<float>{ registration->gaitSpeed }
+                                                        : std::nullopt;
+    }
+
     std::optional<float> GetAuthoritativeSpeed(const RE::Actor* a_actor)
     {
         if (!a_actor
