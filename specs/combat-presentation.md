@@ -24,6 +24,13 @@
   attack state writers were read from the 1.7.104 executable and the vanilla
   clip annotations from `animationdatasinglefile.txt`. Linux syntax check
   only; not built on Windows or run in game.
+- **One attack per swing, and chains from the hit on the receiver**
+  (2026-10-19): with that build, a source with replaced vanilla attack clips
+  published two attacks per chained swing (`kDraw` from `kHit`, then `kSwing`
+  from `kNextAttack` about 0.75 s later), and a receiver with an MCO-style
+  graph never chained, so every attack played as the first swing of a combo
+  (`chained=false`, each held about 1.5 s). Linux syntax check only; not built
+  on Windows or run in game.
 - **Attack catch-up** (2026-10-14): the weapon speed bindings were read from
   the vanilla behavior files and the weapon speed channel layout from the
   1.7.104 executable; Linux syntax check only; not built on Windows or run in
@@ -150,6 +157,11 @@ every pass, downstream of input mapping:
   on entering `kBash` from any state, and on a change into `kSwing` from
   `kNextAttack`, `kFollowThrough`, `kBash` (the bash state accepts
   `attackStart`), or `kHit`.
+- An accepted attack event and the swing it starts are one attack. After an
+  attack starts at `kDraw`, neither `kDraw` nor `kSwing` starts another until
+  the attack state has been `kSwing`: a vanilla graph accepts the next attack
+  right after the hit and swings only after `attackWinStart` (observed in game
+  with replaced clips), so that swing belongs to the attack already captured.
 - The engine writes `kDraw` (or `kBash` for bash data) each time the graph
   accepts an attack event, while annotations only advance a swing:
   `weaponSwing`/`weaponLeftSwing` write `kSwing` from any state, `HitFrame`
@@ -217,7 +229,7 @@ known checkpoint, into a bounded FIFO (32). The front action waits until:
 - `ActorState` reports the weapon fully drawn;
 - the hands have reconciled the latest equipment revision;
 - no bow draw or cast plays, and a held or lowering block allows only `bash`;
-- the preceding attack has completed or is in its combo window.
+- the preceding attack has completed or its swing has hit.
 
 A queued action times out after 3 s, a dispatch is retried at most four times,
 and a furniture checkpoint discards the queue.
@@ -267,8 +279,18 @@ fallbacks; grounded locomotion is then reasserted.
 | `dual` | `attackStartDualWield`, falling back to `attackStart` in the same call | either hand holds something: `attackPowerStartDualWield`; both empty: `attackPowerStartH2HCombo` |
 | `bash` | `bashStart` | `bashPowerStart` |
 
-- `normal`, `left`, and `dual` chain in the playing attack's combo window. A
+- `normal`, `left`, and `dual` chain into a playing attack whose swing has hit
+  (`kHit`, `kNextAttack`, or `kFollowThrough`); the graph decides when it takes
+  the event, and a rejected chain is sent again on the next pass. A vanilla
+  graph accepts it after the hit and swings after `attackWinStart`, while
+  MCO-style graphs, whose clips have no `attackWinStart`, never report
+  `kNextAttack` or `kFollowThrough`. Only one chain waits at a time: the next
+  may follow once the attack state reaches `kSwing` (or `kDraw`) again. A
   `bash` never chains.
+- The actor's attack state changes while an attack is owned are logged
+  (`remote attack state changed`, with the chain rejections so far), and the
+  completion line counts the chains, rejections, and a chain still waiting
+  for its swing.
 - A power attack of the same hand as the playing network attack powers it up
   (`CanPowerUpAttack`) unless that is a bash or already powered. It does not wait
   for the actor's attack state, which a remote actor reports well into the swing:
@@ -653,6 +675,9 @@ To verify in game:
    power event are accepted with matching hands, including a left weapon with a
    spell in the right hand, standing and moving, chain in the combo window, and
    play the NPC variant (`poweredUpPlayingAttack=true` for power-ups).
+   A remote actor's vanilla NPC graph holds an `attackStart` sent at `kHit`
+   until `attackWinStart` instead of cutting the swing short, and an MCO-style
+   graph rejects it outside its combo window and swings when it accepts it.
 6. A power attack's attack state returns to `kNone` before the 4 s fallback, an
    actor without stamina still plays it, a power bash returns to the block, the
    forward power attack stands in acceptably for a sprinting one, and the clip's
@@ -752,5 +777,10 @@ To verify in game, for [beast actions](#beast-actions):
 - A replacer clip that swings again after a hit in a plain attack is captured
   as a chained attack, and a chained replacer swing that writes `kSwing`
   without a hit in between, with no pass seeing `kDraw`, is not captured.
+- A graph that accepts an attack event and never swings it suppresses the
+  capture of later accepted events until a swing; that swing is then captured
+  once, so one attack can be missing.
+- A receiver graph that accepts a chained event but drops it shows one swing
+  fewer; the completion line reports it as `chainPending=true`.
 - Stamina, perks, power attack slow motion, damage, and targeting are out of
   scope.

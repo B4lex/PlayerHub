@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <type_traits>
 #include <utility>
 
 namespace ActorAnimation
@@ -85,10 +86,14 @@ namespace ActorAnimation
         static_assert(!ShouldReportEventRetry(2));
         static_assert(ShouldReportEventRetry(60));
 
-        // The native attack takes attackStart as its next combo swing in these states.
+        // A swing that has hit can take attackStart as its next combo swing; the graph
+        // decides when. A source's vanilla graph accepted it right after the hit and
+        // swung after attackWinStart (observed in game), and MCO-style graphs whose clips
+        // have no attackWinStart never report kNextAttack or kFollowThrough.
         constexpr bool IsAttackChainWindow(RE::ATTACK_STATE_ENUM a_state) noexcept
         {
-            return a_state == RE::ATTACK_STATE_ENUM::kNextAttack || a_state == RE::ATTACK_STATE_ENUM::kFollowThrough;
+            return a_state == RE::ATTACK_STATE_ENUM::kHit || a_state == RE::ATTACK_STATE_ENUM::kNextAttack
+                || a_state == RE::ATTACK_STATE_ENUM::kFollowThrough;
         }
 
         constexpr bool IsWeaponTransitionAnimating(RE::WEAPON_STATE a_weaponState, bool a_weaponDrawn) noexcept
@@ -1028,6 +1033,7 @@ namespace ActorAnimation
         actorFlags.set(RE::Actor::BOOL_FLAGS::kAttackingDisabled);
         if (!accepted)
         {
+            a_remote.animation.attackChainRejections += chaining ? 1 : 0;
             return false;
         }
         if (a_attack.power)
@@ -1059,15 +1065,18 @@ namespace ActorAnimation
         a_remote.animation.attackPlaybackAction = a_attack.action;
         if (chaining)
         {
-            // The graph leaves the combo window on a later update; until then the
-            // actor state still reports it.
+            // The chained swing starts on a later update, or only after attackWinStart;
+            // until then the actor state still reports the hit or the combo window.
             a_remote.animation.attackChainDispatched = true;
+            ++a_remote.animation.attackChainCount;
             return true;
         }
         a_remote.animation.attackPlaybackPending = true;
         a_remote.animation.attackPlaybackBash = a_attack.action == Network::AttackAction::kBash;
         a_remote.animation.attackPlaybackObserved = false;
         a_remote.animation.attackChainDispatched = false;
+        a_remote.animation.attackChainCount = 0;
+        a_remote.animation.attackChainRejections = 0;
         a_remote.animation.locomotionReassertReason = nullptr;
         const auto* actorState = actorPtr->AsActorState();
         a_remote.animation.attackPlaybackObserved
@@ -1084,6 +1093,8 @@ namespace ActorAnimation
         state.attackPlaybackAction = Network::AttackAction::kNormal;
         state.attackPlaybackBash = false;
         state.attackChainDispatched = false;
+        state.attackChainCount = 0;
+        state.attackChainRejections = 0;
         state.locomotionReassertReason = nullptr;
         const auto* actorState = a_actor.AsActorState();
         state.attackPlaybackObserved = actorState && actorState->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone;
@@ -1501,7 +1512,10 @@ namespace ActorAnimation
         ResetWeaponTransition(a_state, false);
         a_state.attackPlaybackPending = false;
         a_state.attackPlaybackObserved = false;
+        a_state.attackPlaybackState = RE::ATTACK_STATE_ENUM::kNone;
         a_state.attackChainDispatched = false;
+        a_state.attackChainCount = 0;
+        a_state.attackChainRejections = 0;
         a_state.attackPlaybackPower = false;
         a_state.attackPlaybackElapsed = 0.0F;
         ResetHandPresentation(a_state);
@@ -1519,9 +1533,23 @@ namespace ActorAnimation
 
         a_state.attackPlaybackElapsed += FrameTime::Clamp(a_deltaTime);
         const auto* actorState = a_actor.AsActorState();
-        const bool attacking = actorState && actorState->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone;
+        const auto attackState = actorState ? actorState->GetAttackState() : RE::ATTACK_STATE_ENUM::kNone;
+        const bool attacking = attackState != RE::ATTACK_STATE_ENUM::kNone;
         a_state.attackPlaybackObserved = a_state.attackPlaybackObserved || attacking;
-        if (a_state.attackChainDispatched && actorState && !IsAttackChainWindow(actorState->GetAttackState()))
+        if (attackState != a_state.attackPlaybackState)
+        {
+            logs::debug(
+                "Animation sync remote attack state changed: actor={:08X} state={} previousState={} elapsed={:.3f} "
+                "chainDispatched={} chainRejections={}",
+                a_actor.GetHandle().native_handle(),
+                static_cast<std::underlying_type_t<RE::ATTACK_STATE_ENUM>>(attackState),
+                static_cast<std::underlying_type_t<RE::ATTACK_STATE_ENUM>>(a_state.attackPlaybackState),
+                a_state.attackPlaybackElapsed, a_state.attackChainDispatched, a_state.attackChainRejections);
+            a_state.attackPlaybackState = attackState;
+        }
+        // A chained swing writes kSwing on its weaponSwing annotation.
+        if (a_state.attackChainDispatched
+            && (attackState == RE::ATTACK_STATE_ENUM::kSwing || attackState == RE::ATTACK_STATE_ENUM::kDraw))
         {
             a_state.attackChainDispatched = false;
         }
@@ -1537,12 +1565,16 @@ namespace ActorAnimation
 
         logs::debug(
             "Animation sync completed attack ownership: actor={:08X} bash={} bashExited={} observedPlayback={} "
-            "elapsed={:.3f} startTimedOut={} playbackTimedOut={}",
+            "elapsed={:.3f} startTimedOut={} playbackTimedOut={} chained={} chainRejections={} chainPending={}",
             a_actor.GetHandle().native_handle(), a_state.attackPlaybackBash, bashExited, a_state.attackPlaybackObserved,
-            a_state.attackPlaybackElapsed, startTimedOut, playbackTimedOut);
+            a_state.attackPlaybackElapsed, startTimedOut, playbackTimedOut, a_state.attackChainCount,
+            a_state.attackChainRejections, a_state.attackChainDispatched);
         a_state.attackPlaybackPending = false;
         a_state.attackPlaybackObserved = false;
+        a_state.attackPlaybackState = RE::ATTACK_STATE_ENUM::kNone;
         a_state.attackChainDispatched = false;
+        a_state.attackChainCount = 0;
+        a_state.attackChainRejections = 0;
         a_state.attackPlaybackPower = false;
         a_state.attackPlaybackElapsed = 0.0F;
         // Native attacks normally return to locomotion themselves. The explicit

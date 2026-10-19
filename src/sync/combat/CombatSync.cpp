@@ -253,6 +253,7 @@ namespace CombatSync
         static bool attackWindowActive = false;
         static bool attackPowerResolved = false;
         static bool playingPowerAttack = false;
+        static bool startAwaitingSwing = false;
 
         const auto* actorState = a_local.player.AsActorState();
         const auto attackState = actorState ? actorState->GetAttackState() : RE::ATTACK_STATE_ENUM::kNone;
@@ -282,16 +283,29 @@ namespace CombatSync
                 || previousAttackState == RE::ATTACK_STATE_ENUM::kBash
                 || (previousAttackState == RE::ATTACK_STATE_ENUM::kHit && !playingPowerAttack));
         const bool bashStarted = bashing && previousAttackState != RE::ATTACK_STATE_ENUM::kBash;
-        const bool attackStarted
-            = attackActive && (!attackWindowActive || drawEntered || swingRestarted || bashStarted);
+        // An accepted event and the swing it starts are one attack. A graph can accept the
+        // next attack right after the hit and swing only after attackWinStart (observed in
+        // game with replaced vanilla clips: kDraw from kHit, then kSwing from kNextAttack
+        // about 0.75 s later), so that swing belongs to the attack captured from kDraw.
+        const bool chainedEdge = (drawEntered || swingRestarted) && !startAwaitingSwing;
+        const bool attackStarted = attackActive && (!attackWindowActive || chainedEdge || bashStarted);
         const auto priorAttackState = previousAttackState;
 
         attackWindowActive = attackActive;
         previousAttackState = attackState;
+        if (attackStarted)
+        {
+            startAwaitingSwing = attackState == RE::ATTACK_STATE_ENUM::kDraw;
+        }
+        else if (attackState == RE::ATTACK_STATE_ENUM::kSwing)
+        {
+            startAwaitingSwing = false;
+        }
         if (!attackActive)
         {
             attackPowerResolved = false;
             playingPowerAttack = false;
+            startAwaitingSwing = false;
             return std::nullopt;
         }
 

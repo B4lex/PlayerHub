@@ -84,6 +84,10 @@ namespace ActorAnimation
         Network::AttackAction attackPlaybackAction{ Network::AttackAction::kNormal };
         bool attackPlaybackPower{ false };
         bool attackChainDispatched{ false };
+        // Only reported in the attack logs.
+        RE::ATTACK_STATE_ENUM attackPlaybackState{ RE::ATTACK_STATE_ENUM::kNone };
+        std::uint32_t attackChainCount{ 0 };
+        std::uint32_t attackChainRejections{ 0 };
         bool bowDrawHeld{ false };
         bool bowReleasePending{ false };
         float bowPhaseElapsed{ 0.0F };
