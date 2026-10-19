@@ -17,23 +17,21 @@ func quietLog() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-const v2Recording = `{"type":"header","format":"playerhub-recording","version":2,"id":"20260921-101500-abc123","label":"Test capture","playerId":"player-1","playerName":"Lydia Stormblade","startedAt":"2026-09-21T10:15:00Z"}
-{"type":"message","t":0,"event":"player:appearance","payload":{"revision":1,"name":"Lydia Stormblade","level":12,"race":{"plugin":"Skyrim.esm","formId":79686},"female":true,"weight":42.5,"height":1.0,"headParts":[{"plugin":"Skyrim.esm","formId":333173,"type":1}],"hairColor":{"r":59,"g":42,"b":30},"faceDetails":null,"bodyTint":{"r":222,"g":188,"b":170},"faceMorphs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3.4028234663852886e38],"faceParts":[0,1,-1,2],"tints":[{"index":44,"type":6,"r":1,"g":2,"b":3,"alpha":0.5}],"defaultRace":{"race":{"plugin":"Skyrim.esm","formId":1},"female":true}}}
-{"type":"message","t":0,"event":"player:equipment","payload":{"revision":1,"armor":[{"plugin":"Skyrim.esm","formId":77385,"slotMask":4}],"rightHand":{"plugin":"Skyrim.esm","formId":77495,"kind":"weapon","weaponType":1},"leftHand":{"kind":"spell"},"ammo":null,"defaultOutfit":{"armor":[],"hands":[{"plugin":"Skyrim.esm","formId":2,"kind":"torch"}],"ammo":null}}}
-{"type":"message","t":0,"event":"player:enter","payload":{}}
-{"type":"message","t":50,"event":"player:update","payload":{"x":1.4,"y":2.6,"z":-3.5,"heading":3.14159,"pitch":0.1,"speed":400.2,"direction":0.5,"movementState":"running","jumping":false,"weaponDrawn":true,"bowDrawn":false,"castingLeft":false,"castingRight":false,"blocking":false,"dead":false,"mounted":false,"swimming":false,"cellId":1,"worldspaceId":60,"furniture":null,"graphEpoch":1,"sequence":1}}
-{"type":"message","t":100,"event":"player:update","payload":{"x":5,"y":2,"z":3,"heading":0,"speed":0,"direction":0,"movementState":"idle","jumping":false,"weaponDrawn":true,"cellId":1,"worldspaceId":60,"graphEpoch":1,"sequence":2}}
-{"type":"message","t":120,"event":"animation:action","payload":{"actionSequence":1,"graphEpoch":1,"checkpointSequence":2,"family":"attack","action":"dual","power":true,"direction":"left","prerequisites":{"weaponDrawn":true}}}
-{"type":"message","t":150,"event":"player:update","payload":{"x":5,"y":2,"z":3,"heading":0,"speed":0,"direction":0,"movementState":"idle","jumping":false,"weaponDrawn":false,"cellId":7,"worldspaceId":0,"furniture":{"plugin":"Skyrim.esm","formId":9},"graphEpoch":1,"sequence":3}}
+const testRecording = `{"type":"header","format":"playerhub-recording","version":4,"id":"20260921-101500-abc123","label":"Test capture","playerId":"player-1","playerName":"Lydia Stormblade","startedAt":"2026-09-21T10:15:00Z"}
+{"type":"message","t":0,"message":{"appearance":{"revision":"1","name":"Lydia Stormblade","level":12,"race":{"plugin":"Skyrim.esm","formId":79686},"female":true,"weight":42.5,"height":1,"headParts":[{"form":{"plugin":"Skyrim.esm","formId":333173},"type":1}],"hairColor":{"r":59,"g":42,"b":30},"bodyTint":{"r":222,"g":188,"b":170},"faceMorphs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3.4028235e+38],"faceParts":[0,1,-1,2],"tints":[{"index":44,"type":6,"color":{"r":1,"g":2,"b":3},"alpha":0.5}],"defaultRace":{"race":{"plugin":"Skyrim.esm","formId":1},"female":true}}}}
+{"type":"message","t":0,"message":{"equipment":{"revision":"1","armor":[{"form":{"plugin":"Skyrim.esm","formId":77385},"slotMask":4}],"rightHand":{"kind":"HAND_KIND_WEAPON","form":{"plugin":"Skyrim.esm","formId":77495},"weaponType":1},"leftHand":{"kind":"HAND_KIND_SPELL"},"defaultOutfit":{"hands":[{"kind":"HAND_KIND_TORCH","form":{"plugin":"Skyrim.esm","formId":2}}]}}}}
+{"type":"message","t":0,"message":{"enter":{}}}
+{"type":"message","t":50,"message":{"context":{"cellId":1,"worldspaceId":60,"graphEpoch":"1"}}}
+{"type":"message","t":50,"message":{"checkpoint":{"sequence":"1","x":6,"y":10,"z":-14,"heading":2048,"pitch":102,"speed":400,"direction":128,"flags":18}}}
+{"type":"message","t":100,"message":{"checkpoint":{"sequence":"2","x":20,"y":8,"z":12,"flags":16}}}
+{"type":"message","t":120,"message":{"action":{"actionSequence":"1","graphEpoch":"1","checkpointSequence":"2","action":"ATTACK_ACTION_DUAL","power":true,"direction":"POWER_DIRECTION_LEFT"}}}
+{"type":"message","t":150,"message":{"context":{"cellId":7,"graphEpoch":"1","furniture":{"plugin":"Skyrim.esm","formId":9}}}}
+{"type":"message","t":150,"message":{"checkpoint":{"sequence":"3","x":20,"y":8,"z":12}}}
 {"type":"end","t":200,"reason":"stopped"}
 `
 
-func TestConvertV2(t *testing.T) {
-	converted, err := ConvertV2([]byte(v2Recording))
-	if err != nil {
-		t.Fatal(err)
-	}
-	r, err := Parse(converted)
+func TestParse(t *testing.T) {
+	r, err := Parse([]byte(testRecording))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,60 +46,17 @@ func TestConvertV2(t *testing.T) {
 	if got := strings.Join(kinds, " "); got != want {
 		t.Fatalf("got %s\nwant %s", got, want)
 	}
-	first := r.Messages[4].Message.GetCheckpoint()
-	if first.X != 6 || first.Y != 10 || first.Z != -14 || first.Heading != 2048 || first.Pitch != 102 ||
-		first.Speed != 400 || first.Direction != 128 || first.Flags != 2|16 {
-		t.Fatalf("checkpoint quantized as %v", first)
-	}
 	if a := r.Messages[6].Message.GetAction(); a.Action != pb.AttackAction_ATTACK_ACTION_DUAL ||
 		a.Direction != pb.PowerDirection_POWER_DIRECTION_LEFT || !a.Power {
-		t.Fatalf("action converted as %v", a)
+		t.Fatalf("action parsed as %v", a)
 	}
 	if c := r.Messages[7].Message.GetContext(); c.CellId != 7 || c.Furniture.GetFormId() != 9 {
-		t.Fatalf("context converted as %v", c)
-	}
-	if e := r.Messages[1].Message.GetEquipment(); e.LeftHand.Kind != pb.HandKind_HAND_KIND_SPELL ||
-		len(e.DefaultOutfit.GetHands()) != 1 {
-		t.Fatalf("equipment converted as %v", e)
-	}
-}
-
-const v3Recording = `{"type":"header","format":"playerhub-recording","version":3,"id":"20261013-193225-f4d31e","label":"Test","playerId":"1","playerName":"Lydia","startedAt":"2026-10-13T19:32:25Z"}
-{"type":"message","t":0,"message":{"enter":{}}}
-{"type":"message","t":0,"message":{"context":{"cellId":1,"worldspaceId":60,"graphEpoch":"1"}}}
-{"type":"message","t":50,"message":{"checkpoint":{"sequence":"1","x":-100,"y":2,"z":3,"speed":400,"flags":2}}}
-{"type":"end","t":100,"reason":"stopped"}
-`
-
-func TestConvertV3(t *testing.T) {
-	converted, err := ConvertV3([]byte(v3Recording))
-	if err != nil {
-		t.Fatal(err)
-	}
-	r, err := Parse(converted)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r.Header.PlayerName != "Lydia" || len(r.Messages) != 3 || r.End == nil || r.End.TMs != 100 {
-		t.Fatalf("recording converted as %+v", r)
-	}
-	if c := r.Messages[1].Message.GetContext(); c.GetWorldspaceId() != 60 {
-		t.Fatalf("context converted as %v", c)
-	}
-	if c := r.Messages[2].Message.GetCheckpoint(); c.X != -400 || c.Y != 8 || c.Z != 12 || c.Speed != 400 || c.Flags != 2 {
-		t.Fatalf("checkpoint converted as %v", c)
-	}
-	if _, err := ConvertV3(converted); err == nil {
-		t.Fatal("converted a version 4 recording again")
+		t.Fatalf("context parsed as %v", c)
 	}
 }
 
 func TestParseToleratesATornLastLine(t *testing.T) {
-	converted, err := ConvertV2([]byte(v2Recording))
-	if err != nil {
-		t.Fatal(err)
-	}
-	lines := strings.Split(strings.TrimSpace(string(converted)), "\n")
+	lines := strings.Split(strings.TrimSpace(testRecording), "\n")
 	torn := strings.Join(lines[:len(lines)-1], "\n") + "\n" + lines[len(lines)-2][:20]
 	r, err := Parse([]byte(torn))
 	if err != nil {
@@ -118,14 +73,14 @@ func TestParseToleratesATornLastLine(t *testing.T) {
 
 func TestParseRejectsOtherVersions(t *testing.T) {
 	var recordingError *Error
-	if _, err := Parse([]byte(v2Recording)); !errors.As(err, &recordingError) || !strings.Contains(err.Error(), "convert") {
+	older := strings.Replace(testRecording, `"version":4`, `"version":3`, 1)
+	if _, err := Parse([]byte(older)); !errors.As(err, &recordingError) || !strings.Contains(err.Error(), "version 3") {
 		t.Fatalf("got %v", err)
 	}
 }
 
 func TestMarkers(t *testing.T) {
-	converted, _ := ConvertV2([]byte(v2Recording))
-	r, err := Parse(converted)
+	r, err := Parse([]byte(testRecording))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,8 +159,7 @@ func TestCaptureLifecycle(t *testing.T) {
 func TestInterruptedCaptureIsListed(t *testing.T) {
 	directory := t.TempDir()
 	store := NewStore(directory, quietLog())
-	converted, _ := ConvertV2([]byte(v2Recording))
-	unfinished := strings.Join(strings.Split(strings.TrimSpace(string(converted)), "\n")[:4], "\n") + "\n"
+	unfinished := strings.Join(strings.Split(strings.TrimSpace(testRecording), "\n")[:4], "\n") + "\n"
 	path := filepath.Join(directory, "20260921-101500-abc123.jsonl")
 	if err := os.WriteFile(path, []byte(unfinished), 0o644); err != nil {
 		t.Fatal(err)

@@ -115,7 +115,6 @@ go test ./...                             # unit and black-box WebSocket tests
 go test -race ./...
 go run ./cmd/loadgen --bots 250 --server-pid <pid>
 go run ./cmd/tradebot --kit
-go run ./cmd/convert-recordings recordings
 ```
 
 - `cmd/loadgen` gets its bots' sessions from the admin API (`--admin`,
@@ -139,9 +138,6 @@ go run ./cmd/convert-recordings recordings
   without a second player: it joins as a real client, follows the only other
   player in the world (`--target` picks one), and is driven from its console
   (`help`). See `../specs/trade.md`, Trade bot.
-- `cmd/convert-recordings` converts version 2 recordings, from the Python
-  server, and version 3 recordings, with whole-unit positions, to version 4 in
-  place and keeps each original as `<id>.v2` or `<id>.v3`.
 - `../proto/generate.sh` regenerates `internal/wire/pb` and the plugin's
   nanopb code from `../proto/`.
 
@@ -162,7 +158,7 @@ go run ./cmd/convert-recordings recordings
 | `internal/world` | Player state and ordering rules, display name lookup |
 | `internal/delivery` | Per-recipient outboxes and batch writing |
 | `internal/wire` | Hand-written encoding of hot messages, quantization, generated `pb` |
-| `internal/recording` | Format version 4, store, captures, v2 and v3 converters, timeline markers |
+| `internal/recording` | Format version 4, store, captures, timeline markers |
 | `internal/playback` | Virtual players and replay sessions |
 | `internal/loadtest` | In-server bot batches |
 | `internal/admin` | REST API, event feed, panel files |
