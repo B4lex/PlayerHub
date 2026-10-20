@@ -3,6 +3,7 @@ import { api } from "../../api/client";
 import type { Player } from "../../api/types";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
+import { ConfirmButton } from "../../components/ConfirmButton";
 import { EmptyState } from "../../components/EmptyState";
 import { PageHeader } from "../../components/PageHeader";
 import { Panel } from "../../components/Panel";
@@ -12,6 +13,7 @@ import { useTicker } from "../../lib/useTicker";
 import { useServerState } from "../../state/ServerState";
 import { useAction } from "../../state/useAction";
 import styles from "./DashboardPage.module.css";
+import { BansPanel } from "./BansPanel";
 import { ExclusionsPanel } from "./ExclusionsPanel";
 
 /** "sneakingIdle" -> "sneaking idle". */
@@ -44,8 +46,9 @@ function PlayerRow({ player }: { player: Player }) {
     <tr>
       <td>
         <div className={styles.name}>{player.name || <span className={styles.muted}>Unnamed player</span>}</div>
-        <div className={`${styles.id} mono`} title={player.id}>
+        <div className={`${styles.id} mono`} title={player.address ?? player.id}>
           {player.virtual ? player.id : shortId(player.id)}
+          {player.address !== null && ` · ${player.address}`}
         </div>
       </td>
       <td>{describeLocation(player)}</td>
@@ -94,9 +97,14 @@ function PlayerRow({ player }: { player: Player }) {
       </td>
       <td>
         {!player.virtual && (
-          <Button size="sm" variant="ghost" busy={busy} onClick={() => run(() => api.players.setHidden(player.id, !player.hidden))}>
-            {player.hidden ? "Show" : "Hide"}
-          </Button>
+          <div className={styles.actions}>
+            <Button size="sm" variant="ghost" busy={busy} onClick={() => run(() => api.players.setHidden(player.id, !player.hidden))}>
+              {player.hidden ? "Show" : "Hide"}
+            </Button>
+            <ConfirmButton size="sm" variant="ghost" busy={busy} confirmLabel="Kick?" onConfirm={() => run(() => api.players.kick(player.id))}>
+              Kick
+            </ConfirmButton>
+          </div>
         )}
       </td>
     </tr>
@@ -189,6 +197,10 @@ export function DashboardPage() {
 
       <div className={styles.section}>
         <ExclusionsPanel />
+      </div>
+
+      <div className={styles.section}>
+        <BansPanel />
       </div>
     </>
   );

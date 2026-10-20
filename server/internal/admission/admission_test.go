@@ -48,7 +48,7 @@ func TestPendingHellosPerAddressAreCapped(t *testing.T) {
 	}
 	g.EndHello(flooding)
 	g.EndHello(flooding)
-	if _, kept := g.pendingByAddress[addressKey(flooding)]; kept {
+	if _, kept := g.pendingByAddress[AddressKey(flooding)]; kept {
 		t.Fatal("an address without pending hellos is kept")
 	}
 	unlimited := NewGate(Limits{MaxPendingHellos: 8})

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/netip"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -17,9 +18,10 @@ import (
 var (
 	ErrDisplayNameTaken = errors.New("display name taken")
 	ErrIssueRefused     = errors.New("too many new sessions")
+	ErrBanned           = errors.New("banned")
 )
 
-const schemaVersion = 2
+const schemaVersion = 3
 
 const schema = `
 CREATE TABLE sessions (
@@ -33,16 +35,41 @@ CREATE TABLE sessions (
 	resumed INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX sessions_last_used_at ON sessions (last_used_at);
+` + bansSchema
+
+const bansSchema = `
+CREATE TABLE bans (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	session_id INTEGER NOT NULL,
+	display_name TEXT NOT NULL,
+	-- A network prefix, or NULL when the ban leaves the address open.
+	address TEXT,
+	created_at INTEGER NOT NULL
+);
+CREATE INDEX bans_session_id ON bans (session_id);
+CREATE INDEX bans_address ON bans (address);
 `
 
 const upgradeFromVersion1 = `
 ALTER TABLE sessions RENAME COLUMN nickname TO display_name;
 ALTER TABLE sessions RENAME COLUMN nickname_key TO display_name_key;
-`
+` + bansSchema
+
+// Banned sessions never expire, so their token keeps matching the ban.
+const unbanned = `id NOT IN (SELECT session_id FROM bans)`
 
 type Session struct {
 	ID          uint64
 	DisplayName string
+}
+
+type Ban struct {
+	ID          uint64
+	Session     uint64
+	DisplayName string
+	// Zero when the ban leaves the address open.
+	Address   netip.Prefix
+	CreatedAt time.Time
 }
 
 type Store struct {
@@ -85,6 +112,8 @@ func (s *Store) migrate() error {
 		statements = schema
 	case 1:
 		statements = upgradeFromVersion1
+	case 2:
+		statements = bansSchema
 	default:
 		return fmt.Errorf("session database has schema %d, this server knows %d", version, schemaVersion)
 	}
@@ -107,8 +136,12 @@ func (s *Store) Authenticate(token []byte, displayName string, now time.Time, ma
 		if len(token) != 0 {
 			hash := sha256.Sum256(token)
 			var current string
-			err := tx.QueryRow(`SELECT id, display_name FROM sessions WHERE token_hash = ?`, hash[:]).Scan(&session.ID, &current)
+			var banned bool
+			err := tx.QueryRow(`SELECT id, display_name, NOT (`+unbanned+`) FROM sessions WHERE token_hash = ?`, hash[:]).
+				Scan(&session.ID, &current, &banned)
 			switch {
+			case err == nil && banned:
+				return ErrBanned
 			case err == nil:
 				session.DisplayName = displayName
 				if current != displayName {
@@ -150,7 +183,7 @@ func (s *Store) Authenticate(token []byte, displayName string, now time.Time, ma
 }
 
 func (s *Store) Abandon(id uint64) (bool, error) {
-	result, err := s.db.Exec(`DELETE FROM sessions WHERE id = ? AND resumed = 0`, id)
+	result, err := s.db.Exec(`DELETE FROM sessions WHERE id = ? AND resumed = 0 AND `+unbanned, id)
 	if err != nil {
 		return false, err
 	}
@@ -175,7 +208,7 @@ func (s *Store) Touch(ids []uint64, now time.Time) error {
 func (s *Store) Purge(now time.Time) (int64, error) {
 	var purged int64
 	err := s.transact(func(tx *sql.Tx) error {
-		result, err := tx.Exec(`DELETE FROM sessions WHERE last_used_at < ?`, s.cutoff(now))
+		result, err := tx.Exec(`DELETE FROM sessions WHERE last_used_at < ? AND `+unbanned, s.cutoff(now))
 		if err != nil {
 			return err
 		}
@@ -190,8 +223,75 @@ func (s *Store) cutoff(now time.Time) int64 {
 }
 
 func (s *Store) purge(tx *sql.Tx, now time.Time) error {
-	_, err := tx.Exec(`DELETE FROM sessions WHERE last_used_at < ?`, s.cutoff(now))
+	_, err := tx.Exec(`DELETE FROM sessions WHERE last_used_at < ? AND `+unbanned, s.cutoff(now))
 	return err
+}
+
+func (s *Store) Ban(ban Ban) (Ban, error) {
+	var address any
+	if ban.Address.IsValid() {
+		address = ban.Address.String()
+	}
+	result, err := s.db.Exec(`INSERT INTO bans (session_id, display_name, address, created_at) VALUES (?, ?, ?, ?)`,
+		ban.Session, ban.DisplayName, address, ban.CreatedAt.Unix())
+	if err != nil {
+		return Ban{}, err
+	}
+	id, err := result.LastInsertId()
+	ban.ID = uint64(id)
+	ban.CreatedAt = time.Unix(ban.CreatedAt.Unix(), 0)
+	return ban, err
+}
+
+func (s *Store) Bans() ([]Ban, error) {
+	rows, err := s.db.Query(`SELECT id, session_id, display_name, address, created_at FROM bans ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var bans []Ban
+	for rows.Next() {
+		var ban Ban
+		var address sql.NullString
+		var createdAt int64
+		if err := rows.Scan(&ban.ID, &ban.Session, &ban.DisplayName, &address, &createdAt); err != nil {
+			return nil, err
+		}
+		if address.Valid {
+			if ban.Address, err = netip.ParsePrefix(address.String); err != nil {
+				return nil, fmt.Errorf("ban %d: %w", ban.ID, err)
+			}
+		}
+		ban.CreatedAt = time.Unix(createdAt, 0)
+		bans = append(bans, ban)
+	}
+	return bans, rows.Err()
+}
+
+// Lift restarts the session's lifetime, which the ban held, so a player away for longer
+// than it can still resume.
+func (s *Store) Lift(id uint64, now time.Time) (bool, error) {
+	lifted := false
+	err := s.transact(func(tx *sql.Tx) error {
+		var session uint64
+		err := tx.QueryRow(`DELETE FROM bans WHERE id = ? RETURNING session_id`, id).Scan(&session)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil
+		case err != nil:
+			return err
+		}
+		lifted = true
+		_, err = tx.Exec(`UPDATE sessions SET last_used_at = MAX(last_used_at, ?) WHERE id = ?`, now.Unix(), session)
+		return err
+	})
+	return lifted, err
+}
+
+func (s *Store) AddressBanned(address netip.Prefix) (bool, error) {
+	var banned bool
+	err := s.db.QueryRow(`SELECT EXISTS (SELECT 1 FROM bans WHERE address = ?)`, address.String()).Scan(&banned)
+	return banned, err
 }
 
 func (s *Store) transact(f func(*sql.Tx) error) error {

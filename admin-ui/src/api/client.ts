@@ -1,4 +1,5 @@
 import type {
+  Ban,
   Batch,
   CreateBatchRequest,
   Exclusion,
@@ -62,6 +63,13 @@ export const api = {
     /** Hide a player from everyone else, or show it again. */
     setHidden: (id: string, hidden: boolean) =>
       request<{ hidden: boolean }>("PUT", `/api/players/${enc(id)}/hidden`, { hidden }),
+    /** Disconnect a player, whose game then waits for them to connect again. */
+    kick: (id: string) => request<void>("POST", `/api/players/${enc(id)}/kick`),
+    /** Disconnect a player and refuse their session, and with `address` everyone from their address. */
+    ban: (id: string, address: boolean) => request<Ban>("POST", `/api/players/${enc(id)}/ban`, { address }),
+  },
+  bans: {
+    lift: (id: string) => request<void>("DELETE", `/api/bans/${enc(id)}`),
   },
   exclusions: {
     /** The viewer stops receiving the target. */

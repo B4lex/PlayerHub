@@ -54,6 +54,12 @@
   gap: 0.4rem;
 }
 
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
 .exclusionForm {
   display: flex;
   flex-wrap: wrap;
@@ -99,4 +105,22 @@
 
 .section {
   margin-top: 1.5rem;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.check input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.check input:disabled + span {
+  opacity: 0.6;
 }

@@ -39,6 +39,8 @@ namespace Network
         constexpr std::uint16_t kServerFullCloseCode = 4007;
         constexpr std::uint16_t kTooManyNewSessionsCloseCode = 4008;
         constexpr std::uint16_t kAddressFullCloseCode = 4009;
+        constexpr std::uint16_t kBannedCloseCode = 4010;
+        constexpr std::uint16_t kKickedCloseCode = 4011;
         constexpr int kHandshakeTimeoutSeconds = 10;
 
         std::atomic_bool connected{ false };
@@ -199,6 +201,10 @@ namespace Network
                     return Refusal{ RefusalReason::kTooManyNewSessions };
                 case kAddressFullCloseCode:
                     return Refusal{ RefusalReason::kAddressFull };
+                case kBannedCloseCode:
+                    return Refusal{ RefusalReason::kBanned };
+                case kKickedCloseCode:
+                    return Refusal{ RefusalReason::kKicked };
                 default:
                     return std::nullopt;
             }

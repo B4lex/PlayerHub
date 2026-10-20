@@ -14,7 +14,9 @@ namespace Network
         kSessionReplaced,
         kServerFull,
         kTooManyNewSessions,
-        kAddressFull
+        kAddressFull,
+        kBanned,
+        kKicked
     };
 
     struct Refusal
@@ -42,6 +44,10 @@ namespace Network
                 return "too many new sessions";
             case RefusalReason::kAddressFull:
                 return "too many players from address";
+            case RefusalReason::kBanned:
+                return "banned";
+            case RefusalReason::kKicked:
+                return "kicked";
         }
         return "unknown";
     }

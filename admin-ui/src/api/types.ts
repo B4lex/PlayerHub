@@ -16,6 +16,8 @@ export interface Position {
 export interface Player {
   id: string;
   name: string;
+  /** The address a connected player joined from, after trusted proxies; null for virtual players. */
+  address: string | null;
   virtual: boolean;
   /** Placed in the game world, not in the main menu or a loading screen. */
   inWorld: boolean;
@@ -121,6 +123,17 @@ export interface Exclusion {
   targetId: string;
 }
 
+/** Refuses a session, and the address it was banned from if one is given, until lifted. */
+export interface Ban {
+  id: string;
+  sessionId: string;
+  /** The session's display name when it was banned. */
+  displayName: string;
+  /** An IPv4 address or an IPv6 /64; null when only the session is banned. */
+  address: string | null;
+  createdAtMs: number;
+}
+
 export interface AdminState {
   server: ServerInfo;
   players: Player[];
@@ -128,6 +141,7 @@ export interface AdminState {
   playbacks: Playback[];
   batches: Batch[];
   exclusions: Exclusion[];
+  bans: Ban[];
 }
 
 export interface Marker {

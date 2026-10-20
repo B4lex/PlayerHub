@@ -685,6 +685,10 @@ msgctxt "RefusalAddressFull"
 msgid "Too many players from your IP address are connected to this server."
 msgstr "С вашего IP-адреса к этому серверу подключено слишком много игроков."
 
+msgctxt "RefusalBanned"
+msgid "You are banned from this server."
+msgstr "Вы заблокированы на этом сервере."
+
 msgctxt "StatusPing"
 msgid "Ping"
 msgstr "Пинг"
@@ -700,6 +704,10 @@ msgstr "Подключено к серверу"
 msgctxt "NoticeRefusedAddressFull"
 msgid "Not connected: too many players from your IP address are on this server"
 msgstr "Нет подключения: с вашего IP-адреса на этом сервере слишком много игроков"
+
+msgctxt "NoticeKicked"
+msgid "You have been kicked from the server"
+msgstr "Вас выгнали с сервера"
 
 #. {} is a player's name
 #, c++-format

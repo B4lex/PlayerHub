@@ -17,6 +17,7 @@ import (
 	"playerhub/server/internal/loadtest"
 	"playerhub/server/internal/playback"
 	"playerhub/server/internal/recording"
+	"playerhub/server/internal/session"
 	"playerhub/server/internal/validate"
 	"playerhub/server/internal/wire/pb"
 )
@@ -53,6 +54,31 @@ func (c *Context) Routes(mux *http.ServeMux) {
 
 	mux.HandleFunc("POST /api/sessions", c.issueSession)
 	mux.HandleFunc("PUT /api/players/{id}/hidden", c.setHidden)
+	mux.HandleFunc("POST /api/players/{id}/kick", func(w http.ResponseWriter, r *http.Request) {
+		slot, err := strconv.ParseUint(r.PathValue("id"), 10, 32)
+		if err != nil || !c.Connections.Kick(uint32(slot)) {
+			fail(w, http.StatusNotFound, "player is not connected")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("POST /api/players/{id}/ban", c.ban)
+	mux.HandleFunc("DELETE /api/bans/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
+		lifted := false
+		if err == nil {
+			if lifted, err = c.Sessions.Lift(id, time.Now()); err != nil {
+				fail(w, http.StatusInternalServerError, "session store failed: "+err.Error())
+				return
+			}
+		}
+		if !lifted {
+			fail(w, http.StatusNotFound, "no ban "+r.PathValue("id"))
+			return
+		}
+		c.OnChange()
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("POST /api/exclusions", func(w http.ResponseWriter, r *http.Request) { c.setExcluded(w, r, true) })
 	mux.HandleFunc("DELETE /api/exclusions", func(w http.ResponseWriter, r *http.Request) { c.setExcluded(w, r, false) })
 
@@ -202,6 +228,9 @@ func (c *Context) issueSession(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, auth.ErrDisplayNameTaken):
 		fail(w, http.StatusConflict, "display name taken")
 		return
+	case errors.Is(err, auth.ErrBanned):
+		fail(w, http.StatusForbidden, "session is banned")
+		return
 	case err != nil:
 		fail(w, http.StatusInternalServerError, "session store failed: "+err.Error())
 		return
@@ -215,6 +244,37 @@ func (c *Context) issueSession(w http.ResponseWriter, r *http.Request) {
 		DisplayName string `json:"displayName"`
 		Token       []byte `json:"token"`
 	}{strconv.FormatUint(session.ID, 10), session.DisplayName, token})
+}
+
+func (c *Context) ban(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Address *bool `json:"address"`
+	}
+	if err := decode(r, &request); err != nil {
+		invalid(w, err)
+		return
+	}
+	if request.Address == nil {
+		invalid(w, errInvalid("expected {\"address\": true|false}"))
+		return
+	}
+	slot, err := strconv.ParseUint(r.PathValue("id"), 10, 32)
+	if err != nil {
+		fail(w, http.StatusNotFound, "player is not connected")
+		return
+	}
+	ban, err := c.Connections.Ban(uint32(slot), *request.Address, time.Now())
+	switch {
+	case errors.Is(err, session.ErrNotConnected):
+		fail(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, session.ErrAddressNotBannable):
+		fail(w, http.StatusUnprocessableEntity, err.Error())
+	case err != nil:
+		fail(w, http.StatusInternalServerError, "session store failed: "+err.Error())
+	default:
+		c.OnChange()
+		reply(w, http.StatusCreated, banView(ban))
+	}
 }
 
 func (c *Context) setHidden(w http.ResponseWriter, r *http.Request) {

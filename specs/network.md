@@ -30,6 +30,16 @@
   where every coordinate costs one byte more: 31.6 against 30.3 bytes per
   relayed entry at the same entry rate); plugin Linux syntax check only, not
   built on Windows or run in game.
+- **Kicks and bans** (2026-10-19): `go test -race` covers the store
+  (`internal/auth`: a banned session refused, kept past its lifetime and by
+  `Abandon`, its display name held, lifting restarting its lifetime, address
+  bans by prefix, version 1 and 2 databases taking bans), black-box
+  connections (`internal/session`: 4011 on a kick and the session resuming
+  after it, 4010 for the banned connection, its token, and every connection
+  from a banned IPv6 /64 while another /64 stays, 4010 ahead of 4007 on a full
+  server, a loopback address ban refused, a lifted ban resuming), and the admin
+  routes (`internal/admin`). The plugin's 4010 and 4011 refusals passed the
+  Linux syntax check only; not built on Windows or run in game.
 - **Form references:** plugin taken from the FormID's compile index
   (`FormLookup::GetDefiningFile`); not built on Windows or run in game. The
   `Update.esm|0DDFB3` misreport it fixes was seen in `PlayerHub.log`.
@@ -503,8 +513,8 @@ Goal: every connection belongs to a player the server can recognize again. A
 session is that identity on one server: a public ID that later interactions
 between players can refer to whatever the player is called, a secret only the
 player's client holds, and a display name no other session has. Non-goals:
-accounts, passwords, recovering a lost session, roles, bans, and protecting
-the admin API.
+accounts, passwords, recovering a lost session, roles, and protecting the
+admin API. Bans are in [Kicks and bans](#kicks-and-bans).
 
 | Part | |
 | --- | --- |
@@ -516,13 +526,14 @@ the admin API.
 - `auth.Store` keeps sessions in SQLite (`modernc.org/sqlite`, pure Go, pinned
   to the newest release that builds with Go 1.24) at `sessions.database`
   (`sessions.db`; empty keeps them in memory, for tests), with a write-ahead
-  log and `user_version` 2. A version 1 database, whose columns are named
+  log and `user_version` 3. A version 1 database, whose columns are named
   `nickname` and `nickname_key`, has them renamed when opened and keeps its
-  sessions. Its one connection serializes transactions, which
+  sessions; versions 1 and 2 get the `bans` table. Its one connection serializes transactions, which
   the display name checks rely on. Store calls run on a connection's goroutine,
   never on the hub's.
 - A session lives `sessions.lifetime_days` (30) after its last use, so one that
-  keeps connecting never expires and none expires while connected. Expired
+  keeps connecting never expires and none expires while connected. A banned
+  session never expires ([Kicks and bans](#kicks-and-bans)). Expired
   sessions are deleted before every display name comparison and hourly, which
   frees their display names; their tokens then match nothing.
 - The hello's `session_token` is empty or 32 bytes, else the connection is
@@ -557,7 +568,8 @@ the admin API.
   resume-or-issue on `admin_listen`, without the allowance, for
   `cmd/loadgen` ([Load testing](recording-and-replay.md#load-testing)).
   `token` is base64 JSON, empty or 32 bytes, and `displayName` passes
-  `validate.DisplayName`, else 422; a held display name answers 409. It
+  `validate.DisplayName`, else 422; a held display name answers 409, and a
+  banned session 403. It
   answers `{sessionId, displayName, token}`, 201 with a new token or 200 with
   the resumed one. A session issued there that never connects is not deleted
   by `Store.Abandon`; it expires.
@@ -624,6 +636,46 @@ in-server bots do not pass through it and do not count.
 - Upgrades refused for either hello cap are logged as a throttled summary
   (`refused connections`, with the cap as its reason), since a flood would
   repeat them.
+
+### Kicks and bans
+
+Goal: an admin can remove a connected player from the server, and keep one
+out. Both act from the admin API
+([Recording and replay](recording-and-replay.md#admin-api)); replays and
+in-server bots have no connection and cannot be kicked or banned. Non-goals:
+timed bans (a ban lasts until lifted, the user's choice), a reason the player
+sees (the user chose fixed texts, so no admin text reaches clients: a notice
+for a kick and a connection controls sentence for a ban,
+[UI overlay](ui-overlay.md#notices)),
+banning a player who is not connected, and stopping a player who changes both
+session and address.
+
+- `session.Server.Kick` closes the player's connection with 4011 `kicked`.
+  The plugin takes it as a refusal, so the game stays disconnected until the
+  player presses Connect ([Connection](#connection)); the session is kept
+  and may connect again at once.
+- `session.Server.Ban` stores a ban and closes the connection with 4010
+  `banned`. A ban always holds the session; the admin chooses per ban whether
+  it also holds the address the player connected from, keyed like the
+  admission caps (an IPv4 address or an IPv6 /64). An address ban also
+  closes every other connection from that address with 4010.
+- An address ban is refused (`session.ErrAddressNotBannable`) when the
+  address is loopback, unspecified, or inside `trusted_proxies`: that is a
+  proxy's address, which every player behind it shares when the proxy is not
+  trusted or forwards no address.
+- A hello from a banned address is closed with 4010 as soon as it is read,
+  before the admission checks, so a banned player learns of the ban on a full
+  server too. A hello whose token resumes a banned session is closed with
+  4010 by `Store.Authenticate` (`auth.ErrBanned`), before any rename. A
+  session-only ban leaves the address free to issue a new session within its
+  allowance.
+- `auth.Store` keeps bans in the `bans` table: `session_id`, the
+  `display_name` it was banned under, `address` as a prefix or NULL, and
+  `created_at`. A banned session never expires and `Store.Abandon` keeps it,
+  so its token keeps matching the ban and its display name stays held.
+  `Store.Lift` deletes a ban and restarts its session's lifetime from then.
+- The server logs `player kicked` and `player banned` with the session and
+  display name, and the ban's ID and address.
 
 ### Chat
 
@@ -986,7 +1038,7 @@ client.
   once welcomed, `kConnecting` while one is wanted but not welcomed,
   `kDisconnecting` while none is wanted but the socket is open, and
   `kDisconnected` otherwise.
-- A close with status 4001 or 4004 through 4009 is a refusal:
+- A close with status 4001 or 4004 through 4011 is a refusal:
   retrying at once cannot help, so the monitor disables the player's choice and closes the client,
   which leaves `kDisconnected`. `Network::GetConnectionRefusal` returns its
   `Refusal{reason, detail}`, where `detail` is the server's protocol version

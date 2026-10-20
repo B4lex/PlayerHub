@@ -2,6 +2,9 @@
 
 ## Status
 
+- **Kick and ban refusals** (2026-10-20): the kick notice and the ban
+  sentence passed the syntax check and `generate.lua` only; not built on
+  Windows or run in game.
 - **Vanilla intro hold** in the display name hint and the connection
   controls (2026-10-18): syntax check only, see
   [Network](network.md#status).
@@ -1564,12 +1567,16 @@ action on a notice. What answers the chat's own input is a
   are announced too, and the notice does not name the server: both the
   user's choices. A generation that ended before the stack saw it is not
   announced.
-- `NoticeStack` also announces a `kAddressFull` refusal
-  ([Network](network.md#admission)) when `Network::GetConnectionRefusal`
-  starts returning it, since that refusal can come from a connection the
-  player did not start, with the settings window closed. Like every refusal it
-  waits for Connect ([Connection controls](#connection-controls)); both are
-  the user's choices. Other refusals are not announced. A refusal cleared
+- `NoticeStack` also announces a `kAddressFull`
+  ([Network](network.md#admission)) or `kKicked`
+  ([Network](network.md#kicks-and-bans)) refusal when
+  `Network::GetConnectionRefusal` starts returning it (`GetRefusalNotice`),
+  since these can end a connection the player did not start, with the
+  settings window closed. Like every refusal they wait for Connect
+  ([Connection controls](#connection-controls)); both are the user's
+  choices, and the kick notice names no reason. Other refusals, `kBanned`
+  included, are not announced: the user chose to tell a banned player only
+  in the connection controls, and a kicked player only by the notice. A refusal cleared
   and set again between two frames the stack draws is announced once.
   Every notice is its own toast, a repeat too: the user chose not to merge
   them into one with a count.
@@ -2747,7 +2754,8 @@ do not move when a message appears:
 | Condition | Line |
 | --- | --- |
 | The field's text is not a display name ([Network](network.md#sessions)); the field's filter leaves being shorter than `kMinimumDisplayNameLength` as the only way | how many characters a name needs at least, red |
-| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`, `kAddressFull`) | a sentence for the reason of `Network::GetConnectionRefusal` (`FormatRefusal`), with the server's protocol version for `kProtocolMismatch`, red, until the button connects again |
+| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`, `kAddressFull`, `kBanned`) | a sentence for the reason of `Network::GetConnectionRefusal` (`FormatRefusal`), with the server's protocol version for `kProtocolMismatch`, red, until the button connects again |
+| Disconnected by a kick (`kKicked`) | no sentence; the [notice](#notices) told the player |
 
 A divider in the separator color (`DrawConnectionDivider`) follows the line
 and parts the bar from the rows below. The gap below it equals the gap from

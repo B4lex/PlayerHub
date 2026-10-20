@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -23,8 +24,10 @@ import (
 )
 
 type testServer struct {
-	url  string
-	stop func()
+	url    string
+	stop   func()
+	server *Server
+	store  *auth.Store
 }
 
 func startServer(t *testing.T, c config.Config) *testServer {
@@ -37,14 +40,15 @@ func startServer(t *testing.T, c config.Config) *testServer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewServer(NewServer(loop, store, c, log))
+	sessions := NewServer(loop, store, c, log)
+	server := httptest.NewServer(sessions)
 	t.Cleanup(func() {
 		server.CloseClientConnections()
 		server.Close()
 		cancel()
 		store.Close()
 	})
-	return &testServer{url: "ws" + strings.TrimPrefix(server.URL, "http")}
+	return &testServer{url: "ws" + strings.TrimPrefix(server.URL, "http"), server: sessions, store: store}
 }
 
 type client struct {
@@ -661,5 +665,118 @@ func TestPendingHellosPerAddressAreCapped(t *testing.T) {
 	again.send(hello("Aela", nil))
 	if again.receive().GetWelcome() == nil {
 		t.Fatal("a finished hello did not free its address's place")
+	}
+}
+
+func TestKickedPlayerIsClosed(t *testing.T) {
+	s := startServer(t, config.Default())
+	kicked, welcome := resume(t, s, "Lydia", nil)
+	watcher, _ := join(t, s, "Serana")
+	place(watcher, 0)
+	place(kicked, 10)
+	watcher.receive()
+
+	if s.server.Kick(999) {
+		t.Fatal("kicked a slot nobody holds")
+	}
+	if !s.server.Kick(welcome.GetSlot()) {
+		t.Fatal("kick found no player")
+	}
+	if code, reason := closeStatus(t, kicked); code != StatusKicked || reason != "kicked" {
+		t.Fatalf("got %d %q", code, reason)
+	}
+	if leave := watcher.receive().GetPeerLeave(); leave.GetReason() != pb.LeaveReason_LEAVE_REASON_DISCONNECTED {
+		t.Fatalf("got %v", leave)
+	}
+	resume(t, s, "Lydia", welcome.GetSessionToken())
+}
+
+func TestBannedSessionIsRefusedUntilLifted(t *testing.T) {
+	s := startServer(t, config.Default())
+	banned, welcome := resume(t, s, "Lydia", nil)
+	if _, err := s.server.Ban(999, false, time.Now()); !errors.Is(err, ErrNotConnected) {
+		t.Fatalf("banned a slot nobody holds: %v", err)
+	}
+	// The test connects from loopback, which a proxy without trusted_proxies would share.
+	if _, err := s.server.Ban(welcome.GetSlot(), true, time.Now()); !errors.Is(err, ErrAddressNotBannable) {
+		t.Fatalf("banned a loopback address: %v", err)
+	}
+	ban, err := s.server.Ban(welcome.GetSlot(), false, time.Now())
+	if err != nil || ban.Session != welcome.GetSessionId() || ban.DisplayName != "Lydia" || ban.Address.IsValid() {
+		t.Fatalf("ban %+v %v", ban, err)
+	}
+	if code, reason := closeStatus(t, banned); code != StatusBanned || reason != "banned" {
+		t.Fatalf("got %d %q", code, reason)
+	}
+	if code, reason := refused(t, s, "Lydia", welcome.GetSessionToken()); code != StatusBanned || reason != "banned" {
+		t.Fatalf("resume got %d %q", code, reason)
+	}
+	if code, _ := refused(t, s, "lydia", nil); code != StatusDisplayNameTaken {
+		t.Fatalf("the banned session's display name was given away: %d", code)
+	}
+	join(t, s, "Serana")
+
+	if lifted, err := s.store.Lift(ban.ID, time.Now()); !lifted || err != nil {
+		t.Fatalf("lift: %v %v", lifted, err)
+	}
+	resume(t, s, "Lydia", welcome.GetSessionToken())
+}
+
+func TestBannedAddressIsRefused(t *testing.T) {
+	c := config.Default()
+	c.TrustedProxies = []string{"127.0.0.0/8", "::1"}
+	s := startServer(t, c)
+	joinFrom := func(address, displayName string, token []byte) *client {
+		c := dialWith(t, s, http.Header{"X-Forwarded-For": {address}})
+		c.send(hello(displayName, token))
+		return c
+	}
+	welcome := func(c *client) *pb.Welcome {
+		t.Helper()
+		m := c.receive()
+		if m.GetWelcome() == nil {
+			t.Fatalf("got %v", m)
+		}
+		return m.GetWelcome()
+	}
+	banned := joinFrom("2001:db8:1:2::1", "Lydia", nil)
+	lydia := welcome(banned)
+	housemate := joinFrom("2001:db8:1:2::9", "Serana", nil)
+	welcome(housemate)
+	neighbour := joinFrom("2001:db8:1:3::1", "Aela", nil)
+	welcome(neighbour)
+
+	ban, err := s.server.Ban(lydia.GetSlot(), true, time.Now())
+	if err != nil || ban.Address.String() != "2001:db8:1:2::/64" {
+		t.Fatalf("ban %+v %v", ban, err)
+	}
+	for _, closed := range []*client{banned, housemate} {
+		if code, _ := closeStatus(t, closed); code != StatusBanned {
+			t.Fatalf("got %d", code)
+		}
+	}
+	if code, reason := closeStatus(t, joinFrom("2001:db8:1:2::5", "Ulfric", nil)); code != StatusBanned || reason != "banned" {
+		t.Fatalf("got %d %q", code, reason)
+	}
+	neighbour.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 7}}})
+	if result := neighbour.receive().GetResult(); result.GetRequestId() != 7 {
+		t.Fatalf("the neighbour on another /64 got %v", result)
+	}
+}
+
+func TestBannedAddressLearnsOfTheBanOnAFullServer(t *testing.T) {
+	c := config.Default()
+	c.TrustedProxies = []string{"127.0.0.0/8", "::1"}
+	c.Limits.MaxPlayers = 1
+	s := startServer(t, c)
+	if _, err := s.store.Ban(auth.Ban{Session: 999, DisplayName: "Lydia", Address: netip.MustParsePrefix("203.0.113.1/32"),
+		CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	join(t, s, "Serana")
+	refusedFrom := dialWith(t, s, http.Header{"X-Forwarded-For": {"203.0.113.1"}})
+	refusedFrom.send(hello("Aela", nil))
+	if code, _ := closeStatus(t, refusedFrom); code != StatusBanned {
+		t.Fatalf("got %d", code)
 	}
 }

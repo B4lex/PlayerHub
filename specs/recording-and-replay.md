@@ -21,9 +21,12 @@ Implemented in Go and verified on Linux:
   with the taken name, and an unreachable `--admin` with the connection
   error. With `--admin ""`, 5 of 8 bots got sessions and 3 were refused with
   4008.
-- `npm run typecheck`, `npm test`, and `npm run build` in `server/admin-ui`,
+- `npm run typecheck`, `npm test`, and `npm run build` in `admin-ui/`,
   and the built panel loaded in headless Chromium against the Go server, live
-  over the event feed, with no console errors.
+  over the event feed, with no console errors. The Kick button and Bans panel
+  (2026-10-19) were rendered in headless Chromium against a server on port
+  3101 with two loadgen bots and a ban, but not clicked; kick, both ban
+  kinds, and the loopback refusal were driven with `curl`.
 
 Not verified: how a replayed player looks in game in every case (see
 [Engine assumptions](#engine-assumptions)).
@@ -46,7 +49,7 @@ bots as real WebSocket clients out of process.
 | `internal/loadtest` | `PlanBots`, in-server `Batch`es and their `Manager` |
 | `internal/admin` | REST routes under `/api`, the `/api/events` feed, panel files |
 | `cmd/loadgen` | Networked bots, latency and throughput measurement |
-| `server/admin-ui/` | React and TypeScript panel: Dashboard, Replay management, Load testing |
+| `admin-ui/` | React and TypeScript panel: Dashboard, Replay management, Load testing |
 
 ## Recordings
 
@@ -214,7 +217,18 @@ a command's response and a push that crossed it. Bots are not listed in
 virtual players in the order their playbacks started, so rows keep their place
 across pushes. Each player shows `visible`, the number of peers it receives, and the
 interest controls and rates described in
-[Interest and delivery](interest-and-delivery.md#admin-controls).
+[Interest and delivery](interest-and-delivery.md#admin-controls). A connected
+player also shows its `address`, after `trusted_proxies`.
+
+The Dashboard kicks a connected player from its row and bans one from the
+Bans panel, which chooses whether the ban holds the player's address and lists
+every ban, from the snapshot's `bans`, with a control that lifts it
+([Kicks and bans](network.md#kicks-and-bans)). Kick and ban ask for a second
+click (`ConfirmButton`). `POST /api/players/{id}/kick` answers 204;
+`POST /api/players/{id}/ban` `{address}` requires the boolean and answers 201
+with the ban, 404 for a player that is not connected, and 422 for an address
+that cannot be banned; `DELETE /api/bans/{id}` answers 204 or 404. A ban's
+`address` is the banned IPv4 address or IPv6 /64, or null.
 
 ## Engine assumptions
 
@@ -230,7 +244,8 @@ Not checked in game:
 ## Known limitations
 
 - The admin API has no authentication: it deletes recordings, spawns
-  virtual players, and issues sessions past the per-address allowance, so
+  virtual players, kicks and bans players, and issues sessions past the
+  per-address allowance, so
   `admin_listen` must not face the Internet, and every program and device that
   reaches it is trusted. The [request guard](#admin-api) stops only web pages,
   and browsers without fetch metadata (Safari before 16.4, Firefox before 90)

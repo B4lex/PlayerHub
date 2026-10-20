@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,6 +35,19 @@ namespace UI
         constexpr float kMaximumWidthFonts = 22.0F;
         constexpr float kGapFonts = 0.375F;
         constexpr float kStripFonts = 0.2F;
+
+        std::optional<Text::Id> GetRefusalNotice(Network::RefusalReason a_reason)
+        {
+            switch (a_reason)
+            {
+                case Network::RefusalReason::kAddressFull:
+                    return Text::Id::kNoticeRefusedAddressFull;
+                case Network::RefusalReason::kKicked:
+                    return Text::Id::kNoticeKicked;
+                default:
+                    return std::nullopt;
+            }
+        }
 
         struct Toast
         {
@@ -85,12 +99,15 @@ namespace UI
 
                 // The refusal stays until the player connects again, so only its arrival is announced.
                 const auto refusal = Network::GetConnectionRefusal();
-                const bool addressFull = refusal && refusal->reason == Network::RefusalReason::kAddressFull;
-                if (addressFull && !refusedAddressFull)
+                const auto reason = refusal ? std::optional{ refusal->reason } : std::nullopt;
+                if (reason && reason != announcedRefusal)
                 {
-                    Add(std::string{ Text::Get(Text::Id::kNoticeRefusedAddressFull) }, a_now);
+                    if (const auto notice = GetRefusalNotice(*reason))
+                    {
+                        Add(std::string{ Text::Get(*notice) }, a_now);
+                    }
                 }
-                refusedAddressFull = addressFull;
+                announcedRefusal = reason;
 
                 PlayerFilters::CollectArrivedFriends(friends);
                 for (const auto& player : friends)
@@ -161,7 +178,7 @@ namespace UI
 
             std::vector<Toast> toasts;
             std::uint64_t connectionGeneration{ 0 };
-            bool refusedAddressFull{ false };
+            std::optional<Network::RefusalReason> announcedRefusal;
             std::vector<std::string> incoming;
             std::vector<Multiplayer::RosterEntry> friends;
         };

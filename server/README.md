@@ -166,7 +166,7 @@ go run ./cmd/tradebot --kit
 ## Admin panel
 
 The panel (`admin-ui/`, see its README) shows connected players, captures,
-replays, and load-test batches. Commands are REST calls under `/api`; live
+replays, load-test batches, and bans. Commands are REST calls under `/api`; live
 state is a server-sent event stream at `/api/events` that pushes a full
 snapshot on connect and after changes, at most twice a second.
 
@@ -185,6 +185,9 @@ snapshot on connect and after changes, at most twice a second.
 | `DELETE /api/playbacks/{id}` | Stop a replay and remove its virtual player |
 | `POST /api/sessions` `{displayName, token?}` | Resume the session of a base64 `token`, or issue one under `displayName` without the per-address allowance; answers `{sessionId, displayName, token}` |
 | `PUT /api/players/{id}/hidden` `{hidden}` | Hide a player from everyone, or show it again |
+| `POST /api/players/{id}/kick` | Disconnect a player; their game waits for them to connect again |
+| `POST /api/players/{id}/ban` `{address}` | Disconnect a player and refuse their session until lifted, with `address` also everyone from their address (IPv4, or IPv6 /64) |
+| `DELETE /api/bans/{id}` | Lift a ban |
 | `POST /api/exclusions`, `DELETE /api/exclusions` `{viewerId, targetId}` | Add or lift a directed exclusion |
 | `POST /api/batches` `{recordingId, players, seed?, jitter?, rateSpread?, rampUpSeconds?}` | Start a batch of in-server bots (1 to 500) |
 | `POST /api/batches/{id}/pause`, `/resume` | Pause or resume every bot |

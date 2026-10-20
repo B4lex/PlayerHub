@@ -45,10 +45,11 @@ func startStack(t *testing.T) *stack {
 	if err != nil {
 		t.Fatal(err)
 	}
+	connections := session.NewServer(loop, identities, config.Default(), log)
 	c := &Context{Loop: loop, Store: store, Captures: captures, Playbacks: playbacks, Batches: batches,
-		Sessions: identities, StartedAt: time.Now(), OnChange: func() {}}
+		Sessions: identities, Connections: connections, StartedAt: time.Now(), OnChange: func() {}}
 	mux := http.NewServeMux()
-	mux.Handle("GET /ws", session.NewServer(loop, identities, config.Default(), log))
+	mux.Handle("GET /ws", connections)
 	c.Routes(mux)
 	server := httptest.NewServer(Guard(mux, []string{"Panel.lan"}))
 	t.Cleanup(func() {
@@ -420,4 +421,83 @@ func TestPlayersKeepJoinOrder(t *testing.T) {
 			t.Fatalf("players %v, want join order %v", got, want)
 		}
 	}
+}
+
+func (p *player) closed() websocket.StatusCode {
+	p.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for {
+		if _, _, err := p.conn.Read(ctx); err != nil {
+			return websocket.CloseStatus(err)
+		}
+	}
+}
+
+func TestKickAndBan(t *testing.T) {
+	s := startStack(t)
+	kicked, welcome := s.joinWith("Lydia", nil)
+	// A new session closed before its client sent anything is deleted.
+	kicked.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 1}}})
+	kicked.until(func(m *pb.ServerMessage) bool { return m.GetResult() != nil })
+	var state State
+	s.call("GET", "/api/state", nil, &state)
+	if len(state.Players) != 1 || state.Players[0].Address == nil || *state.Players[0].Address != "127.0.0.1" ||
+		len(state.Bans) != 0 {
+		t.Fatalf("state %+v", state)
+	}
+	if status := s.call("POST", "/api/players/999/kick", nil, nil); status != 404 {
+		t.Fatalf("kick nobody: %d", status)
+	}
+	if status := s.call("POST", "/api/players/"+slotID(kicked.slot)+"/kick", nil, nil); status != 204 {
+		t.Fatalf("kick: %d", status)
+	}
+	if code := kicked.closed(); code != session.StatusKicked {
+		t.Fatalf("kicked with %d", code)
+	}
+
+	banned, _ := s.joinWith("Lydia", welcome.GetSessionToken())
+	id := slotID(banned.slot)
+	for _, c := range []struct {
+		body   any
+		status int
+	}{
+		{map[string]any{}, 422},
+		{map[string]any{"address": "yes"}, 422},
+		{map[string]any{"address": true}, 422},
+	} {
+		var body map[string]string
+		if status := s.call("POST", "/api/players/"+id+"/ban", c.body, &body); status != c.status {
+			t.Errorf("%v: got %d, want %d (%v)", c.body, status, c.status, body)
+		}
+	}
+	if status := s.call("POST", "/api/players/999/ban", map[string]bool{"address": false}, nil); status != 404 {
+		t.Fatalf("ban nobody: %d", status)
+	}
+	var ban Ban
+	if status := s.call("POST", "/api/players/"+id+"/ban", map[string]bool{"address": false}, &ban); status != 201 {
+		t.Fatalf("ban: %d", status)
+	}
+	if ban.DisplayName != "Lydia" || ban.SessionID != fmt.Sprint(welcome.GetSessionId()) || ban.Address != nil {
+		t.Fatalf("ban %+v", ban)
+	}
+	if code := banned.closed(); code != session.StatusBanned {
+		t.Fatalf("banned with %d", code)
+	}
+	token := map[string]any{"displayName": "Lydia", "token": welcome.GetSessionToken()}
+	if status := s.call("POST", "/api/sessions", token, nil); status != 403 {
+		t.Fatalf("issuing for a banned session: %d", status)
+	}
+	s.call("GET", "/api/state", nil, &state)
+	if len(state.Bans) != 1 || state.Bans[0] != ban {
+		t.Fatalf("bans %+v, want %+v", state.Bans, ban)
+	}
+
+	if status := s.call("DELETE", "/api/bans/"+ban.ID, nil, nil); status != 204 {
+		t.Fatalf("lift: %d", status)
+	}
+	if status := s.call("DELETE", "/api/bans/"+ban.ID, nil, nil); status != 404 {
+		t.Fatalf("lift again: %d", status)
+	}
+	s.joinWith("Lydia", welcome.GetSessionToken())
 }

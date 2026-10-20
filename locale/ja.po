@@ -675,6 +675,10 @@ msgctxt "RefusalAddressFull"
 msgid "Too many players from your IP address are connected to this server."
 msgstr "あなたのIPアドレスからこのサーバーに接続しているプレイヤーが多すぎます。"
 
+msgctxt "RefusalBanned"
+msgid "You are banned from this server."
+msgstr "このサーバーへの接続は禁止されています。"
+
 msgctxt "StatusPing"
 msgid "Ping"
 msgstr "Ping"
@@ -690,6 +694,10 @@ msgstr "サーバーに接続しました"
 msgctxt "NoticeRefusedAddressFull"
 msgid "Not connected: too many players from your IP address are on this server"
 msgstr "未接続：あなたのIPアドレスからこのサーバーにいるプレイヤーが多すぎます"
+
+msgctxt "NoticeKicked"
+msgid "You have been kicked from the server"
+msgstr "サーバーからキックされました"
 
 #. {} is a player's name
 #, c++-format

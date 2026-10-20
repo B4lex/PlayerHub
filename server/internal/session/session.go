@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -37,6 +38,8 @@ const (
 	StatusServerFull         websocket.StatusCode = 4007
 	StatusTooManyNewSessions websocket.StatusCode = 4008
 	StatusAddressFull        websocket.StatusCode = 4009
+	StatusBanned             websocket.StatusCode = 4010
+	StatusKicked             websocket.StatusCode = 4011
 )
 
 const maintenanceInterval = time.Hour
@@ -58,9 +61,11 @@ type Server struct {
 }
 
 type connection struct {
-	conn    *websocket.Conn
-	cancel  context.CancelFunc
-	session uint64
+	conn        *websocket.Conn
+	cancel      context.CancelFunc
+	session     uint64
+	displayName string
+	address     netip.Addr
 	// Reader goroutine only.
 	heard bool
 }
@@ -145,7 +150,8 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address net
 	if s.budget != nil {
 		outbox.UseBudget(s.budget)
 	}
-	current := &connection{conn: conn, cancel: cancel, session: identity.Session}
+	current := &connection{conn: conn, cancel: cancel, session: identity.Session, displayName: identity.DisplayName,
+		address: address}
 	var slot uint32
 	var replaced *connection
 	if !s.loop.Call(func(h *hub.Hub) {
@@ -166,7 +172,7 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address net
 	if replaced != nil {
 		log.Info("session connected again; closing its earlier connection")
 		// Closing waits for the peer, which may be gone.
-		go replaced.replace()
+		go replaced.close(StatusReplaced, "session connected elsewhere")
 	}
 
 	writerDone := make(chan error, 1)
@@ -228,6 +234,17 @@ func (s *Server) join(ctx context.Context, conn *websocket.Conn, address netip.A
 	if err != nil {
 		return nil, hub.Identity{}, err
 	}
+	// Before the admission checks, so a banned player learns of the ban also on a full server.
+	if banned, err := s.store.AddressBanned(admission.AddressKey(address)); err != nil || banned {
+		if err == nil {
+			err = errAddressBanned
+			conn.Close(StatusBanned, "banned")
+		} else {
+			s.log.Error("session store failed", "error", err)
+			conn.Close(websocket.StatusInternalError, "session store unavailable")
+		}
+		return hello, hub.Identity{}, err
+	}
 	if len(hello.GetSessionToken()) == 0 {
 		if err := s.gate.CheckNew(address); err != nil {
 			refuseAdmission(conn, err)
@@ -274,6 +291,9 @@ func (s *Server) authenticate(conn *websocket.Conn, hello *pb.Hello, address net
 	case errors.Is(err, auth.ErrDisplayNameTaken):
 		conn.Close(StatusDisplayNameTaken, err.Error())
 		return hub.Identity{}, err
+	case errors.Is(err, auth.ErrBanned):
+		conn.Close(StatusBanned, err.Error())
+		return hub.Identity{}, err
 	case errors.Is(err, auth.ErrIssueRefused):
 		conn.Close(StatusTooManyNewSessions, err.Error())
 		return hub.Identity{}, err
@@ -301,9 +321,77 @@ func (s *Server) settle(c *connection, issued bool, log *slog.Logger) {
 	}
 }
 
-func (c *connection) replace() {
-	c.conn.Close(StatusReplaced, "session connected elsewhere")
+// Closing waits for the peer, which may be gone, so callers run it on a goroutine of its own.
+func (c *connection) close(status websocket.StatusCode, reason string) {
+	c.conn.Close(status, reason)
 	c.cancel()
+}
+
+var (
+	ErrNotConnected       = errors.New("player is not connected")
+	ErrAddressNotBannable = errors.New("the player's address is loopback, unspecified, or a trusted proxy; " +
+		"behind a proxy, list it in trusted_proxies")
+	errAddressBanned = errors.New("address banned")
+)
+
+func (s *Server) connection(slot uint32) *connection {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.connections[slot]
+}
+
+func (s *Server) Address(slot uint32) (netip.Addr, bool) {
+	c := s.connection(slot)
+	if c == nil {
+		return netip.Addr{}, false
+	}
+	return c.address, true
+}
+
+// Kick leaves the player's choice to connect off, so the game does not reconnect by itself.
+func (s *Server) Kick(slot uint32) bool {
+	c := s.connection(slot)
+	if c == nil {
+		return false
+	}
+	s.log.Info("player kicked", "session", c.session, "display_name", c.displayName)
+	go c.close(StatusKicked, "kicked")
+	return true
+}
+
+// Ban closes the player's connection, and with the address every other one from it.
+func (s *Server) Ban(slot uint32, withAddress bool, now time.Time) (auth.Ban, error) {
+	c := s.connection(slot)
+	if c == nil {
+		return auth.Ban{}, ErrNotConnected
+	}
+	ban := auth.Ban{Session: c.session, DisplayName: c.displayName, CreatedAt: now}
+	if withAddress {
+		// Without a forwarded address every player behind the proxy shares the proxy's.
+		if !c.address.IsValid() || c.address.IsLoopback() || c.address.IsUnspecified() ||
+			slices.ContainsFunc(s.trusted, func(p netip.Prefix) bool { return p.Contains(c.address) }) {
+			return auth.Ban{}, ErrAddressNotBannable
+		}
+		ban.Address = admission.AddressKey(c.address)
+	}
+	ban, err := s.store.Ban(ban)
+	if err != nil {
+		return auth.Ban{}, err
+	}
+	s.log.Info("player banned", "ban", ban.ID, "session", ban.Session, "display_name", ban.DisplayName,
+		"address", ban.Address)
+	s.mu.Lock()
+	var closing []*connection
+	for _, other := range s.connections {
+		if other == c || (ban.Address.IsValid() && admission.AddressKey(other.address) == ban.Address) {
+			closing = append(closing, other)
+		}
+	}
+	s.mu.Unlock()
+	for _, other := range closing {
+		go other.close(StatusBanned, "banned")
+	}
+	return ban, nil
 }
 
 func (s *Server) Maintain(ctx context.Context) {

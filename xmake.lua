@@ -66,7 +66,7 @@ target("PlayerHub")
     add_rules("locale")
     -- Translated text literals are UTF-8.
     set_encodings("utf-8")
-    add_files("]src/**.cpp", "src/**.c")
+    add_files("src/**.cpp", "src/**.c")
     -- nanopb runtime from the lib/nanopb submodule, because the xmake package
     -- depends on protoc, which cannot run under wine. Keep its tag in step with
     -- the generator version in proto/generate.sh, which produces the code in

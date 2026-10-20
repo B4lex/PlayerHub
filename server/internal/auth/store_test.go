@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"errors"
+	"net/netip"
 	"path/filepath"
 	"testing"
 	"time"
@@ -199,10 +200,44 @@ PRAGMA user_version = 1;
 	if _, _, err := s.Authenticate(nil, "LYDIA", start.Add(time.Hour), nil); !errors.Is(err, ErrDisplayNameTaken) {
 		t.Fatalf("the upgraded session's display name was given away: %v", err)
 	}
+	if _, err := s.Ban(Ban{Session: session.ID, DisplayName: "Lydia", CreatedAt: start}); err != nil {
+		t.Fatalf("the upgraded database takes no bans: %v", err)
+	}
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
 	open(t, path)
+}
+
+func TestAVersion2DatabaseGetsBans(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sessions.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+CREATE TABLE sessions (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	token_hash BLOB NOT NULL UNIQUE,
+	display_name TEXT NOT NULL,
+	display_name_key TEXT NOT NULL UNIQUE,
+	created_at INTEGER NOT NULL,
+	last_used_at INTEGER NOT NULL,
+	resumed INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX sessions_last_used_at ON sessions (last_used_at);
+PRAGMA user_version = 2;
+`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s := open(t, path)
+	lydia, _ := issue(t, s, "Lydia", start)
+	if _, err := s.Ban(Ban{Session: lydia.ID, DisplayName: "Lydia", CreatedAt: start}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestAbandonFreesTheDisplayNameOfASessionNeverResumed(t *testing.T) {
@@ -242,4 +277,68 @@ func TestMayIssueIsAskedOnlyForANewSession(t *testing.T) {
 		t.Fatalf("new: %v, asked %d", err, asked)
 	}
 	issue(t, s, "Serana", start)
+}
+
+func TestBannedSessionIsRefusedAndKept(t *testing.T) {
+	s := open(t, "")
+	lydia, token := issue(t, s, "Lydia", start)
+	ban, err := s.Ban(Ban{Session: lydia.ID, DisplayName: "Lydia", CreatedAt: start})
+	if err != nil || ban.ID == 0 {
+		t.Fatalf("ban %+v %v", ban, err)
+	}
+	if _, _, err := s.Authenticate(token, "Lydia", start, nil); !errors.Is(err, ErrBanned) {
+		t.Fatalf("a banned session resumed: %v", err)
+	}
+	if _, _, err := s.Authenticate(token, "Jordis", start, nil); !errors.Is(err, ErrBanned) {
+		t.Fatalf("a banned session renamed: %v", err)
+	}
+
+	later := start.Add(2 * month)
+	if purged, err := s.Purge(later); purged != 0 || err != nil {
+		t.Fatalf("purged %d %v", purged, err)
+	}
+	if abandoned, err := s.Abandon(lydia.ID); abandoned || err != nil {
+		t.Fatalf("abandoned %v %v", abandoned, err)
+	}
+	if _, _, err := s.Authenticate(nil, "lydia", later, nil); !errors.Is(err, ErrDisplayNameTaken) {
+		t.Fatalf("the banned session's display name was given away: %v", err)
+	}
+
+	if lifted, err := s.Lift(ban.ID, later); !lifted || err != nil {
+		t.Fatalf("lift: %v %v", lifted, err)
+	}
+	if lifted, _ := s.Lift(ban.ID, later); lifted {
+		t.Fatal("lifted a ban twice")
+	}
+	// Lifting restarts the lifetime the ban held.
+	if purged, _ := s.Purge(later.Add(time.Hour)); purged != 0 {
+		t.Fatal("the session expired as its ban was lifted")
+	}
+	if resumed, _, err := s.Authenticate(token, "Lydia", later, nil); err != nil || resumed.ID != lydia.ID {
+		t.Fatalf("after lifting: %+v %v", resumed, err)
+	}
+}
+
+func TestAddressBans(t *testing.T) {
+	s := open(t, "")
+	home := netip.MustParsePrefix("2001:db8:1:2::/64")
+	first, _ := s.Ban(Ban{Session: 1, DisplayName: "Lydia", CreatedAt: start})
+	second, err := s.Ban(Ban{Session: 2, DisplayName: "Serana", Address: home, CreatedAt: start.Add(time.Minute)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for prefix, want := range map[netip.Prefix]bool{home: true, netip.MustParsePrefix("2001:db8:1:3::/64"): false} {
+		if banned, err := s.AddressBanned(prefix); banned != want || err != nil {
+			t.Errorf("%v: banned %v %v", prefix, banned, err)
+		}
+	}
+	bans, err := s.Bans()
+	if err != nil || len(bans) != 2 || bans[0] != first || bans[1] != second || bans[1].Address != home ||
+		!bans[1].CreatedAt.Equal(start.Add(time.Minute)) {
+		t.Fatalf("bans %+v %v", bans, err)
+	}
+	s.Lift(second.ID, start)
+	if banned, _ := s.AddressBanned(home); banned {
+		t.Fatal("the address stayed banned")
+	}
 }

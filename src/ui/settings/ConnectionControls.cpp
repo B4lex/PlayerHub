@@ -161,6 +161,10 @@ namespace UI::ConnectionControls
                     return std::string{ Text::Get(Id::kRefusalTooManyNewSessions) };
                 case Network::RefusalReason::kAddressFull:
                     return std::string{ Text::Get(Id::kRefusalAddressFull) };
+                case Network::RefusalReason::kBanned:
+                    return std::string{ Text::Get(Id::kRefusalBanned) };
+                case Network::RefusalReason::kKicked:
+                    return {};
             }
             return {};
         }
@@ -265,9 +269,9 @@ namespace UI::ConnectionControls
             return;
         }
         const auto status = GetStatus();
-        if (status.refusal)
+        if (const auto text = status.refusal ? FormatRefusal(*status.refusal) : std::string{}; !text.empty())
         {
-            DrawMessage(FormatRefusal(*status.refusal), Theme::kNegative);
+            DrawMessage(text, Theme::kNegative);
             return;
         }
         // Keeps the line's height, so the rows below do not move when a message appears.

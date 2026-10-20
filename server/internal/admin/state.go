@@ -2,6 +2,7 @@ package admin
 
 import (
 	"cmp"
+	"net/netip"
 	"slices"
 	"strconv"
 	"sync"
@@ -13,19 +14,21 @@ import (
 	"playerhub/server/internal/loadtest"
 	"playerhub/server/internal/playback"
 	"playerhub/server/internal/recording"
+	"playerhub/server/internal/session"
 	"playerhub/server/internal/wire"
 	"playerhub/server/internal/world"
 )
 
 type Context struct {
-	Loop      *hub.Loop
-	Store     *recording.Store
-	Captures  *recording.Captures
-	Playbacks *playback.Manager
-	Batches   *loadtest.Manager
-	Sessions  *auth.Store
-	StartedAt time.Time
-	OnChange  func()
+	Loop        *hub.Loop
+	Store       *recording.Store
+	Captures    *recording.Captures
+	Playbacks   *playback.Manager
+	Batches     *loadtest.Manager
+	Sessions    *auth.Store
+	Connections *session.Server
+	StartedAt   time.Time
+	OnChange    func()
 
 	rates rateTracker
 }
@@ -84,6 +87,7 @@ type Position struct {
 type Player struct {
 	ID                string    `json:"id"`
 	Name              string    `json:"name"`
+	Address           *string   `json:"address"`
 	Virtual           bool      `json:"virtual"`
 	InWorld           bool      `json:"inWorld"`
 	ConnectedAtMs     *float64  `json:"connectedAtMs"`
@@ -104,6 +108,31 @@ type Exclusion struct {
 	TargetID string `json:"targetId"`
 }
 
+type Ban struct {
+	ID          string  `json:"id"`
+	SessionID   string  `json:"sessionId"`
+	DisplayName string  `json:"displayName"`
+	Address     *string `json:"address"`
+	CreatedAtMs float64 `json:"createdAtMs"`
+}
+
+func banView(ban auth.Ban) Ban {
+	view := Ban{ID: strconv.FormatUint(ban.ID, 10), SessionID: strconv.FormatUint(ban.Session, 10),
+		DisplayName: ban.DisplayName, CreatedAtMs: milliseconds(ban.CreatedAt)}
+	if ban.Address.IsValid() {
+		view.Address = optional(describePrefix(ban.Address))
+	}
+	return view
+}
+
+// An IPv4 address is banned whole, so it reads as the address alone.
+func describePrefix(prefix netip.Prefix) string {
+	if prefix.IsSingleIP() {
+		return prefix.Addr().String()
+	}
+	return prefix.String()
+}
+
 type Server struct {
 	StartedAtMs  float64 `json:"startedAtMs"`
 	ServerTimeMs float64 `json:"serverTimeMs"`
@@ -116,6 +145,7 @@ type State struct {
 	Playbacks  []playback.State `json:"playbacks"`
 	Batches    []loadtest.State `json:"batches"`
 	Exclusions []Exclusion      `json:"exclusions"`
+	Bans       []Ban            `json:"bans"`
 }
 
 var movementStateNames = []string{"idle", "walking", "running", "sprinting", "sneakingIdle", "sneakingWalking", "sneakingRunning"}
@@ -181,6 +211,9 @@ func (c *Context) players() ([]Player, []Exclusion) {
 		if id := c.Captures.RecordingFor(uint32(slot)); id != "" {
 			players[i].RecordingID = &id
 		}
+		if address, ok := c.Connections.Address(uint32(slot)); ok {
+			players[i].Address = optional(address.String())
+		}
 	}
 	return players, exclusions
 }
@@ -209,6 +242,12 @@ func (c *Context) State() State {
 		Playbacks:  []playback.State{},
 		Batches:    []loadtest.State{},
 		Exclusions: exclusions,
+		Bans:       []Ban{},
+	}
+	// A failed read leaves the list empty until the next snapshot; the actions report store failures.
+	bans, _ := c.Sessions.Bans()
+	for _, ban := range bans {
+		state.Bans = append(state.Bans, banView(ban))
 	}
 	for _, s := range c.Playbacks.Sessions() {
 		playbackState := s.State()

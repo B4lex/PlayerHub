@@ -47,7 +47,7 @@ var (
 )
 
 func (g *Gate) BeginHello(address netip.Addr) error {
-	key := addressKey(address)
+	key := AddressKey(address)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if perAddress := g.limits.MaxPendingHellosPerAddress; perAddress > 0 && g.pendingByAddress[key] >= perAddress {
@@ -62,7 +62,7 @@ func (g *Gate) BeginHello(address netip.Addr) error {
 }
 
 func (g *Gate) EndHello(address netip.Addr) {
-	key := addressKey(address)
+	key := AddressKey(address)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.pending--
@@ -74,7 +74,7 @@ func (g *Gate) EndHello(address netip.Addr) {
 // CheckNew refuses a session that cannot be admitted whatever it turns out to be, so a
 // hello without a token is refused before it touches the store or spends the allowance.
 func (g *Gate) CheckNew(address netip.Addr) error {
-	key := addressKey(address)
+	key := AddressKey(address)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	switch {
@@ -95,7 +95,7 @@ func (g *Gate) addressFull(key netip.Prefix) bool {
 }
 
 func (g *Gate) Admit(session uint64, address netip.Addr) error {
-	key := addressKey(address)
+	key := AddressKey(address)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	here := g.playersByAddress[key]
@@ -115,7 +115,7 @@ func (g *Gate) Admit(session uint64, address netip.Addr) error {
 }
 
 func (g *Gate) Leave(session uint64, address netip.Addr) {
-	key := addressKey(address)
+	key := AddressKey(address)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.players[session]--; g.players[session] <= 0 {
@@ -135,7 +135,7 @@ func (g *Gate) MayIssue(address netip.Addr, now time.Time) bool {
 	if rate <= 0 {
 		return true
 	}
-	key := addressKey(address)
+	key := AddressKey(address)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	bucket := g.issued[key]
@@ -157,7 +157,7 @@ func (g *Gate) Prune(now time.Time) {
 	}
 }
 
-func addressKey(address netip.Addr) netip.Prefix {
+func AddressKey(address netip.Addr) netip.Prefix {
 	address = address.Unmap()
 	bits := 32
 	if address.Is6() {
