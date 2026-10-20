@@ -87,6 +87,7 @@ namespace MovementSync
             .speed = speed,
             .direction = direction,
             .swimming = actorState && actorState->IsSwimming(),
+            .relocated = !comparableLocalSpace,
             .cellID = cellID,
             .worldspaceID = worldspaceID };
     }

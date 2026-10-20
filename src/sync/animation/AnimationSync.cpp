@@ -313,6 +313,10 @@ namespace AnimationSync
         constexpr float kLocalStopHoldSeconds = 0.06F;
         float s_localNotMovingElapsed = 0.0F;
 
+        constexpr float kArrivalMoveDistance = 8.0F;
+        bool s_holdingArrival = false;
+        RE::NiPoint3 s_arrivalPosition{};
+
         std::string DescribeMovementInputHistory()
         {
             std::string description;
@@ -418,6 +422,7 @@ namespace AnimationSync
         static bool hasPreviousAnimationState = false;
 
         auto animationState = GetAnimationState(a_local.player);
+        const bool sampledMoving = IsMoving(animationState.movementState);
         if (hasPreviousAnimationState && Multiplayer::IsMoving(previousAnimationState.movementState)
             && !Multiplayer::IsMoving(animationState.movementState) && s_localNotMovingElapsed < kLocalStopHoldSeconds)
         {
@@ -425,6 +430,30 @@ namespace AnimationSync
                 static_cast<unsigned long long>(a_sequence), s_localNotMovingElapsed,
                 Multiplayer::GetMovementStateName(previousAnimationState.movementState));
             animationState.movementState = previousAnimationState.movementState;
+        }
+        if (a_movement.relocated)
+        {
+            s_holdingArrival = sampledMoving;
+            s_arrivalPosition = a_movement.position;
+        }
+        else if (s_holdingArrival)
+        {
+            const float deltaX = a_movement.position.x - s_arrivalPosition.x;
+            const float deltaY = a_movement.position.y - s_arrivalPosition.y;
+            const bool moved = deltaX * deltaX + deltaY * deltaY > kArrivalMoveDistance * kArrivalMoveDistance;
+            if (!sampledMoving || moved)
+            {
+                s_holdingArrival = false;
+                logs::debug("Animation sync released arrival standing: sequence={} reason={} sampled={}",
+                    static_cast<unsigned long long>(a_sequence), moved ? "moved" : "bits-cleared",
+                    Multiplayer::GetMovementStateName(animationState.movementState));
+            }
+        }
+        if (s_holdingArrival && IsMoving(animationState.movementState))
+        {
+            animationState.movementState = IsSneaking(animationState.movementState)
+                ? Multiplayer::MovementState::kSneakingIdle
+                : Multiplayer::MovementState::kIdle;
         }
         if (!hasPreviousAnimationState || animationState != previousAnimationState)
         {

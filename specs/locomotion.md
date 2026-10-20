@@ -28,6 +28,14 @@ writers were read from the vanilla behavior files and `BSIsActiveModifier`
 from the 1.7.104 executable; Linux syntax check only; not built on Windows or
 run in game.
 
+The [arrival hold](#source-capture): Linux syntax check only; not built on
+Windows or run in game. Its cause was measured in a recording (2026-10-20) of
+four door transitions entered sprinting, on the build before the hold: the
+first checkpoints in the new space said sprinting, then running within about
+0.1 s, while the player stood still for 2.2–2.7 s and dropped 6–12 units onto
+the ground; the movement bits then cleared to idle about 0.1 s before the
+player walked off, or stayed clear.
+
 Movement input diagnostic (2026-10-14): run in game. Of 66 published stops, 9
 were one-sample flickers: 4 direction-key changes where the move input read
 zero for 6–24 ms between releasing one key and pressing the other, 1 real
@@ -158,6 +166,20 @@ At each checkpoint, from the carrier (the player, or its mount while riding):
   sample inside such a gap published a stop that peers played as a stop and
   restart. A genuine stop reaches peers up to one checkpoint later; starts and
   every other change are published at once.
+- **Arrival hold**: after a load the player keeps the movement bits it had
+  going through the door or fast travel until they clear by themselves, so
+  peers saw it run in place in the new space for seconds. A sample without a
+  comparable previous one (`LocalSample::relocated`: the first sample, a
+  coordinate-space change, or a relocation) that reads a moving state starts
+  a hold that publishes the standing state instead (`idle`, or `sneakingIdle`
+  while sneaking). It ends when a sample reads a standing state (the bits
+  cleared, `reason=bits-cleared`), or when the carrier has moved more than 8
+  horizontal units from where it arrived (`kArrivalMoveDistance`,
+  `reason=moved`), which releases a player who kept moving through the load
+  and whose bits never clear. The distance is horizontal because the player
+  drops onto the ground after arriving. The hold is applied after the stop
+  hold and logged as `holding arrival standing` and `released arrival
+  standing`.
 - **Jumping**: the graph's `bInJumpState` gives the responsive takeoff edge
   (physical jump or midair state when the graph lacks it). Once the player has
   actually been airborne, physical ground contact is the landing, since the
@@ -629,6 +651,9 @@ not yet checked in game:
    (`moveStart` entering `Locomotion_State`, `sprintStart` the sprint state,
    the jump events the jump branch), and Skyrim's weapon state of a beast
    reaches drawn and sheathed after a native draw and sheathe.
+9. A player who keeps a direction key held through a loading screen keeps
+   its movement bits set and moves once control returns, which the
+   [arrival hold](#source-capture) releases by distance; not recorded.
 
 The graph probe's value-set and state-info offsets come from the Havok 2010
 class layouts and were not checked against the executable; in game they read
@@ -659,6 +684,8 @@ referenced sub-behaviors when read from the main loop.
    fours as a werewolf), jumps, and swims with its own clips without sliding,
    draws and sheathes its claws, and a vampire lord does so hovering and on
    the ground.
+10. A player who runs through a door or fast travels appears standing in the
+    new space until it moves there.
 
 ## Known limitations
 
