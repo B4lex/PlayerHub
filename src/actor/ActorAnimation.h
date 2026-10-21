@@ -22,6 +22,7 @@ namespace ActorAnimation
         float directionCrossBlendElapsed{ 0.0F };
         std::uint64_t requestedRevision{ 0 };
         std::uint64_t processedRevision{ 0 };
+        bool checkpointUpdatePending{ false };
 
         Multiplayer::AnimationState lastDispatched{};
         Multiplayer::AnimationState lastAttempted{};
@@ -141,6 +142,7 @@ namespace ActorAnimation
     void ApplyRiderWeaponState(RE::Actor& a_actor, RemoteActor& a_remote, bool a_weaponDrawn);
 
     void RequestAnimationUpdate(State& a_state);
+    void RequestCheckpointUpdate(State& a_state);
     void InvalidateAnimationDispatch(State& a_state);
     void AdvanceAttackPlayback(RE::Actor& a_actor, State& a_state, float a_deltaTime);
     [[nodiscard]] bool RecoverAuthoritativeAnimation(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime);

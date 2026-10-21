@@ -1499,6 +1499,11 @@ namespace ActorAnimation
         ++a_state.requestedRevision;
     }
 
+    void RequestCheckpointUpdate(State& a_state)
+    {
+        a_state.checkpointUpdatePending = true;
+    }
+
     void InvalidateAnimationDispatch(State& a_state)
     {
         a_state.hasDispatched = false;
@@ -1863,6 +1868,10 @@ namespace ActorAnimation
             (void)ActorRegistry::ConsumeJumpLandEnds(a_remote);
         }
 
+        if (std::exchange(animationState->checkpointUpdatePending, false))
+        {
+            RequestAnimationUpdate(*animationState);
+        }
         const auto requestedRevision = animationState->requestedRevision;
         const auto authoritativeState = animationState->targetAnimationState;
         const auto sampleSpeed = a_remote.movement.animationSpeed;

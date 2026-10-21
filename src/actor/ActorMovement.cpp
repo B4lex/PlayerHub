@@ -81,7 +81,7 @@ namespace ActorMovement
         if (std::isfinite(a_speed) && a_speed >= 0.0F)
         {
             a_remote.movement.groundSpeed = GetGroundSpeed(a_speed, travel);
-            ActorAnimation::RequestAnimationUpdate(a_remote.animation);
+            ActorAnimation::RequestCheckpointUpdate(a_remote.animation);
         }
     }
 

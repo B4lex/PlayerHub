@@ -13,6 +13,11 @@ game, as noted.
   an even pace, and following idle drift looked better than snapping. Slow
   movement at a high frame rate and the slide after a stop were not checked.
   The idle drift figures below were measured from 13 server recordings.
+- **Checkpoint revision:** run in game with a live peer. All 100 state changes
+  applied in the pass their checkpoint played, within the log's 1 ms
+  resolution. When the revision opened at the checkpoint instead, none of 810
+  did, and 21 waited 50 ms or more. A capture at a low frame rate was not
+  run.
 - **Stop hold:** run in game. Of 66 published stops without it, 9 were
   one-sample flickers (direction-key changes, a movement-bit drop between
   chained attacks, a start); with it, 99 gaps of 6–30 ms were held, and the
@@ -217,6 +222,15 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   locomotion event retries far longer than an actor may visibly stand still,
   and holding for the whole retry left it running on the spot and then jumping
   the backlog.
+- A played checkpoint opens its revision in `ApplyAnimationUpdate`, just
+  before the variable write that settles it (`RequestCheckpointUpdate`). If
+  the revision opened when the checkpoint played, the state staging, attack,
+  hand-presentation, and furniture-entry checks earlier in the pass would
+  read every such pass as unsettled. Each new state, attack, or presentation
+  would then wait for a pass without a checkpoint, and below 20 fps it would
+  wait until the source stopped. A pass that ends with rejected variables or
+  retrying edges leaves the revision open, so the next pass's checks still
+  wait.
 - Position approaches the pose (`ActorMovement::SetTargetTransform`, every
   pass) at the pose's path speed plus a backlog drain of the remaining distance
   over about 0.5 s, so an actor on the path follows it exactly and one held
