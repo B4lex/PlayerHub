@@ -2,197 +2,57 @@
 
 ## Status
 
-- Server: implemented in Go. `go test -race ./...` in `server/` covers
-  validation (`internal/validate`), hub ordering and relay (`internal/hub`),
-  outboxes (`internal/delivery`), and black-box sessions over a real WebSocket
-  (`internal/session`, `internal/admin`), including the `Origin` rule. A
-  local server answered `/ws` and `/health` only on `listen`, `/api`,
-  `/admin/`, and `/debug/pprof/` only on `admin_listen`, and refused a
-  WebSocket upgrade with an `https://` origin while accepting `ws://` and
-  none. `cmd/loadgen` measured 250 walking
-  bots, every one receiving every other, on a 4-core Linux host shared with
-  the load generator: 1.24M entries/s, server CPU 58–64% of one core, latency
-  p50 22 ms and p99 42 ms from sending a checkpoint to a peer receiving it.
-- Plugin transport (`network/ServerClient`, `network/WireCodec`,
-  `protocol/Quantization.h`): built on Linux against IXWebSocket 12.0.1 and
-  nanopb 0.4.9 with stubbed Skyrim headers, and run against the Go server with
-  a loadgen bot as the peer: connect, hello and welcome, enter, context,
-  checkpoints, an attack, appearance, equipment, chat and its rejection,
-  latency probes, traffic counting, and closing were checked. The Windows
-  xmake build and a `wss://`
-  connection through a Cloudflare tunnel to the Go server were verified in
-  game under wine; other in-game behavior is not verified.
-- Not verified in game: the connection policy and recovery
-  ([Connection](#connection)), and whether quantization shows as jitter. The
-  display name requirement is not built on Windows either.
-- **Quarter-unit positions** (protocol 11): server unit tests, `go test -race`,
-  and a `cmd/loadgen` comparison on port 3100 (100 bots within ±6000 units,
-  where every coordinate costs one byte more: 31.6 against 30.3 bytes per
-  relayed entry at the same entry rate); plugin Linux syntax check only, not
-  built on Windows or run in game.
-- **Kicks and bans** (2026-10-19): `go test -race` covers the store
-  (`internal/auth`: a banned session refused, kept past its lifetime and by
-  `Abandon`, its display name held, lifting restarting its lifetime, address
-  bans by prefix, version 1 and 2 databases taking bans), black-box
-  connections (`internal/session`: 4011 on a kick and the session resuming
-  after it, 4010 for the banned connection, its token, and every connection
-  from a banned IPv6 /64 while another /64 stays, 4010 ahead of 4007 on a full
-  server, a loopback address ban refused, a lifted ban resuming), and the admin
-  routes (`internal/admin`). The plugin's 4010 and 4011 refusals passed the
-  Linux syntax check only; not built on Windows or run in game.
-- **Form references:** plugin taken from the FormID's compile index
-  (`FormLookup::GetDefiningFile`); not built on Windows or run in game. The
-  `Update.esm|0DDFB3` misreport it fixes was seen in `PlayerHub.log`.
-- **Sessions:** not built on Windows or run in game. Server: `go test -race`
-  covers the store (`internal/auth`: issue, resume, unique display names, a
-  resumed session renamed by its hello, sliding expiry, a reopened database, a
-  version 1 database upgraded), the hub (the session's display name on the
-  appearance, a session connecting again), and black-box connections
-  (`internal/session`: issued and resumed sessions, a hello renaming a resumed
-  session, every refusal, the earlier connection closed with 4006, an unused
-  new session deleted and a resumed one kept, a full server refusing a new
-  session but admitting a connected one, the per-address allowance by peer
-  and by forwarded address, the pending hello cap, and the per-address player
-  cap: 4009 at the cap without spending the allowance, another address
-  admitted, a session reconnecting from its address admitted, and a place
-  freed when a session leaves); `internal/admission` covers the gate,
-  including an IPv6 /64 sharing the per-address cap and a session connected
-  elsewhere refused at it, and `X-Forwarded-For` parsing; `internal/admin` covers
-  `POST /api/sessions` issuing past the allowance, resuming, a hello resuming
-  an issued session, and its 409 and 422 answers. The plugin's 4007, 4008, and 4009
-  refusals are not built on Windows or run. `cmd/loadgen` with 5 bots on
-  port 3100 had 2 refused with 4009 at the default per-address cap and none
-  with it off. It ran 100 bots
-  twice against one database on port 3100 without a refusal, and 20 bots
-  against an in-memory store with protocol version 4. Plugin: `ServerClient`,
-  `WireCodec`, `SessionStore`, and `ConnectionMonitor` were built on Linux
-  against IXWebSocket 12.0.1 and nanopb 0.4.9 with a stubbed configuration and
-  game state, and run against that server: a session issued and saved to
-  `PlayerHub.session`, resumed by a second process from the file, a hello with
-  a held display name refused without retrying, and a second process with the
-  same token closing the first, which stayed down. That run was before the wire
-  fields were named `display_name`, before the display name could change only
-  with a hello, and before a refusal ended the player's choice to connect.
-  Since then `ServerClient.cpp`, `WireCodec.cpp` with the regenerated nanopb
-  code, and `ConnectionMonitor.cpp` passed a syntax check, and
-  `ConnectionMonitor.cpp` ran on Linux under the settings window against a
-  stubbed transport ([UI overlay](ui-overlay.md#status)): a game start with
-  and without a display name and `ConnectAutomatically`, a refusal for the
-  display name, the protocol version, and a replaced session, each leaving the player
-  disconnected without a retry until Connect, and a lost connection reopened.
-  The display name rule is covered by `internal/validate` and
-  `internal/session` tests; the client's `Multiplayer::IsValidDisplayName` was
-  checked by compile-time assertions on Linux, and `WireCodec.cpp` passed a
-  syntax check with the regenerated nanopb code.
-  `ChatSync.cpp` passed a syntax check; `AppearanceSync.cpp` was not compiled.
-  The UI that shows refusals is in [UI overlay](ui-overlay.md#status).
-- **Roster and whispers by slot:** not built on Windows or run in game.
-  Server: `go test -race ./...` covers the roster in the hub (the list after
-  a welcome, a join and a leave reaching every other client once, replays
-  left out, a session connecting again) and over a WebSocket
-  (`internal/session`), whispers by slot (to another client, to oneself, to
-  an unknown slot, a replay, and the slot of a client that left), and the
-  recipient rule of `validate.Chat`. `cmd/loadgen` connected 500 bots within
-  2 s to a server on port 3100 and ran 15 s without a failed bot or a server
-  warning. Plugin: `WireCodec.cpp` with the regenerated nanopb code was built
-  on Linux and decoded Go-encoded rosters (3 and 500 entries, a leave, both
-  at once, none) and a whisper, and rejected entries without a slot, without
-  a name, with a control character, and with a 129-byte name; its `ChatSend`
-  for a whisper and for a nearby line passed the server's `validate.Chat`, and
-  one with a recipient on another channel or a whisper without one did not.
-  The roster kept in `ServerClient.cpp` passed a syntax check only.
-- **Nearby players:** not built on Windows or run in game. Server:
-  `go test -race ./...` covers the set in the hub
-  (`TestNearbyPlayersFollowNearbyChat`: the worldspace radius at 8192 and 8193
-  units, a whole interior at 50000 units apart, a vanished player kept,
-  unlisted players left out, a join and a leave in one message, a disconnect
-  sent only as the roster's leave, an exit emptying the set, and no rescan
-  before a second). `cmd/loadgen` with 500 bots within ±3000 units on port
-  3100, all in each other's reach, delivered 559k entries/s at p99 82.8 ms
-  against 567k entries/s and 82.8 ms before; scanning every viewer on every
-  interest pass had cost 23% of the entries and 20 ms of p99, so a viewer is
-  scanned once a second. Plugin: `WireCodec.cpp` with the regenerated nanopb
-  code was built on Linux and decoded Go-encoded `NearbyPlayers` (a join and a
-  leave, none, 500 slots, the unpacked encoding) and rejected a zero slot and
-  4097 slots; `ServerClient.cpp` and `ChatRoster.cpp` passed a syntax check
-  only.
-- **Session IDs to peers and vanish:** not built on Windows or run in game.
-  Server: `go test -race ./...` covers the session ID on roster entries and
-  chat speakers, a vanish that takes effect at once and one way, that holds
-  when the vanished session connects again under another slot, that is lifted
-  at once, a hello's vanished sessions applied before the client is placed,
-  the 1024 limit (`internal/hub`), the hello and `Vanish` rules
-  (`internal/validate`), and over a WebSocket a hello that vanishes a player
-  and one refused with `invalid vanish` (`internal/session`). `cmd/loadgen`
-  with 250 bots within ±3000 units on port 3100 measured the same server CPU
-  (36–37%) and latency (p50 30 ms, p99 52 ms) as the server before. Plugin:
-  `WireCodec.cpp` with the regenerated nanopb code was built on Linux; its
-  hello with three vanished sessions and its `Vanish` decoded in Go and passed
-  validation, it encodes no hello with 1025, and it decoded a Go-encoded
-  roster and whisper with session IDs and rejected both without one.
-  `PlayerFilterStore.cpp` ran on Linux under the chat harness
-  ([UI overlay](ui-overlay.md#status)). The vanish handling in
-  `ServerClient.cpp` (the hello's list, a `Vanish` held back until the hello
-  went to the same server) was not compiled.
-- **Inspection:** not built on Windows or run in game. Server:
-  `go test -race ./...` covers the reply for a client with an appearance,
-  for the asking client itself, for a replay (not listed), and for an unknown
-  slot, that nobody else receives it, the rate limit and its refill
-  (`internal/hub`), and the zero slot rule (`internal/validate`). Plugin:
-  `WireCodec.cpp` with the regenerated nanopb code was built on Linux and
-  decoded Go-encoded inspections (full, slot only) and rejected one without a
-  slot, one with a level over 65535, and one whose default race is not from a
-  base game plugin; its `Inspect` for slot 7 encodes as the server's schema
-  reads it. The queue in `ServerClient.cpp` was not compiled.
-- **Trade:** not built on Windows or run in game. Server: `go test -race`
-  covers the trade messages' validation (`internal/validate`) and the hub's
-  trades (`internal/hub`). Plugin: `WireCodec.cpp` decoded Go-encoded trade
-  messages and its encoded ones passed `validate.Message`; the details are in
-  [Trade](trade.md#status).
-- **Shapeshifts (2026-10-17):** not built on Windows or run in game. Server:
-  `go test` covers the context's `shapeshift` range, the `beast` action rules
-  and `validate.BeastActionForm` (`internal/validate`), and in the hub a beast
-  action refused before the form, for the other graph, and relayed after it,
-  a human attack refused in a beast form, `levitating`, `mistForm`, and
-  `bats` refused outside a vampire lord's context, and trades refused, closed while invited, and
-  closed while open with `TRANSFORMED` (`internal/hub`). Plugin: the nanopb
-  code was regenerated, and `WireCodec.cpp` was built on Linux with g++: its
-  vampire lord `Context`, a checkpoint with `levitating`, `mistForm`, and
-  `bats`, a beast action, and a `TRANSFORMED` cancel decoded in Go, passed
-  `validate.Message`, and met `world.Player`'s rules (the flags refused under
-  a human context); it decoded Go-encoded `PeerContext`, `PeerAction`, and
-  `PeerStates` with those values and a `TRANSFORMED` close, and rejected a
-  shapeshift of 7, a beast action of 20, and a beast action with an attack.
-  `ServerClient.cpp` passed a syntax check only. The `Equipment` fields
-  `beast_right_hand` and `beast_left_hand` (2026-10-18): `go test` covers them
-  accepted as spells and refused as a weapon, a torch, or an invalid spell;
-  they round-trip in game through a recording and its playback.
-  `beast_armor` (2026-10-18): `go test` covers it accepted and refused
-  without a slot mask, duplicated, or over 8 entries; a Linux-built
-  `WireCodec` encoded it, Go decoded and validated it and relayed it in a
-  `PeerEquipment`, and `WireCodec` decoded it back; it shows the vampire
-  lord's armor on peers in game.
-- **Official and custom server:** not built on Windows or run in game.
-  `ConnectionMonitor.cpp` ran on Linux with the real `SettingsSchema.cpp`, a
-  stubbed configuration store, and a fake transport whose attempts connect to
-  the endpoint configured when they begin: a game start connects to the
-  official server; switching `CustomServer` on with a URL, editing the URL, and
-  switching it off while connected start no attempt and close nothing; a loss
-  then reconnects to the endpoint configured at that time; switching it on
-  without a URL keeps the live connection, and its loss closes, ends the
-  player's choice, and logs why, so a URL entered then waits for Connect;
-  Connect without an endpoint does not connect. An earlier run under the
-  settings window's harness ([UI overlay](ui-overlay.md#status)) showed a game
-  starting without an endpoint not connecting. `ServerClient.cpp`,
-  `SessionStore.cpp`, and `PlayerFilters.cpp` passed a syntax check only, so
-  `DescribeServer` and `GetServerAddress` did not run.
-- **[Vanilla intro hold](#vanilla-intro-hold)** (2026-10-18): not built on
-  Windows or run in game. `VanillaIntro.cpp`, `ConnectionMonitor.cpp`,
-  `MainLoopHook.cpp`, `PluginStartup.cpp`, `DisplayNameHint.cpp`, and
-  `ConnectionControls.cpp` passed the g++ syntax check only. The MQ101 stages
-  were read from the 1.7.104 `Skyrim.esm` and `QF_MQ101_0003372B.pex`, and the
-  `kNewGame` payload from the `skse64_1_7_104.dll` disassembly
-  ([Sync pipeline](sync-pipeline.md#vanilla-intro)).
+- **Server:** implemented in Go. `go test -race ./...` in `server/` covers
+  validation of every client message (`internal/validate`), hub ordering
+  and relay, the roster, nearby players, whispers by slot, vanish,
+  inspection, trades, and the shapeshift rules (`internal/hub`), outboxes
+  (`internal/delivery`), the session store with display names, expiry,
+  bans, and database upgrades (`internal/auth`), the admission gate and
+  `X-Forwarded-For` parsing (`internal/admission`), and black-box
+  connections over a real WebSocket (`internal/session`, `internal/admin`):
+  issued and resumed sessions, every refusal and close status, the
+  `Origin` rule, the per-address caps, kicks, bans, and the admin session
+  route. A local server answered `/ws` and `/health` only on `listen`, and
+  `/api`, `/admin/`, and `/debug/pprof/` only on `admin_listen`.
+- **Throughput:** `cmd/loadgen` measured 250 walking bots, every one
+  receiving every other, on a 4-core Linux host shared with the load
+  generator: 1.24M entries/s, server CPU 58–64% of one core, latency p50
+  22 ms and p99 42 ms from sending a checkpoint to a peer receiving it. 500
+  bots connected within 2 s and ran without a failed bot or a server
+  warning. Quarter-unit positions cost 31.6 against 30.3 bytes per relayed
+  entry with 100 bots within ±6000 units. Scanning a viewer's
+  [nearby players](#nearby-players) once a second left 500 bots in each
+  other's reach at 559k entries/s and p99 82.8 ms; scanning every viewer on
+  every interest pass cost 23% of the entries and 20 ms of p99.
+- **Plugin transport:** built on Windows and run in game under wine,
+  including a `wss://` connection through a Cloudflare tunnel to the Go
+  server. On Linux, `ServerClient`, `WireCodec`, `SessionStore`, and
+  `ConnectionMonitor`, built against IXWebSocket 12.0.1 and nanopb 0.4.9
+  with stubbed Skyrim headers, ran against the Go server with a loadgen bot
+  as the peer: connect, hello and welcome, enter, context, checkpoints, an
+  attack, appearance, equipment, chat and its rejection, latency probes,
+  traffic counting, closing, and a session issued, saved, resumed by a
+  second process, and taken over by a third. That run predates the
+  `display_name` wire fields and the refusals that end the player's choice
+  to connect. `WireCodec` with the regenerated nanopb code decoded
+  Go-encoded server messages of every kind (rosters of 0 to 500 entries,
+  `NearbyPlayers`, whispers, inspections, trades, shapeshift contexts and
+  beast actions) and rejected their invalid forms, and the client messages
+  it encoded passed the server's `validate.Message`.
+  `ConnectionMonitor.cpp` ran against a stubbed transport and configuration
+  under the settings window's harness ([UI overlay](ui-overlay.md#status)):
+  a game start with and without a display name, `ConnectAutomatically`, an
+  endpoint, and `CustomServer`; switching servers while connected; each
+  refusal leaving the player disconnected until Connect; and a lost
+  connection reopened.
+- **Not run in game:** the connection policy and recovery
+  ([Connection](#connection)) beyond connecting, every refusal, the
+  [vanilla intro hold](#vanilla-intro-hold), vanish, inspection, and whether
+  quantization shows as jitter. The `Update.esm|0DDFB3` misreport that
+  `FormLookup::GetDefiningFile` fixes ([Form references](#form-references))
+  was seen in `PlayerHub.log`; the fix is not run in game. The vampire
+  lord's `beast_right_hand`, `beast_left_hand`, and `beast_armor` show on
+  peers in game through a recording and its playback.
 
 ## Scope
 
@@ -293,12 +153,15 @@ refused at the handshake ([Transport](#transport)).
 | 4007 `server full` | `limits.max_players` sessions are connected | refusal |
 | 4008 `too many new sessions` | The hello needs a new session and its address took its allowance | refusal |
 | 4009 `too many players from address` | `limits.max_players_per_address` sessions are connected from the hello's address | refusal |
+| 4010 `banned` | The session or the address is banned ([Kicks and bans](#kicks-and-bans)) | refusal |
+| 4011 `kicked` | An admin kicked the player | refusal |
 | 1008 | First message is not a hello, or `invalid session token` | reconnects |
 | 1011 `session store unavailable` | The session store failed | reconnects |
 
 An upgrade refused before the WebSocket exists answers HTTP 403 for a browser
-([Transport](#transport)) or 503 while too many connections wait for their
-hello ([Admission](#admission)); the client treats both as a failed attempt and
+([Transport](#transport)), 429 while the address has too many connections
+waiting for their hello, or 503 while too many connections wait in all
+([Admission](#admission)); the client treats each as a failed attempt and
 retries. What a refusal means for the client is in [Connection](#connection).
 
 ## Client messages
@@ -523,13 +386,13 @@ admin API. Bans are in [Kicks and bans](#kicks-and-bans).
 | Display name | 3..15 (`validate.MinimumDisplayNameBytes`, `validate.MaximumDisplayNameBytes`) ASCII letters, digits, and underscores (`validate.DisplayName`; the client's `Multiplayer::IsValidDisplayName` in `src/protocol/Session.h` is the same rule). Without spaces, a name typed before a whisper's message is told from the message. `Hello.display_name` and `Welcome.display_name` are nanopb buffers of 16 bytes. Unique among sessions by `validate.DisplayNameKey`, its lower case; a session may respell its own |
 | Last use | Set by every hello, when a connection closes, and hourly for connected sessions (`session.Server.Maintain`) |
 
-- `auth.Store` keeps sessions in SQLite (`modernc.org/sqlite`, pure Go, pinned
-  to the newest release that builds with Go 1.24) at `sessions.database`
-  (`sessions.db`; empty keeps them in memory, for tests), with a write-ahead
-  log and `user_version` 3. A version 1 database, whose columns are named
-  `nickname` and `nickname_key`, has them renamed when opened and keeps its
-  sessions; versions 1 and 2 get the `bans` table. Its one connection serializes transactions, which
-  the display name checks rely on. Store calls run on a connection's goroutine,
+- `auth.Store` keeps sessions in SQLite (`modernc.org/sqlite`, pure Go) at
+  `sessions.database` (`sessions.db`; empty keeps them in memory, for
+  tests), with a write-ahead log and `user_version` 3. A version 1
+  database, whose columns are named `nickname` and `nickname_key`, has them
+  renamed when opened and keeps its sessions; versions 1 and 2 get the
+  `bans` table. Its one connection serializes transactions, which the
+  display name checks rely on. Store calls run on a connection's goroutine,
   never on the hub's.
 - A session lives `sessions.lifetime_days` (30) after its last use, so one that
   keeps connecting never expires and none expires while connected. A banned
@@ -643,12 +506,11 @@ Goal: an admin can remove a connected player from the server, and keep one
 out. Both act from the admin API
 ([Recording and replay](recording-and-replay.md#admin-api)); replays and
 in-server bots have no connection and cannot be kicked or banned. Non-goals:
-timed bans (a ban lasts until lifted, the user's choice), a reason the player
-sees (the user chose fixed texts, so no admin text reaches clients: a notice
-for a kick and a connection controls sentence for a ban,
-[UI overlay](ui-overlay.md#notices)),
-banning a player who is not connected, and stopping a player who changes both
-session and address.
+timed bans and a reason the player sees (the user's choices: a ban lasts
+until lifted, and no admin text reaches clients, which show a fixed notice
+for a kick and a fixed connection controls sentence for a ban,
+[UI overlay](ui-overlay.md#notices)), banning a player who is not
+connected, and stopping a player who changes both session and address.
 
 - `session.Server.Kick` closes the player's connection with 4011 `kicked`.
   The plugin takes it as a refusal, so the game stays disconnected until the
@@ -1062,7 +924,7 @@ they cannot move and other players would only watch the scripted scene.
 Multiplayer starts once the player gets control back after Alduin's
 knockdown. Non-goals: holding the connection in other scenes or cutscenes,
 or for intros a mod puts in place of the vanilla one; with a skipped intro
-the game connects as before.
+the game connects at once.
 
 - While `VanillaIntro::IsPlaying` holds ([Sync pipeline](sync-pipeline.md#vanilla-intro)),
   no connection is wanted (`IsConnectionWanted`), the monitor closes any open
@@ -1124,7 +986,7 @@ window, and are empty after a long gap. The status panel shows them.
 ## Acceptance criteria
 
 1. Two clients see each other move, attack, sit, ride, die, and change
-   appearance and equipment as before the protobuf transport.
+   appearance and equipment.
 2. A client that joins while a peer's game is paused sees that peer at once.
 3. A client with another protocol version shows the server's version in the
    settings window and stays disconnected until Connect.
@@ -1162,7 +1024,7 @@ window, and are empty after a long gap. The status panel shows them.
     and connects by itself when the player can move after the knockdown. The
     display name hint does not show before then, and Connect is disabled.
 16. A new game whose start quest is not MQ101 (an alternate start), or a save
-    past the knockdown, connects as before; a save from before the knockdown
+    past the knockdown, connects at once; a save from before the knockdown
     loaded while connected disconnects until the player can move.
 
 ## Known limitations
@@ -1185,8 +1047,7 @@ window, and are empty after a long gap. The status panel shows them.
   `I` or `0` and `O` are different display names.
 - Non-goal: display names in other scripts, with spaces, or with punctuation
   besides `_`. The narrow rule keeps names typeable in a whisper, renderable by
-  every font, and comparable without Unicode case folding. Sessions stored
-  before the rule keep their names until they expire or a hello renames them.
+  every font, and comparable without Unicode case folding.
 - The token is sent in the hello as it is, so an `http://` endpoint exposes it
   to the network; `https://` endpoints carry it under TLS.
 - The official URL is kept out of the settings window and the log only: it

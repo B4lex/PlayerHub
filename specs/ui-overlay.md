@@ -2,793 +2,120 @@
 
 ## Status
 
-- **Kick and ban refusals** (2026-10-20): the kick notice and the ban
-  sentence passed the syntax check and `generate.lua` only; not built on
-  Windows or run in game.
-- **Vanilla intro hold** in the display name hint and the connection
-  controls (2026-10-18): syntax check only, see
-  [Network](network.md#status).
-- **[Translation files](#translation-files)** (2026-10-16): not built on
-  Windows or run in game, and the `after_build` copy to the deploy
-  directories has not run. On Linux, `generate.lua` (host xmake 3.0.6) and
-  `msgfmt -c` passed the eight shipped files with 290 of 290 texts each. A
-  scratch xmake project with the `locale` rule built `Text.cpp`,
-  `Gettext.cpp`, and the generated `English.cpp` with g++, and a stale entry
-  or an `en.po` in `locale/` failed that build. A harness ran the same sources
-  under valgrind, with no errors, over the shipped files copied into a stub
-  `PlayerHub/locale/`. It confirmed the following. Each shipped file loads
-  290 of 290 texts. A stubbed `sLanguage:General` of `GERMAN` selects `de`,
-  and `KOREAN` with a `ko.po` that has no `X-Skyrim-Language` gives English.
-  `Text::Select` switches by code in any case. An unknown code warns once
-  and gives the game's language. A six-form Arabic rule picks the expected
-  forms for counts 0 to 111, and a rule that divides by zero, gives a form
-  out of range, has seven forms, or nests 40 parentheses deep is rejected. A
-  Ukrainian copy of the Russian file, with a byte order mark, CRLF line
-  endings, a fuzzy entry, a stale entry, a wrong field, an unknown key, and
-  no `LanguageName`, loaded 286 of 290 texts. It logged each problem and was
-  listed by its code. A file with a bad escape, an `en.po`, a name with a
-  space, and a file without `Plural-Forms` were skipped with their reasons.
-  The changed sources passed the g++ syntax check against CommonLibSSE-NG
-  and Dear ImGui 1.92.9, apart from `Fonts.cpp`'s existing Windows-only path
-  calls. The settings combo, the INI's code values, and the Han order by
-  code were not run.
-- **[Language setting](#localization)** (2026-10-16): not built on Windows or
-  run in game. Before the translations moved to files, a harness ran
-  `text/Text.cpp` with compiled tables over a stubbed `sLanguage:General` of
-  `GERMAN`. It confirmed the following. `Text::Select` switches to each
-  language and back to the game's. A view taken before a switch still reads
-  its text. A second thread reading and formatting text while the main thread
-  switched 20,000 times read valid text throughout. That check was not run
-  under a thread sanitizer, which this host lacks, and selecting still
-  publishes a table the same way. A headless Dear ImGui 1.92.9 program ran
-  the same clear and reload between frames that `Fonts::Update` does. It
-  freed the old font data each time and drew merged Latin, Cyrillic, and Han
-  text afterwards, with no invalid reads under valgrind. In game, switching
-  back from Japanese left specks at the glyphs' edges. The same program then
-  copied only the rectangles ImGui asks the DX11 backend to upload. After a
-  Japanese round trip with `ClearFonts`, 7,202 texels next to the new glyphs
-  were still lit; with `Clear`, none were. The `Clear` fix was not run in
-  game. The chat's target chip stayed in the earlier language after a switch
-  in game, and was English before any target change in every language; it
-  now follows the language (syntax check only).
-- **[Localization](#localization):** not run in game. The translations are
-  machine drafts no native speaker has reviewed. `msgmerge` marks an entry
-  whose English changed as fuzzy, which the build then rejects.
-- **[Background opacity](#background-opacity)** (2026-10-15): the opacity
-  works, as the user reported. The [blur](#background-blur)
-  behind translucent surfaces is not built on Windows or run in game. On
-  Linux, its sources passed the g++ syntax check against CommonLibSSE-NG, and
-  a headless harness ran the real `MenuFrame.cpp`, `Theme.cpp`, and
-  `Backdrop.cpp` against Dear ImGui 1.92.9 with stubbed D3D11 objects. That
-  harness confirmed the following. At 100% nothing is blurred and the frame is
-  never copied. At 75% the blur's triangles come first in a framed window's
-  list, fully opaque inside the silhouette, the same on the frame that
-  triangulates the shape and on one that copies it, with the frame's own
-  triangles unchanged. A popup and a tooltip each get a blur list just before
-  their own, the draw data's vertex and index totals stay right, and the game
-  frame is copied once per frame however many surfaces use it.
-- **Overlay, input, status panel:** implemented and built on Windows; the
-  settings UI runs in game. The renderer and input hook sites and the input
-  context order were checked against the 1.7.104 executable and address library.
-  SE 1.5.97 uses the same IDs and offsets as other public ImGui overlays but was
-  not checked here. Skyrim VR is not supported: the hooks are not installed and
-  a warning is logged. The status panel showing only the disconnected state
-  without a display name is not built on Windows or run in game; on Linux,
-  `StatusPanel.cpp` passed a syntax check against Dear ImGui 1.92.9.
-- **Number sliders and section defaults** (2026-10-13): not built on Windows or
-  run in game, and not run in the headless harness. On Linux,
-  `SettingsWindow.cpp`, `SettingsSchema.cpp`, and `PluginConfig.cpp` passed
-  the g++ syntax check. That Dear ImGui draws a format without a conversion
-  as it is follows its demo's enum slider and was not run here.
-- **Resizing from every side** (the open chat's four edges and corners, the
-  settings window's upper corners, 2026-10-18): with whole-percent chat
-  positions, it worked in game on Windows (the user's check). Fractional
-  positions and the transparent grip colors are not yet built on Windows or
-  run in game. On Linux, `MenuFrame.cpp`, `ChatSize.cpp`, `ChatPosition.cpp`, and
-  `ChatWindow.cpp` passed the g++ syntax check, which a planted error
-  confirmed reaches `MenuFrame.cpp` and `ChatSize.cpp`. So did `Theme.cpp`,
-  `PluginConfig.cpp`, `SettingsSchema.cpp`, and `SettingsWindow.cpp`, which a
-  planted error confirmed reaches the last three. A headless Dear ImGui
-  1.92.9 test ran the real `MenuFrame.cpp`, `ChatSize.cpp`, and
-  `ChatPosition.cpp` at 1080p. In it the settings window showed the diagonal
-  resize cursors over its upper corners, inside and just outside. A drag on
-  either corner resized it with the opposite lower corner in place. It stopped
-  at the minimum size and at the display's corner. Its edges, lower right
-  grip, and move from an empty part still worked. The chat ran in a stand-in
-  for `ChatWindow::DrawOpen` without the player list. It showed the matching
-  resize cursor over each edge, each corner, and each knot's square. A click
-  on an edge saved nothing and kept the slider's whole percent. During a left
-  or bottom drag the right or top edge stayed in place by the pixel. On
-  release, one `Config::Apply` saved the size and position, and the held edge
-  did not move. A drag past the screen's bottom or left edge stopped there.
-  Top and right drags still kept the lower left corner. A drag inside the
-  chat still moved it, and it stayed on the pixel it was dropped on. The
-  player list's side choice during a left drag, the settings window's
-  fractional slider, and reading and writing fractions in the file were not
-  run.
-- **Chat position** (`[UI] ChatPositionHorizontal` and
-  `ChatPositionVertical`, 2026-10-13): as offsets from the former default place, with the size limited to the room
-  from the chat's corner and the player list's side choice, it worked in game
-  on Windows (the user's check). As positions from the screen's corner, without
-  the margins, it is not yet built on Windows or run in game; on Linux,
-  `ChatWindow.cpp`, `SettingsSchema.cpp`, `PluginConfig.cpp`, and
-  `SettingsWindow.cpp` passed the g++ syntax check. Moving the chat by a drag
-  (2026-10-13) is not built on Windows, run in game, or run in the headless
-  harness; on Linux, `ChatPosition.cpp`, `ChatSize.cpp`, and `ChatWindow.cpp`
-  passed the g++ syntax check, which a planted error confirmed reaches
-  `ChatPosition.cpp`.
-- **Settings sections** (`[Connection]`, `[Advanced]`, and the `[UI]`
-  groups, 2026-10-13): not built on Windows or run in game, and not run in
-  the headless harness. On Linux, `SettingsSchema.cpp`, `PluginConfig.cpp`,
-  `SettingsWindow.cpp`, `ConnectionControls.cpp`, `DisplayNameHint.cpp`,
-  `StatusPanel.cpp`, `ConnectionMonitor.cpp`, `ServerClient.cpp`, and
-  `ActorLifecycle.cpp` passed the g++ syntax check, which a planted error
-  confirmed reaches `SettingsWindow.cpp`. The checks below that name
-  `[General]`, `[Network]`, or `[Performance]` ran before the merge.
-- **Settings window placement** (kept across openings, 54 × 36 font sizes,
-  2026-10-13): not built on Windows or run in game. On Linux, the real
-  `MenuFrame.cpp` ran in a headless Dear ImGui 1.92.9 test set up as the
-  settings window: it opened centered at 54 × 36 font sizes; moved, resized,
-  closed for a few frames, and reopened, it had the same rect; reopened after
-  the font size changed from 13 to 16 px while closed, it was scaled by that
-  ratio around its kept center and held there; scaling back while open still
-  followed. The committed `MenuFrame.cpp` failed the reopen and closed-scale
-  checks in the same test.
-- **Display name field filter and Enter to connect** (2026-10-14): not built
-  on Windows or run in game, and not run with the real `ConnectionMonitor`.
-  On Linux, `SettingsWindow.cpp` and `ConnectionControls.cpp` passed the g++
-  syntax check, which a planted error confirmed reaches `SettingsWindow.cpp`.
-  `FilterDisplayName`, copied from it, ran in a headless Dear ImGui 1.92.9
-  test on the field's `InputTextWithHint` call: typed punctuation, spaces,
-  and non-ASCII letters are dropped; typing stops at 15 characters; a paste
-  is filtered and cut to 15, also into a full field; Enter and keypad Enter,
-  with and without an edit, end editing in the frame the key is pressed, with
-  the edit applied in that frame. The notice naming the minimum length
-  passed the syntax check only.
-- **Display name hint** (2026-10-13): not built on Windows or run in game.
-  On Linux, `DisplayNameHint.cpp`, `GameView.cpp`, `NameplateLayer.cpp`,
-  `MenuFrame.cpp`, and `TradePrompt.cpp` passed the g++ syntax check, which a
-  planted error confirmed reaches the hint's file.
-- **Chat filter and send target tooltips** (2026-10-14): not built on
-  Windows, run in game, or run in the headless harness. On Linux,
-  `ChatHistory.cpp` and `ChatInput.cpp` passed the g++ syntax check, which a
-  planted error confirmed reaches `ChatHistory.cpp`.
-- **Shared window setup and search field** (`MenuFrame::BeginWindow`,
-  `Controls::SearchField`, `Controls::MutedTextWrapped`, 2026-10-07): Linux
-  syntax check only; not rerun in the headless harness or in game.
-- **Input ahead of other plugins:** not built on Windows or run in game. That
-  Open Animation Replacer 3.2.1 and another plugin with an ImGui menu detour
-  the same call was read from their binaries, and that the latter does it after
-  this plugin from `skse64.log`. On Linux, `InputCapture.cpp` and `WindowManager.cpp` ran
-  against stubbed engine input and a stand-in call site with plugins detouring
-  it before and after the hook: a later plugin sees only the dispatch it took
-  over; after that neither plugin nor the game sees the focus key or keys
-  typed into the chat, and each sees an unfocused key once; a later plugin
-  that swallows input still does; the ninth detour is refused with one
-  warning.
-- **Input language** (2026-10-12): works in game on Windows (1.7.104),
-  reported by the user: switching between English and Russian while the
-  chat's field has focus changes the letters typed at once. The call sites
-  in `BSWin32KeyboardDevice::Poll` were read from the 1.7.104 executable.
-- **Nameplates** (2026-10-12): not built on Windows or run in game. On
-  Linux, `NameplateSync.cpp`, `NameplateLayer.cpp`, `SyncCoordinator.cpp`,
-  `ChatRoster.cpp`, and `SettingsSchema.cpp` passed the g++ syntax check,
-  which a planted error confirmed reaches the first three. The player's
-  line-of-sight path and the projection were read from the 1.7.104
-  executable ([Engine assumptions](#engine-assumptions)).
-- **Scale** (2026-10-12): not built on Windows or run in game. On
-  Linux, `Overlay.cpp`, `MenuFrame.cpp`, `SettingsWindow.cpp`,
-  `SettingsSchema.cpp`, and `PluginConfig.cpp` passed the g++ syntax check,
-  a planted error confirming each is checked. `MenuFrame`'s
-  `FollowFontSize` ran in a headless Dear ImGui 1.92.9 window set up as
-  `BeginWindow` sets up the settings window: a window dragged and resized at
-  100% grew to 130% around its center (900 × 600 to 1181 × 787 at a 21 px
-  font) and held on later frames, and a window in the display's corner
-  scaled from its size before `Begin` raised it to the new minimum and
-  stayed on the display.
-  The slider's step and the file's step check were not run.
-- **SE 1.5.97 IDs** (2026-10-12): a 1.5.97 crash log showed opening a
-  menu with an item preview crash in `Forms::GetItemDetails`, which called
-  1.7.104 Address Library IDs that resolve to unrelated functions on SE; the
-  item details formulas are now ported (see [Trade](trade.md#item-details)).
-  The SE IDs of the preview's turn (50902) and ambient override (98989,
-  527705), the input language patch's poll (67472, `ToUnicode` at +0x20D),
-  and the nameplates' line of sight and projection were matched against
-  the 1.5.97 executable's disassembly, function by function with their
-  1.7.104 counterparts. Not built on Windows or run on 1.5.97:
-  `ItemDetails.cpp`, `ItemPreview.cpp`, and `InputLanguage.cpp` passed the
-  g++ syntax check, which a planted error confirmed reaches each.
-- **Notices and notes:** not built on Windows or run in game. On Linux, the
-  changed `sync/` and `ui/` files passed a g++ 16 syntax check against
-  CommonLibSSE-NG, and `NoticeStack.cpp`, `Notices.cpp`, `ChatComposer.cpp`,
-  `ChatInput.cpp`, and `Theme.cpp` ran in a headless Dear
-  ImGui 1.92.9 context with stubbed roster, filters, and sending, without
-  the themed fonts or the frame (47 checks): a fifth notice dropping the
-  oldest, a friend's arrival, a repeat shown as a toast of its own, the
-  strip in the accent, 5 s for a short
-  notice and 8.9 s for the 105-character save failure, half alpha halfway
-  through the fade, nothing drawn once expired or outside a game, the
-  stack's right edge and top where this spec puts them; a failed send
-  keeping its text, an edit, a recalled line, and Tab clearing the notes; the panel ending one item spacing above
-  the field and as tall as its wrapped rows, and gone after `OnOpened`.
-  The rasterized stack and panels were looked at. `ChatWindow`'s routing of
-  rejections, the connected notice, the `kAddressFull` refusal notice, and
-  the texts without final periods ran only through the syntax check.
-- **Chat:** not built on Windows or run in game. Server unit tests cover
-  routing, the roster, and whisper addressing ([Network](network.md#status)).
-  On Linux, with g++ 16 and a logging stub:
-  - Removing the chat commands, which folded `ChatDraft` into `Composer` and
-    left notes failure-only, passed only the g++ syntax check, which a
-    planted error confirmed reaches `ChatComposer.cpp` and `ChatInput.cpp`;
-    the harness runs below predate it.
-  - `ChatRoster.cpp`, `ChatComposer.cpp`, and `ChatSync.cpp` ran against a stubbed transport: the `@` prefix; names compared without
-    case in ASCII, Latin Extended-A, and Cyrillic; the order of the name
-    list; the longest-name rule; the prefix switching the target as it is
-    typed; a name binding at its space only when no longer name continues
-    it; Tab order with and without partners; a partner under another
-    slot found by name and one who left reported offline; sent lines recalled
-    with their targets; the messages for a player who left, text that cannot
-    be sent, no connection, and the server's `unknown recipient`, checked
-    when they were chat lines (see **Notices and notes** for what ran since).
-  - `ChatWindow.cpp`, `ChatHistory.cpp`, and `ChatInput.cpp` ran with those,
-    `Theme.cpp`, `MenuFrame.cpp`, and `Fonts.cpp` in a headless Dear ImGui
-    1.92.9 context against a folder laid out as the deploy step leaves it,
-    with simulated keys and mouse and the draw data rasterized to images, at
-    1080p, at 4K, with `BorderColor = Accent`, and without `PlayerHub/`:
-    typing, Tab, and Shift+Tab; the name list by
-    keys and by a click; Escape closing the list, then the chat, with the
-    text kept and discarded; Up and Down; each filter
-    turning its channel off and on by itself, in the open chat and among the
-    closed chat's lines, with the send target unchanged; the unread dots; a
-    target and the player's own line turning a channel back on; a click on a sender's name; the chip's menu; a
-    line's menu; a click outside; a whisper to a player who
-    left; scrolling by the wheel while the cursor is hidden and a line
-    arriving while scrolled back; the closed chat's lines with every channel
-    on, with Global off, and with Whispers off. In the images the field, the
-    chip, the list, and both menus have the [theme](#theme)'s surfaces,
-    corners, and accent, each filter is a chip, filled in its channel's color
-    when shown and a grey outline when off, with a rule between the filters
-    and the lines, and the filters, lines, chip, list, and recent lines start
-    in one column.
-    A line's label, up to and with its colon, is in Sovngarde Bold on the
-    baseline of the text, in the open chat and the recent lines; without the
-    fonts it is in the system font. ImGui's style-stack checks passed.
-  - `InputCapture.cpp` and `WindowManager.cpp` ran against stubbed engine
-    input: Tab reaching Dear ImGui only for a window that uses it; the chat's
-    cursor hidden until the mouse moves, then at the window's point, with the
-    wheel and clicks following it; the settings window's cursor in the middle
-    at once.
+Built on Windows with the rest of the plugin. The renderer and input hook
+sites and the input context order were checked against the 1.7.104
+executable and Address Library. SE 1.5.97 uses the IDs and offsets other
+public ImGui overlays use, and the SE IDs of the preview's turn and ambient
+override, the input language patch, and the nameplates' line of sight and
+projection were matched in the 1.5.97 disassembly; nothing ran on SE. Skyrim
+VR is not supported: the hooks are not installed and a warning is logged.
 
-  - The chat's size and wrapped lines ran in that harness over a stubbed
-    `Config::Apply`, at 720p, 1080p, and 4K, with `BorderColor = Accent`, and
-    without `PlayerHub/`: a line longer than its row starting beside its
-    label and continuing from the left edge under it, in the open chat and
-    among the closed chat's lines; a first word that only a whole row has
-    room for starting the next row; a word wider than a row, with and
-    without punctuation, after other words, and in Cyrillic, starting beside
-    its label and filling each row to its end; the resize cursor over the
-    top edge, the right edge, and their corner; a drag on each, a few pixels
-    a frame, changing the window's size from its lower left corner in every
-    frame, with the dragged edge as far from the cursor as when it was
-    pressed, the field and the chip where they were in the window, and the
-    latest line at the lines' bottom while rows wrap elsewhere, after the
-    first frame of a drag that shrinks it; a release
-    between steps settling on whole lines and font sizes, saved once and not
-    before; a click on an edge saving nothing; a drag inward stopping at 24
-    by 9 with the 8-row name list under the filters, and one past the
-    screen's corner at 100 by 40 with the chat on the screen; the latest line
-    staying in view through each, a line that arrives in the frame after
-    the rows got fewer or after a drag's first frame scrolled to, lines
-    arriving until the scrollbar shows keeping the latest in view, and
-    scrolled-back lines staying where they were; the keyboard back in the field after a drag; a drag that
-    loses focus saved; the closed chat's box as wide; the chat opening at
-    the saved size, and a new chat having it from the first frame it shows.
-    Without the frame's shape the name list reaches 5 px over the filters at
-    the smallest size. `SettingsWindow.cpp` ran with the real schema, and
-    its `[UI]` page has no row for either key.
-  - `[UI] CloseChatOnSend` ran in a smaller harness with the chat's sources
-    and simulated keys: on, Enter sending and closing and Enter in an empty
-    field closing without sending; off, Enter sending with the chat open and
-    the field keeping the keyboard for the next line, Enter in an empty or
-    blank field leaving it open without sending, Escape
-    closing it, Escape after sending a draft kept from the last opening not
-    bringing it back, which fails without that rule, and Up recalling the
-    line sent; turned on while open, the next Enter closing it.
-    `SettingsWindow.cpp` ran with the real schema: the `[UI]` page has a
-    switch for the key, and clicking it applies and saves each value.
-  - Limiting the second layout of the lines to a new wrap width
-    ([Size](#size)) ran in a smaller harness at 1080p, with Dear ImGui's
-    default font, the real menu frame, and the chat's sources, the bullet
-    above having run before it: per frame of a drag up, down, wider,
-    narrower, and from the knot, the edge following the cursor and the
-    field, the chip, and the latest line still, after a shrinking drag's
-    first frame, where the latest line was 3 px low; lines arriving after
-    such frames and until the scrollbar shows scrolled to; scrolled-back
-    lines kept. With 300 lines, a frame took about 135 µs idle, 138 µs
-    dragging the height, and 231 µs dragging the width, against 238 µs and
-    230 µs for both drags before.
-  - The [player list](#player-list) ran in that smaller harness with
-    `ChatRoster.cpp` over a stubbed transport, at 1080p and 4K, in Dear
-    ImGui's default font and in Sovngarde, the draw data rasterized to
-    images: the button on the filters' row, as high as the filters and
-    ending at the field's column with 5 and with 500 players; the list beside
-    the chat and as high, its search field on the filters' row and its rows
-    a line apart; players nearby first and in the Nearby color, moving back
-    among the others when no longer nearby; the local player left out, and
-    the empty-list row when alone; a click on a name
-    and the whisper item in a row's menu whispering that player, with typing
-    reaching the chat's field after either; Escape closing a
-    row's menu only; the search matching without case, the row for no
-    match, Backspace, Tab kept in the field, and nothing typed there
-    reaching the chat; Enter there giving the keyboard back to the chat's
-    field; the button closing the list and clearing its search; Escape with
-    a row's menu open closing only the menu; after Enter closes the chat,
-    the list showing again when it opens; with 500 players only the rows in view
-    drawn, the wheel over the list scrolling it and not the lines, and
-    players nearby copied every half second; a chat dragged to the screen's
-    right edge leaving the list room; the disconnected row without a
-    roster. The resize checks of the bullet above passed again. With 300
-    lines and 500 players a frame took about 97 µs with the list closed and
-    100 µs with it open, against 127 µs for the chat before it and the
-    [menu frame](#menu-frame)'s kept triangles; a join or leave in every
-    frame, 150 µs.
-  - An earlier drag ran in game, runtime not recorded: it moved in whole
-    font sizes and lines with the window as high as its content, and the
-    player saw it resize at a lower frame rate than the settings window,
-    with the field and the chip flickering. The drag described under
-    [Size](#size) is not built on Windows or run in game.
+**In game on Windows (1.7.104):**
 
-  Not run anywhere: the wheel over the lines with the cursor shown, the
-  Windows clipboard, the resize cursors as the overlay draws them in game,
-  and the player list with a real roster and players nearby.
-- **Settings window, theme, connection controls:** an earlier layout, with tabs
-  and a title bar, ran in game. The sidebar layout, the display name's line
-  with the connection button, the switches, and the theme are not built on
-  Windows or run in game. On Linux, `SettingsWindow.cpp`,
-  `ConnectionControls.cpp`, `Controls.cpp`, `ItemPicker.cpp`, and `Theme.cpp`
-  ran in a headless Dear ImGui 1.92.9 context against stubbed `Config::Apply`,
-  `Network`, and `ItemPreview` functions and a fake catalog, with simulated
-  mouse and keyboard input and the draw data rasterized to images over a
-  stand-in scene. With `[General]` as a row and a button below it:
-  - every section at 1080p, `[General]` at 720p and `[DefaultOutfit]` at 4K, the open
-    sex and item lists, a label's tooltip, an invalid field with its
-    footer, and a picked item with its reset button;
-  - typing applies nothing; Enter and a click on another section each apply
-    the text once; Escape puts the previous text back and leaves the window
-    open; invalid text is not applied; a switch and a step button apply at
-    once; an outfit pick applies only on Apply, and stays pending through an
-    edit in another section;
-  - the close button and Escape close the window; a drag on the sidebar or
-    beside the title moves it and one on the lower right corner resizes it.
+- Startup: the translations load whole, and the system fonts, the themed
+  faces, the logo, and the menu frame load (`latest.log`); input dispatch is
+  detoured again after another plugin's detour.
+- The settings window in the menu frame, its pages, and resizing it from
+  every edge and corner; the open chat resizing from its four edges and
+  corners with whole-percent positions, and moving it by the position
+  sliders as offsets from an earlier default place.
+- [Background opacity](#background-opacity); the [blur](#background-blur)
+  under it has not run in game.
+- [Input language](#input-language): switching between English and Russian
+  while the chat's field has focus changes the letters typed at once.
+- The [player menu in the world](#player-menu-in-the-world): E on a remote
+  player opens it at the crosshair, and a build that read the race from the
+  character showed the name, race, and level.
+- The item picker lists names and the preview shows models. With the
+  refresh capture every trade thumbnail was textured (78 captures, none
+  missing a texture), the trade screen and its backdrop looked right with
+  the 2× model capture and the game's TAA off for captures, an enchanted
+  model's glow animated when captured every update, and a click on a single
+  offered item removes it.
+- Switching languages back from Japanese left specks at the glyphs' edges
+  with `ClearFonts`, which `ImFontAtlas::Clear` addresses
+  ([Localization](#localization)); the fix has not run in game.
 
-  `[General]` ran the same way at 1080p only, with the real schema and a
-  stand-in item picker. Its layout ran against stubbed `Network` functions,
-  before the field was locked and the connection button became the only way
-  to connect:
-  - the field and the button share a line in every state; the field has the
-    keyboard when the window opens without a display name and not with one;
-  - invalid or emptied text disables connecting, and a click does not connect
-    with it; Escape puts the name back; disconnecting and cancelling stop
-    wanting a connection, and a press while disconnecting does nothing.
+**Headless Dear ImGui 1.92.9 harnesses on Linux**, with stubbed engine,
+network, and configuration, simulated keyboard and mouse, and the draw data
+rasterized to images where noted; ImGui's style-stack checks passed in each:
 
-  `[General]` as it is now ran with the real `ConnectionMonitor` over a
-  stubbed transport and game state:
-  - typing applies nothing and enables connecting; a click elsewhere applies
-    the name and does not connect, also in a game started with `AutoConnect`
-    and no display name; one click on the button applies a typed name and
-    connects, once; Enter did not connect when this ran;
-  - while connecting and while connected the field is disabled, a click,
-    typing, and Enter change nothing, and hovering it shows its tooltip;
-    disconnecting unlocks it, and a name applied then does not connect;
-  - a refusal for the display name, for the protocol version, and of a
-    replaced session each leave the button connecting, an editable field, and
-    the refusal under it; applying another name keeps the refusal and does not
-    connect; connecting clears it.
+- Settings window (rasterized at 720p, 1080p, and 4K): every section, the
+  sidebar, switches, step buttons, text fields applying on Enter or a click
+  elsewhere and reverting on Escape, outfit picks pending until Apply,
+  closing, moving, and resizing; the upper corner grips; placement kept
+  across openings and scaled with the font size (`MenuFrame.cpp`); `Scale`'s
+  `FollowFontSize`; [key bindings](#key-bindings) (drawn text, not images)
+  including conflicts, reserved keys, Backspace, and listening ending on a
+  click or focus loss; [connection controls](#connection-controls) with the
+  real `ConnectionMonitor` over a stubbed transport, including the locked
+  field, refusals, and the field's character filter and Enter on its
+  `InputTextWithHint` call; `CustomServer` and its URL field (text, not
+  images); the [accent color](#accent-color) swatches and picker.
+- Themed faces, logo, and menu frame (rasterized at 540p to 4K): Sovngarde
+  with bold headings and system font fallbacks, the logo's placement and
+  scratches, the frame's knots clear of the content at
+  `BorderThickness` 50, 70, and 100, the frame color, the fallback without
+  each file, and the kept triangles drawing the same as a fresh
+  triangulation. `menu-frame.shape` was regenerated byte for byte from
+  `messagebox.swf` of a Steam Special Edition install, build 24914197.
+- Background blur (draw data only): the blur's triangles under a framed
+  window's silhouette, a blur list before each popup and tooltip, correct
+  draw data totals, and one frame copy however many surfaces use it.
+- Chat (rasterized at 720p, 1080p, and 4K, with and without `PlayerHub/`):
+  typing, Tab and Shift+Tab, the `@` prefix and the name list, Escape and
+  the kept text, Up and Down, each filter, unread dots, the chip's and a
+  line's menus, scrolling, wrapped lines, resizing from the top and right
+  edges with whole lines settled and saved once, `CloseChatOnSend` on and
+  off, the [player list](#player-list) with 500 players, and the cursor
+  hidden until the mouse moves. With 300 lines and 500 players a frame took
+  about 97 µs with the list closed and 100 µs with it open, and a width
+  drag about 230 µs against 135 µs idle.
+- [Notices](#notices) and [notes](#notes) (rasterized): stacking, dropping
+  the oldest, a friend's arrival, repeats, fade timing for short and long
+  notices, placement, and the notes panel.
+- [Mute and vanish](#mute-and-vanish), the [player manager](#player-manager),
+  and [friends](#friends) with the real `PlayerFilterStore`,
+  `PlayerFilters`, and `ChatRoster`: the kept file per server, publishing,
+  hidden lines, the menu items, the list's marks (rasterized), the manager's
+  tabs, search, and rows, and friends announced on arrival.
+- The [player menu](#player-menu) in the chat and in the world with the real
+  `PlayerDetails` (text, heights, and vertex colors): the heading, a reply
+  from the server or the local actor, and the wait without growing.
+- Trade window and prompt (rasterized at 1080p and 1280 × 1024): the prompt
+  and its keys, focus taken and lost, `MENU` and `FAILED`, the grids with
+  thumbnails requested in offer order, inspecting peer lines, the count
+  popup, the preview column and backdrop, and the vanilla item card with
+  Sovngarde, scrolling, and margins; a reappearing auto-resized prompt is
+  hidden for its first frame.
+- [Localization](#localization): `generate.lua` and `msgfmt -c` passed every
+  shipped file, a stale entry or an `en.po` failed the build in a scratch
+  xmake project, and the loader ran under valgrind without errors over the
+  shipped files and malformed ones (byte order mark, CRLF, fuzzy, stale,
+  wrong fields, unknown keys, bad escapes, bad or missing `Plural-Forms`),
+  selecting the game's language, switching by code, and rejecting each
+  problem as described. A second thread read text while the main thread
+  switched 20,000 times, without a thread sanitizer. The font atlas `Clear`
+  and reload between frames freed the old data and left no texels lit from
+  the previous glyphs.
+- `InputCapture.cpp` and `WindowManager.cpp` against stubbed engine input:
+  focus keys, Tab, the hidden cursor, and plugins detouring the dispatch
+  before and after the hook, with the ninth detour refused.
 
-  ImGui's style-stack checks passed. The mouse path of `InputCapture` was not
-  run there. Closing with `OpenSettings` is not built on Windows or run in game;
-  on Linux, `InputCapture.cpp` and `WindowManager.cpp` ran against stubbed
-  engine input and ImGui IO functions: the key opens and closes the window
-  without the game seeing either press, an editing key bound as the settings
-  key stays with an active text field, and chat keeps Enter.
-- **Themed faces (Sovngarde):** not built on Windows or run in game. On Linux,
-  `Fonts.cpp` ran with POSIX stand-ins for its Win32 file calls, with
-  `SettingsWindow.cpp`, `ConnectionControls.cpp`, `Controls.cpp`, and
-  `Theme.cpp`, in a headless Dear ImGui 1.92.9 context against a folder laid
-  out as the deploy step leaves it and stand-in system fonts, the draw data
-  rasterized to images:
-  - every section at 1080p and `[DefaultOutfit]` at 4K, and a
-    label's tooltip are in Sovngarde with bold headings; a display name with
-    `Ґ`, `ž`, and Han characters shows them from the fallbacks;
-  - without `PlayerHub/fonts/` the log warns for each file and the window is
-    in the system font; without system fonts both faces still load;
-  - after a frame the font stack is empty and the current font is the
-    overlay's.
-
-  The `xmake.lua` deploy step and a file that is not a font were not run. The
-  chat in Sovngarde is under Chat above.
-- **Logo:** not built on Windows or run in game. `assets/logo/generate.py`
-  builds the same `PlayerHub.ttf` on every run. On Linux, a headless Dear
-  ImGui 1.92.9 context loaded it beside Sovngarde and drew `DrawBrand`'s calls
-  in the sidebar's layout under the real [menu frame](#menu-frame), the draw
-  data rasterized to images: at 720p, 1080p, 1440p, and 4K the logo starts at
-  the navigation labels' left edge and ends 2 to 4 px inside the right inset
-  (137 × 30 px at 1080p, 278 × 61 px at 4K), anti-aliased, with the scratches
-  showing through the bar and the navigation below it; it is clear of the
-  knots at `BorderThickness` 70 and 100. `Fonts.cpp` and
-  `SettingsWindow.cpp` themselves did not run there.
-- **[Discord link](#discord-link)** (2026-10-18): not built on Windows or run
-  in game. `assets/logo/generate.py`
-  rebuilt `PlayerHub.ttf` with the letters and the bar unchanged point
-  for point, and its U+E002 rasterized by FreeType differs from the Discord
-  symbol PNG it was checked against in 1.4% of the symbol's pixels, all at
-  edges. `generate.lua` passed the template and the eight translations.
-  `DiscordLink.cpp` and `SettingsWindow.cpp` passed the g++ syntax check
-  against CommonLibSSE-NG and Dear ImGui 1.92.9, apart from the MinGW
-  headers' `CoInitializeEx` and `ShellExecuteW`, which g++ does not declare
-  there even in an empty file; their use was checked against the Windows SDK.
-  The check passed with `PLAYERHUB_DISCORD_INVITE` empty and set. On Linux,
-  xmake 3.0.6 ran the `discord_invite` option and `on_config` in a scratch
-  project: the object held each configured URL, and none when it was empty,
-  across switches between empty and two URLs without `-r`; `http://`, a
-  space, and a backslash failed `xmake f`. The same project with the define
-  added only for a set value kept its first object, which is why the define is
-  always there. The layout and the browser launch did not run.
-- **Player list marks** (2026-10-18): not built on Windows or run in game.
-  `assets/logo/generate.py` rebuilt `PlayerHub.ttf` with U+E000 to U+E002
-  unchanged point for point, and the same bytes on a second run. A headless
-  Dear ImGui 1.92.9 context drew U+E003 and U+E004 from it at 12 to 24 px,
-  rasterized to images: the bubble's tail stays clear of the strike and the
-  gap shows at every size, and at 12 px the eye's pupil merges with its lid.
-  `ChatPlayers.cpp` passed the g++ syntax check against CommonLibSSE-NG and
-  Dear ImGui 1.92.9.
-- **Menu frame:** not built on Windows or run in game. `menu-frame.shape` was
-  regenerated byte for byte from the `messagebox.swf` in the
-  `Skyrim - Interface.bsa` of a Steam Special Edition install, build 24914197.
-  Its polygons were checked to be simple, apart from each other, inside
-  the silhouette, and clockwise. In draw data for 540p to 4K at
-  `BorderThickness` 50, 70, and 100, and at 150, above its limit, read back in
-  double precision, the anti-aliased fill
-  overlaps its own triangles on 12 to 750 pixels and differs from the fill
-  without anti-aliasing, away from its edges, on at most 8. `MenuFrame.cpp`
-  ran with `SettingsWindow.cpp`, `ChatWindow.cpp`,
-  `Theme.cpp`, and `Fonts.cpp` in a headless Dear ImGui 1.92.9 context against
-  a folder laid out as the deploy step leaves it and a stubbed `ChatSync`, the
-  draw data rasterized to images:
-  - every section of the settings window, its frame color list, and the open
-    chat with two lines and with a scrolled history have the frame at 1080p
-    and 4K, with the sidebar's title, the connection status, the close button,
-    the footer's buttons, the scrollbars, and the chat's lines and input clear
-    of the knots;
-  - the frame is grey in both windows with the default configuration; picking
-    `Accent` for `[UI] BorderColor` applies it and both frames are orange
-    from the next frame;
-  - the `[UI] BorderThickness` slider shows 70% and has no step buttons; a drag
-    past its right end gives 100 and past its left end 50, one to its middle
-    75, and the frame and the content inside it keep the previous value while
-    the button is held and follow the new one once it is released, at 1080p
-    and 4K; Ctrl and a click make it a field, where typing applies nothing
-    until Enter, 85 sets 85, 150 gives 100, and 7 gives 50;
-  - a drag on the lower right corner resizes the settings window and the frame
-    follows, and the cursor over that corner is the resize one; recent chat
-    lines have no frame and stand in the open chat's column;
-  - without `PlayerHub/frame/` the log warns and both windows have their
-    style's rounded rectangle with a line in the frame color; a file cut
-    short, of another version, with a `nan`, with a point
-    count out of range, or with no polygons each warn with the reason and fall
-    back the same way; a file with CRLF line ends loads.
-
-  Keeping a frame's triangles ran in the chat's harness at 1080p and 4K:
-  images with and without it are the same but for one pixel's rounding,
-  through opening, hovering, menus, searching, and a drag; the open chat
-  took about 97 µs a frame instead of 127 µs, and drags as long as before.
-  The `xmake.lua` deploy step was not run. `[UI] BorderColor` in the file is
-  under [Configuration](configuration.md#status).
-- **Accent color:** not built on Windows or run in game. On Linux,
-  `SettingsWindow.cpp`, `ConnectionControls.cpp`, `Controls.cpp`, `Theme.cpp`,
-  and `MenuFrame.cpp` ran with the real `PluginConfig.cpp` and
-  `SettingsSchema.cpp` (saving to a scratch folder) in a headless Dear ImGui
-  1.92.9 context with stubbed `Network`, fonts, and item picker, simulated
-  mouse and keyboard input, and the draw data rasterized to images at 1080p:
-  - the default accent, its text color, and the `Accent` frame are the
-    `FF9000`, `kOnState`, and `DB7D03` the theme had before;
-  - `[UI] AccentColor` shows eight swatches and the custom swatch evenly across the
-    control, ending at its right edge, no wider than the row is high, and
-    still apart at the window's minimum width;
-  - a click on the blue swatch applies and saves `4F8EF7` in one apply, and
-    the frame, sidebar mark, switches, and slider turn blue from the next
-    frame;
-  - the custom swatch opens the picker below it, right-aligned; a drag across
-    its square applies nothing until release and then once; typing in its hex
-    field applies nothing until Enter, and `203040` gives light text on the
-    accent; Escape first leaves the hex field with the color kept, then
-    closes the picker, then the window.
-
-  ImGui's style-stack checks passed. The chat files that use the accent
-  (`ChatPlayers.cpp`, `ChatPlayerManager.cpp`, `ChatWindow.cpp`) passed a
-  syntax check only. `[UI] AccentColor` in the file is under
-  [Configuration](configuration.md#status).
-- **Key bindings:** not built on Windows or run in game. On Linux,
-  `SettingsWindow.cpp`, `Controls.cpp`, `Theme.cpp`, and the real
-  `SettingsSchema.cpp` ran in a headless Dear ImGui 1.92.9 context with a
-  stubbed configuration, fonts, menu frame, connection controls, and item
-  picker, simulated mouse input, and key presses handed to
-  `Window::OnCapturedKey` as `InputCapture` would, checking the drawn text
-  and items, not images: the `[Controls]` page lists `OpenSettings`,
-  `AcceptTrade`, and `DeclineTrade` with `F10`, `Y`, and `N`, and `[UI]`
-  lists no key; a click makes the button listen with no line under it, and
-  `H` binds and applies once; `N` for another action shows the conflict line
-  naming `DeclineTrade` and keeps listening, Escape then cancels without
-  closing the window, Left Shift shows the reserved-key line, and the bound
-  key ends listening without an apply; a click on the listening button, on
-  another key's button, with the right button on the empty page, and on
-  another section each end it, the second starting the other key's; of two
-  keys pressed before a frame, the first binds; `Numpad7` for
-  `OpenSettings` shows the keypad label and becomes the window's focus and
-  release key; losing focus ends listening; the rows below keep their place
-  when a button starts listening and move down for a rejection's line;
-  Backspace unbinds `AcceptTrade`, which then shows as unbound, ends
-  listening without an apply on an unbound action, and leaves two actions
-  unbound without a conflict; Backspace on `OpenSettings` restores `F10`,
-  and shows the conflict line while `AcceptTrade` has it; Escape without
-  listening still closes the window. `InputCapture.cpp` and
-  `WindowManager.cpp`, which route the key presses, passed a g++ syntax
-  check only. The section's sidebar position (2026-10-11) passed the g++
-  syntax check only; the harness ran when it came last. With `OpenChat` and
-  `ManagePlayers` (2026-10-11) the harness also showed them between
-  `OpenSettings` and `AcceptTrade` with `Enter` and `F11`, then the
-  `ManagePlayers` default (now `O`, not rerun); `T` bound `OpenChat` and
-  Backspace restored `Enter`; Enter for `ManagePlayers` showed the conflict
-  line naming `OpenChat`, keypad Enter bound it as the keypad key, and
-  Backspace unbound it. `ChatWindow.cpp`, which shows the manager alone, and
-  the dropped character of a typing focus key in `InputCapture.cpp` passed
-  the g++ syntax check only. The file side is under
-  [Configuration](configuration.md#status).
-- **Custom server switch:** not built on Windows or run in game. On Linux,
-  `SettingsWindow.cpp`, `ConnectionControls.cpp`, `Controls.cpp`,
-  `Theme.cpp`, and `MenuFrame.cpp` ran with the real `PluginConfig.cpp`,
-  `SettingsSchema.cpp`, and `ConnectionMonitor.cpp` in a headless Dear ImGui
-  1.92.9 context with a stubbed transport, fonts, and item picker and
-  simulated mouse and keyboard input, checking the drawn text and items, not
-  images. The current `CustomServer` switch ran in the settings-only harness
-  (real `SettingsSchema.cpp`, stubbed configuration store and connection
-  controls): `[Network]` shows the `CustomServer` and `AutoConnect` switches
-  and no endpoint row or official URL; switching it on applies it and shows
-  an unlabeled field with a URL placeholder between the two switches, from
-  the labels' left edge to the switches' right edge; a typed URL applies on
-  Enter and becomes the endpoint; switching off hides the field and goes
-  back to the official server with the URL kept. The rest ran with the
-  earlier, inverted switch, whose `ConnectionControls.cpp` behavior is
-  unchanged, while disconnected: `ftp://x` turned on the footer line that
-  invalid text then had, and hiding the row hid it, which stayed away when
-  the row was shown again; the red line under the field that replaced it
-  has not run. With the custom server and an empty field, `[General]`'s
-  connection button is disabled with the reason then shown under it; a typed
-  URL saves both lines, the button is enabled and the reason gone. The reason
-  as the button's tooltip, the divider under the connection bar, and the
-  display name's comment as the field's tooltip have not been compiled or
-  run.
-- **Mute and vanish:** not built on Windows or run in game; the server side is
-  under [Network](network.md#status). On Linux, in the chat's headless Dear
-  ImGui 1.92.9 harness with a stubbed transport and a deploy folder,
-  `PlayerFilterStore.cpp`, `PlayerFilters.cpp`, `ChatSync.cpp`,
-  `ChatRoster.cpp`, and every `ui/chat/` file ran: a kept mute loads for its
-  server only and malformed lines are skipped; vanishing publishes once and
-  writes `v`, muting too writes `mv`, undoing both removes the line, another
-  server's list follows a new connection, and the 1025th vanish is refused; a
-  mute hides the player's earlier lines and new ones on every channel, in the
-  open and the closed chat, without a notice, and its whisper does not become
-  a partner; unmuting shows them all again. In the player list a muted player's
-  menu offers unmute and vanish, another's mute and vanish, the local
-  player has no menu, and the marks show (rasterized). The manager's button
-  sits at the list's bottom and opens a window in the middle of the screen
-  over the chat, on the friends tab; the muted tab lists this server's muted
-  players with an offline one marked as connected (then as text, since
-  replaced by the [Friends](#status) checks' dot); unmute and unvanish
-  remove their row at once; the search filters the tab shown and stays
-  across tabs;
-  Escape closes the window and leaves the chat open, a second one
-  closes the chat; Enter closing the chat closes the window; its close button
-  closes only it; dragged and reopened, it is in the middle again and on
-  the friends tab (rasterized). With 500 players and 300 lines the open chat took the
-  same time as before, about 107 µs a frame.
-- **Friends:** not built on Windows or run in game; `ChatSync.cpp` and
-  `ChatWindow.cpp` were only compiled. On Linux, in a headless Dear ImGui
-  1.92.9 harness with a stubbed roster and store folder, the real
-  `PlayerFilterStore.cpp`, `PlayerFilters.cpp`, `ChatRoster.cpp`,
-  `ChatPlayerMenu.cpp`, and `ChatPlayerManager.cpp` ran: `f` lines load for
-  their server only, `fx` and flagless lines are skipped, adding writes `f`
-  and with a mute `fm`, and removing both drops the line; a connection's
-  first roster announces nobody, a later join of a friend is announced and
-  of anyone else not, a reconnect under a new slot announces nobody, also
-  when the empty roster between was not seen; a renamed friend's new name is
-  saved when it appears. The friends tab lists friends by name with a dot
-  whose tooltip tells online from offline, and a remove button; a name under
-  the cursor shows a hand, a click on an online one whispers it and on an
-  offline one does nothing; a right click opens the menu with whisper and
-  remove friend before mute and vanish, also on an offline friend (no race
-  and level, whisper disabled) and on a muted tab's row; a close request
-  shuts the menu first; the remove button and menu item drop the row at
-  once, and an emptied tab shows its empty-tab line without a search field.
-  Nothing was rasterized.
-- **Player menu in the world:** not built on Windows or run in game.
-  `RemoteActorActivation.cpp` and the `SyncCoordinator` step need
-  CommonLibSSE-NG and were not compiled; the event they rely on was read from
-  the 1.7.104 executable ([Remote actor](remote-actor.md#engine-assumptions)).
-  On Linux, in the chat's headless Dear ImGui 1.92.9 harness with the real
-  `WindowManager.cpp`, `PlayerActivation.cpp`, `ChatRoster.cpp`,
-  `PlayerFilters.cpp`, and every `ui/chat/` file: an activated player's menu
-  takes focus with the mouse and opens at the middle of the screen with
-  whisper, mute, and vanish, the chat closed (rasterized); a player
-  the roster does not list opens nothing; mute and unmute act and close
-  it; Escape, E, a remapped Activate key (E then no
-  longer), a left or right click outside, and focus lost to a menu close it;
-  whisper opens the chat and its line goes to that player; an activation
-  while the chat is open opens nothing and is not kept.
-- **Player menu heading:** an earlier build that showed it in the world
-  menu only, with the race read from the character, ran in game on Windows
-  and the user saw the name, race, and level; the shared menu,
-  the accent color, and `PlayerDetails` are not built on Windows or run in
-  game. On Linux, a headless Dear ImGui 1.92.9 harness ran the real
-  `ChatPlayerMenu.cpp`, `WorldPlayerMenu.cpp`, `PlayerActivation.cpp`, and
-  `PlayerDetails.cpp` with stubbed peers, transport, and race names (text,
-  heights, and vertex colors, not rasterized): the world menu of a player
-  with an actor shows the name in the accent color, the race and level,
-  whisper, and mute in that order without asking the server, at the
-  same height before and after the details; the chat's menu of a player
-  without an actor asks the server even with an old appearance kept, shows
-  the reply at the same height, and drops a reply for another slot; an
-  empty reply, no connection, and no reply after 2 s leave the name alone,
-  a 5 s frame does not end the wait, and the chat's menu of a player with
-  an actor is answered locally. `ChatHistory.cpp` and `ChatPlayers.cpp`
-  passed a syntax check; `AppearanceSync.cpp` and `SyncCoordinator.cpp`
-  were not compiled. The wire is in [Network](network.md#status).
-- **Item picker and preview:** built on Windows; in game the picker lists names
-  and the preview shows models. The attach pass for models that load in the
-  background has not run in game yet. On Linux, `ItemCatalog.cpp`,
-  `ItemPicker.cpp`, and the settings files ran headless with a fake catalog and
-  a stand-in preview: per-key filters, multi-word and case-insensitive search,
-  the preview following the hovered row, Enter picking the first match, Escape
-  closing the list before the window, Apply saving `Plugin|0xID`, and
-  `ItemPreview = false` hiding the preview. The reset button as an icon shown
-  only off the default is not built on Windows or run in game. `ItemForms.cpp` and `ItemPreview.cpp`
-  need CommonLibSSE-NG and were only checked in game. The
-  [thumbnails](#3d-preview) ran in game (2026-10-07 log): every item was
-  captured within a frame or two of loading, but some stills showed items
-  without their textures. With the refresh capture (2026-10-08, in game)
-  every thumbnail ended up textured; across 78 captures the texture check
-  found nothing missing, so the refresh is what fixed them. The check on
-  the attached model's form (2026-10-08) is not built on Windows or run in
-  game: `ItemPreview.cpp` passed a g++ syntax check against the
-  CommonLibSSE-NG headers with `__declspec` defined away, which a planted
-  error confirmed reaches it.
-- **Trade window and prompt:** not built on Windows or run in game. On
-  Linux, `TradeWindow.cpp`, `TradePrompt.cpp`, `ChatPlayerMenu.cpp`,
-  `WindowManager.cpp`, and `Controls.cpp` ran in a headless Dear ImGui
-  1.92.9 context with a stubbed `TradeSync`, configuration, theme, frame,
-  and preview (47 checks): nothing drawn without a trade; the prompt for an
-  invitation, its name, keys, and countdown, taking no input; `Y` and `N`
-  answering through `OnFocusKey` and giving input back, other keys left to
-  the game, and only `N` taken while the player's own invitation waits; the
-  window taking focus from another window, a click adding a
-  stack, a blocked row adding nothing, Accept disabled with its blocker
-  and while accepted, Escape cancelling, focus lost to a menu cancelling
-  with `MENU`, a window kept from focus giving up with `FAILED` after 2 s but
-  not at 1.8 s, a trade closed by the server releasing focus; the trade
-  item disabled for a far player and while another invitation waits, accept
-  and decline items for the inviting player, no entry for the local player. The window and prompt were rasterized at 1080p in Dear ImGui's
-  default style, which found and fixed a heading hint that pushed the lists
-  past the window. The real theme, fonts, and frame were not drawn.
-- **Trade grids** (2026-10-07): not built on Windows or run in game. On
-  Linux, `TradeWindow.cpp` with the real `Theme.cpp`, `MenuFrame.cpp`, and
-  `Controls.cpp` ran headless in Dear ImGui 1.92.9 at 1080p (18 px font)
-  against a stubbed `TradeSync` and `ItemPreview::DrawThumbnail` (67
-  checks), and was rasterized: the list on the left, the peer's grid
-  above the own one to its right, all inside the window, 83 px cells at the
-  then default size of 56 × 40,
-  thumbnails requested in offer order with the enchanted background, names
-  when thumbnails are unavailable; Accept disabled with the inspect line
-  until each peer cell was hovered, a cell inspected
-  in the frame the cursor reaches it, a count change shading only that line, a `TradeSync` blocker disabling
-  Accept with its reason as the button's tooltip and no footer line; a
-  click opening the popup, its step button
-  and remove button, Escape closing the popup
-  and not the trade, the popup closing when its line leaves; Escape
-  cancelling otherwise; the inspected lines reset by a new trade; the green
-  tint. The
-  prompt, focus, and menu checks above predate the grids and were not run
-  again. `TradeSync.cpp` (`PeerLine::id`) passed only the g++ syntax check.
-  A click on a single offered item removing it without the popup works in
-  game (2026-10-09, user report). The count popup for a clicked stack in
-  the item list and the removed right clicks (2026-10-09) passed only the
-  g++ syntax check of `TradeWindow.cpp` and `TradeSync.cpp`. The full
-  offer ignoring new rows (2026-10-09) passed only the g++ syntax check of
-  `TradeWindow.cpp`. The gap between borderless cells (2026-10-10) passed only the g++
-  syntax check of `TradeWindow.cpp`, a planted error confirming it is
-  checked; it was not rasterized. A click removing a cell that offers one
-  of a larger stack, and the popup's count removing the line at 0
-  (2026-10-11), passed only the g++ syntax check of `TradeWindow.cpp`.
-  The full mark on the own grid's heading and the unoffered rows
-  disabled while it shows (2026-10-14) passed only the g++ syntax check of `TradeWindow.cpp`, a planted error confirming it is
-  checked; it was not rasterized.
-  Offer lines shown at once and the rows and pulsing note of the
-  [plugin check](trade.md#plugin-check) (2026-10-14) passed only the g++
-  syntax check of `TradeWindow.cpp` and `TradeSync.cpp`, a planted error
-  confirming both are checked; nothing was drawn.
-  Offered rows of the item list toggling through the offer cell's click
-  (2026-10-14) passed only the g++ syntax check of `TradeWindow.cpp`.
-  The requesting prompt drawn as the inviting one, the accent name, and the
-  fixed-width seconds (2026-10-13) passed only the g++ syntax check of
-  `TradePrompt.cpp`, `MenuFrame.cpp`, and `TradeSync.cpp`, a planted error
-  confirming it is checked. A headless test against ImGui 1.92.9 showed a
-  reappearing auto-resized window rendering one frame at its old width, and
-  `BeginPrompt`'s hidden appearing frame removing it. The two centered
-  lines (2026-10-13) passed the g++ syntax check of `TradePrompt.cpp`, and
-  a headless ImGui 1.92.9 test of the same line code centered the narrower
-  line and kept the window's width as the seconds went from 30 to 9.
-- **Trade screen, preview column, backdrop, and turning model**
-  (2026-10-09): not built on Windows or run in game. On Linux,
-  `TradeWindow.cpp` with the real `Theme.cpp`, `MenuFrame.cpp`, and
-  `Controls.cpp` ran headless in Dear ImGui 1.92.9 (16 px font at 1080p)
-  against a stubbed `TradeSync`, `ItemPreview`, and `Backdrop` (35 checks)
-  and was rasterized at 1080p and 1280 × 1024: the fixed 56 × 44 panel to
-  the right of a 28 font size column, the two centered, the model square
-  above the card reaching the panel's bottom; a narrower column at 5:4,
-  none on a square display, the same proportions at 4K; the backdrop drawn
-  each frame; at once the hovered row's or
-  cell's name, count (held or offered), stats, effects, and a
-  blocked row's reason; the last item kept while the cursor is over the
-  backdrop; a shown row found again after rows moved and the card cleared
-  when its row or peer line left; a peer cell still inspected by hovering;
-  a drag on the model square reaching it; clicks on the backdrop doing
-  nothing; Escape cancelling. Cells came out at the 5 font size minimum.
-  The inspect hint on the peer grid's heading line and the card left out
-  until an item is shown (2026-10-10) passed only the g++ syntax check.
-  `Gpu.cpp`, `Backdrop.cpp`, `ItemPreview.cpp`, `ItemPicker.cpp`,
-  `MenuFrame.cpp`, and `Overlay.cpp` passed only the g++ syntax check, a
-  planted error confirming it reaches `ItemPreview.cpp`. The HLSL compiled
-  with DXC 1.9 for shader model 6 in HLSL 2016 mode, not with the FXC
-  behind `D3DCompile`. The blur, the black and white capture, turning, and
-  the picker's model on its panel were neither drawn nor run. The macro
-  clash that broke the first Windows build (2026-10-10) was fixed, after
-  which the user saw the trade screen in game and found it looking right
-  but the model's resolution low; what else they tried is not known. The capture fitted to the
-  drawn size (2026-10-10) passed only the g++ syntax check; capturing at
-  1.2 times it did not look sharper in game and was reverted (the 08:35
-  log showed captures already larger than the area, 705 px for 597). With
-  the game's TAA off the model was sharp in game but its edges jagged (user
-  report, 2026-10-10); the 2× capture drawn at half size that followed
-  passed only the g++ syntax check. The user found the 2× capture much
-  better in game (2026-10-10). Capturing [animated](#3d-preview)
-  models on every update, for an enchanted item's glow flickering while
-  turned, made it animate correctly in game, but the glow appeared only
-  once the model was turned (user report and log, 2026-10-10); watching
-  each enchanted load for 0.5 s, and enchanted thumbnails waiting for their
-  glow, passed only the g++ syntax check. Starting each load from the
-  game's transform and fitting thumbnails to 512 px, after the user saw
-  stills missing (2026-10-10), passed only the g++ syntax check. The
-  model's [spin](#3d-preview) (2026-10-11) passed only the g++ syntax check
-  of `ItemPreview.cpp`, a planted error confirming it is checked. In the
-  2026-10-14 log, stills of items added to the offer appeared up to 3 s
-  late; the scheduler that serves a whole form from one load, puts pending
-  stills before the model's refresh and glow watch, and bounds a still's
-  glow wait (2026-10-14) passed only the g++ syntax check of
-  `ItemPreview.cpp`, a planted error confirming it is checked.
-- **Vanilla item card** (2026-10-10): not built on Windows or run in game.
-  On Linux, `ItemCard.cpp` with the real `MenuFrame.cpp` and `Theme.cpp`
-  ran headless in Dear ImGui 1.92.9 with Sovngarde (16 px at 1080p,
-  Liberation Sans standing in for the system fonts) and was rasterized for
-  seven cards of the column's 28 font size width, each as tall as its
-  content up to 14 font sizes with no scrollbar: a charged
-  weapon, a stack with a note, a Cyrillic name in capitals, and two that
-  reach the limit and scroll (ingredients with four effects and a blocked
-  reason, and an item with four effects and a three-line name), each also
-  scrolled to its end with the bottom margin kept and only the child
-  showing a scrollbar. The column moved to the panel's right (2026-10-10)
-  passed only the g++ syntax check of `TradeWindow.cpp`, as did the panel
-  20% taller (56 × 52.8 font sizes), whose cell size was estimated, not
-  measured. `ItemCard.cpp` and `TradeWindow.cpp` passed the g++ syntax
-  check against CommonLib, a planted error confirming it reaches both.
+**Not run anywhere:** the display name hint, nameplates, the Discord link's
+layout and browser launch, chat positions from the screen's corner with
+fractions and moving the chat by a drag, the chat filters' and send target's
+tooltips, number sliders' steps and section defaults, the connected,
+`kAddressFull`, kick, and ban notices and sentences, the trade window's
+offer and full marks, toggling rows, the plugin check's rows and note, the
+cell gap, the model's spin, the preview scheduler and glow watch, the item
+card in the panel's current size, the chat in game with a real roster, the
+Windows clipboard, and the resize cursors as the overlay draws them in game.
+They are compiled into the Windows build but were not exercised. The logo
+font's Discord symbol and list marks were rasterized by FreeType and
+checked against their sources, and the `discord_invite` option ran in a
+scratch xmake 3.0.6 project. The translations are machine drafts no native
+speaker has reviewed.
 
 ## Scope
 
@@ -1174,8 +501,8 @@ overlay windows behind a surface.
   just before the window's list, adding its counts to the totals. The lists
   are kept in a pool registered with the context's shared draw data, which
   the overlay never destroys.
-- The blur is the game's frame, HUD and menus included, as it was before the
-  overlay drew. A popup or tooltip over an overlay window therefore shows the
+- The blur is the game's frame, HUD and menus included, as it is before the
+  overlay draws. A popup or tooltip over an overlay window therefore shows the
   game blurred where the window is, not the window: the user chose to blur
   them anyway. Child windows that take the popup color, such as the chat's
   name list and notes, are not blurred, since the window they are in is.
@@ -1233,7 +560,7 @@ is not part of the plugin.
   anti-aliasing flags and fringe, and where the backing's triangles are among
   them. A window drawn again with the same key
   copies them, moved to its corner; a drag that resizes it triangulates in
-  every frame, as before. A frame during which the draw list started its
+  every frame. A frame during which the draw list started its
   vertices over is not kept. Nothing is allocated once the draw list and the
   kept frames have grown.
 - The line color must be opaque. The anti-aliased fill moves each point half a
@@ -1242,7 +569,7 @@ is not part of the plugin.
   specks.
 - A pixel of the art is 1.5 / 16 of the font size times `[UI] BorderThickness`
   ([Configuration](configuration.md#ui)), a percentage from 30 to 100 read
-  each frame, 60 by default. The game lays its menus out for 720p, so 100 is
+  each frame, 50 by default. The game lays its menus out for 720p, so 100 is
   the size the game draws the frame at, at any resolution. The setting has no
   line weight of its own: lines, knots, and inset grow and shrink together. At
   100 the lines are 3 px thick at 1080p and end 13 px in from the window's
@@ -1619,9 +946,7 @@ place the chat elsewhere on the screen.
 Non-goals: chat
 commands (text starting with `/` is sent as written; Tab, the chip, the
 `@` prefix, and the player list cover what they did), chat
-history for late joiners, a saved log, moving the chat by dragging it (its
-[position](#position) is set in the settings window), and
-staying open after a line is sent.
+history for late joiners, and a saved log.
 
 | Channel | Reaches | Color |
 | --- | --- | --- |
@@ -1852,7 +1177,7 @@ never a line, so the history holds only what players said.
 ### Size
 
 - The open chat's lines are `[UI] ChatWidth` font sizes wide and `ChatLines`
-  lines high ([Configuration](configuration.md#ui)): 30 by 10 by default,
+  lines high ([Configuration](configuration.md#ui)): 30 by 15 by default,
   within 24 to 100 and 9 to 40. At 24 the field still has room beside the
   longest chip, and 9 lines keep the 8-row name list under the filters.
   Both are in font sizes, so the chat follows the overlay scale.
@@ -1931,10 +1256,8 @@ never a line, so the history holds only what players said.
   from its left edge and of its height from its bottom edge, with any fraction
   and rounded to the nearest pixel, so `0` and `0` is
   the screen's lower left corner and the place is the same share of any
-  resolution, independent of the `Scale` setting. The defaults, `1` and `8`, keep
-  the chat where it was placed in font sizes before, near the left edge and
-  above the magicka bar: at 1080p and the default `Scale` about 7 px
-  further right and 2 px lower.
+  resolution, independent of the `Scale` setting. The defaults, `1` and `8`,
+  put the chat near the left edge and above the magicka bar.
 - The chat stays at its position: its [size](#size) is limited to the room
   from that corner to the right and top edges, rather than the chat being
   moved back onto the screen. So a drag on the right edge grows the chat to
@@ -2193,7 +1516,7 @@ level-up while the menu is open.
 - `ChatPlayerMenu` is the menu's content. `ChatHistory`, `ChatPlayers`,
   `ChatPlayerManager`, and `WorldPlayerMenu` each hold one, call `Open` with the roster entry when
   they open their popup, and `Draw` inside it, which reports a whisper for
-  each to handle as before.
+  each to handle.
 - It starts with the roster's name in the heading face (`Fonts::GetHeading`)
   at the text size and in the accent color (`Theme::GetAccent`), then a
   line with the race and level in the muted text color: the level alone
@@ -2333,9 +1656,9 @@ neither touches an engine object.
   user's choice), that fits both grids' rows in the panel's height and
   leaves the item list 20 font sizes. In the fixed panel the width limits
   it, leaving the item list its 20 font sizes: about 103 px at 1080p
-  (6.4 font sizes), estimated from the style's sizes. The 56 × 44 panel
-  before it held the cells at their 5 font size minimum (80 px, measured
-  headless), so the panel was made 20% taller (the user's choice).
+  (6.4 font sizes), estimated from the style's sizes. A panel 44 font sizes
+  high holds the cells at their 5 font size minimum (80 px, measured
+  headless), so the panel is 20% taller than that (the user's choice).
 - Each cell is its own borderless well, with a quarter font size gap
   (`kCellGapFonts`, rounded to whole pixels, at least 1) to its neighbours.
   The gap is taken out of the cell's pitch, so the cell size above and the
@@ -2496,7 +1819,7 @@ peers keep seeing the player.
   outfit edits and text still being typed. The section that was open stays
   open, except that an opening with no display name applied shows
   `[Connection]` with the keyboard in its field.
-- Centered at 48 × 35 font sizes the first time it opens in a game session,
+- Centered at 54 × 36 font sizes the first time it opens in a game session,
   and at least 40 × 20. Later openings keep the position and size it was
   closed with; they live in ImGui's window state only, so a restart centers it
   again. In the [theme](#theme) and the [menu frame](#menu-frame) over the
@@ -2882,8 +2205,8 @@ picker's panel) or as cached thumbnails for many cells.
   or while a fresh load is watched, else a still due for its refresh, else
   an [animated](#3d-preview) or spinning model's, else none, which stops
   the renderer (`End3D`) and keeps the images. Pending stills come before
-  the model's refresh and glow watch because those held stills back for up
-  to 3 s while the player moved between items (2026-10-14 log).
+  the model's refresh and glow watch, which would otherwise hold stills back
+  for up to 3 s while the player moves between items (seen in a log).
   `Inventory3DManager::Begin3D(kInventory)` is called once, and
   `LoadInventoryItem` only when the form changes or a refresh needs a load
   that started after the capture it replaces.
@@ -2971,9 +2294,9 @@ picker's panel) or as cached thumbnails for many cells.
 - Loads share models. In 1.7.104 `LoadInventoryItem` (ID 51758) reuses a
   model still in `loadedModels` (up to 7, keyed by model object) as it was
   left, and only `End3D` (ID 51756) releases them, so a still captured
-  after the panel showed the same item got the panel's size and turn
-  (2026-10-10 log: thumbnail boxes of about 1176 px right after a model
-  capture of the form). The first time a form attaches after `Begin3D`,
+  after the panel showed the same item would get the panel's size and turn
+  (logged as thumbnail boxes of about 1176 px right after a model capture of
+  the form). The first time a form attaches after `Begin3D`,
   `ItemPreview` keeps its local transform as the game's (`gameTransforms`,
   cleared on stop). Each still capture starts from it, and each model
   capture from the model's kept transform (`SetTransform`), since both
@@ -2983,8 +2306,8 @@ picker's panel) or as cached thumbnails for many cells.
   shader property has effect data (`BSShaderProperty::effectData`, which
   is where an enchantment's glow is). The check runs after each capture
   until one finds either. The game attaches the glow a frame or two after
-  the model (2026-10-10 log: absent at a load's first capture, present at
-  the next). A form with its own enchantment
+  the model (logged as absent at a load's first capture and present at the
+  next). A form with its own enchantment
   (`TESEnchantableForm::formEnchanting`; items load without extra data, so
   no other can glow) is therefore watched: after the first capture of each of its loads, the
   refresh's included, the model is captured on every update for
@@ -2995,14 +2318,13 @@ picker's panel) or as cached thumbnails for many cells.
   in all across its loads (`ThumbnailSlot::effectWaited`, so a model
   taking the renderer back does not restart it), running only `Render`'s
   update pass with the count at zero meanwhile; one without a glow by then
-  is captured as it is. The glow came within 6 to 9 ms of the first
-  capture (2026-10-14 log), and Ruin's Edge (FE002D63), enchanted but
-  animated by a time controller, never got effect data, so the earlier
-  0.5 s wait from each load held back every still after it. An animated model is captured on every
-  update that has no other job, as the inventory menu renders it each
-  frame; captured only when due, its glow froze between captures and
-  jumped at each turn, which a drag showed as flicker (user report,
-  2026-10-10). Afterwards it gives way only to a thumbnail that is due, so the loaded
+  is captured as it is. In a log the glow came within 6 to 9 ms of the
+  first capture, and Ruin's Edge (FE002D63), enchanted but animated by a
+  time controller, never got effect data, so a longer wait from each load
+  would hold back every still after it. An animated model is captured on
+  every update that has no other job, as the inventory menu renders it each
+  frame; captured only when due, its glow froze between captures and jumped
+  at each turn, which a drag showed as flicker (seen in game). Afterwards it gives way only to a thumbnail that is due, so the loaded
   item does not switch every frame. The first capture that finds it
   animated logs the counts (`Item model animated`), and the first 6 log
   the first effect data's offsets and alphas against the clock
@@ -3107,7 +2429,7 @@ none does.
   again in the new order. `Clear` rather than `ClearFonts`: after
   `ClearFonts`, ImGui packs the new glyphs into the same texture without
   erasing it, and the DX11 backend uploads only each new glyph's rectangle,
-  so pixels of the old glyphs beside them showed at their edges. `Clear`
+  so pixels of the old glyphs beside them show at their edges. `Clear`
   starts a new texture, uploaded whole, and retires the old one. A switch
   that keeps the Han order keeps the fonts.
 - Text drawn each frame follows at once. The connection button's labels, the
@@ -3281,11 +2603,9 @@ To verify in game:
    51777) moves the model only while a zoom is under way. Setting the kept
    transform on a newly attached model before its update pass shows it
    turned.
-7. `D3DCompile` from `d3dcompiler_47.dll` compiles the overlay's shaders for
-   `vs_4_0` and `ps_4_0` (they were only compiled by DXC for shader model
-   6), and the state `PassScope` puts back is all the engine's state
-   tracking relies on, so the frame after a blur or a model capture draws
-   as before.
+7. The state `PassScope` puts back is all the engine's state tracking
+   relies on, so the frame after a blur or a model capture draws unchanged.
+   `D3DCompile` compiled the shaders in game for the trade backdrop.
 8. The back buffer at the overlay hook is single-sampled and can be copied
    whole (`CopyResource`) into a texture of its own format.
 9. Scaling a model's local transform in the inventory scene keeps its
@@ -3302,8 +2622,8 @@ To verify in game:
     and nothing else that frame reads the flag between the clear and the
     restore.
 11. An enchanted item's glow is attached by the game within
-    `kEffectWatchSeconds` of the model's attach. The 2026-10-10 log showed
-    it as effect data on one shader property of enchanted armor (no
+    `kEffectWatchSeconds` of the model's attach. A log showed it as effect
+    data on one shader property of enchanted armor (no
     controllers), absent at the first capture and present one update
     later, its `vOffset` advancing between frames; what attaches it, and
     whether it can take longer, was not traced. Only forms with their own
@@ -3423,7 +2743,7 @@ To verify in game:
    section's sidebar item, switches that are on, the connection button and a
    pending Apply, and hovered or pressed widgets are orange at 1080p and 4K, and the
    lists it opens have a rounded `FF9000` border. Picking a sidebar item shows that section, and the window can be
-   dragged by its sidebar or title. The status panel looks as before.
+   dragged by its sidebar or title.
 9. The settings window, its lists, and its tooltips are in Sovngarde, with
    section titles and group names bold, at 1080p and 4K. The
    open chat, with its filters, field, name list, and menus, and the recent lines
@@ -3634,7 +2954,7 @@ To verify in game:
     it smoothly like the inventory menu's model; on release it spins on
     from there, and it keeps its angle after other items were hovered
     and the grid thumbnails captured. The item picker's model shows on its
-    dark panel as before and spins too.
+    dark panel and spins too.
 29. The settings window's sidebar lists `[Connection]`, `[DefaultOutfit]`,
     `[UI]`, `[Controls]`, and `[Advanced]`. `[UI]` shows its settings under
     the Display, Players, Chat, and Items headings, and `[Advanced]` under
@@ -3687,13 +3007,6 @@ To verify in game:
     around its center and stays on the display, and the cursor moves at the
     same speed. At 80 all of them shrink the same way. `Scale = 107` or
     `150` in the file warns in the log and loads `100`.
-36. The settings window first opens centered at 48 × 35 font sizes
-    (768 × 560 px at a 16 px font). Each of its four corners and edges resizes
-    it with the resize cursor, keeping the opposite corner or edge in place.
-    Dragged to a corner, resized, closed, and
-    opened again, during gameplay or after another menu, it is where and as
-    large as it was left; after a game restart it is centered again at the
-    default size.
 34. In a game with an empty `DisplayName`, the framed hint at the top center
     names the `OpenSettings` key and the `[Connection]` page; rebinding
     `OpenSettings` changes the key it names. It is gone in the pause,
@@ -3702,7 +3015,7 @@ To verify in game:
     `[Connection]` with the keyboard in the field, and applying a name there
     leaves no hint after the window closes. Clearing the name brings it back.
 35. The `[UI]` page's `ChatPositionHorizontal` and `ChatPositionVertical`
-    sliders show 1% and 8%, with the chat above the magicka bar as before; at `50` and `40`
+    sliders show 1% and 8%, with the chat above the magicka bar; at `50` and `40`
     the open chat and the recent lines sit around the
     screen's middle, in the same column, at 1080p and 4K alike; a chat
     dragged wider there grows to the right up to the screen's edge and its
@@ -3713,6 +3026,13 @@ To verify in game:
     against the lower left corner, over the magicka bar. Defaults puts it back
     above the magicka bar, and the positions are in `PlayerHub.ini` after a
     restart.
+36. The settings window first opens centered at 54 × 36 font sizes
+    (864 × 576 px at a 16 px font). Each of its four corners and edges resizes
+    it with the resize cursor, keeping the opposite corner or edge in place.
+    Dragged to a corner, resized, closed, and
+    opened again, during gameplay or after another menu, it is where and as
+    large as it was left; after a game restart it is centered again at the
+    default size.
 37. Dragging the open chat by a gap in the filters' row or the lines away
     from a name moves it with the cursor and
     the move cursor, keeping its size; it stops at each screen edge, wholly on
@@ -3787,7 +3107,7 @@ To verify in game:
   alone.
 - Any accent is accepted, so a very dark one or one close to the surfaces
   makes selection and hover marks hard to see; picking amber restores the
-  default. Live sections have no reset button
+  default. `[Connection]` has no reset button
   ([Settings window](#settings-window)).
 - The accent follows a picker drag only on release, since each apply saves
   the file; the custom swatch shows the color meanwhile.
@@ -3855,14 +3175,14 @@ To verify in game:
   it while this game ran, or the kept one; online, the roster's. The window lists the last
   server that welcomed the client, or the configured endpoint's before the
   first connection of a game, so an endpoint changed while disconnected
-  shows its list only once connected. It opens only from the open chat.
+  shows its list only once connected.
 - Friends, mutes, and vanishes are kept per server URL, so the same server
   reached under another address starts with none.
 - A gamepad's Activate opens the player menu as E does, but the menu takes
   the mouse and keyboard only, while gamepad input keeps reaching the game.
 - The picker covers armor, weapons, ammunition, and races, not torches, spells,
   or actors; `ItemKind` is where more kinds would go.
-- A trade thumbnail or model shows the base form's model, without an
+- A trade thumbnail or model shows the base form's model, without a player
   enchantment's glow or the item's own name. Each is captured twice, so an
   item whose textures were missing at the first capture shows untextured
   for about 1.5 s; one still missing them at the refresh stays so until it

@@ -2,50 +2,37 @@
 
 ## Status
 
-- **Furniture:** implemented for placed `TESFurniture` references on Skyrim AE
-  1.7.104 and run in game. Chairs, benches, alchemy tables, forges, and other
-  workstations share one native entry path. SE 1.5.97 calls the same engine
-  functions through the SE IDs in [assumption 11](#engine-assumptions)
-  (2026-10-12; before that the receiver never started an entry off AE). They
-  passed a Linux syntax check only; the Windows build and SE in-game behavior
-  are not verified. The native exit ([Exit](#exit)) was checked in game on
-  1.7.104 from replay captures of a chair, a bench, and two tables: each played
-  its exit idle and then its locomotion, including when the source stood up
-  right after sitting down. A bed's wake-up played its exit idle in game; its
-  12 s release window passed a Linux syntax check only, and the Windows build
-  and in-game behavior are not verified. Crafting stations and modded exit
-  idles are not verified. The reset before a repeated entry after a sheathe
-  ([Entry](#entry)) passed a Linux syntax check only; the Windows build and
-  in-game behavior are not verified. Passing the actor to `ClearFurniture`
-  ([assumption 12](#engine-assumptions), 2026-10-17) passed a Linux syntax
-  check only. Plugin-qualified furniture references
-  ([Resolution](#source)) are covered by server tests only; peers with
-  different load orders have not been run in game.
-- **Mounts:** implemented and run in game: a replayed rider was seated on its
-  horse, which walked, trotted, and ran with the recorded speed and leaned on
-  slopes; dismount and death removed the horse without a crash. The gait's
-  ground speed and its stop and gallop holds ([Gait](#gait)) ran in game on a
-  replay (2026-10-18): no gait change during a steady ride, and walking looked
-  smooth. The speed sampler hook ([Gait](#gait)) ran in game on a replay
-  (2026-10-19, 1.7.104): it replaced a zero `goalSpeed` about 600 times in
-  70 s of riding, and the run, which had shaken and stuttered, looked much
-  smoother. Not run on SE.
-  The rider carry ([Rider placement](#rider-placement)) ran on the same replay
-  (2026-10-18) and the ride looked smoother; the trail it removes was not
-  measured.
-  The rider's draw and sheathe
-  ([Weapon](#weapon)) passed a Linux syntax check only; the Windows build and
-  in-game behavior are not verified. On SE 1.5.97 riders are seated through
-  the IDs in [assumption 2](#engine-assumptions) since 2026-10-12 (before that
-  never off AE); Linux syntax check only, not run on SE.
-  The random horse per spawn ([Receiver](#receiver), 2026-10-19) passed a
-  Linux syntax check only; the Windows build and in-game behavior are not
-  verified.
-- **Death:** implemented and run in game: a replayed player's deaths, standing
-  and seated, collapsed the actor into a ragdoll that the next world exit
-  removed. The remaining assumptions and criteria are not checked individually.
+Built on Windows with the rest of the plugin; the server side of all three is
+covered by unit tests. On SE 1.5.97 nothing has run: furniture entry and
+seating use the SE IDs in [assumptions 2 and 11](#engine-assumptions),
+matched in the 1.5.97 disassembly.
 
-The server side of all three is covered by unit tests.
+- **Furniture:** implemented for placed `TESFurniture` references and run in
+  game on Skyrim AE 1.7.104. Chairs, benches, alchemy tables, forges, and
+  other workstations share one native entry path. The native exit
+  ([Exit](#exit)) ran from replay captures of a chair, a bench, and two
+  tables: each played its exit idle and then its locomotion, including when
+  the source stood up right after sitting down. A bed's wake-up played its
+  exit idle. Not run in game: the bed's 12 s release window, crafting
+  stations and modded exit idles, the reset before a repeated entry after a
+  sheathe ([Entry](#entry)), and passing the actor to `ClearFurniture`
+  ([assumption 12](#engine-assumptions)). Plugin-qualified furniture
+  references ([Resolution](#source)) are covered by server tests only; peers
+  with different load orders have not run in game.
+- **Mounts:** run in game: a replayed rider was seated on its horse, which
+  walked, trotted, and ran with the recorded speed and leaned on slopes;
+  dismount and death removed the horse without a crash. On a replay, the
+  gait's ground speed and holds ([Gait](#gait)) changed no gait during a
+  steady ride and walking looked smooth; the speed sampler hook replaced a
+  zero `goalSpeed` about 600 times in 70 s of riding, and the run looked
+  much smoother than without it; with the rider carry
+  ([Rider placement](#rider-placement)) the ride looked smoother, and the
+  trail it removes was not measured. The rider's draw and sheathe
+  ([Weapon](#weapon)) and the random horse per spawn ([Receiver](#receiver))
+  have not run in game.
+- **Death:** run in game: a replayed player's deaths, standing and seated,
+  collapsed the actor into a ragdoll that the next world exit removed. The
+  remaining assumptions and criteria are not checked individually.
 
 ## Scope
 
@@ -96,9 +83,9 @@ server rejects attacks whose context has furniture, and a furniture checkpoint d
 reference created at runtime (`FF`) has no form reference and is published as
 none.
 
-**Resolution.** A raw FormID named different references on peers whose load
+**Resolution.** A raw FormID names different references on peers whose load
 orders differ, such as furniture a light plugin adds to a replaced interior, so
-the reference carries its plugin name. `FurnitureSync::OnCheckpointAccepted`
+the reference carries its plugin name. `FurnitureSync::OnCheckpointPlayed`
 resolves it once per change with `FormLookup::ResolveFormID`, and the receiver
 works with that local FormID (`RemoteFrame::furnitureRefID`). The ID is computed
 from the plugin's local compile index without looking the reference up, so a
@@ -375,14 +362,14 @@ seated. When a riding player dies, the pair is retired the same way, and the
 actor respawns on foot and is killed where it stands.
 
 Transitions are instant: a rider appears seated, and a dismount respawns the
-actor on foot. An earlier version played Skyrim's paired `HorseEnter` and
-`HorseExit` clips, announced by a `mount:transition` event; the clips link both
-actors' graphs, so every removal, halt, and retry around them needed its own
-handling, and it was dropped. Skyrim's dismount (ID 38705) is never used: even in
-mode 1, which sets the quick-mount flag, it starts the paired `pa_HorseExit`
-clip, a `BSSynchronizedClipGenerator` that links the graphs, and removing both
-actors in the pass that started it crashed in `NotifyAnimationGraph` with the
-mount and its clip on the stack.
+actor on foot. Skyrim's paired `HorseEnter` and `HorseExit` clips are not
+played: they link both actors' graphs, so every removal, halt, and retry
+around them would need its own handling.
+Skyrim's dismount (ID 38705) is never used: even in mode 1, which sets the
+quick-mount flag, it starts the paired `pa_HorseExit` clip, a
+`BSSynchronizedClipGenerator` that links the graphs, and removing both actors
+in the pass that started it crashed in `NotifyAnimationGraph` with the mount
+and its clip on the stack.
 
 ### Weapon
 
@@ -398,13 +385,13 @@ hand objects are reconciled
 `Remote rider weapon state changed` logs each change with the actor's weapon
 state.
 
-Why: the rider update used to leave the weapon alone, so a rider kept the state
-it was seated with. A rider seated drawn stayed drawn through every sheathe, one
+Why: a rider update that leaves the weapon alone keeps the state the rider
+was seated with. A rider seated drawn stayed drawn through every sheathe, one
 seated sheathed never drew, and a rider seated mid-sheathe redrew its weapon on
 the horse (`BeginWeaponDraw`, `weaponDraw`, `WeapEquip_Out` with
-`expectedWeaponDrawn=false`). The on-foot transition left pending at the seat
-also kept `IsWeaponTransitionPlaying` true for the whole ride, deferring each
-hand swap by its 2 s bound.
+`expectedWeaponDrawn=false`). An on-foot transition left pending at the seat
+also keeps `IsWeaponTransitionPlaying` true for the whole ride, deferring each
+hand swap by its 2 s bound, so seating clears it.
 
 ### Gait
 
@@ -444,8 +431,8 @@ read, and something sets a running mount's or rider's graph `Speed` to 0 several
 times a second. Each sampled zero snaps the run blend toward the slow walk for
 a frame, which showed as a trot that shook and stuttered; the walk barely
 changes toward the slow walk, and the gallop is a state that does not blend on
-speed. Restoring `Speed` from the sync pass did not prevent it, even every pass: on a
-replay (2026-10-19) every zero was gone one pass later, yet most had already
+speed. Restoring `Speed` from the sync pass, even every pass, does not prevent
+it: on a replay every zero was gone one pass later, yet most had already
 reached `HorseSpeedSampled`, and they arrived 1 to 7 passes after the gait's
 own write. What writes the zero is not known. The vanilla horse behavior only reads
 `Speed`; the character has one `Speed` channel, whose value the plugin's
@@ -462,10 +449,10 @@ landing. A single slow sample inside a walk (12, then 23 92 ms later) sent
 clips.
 
 Why: the first checkpoint after a mount spawns carries the relocation onto it
-(speeds of 1176 and 2442), which started a gallop; `moveStop` then left
+(speeds of 1176 and 2442), which would start a gallop; `moveStop` then leaves
 locomotion without leaving the gallop state inside it, and every later
-`moveStart` resumed `SprintForward`, so the blend never ran and `SprintStart`
-looked rejected.
+`moveStart` resumes `SprintForward`, so the blend never runs and `SprintStart`
+looks rejected.
 
 `HorseBehavior.hkx` (vanilla), read from its packfile: `moveStart` enters
 `LocomotionState` and `moveStop` leaves it; `ForwardLocomotionBlend_Horse` blends
@@ -476,8 +463,8 @@ on `HorseSpeedSampled` in world units (slow walk 5, walk 125, slow trot 214, tro
 `Speed`; there is no `SpeedSampled`, and `fMinSpeed` is 5.
 
 Skyrim polls `Speed` through `ActorSpeedChannel` from the actor's own movement,
-which is zero for a mount moved by its transform, so `Speed` fell back to zero
-after each write and the gait played in place. A remote mount's channel reports
+which is zero for a mount moved by its transform, so `Speed` would fall back
+to zero after each write and the gait would play in place. A remote mount's channel reports
 the network speed; the registry counts mounts, so while no one rides, the hook
 returns for local actors without the lock.
 
@@ -503,8 +490,8 @@ A horse leans to its slope: Skyrim keeps the tilt in the controller's
 `pitchAngle` and `rollAngle`, and every frame the actor's 3D update (ID 37364)
 builds the body rotation from them and the heading; a seated rider is placed
 from its mount's 3D and tilts with it. The angles come from the ground only in
-the movement update, which network placement skips, so a remote mount stayed
-level.
+the movement update, which network placement skips, so a remote mount would
+stay level.
 
 The source samples its carrier's pitch per checkpoint; its horse is simulated
 normally, so the pitch follows its own ground. On a peer the mount update eases
@@ -714,9 +701,7 @@ Furniture:
    message; the actor is hidden while its source stays or the player keeps the
    last free marker, and returns seated once it is vacated. Two actors never
    stack on one marker.
-5. Recordings without the field, including ones made with the load-order
-   `furnitureRefId`, replay without furniture. A remote actor still uses
-   furniture after being hit.
+5. A remote actor still uses furniture after being hit.
 6. Peers whose load orders differ but that both load the furniture's plugin
    see each other use it, including furniture a light plugin adds.
 

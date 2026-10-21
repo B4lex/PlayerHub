@@ -24,11 +24,12 @@ Implemented in Go and verified on Linux:
 - `npm run typecheck`, `npm test`, and `npm run build` in `admin-ui/`,
   and the built panel loaded in headless Chromium against the Go server, live
   over the event feed, with no console errors. The Kick button and Bans panel
-  (2026-10-19) were rendered in headless Chromium against a server on port
-  3101 with two loadgen bots and a ban, but not clicked; kick, both ban
-  kinds, and the loopback refusal were driven with `curl`.
+  were rendered in headless Chromium against a server on port 3101 with two
+  loadgen bots and a ban, but not clicked; kick, both ban kinds, and the
+  loopback refusal were driven with `curl`.
 
-Not verified: how a replayed player looks in game in every case (see
+Replayed players are watched in game while developing the plugin; how one
+looks in every case is not verified (see
 [Engine assumptions](#engine-assumptions)).
 
 ## Scope

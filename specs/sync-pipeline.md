@@ -2,23 +2,23 @@
 
 ## Status
 
-Implemented, and every feature in the other system specs runs through it in
-game on Skyrim AE 1.7.104. The split into `runtime/`, `sync/`, and `actor/` was
-a behavior-preserving move of the former `FrameUpdate.cpp` and `NPCSpawner.cpp`.
-Spawn throttling (`[Advanced] SpawnsPerSecond`) and save exclusion are not
-separately checked in game.
+Implemented, built on Windows, and run in game on Skyrim AE 1.7.104; every
+feature in the other system specs runs through it. Spawn throttling
+(`[Advanced] SpawnsPerSecond`) and save exclusion are not separately checked
+in game. The [vanilla intro](#vanilla-intro) hold has not run in game; its
+stages and the `kNewGame` payload were read from the 1.7.104 data files and
+`skse64_1_7_104.dll` ([Engine assumptions](#engine-assumptions)).
 
-[Checkpoint playout](#checkpoint-playout) was run in game against a server
-with a 20 Hz tick: remote movement showed none of the stutter that tick rate
-caused before. Jumps, attacks, furniture, mounts, a local pause, and a peer
-resuming from idle were not separately checked with it. `CheckpointPlayout`
-also ran in a Linux simulation against stubbed engine types: a 60 fps source
-publishing at 20 Hz, a server relaying latest-wins at 10, 20, or 40 Hz with
-idle suppression, network jitter with delay spikes, and receivers at 30 to
-144 fps. At a 20 Hz tick the
-per-pass speed deviation of a following actor fell from about 23% (chasing the
-newest checkpoint) to about 7%, and passes without movement from 3% to 0.3%,
-for about 50 ms more delay.
+[Checkpoint playout](#checkpoint-playout) ran in game against a server with
+a 20 Hz tick: remote walking and running moved at an even pace. Jumps,
+attacks, furniture, mounts, a local pause, and a peer resuming from idle were
+not separately checked with it. `CheckpointPlayout` also ran in a Linux
+simulation against stubbed engine types: a 60 fps source publishing at 20 Hz,
+a server relaying latest-wins at 10, 20, or 40 Hz with idle suppression,
+network jitter with delay spikes, and receivers at 30 to 144 fps. At a 20 Hz
+tick the per-pass speed deviation of a following actor was about 7% against
+about 23% when chasing the newest checkpoint, and passes without movement
+0.3% against 3%, for about 50 ms more delay.
 
 ## Scope
 
@@ -65,9 +65,10 @@ include no Skyrim headers. `runtime` calls the installers in `actor`, which own
 their detours and event sinks. `main.cpp` stays a small SKSE entry point.
 
 `Actor` names project modules and `RemoteActor` the replicated actor instance
-(`actor/RemoteActor.h`); `RE::Actor` stays qualified. Log messages and
-`GameThread::Require` operation names kept their older wording ("actor",
-`UpdateControlledNPC`, `SpawnControlledNPC`) so runs stay comparable.
+(`actor/RemoteActor.h`); `RE::Actor` stays qualified. Some log messages and
+`GameThread::Require` operation names use other words ("actor",
+`UpdateControlledNPC`, `SpawnControlledNPC`), kept so logs of different
+builds stay comparable.
 
 ## Threading
 
@@ -81,10 +82,10 @@ their detours and event sinks. `main.cpp` stays a small SKSE entry point.
   logged once.
 - `PlayerCharacter::UpdateAnimation` and tasks queued through
   `SKSE::TaskInterface::AddTask` ran on changing worker threads (seen in logs),
-  so neither is a safe place for actor or graph mutation. An earlier version
-  that wrote `Actor::actorState1` movement bits from the animation hook left
-  invalid engine state that crashed later in FaceGen, without a plugin frame
-  on the stack. The plugin never writes engine-owned movement-state fields.
+  so neither is a safe place for actor or graph mutation. Writing
+  `Actor::actorState1` movement bits from the animation hook left invalid
+  engine state that crashed later in FaceGen, without a plugin frame on the
+  stack, so the plugin never writes engine-owned movement-state fields.
 - Network callbacks only validate and queue plain values behind a lock. Hook
   callbacks on worker threads only query `ActorRegistry`, which keeps its
   locking operations small and never touches `PeerState` or a graph, or, for
@@ -159,7 +160,8 @@ FurnitureSync yield check                  # hide an actor that would block furn
 MountSync::SyncMount                       # riding: equipment, rider update with weapon state, look only
 otherwise:
     MovementSync::SyncMovement             # played checkpoint's movement, then the pose
-    EquipmentSync::SyncEquipment           # -> handsSettled, readyForWeaponDraw; a beast: none, both true
+    EquipmentSync::SyncEquipment           # -> handsSettled, readyForWeaponDraw
+                                           # a beast: SyncBeastEquipment, both true
     FurnitureSync::SyncFurniture           # exit or target change -> furniturePlaying
     AnimationSync::SyncAnimation           # unless an attack or furniture owns the graph
     FurnitureSync::SyncFurnitureEntry
@@ -233,7 +235,7 @@ quest MQ101 (`Skyrim.esm` local form ID `0x0003372B`, looked up at
   point after the cart where the player plays freely. CommonLib's
   `IsRunning` is not used: it is also true for a stopped quest.
 - A stopped, completed, or never started MQ101 never holds, so an alternate
-  start, a console skip, or a mod that sets a later stage connects as before.
+  start, a console skip, or a mod that sets a later stage connects at once.
 - The quest is checked only while the hold can change: from `kNewGame`, or
   from `kPostLoadGame` once a save's quest state is restored, each pass until
   the hold is off. `Update` then returns at its first check until the next
@@ -260,8 +262,8 @@ quest MQ101 (`Skyrim.esm` local form ID `0x0003372B`, looked up at
 `SyncCoordinator` owns one `std::unordered_map<Multiplayer::PeerSlot, PeerState>`
 keyed by the server's slot for the peer. `PeerState` holds the peer's
 `CheckpointPlayout`, the sequence whose checkpoint the current actor last
-received, and the feature-owned `combat`, `lifecycle`, `appearance`,
-`equipment`, and `furniture` members. Movement and animation keep their state
+received, and the feature-owned `combat`, `shapeshift`, `lifecycle`,
+`appearance`, `equipment`, `furniture`, and `nameplate` members. Movement and animation keep their state
 on the `RemoteActor` instead. A `RemoteFrame` presents the played checkpoint,
 its sequence, and the interpolated pose; features never see a checkpoint that
 has not played.
@@ -294,8 +296,9 @@ pass:
    ([Trade](trade.md)).
 
 `PlayCheckpoints` then advances every peer's playout. Each checkpoint that
-reaches its playback time is shown, in order, to furniture, animation, and
-combat (`OnCheckpointPlayed`) before it replaces the played one. Furniture
+reaches its playback time is shown, in order, to furniture, animation,
+combat, and shapeshift (`OnCheckpointPlayed`) before it replaces the played
+one. Furniture
 resolves its reference into the local load order there, once per change.
 
 Furniture occupancy, weapon stance, and every other checkpoint field are
@@ -307,8 +310,8 @@ Checkpoints leave the source every 0.05 s but arrive unevenly: the server
 batches them once per send interval (`send_rate_hz`, 20) and replaces one that a newer
 one overtook, sends far peers at `far_rate_hz`, and suppresses idle repeats
 ([Interest and delivery](interest-and-delivery.md#batching)), and the network
-adds jitter. Following the newest checkpoint as it arrived made the actor
-alternate between catching up and waiting. `CheckpointPlayout` instead plays
+adds jitter. Following the newest checkpoint as it arrives would make the
+actor alternate between catching up and waiting. `CheckpointPlayout` instead plays
 each peer's checkpoints back at their sampled spacing, a little behind the
 newest. The whole checkpoint waits, not only its transform, so movement state,
 jumps, stance, hands, furniture, death, and the actions anchored to a
@@ -418,8 +421,8 @@ before the engine writes, every live actor's reference is excluded from the
 save, and the next pass after saving restores it. A removed reference is
 excluded permanently: deleting a reference does not retire the change form the
 save writer keeps for it, and that record carries the runtime actor base, which
-is never serialized. On load it bound to whichever dynamic form received the
-same ID, and the load crashed.
+is never serialized. On load it would bind to whichever dynamic form received
+the same ID, which crashed the load.
 
 ## Timing
 

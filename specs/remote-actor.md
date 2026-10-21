@@ -2,43 +2,33 @@
 
 ## Status
 
-Implemented for Skyrim AE 1.7.104, and run in game there.
+Implemented for Skyrim AE 1.7.104, built on Windows, and run in game there.
+On SE 1.5.97 nothing has run; its IDs were matched in the 1.5.97
+disassembly ([assumption 17](#engine-assumptions)).
 
 - **Spawn, readiness, animation firewall, hit recovery:** run in game with
-  every synchronized feature.
-- **Registry shared lock and identity indexes:** Linux syntax check only; not
-  built on Windows or run in game.
-- **Combat isolation:** hook sites and entry bytes checked against the 1.7.104
-  executable and address library; behavior not yet verified in game.
+  every synchronized feature. The case-insensitive firewall match has not
+  run in game.
+- **Combat isolation:** hook sites and entry bytes checked against the
+  1.7.104 executable and Address Library; the hooks install in game
+  (`latest.log`), and what they drop is not verified in game.
 - **Precision exclusion:** interface layout and disable behavior read from
-  Precision's source (`PrecisionAPI.h`, `PrecisionHandler`, `Hooks.cpp`); Linux
-  syntax check only. Not built on Windows or run with Precision installed.
-- **Reaction suppression and package takeover:** run in game on 2026-09-20:
-  every hit met a blocked dialogue response and one package takeover, and the
-  repeating weapon equip animation after a hit was gone. Sitting in furniture
-  after a hit is not covered by the captures yet.
-- **Scene package suppression:** traced in the 1.7.104 binary; not verified in
-  game.
-- **Graph recovery on SE (2026-10-12):** `RevertAnimationGraphManager`'s
-  SE ID was 32140, a thunk to a different graph routine (32192); it is now
-  32139, which calls the same graph functions as 1.7.104 ID 32883 in the
-  1.5.97 disassembly. Linux syntax check only; not run on 1.5.97.
-- **Isolation hooks on SE (2026-10-12):** combat isolation, reaction
-  suppression, scene package suppression, and the skipped movement update
-  install on SE 1.5.97 through the IDs, entry bytes, and call sites in
-  [assumption 17](#engine-assumptions); before that they were AE only. Linux
-  syntax check only; not built on Windows or run on 1.5.97.
+  Precision's source (`PrecisionAPI.h`, `PrecisionHandler`, `Hooks.cpp`);
+  not run with Precision installed.
+- **Reaction suppression and package takeover:** run in game: every hit met
+  a blocked dialogue response and one package takeover, and the repeating
+  weapon equip animation after a hit was gone. Sitting in furniture after a
+  hit is not covered by the captures.
+- **Scene package suppression:** traced in the 1.7.104 binary; the hooks
+  install in game, and their effect is not verified in game.
 - **World isolation:** placement verified in game with a replayed player
   walking, idling, mounting, riding, and dismounting. Its other acceptance
-  criteria are not yet checked.
-- **Light budget (2026-10-16):** the light update paths in
-  [assumption 18](#engine-assumptions) were read in the 1.7.104 disassembly;
-  Linux syntax check only. Not built on Windows or run in game, and SE 1.5.97
-  was not checked.
-- **Graph channel layout (2026-10-18):** the Speed, Direction, and TurnDelta
-  channel state in [Graph speed](#graph-speed) was read in the 1.7.104
-  disassembly; the hooks writing only the polled value passed a Linux syntax
-  check only. SE 1.5.97 was not checked.
+  criteria are not checked.
+- **Registry shared lock and identity indexes, light budget, graph channel
+  layout:** not exercised in game beyond what every remote actor runs. The
+  light update paths ([assumption 18](#engine-assumptions)) and the Speed,
+  Direction, and TurnDelta channel state ([Graph speed](#graph-speed)) were
+  read in the 1.7.104 disassembly.
 
 ## Scope
 
@@ -180,8 +170,8 @@ is sent directly to the saved graph function, bypassing the hook.
 - Admitted names compare case-insensitively, as graph events do. The string
   pool keeps the first spelling it interned, and the beast idles spell the
   sheathe differently (`WerewolfSheathe` sends `weapUnequip`, the vampire
-  lord's `WeapUnEquip`, from `Skyrim.esm` and `Dawnguard.esm`). An
-  exact match left a remote werebear at `WantToSheathe` with its
+  lord's `WeapUnEquip`, from `Skyrim.esm` and `Dawnguard.esm`). With an
+  exact match a remote werebear stayed at `WantToSheathe` with its
   `WeapUnEquip` rejected every frame (seen in game).
 - On a mount, the gait events Skyrim sends are blocked instead
   ([Native interactions](native-interactions.md#mounts)).
@@ -251,14 +241,15 @@ Local enemies, creatures, guards, and followers never become hostile to a
 remote actor, target it, or start combat with it, and its replicated attacks
 hit nothing.
 
-### Why enemies attacked remote actors
+### Why the flag and the hooks
 
-The actor used to carry `kPlayerTeammate`. In 1.7.104 the hostility decision
-(ID 37534, `this` the deciding actor) replaces a teammate target with the
-player itself, so every actor hostile to the local player was hostile to every
-remote actor, and its wrapper ID 37532, used by `CombatGroup` target handling,
-returns true for a teammate without consulting the decision. Clearing the flag
-alone is not enough: very aggressive actors attack neutral targets.
+In 1.7.104 the hostility decision (ID 37534, `this` the deciding actor)
+replaces a `kPlayerTeammate` target with the player itself, so with the flag
+every actor hostile to the local player is hostile to every remote actor,
+and its wrapper ID 37532, used by `CombatGroup` target handling, returns true
+for a teammate without consulting the decision. The replica policy therefore
+clears the flag, but that alone is not enough: very aggressive actors attack
+neutral targets.
 
 ### Hooks
 
@@ -373,7 +364,7 @@ own change with its own in-game test.
 
 A hit makes the engine re-evaluate packages and select `DefaultMasterPackage`
 (`0003EAB9`, type 18). It wants a sheathed weapon while the network holds it
-drawn, so the two fought once per update: in the 2026-09-19 capture two hit
+drawn, so left alone the two fight once per update: in a capture two hit
 actors cycled between `kWantToSheathe` and `kDrawing` for over 600 frames,
 while an unhit one stayed on the do-nothing package (27).
 
@@ -402,16 +393,16 @@ one pass after entry. Two changes contain it:
   Every path that hands the actor back to synchronization uses it instead of
   `InitiateDoNothingPackage`.
 
-In the 2026-09-20 capture, each of 21 hits across three actors was followed on
-the next pass by exactly one takeover of `DefaultMasterPackage`, and no actor
-reported `kWantToSheathe` while the network held the weapon drawn.
+In a capture, each of 21 hits across three actors was followed on the next
+pass by exactly one takeover of `DefaultMasterPackage`, and no actor reported
+`kWantToSheathe` while the network held the weapon drawn.
 
 ### Scene packages
 
 The bard audience packages also arrive through a song's scene, not package
-evaluation: in a 2026-09-21 capture `BardAudienceTravelToLoc2` was taken back
-over 13,000 times in two minutes with no alias package refused, and every
-furniture entry in that window lost its occupancy. On 1.7.104 a scene's package
+evaluation: in a capture with alias packages already refused,
+`BardAudienceTravelToLoc2` was taken back over 13,000 times in two minutes,
+and every furniture entry in that window lost its occupancy. On 1.7.104 a scene's package
 action installs its package on the alias's actor through ID 39149:
 
 - `BGSSceneActionPackage` vfunc `0x10` (ID 24244) starts the action, resolving
@@ -435,11 +426,11 @@ alias without an actor.
 
 ## World isolation
 
-The network transform is the only thing that places a remote actor. Before this,
-each actor update integrated its character controller from wherever the network
-had put it: root motion was added, the controller pushed out of anything it
-overlapped and pushed local bodies, and the next pass moved it back, so an actor
-touching the local world shook.
+The network transform is the only thing that places a remote actor. If each
+actor update integrated its character controller from wherever the network
+had put it, root motion would be added, the controller would push out of
+anything it overlapped and push local bodies, and the next pass would move it
+back, so an actor touching the local world would shake.
 
 ### Placement ownership
 
@@ -498,10 +489,11 @@ The hooks replace only the polled value at `channel + 0x18`. The channel's own
 state follows it: `+0x20` holds the last value polled from the actor, and the
 Speed channel keeps the actor's scale at `+0x24`, set by its reset (vfunc 2,
 ID 42768) with a 1.0 fallback, and divides every polled speed by it (Direction
-and TurnDelta, IDs 42777 and 42773, return `+0x20` the same way). The hooks used
-to write the network value to `+0x24` as well, taking it for a cached value;
-once Skyrim moved the actor again (furniture entry, death), its Speed was
-divided by the last network speed, which is 0 for an idle actor.
+and TurnDelta, IDs 42777 and 42773, return `+0x20` the same way). The hooks
+leave `+0x24` alone: it is not a cached value, and with the network speed
+written there, once Skyrim moved the actor again (furniture entry, death),
+its Speed would be divided by the last network speed, which is 0 for an idle
+actor.
 
 ### Swimming
 
@@ -570,7 +562,7 @@ player walk through a seated rider's legs
 Skyrim lights each geometry with a few dynamic lights only, so many remote
 players carrying torches or holding spells make the world's lights flicker
 or drop out. `[Advanced] RemoteLights` ([Configuration](configuration.md#advanced),
-default 4, `0..8`) caps how many of their lights light the scene. A culled
+default 0, `0..8`) caps how many of their lights light the scene. A culled
 light loses only its light: the torch's flame, the spell's hand art and
 sounds, and every other effect stay. A torch or spell hand light that would
 cast shadows is already a fake light by then
@@ -650,12 +642,13 @@ Not yet checked in game:
     playback (ID 37542) is the fallback.
 12. Suppressing the actor's detection has no visible side effect, such as
     unreplicated head tracking.
-13. A locomotion graph driven by the published Speed plays at the same speed as
-    before; `kSupport` set outside `Move` is not overwritten while `Move` is
-    skipped; trigger volumes detect actors only through the character body.
-14. Death items (ID 37198) were ruled out when remote actors could not die;
-    with death synchronized this is unchecked. Damage (ID 37335) is covered by
-    the `HandleHealthDamage` guard.
+13. A locomotion graph driven by the published Speed plays at the speed the
+    actor's own movement would drive it at; `kSupport` set outside `Move` is
+    not overwritten while `Move` is skipped; trigger volumes detect actors
+    only through the character body.
+14. The death items path (ID 37198) needs no guard for a killed remote
+    actor; not checked. Damage (ID 37335) is covered by the
+    `HandleHealthDamage` guard.
 15. The local player's Activate on a remote actor or mount, from the
     crosshair, reaches ID 19796 with the player as the activator, so the
     event above is sent.

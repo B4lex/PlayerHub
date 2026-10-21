@@ -2,113 +2,52 @@
 
 ## Status
 
-Implemented 2026-10-06; not built on Windows and not run in game.
+Built on Windows with the rest of the plugin. In game: the trade screen
+opened and looked right ([UI overlay](ui-overlay.md#status)), the
+inventory capture with item details ran on SE 1.5.97, and a click on a
+single offered item removes it. A whole trade between two games, and the commit,
+have not run in game.
 
-- Server: `go test -race ./...` covers the hub's trades (`internal/hub`): an
-  invitation to both players, opening, offers relayed, a report relayed, an
-  acceptance relayed and a commit to both with each one's revisions; an offer
-  clearing both acceptances; an acceptance refused for stale revisions or
-  before its report; a stale, duplicate, or out-of-range report; the request's
-  refusals (`UNAVAILABLE` for oneself, an unknown slot, and the rate limit,
-  `OUT_OF_RANGE`, `BUSY` for either player); decline and cancel; an invitation
-  hidden from a player who vanished the requester and its expiry; closing on
-  moving apart, `Exit`, and a disconnect; plugin queries relayed, replies
-  matched to the oldest unanswered query and refused without one, for one's
-  own query, or with an index past it, and the limit of pending queries. `internal/validate` covers every
-  item, report, and cancel rule in [Network](network.md#trade).
-- Plugin, on Linux with g++ 16:
-  - `WireCodec.cpp` with the regenerated nanopb code decoded Go-encoded trade
-    messages (an invitation, an opening, an offer of three items with player
-    and plugin enchantments, tempering, a name, a report, an acceptance, a
-    commit, closes with and without a trade) and rejected an invitation
-    without a recipient, an opening without a trade, offers over the item
-    limit, a soul above grand, and an enchantment with effects, a report index
-    at the limit or an unknown reason (the limits checked at 32, before they
-    became 15), and closes without or with an unknown reason. Its
-    encoded request, answer, offer, report, acceptance, and cancel passed the
-    server's `validate.Message`. `EstimateTradeItemBytes` stayed above the
-    encoded size, 1664 against 1580 bytes for the largest valid item.
-  - `TradeSession.cpp` ran 119 checks: every phase change, the quiet interval
-    before an offer is sent, acceptance blockers, acceptances taken back by
-    an edit or a new peer offer, a commit naming a revision older than the
-    newest sent one, a commit without its report keeping the items, the
-    16 kept revisions, refusals, an invitation crossing the local request,
-    and the timeouts.
-  - `TradeWindow.cpp`, `TradePrompt.cpp`, `ChatPlayerMenu.cpp`,
-    `WindowManager.cpp`, and `Controls.cpp` ran in a headless Dear ImGui
-    1.92.9 context against a stubbed `TradeSync` and configuration (47
-    checks), and the window and prompt were rasterized at 1080p in Dear
-    ImGui's default style: see [UI overlay](ui-overlay.md#trade-window).
-  - `ItemInstance.cpp`, `TradeInventory.cpp`, `TradeSync.cpp`, and the
-    changed `PlayerDetails.cpp`, `SyncCoordinator.cpp`, `PluginStartup.cpp`,
-    `ServerClient.cpp`, and `SettingsSchema.cpp` passed a g++ syntax check
-    against the CommonLibSSE-NG headers, whose own Windows layout assertions
-    fail under g++ and were ignored. None of the engine calls ran.
-  - Since its outcomes became [notices](#notices), `TradeSync.cpp` passed
-    the syntax check again; no post ran. The stack that shows them ran in
-    the [UI overlay](ui-overlay.md#status)'s notices harness.
-  - The [plugin check](#plugin-check) and offer lines shown at once
-    (2026-10-14): the nanopb code was regenerated; `WireCodec.cpp` decoded
-    Go-encoded `TradePluginQuery` and `TradePluginReply` messages, including
-    a 260-byte name and an empty reply, and rejected an empty query, 257
-    names, a 261-byte name, a control character, a duplicate index, and a
-    reply without a trade. Its encoded query (3 names; 256 names, 4870 bytes)
-    and replies passed the server's `validate.Message`, and it encoded
-    nothing for 257 names, a query over 15 KiB, or a duplicate index.
-    `TradeSession.cpp` ran 37 new checks: queries split by count and bytes,
-    asked plugins not asked again, replies matched in query order, the
-    check running out after 5 s and a later query restarting it, a late
-    reply still applying, and edits sent 0.5 s after the first unsent one
-    however often the player edits. `TradeSync.cpp`, `TradeWindow.cpp`,
-    `FormLookup.cpp`, `ItemInstance.cpp`, and `ServerClient.cpp` passed the
-    syntax check, which a planted error confirmed reaches each. Nothing of
-    `TradeSync` ran, and the 119 session checks and the window harnesses
-    predate the change.
-  - Offer grids and inspecting the peer's lines (2026-10-07): the window
-    ran in a new harness, see [UI overlay](ui-overlay.md#status);
-    `TradeSync.cpp` with `PeerLine::id` passed only the syntax check.
-  - [Item details](#item-details) (2026-10-07): the formulas and the IDs
-    they call were read from the 1.7.104 executable's disassembly
-    (`PlayerCharacter::GetDamage`, `GetArmorValue`, and
-    `InventoryEntryData::GetValue` and what they call), not run.
-    `ItemDetails.cpp`, `TradeInventory.cpp`, and `TradeSync.cpp` passed the
-    syntax check, which a planted error confirmed reaches `ItemDetails.cpp`.
-    No number was compared with the game's.
-  - Item details on SE (2026-10-12): calling the 1.7.104 IDs crashed
-    `TradeInventory::Capture` on 1.5.97 (user's crash log), so the four
-    formulas were ported from their 1.7.104 disassembly and then compared
-    with their SE counterparts (25915, 25916, 25901, 25893) in the 1.5.97
-    executable. `ItemDetails.cpp` passed the syntax check, which a planted
-    error confirmed reaches it. Not built on Windows; the user saw the crash
-    gone on 1.5.97.
-  - [Commit](#commit) ownership (2026-10-09): `GetOwner` (ID 20194), the
-    owner check (ID 20210), and `PlayerCharacter::PickUpObject`'s call of
-    the steal alarm (ID 37422) were read from the 1.7.104 executable's
-    disassembly; `TradeInventory.cpp` passed the syntax check, which a
-    planted error confirmed reaches it. Not run in game.
-  - The 15-line limit (2026-10-09): `go vet` and `go test
-    ./internal/validate ./internal/hub` passed; the nanopb code was
-    regenerated; `TradeSync.cpp`, `TradeWindow.cpp`, and `WireCodec.cpp`
-    passed the syntax check, which a planted error confirmed reaches
-    `TradeWindow.cpp`. Nothing ran.
-
-- Beast forms (2026-10-17): `go test` covers a request refused with
-  `TRANSFORMED`, an invitation and an open trade closed by a player's
-  transformation (`internal/hub`), and `TRANSFORMED` as a cancel reason
-  (`internal/validate`); the four new texts passed `locale/generate.lua` in
-  every translation. `TradeSync.cpp` passed a Linux syntax check only; not
-  built on Windows or run in game.
-- [Trade bot](#trade-bot) (2026-10-07): two bots and an idle `cmd/loadgen`
-  walker against a local server traded with each other: an invitation
-  answered at once, offers with tempering, names, and a player enchantment,
-  a `skip plugin` report that made the giver drop the line and send a new
+- **Server:** `go test -race ./...` covers the hub's trades
+  (`internal/hub`): invitation, opening, relayed offers, reports, plugin
+  queries and replies, acceptances, and the commit with each player's
+  revisions; acceptances cleared by an offer and refused for stale revisions
+  or before their report; every request refusal, decline, cancel, a hidden
+  invitation and its expiry, closing on moving apart, `Exit`, a disconnect,
+  and a transformation; and the limit of pending plugin queries.
+  `internal/validate` covers every item, report, query, reply, and cancel
+  rule in [Network](network.md#trade).
+- **Wire, on Linux with g++ 16:** `WireCodec.cpp` with the regenerated
+  nanopb code decoded Go-encoded trade messages of every kind, including
+  player and plugin enchantments, tempering, names, and plugin queries up to
+  their limits, and rejected their invalid forms; the messages it encoded
+  passed the server's `validate.Message`, and it encoded nothing past the
+  item, plugin, and byte limits. The line and report limits were checked
+  at 32, before they became 15. `EstimateTradeItemBytes` stayed above the
+  encoded size, 1664 against 1580 bytes for the largest valid item.
+- **Session:** `TradeSession.cpp` ran 156 checks: every phase change, the
+  batch interval before an offer is sent, acceptance blockers and
+  acceptances taken back, a commit naming an older revision or arriving
+  without its report, the 16 kept revisions, refusals, crossing
+  invitations, timeouts, and the plugin check's queries, replies, and
+  timeout. All but the plugin check's 37 predate offer lines shown at once,
+  and none covers the beast form refusal.
+- **Windows and engine:** `TradeWindow.cpp`, `TradePrompt.cpp`, and the menu
+  entry ran in headless Dear ImGui harnesses ([UI overlay](ui-overlay.md#status)).
+  The [item details](#item-details) formulas and the [commit](#commit)'s
+  ownership calls were read from the 1.7.104 disassembly and compared with
+  their 1.5.97 counterparts (25915, 25916, 25901, 25893); no number was
+  compared with the game's. `TradeSync`, `TradeInventory`, and
+  `ItemInstance` have not run outside the game, and their engine calls have
+  not run in it.
+- **[Trade bot](#trade-bot):** two bots and an idle `cmd/loadgen` walker
+  traded with each other on a local server: an invitation answered at once,
+  offers with tempering, names, and a player enchantment, a plugin query
+  answered with `TradeBotMissing.esp` missing ahead of the report, a
+  `skip plugin` report that made the giver drop the line and send a new
   revision, both acceptances and the commit, an edit after an acceptance,
   `cancel menu`, a decline, `leave` closing the trade with `OUT_OF_RANGE`,
   and a quit closing it with `DISCONNECTED`. Not run against the game.
-  On 2026-10-14 two bots repeated an invitation and an offer with the
-  [plugin check](#plugin-check): the giver's query of its kit's two
-  plugins was answered with `TradeBotMissing.esp` missing, ahead of the
-  report on its first revision.
 
 ## Scope
 
@@ -234,11 +173,11 @@ a request unanswered after 10 s, as for a lost message.
   enchantment or an effect whose plugin or form is missing
   (`MISSING_EFFECT`), or an enchantment that is not one, or on an item that
   takes none (`BAD_ENCHANTMENT`). The receiver never shows those lines.
-- A clicked line shows in the own offer at once (the user's choice). Lines
-  used to show only once the peer's game confirmed them, which delayed
-  every click by a batch and a round trip; the [plugin check](#plugin-check)
-  now disables rows from plugins the peer lacks before the player clicks,
-  so a line taken back is rare. A line the peer's report skips leaves the
+- A clicked line shows in the own offer at once (the user's choice), rather
+  than once the peer's game confirms it, which would delay every click by a
+  batch and a round trip; the [plugin check](#plugin-check) disables rows
+  from plugins the peer lacks before the player clicks, so a line taken back
+  is rare. A line the peer's report skips leaves the
   offer, which sends a new revision. `TradeSync` keeps each inventory row's
   check (`RowCheck`) for the trade; rejections and missing plugins carry
   over when the inventory is listed again. A rejected row is disabled with
@@ -552,8 +491,6 @@ To verify in game:
   `Trade` against it.
 - The item card shows the item's own damage, armor, and value, not the numbers
   the inventory shows after the player's skills and perks.
-- The tempering bonuses rest on 1.7.104 Address Library IDs, which another
-  runtime would need checked again.
 - Accept waits for the last edit's batch and its report: 0.5 s and a round
   trip after the last click.
 - A line the peer's game cannot receive although it has the plugin shows in

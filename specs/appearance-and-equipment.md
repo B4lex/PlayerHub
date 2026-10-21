@@ -2,52 +2,44 @@
 
 ## Status
 
-- **Appearance:** run in game between two clients on Skyrim AE 1.7.104 with a
-  base copied from the local player base. The current base, built from engine
-  defaults, and the default race are not yet built on Windows or run in game.
-  The face tint render on SE 1.5.97 (ID 26454, 2026-10-12; before that AE
-  only) passed a Linux syntax check only and was not run on SE. The face
-  preset clamp (2026-10-17) is covered by server unit tests and a Linux syntax
-  check; not built on Windows or run in game. Reading the player's face tints
-  through CommonLib on AE as well (2026-10-17, replacing an AE-only read of
-  `0xB20` checked against `GetNumTints`/`GetTintMask`) passed a Linux syntax
-  check only; not run in game, and AE 1.6.x offsets rest on CommonLib.
-- **Equipment:** run in game, including an earlier receiver-configured fallback.
-  `UnequipSpell` on SE 1.5.97 (ID 37946, 2026-10-12; before that `DeselectSpell`
-  off AE) passed a Linux syntax check only, as did spell hands carrying the
-  spell and its look (2026-10-15). The items under [Engine
-  assumptions](#engine-assumptions) are not individually checked.
-- **Fake lights (2026-10-16):** the shadow flag test in `GenDynamic`
-  and the copy components were read in the 1.7.104 disassembly; Linux syntax
-  check only. Not built on Windows or run in game, and SE 1.5.97 was not
+Built on Windows with the rest of the plugin.
+
+- **Appearance:** run in game between two clients on Skyrim AE 1.7.104 with
+  a base copied from the local player base. The base built from engine
+  defaults, the default race, and the face preset clamp have not run in game;
+  the clamp is covered by server unit tests. Reading the player's face tints
+  through CommonLib on AE, the face tint render on SE 1.5.97 (ID 26454), and
+  AE 1.6.x offsets, which rest on CommonLib, have not run.
+- **Equipment:** run in game, including the receiver's outfit fallback in an
+  earlier, receiver-configured form. Spell hands carrying the spell and its
+  look, and `UnequipSpell` on SE 1.5.97 (ID 37946), have not run in game. The
+  items under [Engine assumptions](#engine-assumptions) are not individually
+  checked.
+- **Fake lights:** not run in game. The shadow flag test in `GenDynamic` and
+  the copy components were read in the 1.7.104 disassembly; SE 1.5.97 was not
   checked.
 - **Default outfit:** the sender's outfit and the receiver's ranked armor
-  selection (`SelectArmor`) are not yet built on Windows or run in game. The
-  default form IDs were checked against `Skyrim.esm` and `Dawnguard.esm` records
-  (type, slots, weapon type).
-- **Item filter and catalog:** built on Windows; the catalog and picker run in
-  game ([UI overlay](ui-overlay.md#item-picker)). The main-slot armor filter is
-  checked only in a standalone Linux test of `ItemFilter`, not yet built on
-  Windows or run in game.
-- **Shapeshifts (2026-10-17):** the beast races' form IDs, behavior
-  projects, and lack of head data were read from `Skyrim.esm`,
-  `Dawnguard.esm`, and `Dragonborn.esm`; the wire rules are covered by server
-  unit tests ([Network](network.md#status)). Run in game on 2026-10-18 with
-  one peer: the local player's werewolf swaps both ways and the peer's swap
-  to a werebear, shown as expected; a vampire lord only on the local side. The appearance hold while transformed, added after that run,
-  passed a Linux syntax check only. The vampire lord's spell hands
-  (2026-10-18), whose wire rules are covered by server unit tests, were run
-  in game on 2026-10-18 against a server playback of the local player: the
-  peer's vampire lord shows its spells, equipped on the first reconcile
-  attempt, and drops them on landing. The vampire lord's armor (2026-10-18)
-  shows on the peer's vampire lord in game. The armor form and the
-  transformation script's order were read from `Dawnguard.esm` and the
-  compiled `DLC1PlayerVampireChangeScript`.
-- **Player labels:** level validation and chat fields covered by server unit
-  tests; label rendering pending an in-game check. The display name, which comes
-  from the player's session ([Network](network.md#sessions)), and the label
-  without the level are not yet built on Windows or run in game, and
-  `AppearanceSync.cpp` was not compiled after either change.
+  selection (`SelectArmor`) have not run in game. The default form IDs were
+  checked against `Skyrim.esm` and `Dawnguard.esm` records (type, slots,
+  weapon type).
+- **Item filter and catalog:** the catalog and picker run in game
+  ([UI overlay](ui-overlay.md#item-picker)), and the catalog builds at
+  startup (`latest.log`). The main-slot armor filter ran only in a standalone
+  Linux test of `ItemFilter`.
+- **Shapeshifts:** run in game with one peer: the local player's werewolf
+  swaps both ways and the peer's swap to a werebear showed as expected; a
+  vampire lord only on the local side. Against a server playback of the
+  local player, the peer's vampire lord showed its spells, equipped on the
+  first reconcile attempt and dropped on landing, and wore its armor. The
+  appearance hold while transformed has not run in game. The beast races'
+  form IDs, behavior projects, and lack of head data were read from
+  `Skyrim.esm`, `Dawnguard.esm`, and `Dragonborn.esm`, and the vampire lord's
+  armor and the transformation script's order from `Dawnguard.esm` and the
+  compiled `DLC1PlayerVampireChangeScript`; the wire rules are covered by
+  server unit tests ([Network](network.md#status)).
+- **Player labels:** level validation and chat fields are covered by server
+  unit tests. The label from the session's display name, without the level,
+  has not been checked in game.
 
 ## Scope
 
@@ -96,7 +88,8 @@ On the game thread, once per second:
   vanilla beast form, the last published revision stands and the form
   travels apart ([Shapeshifts](#shapeshifts)).
 - `level`: `Actor::GetLevel`, so a level-up publishes a new revision. Peers
-  receive it and show it nowhere yet ([Player label](#player-label)). `name`
+  receive it and show it in the [player menu](ui-overlay.md#player-menu)
+  only ([Player label](#player-label)). `name`
   is left empty: the server sets the [display name](#display-name).
 - `defaultRace`: the configured `[DefaultOutfit]` race and sex when `race` is
   not from a base-game plugin, else unset.
@@ -176,8 +169,8 @@ each time.
   `UpdateSkinColor` run once.
 - The face tint: `PrepareHeadPartForShaders` (ID 26838, SE 26259) gives a
   runtime-built face a blank tint texture and fills it only for the player base
-  or with `bUseFaceGenPreprocessedHeads` off, the same on both runtimes, which
-  left the dark face bug. The receiver
+  or with `bUseFaceGenPreprocessedHeads` off, the same on both runtimes, so a
+  remote actor's face would render dark. The receiver
   finds the face geometry (named after the face part's editor ID), takes its
   FaceGen material's tint texture, and queues the engine's tint render
   (ID 27040, SE 26454) with masks from the base's layers: race `TintAsset`
@@ -283,12 +276,12 @@ under it. A replayed player keeps the name it was recorded with.
 ### Player label
 
 `PlayerLabel::Format` builds the label used for the actor base's name, chat
-senders, and [nameplates](ui-overlay.md#nameplates): the display name, or a placeholder for an empty one, as before a
-peer's appearance arrives.
+senders, and [nameplates](ui-overlay.md#nameplates): the display name, or a
+placeholder for an empty one, as before a peer's appearance arrives.
 
 The level is not part of the label. It stays in `Appearance` and `ChatSpeaker`
-([Network](network.md#appearance)), captured, validated, relayed, and parsed
-as before, for a later use.
+([Network](network.md#appearance)), captured, validated, relayed, and parsed,
+and the [player menu](ui-overlay.md#player-menu) shows it.
 
 ## Equipment
 
@@ -538,7 +531,7 @@ To verify in game:
 
 2. `CreateReferenceAtLocation` completes 3D and graph initialization for a base
    built from engine defaults, and the firewall, combat suppression, and
-   furniture entry behave as with the earlier copied base.
+   furniture entry behave as with a base copied from the player's.
 3. `TintAsset::texture.index` matches `TESNPC::Layer::tintIndex`, and
    `interpolationValue = alpha × 100` with the matching preset reproduces war
    paint and face tint colors exactly.
@@ -632,7 +625,7 @@ To verify in game for [shapeshifts](#shapeshifts):
     with one more respawn. A late joiner sees the beast directly.
 11. A female player's vampire lord uses the female model.
 12. A mod's own transformation race leaves peers showing the player's own
-    look, as before.
+    look.
 
 ## Known limitations
 
@@ -640,7 +633,7 @@ To verify in game for [shapeshifts](#shapeshifts):
   RaceMenu/NiOverride data (body morphs, overlays, node transforms, scaled bones)
   are not synchronized.
 - The transformation itself, its animation, effect shader, and sound, is not
-  shown: the player's choice is an instant swap. The swap waits for a respawn,
+  shown: the user chose an instant swap. The swap waits for a respawn,
   so the actor is briefly absent while the new form's 3D loads. Custom skin armor and far skins use the resolved race's.
 - Enchantments, tempering, poison, charge, player-given names, the equipped shout
   or power, and SMP/CBPC physics are not shown.

@@ -2,61 +2,50 @@
 
 ## Status
 
-- **Weapon stance and normal attacks:** implemented and run in game on Skyrim
-  AE 1.7.104, including sheathes cut off by a jump, which finish after the
-  landing. That `weaponDrawn` now changes when the sender's clip starts has
-  not been checked separately.
-- **Bow draws and spell casting:** implemented; a Windows build and a full
-  in-game check are pending. Confirmed in game: `EquipSpell` on an actor that
-  does not know the spell, the Healing Hands right-hand cast looping until
-  `InterruptCast`, a held bow draw, spell fire suppression, and the last cast
-  stop waiting for the graph to leave the cast branch before locomotion is
-  replayed (a replay with running casts, 2026-10-14). The rest is under
-  [Engine assumptions](#engine-assumptions).
-- **Spell look** (2026-10-15): the hand look's source and the form copies were
-  read from the 1.7.104 executable; server unit tests and a Linux syntax check
-  only; not built on Windows or run in game, and not checked on SE 1.5.97.
-- **Left-hand and dual attacks, blocking, and bashes:** implemented; Windows
-  build and in-game check pending.
-- **Chain capture from `kHit` and `kDraw`, and single dual-wield bashes**
-  (2026-10-16): a peer with an attack replacer published one attack per chain
-  and two per bash (`latest.log`, consecutive `actionSequence` values); the
+Built on Windows with the rest of the plugin; the server side is covered by
+unit tests.
+
+- **Weapon stance and normal attacks:** run in game on Skyrim AE 1.7.104,
+  including sheathes cut off by a jump, which finish after the landing.
+  Publishing `weaponDrawn` when the sender's clip starts has not been checked
+  separately.
+- **Bow draws and spell casting:** confirmed in game: `EquipSpell` on an
+  actor that does not know the spell, the Healing Hands right-hand cast
+  looping until `InterruptCast`, a held bow draw, spell fire suppression,
+  and the last cast stop waiting for the graph to leave the cast branch
+  before locomotion is replayed (a replay with running casts). The rest is
+  under [Engine assumptions](#engine-assumptions).
+- **[Beast actions](#beast-actions):** run in game with one peer: werewolf
+  attacks, howls, and feeding were captured and relayed, and the peer's
+  werebear attacks all played on their first attempt. Against a server
+  playback of the local vampire lord, its levitation and its
+  [casts](#vampire-lord-casts) with both hands showed, holding the spells'
+  hand art. The vampire lord's melee, feeding, Mist Form, and bats, and the
+  attack ownership of a beast attack, were not run in game. The vocabulary
+  was read from the vanilla `WerewolfBehavior.hkx` and `VampireLord.hkx`
+  transitions and the beast races' attack data and IDLE records; that
+  `PlayerCharacter`'s graph holder vfunc 1 is the function Character's holder
+  uses (ID 38048) was read from the 1.7.104 executable.
+- **Not run in game:** left-hand and dual attacks, blocking, bashes, and
+  power attacks (except the observations noted below); the
+  [spell look](#spell-look), whose sources and form copies were read from the
+  1.7.104 executable; [catching up](#catching-up), whose weapon speed
+  bindings were read from the vanilla behavior files and channel layout from
+  the 1.7.104 executable; and capturing one attack per swing, chains from
+  `kHit` and `kDraw`, and single dual-wield bashes. A source with an attack
+  replacer was seen publishing two attacks per chained swing and two per
+  dual-wield bash, and a receiver with an MCO-style graph never chaining, which
+  the [capture](#capture) and [dispatch](#dispatch) rules below address; the
   attack state writers were read from the 1.7.104 executable and the vanilla
-  clip annotations from `animationdatasinglefile.txt`. Linux syntax check
-  only; not built on Windows or run in game.
-- **One attack per swing, and chains from the hit on the receiver**
-  (2026-10-19): with that build, a source with replaced vanilla attack clips
-  published two attacks per chained swing (`kDraw` from `kHit`, then `kSwing`
-  from `kNextAttack` about 0.75 s later), and a receiver with an MCO-style
-  graph never chained, so every attack played as the first swing of a combo
-  (`chained=false`, each held about 1.5 s). Linux syntax check only; not built
-  on Windows or run in game.
-- **Attack catch-up** (2026-10-14): the weapon speed bindings were read from
-  the vanilla behavior files and the weapon speed channel layout from the
-  1.7.104 executable; Linux syntax check only; not built on Windows or run in
-  game; the channel layout on SE 1.5.97 is not checked.
-- **Power attacks:** implemented; Windows build and in-game check pending,
-  except the observations noted below.
-- **[Beast actions](#beast-actions)** (2026-10-17): the vocabulary was read
-  from the vanilla `WerewolfBehavior.hkx` and `VampireLord.hkx` transitions and
-  the beast races' attack data and IDLE records in `Skyrim.esm` and
-  `Dawnguard.esm`; that `PlayerCharacter`'s graph holder vfunc 1 is the
-  function Character's holder uses (ID 38048) was read from the 1.7.104
-  executable. Run in game on 2026-10-18 with one peer: werewolf attacks,
-  howls, and feeding were captured and relayed, and the peer's werebear
-  attacks all played on their first attempt; the vampire lord's actions,
-  levitation, casts, Mist Form, and bats were not exercised. The attack
-  ownership added after that run and the case-insensitive firewall match
-  ([Remote actor](remote-actor.md#animation-firewall)) passed a Linux syntax
-  check only. A later run the same day against a server playback of the
-  local vampire lord showed its levitation and its
-  [casts](#vampire-lord-casts) with both hands, holding the spells' hand
-  art.
+  clip annotations from `animationdatasinglefile.txt`. SE 1.5.97 was not
+  run: the spell fire detour's SE ID 33629 has the same entry bytes and
+  callees in the 1.5.97 disassembly, and the weapon speed channel layout is
+  not checked there.
 
 Graph event names, transitions, and conditions come from the vanilla
 `Skyrim - Animations.bsa` behavior files (`0_master.hkx`, `1hm_behavior.hkx`,
 `blockbehavior.hkx`, `bashbehavior.hkx`) and the `Skyrim.esm` idle and race
-records. The server side is covered by unit tests.
+records.
 
 ## Scope
 
@@ -103,8 +92,8 @@ Hand presentation fields live in `Network::PlayerTransform::handPresentation`
 The source publishes `weaponDrawn` as the direction of its weapon clip: true
 from `Drawing` through `WantToSheathe`, false from `Sheathing` through
 `WantToDraw`. `ActorState::IsWeaponDrawn` changes only when a clip ends, which
-started every peer's draw or sheathe a whole clip late, so a jump right after a
-sheathe cut into the peer's sheathe. On the receiver, the actor compares it with
+would start every peer's draw or sheathe a whole clip late, so a jump right
+after a sheathe would cut into the peer's sheathe. On the receiver, the actor compares it with
 Skyrim's weapon state and, when a transition is needed and none is in progress,
 invokes Skyrim's native draw or sheathe. `WantToDraw` and `WantToSheathe` only
 mean a request is outstanding, so the request is retried until the actor reaches
@@ -211,7 +200,7 @@ data, without a new edge. So while the same attack window stays active, data
 that turns into a power attack is captured once more as a power attack, never
 again until the next edge and never during a bash. A held attack is therefore a
 plain action followed by a power action of the same hand, which keeps plain
-attacks as responsive as before.
+attacks as responsive as a click.
 
 The log lines `observed local attack state edge` and
 `observed local power attack of the playing swing` show the action, power, direction, and event;
@@ -306,7 +295,7 @@ fallbacks; grounded locomotion is then reasserted.
   as `presentedAsPlain`. One rejected in a combo window waits for the playing
   attack to finish and then starts.
 - A bash also ends on its `bashExit` annotation: a remote actor's attack state
-  does not report bashes (observed in game), so every bash otherwise held the
+  does not report bashes (observed in game), so every bash would otherwise hold the
   1.25 s start fallback. Exits seen before the bash was dispatched are ignored.
 - Every dispatched power attack is logged with its event, fallbacks, and the
   actor's stamina (`stamina=`).
@@ -504,9 +493,9 @@ the cast plays and is suppressed exactly as above.
 
 The lower bodies of the block (`Blocking_LowerBody_Behavior`), bow draw
 (`Bow_Attack_LowerBodyBehavior`), and cast (`DefaultMagicCastingBehavior`) pick
-their standing or moving start state from `iSyncIdleLocomotion`, which stayed 0
-on a remote actor even while running (observed in game), so a presentation
-started while moving entered the standing pose while translation continued.
+their standing or moving start state from `iSyncIdleLocomotion`, which no
+vanilla node writes, so on a remote actor a presentation started while moving
+would enter the standing pose while translation continued (observed in game).
 The receiver holds it at the dispatched movement
 ([Locomotion](locomotion.md#standing-re-entry)), so the lower body starts in
 the right state; later movement reaches it through ordinary locomotion events.
@@ -515,9 +504,9 @@ When a presentation ends (the bow after its shot, the block once lowered, the
 cast once no hand still casts or stops), the graph returns to the base
 locomotion, and a locomotion reassert sends whichever of `moveStart`,
 `sneakStart`, and `SprintStart` the graph does not already hold, without
-touching the stance. Before the hold the base locomotion re-entered standing,
-the actor slid, and the graph then rejected the next `moveStop` until its
-retries ran out.
+touching the stance. Without the hold the base locomotion re-enters standing,
+the actor slides, and the graph then rejects the next `moveStop` until its
+retries run out.
 
 ## Beast actions
 
@@ -578,8 +567,8 @@ furniture:
   the vampire lord's melee) owns the graph as a human attack's
   [dispatch](#dispatch) does (`ActorAnimation::OwnDispatchedAttack`), so
   locomotion waits until its attack state ends and is then reasserted. Without
-  it, the werewolf graph's `CombatAttacks` state rejected `moveStart` and
-  `moveStop` over 100 times per attack and held translation (seen in game).
+  it, the werewolf graph's `CombatAttacks` state rejects `moveStart` and
+  `moveStop` over 100 times per attack and holds translation (seen in game).
 - A beast actor runs none of the human attack queue or hand presentation.
 
 ### Levitation
@@ -638,9 +627,8 @@ resolves these at `kDataLoaded`.
 
 Draw and cast clips natively run the release paths. These hooks keep a
 registered actor from releasing anything; other actors pass through. The vtable
-hooks install on every runtime. The spell fire entry detour was read from
-1.7.104; its SE ID 33629 has the same entry bytes and callees in the 1.5.97
-disassembly (2026-10-12, Linux syntax check only, not run on SE).
+hooks install on every runtime; the spell fire entry detour is ID 34407 (SE
+33629).
 
 | Hook | Effect for a remote actor |
 | --- | --- |

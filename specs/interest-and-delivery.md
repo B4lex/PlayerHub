@@ -3,15 +3,21 @@
 ## Status
 
 Implemented in `server/internal/interest`, `server/internal/hub`, and
-`server/internal/delivery`. Covered by rule and grid tests (`interest_test.go`),
-hub tests with a fake clock (`hub_test.go`: welcome first, enter order, an
-unplaced viewer, a paused sender seen by a newcomer, batching, send phases, the action
-anchor, context order, range hysteresis and time in view, exclusions taking
-effect at once, a space change, presentation kept across exit and re-enter,
-disconnect reaching presentation holders, virtual players, chat on each channel,
-a session's display name on the relayed appearance, a session connecting
-again, a player's vanish following the session), outbox tests, and black-box tests over a real WebSocket,
-including the admin hide and exclusion endpoints. Not checked in game.
+`server/internal/delivery`; clients receive peers through it in game.
+Covered by rule and grid tests (`interest_test.go`), hub tests with a fake
+clock (`hub_test.go`: welcome first, enter order, an unplaced viewer, a
+paused sender seen by a newcomer, batching, send phases, the action anchor,
+context order, range hysteresis and time in view, exclusions taking effect
+at once, a space change, presentation kept across exit and re-enter,
+disconnect reaching presentation holders, virtual players, chat on each
+channel, a session's display name on the relayed appearance, a session
+connecting again, a player's vanish following the session), outbox tests,
+and black-box tests over a real WebSocket, including the admin hide and
+exclusion endpoints. The cap, the far rate, the budget, and admin
+exclusions are not checked in game.
+
+The measurements below ran with whole-unit positions; quarter units add
+about 4% to each relayed entry ([Network](network.md#status)).
 
 `cmd/loadgen` with 250 walking bots at 20 Hz on a 4-core host shared with the
 load generator:
@@ -198,9 +204,9 @@ leave and when the recipient disconnects.
   once.
 - A checkpoint equal to the last one handed to subscribers, except for its
   sequence and time, is not distributed, so an idle player costs nothing on the wire.
-  Positions compare rounded to whole units (`sameSample`): an idle player's
-  sub-unit drift, which whole-unit checkpoints rounded away, would otherwise
-  send at quarter-unit precision.
+  Positions compare rounded to whole units (`sameSample`), so an idle
+  player's sub-unit drift does not count as a change at quarter-unit
+  precision.
   The stored checkpoint still advances, so `PeerEnter` and action anchors carry
   the newest. The checkpoint after a context change is always distributed,
   since clients apply a context with the next checkpoint they receive.

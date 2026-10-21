@@ -37,7 +37,7 @@ criteria.
 | Blocking, bashes, power attacks | [combat-presentation](combat-presentation.md) |
 | Appearance and player labels | [appearance-and-equipment](appearance-and-equipment.md#appearance), [network](network.md#appearance-and-equipment) |
 | Sessions and display names | [network](network.md#sessions), [appearance-and-equipment](appearance-and-equipment.md#display-name), [configuration](configuration.md#connection), [ui-overlay](ui-overlay.md#connection-controls) |
-| Equipment and default outfit | [appearance-and-equipment](appearance-and-equipment.md#equipment), [network](network.md#playerequipment), [configuration](configuration.md#defaultoutfit) |
+| Equipment and default outfit | [appearance-and-equipment](appearance-and-equipment.md#equipment), [network](network.md#equipment), [configuration](configuration.md#defaultoutfit) |
 | Furniture | [native-interactions](native-interactions.md#furniture), [remote-actor](remote-actor.md#placement-ownership) |
 | Mounts | [native-interactions](native-interactions.md#mounts), [sync-pipeline](sync-pipeline.md#actor-lifecycle) |
 | Death | [native-interactions](native-interactions.md#death) |

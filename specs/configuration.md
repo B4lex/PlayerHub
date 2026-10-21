@@ -2,120 +2,29 @@
 
 ## Status
 
-Implemented; the first file-based version ran in game. On Linux,
-`PluginConfig.cpp` and `SettingsSchema.cpp` were compiled against SimpleIni
-with stubbed SKSE headers and checked for default-file generation, overrides,
-invalid values, unknown keys, and saving: comments and unknown keys are kept,
-and a missing file is recreated from the commented default. Applying changes in
-game (reconnect, equipment re-resolution, spawn rate) is not yet checked.
-`[General] DisplayName` is not yet built on Windows or run in game. On Linux the
-same two files were compiled against SimpleIni with stubs and checked for the
-default file's empty `DisplayName` under its comment, loading it without a
-warning, saving a display name, and ignoring a `Nickname` line, which an earlier
-file may hold, as an unknown key. Clearing a display name and adding one to a
-file without the key were checked before the key took this name. The current
-character rule was checked by compile-time assertions only; `SettingsSchema.cpp`
-with it was not compiled. `Config::GetDirectory` ran
-only through its fallback, since the stubs resolve no DLL path.
-`config/PluginFiles`, which now reads and replaces the file, passed a Linux
-syntax check only; the stubbed checks above predate it.
-`[UI] Language` (2026-10-16), now a translation's code, is not built on
-Windows or run in game, and its reading and writing were not run; on Linux,
-`PluginConfig.cpp` and `SettingsSchema.cpp` passed a g++ syntax check against
-CommonLibSSE-NG only, and `Text::IsLanguageCode` ran in a harness.
-`[UI] BorderColor` is not yet built on Windows or run in game. On Linux the same
-two files were checked the same way: the default file has `BorderColor = Vanilla`
-under its comment, `Accent` and `accent` load as the accent, `Orange` and an
-empty value warn and keep `Vanilla`, a file without the key loads as `Vanilla`,
-and applying `Accent` adds the line, which loads back. `[UI] BorderThickness`
-and the limits of a percentage were checked the same way: the default file has
-`BorderThickness = 70`, `50`, `85`, and `100` load, `49`, `101`, `150`, `0`,
-`big`, and an empty value warn and keep `70` while `SpawnsPerSecond = 0` and
-`ViewRadius = 100000` still load, and applying `85` adds the line, which loads
-back. `ViewRadius` was checked as a `[Network]` key; reading and saving it in
-`[Performance]` is not yet compiled or run, and a `[Network] ViewRadius` line an
-earlier file holds is ignored as an unknown key.
-`[UI] ChatWidth` and `ChatLines` are not yet built on Windows or run in game.
-On Linux the same two files were checked the same way: the default file has
-`ChatWidth = 30` and `ChatLines = 10` under their comments; `24`, `100`, `9`,
-and `40` load; `23`, `101`, `8`, `41`, `0`, text, and an empty value warn and
-keep the default; applying each adds its line to a file without it, keeping
-the file's comments, and both load back.
-`[UI] ChatPositionHorizontal` and `ChatPositionVertical` (2026-10-13) are not
-yet built on Windows or run in game under these names (as signed `ChatOffsetX`
-and `ChatOffsetY` the sliders worked in game), and the file was not run
-through the stubbed checks: on Linux, `SettingsSchema.cpp` and
-`PluginConfig.cpp` passed the g++ syntax check only.
-`[UI] AccentColor` is not yet built on Windows or run in game. On Linux the
-same two files ran with the settings window's harness
-([UI overlay](ui-overlay.md#status)): the default file has
-`AccentColor = FF9000` under its comment, before `BorderColor`; `#4f8ef7`
-loads; `orange` warns and keeps `FF9000`; `ParseColor` takes `FF9000`,
-`#4f8ef7`, and `000000` and rejects an empty value, `#`, five or seven
-digits, `GG0000`, a sign, a space, `0x9000`, `##FF9000`, and a trailing
-comment; applying a color from the window saves it, and applying `FF9000`
-again keeps the line with that value.
-The `server_endpoint` xmake option is not yet built on Windows. On Linux,
-xmake 3.0.6 ran the same option and `on_config` in a scratch project: the
-define holds `http://127.0.0.1:3000` by default and the configured value after
-`xmake f --server_endpoint=...`; changing it recompiles and relinks without
-`-r`; `ftp://bad`, a value with a space or a quote, and an empty value fail
-`xmake f`; the option is listed in `xmake f --help` with its default; a rule's
-`on_config` still runs beside the target's. The project's own `xmake.lua`
-was not loaded on Linux.
-`[Network] CustomServer` is not yet built on Windows or run in game. On
-Linux the same two files ran with the settings window's harness
-([UI overlay](ui-overlay.md#status)): the default is `false`, which resolves
-to the build's default endpoint, and switching it on resolves to
-`ServerEndpoint`, empty until a URL is entered, and off again to the default
-with the URL kept. The file checks below ran with the earlier, inverted
-`ConnectToOfficialServer` key, which `CustomServer` replaced without other
-changes to loading or saving, and `ConnectionMonitor.cpp`, built with the
-default endpoint `https://official.example`: the default file has the switch
-and an empty `ServerEndpoint` under their comments, before `AutoConnect`, and
-no trace of the default URL; a file with only
-`ServerEndpoint = http://127.0.0.1:3000` loads without a warning as the
-official server with that URL kept; the custom server connects to
-`ServerEndpoint`, an empty one loads without a warning as no endpoint, and
-`ftp://bad` warns and keeps it empty; applying the switch and a URL adds both
-lines under a hand-written comment, and switching back keeps the URL.
-`[Controls]` is not yet built on Windows or run in game. On Linux the same
-two files and `PluginFiles.cpp` were compiled against SimpleIni with stubs:
-the default file ends with `[Controls]` and `OpenSettings = F10`,
-`AcceptTrade = Y`, and `DeclineTrade = N` under their comments, after
-`[UI]`, which has no key; `numpad3` loads as `Numpad3`; `Escape` warns and
-keeps `Y`; `SettingsKey` and `TradeAcceptKey` lines in `[UI]` are logged as
-unknown and ignored; applying a key adds its line, which loads back; an
-empty `DeclineTrade` loads as unbound and an empty `OpenSettings` as `F10`,
-and applying an unbound `AcceptTrade` saves `AcceptTrade =`, which loads
-back unbound. Every
-key name parses back to its scan code, and none of the reserved keys has a
-name. Run again with `OpenChat` and `ManagePlayers` (2026-10-11): the
-default file has `OpenChat = Enter` and `ManagePlayers = F11` between
-`OpenSettings` and `AcceptTrade`; `numpadenter` loads as `NumpadEnter`; an
-empty `OpenChat` loads as `Enter`; applying an unbound `ManagePlayers` saves
-`ManagePlayers =`, which loads back unbound. The `ManagePlayers` default
-changed to `O` afterwards (2026-10-11) without a rerun. The section order
-changed afterwards too (2026-10-11), so `[Controls]` now follows `[UI]` before
-`[Network]`; `SettingsSchema.cpp` passed the g++ syntax check only.
-`[UI] CloseChatOnSend` is not yet built on Windows or run in game. On Linux
-the same two files ran with the settings window's harness: the default file
-has `CloseChatOnSend = true` under its comment, between `StatusPanel` and
-`ChatWidth`; `false` loads; `maybe` warns and keeps `true`; a file without
-the key loads as `true`; switching it off and on in the window saves each
-value. `ItemPreview` and `StatusPanel` moved afterwards (2026-10-12) to follow
-`CloseChatOnSend`, last among the shown `[UI]` keys; `SettingsSchema.cpp` was
-not rechecked.
-`[Connection]` and `[Advanced]` (2026-10-13), which replaced `[General]`,
-`[Network]`, and `[Performance]` and took `[UI] StatusPanel`, and the group
-comments in `[UI]` and `[Advanced]` passed the g++ syntax
-check only. The file checks above ran with the earlier sections, and with
-the earlier maximums of `ViewRadius`, `100000`, and `SpawnsPerSecond`,
-`1000`. A new file's
-sections and comments, and the warnings for an earlier file's lines, are not
-yet checked.
-`[Advanced] RemoteLights` (2026-10-16) passed the g++ syntax check only; it
-is not yet built on Windows or run in game.
+- In game on 1.7.104, with the rest of the plugin built on Windows: the file
+  loads at startup and a key no setting reads is logged as unknown
+  (`latest.log`). Applying changes in game (reconnect, equipment
+  re-resolution, spawn rate) is not checked.
+- On Linux, `PluginConfig.cpp` and `SettingsSchema.cpp` ran against SimpleIni
+  with stubbed SKSE headers: default-file generation, overrides, invalid
+  values and the limits of each value type, unknown keys, empty keys, and
+  saving (comments and unknown keys kept, a new key added under its comment,
+  a missing file recreated from the commented default). Every key name parsed
+  back to its scan code, no reserved key has a name, and `ParseColor`
+  accepted and rejected the forms in [Schema](#schema). Those runs used
+  earlier section and key names and predate `config/PluginFiles`; the
+  current sections, `[UI]` groups, key defaults, `[UI] Language`, the
+  `ChatPosition*` fine percentages, and `[Advanced] RemoteLights` passed the
+  g++ syntax check only. `CustomServer`, `AccentColor`, and `CloseChatOnSend`
+  also ran with the real schema in the settings window's harness
+  ([UI overlay](ui-overlay.md#status)), and `Text::IsLanguageCode` in a
+  harness of its own.
+- `Config::GetDirectory` ran on Linux only through its fallback, since the
+  stubs resolve no DLL path.
+- The `server_endpoint` xmake option and its `on_config` ran in a scratch
+  xmake 3.0.6 project on Linux: the default and a configured value, a
+  recompile without `-r` when it changes, and the refused values.
 
 ## Scope
 
@@ -202,12 +111,6 @@ of the settings window's sidebar
 ([UI overlay](ui-overlay.md#settings-window)).
 
 ## Settings
-
-`[Connection]` replaced `[General]` and `[Network]`, and `[Advanced]`
-replaced `[Performance]` and took `[UI] StatusPanel`, without migration: an
-earlier file's lines there are logged as unknown and the defaults apply, so a
-display name and a custom server are entered again. The same holds for the
-earlier `AutoConnect`, `ConnectToOfficialServer`, and `playerhub-server.txt`.
 
 ### `[Connection]`
 
@@ -351,9 +254,8 @@ the arrows, has that word in the game's language.
   `Delete`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`,
   `Right`, `Pause`, `ScrollLock`, `NumLock`, `Numpad0`–`Numpad9`,
   `NumpadDecimal`, `NumpadPlus`, `NumpadMinus`, `NumpadMultiply`,
-  `NumpadDivide`, or `NumpadEnter`. Enter and keypad Enter are open to
-  every action now that the chat's key is one of them; inside a focused
-  window they still reach Dear ImGui.
+  `NumpadDivide`, or `NumpadEnter`. Enter and keypad Enter can be bound to
+  any action; inside a focused window they still reach Dear ImGui.
 - Reserved keys have no name, so neither the file nor the window takes them:
   Escape cancels and closes, Tab is the chat's, the
   key left of `1` opens the console, Backspace and the modifiers (Shift,
@@ -369,9 +271,6 @@ the arrows, has that word in the game's language.
   window sets the same values.
 - Two settings may hold the same key in the file; the window does not let
   the player bind one key twice. Unbound actions do not conflict.
-- The section replaced `[UI] SettingsKey`, `TradeAcceptKey`, and
-  `TradeDeclineKey` without migrating them: an earlier file's lines are
-  logged as unknown and the defaults apply.
 
 ### `[Advanced]`
 
@@ -388,7 +287,7 @@ maximum is invalid and loads as the default.
 | --- | --- | --- |
 | `ViewRadius` | Game units within which other players are shown, `0..15000`; the settings window's slider moves in steps of `100` (`AdvancedSettings::kViewRadiusStep`); sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection | `0`, the server's range, which the settings window shows by the schema's zero name |
 | `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..100`; `0` is unlimited and shown by the schema's zero name ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
-| `RemoteLights` | Lights on remote actors that light the scene at most, nearest to the camera first, `0..8` (`AdvancedSettings::kMaximumRemoteLights`); `0` leaves every one dark and has no zero name; the effects stay ([Remote actor](remote-actor.md#light-budget)) | `4` |
+| `RemoteLights` | Lights on remote actors that light the scene at most, nearest to the camera first, `0..8` (`AdvancedSettings::kMaximumRemoteLights`); `0` leaves every one dark and has no zero name; the effects stay ([Remote actor](remote-actor.md#light-budget)) | `0` |
 | `StatusPanel` | Shows the [status panel](ui-overlay.md#status-panel), a debugging readout | `false` |
 
 ## Snapshots
@@ -409,7 +308,7 @@ revision before the snapshot never misses a change.
 | `AppearanceSync` | main loop | the next capture taking the new default race and sex, which publish a new revision for a modded race |
 | `ConnectionMonitor` | main loop | reading `ConnectAutomatically` and whether `DisplayName` and an endpoint are set when a game starts; ending the player's choice to connect when `DisplayName` is cleared, or while the endpoint is empty and no connection is welcomed |
 | `ServerClient` | transport, worker | reading `Config::GetServerEndpoint` for each attempt, and `DisplayName` and `ViewRadius` for each hello |
-| `ConnectionControls` | overlay | reading whether `Config::GetServerEndpoint` is empty each frame the General section draws |
+| `ConnectionControls` | overlay | reading whether `Config::GetServerEndpoint` is empty each frame the `[Connection]` page draws |
 | `SettingsWindow` | overlay, input | reading `OpenSettings` on each focus key press |
 | `ChatWindow` | input | reading `OpenChat` and `ManagePlayers` on each focus key press |
 | `TradePrompt` | overlay, input | reading `AcceptTrade` and `DeclineTrade` on each focus key press and each frame it draws |
@@ -466,3 +365,9 @@ under it ([UI overlay](ui-overlay.md#themed-faces)).
    once do not spawn in one frame.
 4. Applying changes takes effect without a restart, and the file keeps
    hand-written comments.
+
+## Known limitations
+
+- Sections and keys are not migrated when they are renamed or moved: a
+  file's lines under a name no setting reads are logged as unknown and the
+  defaults apply, so their values are entered again.
