@@ -67,8 +67,16 @@ namespace Forms
         {
             const auto& entry = kBeastRaces[i];
             s_races[i] = dataHandler->LookupForm<RE::TESRace>(entry.localFormID, entry.plugin);
-            logs::info("Beast race {}: {}|{:06X} {}", Multiplayer::GetShapeshiftName(entry.form), entry.plugin,
-                entry.localFormID, s_races[i] ? "resolved" : "missing");
+            if (s_races[i])
+            {
+                logs::debug("Beast race {}: {}|{:06X} resolved", Multiplayer::GetShapeshiftName(entry.form),
+                    entry.plugin, entry.localFormID);
+            }
+            else
+            {
+                logs::warn("Beast race {}: {}|{:06X} missing", Multiplayer::GetShapeshiftName(entry.form), entry.plugin,
+                    entry.localFormID);
+            }
         }
         for (std::size_t i = 0; i < kVampireLordPowers.size(); ++i)
         {
@@ -81,12 +89,12 @@ namespace Forms
             }
             forms.art = Lookup<RE::BGSArtObject>(*dataHandler, ids.art);
             forms.alpha = ids.alpha;
-            logs::info("Vampire lord power {}: effect={:08X} shaders={:08X},{:08X} art={:08X}", i,
+            logs::debug("Vampire lord power {}: effect={:08X} shaders={:08X},{:08X} art={:08X}", i,
                 forms.effect ? forms.effect->GetFormID() : 0, forms.shaders[0] ? forms.shaders[0]->GetFormID() : 0,
                 forms.shaders[1] ? forms.shaders[1]->GetFormID() : 0, forms.art ? forms.art->GetFormID() : 0);
         }
         s_vampireLordArmor = Lookup<RE::TESObjectARMO>(*dataHandler, kVampireLordArmor);
-        logs::info("Vampire lord armor: {:08X}", s_vampireLordArmor ? s_vampireLordArmor->GetFormID() : 0);
+        logs::debug("Vampire lord armor: {:08X}", s_vampireLordArmor ? s_vampireLordArmor->GetFormID() : 0);
     }
 
     RE::TESRace* GetBeastRace(Multiplayer::Shapeshift a_form)

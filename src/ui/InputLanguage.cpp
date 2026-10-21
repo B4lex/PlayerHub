@@ -53,8 +53,8 @@ namespace UI::InputLanguage
             const auto result = ::ToUnicodeEx(a_virtualKey, a_scanCode, a_keyState, a_buffer, a_size, a_flags, layout);
             if (s_loggedLayout.exchange(layout, std::memory_order_relaxed) != layout)
             {
-                logs::info("UI input: typing with keyboard layout {:#x} of the game window's thread; input thread {} "
-                           "has {:#x}; first character U+{:04X}",
+                logs::debug("UI input: typing with keyboard layout {:#x} of the game window's thread; input thread "
+                            "{} has {:#x}; first character U+{:04X}",
                     reinterpret_cast<std::uintptr_t>(layout), ::GetCurrentThreadId(),
                     reinterpret_cast<std::uintptr_t>(::GetKeyboardLayout(0)),
                     result > 0 ? static_cast<std::uint32_t>(a_buffer[0]) : 0U);

@@ -142,7 +142,7 @@ namespace SpellStandIn
             spell->avEffectSetting = nullptr;
 
             const auto id = [](const RE::TESForm* a_form) { return a_form ? a_form->GetFormID() : 0; };
-            logs::info(
+            logs::debug(
                 "Spell stand-in created: spell={:08X} effect={:08X} castingArt={:08X} castingLight={:08X} "
                 "sounds={:08X},{:08X},{:08X},{:08X}",
                 spell->GetFormID(), effect->GetFormID(), id(a_look.castingArt), id(a_look.castingLight),

@@ -456,7 +456,7 @@ namespace UI::MenuFrame
                 PluginFiles::ToUtf8(path), problem);
             return;
         }
-        logs::info("UI overlay: menu frame {} with {} polygons, {} points", PluginFiles::ToUtf8(path.filename()),
+        logs::debug("UI overlay: menu frame {} with {} polygons, {} points", PluginFiles::ToUtf8(path.filename()),
             shape.polygons.size(), shape.points.size());
         s_shape = std::move(shape);
     }

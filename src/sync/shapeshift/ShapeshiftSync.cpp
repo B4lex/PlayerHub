@@ -45,7 +45,7 @@ namespace ShapeshiftSync
         const auto form = Forms::GetShapeshift(a_local.player.GetRace());
         if (const auto previous = s_localForm.exchange(form, std::memory_order_acq_rel); previous != form)
         {
-            logs::info("Shapeshift sync local form changed: {} -> {}", Multiplayer::GetShapeshiftName(previous),
+            logs::debug("Shapeshift sync local form changed: {} -> {}", Multiplayer::GetShapeshiftName(previous),
                 Multiplayer::GetShapeshiftName(form));
         }
         return form;

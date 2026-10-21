@@ -111,7 +111,7 @@ namespace DefaultOutfit
             resolvedConfigRevision = revision;
             return;
         }
-        logs::info("Default outfit settings changed; resolving the configured items again");
+        logs::debug("Default outfit settings changed; resolving the configured items again");
         Initialize();
     }
 

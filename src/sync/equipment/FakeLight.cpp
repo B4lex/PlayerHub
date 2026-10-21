@@ -71,7 +71,7 @@ namespace FakeLight
             return a_light;
         }
         copies.emplace(sourceID, copy);
-        logs::info("Fake light created: light={:08X} copy={:08X} flags={:X}", sourceID, copy->GetFormID(),
+        logs::debug("Fake light created: light={:08X} copy={:08X} flags={:X}", sourceID, copy->GetFormID(),
             copy->data.flags.underlying());
         return *copy;
     }

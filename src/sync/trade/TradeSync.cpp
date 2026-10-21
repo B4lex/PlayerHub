@@ -426,7 +426,7 @@ namespace TradeSync
                 {
                     continue;
                 }
-                logs::info("Trade {}: {} cannot receive {}|{:06X}: reason={} plugin={}", s_session.GetID(), PeerName(),
+                logs::debug("Trade {}: {} cannot receive {}|{:06X}: reason={} plugin={}", s_session.GetID(), PeerName(),
                     item.item.plugin, item.item.localFormID, static_cast<int>(skip->reason), skip->plugin);
                 offerChanged = RejectRow(*row, DescribeRejection(*skip, item)) || offerChanged;
                 notices.Add(*row);
@@ -456,7 +456,7 @@ namespace TradeSync
             bool offerChanged = false;
             for (const auto& plugin : a_missing)
             {
-                logs::info("Trade {}: {} does not have {}", s_session.GetID(), PeerName(), plugin);
+                logs::debug("Trade {}: {} does not have {}", s_session.GetID(), PeerName(), plugin);
                 if (std::ranges::find(s_peerMissingPlugins, plugin) != s_peerMissingPlugins.end())
                 {
                     continue;
@@ -563,8 +563,6 @@ namespace TradeSync
         {
             const auto phase = s_session.GetPhase();
             const auto id = s_session.GetID();
-            logs::info("Trade {} with {} ended here: reason={} phase={}", id, PeerName(),
-                Multiplayer::GetTradeCloseReasonName(a_reason), static_cast<int>(phase));
             if (phase == Phase::kInvited)
             {
                 Network::PublishTradeAnswer(id, false);
@@ -641,7 +639,7 @@ namespace TradeSync
                     // Not shown: the peer's game takes it out of the offer on this report.
                     auto skip = resolved.error();
                     skip.index = static_cast<std::uint8_t>(i);
-                    logs::info("Trade cannot receive {}|{:06X}: reason={} plugin={}", item.item.plugin,
+                    logs::debug("Trade cannot receive {}|{:06X}: reason={} plugin={}", item.item.plugin,
                         item.item.localFormID, static_cast<int>(skip.reason), skip.plugin);
                     skips.push_back(std::move(skip));
                     continue;
@@ -672,8 +670,6 @@ namespace TradeSync
             const bool requested = a_result.closedPhase == Phase::kRequesting;
             const bool inviting = a_result.closedPhase == Phase::kInviting;
             const bool invited = a_result.closedPhase == Phase::kInvited;
-            logs::info("Trade with {} closed by the server: reason={} phase={}", a_peer,
-                Multiplayer::GetTradeCloseReasonName(a_result.reason), static_cast<int>(a_result.closedPhase));
             switch (a_result.reason)
             {
                 case TradeCloseReason::kBusy:
@@ -723,31 +719,23 @@ namespace TradeSync
             switch (result.outcome)
             {
                 case TradeSession::Outcome::kIgnored:
-                    logs::debug("Trade ignored a message for another trade or phase: type={}", a_event.index());
                     return;
                 case TradeSession::Outcome::kInviteSent:
-                    logs::info("Trade {} offered to {}", s_session.GetID(), PeerName());
                     break;
                 case TradeSession::Outcome::kInvited:
                 {
                     const auto& sender = s_session.GetPeer();
                     if (PlayerFilters::IsMuted(sender.session))
                     {
-                        // Unanswered, so the server expires it as for a player who ignored it.
-                        logs::info("Trade {} from muted player {} ignored", s_session.GetID(), sender.name);
                         ClearTrade();
                         return;
                     }
-                    logs::info("Trade {} offered by {}", s_session.GetID(), sender.name);
                     break;
                 }
                 case TradeSession::Outcome::kOpened:
-                    logs::info("Trade {} with {} opened", s_session.GetID(), PeerName());
                     CaptureInventory(a_player);
                     break;
                 case TradeSession::Outcome::kPeerOffer:
-                    logs::debug("Trade {} received offer revision {} with {} items", s_session.GetID(),
-                        static_cast<unsigned long long>(s_session.GetPeerRevision()), s_session.GetPeerItems().size());
                     ReportPeerOffer();
                     break;
                 case TradeSession::Outcome::kReport:
@@ -760,7 +748,6 @@ namespace TradeSync
                     ApplyPluginReply(result.plugins);
                     break;
                 case TradeSession::Outcome::kPeerAccepted:
-                    logs::debug("Trade {}: {} accepted", s_session.GetID(), PeerName());
                     break;
                 case TradeSession::Outcome::kCommitted:
                     ApplyCommit(a_player, *result.commit, peer);

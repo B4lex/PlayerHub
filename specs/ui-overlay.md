@@ -1407,7 +1407,7 @@ Windows.
   exists they use the calling thread's layout, as the game did. The game's
   menus follow the language the same way.
 - When the layout used changes, including the first key, the replacement
-  logs it at info with the polling thread, that thread's own layout, and
+  logs it at debug with the polling thread, that thread's own layout, and
   the character produced.
 - The plugin reads the window thread's layout and never activates one:
   `ActivateKeyboardLayout(…, KLF_SETFORPROCESS)` from the input dispatch

@@ -133,7 +133,7 @@ namespace PlayerFilters
         {
             return;
         }
-        logs::info("Player filters: {} session {} on {}", a_friend ? "befriended" : "unfriended",
+        logs::debug("Player filters: {} session {} on {}", a_friend ? "befriended" : "unfriended",
             static_cast<unsigned long long>(a_player.session), Network::DescribeServer(server));
     }
 
@@ -144,7 +144,7 @@ namespace PlayerFilters
         {
             return;
         }
-        logs::info("Player filters: {} session {} on {}", a_muted ? "muted" : "unmuted",
+        logs::debug("Player filters: {} session {} on {}", a_muted ? "muted" : "unmuted",
             static_cast<unsigned long long>(a_player.session), Network::DescribeServer(server));
     }
 
@@ -167,7 +167,7 @@ namespace PlayerFilters
         }
         // After the store, which a hello not sent yet reads instead.
         Network::PublishVanish(server, a_player.session, a_vanished);
-        logs::info("Player filters: {} session {} on {}", a_vanished ? "vanished" : "brought back",
+        logs::debug("Player filters: {} session {} on {}", a_vanished ? "vanished" : "brought back",
             static_cast<unsigned long long>(a_player.session), Network::DescribeServer(server));
     }
 

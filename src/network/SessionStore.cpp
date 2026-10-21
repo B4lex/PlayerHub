@@ -148,7 +148,7 @@ namespace Network::SessionStore
                 DescribeServer(a_server));
             return false;
         }
-        logs::info("Session store saved the session with {}", DescribeServer(a_server));
+        logs::debug("Session store saved the session with {}", DescribeServer(a_server));
         return true;
     }
 }

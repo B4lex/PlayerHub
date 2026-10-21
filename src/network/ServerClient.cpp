@@ -891,7 +891,7 @@ namespace Network
             {
                 return;
             }
-            logs::info("Server rejected chat message: {}", a_result.error.empty() ? "<no reason>" : a_result.error);
+            logs::debug("Server rejected chat message: {}", a_result.error.empty() ? "<no reason>" : a_result.error);
             onRejected(a_result.error);
         });
         Send(Wire::EncodeChat(requestID, a_channel, a_recipient, a_text));

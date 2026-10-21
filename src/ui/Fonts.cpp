@@ -218,7 +218,7 @@ namespace UI::Fonts
             {
                 AddSource(a_atlas, a_sizePixels, fallback, true);
             }
-            logs::info("UI overlay: font {}", a_path.filename().string());
+            logs::debug("UI overlay: font {}", a_path.filename().string());
             return font;
         }
 
@@ -237,7 +237,7 @@ namespace UI::Fonts
                 s_views.pop_back();
                 return nullptr;
             }
-            logs::info("UI overlay: logo {}", a_path.filename().string());
+            logs::debug("UI overlay: logo {}", a_path.filename().string());
             return font;
         }
     }
