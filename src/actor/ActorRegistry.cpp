@@ -22,7 +22,6 @@ namespace ActorRegistry
     namespace
     {
         using AnimationEvents::IsWeaponTransitionEndEvent;
-        using Multiplayer::IsMoving;
 
         struct Registration
         {
@@ -230,9 +229,7 @@ namespace ActorRegistry
         registration.actorValueOwner = a_actor.AsActorValueOwner();
         registration.actorHandle = a_remote.handle.native_handle();
         registration.authoritativeJumping = a_remote.animation.targetAnimationState.jumping;
-        registration.authoritativeDirection = IsMoving(a_remote.animation.targetAnimationState.movementState)
-            ? a_remote.movement.animationDirection
-            : 0.0F;
+        registration.authoritativeDirection = a_remote.movement.animationDirection;
         registration.authoritativeWeaponDrawn = a_remote.animation.targetAnimationState.weaponDrawn;
         registration.furnitureAnimationOwned = a_remote.furniture.furnitureAnimationOwned;
         registration.networkPlaced = a_remote.collision.networkPlaced;
@@ -597,10 +594,7 @@ namespace ActorRegistry
 
     void SetAuthoritativeDirection(const RemoteActor& a_remote)
     {
-        const float direction = IsMoving(a_remote.animation.targetAnimationState.movementState)
-            ? a_remote.movement.animationDirection
-            : 0.0F;
-        SetShared(a_remote, &Registration::authoritativeDirection, direction);
+        SetShared(a_remote, &Registration::authoritativeDirection, a_remote.movement.animationDirection);
     }
 
     std::optional<float> GetAuthoritativeDirection(const RE::Actor* a_actor)

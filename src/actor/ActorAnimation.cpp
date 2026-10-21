@@ -31,6 +31,9 @@ namespace ActorAnimation
         // CyclicCrossBlend) instead of sweeping through intermediate directions.
         constexpr float kDirectionCrossBlendThreshold = 0.125F;
         constexpr float kDirectionCrossBlendIntervalSeconds = 0.25F;
+        // Longer than a held stop's zero-speed tail (the stop hold plus one checkpoint),
+        // shorter than running in place against a wall or through a load.
+        constexpr float kZeroSpeedHoldSeconds = 0.25F;
         constexpr float kHitReactionObservationSeconds = 0.1F;
         // The idle turn state machines of the vanilla behaviors (MT_Idle_TurnBehavior,
         // 1HM_Idle_Behavior, Bow_Idle_Behavior, MagicReadyIdleTurnBehavior, ...) number
@@ -374,7 +377,8 @@ namespace ActorAnimation
             }
         }
 
-        float GetGraphSpeedForState(RE::Actor& a_actor, float a_sampleSpeed, Multiplayer::MovementState a_state)
+        float GetGraphSpeedForState(
+            RE::Actor& a_actor, float a_sampleSpeed, float a_heldSpeed, Multiplayer::MovementState a_state)
         {
             if (a_state == Multiplayer::MovementState::kIdle || a_state == Multiplayer::MovementState::kSneakingIdle)
             {
@@ -384,6 +388,10 @@ namespace ActorAnimation
             if (std::isfinite(a_sampleSpeed) && a_sampleSpeed > 0.0F)
             {
                 return a_sampleSpeed;
+            }
+            if (a_heldSpeed > 0.0F)
+            {
+                return a_heldSpeed;
             }
 
             float graphSpeed = 0.0F;
@@ -2039,7 +2047,13 @@ namespace ActorAnimation
         const bool isMoving = IsMoving(state.movementState);
         const bool isSneaking = IsSneaking(state.movementState);
         const bool isSprinting = IsSprinting(state.movementState);
-        const float graphSpeed = GetGraphSpeedForState(*actor, sampleSpeed, state.movementState);
+        const bool zeroSpeedSample = isMoving && !(std::isfinite(sampleSpeed) && sampleSpeed > 0.0F);
+        animationState->zeroSpeedSampleElapsed
+            = zeroSpeedSample ? animationState->zeroSpeedSampleElapsed + FrameTime::Clamp(a_deltaTime) : 0.0F;
+        const float heldGraphSpeed = animationState->zeroSpeedSampleElapsed < kZeroSpeedHoldSeconds
+            ? animationState->publishedGraphSpeed
+            : 0.0F;
+        const float graphSpeed = GetGraphSpeedForState(*actor, sampleSpeed, heldGraphSpeed, state.movementState);
         const bool hadPreviousState = hadPreviouslyDispatched && !replayingWeaponBase;
         const bool dispatchRequired = reassertLocomotionAfterWeaponTransition || !animationState->hasDispatched
             || animationState->lastDispatched != state;
@@ -2192,7 +2206,9 @@ namespace ActorAnimation
             speedAccepted = actor->SetGraphVariableFloat(strings->speed, graphSpeed);
             sampledSpeedAccepted = actor->SetGraphVariableFloat(strings->speedSampled, graphSpeed);
             dampedSpeedAccepted = actor->SetGraphVariableFloat(speedDampedVariable, graphSpeed);
-            directionAccepted = actor->SetGraphVariableFloat(strings->direction, isMoving ? sampleDirection : 0.0F);
+            // The source's graph keeps its last Direction while standing, and the
+            // directional blend stays active then.
+            directionAccepted = actor->SetGraphVariableFloat(strings->direction, sampleDirection);
             turnAccepted = actor->SetGraphVariableFloat(strings->turnDelta, 0.0F);
             sprintVariableAccepted = actor->SetGraphVariableBool(strings->isSprinting, isSprinting);
             // The vanilla locomotion, sneak, jump, and landing state machines pick
@@ -2384,21 +2400,27 @@ namespace ActorAnimation
             animationState->directionCrossBlendPending = false;
             (void)SendNetworkAnimationEvent(a_remote, cyclicCrossBlendEvent);
         }
-        else if (!isMoving || state.jumping || !variablesAccepted)
+        else if (state.jumping || !variablesAccepted)
         {
             animationState->hasCrossBlendedDirection = false;
         }
-        else
+        // Standing keeps the cross-blended direction: the directional
+        // BSCyclicBlendTransitionGenerator stays active while the actor stands (observed in
+        // game), so a start in another direction is a change like one while moving.
+        else if (isMoving && !animationState->hasCrossBlendedDirection)
+        {
+            animationState->crossBlendedDirection = sampleDirection;
+            animationState->hasCrossBlendedDirection = true;
+        }
+        else if (isMoving)
         {
             const float directionChange = std::abs(sampleDirection - animationState->crossBlendedDirection);
             const float cyclicDirectionChange = (std::min)(directionChange, 1.0F - directionChange);
-            if (!animationState->hasCrossBlendedDirection
-                || (cyclicDirectionChange >= kDirectionCrossBlendThreshold
-                    && animationState->directionCrossBlendElapsed >= kDirectionCrossBlendIntervalSeconds))
+            if (cyclicDirectionChange >= kDirectionCrossBlendThreshold
+                && animationState->directionCrossBlendElapsed >= kDirectionCrossBlendIntervalSeconds)
             {
                 (void)SendNetworkAnimationEvent(a_remote, cyclicFreezeEvent);
                 animationState->crossBlendedDirection = sampleDirection;
-                animationState->hasCrossBlendedDirection = true;
                 animationState->directionCrossBlendPending = true;
                 animationState->directionCrossBlendElapsed = 0.0F;
             }

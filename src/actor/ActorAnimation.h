@@ -28,6 +28,7 @@ namespace ActorAnimation
         RE::BSAnimationGraphManager* graphManager{ nullptr };
         RE::BSAnimationGraphManager* landingEventSinkGraph{ nullptr };
         float publishedGraphSpeed{ 0.0F };
+        float zeroSpeedSampleElapsed{ 0.0F };
         std::uint32_t failedDispatchAttempts{ 0 };
         std::uint32_t rejectedEventAttempts{ 0 };
         float rejectedEventElapsed{ 0.0F };

@@ -33,6 +33,12 @@ game, as noted.
   landings took the sprint skip without a timeout.
 - **Graph probe:** run in game on a replay; it read the vanilla state machine,
   clip, and variable names correctly. Only debug builds compile it.
+- **Short moves:** run in game on replays of 0.25 s taps and strafes, standing
+  and sneaking, restarting 0.03–0.8 s after their stops: no pose flicker or
+  choppiness was seen with the standing `Direction` and start cross-blends
+  described under [Direction](#direction). The zero-speed `Speed` hold is
+  unobserved, and the final form of the start rule (without the diagnostic
+  active-generator check it replaced) is a Linux syntax check only.
 - **Not run in game:** `InvalidateAnimationDispatch` on every graph loss or
   replacement, graph `Speed` and `Direction` following the interpolated pose,
   the [arrival hold](#source-capture), [beast graphs](#beast-graphs) beyond
@@ -164,8 +170,15 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   direction are the pose's `sampledSpeed` and `direction`
   (`ActorMovement::SetAnimationSample`, every pass), which the speed and
   direction channels report too ([Remote actor](remote-actor.md#graph-channels)).
-  `Speed` falls back to the actor's own speed only for an invalid or zero
-  sample while moving. In the vanilla character behaviors only `0_master.hkx`
+  An invalid or zero sample while moving keeps the last written `Speed` for
+  `kZeroSpeedHoldSeconds` (0.25 s), then falls back to the actor's own walk or
+  run speed. A [held stop](#source-capture) often publishes its last moving
+  checkpoint at speed 0 (15 of the stops in the server recordings, 5 of about
+  40 short taps in one), and an immediate fallback would push `Speed` to the
+  full run speed just before `moveStop`.
+  Zero speed lasting longer is running in place, against an obstacle or
+  through a load, where the source's graph plays its gait. In the vanilla
+  character behaviors only `0_master.hkx`
   declares `SpeedDamped`, its one `hkbDampingModifier` damps another value,
   and the executable never names it, so writing it removes no graph damping.
 - Compound changes are staged one graph update apart, so dependent events are
@@ -254,6 +267,19 @@ then `CyclicCrossBlend` one graph update later, at most once per 0.25 s so the
 changes between checkpoints are interpolated with the pose instead, and larger
 ones step at the played checkpoint, so the cross-blend covers them rather than
 a sweep through the clips in between.
+
+- `Direction` and the channel carry the network direction while standing too,
+  and standing keeps the cross-blended direction. The source's graph keeps its
+  last `Direction` when it stops (idle checkpoints repeat it), and the
+  directional `BSCyclicBlendTransitionGenerator` stays active while the actor
+  stands: in game it was active at every start except an actor's first move,
+  after up to 6.6 s standing. A start in another direction is therefore a
+  change like one while moving and is cross-blended the same way. Writing 0
+  while standing and cross-blending every start froze the forward clip for
+  each strafe's blend, matching the pose flicker seen in game, and starts
+  without any cross-blend looked choppy on quick reversals.
+- The first move after a spawn, a jump, or a graph invalidation only records
+  its direction.
 
 ### Turning
 
