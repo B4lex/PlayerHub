@@ -12,32 +12,43 @@ namespace VanillaIntro
     {
         constexpr std::string_view kQuestPlugin = "Skyrim.esm";
         constexpr RE::FormID kQuestLocalFormID = 0x0003372B; // MQ101
+        constexpr RE::FormID kCuffsLocalFormID = 0x0010E039;
         // QF_MQ101_0003372B Fragment_316 unbinds the player, enables movement, and shows the move help after
         // Alduin's knockdown (stages 140 and 150).
         constexpr std::uint16_t kPlayerControlStage = 160;
-        // SKSE sends kNewGame after EnsureQuestStarted (ID 25003) returns, which may only queue the start.
         constexpr float kStartWaitSeconds = 5.0F;
 
         std::atomic_bool s_playing{ false };
         std::atomic_bool s_checking{ false };
         std::atomic_bool s_awaitingStart{ false };
-        std::atomic_bool s_restartWait{ false };
+        std::atomic_bool s_restart{ false };
 
-        // Main-loop thread only. A Skyrim.esm form, which lives as long as the process.
+        // Main-loop thread only. Skyrim.esm forms, which live as long as the process.
         const RE::TESQuest* s_quest = nullptr;
+        RE::FormID s_cuffsFormID = 0;
+        bool s_prisoner = false;
+        bool s_raceMenuSeen = false;
         float s_awaitedSeconds = 0.0F;
 
-        bool AwaitStart(bool a_running, float a_deltaSeconds)
+        bool WearsCuffs()
+        {
+            auto* player = RE::PlayerCharacter::GetSingleton();
+            return s_cuffsFormID != 0 && player && player->GetWornArmor(s_cuffsFormID, true);
+        }
+
+        bool IsRaceMenuOpen()
+        {
+            auto* ui = RE::UI::GetSingleton();
+            return ui && ui->IsMenuOpen(RE::RaceSexMenu::MENU_NAME);
+        }
+
+        bool AwaitStart(bool a_decided, float a_deltaSeconds)
         {
             if (!s_awaitingStart.load(std::memory_order_acquire))
             {
                 return false;
             }
-            if (s_restartWait.exchange(false, std::memory_order_acq_rel))
-            {
-                s_awaitedSeconds = 0.0F;
-            }
-            if (a_running || s_quest->IsCompleted())
+            if (a_decided || s_quest->IsCompleted())
             {
                 s_awaitingStart.store(false, std::memory_order_release);
                 return false;
@@ -46,13 +57,22 @@ namespace VanillaIntro
             {
                 return true;
             }
+            if (IsRaceMenuOpen())
+            {
+                s_raceMenuSeen = true;
+                return true;
+            }
+            if (s_raceMenuSeen)
+            {
+                s_awaitingStart.store(false, std::memory_order_release);
+                return false;
+            }
             s_awaitedSeconds += FrameTime::Clamp(a_deltaSeconds);
             if (s_awaitedSeconds < kStartWaitSeconds)
             {
                 return true;
             }
             s_awaitingStart.store(false, std::memory_order_release);
-            logs::info("MQ101 did not start within {:.0f} seconds in the world after a new game", kStartWaitSeconds);
             return false;
         }
     }
@@ -61,19 +81,22 @@ namespace VanillaIntro
     {
         auto* dataHandler = RE::TESDataHandler::GetSingleton();
         s_quest = dataHandler ? dataHandler->LookupForm<RE::TESQuest>(kQuestLocalFormID, kQuestPlugin) : nullptr;
-        if (!s_quest)
+        const auto* cuffs
+            = dataHandler ? dataHandler->LookupForm<RE::TESObjectARMO>(kCuffsLocalFormID, kQuestPlugin) : nullptr;
+        s_cuffsFormID = cuffs ? cuffs->GetFormID() : 0;
+        if (!s_quest || !cuffs)
         {
-            logs::warn("Vanilla intro quest MQ101 was not found; the intro never holds the connection");
+            s_quest = nullptr;
+            logs::warn("Vanilla intro quest MQ101 or the prisoner cuffs were not found");
         }
     }
 
     void OnNewGame(const void* a_startQuest)
     {
         const bool vanilla = s_quest && a_startQuest == s_quest;
-        s_restartWait.store(true, std::memory_order_release);
+        s_restart.store(true, std::memory_order_release);
         s_awaitingStart.store(vanilla, std::memory_order_release);
         s_checking.store(true, std::memory_order_release);
-        logs::info("New game: start quest {} MQ101", vanilla ? "is" : "is not");
     }
 
     void OnGameLoadStarted()
@@ -85,6 +108,7 @@ namespace VanillaIntro
 
     void OnGameLoaded()
     {
+        s_restart.store(true, std::memory_order_release);
         s_checking.store(true, std::memory_order_release);
     }
 
@@ -94,10 +118,21 @@ namespace VanillaIntro
         {
             return;
         }
+        if (s_restart.exchange(false, std::memory_order_acq_rel))
+        {
+            s_prisoner = false;
+            s_raceMenuSeen = false;
+            s_awaitedSeconds = 0.0F;
+        }
         const bool running = s_quest->IsEnabled();
         const auto stage = s_quest->GetCurrentStageID();
-        const bool awaiting = AwaitStart(running, a_deltaSeconds);
-        const bool playing = awaiting || (running && stage < kPlayerControlStage);
+        const bool intro = running && stage < kPlayerControlStage;
+        if (intro && !s_prisoner)
+        {
+            s_prisoner = WearsCuffs();
+        }
+        const bool awaiting = AwaitStart(s_prisoner || (running && !intro), a_deltaSeconds);
+        const bool playing = awaiting || (intro && s_prisoner);
         const bool changed = s_playing.exchange(playing, std::memory_order_acq_rel) != playing;
         if (!playing)
         {
@@ -105,8 +140,8 @@ namespace VanillaIntro
         }
         if (changed || !playing)
         {
-            logs::info("Vanilla intro hold {}: MQ101 running={} stage={} awaitingStart={}", playing ? "on" : "off",
-                running, stage, awaiting);
+            logs::debug("Vanilla intro hold {}: MQ101 running={} stage={} prisoner={} awaitingStart={}",
+                playing ? "on" : "off", running, stage, s_prisoner, awaiting);
         }
     }
 

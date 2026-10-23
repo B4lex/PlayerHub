@@ -918,13 +918,16 @@ the game.
 
 ### Vanilla intro hold
 
-Goal: a player starting a new game is not put on a server during the vanilla
-Helgen intro (the cart ride, the execution, and Alduin's arrival), where
-they cannot move and other players would only watch the scripted scene.
-Multiplayer starts once the player gets control back after Alduin's
-knockdown. Non-goals: holding the connection in other scenes or cutscenes,
-or for intros a mod puts in place of the vanilla one; with a skipped intro
-the game connects at once.
+Goal: a player whose new game starts with the vanilla prisoner intro (the
+cart ride, the execution, and Alduin's arrival) is not put on a server
+during it, where they cannot move and other players would only watch the
+scripted scene. Multiplayer starts once the player gets control back after
+Alduin's knockdown. Non-goals: holding the connection in other scenes or
+cutscenes; for a start a mod puts in place of the cart, including one that
+keeps MQ101 running or lets the player watch Helgen's attack as a visitor;
+and for a cart ride a player begins later in the play-through, as
+Alternate Perspective allows, because the player has already been playing
+online. With a skipped intro the game connects at once.
 
 - While `VanillaIntro::IsPlaying` holds ([Sync pipeline](sync-pipeline.md#vanilla-intro)),
   no connection is wanted (`IsConnectionWanted`), the monitor closes any open
@@ -935,8 +938,8 @@ the game connects at once.
 - The end of the hold is the game start for the connection, so
   `ConnectAutomatically` connects then, and a refusal is cleared then, as at
   any game start.
-- Loading a save from before the knockdown holds the connection again, and
-  closes one that is open.
+- Loading a save from the prisoner intro before the knockdown holds the
+  connection again, and closes one that is open.
 - During the hold the settings window cannot connect, and hovering its
   disabled button says why ([UI overlay](ui-overlay.md#connection-controls));
   the [display name hint](ui-overlay.md#display-name-hint) stays hidden. The
@@ -1024,8 +1027,13 @@ window, and are empty after a long gap. The status panel shows them.
     and connects by itself when the player can move after the knockdown. The
     display name hint does not show before then, and Connect is disabled.
 16. A new game whose start quest is not MQ101 (an alternate start), or a save
-    past the knockdown, connects at once; a save from before the knockdown
-    loaded while connected disconnects until the player can move.
+    past the knockdown, connects at once; a save from the prisoner intro
+    before the knockdown loaded while connected disconnects until the player
+    can move.
+17. With Alternate Perspective, its own start connects when its race menu
+    closes, a save from it connects at once, and neither its Helgen visitor
+    path nor its cart branch taken after the start disconnects a connected
+    player.
 
 ## Known limitations
 

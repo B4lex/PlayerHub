@@ -5,9 +5,11 @@
 Implemented, built on Windows, and run in game on Skyrim AE 1.7.104; every
 feature in the other system specs runs through it. Spawn throttling
 (`[Advanced] SpawnsPerSecond`) and save exclusion are not separately checked
-in game. The [vanilla intro](#vanilla-intro) hold has not run in game; its
-stages and the `kNewGame` payload were read from the 1.7.104 data files and
-`skse64_1_7_104.dll` ([Engine assumptions](#engine-assumptions)).
+in game. The [vanilla intro](#vanilla-intro) hold has not run in game in its
+current form; it passed a Linux g++ syntax check only. Its stages, the cuffs,
+and the `kNewGame` payload were read from the 1.7.104 data files,
+`skse64_1_7_104.dll`, and Alternate Perspective's shipped script sources and
+plugin ([Engine assumptions](#engine-assumptions)).
 
 [Checkpoint playout](#checkpoint-playout) ran in game against a server with
 a 20 Hz tick: remote walking and running moved at an even pace. Jumps,
@@ -224,38 +226,60 @@ new connection generation ([Network](network.md#latest-wins-publishers)).
 ## Vanilla intro
 
 `VanillaIntro` tells the [connection](network.md#vanilla-intro-hold) and the
-overlay whether the vanilla Helgen intro is playing, from the state of the
-quest MQ101 (`Skyrim.esm` local form ID `0x0003372B`, looked up at
-`kDataLoaded`). `IsPlaying` reads an atomic, so the overlay may call it;
+overlay whether the vanilla prisoner intro is playing, from the state of the
+quest MQ101 (`Skyrim.esm` local form ID `0x0003372B`) and whether the player
+wears the prisoner cuffs `PrisonerCuffsPlayer` (`Skyrim.esm` local form ID
+`0x0010E039`), both looked up at `kDataLoaded`; without either form the
+intro never holds. `IsPlaying` reads an atomic, so the overlay may call it;
 `Update` sets it on the main loop.
 
 - It holds while MQ101 is running (`TESQuest::IsEnabled`) below stage 160
-  (`kPlayerControlStage`). Stage 160 unbinds the player, enables movement,
-  and shows the move help after Alduin's knockdown (stage 140), the first
-  point after the cart where the player plays freely. CommonLib's
-  `IsRunning` is not used: it is also true for a stopped quest.
+  (`kPlayerControlStage`) and the player is the intro's prisoner. Stage 160
+  unbinds the player, enables movement, and shows the move help after
+  Alduin's knockdown (stage 140), the first point after the cart where the
+  player plays freely. CommonLib's `IsRunning` is not used: it is also true
+  for a stopped quest.
+- The player is the prisoner once `Actor::GetWornArmor` finds the cuffs worn
+  while MQ101 is below stage 160. The result is kept for the rest of the
+  check (`s_prisoner`), so the inventory is searched only until it is found
+  or the hold is off. MQ101 running alone is not enough: Alternate
+  Perspective keeps it running at stage 0 through its own start and the
+  rest of the game, and runs its Helgen visitor path through the same stages
+  with the player free; neither equips the cuffs, while the vanilla start and
+  that mod's cart branch do.
 - A stopped, completed, or never started MQ101 never holds, so an alternate
   start, a console skip, or a mod that sets a later stage connects at once.
 - The quest is checked only while the hold can change: from `kNewGame`, or
-  from `kPostLoadGame` once a save's quest state is restored, each pass until
-  the hold is off. `Update` then returns at its first check until the next
-  game, so a game past the intro checks once per load. Between `kPreLoadGame`
-  and `kPostLoadGame` nothing is checked, because the quest holds the
-  previous game's or a partly loaded state, and the hold keeps its last
-  value.
+  from `kPostLoadGame` once a save's quest state and inventory are restored,
+  each pass until the hold is off. `Update` then returns at its first check
+  until the next game, so a game past the intro checks once per load, and a
+  cart ride begun later in the play-through is not held. Both events start
+  the check over (`s_restart`). Between `kPreLoadGame` and `kPostLoadGame`
+  nothing is checked, because the quest holds the previous game's or a
+  partly loaded state, and the hold keeps its last value.
 - At `kNewGame`, SKSE passes the quest the new game starts. When it is MQ101,
   the hold starts at once (`s_awaitingStart`), because the start may only be
-  queued and the player could reach the world before MQ101 runs. It ends
-  when MQ101 runs or completes, at `kPreLoadGame`, or after 5 s
-  (`kStartWaitSeconds`) of clamped frame time in the game without MQ101
-  running, logged as a start that did not happen. Any other start quest
-  starts no wait, so an alternate start is not delayed.
+  queued and the stage 10 fragment equips the cuffs some Papyrus time after
+  the player reaches the world. The wait ends when the player wears the
+  cuffs, MQ101 completes or reaches stage 160, at `kPreLoadGame`, when the
+  race menu (`RE::RaceSexMenu`) closes in the game without the cuffs
+  (`s_raceMenuSeen`), or after 5 s (`kStartWaitSeconds`) of clamped frame
+  time in the game without the cuffs and the race menu. The last two are
+  logged as a prisoner start that did not happen. While the race menu is
+  open the wait holds regardless of time, so a start that opens it connects
+  only once the player has made the character. The prisoner start opens its
+  race menu in the Helgen yard, long after stage 10 equipped the cuffs,
+  while Alternate Perspective's start opens it before any stage, so its
+  start connects when the race menu closes. Any other start quest starts no
+  wait, so an alternate start is not delayed. A mod start that keeps MQ101
+  as the start quest and opens no race menu connects after the 5 s; a menu
+  that pauses the game pauses that count too.
 - `IsPlaying` is false outside a game (`GameSession::IsInGame`), so the last
   game's hold does not reach the main menu without a per-pass menu lookup.
 - Each check that ends with the hold off, and each change, is logged as
-  `Vanilla intro hold on` or `off`, with MQ101's running flag and stage and
-  whether the new-game wait is active. `kNewGame` logs whether its quest is
-  MQ101.
+  `Vanilla intro hold on` or `off`, with MQ101's running flag and stage,
+  whether the player is the prisoner, and whether the new-game wait is
+  active. `kNewGame` logs whether its quest is MQ101.
 
 ## Receive state
 
@@ -440,7 +464,15 @@ the elapsed time divides the distance travelled into the published speed.
 - [Vanilla intro](#vanilla-intro): the stage meanings come from the 1.7.104
   data files (`QF_MQ101_0003372B` Fragment_316 at stage 160:
   `SetRestrained(false)`, `EnablePlayerControls` with movement, the move help;
-  Fragment_295 at stage 140: the knockdown idle). `skse64_1_7_104.dll`
+  Fragment_295 at stage 140: the knockdown idle; Fragment_4 at stage 10 and
+  Fragment_227 at stage 70 equip `PrisonerCuffsPlayer`, Fragment_74 at stage
+  240 removes it). Alternate Perspective's `QF_MQ101_0003372B_new` equips the
+  cuffs only in its cart branch (stage 4, then stage 10's Fragment_389);
+  its start (stage 0's Fragment_332) and visitor path (Fragment_334,
+  Fragment_346, Fragment_353) do not. Vanilla opens the race menu in the
+  prisoner start only from Fragment_13 in the Helgen yard (Fragment_27 and
+  Fragment_156 are stage 0 quickstarts); `APMQ101` opens it at its start.
+  That `GetWornArmor` sees a Papyrus `EquipItem` by the next pass is assumed. `skse64_1_7_104.dll`
   dispatches `kNewGame` after the call to `TESQuest::EnsureQuestStarted`
   (ID 25003) that it hooks returns, with that quest as `data`. The SE runtime's
   SKSE is assumed to send the same; the pointer is only compared, never
@@ -455,6 +487,12 @@ the elapsed time divides the distance travelled into the published speed.
 - Once the [vanilla intro](#vanilla-intro) hold is off, nothing reads MQ101
   until the next load or new game, so setting it back below stage 160 from
   the console does not hold the connection again.
+- A save made during a cart ride begun later in the play-through (Alternate
+  Perspective's cart branch) holds the connection when loaded, because a
+  save does not record how the ride began.
+- A vanilla start whose stage 10 fragment runs more than 5 s of game time
+  after the player reaches the world, as with a heavily loaded Papyrus VM,
+  is not held.
 - Cell and worldspace form IDs require matching load orders.
 - Interior and worldspace changes despawn and respawn the actor; there is no
   presentation through loading screens.
