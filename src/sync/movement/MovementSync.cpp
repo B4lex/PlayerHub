@@ -79,6 +79,8 @@ namespace MovementSync
         // per-frame 3D update turns it into the body's rotation.
         const auto* controller = a_carrier.GetCharController();
         const float pitch = controller ? SanitizePitch(controller->pitchAngle) : 0.0F;
+        const bool grounded
+            = controller && controller->context.currentState == RE::hkpCharacterStateType::kOnGround;
 
         const auto* actorState = a_carrier.AsActorState();
         return LocalSample{ .position = position,
@@ -87,6 +89,7 @@ namespace MovementSync
             .speed = speed,
             .direction = direction,
             .swimming = actorState && actorState->IsSwimming(),
+            .grounded = grounded,
             .relocated = !comparableLocalSpace,
             .cellID = cellID,
             .worldspaceID = worldspaceID };
@@ -104,8 +107,8 @@ namespace MovementSync
         {
             const RE::NiPoint3 checkpointPosition{ a_remote.checkpoint.x, a_remote.checkpoint.y,
                 a_remote.checkpoint.z };
-            ActorMovement::SetTargetMovement(
-                a_actor, checkpointPosition, a_remote.checkpoint.speed, a_remote.checkpoint.swimming);
+            ActorMovement::SetTargetMovement(a_actor, checkpointPosition, a_remote.checkpoint.speed,
+                a_remote.checkpoint.swimming, a_remote.checkpoint.grounded);
             a_appliedSequence = a_remote.checkpoint.sequence;
         }
         ActorMovement::SetAnimationSample(a_actor, a_remote.pose.sampledSpeed, a_remote.pose.direction);

@@ -20,7 +20,7 @@ const (
 	MaximumTime            = 16383
 	MaximumMovementState   = 6
 	movementStateMask      = 0x7
-	knownFlags             = 0x7FFF
+	knownFlags             = 0xFFFF
 
 	MaximumNameBytes        = 128
 	MinimumDisplayNameBytes = 3

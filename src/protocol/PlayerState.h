@@ -31,6 +31,7 @@ namespace Network
         bool levitating{ false };
         bool mistForm{ false };
         bool bats{ false };
+        bool grounded{ false };
         std::uint32_t cellID{ 0 };
         std::uint32_t worldspaceID{ 0 };
         Multiplayer::FormReference furniture;

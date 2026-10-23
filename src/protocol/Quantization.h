@@ -34,7 +34,8 @@ namespace Network
         inline constexpr std::uint32_t kLevitating = 1U << 12;
         inline constexpr std::uint32_t kMistForm = 1U << 13;
         inline constexpr std::uint32_t kBats = 1U << 14;
-        inline constexpr std::uint32_t kKnown = 0x7FFF;
+        inline constexpr std::uint32_t kGrounded = 1U << 15;
+        inline constexpr std::uint32_t kKnown = 0xFFFF;
     }
 
     struct QuantizedCheckpoint
@@ -119,6 +120,7 @@ namespace Network
         set(a_transform.levitating, kLevitating);
         set(a_transform.mistForm, kMistForm);
         set(a_transform.bats, kBats);
+        set(a_transform.grounded, kGrounded);
 
         return QuantizedCheckpoint{ .sequence = a_transform.sequence,
             .x = Detail::RoundToInt32(a_transform.x * kPositionScale),
@@ -171,6 +173,7 @@ namespace Network
             .levitating = (flags & kLevitating) != 0,
             .mistForm = (flags & kMistForm) != 0,
             .bats = (flags & kBats) != 0,
+            .grounded = (flags & kGrounded) != 0,
             .cellID = a_context.cellID,
             .worldspaceID = a_context.worldspaceID,
             .furniture = a_context.furniture,

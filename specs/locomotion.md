@@ -44,6 +44,12 @@ game, as noted.
   described under [Direction](#direction). The zero-speed `Speed` hold is
   unobserved, and the final form of the start rule (without the diagnostic
   active-generator check it replaced) is a Linux syntax check only.
+- **[Ground offset](#ground-offset):** built on Windows and run in game on
+  1.7.104 on foot: probes hit static, ground, anim static, and clutter layers,
+  and remote actors stood on local ground. Mounts, swimming, and 1.5.97 are
+  not confirmed. The ray layer and the walkable layers come from the COLL
+  records in `Skyrim.esm`, and the pick path from the 1.7.104 executable
+  ([Engine assumptions](#engine-assumptions)).
 - **Not run in game:** `InvalidateAnimationDispatch` on every graph loss or
   replacement, graph `Speed` and `Direction` following the interpolated pose,
   the [arrival hold](#source-capture), [beast graphs](#beast-graphs) beyond
@@ -82,7 +88,8 @@ custom graphs may slide or miss transitions.
 | --- | --- |
 | `sync/movement/MovementSync` | Source transform sample; receiver transform target and coordinate-space checks |
 | `sync/animation/AnimationSync` | Source movement state, jump, stance, and graph epoch; receiver staging and the translation gate |
-| `actor/ActorMovement` | Direct translation and heading on the actor |
+| `actor/ActorMovement` | Direct translation and heading on the actor, and its ground offset |
+| `actor/GroundProbe` | The Havok ray that finds the walkable ground below a point |
 | `actor/ActorAnimation` | The actor's graph state machine: variables, events, staging, retries, landing, swim, weapon and presentation transitions, recovery |
 | `actor/GraphStance` | The sneak, standing/moving, and sprint selector states of the actor's active behavior |
 | `actor/GraphProbe` | Debug builds only: the diagnostic dump of active states, clips, and variables |
@@ -138,6 +145,9 @@ At each checkpoint, from the carrier (the player, or its mount while riding):
   before leaving the ground is released. Swimming has no takeoff: jumping only
   swims upward, so no jump is published while swimming.
 - **Swimming** from the carrier's `ActorState`.
+- **Grounded**: the carrier's character controller state
+  (`context.currentState`) is `kOnGround`, for the
+  [ground offset](#ground-offset).
 - **Graph epoch**: observed every pass, and advanced when the player's graph
   manager is replaced or becomes unavailable
   ([Combat presentation](combat-presentation.md#action-stream)).
@@ -232,7 +242,8 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   retrying edges leaves the revision open, so the next pass's checks still
   wait.
 - Position approaches the pose (`ActorMovement::SetTargetTransform`, every
-  pass) at the pose's path speed plus a backlog drain of the remaining distance
+  pass), raised or lowered by the [ground offset](#ground-offset)
+  (`ActorMovement::GetPlacementTarget`), at the pose's path speed plus a backlog drain of the remaining distance
   over about 0.5 s, so an actor on the path follows it exactly and one held
   behind it, by a translation hold or a pause in arrivals, catches up without
   a snap. `deltaTime` is clamped and a step never overshoots the pose. While
@@ -266,6 +277,42 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   Turning toward the pose at a fixed one turn per second would close a 20 Hz
   step within a frame or two, so a turn whose pose stepped (a dry playout, or
   one checkpoint batched over two) would snap at the checkpoint rate.
+
+### Ground offset
+
+Peers with different landscape mods have different ground heights at the same
+place, so an actor placed at its source's exact height floats or sinks. The
+receiver keeps a per-actor height offset (`ActorMovement::GroundOffset`) and
+adds it to every network placement and every distance to one: translation,
+the landing approach and alignment, and the furniture entry alignment and exit
+check. The mount takes the same offset
+through its own translation, and its rider is carried with it.
+
+- **Probe.** While the checkpoint says `grounded` and not `swimming`,
+  `GroundProbe::FindGround` casts a ray straight down at the source's position
+  (the pose, or the pending landing position) from 96 units above it to 128
+  below, in the actor's cell's physics world, and takes the first hit on a
+  walkable layer. The offset target is the hit's height minus the source's;
+  without a hit it is 0, since the source then stands on something this world
+  lacks, such as a modded bridge, and its own height is the better guess than
+  the ground under it.
+- **When.** A probe is due on the first pass, once 0.1 s have passed and the
+  source moved 8 horizontal units since the last probe, and every 1 s
+  regardless. A pass casts at most 24 rays across all actors
+  (`kMaximumGroundProbesPerPass`, reset by `ActorMovement::BeginPass` before
+  the peers sync); an actor over the budget stays due and is served by a later
+  pass, so an actor probed recently yields to the others.
+- **Hold.** While the source's controller is off the ground (a jump or a
+  fall), there is no probe and the target holds, so a jump arc keeps its shape
+  over the local ground. While it swims the target is 0, since water levels match
+  between load orders far more often than ground does.
+- **Smoothing.** The offset eases toward its target with a 0.15 s time
+  constant; the first probe sets it at once, so a spawned actor is not seen
+  sliding. A checkpoint more than 256 units from the previous one (a
+  teleport) clears the offset and its probe state.
+- `Remote actor ground offset target changed` logs the first probe, a change
+  between hit and miss, and a target 16 units or more from the last logged
+  one, with the hit layer.
 
 ### Direction
 
@@ -517,7 +564,8 @@ root: `MT_Default_Behavior` `MT_Standing_State` or `MT_LocomotionType_State`,
 - Takeoff restores `bInJumpState` and the jump sample's variables, then sends
   `JumpStandingStart` or `JumpDirectionalStart`.
 - Landing waits for the airborne actor to travel on to the landing checkpoint's
-  position (`ActorMovement::State::checkpointPosition`), which the pose
+  position (`ActorMovement::State::checkpointPosition`, plus the
+  [ground offset](#ground-offset)), which the pose
   reaches as that checkpoint plays, bounded to 0.25 s (then it lands on the
   pose), aligns the actor there, restores `bInJumpState=false` and the current
   locomotion variables, and only then sends `JumpLand`.
@@ -628,6 +676,29 @@ not yet checked in game:
    its movement bits set and moves once control returns, which the
    [arrival hold](#source-capture) releases by distance; not recorded.
 
+Ground offset, read from the 1.7.104 executable and `Skyrim.esm`; the pick
+path and the player's `kOnGround` behaved as below in game on 1.7.104, and the
+horse's controller is unconfirmed:
+
+10. `bhkWorld::PickObject` (vfunc 0x33, ID 77860) takes the world's read lock
+    (ID 68233 on `bhkWorld + 0xC598`) when Havok runs multithreaded, casts with
+    the collector in `bhkPickData::closestRayHitCollector` through
+    `hkpWorld::castRay` (ID 61400) after resetting its hit, and copies the
+    collector's hit to the pick's output when `rootCollidable` is set. A
+    non-zero `bhkPickData::ray` replaces `to` with `from + ray`.
+11. The ray's layer, `L_CUSTOMPICK1` (43), collides with every layer
+    `GroundProbe` accepts (static, animated static, transparent, clutter,
+    trees, props, terrain, ground, and the two small transparent layers), per
+    the COLL records; `L_LOS` misses transparent and `L_PATHINGPICK` clutter
+    and props. Water, triggers, invisible walls, and characters are hit but
+    skipped by the collector, which leaves its early-out fraction alone so the
+    ray continues past them. A remote actor's own body has the no-collision
+    bit ([Remote actor](remote-actor.md#character-body)).
+12. A hit's fraction is along the whole world ray, and the player's proxy
+    controller and a horse's rigid-body controller report `kOnGround` while
+    standing or moving on the ground, briefly leaving it on steps and slopes
+    (the receiver holds the offset then).
+
 The graph probe's value-set and state-info offsets come from the Havok 2010
 class layouts and were not checked against the executable; in game they read
 correct names and values, and `activeNodes` listed the active nodes of the
@@ -659,6 +730,9 @@ referenced sub-behaviors when read from the main loop.
    the ground.
 10. A player who runs through a door or fast travels appears standing in the
     new space until it moves there.
+11. Where the peers' ground differs by up to about 96 units up or 128 down
+    (landscape mods), a remote actor or mount walks, stands, and lands on the
+    local ground without floating or sinking, and its jumps keep their arc.
 
 ## Known limitations
 
@@ -677,3 +751,14 @@ referenced sub-behaviors when read from the main loop.
 - A graph left moving under an idle target is not corrected.
 - An attenuated jump sound keeps its fixed-speaker output: it fades with
   distance but has no direction.
+- The [ground offset](#ground-offset) leaves a source standing on something
+  missing locally at its own height, floating, rather than putting it on the
+  ground below; that ground can be a riverbed under a bridge or the inside of
+  a building. A larger difference than the probe window is not corrected
+  either. Clutter counts as ground where it lies in the local world, so a
+  source standing on a crate that was moved in one world stands on the ground
+  there, or on the crate where the source has none.
+- The offset is sampled at most every 0.1 s and eased, so on ground whose
+  difference changes quickly the actor's feet lag it slightly. Landing on
+  ground of another height eases over the 0.15 s smoothing after the touch.
+- Recordings made before the `grounded` flag replay without the offset.

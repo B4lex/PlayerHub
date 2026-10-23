@@ -16,7 +16,7 @@ func ref(plugin string, formID uint32) *pb.FormRef {
 
 func TestCheckpoint(t *testing.T) {
 	valid := &pb.Checkpoint{Sequence: 1, X: -100, Heading: 4095, Pitch: -1609, Speed: 100000, Direction: 255,
-		Flags: 6 | uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SWIMMING), Time: 16383}
+		Flags: 6 | uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SWIMMING|pb.CheckpointFlag_CHECKPOINT_FLAG_GROUNDED), Time: 16383}
 	cases := map[string]func(*pb.Checkpoint){
 		"heading above 4095":  func(c *pb.Checkpoint) { c.Heading = 4096 },
 		"pitch above π/2":     func(c *pb.Checkpoint) { c.Pitch = 1610 },
@@ -25,7 +25,7 @@ func TestCheckpoint(t *testing.T) {
 		"direction above 255": func(c *pb.Checkpoint) { c.Direction = 256 },
 		"time above 16383":    func(c *pb.Checkpoint) { c.Time = 16384 },
 		"unknown movement":    func(c *pb.Checkpoint) { c.Flags = 7 },
-		"unknown flag bit":    func(c *pb.Checkpoint) { c.Flags = 1 << 15 },
+		"unknown flag bit":    func(c *pb.Checkpoint) { c.Flags = 1 << 16 },
 	}
 	if err := Checkpoint(valid); err != nil {
 		t.Fatalf("valid checkpoint rejected: %v", err)

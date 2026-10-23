@@ -39,6 +39,7 @@ namespace MovementSync
         float speed{ 0.0F };
         float direction{ 0.0F };
         bool swimming{ false };
+        bool grounded{ false };
         bool relocated{ false };
         RE::FormID cellID{ 0 };
         RE::FormID worldspaceID{ 0 };

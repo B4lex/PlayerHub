@@ -1,5 +1,6 @@
 #include "actor/ActorAnimation.h"
 #include "actor/ActorConstants.h"
+#include "actor/ActorMovement.h"
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationFirewall.h"
 #include "actor/GraphStance.h"
@@ -1822,6 +1823,7 @@ namespace ActorAnimation
             if (!landingCompleted && (landingWaitFrames == 1 || landingWaitFrames % 15 == 0))
             {
                 const auto currentPosition = actor->GetPosition();
+                const auto targetPosition = ActorMovement::GetPlacementTarget(a_remote);
                 bool graphJumping = false;
                 const bool graphJumpAvailable = actor->GetGraphVariableBool(inJumpStateVariable, graphJumping);
                 logs::debug(
@@ -1829,8 +1831,8 @@ namespace ActorAnimation
                     "target=({:.3f},{:.3f},{:.3f}) zError={:.3f} physicalJump={} physicalMidair={} "
                     "graphJumpAvailable={} graphJump={}",
                     actorHandle.native_handle(), landingWaitFrames, currentPosition.x, currentPosition.y,
-                    currentPosition.z, a_remote.movement.targetPosition.x, a_remote.movement.targetPosition.y,
-                    a_remote.movement.targetPosition.z, a_remote.movement.targetPosition.z - currentPosition.z,
+                    currentPosition.z, targetPosition.x, targetPosition.y, targetPosition.z,
+                    targetPosition.z - currentPosition.z,
                     actor->IsInJumpState(), actor->IsInMidair(), graphJumpAvailable, graphJumping);
             }
             if (!landingCompleted && animationState->landingCompletionWaitElapsed >= kLandingCompletionFallbackSeconds)
@@ -2183,7 +2185,7 @@ namespace ActorAnimation
             // Clear the interpolation backlog before changing the persistent graph state, or
             // the landing branch can begin while the actor is aloft.
             auto& movement = a_remote.movement;
-            const auto landingPosition = movement.landingPosition.value_or(movement.targetPosition);
+            const auto landingPosition = ActorMovement::GetPlacementTarget(a_remote);
             movement.landingPosition.reset();
             actor->SetPosition(landingPosition, true);
             if (animationState->rejectedEventAttempts == 0)

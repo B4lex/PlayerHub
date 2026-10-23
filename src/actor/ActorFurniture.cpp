@@ -1,4 +1,5 @@
 #include "actor/ActorFurniture.h"
+#include "actor/ActorMovement.h"
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationFirewall.h"
 #include "actor/RemoteActor.h"
@@ -719,7 +720,8 @@ namespace ActorFurniture
             // The clip ends about 0.2 s before the engine's get-up settle does, and
             // locomotion only plays after that settle.
             const bool cutExitSettle = nativeExit && a_remote.furniture.exitClipEnded
-                && a_actor.GetPosition().GetDistance(a_remote.movement.targetPosition) > kExitSettleCutDistance;
+                && a_actor.GetPosition().GetDistance(ActorMovement::GetPlacementTarget(a_remote))
+                       > kExitSettleCutDistance;
             // A native exit counts as released once the state is Normal, even with occupancy
             // left: cancelling it as an incomplete entry would force the default graph state
             // over the exit clip.
@@ -999,12 +1001,12 @@ namespace ActorFurniture
         // The source reports occupancy when it activates, then travels to the entry
         // point before its entry idle moves it onto the marker.
         const auto actorPosition = a_actor.GetPosition();
-        const float alignmentDistance = (a_remote.movement.targetPosition - actorPosition).Length();
+        const auto targetPosition = ActorMovement::GetPlacementTarget(a_remote);
+        const float alignmentDistance = (targetPosition - actorPosition).Length();
         if (alignmentDistance > kFurnitureEntryAlignmentDistance)
         {
             if (EnterEntryGate(a_remote, EntryGate::kAlignment))
             {
-                const auto& targetPosition = a_remote.movement.targetPosition;
                 logs::debug(
                     "Animation sync furniture entry waiting for the actor to reach the checkpoint: actor={:08X} "
                     "furniture={:08X} actorPosition=({:.1f},{:.1f},{:.1f}) target=({:.1f},{:.1f},{:.1f}) "
@@ -1050,7 +1052,7 @@ namespace ActorFurniture
         a_remote.furniture.loggedEntryGate = EntryGate::kNone;
 
         // Remove residual interpolation error before Skyrim aligns the actor.
-        a_actor.SetPosition(a_remote.movement.targetPosition, true);
+        a_actor.SetPosition(targetPosition, true);
         if (std::isfinite(a_remote.movement.targetHeading))
         {
             a_actor.SetHeading(a_remote.movement.targetHeading);

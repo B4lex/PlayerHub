@@ -98,6 +98,7 @@ const (
 	CheckpointFlag_CHECKPOINT_FLAG_LEVITATING    CheckpointFlag = 4096
 	CheckpointFlag_CHECKPOINT_FLAG_MIST_FORM     CheckpointFlag = 8192
 	CheckpointFlag_CHECKPOINT_FLAG_BATS          CheckpointFlag = 16384
+	CheckpointFlag_CHECKPOINT_FLAG_GROUNDED      CheckpointFlag = 32768
 )
 
 // Enum value maps for CheckpointFlag.
@@ -116,6 +117,7 @@ var (
 		4096:  "CHECKPOINT_FLAG_LEVITATING",
 		8192:  "CHECKPOINT_FLAG_MIST_FORM",
 		16384: "CHECKPOINT_FLAG_BATS",
+		32768: "CHECKPOINT_FLAG_GROUNDED",
 	}
 	CheckpointFlag_value = map[string]int32{
 		"CHECKPOINT_FLAG_NONE":          0,
@@ -131,6 +133,7 @@ var (
 		"CHECKPOINT_FLAG_LEVITATING":    4096,
 		"CHECKPOINT_FLAG_MIST_FORM":     8192,
 		"CHECKPOINT_FLAG_BATS":          16384,
+		"CHECKPOINT_FLAG_GROUNDED":      32768,
 	}
 )
 
@@ -1682,7 +1685,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x18MOVEMENT_STATE_SPRINTING\x10\x03\x12 \n" +
 	"\x1cMOVEMENT_STATE_SNEAKING_IDLE\x10\x04\x12#\n" +
 	"\x1fMOVEMENT_STATE_SNEAKING_WALKING\x10\x05\x12#\n" +
-	"\x1fMOVEMENT_STATE_SNEAKING_RUNNING\x10\x06*\xa2\x03\n" +
+	"\x1fMOVEMENT_STATE_SNEAKING_RUNNING\x10\x06*\xc2\x03\n" +
 	"\x0eCheckpointFlag\x12\x18\n" +
 	"\x14CHECKPOINT_FLAG_NONE\x10\x00\x12\x1b\n" +
 	"\x17CHECKPOINT_FLAG_JUMPING\x10\b\x12 \n" +
@@ -1696,7 +1699,8 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x18CHECKPOINT_FLAG_SWIMMING\x10\x80\x10\x12\x1f\n" +
 	"\x1aCHECKPOINT_FLAG_LEVITATING\x10\x80 \x12\x1e\n" +
 	"\x19CHECKPOINT_FLAG_MIST_FORM\x10\x80@\x12\x1a\n" +
-	"\x14CHECKPOINT_FLAG_BATS\x10\x80\x80\x01*p\n" +
+	"\x14CHECKPOINT_FLAG_BATS\x10\x80\x80\x01\x12\x1e\n" +
+	"\x18CHECKPOINT_FLAG_GROUNDED\x10\x80\x80\x02*p\n" +
 	"\n" +
 	"Shapeshift\x12\x13\n" +
 	"\x0fSHAPESHIFT_NONE\x10\x00\x12\x17\n" +

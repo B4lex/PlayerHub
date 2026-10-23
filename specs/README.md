@@ -12,7 +12,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [network.md](network.md) | Wire protocol, client transport and connection, server connections, player sessions, and validation | `proto/`, `src/protocol/`, `src/network/`, `server/internal/{session,auth,admission,validate,wire,world}` |
 | [interest-and-delivery.md](interest-and-delivery.md) | Which peers each client receives, exclusions, per-recipient outboxes, ordering, batching | `server/internal/{interest,hub,delivery}` |
 | [remote-actor.md](remote-actor.md) | Spawn, update order, registry, animation firewall, graph recovery, survival, combat and reaction isolation, world isolation, light budget | `src/actor/` |
-| [locomotion.md](locomotion.md) | Transform, movement state, direction, turning, jumps, swimming, beast graphs | `sync/movement/`, `sync/animation/`, `actor/ActorMovement`, `actor/ActorAnimation`, `actor/JumpSound` |
+| [locomotion.md](locomotion.md) | Transform, movement state, direction, turning, ground offset, jumps, swimming, beast graphs | `sync/movement/`, `sync/animation/`, `actor/ActorMovement`, `actor/GroundProbe`, `actor/ActorAnimation`, `actor/JumpSound` |
 | [combat-presentation.md](combat-presentation.md) | Weapon stance, attack action stream, power attacks, bashes, blocking, bow draws, spell casts, spell look, beast actions | `sync/combat/`, `sync/shapeshift/`, `actor/ActorAnimation`, `actor/ActorShapeshift`, `actor/BeastActions`, `sync/equipment/SpellStandIn` |
 | [appearance-and-equipment.md](appearance-and-equipment.md) | Appearance, actor base, shapeshifts, player label, equipment, fake lights, default outfit, item filter and catalog | `sync/appearance/`, `sync/equipment/`, `sync/outfit/`, `src/forms/` |
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
@@ -31,6 +31,7 @@ criteria.
 | Movement and locomotion | [locomotion](locomotion.md), [network](network.md#checkpoint-and-context), [sync-pipeline](sync-pipeline.md#local-publishing) |
 | Checkpoint playout (smooth remote movement) | [sync-pipeline](sync-pipeline.md#checkpoint-playout), [locomotion](locomotion.md#coalescing), [network](network.md#checkpoint-and-context), [interest-and-delivery](interest-and-delivery.md#batching) |
 | Swimming | [locomotion](locomotion.md#swimming), [remote-actor](remote-actor.md#swimming) |
+| Ground offset (different landscape mods) | [locomotion](locomotion.md#ground-offset), [network](network.md#checkpoint-and-context) |
 | Weapon stance and attacks | [combat-presentation](combat-presentation.md), [network](network.md#actions) |
 | Bow draws and spell casts | [combat-presentation](combat-presentation.md#hand-presentation), [appearance-and-equipment](appearance-and-equipment.md#equipment) |
 | Spell look in hand | [combat-presentation](combat-presentation.md#spell-look), [appearance-and-equipment](appearance-and-equipment.md#equipment), [network](network.md#equipment) |

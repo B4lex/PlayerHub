@@ -33,7 +33,8 @@ typedef enum _playerhub_v1_CheckpointFlag {
     playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SWIMMING = 2048,
     playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_LEVITATING = 4096,
     playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_MIST_FORM = 8192,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BATS = 16384
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BATS = 16384,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_GROUNDED = 32768
 } playerhub_v1_CheckpointFlag;
 
 typedef enum _playerhub_v1_Shapeshift {
@@ -264,8 +265,8 @@ extern "C" {
 #define _playerhub_v1_MovementState_ARRAYSIZE ((playerhub_v1_MovementState)(playerhub_v1_MovementState_MOVEMENT_STATE_SNEAKING_RUNNING+1))
 
 #define _playerhub_v1_CheckpointFlag_MIN playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_NONE
-#define _playerhub_v1_CheckpointFlag_MAX playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BATS
-#define _playerhub_v1_CheckpointFlag_ARRAYSIZE ((playerhub_v1_CheckpointFlag)(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BATS+1))
+#define _playerhub_v1_CheckpointFlag_MAX playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_GROUNDED
+#define _playerhub_v1_CheckpointFlag_ARRAYSIZE ((playerhub_v1_CheckpointFlag)(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_GROUNDED+1))
 
 #define _playerhub_v1_Shapeshift_MIN playerhub_v1_Shapeshift_SHAPESHIFT_NONE
 #define _playerhub_v1_Shapeshift_MAX playerhub_v1_Shapeshift_SHAPESHIFT_WEREBEAR

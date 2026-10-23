@@ -339,7 +339,8 @@ every on-foot stage:
    allocation log names the base (`base=`).
 2. The mount takes each checkpoint as its target. Once ready,
    `ActorRuntime::UpdateMount` reasserts its policy, drives its gait, and
-   translates it with the actor translation code.
+   translates it with the actor translation code, including the
+   [ground offset](locomotion.md#ground-offset).
 3. Once actor and mount are ready, `ActorMount::Seat` seats the actor instantly,
    retrying every 0.5 s. From then on the mount carries it: it is never driven on
    foot again. Seating clears the on-foot graph tracking

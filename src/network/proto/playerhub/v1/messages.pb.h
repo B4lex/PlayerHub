@@ -13,7 +13,7 @@
 /* Enum definitions */
 typedef enum _playerhub_v1_Protocol {
     playerhub_v1_Protocol_PROTOCOL_UNSPECIFIED = 0,
-    playerhub_v1_Protocol_PROTOCOL_VERSION = 11
+    playerhub_v1_Protocol_PROTOCOL_VERSION = 12
 } playerhub_v1_Protocol;
 
 typedef enum _playerhub_v1_ChatChannel {

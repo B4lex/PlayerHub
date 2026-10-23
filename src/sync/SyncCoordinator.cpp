@@ -1,5 +1,6 @@
 #include "sync/SyncCoordinator.h"
 #include "actor/ActorAnimation.h"
+#include "actor/ActorMovement.h"
 #include "actor/ActorRuntime.h"
 #include "actor/PrecisionIsolation.h"
 #include "actor/RemoteLights.h"
@@ -507,6 +508,7 @@ namespace SyncCoordinator
         const auto localCellID = localCell->GetFormID();
         const auto localWorldspaceID = MovementSync::GetWorldspaceID(*a_player);
         const auto localFurniture = a_player->GetOccupiedFurniture().get();
+        ActorMovement::BeginPass();
         for (auto& [playerID, peer] : s_peers)
         {
             SyncPeer(playerID, peer, local, localCellID, localWorldspaceID, localFurniture.get(), a_delta);

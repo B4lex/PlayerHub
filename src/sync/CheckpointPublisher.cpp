@@ -85,6 +85,7 @@ namespace CheckpointPublisher
             .levitating = vampireLord.levitating,
             .mistForm = vampireLord.mistForm,
             .bats = vampireLord.bats,
+            .grounded = movement.grounded,
             .cellID = movement.cellID,
             .worldspaceID = movement.worldspaceID,
             .furniture = std::move(furniture),
