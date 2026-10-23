@@ -40,7 +40,8 @@ namespace MovementSync
             && IsSameCoordinateSpace(cellID, worldspaceID, s_previousCellID, s_previousWorldspaceID)
             && position.GetDistance(s_previousPosition) <= kRelocationDistance;
 
-        float speed = 0.0F;
+        const auto* actorState = a_carrier.AsActorState();
+        const bool swimming = actorState && actorState->IsSwimming();
         float heading = a_carrier.GetAngleZ();
         if (!std::isfinite(heading))
         {
@@ -50,13 +51,26 @@ namespace MovementSync
         float direction = 0.0F;
         const bool graphDirectionAvailable
             = a_carrier.GetGraphVariableFloat(directionVariable, direction) && std::isfinite(direction);
+        // The Speed channel feeds the graph the intended movement speed divided by
+        // the actor's scale, not the distance covered: climbing stairs keeps the
+        // full walk pace while the controller covers less ground.
+        static const RE::BSFixedString speedVariable{ "Speed" };
+        float graphSpeed = 0.0F;
+        const bool onFoot = &a_carrier == static_cast<RE::Actor*>(&a_local.player);
+        const bool graphSpeedAvailable = onFoot && a_carrier.GetGraphVariableFloat(speedVariable, graphSpeed)
+            && std::isfinite(graphSpeed) && graphSpeed >= 0.0F;
+        float speed = 0.0F;
         if (comparableLocalSpace && a_snapshotElapsed > 0.0F)
         {
             const float deltaX = position.x - s_previousPosition.x;
             const float deltaY = position.y - s_previousPosition.y;
             const float deltaZ = position.z - s_previousPosition.z;
             const float horizontalDistanceSquared = deltaX * deltaX + deltaY * deltaY;
-            speed = std::sqrt(horizontalDistanceSquared + deltaZ * deltaZ) / a_snapshotElapsed;
+            // A mount's gait follows the ground it covers. A swimmer moves along its
+            // view, vertical included.
+            const float travelSquared
+                = swimming ? horizontalDistanceSquared + deltaZ * deltaZ : horizontalDistanceSquared;
+            speed = std::sqrt(travelSquared) / a_snapshotElapsed;
             if (!std::isfinite(speed))
             {
                 speed = 0.0F;
@@ -82,17 +96,24 @@ namespace MovementSync
         const bool grounded
             = controller && controller->context.currentState == RE::hkpCharacterStateType::kOnGround;
 
-        const auto* actorState = a_carrier.AsActorState();
         return LocalSample{ .position = position,
             .heading = heading,
             .pitch = pitch,
-            .speed = speed,
+            .measuredSpeed = speed,
+            .graphSpeed = graphSpeedAvailable ? std::optional<float>{ graphSpeed } : std::nullopt,
             .direction = direction,
-            .swimming = actorState && actorState->IsSwimming(),
+            .swimming = swimming,
             .grounded = grounded,
             .relocated = !comparableLocalSpace,
             .cellID = cellID,
             .worldspaceID = worldspaceID };
+    }
+
+    float GetCheckpointSpeed(const LocalSample& a_sample, Multiplayer::MovementState a_state)
+    {
+        // An idle checkpoint keeps the measured speed, so a graph Speed still easing
+        // to zero does not defeat the server's idle repeat suppression.
+        return a_sample.graphSpeed && Multiplayer::IsMoving(a_state) ? *a_sample.graphSpeed : a_sample.measuredSpeed;
     }
 
     bool IsInLocalSpace(const RemoteFrame& a_remote, RE::FormID a_localCellID, RE::FormID a_localWorldspaceID)

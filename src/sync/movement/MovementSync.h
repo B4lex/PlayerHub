@@ -1,10 +1,12 @@
 #pragma once
 
+#include "protocol/MovementState.h"
 #include "sync/SyncFrame.h"
 
 #include <RE/Skyrim.h>
 
 #include <cstdint>
+#include <optional>
 
 struct RemoteActor;
 
@@ -36,7 +38,8 @@ namespace MovementSync
         RE::NiPoint3 position{};
         float heading{ 0.0F };
         float pitch{ 0.0F };
-        float speed{ 0.0F };
+        float measuredSpeed{ 0.0F };
+        std::optional<float> graphSpeed{};
         float direction{ 0.0F };
         bool swimming{ false };
         bool grounded{ false };
@@ -47,6 +50,8 @@ namespace MovementSync
 
     [[nodiscard]] LocalSample SampleLocalMovement(
         const LocalFrame& a_local, RE::Actor& a_carrier, const RE::TESObjectCELL& a_cell, float a_snapshotElapsed);
+
+    [[nodiscard]] float GetCheckpointSpeed(const LocalSample& a_sample, Multiplayer::MovementState a_state);
 
     [[nodiscard]] bool IsInLocalSpace(
         const RemoteFrame& a_remote, RE::FormID a_localCellID, RE::FormID a_localWorldspaceID);

@@ -201,7 +201,7 @@ context.
 | `x`, `y`, `z` | `sint32`, quarter game units | any |
 | `heading` | `uint32`, 1/4096 turn | `0..4095` |
 | `pitch` | `sint32`, radians × 1024 | `|pitch| <= 1609` (π/2) |
-| `speed` | `uint32`, units per second | `<= 100000` |
+| `speed` | `uint32`, units per second: the source graph's `Speed` while moving on foot, otherwise measured over the ground (3D while swimming) ([Locomotion](locomotion.md#source-capture)) | `<= 100000` |
 | `direction` | `uint32`, graph `Direction` × 256, wrapping | `0..255` |
 | `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–15 `jumping`, `weaponDrawn`, `bowDrawn`, `castingLeft`, `castingRight`, `blocking`, `dead`, `mounted`, `swimming`, `levitating`, `mistForm`, `bats`, `grounded` (the carrier's controller is on the ground, [Locomotion](locomotion.md#ground-offset)) | unknown bits rejected; the last three only in a `VAMPIRE_LORD` context (`validate.VampireLordFlags`, `incompatible animation checkpoint`) |
 | `time` | `uint32`, the sender's `steady_clock` in milliseconds when sampled, modulo 16384 | `0..16383` |

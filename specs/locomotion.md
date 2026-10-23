@@ -44,6 +44,11 @@ game, as noted.
   described under [Direction](#direction). The zero-speed `Speed` hold is
   unobserved, and the final form of the start rule (without the diagnostic
   active-generator check it replaced) is a Linux syntax check only.
+- **Graph `Speed` on foot** ([Source capture](#source-capture)): built on
+  Windows and run in game on 1.7.104: the remote's walk on stairs follows the
+  source's pace, and replays of live recordings carried the graph values with
+  normal jump landings, swim transitions, and horse gait. Scaled races are not
+  confirmed.
 - **[Ground offset](#ground-offset):** built on Windows and run in game on
   1.7.104 on foot: probes hit static, ground, anim static, and clutter layers,
   and remote actors stood on local ground. Mounts, swimming, and 1.5.97 are
@@ -105,7 +110,17 @@ At each checkpoint, from the carrier (the player, or its mount while riding):
 
 - **Position** and **heading**. Heading is the body angle, so a backpedalling or
   strafing player keeps facing the same way. Skyrim heading zero faces +Y.
-- **Speed** is measured from the previous published sample. A jump of more than
+- **Speed** of a moving checkpoint on foot is the player graph's `Speed`
+  (`MovementSync::GetCheckpointSpeed`), so the receiver's legs play at the
+  source's pace. The engine's Speed channel feeds that variable the intended
+  movement speed divided by the actor's scale, not the ground covered: on
+  stairs the source keeps its full walk pace while its controller covers less
+  ground, and measured speed played the remote's walk too slowly there. An
+  idle checkpoint, a graph without `Speed`, and a mount carry the speed
+  measured from the previous published sample instead: horizontal travel
+  only, or 3D travel while swimming, so a mount's gait follows its ground
+  speed. Idle keeps the measured value so a graph `Speed` still easing to zero
+  does not defeat the server's idle repeat suppression. A jump of more than
   4096 units is a relocation, not a speed sample.
 - **Direction** is travel relative to heading in graph `Direction` units
   `[0, 1]` (0 forward, 0.25 right, 0.5 backward, 0.75 left), read from the
@@ -187,9 +202,9 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   direction channels report too ([Remote actor](remote-actor.md#graph-channels)).
   An invalid or zero sample while moving keeps the last written `Speed` for
   `kZeroSpeedHoldSeconds` (0.25 s), then falls back to the actor's own walk or
-  run speed. A [held stop](#source-capture) often publishes its last moving
-  checkpoint at speed 0 (15 of the stops in the server recordings, 5 of about
-  40 short taps in one), and an immediate fallback would push `Speed` to the
+  run speed. A [held stop](#source-capture)'s last moving checkpoint can carry
+  speed 0 (measured speed did in 15 of the stops in the server recordings, 5
+  of about 40 short taps in one), and an immediate fallback would push `Speed` to the
   full run speed just before `moveStop`.
   Zero speed lasting longer is running in place, against an obstacle or
   through a load, where the source's graph plays its gait. In the vanilla

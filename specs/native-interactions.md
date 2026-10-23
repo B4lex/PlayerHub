@@ -396,10 +396,10 @@ hand swap by its 2 s bound, so seating clears it.
 
 ### Gait
 
-The mount's gait comes from the checkpoint's ground speed: `ActorMovement`
-scales the checkpoint speed by the horizontal share of the travel from the
-previously applied checkpoint (`groundSpeed`). Vanilla horse movement types are
-walk 125, run 450 (`Horse_Default_MT`), and sprint 600 (`Horse_Sprint_MT`).
+The mount's gait comes from the checkpoint speed, which the source measures
+over the ground ([Locomotion](locomotion.md#source-capture)); `ActorMovement`
+keeps it as `groundSpeed`. Vanilla horse movement types are walk 125, run 450
+(`Horse_Default_MT`), and sprint 600 (`Horse_Sprint_MT`).
 
 - The mount stops (`moveStop`) once the speed stays below 20 for 0.2 s; it
   starts at once. The gallop (`SprintStart`, `SprintStop`, `IsSprinting`)
@@ -442,11 +442,10 @@ and no plugin code writes it apart from the gait. Skyrim's
 `GetGraphVariableFloat` reads the live value through the process's
 `BSAnimationGraphVariableCache`, so the zeros are not a stale copy.
 
-Why ground speed and the holds: the checkpoint speed is measured in 3D, and a
-source horse jumping or dropping down a slope reached 726–808 while its ground
-speed was about 460, so the remote horse galloped for about 145 ms on each
-landing. A single slow sample inside a walk (12, then 23 92 ms later) sent
-`moveStop` and `moveStart` back to back. Each flap restarted the locomotion
+Why ground speed and the holds: measured in 3D, a source horse jumping or
+dropping down a slope reached 726–808 while its ground speed was about 460, so
+the remote horse galloped for about 145 ms on each landing. A single slow
+sample inside a walk (12, then 23 92 ms later) sent `moveStop` and `moveStart` back to back. Each flap restarted the locomotion
 clips.
 
 Why: the first checkpoint after a mount spawns carries the relocation onto it

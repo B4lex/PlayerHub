@@ -75,7 +75,7 @@ namespace CheckpointPublisher
             .z = movement.position.z,
             .heading = movement.heading,
             .pitch = movement.pitch,
-            .speed = movement.speed,
+            .speed = MovementSync::GetCheckpointSpeed(movement, animationState.movementState),
             .direction = movement.direction,
             .animationState = animationState,
             .handPresentation = handPresentation,

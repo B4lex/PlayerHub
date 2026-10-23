@@ -74,16 +74,6 @@ namespace ActorMovement
             a_actor.SetHeading(currentHeading + step);
         }
 
-        float GetGroundSpeed(float a_speed, const RE::NiPoint3& a_travel)
-        {
-            const float travelled = a_travel.Length();
-            if (travelled <= kMinimumStep)
-            {
-                return a_speed;
-            }
-            return a_speed * std::sqrt(a_travel.x * a_travel.x + a_travel.y * a_travel.y) / travelled;
-        }
-
         RE::NiPoint3 GetSourceTarget(const State& a_movement)
         {
             return a_movement.landingPosition.value_or(a_movement.targetPosition);
@@ -170,7 +160,7 @@ namespace ActorMovement
         a_remote.movement.sourceGrounded = a_grounded;
         if (std::isfinite(a_speed) && a_speed >= 0.0F)
         {
-            a_remote.movement.groundSpeed = GetGroundSpeed(a_speed, travel);
+            a_remote.movement.groundSpeed = a_speed;
             ActorAnimation::RequestCheckpointUpdate(a_remote.animation);
         }
     }

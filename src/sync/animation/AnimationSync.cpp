@@ -459,14 +459,16 @@ namespace AnimationSync
         {
             logs::debug(
                 "Animation sync publishing local state: sequence={} previous={}/{} state={}/{} "
-                "position=({:.3f},{:.3f},{:.3f}) speed={:.1f} direction={:.3f} physicalJump={} physicalMidair={}",
+                "position=({:.3f},{:.3f},{:.3f}) speed={:.1f} measuredSpeed={:.1f} direction={:.3f} physicalJump={} "
+                "physicalMidair={}",
                 static_cast<unsigned long long>(a_sequence),
                 hasPreviousAnimationState ? Multiplayer::GetMovementStateName(previousAnimationState.movementState)
                                           : "uninitialized",
                 hasPreviousAnimationState && previousAnimationState.jumping ? "jumping" : "grounded",
                 Multiplayer::GetMovementStateName(animationState.movementState),
                 animationState.jumping ? "jumping" : "grounded", a_movement.position.x, a_movement.position.y,
-                a_movement.position.z, a_movement.speed, a_movement.direction, a_local.player.IsInJumpState(),
+                a_movement.position.z, MovementSync::GetCheckpointSpeed(a_movement, animationState.movementState),
+                a_movement.measuredSpeed, a_movement.direction, a_local.player.IsInJumpState(),
                 a_local.player.IsInMidair());
             const bool stopped = hasPreviousAnimationState
                 && Multiplayer::IsMoving(previousAnimationState.movementState)
@@ -477,7 +479,7 @@ namespace AnimationSync
                     "Animation sync local movement input: sequence={} reason={} state={} speed={:.1f} "
                     "passes=[{}]",
                     static_cast<unsigned long long>(a_sequence), stopped ? "stopped" : "after-stop",
-                    Multiplayer::GetMovementStateName(animationState.movementState), a_movement.speed,
+                    Multiplayer::GetMovementStateName(animationState.movementState), a_movement.measuredSpeed,
                     DescribeMovementInputHistory());
             }
             s_reportNextLocalSample = stopped;
@@ -490,7 +492,7 @@ namespace AnimationSync
                 "Animation sync local movement input: sequence={} reason=after-stop state={} speed={:.1f} "
                 "passes=[{}]",
                 static_cast<unsigned long long>(a_sequence),
-                Multiplayer::GetMovementStateName(animationState.movementState), a_movement.speed,
+                Multiplayer::GetMovementStateName(animationState.movementState), a_movement.measuredSpeed,
                 DescribeMovementInputHistory());
             s_reportNextLocalSample = false;
         }
