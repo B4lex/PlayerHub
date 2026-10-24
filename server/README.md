@@ -31,6 +31,8 @@ On `admin_listen` only:
 - `/admin/` serves the built admin panel; `/api` is its API.
 - `/debug/pprof/` with `--pprof`.
 
+To run it in Docker, see [Docker](../README.md#docker).
+
 ## Configuration
 
 Every key is optional. Link-dependent limits live here, so servers on
@@ -42,7 +44,7 @@ admin_listen = "127.0.0.1:3001"   # admin panel, API, and pprof; "" serves none 
 admin_hosts = []            # host names besides localhost and IP addresses that may reach admin_listen, e.g. ["panel.lan"]
 trusted_proxies = []        # e.g. ["127.0.0.1"] behind a local proxy; X-Forwarded-For then names the player
 recordings_directory = "recordings"
-admin_ui_directory = "admin-ui/dist"
+admin_ui_directory = "../admin-ui/dist"
 # Batches per second to each client, at most one tick of batching delay.
 # Clients play checkpoints back at their sampled spacing, so 20 is smooth.
 send_rate_hz = 20

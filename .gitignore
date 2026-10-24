@@ -31,6 +31,9 @@ plans/
 /server/*.db
 /server/*.db-*
 
+# Server data from Docker Compose
+/data/
+
 # Local server configurations
 /server/*.toml
 !/server/config.example.toml

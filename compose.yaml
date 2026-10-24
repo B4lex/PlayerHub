@@ -1,0 +1,22 @@
+# Copy server/config.example.toml to server/config.toml and add
+#   admin_ui_directory = "/app/admin-ui"
+# Then, from this directory: mkdir -p data && docker compose up -d --build
+
+name: playerhub
+
+services:
+  server:
+    build:
+      context: .
+    command: ["--config", "/config/server.toml"]
+    network_mode: host
+    user: "${PLAYERHUB_UID:-1000}:${PLAYERHUB_GID:-1000}"
+    volumes:
+      - ./server/config.toml:/config/server.toml:ro,z
+      - type: bind
+        source: ./data
+        target: /data
+        bind:
+          create_host_path: false
+          selinux: z
+    restart: unless-stopped

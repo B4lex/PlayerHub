@@ -10,6 +10,25 @@ trade items and chat.
 - `proto/` — wire schema
 - `specs/` — how each system works ([specs/README.md](specs/README.md))
 
+## Docker
+
+[Dockerfile](Dockerfile) builds the server and the admin panel into one image.
+[compose.yaml](compose.yaml) runs it with host networking, so `listen`,
+`admin_listen`, and `trusted_proxies` mean what they do without Docker. Copy
+`server/config.example.toml` to `server/config.toml`, add
+`admin_ui_directory = "/app/admin-ui"`, then:
+
+```sh
+mkdir -p data
+docker compose up -d --build
+```
+
+The session database and recordings are kept in `data/` next to
+`compose.yaml` (`/data` in the container). The server runs as user and group
+1000, so that directory must be writable by them; set `PLAYERHUB_UID` and
+`PLAYERHUB_GID` to run it as another host user, such as the one that owns
+`data/`. The container restarts unless stopped.
+
 ## Translations
 
 The plugin's text is English, and it reads translations at startup from

@@ -1,0 +1,10 @@
+# Only the server image is built from this context; it needs server/ and admin-ui/.
+*
+!server/
+!admin-ui/
+admin-ui/node_modules/
+admin-ui/dist/
+server/*.db
+server/*.db-*
+server/*.toml
+server/recordings/

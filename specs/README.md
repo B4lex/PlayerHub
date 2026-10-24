@@ -19,7 +19,7 @@ disagrees with it. `AGENTS.md` describes how to keep these files current.
 | [trade.md](trade.md) | Item exchange between two players: invitation, plugin check, offers, reports, acceptance, commit, cancelling, the trade bot; the only change a peer makes to the local world | `sync/trade/`, `forms/ItemInstance`, `protocol/TradeState.h`, `server/internal/hub/trade.go`, `server/cmd/tradebot` |
 | [configuration.md](configuration.md) | `PlayerHub.ini`, schema, snapshots, saving | `src/config/` |
 | [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, localization, theme, background opacity, menu frame, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, player menu, player menu in the world, settings window, Discord link, item picker and preview | `src/ui/`, `src/text/`, `locale/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
-| [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `server/admin-ui/` |
+| [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `admin-ui/` |
 
 ## Features
 
