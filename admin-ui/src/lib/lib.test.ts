@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBytes, formatFormId, formatRelative, formatTimestamp, plural } from "./format";
+import { formatBytes, formatFormRef, formatRelative, formatTimestamp, plural } from "./format";
 import { botPositionAt } from "./batchClock";
 import { newerPlayback, positionAt } from "./playbackClock";
 
@@ -65,7 +65,7 @@ describe("formatting", () => {
   });
 
   it("formats form ids and plurals", () => {
-    expect(formatFormId(0x3c)).toBe("0x0000003C");
+    expect(formatFormRef({ plugin: "Skyrim.esm", formId: 0x3c })).toBe("Skyrim.esm:0x00003C");
     expect(plural(1, "player")).toBe("1 player");
     expect(plural(2, "player")).toBe("2 players");
   });

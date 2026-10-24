@@ -32,8 +32,10 @@ namespace Network
         bool mistForm{ false };
         bool bats{ false };
         bool grounded{ false };
-        std::uint32_t cellID{ 0 };
-        std::uint32_t worldspaceID{ 0 };
+        // One of these names the player's space: the interior cell, or the worldspace
+        // outside. Both are empty in a space that cannot be referenced.
+        Multiplayer::FormReference interiorCell;
+        Multiplayer::FormReference worldspace;
         Multiplayer::FormReference furniture;
         Multiplayer::Shapeshift shapeshift{ Multiplayer::Shapeshift::kNone };
         std::uint64_t graphEpoch{ 1 };

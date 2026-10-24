@@ -137,9 +137,11 @@ typedef struct _playerhub_v1_Checkpoint {
 } playerhub_v1_Checkpoint;
 
 typedef struct _playerhub_v1_Context {
-    /* Zero in a worldspace, so crossing exterior cells leaves the context unchanged. */
-    uint32_t interior_cell_id;
-    uint32_t worldspace_id;
+    /* Unset in a worldspace, so crossing exterior cells leaves the context unchanged. */
+    bool has_interior_cell;
+    playerhub_v1_FormRef interior_cell;
+    bool has_worldspace;
+    playerhub_v1_FormRef worldspace;
     uint64_t graph_epoch;
     bool has_furniture;
     playerhub_v1_FormRef furniture;
@@ -321,7 +323,7 @@ extern "C" {
 /* Initializer values for message structs */
 #define playerhub_v1_FormRef_init_default        {"", 0}
 #define playerhub_v1_Checkpoint_init_default     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-#define playerhub_v1_Context_init_default        {0, 0, 0, false, playerhub_v1_FormRef_init_default, _playerhub_v1_Shapeshift_MIN}
+#define playerhub_v1_Context_init_default        {false, playerhub_v1_FormRef_init_default, false, playerhub_v1_FormRef_init_default, 0, false, playerhub_v1_FormRef_init_default, _playerhub_v1_Shapeshift_MIN}
 #define playerhub_v1_Attack_init_default         {_playerhub_v1_AttackAction_MIN, _playerhub_v1_PowerDirection_MIN}
 #define playerhub_v1_Action_init_default         {0, 0, 0, 0, {playerhub_v1_Attack_init_default}}
 #define playerhub_v1_Color_init_default          {0, 0, 0}
@@ -335,7 +337,7 @@ extern "C" {
 #define playerhub_v1_Equipment_init_default      {0, 0, {playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default}, false, playerhub_v1_Hand_init_default, false, playerhub_v1_Hand_init_default, false, playerhub_v1_FormRef_init_default, false, playerhub_v1_DefaultOutfit_init_default, false, playerhub_v1_Hand_init_default, false, playerhub_v1_Hand_init_default, 0, {playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default}}
 #define playerhub_v1_FormRef_init_zero           {"", 0}
 #define playerhub_v1_Checkpoint_init_zero        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-#define playerhub_v1_Context_init_zero           {0, 0, 0, false, playerhub_v1_FormRef_init_zero, _playerhub_v1_Shapeshift_MIN}
+#define playerhub_v1_Context_init_zero           {false, playerhub_v1_FormRef_init_zero, false, playerhub_v1_FormRef_init_zero, 0, false, playerhub_v1_FormRef_init_zero, _playerhub_v1_Shapeshift_MIN}
 #define playerhub_v1_Attack_init_zero            {_playerhub_v1_AttackAction_MIN, _playerhub_v1_PowerDirection_MIN}
 #define playerhub_v1_Action_init_zero            {0, 0, 0, 0, {playerhub_v1_Attack_init_zero}}
 #define playerhub_v1_Color_init_zero             {0, 0, 0}
@@ -362,8 +364,8 @@ extern "C" {
 #define playerhub_v1_Checkpoint_direction_tag    9
 #define playerhub_v1_Checkpoint_flags_tag        10
 #define playerhub_v1_Checkpoint_time_tag         11
-#define playerhub_v1_Context_interior_cell_id_tag 1
-#define playerhub_v1_Context_worldspace_id_tag   2
+#define playerhub_v1_Context_interior_cell_tag   1
+#define playerhub_v1_Context_worldspace_tag      2
 #define playerhub_v1_Context_graph_epoch_tag     3
 #define playerhub_v1_Context_furniture_tag       4
 #define playerhub_v1_Context_shapeshift_tag      5
@@ -443,13 +445,15 @@ X(a, STATIC,   SINGULAR, UINT32,   time,             11)
 #define playerhub_v1_Checkpoint_DEFAULT NULL
 
 #define playerhub_v1_Context_FIELDLIST(X, a) \
-X(a, STATIC,   SINGULAR, UINT32,   interior_cell_id,   1) \
-X(a, STATIC,   SINGULAR, UINT32,   worldspace_id,     2) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  interior_cell,     1) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  worldspace,        2) \
 X(a, STATIC,   SINGULAR, UINT64,   graph_epoch,       3) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  furniture,         4) \
 X(a, STATIC,   SINGULAR, UENUM,    shapeshift,        5)
 #define playerhub_v1_Context_CALLBACK NULL
 #define playerhub_v1_Context_DEFAULT NULL
+#define playerhub_v1_Context_interior_cell_MSGTYPE playerhub_v1_FormRef
+#define playerhub_v1_Context_worldspace_MSGTYPE playerhub_v1_FormRef
 #define playerhub_v1_Context_furniture_MSGTYPE playerhub_v1_FormRef
 
 #define playerhub_v1_Attack_FIELDLIST(X, a) \
@@ -613,7 +617,7 @@ extern const pb_msgdesc_t playerhub_v1_Equipment_msg;
 #define playerhub_v1_Attack_size                 4
 #define playerhub_v1_Checkpoint_size             71
 #define playerhub_v1_Color_size                  18
-#define playerhub_v1_Context_size                297
+#define playerhub_v1_Context_size                829
 #define playerhub_v1_DefaultOutfit_size          4174
 #define playerhub_v1_DefaultRace_size            274
 #define playerhub_v1_Equipment_size              19008

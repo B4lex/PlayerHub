@@ -52,13 +52,18 @@ func IssueSession(ctx context.Context, client *http.Client, admin, displayName s
 	return reply.Token, nil
 }
 
+type FormRef struct {
+	Plugin string `json:"plugin"`
+	FormID uint32 `json:"formId"`
+}
+
 type Player struct {
-	ID           string  `json:"id"`
-	Name         string  `json:"name"`
-	Virtual      bool    `json:"virtual"`
-	InWorld      bool    `json:"inWorld"`
-	CellID       *uint32 `json:"cellId"`
-	WorldspaceID *uint32 `json:"worldspaceId"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Virtual      bool     `json:"virtual"`
+	InWorld      bool     `json:"inWorld"`
+	InteriorCell *FormRef `json:"interiorCell"`
+	Worldspace   *FormRef `json:"worldspace"`
 	Position     *struct {
 		X float64 `json:"x"`
 		Y float64 `json:"y"`

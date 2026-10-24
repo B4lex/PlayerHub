@@ -8,6 +8,7 @@
 #include "sync/combat/CombatSync.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/furniture/FurnitureSync.h"
+#include "sync/movement/MovementSync.h"
 #include "sync/nameplates/NameplateSync.h"
 #include "sync/shapeshift/ShapeshiftSync.h"
 
@@ -18,6 +19,7 @@ struct PeerState
 {
     CheckpointPlayout playout;
     std::uint64_t appliedSequence{ 0 };
+    MovementSync::RemoteState space;
     CombatSync::RemoteState combat;
     ShapeshiftSync::RemoteState shapeshift;
     ActorLifecycleState lifecycle;

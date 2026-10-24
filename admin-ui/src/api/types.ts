@@ -6,6 +6,12 @@ export type BatchStatus = "starting" | "running" | "paused";
 export type BotStatus = "pending" | "playing" | "paused" | "failed";
 export type MarkerKind = "attack" | "appearance" | "equipment" | "weapon" | "furniture" | "area";
 
+/** A form named by its plugin and its ID within that plugin. */
+export interface FormRef {
+  plugin: string;
+  formId: number;
+}
+
 export interface Position {
   x: number;
   y: number;
@@ -22,8 +28,9 @@ export interface Player {
   /** Placed in the game world, not in the main menu or a loading screen. */
   inWorld: boolean;
   connectedAtMs: number | null;
-  cellId: number | null;
-  worldspaceId: number | null;
+  /** One of these names the player's space; both are null before its first context. */
+  interiorCell: FormRef | null;
+  worldspace: FormRef | null;
   position: Position | null;
   movementState: string | null;
   /** Peers this player receives. */

@@ -28,6 +28,9 @@ struct RemoteFrame
     Multiplayer::PeerSlot playerID;
     const Network::PlayerTransform& checkpoint;
     const RemotePose& pose;
+    // Local FormIDs of the checkpoint's references; zero when not loaded here.
+    RE::FormID cellID;
+    RE::FormID worldspaceID;
     RE::FormID furnitureRefID;
 };
 

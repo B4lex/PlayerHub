@@ -1,7 +1,7 @@
 #include "sync/movement/MovementSync.h"
 #include "actor/ActorMovement.h"
 #include "actor/RemoteActor.h"
-#include "protocol/PlayerState.h"
+#include "forms/FormLookup.h"
 
 #include <algorithm>
 #include <cmath>
@@ -18,10 +18,21 @@ namespace MovementSync
         RE::FormID s_previousWorldspaceID = 0;
         bool s_hasPreviousPosition = false;
 
+        RE::FormID s_localSpaceCellID = 0;
+        RE::FormID s_localSpaceWorldspaceID = 0;
+        LocalSpace s_localSpace;
+        bool s_hasLocalSpace = false;
+
         float SanitizePitch(float a_angle)
         {
             return std::isfinite(a_angle) ? std::clamp(a_angle, -Network::kMaximumPitch, Network::kMaximumPitch) : 0.0F;
         }
+    }
+
+    bool IsSameCoordinateSpace(const Network::PlayerTransform& a_first, const Network::PlayerTransform& a_second)
+    {
+        return a_first.worldspace == a_second.worldspace
+            && (!a_first.worldspace.IsEmpty() || a_first.interiorCell == a_second.interiorCell);
     }
 
     std::uint32_t GetWorldspaceID(const RE::TESObjectREFR& a_reference)
@@ -116,10 +127,66 @@ namespace MovementSync
         return a_sample.graphSpeed && Multiplayer::IsMoving(a_state) ? *a_sample.graphSpeed : a_sample.measuredSpeed;
     }
 
+    const LocalSpace& SampleLocalSpace(const LocalSample& a_sample)
+    {
+        // Exterior cell crossings keep the worldspace's reference.
+        const auto cellID = a_sample.worldspaceID == 0 ? a_sample.cellID : 0;
+        if (s_hasLocalSpace && cellID == s_localSpaceCellID && a_sample.worldspaceID == s_localSpaceWorldspaceID)
+        {
+            return s_localSpace;
+        }
+        s_hasLocalSpace = true;
+        s_localSpaceCellID = cellID;
+        s_localSpaceWorldspaceID = a_sample.worldspaceID;
+
+        auto reference
+            = FormLookup::MakeFormReference(RE::TESForm::LookupByID(cellID != 0 ? cellID : a_sample.worldspaceID))
+                  .value_or(Multiplayer::FormReference{});
+        if (reference.IsEmpty())
+        {
+            logs::warn("Local space has no form reference: cell={:08X} worldspace={:08X}; peers will not place the "
+                       "player in it",
+                cellID, a_sample.worldspaceID);
+        }
+        else
+        {
+            logs::debug("Publishing local space: cell={:08X} worldspace={:08X} reference={}|{:06X}", cellID,
+                a_sample.worldspaceID, reference.plugin, reference.localFormID);
+        }
+        s_localSpace = cellID != 0 ? LocalSpace{ .interiorCell = std::move(reference) }
+                                   : LocalSpace{ .worldspace = std::move(reference) };
+        return s_localSpace;
+    }
+
+    void OnCheckpointPlayed(RemoteState& a_state, const CheckpointUpdate& a_update)
+    {
+        const auto& checkpoint = a_update.checkpoint;
+        if (!a_update.inserted && a_update.previous.interiorCell == checkpoint.interiorCell
+            && a_update.previous.worldspace == checkpoint.worldspace)
+        {
+            return;
+        }
+
+        const auto& reference = checkpoint.worldspace.IsEmpty() ? checkpoint.interiorCell : checkpoint.worldspace;
+        const auto formID = FormLookup::ResolveFormID(reference);
+        a_state = checkpoint.worldspace.IsEmpty() ? RemoteState{ .cellID = formID }
+                                                  : RemoteState{ .worldspaceID = formID };
+        if (formID == 0 && !reference.IsEmpty())
+        {
+            logs::warn("Remote player {} space could not be resolved: sequence={} interior={} reference={}|{:06X}; "
+                       "it is not in the local load order",
+                a_update.playerID, static_cast<unsigned long long>(checkpoint.sequence),
+                checkpoint.worldspace.IsEmpty(), reference.plugin, reference.localFormID);
+            return;
+        }
+        logs::debug("Remote player {} space resolved: sequence={} cell={:08X} worldspace={:08X} reference={}|{:06X}",
+            a_update.playerID, static_cast<unsigned long long>(checkpoint.sequence), a_state.cellID,
+            a_state.worldspaceID, reference.plugin, reference.localFormID);
+    }
+
     bool IsInLocalSpace(const RemoteFrame& a_remote, RE::FormID a_localCellID, RE::FormID a_localWorldspaceID)
     {
-        return IsSameCoordinateSpace(
-            a_remote.checkpoint.cellID, a_remote.checkpoint.worldspaceID, a_localCellID, a_localWorldspaceID);
+        return IsSameCoordinateSpace(a_remote.cellID, a_remote.worldspaceID, a_localCellID, a_localWorldspaceID);
     }
 
     void SyncMovement(const RemoteFrame& a_remote, std::uint64_t& a_appliedSequence, RemoteActor& a_actor)

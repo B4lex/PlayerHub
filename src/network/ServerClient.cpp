@@ -393,8 +393,9 @@ namespace Network
 
         void OnPeerEnter(Wire::PeerEnter&& a_enter)
         {
-            logs::debug("Peer {} entered: cell={:08X} worldspace={:08X} sequence={} appearance={} equipment={}",
-                a_enter.slot, a_enter.context.interiorCellID, a_enter.context.worldspaceID,
+            logs::debug("Peer {} entered: cell={}|{:06X} worldspace={}|{:06X} sequence={} appearance={} equipment={}",
+                a_enter.slot, a_enter.context.interiorCell.plugin, a_enter.context.interiorCell.localFormID,
+                a_enter.context.worldspace.plugin, a_enter.context.worldspace.localFormID,
                 static_cast<unsigned long long>(a_enter.state.sequence), a_enter.appearance.has_value(),
                 a_enter.equipment.has_value());
             std::scoped_lock lock{ remoteChangesLock };
@@ -816,8 +817,10 @@ namespace Network
         if (contextChanged)
         {
             logs::debug(
-                "Publishing context: cell={:08X} worldspace={:08X} graphEpoch={} furniture={}:{:06X} shapeshift={}",
-                context.interiorCellID, context.worldspaceID, static_cast<unsigned long long>(context.graphEpoch),
+                "Publishing context: cell={}|{:06X} worldspace={}|{:06X} graphEpoch={} furniture={}:{:06X} "
+                "shapeshift={}",
+                context.interiorCell.plugin, context.interiorCell.localFormID, context.worldspace.plugin,
+                context.worldspace.localFormID, static_cast<unsigned long long>(context.graphEpoch),
                 context.furniture.plugin, context.furniture.localFormID,
                 Multiplayer::GetShapeshiftName(context.shapeshift));
             Send(Wire::EncodeContext(context));

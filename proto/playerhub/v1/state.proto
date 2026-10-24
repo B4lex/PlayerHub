@@ -61,9 +61,9 @@ enum Shapeshift {
 }
 
 message Context {
-  // Zero in a worldspace, so crossing exterior cells leaves the context unchanged.
-  uint32 interior_cell_id = 1;
-  uint32 worldspace_id = 2;
+  // Unset in a worldspace, so crossing exterior cells leaves the context unchanged.
+  FormRef interior_cell = 1;
+  FormRef worldspace = 2;
   uint64 graph_epoch = 3;
   FormRef furniture = 4;
   Shapeshift shapeshift = 5;

@@ -2,6 +2,7 @@ package interest
 
 import (
 	"math"
+	"strings"
 	"time"
 
 	"playerhub/server/internal/wire/pb"
@@ -24,13 +25,21 @@ func DefaultConfig() Config {
 		CapHysteresis: 1024, NearDistance: 4096, FarRateHz: 10, MinimumViewRadius: 1024}
 }
 
+// Space is a worldspace or an interior cell, named by its plugin, which is lowercased
+// because the game matches plugin names without case. A context without either
+// reference is an interior with an empty name.
 type Space struct {
-	Worldspace uint32
-	Cell       uint32
+	Interior bool
+	Plugin   string
+	FormID   uint32
 }
 
 func SpaceOf(c *pb.Context) Space {
-	return Space{Worldspace: c.GetWorldspaceId(), Cell: c.GetInteriorCellId()}
+	if w := c.GetWorldspace(); w != nil {
+		return Space{Plugin: strings.ToLower(w.GetPlugin()), FormID: w.GetFormId()}
+	}
+	cell := c.GetInteriorCell()
+	return Space{Interior: true, Plugin: strings.ToLower(cell.GetPlugin()), FormID: cell.GetFormId()}
 }
 
 type View struct {

@@ -724,14 +724,14 @@ func (x *Checkpoint) GetTime() uint32 {
 
 type Context struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Zero in a worldspace, so crossing exterior cells leaves the context unchanged.
-	InteriorCellId uint32     `protobuf:"varint,1,opt,name=interior_cell_id,json=interiorCellId,proto3" json:"interior_cell_id,omitempty"`
-	WorldspaceId   uint32     `protobuf:"varint,2,opt,name=worldspace_id,json=worldspaceId,proto3" json:"worldspace_id,omitempty"`
-	GraphEpoch     uint64     `protobuf:"varint,3,opt,name=graph_epoch,json=graphEpoch,proto3" json:"graph_epoch,omitempty"`
-	Furniture      *FormRef   `protobuf:"bytes,4,opt,name=furniture,proto3" json:"furniture,omitempty"`
-	Shapeshift     Shapeshift `protobuf:"varint,5,opt,name=shapeshift,proto3,enum=playerhub.v1.Shapeshift" json:"shapeshift,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Unset in a worldspace, so crossing exterior cells leaves the context unchanged.
+	InteriorCell  *FormRef   `protobuf:"bytes,1,opt,name=interior_cell,json=interiorCell,proto3" json:"interior_cell,omitempty"`
+	Worldspace    *FormRef   `protobuf:"bytes,2,opt,name=worldspace,proto3" json:"worldspace,omitempty"`
+	GraphEpoch    uint64     `protobuf:"varint,3,opt,name=graph_epoch,json=graphEpoch,proto3" json:"graph_epoch,omitempty"`
+	Furniture     *FormRef   `protobuf:"bytes,4,opt,name=furniture,proto3" json:"furniture,omitempty"`
+	Shapeshift    Shapeshift `protobuf:"varint,5,opt,name=shapeshift,proto3,enum=playerhub.v1.Shapeshift" json:"shapeshift,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Context) Reset() {
@@ -764,18 +764,18 @@ func (*Context) Descriptor() ([]byte, []int) {
 	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *Context) GetInteriorCellId() uint32 {
+func (x *Context) GetInteriorCell() *FormRef {
 	if x != nil {
-		return x.InteriorCellId
+		return x.InteriorCell
 	}
-	return 0
+	return nil
 }
 
-func (x *Context) GetWorldspaceId() uint32 {
+func (x *Context) GetWorldspace() *FormRef {
 	if x != nil {
-		return x.WorldspaceId
+		return x.Worldspace
 	}
-	return 0
+	return nil
 }
 
 func (x *Context) GetGraphEpoch() uint64 {
@@ -1665,10 +1665,12 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\tdirection\x18\t \x01(\rR\tdirection\x12\x14\n" +
 	"\x05flags\x18\n" +
 	" \x01(\rR\x05flags\x12\x12\n" +
-	"\x04time\x18\v \x01(\rR\x04time\"\xe8\x01\n" +
-	"\aContext\x12(\n" +
-	"\x10interior_cell_id\x18\x01 \x01(\rR\x0einteriorCellId\x12#\n" +
-	"\rworldspace_id\x18\x02 \x01(\rR\fworldspaceId\x12\x1f\n" +
+	"\x04time\x18\v \x01(\rR\x04time\"\x8c\x02\n" +
+	"\aContext\x12:\n" +
+	"\rinterior_cell\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\finteriorCell\x125\n" +
+	"\n" +
+	"worldspace\x18\x02 \x01(\v2\x15.playerhub.v1.FormRefR\n" +
+	"worldspace\x12\x1f\n" +
 	"\vgraph_epoch\x18\x03 \x01(\x04R\n" +
 	"graphEpoch\x123\n" +
 	"\tfurniture\x18\x04 \x01(\v2\x15.playerhub.v1.FormRefR\tfurniture\x128\n" +
@@ -1878,43 +1880,45 @@ var file_playerhub_v1_state_proto_goTypes = []any{
 	(*Equipment)(nil),     // 20: playerhub.v1.Equipment
 }
 var file_playerhub_v1_state_proto_depIdxs = []int32{
-	7,  // 0: playerhub.v1.Context.furniture:type_name -> playerhub.v1.FormRef
-	2,  // 1: playerhub.v1.Context.shapeshift:type_name -> playerhub.v1.Shapeshift
-	3,  // 2: playerhub.v1.Attack.action:type_name -> playerhub.v1.AttackAction
-	4,  // 3: playerhub.v1.Attack.direction:type_name -> playerhub.v1.PowerDirection
-	10, // 4: playerhub.v1.Action.attack:type_name -> playerhub.v1.Attack
-	5,  // 5: playerhub.v1.Action.beast:type_name -> playerhub.v1.BeastAction
-	7,  // 6: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
-	12, // 7: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
-	7,  // 8: playerhub.v1.DefaultRace.race:type_name -> playerhub.v1.FormRef
-	7,  // 9: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
-	13, // 10: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
-	12, // 11: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
-	7,  // 12: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
-	12, // 13: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
-	14, // 14: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
-	15, // 15: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.DefaultRace
-	7,  // 16: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
-	6,  // 17: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
-	7,  // 18: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
-	7,  // 19: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
-	7,  // 20: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
-	17, // 21: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
-	18, // 22: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
-	7,  // 23: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
-	17, // 24: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
-	18, // 25: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
-	18, // 26: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
-	7,  // 27: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
-	19, // 28: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
-	18, // 29: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
-	18, // 30: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
-	17, // 31: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
-	32, // [32:32] is the sub-list for method output_type
-	32, // [32:32] is the sub-list for method input_type
-	32, // [32:32] is the sub-list for extension type_name
-	32, // [32:32] is the sub-list for extension extendee
-	0,  // [0:32] is the sub-list for field type_name
+	7,  // 0: playerhub.v1.Context.interior_cell:type_name -> playerhub.v1.FormRef
+	7,  // 1: playerhub.v1.Context.worldspace:type_name -> playerhub.v1.FormRef
+	7,  // 2: playerhub.v1.Context.furniture:type_name -> playerhub.v1.FormRef
+	2,  // 3: playerhub.v1.Context.shapeshift:type_name -> playerhub.v1.Shapeshift
+	3,  // 4: playerhub.v1.Attack.action:type_name -> playerhub.v1.AttackAction
+	4,  // 5: playerhub.v1.Attack.direction:type_name -> playerhub.v1.PowerDirection
+	10, // 6: playerhub.v1.Action.attack:type_name -> playerhub.v1.Attack
+	5,  // 7: playerhub.v1.Action.beast:type_name -> playerhub.v1.BeastAction
+	7,  // 8: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
+	12, // 9: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
+	7,  // 10: playerhub.v1.DefaultRace.race:type_name -> playerhub.v1.FormRef
+	7,  // 11: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
+	13, // 12: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
+	12, // 13: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
+	7,  // 14: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
+	12, // 15: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
+	14, // 16: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
+	15, // 17: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.DefaultRace
+	7,  // 18: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
+	6,  // 19: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
+	7,  // 20: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
+	7,  // 21: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
+	7,  // 22: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
+	17, // 23: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
+	18, // 24: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
+	7,  // 25: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
+	17, // 26: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
+	18, // 27: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
+	18, // 28: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
+	7,  // 29: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
+	19, // 30: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
+	18, // 31: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
+	18, // 32: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
+	17, // 33: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
+	34, // [34:34] is the sub-list for method output_type
+	34, // [34:34] is the sub-list for method input_type
+	34, // [34:34] is the sub-list for extension type_name
+	34, // [34:34] is the sub-list for extension extendee
+	0,  // [0:34] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_state_proto_init() }

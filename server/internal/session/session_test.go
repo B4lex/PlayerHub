@@ -158,7 +158,7 @@ func refused(t *testing.T, s *testServer, displayName string, token []byte) (web
 
 func place(c *client, x int32) {
 	c.send(&pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})
-	c.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 1}}})
+	c.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: 1}}})
 	c.send(&pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 1, X: x}}})
 }
 
@@ -167,14 +167,14 @@ func TestPlayersSeeEachOther(t *testing.T) {
 	a, slotA := join(t, s, "Lydia")
 	b, _ := join(t, s, "Serana")
 	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})
-	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 1}}})
+	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: 1}}})
 	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 1}}})
 
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})
-	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 1}}})
+	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: 1}}})
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 1, X: 10}}})
 	enter := b.receive().GetPeerEnter()
-	if enter == nil || enter.Slot != slotA || enter.State.GetX() != 10 || enter.Context.GetWorldspaceId() != 60 {
+	if enter == nil || enter.Slot != slotA || enter.State.GetX() != 10 || enter.Context.GetWorldspace().GetFormId() != 60 {
 		t.Fatalf("got %v", enter)
 	}
 

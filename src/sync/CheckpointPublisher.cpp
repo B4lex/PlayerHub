@@ -65,6 +65,7 @@ namespace CheckpointPublisher
         const auto movement
             = MovementSync::SampleLocalMovement(a_local, mount ? *mount : a_local.player, *cell, snapshotElapsed);
         const auto animationState = AnimationSync::SampleLocalAnimation(a_local, sequence, movement);
+        const auto& space = MovementSync::SampleLocalSpace(movement);
         auto furniture = FurnitureSync::SampleLocalFurniture(a_local, sequence);
         const auto handPresentation = CombatSync::SampleLocalHandPresentation();
         const bool dead = DeathSync::SampleLocalDeath(a_local, sequence);
@@ -86,8 +87,8 @@ namespace CheckpointPublisher
             .mistForm = vampireLord.mistForm,
             .bats = vampireLord.bats,
             .grounded = movement.grounded,
-            .cellID = movement.cellID,
-            .worldspaceID = movement.worldspaceID,
+            .interiorCell = space.interiorCell,
+            .worldspace = space.worldspace,
             .furniture = std::move(furniture),
             .shapeshift = ShapeshiftSync::GetLocalForm(),
             .graphEpoch = a_graphEpoch,

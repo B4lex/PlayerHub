@@ -16,6 +16,7 @@ import (
 	"playerhub/server/internal/recording"
 	"playerhub/server/internal/session"
 	"playerhub/server/internal/wire"
+	"playerhub/server/internal/wire/pb"
 	"playerhub/server/internal/world"
 )
 
@@ -78,6 +79,18 @@ func (t *rateTracker) forget(keep map[uint32]bool) {
 	}
 }
 
+type FormRef struct {
+	Plugin string `json:"plugin"`
+	FormID uint32 `json:"formId"`
+}
+
+func formRef(f *pb.FormRef) *FormRef {
+	if f == nil {
+		return nil
+	}
+	return &FormRef{f.GetPlugin(), f.GetFormId()}
+}
+
 type Position struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
@@ -91,8 +104,8 @@ type Player struct {
 	Virtual           bool      `json:"virtual"`
 	InWorld           bool      `json:"inWorld"`
 	ConnectedAtMs     *float64  `json:"connectedAtMs"`
-	CellID            *uint32   `json:"cellId"`
-	WorldspaceID      *uint32   `json:"worldspaceId"`
+	InteriorCell      *FormRef  `json:"interiorCell"`
+	Worldspace        *FormRef  `json:"worldspace"`
 	Position          *Position `json:"position"`
 	MovementState     *string   `json:"movementState"`
 	Visible           int       `json:"visible"`
@@ -195,7 +208,7 @@ func (c *Context) players() ([]Player, []Exclusion) {
 				player.BytesPerSecond, player.ReplacedPerSecond = c.rates.rates(p.Slot, now, written, replaced)
 			}
 			if p.Context != nil {
-				player.CellID, player.WorldspaceID = optional(p.Context.InteriorCellId), optional(p.Context.WorldspaceId)
+				player.InteriorCell, player.Worldspace = formRef(p.Context.InteriorCell), formRef(p.Context.Worldspace)
 			}
 			if c := p.Checkpoint; c != nil {
 				x, y, z := wire.Position(c)

@@ -17,15 +17,15 @@ func quietLog() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-const testRecording = `{"type":"header","format":"playerhub-recording","version":5,"id":"20260921-101500-abc123","label":"Test capture","playerId":"player-1","playerName":"Lydia Stormblade","startedAt":"2026-09-21T10:15:00Z"}
+const testRecording = `{"type":"header","format":"playerhub-recording","version":6,"id":"20260921-101500-abc123","label":"Test capture","playerId":"player-1","playerName":"Lydia Stormblade","startedAt":"2026-09-21T10:15:00Z"}
 {"type":"message","t":0,"message":{"appearance":{"revision":"1","name":"Lydia Stormblade","level":12,"race":{"plugin":"Skyrim.esm","formId":79686},"female":true,"weight":42.5,"height":1,"headParts":[{"form":{"plugin":"Skyrim.esm","formId":333173},"type":1}],"hairColor":{"r":59,"g":42,"b":30},"bodyTint":{"r":222,"g":188,"b":170},"faceMorphs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3.4028235e+38],"faceParts":[0,1,-1,2],"tints":[{"index":44,"type":6,"color":{"r":1,"g":2,"b":3},"alpha":0.5}],"defaultRace":{"race":{"plugin":"Skyrim.esm","formId":1},"female":true}}}}
 {"type":"message","t":0,"message":{"equipment":{"revision":"1","armor":[{"form":{"plugin":"Skyrim.esm","formId":77385},"slotMask":4}],"rightHand":{"kind":"HAND_KIND_WEAPON","form":{"plugin":"Skyrim.esm","formId":77495},"weaponType":1},"leftHand":{"kind":"HAND_KIND_SPELL"},"defaultOutfit":{"hands":[{"kind":"HAND_KIND_TORCH","form":{"plugin":"Skyrim.esm","formId":2}}]}}}}
 {"type":"message","t":0,"message":{"enter":{}}}
-{"type":"message","t":50,"message":{"context":{"worldspaceId":60,"graphEpoch":"1"}}}
+{"type":"message","t":50,"message":{"context":{"worldspace":{"plugin":"Skyrim.esm","formId":60},"graphEpoch":"1"}}}
 {"type":"message","t":50,"message":{"checkpoint":{"sequence":"1","x":6,"y":10,"z":-14,"heading":2048,"pitch":102,"speed":400,"direction":128,"flags":18}}}
 {"type":"message","t":100,"message":{"checkpoint":{"sequence":"2","x":20,"y":8,"z":12,"flags":16}}}
 {"type":"message","t":120,"message":{"action":{"actionSequence":"1","graphEpoch":"1","checkpointSequence":"2","attack":{"action":"ATTACK_ACTION_DUAL","direction":"POWER_DIRECTION_LEFT"}}}}
-{"type":"message","t":150,"message":{"context":{"interiorCellId":7,"graphEpoch":"1","furniture":{"plugin":"Skyrim.esm","formId":9}}}}
+{"type":"message","t":150,"message":{"context":{"interiorCell":{"plugin":"Skyrim.esm","formId":7},"graphEpoch":"1","furniture":{"plugin":"Skyrim.esm","formId":9}}}}
 {"type":"message","t":150,"message":{"checkpoint":{"sequence":"3","x":20,"y":8,"z":12}}}
 {"type":"end","t":200,"reason":"stopped"}
 `
@@ -50,7 +50,7 @@ func TestParse(t *testing.T) {
 		a.GetDirection() != pb.PowerDirection_POWER_DIRECTION_LEFT {
 		t.Fatalf("action parsed as %v", a)
 	}
-	if c := r.Messages[7].Message.GetContext(); c.InteriorCellId != 7 || c.Furniture.GetFormId() != 9 {
+	if c := r.Messages[7].Message.GetContext(); c.GetInteriorCell().GetFormId() != 7 || c.Furniture.GetFormId() != 9 {
 		t.Fatalf("context parsed as %v", c)
 	}
 }
@@ -73,8 +73,8 @@ func TestParseToleratesATornLastLine(t *testing.T) {
 
 func TestParseRejectsOtherVersions(t *testing.T) {
 	var recordingError *Error
-	older := strings.Replace(testRecording, `"version":5`, `"version":4`, 1)
-	if _, err := Parse([]byte(older)); !errors.As(err, &recordingError) || !strings.Contains(err.Error(), "version 4") {
+	older := strings.Replace(testRecording, `"version":6`, `"version":5`, 1)
+	if _, err := Parse([]byte(older)); !errors.As(err, &recordingError) || !strings.Contains(err.Error(), "version 5") {
 		t.Fatalf("got %v", err)
 	}
 }
@@ -88,7 +88,7 @@ func TestMarkers(t *testing.T) {
 	for _, m := range Markers(r) {
 		labels = append(labels, m.Kind+": "+m.Label)
 	}
-	want := "attack: Power dual attack (left)|furniture: Started using furniture|area: Entered interior 0x00000007|weapon: Weapon sheathed"
+	want := "attack: Power dual attack (left)|furniture: Started using furniture|area: Entered interior Skyrim.esm:0x000007|weapon: Weapon sheathed"
 	if got := strings.Join(labels, "|"); got != want {
 		t.Fatalf("got %s", got)
 	}
@@ -117,7 +117,7 @@ func TestCaptureLifecycle(t *testing.T) {
 	now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
 	initial := []*pb.ClientMessage{
 		{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}},
-		{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 1}}},
+		{Message: &pb.ClientMessage_Context{Context: &pb.Context{Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: 1}}},
 		{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 4}}},
 	}
 	info, err := captures.Start(3, "Lydia", "", initial, now)

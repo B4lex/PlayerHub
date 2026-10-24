@@ -54,8 +54,8 @@ namespace Network
 
     struct CheckpointContext
     {
-        std::uint32_t interiorCellID{ 0 };
-        std::uint32_t worldspaceID{ 0 };
+        Multiplayer::FormReference interiorCell;
+        Multiplayer::FormReference worldspace;
         std::uint64_t graphEpoch{ 0 };
         Multiplayer::FormReference furniture;
         Multiplayer::Shapeshift shapeshift{ Multiplayer::Shapeshift::kNone };
@@ -80,8 +80,8 @@ namespace Network
 
     [[nodiscard]] inline CheckpointContext GetCheckpointContext(const PlayerTransform& a_transform)
     {
-        return CheckpointContext{ .interiorCellID = a_transform.worldspaceID == 0 ? a_transform.cellID : 0,
-            .worldspaceID = a_transform.worldspaceID,
+        return CheckpointContext{ .interiorCell = a_transform.interiorCell,
+            .worldspace = a_transform.worldspace,
             .graphEpoch = a_transform.graphEpoch,
             .furniture = a_transform.furniture,
             .shapeshift = a_transform.shapeshift };
@@ -174,8 +174,8 @@ namespace Network
             .mistForm = (flags & kMistForm) != 0,
             .bats = (flags & kBats) != 0,
             .grounded = (flags & kGrounded) != 0,
-            .cellID = a_context.interiorCellID,
-            .worldspaceID = a_context.worldspaceID,
+            .interiorCell = a_context.interiorCell,
+            .worldspace = a_context.worldspace,
             .furniture = a_context.furniture,
             .shapeshift = a_context.shapeshift,
             .graphEpoch = a_context.graphEpoch,

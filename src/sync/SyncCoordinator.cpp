@@ -59,6 +59,8 @@ namespace SyncCoordinator
             return RemoteFrame{ .playerID = a_playerID,
                 .checkpoint = checkpoint,
                 .pose = a_peer.playout.GetPose(),
+                .cellID = a_peer.space.cellID,
+                .worldspaceID = a_peer.space.worldspaceID,
                 .furnitureRefID = a_peer.furniture.refID };
         }
 
@@ -94,6 +96,7 @@ namespace SyncCoordinator
             a_peer.lifecycle = {};
             a_peer.combat = {};
             a_peer.shapeshift = {};
+            a_peer.space = {};
             a_peer.furniture = {};
             a_peer.playout.Reset();
             a_peer.appliedSequence = 0;
@@ -182,6 +185,7 @@ namespace SyncCoordinator
             for (auto& [playerID, peer] : a_peers)
             {
                 peer.playout.Advance(playerID, now, [&peer](const CheckpointUpdate& a_update) {
+                    MovementSync::OnCheckpointPlayed(peer.space, a_update);
                     FurnitureSync::OnCheckpointPlayed(peer.furniture, a_update);
                     AnimationSync::OnCheckpointPlayed(a_update);
                     CombatSync::OnCheckpointPlayed(peer.combat, a_update);

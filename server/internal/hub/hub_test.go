@@ -72,7 +72,7 @@ func exit() *pb.ClientMessage {
 }
 
 func contextMessage(epoch uint64, furniture bool) *pb.ClientMessage {
-	c := &pb.Context{WorldspaceId: 60, GraphEpoch: epoch}
+	c := &pb.Context{Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: epoch}
 	if furniture {
 		c.Furniture = &pb.FormRef{Plugin: "Skyrim.esm", FormId: 1}
 	}
@@ -91,7 +91,7 @@ func checkpointAt(sequence uint64, x int32) *pb.ClientMessage {
 }
 
 func worldspace(epoch uint64, worldspace uint32) *pb.ClientMessage {
-	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: worldspace, GraphEpoch: epoch}}}
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: worldspace}, GraphEpoch: epoch}}}
 }
 
 func action(sequence, anchor uint64) *pb.ClientMessage {
@@ -102,7 +102,7 @@ func action(sequence, anchor uint64) *pb.ClientMessage {
 
 func shapeshift(epoch uint64, form pb.Shapeshift) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{
-		WorldspaceId: 60, GraphEpoch: epoch, Shapeshift: form}}}
+		Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: epoch, Shapeshift: form}}}
 }
 
 func beastAction(sequence, epoch, anchor uint64, beast pb.BeastAction) *pb.ClientMessage {
@@ -145,7 +145,7 @@ func inspect(slot uint32) *pb.ClientMessage {
 }
 
 func interior(epoch uint64, cell uint32) *pb.ClientMessage {
-	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{InteriorCellId: cell, GraphEpoch: epoch}}}
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{InteriorCell: &pb.FormRef{Plugin: "Skyrim.esm", FormId: cell}, GraphEpoch: epoch}}}
 }
 
 func (f *fixture) place(slot uint32, sequence uint64) {

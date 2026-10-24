@@ -99,7 +99,7 @@ func (p *Player) SetContext(c *pb.Context) (ContextChange, error) {
 		if sameContext(p.Context, c) {
 			return ContextUnchanged, nil
 		}
-		if p.Context.GetInteriorCellId() != c.GetInteriorCellId() || p.Context.GetWorldspaceId() != c.GetWorldspaceId() {
+		if !sameFormRef(p.Context.InteriorCell, c.InteriorCell) || !sameFormRef(p.Context.Worldspace, c.Worldspace) {
 			change = ContextMoved
 			p.Checkpoint = nil
 			p.Entry = nil
@@ -171,11 +171,12 @@ func (p *Player) SetEquipment(e *pb.Equipment) error {
 }
 
 func sameContext(a, b *pb.Context) bool {
-	if a.GetInteriorCellId() != b.GetInteriorCellId() || a.GetWorldspaceId() != b.GetWorldspaceId() ||
-		a.GetGraphEpoch() != b.GetGraphEpoch() || a.GetShapeshift() != b.GetShapeshift() ||
-		(a.Furniture == nil) != (b.Furniture == nil) {
-		return false
-	}
-	return a.Furniture == nil ||
-		(a.Furniture.GetPlugin() == b.Furniture.GetPlugin() && a.Furniture.GetFormId() == b.Furniture.GetFormId())
+	return sameFormRef(a.InteriorCell, b.InteriorCell) && sameFormRef(a.Worldspace, b.Worldspace) &&
+		a.GetGraphEpoch() == b.GetGraphEpoch() && a.GetShapeshift() == b.GetShapeshift() &&
+		sameFormRef(a.Furniture, b.Furniture)
+}
+
+// sameFormRef compares one client's references, which spell a plugin the same way each time.
+func sameFormRef(a, b *pb.FormRef) bool {
+	return (a == nil) == (b == nil) && a.GetPlugin() == b.GetPlugin() && a.GetFormId() == b.GetFormId()
 }

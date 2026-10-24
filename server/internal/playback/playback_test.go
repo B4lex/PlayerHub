@@ -73,7 +73,7 @@ func timeline() *recording.Recording {
 	add(0, &pb.ClientMessage{Message: &pb.ClientMessage_Appearance{Appearance: &pb.Appearance{Revision: 7, Name: "Lydia"}}})
 	add(0, &pb.ClientMessage{Message: &pb.ClientMessage_Equipment{Equipment: &pb.Equipment{Revision: 9}}})
 	add(0, &pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})
-	add(0, &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 5}}})
+	add(0, &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: 5}}})
 	for t := int64(0); t <= 1000; t += 100 {
 		add(t, &pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{
 			Sequence: uint64(t + 1000), X: int32(t / 10), Speed: 300, Flags: 2}}})
@@ -205,7 +205,7 @@ func TestOutOfWorldStretchesExit(t *testing.T) {
 		message(0, &pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 1, X: 1, Speed: 1}}}),
 		message(100, &pb.ClientMessage{Message: &pb.ClientMessage_Exit{Exit: &pb.Exit{}}}),
 		message(300, &pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}}),
-		message(300, &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{InteriorCellId: 7, GraphEpoch: 6}}}),
+		message(300, &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{InteriorCell: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 7}, GraphEpoch: 6}}}),
 		message(400, &pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 2, X: 2, Speed: 1}}}),
 	}...)
 	s, p, clock := newSession(t, r, Options{Autoplay: false, StartMs: 200})

@@ -46,8 +46,12 @@
   `TradeAccept`, `PeerAction`, `PeerContext`, `PeerEnter`, and
   `PeerAppearance`, rejecting an action without a kind, an unspecified beast
   action, a context with both an interior cell and a worldspace, a speaker
-  without a name, and an unknown rejection. Not built on Windows or run in
-  game.
+  without a name, and an unknown rejection. Protocol 14's `Context` was
+  checked the same way against Go's encoding: contexts with a worldspace, with
+  an interior cell and furniture, and with neither decoded in Go and passed
+  `validate.Context`, and Go-encoded `PeerContext` and `PeerEnter` decoded,
+  while a context with both, an empty cell plugin, or a worldspace `form_id`
+  above 24 bits was rejected. Not built on Windows or run in game.
   `ConnectionMonitor.cpp` ran against a stubbed transport and configuration
   under the settings window's harness ([UI overlay](ui-overlay.md#status)):
   a game start with and without a display name, `ConnectAutomatically`, an
@@ -134,7 +138,7 @@ refused at the handshake ([Transport](#transport)).
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
   within `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (13) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (14) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
@@ -217,7 +221,7 @@ context.
 
 | `Context` field | Validation |
 | --- | --- |
-| `interior_cell_id`, `worldspace_id` | any `uint32`; worldspace `0` is an interior. `interior_cell_id` must be `0` with a worldspace (`Network::GetCheckpointContext` sends none), so crossing exterior cells changes no field |
+| `interior_cell`, `worldspace` | [form references](#form-references) of the interior cell the player is in, or of the worldspace outside; never both. `interior_cell` is unset in a worldspace, so crossing exterior cells changes no field. Both are unset in a space without a form reference |
 | `graph_epoch` | `>= 1`, never decreasing while in the world |
 | `furniture` | occupied placed reference as a [form reference](#form-references), unset for none |
 | `shapeshift` | `NONE`, `WEREWOLF`, `VAMPIRE_LORD`, or `WEREBEAR`: the vanilla beast form the player is in ([Appearance and equipment](appearance-and-equipment.md#shapeshifts)) |
@@ -293,7 +297,7 @@ per connection). Capture, resolution, and fallbacks are in
 
 ### Form references
 
-Items, races, head parts, and furniture are `FormRef{plugin, form_id}`: the
+Items, races, head parts, furniture, cells, and worldspaces are `FormRef{plugin, form_id}`: the
 file that defines the form and its file-local ID (the low 24 bits, or 12 for a
 light plugin). A receiver resolves by plugin name, so load orders need not
 match. Plugin names are 1..260 bytes and `form_id` is `0..0xFFFFFF`. Dynamic
@@ -1088,5 +1092,7 @@ window, and are empty after a long gap. The status panel shows them.
 - Chat has no history for late joiners.
 - The roster tells every client the display name of every connected player,
   wherever they are, and its session ID. It carries no level.
-- Cell and worldspace IDs need matching load orders.
+- Form references, spaces included, match only between peers that load the
+  defining plugin under the same file name: a merged or renamed plugin is
+  another plugin.
 - Non-goals: server authority over movement, anti-cheat, and UDP.

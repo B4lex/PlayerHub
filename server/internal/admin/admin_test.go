@@ -153,13 +153,13 @@ func TestCaptureAndReplay(t *testing.T) {
 	a := s.join("Lydia")
 	b := s.join("Serana")
 	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})
-	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 1}}})
+	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: 1}}})
 	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 1}}})
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Appearance{Appearance: &pb.Appearance{
 		Revision: 1, Race: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 1}, Weight: 50, Height: 1,
 		BodyTint: &pb.Color{}, FaceMorphs: make([]float32, 19), FaceParts: make([]int32, 4)}}})
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})
-	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 3}}})
+	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: 3}}})
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 1, X: 5}}})
 	b.until(func(m *pb.ServerMessage) bool { return m.GetPeerEnter() != nil })
 
@@ -197,7 +197,7 @@ func TestCaptureAndReplay(t *testing.T) {
 	enter := b.until(func(m *pb.ServerMessage) bool {
 		return m.GetPeerEnter() != nil && m.GetPeerEnter().Slot != a.slot
 	}).GetPeerEnter()
-	if enter.Appearance.GetName() != "Lydia" || enter.State.GetX() != 5 || enter.Context.GetWorldspaceId() != 60 {
+	if enter.Appearance.GetName() != "Lydia" || enter.State.GetX() != 5 || enter.Context.GetWorldspace().GetFormId() != 60 {
 		t.Fatalf("replayed peer: %v", enter)
 	}
 	if status := s.call("DELETE", "/api/playbacks/"+replay.ID, nil, nil); status != 204 {
@@ -350,7 +350,7 @@ func TestIssuedSessionsSkipTheAllowance(t *testing.T) {
 
 func (p *player) place(x int32) {
 	p.send(&pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})
-	p.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: 60, GraphEpoch: 1}}})
+	p.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: 1}}})
 	p.send(&pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 1, X: x}}})
 }
 

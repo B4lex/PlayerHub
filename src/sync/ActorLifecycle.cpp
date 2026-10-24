@@ -72,9 +72,8 @@ namespace ActorLifecycle
     bool HasChangedSpawnedSpace(const PeerState& a_peer)
     {
         return a_peer.lifecycle.actor
-            && !MovementSync::IsSameCoordinateSpace(a_peer.playout.GetPlayed().cellID,
-                a_peer.playout.GetPlayed().worldspaceID, a_peer.lifecycle.spawnedCellID,
-                a_peer.lifecycle.spawnedWorldspaceID);
+            && !MovementSync::IsSameCoordinateSpace(a_peer.space.cellID, a_peer.space.worldspaceID,
+                a_peer.lifecycle.spawnedCellID, a_peer.lifecycle.spawnedWorldspaceID);
     }
 
     void RetireForAppearanceChange(const RemoteFrame& a_remote, PeerState& a_peer)
@@ -106,7 +105,7 @@ namespace ActorLifecycle
             "Recycling remote player actor {} actor {:08X} after coordinate-space change: spawnedCell={:08X} "
             "spawnedWorld={:08X} targetCell={:08X} targetWorld={:08X} localCell={:08X} localWorld={:08X}",
             a_remote.playerID, actorHandle, a_peer.lifecycle.spawnedCellID, a_peer.lifecycle.spawnedWorldspaceID,
-            a_remote.checkpoint.cellID, a_remote.checkpoint.worldspaceID, a_localCellID, a_localWorldspaceID);
+            a_remote.cellID, a_remote.worldspaceID, a_localCellID, a_localWorldspaceID);
     }
 
     void RetireWhenStranded(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
@@ -306,8 +305,8 @@ namespace ActorLifecycle
         EquipmentSync::OnActorSpawned(a_peer.equipment);
         FurnitureSync::OnActorSpawned(a_remote, *lifecycle.actor);
         a_peer.appliedSequence = a_remote.checkpoint.sequence;
-        lifecycle.spawnedCellID = a_remote.checkpoint.cellID;
-        lifecycle.spawnedWorldspaceID = a_remote.checkpoint.worldspaceID;
+        lifecycle.spawnedCellID = a_remote.cellID;
+        lifecycle.spawnedWorldspaceID = a_remote.worldspaceID;
 
         logs::debug(
             "Allocated remote player actor {} as actor {:08X} at transform sequence={} with target animation "

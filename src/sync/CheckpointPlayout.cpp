@@ -63,7 +63,7 @@ namespace
     bool CanInterpolate(const Network::PlayerTransform& a_from, const Network::PlayerTransform& a_to)
     {
         return a_from.mounted == a_to.mounted
-            && MovementSync::IsSameCoordinateSpace(a_from.cellID, a_from.worldspaceID, a_to.cellID, a_to.worldspaceID)
+            && MovementSync::IsSameCoordinateSpace(a_from, a_to)
             && GetPosition(a_from).GetDistance(GetPosition(a_to)) <= MovementSync::kRelocationDistance;
     }
 }

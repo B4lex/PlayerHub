@@ -40,10 +40,10 @@ func TestCheckpoint(t *testing.T) {
 }
 
 func TestContext(t *testing.T) {
-	if err := Context(&pb.Context{InteriorCellId: 0xFFFFFFFF, GraphEpoch: 1}); err != nil {
+	if err := Context(&pb.Context{InteriorCell: ref("Skyrim.esm", 0xFFFFFF), GraphEpoch: 1}); err != nil {
 		t.Fatal(err)
 	}
-	if err := Context(&pb.Context{WorldspaceId: 0x3C, GraphEpoch: 1}); err != nil {
+	if err := Context(&pb.Context{Worldspace: ref("Skyrim.esm", 0x3C), GraphEpoch: 1}); err != nil {
 		t.Fatal(err)
 	}
 	if err := Context(&pb.Context{GraphEpoch: 1, Furniture: ref("Skyrim.esm", 0xFFFFFF)}); err != nil {
@@ -54,7 +54,10 @@ func TestContext(t *testing.T) {
 	}
 	for name, c := range map[string]*pb.Context{
 		"zero graph epoch":      {},
-		"cell in a worldspace":  {InteriorCellId: 5, WorldspaceId: 0x3C, GraphEpoch: 1},
+		"cell in a worldspace":  {InteriorCell: ref("Skyrim.esm", 5), Worldspace: ref("Skyrim.esm", 0x3C), GraphEpoch: 1},
+		"empty cell plugin":     {GraphEpoch: 1, InteriorCell: ref("", 5)},
+		"long worldspace":       {GraphEpoch: 1, Worldspace: ref(strings.Repeat("a", 261), 0x3C)},
+		"cell above 24 bits":    {GraphEpoch: 1, InteriorCell: ref("Skyrim.esm", 0x1000000)},
 		"empty furniture":       {GraphEpoch: 1, Furniture: ref("", 1)},
 		"long plugin":           {GraphEpoch: 1, Furniture: ref(strings.Repeat("a", 261), 1)},
 		"form ID above 24 bits": {GraphEpoch: 1, Furniture: ref("Skyrim.esm", 0x1000000)},

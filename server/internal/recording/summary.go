@@ -82,10 +82,8 @@ func Markers(r *Recording) []Marker {
 					}
 					markers = append(markers, Marker{m.TMs, "shapeshift", label})
 				}
-				kind, id := area(c)
-				previousKind, previousID := area(previousContext)
-				if kind != previousKind || id != previousID {
-					markers = append(markers, Marker{m.TMs, "area", fmt.Sprintf("Entered %s 0x%08x", kind, id)})
+				if label := area(c); label != area(previousContext) {
+					markers = append(markers, Marker{m.TMs, "area", "Entered " + label})
 				}
 			}
 			previousContext = c
@@ -94,11 +92,12 @@ func Markers(r *Recording) []Marker {
 	return markers
 }
 
-func area(c *pb.Context) (string, uint32) {
-	if c.WorldspaceId != 0 {
-		return "worldspace", c.WorldspaceId
+func area(c *pb.Context) string {
+	if w := c.GetWorldspace(); w != nil {
+		return fmt.Sprintf("worldspace %s:0x%06x", w.GetPlugin(), w.GetFormId())
 	}
-	return "interior", c.InteriorCellId
+	cell := c.GetInteriorCell()
+	return fmt.Sprintf("interior %s:0x%06x", cell.GetPlugin(), cell.GetFormId())
 }
 
 func enumLabel(value, prefix string) string {

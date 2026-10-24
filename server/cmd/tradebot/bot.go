@@ -36,8 +36,20 @@ const (
 	modeLeave
 )
 
+type formKey struct {
+	plugin string
+	id     uint32
+}
+
+func (k formKey) ref() *pb.FormRef {
+	if k.plugin == "" {
+		return nil
+	}
+	return &pb.FormRef{Plugin: k.plugin, FormId: k.id}
+}
+
 type space struct {
-	cell, worldspace uint32
+	cell, worldspace formKey
 }
 
 type vec struct {
@@ -162,7 +174,7 @@ func (b *bot) locate(players []adminclient.Player) {
 		}
 		return
 	}
-	if !found.InWorld || found.Position == nil || found.CellID == nil || found.WorldspaceID == nil {
+	if !found.InWorld || found.Position == nil {
 		t.located = false
 		return
 	}
@@ -170,7 +182,13 @@ func (b *bot) locate(players []adminclient.Player) {
 		return
 	}
 	t.located = true
-	t.space = space{*found.CellID, *found.WorldspaceID}
+	t.space = space{}
+	if c := found.InteriorCell; c != nil {
+		t.space.cell = formKey{c.Plugin, c.FormID}
+	}
+	if w := found.Worldspace; w != nil {
+		t.space.worldspace = formKey{w.Plugin, w.FormID}
+	}
 	t.pos = vec{found.Position.X, found.Position.Y, found.Position.Z}
 }
 
@@ -191,7 +209,8 @@ func (b *bot) observe(c *pb.Checkpoint) {
 }
 
 func (b *bot) observeContext(c *pb.Context) {
-	b.target.space = space{c.GetInteriorCellId(), c.GetWorldspaceId()}
+	b.target.space = space{formKey{c.GetInteriorCell().GetPlugin(), c.GetInteriorCell().GetFormId()},
+		formKey{c.GetWorldspace().GetPlugin(), c.GetWorldspace().GetFormId()}}
 }
 
 func (b *bot) handlePeer(m *pb.ServerMessage) bool {
@@ -295,7 +314,7 @@ func (b *bot) teleport() {
 	if !b.placed || b.space != t.space {
 		b.space = t.space
 		b.post(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{
-			InteriorCellId: b.space.cell, WorldspaceId: b.space.worldspace, GraphEpoch: 1}}})
+			InteriorCell: b.space.cell.ref(), Worldspace: b.space.worldspace.ref(), GraphEpoch: 1}}})
 	}
 	if !b.placed {
 		say("standing in front of %s", t.name)

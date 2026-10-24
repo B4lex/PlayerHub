@@ -13,7 +13,7 @@
 /* Enum definitions */
 typedef enum _playerhub_v1_Protocol {
     playerhub_v1_Protocol_PROTOCOL_UNSPECIFIED = 0,
-    playerhub_v1_Protocol_PROTOCOL_VERSION = 13
+    playerhub_v1_Protocol_PROTOCOL_VERSION = 14
 } playerhub_v1_Protocol;
 
 typedef enum _playerhub_v1_ChatChannel {
@@ -1120,8 +1120,8 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_Inspection_size             561
 #define playerhub_v1_PeerAction_size             47
 #define playerhub_v1_PeerAppearance_size         8141
-#define playerhub_v1_PeerContext_size            306
-#define playerhub_v1_PeerEnter_size              27526
+#define playerhub_v1_PeerContext_size            838
+#define playerhub_v1_PeerEnter_size              28058
 #define playerhub_v1_PeerEquipment_size          19018
 #define playerhub_v1_PeerLeave_size              8
 #define playerhub_v1_Ping_size                   6

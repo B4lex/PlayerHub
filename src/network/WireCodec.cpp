@@ -147,8 +147,6 @@ namespace Network::Wire
 
         bool ReadContext(const playerhub_v1_Context& a_context, CheckpointContext& a_result)
         {
-            a_result.interiorCellID = a_context.interior_cell_id;
-            a_result.worldspaceID = a_context.worldspace_id;
             a_result.graphEpoch = a_context.graph_epoch;
             static_assert(static_cast<int>(Multiplayer::kMaximumShapeshift) == playerhub_v1_Shapeshift_SHAPESHIFT_WEREBEAR);
             if (a_context.shapeshift < playerhub_v1_Shapeshift_SHAPESHIFT_NONE
@@ -157,7 +155,10 @@ namespace Network::Wire
                 return false;
             }
             a_result.shapeshift = static_cast<Multiplayer::Shapeshift>(a_context.shapeshift);
-            return a_result.graphEpoch != 0 && (a_result.worldspaceID == 0 || a_result.interiorCellID == 0)
+            return a_result.graphEpoch != 0 && !(a_context.has_interior_cell && a_context.has_worldspace)
+                && ReadOptionalFormReference(
+                    a_context.has_interior_cell, a_context.interior_cell, a_result.interiorCell)
+                && ReadOptionalFormReference(a_context.has_worldspace, a_context.worldspace, a_result.worldspace)
                 && ReadOptionalFormReference(a_context.has_furniture, a_context.furniture, a_result.furniture);
         }
 
@@ -879,11 +880,11 @@ namespace Network::Wire
     std::string EncodeContext(const CheckpointContext& a_context)
     {
         playerhub_v1_Context context = playerhub_v1_Context_init_zero;
-        context.interior_cell_id = a_context.interiorCellID;
-        context.worldspace_id = a_context.worldspaceID;
         context.graph_epoch = a_context.graphEpoch;
         context.shapeshift = static_cast<playerhub_v1_Shapeshift>(a_context.shapeshift);
-        if (!WriteOptionalFormReference(a_context.furniture, context.has_furniture, context.furniture))
+        if (!WriteOptionalFormReference(a_context.interiorCell, context.has_interior_cell, context.interior_cell)
+            || !WriteOptionalFormReference(a_context.worldspace, context.has_worldspace, context.worldspace)
+            || !WriteOptionalFormReference(a_context.furniture, context.has_furniture, context.furniture))
         {
             return {};
         }

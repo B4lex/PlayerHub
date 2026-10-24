@@ -57,6 +57,9 @@ type member struct {
 	nearby         map[uint32]uint64
 	nearbyDue      time.Time
 
+	// The context view.Space was taken from, so a checkpoint recomputes it only after a change.
+	spaceContext *pb.Context
+
 	changed     bool
 	distributed *pb.Checkpoint
 	forceNext   bool
@@ -569,7 +572,10 @@ func (h *Hub) setCheckpoint(m *member, c *pb.Checkpoint, message *pb.ClientMessa
 	}
 	h.record(m.Slot, message)
 	h.opts.OnChange()
-	m.view.Space = interest.SpaceOf(m.Context)
+	if m.spaceContext != m.Context {
+		m.spaceContext = m.Context
+		m.view.Space = interest.SpaceOf(m.Context)
+	}
 	m.view.X, m.view.Y, _ = wire.Position(c)
 	h.grid.Update(&m.view)
 	nearby := nearbyView(&m.view)
@@ -731,12 +737,12 @@ func (h *Hub) hearsNearby(r, sender *member) bool {
 		return false
 	}
 	dx, dy := r.view.X-sender.view.X, r.view.Y-sender.view.Y
-	return r.view.Space.Worldspace == 0 || dx*dx+dy*dy <= h.opts.ChatNearbyRadius*h.opts.ChatNearbyRadius
+	return r.view.Space.Interior || dx*dx+dy*dy <= h.opts.ChatNearbyRadius*h.opts.ChatNearbyRadius
 }
 
 // nearbyView places a whole interior in one cell of nearbyGrid, since Nearby chat ignores distance there.
 func nearbyView(v *interest.View) interest.View {
-	if v.Space.Worldspace == 0 {
+	if v.Space.Interior {
 		return interest.View{Slot: v.Slot, Space: v.Space}
 	}
 	return interest.View{Slot: v.Slot, Space: v.Space, X: v.X, Y: v.Y}

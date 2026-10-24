@@ -112,7 +112,9 @@ rule here.
   nothing but are seen like any peer.
 - The rules for a pair, in order:
   1. Different coordinate spaces never see each other. A worldspace compares
-     by worldspace ID; an interior (worldspace 0) by exact cell ID.
+     by its form reference and an interior by its cell's, with plugin names
+     compared without case (`interest.Space`, which a member recomputes only
+     when its context changes; [Network](network.md#form-references)).
   2. Exclusions: a player hidden by an admin is seen by nobody (it still sees
      others), an excluded directed pair never sees, and a viewer never sees a
      session it vanished (`interest.Vanished`, from `View.Vanished`, matched
@@ -307,4 +309,3 @@ written, a sign of a slow link), and every exclusion.
 - Exclusions and hiding are keyed by slot and last only for a connection;
   product rules such as block lists, parties, or instances would key them by
   session.
-- Spaces compare by load-order form IDs, like the client.

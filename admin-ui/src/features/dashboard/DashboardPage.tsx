@@ -8,7 +8,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { PageHeader } from "../../components/PageHeader";
 import { Panel } from "../../components/Panel";
 import { StatTile } from "../../components/StatTile";
-import { formatBytes, formatFormId, formatTimestamp, plural, shortId } from "../../lib/format";
+import { formatBytes, formatFormRef, formatTimestamp, plural, shortId } from "../../lib/format";
 import { useTicker } from "../../lib/useTicker";
 import { useServerState } from "../../state/ServerState";
 import { useAction } from "../../state/useAction";
@@ -22,10 +22,9 @@ function humanize(name: string): string {
 }
 
 function describeLocation(player: Player): string {
-  if (player.cellId === null || player.worldspaceId === null) return "—";
-  return player.worldspaceId !== 0
-    ? `Worldspace ${formatFormId(player.worldspaceId)}`
-    : `Interior ${formatFormId(player.cellId)}`;
+  if (player.worldspace !== null) return `Worldspace ${formatFormRef(player.worldspace)}`;
+  if (player.interiorCell !== null) return `Interior ${formatFormRef(player.interiorCell)}`;
+  return "—";
 }
 
 function describePosition(player: Player): string {

@@ -1,3 +1,5 @@
+import type { FormRef } from "../api/types";
+
 /** `1:05` or `1:05.3`; hours only when needed. */
 export function formatTimestamp(ms: number, tenths = false): string {
   // Integer arithmetic: deriving the fraction from float seconds shows 65.3 s as 65.2.
@@ -42,8 +44,8 @@ export function formatDateTime(iso: string): string {
 }
 
 /** A Skyrim form ID as the game shows it. */
-export function formatFormId(id: number): string {
-  return `0x${id.toString(16).toUpperCase().padStart(8, "0")}`;
+export function formatFormRef(ref: FormRef): string {
+  return `${ref.plugin}:0x${ref.formId.toString(16).toUpperCase().padStart(6, "0")}`;
 }
 
 export function shortId(id: string): string {

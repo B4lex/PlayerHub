@@ -9,7 +9,8 @@ in game. The [vanilla intro](#vanilla-intro) hold has not run in game in its
 current form; it passed a Linux g++ syntax check only. Its stages, the cuffs,
 and the `kNewGame` payload were read from the 1.7.104 data files,
 `skse64_1_7_104.dll`, and Alternate Perspective's shipped script sources and
-plugin ([Engine assumptions](#engine-assumptions)).
+plugin ([Engine assumptions](#engine-assumptions)). Space references in
+[coordinate spaces](#coordinate-spaces) passed a Linux g++ syntax check only.
 
 [Checkpoint playout](#checkpoint-playout) ran in game against a server with
 a 20 Hz tick: remote walking and running moved at an even pace. Jumps,
@@ -394,13 +395,27 @@ peer's first checkpoint.
 
 ## Coordinate spaces
 
-A checkpoint's context carries `interior_cell_id` and `worldspace_id`; the cell
-is `0` in a worldspace ([Network](network.md#checkpoint-and-context)), so a
-remote checkpoint's `cellID` is the interior only. Exterior checkpoints with the
-same non-zero worldspace share the exterior grid's coordinates and stay in sync
-across cell boundaries. An interior has worldspace zero and needs an exact cell
-match, because its coordinates are local to it. Both need matching load orders
-on every peer.
+A checkpoint's context names the player's space with a
+[form reference](network.md#form-references): `interior_cell` in an interior,
+`worldspace` outside ([Network](network.md#checkpoint-and-context)), so load
+orders need not match. Exterior checkpoints with the same worldspace share the
+exterior grid's coordinates and stay in sync across cell boundaries. An
+interior needs an exact cell match, because its coordinates are local to it.
+
+- **Publishing.** `MovementSync::SampleLocalSpace` builds the reference once
+  per space change; exterior cell crossings keep it. A space without a form
+  reference publishes neither and is logged as a warning.
+- **Resolution.** `MovementSync::OnCheckpointPlayed` resolves a peer's
+  reference with `FormLookup::ResolveFormID` on its first played checkpoint
+  and on each change, into `PeerState::space`, which `RemoteFrame::cellID`
+  and `worldspaceID` carry. `MovementSync::IsInLocalSpace` compares those local
+  FormIDs with the player's own. A reference whose plugin is not loaded
+  resolves to zero, matches no local space, and is logged once per change: the
+  peer is not spawned.
+- **Comparisons.** Playout interpolation compares two checkpoints' references
+  themselves (`MovementSync::IsSameCoordinateSpace`). A spawned actor keeps
+  the resolved IDs of its space (`ActorLifecycleState::spawnedCellID`,
+  `spawnedWorldspaceID`) and is retired when they change.
 
 ## Actor lifecycle
 
@@ -495,7 +510,6 @@ the elapsed time divides the distance travelled into the published speed.
 - A vanilla start whose stage 10 fragment runs more than 5 s of game time
   after the player reaches the world, as with a heavily loaded Papyrus VM,
   is not held.
-- Cell and worldspace form IDs require matching load orders.
 - Interior and worldspace changes despawn and respawn the actor; there is no
   presentation through loading screens.
 - Remote players are shown the playout delay behind their network latency,
