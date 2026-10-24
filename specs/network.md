@@ -802,10 +802,11 @@ Server messages:
   `Network::CopyNearbyPlayers` appends them; chat orders its name list and
   colors its player list by them.
 - `Network::DescribeServer` gives `the official server` for the official
-  endpoint in either form, and any other URL as it is. Every log line that
-  names a server goes through it, so players can share a log without the
-  official URL: a failed or abandoned connection, vanishes over the limit,
-  saving a session, and muting or vanishing a player.
+  endpoint in either form and `a custom server` for any other. Every log line
+  that names a server goes through it, so a log never carries a server
+  address and players can share it: a failed or abandoned connection,
+  vanishes over the limit, saving a session, and muting or vanishing a
+  player.
 - Trade messages are decoded like the rest, a `TradeOffer` entry by entry
   and a `TradePluginQuery` name by name as for `PeerStates`, and validated
   as the server does, plus a `TradeClose` with an unknown reason, a

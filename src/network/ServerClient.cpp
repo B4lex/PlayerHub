@@ -1010,7 +1010,7 @@ namespace Network
     {
         static const auto official = ToWebSocketUrl(std::string{ Config::GetDefaultServerEndpoint() });
         return a_server == Config::GetDefaultServerEndpoint() || a_server == official ? "the official server"
-                                                                                      : a_server;
+                                                                                      : "a custom server";
     }
 
     void EmitLatencyProbe(std::function<void()> a_onAcknowledged)

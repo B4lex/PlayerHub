@@ -141,8 +141,8 @@ default while `CustomServer` is `false`, `ServerEndpoint` while it is
 build's default. The default is never written to the file, so a later build
 with another official server moves every player who did not switch, and the
 settings window never draws it ([UI overlay](ui-overlay.md#settings-window)).
-The log names it `the official server` instead of its URL
-([Network](network.md#client)).
+The log names it `the official server` and any other endpoint
+`a custom server`, never a URL ([Network](network.md#client)).
 
 The repository does not name the public server. The `server_endpoint` xmake
 option holds it, set with `xmake f --server_endpoint=https://...` or in an
