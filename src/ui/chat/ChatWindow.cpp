@@ -454,7 +454,7 @@ namespace UI
                 rejections.clear();
             }
 
-            void Whisper(const Multiplayer::RosterEntry& a_player)
+            void Whisper(const Multiplayer::PlayerIdentity& a_player)
             {
                 input.GetComposer().SetTarget(
                     ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kWhisper, .player = a_player });

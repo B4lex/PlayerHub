@@ -56,11 +56,15 @@ namespace Network::Wire
         std::optional<Multiplayer::SessionToken> issuedToken;
     };
 
-    struct Result
+    struct ChatResult
     {
         std::uint32_t requestID{ 0 };
-        bool ok{ false };
-        std::string error;
+        Multiplayer::ChatRejection rejection{ Multiplayer::ChatRejection::kNone };
+    };
+
+    struct Pong
+    {
+        std::uint32_t requestID{ 0 };
     };
 
     struct PeerEntry
@@ -136,7 +140,7 @@ namespace Network::Wire
 
     struct RosterChange
     {
-        std::vector<Multiplayer::RosterEntry> joined;
+        std::vector<Multiplayer::PlayerIdentity> joined;
         Multiplayer::PeerSlot left{ 0 };
     };
 
@@ -146,8 +150,8 @@ namespace Network::Wire
         std::vector<Multiplayer::PeerSlot> left;
     };
 
-    using ServerMessage = std::variant<Welcome, Result, PeerStates, PeerEnter, PeerContext, PeerLeave, AnimationAction,
-        PeerAppearance, PeerEquipment, Multiplayer::ChatMessage, RosterChange, NearbyPlayersChange,
+    using ServerMessage = std::variant<Welcome, ChatResult, Pong, PeerStates, PeerEnter, PeerContext, PeerLeave,
+        AnimationAction, PeerAppearance, PeerEquipment, Multiplayer::ChatMessage, RosterChange, NearbyPlayersChange,
         Multiplayer::PlayerInspection, Multiplayer::TradeEvent>;
 
     class Decoder

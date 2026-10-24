@@ -41,7 +41,7 @@ namespace TradeSync
             };
 
             Kind kind{ Kind::kRequest };
-            Multiplayer::RosterEntry player;
+            Multiplayer::PlayerIdentity player;
             bool accept{ false };
             TradeCloseReason reason{ TradeCloseReason::kCancelled };
             std::uint64_t inventoryRevision{ 0 };
@@ -842,7 +842,7 @@ namespace TradeSync
         }
     }
 
-    void RequestTrade(const Multiplayer::RosterEntry& a_player)
+    void RequestTrade(const Multiplayer::PlayerIdentity& a_player)
     {
         PushCommand(Command{ .kind = Command::Kind::kRequest, .player = a_player });
     }

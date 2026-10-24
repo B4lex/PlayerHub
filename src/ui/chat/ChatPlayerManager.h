@@ -29,7 +29,7 @@ namespace UI
 
         [[nodiscard]] static ImVec2 GetSize();
 
-        [[nodiscard]] std::optional<Multiplayer::RosterEntry> Draw(bool a_closeMenu);
+        [[nodiscard]] std::optional<Multiplayer::PlayerIdentity> Draw(bool a_closeMenu);
 
     private:
         enum class Tab : std::uint8_t
@@ -41,7 +41,7 @@ namespace UI
 
         struct Row
         {
-            Multiplayer::RosterEntry player;
+            Multiplayer::PlayerIdentity player;
             std::string folded;
             bool online{ false };
         };
@@ -49,7 +49,7 @@ namespace UI
         void Refresh();
         void Match();
         void DrawTabs();
-        void DrawRows(std::optional<Multiplayer::RosterEntry>& a_whisper, bool a_closeMenu);
+        void DrawRows(std::optional<Multiplayer::PlayerIdentity>& a_whisper, bool a_closeMenu);
 
         bool open{ false };
         bool focusRequested{ false };

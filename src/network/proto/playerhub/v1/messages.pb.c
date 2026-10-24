@@ -66,7 +66,10 @@ PB_BIND(playerhub_v1_ClientMessage, playerhub_v1_ClientMessage, 4)
 PB_BIND(playerhub_v1_Welcome, playerhub_v1_Welcome, AUTO)
 
 
-PB_BIND(playerhub_v1_Result, playerhub_v1_Result, AUTO)
+PB_BIND(playerhub_v1_ChatResult, playerhub_v1_ChatResult, AUTO)
+
+
+PB_BIND(playerhub_v1_Pong, playerhub_v1_Pong, AUTO)
 
 
 PB_BIND(playerhub_v1_PeerStates, playerhub_v1_PeerStates, AUTO)
@@ -90,13 +93,10 @@ PB_BIND(playerhub_v1_PeerAppearance, playerhub_v1_PeerAppearance, 4)
 PB_BIND(playerhub_v1_PeerEquipment, playerhub_v1_PeerEquipment, 4)
 
 
-PB_BIND(playerhub_v1_ChatSpeaker, playerhub_v1_ChatSpeaker, AUTO)
+PB_BIND(playerhub_v1_PlayerIdentity, playerhub_v1_PlayerIdentity, AUTO)
 
 
 PB_BIND(playerhub_v1_ChatMessage, playerhub_v1_ChatMessage, 2)
-
-
-PB_BIND(playerhub_v1_RosterEntry, playerhub_v1_RosterEntry, AUTO)
 
 
 PB_BIND(playerhub_v1_Roster, playerhub_v1_Roster, AUTO)
@@ -121,6 +121,8 @@ PB_BIND(playerhub_v1_TradeClose, playerhub_v1_TradeClose, AUTO)
 
 
 PB_BIND(playerhub_v1_ServerMessage, playerhub_v1_ServerMessage, 4)
+
+
 
 
 

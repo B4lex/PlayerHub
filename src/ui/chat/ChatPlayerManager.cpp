@@ -131,7 +131,7 @@ namespace UI
         }
     }
 
-    std::optional<Multiplayer::RosterEntry> ChatPlayerManager::Draw(bool a_closeMenu)
+    std::optional<Multiplayer::PlayerIdentity> ChatPlayerManager::Draw(bool a_closeMenu)
     {
         Refresh();
         const auto& style = ImGui::GetStyle();
@@ -166,7 +166,7 @@ namespace UI
             }
             ImGui::PopStyleVar();
         }
-        std::optional<Multiplayer::RosterEntry> whisper;
+        std::optional<Multiplayer::PlayerIdentity> whisper;
         DrawRows(whisper, a_closeMenu);
         return whisper;
     }
@@ -210,7 +210,7 @@ namespace UI
         }
     }
 
-    void ChatPlayerManager::DrawRows(std::optional<Multiplayer::RosterEntry>& a_whisper, bool a_closeMenu)
+    void ChatPlayerManager::DrawRows(std::optional<Multiplayer::PlayerIdentity>& a_whisper, bool a_closeMenu)
     {
         if (!ImGui::BeginChild("##ManagePlayersRows"))
         {
@@ -244,8 +244,8 @@ namespace UI
         const auto textColor = ImGui::GetColorU32(ImGuiCol_Text);
         auto* drawList = ImGui::GetWindowDrawList();
 
-        std::optional<Multiplayer::RosterEntry> undone;
-        std::optional<Multiplayer::RosterEntry> menuPlayer;
+        std::optional<Multiplayer::PlayerIdentity> undone;
+        std::optional<Multiplayer::PlayerIdentity> menuPlayer;
         ImGuiListClipper clipper;
         clipper.Begin(static_cast<int>(matches.size()), ImGui::GetFrameHeightWithSpacing());
         while (clipper.Step())

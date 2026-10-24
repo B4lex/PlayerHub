@@ -30,10 +30,7 @@ type Space struct {
 }
 
 func SpaceOf(c *pb.Context) Space {
-	if c.GetWorldspaceId() != 0 {
-		return Space{Worldspace: c.GetWorldspaceId()}
-	}
-	return Space{Cell: c.GetCellId()}
+	return Space{Worldspace: c.GetWorldspaceId(), Cell: c.GetInteriorCellId()}
 }
 
 type View struct {

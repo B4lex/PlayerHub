@@ -1033,9 +1033,10 @@ connected players whose names start with what follows, at most 8.
   the chat stays open with the text and the target and a failure note: the
   recipient is offline, the player is not connected, or the text has
   characters that cannot be sent.
-- A rejecting `Result` runs its callback on the transport thread, which
-  queues each server rejection (`rate limited`, `not in world`,
-  `unknown recipient`) as a sentence. `ChatWindow` takes them every frame: a
+- A rejecting `ChatResult` runs its callback on the transport thread, which
+  queues each server rejection (`Multiplayer::ChatRejection`: rate limited,
+  not in world, unknown recipient, or any other) as a sentence
+  (`ChatSync::DescribeRejection`). `ChatWindow` takes them every frame: a
   failure note while the chat is open, otherwise, as after Enter closed it, a
   [notice](#notices).
 - Up and Down in the field, while no list shows, step through the last 50

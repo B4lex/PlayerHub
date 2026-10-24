@@ -79,7 +79,7 @@ public:
 
     [[nodiscard]] Phase GetPhase() const noexcept { return phase; }
     [[nodiscard]] Multiplayer::TradeID GetID() const noexcept { return id; }
-    [[nodiscard]] const Multiplayer::RosterEntry& GetPeer() const noexcept { return peer; }
+    [[nodiscard]] const Multiplayer::PlayerIdentity& GetPeer() const noexcept { return peer; }
     [[nodiscard]] float GetWaited() const noexcept { return waited; }
     [[nodiscard]] bool IsActive() const noexcept { return phase != Phase::kIdle; }
 
@@ -96,7 +96,7 @@ public:
     // Whether the plugin is in an unanswered own query that has not yet waited kPluginCheckSeconds.
     [[nodiscard]] bool IsCheckingPlugin(std::string_view a_plugin) const;
 
-    bool BeginRequest(const Multiplayer::RosterEntry& a_peer);
+    bool BeginRequest(const Multiplayer::PlayerIdentity& a_peer);
     EventResult OnEvent(const Multiplayer::TradeEvent& a_event);
     // Ends the trade locally, as a close from the server would.
     void Reset();
@@ -124,7 +124,7 @@ private:
 
     Phase phase{ Phase::kIdle };
     Multiplayer::TradeID id{ 0 };
-    Multiplayer::RosterEntry peer;
+    Multiplayer::PlayerIdentity peer;
     float waited{ 0.0F };
 
     std::vector<Multiplayer::TradeItem> ownItems;

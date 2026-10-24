@@ -174,11 +174,11 @@ func (h *Hub) ConnectClient(outbox *delivery.Outbox, identity Identity) (slot, r
 	roster := &pb.Roster{}
 	for _, r := range h.recipients {
 		if r.listed() {
-			roster.Joined = append(roster.Joined, &pb.RosterEntry{Slot: r.Slot, Name: r.DisplayName, SessionId: r.Session})
+			roster.Joined = append(roster.Joined, &pb.PlayerIdentity{Slot: r.Slot, Name: r.DisplayName, SessionId: r.Session})
 		}
 	}
 	outbox.AppendGlobal(rosterMessage(roster))
-	h.announce(m, &pb.Roster{Joined: []*pb.RosterEntry{{Slot: slot, Name: identity.DisplayName,
+	h.announce(m, &pb.Roster{Joined: []*pb.PlayerIdentity{{Slot: slot, Name: identity.DisplayName,
 		SessionId: identity.Session}}})
 	return slot, replaced
 }
@@ -654,8 +654,22 @@ func (h *Hub) setEquipment(m *member, e *pb.Equipment, message *pb.ClientMessage
 	return nil
 }
 
-func (h *Hub) speaker(m *member) *pb.ChatSpeaker {
-	return &pb.ChatSpeaker{Slot: m.Slot, Name: m.Name(), Level: m.Appearance.GetLevel(), SessionId: m.Session}
+func (h *Hub) speaker(m *member) *pb.PlayerIdentity {
+	return &pb.PlayerIdentity{Slot: m.Slot, Name: m.Name(), SessionId: m.Session}
+}
+
+func chatRejection(err error) pb.ChatRejection {
+	switch {
+	case err == nil:
+		return pb.ChatRejection_CHAT_REJECTION_NONE
+	case errors.Is(err, ErrRateLimited):
+		return pb.ChatRejection_CHAT_REJECTION_RATE_LIMITED
+	case errors.Is(err, ErrNotPlaced):
+		return pb.ChatRejection_CHAT_REJECTION_NOT_IN_WORLD
+	case errors.Is(err, ErrUnknownRecipient):
+		return pb.ChatRejection_CHAT_REJECTION_UNKNOWN_RECIPIENT
+	}
+	return pb.ChatRejection_CHAT_REJECTION_INVALID
 }
 
 func (h *Hub) chat(m *member, request *pb.ChatSend) error {
@@ -679,11 +693,8 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 		err = ErrRateLimited
 	}
 	if m.outbox != nil {
-		result := &pb.Result{RequestId: request.GetRequestId(), Ok: err == nil}
-		if err != nil {
-			result.Error = err.Error()
-		}
-		m.outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Result{Result: result}}))
+		result := &pb.ChatResult{RequestId: request.GetRequestId(), Rejection: chatRejection(err)}
+		m.outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_ChatResult{ChatResult: result}}))
 	}
 	if err != nil {
 		return err

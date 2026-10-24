@@ -279,7 +279,7 @@ under it. A replayed player keeps the name it was recorded with.
 senders, and [nameplates](ui-overlay.md#nameplates): the display name, or a
 placeholder for an empty one, as before a peer's appearance arrives.
 
-The level is not part of the label. It stays in `Appearance` and `ChatSpeaker`
+The level is not part of the label. It stays in `Appearance`
 ([Network](network.md#appearance)), captured, validated, relayed, and parsed,
 and the [player menu](ui-overlay.md#player-menu) shows it.
 

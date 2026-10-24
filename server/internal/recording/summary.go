@@ -29,19 +29,19 @@ func Markers(r *Recording) []Marker {
 	for _, m := range r.Messages {
 		switch body := m.Message.Message.(type) {
 		case *pb.ClientMessage_Action:
-			a := body.Action
-			if a.Beast != pb.BeastAction_BEAST_ACTION_UNSPECIFIED {
-				markers = append(markers, Marker{m.TMs, "attack", enumLabel(a.Beast.String(), "BEAST_ACTION_")})
+			if beast, ok := body.Action.GetKind().(*pb.Action_Beast); ok {
+				markers = append(markers, Marker{m.TMs, "attack", enumLabel(beast.Beast.String(), "BEAST_ACTION_")})
 				continue
 			}
-			name, known := attackNames[a.Action]
+			attack := body.Action.GetAttack()
+			name, known := attackNames[attack.GetAction()]
 			if !known {
 				continue
 			}
 			label := strings.ToUpper(name[:1]) + name[1:]
-			if a.Power {
-				direction := strings.ToLower(strings.TrimPrefix(a.Direction.String(), "POWER_DIRECTION_"))
-				label = fmt.Sprintf("Power %s (%s)", name, direction)
+			if direction := attack.GetDirection(); direction != pb.PowerDirection_POWER_DIRECTION_NONE {
+				label = fmt.Sprintf("Power %s (%s)", name,
+					strings.ToLower(strings.TrimPrefix(direction.String(), "POWER_DIRECTION_")))
 			}
 			markers = append(markers, Marker{m.TMs, "attack", label})
 		case *pb.ClientMessage_Appearance:
@@ -98,7 +98,7 @@ func area(c *pb.Context) (string, uint32) {
 	if c.WorldspaceId != 0 {
 		return "worldspace", c.WorldspaceId
 	}
-	return "interior", c.CellId
+	return "interior", c.InteriorCellId
 }
 
 func enumLabel(value, prefix string) string {

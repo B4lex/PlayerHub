@@ -82,58 +82,60 @@ func (MovementState) EnumDescriptor() ([]byte, []int) {
 	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{0}
 }
 
+// Ordered by how often a flag is set: a varint below 128 is one byte, so the
+// common on-foot flags come first.
 type CheckpointFlag int32
 
 const (
 	CheckpointFlag_CHECKPOINT_FLAG_NONE          CheckpointFlag = 0
-	CheckpointFlag_CHECKPOINT_FLAG_JUMPING       CheckpointFlag = 8
+	CheckpointFlag_CHECKPOINT_FLAG_GROUNDED      CheckpointFlag = 8
 	CheckpointFlag_CHECKPOINT_FLAG_WEAPON_DRAWN  CheckpointFlag = 16
-	CheckpointFlag_CHECKPOINT_FLAG_BOW_DRAWN     CheckpointFlag = 32
-	CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT  CheckpointFlag = 64
-	CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT CheckpointFlag = 128
-	CheckpointFlag_CHECKPOINT_FLAG_BLOCKING      CheckpointFlag = 256
-	CheckpointFlag_CHECKPOINT_FLAG_DEAD          CheckpointFlag = 512
-	CheckpointFlag_CHECKPOINT_FLAG_MOUNTED       CheckpointFlag = 1024
-	CheckpointFlag_CHECKPOINT_FLAG_SWIMMING      CheckpointFlag = 2048
-	CheckpointFlag_CHECKPOINT_FLAG_LEVITATING    CheckpointFlag = 4096
-	CheckpointFlag_CHECKPOINT_FLAG_MIST_FORM     CheckpointFlag = 8192
-	CheckpointFlag_CHECKPOINT_FLAG_BATS          CheckpointFlag = 16384
-	CheckpointFlag_CHECKPOINT_FLAG_GROUNDED      CheckpointFlag = 32768
+	CheckpointFlag_CHECKPOINT_FLAG_JUMPING       CheckpointFlag = 32
+	CheckpointFlag_CHECKPOINT_FLAG_BLOCKING      CheckpointFlag = 64
+	CheckpointFlag_CHECKPOINT_FLAG_BOW_DRAWN     CheckpointFlag = 128
+	CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT  CheckpointFlag = 256
+	CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT CheckpointFlag = 512
+	CheckpointFlag_CHECKPOINT_FLAG_SWIMMING      CheckpointFlag = 1024
+	CheckpointFlag_CHECKPOINT_FLAG_MOUNTED       CheckpointFlag = 2048
+	CheckpointFlag_CHECKPOINT_FLAG_DEAD          CheckpointFlag = 4096
+	CheckpointFlag_CHECKPOINT_FLAG_LEVITATING    CheckpointFlag = 8192
+	CheckpointFlag_CHECKPOINT_FLAG_MIST_FORM     CheckpointFlag = 16384
+	CheckpointFlag_CHECKPOINT_FLAG_BATS          CheckpointFlag = 32768
 )
 
 // Enum value maps for CheckpointFlag.
 var (
 	CheckpointFlag_name = map[int32]string{
 		0:     "CHECKPOINT_FLAG_NONE",
-		8:     "CHECKPOINT_FLAG_JUMPING",
+		8:     "CHECKPOINT_FLAG_GROUNDED",
 		16:    "CHECKPOINT_FLAG_WEAPON_DRAWN",
-		32:    "CHECKPOINT_FLAG_BOW_DRAWN",
-		64:    "CHECKPOINT_FLAG_CASTING_LEFT",
-		128:   "CHECKPOINT_FLAG_CASTING_RIGHT",
-		256:   "CHECKPOINT_FLAG_BLOCKING",
-		512:   "CHECKPOINT_FLAG_DEAD",
-		1024:  "CHECKPOINT_FLAG_MOUNTED",
-		2048:  "CHECKPOINT_FLAG_SWIMMING",
-		4096:  "CHECKPOINT_FLAG_LEVITATING",
-		8192:  "CHECKPOINT_FLAG_MIST_FORM",
-		16384: "CHECKPOINT_FLAG_BATS",
-		32768: "CHECKPOINT_FLAG_GROUNDED",
+		32:    "CHECKPOINT_FLAG_JUMPING",
+		64:    "CHECKPOINT_FLAG_BLOCKING",
+		128:   "CHECKPOINT_FLAG_BOW_DRAWN",
+		256:   "CHECKPOINT_FLAG_CASTING_LEFT",
+		512:   "CHECKPOINT_FLAG_CASTING_RIGHT",
+		1024:  "CHECKPOINT_FLAG_SWIMMING",
+		2048:  "CHECKPOINT_FLAG_MOUNTED",
+		4096:  "CHECKPOINT_FLAG_DEAD",
+		8192:  "CHECKPOINT_FLAG_LEVITATING",
+		16384: "CHECKPOINT_FLAG_MIST_FORM",
+		32768: "CHECKPOINT_FLAG_BATS",
 	}
 	CheckpointFlag_value = map[string]int32{
 		"CHECKPOINT_FLAG_NONE":          0,
-		"CHECKPOINT_FLAG_JUMPING":       8,
+		"CHECKPOINT_FLAG_GROUNDED":      8,
 		"CHECKPOINT_FLAG_WEAPON_DRAWN":  16,
-		"CHECKPOINT_FLAG_BOW_DRAWN":     32,
-		"CHECKPOINT_FLAG_CASTING_LEFT":  64,
-		"CHECKPOINT_FLAG_CASTING_RIGHT": 128,
-		"CHECKPOINT_FLAG_BLOCKING":      256,
-		"CHECKPOINT_FLAG_DEAD":          512,
-		"CHECKPOINT_FLAG_MOUNTED":       1024,
-		"CHECKPOINT_FLAG_SWIMMING":      2048,
-		"CHECKPOINT_FLAG_LEVITATING":    4096,
-		"CHECKPOINT_FLAG_MIST_FORM":     8192,
-		"CHECKPOINT_FLAG_BATS":          16384,
-		"CHECKPOINT_FLAG_GROUNDED":      32768,
+		"CHECKPOINT_FLAG_JUMPING":       32,
+		"CHECKPOINT_FLAG_BLOCKING":      64,
+		"CHECKPOINT_FLAG_BOW_DRAWN":     128,
+		"CHECKPOINT_FLAG_CASTING_LEFT":  256,
+		"CHECKPOINT_FLAG_CASTING_RIGHT": 512,
+		"CHECKPOINT_FLAG_SWIMMING":      1024,
+		"CHECKPOINT_FLAG_MOUNTED":       2048,
+		"CHECKPOINT_FLAG_DEAD":          4096,
+		"CHECKPOINT_FLAG_LEVITATING":    8192,
+		"CHECKPOINT_FLAG_MIST_FORM":     16384,
+		"CHECKPOINT_FLAG_BATS":          32768,
 	}
 )
 
@@ -721,14 +723,15 @@ func (x *Checkpoint) GetTime() uint32 {
 }
 
 type Context struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CellId        uint32                 `protobuf:"varint,1,opt,name=cell_id,json=cellId,proto3" json:"cell_id,omitempty"`
-	WorldspaceId  uint32                 `protobuf:"varint,2,opt,name=worldspace_id,json=worldspaceId,proto3" json:"worldspace_id,omitempty"`
-	GraphEpoch    uint64                 `protobuf:"varint,3,opt,name=graph_epoch,json=graphEpoch,proto3" json:"graph_epoch,omitempty"`
-	Furniture     *FormRef               `protobuf:"bytes,4,opt,name=furniture,proto3" json:"furniture,omitempty"`
-	Shapeshift    Shapeshift             `protobuf:"varint,5,opt,name=shapeshift,proto3,enum=playerhub.v1.Shapeshift" json:"shapeshift,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Zero in a worldspace, so crossing exterior cells leaves the context unchanged.
+	InteriorCellId uint32     `protobuf:"varint,1,opt,name=interior_cell_id,json=interiorCellId,proto3" json:"interior_cell_id,omitempty"`
+	WorldspaceId   uint32     `protobuf:"varint,2,opt,name=worldspace_id,json=worldspaceId,proto3" json:"worldspace_id,omitempty"`
+	GraphEpoch     uint64     `protobuf:"varint,3,opt,name=graph_epoch,json=graphEpoch,proto3" json:"graph_epoch,omitempty"`
+	Furniture      *FormRef   `protobuf:"bytes,4,opt,name=furniture,proto3" json:"furniture,omitempty"`
+	Shapeshift     Shapeshift `protobuf:"varint,5,opt,name=shapeshift,proto3,enum=playerhub.v1.Shapeshift" json:"shapeshift,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Context) Reset() {
@@ -761,9 +764,9 @@ func (*Context) Descriptor() ([]byte, []int) {
 	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *Context) GetCellId() uint32 {
+func (x *Context) GetInteriorCellId() uint32 {
 	if x != nil {
-		return x.CellId
+		return x.InteriorCellId
 	}
 	return 0
 }
@@ -796,22 +799,76 @@ func (x *Context) GetShapeshift() Shapeshift {
 	return Shapeshift_SHAPESHIFT_NONE
 }
 
+type Attack struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Action AttackAction           `protobuf:"varint,1,opt,name=action,proto3,enum=playerhub.v1.AttackAction" json:"action,omitempty"`
+	// NONE unless a power attack.
+	Direction     PowerDirection `protobuf:"varint,2,opt,name=direction,proto3,enum=playerhub.v1.PowerDirection" json:"direction,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Attack) Reset() {
+	*x = Attack{}
+	mi := &file_playerhub_v1_state_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Attack) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Attack) ProtoMessage() {}
+
+func (x *Attack) ProtoReflect() protoreflect.Message {
+	mi := &file_playerhub_v1_state_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Attack.ProtoReflect.Descriptor instead.
+func (*Attack) Descriptor() ([]byte, []int) {
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Attack) GetAction() AttackAction {
+	if x != nil {
+		return x.Action
+	}
+	return AttackAction_ATTACK_ACTION_UNSPECIFIED
+}
+
+func (x *Attack) GetDirection() PowerDirection {
+	if x != nil {
+		return x.Direction
+	}
+	return PowerDirection_POWER_DIRECTION_NONE
+}
+
 type Action struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	ActionSequence     uint64                 `protobuf:"varint,1,opt,name=action_sequence,json=actionSequence,proto3" json:"action_sequence,omitempty"`
 	GraphEpoch         uint64                 `protobuf:"varint,2,opt,name=graph_epoch,json=graphEpoch,proto3" json:"graph_epoch,omitempty"`
 	CheckpointSequence uint64                 `protobuf:"varint,3,opt,name=checkpoint_sequence,json=checkpointSequence,proto3" json:"checkpoint_sequence,omitempty"`
-	Action             AttackAction           `protobuf:"varint,4,opt,name=action,proto3,enum=playerhub.v1.AttackAction" json:"action,omitempty"`
-	Power              bool                   `protobuf:"varint,5,opt,name=power,proto3" json:"power,omitempty"`
-	Direction          PowerDirection         `protobuf:"varint,6,opt,name=direction,proto3,enum=playerhub.v1.PowerDirection" json:"direction,omitempty"`
-	Beast              BeastAction            `protobuf:"varint,7,opt,name=beast,proto3,enum=playerhub.v1.BeastAction" json:"beast,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Types that are valid to be assigned to Kind:
+	//
+	//	*Action_Attack
+	//	*Action_Beast
+	Kind          isAction_Kind `protobuf_oneof:"kind"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Action) Reset() {
 	*x = Action{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[3]
+	mi := &file_playerhub_v1_state_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -823,7 +880,7 @@ func (x *Action) String() string {
 func (*Action) ProtoMessage() {}
 
 func (x *Action) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[3]
+	mi := &file_playerhub_v1_state_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -836,7 +893,7 @@ func (x *Action) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Action.ProtoReflect.Descriptor instead.
 func (*Action) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{3}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Action) GetActionSequence() uint64 {
@@ -860,33 +917,46 @@ func (x *Action) GetCheckpointSequence() uint64 {
 	return 0
 }
 
-func (x *Action) GetAction() AttackAction {
+func (x *Action) GetKind() isAction_Kind {
 	if x != nil {
-		return x.Action
+		return x.Kind
 	}
-	return AttackAction_ATTACK_ACTION_UNSPECIFIED
+	return nil
 }
 
-func (x *Action) GetPower() bool {
+func (x *Action) GetAttack() *Attack {
 	if x != nil {
-		return x.Power
+		if x, ok := x.Kind.(*Action_Attack); ok {
+			return x.Attack
+		}
 	}
-	return false
-}
-
-func (x *Action) GetDirection() PowerDirection {
-	if x != nil {
-		return x.Direction
-	}
-	return PowerDirection_POWER_DIRECTION_NONE
+	return nil
 }
 
 func (x *Action) GetBeast() BeastAction {
 	if x != nil {
-		return x.Beast
+		if x, ok := x.Kind.(*Action_Beast); ok {
+			return x.Beast
+		}
 	}
 	return BeastAction_BEAST_ACTION_UNSPECIFIED
 }
+
+type isAction_Kind interface {
+	isAction_Kind()
+}
+
+type Action_Attack struct {
+	Attack *Attack `protobuf:"bytes,4,opt,name=attack,proto3,oneof"`
+}
+
+type Action_Beast struct {
+	Beast BeastAction `protobuf:"varint,5,opt,name=beast,proto3,enum=playerhub.v1.BeastAction,oneof"`
+}
+
+func (*Action_Attack) isAction_Kind() {}
+
+func (*Action_Beast) isAction_Kind() {}
 
 type Color struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -899,7 +969,7 @@ type Color struct {
 
 func (x *Color) Reset() {
 	*x = Color{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[4]
+	mi := &file_playerhub_v1_state_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -911,7 +981,7 @@ func (x *Color) String() string {
 func (*Color) ProtoMessage() {}
 
 func (x *Color) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[4]
+	mi := &file_playerhub_v1_state_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -924,7 +994,7 @@ func (x *Color) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Color.ProtoReflect.Descriptor instead.
 func (*Color) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{4}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Color) GetR() uint32 {
@@ -958,7 +1028,7 @@ type HeadPart struct {
 
 func (x *HeadPart) Reset() {
 	*x = HeadPart{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[5]
+	mi := &file_playerhub_v1_state_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -970,7 +1040,7 @@ func (x *HeadPart) String() string {
 func (*HeadPart) ProtoMessage() {}
 
 func (x *HeadPart) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[5]
+	mi := &file_playerhub_v1_state_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -983,7 +1053,7 @@ func (x *HeadPart) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeadPart.ProtoReflect.Descriptor instead.
 func (*HeadPart) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{5}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *HeadPart) GetForm() *FormRef {
@@ -1012,7 +1082,7 @@ type Tint struct {
 
 func (x *Tint) Reset() {
 	*x = Tint{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[6]
+	mi := &file_playerhub_v1_state_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1024,7 +1094,7 @@ func (x *Tint) String() string {
 func (*Tint) ProtoMessage() {}
 
 func (x *Tint) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[6]
+	mi := &file_playerhub_v1_state_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1037,7 +1107,7 @@ func (x *Tint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Tint.ProtoReflect.Descriptor instead.
 func (*Tint) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{6}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Tint) GetIndex() uint32 {
@@ -1078,7 +1148,7 @@ type DefaultRace struct {
 
 func (x *DefaultRace) Reset() {
 	*x = DefaultRace{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[7]
+	mi := &file_playerhub_v1_state_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1090,7 +1160,7 @@ func (x *DefaultRace) String() string {
 func (*DefaultRace) ProtoMessage() {}
 
 func (x *DefaultRace) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[7]
+	mi := &file_playerhub_v1_state_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1103,7 +1173,7 @@ func (x *DefaultRace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DefaultRace.ProtoReflect.Descriptor instead.
 func (*DefaultRace) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{7}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *DefaultRace) GetRace() *FormRef {
@@ -1143,7 +1213,7 @@ type Appearance struct {
 
 func (x *Appearance) Reset() {
 	*x = Appearance{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[8]
+	mi := &file_playerhub_v1_state_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1155,7 +1225,7 @@ func (x *Appearance) String() string {
 func (*Appearance) ProtoMessage() {}
 
 func (x *Appearance) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[8]
+	mi := &file_playerhub_v1_state_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1168,7 +1238,7 @@ func (x *Appearance) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Appearance.ProtoReflect.Descriptor instead.
 func (*Appearance) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{8}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Appearance) GetRevision() uint64 {
@@ -1286,7 +1356,7 @@ type Armor struct {
 
 func (x *Armor) Reset() {
 	*x = Armor{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[9]
+	mi := &file_playerhub_v1_state_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1298,7 +1368,7 @@ func (x *Armor) String() string {
 func (*Armor) ProtoMessage() {}
 
 func (x *Armor) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[9]
+	mi := &file_playerhub_v1_state_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1311,7 +1381,7 @@ func (x *Armor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Armor.ProtoReflect.Descriptor instead.
 func (*Armor) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{9}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Armor) GetForm() *FormRef {
@@ -1341,7 +1411,7 @@ type Hand struct {
 
 func (x *Hand) Reset() {
 	*x = Hand{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[10]
+	mi := &file_playerhub_v1_state_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1353,7 +1423,7 @@ func (x *Hand) String() string {
 func (*Hand) ProtoMessage() {}
 
 func (x *Hand) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[10]
+	mi := &file_playerhub_v1_state_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1366,7 +1436,7 @@ func (x *Hand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Hand.ProtoReflect.Descriptor instead.
 func (*Hand) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{10}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Hand) GetKind() HandKind {
@@ -1415,7 +1485,7 @@ type DefaultOutfit struct {
 
 func (x *DefaultOutfit) Reset() {
 	*x = DefaultOutfit{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[11]
+	mi := &file_playerhub_v1_state_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1427,7 +1497,7 @@ func (x *DefaultOutfit) String() string {
 func (*DefaultOutfit) ProtoMessage() {}
 
 func (x *DefaultOutfit) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[11]
+	mi := &file_playerhub_v1_state_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1440,7 +1510,7 @@ func (x *DefaultOutfit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DefaultOutfit.ProtoReflect.Descriptor instead.
 func (*DefaultOutfit) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{11}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DefaultOutfit) GetArmor() []*Armor {
@@ -1483,7 +1553,7 @@ type Equipment struct {
 
 func (x *Equipment) Reset() {
 	*x = Equipment{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[12]
+	mi := &file_playerhub_v1_state_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1495,7 +1565,7 @@ func (x *Equipment) String() string {
 func (*Equipment) ProtoMessage() {}
 
 func (x *Equipment) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[12]
+	mi := &file_playerhub_v1_state_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1508,7 +1578,7 @@ func (x *Equipment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Equipment.ProtoReflect.Descriptor instead.
 func (*Equipment) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{12}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Equipment) GetRevision() uint64 {
@@ -1595,25 +1665,27 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\tdirection\x18\t \x01(\rR\tdirection\x12\x14\n" +
 	"\x05flags\x18\n" +
 	" \x01(\rR\x05flags\x12\x12\n" +
-	"\x04time\x18\v \x01(\rR\x04time\"\xd7\x01\n" +
-	"\aContext\x12\x17\n" +
-	"\acell_id\x18\x01 \x01(\rR\x06cellId\x12#\n" +
+	"\x04time\x18\v \x01(\rR\x04time\"\xe8\x01\n" +
+	"\aContext\x12(\n" +
+	"\x10interior_cell_id\x18\x01 \x01(\rR\x0einteriorCellId\x12#\n" +
 	"\rworldspace_id\x18\x02 \x01(\rR\fworldspaceId\x12\x1f\n" +
 	"\vgraph_epoch\x18\x03 \x01(\x04R\n" +
 	"graphEpoch\x123\n" +
 	"\tfurniture\x18\x04 \x01(\v2\x15.playerhub.v1.FormRefR\tfurniture\x128\n" +
 	"\n" +
 	"shapeshift\x18\x05 \x01(\x0e2\x18.playerhub.v1.ShapeshiftR\n" +
-	"shapeshift\"\xba\x02\n" +
+	"shapeshift\"x\n" +
+	"\x06Attack\x122\n" +
+	"\x06action\x18\x01 \x01(\x0e2\x1a.playerhub.v1.AttackActionR\x06action\x12:\n" +
+	"\tdirection\x18\x02 \x01(\x0e2\x1c.playerhub.v1.PowerDirectionR\tdirection\"\xee\x01\n" +
 	"\x06Action\x12'\n" +
 	"\x0faction_sequence\x18\x01 \x01(\x04R\x0eactionSequence\x12\x1f\n" +
 	"\vgraph_epoch\x18\x02 \x01(\x04R\n" +
 	"graphEpoch\x12/\n" +
-	"\x13checkpoint_sequence\x18\x03 \x01(\x04R\x12checkpointSequence\x122\n" +
-	"\x06action\x18\x04 \x01(\x0e2\x1a.playerhub.v1.AttackActionR\x06action\x12\x14\n" +
-	"\x05power\x18\x05 \x01(\bR\x05power\x12:\n" +
-	"\tdirection\x18\x06 \x01(\x0e2\x1c.playerhub.v1.PowerDirectionR\tdirection\x12/\n" +
-	"\x05beast\x18\a \x01(\x0e2\x19.playerhub.v1.BeastActionR\x05beast\"1\n" +
+	"\x13checkpoint_sequence\x18\x03 \x01(\x04R\x12checkpointSequence\x12.\n" +
+	"\x06attack\x18\x04 \x01(\v2\x14.playerhub.v1.AttackH\x00R\x06attack\x121\n" +
+	"\x05beast\x18\x05 \x01(\x0e2\x19.playerhub.v1.BeastActionH\x00R\x05beastB\x06\n" +
+	"\x04kind\"1\n" +
 	"\x05Color\x12\f\n" +
 	"\x01r\x18\x01 \x01(\rR\x01r\x12\f\n" +
 	"\x01g\x18\x02 \x01(\rR\x01g\x12\f\n" +
@@ -1687,20 +1759,20 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x1fMOVEMENT_STATE_SNEAKING_WALKING\x10\x05\x12#\n" +
 	"\x1fMOVEMENT_STATE_SNEAKING_RUNNING\x10\x06*\xc2\x03\n" +
 	"\x0eCheckpointFlag\x12\x18\n" +
-	"\x14CHECKPOINT_FLAG_NONE\x10\x00\x12\x1b\n" +
-	"\x17CHECKPOINT_FLAG_JUMPING\x10\b\x12 \n" +
-	"\x1cCHECKPOINT_FLAG_WEAPON_DRAWN\x10\x10\x12\x1d\n" +
-	"\x19CHECKPOINT_FLAG_BOW_DRAWN\x10 \x12 \n" +
-	"\x1cCHECKPOINT_FLAG_CASTING_LEFT\x10@\x12\"\n" +
-	"\x1dCHECKPOINT_FLAG_CASTING_RIGHT\x10\x80\x01\x12\x1d\n" +
-	"\x18CHECKPOINT_FLAG_BLOCKING\x10\x80\x02\x12\x19\n" +
-	"\x14CHECKPOINT_FLAG_DEAD\x10\x80\x04\x12\x1c\n" +
-	"\x17CHECKPOINT_FLAG_MOUNTED\x10\x80\b\x12\x1d\n" +
-	"\x18CHECKPOINT_FLAG_SWIMMING\x10\x80\x10\x12\x1f\n" +
-	"\x1aCHECKPOINT_FLAG_LEVITATING\x10\x80 \x12\x1e\n" +
-	"\x19CHECKPOINT_FLAG_MIST_FORM\x10\x80@\x12\x1a\n" +
-	"\x14CHECKPOINT_FLAG_BATS\x10\x80\x80\x01\x12\x1e\n" +
-	"\x18CHECKPOINT_FLAG_GROUNDED\x10\x80\x80\x02*p\n" +
+	"\x14CHECKPOINT_FLAG_NONE\x10\x00\x12\x1c\n" +
+	"\x18CHECKPOINT_FLAG_GROUNDED\x10\b\x12 \n" +
+	"\x1cCHECKPOINT_FLAG_WEAPON_DRAWN\x10\x10\x12\x1b\n" +
+	"\x17CHECKPOINT_FLAG_JUMPING\x10 \x12\x1c\n" +
+	"\x18CHECKPOINT_FLAG_BLOCKING\x10@\x12\x1e\n" +
+	"\x19CHECKPOINT_FLAG_BOW_DRAWN\x10\x80\x01\x12!\n" +
+	"\x1cCHECKPOINT_FLAG_CASTING_LEFT\x10\x80\x02\x12\"\n" +
+	"\x1dCHECKPOINT_FLAG_CASTING_RIGHT\x10\x80\x04\x12\x1d\n" +
+	"\x18CHECKPOINT_FLAG_SWIMMING\x10\x80\b\x12\x1c\n" +
+	"\x17CHECKPOINT_FLAG_MOUNTED\x10\x80\x10\x12\x19\n" +
+	"\x14CHECKPOINT_FLAG_DEAD\x10\x80 \x12\x1f\n" +
+	"\x1aCHECKPOINT_FLAG_LEVITATING\x10\x80@\x12\x1f\n" +
+	"\x19CHECKPOINT_FLAG_MIST_FORM\x10\x80\x80\x01\x12\x1a\n" +
+	"\x14CHECKPOINT_FLAG_BATS\x10\x80\x80\x02*p\n" +
 	"\n" +
 	"Shapeshift\x12\x13\n" +
 	"\x0fSHAPESHIFT_NONE\x10\x00\x12\x17\n" +
@@ -1781,7 +1853,7 @@ func file_playerhub_v1_state_proto_rawDescGZIP() []byte {
 }
 
 var file_playerhub_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_playerhub_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_playerhub_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_playerhub_v1_state_proto_goTypes = []any{
 	(MovementState)(0),    // 0: playerhub.v1.MovementState
 	(CheckpointFlag)(0),   // 1: playerhub.v1.CheckpointFlag
@@ -1793,54 +1865,56 @@ var file_playerhub_v1_state_proto_goTypes = []any{
 	(*FormRef)(nil),       // 7: playerhub.v1.FormRef
 	(*Checkpoint)(nil),    // 8: playerhub.v1.Checkpoint
 	(*Context)(nil),       // 9: playerhub.v1.Context
-	(*Action)(nil),        // 10: playerhub.v1.Action
-	(*Color)(nil),         // 11: playerhub.v1.Color
-	(*HeadPart)(nil),      // 12: playerhub.v1.HeadPart
-	(*Tint)(nil),          // 13: playerhub.v1.Tint
-	(*DefaultRace)(nil),   // 14: playerhub.v1.DefaultRace
-	(*Appearance)(nil),    // 15: playerhub.v1.Appearance
-	(*Armor)(nil),         // 16: playerhub.v1.Armor
-	(*Hand)(nil),          // 17: playerhub.v1.Hand
-	(*DefaultOutfit)(nil), // 18: playerhub.v1.DefaultOutfit
-	(*Equipment)(nil),     // 19: playerhub.v1.Equipment
+	(*Attack)(nil),        // 10: playerhub.v1.Attack
+	(*Action)(nil),        // 11: playerhub.v1.Action
+	(*Color)(nil),         // 12: playerhub.v1.Color
+	(*HeadPart)(nil),      // 13: playerhub.v1.HeadPart
+	(*Tint)(nil),          // 14: playerhub.v1.Tint
+	(*DefaultRace)(nil),   // 15: playerhub.v1.DefaultRace
+	(*Appearance)(nil),    // 16: playerhub.v1.Appearance
+	(*Armor)(nil),         // 17: playerhub.v1.Armor
+	(*Hand)(nil),          // 18: playerhub.v1.Hand
+	(*DefaultOutfit)(nil), // 19: playerhub.v1.DefaultOutfit
+	(*Equipment)(nil),     // 20: playerhub.v1.Equipment
 }
 var file_playerhub_v1_state_proto_depIdxs = []int32{
 	7,  // 0: playerhub.v1.Context.furniture:type_name -> playerhub.v1.FormRef
 	2,  // 1: playerhub.v1.Context.shapeshift:type_name -> playerhub.v1.Shapeshift
-	3,  // 2: playerhub.v1.Action.action:type_name -> playerhub.v1.AttackAction
-	4,  // 3: playerhub.v1.Action.direction:type_name -> playerhub.v1.PowerDirection
-	5,  // 4: playerhub.v1.Action.beast:type_name -> playerhub.v1.BeastAction
-	7,  // 5: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
-	11, // 6: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
-	7,  // 7: playerhub.v1.DefaultRace.race:type_name -> playerhub.v1.FormRef
-	7,  // 8: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
-	12, // 9: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
-	11, // 10: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
-	7,  // 11: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
-	11, // 12: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
-	13, // 13: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
-	14, // 14: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.DefaultRace
-	7,  // 15: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
-	6,  // 16: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
-	7,  // 17: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
-	7,  // 18: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
-	7,  // 19: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
-	16, // 20: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
-	17, // 21: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
-	7,  // 22: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
-	16, // 23: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
-	17, // 24: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
-	17, // 25: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
-	7,  // 26: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
-	18, // 27: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
-	17, // 28: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
-	17, // 29: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
-	16, // 30: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
-	31, // [31:31] is the sub-list for method output_type
-	31, // [31:31] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	3,  // 2: playerhub.v1.Attack.action:type_name -> playerhub.v1.AttackAction
+	4,  // 3: playerhub.v1.Attack.direction:type_name -> playerhub.v1.PowerDirection
+	10, // 4: playerhub.v1.Action.attack:type_name -> playerhub.v1.Attack
+	5,  // 5: playerhub.v1.Action.beast:type_name -> playerhub.v1.BeastAction
+	7,  // 6: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
+	12, // 7: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
+	7,  // 8: playerhub.v1.DefaultRace.race:type_name -> playerhub.v1.FormRef
+	7,  // 9: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
+	13, // 10: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
+	12, // 11: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
+	7,  // 12: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
+	12, // 13: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
+	14, // 14: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
+	15, // 15: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.DefaultRace
+	7,  // 16: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
+	6,  // 17: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
+	7,  // 18: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
+	7,  // 19: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
+	7,  // 20: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
+	17, // 21: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
+	18, // 22: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
+	7,  // 23: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
+	17, // 24: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
+	18, // 25: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
+	18, // 26: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
+	7,  // 27: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
+	19, // 28: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
+	18, // 29: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
+	18, // 30: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
+	17, // 31: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
+	32, // [32:32] is the sub-list for method output_type
+	32, // [32:32] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_state_proto_init() }
@@ -1848,13 +1922,17 @@ func file_playerhub_v1_state_proto_init() {
 	if File_playerhub_v1_state_proto != nil {
 		return
 	}
+	file_playerhub_v1_state_proto_msgTypes[4].OneofWrappers = []any{
+		(*Action_Attack)(nil),
+		(*Action_Beast)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_playerhub_v1_state_proto_rawDesc), len(file_playerhub_v1_state_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   13,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

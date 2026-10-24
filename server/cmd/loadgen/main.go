@@ -251,7 +251,7 @@ func (b *bot) enter(ctx context.Context) error {
 			Revision: 1, Race: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 0x13746}, Weight: 50, Height: 1,
 			BodyTint: &pb.Color{R: 200, G: 170, B: 150}, FaceMorphs: make([]float32, 19), FaceParts: make([]int32, 4)}}},
 		{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}},
-		{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: b.o.worldspace, CellId: 1, GraphEpoch: 1}}},
+		{Message: &pb.ClientMessage_Context{Context: &pb.Context{WorldspaceId: b.o.worldspace, GraphEpoch: 1}}},
 	}
 	for _, m := range messages {
 		if err := b.send(ctx, m); err != nil {

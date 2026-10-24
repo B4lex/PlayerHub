@@ -109,7 +109,8 @@ func WeaponDrawn(c *pb.Checkpoint) bool {
 }
 
 func Context(c *pb.Context) error {
-	if c.GetGraphEpoch() == 0 || (c.Furniture != nil && !formRef(c.Furniture)) ||
+	if c.GetGraphEpoch() == 0 || (c.GetWorldspaceId() != 0 && c.GetInteriorCellId() != 0) ||
+		(c.Furniture != nil && !formRef(c.Furniture)) ||
 		c.GetShapeshift() < pb.Shapeshift_SHAPESHIFT_NONE || c.GetShapeshift() > pb.Shapeshift_SHAPESHIFT_WEREBEAR {
 		return ErrContext
 	}
@@ -150,26 +151,22 @@ func Action(a *pb.Action) error {
 	if a.GetActionSequence() == 0 || a.GetGraphEpoch() == 0 || a.GetCheckpointSequence() == 0 {
 		return ErrAction
 	}
-	if a.GetBeast() != pb.BeastAction_BEAST_ACTION_UNSPECIFIED {
-		if BeastActionForm(a.GetBeast()) == pb.Shapeshift_SHAPESHIFT_NONE ||
-			a.GetAction() != pb.AttackAction_ATTACK_ACTION_UNSPECIFIED || a.GetPower() ||
-			a.GetDirection() != pb.PowerDirection_POWER_DIRECTION_NONE {
+	switch kind := a.GetKind().(type) {
+	case *pb.Action_Beast:
+		if BeastActionForm(kind.Beast) == pb.Shapeshift_SHAPESHIFT_NONE {
+			return ErrAction
+		}
+		return nil
+	case *pb.Action_Attack:
+		attack := kind.Attack
+		if attack.GetAction() < pb.AttackAction_ATTACK_ACTION_NORMAL || attack.GetAction() > pb.AttackAction_ATTACK_ACTION_BASH ||
+			attack.GetDirection() < pb.PowerDirection_POWER_DIRECTION_NONE ||
+			attack.GetDirection() > pb.PowerDirection_POWER_DIRECTION_RIGHT {
 			return ErrAction
 		}
 		return nil
 	}
-	if a.GetAction() < pb.AttackAction_ATTACK_ACTION_NORMAL || a.GetAction() > pb.AttackAction_ATTACK_ACTION_BASH {
-		return ErrAction
-	}
-	direction := a.GetDirection()
-	if a.GetPower() {
-		if direction < pb.PowerDirection_POWER_DIRECTION_STANDING || direction > pb.PowerDirection_POWER_DIRECTION_RIGHT {
-			return ErrAction
-		}
-	} else if direction != pb.PowerDirection_POWER_DIRECTION_NONE {
-		return ErrAction
-	}
-	return nil
+	return ErrAction
 }
 
 func Appearance(a *pb.Appearance) error {

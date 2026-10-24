@@ -18,28 +18,47 @@ namespace Multiplayer
         kWhisper
     };
 
-    struct ChatSpeaker
+    enum class ChatRejection : std::uint8_t
+    {
+        kNone,
+        kInvalid,
+        kRateLimited,
+        kNotInWorld,
+        kUnknownRecipient
+    };
+
+    [[nodiscard]] constexpr const char* GetChatRejectionName(ChatRejection a_rejection) noexcept
+    {
+        switch (a_rejection)
+        {
+            case ChatRejection::kNone:
+                return "none";
+            case ChatRejection::kInvalid:
+                return "invalid";
+            case ChatRejection::kRateLimited:
+                return "rate limited";
+            case ChatRejection::kNotInWorld:
+                return "not in world";
+            case ChatRejection::kUnknownRecipient:
+                return "unknown recipient";
+        }
+        return "unknown";
+    }
+
+    struct PlayerIdentity
     {
         PeerSlot playerID{ 0 };
         std::string name;
-        std::uint16_t level{ 0 };
         SessionID session{ 0 };
     };
 
     struct ChatMessage
     {
         ChatChannel channel{ ChatChannel::kGlobal };
-        ChatSpeaker sender;
-        ChatSpeaker recipient;
+        PlayerIdentity sender;
+        PlayerIdentity recipient;
         std::string text;
         bool outgoing{ false };
-    };
-
-    struct RosterEntry
-    {
-        PeerSlot playerID{ 0 };
-        std::string name;
-        SessionID session{ 0 };
     };
 
     inline constexpr std::size_t kMaximumChatTextBytes = 512;
@@ -65,7 +84,7 @@ namespace Multiplayer
     struct Roster
     {
         PeerSlot localPlayerID{ 0 };
-        std::vector<RosterEntry> players;
+        std::vector<PlayerIdentity> players;
     };
 
     [[nodiscard]] inline std::string_view TrimChatText(std::string_view a_text)

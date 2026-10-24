@@ -14,14 +14,14 @@ namespace ChatSync
         Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kGlobal };
         std::string sender;
         std::string text;
-        Multiplayer::RosterEntry player;
+        Multiplayer::PlayerIdentity player;
         bool outgoing{ false };
     };
 
     struct ChatTarget
     {
         Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kNearby };
-        Multiplayer::RosterEntry player;
+        Multiplayer::PlayerIdentity player;
 
         [[nodiscard]] bool operator==(const ChatTarget& a_other) const
         {

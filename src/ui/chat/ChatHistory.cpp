@@ -167,7 +167,7 @@ namespace UI
             lines.push_back(Line{ .channel = line.channel,
                 .label = std::format("{}:", line.sender),
                 .text = std::move(line.text),
-                .player = whisperable ? std::move(line.player) : Multiplayer::RosterEntry{},
+                .player = whisperable ? std::move(line.player) : Multiplayer::PlayerIdentity{},
                 .sender = sender,
                 .muted = muted,
                 .receivedAt = a_now });
@@ -272,10 +272,10 @@ namespace UI
         }
     }
 
-    std::optional<Multiplayer::RosterEntry> ChatHistory::DrawLines(
+    std::optional<Multiplayer::PlayerIdentity> ChatHistory::DrawLines(
         const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu, bool a_wheelElsewhere)
     {
-        std::optional<Multiplayer::RosterEntry> picked;
+        std::optional<Multiplayer::PlayerIdentity> picked;
         if (rewrappedHeight >= 0.0F)
         {
             ImGui::SetNextWindowContentSize(ImVec2{ 0.0F, rewrappedHeight });

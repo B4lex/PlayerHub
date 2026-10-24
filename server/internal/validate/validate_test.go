@@ -40,7 +40,10 @@ func TestCheckpoint(t *testing.T) {
 }
 
 func TestContext(t *testing.T) {
-	if err := Context(&pb.Context{CellId: 0xFFFFFFFF, GraphEpoch: 1}); err != nil {
+	if err := Context(&pb.Context{InteriorCellId: 0xFFFFFFFF, GraphEpoch: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := Context(&pb.Context{WorldspaceId: 0x3C, GraphEpoch: 1}); err != nil {
 		t.Fatal(err)
 	}
 	if err := Context(&pb.Context{GraphEpoch: 1, Furniture: ref("Skyrim.esm", 0xFFFFFF)}); err != nil {
@@ -51,6 +54,7 @@ func TestContext(t *testing.T) {
 	}
 	for name, c := range map[string]*pb.Context{
 		"zero graph epoch":      {},
+		"cell in a worldspace":  {InteriorCellId: 5, WorldspaceId: 0x3C, GraphEpoch: 1},
 		"empty furniture":       {GraphEpoch: 1, Furniture: ref("", 1)},
 		"long plugin":           {GraphEpoch: 1, Furniture: ref(strings.Repeat("a", 261), 1)},
 		"form ID above 24 bits": {GraphEpoch: 1, Furniture: ref("Skyrim.esm", 0x1000000)},
@@ -64,31 +68,40 @@ func TestContext(t *testing.T) {
 }
 
 func TestAction(t *testing.T) {
+	attack := func(action pb.AttackAction, direction pb.PowerDirection) *pb.Action {
+		return &pb.Action{ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1,
+			Kind: &pb.Action_Attack{Attack: &pb.Attack{Action: action, Direction: direction}}}
+	}
+	beast := func(action pb.BeastAction) *pb.Action {
+		return &pb.Action{ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Kind: &pb.Action_Beast{Beast: action}}
+	}
 	for name, a := range map[string]*pb.Action{
-		"normal":       {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: pb.AttackAction_ATTACK_ACTION_NORMAL},
-		"bash":         {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: pb.AttackAction_ATTACK_ACTION_BASH},
-		"power right":  {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: pb.AttackAction_ATTACK_ACTION_DUAL, Power: true, Direction: pb.PowerDirection_POWER_DIRECTION_RIGHT},
-		"power stands": {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: pb.AttackAction_ATTACK_ACTION_LEFT, Power: true, Direction: pb.PowerDirection_POWER_DIRECTION_STANDING},
-		"howl":         {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Beast: pb.BeastAction_BEAST_ACTION_WEREWOLF_HOWL_START},
-		"last beast":   {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Beast: pb.BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT},
+		"normal":       attack(pb.AttackAction_ATTACK_ACTION_NORMAL, pb.PowerDirection_POWER_DIRECTION_NONE),
+		"bash":         attack(pb.AttackAction_ATTACK_ACTION_BASH, pb.PowerDirection_POWER_DIRECTION_NONE),
+		"power right":  attack(pb.AttackAction_ATTACK_ACTION_DUAL, pb.PowerDirection_POWER_DIRECTION_RIGHT),
+		"power stands": attack(pb.AttackAction_ATTACK_ACTION_LEFT, pb.PowerDirection_POWER_DIRECTION_STANDING),
+		"howl":         beast(pb.BeastAction_BEAST_ACTION_WEREWOLF_HOWL_START),
+		"last beast":   beast(pb.BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT),
 	} {
 		if err := Action(a); err != nil {
 			t.Errorf("%s rejected", name)
 		}
 	}
+	zeroAction, zeroEpoch, zeroCheckpoint := attack(1, 0), attack(1, 0), attack(1, 0)
+	zeroAction.ActionSequence, zeroEpoch.GraphEpoch, zeroCheckpoint.CheckpointSequence = 0, 0, 0
 	for name, a := range map[string]*pb.Action{
-		"no action":            {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1},
-		"unknown action":       {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: 5},
-		"zero action sequence": {GraphEpoch: 1, CheckpointSequence: 1, Action: 1},
-		"zero graph epoch":     {ActionSequence: 1, CheckpointSequence: 1, Action: 1},
-		"zero checkpoint":      {ActionSequence: 1, GraphEpoch: 1, Action: 1},
-		"power without dir":    {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: 1, Power: true},
-		"dir without power":    {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: 1, Direction: pb.PowerDirection_POWER_DIRECTION_LEFT},
-		"unknown direction":    {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: 1, Power: true, Direction: 6},
-		"beast gap value":      {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Beast: 20},
-		"beast past the last":  {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Beast: 52},
-		"beast with attack":    {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Action: 1, Beast: 1},
-		"beast with power":     {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Power: true, Direction: pb.PowerDirection_POWER_DIRECTION_STANDING, Beast: 1},
+		"no kind":              {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1},
+		"empty attack":         {ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Kind: &pb.Action_Attack{}},
+		"unspecified attack":   attack(pb.AttackAction_ATTACK_ACTION_UNSPECIFIED, pb.PowerDirection_POWER_DIRECTION_NONE),
+		"unknown action":       attack(5, pb.PowerDirection_POWER_DIRECTION_NONE),
+		"zero action sequence": zeroAction,
+		"zero graph epoch":     zeroEpoch,
+		"zero checkpoint":      zeroCheckpoint,
+		"unknown direction":    attack(1, 6),
+		"negative direction":   attack(1, -1),
+		"unspecified beast":    beast(pb.BeastAction_BEAST_ACTION_UNSPECIFIED),
+		"beast gap value":      beast(20),
+		"beast past the last":  beast(52),
 	} {
 		if Action(a) == nil {
 			t.Errorf("%s accepted", name)

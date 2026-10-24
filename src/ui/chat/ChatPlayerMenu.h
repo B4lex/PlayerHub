@@ -9,9 +9,9 @@ namespace UI
     class ChatPlayerMenu
     {
     public:
-        void Open(const Multiplayer::RosterEntry& a_player);
+        void Open(const Multiplayer::PlayerIdentity& a_player);
 
-        [[nodiscard]] const Multiplayer::RosterEntry& GetPlayer() const { return player; }
+        [[nodiscard]] const Multiplayer::PlayerIdentity& GetPlayer() const { return player; }
 
         [[nodiscard]] bool Draw();
 
@@ -20,7 +20,7 @@ namespace UI
         void DrawTradeItems() const;
         void DrawFilterItems() const;
 
-        Multiplayer::RosterEntry player;
+        Multiplayer::PlayerIdentity player;
         std::string details;
         float waited{ 0.0F };
         bool pending{ false };

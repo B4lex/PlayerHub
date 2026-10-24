@@ -54,7 +54,7 @@ namespace TradeSync
     struct View
     {
         TradeSession::Phase phase{ TradeSession::Phase::kIdle };
-        Multiplayer::RosterEntry peer;
+        Multiplayer::PlayerIdentity peer;
         std::uint32_t secondsLeft{ 0 };
         std::uint64_t inventoryRevision{ 0 };
         std::vector<InventoryLine> inventory;
@@ -69,7 +69,7 @@ namespace TradeSync
     };
 
     // Overlay thread.
-    void RequestTrade(const Multiplayer::RosterEntry& a_player);
+    void RequestTrade(const Multiplayer::PlayerIdentity& a_player);
     void AnswerInvitation(bool a_accept);
     void Cancel(Multiplayer::TradeCloseReason a_reason);
     void SetOfferCount(std::uint64_t a_inventoryRevision, std::size_t a_row, std::uint32_t a_count);

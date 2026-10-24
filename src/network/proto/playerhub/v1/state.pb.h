@@ -20,21 +20,23 @@ typedef enum _playerhub_v1_MovementState {
     playerhub_v1_MovementState_MOVEMENT_STATE_SNEAKING_RUNNING = 6
 } playerhub_v1_MovementState;
 
+/* Ordered by how often a flag is set: a varint below 128 is one byte, so the
+ common on-foot flags come first. */
 typedef enum _playerhub_v1_CheckpointFlag {
     playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_NONE = 0,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_JUMPING = 8,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_GROUNDED = 8,
     playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_WEAPON_DRAWN = 16,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BOW_DRAWN = 32,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT = 64,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT = 128,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BLOCKING = 256,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_DEAD = 512,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_MOUNTED = 1024,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SWIMMING = 2048,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_LEVITATING = 4096,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_MIST_FORM = 8192,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BATS = 16384,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_GROUNDED = 32768
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_JUMPING = 32,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BLOCKING = 64,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BOW_DRAWN = 128,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT = 256,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT = 512,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SWIMMING = 1024,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_MOUNTED = 2048,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_DEAD = 4096,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_LEVITATING = 8192,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_MIST_FORM = 16384,
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BATS = 32768
 } playerhub_v1_CheckpointFlag;
 
 typedef enum _playerhub_v1_Shapeshift {
@@ -135,7 +137,8 @@ typedef struct _playerhub_v1_Checkpoint {
 } playerhub_v1_Checkpoint;
 
 typedef struct _playerhub_v1_Context {
-    uint32_t cell_id;
+    /* Zero in a worldspace, so crossing exterior cells leaves the context unchanged. */
+    uint32_t interior_cell_id;
     uint32_t worldspace_id;
     uint64_t graph_epoch;
     bool has_furniture;
@@ -143,14 +146,21 @@ typedef struct _playerhub_v1_Context {
     playerhub_v1_Shapeshift shapeshift;
 } playerhub_v1_Context;
 
+typedef struct _playerhub_v1_Attack {
+    playerhub_v1_AttackAction action;
+    /* NONE unless a power attack. */
+    playerhub_v1_PowerDirection direction;
+} playerhub_v1_Attack;
+
 typedef struct _playerhub_v1_Action {
     uint64_t action_sequence;
     uint64_t graph_epoch;
     uint64_t checkpoint_sequence;
-    playerhub_v1_AttackAction action;
-    bool power;
-    playerhub_v1_PowerDirection direction;
-    playerhub_v1_BeastAction beast;
+    pb_size_t which_kind;
+    union {
+        playerhub_v1_Attack attack;
+        playerhub_v1_BeastAction beast;
+    } kind;
 } playerhub_v1_Action;
 
 typedef struct _playerhub_v1_Color {
@@ -265,8 +275,8 @@ extern "C" {
 #define _playerhub_v1_MovementState_ARRAYSIZE ((playerhub_v1_MovementState)(playerhub_v1_MovementState_MOVEMENT_STATE_SNEAKING_RUNNING+1))
 
 #define _playerhub_v1_CheckpointFlag_MIN playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_NONE
-#define _playerhub_v1_CheckpointFlag_MAX playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_GROUNDED
-#define _playerhub_v1_CheckpointFlag_ARRAYSIZE ((playerhub_v1_CheckpointFlag)(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_GROUNDED+1))
+#define _playerhub_v1_CheckpointFlag_MAX playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BATS
+#define _playerhub_v1_CheckpointFlag_ARRAYSIZE ((playerhub_v1_CheckpointFlag)(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BATS+1))
 
 #define _playerhub_v1_Shapeshift_MIN playerhub_v1_Shapeshift_SHAPESHIFT_NONE
 #define _playerhub_v1_Shapeshift_MAX playerhub_v1_Shapeshift_SHAPESHIFT_WEREBEAR
@@ -292,9 +302,10 @@ extern "C" {
 
 #define playerhub_v1_Context_shapeshift_ENUMTYPE playerhub_v1_Shapeshift
 
-#define playerhub_v1_Action_action_ENUMTYPE playerhub_v1_AttackAction
-#define playerhub_v1_Action_direction_ENUMTYPE playerhub_v1_PowerDirection
-#define playerhub_v1_Action_beast_ENUMTYPE playerhub_v1_BeastAction
+#define playerhub_v1_Attack_action_ENUMTYPE playerhub_v1_AttackAction
+#define playerhub_v1_Attack_direction_ENUMTYPE playerhub_v1_PowerDirection
+
+#define playerhub_v1_Action_kind_beast_ENUMTYPE playerhub_v1_BeastAction
 
 
 
@@ -311,7 +322,8 @@ extern "C" {
 #define playerhub_v1_FormRef_init_default        {"", 0}
 #define playerhub_v1_Checkpoint_init_default     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define playerhub_v1_Context_init_default        {0, 0, 0, false, playerhub_v1_FormRef_init_default, _playerhub_v1_Shapeshift_MIN}
-#define playerhub_v1_Action_init_default         {0, 0, 0, _playerhub_v1_AttackAction_MIN, 0, _playerhub_v1_PowerDirection_MIN, _playerhub_v1_BeastAction_MIN}
+#define playerhub_v1_Attack_init_default         {_playerhub_v1_AttackAction_MIN, _playerhub_v1_PowerDirection_MIN}
+#define playerhub_v1_Action_init_default         {0, 0, 0, 0, {playerhub_v1_Attack_init_default}}
 #define playerhub_v1_Color_init_default          {0, 0, 0}
 #define playerhub_v1_HeadPart_init_default       {false, playerhub_v1_FormRef_init_default, 0}
 #define playerhub_v1_Tint_init_default           {0, 0, false, playerhub_v1_Color_init_default, 0}
@@ -324,7 +336,8 @@ extern "C" {
 #define playerhub_v1_FormRef_init_zero           {"", 0}
 #define playerhub_v1_Checkpoint_init_zero        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define playerhub_v1_Context_init_zero           {0, 0, 0, false, playerhub_v1_FormRef_init_zero, _playerhub_v1_Shapeshift_MIN}
-#define playerhub_v1_Action_init_zero            {0, 0, 0, _playerhub_v1_AttackAction_MIN, 0, _playerhub_v1_PowerDirection_MIN, _playerhub_v1_BeastAction_MIN}
+#define playerhub_v1_Attack_init_zero            {_playerhub_v1_AttackAction_MIN, _playerhub_v1_PowerDirection_MIN}
+#define playerhub_v1_Action_init_zero            {0, 0, 0, 0, {playerhub_v1_Attack_init_zero}}
 #define playerhub_v1_Color_init_zero             {0, 0, 0}
 #define playerhub_v1_HeadPart_init_zero          {false, playerhub_v1_FormRef_init_zero, 0}
 #define playerhub_v1_Tint_init_zero              {0, 0, false, playerhub_v1_Color_init_zero, 0}
@@ -349,18 +362,18 @@ extern "C" {
 #define playerhub_v1_Checkpoint_direction_tag    9
 #define playerhub_v1_Checkpoint_flags_tag        10
 #define playerhub_v1_Checkpoint_time_tag         11
-#define playerhub_v1_Context_cell_id_tag         1
+#define playerhub_v1_Context_interior_cell_id_tag 1
 #define playerhub_v1_Context_worldspace_id_tag   2
 #define playerhub_v1_Context_graph_epoch_tag     3
 #define playerhub_v1_Context_furniture_tag       4
 #define playerhub_v1_Context_shapeshift_tag      5
+#define playerhub_v1_Attack_action_tag           1
+#define playerhub_v1_Attack_direction_tag        2
 #define playerhub_v1_Action_action_sequence_tag  1
 #define playerhub_v1_Action_graph_epoch_tag      2
 #define playerhub_v1_Action_checkpoint_sequence_tag 3
-#define playerhub_v1_Action_action_tag           4
-#define playerhub_v1_Action_power_tag            5
-#define playerhub_v1_Action_direction_tag        6
-#define playerhub_v1_Action_beast_tag            7
+#define playerhub_v1_Action_attack_tag           4
+#define playerhub_v1_Action_beast_tag            5
 #define playerhub_v1_Color_r_tag                 1
 #define playerhub_v1_Color_g_tag                 2
 #define playerhub_v1_Color_b_tag                 3
@@ -430,7 +443,7 @@ X(a, STATIC,   SINGULAR, UINT32,   time,             11)
 #define playerhub_v1_Checkpoint_DEFAULT NULL
 
 #define playerhub_v1_Context_FIELDLIST(X, a) \
-X(a, STATIC,   SINGULAR, UINT32,   cell_id,           1) \
+X(a, STATIC,   SINGULAR, UINT32,   interior_cell_id,   1) \
 X(a, STATIC,   SINGULAR, UINT32,   worldspace_id,     2) \
 X(a, STATIC,   SINGULAR, UINT64,   graph_epoch,       3) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  furniture,         4) \
@@ -439,16 +452,21 @@ X(a, STATIC,   SINGULAR, UENUM,    shapeshift,        5)
 #define playerhub_v1_Context_DEFAULT NULL
 #define playerhub_v1_Context_furniture_MSGTYPE playerhub_v1_FormRef
 
+#define playerhub_v1_Attack_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UENUM,    action,            1) \
+X(a, STATIC,   SINGULAR, UENUM,    direction,         2)
+#define playerhub_v1_Attack_CALLBACK NULL
+#define playerhub_v1_Attack_DEFAULT NULL
+
 #define playerhub_v1_Action_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT64,   action_sequence,   1) \
 X(a, STATIC,   SINGULAR, UINT64,   graph_epoch,       2) \
 X(a, STATIC,   SINGULAR, UINT64,   checkpoint_sequence,   3) \
-X(a, STATIC,   SINGULAR, UENUM,    action,            4) \
-X(a, STATIC,   SINGULAR, BOOL,     power,             5) \
-X(a, STATIC,   SINGULAR, UENUM,    direction,         6) \
-X(a, STATIC,   SINGULAR, UENUM,    beast,             7)
+X(a, STATIC,   ONEOF,    MESSAGE,  (kind,attack,kind.attack),   4) \
+X(a, STATIC,   ONEOF,    UENUM,    (kind,beast,kind.beast),   5)
 #define playerhub_v1_Action_CALLBACK NULL
 #define playerhub_v1_Action_DEFAULT NULL
+#define playerhub_v1_Action_kind_attack_MSGTYPE playerhub_v1_Attack
 
 #define playerhub_v1_Color_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   r,                 1) \
@@ -559,6 +577,7 @@ X(a, STATIC,   REPEATED, MESSAGE,  beast_armor,       9)
 extern const pb_msgdesc_t playerhub_v1_FormRef_msg;
 extern const pb_msgdesc_t playerhub_v1_Checkpoint_msg;
 extern const pb_msgdesc_t playerhub_v1_Context_msg;
+extern const pb_msgdesc_t playerhub_v1_Attack_msg;
 extern const pb_msgdesc_t playerhub_v1_Action_msg;
 extern const pb_msgdesc_t playerhub_v1_Color_msg;
 extern const pb_msgdesc_t playerhub_v1_HeadPart_msg;
@@ -574,6 +593,7 @@ extern const pb_msgdesc_t playerhub_v1_Equipment_msg;
 #define playerhub_v1_FormRef_fields &playerhub_v1_FormRef_msg
 #define playerhub_v1_Checkpoint_fields &playerhub_v1_Checkpoint_msg
 #define playerhub_v1_Context_fields &playerhub_v1_Context_msg
+#define playerhub_v1_Attack_fields &playerhub_v1_Attack_msg
 #define playerhub_v1_Action_fields &playerhub_v1_Action_msg
 #define playerhub_v1_Color_fields &playerhub_v1_Color_msg
 #define playerhub_v1_HeadPart_fields &playerhub_v1_HeadPart_msg
@@ -587,9 +607,10 @@ extern const pb_msgdesc_t playerhub_v1_Equipment_msg;
 
 /* Maximum encoded size of messages (where known) */
 #define PLAYERHUB_V1_PLAYERHUB_V1_STATE_PB_H_MAX_SIZE playerhub_v1_Equipment_size
-#define playerhub_v1_Action_size                 41
+#define playerhub_v1_Action_size                 39
 #define playerhub_v1_Appearance_size             8132
 #define playerhub_v1_Armor_size                  278
+#define playerhub_v1_Attack_size                 4
 #define playerhub_v1_Checkpoint_size             71
 #define playerhub_v1_Color_size                  18
 #define playerhub_v1_Context_size                297

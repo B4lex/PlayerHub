@@ -265,8 +265,8 @@ namespace Multiplayer
     struct TradeInvite
     {
         TradeID id{ 0 };
-        ChatSpeaker sender;
-        ChatSpeaker recipient;
+        PlayerIdentity sender;
+        PlayerIdentity recipient;
         // Set by the transport when the local player sent the invitation.
         bool outgoing{ false };
     };

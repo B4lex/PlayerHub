@@ -55,7 +55,7 @@ func TestQuantize(t *testing.T) {
 		MovementState: pb.MovementState_MOVEMENT_STATE_SNEAKING_RUNNING,
 		Flags:         pb.CheckpointFlag_CHECKPOINT_FLAG_MOUNTED}, 3)
 	want := &pb.Checkpoint{Sequence: 3, X: 6, Y: -6, Z: 0, Heading: 0, Pitch: 1609, Speed: 0, Direction: 0,
-		Flags: 6 | 1024}
+		Flags: 6 | uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_MOUNTED)}
 	if !proto.Equal(c, want) {
 		t.Fatalf("got %v, want %v", c, want)
 	}

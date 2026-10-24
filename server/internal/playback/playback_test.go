@@ -79,7 +79,8 @@ func timeline() *recording.Recording {
 			Sequence: uint64(t + 1000), X: int32(t / 10), Speed: 300, Flags: 2}}})
 		if t == 500 {
 			add(t, &pb.ClientMessage{Message: &pb.ClientMessage_Action{Action: &pb.Action{
-				ActionSequence: 40, GraphEpoch: 5, CheckpointSequence: 1500, Action: 1}}})
+				ActionSequence: 40, GraphEpoch: 5, CheckpointSequence: 1500,
+				Kind: &pb.Action_Attack{Attack: &pb.Attack{Action: 1}}}}})
 		}
 	}
 	return r
@@ -204,7 +205,7 @@ func TestOutOfWorldStretchesExit(t *testing.T) {
 		message(0, &pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 1, X: 1, Speed: 1}}}),
 		message(100, &pb.ClientMessage{Message: &pb.ClientMessage_Exit{Exit: &pb.Exit{}}}),
 		message(300, &pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}}),
-		message(300, &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{CellId: 7, GraphEpoch: 6}}}),
+		message(300, &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{InteriorCellId: 7, GraphEpoch: 6}}}),
 		message(400, &pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Sequence: 2, X: 2, Speed: 1}}}),
 	}...)
 	s, p, clock := newSession(t, r, Options{Autoplay: false, StartMs: 200})

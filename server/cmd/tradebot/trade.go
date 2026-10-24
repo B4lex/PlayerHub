@@ -90,9 +90,9 @@ func (b *bot) handle(m *pb.ServerMessage) {
 		if accept.GetTradeId() != t.id || t.phase != phaseOpen {
 			return
 		}
-		if accept.GetOwnRevision() != t.peerRevision || accept.GetPeerRevision() != t.ownRevision {
+		if accept.GetPeerRevision() != t.peerRevision || accept.GetOwnRevision() != t.ownRevision {
 			say("trade %d: %s accepted revisions %d/%d, not the current %d/%d", t.id, t.peer,
-				accept.GetOwnRevision(), accept.GetPeerRevision(), t.peerRevision, t.ownRevision)
+				accept.GetPeerRevision(), accept.GetOwnRevision(), t.peerRevision, t.ownRevision)
 			return
 		}
 		t.peerAccepted = true
@@ -115,9 +115,10 @@ func (b *bot) handle(m *pb.ServerMessage) {
 			say("trade %d: closed, %s", t.id, reason)
 			*t = trade{}
 		}
-	case *pb.ServerMessage_Result:
-		if r := body.Result; !r.GetOk() {
-			say("request %d failed: %s", r.GetRequestId(), r.GetError())
+	case *pb.ServerMessage_ChatResult:
+		if r := body.ChatResult; r.GetRejection() != pb.ChatRejection_CHAT_REJECTION_NONE {
+			say("chat message %d rejected: %s", r.GetRequestId(),
+				strings.ToLower(strings.TrimPrefix(r.GetRejection().String(), "CHAT_REJECTION_")))
 		}
 	}
 }

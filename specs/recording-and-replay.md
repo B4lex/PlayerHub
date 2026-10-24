@@ -45,7 +45,7 @@ bots as real WebSocket clients out of process.
 
 | Module | Responsibility |
 | --- | --- |
-| `internal/recording` | Format version 4, `Store`, `Captures`, `Markers` |
+| `internal/recording` | Format version 5, `Store`, `Captures`, `Markers` |
 | `internal/playback` | `VirtualPlayer` numbering, `Session` timeline, `Manager`, `HubPlayer` |
 | `internal/loadtest` | `PlanBots`, in-server `Batch`es and their `Manager` |
 | `internal/admin` | REST routes under `/api`, the `/api/events` feed, panel files |
@@ -57,7 +57,7 @@ bots as real WebSocket clients out of process.
 One append-only JSON Lines file per capture, `server/recordings/<id>.jsonl`:
 
 ```text
-{"type":"header","format":"playerhub-recording","version":4,"id":...,"label":...,"playerId":"7","playerName":...,"startedAt":...}
+{"type":"header","format":"playerhub-recording","version":5,"id":...,"label":...,"playerId":"7","playerName":...,"startedAt":...}
 {"type":"message","t":0,"message":{"enter":{}}}
 {"type":"end","t":75266,"reason":"stopped"}
 ```

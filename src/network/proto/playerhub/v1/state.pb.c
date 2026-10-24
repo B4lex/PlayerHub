@@ -15,6 +15,9 @@ PB_BIND(playerhub_v1_Checkpoint, playerhub_v1_Checkpoint, AUTO)
 PB_BIND(playerhub_v1_Context, playerhub_v1_Context, 2)
 
 
+PB_BIND(playerhub_v1_Attack, playerhub_v1_Attack, AUTO)
+
+
 PB_BIND(playerhub_v1_Action, playerhub_v1_Action, AUTO)
 
 

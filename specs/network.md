@@ -39,6 +39,15 @@
   `NearbyPlayers`, whispers, inspections, trades, shapeshift contexts and
   beast actions) and rejected their invalid forms, and the client messages
   it encoded passed the server's `validate.Message`.
+  For protocol 13, `WireCodec` built with g++ against nanopb 0.4.9 encoded
+  contexts, checkpoints, attacks, beast actions, and trade acceptances that
+  `protoc --decode` read as the schema says, and decoded `protoc`-encoded
+  `ChatResult`, `Pong`, `ChatMessage`, `Roster`, `TradeInvite`,
+  `TradeAccept`, `PeerAction`, `PeerContext`, `PeerEnter`, and
+  `PeerAppearance`, rejecting an action without a kind, an unspecified beast
+  action, a context with both an interior cell and a worldspace, a speaker
+  without a name, and an unknown rejection. Not built on Windows or run in
+  game.
   `ConnectionMonitor.cpp` ran against a stubbed transport and configuration
   under the settings window's harness ([UI overlay](ui-overlay.md#status)):
   a game start with and without a display name, `ConnectAutomatically`, an
@@ -125,7 +134,7 @@ refused at the handshake ([Transport](#transport)).
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
   within `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (12) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (13) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
@@ -174,16 +183,16 @@ retries. What a refusal means for the client is in [Connection](#connection).
 | `Checkpoint` | One quantized sample |
 | `Action` | One attack ([Actions](#actions)) |
 | `Appearance`, `Equipment` | Latest-wins presentation ([below](#appearance-and-equipment)) |
-| `ChatSend` | `{request_id, text, channel, recipient}`, answered with a `Result` ([Chat](#chat)) |
-| `Ping` | `{request_id}`, answered with `Result{ok}` by the connection at once; the latency probe |
+| `ChatSend` | `{request_id, text, channel, recipient}`, answered with a `ChatResult` ([Chat](#chat)) |
+| `Ping` | `{request_id}`, answered with `Pong{request_id}` by the connection at once; the latency probe |
 | `Vanish` | `{session_id, vanished}`: stop or resume receiving a session's player ([Vanish](#vanish)) |
 | `Inspect` | `{slot}`: ask for a player's level and race, answered with an `Inspection` ([Inspection](#inspection)) |
 | `TradeRequest`, `TradeAnswer`, `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept`, `TradeCancel` | A trade between two players ([Trade](#trade)) |
 
 A rejected message is dropped and logged on the server (at most one summary
-per connection every 5 s); only `ChatSend` and `Ping` get a `Result`, an
-accepted `Inspect` gets an `Inspection`, and a refused `TradeRequest` a
-`TradeClose`. Graph
+per connection every 5 s); only `ChatSend` gets a `ChatResult` (`Ping` gets
+its `Pong` from the connection), an accepted `Inspect` gets an `Inspection`,
+and a refused `TradeRequest` a `TradeClose`. Graph
 event names never cross the network.
 
 ## Checkpoint and context
@@ -203,12 +212,12 @@ context.
 | `pitch` | `sint32`, radians × 1024 | `|pitch| <= 1609` (π/2) |
 | `speed` | `uint32`, units per second: the source graph's `Speed` while moving on foot, otherwise measured over the ground (3D while swimming) ([Locomotion](locomotion.md#source-capture)) | `<= 100000` |
 | `direction` | `uint32`, graph `Direction` × 256, wrapping | `0..255` |
-| `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–15 `jumping`, `weaponDrawn`, `bowDrawn`, `castingLeft`, `castingRight`, `blocking`, `dead`, `mounted`, `swimming`, `levitating`, `mistForm`, `bats`, `grounded` (the carrier's controller is on the ground, [Locomotion](locomotion.md#ground-offset)) | unknown bits rejected; the last three only in a `VAMPIRE_LORD` context (`validate.VampireLordFlags`, `incompatible animation checkpoint`) |
+| `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–15 `grounded` (the carrier's controller is on the ground, [Locomotion](locomotion.md#ground-offset)), `weaponDrawn`, `jumping`, `blocking`, `bowDrawn`, `castingLeft`, `castingRight`, `swimming`, `mounted`, `dead`, `levitating`, `mistForm`, `bats` (`CheckpointFlag`, mirrored by `Network::CheckpointFlags` with `static_assert`s in `WireCodec.cpp`) | unknown bits rejected; the last three only in a `VAMPIRE_LORD` context (`validate.VampireLordFlags`, `incompatible animation checkpoint`) |
 | `time` | `uint32`, the sender's `steady_clock` in milliseconds when sampled, modulo 16384 | `0..16383` |
 
 | `Context` field | Validation |
 | --- | --- |
-| `cell_id`, `worldspace_id` | any `uint32`; worldspace `0` is an interior |
+| `interior_cell_id`, `worldspace_id` | any `uint32`; worldspace `0` is an interior. `interior_cell_id` must be `0` with a worldspace (`Network::GetCheckpointContext` sends none), so crossing exterior cells changes no field |
 | `graph_epoch` | `>= 1`, never decreasing while in the world |
 | `furniture` | occupied placed reference as a [form reference](#form-references), unset for none |
 | `shapeshift` | `NONE`, `WEREWOLF`, `VAMPIRE_LORD`, or `WEREBEAR`: the vanilla beast form the player is in ([Appearance and equipment](appearance-and-equipment.md#shapeshifts)) |
@@ -230,11 +239,16 @@ stretch it; receivers play checkpoints back at its spacing
 keep it within two bytes; receivers recover the wraps from arrival times. The
 server does not interpret it, and idle suppression ignores it with the
 sequence ([Interest and delivery](interest-and-delivery.md#rate-classes-and-idle-suppression)).
+The flag bits are ordered by how often they are set: a varint below 128 is one
+byte, so the movement state with `grounded` and `weaponDrawn` costs one byte
+on foot, where `grounded` at bit 15 cost three on almost every entry.
 Virtual players and `cmd/loadgen` bots stamp their own
 ([Recording and replay](recording-and-replay.md#virtual-player)). The server
 accepts a `Context` or `Checkpoint` only in the world, and a checkpoint only
 after a context since the last `Enter` (`no context`). A context identical to
-the stored one is dropped. The meaning of each field is in its owning system:
+the stored one is dropped. Exterior cell IDs stay off the wire: nothing compares
+them, and each exterior cell crossing would resend the context, force the next
+checkpoint, and relay a `PeerContext` to every subscriber. The meaning of each field is in its owning system:
 movement in [Locomotion](locomotion.md), stance and hands in
 [Combat presentation](combat-presentation.md), furniture, mounts, and death in
 [Native interactions](native-interactions.md), swimming in
@@ -253,10 +267,10 @@ since a checkpoint field would collapse repeated actions.
 | `action_sequence` | `>= 1`, exactly the previous plus one per player, shared by attacks and beast actions; the first one a server sees sets the boundary |
 | `graph_epoch` | equal to the player's context epoch |
 | `checkpoint_sequence` | `>= 1`, a published checkpoint no newer than the latest |
-| `action` | `NORMAL`, `LEFT`, `DUAL`, or `BASH`; `UNSPECIFIED` with `beast` |
-| `power` | boolean; false with `beast` |
-| `direction` | `STANDING`, `FORWARD`, `BACKWARD`, `LEFT`, `RIGHT` when `power`; `NONE` otherwise |
-| `beast` | `UNSPECIFIED` for an attack, or a `BeastAction`: the `WEREWOLF_` values `1..19` (also the werebear's) or the `VAMPIRE_LORD_` values `32..51`; any other value is rejected |
+| `kind` | a oneof, required: `attack` or `beast` |
+| `attack.action` | `NORMAL`, `LEFT`, `DUAL`, or `BASH` |
+| `attack.direction` | `NONE` for an attack that is not a power attack, else `STANDING`, `FORWARD`, `BACKWARD`, `LEFT`, `RIGHT` |
+| `beast` | a `BeastAction`: the `WEREWOLF_` values `1..19` (also the werebear's) or the `VAMPIRE_LORD_` values `32..51`; any other value is rejected |
 
 For an attack, the server also requires the latest checkpoint to have the
 weapon drawn and the context to have no shapeshift. A beast action needs a
@@ -343,14 +357,15 @@ same list.
 | Message | Fields |
 | --- | --- |
 | `Welcome` | `slot`, `session_id`, `display_name`, and `session_token` only when the session was issued for this connection ([Sessions](#sessions)) |
-| `Result` | `request_id`, `ok`, `error` |
+| `ChatResult` | `request_id` and `rejection`: `NONE` accepts the `ChatSend`, else `INVALID`, `RATE_LIMITED`, `NOT_IN_WORLD`, or `UNKNOWN_RECIPIENT` ([Chat](#chat)) |
+| `Pong` | `request_id` of the `Ping` |
 | `PeerStates` | `repeated Checkpoint` with `player` set; the concatenation of entries encoded once per sender |
 | `PeerEnter` | `slot`, `appearance` and `equipment` when newer than what the recipient holds, `context`, `state` (the stored checkpoint) |
 | `PeerContext` | `slot`, `context` |
 | `PeerLeave` | `slot`, `reason`: `OUT_OF_RANGE`, `EXCLUDED`, `EXITED`, `DISCONNECTED`, `VIEWER_UNPLACED` |
 | `PeerAction`, `PeerAppearance`, `PeerEquipment` | `slot` and the message |
-| `ChatMessage` | `channel`, `sender`, `recipient` (whisper only), `text`; a `ChatSpeaker` is `slot`, `name`, `level`, `session_id` |
-| `Roster` | `joined`, a list of `RosterEntry{slot, name, session_id}`, and `left`, a slot or 0 ([Roster](#roster)) |
+| `ChatMessage` | `channel`, `sender`, `recipient` (whisper only), `text`; each a `PlayerIdentity{slot, name, session_id}` |
+| `Roster` | `joined`, a list of `PlayerIdentity`, and `left`, a slot or 0 ([Roster](#roster)) |
 | `NearbyPlayers` | `joined` and `left`, packed slots entering and leaving the recipient's Nearby chat reach ([Nearby players](#nearby-players)) |
 | `Inspection` | `slot`, `level`, `race`, `default_race` of the player an `Inspect` named ([Inspection](#inspection)) |
 | `TradeInvite`, `TradeOpen`, `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept`, `TradeCommit`, `TradeClose` | A trade's progress ([Trade](#trade)) |
@@ -437,7 +452,7 @@ admin API. Bans are in [Kicks and bans](#kicks-and-bans).
   the resumed one. A session issued there that never connects is not deleted
   by `Store.Abandon`; it expires.
 - A client is named by its session everywhere: `Appearance.name` on the stored
-  and relayed copy, `ChatSpeaker.name`, the admin state, and a recording's
+  and relayed copy, `PlayerIdentity.name` in chat, the roster, and trade invitations, the admin state, and a recording's
   header. Replays and in-server bots have no session and keep their recorded
   names, which are not compared with anyone's; a replay may show a connected
   player's display name.
@@ -546,9 +561,10 @@ connected, and stopping a player who changes both session and address.
 - The server trims surrounding spaces and rejects an unknown channel, empty
   text, control characters, more than 512 UTF-8 bytes, a `WHISPER` without a
   `recipient`, and a `recipient` on another channel
-  (`invalid chat message`); protobuf already guarantees valid UTF-8.
+  (`invalid chat message`, rejection `INVALID`); protobuf already guarantees
+  valid UTF-8.
 - `GLOBAL` goes to every connected client.
-- `NEARBY` needs a placed sender (`not in world` otherwise) and goes to every
+- `NEARBY` needs a placed sender (`not in world`, `NOT_IN_WORLD`, otherwise) and goes to every
   placed client in the same space: in a worldspace within `chat.nearby_radius`
   (8192, horizontal like interest), and in an interior to the whole cell. It
   ignores exclusions, hiding, and the visible cap, which govern presentation
@@ -558,21 +574,23 @@ connected, and stopping a player who changes both session and address.
   [roster](#roster). A slot is one connection, so a whisper never reaches
   whoever holds the recipient's display name after it left, and names with
   spaces need no parsing on the server. A slot that is not a connected client
-  is `unknown recipient`, which includes replays and bots, since they receive
+  is `unknown recipient` (`UNKNOWN_RECIPIENT`), which includes replays and bots, since they receive
   nothing. The whisper goes to the sender and the recipient (once when they
   are the same).
 - 5 accepted messages per player in any 5 s over all channels
-  (`rate limited`); rejected messages do not count, and a disconnect forgets
+  (`rate limited`, `RATE_LIMITED`); rejected messages do not count, and a disconnect forgets
   the history.
+- Every `ChatSend` is answered with a `ChatResult` naming the rejection, or
+  `NONE`; the hub maps its error (`hub.chatRejection`), and the client
+  chooses the sentence it shows from the value, so server wording never
+  reaches the player.
 - Every channel includes the sender, so everyone sees one order and the
-  sender's own line confirms delivery. A `ChatSpeaker` is the player's
-  display name, its session ID, and the level of its latest appearance (`0`
-  before one); the client does not show the level
-  ([Appearance and equipment](appearance-and-equipment.md#player-label)).
+  sender's own line confirms delivery. A speaker is the player's
+  `PlayerIdentity`: slot, display name, and session ID.
 - The client rejects a `ChatMessage` without a sender, with an unknown channel,
   or with a recipient present exactly when the channel is not `WHISPER`, and
-  validates speakers like appearance names, with a slot and a session ID, and
-  text like `ChatSend`.
+  validates speakers like roster entries, and text like `ChatSend`. A
+  `ChatResult` with an unknown rejection is rejected.
 - Chat does not require being in the world except for `NEARBY`, keeps no
   history, and is not recorded. The client side is in
   [UI overlay](ui-overlay.md#chat).
@@ -598,7 +616,8 @@ player.
   writes to every outbox; the full list is 5 to 11 bytes plus the name per
   client, sent once per connection.
 - The client rejects a `Roster` whose entry has no slot, no session ID, no
-  name, or an invalid name, or with more than `kMaximumRosterEntries` (4096)
+  name, or an invalid name (`ReadPlayerIdentity`, the rule for every
+  `PlayerIdentity`), or with more than `kMaximumRosterEntries` (4096)
   entries.
 
 ### Nearby players
@@ -647,7 +666,7 @@ is the client's alone and has no wire message.
 - `Vanish{session_id, vanished}` adds or removes one. A zero session is
   dropped as `invalid vanish`, one more than 1024 as
   `too many vanished players`, and a change to what is already so does
-  nothing. Neither gets a `Result`, and an unknown session is accepted: the
+  nothing. Neither gets a reply, and an unknown session is accepted: the
   player may connect later.
 - The set belongs to the connection (`interest.View.Vanished`), lasts until
   it closes, and is not recorded, since it is the receiver's choice rather
@@ -696,7 +715,7 @@ Client messages:
 | `TradeReport` | `trade_id`, `revision`, `skipped` | `trade_id` and `revision` non-zero, at most 15 `TradeSkip`s with unique `index` `0..14`, a known `reason`, and `plugin` of at most 260 bytes without control characters. Only while open, for the other player's current revision, once per revision, with indices below that offer's item count. Relayed to the other player |
 | `TradePluginQuery` | `trade_id`, `plugins` | `trade_id` non-zero, 1 to 256 plugin names (`validate.MaximumTradePlugins`), each 1 to 260 UTF-8 bytes without control characters; duplicates are allowed. Only while open, at most 8 unanswered per player (`tradePendingPluginQueries`, `rate limited`), and sharing `TradeOffer`'s rate. The hub keeps each query's name count and relays it to the other player as it is ([plugin check](trade.md#plugin-check)) |
 | `TradePluginReply` | `trade_id`, `missing` | `trade_id` non-zero, at most 256 unique indices below 256. Only while open, answering the other player's oldest unanswered query, with every index below its name count (`stale trade message` otherwise, also without a query). Relayed to the other player |
-| `TradeAccept` | `trade_id`, `own_revision`, `peer_revision` | `trade_id` non-zero; only while open, with both revisions current and this player's report on the other's revision received. Relayed to the other player, or, when that player's acceptance stands, both get `TradeCommit` and the trade ends |
+| `TradeAccept` | `trade_id`, `own_revision`, `peer_revision` | `trade_id` non-zero; only while open, with both revisions current and this player's report on the other's revision received. Sent to the other player in its terms (`own_revision` its own, `peer_revision` this player's), or, when that player's acceptance stands, both get `TradeCommit` and the trade ends |
 | `TradeCancel` | `trade_id`, `reason` | `trade_id` non-zero, `reason` one of `CANCELLED`, `COMBAT`, `MENU`, `FAILED`, `TRANSFORMED`; either player, invited or open. Both get `TradeClose` with the reason |
 
 `TradeItem`:
@@ -716,9 +735,10 @@ Server messages:
 
 | Message | Fields |
 | --- | --- |
-| `TradeInvite` | `trade_id`, `sender` and `recipient` as `ChatSpeaker`s; sent to both players |
+| `TradeInvite` | `trade_id`, `sender` and `recipient` as `PlayerIdentity`s; sent to both players |
 | `TradeOpen` | `trade_id`; to both |
-| `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept` | The other player's message as it sent it, so `TradeAccept.own_revision` is that player's and a `TradePluginReply` answers the recipient's oldest unanswered query |
+| `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply` | The other player's message as it sent it, so a `TradePluginReply` answers the recipient's oldest unanswered query |
+| `TradeAccept` | The other player's acceptance, rewritten by the hub so that, as in `TradeCommit`, `own_revision` is the recipient's and `peer_revision` the other player's |
 | `TradeCommit` | `trade_id`, `own_revision` (the recipient's), `peer_revision` |
 | `TradeClose` | `trade_id`, 0 for a refused request; `reason`: `DECLINED`, `EXPIRED`, `CANCELLED`, `BUSY`, `OUT_OF_RANGE`, `COMBAT`, `MENU`, `DISCONNECTED`, `FAILED`, `UNAVAILABLE`, `TRANSFORMED` |
 
@@ -952,7 +972,7 @@ online. With a skipped intro the game connects at once.
   as a WebSocket close or error. Each marks the client disconnected and forgets
   every remote player.
 - A server that stops answering while the socket stays open is found by the
-  latency probe: no `Result` for 5 s of accumulated frame time makes the
+  latency probe: no `Pong` for 5 s of accumulated frame time makes the
   monitor call `AbandonConnection`, which acts like a reported close.
 - IXWebSocket's own reconnection is disabled; each loss is reported once, and
   the monitor reopens.
@@ -969,7 +989,7 @@ online. With a skipped intro the game connects at once.
 
 The client sends `Ping` 1 s after the previous one was sent, with at most one
 outstanding. The round trip is measured with `std::chrono::steady_clock` from
-send to `Result`, so frame rate does not affect it. Each ping has a request ID;
+send to `Pong`, so frame rate does not affect it. Each ping has a request ID;
 a compare-exchange on the outstanding probe accepts only the current probe's
 answer, and requests are forgotten with their connection. A disconnect or new
 generation clears the sample.

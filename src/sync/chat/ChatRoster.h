@@ -11,7 +11,7 @@
 
 namespace ChatRoster
 {
-    using Player = Multiplayer::RosterEntry;
+    using Player = Multiplayer::PlayerIdentity;
 
     struct ListedPlayer
     {

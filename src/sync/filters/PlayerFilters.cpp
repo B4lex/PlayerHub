@@ -64,7 +64,8 @@ namespace PlayerFilters
             }
         }
 
-        Change Set(const Multiplayer::RosterEntry& a_player, bool Entry::* a_flag, bool a_value, std::string& a_server)
+        Change Set(
+            const Multiplayer::PlayerIdentity& a_player, bool Entry::* a_flag, bool a_value, std::string& a_server)
         {
             Entry saved;
             {
@@ -126,7 +127,7 @@ namespace PlayerFilters
         return entry && entry->vanished;
     }
 
-    void SetFriend(const Multiplayer::RosterEntry& a_player, bool a_friend)
+    void SetFriend(const Multiplayer::PlayerIdentity& a_player, bool a_friend)
     {
         std::string server;
         if (a_player.session == 0 || Set(a_player, &Entry::friended, a_friend, server) == Change::kNone)
@@ -137,7 +138,7 @@ namespace PlayerFilters
             static_cast<unsigned long long>(a_player.session), Network::DescribeServer(server));
     }
 
-    void SetMuted(const Multiplayer::RosterEntry& a_player, bool a_muted)
+    void SetMuted(const Multiplayer::PlayerIdentity& a_player, bool a_muted)
     {
         std::string server;
         if (a_player.session == 0 || Set(a_player, &Entry::muted, a_muted, server) == Change::kNone)
@@ -148,7 +149,7 @@ namespace PlayerFilters
             static_cast<unsigned long long>(a_player.session), Network::DescribeServer(server));
     }
 
-    void SetVanished(const Multiplayer::RosterEntry& a_player, bool a_vanished)
+    void SetVanished(const Multiplayer::PlayerIdentity& a_player, bool a_vanished)
     {
         if (a_player.session == 0)
         {
@@ -184,7 +185,7 @@ namespace PlayerFilters
         a_entries = s_entries;
     }
 
-    void CollectArrivedFriends(std::vector<Multiplayer::RosterEntry>& a_friends)
+    void CollectArrivedFriends(std::vector<Multiplayer::PlayerIdentity>& a_friends)
     {
         const std::scoped_lock rosterLock{ s_rosterLock };
         if (!Network::CopyRosterIfChanged(s_rosterRevision, s_roster))
@@ -192,7 +193,7 @@ namespace PlayerFilters
             return;
         }
         const auto& players = s_roster.players;
-        if (std::ranges::find(players, s_roster.localPlayerID, &Multiplayer::RosterEntry::playerID) == players.end())
+        if (std::ranges::find(players, s_roster.localPlayerID, &Multiplayer::PlayerIdentity::playerID) == players.end())
         {
             s_online.clear();
             s_rosterLocalPlayer = 0;

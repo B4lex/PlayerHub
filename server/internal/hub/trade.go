@@ -227,7 +227,8 @@ func (h *Hub) acceptTrade(m *member, accept *pb.TradeAccept) error {
 	t.accepted[side] = true
 	peer := h.tradeMember(t, other)
 	if !t.accepted[other] {
-		h.sendTrade(peer, &pb.ServerMessage{Message: &pb.ServerMessage_TradeAccept{TradeAccept: accept}})
+		h.sendTrade(peer, &pb.ServerMessage{Message: &pb.ServerMessage_TradeAccept{TradeAccept: &pb.TradeAccept{
+			TradeId: t.id, OwnRevision: t.revision[other], PeerRevision: t.revision[side]}}})
 		return nil
 	}
 	h.finishTrade(t)

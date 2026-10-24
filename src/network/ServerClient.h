@@ -75,7 +75,7 @@ namespace Network
         Multiplayer::BeastAction a_action, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
 
     [[nodiscard]] bool PublishChatMessage(Multiplayer::ChatChannel a_channel, Multiplayer::PeerSlot a_recipient,
-        std::string_view a_text, std::function<void(std::string_view)> a_onRejected);
+        std::string_view a_text, std::function<void(Multiplayer::ChatRejection)> a_onRejected);
 
     void PublishVanish(std::string_view a_server, Multiplayer::SessionID a_session, bool a_vanished);
 

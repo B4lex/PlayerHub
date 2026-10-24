@@ -100,6 +100,7 @@ it. Deleting it gives every player a new session and frees every display name.
 
 `config.example.toml` is a starting point for a 50 Mbit/s upload behind a
 proxy on the same host: copy it to an untracked `*.toml` in this directory. It
+listens only on loopback, so players reach the game port through the proxy; it
 turns the budget on and shows 32 visible peers, which keeps the nearest peers'
 p99 under 60 ms with 250 players in one crowd.
 
@@ -220,4 +221,6 @@ that can reach them.
 For a remote server, terminate TLS in a reverse proxy and use an `https://`
 endpoint; the plugin connects with `wss://`. Add the proxy's address to
 `trusted_proxies` (`127.0.0.1` for `cloudflared` or nginx on the same host),
-or every player shares the proxy's allowance of new sessions per month.
+or every player shares the proxy's allowance of new sessions per month. With
+the proxy on the same host, set `listen = "127.0.0.1:3000"` and leave port 3000
+closed, so players cannot connect around the proxy.

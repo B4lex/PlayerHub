@@ -130,8 +130,9 @@ mean a request is outstanding, so the request is retried until the actor reaches
 ## Action stream
 
 Every action carries `actionSequence`, `graphEpoch`, `checkpointSequence`, a
-`family`/`action` from a fixed vocabulary, `power` and `direction`, and the
-`weaponDrawn` prerequisite. The graph epoch advances whenever the source graph
+`family`/`action` from a fixed vocabulary, `power` and `direction` (one
+`Attack.direction` on the wire, `NONE` unless a power attack,
+[Network](network.md#actions)), and the `weaponDrawn` prerequisite. The graph epoch advances whenever the source graph
 is rebuilt or loses continuity, so actions from an old graph are never
 dispatched into a new one. The checkpoint sequence names a checkpoint published
 before the action, which makes the prerequisites reconstructable while

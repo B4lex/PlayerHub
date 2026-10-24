@@ -15,28 +15,25 @@ namespace ChatSync
         std::mutex s_rejectionsLock;
         std::vector<std::string> s_rejections;
 
-        std::string DescribeRejection(std::string_view a_error)
+        std::string DescribeRejection(Multiplayer::ChatRejection a_rejection)
         {
-            if (a_error == "rate limited")
+            switch (a_rejection)
             {
-                return std::string{ Text::Get(Text::Id::kChatRateLimited) };
+                case Multiplayer::ChatRejection::kRateLimited:
+                    return std::string{ Text::Get(Text::Id::kChatRateLimited) };
+                case Multiplayer::ChatRejection::kNotInWorld:
+                    return std::string{ Text::Get(Text::Id::kChatNotInWorld) };
+                case Multiplayer::ChatRejection::kUnknownRecipient:
+                    return std::string{ Text::Get(Text::Id::kChatRecipientGone) };
+                default:
+                    return std::string{ Text::Get(Text::Id::kChatRejected) };
             }
-            if (a_error == "not in world")
-            {
-                return std::string{ Text::Get(Text::Id::kChatNotInWorld) };
-            }
-            if (a_error == "unknown recipient")
-            {
-                return std::string{ Text::Get(Text::Id::kChatRecipientGone) };
-            }
-            return std::string{ Text::Get(Text::Id::kChatRejected) };
         }
 
         std::string FormatSender(const Multiplayer::ChatMessage& a_message)
         {
-            const auto format = [](const Multiplayer::ChatSpeaker& a_speaker) {
-                return PlayerLabel::Format(a_speaker.name);
-            };
+            const auto format
+                = [](const Multiplayer::PlayerIdentity& a_speaker) { return PlayerLabel::Format(a_speaker.name); };
             if (a_message.channel != Multiplayer::ChatChannel::kWhisper)
             {
                 return format(a_message.sender);
@@ -71,9 +68,8 @@ namespace ChatSync
             }
             recipient = player->playerID;
         }
-        if (!Network::PublishChatMessage(a_target.channel, recipient, text, [](std::string_view a_error) {
-                logs::debug("Chat rejected: {}", a_error);
-                auto rejection = DescribeRejection(a_error);
+        if (!Network::PublishChatMessage(a_target.channel, recipient, text, [](Multiplayer::ChatRejection a_rejection) {
+                auto rejection = DescribeRejection(a_rejection);
                 const std::scoped_lock lock{ s_rejectionsLock };
                 s_rejections.push_back(std::move(rejection));
             }))

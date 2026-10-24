@@ -195,7 +195,7 @@ func (c *Context) players() ([]Player, []Exclusion) {
 				player.BytesPerSecond, player.ReplacedPerSecond = c.rates.rates(p.Slot, now, written, replaced)
 			}
 			if p.Context != nil {
-				player.CellID, player.WorldspaceID = optional(p.Context.CellId), optional(p.Context.WorldspaceId)
+				player.CellID, player.WorldspaceID = optional(p.Context.InteriorCellId), optional(p.Context.WorldspaceId)
 			}
 			if c := p.Checkpoint; c != nil {
 				x, y, z := wire.Position(c)

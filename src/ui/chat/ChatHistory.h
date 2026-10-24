@@ -29,7 +29,7 @@ namespace UI
 
         void DrawFilters();
 
-        std::optional<Multiplayer::RosterEntry> DrawLines(
+        std::optional<Multiplayer::PlayerIdentity> DrawLines(
             const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu, bool a_wheelElsewhere);
         [[nodiscard]] bool IsMenuOpen() const { return menuOpen; }
 
@@ -42,7 +42,7 @@ namespace UI
             Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kGlobal };
             std::string label;
             std::string text;
-            Multiplayer::RosterEntry player;
+            Multiplayer::PlayerIdentity player;
             Multiplayer::SessionID sender{ 0 };
             bool muted{ false };
             double receivedAt{ 0.0 };

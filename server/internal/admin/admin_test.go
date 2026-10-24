@@ -181,7 +181,7 @@ func TestCaptureAndReplay(t *testing.T) {
 	}
 	// Let the hub record the last checkpoint before stopping.
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 1}}})
-	a.until(func(m *pb.ServerMessage) bool { return m.GetResult() != nil })
+	a.until(func(m *pb.ServerMessage) bool { return m.GetPong() != nil })
 	time.Sleep(50 * time.Millisecond)
 	if status := s.call("POST", "/api/recordings/"+info.ID+"/stop", nil, &info); status != 200 {
 		t.Fatalf("stop capture: %d", status)
@@ -439,7 +439,7 @@ func TestKickAndBan(t *testing.T) {
 	kicked, welcome := s.joinWith("Lydia", nil)
 	// A new session closed before its client sent anything is deleted.
 	kicked.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 1}}})
-	kicked.until(func(m *pb.ServerMessage) bool { return m.GetResult() != nil })
+	kicked.until(func(m *pb.ServerMessage) bool { return m.GetPong() != nil })
 	var state State
 	s.call("GET", "/api/state", nil, &state)
 	if len(state.Players) != 1 || state.Players[0].Address == nil || *state.Players[0].Address != "127.0.0.1" ||

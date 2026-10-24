@@ -22,19 +22,19 @@ namespace Network
     namespace CheckpointFlags
     {
         inline constexpr std::uint32_t kMovementStateMask = 0x7;
-        inline constexpr std::uint32_t kJumping = 1U << 3;
+        inline constexpr std::uint32_t kGrounded = 1U << 3;
         inline constexpr std::uint32_t kWeaponDrawn = 1U << 4;
-        inline constexpr std::uint32_t kBowDrawn = 1U << 5;
-        inline constexpr std::uint32_t kCastingLeft = 1U << 6;
-        inline constexpr std::uint32_t kCastingRight = 1U << 7;
-        inline constexpr std::uint32_t kBlocking = 1U << 8;
-        inline constexpr std::uint32_t kDead = 1U << 9;
-        inline constexpr std::uint32_t kMounted = 1U << 10;
-        inline constexpr std::uint32_t kSwimming = 1U << 11;
-        inline constexpr std::uint32_t kLevitating = 1U << 12;
-        inline constexpr std::uint32_t kMistForm = 1U << 13;
-        inline constexpr std::uint32_t kBats = 1U << 14;
-        inline constexpr std::uint32_t kGrounded = 1U << 15;
+        inline constexpr std::uint32_t kJumping = 1U << 5;
+        inline constexpr std::uint32_t kBlocking = 1U << 6;
+        inline constexpr std::uint32_t kBowDrawn = 1U << 7;
+        inline constexpr std::uint32_t kCastingLeft = 1U << 8;
+        inline constexpr std::uint32_t kCastingRight = 1U << 9;
+        inline constexpr std::uint32_t kSwimming = 1U << 10;
+        inline constexpr std::uint32_t kMounted = 1U << 11;
+        inline constexpr std::uint32_t kDead = 1U << 12;
+        inline constexpr std::uint32_t kLevitating = 1U << 13;
+        inline constexpr std::uint32_t kMistForm = 1U << 14;
+        inline constexpr std::uint32_t kBats = 1U << 15;
         inline constexpr std::uint32_t kKnown = 0xFFFF;
     }
 
@@ -54,7 +54,7 @@ namespace Network
 
     struct CheckpointContext
     {
-        std::uint32_t cellID{ 0 };
+        std::uint32_t interiorCellID{ 0 };
         std::uint32_t worldspaceID{ 0 };
         std::uint64_t graphEpoch{ 0 };
         Multiplayer::FormReference furniture;
@@ -80,7 +80,7 @@ namespace Network
 
     [[nodiscard]] inline CheckpointContext GetCheckpointContext(const PlayerTransform& a_transform)
     {
-        return CheckpointContext{ .cellID = a_transform.cellID,
+        return CheckpointContext{ .interiorCellID = a_transform.worldspaceID == 0 ? a_transform.cellID : 0,
             .worldspaceID = a_transform.worldspaceID,
             .graphEpoch = a_transform.graphEpoch,
             .furniture = a_transform.furniture,
@@ -174,7 +174,7 @@ namespace Network
             .mistForm = (flags & kMistForm) != 0,
             .bats = (flags & kBats) != 0,
             .grounded = (flags & kGrounded) != 0,
-            .cellID = a_context.cellID,
+            .cellID = a_context.interiorCellID,
             .worldspaceID = a_context.worldspaceID,
             .furniture = a_context.furniture,
             .shapeshift = a_context.shapeshift,

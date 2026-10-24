@@ -72,7 +72,7 @@ func exit() *pb.ClientMessage {
 }
 
 func contextMessage(epoch uint64, furniture bool) *pb.ClientMessage {
-	c := &pb.Context{CellId: 60, WorldspaceId: 60, GraphEpoch: epoch}
+	c := &pb.Context{WorldspaceId: 60, GraphEpoch: epoch}
 	if furniture {
 		c.Furniture = &pb.FormRef{Plugin: "Skyrim.esm", FormId: 1}
 	}
@@ -96,17 +96,18 @@ func worldspace(epoch uint64, worldspace uint32) *pb.ClientMessage {
 
 func action(sequence, anchor uint64) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Action{Action: &pb.Action{
-		ActionSequence: sequence, GraphEpoch: 1, CheckpointSequence: anchor, Action: pb.AttackAction_ATTACK_ACTION_NORMAL}}}
+		ActionSequence: sequence, GraphEpoch: 1, CheckpointSequence: anchor,
+		Kind: &pb.Action_Attack{Attack: &pb.Attack{Action: pb.AttackAction_ATTACK_ACTION_NORMAL}}}}}
 }
 
 func shapeshift(epoch uint64, form pb.Shapeshift) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{
-		CellId: 60, WorldspaceId: 60, GraphEpoch: epoch, Shapeshift: form}}}
+		WorldspaceId: 60, GraphEpoch: epoch, Shapeshift: form}}}
 }
 
 func beastAction(sequence, epoch, anchor uint64, beast pb.BeastAction) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Action{Action: &pb.Action{
-		ActionSequence: sequence, GraphEpoch: epoch, CheckpointSequence: anchor, Beast: beast}}}
+		ActionSequence: sequence, GraphEpoch: epoch, CheckpointSequence: anchor, Kind: &pb.Action_Beast{Beast: beast}}}}
 }
 
 func vampireLordCheckpoint(sequence uint64, flag pb.CheckpointFlag) *pb.ClientMessage {
@@ -144,7 +145,7 @@ func inspect(slot uint32) *pb.ClientMessage {
 }
 
 func interior(epoch uint64, cell uint32) *pb.ClientMessage {
-	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{CellId: cell, GraphEpoch: epoch}}}
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{InteriorCellId: cell, GraphEpoch: epoch}}}
 }
 
 func (f *fixture) place(slot uint32, sequence uint64) {
@@ -193,8 +194,9 @@ func describe(m *pb.ServerMessage) string {
 	switch body := m.Message.(type) {
 	case *pb.ServerMessage_Welcome:
 		return fmt.Sprintf("welcome %d", body.Welcome.Slot)
-	case *pb.ServerMessage_Result:
-		return fmt.Sprintf("result %d %v %s", body.Result.RequestId, body.Result.Ok, body.Result.Error)
+	case *pb.ServerMessage_ChatResult:
+		return fmt.Sprintf("chat result %d %s", body.ChatResult.RequestId,
+			strings.ToLower(strings.TrimPrefix(body.ChatResult.Rejection.String(), "CHAT_REJECTION_")))
 	case *pb.ServerMessage_PeerStates:
 		var states []string
 		for _, s := range body.PeerStates.States {
@@ -540,7 +542,7 @@ func TestChat(t *testing.T) {
 	f.received(a)
 	f.received(b)
 	f.send(b, chat(7, "  hi  "))
-	expect(t, f.received(b), "result 7 true ", "chat global 2 Serana: hi")
+	expect(t, f.received(b), "chat result 7 none", "chat global 2 Serana: hi")
 	expect(t, f.received(a), "chat global 2 Serana: hi")
 	f.reject(b, chat(8, "\x01"), validate.ErrChat)
 	for i := range uint32(4) {
@@ -564,12 +566,12 @@ func TestNearbyChat(t *testing.T) {
 		return chatOn(pb.ChatChannel_CHAT_CHANNEL_NEARBY, id, text)
 	}
 	f.send(a, nearby(7, "near"))
-	expect(t, f.received(a), "result 7 true ", "chat nearby 1 : near")
+	expect(t, f.received(a), "chat result 7 none", "chat nearby 1 : near")
 	expect(t, f.received(b), "chat nearby 1 : near")
 	expect(t, f.received(c))
 	expect(t, f.received(d))
 	f.reject(d, nearby(8, "unplaced"), ErrNotPlaced)
-	expect(t, f.received(d), "result 8 false not in world")
+	expect(t, f.received(d), "chat result 8 not_in_world")
 
 	for _, slot := range []uint32{a, c} {
 		f.send(slot, interior(2, 70))
@@ -580,7 +582,7 @@ func TestNearbyChat(t *testing.T) {
 	f.received(b)
 	f.received(c)
 	f.send(c, nearby(9, "echo"))
-	expect(t, f.received(c), "result 9 true ", "chat nearby 3 : echo")
+	expect(t, f.received(c), "chat result 9 none", "chat nearby 3 : echo")
 	expect(t, f.received(a), "chat nearby 3 : echo")
 	expect(t, f.received(b))
 }
@@ -649,20 +651,20 @@ func TestWhisper(t *testing.T) {
 		f.received(slot)
 	}
 	f.send(c, whisper(7, b, "  for Skyrim "))
-	expect(t, f.received(c), "result 7 true ", "chat whisper 3 Galmar to 2 Ulfric Stormcloak: for Skyrim")
+	expect(t, f.received(c), "chat result 7 none", "chat whisper 3 Galmar to 2 Ulfric Stormcloak: for Skyrim")
 	expect(t, f.received(b), "chat whisper 3 Galmar to 2 Ulfric Stormcloak: for Skyrim")
 	expect(t, f.received(a))
 	f.send(a, whisper(8, a, "note to self"))
-	expect(t, f.received(a), "result 8 true ", "chat whisper 1 Ulfric to 1 Ulfric: note to self")
+	expect(t, f.received(a), "chat result 8 none", "chat whisper 1 Ulfric to 1 Ulfric: note to self")
 	f.reject(a, whisper(9, 99, "hi"), ErrUnknownRecipient)
 	f.reject(a, whisper(10, v, "boo"), ErrUnknownRecipient)
 	f.reject(a, whisper(11, 0, "nobody"), validate.ErrChat)
 	f.reject(a, whisper(12, b, " "), validate.ErrChat)
 	f.reject(a, &pb.ClientMessage{Message: &pb.ClientMessage_Chat{Chat: &pb.ChatSend{RequestId: 13, Text: "hi", Recipient: b}}},
 		validate.ErrChat)
-	expect(t, f.received(a), "result 9 false unknown recipient", "result 10 false unknown recipient",
-		"result 11 false invalid chat message", "result 12 false invalid chat message",
-		"result 13 false invalid chat message")
+	expect(t, f.received(a), "chat result 9 unknown_recipient", "chat result 10 unknown_recipient",
+		"chat result 11 invalid", "chat result 12 invalid",
+		"chat result 13 invalid")
 	expect(t, f.received(b))
 
 	f.hub.Disconnect(b)

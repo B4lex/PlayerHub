@@ -203,7 +203,8 @@ a request unanswered after 10 s, as for a lost message.
   (`TradeItem` equal, count included). It first checks that the player still holds every offered item;
   one gone (a script took it) refuses with a notice naming them and
   lists the inventory again. `TradeAccept` names both revisions; the server
-  relays it to the peer, or, when the peer's acceptance of the same pair
+  passes it on to the peer in the peer's terms
+  ([Network](network.md#trade)), or, when the peer's acceptance of the same pair
   stands, sends both a `TradeCommit`. A player never accepts an own revision
   with skipped lines: the report that names them takes them out of the
   offer in the same pass, so Accept waits for the new revision's report.

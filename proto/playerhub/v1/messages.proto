@@ -8,7 +8,7 @@ option go_package = "playerhub/server/internal/wire/pb;pb";
 
 enum Protocol {
   PROTOCOL_UNSPECIFIED = 0;
-  PROTOCOL_VERSION = 12;
+  PROTOCOL_VERSION = 13;
 }
 
 message Hello {
@@ -108,7 +108,7 @@ message TradeReport {
 }
 
 // From a client: it accepts its own and the peer's offer revisions. From the server:
-// the peer's acceptance, so own_revision is the peer's.
+// the peer's acceptance, with own_revision the recipient's, as in TradeCommit.
 message TradeAccept {
   uint32 trade_id = 1;
   uint64 own_revision = 2;
@@ -181,10 +181,22 @@ message Welcome {
   bytes session_token = 4;
 }
 
-message Result {
+enum ChatRejection {
+  CHAT_REJECTION_NONE = 0;
+  CHAT_REJECTION_INVALID = 1;
+  CHAT_REJECTION_RATE_LIMITED = 2;
+  CHAT_REJECTION_NOT_IN_WORLD = 3;
+  CHAT_REJECTION_UNKNOWN_RECIPIENT = 4;
+}
+
+// NONE accepts the ChatSend.
+message ChatResult {
   uint32 request_id = 1;
-  bool ok = 2;
-  string error = 3;
+  ChatRejection rejection = 2;
+}
+
+message Pong {
+  uint32 request_id = 1;
 }
 
 message PeerStates {
@@ -194,9 +206,9 @@ message PeerStates {
 message PeerEnter {
   uint32 slot = 1;
   Appearance appearance = 2;
-  Equipment equipment = 4;
-  Context context = 5;
-  Checkpoint state = 6;
+  Equipment equipment = 3;
+  Context context = 4;
+  Checkpoint state = 5;
 }
 
 message PeerContext {
@@ -225,7 +237,7 @@ message PeerAction {
 
 message PeerAppearance {
   uint32 slot = 1;
-  Appearance appearance = 3;
+  Appearance appearance = 2;
 }
 
 message PeerEquipment {
@@ -233,28 +245,21 @@ message PeerEquipment {
   Equipment equipment = 2;
 }
 
-message ChatSpeaker {
-  uint32 slot = 1;
-  string name = 2;
-  uint32 level = 4;
-  uint64 session_id = 5;
-}
-
-message ChatMessage {
-  ChatChannel channel = 1;
-  ChatSpeaker sender = 2;
-  ChatSpeaker recipient = 3;
-  string text = 4;
-}
-
-message RosterEntry {
+message PlayerIdentity {
   uint32 slot = 1;
   string name = 2;
   uint64 session_id = 3;
 }
 
+message ChatMessage {
+  ChatChannel channel = 1;
+  PlayerIdentity sender = 2;
+  PlayerIdentity recipient = 3;
+  string text = 4;
+}
+
 message Roster {
-  repeated RosterEntry joined = 1;
+  repeated PlayerIdentity joined = 1;
   uint32 left = 2;
 }
 
@@ -273,8 +278,8 @@ message Inspection {
 
 message TradeInvite {
   uint32 trade_id = 1;
-  ChatSpeaker sender = 2;
-  ChatSpeaker recipient = 3;
+  PlayerIdentity sender = 2;
+  PlayerIdentity recipient = 3;
 }
 
 message TradeOpen {
@@ -297,7 +302,7 @@ message TradeClose {
 message ServerMessage {
   oneof message {
     Welcome welcome = 1;
-    Result result = 2;
+    ChatResult chat_result = 2;
     PeerStates peer_states = 3;
     PeerEnter peer_enter = 4;
     PeerContext peer_context = 5;
@@ -318,5 +323,6 @@ message ServerMessage {
     NearbyPlayers nearby_players = 20;
     TradePluginQuery trade_plugin_query = 21;
     TradePluginReply trade_plugin_reply = 22;
+    Pong pong = 23;
   }
 }

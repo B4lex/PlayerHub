@@ -71,7 +71,7 @@ bool TradeSession::IsCheckingPlugin(std::string_view a_plugin) const
     });
 }
 
-bool TradeSession::BeginRequest(const Multiplayer::RosterEntry& a_peer)
+bool TradeSession::BeginRequest(const Multiplayer::PlayerIdentity& a_peer)
 {
     if (phase != Phase::kIdle)
     {
@@ -125,9 +125,7 @@ TradeSession::EventResult TradeSession::OnEvent(const Multiplayer::TradeEvent& a
                 Reset();
                 phase = Phase::kInvited;
                 id = a_value.id;
-                peer = Multiplayer::RosterEntry{ .playerID = a_value.sender.playerID,
-                    .name = a_value.sender.name,
-                    .session = a_value.sender.session };
+                peer = a_value.sender;
                 return { .outcome = Outcome::kInvited };
             }
             else if constexpr (std::is_same_v<T, Multiplayer::TradeClose>)
@@ -207,8 +205,7 @@ TradeSession::EventResult TradeSession::OnEvent(const Multiplayer::TradeEvent& a
                     }
                     else if constexpr (std::is_same_v<T, Multiplayer::TradeAcceptance>)
                     {
-                        // Sent as the peer names them: its own offer first.
-                        if (a_value.ownRevision != peerRevision || a_value.peerRevision != ownRevision || ownDirty)
+                        if (a_value.ownRevision != ownRevision || a_value.peerRevision != peerRevision || ownDirty)
                         {
                             return {};
                         }

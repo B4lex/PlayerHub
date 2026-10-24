@@ -446,8 +446,8 @@ func (s *Server) read(ctx context.Context, c *connection, slot uint32, outbox *d
 			continue
 		}
 		if ping := message.GetPing(); ping != nil {
-			outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Result{
-				Result: &pb.Result{RequestId: ping.GetRequestId(), Ok: true}}}))
+			outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Pong{
+				Pong: &pb.Pong{RequestId: ping.GetRequestId()}}}))
 			continue
 		}
 		if err := validate.Message(message); err != nil {

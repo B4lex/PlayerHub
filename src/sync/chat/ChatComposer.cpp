@@ -14,7 +14,7 @@ namespace ChatSync
         constexpr std::size_t kMaximumCycledPartners = 3;
         constexpr std::size_t kMaximumSentLines = 50;
 
-        ChatTarget Whisper(const Multiplayer::RosterEntry& a_player)
+        ChatTarget Whisper(const Multiplayer::PlayerIdentity& a_player)
         {
             return ChatTarget{ .channel = Multiplayer::ChatChannel::kWhisper, .player = a_player };
         }
@@ -125,9 +125,9 @@ namespace ChatSync
         return SubmitResult::kClose;
     }
 
-    std::span<const Multiplayer::RosterEntry> Composer::GetSuggestions() const
+    std::span<const Multiplayer::PlayerIdentity> Composer::GetSuggestions() const
     {
-        return dismissed ? std::span<const Multiplayer::RosterEntry>{} : std::span{ suggestions };
+        return dismissed ? std::span<const Multiplayer::PlayerIdentity>{} : std::span{ suggestions };
     }
 
     void Composer::MoveSelection(int a_direction)

@@ -180,7 +180,7 @@ namespace UI
             std::uint64_t connectionGeneration{ 0 };
             std::optional<Network::RefusalReason> announcedRefusal;
             std::vector<std::string> incoming;
-            std::vector<Multiplayer::RosterEntry> friends;
+            std::vector<Multiplayer::PlayerIdentity> friends;
         };
     }
 

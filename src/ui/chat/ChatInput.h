@@ -54,6 +54,6 @@ namespace UI
         std::string chipLabel;
         std::optional<Text::Language> chipLanguage;
         bool menuOpen{ false };
-        std::vector<Multiplayer::RosterEntry> partners;
+        std::vector<Multiplayer::PlayerIdentity> partners;
     };
 }

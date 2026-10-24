@@ -15,6 +15,35 @@ namespace Network::Wire
 {
     namespace
     {
+        static_assert(CheckpointFlags::kGrounded
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_GROUNDED));
+        static_assert(CheckpointFlags::kWeaponDrawn
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_WEAPON_DRAWN));
+        static_assert(CheckpointFlags::kJumping
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_JUMPING));
+        static_assert(CheckpointFlags::kBlocking
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BLOCKING));
+        static_assert(CheckpointFlags::kBowDrawn
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BOW_DRAWN));
+        static_assert(CheckpointFlags::kCastingLeft
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT));
+        static_assert(CheckpointFlags::kCastingRight
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT));
+        static_assert(CheckpointFlags::kSwimming
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SWIMMING));
+        static_assert(CheckpointFlags::kMounted
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_MOUNTED));
+        static_assert(
+            CheckpointFlags::kDead == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_DEAD));
+        static_assert(CheckpointFlags::kLevitating
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_LEVITATING));
+        static_assert(CheckpointFlags::kMistForm
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_MIST_FORM));
+        static_assert(
+            CheckpointFlags::kBats == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BATS));
+        static_assert(static_cast<int>(Multiplayer::ChatRejection::kUnknownRecipient)
+            == playerhub_v1_ChatRejection_CHAT_REJECTION_UNKNOWN_RECIPIENT);
+
         // The generated ClientMessage union is large, so the envelope is written by hand.
         std::string EncodeClientMessage(pb_size_t a_tag, const pb_msgdesc_t* a_fields, const void* a_value)
         {
@@ -118,7 +147,7 @@ namespace Network::Wire
 
         bool ReadContext(const playerhub_v1_Context& a_context, CheckpointContext& a_result)
         {
-            a_result.cellID = a_context.cell_id;
+            a_result.interiorCellID = a_context.interior_cell_id;
             a_result.worldspaceID = a_context.worldspace_id;
             a_result.graphEpoch = a_context.graph_epoch;
             static_assert(static_cast<int>(Multiplayer::kMaximumShapeshift) == playerhub_v1_Shapeshift_SHAPESHIFT_WEREBEAR);
@@ -128,7 +157,7 @@ namespace Network::Wire
                 return false;
             }
             a_result.shapeshift = static_cast<Multiplayer::Shapeshift>(a_context.shapeshift);
-            return a_result.graphEpoch != 0
+            return a_result.graphEpoch != 0 && (a_result.worldspaceID == 0 || a_result.interiorCellID == 0)
                 && ReadOptionalFormReference(a_context.has_furniture, a_context.furniture, a_result.furniture);
         }
 
@@ -157,21 +186,24 @@ namespace Network::Wire
             {
                 return std::unexpected("action sequences");
             }
-            if (a_action.beast != playerhub_v1_BeastAction_BEAST_ACTION_UNSPECIFIED)
+            if (a_action.which_kind == playerhub_v1_Action_beast_tag)
             {
                 static_assert(static_cast<int>(Multiplayer::BeastAction::kVampireLordCastInterruptRight)
                     == playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT);
-                const auto value = static_cast<std::uint32_t>(a_action.beast);
-                if (Multiplayer::GetBeastActionGraph(value) == Multiplayer::Shapeshift::kNone
-                    || a_action.action != playerhub_v1_AttackAction_ATTACK_ACTION_UNSPECIFIED || a_action.power
-                    || a_action.direction != playerhub_v1_PowerDirection_POWER_DIRECTION_NONE)
+                const auto value = static_cast<std::uint32_t>(a_action.kind.beast);
+                if (Multiplayer::GetBeastActionGraph(value) == Multiplayer::Shapeshift::kNone)
                 {
                     return std::unexpected("beast action");
                 }
                 result.beast = static_cast<Multiplayer::BeastAction>(value);
                 return result;
             }
-            switch (a_action.action)
+            if (a_action.which_kind != playerhub_v1_Action_attack_tag)
+            {
+                return std::unexpected("action kind");
+            }
+            const auto& attack = a_action.kind.attack;
+            switch (attack.action)
             {
                 case playerhub_v1_AttackAction_ATTACK_ACTION_NORMAL:
                     result.attack.action = AttackAction::kNormal;
@@ -188,14 +220,13 @@ namespace Network::Wire
                 default:
                     return std::unexpected("action");
             }
-            result.attack.power = a_action.power;
-            const auto direction = static_cast<int>(a_action.direction);
-            if (a_action.power != (direction != playerhub_v1_PowerDirection_POWER_DIRECTION_NONE)
-                || direction > playerhub_v1_PowerDirection_POWER_DIRECTION_RIGHT || direction < 0)
+            const auto direction = static_cast<int>(attack.direction);
+            if (direction > playerhub_v1_PowerDirection_POWER_DIRECTION_RIGHT || direction < 0)
             {
                 return std::unexpected("direction");
             }
-            if (a_action.power)
+            result.attack.power = direction != playerhub_v1_PowerDirection_POWER_DIRECTION_NONE;
+            if (result.attack.power)
             {
                 result.attack.direction = static_cast<PowerAttackDirection>(
                     direction - playerhub_v1_PowerDirection_POWER_DIRECTION_STANDING);
@@ -393,14 +424,12 @@ namespace Network::Wire
             return Multiplayer::IsValidEquipment(a_result) ? nullptr : "value ranges";
         }
 
-        bool ReadChatSpeaker(const playerhub_v1_ChatSpeaker& a_speaker, Multiplayer::ChatSpeaker& a_result)
+        bool ReadPlayerIdentity(const playerhub_v1_PlayerIdentity& a_identity, Multiplayer::PlayerIdentity& a_result)
         {
-            a_result = Multiplayer::ChatSpeaker{ .playerID = a_speaker.slot,
-                .name = a_speaker.name,
-                .level = static_cast<std::uint16_t>(a_speaker.level),
-                .session = a_speaker.session_id };
-            return a_speaker.slot != 0 && a_speaker.session_id != 0
-                && a_speaker.level <= (std::numeric_limits<std::uint16_t>::max)()
+            a_result = Multiplayer::PlayerIdentity{
+                .playerID = a_identity.slot, .name = a_identity.name, .session = a_identity.session_id
+            };
+            return a_identity.slot != 0 && a_identity.session_id != 0 && !a_result.name.empty()
                 && Multiplayer::IsValidAppearanceName(a_result.name);
         }
 
@@ -718,18 +747,15 @@ namespace Network::Wire
                 {
                     return std::unexpected("roster entry count");
                 }
-                playerhub_v1_RosterEntry entry = playerhub_v1_RosterEntry_init_zero;
-                if (!pb_decode_ex(&roster, playerhub_v1_RosterEntry_fields, &entry, PB_DECODE_DELIMITED))
+                playerhub_v1_PlayerIdentity entry = playerhub_v1_PlayerIdentity_init_zero;
+                if (!pb_decode_ex(&roster, playerhub_v1_PlayerIdentity_fields, &entry, PB_DECODE_DELIMITED))
                 {
                     return std::unexpected(std::string{ "roster entry: " } + PB_GET_ERROR(&roster));
                 }
-                Multiplayer::RosterEntry player{ .playerID = entry.slot, .name = entry.name, .session = entry.session_id };
-                if (player.playerID == 0 || player.session == 0 || player.name.empty()
-                    || !Multiplayer::IsValidAppearanceName(player.name))
+                if (!ReadPlayerIdentity(entry, change.joined.emplace_back()))
                 {
                     return std::unexpected("roster entry values");
                 }
-                change.joined.push_back(std::move(player));
             }
             if (!pb_close_string_substream(&a_stream, &roster))
             {
@@ -853,7 +879,7 @@ namespace Network::Wire
     std::string EncodeContext(const CheckpointContext& a_context)
     {
         playerhub_v1_Context context = playerhub_v1_Context_init_zero;
-        context.cell_id = a_context.cellID;
+        context.interior_cell_id = a_context.interiorCellID;
         context.worldspace_id = a_context.worldspaceID;
         context.graph_epoch = a_context.graphEpoch;
         context.shapeshift = static_cast<playerhub_v1_Shapeshift>(a_context.shapeshift);
@@ -887,23 +913,24 @@ namespace Network::Wire
         action.action_sequence = a_actionSequence;
         action.graph_epoch = a_graphEpoch;
         action.checkpoint_sequence = a_checkpointSequence;
+        action.which_kind = playerhub_v1_Action_attack_tag;
+        auto& attack = action.kind.attack;
         switch (a_attack.action)
         {
             case AttackAction::kLeft:
-                action.action = playerhub_v1_AttackAction_ATTACK_ACTION_LEFT;
+                attack.action = playerhub_v1_AttackAction_ATTACK_ACTION_LEFT;
                 break;
             case AttackAction::kDual:
-                action.action = playerhub_v1_AttackAction_ATTACK_ACTION_DUAL;
+                attack.action = playerhub_v1_AttackAction_ATTACK_ACTION_DUAL;
                 break;
             case AttackAction::kBash:
-                action.action = playerhub_v1_AttackAction_ATTACK_ACTION_BASH;
+                attack.action = playerhub_v1_AttackAction_ATTACK_ACTION_BASH;
                 break;
             default:
-                action.action = playerhub_v1_AttackAction_ATTACK_ACTION_NORMAL;
+                attack.action = playerhub_v1_AttackAction_ATTACK_ACTION_NORMAL;
                 break;
         }
-        action.power = a_attack.power;
-        action.direction = a_attack.power
+        attack.direction = a_attack.power
             ? static_cast<playerhub_v1_PowerDirection>(
                   playerhub_v1_PowerDirection_POWER_DIRECTION_STANDING + static_cast<int>(a_attack.direction))
             : playerhub_v1_PowerDirection_POWER_DIRECTION_NONE;
@@ -917,7 +944,8 @@ namespace Network::Wire
         action.action_sequence = a_actionSequence;
         action.graph_epoch = a_graphEpoch;
         action.checkpoint_sequence = a_checkpointSequence;
-        action.beast = static_cast<playerhub_v1_BeastAction>(a_action);
+        action.which_kind = playerhub_v1_Action_beast_tag;
+        action.kind.beast = static_cast<playerhub_v1_BeastAction>(a_action);
         return EncodeClientMessage(playerhub_v1_ClientMessage_action_tag, playerhub_v1_Action_fields, &action);
     }
 
@@ -1317,11 +1345,19 @@ namespace Network::Wire
                 }
                 return result;
             }
-            case playerhub_v1_ServerMessage_result_tag:
+            case playerhub_v1_ServerMessage_chat_result_tag:
             {
-                const auto& result = message.message.result;
-                return Result{ .requestID = result.request_id, .ok = result.ok, .error = result.error };
+                const auto& result = message.message.chat_result;
+                if (result.rejection < playerhub_v1_ChatRejection_CHAT_REJECTION_NONE
+                    || result.rejection > playerhub_v1_ChatRejection_CHAT_REJECTION_UNKNOWN_RECIPIENT)
+                {
+                    return std::unexpected("chat result rejection");
+                }
+                return ChatResult{ .requestID = result.request_id,
+                    .rejection = static_cast<Multiplayer::ChatRejection>(result.rejection) };
             }
+            case playerhub_v1_ServerMessage_pong_tag:
+                return Pong{ .requestID = message.message.pong.request_id };
             case playerhub_v1_ServerMessage_peer_enter_tag:
             {
                 const auto& enter = message.message.peer_enter;
@@ -1447,9 +1483,9 @@ namespace Network::Wire
                 Multiplayer::ChatMessage result{ .text = chat.text };
                 const auto channel = ReadChatChannel(chat.channel);
                 const bool whisper = channel == Multiplayer::ChatChannel::kWhisper;
-                if (!channel || !chat.has_sender || !ReadChatSpeaker(chat.sender, result.sender)
+                if (!channel || !chat.has_sender || !ReadPlayerIdentity(chat.sender, result.sender)
                     || chat.has_recipient != whisper
-                    || (whisper && !ReadChatSpeaker(chat.recipient, result.recipient))
+                    || (whisper && !ReadPlayerIdentity(chat.recipient, result.recipient))
                     || !Multiplayer::IsValidChatText(result.text))
                 {
                     return std::unexpected("chat message");
@@ -1487,8 +1523,8 @@ namespace Network::Wire
             {
                 const auto& invite = message.message.trade_invite;
                 Multiplayer::TradeInvite result{ .id = invite.trade_id };
-                if (invite.trade_id == 0 || !invite.has_sender || !ReadChatSpeaker(invite.sender, result.sender)
-                    || !invite.has_recipient || !ReadChatSpeaker(invite.recipient, result.recipient))
+                if (invite.trade_id == 0 || !invite.has_sender || !ReadPlayerIdentity(invite.sender, result.sender)
+                    || !invite.has_recipient || !ReadPlayerIdentity(invite.recipient, result.recipient))
                 {
                     return std::unexpected("trade invite");
                 }

@@ -28,7 +28,7 @@ namespace ChatSync
         SubmitResult Submit(std::string& a_draft);
 
         [[nodiscard]] bool IsListing() const { return listing && !dismissed; }
-        [[nodiscard]] std::span<const Multiplayer::RosterEntry> GetSuggestions() const;
+        [[nodiscard]] std::span<const Multiplayer::PlayerIdentity> GetSuggestions() const;
         [[nodiscard]] std::size_t GetSelection() const { return selection; }
         void MoveSelection(int a_direction);
         void AcceptSuggestion(std::size_t a_index, std::string& a_draft);
@@ -56,10 +56,10 @@ namespace ChatSync
         ChatTarget target;
 
         bool listing{ false };
-        std::vector<Multiplayer::RosterEntry> suggestions;
+        std::vector<Multiplayer::PlayerIdentity> suggestions;
         std::size_t selection{ 0 };
         bool dismissed{ false };
-        std::vector<Multiplayer::RosterEntry> players;
+        std::vector<Multiplayer::PlayerIdentity> players;
 
         std::vector<std::string> notes;
 

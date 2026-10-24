@@ -99,8 +99,7 @@ func (p *Player) SetContext(c *pb.Context) (ContextChange, error) {
 		if sameContext(p.Context, c) {
 			return ContextUnchanged, nil
 		}
-		if p.Context.GetCellId() != c.GetCellId() && (p.Context.GetWorldspaceId() == 0 || c.GetWorldspaceId() == 0) ||
-			p.Context.GetWorldspaceId() != c.GetWorldspaceId() {
+		if p.Context.GetInteriorCellId() != c.GetInteriorCellId() || p.Context.GetWorldspaceId() != c.GetWorldspaceId() {
 			change = ContextMoved
 			p.Checkpoint = nil
 			p.Entry = nil
@@ -172,7 +171,7 @@ func (p *Player) SetEquipment(e *pb.Equipment) error {
 }
 
 func sameContext(a, b *pb.Context) bool {
-	if a.GetCellId() != b.GetCellId() || a.GetWorldspaceId() != b.GetWorldspaceId() ||
+	if a.GetInteriorCellId() != b.GetInteriorCellId() || a.GetWorldspaceId() != b.GetWorldspaceId() ||
 		a.GetGraphEpoch() != b.GetGraphEpoch() || a.GetShapeshift() != b.GetShapeshift() ||
 		(a.Furniture == nil) != (b.Furniture == nil) {
 		return false

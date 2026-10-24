@@ -394,7 +394,9 @@ peer's first checkpoint.
 
 ## Coordinate spaces
 
-A checkpoint's context carries `cell_id` and `worldspace_id`. Exterior checkpoints with the
+A checkpoint's context carries `interior_cell_id` and `worldspace_id`; the cell
+is `0` in a worldspace ([Network](network.md#checkpoint-and-context)), so a
+remote checkpoint's `cellID` is the interior only. Exterior checkpoints with the
 same non-zero worldspace share the exterior grid's coordinates and stay in sync
 across cell boundaries. An interior has worldspace zero and needs an exact cell
 match, because its coordinates are local to it. Both need matching load orders

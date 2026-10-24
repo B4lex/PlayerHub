@@ -34,7 +34,7 @@ namespace UI
         }
     }
 
-    void ChatPlayerMenu::Open(const Multiplayer::RosterEntry& a_player)
+    void ChatPlayerMenu::Open(const Multiplayer::PlayerIdentity& a_player)
     {
         player = a_player;
         details.clear();

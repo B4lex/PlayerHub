@@ -28,7 +28,7 @@ namespace UI
 
         struct ListOutcome
         {
-            std::optional<Multiplayer::RosterEntry> whisper;
+            std::optional<Multiplayer::PlayerIdentity> whisper;
             bool manage{ false };
         };
 
@@ -40,7 +40,7 @@ namespace UI
     private:
         void Refresh(double a_now);
         void Match();
-        void DrawRows(std::optional<Multiplayer::RosterEntry>& a_picked, bool a_closeMenu);
+        void DrawRows(std::optional<Multiplayer::PlayerIdentity>& a_picked, bool a_closeMenu);
 
         bool open{ false };
 

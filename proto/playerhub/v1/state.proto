@@ -34,21 +34,23 @@ enum MovementState {
   MOVEMENT_STATE_SNEAKING_RUNNING = 6;
 }
 
+// Ordered by how often a flag is set: a varint below 128 is one byte, so the
+// common on-foot flags come first.
 enum CheckpointFlag {
   CHECKPOINT_FLAG_NONE = 0;
-  CHECKPOINT_FLAG_JUMPING = 8;
+  CHECKPOINT_FLAG_GROUNDED = 8;
   CHECKPOINT_FLAG_WEAPON_DRAWN = 16;
-  CHECKPOINT_FLAG_BOW_DRAWN = 32;
-  CHECKPOINT_FLAG_CASTING_LEFT = 64;
-  CHECKPOINT_FLAG_CASTING_RIGHT = 128;
-  CHECKPOINT_FLAG_BLOCKING = 256;
-  CHECKPOINT_FLAG_DEAD = 512;
-  CHECKPOINT_FLAG_MOUNTED = 1024;
-  CHECKPOINT_FLAG_SWIMMING = 2048;
-  CHECKPOINT_FLAG_LEVITATING = 4096;
-  CHECKPOINT_FLAG_MIST_FORM = 8192;
-  CHECKPOINT_FLAG_BATS = 16384;
-  CHECKPOINT_FLAG_GROUNDED = 32768;
+  CHECKPOINT_FLAG_JUMPING = 32;
+  CHECKPOINT_FLAG_BLOCKING = 64;
+  CHECKPOINT_FLAG_BOW_DRAWN = 128;
+  CHECKPOINT_FLAG_CASTING_LEFT = 256;
+  CHECKPOINT_FLAG_CASTING_RIGHT = 512;
+  CHECKPOINT_FLAG_SWIMMING = 1024;
+  CHECKPOINT_FLAG_MOUNTED = 2048;
+  CHECKPOINT_FLAG_DEAD = 4096;
+  CHECKPOINT_FLAG_LEVITATING = 8192;
+  CHECKPOINT_FLAG_MIST_FORM = 16384;
+  CHECKPOINT_FLAG_BATS = 32768;
 }
 
 enum Shapeshift {
@@ -59,7 +61,8 @@ enum Shapeshift {
 }
 
 message Context {
-  uint32 cell_id = 1;
+  // Zero in a worldspace, so crossing exterior cells leaves the context unchanged.
+  uint32 interior_cell_id = 1;
   uint32 worldspace_id = 2;
   uint64 graph_epoch = 3;
   FormRef furniture = 4;
@@ -128,14 +131,20 @@ enum BeastAction {
   BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT = 51;
 }
 
+message Attack {
+  AttackAction action = 1;
+  // NONE unless a power attack.
+  PowerDirection direction = 2;
+}
+
 message Action {
   uint64 action_sequence = 1;
   uint64 graph_epoch = 2;
   uint64 checkpoint_sequence = 3;
-  AttackAction action = 4;
-  bool power = 5;
-  PowerDirection direction = 6;
-  BeastAction beast = 7;
+  oneof kind {
+    Attack attack = 4;
+    BeastAction beast = 5;
+  }
 }
 
 message Color {

@@ -64,10 +64,10 @@ func TestSpaceAndExclusionsAreHard(t *testing.T) {
 }
 
 func TestSpaceOf(t *testing.T) {
-	if SpaceOf(&pb.Context{CellId: 5, WorldspaceId: 60}) != (Space{Worldspace: 60}) {
-		t.Fatal("exterior cells of one worldspace differ")
+	if SpaceOf(&pb.Context{WorldspaceId: 60}) != (Space{Worldspace: 60}) {
+		t.Fatal("worldspace space differs")
 	}
-	if SpaceOf(&pb.Context{CellId: 5}) == SpaceOf(&pb.Context{CellId: 6}) {
+	if SpaceOf(&pb.Context{InteriorCellId: 5}) == SpaceOf(&pb.Context{InteriorCellId: 6}) {
 		t.Fatal("interiors compare equal")
 	}
 }

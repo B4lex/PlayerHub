@@ -79,7 +79,7 @@ namespace Network
 
         std::mutex requestsLock;
         std::uint32_t lastRequestID = 0;
-        std::unordered_map<std::uint32_t, std::function<void(const Wire::Result&)>> pendingRequests;
+        std::unordered_map<std::uint32_t, std::function<void(Multiplayer::ChatRejection)>> pendingRequests;
 
         std::mutex publishLock;
         std::optional<CheckpointContext> sentContext;
@@ -216,14 +216,14 @@ namespace Network
             pendingRequests.clear();
         }
 
-        std::uint32_t RegisterRequest(std::function<void(const Wire::Result&)> a_onResult)
+        std::uint32_t RegisterRequest(std::function<void(Multiplayer::ChatRejection)> a_onAnswer)
         {
             const std::scoped_lock lock{ requestsLock };
             if (++lastRequestID == 0)
             {
                 ++lastRequestID;
             }
-            pendingRequests.insert_or_assign(lastRequestID, std::move(a_onResult));
+            pendingRequests.insert_or_assign(lastRequestID, std::move(a_onAnswer));
             return lastRequestID;
         }
 
@@ -362,12 +362,12 @@ namespace Network
                 a_welcome.issuedToken ? "new" : "resumed", a_welcome.displayName, generation);
         }
 
-        void OnResult(const Wire::Result& a_result)
+        void OnRequestAnswered(std::uint32_t a_requestID, Multiplayer::ChatRejection a_rejection)
         {
-            std::function<void(const Wire::Result&)> callback;
+            std::function<void(Multiplayer::ChatRejection)> callback;
             {
                 const std::scoped_lock lock{ requestsLock };
-                const auto request = pendingRequests.find(a_result.requestID);
+                const auto request = pendingRequests.find(a_requestID);
                 if (request == pendingRequests.end())
                 {
                     return;
@@ -375,7 +375,7 @@ namespace Network
                 callback = std::move(request->second);
                 pendingRequests.erase(request);
             }
-            callback(a_result);
+            callback(a_rejection);
         }
 
         void OnPeerStates(const Wire::PeerStates& a_states)
@@ -394,7 +394,7 @@ namespace Network
         void OnPeerEnter(Wire::PeerEnter&& a_enter)
         {
             logs::debug("Peer {} entered: cell={:08X} worldspace={:08X} sequence={} appearance={} equipment={}",
-                a_enter.slot, a_enter.context.cellID, a_enter.context.worldspaceID,
+                a_enter.slot, a_enter.context.interiorCellID, a_enter.context.worldspaceID,
                 static_cast<unsigned long long>(a_enter.state.sequence), a_enter.appearance.has_value(),
                 a_enter.equipment.has_value());
             std::scoped_lock lock{ remoteChangesLock };
@@ -534,12 +534,13 @@ namespace Network
             if (a_change.left != 0)
             {
                 std::erase_if(roster.players,
-                    [&](const Multiplayer::RosterEntry& a_player) { return a_player.playerID == a_change.left; });
+                    [&](const Multiplayer::PlayerIdentity& a_player) { return a_player.playerID == a_change.left; });
                 std::erase(nearbyPlayers, a_change.left);
             }
             for (auto& joined : a_change.joined)
             {
-                const auto known = std::ranges::find(roster.players, joined.playerID, &Multiplayer::RosterEntry::playerID);
+                const auto known
+                    = std::ranges::find(roster.players, joined.playerID, &Multiplayer::PlayerIdentity::playerID);
                 if (known != roster.players.end())
                 {
                     known->name = std::move(joined.name);
@@ -580,9 +581,13 @@ namespace Network
             std::visit(
                 [](auto&& a_value) {
                     using T = std::decay_t<decltype(a_value)>;
-                    if constexpr (std::is_same_v<T, Wire::Result>)
+                    if constexpr (std::is_same_v<T, Wire::ChatResult>)
                     {
-                        OnResult(a_value);
+                        OnRequestAnswered(a_value.requestID, a_value.rejection);
+                    }
+                    else if constexpr (std::is_same_v<T, Wire::Pong>)
+                    {
+                        OnRequestAnswered(a_value.requestID, Multiplayer::ChatRejection::kNone);
                     }
                     else if constexpr (std::is_same_v<T, Wire::PeerStates>)
                     {
@@ -812,7 +817,7 @@ namespace Network
         {
             logs::debug(
                 "Publishing context: cell={:08X} worldspace={:08X} graphEpoch={} furniture={}:{:06X} shapeshift={}",
-                context.cellID, context.worldspaceID, static_cast<unsigned long long>(context.graphEpoch),
+                context.interiorCellID, context.worldspaceID, static_cast<unsigned long long>(context.graphEpoch),
                 context.furniture.plugin, context.furniture.localFormID,
                 Multiplayer::GetShapeshiftName(context.shapeshift));
             Send(Wire::EncodeContext(context));
@@ -880,20 +885,21 @@ namespace Network
     }
 
     bool PublishChatMessage(Multiplayer::ChatChannel a_channel, PeerSlot a_recipient, std::string_view a_text,
-        std::function<void(std::string_view)> a_onRejected)
+        std::function<void(Multiplayer::ChatRejection)> a_onRejected)
     {
         if (!IsConnected())
         {
             return false;
         }
-        const auto requestID = RegisterRequest([onRejected = std::move(a_onRejected)](const Wire::Result& a_result) {
-            if (a_result.ok)
-            {
-                return;
-            }
-            logs::debug("Server rejected chat message: {}", a_result.error.empty() ? "<no reason>" : a_result.error);
-            onRejected(a_result.error);
-        });
+        const auto requestID
+            = RegisterRequest([onRejected = std::move(a_onRejected)](Multiplayer::ChatRejection a_rejection) {
+                  if (a_rejection == Multiplayer::ChatRejection::kNone)
+                  {
+                      return;
+                  }
+                  logs::debug("Server rejected chat message: {}", Multiplayer::GetChatRejectionName(a_rejection));
+                  onRejected(a_rejection);
+              });
         Send(Wire::EncodeChat(requestID, a_channel, a_recipient, a_text));
         return true;
     }
@@ -1010,8 +1016,8 @@ namespace Network
         {
             return;
         }
-        const auto requestID
-            = RegisterRequest([onAcknowledged = std::move(a_onAcknowledged)](const Wire::Result&) { onAcknowledged(); });
+        const auto requestID = RegisterRequest(
+            [onAcknowledged = std::move(a_onAcknowledged)](Multiplayer::ChatRejection) { onAcknowledged(); });
         Send(Wire::EncodePing(requestID));
     }
 

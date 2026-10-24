@@ -136,8 +136,8 @@ func resume(t *testing.T, s *testServer, displayName string, token []byte) (*cli
 	}
 	if welcome.GetSessionToken() != nil {
 		c.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 9999}}})
-		if result := c.receive().GetResult(); result.GetRequestId() != 9999 {
-			t.Fatalf("got %v", result)
+		if pong := c.receive().GetPong(); pong.GetRequestId() != 9999 {
+			t.Fatalf("got %v", pong)
 		}
 	}
 	return c, welcome
@@ -188,7 +188,7 @@ func TestPlayersSeeEachOther(t *testing.T) {
 		t.Fatal("a did not receive b")
 	}
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 5}}})
-	if result := a.receive().GetResult(); result.GetRequestId() != 5 || !result.GetOk() {
+	if result := a.receive().GetPong(); result.GetRequestId() != 5 {
 		t.Fatalf("got %v", result)
 	}
 
@@ -223,7 +223,7 @@ func TestInvalidMessagesAreDropped(t *testing.T) {
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{Heading: 5000}}})
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Hello{Hello: &pb.Hello{}}})
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 1}}})
-	if a.receive().GetResult().GetRequestId() != 1 {
+	if a.receive().GetPong().GetRequestId() != 1 {
 		t.Fatal("connection did not survive invalid messages")
 	}
 }
@@ -443,7 +443,7 @@ func TestHelloVanishesPlayers(t *testing.T) {
 		t.Fatal("the vanished player did not receive the other")
 	}
 	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 5}}})
-	if result := b.receive().GetResult(); result.GetRequestId() != 5 {
+	if result := b.receive().GetPong(); result.GetRequestId() != 5 {
 		t.Fatalf("received the vanished player: %v", result)
 	}
 
@@ -759,7 +759,7 @@ func TestBannedAddressIsRefused(t *testing.T) {
 		t.Fatalf("got %d %q", code, reason)
 	}
 	neighbour.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 7}}})
-	if result := neighbour.receive().GetResult(); result.GetRequestId() != 7 {
+	if result := neighbour.receive().GetPong(); result.GetRequestId() != 7 {
 		t.Fatalf("the neighbour on another /64 got %v", result)
 	}
 }

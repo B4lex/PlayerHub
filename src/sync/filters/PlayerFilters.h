@@ -15,13 +15,13 @@ namespace PlayerFilters
     [[nodiscard]] bool IsMuted(Multiplayer::SessionID a_session);
     [[nodiscard]] bool IsVanished(Multiplayer::SessionID a_session);
 
-    void SetFriend(const Multiplayer::RosterEntry& a_player, bool a_friend);
-    void SetMuted(const Multiplayer::RosterEntry& a_player, bool a_muted);
-    void SetVanished(const Multiplayer::RosterEntry& a_player, bool a_vanished);
+    void SetFriend(const Multiplayer::PlayerIdentity& a_player, bool a_friend);
+    void SetMuted(const Multiplayer::PlayerIdentity& a_player, bool a_muted);
+    void SetVanished(const Multiplayer::PlayerIdentity& a_player, bool a_vanished);
 
     [[nodiscard]] std::uint64_t GetRevision();
 
     void Copy(std::vector<Entry>& a_entries);
 
-    void CollectArrivedFriends(std::vector<Multiplayer::RosterEntry>& a_friends);
+    void CollectArrivedFriends(std::vector<Multiplayer::PlayerIdentity>& a_friends);
 }

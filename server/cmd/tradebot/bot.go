@@ -191,7 +191,7 @@ func (b *bot) observe(c *pb.Checkpoint) {
 }
 
 func (b *bot) observeContext(c *pb.Context) {
-	b.target.space = space{c.GetCellId(), c.GetWorldspaceId()}
+	b.target.space = space{c.GetInteriorCellId(), c.GetWorldspaceId()}
 }
 
 func (b *bot) handlePeer(m *pb.ServerMessage) bool {
@@ -295,7 +295,7 @@ func (b *bot) teleport() {
 	if !b.placed || b.space != t.space {
 		b.space = t.space
 		b.post(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{
-			CellId: b.space.cell, WorldspaceId: b.space.worldspace, GraphEpoch: 1}}})
+			InteriorCellId: b.space.cell, WorldspaceId: b.space.worldspace, GraphEpoch: 1}}})
 	}
 	if !b.placed {
 		say("standing in front of %s", t.name)

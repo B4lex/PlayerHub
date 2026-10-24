@@ -9,10 +9,10 @@ namespace PlayerActivation
     namespace
     {
         std::mutex s_lock;
-        std::optional<Multiplayer::RosterEntry> s_activated;
-        std::optional<Multiplayer::RosterEntry> s_whisper;
+        std::optional<Multiplayer::PlayerIdentity> s_activated;
+        std::optional<Multiplayer::PlayerIdentity> s_whisper;
 
-        std::optional<Multiplayer::RosterEntry> Take(std::optional<Multiplayer::RosterEntry>& a_request)
+        std::optional<Multiplayer::PlayerIdentity> Take(std::optional<Multiplayer::PlayerIdentity>& a_request)
         {
             const std::scoped_lock lock{ s_lock };
             return std::exchange(a_request, std::nullopt);
@@ -31,18 +31,18 @@ namespace PlayerActivation
         s_activated = std::move(player);
     }
 
-    std::optional<Multiplayer::RosterEntry> TakeActivated()
+    std::optional<Multiplayer::PlayerIdentity> TakeActivated()
     {
         return Take(s_activated);
     }
 
-    void RequestWhisper(const Multiplayer::RosterEntry& a_player)
+    void RequestWhisper(const Multiplayer::PlayerIdentity& a_player)
     {
         const std::scoped_lock lock{ s_lock };
         s_whisper = a_player;
     }
 
-    std::optional<Multiplayer::RosterEntry> TakeWhisperRequest()
+    std::optional<Multiplayer::PlayerIdentity> TakeWhisperRequest()
     {
         return Take(s_whisper);
     }

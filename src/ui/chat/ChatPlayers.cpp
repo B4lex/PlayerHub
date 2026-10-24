@@ -211,7 +211,7 @@ namespace UI
         return outcome;
     }
 
-    void ChatPlayers::DrawRows(std::optional<Multiplayer::RosterEntry>& a_picked, bool a_closeMenu)
+    void ChatPlayers::DrawRows(std::optional<Multiplayer::PlayerIdentity>& a_picked, bool a_closeMenu)
     {
         if (ImGui::BeginChild("##ChatPlayerRows", ImVec2{ 0.0F, -ImGui::GetFrameHeightWithSpacing() }))
         {
