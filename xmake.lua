@@ -2,7 +2,7 @@ includes("lib/commonlibsse-ng")
 includes("locale")
 
 set_project("PlayerHub")
-set_version("0.1.3")
+set_version("1.0.0")
 set_license("GPL-3.0-or-later")
 set_languages("c++23")
 set_warnings("allextra")
