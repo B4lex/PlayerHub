@@ -32,7 +32,9 @@ matched in the 1.5.97 disassembly.
   have not run in game.
 - **Death:** run in game: a replayed player's deaths, standing and seated,
   collapsed the actor into a ragdoll that the next world exit removed. The
-  remaining assumptions and criteria are not checked individually.
+  body opened no container; its hidden prompt and ignored activation
+  ([Receiver](#receiver-1)) have not run in game. The remaining assumptions
+  and criteria are not checked individually.
 
 ## Scope
 
@@ -594,6 +596,10 @@ stage that drives the actor:
   death event, so no local quest, script, crime, or statistic observes it, and
   ragdolls it immediately.
 
+The body offers no interaction: its blocked activation opens no container, it
+shows no activation prompt, and activating it opens no player menu
+([Remote actor](remote-actor.md#spawn)).
+
 The registration is per reference, so a respawned actor starts protected again.
 
 ## Engine assumptions
@@ -732,8 +738,9 @@ Death:
 12. A player killed by an enemy collapses into a ragdoll on every peer, and the
     body disappears when its game loads. A peer entering the cell during the
     death camera sees it collapse where the player died.
-13. The body cannot be looted, and the local player gains no kill, bounty, or
-    quest progress.
+13. The body cannot be looted, shows no activation prompt, and Activate on it
+    opens no player menu. The local player gains no kill, bounty, or quest
+    progress.
 14. A player revived with `resurrect` stands up again as a fresh actor. A player
     in bleedout (essential) stays standing.
 

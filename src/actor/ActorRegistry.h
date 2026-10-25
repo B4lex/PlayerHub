@@ -31,6 +31,7 @@ namespace ActorRegistry
     [[nodiscard]] bool IsCastAnimationOwned(const RE::Actor* a_actor);
 
     void SetDead(const RemoteActor& a_remote);
+    [[nodiscard]] bool IsDead(const RE::Actor* a_actor);
     void SetMounted(const RemoteActor& a_remote, bool a_mounted);
     // Skyrim polls the Speed channel from the actor's own movement, which is zero
     // for a mount moved by its transform and for a rider it carries.

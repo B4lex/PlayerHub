@@ -19,6 +19,10 @@ disassembly ([assumption 17](#engine-assumptions)).
   a blocked dialogue response and one package takeover, and the repeating
   weapon equip animation after a hit was gone. Sitting in furniture after a
   hit is not covered by the captures.
+- **Dead body prompt:** the `GetActivateText` hook and its HUD caller were
+  read in the 1.7.104 and 1.5.97 disassembly
+  ([assumption 5](#engine-assumptions)); Linux syntax check only, not run in
+  game.
 - **Scene package suppression:** traced in the 1.7.104 binary; the hooks
   install in game, and their effect is not verified in game.
 - **World isolation:** placement verified in game with a replayed player
@@ -63,6 +67,7 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/ScenePackageSuppression` | Scene package action hooks |
 | `actor/RemoteCollision` | Placement ownership, the skipped movement update, collision, support, and Speed channel |
 | `actor/RemoteLights` | Keeps the configured number of remote actors' scene lights lit and culls the rest |
+| `runtime/RemoteActorActivation` | The local player's activation of a remote actor: the dead body's prompt and the player menu request |
 | `runtime/CodeDetour` | Shared entry detour: copies checked entry bytes, at the entry or past an entry guard, into a trampoline gateway |
 
 ## Spawn
@@ -77,8 +82,14 @@ survives ordinary exterior cell unloads within one worldspace.
   `PlayerBase` (`00000007`) is refused: `CreateReferenceAtLocation` returns a
   reference for it that never completes actor and 3D initialization.
 - Activation is blocked, so Skyrim starts no dialogue or other interaction
-  with it. Activating it still sends `TESActivateEvent`, which opens its
-  player's menu ([UI overlay](ui-overlay.md#player-menu-in-the-world)).
+  with it, and its body opens no container once it is dead. Activating a live
+  actor still sends `TESActivateEvent`, which opens its player's menu
+  ([UI overlay](ui-overlay.md#player-menu-in-the-world)).
+- A [dead](native-interactions.md#receiver-1) actor shows no activation
+  prompt. `RemoteActorActivation` replaces `TESNPC`'s `GetActivateText`
+  (vfunc 0x4C) and returns false for a reference `ActorRegistry::IsDead`
+  reports, before Skyrim builds the text; every other reference keeps the
+  vanilla prompt.
 - AI stays enabled for the actor's whole life. The graph and character
   controller only finish initializing and keep updating while the actor stays
   in Skyrim's normal processing; disabling it clears `kProcessMe`, zeroes the
@@ -140,7 +151,8 @@ and hook counts are only accessed under the exclusive lock. Per actor it holds:
   never resolve a handle), and by the actor's `MagicTarget` and
   `ActorValueOwner`, so the damage and magic hooks, which see every actor in
   the world, find a remote actor without scanning;
-- ownership flags that open the firewall: furniture, cast, mounted rider, dead;
+- ownership flags that open the firewall: furniture, cast, mounted rider, dead
+  (`IsDead` also hides a body's activation prompt);
 - `networkPlaced`, the published graph Speed, and mount gait speed;
 - the furniture each actor holds, for the local activation hook
   ([Native interactions](native-interactions.md#shared-furniture)).
@@ -620,7 +632,14 @@ Verified against the 1.7.104 executable:
    activation, except for default processing only. For the player it returns
    earlier, without the event, when the base's full name is empty and the
    reference is neither water nor a door; `PlayerLabel::Format` never leaves a
-   remote actor's base unnamed, and the vanilla horse is named.
+   remote actor's base unnamed, and the vanilla horse is named. The blocked
+   test (`ExtraFlags` bit 0) skips the base's `Activate` (vfunc 0x37, where
+   `TESNPC` starts dialogue or opens a dead body's container) unless the
+   reference is the player's own occupied furniture. The HUD's crosshair
+   update (ID 40621, SE 39535) calls the base's `GetActivateText` (vfunc
+   0x4C; `TESNPC`'s is ID 24716, SE 24212) with the reference in `rdx`, the
+   text in `r8`, and true in `r9b`, and shows no prompt when it returns
+   false.
 
 Verified in game:
 

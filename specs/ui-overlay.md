@@ -1566,7 +1566,8 @@ prompt (Skyrim's own prompt and name stay) and gamepad navigation.
   keep their blocked activation, so Skyrim starts no dialogue, but the event
   is still sent ([Remote actor](remote-actor.md#spawn)). It keeps the local
   player's activations of a registered remote actor
-  (`ActorRegistry::IsRegistered`) and stores the actor's form ID with
+  (`ActorRegistry::IsRegistered`) that is not dead (`ActorRegistry::IsDead`),
+  so a body opens no menu, and stores the actor's form ID with
   `SyncCoordinator::QueueLocalActorActivation`, the latest one winning, since
   Skyrim activates on a worker thread.
 - The next pass finds the peer whose actor or mount has that handle

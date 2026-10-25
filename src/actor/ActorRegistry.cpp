@@ -376,6 +376,18 @@ namespace ActorRegistry
         SetShared(a_remote, &Registration::dead, true);
     }
 
+    bool IsDead(const RE::Actor* a_actor)
+    {
+        if (!a_actor)
+        {
+            return false;
+        }
+
+        const auto lock = LockSharedUnlessMainThread();
+        const auto* registration = Find(a_actor);
+        return registration && registration->dead;
+    }
+
     void SetMounted(const RemoteActor& a_remote, bool a_mounted)
     {
         SetShared(a_remote, &Registration::mounted, a_mounted);

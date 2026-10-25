@@ -75,6 +75,7 @@ namespace PluginStartup
         InstallRemoteActorHooks();
         MainLoopHook::Install();
         FurnitureActivationHook::Install();
+        RemoteActorActivation::InstallHooks();
         PlayerGraphEventHook::Install();
         UI::Overlay::Install();
 
