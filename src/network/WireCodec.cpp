@@ -835,6 +835,11 @@ namespace Network::Wire
         }
     }
 
+    std::uint32_t GetProtocolVersion()
+    {
+        return playerhub_v1_Protocol_PROTOCOL_VERSION;
+    }
+
     std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_displayName,
         const std::optional<Multiplayer::SessionToken>& a_token, std::span<const Multiplayer::SessionID> a_vanished)
     {

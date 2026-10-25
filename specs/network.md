@@ -57,7 +57,8 @@
   a game start with and without a display name, `ConnectAutomatically`, an
   endpoint, and `CustomServer`; switching servers while connected; each
   refusal leaving the player disconnected until Connect; and a lost
-  connection reopened.
+  connection reopened. The 4001 split into `kClientOutdated` and
+  `kServerOutdated` (`MakeProtocolRefusal`) is only syntax-checked with g++.
 - **Not run in game:** the connection policy and recovery
   ([Connection](#connection)) beyond connecting, every refusal, the
   [vanilla intro hold](#vanilla-intro-hold), vanish, inspection, and whether
@@ -925,11 +926,15 @@ client.
   once welcomed, `kConnecting` while one is wanted but not welcomed,
   `kDisconnecting` while none is wanted but the socket is open, and
   `kDisconnected` otherwise.
+- `MakeProtocolRefusal` turns a 4001 into `kServerOutdated` when the
+  version in its `protocol <server version>` reason is below
+  `Wire::GetProtocolVersion`, and into `kClientOutdated` otherwise, also when
+  the reason does not parse, since an outdated client is the usual cause:
+  each release ships its server update. Both versions are logged.
 - A close with status 4001 or 4004 through 4011 is a refusal:
   retrying at once cannot help, so the monitor disables the player's choice and closes the client,
   which leaves `kDisconnected`. `Network::GetConnectionRefusal` returns its
-  `Refusal{reason, detail}`, where `detail` is the server's protocol version
-for 4001 and otherwise empty, for the settings window's [connection
+  `Refusal{reason}` for the settings window's [connection
   controls](ui-overlay.md#connection-controls) until the player presses
   Connect or a game starts or ends. Nothing retries by itself, also not an
   applied display name or endpoint: the player changes what the refusal names
@@ -1016,8 +1021,9 @@ window, and are empty after a long gap. The status panel shows them.
 1. Two clients see each other move, attack, sit, ride, die, and change
    appearance and equipment.
 2. A client that joins while a peer's game is paused sees that peer at once.
-3. A client with another protocol version shows the server's version in the
-   settings window and stays disconnected until Connect.
+3. A client with another protocol version tells the player in the settings
+   window whether the server runs a newer or an older version of the mod, and
+   stays disconnected until Connect.
 4. A paused game (menu open) stays connected for minutes.
 5. Quantization shows no visible jitter in position or heading.
 6. A client without a display name opens no connection, whatever

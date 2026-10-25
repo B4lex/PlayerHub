@@ -657,11 +657,13 @@ msgid_plural "The name must be at least {} characters long."
 msgstr[0] "Le nom doit comporter au moins {} caractère."
 msgstr[1] "Le nom doit comporter au moins {} caractères."
 
-#. {} is the reason the server gave
-#, c++-format
-msgctxt "RefusalProtocolMismatch"
-msgid "The server runs another protocol version ({})."
-msgstr "Le serveur utilise une autre version du protocole ({})."
+msgctxt "RefusalClientOutdated"
+msgid "The server runs a newer version of the mod."
+msgstr "Le serveur utilise une version plus récente du mod."
+
+msgctxt "RefusalServerOutdated"
+msgid "The server runs an older version of the mod."
+msgstr "Le serveur utilise une version plus ancienne du mod."
 
 msgctxt "RefusalDisplayNameTaken"
 msgid "The display name is already taken by another player."

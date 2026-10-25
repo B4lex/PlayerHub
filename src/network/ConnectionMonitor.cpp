@@ -257,8 +257,7 @@ namespace Network
         {
             if (auto refused = GetRefusal())
             {
-                logs::error("Not reconnecting: the server refused the connection ({}{}{})", GetRefusalName(refused->reason),
-                    refused->detail.empty() ? "" : ": ", refused->detail);
+                logs::error("Not reconnecting: the server refused the connection ({})", GetRefusalName(refused->reason));
                 SetRefusal(std::move(refused));
                 connectionEnabled.store(false, std::memory_order_release);
                 Close("the server refused the connection");

@@ -1,14 +1,14 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
 #include <string_view>
 
 namespace Network
 {
     enum class RefusalReason : std::uint8_t
     {
-        kProtocolMismatch,
+        kClientOutdated,
+        kServerOutdated,
         kDisplayNameTaken,
         kDisplayNameInvalid,
         kSessionReplaced,
@@ -21,17 +21,17 @@ namespace Network
 
     struct Refusal
     {
-        RefusalReason reason{ RefusalReason::kProtocolMismatch };
-        // The server's protocol version for kProtocolMismatch; empty otherwise.
-        std::string detail;
+        RefusalReason reason{ RefusalReason::kClientOutdated };
     };
 
     [[nodiscard]] constexpr std::string_view GetRefusalName(RefusalReason a_reason)
     {
         switch (a_reason)
         {
-            case RefusalReason::kProtocolMismatch:
-                return "protocol mismatch";
+            case RefusalReason::kClientOutdated:
+                return "client outdated";
+            case RefusalReason::kServerOutdated:
+                return "server outdated";
             case RefusalReason::kDisplayNameTaken:
                 return "display name taken";
             case RefusalReason::kDisplayNameInvalid:

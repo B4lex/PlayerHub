@@ -647,11 +647,13 @@ msgstr[0] "Nazwa musi mieć co najmniej {} znak."
 msgstr[1] "Nazwa musi mieć co najmniej {} znaki."
 msgstr[2] "Nazwa musi mieć co najmniej {} znaków."
 
-#. {} is the reason the server gave
-#, c++-format
-msgctxt "RefusalProtocolMismatch"
-msgid "The server runs another protocol version ({})."
-msgstr "Serwer używa innej wersji protokołu ({})."
+msgctxt "RefusalClientOutdated"
+msgid "The server runs a newer version of the mod."
+msgstr "Serwer używa nowszej wersji moda."
+
+msgctxt "RefusalServerOutdated"
+msgid "The server runs an older version of the mod."
+msgstr "Serwer używa starszej wersji moda."
 
 msgctxt "RefusalDisplayNameTaken"
 msgid "The display name is already taken by another player."

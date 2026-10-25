@@ -649,11 +649,13 @@ msgstr[0] "Имя должно содержать не меньше {} симв�
 msgstr[1] "Имя должно содержать не меньше {} символов."
 msgstr[2] "Имя должно содержать не меньше {} символов."
 
-#. {} is the reason the server gave
-#, c++-format
-msgctxt "RefusalProtocolMismatch"
-msgid "The server runs another protocol version ({})."
-msgstr "Сервер использует другую версию протокола ({})."
+msgctxt "RefusalClientOutdated"
+msgid "The server runs a newer version of the mod."
+msgstr "Сервер использует более новую версию мода."
+
+msgctxt "RefusalServerOutdated"
+msgid "The server runs an older version of the mod."
+msgstr "Сервер использует более старую версию мода."
 
 msgctxt "RefusalDisplayNameTaken"
 msgid "The display name is already taken by another player."

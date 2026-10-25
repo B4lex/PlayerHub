@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <charconv>
 #include <cstddef>
 #include <deque>
 #include <exception>
@@ -20,6 +21,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string_view>
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
@@ -183,12 +185,30 @@ namespace Network
             }
         }
 
+        // The server closes a mismatch with the reason "protocol <server version>".
+        Refusal MakeProtocolRefusal(std::string_view a_closeReason)
+        {
+            constexpr std::string_view kPrefix = "protocol ";
+            const auto client = Wire::GetProtocolVersion();
+            std::uint32_t server = 0;
+            const auto* const end = a_closeReason.data() + a_closeReason.size();
+            if (!a_closeReason.starts_with(kPrefix)
+                || std::from_chars(a_closeReason.data() + kPrefix.size(), end, server).ptr != end)
+            {
+                logs::warn("Could not read the server's protocol version from \"{}\"; this client has {}", a_closeReason,
+                    client);
+                return Refusal{ RefusalReason::kClientOutdated };
+            }
+            logs::error("The server has protocol {}, this client has {}", server, client);
+            return Refusal{ server < client ? RefusalReason::kServerOutdated : RefusalReason::kClientOutdated };
+        }
+
         std::optional<Refusal> MakeRefusal(std::uint16_t a_closeCode, const std::string& a_closeReason)
         {
             switch (a_closeCode)
             {
                 case kProtocolMismatchCloseCode:
-                    return Refusal{ RefusalReason::kProtocolMismatch, a_closeReason };
+                    return MakeProtocolRefusal(a_closeReason);
                 case kDisplayNameTakenCloseCode:
                     return Refusal{ RefusalReason::kDisplayNameTaken };
                 case kDisplayNameInvalidCloseCode:

@@ -22,6 +22,7 @@
 
 namespace Network::Wire
 {
+    [[nodiscard]] std::uint32_t GetProtocolVersion();
     [[nodiscard]] std::string EncodeHello(std::uint32_t a_viewRadius, std::string_view a_displayName,
         const std::optional<Multiplayer::SessionToken>& a_token, std::span<const Multiplayer::SessionID> a_vanished);
     [[nodiscard]] std::string EncodeEnter();

@@ -2083,7 +2083,7 @@ do not move when a message appears:
 | Condition | Line |
 | --- | --- |
 | The field's text is not a display name ([Network](network.md#sessions)); the field's filter leaves being shorter than `kMinimumDisplayNameLength` as the only way | how many characters a name needs at least, red |
-| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kProtocolMismatch`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`, `kAddressFull`, `kBanned`) | a sentence for the reason of `Network::GetConnectionRefusal` (`FormatRefusal`), with the server's protocol version for `kProtocolMismatch`, red, until the button connects again |
+| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kClientOutdated`, `kServerOutdated`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`, `kAddressFull`, `kBanned`) | a sentence for the reason of `Network::GetConnectionRefusal` (`FormatRefusal`), red, until the button connects again. `kClientOutdated` tells the player the server runs a newer version of the mod and `kServerOutdated` an older one; neither shows protocol numbers, the user's choice, and neither raises a notice |
 | Disconnected by a kick (`kKicked`) | no sentence; the [notice](#notices) told the player |
 
 A divider in the separator color (`DrawConnectionDivider`) follows the line

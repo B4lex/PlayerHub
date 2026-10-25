@@ -147,8 +147,10 @@ namespace UI::ConnectionControls
         {
             switch (a_refusal.reason)
             {
-                case Network::RefusalReason::kProtocolMismatch:
-                    return Text::Format(Id::kRefusalProtocolMismatch, a_refusal.detail);
+                case Network::RefusalReason::kClientOutdated:
+                    return std::string{ Text::Get(Id::kRefusalClientOutdated) };
+                case Network::RefusalReason::kServerOutdated:
+                    return std::string{ Text::Get(Id::kRefusalServerOutdated) };
                 case Network::RefusalReason::kDisplayNameTaken:
                     return std::string{ Text::Get(Id::kRefusalDisplayNameTaken) };
                 case Network::RefusalReason::kDisplayNameInvalid:

@@ -639,11 +639,13 @@ msgid "The name must be at least {} character long."
 msgid_plural "The name must be at least {} characters long."
 msgstr[0] "名前は{}文字以上にしてください。"
 
-#. {} is the reason the server gave
-#, c++-format
-msgctxt "RefusalProtocolMismatch"
-msgid "The server runs another protocol version ({})."
-msgstr "サーバーのプロトコルのバージョンが異なります（{}）。"
+msgctxt "RefusalClientOutdated"
+msgid "The server runs a newer version of the mod."
+msgstr "サーバーはより新しいバージョンのMODを使用しています。"
+
+msgctxt "RefusalServerOutdated"
+msgid "The server runs an older version of the mod."
+msgstr "サーバーは古いバージョンのMODを使用しています。"
 
 msgctxt "RefusalDisplayNameTaken"
 msgid "The display name is already taken by another player."
