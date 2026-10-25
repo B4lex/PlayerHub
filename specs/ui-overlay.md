@@ -232,6 +232,11 @@ changes, from the next frame after the setting applies.
   user chose this over scaling only the glyphs, which would need every layout
   redone. The cursor's speed ([Input focus](#input-focus)) stays on the
   display's scale alone.
+- The software cursor's size, `MouseCursorScale`, is set to the overlay scale
+  itself. `ImGuiStyle::ScaleAllSizes` truncates it to a whole number (checked
+  against Dear ImGui 1.92.9), which made it 0 at any scale below 1, such as a
+  back buffer under 1080 px tall or `[UI] Scale` under 100 at 1080p, and the
+  cursor did not draw.
 - The range is the user's. At 130% the trade panel's 52.8 font sizes are
   1.7% taller than the display at any resolution (1098 px at 1080p), so the
   panel is placed at the display's top and its bottom is cut; at 125% it

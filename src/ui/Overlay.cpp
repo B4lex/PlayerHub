@@ -118,6 +118,7 @@ namespace UI::Overlay
             auto& style = ImGui::GetStyle();
             style = baseStyle;
             style.ScaleAllSizes(scale);
+            style.MouseCursorScale = scale;
             style.FontScaleMain = scale;
         }
 
