@@ -29,6 +29,15 @@ The session database and recordings are kept in `data/` next to
 `PLAYERHUB_GID` to run it as another host user, such as the one that owns
 `data/`. The container restarts unless stopped.
 
+The [server image workflow](.github/workflows/server-image.yml) publishes the
+image for `linux/amd64` and `linux/arm64` as
+`ghcr.io/b4lex/playerhub-server`: `main` and `sha-<commit>` from each push
+to `main` that changes the server, the admin panel, or the image, and
+`<version>`, `<major>.<minor>`, and `latest` from each release tag such as
+`1.0.1`. Pull requests build it without publishing. To run a published image
+instead of building one, replace `build` in `compose.yaml` with
+`image: ghcr.io/b4lex/playerhub-server:latest`.
+
 ## Translations
 
 The plugin's text is English, and it reads translations at startup from
