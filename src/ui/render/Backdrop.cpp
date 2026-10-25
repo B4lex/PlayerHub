@@ -99,6 +99,7 @@ float4 BlurVertical(Vertex input) : SV_Target
         int drawnFrame{ -1 };
         int blurredFrame{ -1 };
         bool frameBlurred{ false };
+        bool sceneLayerLogged{ false };
         std::vector<std::unique_ptr<ImDrawList>> popupLists;
 
         bool Disable(std::string_view a_reason)
@@ -165,6 +166,16 @@ float4 BlurVertical(Vertex input) : SV_Target
             {
                 return false;
             }
+            // A layer composited over the scene later has only the UI to blur.
+            if (!frame->holdsScene)
+            {
+                if (!std::exchange(sceneLayerLogged, true))
+                {
+                    logs::info("UI backdrop: the frame target is a UI layer another plugin composites over the "
+                               "scene");
+                }
+                return false;
+            }
             if (frame->description.sampleDesc.count != 1)
             {
                 return Disable("the back buffer is multisampled");
@@ -178,7 +189,7 @@ float4 BlurVertical(Vertex input) : SV_Target
                 return Disable(
                     std::format("its textures could not be created: format={}", static_cast<int>(frame->description.format)));
             }
-            frame->context.CopyResource(textures.copy.Get(), frame->backBuffer.Get());
+            frame->context.CopyResource(textures.copy.Get(), frame->texture.Get());
             Gpu::PassScope passes{ *frame };
             if (!passes.IsReady())
             {

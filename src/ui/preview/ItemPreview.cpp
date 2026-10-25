@@ -908,8 +908,8 @@ float4 Separate(Vertex input) : SV_Target
                 .left = 0, .top = 0, .front = 0, .right = box->width, .bottom = box->height, .back = 1
             };
             auto& context = a_frame.context;
-            auto* backBuffer = a_frame.backBuffer.Get();
-            context.CopySubresourceRegion(textures.saved.Get(), 0, 0, 0, 0, backBuffer, 0, &screenBox);
+            auto* frameTexture = a_frame.texture.Get();
+            context.CopySubresourceRegion(textures.saved.Get(), 0, 0, 0, 0, frameTexture, 0, &screenBox);
             const TemporalAAOffScope noTemporalAA;
             const CaptureAmbientScope ambient;
             for (const auto& layer : a_layers)
@@ -919,9 +919,9 @@ float4 Separate(Vertex input) : SV_Target
                     const PauseMenuDisabledCountScope draw{ a_ui, (std::max)(a_ui.numDisablePauseMenu, 1U) };
                     a_manager.Render();
                 }
-                context.CopySubresourceRegion(layer.destination, 0, 0, 0, 0, backBuffer, 0, &screenBox);
+                context.CopySubresourceRegion(layer.destination, 0, 0, 0, 0, frameTexture, 0, &screenBox);
             }
-            context.CopySubresourceRegion(backBuffer, 0, box->left, box->top, 0, textures.saved.Get(), 0, &textureBox);
+            context.CopySubresourceRegion(frameTexture, 0, box->left, box->top, 0, textures.saved.Get(), 0, &textureBox);
 
             if (!captureLogged)
             {

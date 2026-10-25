@@ -9,6 +9,11 @@ public ImGui overlays use, and the SE IDs of the preview's turn and ambient
 override, the input language patch, and the nameplates' line of sight and
 projection were matched in the 1.5.97 disassembly; nothing ran on SE. Skyrim
 VR is not supported: the hooks are not installed and a warning is logged.
+Drawing on the frame target rather than the back buffer
+([Rendering](#rendering)) shows the overlay in game under Community Shaders'
+HDR output, where it was invisible before. Without that output it has had
+only a Linux syntax check. The backdrop fallback and item thumbnails under
+that output were not checked.
 
 **In game on Windows (1.7.104):**
 
@@ -178,7 +183,7 @@ src/ui/
   widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text, striped box
   widgets/ItemPicker          # item dropdown
   preview/ItemPreview         # 3D item model, spinning and turned by dragging, and cached thumbnails
-  render/Gpu                  # back buffer, runtime-compiled full-screen passes, image blend modes
+  render/Gpu                  # frame target, runtime-compiled full-screen passes, image blend modes
   render/Backdrop             # the game's frame blurred and darkened behind a full-screen window
 src/sync/chat/ChatSync        # send to a target and why it failed, the server's rejections, lines to display
 src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners, the list's copy
@@ -245,8 +250,17 @@ changes, from the next frame after the setting applies.
   `MenuFrame::BeginWindow` scales its last size and keeps its center when the
   font size changes, whether it changed while the window was open or closed
   ([Menu frame](#menu-frame)).
+- The overlay draws on the frame target (`Gpu::GetFrameTarget`): the
+  engine's `kFRAMEBUFFER` render target view, where the menus draw, or the
+  swap chain's view (`renderWindows[0].renderView`) when that is null. In
+  vanilla both are the back buffer. Community Shaders' HDR output points
+  `kFRAMEBUFFER` at a UI texture from the start of the menus' draw until
+  Present. At Present it composites that texture over its HDR scene and
+  copies the result over the back buffer, so anything drawn on the back
+  buffer itself never showed (checked against its source, not in game).
+  The game's UI is drawn the same way.
 - The DX11 backend does not save the output merger, so the overlay binds the
-  swap chain's render target view, draws, and restores the previous targets.
+  frame target, draws, and restores the previous targets.
 - `ImGuiConfigFlags_NoMouse` and `NoMouseCursorChange` are set unless a window
   takes the mouse, and `imgui.ini` is disabled.
 
@@ -258,18 +272,18 @@ display behind every overlay window (ImGui's background draw list) with it,
 darkened; the [trade window](#trade-window) draws it each frame.
 `Backdrop::DrawBlur` puts it in a rounded rectangle and `BlurPopups` under
 popups, for [translucent surfaces](#background-blur). The game keeps
-running, so the blur is made again each frame from the back buffer as the
+running, so the blur is made again each frame from the frame target as the
 overlay hook finds it, HUD and menus included, after `ItemPreview::Update`
 has put back what its capture changed, and at most once a frame however many
 callers ask for it.
 
-- It copies the back buffer, reduces it to a quarter in each dimension with
+- It copies the frame target, reduces it to a quarter in each dimension with
   four bilinear taps per pixel, and blurs that with a 17-tap Gaussian
   (σ 3.5 quarter pixels) horizontally, then vertically, so the blur scales
   with the resolution. The result is stretched over the display at 60% of
   its brightness (`kTint`).
 - `Gpu` (`ui/render/Gpu`) holds what the overlay's own GPU passes share:
-  the back buffer (`GetFrame`), render targets, pixel shaders compiled at
+  the frame target and its texture (`GetFrame`), render targets, pixel shaders compiled at
   runtime by `D3DCompile` (`vs_4_0`, `ps_4_0`, from the
   `d3dcompiler_47.dll` the plugin already links) after a shared `Vertex`
   declaration, and `AddImage` with an opaque or premultiplied blend
@@ -283,6 +297,12 @@ callers ask for it.
   or states that cannot be created turn the blur off for the session with
   one warning (`UI backdrop blur unavailable: <reason>`); the backdrop is
   then a 40% black fill, and translucent surfaces are drawn without a blur.
+- A frame target whose texture is not the swap chain's back buffer
+  (`Frame::holdsScene` false), such as Community Shaders' HDR UI texture,
+  holds the UI but not the scene. While it is in use, the backdrop is the
+  same 40% fill without a blur and without turning the blur off. One info
+  line is logged per session (`UI backdrop: the frame target is a UI layer
+  ...`).
 - `Backdrop::Update`, before `ImGui::NewFrame`, frees the copy and the
   reduced textures when nothing asked for the blur in the last frame.
 
@@ -2237,11 +2257,11 @@ picker's panel) or as cached thumbnails for many cells.
   and it fails every request of the form the load was serving.
 - A capture projects the model's world bound through
   `UI3DSceneManager::viewFrustum` to a screen rectangle, saves that
-  rectangle of the back buffer, clears it
+  rectangle of the frame target, clears it
   (`ID3D11DeviceContext1::ClearView`), calls `Render` with the count at least
   one, copies the rectangle out, and puts the saved pixels back.
 - The model is rendered twice, cleared to black and to white, so its
-  coverage can be told from the back buffer's alpha, which is not coverage.
+  coverage can be told from the frame target's alpha, which is not coverage.
   A `Separate` pass ([Gpu](#backdrop) helpers) takes alpha as one minus the
   mean difference of the two and keeps the color over black, which is
   already multiplied by it, in a 2048² texture drawn with a premultiplied
@@ -2613,7 +2633,7 @@ To verify in game:
 7. The state `PassScope` puts back is all the engine's state tracking
    relies on, so the frame after a blur or a model capture draws unchanged.
    `D3DCompile` compiled the shaders in game for the trade backdrop.
-8. The back buffer at the overlay hook is single-sampled and can be copied
+8. The frame target at the overlay hook is single-sampled and can be copied
    whole (`CopyResource`) into a texture of its own format.
 9. Scaling a model's local transform in the inventory scene keeps its
    lighting and textures as the unscaled model has them, and calling
@@ -2673,6 +2693,12 @@ To verify in game:
     settings hold the tempering tiers' names in the game's language, `Fine` to
     `Legendary` in English. An empty or missing one falls back to the English
     name.
+17. Without a plugin that redirects it, the `kFRAMEBUFFER` render target
+    view at the overlay hook views the swap chain's back buffer, and the
+    menus have drawn on it. Community Shaders draws its own ImGui menu there
+    at Present when its HDR output is off. Under Community Shaders' HDR
+    output, the inventory renderer used by item captures draws on the UI
+    texture that `kFRAMEBUFFER` then names.
 
 ## Acceptance criteria
 
@@ -3094,6 +3120,9 @@ To verify in game:
 
 ## Known limitations
 
+- Under Community Shaders' HDR output the [backdrop](#backdrop) and
+  [translucent surfaces](#background-blur) have no blur, since the scene is
+  composited only at Present.
 - A [blurred](#background-blur) popup or tooltip over an overlay window shows
   the game behind that window, blurred, rather than the window: the blur is
   taken from the frame before the overlay draws.

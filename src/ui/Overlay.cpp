@@ -15,6 +15,7 @@
 #include "ui/hud/StatusPanel.h"
 #include "ui/preview/ItemPreview.h"
 #include "ui/render/Backdrop.h"
+#include "ui/render/Gpu.h"
 #include "ui/settings/SettingsWindow.h"
 #include "ui/trade/TradePrompt.h"
 #include "ui/trade/TradeWindow.h"
@@ -137,7 +138,8 @@ namespace UI::Overlay
 
             auto& data = renderer->GetRuntimeData();
             const auto& window = data.renderWindows[0];
-            if (!window.swapChain || !window.renderView || (!initialized && !Initialize(data)))
+            auto* const frameTarget = Gpu::GetFrameTarget();
+            if (!window.swapChain || !frameTarget || (!initialized && !Initialize(data)))
             {
                 return;
             }
@@ -171,13 +173,12 @@ namespace UI::Overlay
             Backdrop::BlurPopups(*ImGui::GetDrawData());
 
             // The DX11 backend restores the pipeline state it changes, except the
-            // output merger, so target the back buffer and restore it here.
+            // output merger, so target the frame and restore it here.
             REX::W32::ID3D11RenderTargetView* previousTarget = nullptr;
             REX::W32::ID3D11DepthStencilView* previousDepthStencil = nullptr;
             data.context->OMGetRenderTargets(1, &previousTarget, &previousDepthStencil);
 
-            REX::W32::ID3D11RenderTargetView* const backBuffer = window.renderView;
-            data.context->OMSetRenderTargets(1, &backBuffer, nullptr);
+            data.context->OMSetRenderTargets(1, &frameTarget, nullptr);
             ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
             data.context->OMSetRenderTargets(1, &previousTarget, previousDepthStencil);
 

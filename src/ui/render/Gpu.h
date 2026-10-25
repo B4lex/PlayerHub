@@ -18,11 +18,16 @@ namespace UI::Gpu
         REX::W32::ID3D11Device& device;
         REX::W32::ID3D11DeviceContext& context;
         REX::W32::ID3D11RenderTargetView& target;
-        ComPtr<REX::W32::ID3D11Texture2D> backBuffer;
+        ComPtr<REX::W32::ID3D11Texture2D> texture;
         REX::W32::D3D11_TEXTURE2D_DESC description{};
+        // False when the target is a layer that another plugin composites over the scene later.
+        bool holdsScene{ true };
     };
 
-    // The renderer's device and context and the back buffer the overlay draws on.
+    // Where the engine draws the frame's menus, which the overlay draws over.
+    [[nodiscard]] REX::W32::ID3D11RenderTargetView* GetFrameTarget();
+
+    // The renderer's device and context and the frame target the overlay draws on.
     [[nodiscard]] std::optional<Frame> GetFrame();
 
     struct RenderTarget

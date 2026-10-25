@@ -178,6 +178,21 @@ Vertex FullScreen(uint id : SV_VertexID)
         }
     }
 
+    REX::W32::ID3D11RenderTargetView* GetFrameTarget()
+    {
+        auto* renderer = RE::BSGraphics::Renderer::GetSingleton();
+        if (!renderer)
+        {
+            return nullptr;
+        }
+        auto& data = renderer->GetRuntimeData();
+        if (auto* target = data.renderTargets[RE::RENDER_TARGETS::kFRAMEBUFFER].RTV)
+        {
+            return target;
+        }
+        return data.renderWindows[0].renderView;
+    }
+
     std::optional<Frame> GetFrame()
     {
         auto* renderer = RE::BSGraphics::Renderer::GetSingleton();
@@ -186,24 +201,33 @@ Vertex FullScreen(uint id : SV_VertexID)
             return std::nullopt;
         }
         auto& data = renderer->GetRuntimeData();
-        auto* target = data.renderWindows[0].renderView;
+        auto* target = GetFrameTarget();
         if (!data.forwarder || !data.context || !target)
         {
             return std::nullopt;
         }
         ComPtr<REX::W32::ID3D11Resource> resource;
         target->GetResource(resource.GetAddressOf());
-        ComPtr<REX::W32::ID3D11Texture2D> backBuffer;
+        ComPtr<REX::W32::ID3D11Texture2D> texture;
         if (!resource.Get()
             || resource->QueryInterface(
-                   REX::W32::IID_ID3D11Texture2D, reinterpret_cast<void**>(backBuffer.GetAddressOf()))
+                   REX::W32::IID_ID3D11Texture2D, reinterpret_cast<void**>(texture.GetAddressOf()))
                 < 0
-            || !backBuffer.Get())
+            || !texture.Get())
         {
             return std::nullopt;
         }
-        Frame frame{ .device = *data.forwarder, .context = *data.context, .target = *target, .backBuffer = backBuffer };
-        backBuffer->GetDesc(&frame.description);
+        ComPtr<REX::W32::ID3D11Resource> backBuffer;
+        if (auto* swapChainView = data.renderWindows[0].renderView)
+        {
+            swapChainView->GetResource(backBuffer.GetAddressOf());
+        }
+        Frame frame{ .device = *data.forwarder,
+            .context = *data.context,
+            .target = *target,
+            .texture = texture,
+            .holdsScene = resource.Get() == backBuffer.Get() };
+        texture->GetDesc(&frame.description);
         return frame;
     }
 
