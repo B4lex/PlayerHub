@@ -501,3 +501,83 @@ func TestKickAndBan(t *testing.T) {
 	}
 	s.joinWith("Lydia", welcome.GetSessionToken())
 }
+
+func TestManageSessions(t *testing.T) {
+	s := startStack(t)
+	online, welcome := s.joinWith("Lydia", nil)
+	online.send(&pb.ClientMessage{Message: &pb.ClientMessage_Ping{Ping: &pb.Ping{RequestId: 1}}})
+	online.until(func(m *pb.ServerMessage) bool { return m.GetPong() != nil })
+	var issued struct {
+		SessionID string `json:"sessionId"`
+	}
+	s.call("POST", "/api/sessions", map[string]any{"displayName": "Serana"}, &issued)
+	lydia := fmt.Sprint(welcome.GetSessionId())
+
+	var page SessionPage
+	if status := s.call("GET", "/api/sessions", nil, &page); status != 200 || page.Total != 2 || len(page.Sessions) != 2 {
+		t.Fatalf("list: %d %+v", status, page)
+	}
+	for _, view := range page.Sessions {
+		connected := view.PlayerID != nil && *view.PlayerID == slotID(online.slot)
+		if connected != (view.ID == lydia) || view.Banned || view.ExpiresAtMs == nil {
+			t.Fatalf("session %+v", view)
+		}
+	}
+	if s.call("GET", "/api/sessions?search=ser&limit=1", nil, &page); page.Total != 1 || page.Sessions[0].ID != issued.SessionID {
+		t.Fatalf("search: %+v", page)
+	}
+	for _, query := range []string{"offset=-1", "limit=0", "limit=201", "limit=x"} {
+		if status := s.call("GET", "/api/sessions?"+query, nil, nil); status != 422 {
+			t.Errorf("%s: %d", query, status)
+		}
+	}
+
+	for _, c := range []struct {
+		id     string
+		body   any
+		status int
+	}{
+		{issued.SessionID, map[string]any{}, 422},
+		{issued.SessionID, map[string]string{"displayName": "no spaces"}, 422},
+		{issued.SessionID, map[string]string{"displayName": "lydia"}, 409},
+		{lydia, map[string]string{"displayName": "Housecarl"}, 409},
+		{"999", map[string]string{"displayName": "Housecarl"}, 404},
+		{"x", map[string]string{"displayName": "Housecarl"}, 404},
+		{issued.SessionID, map[string]string{"displayName": "Housecarl"}, 200},
+	} {
+		var body map[string]string
+		if status := s.call("PATCH", "/api/sessions/"+c.id, c.body, &body); status != c.status {
+			t.Errorf("%s %v: got %d, want %d (%v)", c.id, c.body, status, c.status, body)
+		}
+	}
+	if s.call("GET", "/api/sessions?search=housecarl", nil, &page); page.Total != 1 || page.Sessions[0].DisplayName != "Housecarl" {
+		t.Fatalf("after rename: %+v", page)
+	}
+
+	if status := s.call("POST", "/api/players/"+slotID(online.slot)+"/ban", map[string]bool{"address": false}, nil); status != 201 {
+		t.Fatalf("ban: %d", status)
+	}
+	online.closed()
+	if status := s.call("DELETE", "/api/sessions/"+lydia, nil, nil); status != 204 {
+		t.Fatalf("delete banned: %d", status)
+	}
+	var state State
+	if s.call("GET", "/api/state", nil, &state); len(state.Bans) != 0 {
+		t.Fatalf("bans kept: %+v", state.Bans)
+	}
+	again, rejoined := s.joinWith("Lydia", welcome.GetSessionToken())
+	if len(rejoined.GetSessionToken()) == 0 || fmt.Sprint(rejoined.GetSessionId()) == lydia {
+		t.Fatalf("the deleted session resumed: %+v", rejoined)
+	}
+	if status := s.call("DELETE", "/api/sessions/"+fmt.Sprint(rejoined.GetSessionId()), nil, nil); status != 204 {
+		t.Fatalf("delete connected: %d", status)
+	}
+	if code := again.closed(); code != session.StatusKicked {
+		t.Fatalf("deleted session closed with %d", code)
+	}
+	for _, id := range []string{lydia, "x"} {
+		if status := s.call("DELETE", "/api/sessions/"+id, nil, nil); status != 404 {
+			t.Errorf("delete %s: %d", id, status)
+		}
+	}
+}

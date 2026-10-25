@@ -138,6 +138,30 @@ func banView(ban auth.Ban) Ban {
 	return view
 }
 
+type Session struct {
+	ID           string   `json:"id"`
+	DisplayName  string   `json:"displayName"`
+	CreatedAtMs  float64  `json:"createdAtMs"`
+	LastUsedAtMs float64  `json:"lastUsedAtMs"`
+	ExpiresAtMs  *float64 `json:"expiresAtMs"`
+	Banned       bool     `json:"banned"`
+	PlayerID     *string  `json:"playerId"`
+}
+
+type SessionPage struct {
+	Sessions []Session `json:"sessions"`
+	Total    int       `json:"total"`
+}
+
+func sessionView(record auth.Record) Session {
+	view := Session{ID: strconv.FormatUint(record.ID, 10), DisplayName: record.DisplayName,
+		CreatedAtMs: milliseconds(record.CreatedAt), LastUsedAtMs: milliseconds(record.LastUsedAt), Banned: record.Banned}
+	if !record.ExpiresAt.IsZero() {
+		view.ExpiresAtMs = optional(milliseconds(record.ExpiresAt))
+	}
+	return view
+}
+
 // An IPv4 address is banned whole, so it reads as the address alone.
 func describePrefix(prefix netip.Prefix) string {
 	if prefix.IsSingleIP() {

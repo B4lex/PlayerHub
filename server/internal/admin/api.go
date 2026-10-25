@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"playerhub/server/internal/auth"
@@ -52,7 +53,25 @@ func (c *Context) Routes(mux *http.ServeMux) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
+	mux.HandleFunc("GET /api/sessions", c.listSessions)
 	mux.HandleFunc("POST /api/sessions", c.issueSession)
+	mux.HandleFunc("PATCH /api/sessions/{id}", c.renameSession)
+	mux.HandleFunc("DELETE /api/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
+		deleted := false
+		if err == nil {
+			if deleted, err = c.Connections.DeleteSession(id); err != nil {
+				fail(w, http.StatusInternalServerError, "session store failed: "+err.Error())
+				return
+			}
+		}
+		if !deleted {
+			fail(w, http.StatusNotFound, "no session "+r.PathValue("id"))
+			return
+		}
+		c.OnChange()
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("PUT /api/players/{id}/hidden", c.setHidden)
 	mux.HandleFunc("POST /api/players/{id}/kick", func(w http.ResponseWriter, r *http.Request) {
 		slot, err := strconv.ParseUint(r.PathValue("id"), 10, 32)
@@ -244,6 +263,75 @@ func (c *Context) issueSession(w http.ResponseWriter, r *http.Request) {
 		DisplayName string `json:"displayName"`
 		Token       []byte `json:"token"`
 	}{strconv.FormatUint(session.ID, 10), session.DisplayName, token})
+}
+
+const (
+	defaultSessionPage = 50
+	maximumSessionPage = 200
+)
+
+func (c *Context) listSessions(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	offset, limit := 0, defaultSessionPage
+	var err error
+	if value := query.Get("offset"); value != "" {
+		if offset, err = strconv.Atoi(value); err != nil || offset < 0 {
+			fail(w, http.StatusUnprocessableEntity, "offset must be a whole number >= 0")
+			return
+		}
+	}
+	if value := query.Get("limit"); value != "" {
+		if limit, err = strconv.Atoi(value); err != nil || limit < 1 || limit > maximumSessionPage {
+			fail(w, http.StatusUnprocessableEntity, fmt.Sprintf("limit must be within 1..%d", maximumSessionPage))
+			return
+		}
+	}
+	records, total, err := c.Sessions.Sessions(strings.TrimSpace(query.Get("search")), offset, limit, time.Now())
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "session store failed: "+err.Error())
+		return
+	}
+	connected := c.Connections.ConnectedSessions()
+	page := SessionPage{Sessions: make([]Session, 0, len(records)), Total: total}
+	for _, record := range records {
+		view := sessionView(record)
+		if slot, ok := connected[record.ID]; ok {
+			view.PlayerID = optional(slotID(slot))
+		}
+		page.Sessions = append(page.Sessions, view)
+	}
+	reply(w, http.StatusOK, page)
+}
+
+func (c *Context) renameSession(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		DisplayName string `json:"displayName"`
+	}
+	if err := decode(r, &request); err != nil {
+		invalid(w, err)
+		return
+	}
+	if validate.DisplayName(request.DisplayName) != nil {
+		fail(w, http.StatusUnprocessableEntity, fmt.Sprintf("displayName must be %d to %d letters, digits, or underscores",
+			validate.MinimumDisplayNameBytes, validate.MaximumDisplayNameBytes))
+		return
+	}
+	id, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
+	if err == nil {
+		err = c.Connections.RenameSession(id, request.DisplayName, time.Now())
+	}
+	switch {
+	case errors.Is(err, strconv.ErrSyntax), errors.Is(err, strconv.ErrRange), errors.Is(err, auth.ErrNoSession):
+		fail(w, http.StatusNotFound, "no session "+r.PathValue("id"))
+	case errors.Is(err, auth.ErrDisplayNameTaken):
+		fail(w, http.StatusConflict, "display name taken")
+	case errors.Is(err, session.ErrConnected):
+		fail(w, http.StatusConflict, err.Error())
+	case err != nil:
+		fail(w, http.StatusInternalServerError, "session store failed: "+err.Error())
+	default:
+		reply(w, http.StatusOK, map[string]string{"displayName": request.DisplayName})
+	}
 }
 
 func (c *Context) ban(w http.ResponseWriter, r *http.Request) {

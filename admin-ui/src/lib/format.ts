@@ -38,6 +38,10 @@ export function formatRelative(iso: string, now = Date.now()): string {
   return new Date(then).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+export function formatDate(ms: number): string {
+  return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
 export function formatDateTime(iso: string): string {
   const then = new Date(iso);
   return Number.isNaN(then.getTime()) ? iso : then.toLocaleString();

@@ -8,6 +8,7 @@ import type {
   PlaybackSettings,
   Recording,
   RecordingDetail,
+  SessionPage,
 } from "./types";
 
 /** A failed API call, carrying the server's explanation. */
@@ -67,6 +68,19 @@ export const api = {
     kick: (id: string) => request<void>("POST", `/api/players/${enc(id)}/kick`),
     /** Disconnect a player and refuse their session, and with `address` everyone from their address. */
     ban: (id: string, address: boolean) => request<Ban>("POST", `/api/players/${enc(id)}/ban`, { address }),
+  },
+  sessions: {
+    /** Live sessions, most recently used first; `search` matches part of a display name or a whole ID. */
+    list: (search: string, offset: number, limit: number) =>
+      request<SessionPage>(
+        "GET",
+        `/api/sessions?${new URLSearchParams({ search, offset: String(offset), limit: String(limit) })}`,
+      ),
+    /** Rename an offline session. */
+    rename: (id: string, displayName: string) =>
+      request<{ displayName: string }>("PATCH", `/api/sessions/${enc(id)}`, { displayName }),
+    /** Delete a session with its bans, disconnecting its player. */
+    remove: (id: string) => request<void>("DELETE", `/api/sessions/${enc(id)}`),
   },
   bans: {
     lift: (id: string) => request<void>("DELETE", `/api/bans/${enc(id)}`),

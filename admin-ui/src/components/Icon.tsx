@@ -17,7 +17,8 @@ export type IconName =
   | "film"
   | "clock"
   | "disk"
-  | "gauge";
+  | "gauge"
+  | "key";
 
 // 24x24 outline icons; `fill` ones are solid shapes.
 const glyphs: Record<IconName, { fill?: boolean; body: ReactNode }> = {
@@ -130,6 +131,14 @@ const glyphs: Record<IconName, { fill?: boolean; body: ReactNode }> = {
         <path d="M3.5 17.5a8.5 8.5 0 1 1 17 0" />
         <path d="M12 17.5l4.3-5.3" />
         <circle cx="12" cy="17.5" r="1.4" />
+      </>
+    ),
+  },
+  key: {
+    body: (
+      <>
+        <circle cx="8" cy="15" r="4.5" />
+        <path d="M11.2 11.8L20 3M16.5 6.5l2.5 2.5M14 9l2 2" />
       </>
     ),
   },

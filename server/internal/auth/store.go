@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strconv"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -19,6 +20,7 @@ var (
 	ErrDisplayNameTaken = errors.New("display name taken")
 	ErrIssueRefused     = errors.New("too many new sessions")
 	ErrBanned           = errors.New("banned")
+	ErrNoSession        = errors.New("no such session")
 )
 
 const schemaVersion = 3
@@ -61,6 +63,16 @@ const unbanned = `id NOT IN (SELECT session_id FROM bans)`
 type Session struct {
 	ID          uint64
 	DisplayName string
+}
+
+type Record struct {
+	ID          uint64
+	DisplayName string
+	CreatedAt   time.Time
+	LastUsedAt  time.Time
+	// Zero for a banned session, which never expires.
+	ExpiresAt time.Time
+	Banned    bool
 }
 
 type Ban struct {
@@ -225,6 +237,79 @@ func (s *Store) cutoff(now time.Time) int64 {
 func (s *Store) purge(tx *sql.Tx, now time.Time) error {
 	_, err := tx.Exec(`DELETE FROM sessions WHERE last_used_at < ? AND `+unbanned, s.cutoff(now))
 	return err
+}
+
+// Sessions lists the live sessions, most recently used first. A search matches part of a
+// display name without case, or a whole session ID.
+func (s *Store) Sessions(search string, offset, limit int, now time.Time) ([]Record, int, error) {
+	where := `(last_used_at >= ? OR NOT (` + unbanned + `))`
+	arguments := []any{s.cutoff(now)}
+	if search != "" {
+		// Session IDs start from 1, so a search that is no number matches none.
+		id, _ := strconv.ParseUint(search, 10, 64)
+		where += ` AND (instr(display_name_key, ?) > 0 OR id = ?)`
+		arguments = append(arguments, validate.DisplayNameKey(search), id)
+	}
+	var total int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE `+where, arguments...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := s.db.Query(`SELECT id, display_name, created_at, last_used_at, NOT (`+unbanned+`) FROM sessions WHERE `+
+		where+` ORDER BY last_used_at DESC, id DESC LIMIT ? OFFSET ?`, append(arguments, limit, offset)...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	records := []Record{}
+	for rows.Next() {
+		var record Record
+		var createdAt, lastUsedAt int64
+		if err := rows.Scan(&record.ID, &record.DisplayName, &createdAt, &lastUsedAt, &record.Banned); err != nil {
+			return nil, 0, err
+		}
+		record.CreatedAt, record.LastUsedAt = time.Unix(createdAt, 0), time.Unix(lastUsedAt, 0)
+		if !record.Banned {
+			record.ExpiresAt = record.LastUsedAt.Add(s.lifetime)
+		}
+		records = append(records, record)
+	}
+	return records, total, rows.Err()
+}
+
+func (s *Store) Rename(id uint64, displayName string, now time.Time) error {
+	return s.transact(func(tx *sql.Tx) error {
+		if err := s.purge(tx, now); err != nil {
+			return err
+		}
+		var exists bool
+		if err := tx.QueryRow(`SELECT EXISTS (SELECT 1 FROM sessions WHERE id = ?)`, id).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return ErrNoSession
+		}
+		return rename(tx, id, displayName)
+	})
+}
+
+// Delete takes the session's bans with it, so its token then issues a new session like an
+// unknown one.
+func (s *Store) Delete(id uint64) (bool, error) {
+	deleted := false
+	err := s.transact(func(tx *sql.Tx) error {
+		result, err := tx.Exec(`DELETE FROM sessions WHERE id = ?`, id)
+		if err != nil {
+			return err
+		}
+		count, err := result.RowsAffected()
+		if err != nil || count == 0 {
+			return err
+		}
+		deleted = true
+		_, err = tx.Exec(`DELETE FROM bans WHERE session_id = ?`, id)
+		return err
+	})
+	return deleted, err
 }
 
 func (s *Store) Ban(ban Ban) (Ban, error) {

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/netip"
 	"path/filepath"
 	"testing"
@@ -340,5 +341,90 @@ func TestAddressBans(t *testing.T) {
 	s.Lift(second.ID, start)
 	if banned, _ := s.AddressBanned(home); banned {
 		t.Fatal("the address stayed banned")
+	}
+}
+
+func TestSessionsListLiveSessionsMostRecentlyUsedFirst(t *testing.T) {
+	s := open(t, "")
+	lydia, _ := issue(t, s, "Lydia", start)
+	serana, _ := issue(t, s, "Serana", start.Add(time.Hour))
+	expired, _ := issue(t, s, "Mjoll_Lioness", start.Add(-2*month))
+	banned, _ := issue(t, s, "Cicero", start.Add(-2*month))
+	s.Ban(Ban{Session: banned.ID, DisplayName: "Cicero", CreatedAt: start})
+
+	ids := func(records []Record) []uint64 {
+		var ids []uint64
+		for _, record := range records {
+			ids = append(ids, record.ID)
+		}
+		return ids
+	}
+	records, total, err := s.Sessions("", 0, 10, start.Add(time.Hour))
+	if err != nil || total != 3 || fmt.Sprint(ids(records)) != fmt.Sprint([]uint64{serana.ID, lydia.ID, banned.ID}) {
+		t.Fatalf("sessions %+v total %d %v", records, total, err)
+	}
+	if !records[0].ExpiresAt.Equal(start.Add(time.Hour+month)) || records[0].Banned ||
+		!records[0].CreatedAt.Equal(start.Add(time.Hour)) || records[2].Banned != true || !records[2].ExpiresAt.IsZero() {
+		t.Fatalf("records %+v", records)
+	}
+	if records, total, _ := s.Sessions("", 1, 1, start.Add(time.Hour)); total != 3 || len(records) != 1 || records[0].ID != lydia.ID {
+		t.Fatalf("second page %+v total %d", records, total)
+	}
+	for search, want := range map[string][]uint64{
+		"YDI": {lydia.ID}, fmt.Sprint(serana.ID): {serana.ID}, "_": nil, "mjoll": nil, "%": nil,
+		fmt.Sprint(expired.ID): nil,
+	} {
+		records, total, err := s.Sessions(search, 0, 10, start.Add(time.Hour))
+		if err != nil || total != len(want) || fmt.Sprint(ids(records)) != fmt.Sprint(want) {
+			t.Errorf("%q: %v total %d %v, want %v", search, ids(records), total, err, want)
+		}
+	}
+}
+
+func TestRename(t *testing.T) {
+	s := open(t, "")
+	lydia, token := issue(t, s, "Lydia", start)
+	issue(t, s, "Serana", start)
+	stale, _ := issue(t, s, "Jordis", start.Add(-2*month))
+	if err := s.Rename(lydia.ID, "serana", start); !errors.Is(err, ErrDisplayNameTaken) {
+		t.Fatalf("took a held display name: %v", err)
+	}
+	if err := s.Rename(lydia.ID, "LYDIA", start); err != nil {
+		t.Fatalf("respelling: %v", err)
+	}
+	for _, id := range []uint64{stale.ID, 999} {
+		if err := s.Rename(id, "Housecarl", start); !errors.Is(err, ErrNoSession) {
+			t.Errorf("renamed session %d: %v", id, err)
+		}
+	}
+	if err := s.Rename(lydia.ID, "Housecarl", start); err != nil {
+		t.Fatal(err)
+	}
+	issue(t, s, "Lydia", start)
+	if resumed, _, err := s.Authenticate(token, "Housecarl", start, nil); err != nil || resumed.ID != lydia.ID {
+		t.Fatalf("resume after rename: %+v %v", resumed, err)
+	}
+}
+
+func TestDeleteTakesTheBans(t *testing.T) {
+	s := open(t, "")
+	lydia, token := issue(t, s, "Lydia", start)
+	home := netip.MustParsePrefix("192.0.2.7/32")
+	s.Ban(Ban{Session: lydia.ID, DisplayName: "Lydia", Address: home, CreatedAt: start})
+	if deleted, err := s.Delete(lydia.ID); !deleted || err != nil {
+		t.Fatalf("delete: %v %v", deleted, err)
+	}
+	if deleted, _ := s.Delete(lydia.ID); deleted {
+		t.Fatal("deleted twice")
+	}
+	if bans, _ := s.Bans(); len(bans) != 0 {
+		t.Fatalf("bans kept: %+v", bans)
+	}
+	if banned, _ := s.AddressBanned(home); banned {
+		t.Fatal("the address stayed banned")
+	}
+	issued, newToken, err := s.Authenticate(token, "Lydia", start, nil)
+	if err != nil || newToken == nil || issued.ID == lydia.ID {
+		t.Fatalf("the deleted session's token: %+v %v %v", issued, newToken, err)
 	}
 }

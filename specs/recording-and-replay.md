@@ -27,6 +27,14 @@ Implemented in Go and verified on Linux:
   were rendered in headless Chromium against a server on port 3101 with two
   loadgen bots and a ban, but not clicked; kick, both ban kinds, and the
   loopback refusal were driven with `curl`.
+- Sessions page: `auth` tests cover listing, search, paging, rename, and
+  delete with bans, and an `internal/admin` test covers the routes over a real
+  WebSocket, including a connected session's rename refusal and its 4011 close
+  on delete. Against a server on ports 3100/3101 with 60 issued sessions and a
+  connected `cmd/tradebot`, headless Chrome driven over the DevTools protocol
+  showed the list and pager, refused an invalid and a held name, renamed an
+  offline session, searched, paged, and deleted the connected session, which
+  closed the bot with 4011.
 
 Replayed players are watched in game while developing the plugin; how one
 looks in every case is not verified (see
@@ -50,7 +58,7 @@ bots as real WebSocket clients out of process.
 | `internal/loadtest` | `PlanBots`, in-server `Batch`es and their `Manager` |
 | `internal/admin` | REST routes under `/api`, the `/api/events` feed, panel files |
 | `cmd/loadgen` | Networked bots, latency and throughput measurement |
-| `admin-ui/` | React and TypeScript panel: Dashboard, Replay management, Load testing |
+| `admin-ui/` | React and TypeScript panel: Dashboard, Sessions, Replay management, Load testing |
 
 ## Recordings
 
@@ -231,6 +239,27 @@ with the ban, 404 for a player that is not connected, and 422 for an address
 that cannot be banned; `DELETE /api/bans/{id}` answers 204 or 404. A ban's
 `address` is the banned IPv4 address or IPv6 /64, or null.
 
+The Sessions page (`features/sessions/SessionsPage`) lists the sessions in
+the store ([Sessions](network.md#sessions)), 50 per page with a pager, and
+renames or deletes one. It is not in the snapshot, which would grow with every
+session the server keeps: the page fetches
+`GET /api/sessions?search=&offset=&limit=` again when its search (debounced
+0.25 s) or page changes, after its own commands, and when the snapshot's
+connected players or bans change. The route lists live sessions and banned
+ones, most recently used first, then by ID; `search`, trimmed, matches part of
+a display name without case (`instr`, so `_` is literal) or a whole session
+ID; `offset` is 0 or more and `limit` 1..200 (default 50), else 422. It
+answers `{sessions, total}`, `total` counting every match; a session is
+`{id, displayName, createdAtMs, lastUsedAtMs, expiresAtMs, banned, playerId}`,
+`expiresAtMs` null when banned and `playerId` the slot of its connection or
+null. A row shows the name and ID, last and first use, expiry (none while
+connected or banned), connected and banned badges, a rename control that edits
+the name in place, checked against the display name rule before it is sent,
+and is disabled while connected, and a delete control that asks for a second
+click. `PATCH /api/sessions/{id}` `{displayName}` answers 200, 422 for a name
+that fails `validate.DisplayName`, 404 for no live session, and 409 for a held
+name or a connected session. `DELETE /api/sessions/{id}` answers 204 or 404.
+
 ## Engine assumptions
 
 Not checked in game:
@@ -245,8 +274,8 @@ Not checked in game:
 ## Known limitations
 
 - The admin API has no authentication: it deletes recordings, spawns
-  virtual players, kicks and bans players, and issues sessions past the
-  per-address allowance, so
+  virtual players, kicks and bans players, renames and deletes sessions, and
+  issues sessions past the per-address allowance, so
   `admin_listen` must not face the Internet, and every program and device that
   reaches it is trusted. The [request guard](#admin-api) stops only web pages,
   and browsers without fetch metadata (Safari before 16.4, Firefox before 90)

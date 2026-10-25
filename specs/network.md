@@ -456,6 +456,21 @@ admin API. Bans are in [Kicks and bans](#kicks-and-bans).
   answers `{sessionId, displayName, token}`, 201 with a new token or 200 with
   the resumed one. A session issued there that never connects is not deleted
   by `Store.Abandon`; it expires.
+- The admin API lists, renames, and deletes sessions
+  ([Recording and replay](recording-and-replay.md#admin-api)).
+  `session.Server.RenameSession` refuses a connected session
+  (`session.ErrConnected`), whose name is fixed for the connection, and
+  otherwise `Store.Rename` applies the same uniqueness rule as a hello, after
+  deleting expired sessions; an expired or unknown session is
+  `auth.ErrNoSession`. The player's next hello renames the session to the
+  name it carries, as for any resumed session; an admin rename does not hold
+  against it (the user's choice). `session.Server.DeleteSession` deletes the
+  session and its bans in one transaction (`Store.Delete`) and closes its
+  connection with 4011 `kicked`, so the game stays disconnected until the
+  player presses Connect; its token then matches nothing and issues a new
+  session with a new `session_id`, which ends friends, mutes, and vanishes
+  other clients keep for the old one. The server logs `session renamed` and
+  `session deleted` with the session.
 - A client is named by its session everywhere: `Appearance.name` on the stored
   and relayed copy, `PlayerIdentity.name` in chat, the roster, and trade invitations, the admin state, and a recording's
   header. Replays and in-server bots have no session and keep their recorded
@@ -556,6 +571,8 @@ connected, and stopping a player who changes both session and address.
   `created_at`. A banned session never expires and `Store.Abandon` keeps it,
   so its token keeps matching the ban and its display name stays held.
   `Store.Lift` deletes a ban and restarts its session's lifetime from then.
+  Deleting a session deletes its bans with it ([Sessions](#sessions)), so it
+  also lifts an address ban the session held.
 - The server logs `player kicked` and `player banned` with the session and
   display name, and the ban's ID and address.
 

@@ -329,6 +329,7 @@ func (c *connection) close(status websocket.StatusCode, reason string) {
 
 var (
 	ErrNotConnected       = errors.New("player is not connected")
+	ErrConnected          = errors.New("player is connected; kick them first")
 	ErrAddressNotBannable = errors.New("the player's address is loopback, unspecified, or a trusted proxy; " +
 		"behind a proxy, list it in trusted_proxies")
 	errAddressBanned = errors.New("address banned")
@@ -392,6 +393,51 @@ func (s *Server) Ban(slot uint32, withAddress bool, now time.Time) (auth.Ban, er
 		go other.close(StatusBanned, "banned")
 	}
 	return ban, nil
+}
+
+func (s *Server) ConnectedSessions() map[uint64]uint32 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	slots := make(map[uint64]uint32, len(s.connections))
+	for slot, c := range s.connections {
+		slots[c.session] = slot
+	}
+	return slots
+}
+
+// A connected player keeps its display name for the connection, so only an offline session
+// is renamed.
+func (s *Server) RenameSession(id uint64, displayName string, now time.Time) error {
+	if _, connected := s.ConnectedSessions()[id]; connected {
+		return ErrConnected
+	}
+	if err := s.store.Rename(id, displayName, now); err != nil {
+		return err
+	}
+	s.log.Info("session renamed", "session", id, "display_name", displayName)
+	return nil
+}
+
+// DeleteSession closes the session's connection as a kick, so the game does not reconnect
+// by itself.
+func (s *Server) DeleteSession(id uint64) (bool, error) {
+	deleted, err := s.store.Delete(id)
+	if err != nil || !deleted {
+		return deleted, err
+	}
+	s.log.Info("session deleted", "session", id)
+	s.mu.Lock()
+	var closing *connection
+	for _, c := range s.connections {
+		if c.session == id {
+			closing = c
+		}
+	}
+	s.mu.Unlock()
+	if closing != nil {
+		go closing.close(StatusKicked, "kicked")
+	}
+	return true, nil
 }
 
 func (s *Server) Maintain(ctx context.Context) {

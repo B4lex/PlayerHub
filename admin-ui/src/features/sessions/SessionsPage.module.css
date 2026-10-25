@@ -1,0 +1,149 @@
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 40rem;
+}
+
+.table th {
+  padding: 0.65rem 1.25rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+
+.table td {
+  padding: 0.8rem 1.25rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.sub {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.when {
+  white-space: nowrap;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
+.search,
+.rename input {
+  min-width: 0;
+  min-height: 2.25rem;
+  padding: 0 0.7rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.search {
+  width: 14rem;
+}
+
+.search::placeholder {
+  color: var(--text-faint);
+}
+
+.rename {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.rename input {
+  width: 11rem;
+  min-height: 2rem;
+  font-weight: 600;
+}
+
+.rename input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+/* On a phone, each session becomes a card so its actions are never off-screen. */
+@media (max-width: 40rem) {
+  .search {
+    width: 100%;
+  }
+
+  .table {
+    min-width: 0;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .table,
+  .table tbody {
+    display: block;
+  }
+
+  .table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.35rem 0.75rem;
+    align-items: center;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .table td {
+    padding: 0;
+    border: 0;
+  }
+
+  .table td:nth-child(-n + 4) {
+    grid-column: 1;
+  }
+
+  .table td:nth-child(5) {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+  }
+}

@@ -141,6 +141,25 @@ export interface Ban {
   createdAtMs: number;
 }
 
+/** A player's identity on this server, live or banned. */
+export interface Session {
+  id: string;
+  displayName: string;
+  createdAtMs: number;
+  lastUsedAtMs: number;
+  /** Null for a banned session, which never expires. */
+  expiresAtMs: number | null;
+  banned: boolean;
+  /** The slot of the player connected with this session. */
+  playerId: string | null;
+}
+
+export interface SessionPage {
+  sessions: Session[];
+  /** Every session matching the search, not just this page. */
+  total: number;
+}
+
 export interface AdminState {
   server: ServerInfo;
   players: Player[];

@@ -3,6 +3,7 @@ import type { IconName } from "./components/Icon";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { LoadTestPage } from "./features/loadtest/LoadTestPage";
 import { ReplaysPage } from "./features/replays/ReplaysPage";
+import { SessionsPage } from "./features/sessions/SessionsPage";
 
 export interface PageDefinition {
   id: string;
@@ -21,6 +22,7 @@ export interface PageDefinition {
  */
 export const pages: readonly PageDefinition[] = [
   { id: "dashboard", path: "/", label: "Dashboard", icon: "dashboard", element: <DashboardPage /> },
+  { id: "sessions", path: "/sessions", label: "Sessions", icon: "key", element: <SessionsPage /> },
   { id: "replays", path: "/replays", label: "Replay management", icon: "replay", element: <ReplaysPage /> },
   { id: "load-testing", path: "/load-testing", label: "Load testing", icon: "gauge", element: <LoadTestPage /> },
 ];
