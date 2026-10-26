@@ -867,8 +867,11 @@ player's own character.
   friend's by `PlayerFilters::IsFriend` on the roster's session. Both are
   read again only when the roster's revision (`ChatRoster::GetRevision`) or
   the filters' revision changes.
+- A plate's [stand-in level](appearance-and-equipment.md#stand-in-level) is
+  the higher of appearance `spawnedStandIn` and equipment `standIn`, or
+  `beastStandIn` alone for a beast.
 - `NameplateSync::GetPlates` gives the pass's plates sorted farthest first,
-  each with the head node, label, friend flag, fade, and distance as a
+  each with the head node, label, friend flag, stand-in level, fade, and distance as a
   fraction of the range. The node and label are owned by the peer's state
   until the next pass. Off the main-loop thread it returns none: the overlay
   is expected to draw on that thread ([Item picker](#3d-preview) relies on
@@ -891,9 +894,15 @@ player's own character.
   four copies offset diagonally by a pixel per 16 px of the overlay's font
   size, at 80% of the plate's alpha. Over the last 15% of the range it fades out; a plate wholly
   off screen is skipped.
+- With `[UI] NameplateStandInMark` on, a level above `kNone` puts three
+  rising bars before the name, centered with it. The level lights that many,
+  in white, `Theme::kWarning`, or `Theme::kNegative`; the rest are faint, so
+  the count reads without color. Bars are 0.12 font sizes wide (at least
+  1 px), with the text's outline.
 - Per pass the cost is one distance per peer with a character, the budgeted
   rays, and one roster and filter revision read; nothing allocates once the
-  plates vector has grown. Drawing costs five text draws per plate.
+  plates vector has grown. Drawing costs five text draws per plate and six
+  rectangles for a marked one.
 
 ## Notices
 
@@ -3032,7 +3041,8 @@ To verify in game:
     name shows in the main menu, the pause or inventory menus, dialogue,
     with the HUD hidden (`tm`), behind the trade window, or with
     `Nameplates` off. Many players in view do not lower the frame rate
-    noticeably.
+    noticeably. A player with stand-ins has bars before the name, more lit
+    the more is stood in, and none with `NameplateStandInMark` off.
 33. The `Scale` slider at the top of the `[UI]` page shows 100% and moves
     in steps of 5 between 80 and 130. Releasing it at 130 makes the text and
     every overlay window, the chat, notices, and nameplates larger from the

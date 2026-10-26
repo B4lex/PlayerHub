@@ -245,6 +245,8 @@ namespace Config
             a_visitor.Bool("Nameplates", Id::kUINameplates, a_settings.nameplates, Id::kUINameplatesComment);
             a_visitor.Unsigned("NameplateDistance", Id::kUINameplateDistance, a_settings.nameplateDistance,
                 Id::kUINameplateDistanceComment, UISettings::kMaximumNameplateDistance, Id::kNone, 1);
+            a_visitor.Bool("NameplateStandInMark", Id::kUINameplateStandInMark, a_settings.nameplateStandInMark,
+                Id::kUINameplateStandInMarkComment);
 
             a_visitor.Comment(Id::kUIGroupChat);
             a_visitor.Bool(

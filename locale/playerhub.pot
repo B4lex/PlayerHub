@@ -272,6 +272,16 @@ msgid ""
 "meter."
 msgstr ""
 
+msgctxt "UINameplateStandInMark"
+msgid "Stand-in mark"
+msgstr ""
+
+msgctxt "UINameplateStandInMarkComment"
+msgid ""
+"Marks the names of players shown with stand-ins for items or a race this game\n"
+"does not have, with more bars the more of their look is a stand-in."
+msgstr ""
+
 msgctxt "UIGroupChat"
 msgid "Chat"
 msgstr ""

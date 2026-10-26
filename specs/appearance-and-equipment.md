@@ -22,6 +22,7 @@ Built on Windows with the rest of the plugin.
   selection (`SelectArmor`) have not run in game. The default form IDs were
   checked against `Skyrim.esm` and `Dawnguard.esm` records (type, slots,
   weapon type).
+- **Stand-in level:** not built or run; written on Linux without a compile.
 - **Item filter and catalog:** the catalog and picker run in game
   ([UI overlay](ui-overlay.md#item-picker)), and the catalog builds at
   startup (`latest.log`). The main-slot armor filter ran only in a standalone
@@ -488,6 +489,25 @@ The receiver treats the outfit as part of the equipment revision:
    nothing is shown there. Each unresolved entry is logged once per revision with
    its stand-ins as `standIn`, or `none`.
 
+## Stand-in level
+
+`StandIn::Level` (`sync/StandInLevel.h`) grades how much of a remote player's
+shown look is a stand-in, for the [nameplate](ui-overlay.md#nameplates). It is
+set per revision to the highest cause, whether or not the outfit had a piece.
+
+| Level | Causes |
+| --- | --- |
+| `kMajor` | fallback race, Body armor |
+| `kNotable` | Head, Hands, Feet, or Shield armor, a weapon |
+| `kMinor` | other armor slots, torch, ammo, head part, tint layer |
+
+- Armor uses `DefaultOutfit::GetArmorStandInLevel` (`kArmorSlotPrecedence`
+  rank). Spells do not count.
+- `AppearanceSync` keeps the level with its base (`baseStandIn`) and passes it
+  through `SpawnBase` to `spawnedStandIn`, so it changes with the respawn.
+  Beast and default bases are `kNone`.
+- `EquipmentSync` keeps beast hands and armor in a separate `beastStandIn`.
+
 ## Item filter and catalog
 
 `Forms::ItemTraits` decides whether an item can stand in for another: its kind
@@ -626,6 +646,9 @@ To verify in game for [shapeshifts](#shapeshifts):
 11. A female player's vampire lord uses the female model.
 12. A mod's own transformation race leaves peers showing the player's own
     look.
+
+13. A missing cuirass or race gives a major stand-in level, a missing
+    amulet alone a minor one. Transformed, only beast hands and armor count.
 
 ## Known limitations
 

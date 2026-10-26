@@ -2,6 +2,7 @@
 
 #include "protocol/AppearanceState.h"
 #include "protocol/EquipmentState.h"
+#include "sync/StandInLevel.h"
 
 #include <RE/Skyrim.h>
 
@@ -28,4 +29,6 @@ namespace DefaultOutfit
         const Multiplayer::DefaultOutfit& a_outfit, const Multiplayer::EquipmentHand& a_entry);
 
     [[nodiscard]] RE::TESAmmo* FindAmmo(const Multiplayer::DefaultOutfit& a_outfit);
+
+    [[nodiscard]] StandIn::Level GetArmorStandInLevel(std::uint32_t a_slotMask);
 }

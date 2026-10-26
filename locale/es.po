@@ -290,6 +290,16 @@ msgstr ""
 "Distancia en unidades del juego dentro de la cual se muestran los nombres "
 "sobre los jugadores, unas 70 por metro."
 
+msgctxt "UINameplateStandInMark"
+msgid "Stand-in mark"
+msgstr ""
+
+msgctxt "UINameplateStandInMarkComment"
+msgid ""
+"Marks the names of players shown with stand-ins for items or a race this game\n"
+"does not have, with more bars the more of their look is a stand-in."
+msgstr ""
+
 msgctxt "UIGroupChat"
 msgid "Chat"
 msgstr "Chat"

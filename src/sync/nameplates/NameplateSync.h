@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol/PeerSlot.h"
+#include "sync/StandInLevel.h"
 #include "text/Text.h"
 
 #include <RE/Skyrim.h>
@@ -45,6 +46,7 @@ namespace NameplateSync
         const RE::NiAVObject* head{ nullptr };
         std::string_view label;
         bool isFriend{ false };
+        StandIn::Level standIn{ StandIn::Level::kNone };
         float alpha{ 0.0F };
         float distanceFraction{ 0.0F };
     };

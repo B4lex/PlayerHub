@@ -2,6 +2,7 @@
 
 #include "protocol/AppearanceState.h"
 #include "protocol/Shapeshift.h"
+#include "sync/StandInLevel.h"
 #include "sync/SyncFrame.h"
 
 #include <RE/Skyrim.h>
@@ -20,6 +21,7 @@ namespace AppearanceSync
         // A retired reference may still point at its base for a few frames.
         RE::TESNPC* base{ nullptr };
         std::uint64_t baseRevision{ 0 };
+        StandIn::Level baseStandIn{ StandIn::Level::kNone };
         std::optional<std::uint64_t> failedRevision;
         RE::TESNPC* beastBase{ nullptr };
         Multiplayer::Shapeshift beastBaseForm{ Multiplayer::Shapeshift::kNone };
@@ -28,6 +30,7 @@ namespace AppearanceSync
         Multiplayer::Shapeshift failedForm{ Multiplayer::Shapeshift::kNone };
         std::uint64_t spawnedRevision{ 0 };
         RE::TESNPC* spawnedBase{ nullptr };
+        StandIn::Level spawnedStandIn{ StandIn::Level::kNone };
         Multiplayer::Shapeshift spawnedForm{ Multiplayer::Shapeshift::kNone };
         float appearanceWaitElapsed{ 0.0F };
         float respawnCooldown{ 0.0F };
@@ -48,6 +51,7 @@ namespace AppearanceSync
     {
         RE::TESNPC* base{ nullptr };
         Multiplayer::Shapeshift form{ Multiplayer::Shapeshift::kNone };
+        StandIn::Level standIn{ StandIn::Level::kNone };
     };
 
     [[nodiscard]] SpawnBase GetSpawnBase(

@@ -276,6 +276,16 @@ msgid ""
 "meter."
 msgstr "在玩家頭上顯示名稱的距離，以遊戲單位計，每公尺約 70。"
 
+msgctxt "UINameplateStandInMark"
+msgid "Stand-in mark"
+msgstr ""
+
+msgctxt "UINameplateStandInMarkComment"
+msgid ""
+"Marks the names of players shown with stand-ins for items or a race this game\n"
+"does not have, with more bars the more of their look is a stand-in."
+msgstr ""
+
 msgctxt "UIGroupChat"
 msgid "Chat"
 msgstr "聊天"
