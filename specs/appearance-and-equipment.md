@@ -37,6 +37,8 @@ Built on Windows with the rest of the plugin.
   armor and the transformation script's order from `Dawnguard.esm` and the
   compiled `DLC1PlayerVampireChangeScript`; the wire rules are covered by
   server unit tests ([Network](network.md#status)).
+- **Playable race:** the vampire races' flags and morph races were read from
+  the masters; the mapping has only had a Linux syntax check, not run in game.
 - **Player labels:** level validation and chat fields are covered by server
   unit tests. The label from the session's display name, without the level,
   has not been checked in game.
@@ -65,6 +67,7 @@ configured is in [Configuration](configuration.md#settings).
 | `sync/equipment/FakeLight` | A shadow-casting light's runtime copy without its shadow flags |
 | `sync/outfit/DefaultOutfit` | Resolve `[DefaultOutfit]` and select the pieces for a capture |
 | `sync/PlayerLabel.h` | `PlayerLabel::Format` |
+| `forms/RaceForms` | `IsPlayableRace`; `GetPlayableRace`, the playable race a capture sends for a race ([Playable race](#playable-race)) |
 | `forms/BeastForms` | The vanilla beast races and their forms, including the vampire lord's armor |
 | `sync/shapeshift/ShapeshiftSync` | The local form and levitation; beast actions both ways ([Combat presentation](combat-presentation.md#beast-actions)) |
 | `protocol/AppearanceState.h`, `EquipmentState.h`, `FormReference.h` | Plain data and validators shared by capture and the network parser |
@@ -83,8 +86,10 @@ cheek color).
 
 On the game thread, once per second:
 
-- `race`: the actor base race; if it is not playable, `originalRace` when that
-  is playable, otherwise the capture is skipped. While the player is in a
+- `race`: the [playable race](#playable-race) of the actor base race; without
+  one, `originalRace` when that is playable, otherwise the capture is skipped.
+  The player's `originalRace` is the player record's template race, not the
+  character's, so it comes last. While the player is in a
   vanilla beast form, the last published revision stands and the form
   travels apart ([Shapeshifts](#shapeshifts)).
 - `level`: `Actor::GetLevel`, so a level-up publishes a new revision. Peers
@@ -107,8 +112,24 @@ On the game thread, once per second:
 
 A capture that differs from the last published one must repeat in two
 consecutive captures, so dragging an editor slider does not stream updates.
+A look that keeps changing for 10 s (`kUnsettledCaptureWarningSeconds`) is
+never published; the sender logs one warning per such streak, naming the first
+differing value of each changed field, so the mod changing it can be found.
 Publishes are at least 3 s apart, each increments `revision`, and the last one
 is republished on every new connection.
+
+### Playable race
+
+`Forms::GetPlayableRace` returns a race flagged playable as it is, and
+otherwise its morph race (`TESRace::morphRace`, NAM8) when that one is
+playable. Every vanilla vampire race (`NordRaceVampire` `088794`,
+`KhajiitRaceVampire` `088845`, and the rest in `Skyrim.esm`, carried over by
+`Dawnguard.esm` and `Update.esm`) is not playable and names its own race there,
+so a vampire character is captured as that race, for both appearance and
+equipment, and peers see the character's own race and items. The beast races
+name no playable morph race (the werebear names `WerewolfBeastRace`), and only
+one step is taken, so transformations stay unplayable. These records were read
+from the masters.
 
 ### Actor base
 
@@ -306,7 +327,7 @@ Triggers:
   changed, publishes immediately, bypassing the quiet window and the minimum
   interval, so the new weapon arrives before its use.
 
-Capture, for a playable race:
+Capture, when the race has a [playable race](#playable-race):
 
 - `armor`: every worn inventory entry (`ExtraWorn` or `ExtraWornLeft`) whose
   object is a playable `TESObjectARMO`, including shields, deduplicated after
@@ -325,8 +346,10 @@ Capture, for a playable race:
   ([Default outfit](#default-outfit)).
 - `beast_right_hand`, `beast_left_hand`, `beast_armor`: unset or empty.
 
-A transformation unequips everything, so a non-playable race keeps the last
-published items. As a vampire lord, whose transformation equips its spells
+Without a [playable race](#playable-race), as in a transformation, which
+unequips everything, the last published items stand; outside the vanilla beast
+forms the sender logs `Equipment sync not capturing in a non-playable race` once
+per race. As a vampire lord, whose transformation equips its spells
 and armor, a `SpellItem` in either hand also becomes that `beast_*_hand`,
 with its look, as for a human spell hand; anything else in a hand is unset.
 Every worn armor entry, playable or not, becomes `beast_armor` by the same
@@ -626,6 +649,8 @@ To verify in game for [shapeshifts](#shapeshifts):
 11. A female player's vampire lord uses the female model.
 12. A mod's own transformation race leaves peers showing the player's own
     look.
+13. A vampire player appears to peers in the character's own race, wearing and
+    wielding what it has equipped.
 
 ## Known limitations
 

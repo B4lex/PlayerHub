@@ -2,6 +2,7 @@
 #include "forms/BeastForms.h"
 #include "forms/DynamicForm.h"
 #include "forms/FormLookup.h"
+#include "forms/RaceForms.h"
 #include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
@@ -13,6 +14,7 @@
 #include <array>
 #include <cmath>
 #include <format>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <string>
@@ -26,6 +28,7 @@ namespace AppearanceSync
     {
         constexpr float kCaptureIntervalSeconds = 1.0F;
         constexpr float kMinimumPublishIntervalSeconds = 3.0F;
+        constexpr float kUnsettledCaptureWarningSeconds = 10.0F;
         constexpr float kFirstAppearanceWaitSeconds = 3.0F;
         constexpr float kMinimumRespawnIntervalSeconds = 2.0F;
         // Bounds respawns from a form that flips back and forth; vanilla transformations
@@ -41,6 +44,7 @@ namespace AppearanceSync
         using AppearanceData = Multiplayer::PlayerAppearance;
         using FormLookup::MakeFormReference;
         using FormLookup::ResolveForm;
+        using Forms::IsPlayableRace;
         using HeadPartType = RE::BGSHeadPart::HeadPartType;
         using FaceRelatedData = RE::TESRace::FaceRelatedData;
         using TintAsset = FaceRelatedData::TintAsset;
@@ -48,11 +52,6 @@ namespace AppearanceSync
         constexpr AppearanceColor ToAppearanceColor(const RE::Color& a_color) noexcept
         {
             return AppearanceColor{ .red = a_color.red, .green = a_color.green, .blue = a_color.blue };
-        }
-
-        bool IsPlayableRace(const RE::TESRace* a_race)
-        {
-            return a_race && a_race->data.flags.all(RE::RACE_DATA::Flag::kPlayable);
         }
 
         FaceRelatedData* GetFaceRelatedData(RE::TESRace* a_race, bool a_female)
@@ -134,6 +133,106 @@ namespace AppearanceSync
             logs::warn("Appearance sync could not capture local appearance: {}", a_reason);
         }
 
+        template <class T>
+        std::size_t FindFirstDifference(const T& a_previous, const T& a_current)
+        {
+            const auto [previous, current] = std::ranges::mismatch(a_previous, a_current);
+            return static_cast<std::size_t>(std::ranges::distance(std::ranges::begin(a_previous), previous));
+        }
+
+        std::string FormatTint(const std::vector<AppearanceTint>& a_tints, std::size_t a_index)
+        {
+            if (a_index >= a_tints.size())
+            {
+                return "none";
+            }
+            const auto& tint = a_tints[a_index];
+            return std::format("{}:{} #{:02X}{:02X}{:02X} alpha={}", tint.index, tint.type, tint.color.red,
+                tint.color.green, tint.color.blue, tint.alpha);
+        }
+
+        std::string FormatHeadPart(const std::vector<AppearanceHeadPart>& a_headParts, std::size_t a_index)
+        {
+            if (a_index >= a_headParts.size())
+            {
+                return "none";
+            }
+            const auto& headPart = a_headParts[a_index];
+            return std::format("{}|{:06X}", headPart.form.plugin, headPart.form.localFormID);
+        }
+
+        std::string DescribeCaptureChange(const AppearanceData& a_previous, const AppearanceData& a_current)
+        {
+            std::string changes;
+            const auto add = [&changes](std::string_view a_change) {
+                if (!changes.empty())
+                {
+                    changes += "; ";
+                }
+                changes += a_change;
+            };
+            if (a_previous.race != a_current.race || a_previous.female != a_current.female)
+            {
+                add(std::format("race {}|{:06X} female={} -> {}|{:06X} female={}", a_previous.race.plugin,
+                    a_previous.race.localFormID, a_previous.female, a_current.race.plugin, a_current.race.localFormID,
+                    a_current.female));
+            }
+            if (a_previous.weight != a_current.weight || a_previous.height != a_current.height)
+            {
+                add(std::format("weight {} -> {} height {} -> {}", a_previous.weight, a_current.weight,
+                    a_previous.height, a_current.height));
+            }
+            if (a_previous.headParts != a_current.headParts)
+            {
+                const auto index = FindFirstDifference(a_previous.headParts, a_current.headParts);
+                add(std::format("headParts count {} -> {} first [{}] {} -> {}", a_previous.headParts.size(),
+                    a_current.headParts.size(), index, FormatHeadPart(a_previous.headParts, index),
+                    FormatHeadPart(a_current.headParts, index)));
+            }
+            if (a_previous.hairColor != a_current.hairColor)
+            {
+                add("hairColor");
+            }
+            if (a_previous.faceDetails != a_current.faceDetails)
+            {
+                add(std::format("faceDetails {}|{:06X} -> {}|{:06X}", a_previous.faceDetails.plugin,
+                    a_previous.faceDetails.localFormID, a_current.faceDetails.plugin,
+                    a_current.faceDetails.localFormID));
+            }
+            if (a_previous.bodyTint != a_current.bodyTint)
+            {
+                add("bodyTint");
+            }
+            if (a_previous.faceMorphs != a_current.faceMorphs)
+            {
+                const auto index = FindFirstDifference(a_previous.faceMorphs, a_current.faceMorphs);
+                add(std::format(
+                    "faceMorphs[{}] {} -> {}", index, a_previous.faceMorphs[index], a_current.faceMorphs[index]));
+            }
+            if (a_previous.faceParts != a_current.faceParts)
+            {
+                const auto index = FindFirstDifference(a_previous.faceParts, a_current.faceParts);
+                add(std::format(
+                    "faceParts[{}] {} -> {}", index, a_previous.faceParts[index], a_current.faceParts[index]));
+            }
+            if (a_previous.tints != a_current.tints)
+            {
+                const auto index = FindFirstDifference(a_previous.tints, a_current.tints);
+                add(std::format("tints count {} -> {} first [{}] {} -> {}", a_previous.tints.size(),
+                    a_current.tints.size(), index, FormatTint(a_previous.tints, index),
+                    FormatTint(a_current.tints, index)));
+            }
+            if (a_previous.defaultRace != a_current.defaultRace)
+            {
+                add("defaultRace");
+            }
+            if (a_previous.level != a_current.level)
+            {
+                add(std::format("level {} -> {}", a_previous.level, a_current.level));
+            }
+            return changes;
+        }
+
         std::optional<AppearanceData> CaptureLocalAppearance(RE::PlayerCharacter& a_player)
         {
             auto* base = a_player.GetActorBase();
@@ -142,9 +241,10 @@ namespace AppearanceSync
                 LogCaptureFailure("player has no actor base");
                 return std::nullopt;
             }
-            // Transformation races replace the skeleton and behavior graph.
-            auto* race = base->race;
-            if (!IsPlayableRace(race))
+            // Transformation races replace the skeleton and behavior graph. The player's
+            // originalRace is the player record's template race, so it comes last.
+            auto* race = Forms::GetPlayableRace(base->race);
+            if (!race)
             {
                 race = IsPlayableRace(base->originalRace) ? base->originalRace : nullptr;
             }
@@ -666,6 +766,8 @@ namespace AppearanceSync
         static std::optional<AppearanceData> candidate;
         static std::uint64_t revision = 0;
         static std::uint64_t publishedConnectionGeneration = 0;
+        static float unsettledSeconds = 0.0F;
+        static bool unsettledReported = false;
 
         const float delta = FrameTime::Clamp(a_delta);
         captureElapsed += delta;
@@ -698,6 +800,7 @@ namespace AppearanceSync
         {
             return;
         }
+        const float captureInterval = captureElapsed;
         captureElapsed = 0.0F;
 
         auto captured = CaptureLocalAppearance(a_local.player);
@@ -708,10 +811,24 @@ namespace AppearanceSync
         if (published && published->HasSameLook(*captured) && published->HasSameLabel(*captured))
         {
             candidate.reset();
+            unsettledSeconds = 0.0F;
+            unsettledReported = false;
             return;
         }
         if (!candidate || !candidate->HasSameLook(*captured) || !candidate->HasSameLabel(*captured))
         {
+            if (candidate)
+            {
+                unsettledSeconds += captureInterval;
+                if (!unsettledReported && unsettledSeconds >= kUnsettledCaptureWarningSeconds)
+                {
+                    unsettledReported = true;
+                    logs::warn(
+                        "Appearance sync capture keeps changing, not publishing: unsettled={:.0f}s published={} "
+                        "changes={}",
+                        unsettledSeconds, published.has_value(), DescribeCaptureChange(*candidate, *captured));
+                }
+            }
             candidate = std::move(captured);
             return;
         }
@@ -743,6 +860,8 @@ namespace AppearanceSync
         published = std::move(candidate);
         candidate.reset();
         publishElapsed = 0.0F;
+        unsettledSeconds = 0.0F;
+        unsettledReported = false;
     }
 
     std::string GetRaceName(Multiplayer::PeerSlot a_playerID, const Multiplayer::AppearanceFormReference& a_race,

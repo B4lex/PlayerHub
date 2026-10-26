@@ -1,6 +1,7 @@
 #include "forms/ItemForms.h"
 #include "forms/FormLookup.h"
 #include "forms/ItemCatalog.h"
+#include "forms/RaceForms.h"
 #include "protocol/EquipmentState.h"
 #include "runtime/Profiling.h"
 
@@ -86,7 +87,7 @@ namespace Forms
         }
         if (const auto* race = a_form.As<RE::TESRace>())
         {
-            return race->data.flags.all(RE::RACE_DATA::Flag::kPlayable)
+            return IsPlayableRace(race)
                 ? std::optional{ ItemTraits{ .kind = ItemKind::kRace, .baseGame = baseGame } }
                 : std::nullopt;
         }

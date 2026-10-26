@@ -3,6 +3,7 @@
 #include "actor/RemoteActor.h"
 #include "forms/BeastForms.h"
 #include "forms/FormLookup.h"
+#include "forms/RaceForms.h"
 #include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
@@ -66,11 +67,6 @@ namespace EquipmentSync
                 return RE::BSEventNotifyControl::kContinue;
             }
         };
-
-        bool IsPlayableRace(const RE::TESRace* a_race)
-        {
-            return a_race && a_race->data.flags.all(RE::RACE_DATA::Flag::kPlayable);
-        }
 
         // Enchanted variants point at their unenchanted item through a template.
         template <class T>
@@ -199,16 +195,34 @@ namespace EquipmentSync
             }
         }
 
+        void LogSkippedRace(const RE::TESRace* a_race)
+        {
+            static RE::FormID loggedRace = 0;
+            const auto formID = a_race ? a_race->GetFormID() : 0;
+            if (formID == loggedRace)
+            {
+                return;
+            }
+            loggedRace = formID;
+            if (Forms::GetShapeshift(a_race) == Multiplayer::Shapeshift::kNone)
+            {
+                logs::warn("Equipment sync not capturing in a non-playable race, keeping the last published "
+                           "items: race={:08X} editorID={}",
+                    formID, a_race ? a_race->GetFormEditorID() : "<none>");
+            }
+        }
+
         std::optional<EquipmentData> CaptureLocalEquipment(
             RE::PlayerCharacter& a_player, const std::optional<EquipmentData>& a_published, std::uint32_t& a_skipped)
         {
             // Transformations unequip everything, so the last published items stand. The
             // vampire lord's transformation equips its spells and its armor, which may be
             // non-playable.
-            if (const auto* race = a_player.GetRace(); !IsPlayableRace(race))
+            if (auto* race = a_player.GetRace(); !Forms::GetPlayableRace(race))
             {
                 if (Forms::GetShapeshift(race) != Multiplayer::Shapeshift::kVampireLord)
                 {
+                    LogSkippedRace(race);
                     return std::nullopt;
                 }
                 auto equipment = a_published.value_or(EquipmentData{});
