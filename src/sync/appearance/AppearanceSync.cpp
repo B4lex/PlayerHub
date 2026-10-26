@@ -133,6 +133,19 @@ namespace AppearanceSync
             logs::warn("Appearance sync could not capture local appearance: {}", a_reason);
         }
 
+        void LogSkippedHeadPart(const RE::BGSHeadPart& a_headPart, const AppearanceFormReference& a_reference)
+        {
+            static std::vector<RE::FormID> logged;
+            if (std::ranges::contains(logged, a_headPart.GetFormID()))
+            {
+                return;
+            }
+            logged.push_back(a_headPart.GetFormID());
+            logs::warn("Appearance sync skipped a head part of an unknown type: part={}|{:06X} type={} editorID={}",
+                a_reference.plugin, a_reference.localFormID, a_headPart.type.underlying(),
+                a_headPart.GetFormEditorID());
+        }
+
         template <class T>
         std::size_t FindFirstDifference(const T& a_previous, const T& a_current)
         {
@@ -233,6 +246,78 @@ namespace AppearanceSync
             return changes;
         }
 
+        // Follows Multiplayer::IsValidAppearance check for check and names the first that fails.
+        std::string DescribeInvalidAppearance(const AppearanceData& a_appearance)
+        {
+            using Multiplayer::IsValidFormReference;
+            const auto formatForm = [](const AppearanceFormReference& a_form) {
+                return std::format("{}|{:06X}", a_form.plugin, a_form.localFormID);
+            };
+            const auto inRange = [](float a_value, float a_minimum, float a_maximum) {
+                return std::isfinite(a_value) && a_value >= a_minimum && a_value <= a_maximum;
+            };
+
+            if (!Multiplayer::IsValidAppearanceName(a_appearance.name))
+            {
+                return std::format("name length={}", a_appearance.name.size());
+            }
+            if (!IsValidFormReference(a_appearance.race, false))
+            {
+                return std::format("race {}", formatForm(a_appearance.race));
+            }
+            if (!IsValidFormReference(a_appearance.faceDetails, true))
+            {
+                return std::format("faceDetails {}", formatForm(a_appearance.faceDetails));
+            }
+            if (!inRange(a_appearance.weight, 0.0F, AppearanceData::kMaximumWeight))
+            {
+                return std::format("weight {}", a_appearance.weight);
+            }
+            if (!inRange(a_appearance.height, AppearanceData::kMinimumHeight, AppearanceData::kMaximumHeight))
+            {
+                return std::format("height {}", a_appearance.height);
+            }
+            if (a_appearance.headParts.size() > AppearanceData::kMaximumHeadParts)
+            {
+                return std::format("headParts count {}", a_appearance.headParts.size());
+            }
+            if (a_appearance.tints.size() > AppearanceData::kMaximumTints)
+            {
+                return std::format("tints count {}", a_appearance.tints.size());
+            }
+            if (const auto& defaultRace = a_appearance.defaultRace; defaultRace
+                && (!IsValidFormReference(defaultRace->race, false)
+                    || !Multiplayer::IsBaseGamePlugin(defaultRace->race.plugin)))
+            {
+                return std::format("defaultRace {}", formatForm(defaultRace->race));
+            }
+            for (std::size_t i = 0; i < a_appearance.headParts.size(); ++i)
+            {
+                const auto& headPart = a_appearance.headParts[i];
+                if (!IsValidFormReference(headPart.form, false) || headPart.type > AppearanceData::kMaximumHeadPartType)
+                {
+                    return std::format(
+                        "headParts[{}] {} type={}", i, FormatHeadPart(a_appearance.headParts, i), headPart.type);
+                }
+            }
+            for (std::size_t i = 0; i < a_appearance.faceMorphs.size(); ++i)
+            {
+                if (!std::isfinite(a_appearance.faceMorphs[i]))
+                {
+                    return std::format("faceMorphs[{}] {}", i, a_appearance.faceMorphs[i]);
+                }
+            }
+            for (std::size_t i = 0; i < a_appearance.tints.size(); ++i)
+            {
+                const auto& tint = a_appearance.tints[i];
+                if (tint.type > AppearanceData::kMaximumTintType || !inRange(tint.alpha, 0.0F, 1.0F))
+                {
+                    return std::format("tints[{}] {}", i, FormatTint(a_appearance.tints, i));
+                }
+            }
+            return std::format("revision {}", a_appearance.revision);
+        }
+
         std::optional<AppearanceData> CaptureLocalAppearance(RE::PlayerCharacter& a_player)
         {
             auto* base = a_player.GetActorBase();
@@ -281,6 +366,12 @@ namespace AppearanceSync
                     const auto reference = MakeFormReference(headPart);
                     if (!reference || appearance.headParts.size() >= AppearanceData::kMaximumHeadParts)
                     {
+                        continue;
+                    }
+                    // PNAM is a uint32 that a mod's part can set outside the vanilla range.
+                    if (headPart->type.underlying() > AppearanceData::kMaximumHeadPartType)
+                    {
+                        LogSkippedHeadPart(*headPart, *reference);
                         continue;
                     }
                     appearance.headParts.push_back(AppearanceHeadPart{
@@ -768,6 +859,7 @@ namespace AppearanceSync
         static std::uint64_t publishedConnectionGeneration = 0;
         static float unsettledSeconds = 0.0F;
         static bool unsettledReported = false;
+        static std::string invalidReported;
 
         const float delta = FrameTime::Clamp(a_delta);
         captureElapsed += delta;
@@ -845,8 +937,12 @@ namespace AppearanceSync
         candidate->revision = ++revision;
         if (!Multiplayer::IsValidAppearance(*candidate))
         {
-            logs::warn("Appearance sync skipped invalid local appearance: revision={}",
-                static_cast<unsigned long long>(revision));
+            if (auto reason = DescribeInvalidAppearance(*candidate); reason != invalidReported)
+            {
+                logs::warn("Appearance sync skipped invalid local appearance: revision={} invalid={}",
+                    static_cast<unsigned long long>(revision), reason);
+                invalidReported = std::move(reason);
+            }
             candidate.reset();
             return;
         }
@@ -862,6 +958,7 @@ namespace AppearanceSync
         publishElapsed = 0.0F;
         unsettledSeconds = 0.0F;
         unsettledReported = false;
+        invalidReported.clear();
     }
 
     std::string GetRaceName(Multiplayer::PeerSlot a_playerID, const Multiplayer::AppearanceFormReference& a_race,

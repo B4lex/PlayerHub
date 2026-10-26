@@ -7,7 +7,9 @@ Built on Windows with the rest of the plugin.
 - **Appearance:** run in game between two clients on Skyrim AE 1.7.104 with
   a base copied from the local player base. The base built from engine
   defaults, the default race, and the face preset clamp have not run in game;
-  the clamp is covered by server unit tests. Reading the player's face tints
+  the clamp is covered by server unit tests. Skipping head parts of an unknown
+  type ran in game on the sender: the player's appearance published and a
+  trade with them completed. Reading the player's face tints
   through CommonLib on AE, the face tint render on SE 1.5.97 (ID 26454), and
   AE 1.6.x offsets, which rest on CommonLib, have not run.
 - **Equipment:** run in game, including the receiver's outfit fallback in an
@@ -99,7 +101,13 @@ On the game thread, once per second:
 - `defaultRace`: the configured `[DefaultOutfit]` race and sex when `race` is
   not from a base-game plugin, else unset.
 - `female`, `weight`, `height`, `headParts[0..numHeadParts)`, the hair color
-  form's RGB, `faceDetails`, and `faceData` morphs and parts. Parts (presets)
+  form's RGB, `faceDetails`, and `faceData` morphs and parts. Extra parts are
+  implied by their parent and skipped. A head part whose `BGSHeadPart::type`
+  (PNAM, a `uint32` a mod can set to anything) lies outside the vanilla `0..6`
+  is skipped with one warning per part, since it would fail validation and
+  block every publish. RaceMenu add-ons use such types: `Racemenu
+  Handnails.esp` nails (41) and `InariTail_RM_2-3.esp` tails (40) were seen in
+  a player's log, so peers do not see those parts. Parts (presets)
   are clamped to `-1..255` (`ClampFacePart`), with `-1` for none; see
   [face presets](#engine-assumptions).
 - `bodyTint`: `TESNPC::bodyTintColor`, or the skin tone mask's color if black.
@@ -115,6 +123,10 @@ consecutive captures, so dragging an editor slider does not stream updates.
 A look that keeps changing for 10 s (`kUnsettledCaptureWarningSeconds`) is
 never published; the sender logs one warning per such streak, naming the first
 differing value of each changed field, so the mod changing it can be found.
+A settled look that fails `IsValidAppearance` is dropped and never published;
+the sender logs the first failing field and its value
+(`DescribeInvalidAppearance`), once per distinct reason until a publish
+succeeds.
 Publishes are at least 3 s apart, each increments `revision`, and the last one
 is republished on every new connection.
 
