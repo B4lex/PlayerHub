@@ -503,7 +503,8 @@ namespace AppearanceSync
         }
 
         std::vector<RE::BGSHeadPart*> ResolveHeadParts(Multiplayer::PeerSlot a_playerID,
-            const AppearanceData& a_appearance, RE::TESRace& a_race, FaceRelatedData* a_faceData)
+            const AppearanceData& a_appearance, RE::TESRace& a_race, FaceRelatedData* a_faceData,
+            StandIn::Level& a_standIn)
         {
             std::vector<RE::BGSHeadPart*> headParts;
             const auto addUnique = [&headParts](RE::BGSHeadPart* a_headPart) {
@@ -525,6 +526,7 @@ namespace AppearanceSync
                 }
 
                 auto* fallback = FindDefaultHeadPart(a_faceData, reference.type);
+                StandIn::Raise(a_standIn, StandIn::Level::kMinor);
                 logs::warn(
                     "Appearance sync replaced unavailable head part: player={} revision={} part={}|{:06X} type={} "
                     "fallback={:08X}",
@@ -582,8 +584,8 @@ namespace AppearanceSync
         // The TESNPC constructor already runs InitializeData, which leaves no class,
         // AI packages, factions, inventory, or outfits, and points faceData at a
         // shared engine default that must be replaced rather than written.
-        RE::TESNPC* BuildActorBase(
-            Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance, RE::TESRace& a_race)
+        RE::TESNPC* BuildActorBase(Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance,
+            RE::TESRace& a_race, StandIn::Level& a_standIn)
         {
             auto* npc = DynamicForm::Create<RE::TESNPC>();
             if (!npc)
@@ -612,7 +614,7 @@ namespace AppearanceSync
             npc->weight = a_appearance.weight;
             npc->height = a_appearance.height;
 
-            const auto headParts = ResolveHeadParts(a_playerID, a_appearance, a_race, faceData);
+            const auto headParts = ResolveHeadParts(a_playerID, a_appearance, a_race, faceData, a_standIn);
             if (!headParts.empty())
             {
                 npc->headParts = RE::calloc<RE::BGSHeadPart*>(headParts.size());
@@ -651,6 +653,7 @@ namespace AppearanceSync
                 if (!asset)
                 {
                     ++droppedTints;
+                    StandIn::Raise(a_standIn, StandIn::Level::kMinor);
                     continue;
                 }
                 auto* layer = RE::calloc<RE::TESNPC::Layer>(1);
@@ -716,7 +719,8 @@ namespace AppearanceSync
             return appearance;
         }
 
-        RE::TESNPC* CreateActorBase(Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance)
+        RE::TESNPC* CreateActorBase(
+            Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance, StandIn::Level& a_standIn)
         {
             const auto resolved = ResolveRace(a_playerID, a_appearance);
             if (!resolved.race)
@@ -727,8 +731,9 @@ namespace AppearanceSync
             }
             if (resolved.own)
             {
-                return BuildActorBase(a_playerID, a_appearance, *resolved.race);
+                return BuildActorBase(a_playerID, a_appearance, *resolved.race, a_standIn);
             }
+            a_standIn = StandIn::Level::kMajor;
 
             auto look = MakeDefaultAppearance(*resolved.race, resolved.female);
             look.name = a_appearance.name;
@@ -736,7 +741,7 @@ namespace AppearanceSync
             look.weight = a_appearance.weight;
             look.height = a_appearance.height;
             look.revision = a_appearance.revision;
-            return BuildActorBase(a_playerID, look, *resolved.race);
+            return BuildActorBase(a_playerID, look, *resolved.race, a_standIn);
         }
 
         RE::TESNPC* CreateDefaultActorBase(Multiplayer::PeerSlot a_playerID)
@@ -747,7 +752,8 @@ namespace AppearanceSync
                 logs::error("Appearance sync could not resolve NordRace: player={}", a_playerID);
                 return nullptr;
             }
-            return BuildActorBase(a_playerID, MakeDefaultAppearance(*race, false), *race);
+            StandIn::Level standIn{ StandIn::Level::kNone };
+            return BuildActorBase(a_playerID, MakeDefaultAppearance(*race, false), *race, standIn);
         }
 
         // The beast races have no head data, so a beast base takes only the player's
@@ -765,7 +771,8 @@ namespace AppearanceSync
                 look.weight = a_appearance->weight;
                 look.height = a_appearance->height;
             }
-            return BuildActorBase(a_playerID, look, a_race);
+            StandIn::Level standIn{ StandIn::Level::kNone };
+            return BuildActorBase(a_playerID, look, a_race, standIn);
         }
 
         RE::NiSourceTexture* FindFaceTintTexture(RE::Actor& a_actor, const RE::TESNPC& a_base)
@@ -1058,12 +1065,14 @@ namespace AppearanceSync
 
         if ((!a_remote.base || a_remote.baseRevision != revision) && a_remote.failedRevision != revision)
         {
-            auto* base
-                = a_remote.latest ? CreateActorBase(a_playerID, *a_remote.latest) : CreateDefaultActorBase(a_playerID);
+            StandIn::Level standIn{ StandIn::Level::kNone };
+            auto* base = a_remote.latest ? CreateActorBase(a_playerID, *a_remote.latest, standIn)
+                                         : CreateDefaultActorBase(a_playerID);
             if (base)
             {
                 a_remote.base = base;
                 a_remote.baseRevision = revision;
+                a_remote.baseStandIn = standIn;
             }
             else
             {
@@ -1071,7 +1080,7 @@ namespace AppearanceSync
             }
         }
 
-        return { .base = a_remote.base };
+        return { .base = a_remote.base, .standIn = a_remote.baseStandIn };
     }
 
     void OnActorSpawned(RemoteState& a_remote, const SpawnBase& a_spawned)
@@ -1081,6 +1090,7 @@ namespace AppearanceSync
         a_remote.spawnedRevision = a_remote.latest ? a_remote.latest->revision : 0;
         a_remote.spawnedBase = a_spawned.base;
         a_remote.spawnedForm = a_spawned.form;
+        a_remote.spawnedStandIn = a_spawned.standIn;
         a_remote.respawnCooldown = kMinimumRespawnIntervalSeconds;
         a_remote.shapeshiftCooldown = kMinimumShapeshiftIntervalSeconds;
         a_remote.colorsApplied = false;

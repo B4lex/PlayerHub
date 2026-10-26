@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol/EquipmentState.h"
+#include "sync/StandInLevel.h"
 #include "sync/SyncFrame.h"
 
 #include <RE/Skyrim.h>
@@ -37,6 +38,8 @@ namespace EquipmentSync
         ResolvedHand beastRightHand;
         ResolvedHand beastLeftHand;
         std::vector<RE::TESObjectARMO*> beastArmor;
+        StandIn::Level standIn{ StandIn::Level::kNone };
+        StandIn::Level beastStandIn{ StandIn::Level::kNone };
 
         float checkElapsed{ 0.0F };
         float inventoryCheckElapsed{ 0.0F };

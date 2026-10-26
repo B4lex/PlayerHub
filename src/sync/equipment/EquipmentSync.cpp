@@ -342,8 +342,9 @@ namespace EquipmentSync
                 a_reason, a_standIn);
         }
 
-        ResolvedHand ResolveHandEntry(Multiplayer::PeerSlot a_playerID, std::uint64_t a_revision, std::string_view a_slot,
-            const std::optional<EquipmentHand>& a_entry, const Multiplayer::DefaultOutfit& a_outfit)
+        ResolvedHand ResolveHandEntry(Multiplayer::PeerSlot a_playerID, std::uint64_t a_revision,
+            std::string_view a_slot, const std::optional<EquipmentHand>& a_entry,
+            const Multiplayer::DefaultOutfit& a_outfit, StandIn::Level& a_standIn)
         {
             if (!a_entry)
             {
@@ -365,6 +366,8 @@ namespace EquipmentSync
             if (!object)
             {
                 object = DefaultOutfit::FindHand(a_outfit, *a_entry);
+                StandIn::Raise(a_standIn,
+                    a_entry->kind == EquipmentHandKind::kTorch ? StandIn::Level::kMinor : StandIn::Level::kNotable);
                 LogUnresolvedEntry(
                     a_playerID, a_revision, a_slot, a_entry->form, resolution.dropReason, FormatStandIn(object));
                 if (!object)
@@ -412,6 +415,8 @@ namespace EquipmentSync
             a_remote.beastRightHand = {};
             a_remote.beastLeftHand = {};
             a_remote.beastArmor.clear();
+            a_remote.standIn = StandIn::Level::kNone;
+            a_remote.beastStandIn = StandIn::Level::kNone;
             const float handDeferralElapsed = a_remote.handDeferralElapsed;
             ResetReconciliation(a_remote);
             a_remote.handDeferralElapsed = handDeferralElapsed;
@@ -431,6 +436,7 @@ namespace EquipmentSync
                 {
                     unresolved.emplace_back(&entry, resolution.dropReason);
                     missingSlots |= entry.slotMask;
+                    StandIn::Raise(a_remote.standIn, DefaultOutfit::GetArmorStandInLevel(entry.slotMask));
                     continue;
                 }
                 if (std::ranges::find(resolvedArmor, resolution.form) == resolvedArmor.end())
@@ -463,10 +469,10 @@ namespace EquipmentSync
                         a_playerID, static_cast<unsigned long long>(revision), armor->GetFormID());
                 }
             }
-            a_remote.rightHand
-                = ResolveHandEntry(a_playerID, revision, "rightHand", equipment.rightHand, equipment.defaultOutfit);
-            a_remote.leftHand
-                = ResolveHandEntry(a_playerID, revision, "leftHand", equipment.leftHand, equipment.defaultOutfit);
+            a_remote.rightHand = ResolveHandEntry(
+                a_playerID, revision, "rightHand", equipment.rightHand, equipment.defaultOutfit, a_remote.standIn);
+            a_remote.leftHand = ResolveHandEntry(
+                a_playerID, revision, "leftHand", equipment.leftHand, equipment.defaultOutfit, a_remote.standIn);
             if (a_remote.rightHand.twoHanded && a_remote.leftHand.object)
             {
                 logs::warn(
@@ -483,21 +489,23 @@ namespace EquipmentSync
                 if (!a_remote.ammo)
                 {
                     a_remote.ammo = DefaultOutfit::FindAmmo(equipment.defaultOutfit);
+                    StandIn::Raise(a_remote.standIn, StandIn::Level::kMinor);
                     LogUnresolvedEntry(a_playerID, revision, "ammo", equipment.ammo, resolution.dropReason,
                         FormatStandIn(a_remote.ammo));
                 }
             }
 
-            a_remote.beastRightHand = ResolveHandEntry(
-                a_playerID, revision, "beastRightHand", equipment.beastRightHand, equipment.defaultOutfit);
-            a_remote.beastLeftHand = ResolveHandEntry(
-                a_playerID, revision, "beastLeftHand", equipment.beastLeftHand, equipment.defaultOutfit);
+            a_remote.beastRightHand = ResolveHandEntry(a_playerID, revision, "beastRightHand", equipment.beastRightHand,
+                equipment.defaultOutfit, a_remote.beastStandIn);
+            a_remote.beastLeftHand = ResolveHandEntry(a_playerID, revision, "beastLeftHand", equipment.beastLeftHand,
+                equipment.defaultOutfit, a_remote.beastStandIn);
             for (const auto& entry : equipment.beastArmor)
             {
                 const auto resolution = ResolveArmor(entry);
                 auto* armor = resolution.form ? resolution.form : Forms::GetVampireLordArmor();
                 if (!resolution.form)
                 {
+                    StandIn::Raise(a_remote.beastStandIn, DefaultOutfit::GetArmorStandInLevel(entry.slotMask));
                     LogUnresolvedEntry(
                         a_playerID, revision, "beastArmor", entry.form, resolution.dropReason, FormatStandIn(armor));
                 }

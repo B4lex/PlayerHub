@@ -269,4 +269,11 @@ namespace DefaultOutfit
     {
         return FormLookup::ResolveForm<RE::TESAmmo>(a_outfit.ammo);
     }
+
+    StandIn::Level GetArmorStandInLevel(std::uint32_t a_slotMask)
+    {
+        // Rank 0 is Body; 1 to 4 are Head, Hands, Feet, and Shield.
+        const auto rank = GetSlotRank(a_slotMask);
+        return rank == 0 ? StandIn::Level::kMajor : rank <= 4 ? StandIn::Level::kNotable : StandIn::Level::kMinor;
+    }
 }

@@ -96,6 +96,7 @@ namespace Config
         bool itemPreview{ true };
         bool nameplates{ true };
         std::uint32_t nameplateDistance{ 2000 };
+        bool nameplateStandInMark{ true };
         bool closeChatOnSend{ true };
         std::uint32_t chatWidth{ 30 };
         std::uint32_t chatLines{ 15 };

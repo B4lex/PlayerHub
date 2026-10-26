@@ -209,7 +209,8 @@ Vanilla helmets and hoods cover `Hair` and `Circlet`, not `Head`.
 ### `[UI]`
 
 Four groups: Display (`Language`, `Scale`, `AccentColor`, `BorderColor`,
-`BorderThickness`, `BackgroundOpacity`), Players (`Nameplates`, `NameplateDistance`), Chat
+`BorderThickness`, `BackgroundOpacity`), Players (`Nameplates`, `NameplateDistance`,
+`NameplateStandInMark`), Chat
 (`CloseChatOnSend`, `ChatWidth`, `ChatLines`, `ChatPositionHorizontal`,
 `ChatPositionVertical`), and Items (`ItemPreview`).
 
@@ -223,6 +224,7 @@ Four groups: Display (`Language`, `Scale`, `AccentColor`, `BorderColor`,
 | `BackgroundOpacity` | Opacity of the background of the overlay's windows, popups, prompts, and notices in percent, `25..100` in steps of `5`; below `100` the game shows blurred behind them ([UI overlay](ui-overlay.md#background-blur)) | `75` |
 | `Nameplates` | Shows other players' display names above their heads while in sight ([UI overlay](ui-overlay.md#nameplates)) | `true` |
 | `NameplateDistance` | Game units from the player within which nameplates show, `0..4000`, about 70 to a meter; `0` shows none and skips their line-of-sight tests, as `Nameplates = false` does | `2000` |
+| `NameplateStandInMark` | Marks a nameplate with the player's [stand-in level](appearance-and-equipment.md#stand-in-level) ([UI overlay](ui-overlay.md#nameplates)) | `true` |
 | `CloseChatOnSend` | Closes the chat when Enter sends a line; when `false`, the chat stays open and Enter in an empty field does nothing ([UI overlay](ui-overlay.md#sending)) | `true` |
 | `ItemPreview` | Shows the 3D item model in item pickers and the trade window's preview column, and item thumbnails in the trade window's offers; off, the cells show names and the column only the item card | `true` |
 | `ChatWidth` | Width of the chat's lines in font sizes, `24..100`; set by dragging the open chat's left or right edge ([UI overlay](ui-overlay.md#size)) and not shown in the settings window | `30` |

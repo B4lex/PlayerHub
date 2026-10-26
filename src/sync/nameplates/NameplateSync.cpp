@@ -186,9 +186,13 @@ namespace NameplateSync
             }
 
             RefreshLabel(state, playerID, peer.appearance, revision);
+            const auto standIn = peer.appearance.spawnedForm == Multiplayer::Shapeshift::kNone
+                ? (std::max)(peer.appearance.spawnedStandIn, peer.equipment.standIn)
+                : peer.equipment.beastStandIn;
             s_plates.push_back(Plate{ .head = state.head.get(),
                 .label = state.label,
                 .isFriend = state.isFriend,
+                .standIn = standIn,
                 .alpha = state.alpha,
                 .distanceFraction = distance / range });
         }
