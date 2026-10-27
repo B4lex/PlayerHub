@@ -23,10 +23,14 @@ Implemented in Go and verified on Linux:
   4008.
 - `npm run typecheck`, `npm test`, and `npm run build` in `admin-ui/`,
   and the built panel loaded in headless Chromium against the Go server, live
-  over the event feed, with no console errors. The Kick button and Bans panel
-  were rendered in headless Chromium against a server on port 3101 with two
-  loadgen bots and a ban, but not clicked; kick, both ban kinds, and the
-  loopback refusal were driven with `curl`.
+  over the event feed, with no console errors. Against a server on ports
+  3100/3101 with three loadgen bots, headless Chrome driven over the DevTools
+  protocol showed the Dashboard's player rows keeping the same height and
+  column widths across 12 snapshots, opened a row's command menu, moved
+  through it with the arrow keys and closed it with Escape, cancelled a
+  confirmation with Escape and with a click outside, and confirmed hide, kick,
+  and a session ban; an address ban of the loopback bots showed the server's
+  refusal as a toast. An address ban that succeeds was driven with `curl`.
 - Sessions page: `auth` tests cover listing, search, paging, rename, and
   delete with bans, and an `internal/admin` test covers the routes over a real
   WebSocket, including a connected session's rename refusal and its 4011 close
@@ -34,7 +38,14 @@ Implemented in Go and verified on Linux:
   connected `cmd/tradebot`, headless Chrome driven over the DevTools protocol
   showed the list and pager, refused an invalid and a held name, renamed an
   offline session, searched, paged, and deleted the connected session, which
-  closed the bot with 4011.
+  closed the bot with 4011. The row menu and dialogs were driven the same way
+  against a connected loadgen bot, an offline session, and a banned one:
+  rename stayed disabled for the connected session and its confirm button for
+  an unchanged or too-short name; a held name sent with Enter showed the
+  server's refusal in the dialog, and a valid one renamed the session; lift
+  removed the ban; Escape cancelled a delete, and confirming deleted the
+  session. Lifting a session with an address ban was not driven, because the
+  server refuses address bans of loopback bots.
 
 Replayed players are watched in game while developing the plugin; how one
 looks in every case is not verified (see
@@ -229,11 +240,20 @@ interest controls and rates described in
 [Interest and delivery](interest-and-delivery.md#admin-controls). A connected
 player also shows its `address`, after `trusted_proxies`.
 
-The Dashboard kicks a connected player from its row and bans one from the
-Bans panel, which chooses whether the ban holds the player's address and lists
-every ban, from the snapshot's `bans`, with a control that lifts it
-([Kicks and bans](network.md#kicks-and-bans)). Kick and ban ask for a second
-click (`ConfirmButton`). `POST /api/players/{id}/kick` answers 204;
+The Dashboard's player table (`features/dashboard/DashboardPage`) shows each
+player's name and slot, location, movement state, received peers and
+traffic, and status badges. Its address, position, and `replacedPerSecond`
+stay in the snapshot but are not shown. The table has fixed column widths
+(`table-layout: fixed`) and single-line cells cut with an ellipsis, so live
+values never resize rows or columns. A connected player's row starts with a
+command menu (`components/Menu`, a popover) that hides or shows the player,
+kicks, or bans them ([Kicks and bans](network.md#kicks-and-bans)). Every
+command first asks in a modal dialog (`components/ConfirmDialog`); the ban
+dialog has a checkbox that also bans the player's address, disabled when the
+snapshot has none. Bans are listed and lifted on the Sessions page. Directed exclusions
+have no panel control and are set through the API
+([Admin controls](interest-and-delivery.md#admin-controls)).
+`POST /api/players/{id}/kick` answers 204;
 `POST /api/players/{id}/ban` `{address}` requires the boolean and answers 201
 with the ban, 404 for a player that is not connected, and 422 for an address
 that cannot be banned; `DELETE /api/bans/{id}` answers 204 or 404. A ban's
@@ -253,10 +273,15 @@ answers `{sessions, total}`, `total` counting every match; a session is
 `{id, displayName, createdAtMs, lastUsedAtMs, expiresAtMs, banned, playerId}`,
 `expiresAtMs` null when banned and `playerId` the slot of its connection or
 null. A row shows the name and ID, last and first use, expiry (none while
-connected or banned), connected and banned badges, a rename control that edits
-the name in place, checked against the display name rule before it is sent,
-and is disabled while connected, and a delete control that asks for a second
-click. `PATCH /api/sessions/{id}` `{displayName}` answers 200, 422 for a name
+connected or banned), and connected and banned badges. It starts with a
+command menu like the Dashboard's (`components/Menu`) holding rename, lift ban
+(on a banned session only), and delete, each confirmed in a
+`components/ConfirmDialog`. Rename is disabled while connected; its dialog
+holds the name field, checked against the display name rule before the
+confirm button enables, and keeps a refusal such as a held name inside the
+dialog, since the modal covers the toasts. Lift deletes every ban in the
+snapshot's `bans` whose `sessionId` is the session's, since each ban command
+adds one, and is disabled while the snapshot has none for it. `PATCH /api/sessions/{id}` `{displayName}` answers 200, 422 for a name
 that fails `validate.DisplayName`, 404 for no live session, and 409 for a held
 name or a connected session. `DELETE /api/sessions/{id}` answers 204 or 404.
 

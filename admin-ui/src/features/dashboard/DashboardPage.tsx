@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import type { Player } from "../../api/types";
 import { Badge } from "../../components/Badge";
-import { Button } from "../../components/Button";
-import { ConfirmButton } from "../../components/ConfirmButton";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { EmptyState } from "../../components/EmptyState";
+import { Menu } from "../../components/Menu";
 import { PageHeader } from "../../components/PageHeader";
 import { Panel } from "../../components/Panel";
 import { StatTile } from "../../components/StatTile";
@@ -13,8 +14,6 @@ import { useTicker } from "../../lib/useTicker";
 import { useServerState } from "../../state/ServerState";
 import { useAction } from "../../state/useAction";
 import styles from "./DashboardPage.module.css";
-import { BansPanel } from "./BansPanel";
-import { ExclusionsPanel } from "./ExclusionsPanel";
 
 /** "sneakingIdle" -> "sneaking idle". */
 function humanize(name: string): string {
@@ -27,45 +26,112 @@ function describeLocation(player: Player): string {
   return "—";
 }
 
-function describePosition(player: Player): string {
-  if (player.position === null) return "—";
-  const { x, y, z } = player.position;
-  return [x, y, z].map((value) => Math.round(value)).join(", ");
-}
-
 function describeTraffic(player: Player): string {
-  if (player.virtual) return "—";
   const kilobytes = player.bytesPerSecond / 1000;
   return `${kilobytes < 10 ? kilobytes.toFixed(1) : Math.round(kilobytes)} KB/s`;
 }
 
-function PlayerRow({ player }: { player: Player }) {
+type PlayerCommand = "hide" | "show" | "kick" | "ban";
+
+/** The row's command menu; every command asks for confirmation first. */
+function PlayerActions({ player }: { player: Player }) {
   const [run, busy] = useAction();
+  const [pending, setPending] = useState<PlayerCommand | null>(null);
+  const [withAddress, setWithAddress] = useState(false);
+  const name = player.name || "this player";
+
+  const ask = (command: PlayerCommand) => {
+    setWithAddress(false);
+    setPending(command);
+  };
+
+  const confirm = async () => {
+    const commands: Record<PlayerCommand, () => Promise<unknown>> = {
+      hide: () => api.players.setHidden(player.id, true),
+      show: () => api.players.setHidden(player.id, false),
+      kick: () => api.players.kick(player.id),
+      ban: () => api.players.ban(player.id, withAddress && player.address !== null),
+    };
+    if (pending === null) return;
+    await run(commands[pending]);
+    setPending(null);
+  };
+
+  const close = () => setPending(null);
+
+  return (
+    <>
+      <Menu
+        label={`Actions for ${player.name || `player ${player.id}`}`}
+        items={[
+          player.hidden
+            ? { label: "Show to everyone", onSelect: () => ask("show") }
+            : { label: "Hide from everyone", onSelect: () => ask("hide") },
+          { label: "Kick", danger: true, onSelect: () => ask("kick") },
+          { label: "Ban", danger: true, onSelect: () => ask("ban") },
+        ]}
+      />
+      {pending === "hide" && (
+        <ConfirmDialog title={`Hide ${name}?`} confirmLabel="Hide" busy={busy} onConfirm={confirm} onClose={close}>
+          <p>No other player sees them until they are shown again or disconnect.</p>
+        </ConfirmDialog>
+      )}
+      {pending === "show" && (
+        <ConfirmDialog title={`Show ${name}?`} confirmLabel="Show" busy={busy} onConfirm={confirm} onClose={close}>
+          <p>Other players see them again.</p>
+        </ConfirmDialog>
+      )}
+      {pending === "kick" && (
+        <ConfirmDialog title={`Kick ${name}?`} confirmLabel="Kick" danger busy={busy} onConfirm={confirm} onClose={close}>
+          <p>They are disconnected, and their game waits for them to connect again.</p>
+        </ConfirmDialog>
+      )}
+      {pending === "ban" && (
+        <ConfirmDialog title={`Ban ${name}?`} confirmLabel="Ban" danger busy={busy} onConfirm={confirm} onClose={close}>
+          <p>
+            They are disconnected and their session cannot connect again. Deleting the session on the{" "}
+            <Link to="/sessions">Sessions</Link> page lifts the ban.
+          </p>
+          <label className={styles.check}>
+            <input
+              type="checkbox"
+              checked={withAddress && player.address !== null}
+              disabled={player.address === null || busy}
+              onChange={(event) => setWithAddress(event.target.checked)}
+            />
+            <span>Also refuse everyone connecting from their address</span>
+          </label>
+        </ConfirmDialog>
+      )}
+    </>
+  );
+}
+
+function PlayerRow({ player }: { player: Player }) {
+  const location = describeLocation(player);
+  const doing = player.movementState ? humanize(player.movementState) : "—";
   return (
     <tr>
+      <td className={styles.menuCell}>{!player.virtual && <PlayerActions player={player} />}</td>
       <td>
-        <div className={styles.name}>{player.name || <span className={styles.muted}>Unnamed player</span>}</div>
-        <div className={`${styles.id} mono`} title={player.address ?? player.id}>
+        <div className={styles.name} title={player.name || undefined}>
+          {player.name || <span className={styles.muted}>Unnamed player</span>}
+        </div>
+        <div className={`${styles.id} mono`} title={player.id}>
           {player.virtual ? player.id : shortId(player.id)}
-          {player.address !== null && ` · ${player.address}`}
         </div>
       </td>
-      <td>{describeLocation(player)}</td>
-      <td className={`${styles.position} mono tabular`}>{describePosition(player)}</td>
-      <td className={styles.muted}>{player.movementState ? humanize(player.movementState) : "—"}</td>
+      <td title={location}>{location}</td>
+      <td className={styles.muted} title={doing}>
+        {doing}
+      </td>
       <td className="tabular">
         {player.virtual ? (
           "—"
         ) : (
           <>
             <div title="Peers this player receives">{plural(player.visible, "peer")}</div>
-            <div
-              className={styles.muted}
-              title={`${player.replacedPerSecond.toFixed(1)} checkpoints/s replaced before they were sent`}
-            >
-              {describeTraffic(player)}
-              {player.replacedPerSecond >= 1 && ` · ${Math.round(player.replacedPerSecond)} dropped/s`}
-            </div>
+            <div className={styles.muted}>{describeTraffic(player)}</div>
           </>
         )}
       </td>
@@ -93,18 +159,6 @@ function PlayerRow({ player }: { player: Player }) {
             </Badge>
           )}
         </div>
-      </td>
-      <td>
-        {!player.virtual && (
-          <div className={styles.actions}>
-            <Button size="sm" variant="ghost" busy={busy} onClick={() => run(() => api.players.setHidden(player.id, !player.hidden))}>
-              {player.hidden ? "Show" : "Hide"}
-            </Button>
-            <ConfirmButton size="sm" variant="ghost" busy={busy} confirmLabel="Kick?" onConfirm={() => run(() => api.players.kick(player.id))}>
-              Kick
-            </ConfirmButton>
-          </div>
-        )}
       </td>
     </tr>
   );
@@ -172,17 +226,24 @@ export function DashboardPage() {
           </EmptyState>
         ) : (
           <table className={styles.table}>
+            <colgroup>
+              <col className={styles.menuColumn} />
+              <col className={styles.playerColumn} />
+              <col />
+              <col className={styles.doingColumn} />
+              <col className={styles.receivesColumn} />
+              <col className={styles.statusColumn} />
+            </colgroup>
             <thead>
               <tr>
-                <th scope="col">Player</th>
-                <th scope="col">Location</th>
-                <th scope="col">Position</th>
-                <th scope="col">Doing</th>
-                <th scope="col">Receives</th>
-                <th scope="col">Status</th>
                 <th scope="col">
                   <span className="visually-hidden">Actions</span>
                 </th>
+                <th scope="col">Player</th>
+                <th scope="col">Location</th>
+                <th scope="col">Doing</th>
+                <th scope="col">Receives</th>
+                <th scope="col">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -193,14 +254,6 @@ export function DashboardPage() {
           </table>
         )}
       </Panel>
-
-      <div className={styles.section}>
-        <ExclusionsPanel />
-      </div>
-
-      <div className={styles.section}>
-        <BansPanel />
-      </div>
     </>
   );
 }

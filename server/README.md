@@ -169,7 +169,7 @@ go run ./cmd/tradebot --kit
 ## Admin panel
 
 The panel (`admin-ui/`, see its README) shows connected players, sessions,
-captures, replays, load-test batches, and bans. Commands are REST calls under `/api`; live
+captures, replays, and load-test batches. Commands are REST calls under `/api`; live
 state is a server-sent event stream at `/api/events` that pushes a full
 snapshot on connect and after changes, at most twice a second.
 

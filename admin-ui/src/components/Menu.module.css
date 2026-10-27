@@ -1,0 +1,44 @@
+.menu {
+  position: fixed;
+  inset: auto;
+  min-width: 11rem;
+  margin: 0;
+  padding: 0.3rem;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.menu:popover-open {
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  padding: 0.45rem 0.65rem;
+  text-align: left;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+}
+
+.item:hover:not(:disabled),
+.item:focus-visible {
+  background: var(--surface-hover);
+}
+
+.item:focus-visible {
+  outline-offset: -2px;
+}
+
+.item:disabled {
+  color: var(--text-faint);
+}
+
+.danger {
+  color: var(--danger);
+}

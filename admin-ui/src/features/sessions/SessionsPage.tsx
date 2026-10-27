@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
-import type { Session, SessionPage } from "../../api/types";
+import type { Ban, Session, SessionPage } from "../../api/types";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
-import { ConfirmButton } from "../../components/ConfirmButton";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { EmptyState } from "../../components/EmptyState";
+import { Menu, type MenuItem } from "../../components/Menu";
 import { PageHeader } from "../../components/PageHeader";
 import { Panel } from "../../components/Panel";
 import { formatDate, formatDateTime, formatRelative, plural } from "../../lib/format";
@@ -22,62 +23,120 @@ function iso(ms: number): string {
   return new Date(ms).toISOString();
 }
 
-function RenameForm({ session, onDone }: { session: Session; onDone: (renamed: boolean) => void }) {
-  const [run, busy] = useAction();
+function RenameDialog({ session, onClose, onRenamed }: { session: Session; onClose: () => void; onRenamed: () => void }) {
+  const field = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(session.displayName);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const valid = DISPLAY_NAME.test(name);
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!valid) return;
-    if (name === session.displayName) return onDone(false);
-    if (await run(() => api.sessions.rename(session.id, name))) onDone(true);
+  // Failures stay in the dialog, which covers the toasts, so the name can be corrected.
+  const rename = async () => {
+    setBusy(true);
+    try {
+      await api.sessions.rename(session.id, name);
+      onRenamed();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+      setBusy(false);
+    }
   };
 
   return (
-    <form className={styles.rename} onSubmit={submit}>
+    <ConfirmDialog
+      title={`Rename ${session.displayName}`}
+      confirmLabel="Rename"
+      busy={busy}
+      confirmDisabled={!valid || name === session.displayName}
+      initialFocus={field}
+      onConfirm={rename}
+      onClose={onClose}
+    >
       <input
-        autoFocus
+        ref={field}
+        className={styles.nameField}
         value={name}
         maxLength={15}
         aria-label={`New display name for ${session.displayName}`}
         aria-invalid={!valid}
         title="3 to 15 letters, digits, or underscores"
-        onChange={(event) => setName(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") onDone(false);
+        onChange={(event) => {
+          setName(event.target.value);
+          setError(null);
         }}
       />
-      <Button type="submit" size="sm" variant="primary" icon="check" busy={busy} disabled={!valid} aria-label="Save" />
-      <Button size="sm" variant="ghost" icon="close" aria-label="Cancel" onClick={() => onDone(false)} />
-    </form>
+      {error !== null && <p className={styles.error}>{error}</p>}
+      <p>The player's next connection sets their own name again.</p>
+    </ConfirmDialog>
   );
 }
 
-function SessionRow({ session, now, onChanged }: { session: Session; now: number; onChanged: () => void }) {
+type SessionCommand = "rename" | "lift" | "delete";
+
+function SessionRow({ session, bans, now, onChanged }: { session: Session; bans: Ban[]; now: number; onChanged: () => void }) {
   const [run, busy] = useAction();
-  const [renaming, setRenaming] = useState(false);
+  const [pending, setPending] = useState<SessionCommand | null>(null);
   const connected = session.playerId !== null;
+  const close = () => setPending(null);
 
   const remove = async () => {
     await run(() => api.sessions.remove(session.id));
+    close();
     onChanged();
   };
 
+  // A session collects one ban per ban command, with or without its address.
+  const lift = async () => {
+    await run(() => Promise.all(bans.map((ban) => api.bans.lift(ban.id))));
+    close();
+    onChanged();
+  };
+
+  const items: MenuItem[] = [
+    {
+      label: "Rename",
+      disabled: connected,
+      title: connected ? "A connected player keeps their name until they disconnect; kick them first" : undefined,
+      onSelect: () => setPending("rename"),
+    },
+  ];
+  if (session.banned) items.push({ label: "Lift ban", disabled: bans.length === 0, onSelect: () => setPending("lift") });
+  items.push({ label: "Delete", danger: true, onSelect: () => setPending("delete") });
+
   return (
     <tr>
-      <td>
-        {renaming ? (
-          <RenameForm
+      <td className={styles.menuCell}>
+        <Menu label={`Actions for ${session.displayName}`} items={items} />
+        {pending === "rename" && (
+          <RenameDialog
             session={session}
-            onDone={(renamed) => {
-              setRenaming(false);
-              if (renamed) onChanged();
+            onClose={close}
+            onRenamed={() => {
+              close();
+              onChanged();
             }}
           />
-        ) : (
-          <div className={styles.name}>{session.displayName}</div>
         )}
+        {pending === "lift" && (
+          <ConfirmDialog title={`Lift the ban on ${session.displayName}?`} confirmLabel="Lift ban" busy={busy} onConfirm={lift} onClose={close}>
+            <p>
+              The session can connect again
+              {bans.some((ban) => ban.address !== null) ? ", and so can everyone from the address it was banned with." : "."}
+            </p>
+          </ConfirmDialog>
+        )}
+        {pending === "delete" && (
+          <ConfirmDialog title={`Delete ${session.displayName}?`} confirmLabel="Delete" danger busy={busy} onConfirm={remove} onClose={close}>
+            <p>
+              {connected && "The player is disconnected. "}
+              {session.banned && "The session's bans are deleted with it. "}
+              Their next connection gets a new session.
+            </p>
+          </ConfirmDialog>
+        )}
+      </td>
+      <td>
+        <div className={styles.name}>{session.displayName}</div>
         <div className={`${styles.sub} mono`}>session {session.id}</div>
       </td>
       <td className={styles.when}>
@@ -114,37 +173,6 @@ function SessionRow({ session, now, onChanged }: { session: Session; now: number
             </Badge>
           )}
           {session.banned && <Badge tone="danger">Banned</Badge>}
-        </div>
-      </td>
-      <td>
-        <div className={styles.actions}>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={connected || renaming}
-            title={
-              connected
-                ? "A connected player keeps their name until they disconnect; kick them first"
-                : "Give the session another display name; the player's next connection sets their own again"
-            }
-            onClick={() => setRenaming(true)}
-          >
-            Rename
-          </Button>
-          <ConfirmButton
-            size="sm"
-            variant="ghost"
-            icon="trash"
-            busy={busy}
-            confirmLabel="Delete?"
-            aria-label={`Delete session ${session.displayName}`}
-            title={
-              (connected ? "Disconnect the player and delete" : "Delete") +
-              (session.banned ? " the session with its bans" : " the session") +
-              "; their next connection gets a new session"
-            }
-            onConfirm={remove}
-          />
         </div>
       </td>
     </tr>
@@ -248,18 +276,24 @@ export function SessionsPage() {
             <table className={styles.table}>
               <thead>
                 <tr>
+                  <th scope="col" className={styles.menuColumn}>
+                    <span className="visually-hidden">Actions</span>
+                  </th>
                   <th scope="col">Session</th>
                   <th scope="col">Last used</th>
                   <th scope="col">Expires</th>
                   <th scope="col">Status</th>
-                  <th scope="col">
-                    <span className="visually-hidden">Actions</span>
-                  </th>
                 </tr>
               </thead>
               <tbody>
                 {page.sessions.map((session) => (
-                  <SessionRow key={session.id} session={session} now={now} onChanged={refresh} />
+                  <SessionRow
+                    key={session.id}
+                    session={session}
+                    bans={bans.filter((ban) => ban.sessionId === session.id)}
+                    now={now}
+                    onChanged={refresh}
+                  />
                 ))}
               </tbody>
             </table>

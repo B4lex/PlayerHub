@@ -5,31 +5,68 @@
   margin-bottom: 1.5rem;
 }
 
+/* Fixed columns and single-line cells keep rows from resizing as live values change. */
 .table {
   width: 100%;
+  min-width: 60rem;
   border-collapse: collapse;
-  min-width: 40rem;
+  table-layout: fixed;
+}
+
+.menuColumn {
+  width: 3rem;
+}
+
+.playerColumn {
+  width: 13rem;
+}
+
+.doingColumn {
+  width: 10rem;
+}
+
+.receivesColumn {
+  width: 7.5rem;
+}
+
+.statusColumn {
+  width: 13rem;
 }
 
 .table th {
-  padding: 0.65rem 1.25rem;
+  padding: 0.65rem 1rem;
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 600;
   text-align: left;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
   border-bottom: 1px solid var(--border);
 }
 
 .table td {
-  padding: 0.8rem 1.25rem;
+  padding: 0.8rem 1rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   vertical-align: middle;
   border-bottom: 1px solid var(--border);
 }
 
+.table td > div {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+.table .menuCell {
+  padding-right: 0;
+  padding-left: 0.6rem;
+  overflow: visible;
 }
 
 .name {
@@ -44,76 +81,16 @@
   color: var(--text-muted);
 }
 
-.position {
-  white-space: nowrap;
-}
-
 .badges {
   display: flex;
-  flex-wrap: wrap;
   gap: 0.4rem;
-}
-
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.25rem;
-}
-
-.exclusionForm {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.75rem;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  min-width: 12rem;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  font-weight: 550;
-}
-
-.field select {
-  min-height: 2.25rem;
-  padding: 0 0.7rem;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  font-weight: 400;
-}
-
-.exclusions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin: 1rem 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.exclusions li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.section {
-  margin-top: 1.5rem;
 }
 
 .check {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  min-height: 2.25rem;
-  color: var(--text-muted);
-  font-size: 0.85rem;
+  color: var(--text);
 }
 
 .check input {
