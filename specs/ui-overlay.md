@@ -80,10 +80,11 @@ rasterized to images where noted; ImGui's style-stack checks passed in each:
   the kept text, Up and Down, each filter, unread dots, the chip's and a
   line's menus, scrolling, wrapped lines, resizing from the top and right
   edges with whole lines settled and saved once, `CloseChatOnSend` on and
-  off, the [player list](#player-list) with 500 players, and the cursor
-  hidden until the mouse moves. With 300 lines and 500 players a frame took
-  about 97 µs with the list closed and 100 µs with it open, and a width
-  drag about 230 µs against 135 µs idle.
+  off, the [player list](#player-list) with 500 players, the cursor
+  hidden until the mouse moves, and the recent lines (vertex positions per
+  frame at 144 fps) staying in place when one arrives or leaves. With 300
+  lines and 500 players a frame took about 97 µs with the list closed and
+  100 µs with it open, and a width drag about 230 µs against 135 µs idle.
 - [Notices](#notices) and [notes](#notes) (rasterized): stacking, dropping
   the oldest, a friend's arrival, repeats, fade timing for short and long
   notices, placement, and the notes panel.
@@ -1387,6 +1388,13 @@ never a line, so the history holds only what players said.
   frame: its corners alone are taller than a line or two. Their box is in from
   the chat's corner by the frame's padding, so the lines stay in the same
   column when the chat opens.
+- The recent lines' box is pinned by its bottom and fitted to them by Dear
+  ImGui, which uses the previous frame's content. For the frame after a line
+  leaves, the box is still a line taller, so the lines are moved down to its
+  bottom (`KeepContentAtBottom`) rather than jumping up for that frame. For
+  the frame after a line arrives, the box is still a line shorter, so the
+  lines are clipped at its bottom padding and the new line shows a frame
+  later, all at once (`PushContentClip`).
 - The open chat and the recent lines are each drawn in a `Theme::Scope`
   ([Theme](#theme)), so the chat has no colors or sizes of its own beyond
   `ChatStyle`'s channel and failure colors: the field is the theme's white

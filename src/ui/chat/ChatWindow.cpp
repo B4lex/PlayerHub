@@ -14,6 +14,7 @@
 #include "ui/chat/ChatStyle.h"
 
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include <algorithm>
 #include <atomic>
@@ -110,6 +111,32 @@ namespace UI
         {
             ImGui::SetNextWindowPos(
                 ImVec2{ a_corner.x + a_inset, a_corner.y - a_inset }, ImGuiCond_Always, ImVec2{ 0.0F, 1.0F });
+        }
+
+        float GetContentBottom()
+        {
+            const auto* window = ImGui::GetCurrentWindow();
+            return window->Pos.y + window->Size.y - window->WindowPadding.y;
+        }
+
+        void PushContentClip()
+        {
+            const auto* window = ImGui::GetCurrentWindow();
+            ImGui::PushClipRect(window->Pos, ImVec2{ window->Pos.x + window->Size.x, GetContentBottom() }, true);
+        }
+
+        void KeepContentAtBottom(int a_firstVertex)
+        {
+            const auto shift = std::floor(GetContentBottom() - ImGui::GetCurrentWindow()->DC.CursorMaxPos.y);
+            if (shift <= 0.0F)
+            {
+                return;
+            }
+            auto& vertices = ImGui::GetWindowDrawList()->VtxBuffer;
+            for (auto index = a_firstVertex; index < vertices.Size; ++index)
+            {
+                vertices[index].pos.y += shift;
+            }
         }
 
         class ChatWindow final : public Window
@@ -232,7 +259,11 @@ namespace UI
                 ImGui::PopStyleVar();
                 if (visible)
                 {
+                    const auto firstVertex = ImGui::GetWindowDrawList()->VtxBuffer.Size;
+                    PushContentClip();
                     history.DrawRecent(a_now);
+                    ImGui::PopClipRect();
+                    KeepContentAtBottom(firstVertex);
                 }
                 ImGui::End();
             }
