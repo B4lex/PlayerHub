@@ -91,29 +91,54 @@ namespace Forms
                                                        : std::format("{:.1f}", a_value);
         }
 
-        void ReplaceTag(std::string& a_text, std::string_view a_tag, const std::string& a_value)
+        template <class Replace>
+        std::string ReplaceBracketed(std::string_view a_text, char a_open, char a_close, Replace a_replace)
         {
-            for (auto position = AsciiCase::Find(a_text, a_tag); position != std::string::npos;
-                position = AsciiCase::Find(a_text, a_tag, position + a_value.size()))
+            std::string result;
+            std::size_t position = 0;
+            for (auto open = a_text.find(a_open); open != std::string_view::npos; open = a_text.find(a_open, position))
             {
-                a_text.replace(position, a_tag.size(), a_value);
+                const auto close = a_text.find(a_close, open + 1);
+                if (close == std::string_view::npos)
+                {
+                    break;
+                }
+                result.append(a_text.substr(position, open - position));
+                result.append(a_replace(a_text.substr(open + 1, close - open - 1)));
+                position = close + 1;
             }
+            result.append(a_text.substr(position));
+            return result;
         }
 
-        // The effect's item description (DNAM) with its <mag>, <dur>, and <area> tags filled,
-        // as the game's item card shows it, or its name when it has none.
-        std::string DescribeEffect(
-            const RE::EffectSetting& a_effect, float a_magnitude, std::uint32_t a_area, std::uint32_t a_duration)
+        void AddEffect(std::vector<ItemEffect>& a_effects, const RE::EffectSetting& a_effect, float a_magnitude,
+            std::uint32_t a_area, std::uint32_t a_duration)
         {
-            std::string text{ a_effect.magicItemDescription.c_str() };
-            if (text.empty())
+            if (a_effect.data.flags.any(RE::EffectSetting::EffectSettingData::Flag::kHideInUI))
             {
-                return std::string{ a_effect.GetFullName() };
+                return;
             }
-            ReplaceTag(text, "<mag>", FormatNumber(a_magnitude));
-            ReplaceTag(text, "<dur>", std::format("{}", a_duration));
-            ReplaceTag(text, "<area>", std::format("{}", a_area));
-            return text;
+            const auto fillTag = [&](std::string_view a_tag) {
+                if (AsciiCase::Equals(a_tag, "mag"))
+                {
+                    return FormatNumber(a_magnitude);
+                }
+                if (AsciiCase::Equals(a_tag, "dur"))
+                {
+                    return std::format("{}", a_duration);
+                }
+                if (AsciiCase::Equals(a_tag, "area"))
+                {
+                    return std::format("{}", a_area);
+                }
+                return std::string{ a_tag };
+            };
+            const auto filled = ReplaceBracketed(a_effect.magicItemDescription.c_str(), '<', '>', fillTag);
+            auto text = ReplaceBracketed(filled, '[', ']', [](std::string_view) { return std::string{}; });
+            if (text.find_first_not_of(" \n") != std::string::npos)
+            {
+                a_effects.push_back(ItemEffect{ .text = std::move(text) });
+            }
         }
 
         void AddEffects(const RE::MagicItem& a_magic, std::vector<ItemEffect>& a_effects)
@@ -132,9 +157,8 @@ namespace Forms
                         ItemEffect{ .text = std::string{ Text::Get(Text::Id::kItemUnknownEffect) }, .known = false });
                     continue;
                 }
-                a_effects.push_back(
-                    ItemEffect{ .text = DescribeEffect(*effect->baseEffect, effect->effectItem.magnitude,
-                                    effect->effectItem.area, effect->effectItem.duration) });
+                AddEffect(a_effects, *effect->baseEffect, effect->effectItem.magnitude, effect->effectItem.area,
+                    effect->effectItem.duration);
             }
         }
 
@@ -223,9 +247,8 @@ namespace Forms
             {
                 if (effect.effect)
                 {
-                    details.effects.push_back(
-                        ItemEffect{ .text = DescribeEffect(*effect.effect, effect.values.magnitude, effect.values.area,
-                                        effect.values.duration) });
+                    AddEffect(details.effects, *effect.effect, effect.values.magnitude, effect.values.area,
+                        effect.values.duration);
                 }
                 effectsCost += effect.values.cost;
             }

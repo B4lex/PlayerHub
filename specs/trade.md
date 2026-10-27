@@ -280,9 +280,19 @@ choice), and the item card that shows them is in
   follow each runtime's settings.
 - Effects: of the enchantment, a player enchantment's effects, or a potion,
   poison, scroll, or ingredient, each its effect's item description
-  (`EffectSetting::magicItemDescription`) with `<mag>`, `<dur>`, and `<area>`
-  filled (any case; magnitudes whole unless fractional), or its name when it
-  has none. An ingredient's effects the local player has not discovered
+  (`EffectSetting::magicItemDescription`) resolved as the game's item card
+  does (AE IDs 51901, 51905, 51906):
+  - `<mag>`, `<dur>`, and `<area>` (any case) become numbers (magnitudes
+    whole unless fractional); any other tag shows its own text, so `<2>`
+    reads as a highlighted 2. The game also fills `<global=EditorID>`, which
+    no vanilla item description uses; the card shows it as text.
+  - Every `[KEY=text]` section is dropped. The game shows a `SURV` section's
+    text while Survival Mode is on, which is how Survival Mode adds hunger
+    restoration to food; the card leaves it out in either mode (the user's
+    choice).
+  - An effect flagged `kHideInUI` or with no text left after resolving is
+    left out.
+  An ingredient's effects the local player has not discovered
   (`IngredientItem::gamedata.knownEffectFlags`) are shown as unknown, as in
   the game (the user's choice).
 - Charge, for an enchanted weapon: the sent charge and maximum, or for a
