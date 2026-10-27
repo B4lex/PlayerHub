@@ -60,12 +60,11 @@ namespace Forms
     // left for the caller.
     [[nodiscard]] std::expected<ResolvedItem, Multiplayer::TradeSkip> ResolveItem(const Multiplayer::TradeItem& a_item);
 
-    [[nodiscard]] const ResolvedEffect* GetCostliestEffect(const ResolvedItem& a_item);
-
     [[nodiscard]] RE::EnchantmentItem* CreateEnchantment(const ResolvedItem& a_item);
 
     // A player-made potion or poison, held until it is in an inventory.
-    [[nodiscard]] RE::CreatedObjPtr<RE::AlchemyItem> CreateAlchemyItem(const ResolvedItem& a_item);
+    [[nodiscard]] RE::CreatedObjPtr<RE::AlchemyItem> CreateAlchemyItem(
+        const ResolvedItem& a_resolved, const Multiplayer::TradeItem& a_item);
 
     // Puts the item's extra data on a reference, which keeps it when picked up.
     void ApplyExtraData(RE::TESObjectREFR& a_reference, const ResolvedItem& a_resolved,

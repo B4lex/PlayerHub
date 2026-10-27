@@ -55,6 +55,7 @@ namespace Multiplayer
         // A name the player gave the item, or empty.
         std::string name;
         std::uint8_t soul{ 0 };
+        bool poison{ false };
 
         [[nodiscard]] bool IsPlayerMade() const noexcept { return item.IsEmpty(); }
 
@@ -72,7 +73,7 @@ namespace Multiplayer
         {
             return item == a_other.item && enchantment == a_other.enchantment && effects == a_other.effects
                 && maximumCharge == a_other.maximumCharge && charge == a_other.charge && health == a_other.health
-                && name == a_other.name && soul == a_other.soul;
+                && name == a_other.name && soul == a_other.soul && poison == a_other.poison;
         }
 
         bool operator==(const TradeItem&) const = default;
@@ -137,7 +138,7 @@ namespace Multiplayer
             return !a_item.effects.empty() && a_item.enchantment.IsEmpty() && a_item.maximumCharge == 0
                 && a_item.charge == 0.0F && a_item.health == 0.0F && a_item.name.empty() && a_item.soul == 0;
         }
-        return IsTradeValue(a_item.health, TradeItem::kMaximumHealth)
+        return !a_item.poison && IsTradeValue(a_item.health, TradeItem::kMaximumHealth)
             && Detail::IsTradeText(a_item.name, TradeItem::kMaximumNameBytes) && a_item.soul <= TradeItem::kMaximumSoul
             && (!a_item.HasExtraData() || a_item.count <= TradeItem::kMaximumInstanceCount);
     }

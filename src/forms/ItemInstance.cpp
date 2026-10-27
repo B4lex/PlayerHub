@@ -151,6 +151,13 @@ namespace Forms
             static REL::Relocation<func_t> func{ RELOCATION_ID(35266, 36168) };
             func(&a_manager, a_created, a_effects);
         }
+
+        const ResolvedEffect* GetCostliestEffect(const ResolvedItem& a_item)
+        {
+            const auto costliest = std::ranges::max_element(
+                a_item.effects, {}, [](const ResolvedEffect& a_effect) { return a_effect.values.cost; });
+            return costliest != a_item.effects.end() ? &*costliest : nullptr;
+        }
     }
 
     std::optional<TradeCategory> GetTradeCategory(const RE::TESBoundObject& a_object)
@@ -196,7 +203,7 @@ namespace Forms
         if (a_object.IsDynamicForm())
         {
             auto* potion = a_object.As<RE::AlchemyItem>();
-            TradeItem item;
+            TradeItem item{ .poison = potion && potion->IsPoison() };
             if (potion && ReadEffects(*potion, item) && Multiplayer::IsValidTradeItem(item))
             {
                 return item;
@@ -285,13 +292,6 @@ namespace Forms
         return ResolveEffects(a_item, std::move(resolved));
     }
 
-    const ResolvedEffect* GetCostliestEffect(const ResolvedItem& a_item)
-    {
-        const auto costliest = std::ranges::max_element(
-            a_item.effects, {}, [](const ResolvedEffect& a_effect) { return a_effect.values.cost; });
-        return costliest != a_item.effects.end() ? &*costliest : nullptr;
-    }
-
     RE::EnchantmentItem* CreateEnchantment(const ResolvedItem& a_item)
     {
         auto* manager = RE::BGSCreatedObjectManager::GetSingleton();
@@ -306,18 +306,16 @@ namespace Forms
                                                          : manager->AddArmorEnchantment(effects);
     }
 
-    RE::CreatedObjPtr<RE::AlchemyItem> CreateAlchemyItem(const ResolvedItem& a_item)
+    RE::CreatedObjPtr<RE::AlchemyItem> CreateAlchemyItem(const ResolvedItem& a_resolved, const TradeItem& a_item)
     {
         RE::CreatedObjPtr<RE::AlchemyItem> created;
         auto* manager = RE::BGSCreatedObjectManager::GetSingleton();
-        const auto* costliest = GetCostliestEffect(a_item);
-        if (!manager || !costliest)
+        if (!manager || a_resolved.effects.empty())
         {
             return created;
         }
-        auto effects = BuildEffects(a_item);
-        // The alchemy menu makes a poison when the costliest effect is hostile.
-        if (costliest->effect->IsHostile())
+        auto effects = BuildEffects(a_resolved);
+        if (a_item.poison)
         {
             AddPoison(*manager, created, effects);
         }

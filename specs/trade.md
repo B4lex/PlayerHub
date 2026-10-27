@@ -50,7 +50,8 @@ have not run in game.
   and a quit closing it with `DISCONNECTED`. Not run against the game.
 - **Player-made potions and poisons:** `go test -race ./...` covers their
   `validate` rules. The plugin side has not been compiled, the bot's
-  `add -` has not run, and nothing has run on Windows or in game.
+  `add` without a form has not run, and nothing has run on Windows or in
+  game.
 
 ## Scope
 
@@ -342,8 +343,8 @@ revision holds none.
    duration, cost) and attached with its maximum charge; a weapon below it
    gets `ExtraCharge`. A plugin enchantment is attached as it is.
    A player-made potion or poison is created from its effects
-   (`Forms::CreateAlchemyItem`): a poison with `AddPoison` when the costliest
-   effect is hostile, else a potion with `AddPotion`, and added with
+   (`Forms::CreateAlchemyItem`): with `AddPoison` when the giver's was a
+   poison (`poison`, from `AlchemyItem::IsPoison`), else `AddPotion`, and added with
    `AddObjectToContainer` while its `CreatedObjPtr` is held. `AddPoison` is
    called through its own relocation (35266, 36168), since CommonLib declares
    its result with a smart pointer `AlchemyItem` cannot use.
@@ -480,8 +481,6 @@ To verify in game:
    added to an inventory keeps its own manager reference after the
    `CreatedObjPtr` is released, and survives a save and a reload.
 14. `AddPoison` fills a `CreatedObjPtr<AlchemyItem>` as `AddPotion` does.
-15. The alchemy menu makes a poison exactly when the costliest effect has
-   `EffectSetting::IsHostile`.
 
 ## Acceptance criteria
 

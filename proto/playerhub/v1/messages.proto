@@ -76,6 +76,7 @@ message TradeItem {
   float health = 7;
   string name = 8;
   uint32 soul = 9;
+  bool poison = 10;
 }
 
 // From a client: its own offer. From the server: the peer's offer.

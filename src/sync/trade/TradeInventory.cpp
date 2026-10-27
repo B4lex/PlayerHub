@@ -197,7 +197,7 @@ namespace TradeInventory
             return 0;
         }
         const auto created =
-            a_item.IsPlayerMade() ? Forms::CreateAlchemyItem(a_resolved) : RE::CreatedObjPtr<RE::AlchemyItem>{};
+            a_item.IsPlayerMade() ? Forms::CreateAlchemyItem(a_resolved, a_item) : RE::CreatedObjPtr<RE::AlchemyItem>{};
         RE::TESBoundObject* object = created ? created.get() : a_resolved.object;
         if (!object)
         {

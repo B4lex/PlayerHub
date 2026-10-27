@@ -57,6 +57,7 @@ func TestTradeOffer(t *testing.T) {
 		"long name":       func(i *pb.TradeItem) { i.Name = strings.Repeat("x", 129) },
 		"soul over grand": func(i *pb.TradeItem) { i.Soul = 6 },
 		"1001 enchanted":  func(i *pb.TradeItem) { i.Count = 1001 },
+		"poison item":     func(i *pb.TradeItem) { i.Poison = true },
 		"1001 named": func(i *pb.TradeItem) {
 			i.Effects, i.MaximumCharge, i.Charge, i.Health, i.Count = nil, 0, 0, 0, 1001
 		},
@@ -92,8 +93,10 @@ func TestTradeOfferPlayerMadeItem(t *testing.T) {
 			{Effect: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 0x3EB15}, Magnitude: 25, Duration: 60, Cost: 30},
 			{Effect: &pb.FormRef{Plugin: "Mod.esp", FormId: 2}, Magnitude: 5, Duration: 10, Cost: 4}}}
 	}
-	if err := Message(offerOf(brewed())); err != nil {
-		t.Errorf("player-made item rejected: %v", err)
+	poison := brewed()
+	poison.Poison = true
+	if err := Message(offerOf(brewed(), poison)); err != nil {
+		t.Errorf("player-made items rejected: %v", err)
 	}
 	for name, breakItem := range map[string]func(*pb.TradeItem){
 		"no effects":   func(i *pb.TradeItem) { i.Effects = nil },

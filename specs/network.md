@@ -752,6 +752,7 @@ Client messages:
 | `health` | finite `0..100`, `0` untempered |
 | `name` | a name the player gave the item, at most 128 UTF-8 bytes, no control characters |
 | `soul` | `0..5`, `SOUL_LEVEL` |
+| `poison` | set only without `item`: the player-made item is a poison |
 
 Server messages:
 

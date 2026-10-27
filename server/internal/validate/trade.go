@@ -80,7 +80,7 @@ func tradeItem(i *pb.TradeItem) bool {
 		return len(effects) != 0 && i.Enchantment == nil && i.GetMaximumCharge() == 0 && i.GetCharge() == 0 &&
 			i.GetHealth() == 0 && i.GetName() == "" && i.GetSoul() == 0
 	}
-	if !formRef(i.Item) || (i.Enchantment != nil && len(effects) != 0) ||
+	if !formRef(i.Item) || i.GetPoison() || (i.Enchantment != nil && len(effects) != 0) ||
 		(i.Enchantment != nil && !formRef(i.Enchantment)) {
 		return false
 	}

@@ -474,6 +474,7 @@ namespace Network::Wire
             a_result.charge = a_item.charge;
             a_result.health = a_item.health;
             a_result.soul = a_item.soul;
+            a_result.poison = a_item.poison;
             bool written = WriteOptionalFormReference(a_item.item, a_result.has_item, a_result.item)
                 && WriteOptionalFormReference(a_item.enchantment, a_result.has_enchantment, a_result.enchantment)
                 && CopyString(a_result.name, a_item.name);
@@ -507,6 +508,7 @@ namespace Network::Wire
             a_result.health = a_item.health;
             a_result.name = a_item.name;
             a_result.soul = static_cast<std::uint8_t>(a_item.soul);
+            a_result.poison = a_item.poison;
             a_result.effects.clear();
             for (pb_size_t i = 0; i < a_item.effects_count; ++i)
             {

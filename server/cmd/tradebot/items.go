@@ -29,7 +29,7 @@ func testKit() []*pb.TradeItem {
 // parseItem reads [<plugin>:<form id>] [count] [key=value ...]; without a form it is a player-made potion or poison.
 func parseItem(args []string) (*pb.TradeItem, error) {
 	if len(args) == 0 {
-		return nil, errors.New("usage: add [<plugin>:<form id>] [count] [ench=<form>] [effect=<form>/<magnitude>/<area>/<duration>/<cost>] [charge=<n>] [maxcharge=<n>] [health=<n>] [name=<text>] [soul=<0..5>]")
+		return nil, errors.New("usage: add [<plugin>:<form id>] [count] [ench=<form>] [effect=<form>/<magnitude>/<area>/<duration>/<cost>] [charge=<n>] [maxcharge=<n>] [health=<n>] [name=<text>] [soul=<0..5>] [poison]")
 	}
 	item := &pb.TradeItem{Count: 1}
 	rest := args
@@ -49,6 +49,10 @@ func parseItem(args []string) (*pb.TradeItem, error) {
 		rest = rest[1:]
 	}
 	for _, arg := range rest {
+		if arg == "poison" {
+			item.Poison = true
+			continue
+		}
 		key, value, ok := strings.Cut(arg, "=")
 		if !ok {
 			return nil, fmt.Errorf("%q is not key=value", arg)
@@ -154,6 +158,9 @@ func formatItem(item *pb.TradeItem) string {
 	}
 	if item.GetSoul() != 0 {
 		parts = append(parts, fmt.Sprintf("soul=%d", item.GetSoul()))
+	}
+	if item.GetPoison() {
+		parts = append(parts, "poison")
 	}
 	return strings.Join(parts, " ")
 }
