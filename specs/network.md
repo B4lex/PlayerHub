@@ -581,8 +581,10 @@ connected, and stopping a player who changes both session and address.
 `ChatChannel` is `GLOBAL` (0), `NEARBY`, or `WHISPER`.
 
 - The server trims surrounding spaces and rejects an unknown channel, empty
-  text, control characters, more than 512 UTF-8 bytes, a `WHISPER` without a
-  `recipient`, and a `recipient` on another channel
+  text, control characters (line breaks included), more than 512 characters
+  counted as code points (`validate.MaximumChatTextRune`,
+  `Multiplayer::kMaximumChatTextCharacters`) or 2048 UTF-8 bytes, a
+  `WHISPER` without a `recipient`, and a `recipient` on another channel
   (`invalid chat message`, rejection `INVALID`); protobuf already guarantees
   valid UTF-8.
 - `GLOBAL` goes to every connected client.
@@ -611,7 +613,9 @@ connected, and stopping a player who changes both session and address.
   `PlayerIdentity`: slot, display name, and session ID.
 - The client rejects a `ChatMessage` without a sender, with an unknown channel,
   or with a recipient present exactly when the channel is not `WHISPER`, and
-  validates speakers like roster entries, and text like `ChatSend`. A
+  validates speakers like roster entries, and text like `ChatSend`
+  (`Multiplayer::IsValidChatText`). `ChatSend.text` and `ChatMessage.text`
+  are nanopb buffers of 2049 bytes, room for 512 four-byte characters. A
   `ChatResult` with an unknown rejection is rejected.
 - Chat does not require being in the world except for `NEARBY`, keeps no
   history, and is not recorded. The client side is in

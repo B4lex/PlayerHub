@@ -4,6 +4,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"google.golang.org/protobuf/proto"
 
@@ -314,10 +315,13 @@ func TestChat(t *testing.T) {
 	if text, err := Chat(send("  hello there ", pb.ChatChannel_CHAT_CHANNEL_NEARBY)); err != nil || text != "hello there" {
 		t.Fatalf("got %q, %v", text, err)
 	}
-	if _, err := Chat(send(strings.Repeat("é", 256), pb.ChatChannel_CHAT_CHANNEL_GLOBAL)); err != nil {
-		t.Fatal("text at the byte limit rejected")
+	for _, text := range []string{strings.Repeat("a", 512), strings.Repeat("é", 512), strings.Repeat("😀", 512)} {
+		if _, err := Chat(send(text, pb.ChatChannel_CHAT_CHANNEL_GLOBAL)); err != nil {
+			t.Errorf("text of %d characters, %d bytes rejected", utf8.RuneCountInString(text), len(text))
+		}
 	}
-	for _, text := range []string{"", "   ", "tab\there", "bell\x07", strings.Repeat("a", 513), "\xff"} {
+	for _, text := range []string{"", "   ", "tab\there", "line\nbreak", "bell\x07", strings.Repeat("a", 513),
+		strings.Repeat("é", 513), "\xff"} {
 		if _, err := Chat(send(text, pb.ChatChannel_CHAT_CHANNEL_GLOBAL)); err == nil {
 			t.Errorf("%q accepted", text)
 		}

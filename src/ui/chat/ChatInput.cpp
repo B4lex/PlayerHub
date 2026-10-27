@@ -4,6 +4,8 @@
 #include "text/Text.h"
 #include "ui/chat/ChatStyle.h"
 
+#include <imgui_internal.h>
+
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
@@ -16,6 +18,7 @@ namespace UI
     {
         constexpr std::size_t kMaximumMenuPartners = 5;
         constexpr float kMaximumChipTextFonts = 12.0F;
+        constexpr int kMaximumFieldLines = 7;
 
         struct RowOutcome
         {
@@ -59,14 +62,86 @@ namespace UI
         composer.ClearNotes();
     }
 
+    float ChatInput::GetFieldHeight() const
+    {
+        const auto lines = std::clamp(lineCount, 1, kMaximumFieldLines);
+        return static_cast<float>(lines) * ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0F;
+    }
+
+    int ChatInput::FilterCharacter(ImGuiInputTextCallbackData& a_data)
+    {
+        if (a_data.EventChar == '\n')
+        {
+            // Shift+Enter and Ctrl+Enter, which a multi-line field turns into a line break.
+            if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))
+            {
+                sendByLineBreak = true;
+                return 1;
+            }
+            a_data.EventChar = ' ';
+        }
+
+        // Pasted text passes here character by character before any of it is
+        // inserted, so the room is taken once per frame and counted down.
+        const auto frame = ImGui::GetFrameCount();
+        if (frame != roomFrame)
+        {
+            roomFrame = frame;
+            const auto* state = ImGui::GetInputTextState(a_data.ID);
+            const std::string_view text{ state->TextA.Data, static_cast<std::size_t>(state->TextLen) };
+            const auto selectionFirst
+                = static_cast<std::size_t>((std::min)(a_data.SelectionStart, a_data.SelectionEnd));
+            const auto selectionLast = static_cast<std::size_t>((std::max)(a_data.SelectionStart, a_data.SelectionEnd));
+            const auto kept = Multiplayer::CountChatCharacters(text)
+                - Multiplayer::CountChatCharacters(text.substr(selectionFirst, selectionLast - selectionFirst));
+            room = Multiplayer::kMaximumChatTextCharacters - (std::min)(kept, Multiplayer::kMaximumChatTextCharacters);
+        }
+        if (room == 0)
+        {
+            return 1;
+        }
+        --room;
+        return 0;
+    }
+
+    void ChatInput::Measure(std::string_view a_text, std::size_t a_caret)
+    {
+        lineCount = 1;
+        caretLine = 0;
+        if (fieldWrapWidth <= 0.0F || a_text.empty())
+        {
+            return;
+        }
+        // As Dear ImGui breaks the lines of a word-wrapped field.
+        auto* font = ImGui::GetFont();
+        const auto fontSize = ImGui::GetFontSize();
+        const auto* end = a_text.data() + a_text.size();
+        int lines = 0;
+        for (const auto* line = a_text.data(); line < end;)
+        {
+            if (static_cast<std::size_t>(line - a_text.data()) <= a_caret)
+            {
+                caretLine = lines;
+            }
+            ++lines;
+            line = ImFontCalcWordWrapPositionEx(
+                font, fontSize, line, end, fieldWrapWidth, ImDrawTextFlags_WrapKeepBlanks);
+        }
+        lineCount = lines;
+    }
+
     int ChatInput::OnFieldEvent(ImGuiInputTextCallbackData* a_data)
     {
+        auto& self = *static_cast<ChatInput*>(a_data->UserData);
+        if (a_data->EventFlag == ImGuiInputTextFlags_CallbackCharFilter)
+        {
+            return self.FilterCharacter(*a_data);
+        }
         // Escape puts back the text the field had when it took the keyboard, before this runs.
         if (ImGui::IsKeyPressed(ImGuiKey_Escape))
         {
             return 0;
         }
-        auto& self = *static_cast<ChatInput*>(a_data->UserData);
         auto& composer = self.composer;
         const std::string_view typed{ a_data->Buf, static_cast<std::size_t>(a_data->BufTextLen) };
         bool rewritten = false;
@@ -89,16 +164,28 @@ namespace UI
                 rewritten = true;
             }
         }
-        else if (a_data->EventFlag == ImGuiInputTextFlags_CallbackHistory)
+        else
         {
-            const bool up = a_data->EventKey == ImGuiKey_UpArrow;
-            if (listed)
+            // A multi-line field has moved its caret for these keys already;
+            // the caret line is still the one from before. Ctrl scrolls the
+            // field and Shift selects.
+            const auto& io = ImGui::GetIO();
+            const bool up = ImGui::IsKeyPressed(ImGuiKey_UpArrow);
+            const bool down = !up && ImGui::IsKeyPressed(ImGuiKey_DownArrow);
+            if ((up || down) && !io.KeyCtrl && !io.KeyShift)
             {
-                composer.MoveSelection(up ? -1 : 1);
-            }
-            else if (up ? composer.RecallPrevious(self.draft) : composer.RecallNext(self.draft))
-            {
-                rewritten = true;
+                if (listed)
+                {
+                    composer.MoveSelection(up ? -1 : 1);
+                    a_data->CursorPos = self.caretPosition;
+                    a_data->SelectionStart = self.selectionStart;
+                    a_data->SelectionEnd = self.selectionEnd;
+                }
+                else if (up ? self.caretLine == 0 && composer.RecallPrevious(self.draft)
+                            : self.caretLine + 1 >= self.lineCount && composer.RecallNext(self.draft))
+                {
+                    rewritten = true;
+                }
             }
         }
 
@@ -114,10 +201,18 @@ namespace UI
             a_data->CursorPos = a_data->BufTextLen;
             a_data->ClearSelection();
         }
+        self.caretPosition = a_data->CursorPos;
+        self.selectionStart = a_data->SelectionStart;
+        self.selectionEnd = a_data->SelectionEnd;
+        if (const auto* state = ImGui::GetInputTextState(a_data->ID))
+        {
+            self.fieldWrapWidth = state->WrapWidth;
+        }
+        self.Measure(self.draft, static_cast<std::size_t>(self.caretPosition));
         return 0;
     }
 
-    void ChatInput::DrawChip(bool a_closeMenu)
+    void ChatInput::DrawChip(bool a_closeMenu, float a_rowTop)
     {
         const auto& target = composer.GetTarget();
         if (!(target == chipTarget) || target.player.name != chipTarget.player.name
@@ -157,7 +252,8 @@ namespace UI
             ImVec2{ center.x + caret, center.y - caret * 0.5F }, ImVec2{ center.x, center.y + caret * 0.5F },
             ImGui::GetColorU32(color));
 
-        ImGui::SetNextWindowPos(ImVec2{ min.x, min.y - style.ItemSpacing.y }, ImGuiCond_Always, ImVec2{ 0.0F, 1.0F });
+        ImGui::SetNextWindowPos(
+            ImVec2{ min.x, a_rowTop - style.ItemSpacing.y }, ImGuiCond_Always, ImVec2{ 0.0F, 1.0F });
         menuOpen = ImGui::BeginPopup("##ChatTargets");
         if (!menuOpen)
         {
@@ -252,6 +348,7 @@ namespace UI
         if (accepted < suggestions.size())
         {
             composer.AcceptSuggestion(accepted, draft);
+            Measure(draft, draft.size());
         }
     }
 
@@ -295,8 +392,13 @@ namespace UI
 
     ChatInput::Outcome ChatInput::Draw(const Frame& a_frame)
     {
-        DrawChip(a_frame.closeMenu);
+        // The field grows upward from the chip, which stays by its last line.
+        const auto fieldHeight = GetFieldHeight();
+        const auto row = ImGui::GetCursorScreenPos();
+        ImGui::SetCursorScreenPos(ImVec2{ row.x, row.y + fieldHeight - ImGui::GetFrameHeight() });
+        DrawChip(a_frame.closeMenu, row.y);
         ImGui::SameLine();
+        ImGui::SetCursorScreenPos(ImVec2{ ImGui::GetCursorScreenPos().x, row.y });
 
         const bool listed = composer.IsListing();
         if (fieldActive)
@@ -322,17 +424,37 @@ namespace UI
         {
             ImGui::SetKeyboardFocusHere();
         }
-        ImGui::SetNextItemWidth(-FLT_MIN);
-        const bool entered = ImGui::InputTextWithHint("##ChatInput", Text::GetCString(Text::Id::kChatInputHint),
-            field.data(), field.size(),
-            ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackAlways
-                | ImGuiInputTextFlags_CallbackHistory | ImGuiInputTextFlags_CallbackCompletion,
+        // Past its last line the field scrolls without a scrollbar, as a
+        // single-line field does sideways. The wrap keeps the scrollbar's
+        // width free on the right either way.
+        constexpr ImVec4 kHidden{ 0.0F, 0.0F, 0.0F, 0.0F };
+        for (const auto color : { ImGuiCol_ScrollbarBg, ImGuiCol_ScrollbarGrab, ImGuiCol_ScrollbarGrabHovered,
+                 ImGuiCol_ScrollbarGrabActive })
+        {
+            ImGui::PushStyleColor(color, kHidden);
+        }
+        sendByLineBreak = false;
+        bool entered = ImGui::InputTextEx("##ChatInput", Text::GetCString(Text::Id::kChatInputHint), field.data(),
+            static_cast<int>(field.size()), ImVec2{ -FLT_MIN, fieldHeight },
+            static_cast<ImGuiInputTextFlags>(ImGuiInputTextFlags_Multiline) | ImGuiInputTextFlags_WordWrap
+                | ImGuiInputTextFlags_CtrlEnterForNewLine | ImGuiInputTextFlags_EnterReturnsTrue
+                | ImGuiInputTextFlags_CallbackAlways | ImGuiInputTextFlags_CallbackCompletion
+                | ImGuiInputTextFlags_CallbackCharFilter,
             &OnFieldEvent, this);
+        ImGui::PopStyleColor(4);
+        if (sendByLineBreak && ImGui::IsItemActive())
+        {
+            // Leaves the field as Enter does, so it takes the emptied draft back.
+            ImGui::ClearActiveID();
+            entered = true;
+        }
         fieldActive = ImGui::IsItemActive();
 
         if (entered)
         {
-            if (composer.Submit(draft) != ChatSync::Composer::SubmitResult::kClose)
+            const auto result = composer.Submit(draft);
+            Measure(draft, draft.size());
+            if (result != ChatSync::Composer::SubmitResult::kClose)
             {
                 return Outcome::kSubmitted;
             }
@@ -353,6 +475,7 @@ namespace UI
             }
             draft = draftWhenOpened;
             composer.OnEdited(draft);
+            Measure(draft, draft.size());
             return Outcome::kClose;
         }
         return Outcome::kNone;

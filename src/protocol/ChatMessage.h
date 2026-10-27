@@ -61,12 +61,24 @@ namespace Multiplayer
         bool outgoing{ false };
     };
 
-    inline constexpr std::size_t kMaximumChatTextBytes = 512;
+    inline constexpr std::size_t kMaximumChatTextCharacters = 512;
+    // UTF-8 takes at most 4 bytes for a code point.
+    inline constexpr std::size_t kMaximumChatTextBytes = kMaximumChatTextCharacters * 4;
+
+    [[nodiscard]] inline std::size_t CountChatCharacters(std::string_view a_text)
+    {
+        std::size_t count = 0;
+        for (const auto character : a_text)
+        {
+            count += (static_cast<unsigned char>(character) & 0xC0) != 0x80 ? 1 : 0;
+        }
+        return count;
+    }
 
     [[nodiscard]] inline bool IsValidChatText(std::string_view a_text)
     {
-        if (a_text.empty() || a_text.size() > kMaximumChatTextBytes || a_text.front() == ' '
-            || a_text.back() == ' ')
+        if (a_text.empty() || a_text.size() > kMaximumChatTextBytes || a_text.front() == ' ' || a_text.back() == ' '
+            || CountChatCharacters(a_text) > kMaximumChatTextCharacters)
         {
             return false;
         }

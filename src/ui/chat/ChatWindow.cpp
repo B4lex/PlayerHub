@@ -329,16 +329,17 @@ namespace UI
                 players.DrawButton();
                 ChatStyle::DrawRule(ruleGap);
 
-                const auto inputRowHeight = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeight();
-                aroundHeight = ImGui::GetCursorScreenPos().y - ImGui::GetWindowPos().y + inputRowHeight + padding.y
-                    + framePadding;
+                // A field taller than one line takes its room from the lines, not the window.
+                const auto& spacing = ImGui::GetStyle().ItemSpacing;
+                aroundHeight = ImGui::GetCursorScreenPos().y - ImGui::GetWindowPos().y + spacing.y
+                    + ImGui::GetFrameHeight() + padding.y + framePadding;
                 const ImVec2 grip{ padding.x + framePadding, padding.y + framePadding };
                 const bool resizing = !position.IsHeld()
                     && size.Grab(ChatSize::Grip{ .depth = grip,
                                      .corner = (std::max)({ MenuFrame::GetMetrics().corner, grip.x, grip.y }) },
                         units, anchor);
-                const auto picked = history.DrawLines(
-                    a_input, ImVec2{ 0.0F, -inputRowHeight }, closeMenu, players.IsHovered() || manager.IsHovered());
+                const auto picked = history.DrawLines(a_input, ImVec2{ 0.0F, -(spacing.y + input.GetFieldHeight()) },
+                    closeMenu, players.IsHovered() || manager.IsHovered());
                 if (picked)
                 {
                     Whisper(*picked);

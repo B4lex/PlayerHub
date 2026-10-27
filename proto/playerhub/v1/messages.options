@@ -2,9 +2,9 @@ playerhub.v1.Hello.session_token max_size:32
 playerhub.v1.Hello.display_name max_size:16
 playerhub.v1.Welcome.display_name max_size:16
 playerhub.v1.Welcome.session_token max_size:32
-playerhub.v1.ChatSend.text max_size:513
+playerhub.v1.ChatSend.text max_size:2049
 playerhub.v1.PlayerIdentity.name max_size:129
-playerhub.v1.ChatMessage.text max_size:513
+playerhub.v1.ChatMessage.text max_size:2049
 playerhub.v1.PeerStates.states type:FT_CALLBACK
 playerhub.v1.Roster.joined type:FT_CALLBACK
 playerhub.v1.NearbyPlayers.joined type:FT_CALLBACK

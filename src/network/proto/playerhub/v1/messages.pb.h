@@ -82,7 +82,7 @@ typedef struct _playerhub_v1_Exit {
 
 typedef struct _playerhub_v1_ChatSend {
     uint32_t request_id;
-    char text[513];
+    char text[2049];
     playerhub_v1_ChatChannel channel;
     uint32_t recipient;
 } playerhub_v1_ChatSend;
@@ -284,7 +284,7 @@ typedef struct _playerhub_v1_ChatMessage {
     playerhub_v1_PlayerIdentity sender;
     bool has_recipient;
     playerhub_v1_PlayerIdentity recipient;
-    char text[513];
+    char text[2049];
 } playerhub_v1_ChatMessage;
 
 typedef struct _playerhub_v1_Roster {
@@ -1111,9 +1111,9 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 /* playerhub_v1_NearbyPlayers_size depends on runtime parameters */
 /* playerhub_v1_ServerMessage_size depends on runtime parameters */
 #define PLAYERHUB_V1_PLAYERHUB_V1_MESSAGES_PB_H_MAX_SIZE playerhub_v1_PeerEnter_size
-#define playerhub_v1_ChatMessage_size            819
+#define playerhub_v1_ChatMessage_size            2355
 #define playerhub_v1_ChatResult_size             8
-#define playerhub_v1_ChatSend_size               529
+#define playerhub_v1_ChatSend_size               2065
 #define playerhub_v1_Enter_size                  0
 #define playerhub_v1_Exit_size                   0
 #define playerhub_v1_Inspect_size                6
