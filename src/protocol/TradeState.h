@@ -42,6 +42,7 @@ namespace Multiplayer
         static constexpr std::size_t kMaximumNameBytes = 128;
         static constexpr std::uint8_t kMaximumSoul = 5;
 
+        // Empty for a potion or poison a player made, which travels as its effects.
         FormReference item;
         std::uint32_t count{ 1 };
         // A plugin enchantment, or the effects of one a player made; never both.
@@ -55,7 +56,12 @@ namespace Multiplayer
         std::string name;
         std::uint8_t soul{ 0 };
 
-        [[nodiscard]] bool IsEnchanted() const noexcept { return !enchantment.IsEmpty() || !effects.empty(); }
+        [[nodiscard]] bool IsPlayerMade() const noexcept { return item.IsEmpty(); }
+
+        [[nodiscard]] bool IsEnchanted() const noexcept
+        {
+            return !enchantment.IsEmpty() || (!IsPlayerMade() && !effects.empty());
+        }
 
         [[nodiscard]] bool HasExtraData() const noexcept
         {
@@ -104,7 +110,7 @@ namespace Multiplayer
     [[nodiscard]] inline bool IsValidTradeItem(const TradeItem& a_item)
     {
         using Detail::IsTradeValue;
-        if (a_item.item.IsEmpty() || !IsValidFormReference(a_item.item, false) || a_item.count == 0
+        if (!IsValidFormReference(a_item.item, true) || a_item.count == 0
             || a_item.count > TradeItem::kMaximumCount || a_item.effects.size() > TradeItem::kMaximumEffects
             || (!a_item.enchantment.IsEmpty() && !a_item.effects.empty())
             || !IsValidFormReference(a_item.enchantment, true))
@@ -125,6 +131,11 @@ namespace Multiplayer
             || (!a_item.IsEnchanted() && (a_item.maximumCharge != 0 || a_item.charge != 0.0F)))
         {
             return false;
+        }
+        if (a_item.IsPlayerMade())
+        {
+            return !a_item.effects.empty() && a_item.enchantment.IsEmpty() && a_item.maximumCharge == 0
+                && a_item.charge == 0.0F && a_item.health == 0.0F && a_item.name.empty() && a_item.soul == 0;
         }
         return IsTradeValue(a_item.health, TradeItem::kMaximumHealth)
             && Detail::IsTradeText(a_item.name, TradeItem::kMaximumNameBytes) && a_item.soul <= TradeItem::kMaximumSoul

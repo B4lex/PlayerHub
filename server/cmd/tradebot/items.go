@@ -26,17 +26,20 @@ func testKit() []*pb.TradeItem {
 	}
 }
 
-// parseItem reads <plugin>:<form id> [count] [key=value ...].
+// parseItem reads [<plugin>:<form id>] [count] [key=value ...]; without a form it is a player-made potion or poison.
 func parseItem(args []string) (*pb.TradeItem, error) {
 	if len(args) == 0 {
-		return nil, errors.New("usage: add <plugin>:<form id> [count] [ench=<form>] [effect=<form>/<magnitude>/<area>/<duration>/<cost>] [charge=<n>] [maxcharge=<n>] [health=<n>] [name=<text>] [soul=<0..5>]")
+		return nil, errors.New("usage: add [<plugin>:<form id>] [count] [ench=<form>] [effect=<form>/<magnitude>/<area>/<duration>/<cost>] [charge=<n>] [maxcharge=<n>] [health=<n>] [name=<text>] [soul=<0..5>]")
 	}
-	form, err := parseForm(args[0])
-	if err != nil {
-		return nil, err
+	item := &pb.TradeItem{Count: 1}
+	rest := args
+	var err error
+	if strings.Contains(rest[0], ":") && !strings.Contains(rest[0], "=") {
+		if item.Item, err = parseForm(rest[0]); err != nil {
+			return nil, err
+		}
+		rest = rest[1:]
 	}
-	item := &pb.TradeItem{Item: form, Count: 1}
-	rest := args[1:]
 	if len(rest) > 0 && !strings.Contains(rest[0], "=") {
 		count, err := strconv.ParseUint(rest[0], 10, 32)
 		if err != nil {
@@ -125,6 +128,9 @@ func parseFloat(s string) (float32, error) {
 }
 
 func formatForm(f *pb.FormRef) string {
+	if f == nil {
+		return "player-made"
+	}
 	return fmt.Sprintf("%s:%06X", f.GetPlugin(), f.GetFormId())
 }
 

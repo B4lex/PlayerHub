@@ -48,6 +48,9 @@ have not run in game.
   revision, both acceptances and the commit, an edit after an acceptance,
   `cancel menu`, a decline, `leave` closing the trade with `OUT_OF_RANGE`,
   and a quit closing it with `DISCONNECTED`. Not run against the game.
+- **Player-made potions and poisons:** `go test -race ./...` covers their
+  `validate` rules. The plugin side has not been compiled, the bot's
+  `add -` has not run, and nothing has run on Windows or in game.
 
 ## Scope
 
@@ -73,8 +76,10 @@ Non-goals:
   modified client or a reloaded save. A trade cannot be undone and the game
   does not save after one, so a player who quits without saving loses what
   it received while the other side stands (the user's choice).
-- Player-made potions and poisons, poisons applied to a weapon, and any other
-  dynamic form except a player enchantment, which is rebuilt from its effects.
+- Poisons applied to a weapon, and any dynamic form other than a player
+  enchantment or a player-made potion or poison, which are rebuilt from their
+  effects. Rebuilding other forms, such as a cloned weapon, would need the
+  whole record on the wire and a store the vanilla game lacks.
 - Trading with a player who is not near, a replay, or an in-server bot.
   The [trade bot](#trade-bot) is a real client and can.
 - Ownership: the giver's stolen mark is not carried; a received item is
@@ -93,7 +98,7 @@ The wire messages and their validation are in
 | --- | --- |
 | `protocol/TradeState.h` | `TradeItem`, `TradeSkip`, close reasons, the events of a trade, their validators and size limits, `EstimateTradeItemBytes` |
 | `server/internal/hub/trade.go` | A trade's two players, its phase, both offer revisions, item counts, reports, and acceptances; range, busy, vanish, expiry, and commit |
-| `forms/ItemInstance` | An inventory stack to a `TradeItem` or the reason it cannot be offered; a `TradeItem` to local forms or a skip reason; rebuilding a player enchantment; putting extra data on a reference |
+| `forms/ItemInstance` | An inventory stack to a `TradeItem` or the reason it cannot be offered; a `TradeItem` to local forms or a skip reason; rebuilding a player enchantment or a player-made potion or poison; putting extra data on a reference |
 | `forms/ItemDetails` | A resolved item's [details](#item-details) for the trade window's item card: damage or armor, weight, value, effects, charge |
 | `sync/trade/TradeSession` | The state machine of one trade, without engine types: phases, the own offer and the revisions sent, the peer's offer, both reports, the plugin queries sent and their replies, acceptances, and what a commit applies |
 | `sync/trade/TradeInventory` | The player's offerable inventory, how many of an item it holds, removing and adding items |
@@ -152,9 +157,15 @@ a request unanswered after 10 s, as for a lost message.
   lights carriable; every alchemy item, ingredient, book, scroll, soul gem,
   key, and miscellaneous item, gold included, is listed. Rows that cannot be
   offered show why: a quest needs it (an alias holds it), the player made it
-  (a dynamic base form, such as a brewed potion), or it cannot be described
+  (a dynamic base form other than a potion or poison), or it cannot be described
   (an unreferenceable form, or a player enchantment with more than 4 effects
   or one from a dynamic effect).
+- A player-made potion or poison (a dynamic `AlchemyItem`) is offered as its
+  effects without an `item`, read as a player enchantment's are, so a line with
+  more than 4 effects, one from a dynamic effect, or values past the
+  [wire limits](network.md#trade) cannot be offered. Its name
+  and its card are built from the effects on both sides
+  ([item details](#item-details)).
 - An offer holds at most 15 lines (`kMaximumTradeItems`), as many as its
   [grid](ui-overlay.md#trade-window) shows without scrolling, and at most
   15 KiB by `EstimateTradeItemBytes`. A line past the 15th cannot be
@@ -296,6 +307,10 @@ choice), and the item card that shows them is in
   the game's language ([Localization](ui-overlay.md#localization)).
 - A row that cannot be offered has no instance data, so its details are its
   base form's.
+- A player-made potion or poison has no local form until it is received, so its
+  card has its effects and, as value, their summed costs, rounded; no weight.
+  `Forms::GetDisplayName` names it after its costliest effect, and its line has
+  no preview on the receiver's side.
 
 ## Commit
 
@@ -326,6 +341,12 @@ revision holds none.
    `AddArmorEnchantment` from its effects (magic effect, magnitude, area,
    duration, cost) and attached with its maximum charge; a weapon below it
    gets `ExtraCharge`. A plugin enchantment is attached as it is.
+   A player-made potion or poison is created from its effects
+   (`Forms::CreateAlchemyItem`): a poison with `AddPoison` when the costliest
+   effect is hostile, else a potion with `AddPotion`, and added with
+   `AddObjectToContainer` while its `CreatedObjPtr` is held. `AddPoison` is
+   called through its own relocation (35266, 36168), since CommonLib declares
+   its result with a smart pointer `AlchemyItem` cannot use.
 3. `TradeInventory::PlayPickUpSound` plays the generic pickup sound (the
    `kPickupSoundGeneric` default object, so a modpack's override applies) at the
    player, on both sides and whatever moved. The single unit pickups in
@@ -399,8 +420,9 @@ server treats it as any player, and it can only send what a client may.
   starts with the test kit in its offer.
 - The console drives everything else (`help`): `invite`, `accept`,
   `decline`, `cancel` with any reason a client may send; offer edits (`add`
-  with every `TradeItem` field, `count`, `remove`, `clear`, `kit`), checked
-  with `validate.TradeOffer` and sent at once while a trade is open;
+  with every `TradeItem` field, without a form for a player-made item,
+  `count`, `remove`, `clear`, `kit`), checked with `validate.TradeOffer` and
+  sent at once while a trade is open;
   `copy` and `mirror` to offer the target's own lines back, which tests
   extra data both ways without knowing form IDs; `skip plugin` and
   `skip form` rules that report lines as a game lacking that plugin or form
@@ -453,6 +475,13 @@ To verify in game:
    `TESDataHandler::files`, if that list holds it at all, so
    `FormLookup::IsPluginLoaded` reports it missing to the
    [plugin check](#plugin-check) and in a report's `plugin`.
+13. `AddPotion` and `AddPoison` return the potion or poison the manager
+   already holds for the same effects, as brewing does, and name it. An item
+   added to an inventory keeps its own manager reference after the
+   `CreatedObjPtr` is released, and survives a save and a reload.
+14. `AddPoison` fills a `CreatedObjPtr<AlchemyItem>` as `AddPotion` does.
+15. The alchemy menu makes a poison exactly when the costliest effect has
+   `EffectSetting::IsHostile`.
 
 ## Acceptance criteria
 
@@ -478,7 +507,10 @@ To verify in game:
    offer with a notice.
 7. Cancel, Escape, a disconnect, combat, a hit, any game menu, a loading
    screen, and walking apart each close both windows without changes.
-8. Quest items and player-made potions show why they cannot be offered.
+8. Quest items show why they cannot be offered.
+9. A player-made potion or poison arrives with the giver's effects, as a
+   potion or a poison as the giver had it, stacks with an identical one the
+   receiver brews, and survives a save and a reload.
 
 ## Known limitations
 

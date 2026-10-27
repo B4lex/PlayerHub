@@ -72,20 +72,17 @@ func TradeOffer(o *pb.TradeOffer) error {
 }
 
 func tradeItem(i *pb.TradeItem) bool {
-	if i.Item == nil || !formRef(i.Item) || i.GetCount() == 0 || i.GetCount() > MaximumTradeCount {
+	if i.GetCount() == 0 || i.GetCount() > MaximumTradeCount || !tradeEffects(i.GetEffects()) {
 		return false
 	}
 	effects := i.GetEffects()
-	if len(effects) > MaximumTradeEffects || (i.Enchantment != nil && len(effects) != 0) ||
+	if i.Item == nil {
+		return len(effects) != 0 && i.Enchantment == nil && i.GetMaximumCharge() == 0 && i.GetCharge() == 0 &&
+			i.GetHealth() == 0 && i.GetName() == "" && i.GetSoul() == 0
+	}
+	if !formRef(i.Item) || (i.Enchantment != nil && len(effects) != 0) ||
 		(i.Enchantment != nil && !formRef(i.Enchantment)) {
 		return false
-	}
-	for _, e := range effects {
-		if e.Effect == nil || !formRef(e.Effect) || !between(e.GetMagnitude(), 0, MaximumTradeEffectValue) ||
-			e.GetArea() > MaximumTradeEffectValue || e.GetDuration() > MaximumTradeEffectValue ||
-			!between(e.GetCost(), 0, MaximumTradeEffectCost) {
-			return false
-		}
 	}
 	enchanted := i.Enchantment != nil || len(effects) != 0
 	if i.GetMaximumCharge() > MaximumTradeCharge || !between(i.GetCharge(), 0, MaximumTradeCharge) ||
@@ -95,6 +92,20 @@ func tradeItem(i *pb.TradeItem) bool {
 	extra := enchanted || i.GetHealth() != 0 || i.GetName() != "" || i.GetSoul() != 0
 	return between(i.GetHealth(), 0, MaximumTradeHealth) && name(i.GetName()) && i.GetSoul() <= MaximumTradeSoul &&
 		(!extra || i.GetCount() <= MaximumTradeInstances)
+}
+
+func tradeEffects(effects []*pb.TradeEffect) bool {
+	if len(effects) > MaximumTradeEffects {
+		return false
+	}
+	for _, e := range effects {
+		if e.Effect == nil || !formRef(e.Effect) || !between(e.GetMagnitude(), 0, MaximumTradeEffectValue) ||
+			e.GetArea() > MaximumTradeEffectValue || e.GetDuration() > MaximumTradeEffectValue ||
+			!between(e.GetCost(), 0, MaximumTradeEffectCost) {
+			return false
+		}
+	}
+	return true
 }
 
 func TradeReport(r *pb.TradeReport) error {

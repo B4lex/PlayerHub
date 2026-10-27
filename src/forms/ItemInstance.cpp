@@ -66,6 +66,28 @@ namespace Forms
             return result;
         }
 
+        bool ReadEffects(const RE::MagicItem& a_magic, TradeItem& a_item)
+        {
+            if (a_magic.effects.size() > TradeItem::kMaximumEffects)
+            {
+                return false;
+            }
+            for (const auto* effect : a_magic.effects)
+            {
+                auto reference = effect ? FormLookup::MakeFormReference(effect->baseEffect) : std::nullopt;
+                if (!reference)
+                {
+                    return false;
+                }
+                a_item.effects.push_back(Multiplayer::TradeEffect{ .effect = std::move(*reference),
+                    .magnitude = effect->effectItem.magnitude,
+                    .area = effect->effectItem.area,
+                    .duration = effect->effectItem.duration,
+                    .cost = effect->cost });
+            }
+            return !a_item.effects.empty();
+        }
+
         bool ReadEnchantment(const RE::ExtraEnchantment& a_extra, TradeItem& a_item)
         {
             auto* enchantment = a_extra.enchantment;
@@ -85,24 +107,49 @@ namespace Forms
                 a_item.enchantment = std::move(*reference);
                 return true;
             }
-            if (enchantment->effects.size() > TradeItem::kMaximumEffects)
+            return ReadEffects(*enchantment, a_item);
+        }
+
+        std::expected<ResolvedItem, TradeSkip> ResolveEffects(const TradeItem& a_item, ResolvedItem a_resolved)
+        {
+            for (const auto& effect : a_item.effects)
             {
-                return false;
-            }
-            for (const auto* effect : enchantment->effects)
-            {
-                auto reference = effect ? FormLookup::MakeFormReference(effect->baseEffect) : std::nullopt;
-                if (!reference)
+                auto* effectForm = FormLookup::ResolveForm(effect.effect);
+                auto* setting = effectForm ? effectForm->As<RE::EffectSetting>() : nullptr;
+                if (!setting)
                 {
-                    return false;
+                    return std::unexpected(effectForm ? TradeSkip{ .reason = TradeSkipReason::kBadEnchantment }
+                                                      : MissingFrom(TradeSkipReason::kMissingEffect, effect.effect));
                 }
-                a_item.effects.push_back(Multiplayer::TradeEffect{ .effect = std::move(*reference),
-                    .magnitude = effect->effectItem.magnitude,
-                    .area = effect->effectItem.area,
-                    .duration = effect->effectItem.duration,
-                    .cost = effect->cost });
+                a_resolved.effects.push_back(ResolvedEffect{ .effect = setting, .values = effect });
             }
-            return !a_item.effects.empty();
+            return a_resolved;
+        }
+
+        RE::BSTArray<RE::Effect> BuildEffects(const ResolvedItem& a_item)
+        {
+            RE::BSTArray<RE::Effect> effects;
+            effects.reserve(static_cast<std::uint32_t>(a_item.effects.size()));
+            for (const auto& resolved : a_item.effects)
+            {
+                auto& effect = effects.emplace_back();
+                effect.baseEffect = resolved.effect;
+                effect.effectItem.magnitude = resolved.values.magnitude;
+                effect.effectItem.area = resolved.values.area;
+                effect.effectItem.duration = resolved.values.duration;
+                effect.cost = resolved.values.cost;
+            }
+            return effects;
+        }
+
+        // CommonLib's AddPoison takes the wrong smart pointer; the engine takes AddPotion's.
+        void AddPoison(RE::BGSCreatedObjectManager& a_manager, RE::CreatedObjPtr<RE::AlchemyItem>& a_created,
+            RE::BSTArray<RE::Effect>& a_effects)
+        {
+            using func_t = void(RE::BGSCreatedObjectManager*, RE::CreatedObjPtr<RE::AlchemyItem>&,
+                RE::BSTArray<RE::Effect>&);
+            static REL::Relocation<func_t> func{ RELOCATION_ID(35266, 36168) };
+            func(&a_manager, a_created, a_effects);
         }
     }
 
@@ -148,7 +195,13 @@ namespace Forms
     {
         if (a_object.IsDynamicForm())
         {
-            return std::unexpected(OfferBlock::kPlayerMade);
+            auto* potion = a_object.As<RE::AlchemyItem>();
+            TradeItem item;
+            if (potion && ReadEffects(*potion, item) && Multiplayer::IsValidTradeItem(item))
+            {
+                return item;
+            }
+            return std::unexpected(potion ? OfferBlock::kUnreferenceable : OfferBlock::kPlayerMade);
         }
         auto reference = FormLookup::MakeFormReference(&a_object);
         if (!reference)
@@ -191,6 +244,10 @@ namespace Forms
 
     std::expected<ResolvedItem, TradeSkip> ResolveItem(const TradeItem& a_item)
     {
+        if (a_item.IsPlayerMade())
+        {
+            return ResolveEffects(a_item, ResolvedItem{ .category = TradeCategory::kPotion });
+        }
         auto* form = FormLookup::ResolveForm(a_item.item);
         if (!form)
         {
@@ -225,18 +282,14 @@ namespace Forms
             }
             return resolved;
         }
-        for (const auto& effect : a_item.effects)
-        {
-            auto* effectForm = FormLookup::ResolveForm(effect.effect);
-            auto* setting = effectForm ? effectForm->As<RE::EffectSetting>() : nullptr;
-            if (!setting)
-            {
-                return std::unexpected(effectForm ? TradeSkip{ .reason = TradeSkipReason::kBadEnchantment }
-                                                  : MissingFrom(TradeSkipReason::kMissingEffect, effect.effect));
-            }
-            resolved.effects.push_back(ResolvedEffect{ .effect = setting, .values = effect });
-        }
-        return resolved;
+        return ResolveEffects(a_item, std::move(resolved));
+    }
+
+    const ResolvedEffect* GetCostliestEffect(const ResolvedItem& a_item)
+    {
+        const auto costliest = std::ranges::max_element(
+            a_item.effects, {}, [](const ResolvedEffect& a_effect) { return a_effect.values.cost; });
+        return costliest != a_item.effects.end() ? &*costliest : nullptr;
     }
 
     RE::EnchantmentItem* CreateEnchantment(const ResolvedItem& a_item)
@@ -246,21 +299,33 @@ namespace Forms
         {
             return nullptr;
         }
-        RE::BSTArray<RE::Effect> effects;
-        effects.reserve(static_cast<std::uint32_t>(a_item.effects.size()));
-        for (const auto& resolved : a_item.effects)
-        {
-            auto& effect = effects.emplace_back();
-            effect.baseEffect = resolved.effect;
-            effect.effectItem.magnitude = resolved.values.magnitude;
-            effect.effectItem.area = resolved.values.area;
-            effect.effectItem.duration = resolved.values.duration;
-            effect.cost = resolved.values.cost;
-        }
+        auto effects = BuildEffects(a_item);
         // The manager returns the enchantment it already holds for the same effects, as
         // enchanting at a table does.
         return a_item.category == TradeCategory::kWeapon ? manager->AddWeaponEnchantment(effects)
                                                          : manager->AddArmorEnchantment(effects);
+    }
+
+    RE::CreatedObjPtr<RE::AlchemyItem> CreateAlchemyItem(const ResolvedItem& a_item)
+    {
+        RE::CreatedObjPtr<RE::AlchemyItem> created;
+        auto* manager = RE::BGSCreatedObjectManager::GetSingleton();
+        const auto* costliest = GetCostliestEffect(a_item);
+        if (!manager || !costliest)
+        {
+            return created;
+        }
+        auto effects = BuildEffects(a_item);
+        // The alchemy menu makes a poison when the costliest effect is hostile.
+        if (costliest->effect->IsHostile())
+        {
+            AddPoison(*manager, created, effects);
+        }
+        else
+        {
+            manager->AddPotion(created, effects);
+        }
+        return created;
     }
 
     void ApplyExtraData(RE::TESObjectREFR& a_reference, const ResolvedItem& a_resolved, const TradeItem& a_item,
@@ -291,14 +356,20 @@ namespace Forms
         }
     }
 
-    std::string GetDisplayName(RE::TESBoundObject& a_object, const TradeItem& a_item)
+    std::string GetDisplayName(const ResolvedItem& a_resolved, const TradeItem& a_item)
     {
-        std::string name = a_item.name.empty() ? std::string{ a_object.GetName() } : a_item.name;
+        if (!a_resolved.object)
+        {
+            const auto* costliest = GetCostliestEffect(a_resolved);
+            return costliest ? std::string{ costliest->effect->GetName() } : std::string{};
+        }
+        auto& object = *a_resolved.object;
+        std::string name = a_item.name.empty() ? std::string{ object.GetName() } : a_item.name;
         const auto tier = std::ranges::find_if(
             kTemperTiers, [&](const TemperTier& a_tier) { return a_item.health >= a_tier.health - 0.001F; });
         if (tier != kTemperTiers.end())
         {
-            name += std::format(" ({})", GetTemperName(*tier, a_object.IsWeapon()));
+            name += std::format(" ({})", GetTemperName(*tier, object.IsWeapon()));
         }
         return name;
     }

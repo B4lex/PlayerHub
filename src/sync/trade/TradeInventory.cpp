@@ -138,7 +138,7 @@ namespace TradeInventory
     std::uint32_t Count(RE::PlayerCharacter& a_player, const Multiplayer::TradeItem& a_item)
     {
         auto* object = FormLookup::ResolveForm<RE::TESBoundObject>(a_item.item);
-        if (!object)
+        if (!object && !a_item.IsPlayerMade())
         {
             return 0;
         }
@@ -160,7 +160,7 @@ namespace TradeInventory
             return 0;
         }
         auto* object = FormLookup::ResolveForm<RE::TESBoundObject>(a_item.item);
-        if (!object)
+        if (!object && !a_item.IsPlayerMade())
         {
             return 0;
         }
@@ -182,8 +182,8 @@ namespace TradeInventory
                 break;
             }
             const auto count = (std::min)(static_cast<std::uint32_t>(stack.count), a_item.count - removed);
-            a_player.RemoveItem(object, static_cast<std::int32_t>(count), RE::ITEM_REMOVE_REASON::kRemove, stack.extra,
-                nullptr);
+            a_player.RemoveItem(stack.object, static_cast<std::int32_t>(count), RE::ITEM_REMOVE_REASON::kRemove,
+                stack.extra, nullptr);
             removed += count;
         }
         return removed;
@@ -192,13 +192,20 @@ namespace TradeInventory
     std::uint32_t Add(
         RE::PlayerCharacter& a_player, const Forms::ResolvedItem& a_resolved, const Multiplayer::TradeItem& a_item)
     {
-        if (!GameThread::Require("TradeInventory::Add") || !a_resolved.object)
+        if (!GameThread::Require("TradeInventory::Add"))
+        {
+            return 0;
+        }
+        const auto created =
+            a_item.IsPlayerMade() ? Forms::CreateAlchemyItem(a_resolved) : RE::CreatedObjPtr<RE::AlchemyItem>{};
+        RE::TESBoundObject* object = created ? created.get() : a_resolved.object;
+        if (!object)
         {
             return 0;
         }
         if (!a_item.HasExtraData())
         {
-            a_player.AddObjectToContainer(a_resolved.object, nullptr, static_cast<std::int32_t>(a_item.count), nullptr);
+            a_player.AddObjectToContainer(object, nullptr, static_cast<std::int32_t>(a_item.count), nullptr);
             return a_item.count;
         }
 

@@ -34,7 +34,6 @@ func TestTradeOffer(t *testing.T) {
 		t.Errorf("empty offer rejected: %v", err)
 	}
 	broken := map[string]func(*pb.TradeItem){
-		"no item":                 func(i *pb.TradeItem) { i.Item = nil },
 		"empty plugin":            func(i *pb.TradeItem) { i.Item.Plugin = "" },
 		"zero count":              func(i *pb.TradeItem) { i.Count = 0 },
 		"count over int32":        func(i *pb.TradeItem) { i.Count = math.MaxInt32 + 1 },
@@ -82,6 +81,34 @@ func TestTradeOffer(t *testing.T) {
 	for _, offer := range []*pb.TradeOffer{{TradeId: 0, Revision: 1}, {TradeId: 1, Revision: 0}} {
 		if Message(&pb.ClientMessage{Message: &pb.ClientMessage_TradeOffer{TradeOffer: offer}}) != ErrTrade {
 			t.Errorf("offer %v accepted", offer)
+		}
+	}
+}
+
+// A player-made potion or poison has no form of its own: it travels as its effects.
+func TestTradeOfferPlayerMadeItem(t *testing.T) {
+	brewed := func() *pb.TradeItem {
+		return &pb.TradeItem{Count: math.MaxInt32, Effects: []*pb.TradeEffect{
+			{Effect: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 0x3EB15}, Magnitude: 25, Duration: 60, Cost: 30},
+			{Effect: &pb.FormRef{Plugin: "Mod.esp", FormId: 2}, Magnitude: 5, Duration: 10, Cost: 4}}}
+	}
+	if err := Message(offerOf(brewed())); err != nil {
+		t.Errorf("player-made item rejected: %v", err)
+	}
+	for name, breakItem := range map[string]func(*pb.TradeItem){
+		"no effects":   func(i *pb.TradeItem) { i.Effects = nil },
+		"enchantment":  func(i *pb.TradeItem) { i.Enchantment = &pb.FormRef{Plugin: "Skyrim.esm", FormId: 1} },
+		"charge":       func(i *pb.TradeItem) { i.MaximumCharge, i.Charge = 100, 100 },
+		"health":       func(i *pb.TradeItem) { i.Health = 1.1 },
+		"name":         func(i *pb.TradeItem) { i.Name = "Mead" },
+		"soul":         func(i *pb.TradeItem) { i.Soul = 1 },
+		"bad effect":   func(i *pb.TradeItem) { i.Effects[0].Magnitude = float32(math.NaN()) },
+		"five effects": func(i *pb.TradeItem) { i.Effects = append(i.Effects, i.Effects[0], i.Effects[0], i.Effects[0]) },
+	} {
+		item := brewed()
+		breakItem(item)
+		if Message(offerOf(item)) != ErrTrade {
+			t.Errorf("player-made item with %s accepted", name)
 		}
 	}
 }

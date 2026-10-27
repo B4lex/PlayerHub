@@ -744,10 +744,10 @@ Client messages:
 
 | Field | Validation |
 | --- | --- |
-| `item` | required form reference |
-| `count` | `1..2^31-1`; at most 1000 (`validate.MaximumTradeInstances`) for an item with an enchantment, effects, health, a name, or a soul, since a receiver creates each such unit alone |
+| `item` | form reference; unset for a player-made potion or poison, which then needs `effects` and has no `enchantment`, `maximum_charge`, `charge`, `health`, `name`, or `soul` |
+| `count` | `1..2^31-1`; at most 1000 (`validate.MaximumTradeInstances`) for an item with an `item` and an enchantment, effects, health, a name, or a soul, since a receiver creates each such unit alone |
 | `enchantment` | form reference, unset for none; a plugin enchantment |
-| `effects` | at most 4, exclusive with `enchantment`: a player enchantment's `{effect, magnitude, area, duration, cost}`, `effect` a required form reference, `magnitude` finite `0..1e6`, `area` and `duration` `0..1e6`, `cost` finite `0..1e7` |
+| `effects` | at most 4, exclusive with `enchantment`: a player enchantment's, or without `item` a player-made potion's or poison's, `{effect, magnitude, area, duration, cost}`, `effect` a required form reference, `magnitude` finite `0..1e6`, `area` and `duration` `0..1e6`, `cost` finite `0..1e7` |
 | `maximum_charge`, `charge` | `0..65535`, `charge` finite; both zero without an enchantment or effects |
 | `health` | finite `0..100`, `0` untempered |
 | `name` | a name the player gave the item, at most 128 UTF-8 bytes, no control characters |
