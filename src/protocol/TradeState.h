@@ -42,6 +42,7 @@ namespace Multiplayer
         static constexpr std::size_t kMaximumNameBytes = 128;
         static constexpr std::uint8_t kMaximumSoul = 5;
 
+        // Empty for a potion or poison a player made, which travels as its effects.
         FormReference item;
         std::uint32_t count{ 1 };
         // A plugin enchantment, or the effects of one a player made; never both.
@@ -54,8 +55,14 @@ namespace Multiplayer
         // A name the player gave the item, or empty.
         std::string name;
         std::uint8_t soul{ 0 };
+        bool poison{ false };
 
-        [[nodiscard]] bool IsEnchanted() const noexcept { return !enchantment.IsEmpty() || !effects.empty(); }
+        [[nodiscard]] bool IsPlayerMade() const noexcept { return item.IsEmpty(); }
+
+        [[nodiscard]] bool IsEnchanted() const noexcept
+        {
+            return !enchantment.IsEmpty() || (!IsPlayerMade() && !effects.empty());
+        }
 
         [[nodiscard]] bool HasExtraData() const noexcept
         {
@@ -66,7 +73,7 @@ namespace Multiplayer
         {
             return item == a_other.item && enchantment == a_other.enchantment && effects == a_other.effects
                 && maximumCharge == a_other.maximumCharge && charge == a_other.charge && health == a_other.health
-                && name == a_other.name && soul == a_other.soul;
+                && name == a_other.name && soul == a_other.soul && poison == a_other.poison;
         }
 
         bool operator==(const TradeItem&) const = default;
@@ -104,7 +111,7 @@ namespace Multiplayer
     [[nodiscard]] inline bool IsValidTradeItem(const TradeItem& a_item)
     {
         using Detail::IsTradeValue;
-        if (a_item.item.IsEmpty() || !IsValidFormReference(a_item.item, false) || a_item.count == 0
+        if (!IsValidFormReference(a_item.item, true) || a_item.count == 0
             || a_item.count > TradeItem::kMaximumCount || a_item.effects.size() > TradeItem::kMaximumEffects
             || (!a_item.enchantment.IsEmpty() && !a_item.effects.empty())
             || !IsValidFormReference(a_item.enchantment, true))
@@ -126,7 +133,12 @@ namespace Multiplayer
         {
             return false;
         }
-        return IsTradeValue(a_item.health, TradeItem::kMaximumHealth)
+        if (a_item.IsPlayerMade())
+        {
+            return !a_item.effects.empty() && a_item.enchantment.IsEmpty() && a_item.maximumCharge == 0
+                && a_item.charge == 0.0F && a_item.health == 0.0F && a_item.name.empty() && a_item.soul == 0;
+        }
+        return !a_item.poison && IsTradeValue(a_item.health, TradeItem::kMaximumHealth)
             && Detail::IsTradeText(a_item.name, TradeItem::kMaximumNameBytes) && a_item.soul <= TradeItem::kMaximumSoul
             && (!a_item.HasExtraData() || a_item.count <= TradeItem::kMaximumInstanceCount);
     }

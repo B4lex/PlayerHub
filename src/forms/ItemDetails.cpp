@@ -138,6 +138,21 @@ namespace Forms
             }
         }
 
+        float AddEffects(const ResolvedItem& a_resolved, std::vector<ItemEffect>& a_effects)
+        {
+            float cost = 0.0F;
+            for (const auto& effect : a_resolved.effects)
+            {
+                if (effect.effect)
+                {
+                    a_effects.push_back(ItemEffect{ .text = DescribeEffect(*effect.effect, effect.values.magnitude,
+                                                        effect.values.area, effect.values.duration) });
+                }
+                cost += effect.values.cost;
+            }
+            return cost;
+        }
+
         std::int32_t GetValue(RE::TESBoundObject& a_object, float a_health, const RE::MagicItem* a_enchantment,
             float a_effectsCost, bool a_enchanted, std::uint32_t a_maximumCharge)
         {
@@ -166,6 +181,7 @@ namespace Forms
         auto* object = a_resolved.object;
         if (!object)
         {
+            details.value = static_cast<std::int32_t>(std::floor(AddEffects(a_resolved, details.effects) + 0.5F));
             return details;
         }
         const auto health = (std::max)(a_item.health, kUntemperedHealth);
@@ -219,16 +235,7 @@ namespace Forms
         }
         else if (!a_resolved.effects.empty())
         {
-            for (const auto& effect : a_resolved.effects)
-            {
-                if (effect.effect)
-                {
-                    details.effects.push_back(
-                        ItemEffect{ .text = DescribeEffect(*effect.effect, effect.values.magnitude, effect.values.area,
-                                        effect.values.duration) });
-                }
-                effectsCost += effect.values.cost;
-            }
+            effectsCost = AddEffects(a_resolved, details.effects);
         }
         else if (const auto* magic = object->As<RE::MagicItem>())
         {

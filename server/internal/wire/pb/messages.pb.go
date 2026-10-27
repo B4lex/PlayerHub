@@ -899,6 +899,7 @@ type TradeItem struct {
 	Health        float32                `protobuf:"fixed32,7,opt,name=health,proto3" json:"health,omitempty"`
 	Name          string                 `protobuf:"bytes,8,opt,name=name,proto3" json:"name,omitempty"`
 	Soul          uint32                 `protobuf:"varint,9,opt,name=soul,proto3" json:"soul,omitempty"`
+	Poison        bool                   `protobuf:"varint,10,opt,name=poison,proto3" json:"poison,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -994,6 +995,13 @@ func (x *TradeItem) GetSoul() uint32 {
 		return x.Soul
 	}
 	return 0
+}
+
+func (x *TradeItem) GetPoison() bool {
+	if x != nil {
+		return x.Poison
+	}
+	return false
 }
 
 // From a client: its own offer. From the server: the peer's offer.
@@ -3292,7 +3300,7 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"\tmagnitude\x18\x02 \x01(\x02R\tmagnitude\x12\x12\n" +
 	"\x04area\x18\x03 \x01(\rR\x04area\x12\x1a\n" +
 	"\bduration\x18\x04 \x01(\rR\bduration\x12\x12\n" +
-	"\x04cost\x18\x05 \x01(\x02R\x04cost\"\xb9\x02\n" +
+	"\x04cost\x18\x05 \x01(\x02R\x04cost\"\xd1\x02\n" +
 	"\tTradeItem\x12)\n" +
 	"\x04item\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\x04item\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\rR\x05count\x127\n" +
@@ -3302,7 +3310,9 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"\x06charge\x18\x06 \x01(\x02R\x06charge\x12\x16\n" +
 	"\x06health\x18\a \x01(\x02R\x06health\x12\x12\n" +
 	"\x04name\x18\b \x01(\tR\x04name\x12\x12\n" +
-	"\x04soul\x18\t \x01(\rR\x04soul\"r\n" +
+	"\x04soul\x18\t \x01(\rR\x04soul\x12\x16\n" +
+	"\x06poison\x18\n" +
+	" \x01(\bR\x06poison\"r\n" +
 	"\n" +
 	"TradeOffer\x12\x19\n" +
 	"\btrade_id\x18\x01 \x01(\rR\atradeId\x12\x1a\n" +

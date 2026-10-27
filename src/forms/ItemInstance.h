@@ -48,6 +48,7 @@ namespace Forms
 
     struct ResolvedItem
     {
+        // Null for a player-made potion or poison until it is created.
         RE::TESBoundObject* object{ nullptr };
         RE::EnchantmentItem* enchantment{ nullptr };
         // A player enchantment, built only when the item is received.
@@ -61,9 +62,13 @@ namespace Forms
 
     [[nodiscard]] RE::EnchantmentItem* CreateEnchantment(const ResolvedItem& a_item);
 
+    // A player-made potion or poison, held until it is in an inventory.
+    [[nodiscard]] RE::CreatedObjPtr<RE::AlchemyItem> CreateAlchemyItem(
+        const ResolvedItem& a_resolved, const Multiplayer::TradeItem& a_item);
+
     // Puts the item's extra data on a reference, which keeps it when picked up.
     void ApplyExtraData(RE::TESObjectREFR& a_reference, const ResolvedItem& a_resolved,
         const Multiplayer::TradeItem& a_item, RE::EnchantmentItem* a_enchantment);
 
-    [[nodiscard]] std::string GetDisplayName(RE::TESBoundObject& a_object, const Multiplayer::TradeItem& a_item);
+    [[nodiscard]] std::string GetDisplayName(const ResolvedItem& a_resolved, const Multiplayer::TradeItem& a_item);
 }

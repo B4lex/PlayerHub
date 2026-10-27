@@ -131,6 +131,7 @@ typedef struct _playerhub_v1_TradeItem {
     float health;
     char name[129];
     uint32_t soul;
+    bool poison;
 } playerhub_v1_TradeItem;
 
 /* From a client: its own offer. From the server: the peer's offer. */
@@ -449,7 +450,7 @@ extern "C" {
 #define playerhub_v1_TradeRequest_init_default   {0}
 #define playerhub_v1_TradeAnswer_init_default    {0, 0}
 #define playerhub_v1_TradeEffect_init_default    {false, playerhub_v1_FormRef_init_default, 0, 0, 0, 0}
-#define playerhub_v1_TradeItem_init_default      {false, playerhub_v1_FormRef_init_default, 0, false, playerhub_v1_FormRef_init_default, 0, {playerhub_v1_TradeEffect_init_default, playerhub_v1_TradeEffect_init_default, playerhub_v1_TradeEffect_init_default, playerhub_v1_TradeEffect_init_default}, 0, 0, 0, "", 0}
+#define playerhub_v1_TradeItem_init_default      {false, playerhub_v1_FormRef_init_default, 0, false, playerhub_v1_FormRef_init_default, 0, {playerhub_v1_TradeEffect_init_default, playerhub_v1_TradeEffect_init_default, playerhub_v1_TradeEffect_init_default, playerhub_v1_TradeEffect_init_default}, 0, 0, 0, "", 0, 0}
 #define playerhub_v1_TradeOffer_init_default     {0, 0, {{NULL}, NULL}}
 #define playerhub_v1_TradeSkip_init_default      {0, _playerhub_v1_TradeSkipReason_MIN, ""}
 #define playerhub_v1_TradeReport_init_default    {0, 0, 0, {playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default, playerhub_v1_TradeSkip_init_default}}
@@ -488,7 +489,7 @@ extern "C" {
 #define playerhub_v1_TradeRequest_init_zero      {0}
 #define playerhub_v1_TradeAnswer_init_zero       {0, 0}
 #define playerhub_v1_TradeEffect_init_zero       {false, playerhub_v1_FormRef_init_zero, 0, 0, 0, 0}
-#define playerhub_v1_TradeItem_init_zero         {false, playerhub_v1_FormRef_init_zero, 0, false, playerhub_v1_FormRef_init_zero, 0, {playerhub_v1_TradeEffect_init_zero, playerhub_v1_TradeEffect_init_zero, playerhub_v1_TradeEffect_init_zero, playerhub_v1_TradeEffect_init_zero}, 0, 0, 0, "", 0}
+#define playerhub_v1_TradeItem_init_zero         {false, playerhub_v1_FormRef_init_zero, 0, false, playerhub_v1_FormRef_init_zero, 0, {playerhub_v1_TradeEffect_init_zero, playerhub_v1_TradeEffect_init_zero, playerhub_v1_TradeEffect_init_zero, playerhub_v1_TradeEffect_init_zero}, 0, 0, 0, "", 0, 0}
 #define playerhub_v1_TradeOffer_init_zero        {0, 0, {{NULL}, NULL}}
 #define playerhub_v1_TradeSkip_init_zero         {0, _playerhub_v1_TradeSkipReason_MIN, ""}
 #define playerhub_v1_TradeReport_init_zero       {0, 0, 0, {playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero, playerhub_v1_TradeSkip_init_zero}}
@@ -549,6 +550,7 @@ extern "C" {
 #define playerhub_v1_TradeItem_health_tag        7
 #define playerhub_v1_TradeItem_name_tag          8
 #define playerhub_v1_TradeItem_soul_tag          9
+#define playerhub_v1_TradeItem_poison_tag        10
 #define playerhub_v1_TradeOffer_trade_id_tag     1
 #define playerhub_v1_TradeOffer_revision_tag     2
 #define playerhub_v1_TradeOffer_items_tag        3
@@ -732,7 +734,8 @@ X(a, STATIC,   SINGULAR, UINT32,   maximum_charge,    5) \
 X(a, STATIC,   SINGULAR, FLOAT,    charge,            6) \
 X(a, STATIC,   SINGULAR, FLOAT,    health,            7) \
 X(a, STATIC,   SINGULAR, STRING,   name,              8) \
-X(a, STATIC,   SINGULAR, UINT32,   soul,              9)
+X(a, STATIC,   SINGULAR, UINT32,   soul,              9) \
+X(a, STATIC,   SINGULAR, BOOL,     poison,           10)
 #define playerhub_v1_TradeItem_CALLBACK NULL
 #define playerhub_v1_TradeItem_DEFAULT NULL
 #define playerhub_v1_TradeItem_item_MSGTYPE playerhub_v1_FormRef
@@ -1134,7 +1137,7 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_TradeCommit_size            28
 #define playerhub_v1_TradeEffect_size            294
 #define playerhub_v1_TradeInvite_size            308
-#define playerhub_v1_TradeItem_size              1891
+#define playerhub_v1_TradeItem_size              1893
 #define playerhub_v1_TradeOpen_size              6
 #define playerhub_v1_TradePluginReply_size       1542
 #define playerhub_v1_TradeReport_size            4127

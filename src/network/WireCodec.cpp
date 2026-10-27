@@ -469,13 +469,13 @@ namespace Network::Wire
                 return false;
             }
             a_result = playerhub_v1_TradeItem_init_zero;
-            a_result.has_item = true;
             a_result.count = a_item.count;
             a_result.maximum_charge = a_item.maximumCharge;
             a_result.charge = a_item.charge;
             a_result.health = a_item.health;
             a_result.soul = a_item.soul;
-            bool written = WriteFormReference(a_item.item, a_result.item)
+            a_result.poison = a_item.poison;
+            bool written = WriteOptionalFormReference(a_item.item, a_result.has_item, a_result.item)
                 && WriteOptionalFormReference(a_item.enchantment, a_result.has_enchantment, a_result.enchantment)
                 && CopyString(a_result.name, a_item.name);
             a_result.effects_count = static_cast<pb_size_t>(a_item.effects.size());
@@ -495,7 +495,7 @@ namespace Network::Wire
 
         bool ReadTradeItem(const playerhub_v1_TradeItem& a_item, Multiplayer::TradeItem& a_result)
         {
-            if (!a_item.has_item || !ReadFormReference(a_item.item, a_result.item)
+            if (!ReadOptionalFormReference(a_item.has_item, a_item.item, a_result.item)
                 || !ReadOptionalFormReference(a_item.has_enchantment, a_item.enchantment, a_result.enchantment)
                 || a_item.maximum_charge > Multiplayer::TradeItem::kMaximumCharge
                 || a_item.soul > Multiplayer::TradeItem::kMaximumSoul)
@@ -508,6 +508,7 @@ namespace Network::Wire
             a_result.health = a_item.health;
             a_result.name = a_item.name;
             a_result.soul = static_cast<std::uint8_t>(a_item.soul);
+            a_result.poison = a_item.poison;
             a_result.effects.clear();
             for (pb_size_t i = 0; i < a_item.effects_count; ++i)
             {

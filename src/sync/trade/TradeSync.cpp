@@ -163,7 +163,10 @@ namespace TradeSync
         template <class Callback>
         void ForEachPlugin(const Multiplayer::TradeItem& a_item, Callback&& a_callback)
         {
-            a_callback(a_item.item.plugin);
+            if (!a_item.IsPlayerMade())
+            {
+                a_callback(a_item.item.plugin);
+            }
             if (!a_item.enchantment.IsEmpty())
             {
                 a_callback(a_item.enchantment.plugin);
@@ -583,8 +586,8 @@ namespace TradeSync
             std::size_t given = 0;
             for (const auto& item : a_commit.given)
             {
-                auto* object = FormLookup::ResolveForm<RE::TESBoundObject>(item.item);
-                const auto name = object ? Forms::GetDisplayName(*object, item) : item.item.plugin;
+                const auto resolved = Forms::ResolveItem(item);
+                const auto name = resolved ? Forms::GetDisplayName(*resolved, item) : item.item.plugin;
                 const auto removed = TradeInventory::Remove(a_player, item);
                 if (removed < item.count)
                 {
@@ -608,7 +611,7 @@ namespace TradeSync
                     continue;
                 }
                 const auto added = TradeInventory::Add(a_player, *resolved, item);
-                const auto name = Forms::GetDisplayName(*resolved->object, item);
+                const auto name = Forms::GetDisplayName(*resolved, item);
                 if (added < item.count)
                 {
                     logs::warn("Trade received {} of {} {} ({}|{:06X})", added, item.count, name, item.item.plugin,
@@ -650,9 +653,9 @@ namespace TradeSync
                     : s_nextPeerLineID++;
                 s_peerItems.push_back(item);
                 s_peerOffer.push_back(PeerLine{ .id = id,
-                    .name = Forms::GetDisplayName(*resolved->object, item),
+                    .name = Forms::GetDisplayName(*resolved, item),
                     .count = item.count,
-                    .formID = resolved->object->GetFormID(),
+                    .formID = resolved->object ? resolved->object->GetFormID() : 0,
                     .enchanted = item.IsEnchanted(),
                     .details = Forms::GetItemDetails(*resolved, item) });
             }
