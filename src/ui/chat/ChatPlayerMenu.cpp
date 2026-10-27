@@ -10,6 +10,7 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <utility>
 
 namespace UI
 {
@@ -37,13 +38,14 @@ namespace UI
     void ChatPlayerMenu::Open(const Multiplayer::PlayerIdentity& a_player)
     {
         player = a_player;
-        details.clear();
+        const auto known = PlayerDetails::FindKnown(player.session);
+        details = known ? FormatDetails(*known) : std::string{};
         inTradeRange = false;
         waited = 0.0F;
         pending = player.playerID != 0;
         if (pending)
         {
-            PlayerDetails::Request(player.playerID);
+            PlayerDetails::Request(player.playerID, player.session);
         }
     }
 
@@ -63,7 +65,11 @@ namespace UI
         {
             if (const auto found = PlayerDetails::Find(player.playerID))
             {
-                details = FormatDetails(*found);
+                // An empty answer, such as one without a connection, keeps the known details.
+                if (auto text = FormatDetails(*found); !text.empty())
+                {
+                    details = std::move(text);
+                }
                 inTradeRange = found->inTradeRange;
                 pending = false;
             }
@@ -78,7 +84,7 @@ namespace UI
         ImGui::TextUnformatted(player.name.c_str());
         ImGui::PopStyleColor();
         ImGui::PopFont();
-        if (pending)
+        if (pending && details.empty())
         {
             // Holds the line's height until the details arrive, so the menu does not grow under the cursor.
             ImGui::Dummy(ImVec2{ 0.0F, ImGui::GetTextLineHeight() });

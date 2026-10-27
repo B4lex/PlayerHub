@@ -2,6 +2,7 @@
 
 #include "protocol/AppearanceState.h"
 #include "protocol/PeerSlot.h"
+#include "protocol/Session.h"
 
 #include <cstdint>
 #include <optional>
@@ -20,8 +21,9 @@ namespace PlayerDetails
         bool inTradeRange{ false };
     };
 
-    void Request(Multiplayer::PeerSlot a_playerID);
+    void Request(Multiplayer::PeerSlot a_playerID, Multiplayer::SessionID a_session);
     [[nodiscard]] std::optional<Details> Find(Multiplayer::PeerSlot a_playerID);
+    [[nodiscard]] std::optional<Details> FindKnown(Multiplayer::SessionID a_session);
 
     [[nodiscard]] std::optional<Multiplayer::PeerSlot> TakeRequest();
     void Serve(Multiplayer::PeerSlot a_playerID, const PeerState* a_peer);

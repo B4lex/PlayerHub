@@ -6,6 +6,7 @@
 #include "sync/trade/TradeSync.h"
 
 #include <mutex>
+#include <unordered_map>
 #include <utility>
 
 namespace PlayerDetails
@@ -14,8 +15,10 @@ namespace PlayerDetails
     {
         std::mutex s_lock;
         Multiplayer::PeerSlot s_requested = 0;
+        Multiplayer::SessionID s_requestedSession = 0;
         bool s_untaken = false;
         std::optional<Details> s_details;
+        std::unordered_map<Multiplayer::SessionID, Details> s_known;
 
         bool IsInTradeRange(const PeerState& a_peer)
         {
@@ -35,17 +38,25 @@ namespace PlayerDetails
         void Publish(Multiplayer::PeerSlot a_playerID, Details&& a_details)
         {
             const std::scoped_lock lock{ s_lock };
-            if (a_playerID == s_requested)
+            if (a_playerID != s_requested)
             {
-                s_details = std::move(a_details);
+                return;
             }
+            if (s_requestedSession != 0 && (a_details.level != 0 || !a_details.race.empty()))
+            {
+                auto& known = s_known[s_requestedSession];
+                known = a_details;
+                known.inTradeRange = false;
+            }
+            s_details = std::move(a_details);
         }
     }
 
-    void Request(Multiplayer::PeerSlot a_playerID)
+    void Request(Multiplayer::PeerSlot a_playerID, Multiplayer::SessionID a_session)
     {
         const std::scoped_lock lock{ s_lock };
         s_requested = a_playerID;
+        s_requestedSession = a_session;
         s_untaken = true;
         s_details.reset();
     }
@@ -54,6 +65,13 @@ namespace PlayerDetails
     {
         const std::scoped_lock lock{ s_lock };
         return a_playerID == s_requested ? s_details : std::nullopt;
+    }
+
+    std::optional<Details> FindKnown(Multiplayer::SessionID a_session)
+    {
+        const std::scoped_lock lock{ s_lock };
+        const auto known = a_session != 0 ? s_known.find(a_session) : s_known.end();
+        return known != s_known.end() ? std::optional{ known->second } : std::nullopt;
     }
 
     std::optional<Multiplayer::PeerSlot> TakeRequest()

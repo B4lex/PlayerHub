@@ -1587,13 +1587,20 @@ level-up while the menu is open.
 - The local answer also says whether the player's character is near
   enough to trade (`Details::inTradeRange`, [Trade](trade.md#invitation)); a
   server answer never is, since a player without a character is not near.
-- `PlayerDetails` keeps only the latest request and its answer, under one
-  lock; an answer for another slot is dropped. While the answer is due the
-  menu reads it once a frame and holds an empty line of the text's height,
-  so the menu does not grow under the cursor; after
-  `kDetailsWaitSeconds` (2) of frame time, each frame counting at most
-  0.1 s, it stops waiting and shows the name alone, as for a reply the
-  server's rate limit dropped. The answer is read once.
+- `PlayerDetails` keeps only the latest request, with its slot and session,
+  and its answer, under one lock; an answer for another slot is dropped. It
+  also keeps the race and level of each answer that has either, by the
+  requested player's session (`FindKnown`), for the rest of the run. A
+  session survives reconnects, so a reused slot never shows another
+  player's details.
+- `Open` shows the known details at once and still asks for fresh ones,
+  which replace them when they arrive; an empty answer, such as one without
+  a connection, keeps them. While the answer is due the menu reads it once a
+  frame; with nothing known it holds an empty line of the text's height, so
+  the menu does not grow under the cursor. After `kDetailsWaitSeconds` (2)
+  of frame time, each frame counting at most 0.1 s, it stops waiting and
+  shows the known details or the name alone, as for a reply the server's
+  rate limit dropped. The answer is read once.
 
 ## Player menu in the world
 
@@ -3160,11 +3167,12 @@ To verify in game:
   `std::format`'s defaults, not the language's decimal separator.
 - Translation files are read once at startup: a new or edited file needs a
   restart.
-- A player's menu shows the race and level of a player without a character
-  in range a server round trip after it opens. Opening more than five menus
-  within a few seconds can exceed the server's
-  [inspection limit](network.md#inspection), and those menus show the name
-  alone.
+- The first time a player's menu opens in a run, it shows the race and
+  level a game pass later for a player with a character in range, and a
+  server round trip later for anyone else; later opens show the known ones
+  at once. Opening more than five menus within a few seconds can exceed the
+  server's [inspection limit](network.md#inspection), and those menus show
+  the known details, or the name alone for a player not seen before.
 - Any accent is accepted, so a very dark one or one close to the surfaces
   makes selection and hover marks hard to see; picking amber restores the
   default. `[Connection]` has no reset button
