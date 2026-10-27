@@ -42,6 +42,11 @@ export function formatDate(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+/** Wall-clock time of day, `14:03:27`. */
+export function formatTimeOfDay(ms: number): string {
+  return new Date(ms).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+}
+
 export function formatDateTime(iso: string): string {
   const then = new Date(iso);
   return Number.isNaN(then.getTime()) ? iso : then.toLocaleString();

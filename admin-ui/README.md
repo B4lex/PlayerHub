@@ -32,8 +32,8 @@ Other scripts: `npm run typecheck`, `npm test` (Vitest, for the pure logic in
 ```text
 src/
   pages.tsx            the page list: sidebar and routes are both built from it
-  api/                 types.ts (wire types), client.ts (REST), feed.ts (live state)
-  state/               ServerState (one live snapshot for every page), useAction (commands)
+  api/                 types.ts (wire types), client.ts (REST), feed.ts (live state and chat)
+  state/               ServerState (one live snapshot for every page, and chat lines), useAction (commands)
   components/          shared pieces: Button, Panel, Badge, StatTile, Toasts, Sidebar...
   features/<page>/     one folder per page, with its own components and CSS modules
   lib/                 framework-free helpers and their tests

@@ -43,6 +43,8 @@ type Options struct {
 	Recorder           Recorder
 	Logger             *slog.Logger
 	OnChange           func()
+	// OnGlobalChat runs on the hub loop for each accepted Global line, so it must not block.
+	OnGlobalChat func(speaker *pb.PlayerIdentity, text string)
 }
 
 type member struct {
@@ -131,6 +133,9 @@ func New(opts Options) *Hub {
 	}
 	if opts.OnChange == nil {
 		opts.OnChange = func() {}
+	}
+	if opts.OnGlobalChat == nil {
+		opts.OnGlobalChat = func(*pb.PlayerIdentity, string) {}
 	}
 	if opts.ActionsPerSecond == 0 {
 		opts.ActionsPerSecond, opts.ActionBurst = 10, 10
@@ -728,6 +733,7 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 		for _, r := range h.recipients {
 			r.outbox.AppendGlobal(bytes)
 		}
+		h.opts.OnGlobalChat(line.Sender, text)
 	}
 	return nil
 }

@@ -5,6 +5,12 @@
   margin-bottom: 1.5rem;
 }
 
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
 /* Fixed columns and single-line cells keep rows from resizing as live values change. */
 .table {
   width: 100%;

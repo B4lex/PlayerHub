@@ -13,6 +13,7 @@ import { formatBytes, formatFormRef, formatTimestamp, plural, shortId } from "..
 import { useTicker } from "../../lib/useTicker";
 import { useServerState } from "../../state/ServerState";
 import { useAction } from "../../state/useAction";
+import { ChatPanel } from "./ChatPanel";
 import styles from "./DashboardPage.module.css";
 
 /** "sneakingIdle" -> "sneaking idle". */
@@ -214,46 +215,50 @@ export function DashboardPage() {
         <StatTile icon="clock" label="Server uptime" value={uptimeMs === null ? "–" : formatTimestamp(uptimeMs)} />
       </div>
 
-      <Panel
-        title="Players"
-        description={loaded ? plural(online.length, "player") + " connected" : "Waiting for the server…"}
-        flush
-      >
-        {players.length === 0 ? (
-          <EmptyState icon="users" title="No players connected">
-            Players appear here as soon as the Skyrim plugin connects to this server. You can{" "}
-            <Link to="/replays">replay a recording</Link> to put a virtual player in the world meanwhile.
-          </EmptyState>
-        ) : (
-          <table className={styles.table}>
-            <colgroup>
-              <col className={styles.menuColumn} />
-              <col className={styles.playerColumn} />
-              <col />
-              <col className={styles.doingColumn} />
-              <col className={styles.receivesColumn} />
-              <col className={styles.statusColumn} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th scope="col">
-                  <span className="visually-hidden">Actions</span>
-                </th>
-                <th scope="col">Player</th>
-                <th scope="col">Location</th>
-                <th scope="col">Doing</th>
-                <th scope="col">Receives</th>
-                <th scope="col">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((player) => (
-                <PlayerRow key={player.id} player={player} />
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Panel>
+      <div className={styles.stack}>
+        <ChatPanel />
+
+        <Panel
+          title="Players"
+          description={loaded ? plural(online.length, "player") + " connected" : "Waiting for the server…"}
+          flush
+        >
+          {players.length === 0 ? (
+            <EmptyState icon="users" title="No players connected">
+              Players appear here as soon as the Skyrim plugin connects to this server. You can{" "}
+              <Link to="/replays">replay a recording</Link> to put a virtual player in the world meanwhile.
+            </EmptyState>
+          ) : (
+            <table className={styles.table}>
+              <colgroup>
+                <col className={styles.menuColumn} />
+                <col className={styles.playerColumn} />
+                <col />
+                <col className={styles.doingColumn} />
+                <col className={styles.receivesColumn} />
+                <col className={styles.statusColumn} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">
+                    <span className="visually-hidden">Actions</span>
+                  </th>
+                  <th scope="col">Player</th>
+                  <th scope="col">Location</th>
+                  <th scope="col">Doing</th>
+                  <th scope="col">Receives</th>
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {players.map((player) => (
+                  <PlayerRow key={player.id} player={player} />
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Panel>
+      </div>
     </>
   );
 }

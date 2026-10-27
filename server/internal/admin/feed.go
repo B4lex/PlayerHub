@@ -13,6 +13,7 @@ import (
 const (
 	feedIntervalSeconds  = 0.5
 	feedKeepAliveSeconds = 15
+	feedChatQueue        = 256
 )
 
 type Feed struct {
@@ -21,11 +22,23 @@ type Feed struct {
 	changed   chan struct{}
 
 	mu          sync.Mutex
-	subscribers map[chan []byte]struct{}
+	subscribers map[*subscriber]struct{}
+}
+
+type subscriber struct {
+	state chan []byte
+	chat  chan []byte
+}
+
+type ChatLine struct {
+	AtMs     float64 `json:"atMs"`
+	PlayerID string  `json:"playerId"`
+	Name     string  `json:"name"`
+	Text     string  `json:"text"`
 }
 
 func NewFeed(build func() State) *Feed {
-	return &Feed{build: build, changed: make(chan struct{}, 1), subscribers: make(map[chan []byte]struct{})}
+	return &Feed{build: build, changed: make(chan struct{}, 1), subscribers: make(map[*subscriber]struct{})}
 }
 
 func (f *Feed) Changed() {
@@ -35,6 +48,26 @@ func (f *Feed) Changed() {
 	select {
 	case f.changed <- struct{}{}:
 	default:
+	}
+}
+
+// Chat runs on the hub loop, so a panel that falls a queue behind loses lines instead of
+// holding the hub.
+func (f *Feed) Chat(slot uint32, name, text string) {
+	if f.listeners.Load() == 0 {
+		return
+	}
+	data, err := json.Marshal(ChatLine{AtMs: milliseconds(time.Now()), PlayerID: slotID(slot), Name: name, Text: text})
+	if err != nil {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for s := range f.subscribers {
+		select {
+		case s.chat <- data:
+		default:
+		}
 	}
 }
 
@@ -65,14 +98,14 @@ func (f *Feed) Run(ctx context.Context) {
 			continue
 		}
 		f.mu.Lock()
-		for subscriber := range f.subscribers {
+		for s := range f.subscribers {
 			// Latest wins: a panel that has not taken the previous snapshot gets this one
 			// instead.
 			select {
-			case <-subscriber:
+			case <-s.state:
 			default:
 			}
-			subscriber <- data
+			s.state <- data
 		}
 		f.mu.Unlock()
 	}
@@ -86,15 +119,15 @@ func (f *Feed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
-	subscriber := make(chan []byte, 1)
+	s := &subscriber{state: make(chan []byte, 1), chat: make(chan []byte, feedChatQueue)}
 	f.mu.Lock()
-	f.subscribers[subscriber] = struct{}{}
+	f.subscribers[s] = struct{}{}
 	f.mu.Unlock()
 	f.listeners.Add(1)
 	defer func() {
 		f.listeners.Add(-1)
 		f.mu.Lock()
-		delete(f.subscribers, subscriber)
+		delete(f.subscribers, s)
 		f.mu.Unlock()
 	}()
 
@@ -104,20 +137,24 @@ func (f *Feed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	keepAlive := time.NewTicker(feedKeepAliveSeconds * time.Second)
 	defer keepAlive.Stop()
-	send := func(data []byte) bool {
-		_, err := fmt.Fprintf(w, "event: state\ndata: %s\n\n", data)
+	send := func(event string, data []byte) bool {
+		_, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
 		flusher.Flush()
 		return err == nil
 	}
-	if !send(initial) {
+	if !send("state", initial) {
 		return
 	}
 	for {
 		select {
 		case <-r.Context().Done():
 			return
-		case data := <-subscriber:
-			if !send(data) {
+		case data := <-s.state:
+			if !send("state", data) {
+				return
+			}
+		case data := <-s.chat:
+			if !send("chat", data) {
 				return
 			}
 		case <-keepAlive.C:

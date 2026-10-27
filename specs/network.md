@@ -615,7 +615,8 @@ connected, and stopping a player who changes both session and address.
   `ChatResult` with an unknown rejection is rejected.
 - Chat does not require being in the world except for `NEARBY`, keeps no
   history, and is not recorded. The client side is in
-  [UI overlay](ui-overlay.md#chat).
+  [UI overlay](ui-overlay.md#chat). Accepted `GLOBAL` lines are also pushed
+  to listening admin panels ([Admin API](recording-and-replay.md#admin-api)).
 
 ### Roster
 

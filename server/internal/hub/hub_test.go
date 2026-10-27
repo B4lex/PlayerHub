@@ -553,6 +553,24 @@ func TestChat(t *testing.T) {
 	f.send(b, chat(21, "later"))
 }
 
+func TestOnlyGlobalChatReachesTheHook(t *testing.T) {
+	f := newFixture(t)
+	var lines []string
+	f.hub.opts.OnGlobalChat = func(speaker *pb.PlayerIdentity, text string) {
+		lines = append(lines, fmt.Sprintf("%d %s: %s", speaker.GetSlot(), speaker.GetName(), text))
+	}
+	a, b := f.connectAs("Lydia"), f.connectAs("Serana")
+	f.placeAt(a, 1, 0)
+	f.placeAt(b, 1, 0)
+	f.send(b, chat(1, "  hi  "))
+	f.send(b, chatOn(pb.ChatChannel_CHAT_CHANNEL_NEARBY, 2, "near"))
+	f.send(b, whisper(3, a, "secret"))
+	f.reject(b, chat(4, "\x01"), validate.ErrChat)
+	if len(lines) != 1 || lines[0] != "2 Serana: hi" {
+		t.Fatalf("hook got %q", lines)
+	}
+}
+
 func TestNearbyChat(t *testing.T) {
 	f := newFixture(t)
 	a, b, c, d := f.connect(), f.connect(), f.connect(), f.connect()

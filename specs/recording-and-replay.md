@@ -46,6 +46,15 @@ Implemented in Go and verified on Linux:
   removed the ban; Escape cancelled a delete, and confirming deleted the
   session. Lifting a session with an address ban was not driven, because the
   server refuses address bans of loopback bots.
+- Dashboard chat: a `hub` test checks that only accepted Global lines reach
+  `Options.OnGlobalChat`, and an `internal/admin` test reads `/api/events`
+  over a real WebSocket stack and gets each Global line once as a `chat`
+  event, without a whisper. Against a server on ports 3100/3101, headless
+  Chrome driven over the DevTools protocol, with two scripted clients
+  chatting, showed Global lines only, markup as plain text, wrapped long
+  lines, the Players panel not moving, the log following new lines while at
+  the bottom and holding its place while scrolled up, no horizontal scroll at
+  600 px, and no console errors.
 
 Replayed players are watched in game while developing the plugin; how one
 looks in every case is not verified (see
@@ -58,7 +67,8 @@ replays recordings as virtual players every client sees, and runs load-test
 batches of many replayed bots. Replays and bots enter the hub through the same
 methods as connections ([Interest and delivery](interest-and-delivery.md)), so
 nothing in the plugin distinguishes them from real players. `cmd/loadgen` runs
-bots as real WebSocket clients out of process.
+bots as real WebSocket clients out of process. The Dashboard also shows the
+Global chat channel live, relayed by the hub ([Chat](network.md#chat)).
 
 ## Components
 
@@ -233,12 +243,30 @@ replay's position is not pushed while playing; the panel extrapolates from the
 last reported position and rate, and a per-playback `revision` decides between
 a command's response and a push that crossed it. Bots are not listed in
 `players`; each batch lists its bots with status, offset, rate, and position.
+Global chat lines are pushed on the same stream as `event: chat`, one
+`{atMs, playerId, name, text}` per accepted line (`admin.ChatLine`): the
+server's wall time, the speaker's slot and display name, and the trimmed
+text. The hub hands each line to `hub.Options.OnGlobalChat` on its loop, and
+`Feed.Chat` returns at once while no panel listens; otherwise it queues the
+line for each panel, at most 256 waiting, dropping new lines for a panel that
+far behind rather than holding the hub. Nearby and Whisper lines are never
+sent, and the server keeps no chat, so a panel gets only lines relayed while
+it is connected.
 `players` lists connected players by connection time, then slot, followed by
 virtual players in the order their playbacks started, so rows keep their place
 across pushes. Each player shows `visible`, the number of peers it receives, and the
 interest controls and rates described in
 [Interest and delivery](interest-and-delivery.md#admin-controls). A connected
 player also shows its `address`, after `trusted_proxies`.
+
+Above the player table, the Dashboard's chat panel
+(`features/dashboard/ChatPanel`) shows the chat events received since the
+page loaded, kept by `ServerStateProvider` in a separate context (`useChat`)
+so a busy chat re-renders only the panel, the last 200 lines. Each line
+shows the local time of `atMs`, the speaker's name, and the text, which
+wraps. The log has a fixed height so the table below does not move, scrolls,
+and follows new lines while scrolled to within 8 px of the bottom; scrolled
+up, it keeps its place. It has no input and no clear control.
 
 The Dashboard's player table (`features/dashboard/DashboardPage`) shows each
 player's name and slot, location, movement state, received peers and

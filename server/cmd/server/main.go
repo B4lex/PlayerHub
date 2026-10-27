@@ -24,6 +24,7 @@ import (
 	"playerhub/server/internal/playback"
 	"playerhub/server/internal/recording"
 	"playerhub/server/internal/session"
+	"playerhub/server/internal/wire/pb"
 )
 
 func main() {
@@ -112,6 +113,11 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 		Recorder: captures,
 		Logger:   log,
 		OnChange: changed,
+		OnGlobalChat: func(speaker *pb.PlayerIdentity, text string) {
+			if feed != nil {
+				feed.Chat(speaker.GetSlot(), speaker.GetName(), text)
+			}
+		},
 	})
 	loop := hub.NewLoop(h, c.SendRateHz)
 	loopContext, stopLoop := context.WithCancel(context.Background())

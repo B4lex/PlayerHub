@@ -168,15 +168,16 @@ go run ./cmd/tradebot --kit
 
 ## Admin panel
 
-The panel (`admin-ui/`, see its README) shows connected players, sessions,
-captures, replays, and load-test batches. Commands are REST calls under `/api`; live
-state is a server-sent event stream at `/api/events` that pushes a full
-snapshot on connect and after changes, at most twice a second.
+The panel (`admin-ui/`, see its README) shows connected players, live Global
+chat, sessions, captures, replays, and load-test batches. Commands are REST
+calls under `/api`; live state is a server-sent event stream at `/api/events`
+that pushes a full snapshot on connect and after changes, at most twice a
+second, and each Global chat line as it is relayed.
 
 | Endpoint | |
 | --- | --- |
 | `GET /api/state` | Everything the panel shows |
-| `GET /api/events` | Event stream of the same snapshot |
+| `GET /api/events` | Event stream of the same snapshot (`state`) and Global chat lines (`chat`) |
 | `GET /api/recordings/{id}` | One recording with its timeline markers |
 | `POST /api/recordings` `{playerId, label?}` | Start capturing a connected player |
 | `POST /api/recordings/{id}/stop` | Stop a capture |

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -36,7 +37,10 @@ func startStack(t *testing.T) *stack {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	store := recording.NewStore(t.TempDir(), log)
 	captures := recording.NewCaptures(store, log, func() {})
-	loop := hub.NewLoop(hub.New(hub.Options{Recorder: captures, Logger: log}), 40)
+	var feed *Feed
+	loop := hub.NewLoop(hub.New(hub.Options{Recorder: captures, Logger: log,
+		OnGlobalChat: func(speaker *pb.PlayerIdentity, text string) { feed.Chat(speaker.GetSlot(), speaker.GetName(), text) },
+	}), 40)
 	ctx, cancel := context.WithCancel(context.Background())
 	go loop.Run(ctx)
 	playbacks := playback.NewManager(store, loop, log, func() {})
@@ -48,8 +52,10 @@ func startStack(t *testing.T) *stack {
 	connections := session.NewServer(loop, identities, config.Default(), log)
 	c := &Context{Loop: loop, Store: store, Captures: captures, Playbacks: playbacks, Batches: batches,
 		Sessions: identities, Connections: connections, StartedAt: time.Now(), OnChange: func() {}}
+	feed = NewFeed(c.State)
 	mux := http.NewServeMux()
 	mux.Handle("GET /ws", connections)
+	mux.Handle("GET /api/events", feed)
 	c.Routes(mux)
 	server := httptest.NewServer(Guard(mux, []string{"Panel.lan"}))
 	t.Cleanup(func() {
@@ -579,5 +585,64 @@ func TestManageSessions(t *testing.T) {
 		if status := s.call("DELETE", "/api/sessions/"+id, nil, nil); status != 404 {
 			t.Errorf("delete %s: %d", id, status)
 		}
+	}
+}
+
+func TestChatFeedCarriesOnlyGlobalLines(t *testing.T) {
+	s := startStack(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	request, _ := http.NewRequestWithContext(ctx, "GET", s.server.URL+"/api/events", nil)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	events := bufio.NewReader(response.Body)
+	next := func() (string, string) {
+		t.Helper()
+		var event, data string
+		for {
+			line, err := events.ReadString('\n')
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch line = strings.TrimSuffix(line, "\n"); {
+			case strings.HasPrefix(line, "event: "):
+				event = strings.TrimPrefix(line, "event: ")
+			case strings.HasPrefix(line, "data: "):
+				data = strings.TrimPrefix(line, "data: ")
+			case line == "" && event != "":
+				return event, data
+			}
+		}
+	}
+	if event, _ := next(); event != "state" {
+		t.Fatalf("first event %q", event)
+	}
+
+	lydia, serana := s.join("Lydia"), s.join("Serana")
+	say := func(p *player, m *pb.ChatSend) {
+		p.send(&pb.ClientMessage{Message: &pb.ClientMessage_Chat{Chat: m}})
+		p.until(func(m *pb.ServerMessage) bool { return m.GetChatResult() != nil })
+	}
+	say(serana, &pb.ChatSend{RequestId: 1, Text: "hi"})
+	say(serana, &pb.ChatSend{RequestId: 2, Text: "secret", Channel: pb.ChatChannel_CHAT_CHANNEL_WHISPER, Recipient: lydia.slot})
+	say(lydia, &pb.ChatSend{RequestId: 3, Text: "<b>bye</b>"})
+	var got []string
+	for len(got) < 2 {
+		event, data := next()
+		if event != "chat" {
+			continue
+		}
+		var line ChatLine
+		if err := json.Unmarshal([]byte(data), &line); err != nil || line.AtMs <= 0 {
+			t.Fatalf("chat event %s: %v", data, err)
+		}
+		got = append(got, fmt.Sprintf("%s %s: %s", line.PlayerID, line.Name, line.Text))
+	}
+	want := []string{slotID(serana.slot) + " Serana: hi", slotID(lydia.slot) + " Lydia: <b>bye</b>"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }

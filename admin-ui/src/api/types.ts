@@ -123,7 +123,6 @@ export interface ServerInfo {
   serverTimeMs: number;
 }
 
-/** Everything the panel shows, replicated as one snapshot. */
 /** A directed pair: the viewer never receives the target. */
 export interface Exclusion {
   viewerId: string;
@@ -160,6 +159,7 @@ export interface SessionPage {
   total: number;
 }
 
+/** Everything the panel shows, replicated as one snapshot. */
 export interface AdminState {
   server: ServerInfo;
   players: Player[];
@@ -168,6 +168,15 @@ export interface AdminState {
   batches: Batch[];
   exclusions: Exclusion[];
   bans: Ban[];
+}
+
+/** A Global chat line, pushed once as it is relayed; the server keeps none. */
+export interface ChatLine {
+  atMs: number;
+  /** The speaker's slot. */
+  playerId: string;
+  name: string;
+  text: string;
 }
 
 export interface Marker {

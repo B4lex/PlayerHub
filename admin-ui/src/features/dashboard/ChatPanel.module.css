@@ -1,0 +1,40 @@
+/* A fixed height keeps the players table below from moving as lines arrive. */
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  height: 15rem;
+  padding: 0.75rem 1.25rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.log:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.empty {
+  margin: auto;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.line p {
+  overflow-wrap: anywhere;
+}
+
+.time {
+  color: var(--text-faint);
+}
+
+.name {
+  font-weight: 600;
+  color: var(--accent);
+}

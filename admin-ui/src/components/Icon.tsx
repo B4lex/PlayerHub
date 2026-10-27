@@ -19,7 +19,8 @@ export type IconName =
   | "disk"
   | "gauge"
   | "key"
-  | "more";
+  | "more"
+  | "chat";
 
 // 24x24 outline icons; `fill` ones are solid shapes.
 const glyphs: Record<IconName, { fill?: boolean; body: ReactNode }> = {
@@ -141,6 +142,11 @@ const glyphs: Record<IconName, { fill?: boolean; body: ReactNode }> = {
         <circle cx="8" cy="15" r="4.5" />
         <path d="M11.2 11.8L20 3M16.5 6.5l2.5 2.5M14 9l2 2" />
       </>
+    ),
+  },
+  chat: {
+    body: (
+      <path d="M6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 3.8V16A2.5 2.5 0 0 1 4 13.5v-7A2.5 2.5 0 0 1 6.5 4z" />
     ),
   },
   more: {

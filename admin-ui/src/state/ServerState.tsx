@@ -4,11 +4,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { connectAdminFeed, type ConnectionStatus } from "../api/feed";
-import type { AdminState, Ban, Batch, Exclusion, Player, Playback, Recording, ServerInfo } from "../api/types";
+import type { AdminState, Ban, Batch, ChatLine, Exclusion, Player, Playback, Recording, ServerInfo } from "../api/types";
 import { newerPlayback } from "../lib/playbackClock";
 
 /** A playback plus the local time its state arrived, so its position can be extrapolated. */
@@ -34,7 +35,16 @@ interface ServerStateValue {
   adoptPlayback: (playback: Playback) => void;
 }
 
+/** A chat line numbered in arrival order, for a stable key. */
+export interface ChatEntry extends ChatLine {
+  seq: number;
+}
+
+const chatLimit = 200;
+
 const ServerStateContext = createContext<ServerStateValue | null>(null);
+// Separate from the snapshot so a busy chat re-renders only its panel.
+const ChatContext = createContext<ChatEntry[] | null>(null);
 
 function mergePlaybacks(held: PlaybackView[], arrived: Playback[], now: number): PlaybackView[] {
   const heldById = new Map(held.map((playback) => [playback.id, playback]));
@@ -49,11 +59,17 @@ export function ServerStateProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState<ConnectionStatus>("connecting");
   const [snapshot, setSnapshot] = useState<{ state: AdminState; receivedAt: number } | null>(null);
   const [playbacks, setPlaybacks] = useState<PlaybackView[]>([]);
+  const [chat, setChat] = useState<ChatEntry[]>([]);
+  const chatSeq = useRef(0);
 
   useEffect(
     () =>
       connectAdminFeed({
         onStatus: setConnection,
+        onChat: (line) => {
+          const entry = { ...line, seq: ++chatSeq.current };
+          setChat((held) => [...held.slice(Math.max(0, held.length - chatLimit + 1)), entry]);
+        },
         onState: (state) => {
           const receivedAt = performance.now();
           setSnapshot({ state, receivedAt });
@@ -92,11 +108,22 @@ export function ServerStateProvider({ children }: { children: ReactNode }) {
     [connection, snapshot, playbacks, adoptPlayback],
   );
 
-  return <ServerStateContext.Provider value={value}>{children}</ServerStateContext.Provider>;
+  return (
+    <ServerStateContext.Provider value={value}>
+      <ChatContext.Provider value={chat}>{children}</ChatContext.Provider>
+    </ServerStateContext.Provider>
+  );
 }
 
 export function useServerState(): ServerStateValue {
   const value = useContext(ServerStateContext);
   if (value === null) throw new Error("useServerState must be used inside ServerStateProvider");
+  return value;
+}
+
+/** Global chat lines received since the page opened, oldest first, at most the last 200. */
+export function useChat(): ChatEntry[] {
+  const value = useContext(ChatContext);
+  if (value === null) throw new Error("useChat must be used inside ServerStateProvider");
   return value;
 }
