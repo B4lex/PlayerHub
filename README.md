@@ -16,12 +16,21 @@ trade items and chat.
 [compose.yaml](compose.yaml) runs it with host networking, so `listen`,
 `admin_listen`, and `trusted_proxies` mean what they do without Docker. Copy
 `server/config.example.toml` to `server/config.toml`, add
-`admin_ui_directory = "/app/admin-ui"`, then:
+`admin_ui_directory = "/app/admin-ui"`, then run the published image:
 
 ```sh
 mkdir -p data
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
+
+Run `docker compose up -d --build` instead to build the image from this
+checkout. Compose tags a local build with the service's image name, so a later
+`docker compose pull` replaces it with the published one. `PLAYERHUB_IMAGE`
+overrides that name (default `ghcr.io/b4lex/playerhub-server:latest`): set it
+to another tag, such as `ghcr.io/b4lex/playerhub-server:main`, to run that
+published image, or to a local name, such as `playerhub-server:local`, to keep
+local builds apart from published ones.
 
 The session database and recordings are kept in `data/` next to
 `compose.yaml` (`/data` in the container). The server runs as user and group
@@ -34,9 +43,7 @@ image for `linux/amd64` and `linux/arm64` as
 `ghcr.io/b4lex/playerhub-server`: `main` and `sha-<commit>` from each push
 to `main` that changes the server, the admin panel, or the image, and
 `<version>`, `<major>.<minor>`, and `latest` from each release tag such as
-`1.0.1`. Pull requests build it without publishing. To run a published image
-instead of building one, replace `build` in `compose.yaml` with
-`image: ghcr.io/b4lex/playerhub-server:latest`.
+`1.0.1`. Pull requests build it without publishing.
 
 ## Translations
 

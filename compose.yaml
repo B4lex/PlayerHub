@@ -1,11 +1,11 @@
-# Copy server/config.example.toml to server/config.toml and add
+# When building copy server/config.example.toml to server/config.toml and add
 #   admin_ui_directory = "/app/admin-ui"
-# Then, from this directory: mkdir -p data && docker compose up -d --build
 
 name: playerhub
 
 services:
   server:
+    image: ${PLAYERHUB_IMAGE:-ghcr.io/b4lex/playerhub-server:1.0}
     build:
       context: .
     command: ["--config", "/config/server.toml"]
