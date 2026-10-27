@@ -99,7 +99,7 @@ float4 BlurVertical(Vertex input) : SV_Target
         int drawnFrame{ -1 };
         int blurredFrame{ -1 };
         bool frameBlurred{ false };
-        bool sceneLayerLogged{ false };
+        bool uiLayerLogged{ false };
         std::vector<std::unique_ptr<ImDrawList>> popupLists;
 
         bool Disable(std::string_view a_reason)
@@ -166,17 +166,17 @@ float4 BlurVertical(Vertex input) : SV_Target
             {
                 return false;
             }
-            // A layer composited over the scene later has only the UI to blur.
-            if (!frame->holdsScene)
+            if (frame->uiLayer && !std::exchange(uiLayerLogged, true))
             {
-                if (!std::exchange(sceneLayerLogged, true))
-                {
-                    logs::info("UI backdrop: the frame target is a UI layer another plugin composites over the "
-                               "scene");
-                }
+                logs::debug("UI backdrop: the frame target is a UI layer another plugin composites over the scene; {}",
+                    frame->scene.Get() ? "blurring the swap chain's buffer" : "the scene is not readable, no blur");
+            }
+            if (!frame->scene.Get())
+            {
                 return false;
             }
-            if (frame->description.sampleDesc.count != 1)
+            const auto& description = frame->sceneDescription;
+            if (description.sampleDesc.count != 1)
             {
                 return Disable("the back buffer is multisampled");
             }
@@ -184,12 +184,12 @@ float4 BlurVertical(Vertex input) : SV_Target
             {
                 return Disable("its shaders could not be created");
             }
-            if (!EnsureTextures(frame->device, frame->description))
+            if (!EnsureTextures(frame->device, description))
             {
                 return Disable(
-                    std::format("its textures could not be created: format={}", static_cast<int>(frame->description.format)));
+                    std::format("its textures could not be created: format={}", static_cast<int>(description.format)));
             }
-            frame->context.CopyResource(textures.copy.Get(), frame->texture.Get());
+            frame->context.CopyResource(textures.copy.Get(), frame->scene.Get());
             Gpu::PassScope passes{ *frame };
             if (!passes.IsReady())
             {

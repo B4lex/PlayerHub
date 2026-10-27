@@ -13,7 +13,15 @@ Drawing on the frame target rather than the back buffer
 ([Rendering](#rendering)) shows the overlay in game under Community Shaders'
 HDR output, where it was invisible before. Without that output it has had
 only a Linux syntax check. The backdrop fallback and item thumbnails under
-that output were not checked.
+that output were not checked. Under Community Shaders 1.9.1 frame
+generation, with and without its HDR output, the frame target is a UI
+layer, and the backdrop and translucent surfaces are blurred from the swap
+chain's buffer ([Backdrop](#backdrop)) in game, with correct colors and no
+trace of the previous frame's overlay. Under its HDR output without frame
+generation, blurring the swap chain's buffer made those surfaces look
+opaque in game; skipping that buffer ([Backdrop](#backdrop)) has had only
+a Linux syntax check. The whole-number cursor scale
+([Scale](#scale)) draws a sharp cursor at 1440p in game.
 
 **In game on Windows (1.7.104):**
 
@@ -237,11 +245,12 @@ changes, from the next frame after the setting applies.
   user chose this over scaling only the glyphs, which would need every layout
   redone. The cursor's speed ([Input focus](#input-focus)) stays on the
   display's scale alone.
-- The software cursor's size, `MouseCursorScale`, is set to the overlay scale
-  itself. `ImGuiStyle::ScaleAllSizes` truncates it to a whole number (checked
-  against Dear ImGui 1.92.9), which made it 0 at any scale below 1, such as a
-  back buffer under 1080 px tall or `[UI] Scale` under 100 at 1080p, and the
-  cursor did not draw.
+- The software cursor's size, `MouseCursorScale`, is the overlay scale
+  rounded to a whole number, at least 1. The cursor is a bitmap in the font
+  atlas that the DX11 backend samples linearly, so a fractional scale such
+  as 1.33 at 1440p blurred it. `ImGuiStyle::ScaleAllSizes` truncates the
+  scale (checked against Dear ImGui 1.92.9), which made it 0 at any scale
+  below 1, and the cursor did not draw.
 - The range is the user's. At 130% the trade panel's 52.8 font sizes are
   1.7% taller than the display at any resolution (1098 px at 1080p), so the
   panel is placed at the display's top and its bottom is cut; at 125% it
@@ -258,7 +267,10 @@ changes, from the next frame after the setting applies.
   Present. At Present it composites that texture over its HDR scene and
   copies the result over the back buffer, so anything drawn on the back
   buffer itself never showed (checked against its source, not in game).
-  The game's UI is drawn the same way.
+  The game's UI is drawn the same way. Its frame generation (the D3D12 swap
+  chain proxy) points `kFRAMEBUFFER` at a UI buffer as well, which its
+  frame generation or HDR pass composites at Present, so the overlay is not
+  interpolated with the scene.
 - The DX11 backend does not save the output merger, so the overlay binds the
   frame target, draws, and restores the previous targets.
 - `ImGuiConfigFlags_NoMouse` and `NoMouseCursorChange` are set unless a window
@@ -272,18 +284,19 @@ display behind every overlay window (ImGui's background draw list) with it,
 darkened; the [trade window](#trade-window) draws it each frame.
 `Backdrop::DrawBlur` puts it in a rounded rectangle and `BlurPopups` under
 popups, for [translucent surfaces](#background-blur). The game keeps
-running, so the blur is made again each frame from the frame target as the
-overlay hook finds it, HUD and menus included, after `ItemPreview::Update`
+running, so the blur is made again each frame from the frame's scene as the
+overlay hook finds it, HUD and menus included unless they draw on a UI
+layer, after `ItemPreview::Update`
 has put back what its capture changed, and at most once a frame however many
 callers ask for it.
 
-- It copies the frame target, reduces it to a quarter in each dimension with
+- It copies the scene (`Frame::scene`), reduces it to a quarter in each dimension with
   four bilinear taps per pixel, and blurs that with a 17-tap Gaussian
   (σ 3.5 quarter pixels) horizontally, then vertically, so the blur scales
   with the resolution. The result is stretched over the display at 60% of
   its brightness (`kTint`).
 - `Gpu` (`ui/render/Gpu`) holds what the overlay's own GPU passes share:
-  the frame target and its texture (`GetFrame`), render targets, pixel shaders compiled at
+  the frame target, its texture, and the scene (`GetFrame`), render targets, pixel shaders compiled at
   runtime by `D3DCompile` (`vs_4_0`, `ps_4_0`, from the
   `d3dcompiler_47.dll` the plugin already links) after a shared `Vertex`
   declaration, and `AddImage` with an opaque or premultiplied blend
@@ -297,12 +310,20 @@ callers ask for it.
   or states that cannot be created turn the blur off for the session with
   one warning (`UI backdrop blur unavailable: <reason>`); the backdrop is
   then a 40% black fill, and translucent surfaces are drawn without a blur.
-- A frame target whose texture is not the swap chain's back buffer
-  (`Frame::holdsScene` false), such as Community Shaders' HDR UI texture,
-  holds the UI but not the scene. While it is in use, the backdrop is the
-  same 40% fill without a blur and without turning the blur off. One info
-  line is logged per session (`UI backdrop: the frame target is a UI layer
-  ...`).
+- The scene is the frame target's texture when that is the swap chain's
+  back buffer. A frame target with another texture (`Frame::uiLayer`) holds
+  the UI but not the scene. Community Shaders' frame generation leaves this
+  frame's scene in the swap chain's buffer, with or without its HDR output,
+  so that buffer is blurred instead, without the HUD and menus. Its HDR
+  output without frame generation writes the real swap chain's buffer only
+  at Present, so the buffer holds no scene when the overlay draws. The two
+  are told apart by the buffer's `miscFlags`: the frame generation proxy's
+  buffer is shared with D3D12 (`D3D11_RESOURCE_MISC_SHARED` and
+  `D3D11_RESOURCE_MISC_SHARED_NTHANDLE`), and only such a buffer is
+  blurred. Without one the backdrop is the same 40% fill without a blur and
+  without turning the blur off. One debug line is logged per session
+  (`UI backdrop: the frame target is a UI layer ...`) naming which case
+  applied.
 - `Backdrop::Update`, before `ImGui::NewFrame`, frees the copy and the
   reduced textures when nothing asked for the blur in the last frame.
 
@@ -2698,7 +2719,9 @@ To verify in game:
     menus have drawn on it. Community Shaders draws its own ImGui menu there
     at Present when its HDR output is off. Under Community Shaders' HDR
     output, the inventory renderer used by item captures draws on the UI
-    texture that `kFRAMEBUFFER` then names.
+    texture that `kFRAMEBUFFER` then names. Its frame generation proxy's
+    swap chain buffer has both shared flags, and a real swap chain's buffer
+    has neither (checked against its source, not in game).
 
 ## Acceptance criteria
 
@@ -3120,9 +3143,10 @@ To verify in game:
 
 ## Known limitations
 
-- Under Community Shaders' HDR output the [backdrop](#backdrop) and
-  [translucent surfaces](#background-blur) have no blur, since the scene is
-  composited only at Present.
+- Under Community Shaders' frame generation the [backdrop](#backdrop) and
+  [translucent surfaces](#background-blur) blur the scene without the HUD or
+  menus, which draw on the UI layer. Under its HDR output without frame
+  generation they are not blurred.
 - A [blurred](#background-blur) popup or tooltip over an overlay window shows
   the game behind that window, blurred, rather than the window: the blur is
   taken from the frame before the overlay draws.

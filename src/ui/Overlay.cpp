@@ -25,6 +25,7 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <optional>
 
@@ -119,7 +120,7 @@ namespace UI::Overlay
             auto& style = ImGui::GetStyle();
             style = baseStyle;
             style.ScaleAllSizes(scale);
-            style.MouseCursorScale = scale;
+            style.MouseCursorScale = (std::max)(std::round(scale), 1.0F);
             style.FontScaleMain = scale;
         }
 

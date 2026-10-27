@@ -222,12 +222,33 @@ Vertex FullScreen(uint id : SV_VertexID)
         {
             swapChainView->GetResource(backBuffer.GetAddressOf());
         }
-        Frame frame{ .device = *data.forwarder,
-            .context = *data.context,
-            .target = *target,
-            .texture = texture,
-            .holdsScene = resource.Get() == backBuffer.Get() };
+        Frame frame{
+            .device = *data.forwarder, .context = *data.context, .target = *target, .texture = texture
+        };
         texture->GetDesc(&frame.description);
+        frame.uiLayer = resource.Get() != backBuffer.Get();
+        if (!frame.uiLayer)
+        {
+            frame.scene = texture;
+        }
+        else if (backBuffer.Get())
+        {
+            backBuffer->QueryInterface(
+                REX::W32::IID_ID3D11Texture2D, reinterpret_cast<void**>(frame.scene.GetAddressOf()));
+        }
+        if (frame.scene.Get())
+        {
+            frame.scene->GetDesc(&frame.sceneDescription);
+        }
+        // Community Shaders' frame generation proxy hands out a texture shared with D3D12, which
+        // holds this frame's scene. A real swap chain's buffer under its HDR output is written
+        // only at Present.
+        constexpr std::uint32_t kInterop =
+            REX::W32::D3D11_RESOURCE_MISC_SHARED | REX::W32::D3D11_RESOURCE_MISC_SHARED_NTHANDLE;
+        if (frame.uiLayer && (frame.sceneDescription.miscFlags & kInterop) != kInterop)
+        {
+            frame.scene = nullptr;
+        }
         return frame;
     }
 

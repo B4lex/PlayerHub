@@ -20,8 +20,12 @@ namespace UI::Gpu
         REX::W32::ID3D11RenderTargetView& target;
         ComPtr<REX::W32::ID3D11Texture2D> texture;
         REX::W32::D3D11_TEXTURE2D_DESC description{};
-        // False when the target is a layer that another plugin composites over the scene later.
-        bool holdsScene{ true };
+        // True when the target is a layer that another plugin composites over the scene later.
+        bool uiLayer{ false };
+        // Holds this frame's scene, or null when the scene cannot be read. It is the target's
+        // texture unless the target is a UI layer.
+        ComPtr<REX::W32::ID3D11Texture2D> scene;
+        REX::W32::D3D11_TEXTURE2D_DESC sceneDescription{};
     };
 
     // Where the engine draws the frame's menus, which the overlay draws over.
