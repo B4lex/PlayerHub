@@ -35,11 +35,22 @@ option_end()
 -- another; its API selection is compile-time, so TLS setup fails at runtime.
 set_policy("package.librarydeps.strict_compatibility", true)
 
-add_requires("ixwebsocket v12.0.1", { configs = { use_tls = true, ssl = "mbedtls" } })
+-- The xmake-repo recipe with patches/ixwebsocket applied. A distinct name, because
+-- set_base looks up project packages first and would find this one.
+package("ixwebsocket-patched")
+    set_base("ixwebsocket")
+    -- The base's deps are inherited only while this package has none, and the
+    -- base's on_load adds the TLS one here, which dropped zlib and cmake.
+    add_deps("zlib", "cmake")
+    add_patches("v12.0.1", path.join(os.scriptdir(), "patches", "ixwebsocket", "happy-eyeballs.patch"),
+        "a4b1d6b3769289f6e775d757fc25ff7805862276d7e4e2adf22fc321a25d4de3")
+package_end()
+
+add_requires("ixwebsocket-patched v12.0.1", { configs = { use_tls = true, ssl = "mbedtls" } })
 -- mbedtls 4 returns MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET from
 -- mbedtls_ssl_read for every TLS 1.3 ticket, which IXWebSocket 12 treats as a
 -- failed read. mbedtls 3.6 ignores tickets unless the client opts in.
-add_requireconfs("ixwebsocket.mbedtls", { version = "v3.6.7", override = true })
+add_requireconfs("ixwebsocket-patched.mbedtls", { version = "v3.6.7", override = true })
 add_requires("imgui v1.92.9", { configs = { dx11 = true, win32 = true } })
 add_requires("simpleini v4.25", { configs = { convert = "none" } })
 if has_config("tracy") then
@@ -74,7 +85,7 @@ target("PlayerHub")
     add_files("lib/nanopb/*.c")
     add_headerfiles("src/**.h")
     add_includedirs("src", "src/network/proto", "lib/nanopb")
-    add_packages("ixwebsocket", "imgui", "simpleini")
+    add_packages("ixwebsocket-patched", "imgui", "simpleini")
     on_config(function (target)
         -- The value becomes a C string literal.
         local endpoint = get_config("server_endpoint") or ""

@@ -1,0 +1,295 @@
+diff --git a/ixwebsocket/IXSocketConnect.cpp b/ixwebsocket/IXSocketConnect.cpp
+index 38d9b99..73d4bc5 100644
+--- a/ixwebsocket/IXSocketConnect.cpp
++++ b/ixwebsocket/IXSocketConnect.cpp
+@@ -11,9 +11,12 @@
+ #include "IXSelectInterrupt.h"
+ #include "IXSocket.h"
+ #include "IXUniquePtr.h"
++#include <algorithm>
++#include <chrono>
+ #include <fcntl.h>
+ #include <string.h>
+ #include <sys/types.h>
++#include <vector>
+ 
+ // Android needs extra headers for TCP_NODELAY and IPPROTO_TCP
+ #ifdef ANDROID
+@@ -23,74 +26,92 @@
+ 
+ namespace ix
+ {
+-    //
+-    // This function can be cancelled every 50 ms
+-    // This is important so that we don't block the main UI thread when shutting down a
+-    // connection which is already trying to reconnect, and can be blocked waiting for
+-    // ::connect to respond.
+-    //
+-    int SocketConnect::connectToAddress(const struct addrinfo* address,
+-                                        std::string& errMsg,
+-                                        const CancellationRequest& isCancellationRequested)
++    namespace
+     {
+-        errMsg = "no error";
+-
+-        socket_t fd = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
+-        if (fd < 0)
+-        {
+-            errMsg = "Cannot create a socket";
+-            return -1;
+-        }
+-
+-        // Set the socket to non blocking mode, so that slow responses cannot
+-        // block us for too long
+-        SocketConnect::configure(fd);
++        // RFC 8305 recommends 250 ms between connection attempts.
++        const auto kConnectionAttemptDelay = std::chrono::milliseconds(250);
+ 
+-        int res = ::connect(fd, address->ai_addr, address->ai_addrlen);
++        const int kPollIntervalMs = 10;
+ 
+-        if (res == -1 && !Socket::isWaitNeeded())
++        // Alternate the address families, starting with the resolver's first choice
++        // (RFC 8305 section 4), so that a family that is configured but not routed
++        // cannot hold back the other one.
++        std::vector<const struct addrinfo*> interleaveFamilies(const struct addrinfo* addresses)
+         {
+-            errMsg = strerror(Socket::getErrno());
+-            Socket::closeSocket(fd);
+-            return -1;
++            std::vector<const struct addrinfo*> preferred;
++            std::vector<const struct addrinfo*> others;
++            for (const struct addrinfo* address = addresses; address != nullptr;
++                 address = address->ai_next)
++            {
++                if (address->ai_family == addresses->ai_family)
++                {
++                    preferred.push_back(address);
++                }
++                else
++                {
++                    others.push_back(address);
++                }
++            }
++
++            std::vector<const struct addrinfo*> interleaved;
++            for (size_t i = 0; i < preferred.size() || i < others.size(); ++i)
++            {
++                if (i < preferred.size()) interleaved.push_back(preferred[i]);
++                if (i < others.size()) interleaved.push_back(others[i]);
++            }
++            return interleaved;
+         }
+ 
+-        for (;;)
++        socket_t startConnect(const struct addrinfo* address, std::string& errMsg)
+         {
+-            if (isCancellationRequested && isCancellationRequested()) // Must handle timeout as well
++            socket_t fd = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
++            if (fd == (socket_t) -1)
+             {
+-                Socket::closeSocket(fd);
+-                errMsg = "Cancelled";
+-                return -1;
++                errMsg = "Cannot create a socket";
++                return (socket_t) -1;
+             }
+ 
+-            int timeoutMs = 10;
+-            bool readyToRead = false;
+-            PollResultType pollResult = Socket::poll(readyToRead, timeoutMs, fd, nullptr);
++            // Set the socket to non blocking mode, so that slow responses cannot
++            // block us for too long
++            SocketConnect::configure((int) fd);
+ 
+-            if (pollResult == PollResultType::Timeout)
++            int res = ::connect(fd, address->ai_addr, (socklen_t) address->ai_addrlen);
++            if (res == -1 && !Socket::isWaitNeeded())
+             {
+-                continue;
++                errMsg = strerror(Socket::getErrno());
++                Socket::closeSocket((int) fd);
++                return (socket_t) -1;
+             }
+-            else if (pollResult == PollResultType::Error)
+-            {
+-                Socket::closeSocket(fd);
+-                errMsg = std::string("Connect error: ") + strerror(Socket::getErrno());
+-                return -1;
+-            }
+-            else if (pollResult == PollResultType::ReadyForWrite)
++            return fd;
++        }
++
++        // Returns 0 once the connection is established.
++        int connectError(socket_t fd, short revents)
++        {
++            int optval = 0;
++            socklen_t optlen = sizeof(optval);
++            if (getsockopt(fd, SOL_SOCKET, SO_ERROR, (char*) &optval, &optlen) == -1)
+             {
+-                return fd;
++                return Socket::getErrno();
+             }
+-            else
++            if (optval == 0 && (revents & (POLLERR | POLLHUP | POLLNVAL)))
+             {
+-                Socket::closeSocket(fd);
+-                errMsg = std::string("Connect error: ") + strerror(Socket::getErrno());
+-                return -1;
++                return ECONNREFUSED;
+             }
++            return optval;
+         }
+-    }
++    } // namespace
+ 
++    //
++    // Happy Eyeballs (RFC 8305): a new attempt starts every kConnectionAttemptDelay,
++    // or as soon as one fails, while the earlier ones stay in flight. The first
++    // connection to complete wins and the others are closed.
++    //
++    // This function can be cancelled every 10 ms
++    // This is important so that we don't block the main UI thread when shutting down a
++    // connection which is already trying to reconnect, and can be blocked waiting for
++    // ::connect to respond.
++    //
+     int SocketConnect::connect(const std::string& hostname,
+                                int port,
+                                std::string& errMsg,
+@@ -106,23 +127,99 @@ namespace ix
+             return -1;
+         }
+ 
+-        int sockfd = -1;
++        const std::vector<const struct addrinfo*> addresses = interleaveFamilies(res.get());
++        size_t nextAddress = 0;
++        auto nextAttemptTime = std::chrono::steady_clock::now();
++        std::vector<struct pollfd> attempts;
+ 
+-        // iterate through the records to find a working peer
+-        struct addrinfo* address;
+-        for (address = res.get(); address != nullptr; address = address->ai_next)
++        auto closeAttempts = [&attempts](socket_t keep) {
++            for (const struct pollfd& attempt : attempts)
++            {
++                if (attempt.fd != keep) Socket::closeSocket((int) attempt.fd);
++            }
++            attempts.clear();
++        };
++
++        errMsg = "no error";
++        for (;;)
+         {
+-            //
+-            // Second try to connect to the remote host
+-            //
+-            sockfd = connectToAddress(address, errMsg, isCancellationRequested);
+-            if (sockfd != -1)
++            if (isCancellationRequested && isCancellationRequested()) // Must handle timeout as well
+             {
+-                break;
++                closeAttempts((socket_t) -1);
++                errMsg = "Cancelled";
++                return -1;
++            }
++
++            auto now = std::chrono::steady_clock::now();
++            if (nextAddress < addresses.size() && (attempts.empty() || now >= nextAttemptTime))
++            {
++                socket_t fd = startConnect(addresses[nextAddress++], errMsg);
++                if (fd != (socket_t) -1)
++                {
++                    struct pollfd attempt;
++                    memset(&attempt, 0, sizeof(attempt));
++                    attempt.fd = fd;
++                    // POLLERR is ignored by poll, but the select based poll on Windows
++                    // reports a failed connect only through it.
++                    attempt.events = POLLOUT | POLLERR;
++                    attempts.push_back(attempt);
++                    nextAttemptTime = now + kConnectionAttemptDelay;
++                }
++                continue;
++            }
++
++            if (attempts.empty())
++            {
++                // Every address failed; errMsg describes the last failure.
++                return -1;
+             }
+-        }
+ 
+-        return sockfd;
++            int timeoutMs = kPollIntervalMs;
++            if (nextAddress < addresses.size())
++            {
++                auto untilNextAttempt = std::chrono::duration_cast<std::chrono::milliseconds>(
++                                            nextAttemptTime - now)
++                                            .count();
++                timeoutMs = (int) std::max<long long>(
++                    0, std::min<long long>(timeoutMs, untilNextAttempt));
++            }
++
++            int ret = ix::poll(attempts.data(), (nfds_t) attempts.size(), timeoutMs, nullptr);
++            if (ret < 0)
++            {
++                errMsg = std::string("Connect error: ") + strerror(Socket::getErrno());
++                closeAttempts((socket_t) -1);
++                return -1;
++            }
++            if (ret == 0)
++            {
++                continue;
++            }
++
++            for (size_t i = 0; i < attempts.size();)
++            {
++                const struct pollfd attempt = attempts[i];
++                if (attempt.revents == 0)
++                {
++                    ++i;
++                    continue;
++                }
++
++                int error = connectError(attempt.fd, attempt.revents);
++                if (error == 0 && (attempt.revents & POLLOUT))
++                {
++                    errMsg = "no error";
++                    closeAttempts(attempt.fd);
++                    return (int) attempt.fd;
++                }
++
++                errMsg = std::string("Connect error: ") + strerror(error);
++                Socket::closeSocket((int) attempt.fd);
++                attempts.erase(attempts.begin() + i);
++                // RFC 8305 section 5: a failed attempt starts the next one at once.
++                nextAttemptTime = now;
++            }
++        }
+     }
+ 
+     // FIXME: configure is a terrible name
+diff --git a/ixwebsocket/IXSocketConnect.h b/ixwebsocket/IXSocketConnect.h
+index 84a0858..f796ef3 100644
+--- a/ixwebsocket/IXSocketConnect.h
++++ b/ixwebsocket/IXSocketConnect.h
+@@ -9,8 +9,6 @@
+ #include "IXCancellationRequest.h"
+ #include <string>
+ 
+-struct addrinfo;
+-
+ namespace ix
+ {
+     class SocketConnect
+@@ -22,10 +20,5 @@ namespace ix
+                            const CancellationRequest& isCancellationRequested);
+ 
+         static void configure(int sockfd);
+-
+-    private:
+-        static int connectToAddress(const struct addrinfo* address,
+-                                    std::string& errMsg,
+-                                    const CancellationRequest& isCancellationRequested);
+     };
+ } // namespace ix

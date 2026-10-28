@@ -64,6 +64,17 @@ refused at the handshake ([Transport](#transport)).
   rebuilds IXWebSocket when mbedtls changes, because IXWebSocket selects the
   mbedtls API at compile time; a stale build linked against 3.6 failed with
   "SSL setup failed".
+- IXWebSocket is built as the `ixwebsocket-patched` package in `xmake.lua`:
+  the xmake-repo recipe with `patches/ixwebsocket/happy-eyeballs.patch`,
+  which makes `SocketConnect::connect` race the resolved addresses as in
+  RFC 8305. The addresses alternate families, starting with the resolver's
+  first; a new attempt starts every 250 ms, or at once when one fails, while
+  the earlier ones stay open; the first to connect wins and the rest close.
+  Stock IXWebSocket tried the addresses one after another under the
+  handshake's single 10 s deadline, so a player whose system has IPv6
+  configured but whose network drops it spent the whole deadline on the AAAA
+  address and never reached IPv4. The deadline still covers resolving, every
+  attempt, TLS, and the upgrade.
 - The nanopb runtime is built from the `lib/nanopb` submodule at tag `0.4.9`,
   the generator version `proto/generate.sh` pins: the xmake `nanopb` package
   depends on `protoc`, whose install test fails under wine
