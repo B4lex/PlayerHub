@@ -489,7 +489,10 @@ The receiver treats the outfit as part of the equipment revision:
 `Forms::ItemTraits` decides whether an item can stand in for another: its kind
 (armor, weapon, ammo, or a playable race as `kRace`), slot mask, weapon
 type, bolt flag, and whether a base-game plugin defines it.
-`Forms::GetItemTraits` reads them from a form, and `Forms::ItemFilter::Matches`
+`Forms::GetItemTraits` reads them from a form and gives none for non-playable
+armor (`TESObjectARMO::RecordFlags::kNonPlayable`), weapons, and ammunition
+(`GetPlayable`): these are NPC-only variants that can show a player wrongly,
+such as without a head, and `Forms::ItemFilter::Matches`
 checks them against what a setting accepts. `GetOutfitArmorFilter`,
 `GetOutfitWeaponFilter`, and `Config::kOutfitArrowFilter`, `kOutfitBoltFilter`,
 `kOutfitRaceFilter` build every `[DefaultOutfit]` filter.

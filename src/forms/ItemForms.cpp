@@ -65,7 +65,7 @@ namespace Forms
         if (const auto* armor = a_form.As<RE::TESObjectARMO>())
         {
             const auto slotMask = static_cast<std::uint32_t>(armor->GetSlotMask().underlying());
-            if (slotMask == 0)
+            if (slotMask == 0 || (armor->formFlags & RE::TESObjectARMO::RecordFlags::kNonPlayable) != 0)
             {
                 return std::nullopt;
             }
@@ -73,6 +73,10 @@ namespace Forms
         }
         if (const auto* weapon = a_form.As<RE::TESObjectWEAP>())
         {
+            if (!weapon->GetPlayable())
+            {
+                return std::nullopt;
+            }
             const auto type = static_cast<std::uint8_t>(weapon->GetWeaponType());
             if (type < Multiplayer::PlayerEquipment::kMinimumWeaponType
                 || type > Multiplayer::PlayerEquipment::kMaximumWeaponType)
@@ -83,6 +87,10 @@ namespace Forms
         }
         if (auto* ammo = a_form.As<RE::TESAmmo>())
         {
+            if (!ammo->GetPlayable())
+            {
+                return std::nullopt;
+            }
             return ItemTraits{ .kind = ItemKind::kAmmo, .bolt = ammo->IsBolt(), .baseGame = baseGame };
         }
         if (const auto* race = a_form.As<RE::TESRace>())
