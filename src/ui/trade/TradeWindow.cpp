@@ -65,7 +65,6 @@ namespace UI
         constexpr ImU32 kEnchantedColor = IM_COL32(130, 146, 204, 255);
         // A fallback name on the light enchanted background; others take the style's text color.
         constexpr ImU32 kEnchantedTextColor = IM_COL32(20, 20, 24, 255);
-        constexpr ImU32 kUninspectedShade = IM_COL32(0, 0, 0, 150);
         constexpr ImU32 kCountShadow = IM_COL32(0, 0, 0, 220);
         constexpr float kCheckingPulsesPerSecond = 0.8F;
         constexpr float kAcceptedTintAlpha = 0.14F;
@@ -233,7 +232,6 @@ namespace UI
                 focusWindow = true;
                 query.clear();
                 category = 0;
-                inspected.clear();
                 shown = {};
             }
 
@@ -247,10 +245,6 @@ namespace UI
                 {
                     FindShownRow();
                 }
-                // A line the peer added or changed has a new id, so it needs inspecting again.
-                std::erase_if(inspected, [this](std::uint64_t a_id) {
-                    return std::ranges::find(view.peerOffer, a_id, &TradeSync::PeerLine::id) == view.peerOffer.end();
-                });
             }
 
             void TakeFocus()
@@ -571,14 +565,6 @@ namespace UI
             {
                 Text::FormatTo(heading, Text::Id::kTradePeerOffer, view.peer.name);
                 DrawGridHeading(heading.c_str(), view.peerAccepted);
-                // Counted before the grid as well, so the hint shows on the window's first frame.
-                CountUninspected();
-                if (uninspected > 0)
-                {
-                    ImGui::SameLine();
-                    ImGui::TextDisabled(
-                        "%s", Text::FormatPlural(Text::Id::kTradeUninspected, uninspected).c_str());
-                }
                 DrawGrid("##peer", view.peerOffer.size(), a_cell, view.peerAccepted,
                     [this](std::size_t a_index, const ImVec2& a_min, const ImVec2& a_max, bool a_hovered) {
                         const auto& line = view.peerOffer[a_index];
@@ -589,30 +575,11 @@ namespace UI
                                 .formID = line.formID,
                                 .enchanted = line.enchanted },
                             a_min, a_max);
-                        bool seen = std::ranges::find(inspected, line.id) != inspected.end();
                         if (a_hovered)
                         {
                             Show(ShownItem::Source::kPeer, 0, line.id);
-                            if (!seen)
-                            {
-                                inspected.push_back(line.id);
-                                seen = true;
-                            }
-                        }
-                        if (!seen)
-                        {
-                            drawList.AddRectFilled(a_min, a_max, kUninspectedShade);
                         }
                     });
-                CountUninspected();
-            }
-
-            void CountUninspected()
-            {
-                uninspected = static_cast<std::size_t>(
-                    std::ranges::count_if(view.peerOffer, [this](const TradeSync::PeerLine& a_line) {
-                        return std::ranges::find(inspected, a_line.id) == inspected.end();
-                    }));
             }
 
             void DrawOwnOffer(float a_cell)
@@ -868,7 +835,7 @@ namespace UI
                         + style.FramePadding.x * 2.0F));
                 ImGui::SetCursorPosX(ImGui::GetContentRegionMax().x - buttonWidth * 2.0F - style.ItemSpacing.x);
                 const bool blocked = !view.acceptBlocker.empty();
-                ImGui::BeginDisabled(view.ownAccepted || blocked || uninspected > 0);
+                ImGui::BeginDisabled(view.ownAccepted || blocked);
                 if (Controls::PrimaryButton(accept, ImVec2{ buttonWidth, 0.0F }))
                 {
                     TradeSync::Accept();
@@ -895,9 +862,6 @@ namespace UI
             // Reused so the heading is formatted without allocating.
             std::string heading;
             int category{ 0 };
-            // Ids of the peer's lines the player hovered since the peer last changed them.
-            std::vector<std::uint64_t> inspected;
-            std::size_t uninspected{ 0 };
             ShownItem shown;
             std::size_t popupRow{ 0 };
             bool openPopup{ false };

@@ -995,14 +995,6 @@ msgctxt "TradeAccepted"
 msgid "Accepted"
 msgstr "Angenommen"
 
-#. {} is the number of offered items not inspected yet
-#, c++-format
-msgctxt "TradeUninspected"
-msgid "Hover over items to inspect them ({} left)"
-msgid_plural "Hover over items to inspect them ({} left)"
-msgstr[0] "Fahre über die Gegenstände, um sie zu prüfen (noch {})"
-msgstr[1] "Fahre über die Gegenstände, um sie zu prüfen (noch {})"
-
 #. Follows the field for how many to offer; {} is how many the player carries
 #, c++-format
 msgctxt "TradeCountOf"
