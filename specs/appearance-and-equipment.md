@@ -61,7 +61,16 @@ On the game thread, once per second:
   is left empty: the server sets the [display name](#display-name).
 - `defaultRace`: the configured `[DefaultOutfit]` race when `race` is not from
   a base-game plugin, else unset.
-- `female`, `weight`, `height`, `headParts[0..numHeadParts)`, the hair color
+- `height`: the visual height multiplier, `TESNPC::height` × the reference
+  scale (`refScale / 100`) × the local scale of the third-person skeleton's
+  `NPC` node rounded to 0.01, clamped to `0.25..4`. RaceMenu's height slider
+  scales that node ([skeleton scale](#engine-assumptions)); without RaceMenu it
+  stays 1 and `height` is the base's, 1.0 on the vanilla player record. The
+  race's height is left out: the receiver's resolved race applies its own.
+  While the player has no 3D the last node scale stands. The remote plays the
+  source's graph `Speed` unchanged ([graph speed](remote-actor.md#graph-speed)),
+  so a scaled character's legs keep the pace the source sees.
+- `female`, `weight`, `headParts[0..numHeadParts)`, the hair color
   form's RGB, `faceDetails`, and `faceData` morphs and parts. Extra parts are
   implied by their parent and skipped. A head part whose `BGSHeadPart::type`
   (PNAM, a `uint32` a mod can set to anything) lies outside the vanilla `0..6`
@@ -587,6 +596,20 @@ Not confirmed in game for [shapeshifts](#shapeshifts):
     the switch replaces the player's graph manager, which advances the graph
     epoch ([Locomotion](locomotion.md#source-capture)).
 
+Read from RaceMenu's scripts and the vanilla skeleton for the
+[skeleton scale](#capture), not confirmed in game:
+
+15. RaceMenu's height slider (`RaceMenuPlugin.pex`) sets an SKEE node
+    transform scale on the `NPC` node with the key `RSMPlugin`, and SKEE writes
+    the combined transform into the node's local scale. In `skeleton.nif` that
+    node is a child of the `BSFadeNode` root, with scale 1, and holds
+    `NPC Root [Root]` and every animated bone; animation does not drive it.
+    The engine scales the root by the reference scale and the base and race
+    heights, so the node's scale is RaceMenu's factor alone.
+16. A beast form's skeleton is not checked: the beast base takes the published
+    `height`, node scale included, whether or not SKEE scales the source's
+    beast skeleton.
+
 ## Acceptance criteria
 
 1. A remote actor shows the source's race, sex, weight, hair, eyes, hair color,
@@ -628,12 +651,16 @@ Not confirmed in game for [shapeshifts](#shapeshifts):
     look.
 13. A vampire player appears to peers in the character's own race, wearing and
     wielding what it has equipped.
+14. A character made taller or shorter with RaceMenu's height slider or a
+    reference scale appears to peers at the same height, whether or not they
+    have RaceMenu; a player without RaceMenu appears at the base's height.
 
 ## Known limitations
 
 - Voice type, actor values, mod-added transformation races, and
   RaceMenu/NiOverride data (body morphs, overlays, node transforms, scaled bones)
-  are not synchronized.
+  are not synchronized, except the `NPC` node scale, which travels in
+  [`height`](#capture).
 - The transformation itself, its animation, effect shader, and sound, is not
   shown: the user chose an instant swap. The swap waits for a respawn,
   so the actor is briefly absent while the new form's 3D loads. Custom skin armor and far skins use the resolved race's.

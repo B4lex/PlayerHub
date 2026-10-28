@@ -317,6 +317,29 @@ namespace AppearanceSync
             return std::format("revision {}", a_appearance.revision);
         }
 
+        float GetSkeletonHeightScale(RE::PlayerCharacter& a_player)
+        {
+            static float lastScale = 1.0F;
+            auto* root = a_player.Get3D(false);
+            if (!root)
+            {
+                return lastScale;
+            }
+            static const RE::BSFixedString nodeName{ "NPC" };
+            const auto* node = root->GetObjectByName(nodeName);
+            const float nodeScale = node ? node->local.scale : 1.0F;
+            // Rounded so float noise in a recomputed transform does not publish a revision.
+            const float scale
+                = std::isfinite(nodeScale) && nodeScale > 0.0F ? std::round(nodeScale * 100.0F) / 100.0F : 1.0F;
+            if (scale != lastScale)
+            {
+                logs::debug("Appearance sync skeleton height scale changed: {} -> {} node={}", lastScale, scale,
+                    node != nullptr);
+                lastScale = scale;
+            }
+            return scale;
+        }
+
         std::optional<AppearanceData> CaptureLocalAppearance(RE::PlayerCharacter& a_player)
         {
             auto* base = a_player.GetActorBase();
@@ -345,12 +368,14 @@ namespace AppearanceSync
                 return std::nullopt;
             }
 
+            const float height = base->height * (a_player.GetReferenceRuntimeData().refScale / 100.0F)
+                * GetSkeletonHeightScale(a_player);
             // The server names the player after its session.
             AppearanceData appearance{ .level = a_player.GetLevel(),
                 .race = *raceReference,
                 .female = base->IsFemale(),
                 .weight = std::clamp(base->weight, 0.0F, AppearanceData::kMaximumWeight),
-                .height = std::clamp(base->height, AppearanceData::kMinimumHeight, AppearanceData::kMaximumHeight) };
+                .height = std::clamp(height, AppearanceData::kMinimumHeight, AppearanceData::kMaximumHeight) };
 
             if (base->headParts)
             {
