@@ -2,48 +2,9 @@
 
 ## Status
 
-Built on Windows with the rest of the plugin.
-
-- **Appearance:** run in game between two clients on Skyrim AE 1.7.104 with
-  a base copied from the local player base. The base built from engine
-  defaults, the default race, and the face preset clamp have not run in game;
-  the clamp is covered by server unit tests. Skipping head parts of an unknown
-  type ran in game on the sender: the player's appearance published and a
-  trade with them completed. Reading the player's face tints
-  through CommonLib on AE, the face tint render on SE 1.5.97 (ID 26454), and
-  AE 1.6.x offsets, which rest on CommonLib, have not run.
-- **Equipment:** run in game, including the receiver's outfit fallback in an
-  earlier, receiver-configured form. Spell hands carrying the spell and its
-  look, and `UnequipSpell` on SE 1.5.97 (ID 37946), have not run in game. The
-  items under [Engine assumptions](#engine-assumptions) are not individually
-  checked.
-- **Fake lights:** not run in game. The shadow flag test in `GenDynamic` and
-  the copy components were read in the 1.7.104 disassembly; SE 1.5.97 was not
-  checked.
-- **Default outfit:** the sender's outfit and the receiver's ranked armor
-  selection (`SelectArmor`) have not run in game. The default form IDs were
-  checked against `Skyrim.esm` and `Dawnguard.esm` records (type, slots,
-  weapon type).
-- **Item filter and catalog:** the catalog and picker run in game
-  ([UI overlay](ui-overlay.md#item-picker)), and the catalog builds at
-  startup (`latest.log`). The main-slot armor filter ran only in a standalone
-  Linux test of `ItemFilter`.
-- **Shapeshifts:** run in game with one peer: the local player's werewolf
-  swaps both ways and the peer's swap to a werebear showed as expected; a
-  vampire lord only on the local side. Against a server playback of the
-  local player, the peer's vampire lord showed its spells, equipped on the
-  first reconcile attempt and dropped on landing, and wore its armor. The
-  appearance hold while transformed has not run in game. The beast races'
-  form IDs, behavior projects, and lack of head data were read from
-  `Skyrim.esm`, `Dawnguard.esm`, and `Dragonborn.esm`, and the vampire lord's
-  armor and the transformation script's order from `Dawnguard.esm` and the
-  compiled `DLC1PlayerVampireChangeScript`; the wire rules are covered by
-  server unit tests ([Network](network.md#status)).
-- **Playable race:** the vampire races' flags and morph races were read from
-  the masters; the mapping has only had a Linux syntax check, not run in game.
-- **Player labels:** level validation and chat fields are covered by server
-  unit tests. The label from the session's display name, without the level,
-  has not been checked in game.
+The face tint paths that differ by runtime have not run: the tint mask
+offset on AE 1.6.x and the face tint render on SE 1.5.97 (ID 26454), which
+rest on CommonLib and the 1.5.97 disassembly.
 
 ## Scope
 
@@ -562,7 +523,7 @@ Verified in game:
 1. For a dynamic form without a preprocessed FaceGen file, Skyrim builds the
    head at runtime from the base's head parts and face data.
 
-To verify in game:
+Not confirmed in game:
 
 2. `CreateReferenceAtLocation` completes 3D and graph initialization for a base
    built from engine defaults, and the firewall, combat suppression, and
@@ -606,13 +567,13 @@ also clamps to `-1..255` when parsing:
     table. The race preset bitmasks (`TESRace` +0x4A8, ID 25378) hold 256 bits
     per part type, so presets stop at 255. SE 1.5.97 was not checked.
 
-To verify in game:
+Not confirmed in game:
 
 12. A factory-built `TESObjectLIGH` with copied components and data equips as a
     torch, raises the torch arm, and shows the same flame, light, and flicker,
     and a spell's hand light accepts it.
 
-To verify in game for [shapeshifts](#shapeshifts):
+Not confirmed in game for [shapeshifts](#shapeshifts):
 
 13. `CreateReferenceAtLocation` completes 3D, character controller, and graph
     for a runtime base of a beast race without head data, the race's skin

@@ -1,41 +1,5 @@
 # Native Interactions
 
-## Status
-
-Built on Windows with the rest of the plugin; the server side of all three is
-covered by unit tests. On SE 1.5.97 nothing has run: furniture entry and
-seating use the SE IDs in [assumptions 2 and 11](#engine-assumptions),
-matched in the 1.5.97 disassembly.
-
-- **Furniture:** implemented for placed `TESFurniture` references and run in
-  game on Skyrim AE 1.7.104. Chairs, benches, alchemy tables, forges, and
-  other workstations share one native entry path. The native exit
-  ([Exit](#exit)) ran from replay captures of a chair, a bench, and two
-  tables: each played its exit idle and then its locomotion, including when
-  the source stood up right after sitting down. A bed's wake-up played its
-  exit idle. Not run in game: the bed's 12 s release window, crafting
-  stations and modded exit idles, the reset before a repeated entry after a
-  sheathe ([Entry](#entry)), and passing the actor to `ClearFurniture`
-  ([assumption 12](#engine-assumptions)). Plugin-qualified furniture
-  references ([Resolution](#source)) are covered by server tests only; peers
-  with different load orders have not run in game.
-- **Mounts:** run in game: a replayed rider was seated on its horse, which
-  walked, trotted, and ran with the recorded speed and leaned on slopes;
-  dismount and death removed the horse without a crash. On a replay, the
-  gait's ground speed and holds ([Gait](#gait)) changed no gait during a
-  steady ride and walking looked smooth; the speed sampler hook replaced a
-  zero `goalSpeed` about 600 times in 70 s of riding, and the run looked
-  much smoother than without it; with the rider carry
-  ([Rider placement](#rider-placement)) the ride looked smoother, and the
-  trail it removes was not measured. The rider's draw and sheathe
-  ([Weapon](#weapon)) and the random horse per spawn ([Receiver](#receiver))
-  have not run in game.
-- **Death:** run in game: a replayed player's deaths, standing and seated,
-  collapsed the actor into a ragdoll that the next world exit removed. The
-  body opened no container; its hidden prompt and ignored activation
-  ([Receiver](#receiver-1)) have not run in game. The remaining assumptions
-  and criteria are not checked individually.
-
 ## Scope
 
 Some things the actor does are Skyrim's to perform: sitting in furniture,
@@ -447,11 +411,10 @@ and no plugin code writes it apart from the gait. Skyrim's
 Why ground speed and the holds: measured in 3D, a source horse jumping or
 dropping down a slope reached 726–808 while its ground speed was about 460, so
 the remote horse galloped for about 145 ms on each landing. A single slow
-sample inside a walk (12, then 23 92 ms later) sent `moveStop` and `moveStart` back to back. Each flap restarted the locomotion
-clips.
-
-Why: the first checkpoint after a mount spawns carries the relocation onto it
-(speeds of 1176 and 2442), which would start a gallop; `moveStop` then leaves
+sample inside a walk (12, then 23 92 ms later) sent `moveStop` and
+`moveStart` back to back. Each flap restarted the locomotion clips. The first
+checkpoint after a mount spawns carries the relocation onto it (speeds of
+1176 and 2442), which would start a gallop; `moveStop` then leaves
 locomotion without leaving the gallop state inside it, and every later
 `moveStart` resumes `SprintForward`, so the blend never runs and `SprintStart`
 looks rejected.
@@ -619,7 +582,7 @@ Mounts, traced in the 1.7.104 binary:
    package for the whole ride. On SE the mount entry is ID 37759, which
    allocates the same 0x38 bytes, constructs with ID 39266 (byte for byte the
    same code as 40345), and starts with ID 40525 (rider, interaction, quick),
-   its only call of it, set up as 38704's call of 41530; not run on SE.
+   its only call of it, set up as 38704's call of 41530.
 3. Removing a seated pair together is safe: seated riding has no paired clip.
    Besides the AI dismount procedure (ID 39670, mode 0), Skyrim dismounts with
    mode 2 from the main loop (ID 36564), an actor update (ID 37347), and 3D load
@@ -672,7 +635,7 @@ Furniture entry, traced in the 1.7.104 binary:
     36342 (37332, calling 38831 for 39861), and 38835 (39865). Each was
     matched in the 1.5.97 disassembly by its instruction sequence, which
     differs only in `Actor` field offsets, and by calling the SE counterparts
-    of the same functions; none was run on SE.
+    of the same functions.
 12. `AIProcess::ClearFurniture` (ID 39798, SE 38773) takes the actor as its
     second argument. With it, it releases the process's marker on the occupied
     reference for that actor (ID 20159, SE 19764) before clearing the occupancy

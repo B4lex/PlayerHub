@@ -1,76 +1,5 @@
 # Interest and Delivery
 
-## Status
-
-Implemented in `server/internal/interest`, `server/internal/hub`, and
-`server/internal/delivery`; clients receive peers through it in game.
-Covered by rule and grid tests (`interest_test.go`), hub tests with a fake
-clock (`hub_test.go`: welcome first, enter order, an unplaced viewer, a
-paused sender seen by a newcomer, batching, send phases, the action anchor,
-context order, range hysteresis and time in view, exclusions taking effect
-at once, a space change, presentation kept across exit and re-enter,
-disconnect reaching presentation holders, virtual players, chat on each
-channel, a session's display name on the relayed appearance, a session
-connecting again, a player's vanish following the session), outbox tests,
-and black-box tests over a real WebSocket, including the admin hide and
-exclusion endpoints. The cap, the far rate, the budget, and admin
-exclusions are not checked in game.
-
-The measurements below ran with whole-unit positions; quarter units add
-about 4% to each relayed entry ([Network](network.md#status)).
-
-`cmd/loadgen` with 250 walking bots at 20 Hz on a 4-core host shared with the
-load generator:
-
-| Scenario | Spread | Server CPU | Egress | p50 / p99 |
-| --- | --- | --- | --- | --- |
-| Sparse | ±100000 | 27% | 0.22 MB/s | 14 / 26 ms |
-| Dense, all within one radius, no cap | ±3000 | 63–71% | 34 MB/s | 22 / 42 ms |
-| Churn, 2000 units/s | ±20000 | 40% | 5 MB/s | 18 / 31 ms |
-
-With the defaults (cap 64, far peers at 10 Hz) and idle suppression, "near
-p99" counting only peers within 4096 units:
-
-| Scenario | Spread | Server CPU | Egress | p50 / p99, near p99 |
-| --- | --- | --- | --- | --- |
-| Dense, all moving | ±3000 | 56% | 9.0 MB/s | 16 / 36 ms, 35 ms |
-| Dense, 54% of bots idle | ±3000 | 50% | 4.1 MB/s | 18 / 31 ms, 31 ms |
-| Wide, 54% idle | ±12000 | 48% | 2.4 MB/s | 21 / 58 ms, 34 ms |
-
-With the cap and far rate off, idle suppression alone took the dense layout
-with 54% idle bots from 34 to 15.7 MB/s. A far peer's latency includes its
-deliberate hold of up to 100 ms.
-
-With the budget for a 50 Mbit/s uplink (`budget.enabled`, 6250000 bytes/s),
-all bots moving, "near" within 1024 units, and "gap" the longest time a
-visible peer went without an update:
-
-| Scenario | Cap | Server CPU | Egress | p50 / p99, near p99 | Gap p99 / max |
-| --- | --- | --- | --- | --- | --- |
-| Dense ±3000 | 64 | 68% | 4.45 MB/s | 27 / 68 ms, 68 ms | 274 / 576 ms |
-| Dense ±3000 | 32 | 59% | 4.37 MB/s | 21 / 54 ms, 54 ms | 102 / 178 ms |
-| Wide ±12000 | 64 | 64% | 4.35 MB/s | 27 / 57 ms, 52 ms | 223 / 327 ms |
-| Dense ±3000, no cap or far rate | none | 104% | 4.89 MB/s | 36 / 80 ms | 602 ms / 1.2 s |
-
-Egress stays under the 5 MB/s the budget allows. With 64 peers in view, the
-nearest peers' p99 misses 60 ms by 8 ms because the budget is below demand; a
-cap of 32 meets it.
-
-Send phases were measured with 100 bots replaying the recording
-`20261013-193225-f4d31e` over loopback with the 50 Mbit/s budget (cap 32),
-bucketing the bots' received bytes per millisecond and feeding them through a
-simulated FIFO uplink sized for each load:
-
-| Ticks per interval | Peak 1 ms | Queue delay at 70% load, mean / p99 | At 85% | Entry p50 / p99 | Server CPU |
-| --- | --- | --- | --- | --- | --- |
-| 1 | 54× mean | 11.3 / 35.5 ms | 17.1 / 44.4 ms | 25 / 51 ms | 11% |
-| 10 phases | 29× mean | 1.9 / 13.6 ms | 3.7 / 19.2 ms | 20 / 49 ms | 11% |
-
-Egress was 1.7 MB/s in both. A probe connection answering `Ping` stayed near
-0.1 ms throughout, so the server's own reply path adds nothing; the
-improvement is in the bytes queued ahead of other traffic on a real uplink,
-which was not measured through the tunnel.
-
 ## Scope
 
 This system decides which peers each client receives and delivers them in an
@@ -134,8 +63,6 @@ rule here.
      `interest.cap_hysteresis` (1024) nearer, and one within its minimum time
      in view is never evicted (evictions leave with `OUT_OF_RANGE`). The
      periodic pass ranks; an event that would overfill a view waits for it.
-     The default is provisional: it should come from measuring the client's
-     frame cost with many remote actors in game.
 - Rules 1 and 2 are hard: they take effect at once, whatever the time in view.
   Distance is applied by the periodic pass, at `interest.update_hz` (5), which
   reevaluates each placed viewer's subscriptions and the players in the 3×3
@@ -281,6 +208,65 @@ player disconnects: they are keyed by slot, not by the player's session
 admin state lists each player's `visible` peers, `hidden`, `bytesPerSecond`
 written to it, and `replacedPerSecond` (checkpoints replaced before they were
 written, a sign of a slow link), and every exclusion.
+
+## Measurements
+
+Measured with `cmd/loadgen` on a 4-core host shared with the load generator,
+with whole-unit positions; quarter units add about 4% to each relayed entry
+([Network](network.md#checkpoint-and-context)). Latency runs from a
+checkpoint sent to a peer receiving it. 500 bots connected within 2 s without
+a failed bot or a server warning.
+
+250 walking bots at 20 Hz; the dense layout relayed 1.24M entries/s:
+
+| Scenario | Spread | Server CPU | Egress | p50 / p99 |
+| --- | --- | --- | --- | --- |
+| Sparse | ±100000 | 27% | 0.22 MB/s | 14 / 26 ms |
+| Dense, all within one radius, no cap | ±3000 | 63–71% | 34 MB/s | 22 / 42 ms |
+| Churn, 2000 units/s | ±20000 | 40% | 5 MB/s | 18 / 31 ms |
+
+With the defaults (cap 64, far peers at 10 Hz) and idle suppression, "near
+p99" counting only peers within 4096 units:
+
+| Scenario | Spread | Server CPU | Egress | p50 / p99, near p99 |
+| --- | --- | --- | --- | --- |
+| Dense, all moving | ±3000 | 56% | 9.0 MB/s | 16 / 36 ms, 35 ms |
+| Dense, 54% of bots idle | ±3000 | 50% | 4.1 MB/s | 18 / 31 ms, 31 ms |
+| Wide, 54% idle | ±12000 | 48% | 2.4 MB/s | 21 / 58 ms, 34 ms |
+
+With the cap and far rate off, idle suppression alone took the dense layout
+with 54% idle bots from 34 to 15.7 MB/s. A far peer's latency includes its
+deliberate hold of up to 100 ms.
+
+With the budget for a 50 Mbit/s uplink (`budget.enabled`, 6250000 bytes/s),
+all bots moving, "near" within 1024 units, and "gap" the longest time a
+visible peer went without an update:
+
+| Scenario | Cap | Server CPU | Egress | p50 / p99, near p99 | Gap p99 / max |
+| --- | --- | --- | --- | --- | --- |
+| Dense ±3000 | 64 | 68% | 4.45 MB/s | 27 / 68 ms, 68 ms | 274 / 576 ms |
+| Dense ±3000 | 32 | 59% | 4.37 MB/s | 21 / 54 ms, 54 ms | 102 / 178 ms |
+| Wide ±12000 | 64 | 64% | 4.35 MB/s | 27 / 57 ms, 52 ms | 223 / 327 ms |
+| Dense ±3000, no cap or far rate | none | 104% | 4.89 MB/s | 36 / 80 ms | 602 ms / 1.2 s |
+
+Egress stays under the 5 MB/s the budget allows. With 64 peers in view, the
+nearest peers' p99 misses 60 ms by 8 ms because the budget is below demand; a
+cap of 32 meets it.
+
+Send phases were measured with 100 bots replaying the recording
+`20261013-193225-f4d31e` over loopback with the 50 Mbit/s budget (cap 32),
+bucketing the bots' received bytes per millisecond and feeding them through a
+simulated FIFO uplink sized for each load:
+
+| Ticks per interval | Peak 1 ms | Queue delay at 70% load, mean / p99 | At 85% | Entry p50 / p99 | Server CPU |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 54× mean | 11.3 / 35.5 ms | 17.1 / 44.4 ms | 25 / 51 ms | 11% |
+| 10 phases | 29× mean | 1.9 / 13.6 ms | 3.7 / 19.2 ms | 20 / 49 ms | 11% |
+
+Egress was 1.7 MB/s in both. A probe connection answering `Ping` stayed near
+0.1 ms throughout, so the server's own reply path adds nothing; the
+improvement is in the bytes queued ahead of other traffic on a real uplink,
+which was not measured through the tunnel.
 
 ## Engine assumptions
 

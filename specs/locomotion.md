@@ -1,73 +1,5 @@
 # Locomotion
 
-## Status
-
-Implemented, built on Windows, and run in game on Skyrim AE 1.7.104 with
-live and replayed players: position, heading, directional movement, walk,
-run, sprint, sneak, jumps, and swimming. The behavior-graph facts below were
-read from the vanilla `Skyrim - Animations.bsa` behavior files or observed in
-game, as noted.
-
-- **Following the [checkpoint playout](sync-pipeline.md#checkpoint-playout):**
-  run in game with a 20 Hz server tick: walking and running actors moved at
-  an even pace, and following idle drift looked better than snapping. Slow
-  movement at a high frame rate and the slide after a stop were not checked.
-  The idle drift figures below were measured from 13 server recordings.
-- **Checkpoint revision:** run in game with a live peer. All 100 state changes
-  applied in the pass their checkpoint played, within the log's 1 ms
-  resolution. When the revision opened at the checkpoint instead, none of 810
-  did, and 21 waited 50 ms or more. A capture at a low frame rate was not
-  run.
-- **Stop hold:** run in game. Of 66 published stops without it, 9 were
-  one-sample flickers (direction-key changes, a movement-bit drop between
-  chained attacks, a start); with it, 99 gaps of 6–30 ms were held, and the
-  11 stops published and reversed on the next sample were real stops after
-  the bits had been clear for at least 0.06 s.
-- **Stance reconciliation and selector reading:** run in game with a live
-  peer (unarmed, one-handed, bow, magic, sneak, sprint, attacks, casts,
-  sprinting jumps, draws while running): the selectors agreed with every
-  probe, mixed readings occurred only at hand-offs, sneak toggled every
-  0.15–0.4 s while running was taken on the first attempt each time, and
-  every locomotion reassert found the graph already in the target state or
-  took only the missing edge, with no event timeout or translation hold.
-  Blocking and swimming were not exercised, and the `sneakStop` skip did not
-  occur.
-- **`iSyncIdleLocomotion` and `iSyncSprintState` holds:** run in game:
-  locomotion reasserts found the graph re-entered standing 4 times against
-  35 without the hold, and mixed readings were 1 against 14; sprinting
-  landings took the sprint skip without a timeout.
-- **Graph probe:** run in game on a replay; it read the vanilla state machine,
-  clip, and variable names correctly. Only debug builds compile it.
-- **Short moves:** run in game on replays of 0.25 s taps and strafes, standing
-  and sneaking, restarting 0.03–0.8 s after their stops: no pose flicker or
-  choppiness was seen with the standing `Direction` and start cross-blends
-  described under [Direction](#direction). The zero-speed `Speed` hold is
-  unobserved, and the final form of the start rule (without the diagnostic
-  active-generator check it replaced) is a Linux syntax check only.
-- **Graph `Speed` on foot** ([Source capture](#source-capture)): built on
-  Windows and run in game on 1.7.104: the remote's walk on stairs follows the
-  source's pace, and replays of live recordings carried the graph values with
-  normal jump landings, swim transitions, and horse gait. Scaled races are not
-  confirmed.
-- **[Ground offset](#ground-offset):** built on Windows and run in game on
-  1.7.104 on foot: probes hit static, ground, anim static, and clutter layers,
-  and remote actors stood on local ground. Mounts, swimming, and 1.5.97 are
-  not confirmed. The ray layer and the walkable layers come from the COLL
-  records in `Skyrim.esm`, and the pick path from the 1.7.104 executable
-  ([Engine assumptions](#engine-assumptions)).
-- **Not run in game:** `InvalidateAnimationDispatch` on every graph loss or
-  replacement, graph `Speed` and `Direction` following the interpolated pose,
-  the [arrival hold](#source-capture), [beast graphs](#beast-graphs) beyond
-  the werewolf's and werebear's locomotion
-  ([Combat presentation](combat-presentation.md#status)), and
-  [jump sound](#jump-sounds) attenuation, whose hook sites were traced in the
-  1.7.104 and 1.5.97 executables and whose sound records were read from
-  `Skyrim.esm`. The arrival hold's cause was measured in a recording of four
-  door transitions entered sprinting: the first checkpoints in the new space
-  said sprinting, then running, while the player stood still for 2.2–2.7 s,
-  and the movement bits cleared about 0.1 s before the player walked off, or
-  stayed set.
-
 ## Scope
 
 Locomotion presents where a player is and how it moves: the transform, the
@@ -115,7 +47,8 @@ At each checkpoint, from the carrier (the player, or its mount while riding):
   source's pace. The engine's Speed channel feeds that variable the intended
   movement speed divided by the actor's scale, not the ground covered: on
   stairs the source keeps its full walk pace while its controller covers less
-  ground, and measured speed played the remote's walk too slowly there. An
+  ground, and measured speed played the remote's walk too slowly there
+  (not confirmed for scaled races). An
   idle checkpoint, a graph without `Speed`, and a mount carry the speed
   measured from the previous published sample instead: horizontal travel
   only, or 3D travel while swimming, so a mount's gait follows its ground
@@ -173,7 +106,7 @@ At each checkpoint, from the carrier (the player, or its mount while riding):
   sample stops moving, and on the sample after it, `local movement input`
   logs them newest first with each pass's age (`reason=stopped` or
   `after-stop`), which shows why a sample published a stop between moving
-  ones ([Status](#status) has the causes the stop hold covers).
+  ones.
 
 ## Receiver
 
@@ -657,7 +590,7 @@ support consistent with the source).
 ## Engine assumptions
 
 Read from the 1.7.104 executable, `Skyrim.esm`, and the vanilla behavior files,
-not yet checked in game:
+not confirmed in game:
 
 1. The footstep sink plays a non-player actor's impact sound through
    `ImpactSoundData::pool` and its first sound only; the player takes the

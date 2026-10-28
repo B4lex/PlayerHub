@@ -1,73 +1,5 @@
 # Network
 
-## Status
-
-- **Server:** implemented in Go. `go test -race ./...` in `server/` covers
-  validation of every client message (`internal/validate`), hub ordering
-  and relay, the roster, nearby players, whispers by slot, vanish,
-  inspection, trades, and the shapeshift rules (`internal/hub`), outboxes
-  (`internal/delivery`), the session store with display names, expiry,
-  bans, and database upgrades (`internal/auth`), the admission gate and
-  `X-Forwarded-For` parsing (`internal/admission`), and black-box
-  connections over a real WebSocket (`internal/session`, `internal/admin`):
-  issued and resumed sessions, every refusal and close status, the
-  `Origin` rule, the per-address caps, kicks, bans, and the admin session
-  route. A local server answered `/ws` and `/health` only on `listen`, and
-  `/api`, `/admin/`, and `/debug/pprof/` only on `admin_listen`.
-- **Throughput:** `cmd/loadgen` measured 250 walking bots, every one
-  receiving every other, on a 4-core Linux host shared with the load
-  generator: 1.24M entries/s, server CPU 58–64% of one core, latency p50
-  22 ms and p99 42 ms from sending a checkpoint to a peer receiving it. 500
-  bots connected within 2 s and ran without a failed bot or a server
-  warning. Quarter-unit positions cost 31.6 against 30.3 bytes per relayed
-  entry with 100 bots within ±6000 units. Scanning a viewer's
-  [nearby players](#nearby-players) once a second left 500 bots in each
-  other's reach at 559k entries/s and p99 82.8 ms; scanning every viewer on
-  every interest pass cost 23% of the entries and 20 ms of p99.
-- **Plugin transport:** built on Windows and run in game under wine,
-  including a `wss://` connection through a Cloudflare tunnel to the Go
-  server. On Linux, `ServerClient`, `WireCodec`, `SessionStore`, and
-  `ConnectionMonitor`, built against IXWebSocket 12.0.1 and nanopb 0.4.9
-  with stubbed Skyrim headers, ran against the Go server with a loadgen bot
-  as the peer: connect, hello and welcome, enter, context, checkpoints, an
-  attack, appearance, equipment, chat and its rejection, latency probes,
-  traffic counting, closing, and a session issued, saved, resumed by a
-  second process, and taken over by a third. That run predates the
-  `display_name` wire fields and the refusals that end the player's choice
-  to connect. `WireCodec` with the regenerated nanopb code decoded
-  Go-encoded server messages of every kind (rosters of 0 to 500 entries,
-  `NearbyPlayers`, whispers, inspections, trades, shapeshift contexts and
-  beast actions) and rejected their invalid forms, and the client messages
-  it encoded passed the server's `validate.Message`.
-  For protocol 13, `WireCodec` built with g++ against nanopb 0.4.9 encoded
-  contexts, checkpoints, attacks, beast actions, and trade acceptances that
-  `protoc --decode` read as the schema says, and decoded `protoc`-encoded
-  `ChatResult`, `Pong`, `ChatMessage`, `Roster`, `TradeInvite`,
-  `TradeAccept`, `PeerAction`, `PeerContext`, `PeerEnter`, and
-  `PeerAppearance`, rejecting an action without a kind, an unspecified beast
-  action, a context with both an interior cell and a worldspace, a speaker
-  without a name, and an unknown rejection. Protocol 14's `Context` was
-  checked the same way against Go's encoding: contexts with a worldspace, with
-  an interior cell and furniture, and with neither decoded in Go and passed
-  `validate.Context`, and Go-encoded `PeerContext` and `PeerEnter` decoded,
-  while a context with both, an empty cell plugin, or a worldspace `form_id`
-  above 24 bits was rejected. Not built on Windows or run in game.
-  `ConnectionMonitor.cpp` ran against a stubbed transport and configuration
-  under the settings window's harness ([UI overlay](ui-overlay.md#status)):
-  a game start with and without a display name, `ConnectAutomatically`, an
-  endpoint, and `CustomServer`; switching servers while connected; each
-  refusal leaving the player disconnected until Connect; and a lost
-  connection reopened. The 4001 split into `kClientOutdated` and
-  `kServerOutdated` (`MakeProtocolRefusal`) is only syntax-checked with g++.
-- **Not run in game:** the connection policy and recovery
-  ([Connection](#connection)) beyond connecting, every refusal, the
-  [vanilla intro hold](#vanilla-intro-hold), vanish, inspection, and whether
-  quantization shows as jitter. The `Update.esm|0DDFB3` misreport that
-  `FormLookup::GetDefiningFile` fixes ([Form references](#form-references))
-  was seen in `PlayerHub.log`; the fix is not run in game. The vampire
-  lord's `beast_right_hand`, `beast_left_hand`, and `beast_armor` show on
-  peers in game through a recording and its playback.
-
 ## Scope
 
 This system owns the wire protocol, the client transport and connection
@@ -235,7 +167,8 @@ positions changed the length of a 50 ms walking segment by about 12% (about 4%
 running), and the receiver follows the interpolated path exactly, so it showed
 as a change in speed at every checkpoint; quarter units cut that to a quarter.
 A zigzag varint coordinate below 8192 in magnitude costs one byte more, others
-the same, and eighth units would add a byte above 131072. The server reads
+the same (31.6 against 30.3 bytes per relayed entry with 100 bots within
+±6000 units), and eighth units would add a byte above 131072. The server reads
 positions in world units only through `wire.Position` and `wire.Units` (interest,
 Nearby chat, trade range, the admin state, the bots). `time` is wall
 time, not accumulated frame time, so a paused or hitching source does not
@@ -258,9 +191,6 @@ movement in [Locomotion](locomotion.md), stance and hands in
 [Combat presentation](combat-presentation.md), furniture, mounts, and death in
 [Native interactions](native-interactions.md), swimming in
 [Remote actor](remote-actor.md#swimming).
-
-Cell and worldspace IDs are load-order FormIDs and need the same plugins in
-the same order on every peer. Furniture is plugin-qualified.
 
 ## Actions
 
@@ -661,7 +591,10 @@ view radius, while Nearby reaches a whole interior.
 - `Hub.updateNearbyPlayers` runs after each interest pass and scans the
   listed clients due, each a second after its previous scan
   (`nearbyPlayersInterval`), so a crowd's scans spread over the passes and a
-  change shows in the list up to about 1.2 s late, plus its half-second copy. A
+  change shows in the list up to about 1.2 s late, plus its half-second copy.
+  With 500 `cmd/loadgen` bots in each other's reach, scanning every viewer on
+  every interest pass instead cost 23% of the relayed entries and 20 ms of
+  p99 latency. A
   scan finds candidates in `nearbyGrid`, a second `interest.Grid` whose cells
   are `chat.nearby_radius` wide, where an interior's players all share one
   cell (`nearbyView`). It checks each candidate against the slots it sent

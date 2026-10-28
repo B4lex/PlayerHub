@@ -53,10 +53,18 @@ a peer does not have a matching modded asset or behavior.
   their responsibilities), one section per feature or concern,
   `Engine assumptions`, `Acceptance criteria`, and `Known limitations` (with
   non-goals). Keep only sections with content.
-- `Status` states what was actually verified and how: server unit tests, Linux
-  compile or headless checks, Windows build, in game and on which runtime. Give
-  a feature its own status where it differs from the system's. Keep unverified
-  engine behavior under `Engine assumptions`.
+- `Status` is not a test log. The baseline in `specs/README.md` applies to
+  every spec: implemented behavior is built on Windows and checked in game on
+  Skyrim AE 1.7.104. Do not list unit tests, Linux syntax or headless checks,
+  benchmarks run to confirm a change, or which sessions exercised a feature.
+  Write `Status` only to resolve uncertainty a reader would otherwise have:
+  behavior known not to have run in game, a runtime, mod, or configuration
+  that behaves differently or was never exercised, or a known gap that the
+  rest of the spec would suggest works. Remove the note once the behavior is
+  confirmed, and leave `Status` out when nothing differs from the baseline.
+  Keep unconfirmed engine behavior under `Engine assumptions`. Measurements
+  that justify a design or a default belong in the section they justify.
+  Report what a change was checked with in your reply, not in the spec.
 - Keep specs precise and to the point. Name wire fields, validation rules and
   defaults, code symbols, config keys, form IDs, and engine functions; state
   decisions with their reasons. Leave out line numbers, code listings, and
@@ -137,7 +145,8 @@ a peer does not have a matching modded asset or behavior.
   protocol or concurrency behavior changes, and `cmd/loadgen` against a local
   server (port 3100) when a change may affect throughput or latency.
   For plugin changes on Linux, report that the Windows XMake build and in-game
-  behavior were not verified, and describe any checks that were possible.
+  behavior were not verified, and describe any checks that were possible, in
+  your reply rather than the spec's `Status`.
 
 ## Debugging
 - This plugin relies on reverse-engineered Skyrim behavior. When logs and

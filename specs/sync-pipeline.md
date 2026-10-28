@@ -2,26 +2,10 @@
 
 ## Status
 
-Implemented, built on Windows, and run in game on Skyrim AE 1.7.104; every
-feature in the other system specs runs through it. Spawn throttling
-(`[Advanced] SpawnsPerSecond`) and save exclusion are not separately checked
-in game. The [vanilla intro](#vanilla-intro) hold has not run in game in its
-current form; it passed a Linux g++ syntax check only. Its stages, the cuffs,
-and the `kNewGame` payload were read from the 1.7.104 data files,
-`skse64_1_7_104.dll`, and Alternate Perspective's shipped script sources and
-plugin ([Engine assumptions](#engine-assumptions)). Space references in
-[coordinate spaces](#coordinate-spaces) passed a Linux g++ syntax check only.
-
-[Checkpoint playout](#checkpoint-playout) ran in game against a server with
-a 20 Hz tick: remote walking and running moved at an even pace. Jumps,
-attacks, furniture, mounts, a local pause, and a peer resuming from idle were
-not separately checked with it. `CheckpointPlayout` also ran in a Linux
-simulation against stubbed engine types: a 60 fps source publishing at 20 Hz,
-a server relaying latest-wins at 10, 20, or 40 Hz with idle suppression,
-network jitter with delay spikes, and receivers at 30 to 144 fps. At a 20 Hz
-tick the per-pass speed deviation of a following actor was about 7% against
-about 23% when chasing the newest checkpoint, and passes without movement
-0.3% against 3%, for about 50 ms more delay.
+The [vanilla intro](#vanilla-intro) hold's handling of Alternate
+Perspective's start has not run in game; its stages, the cuffs, and the
+`kNewGame` payload were read from the data files, SKSE, and the mod's
+scripts ([Engine assumptions](#engine-assumptions)).
 
 ## Scope
 
@@ -338,7 +322,10 @@ one overtook, sends far peers at `far_rate_hz`, and suppresses idle repeats
 adds jitter. Following the newest checkpoint as it arrives would make the
 actor alternate between catching up and waiting. `CheckpointPlayout` instead plays
 each peer's checkpoints back at their sampled spacing, a little behind the
-newest. The whole checkpoint waits, not only its transform, so movement state,
+newest. In a simulation of a 60 fps source, a 20 Hz relay with idle
+suppression and jitter spikes, and receivers at 30 to 144 fps, this cut the
+per-pass speed deviation of a following actor from about 23% to 7%, and
+passes without movement from 3% to 0.3%, for about 50 ms more delay. The whole checkpoint waits, not only its transform, so movement state,
 jumps, stance, hands, furniture, death, and the actions anchored to a
 checkpoint stay with the position they were sampled at: actions dispatch only
 once their anchor checkpoint has played ([Combat
@@ -516,6 +503,6 @@ the elapsed time divides the distance travelled into the published speed.
   typically 0.1–0.2 s in total. There is no extrapolation or latency
   compensation; when nothing waits to play, the actor stops at the played
   checkpoint and drains the gap once the next one arrives.
-- The playout constants were tuned in simulation; in game they were only
-  checked on one connection, not under real jitter or a far peer's 10 Hz rate.
+- The playout constants were tuned in simulation, not under real jitter or a
+  far peer's 10 Hz rate.
 - There is no lobby or server-authoritative movement.

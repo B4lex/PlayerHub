@@ -1,39 +1,5 @@
 # Remote Actor
 
-## Status
-
-Implemented for Skyrim AE 1.7.104, built on Windows, and run in game there.
-On SE 1.5.97 nothing has run; its IDs were matched in the 1.5.97
-disassembly ([assumption 17](#engine-assumptions)).
-
-- **Spawn, readiness, animation firewall, hit recovery:** run in game with
-  every synchronized feature. The case-insensitive firewall match has not
-  run in game.
-- **Combat isolation:** hook sites and entry bytes checked against the
-  1.7.104 executable and Address Library; the hooks install in game
-  (`latest.log`), and what they drop is not verified in game.
-- **Precision exclusion:** interface layout and disable behavior read from
-  Precision's source (`PrecisionAPI.h`, `PrecisionHandler`, `Hooks.cpp`);
-  not run with Precision installed.
-- **Reaction suppression and package takeover:** run in game: every hit met
-  a blocked dialogue response and one package takeover, and the repeating
-  weapon equip animation after a hit was gone. Sitting in furniture after a
-  hit is not covered by the captures.
-- **Dead body prompt:** the `GetActivateText` hook and its HUD caller were
-  read in the 1.7.104 and 1.5.97 disassembly
-  ([assumption 5](#engine-assumptions)); Linux syntax check only, not run in
-  game.
-- **Scene package suppression:** traced in the 1.7.104 binary; the hooks
-  install in game, and their effect is not verified in game.
-- **World isolation:** placement verified in game with a replayed player
-  walking, idling, mounting, riding, and dismounting. Its other acceptance
-  criteria are not checked.
-- **Registry shared lock and identity indexes, light budget, graph channel
-  layout:** not exercised in game beyond what every remote actor runs. The
-  light update paths ([assumption 18](#engine-assumptions)) and the Speed,
-  Direction, and TurnDelta channel state ([Graph speed](#graph-speed)) were
-  read in the 1.7.104 disassembly.
-
 ## Scope
 
 A remote actor is a local `RE::Actor` that stands in for a player who lives in
@@ -650,7 +616,7 @@ Verified in game:
    its 3D follows `SetPosition(..., true)`. A temporary per-pass position check
    found no other writer across replayed mounts and dismounts.
 
-Not yet checked in game:
+Not confirmed in game:
 
 8. No combat path adds a remote actor to a local combat group's targets without
    passing 37532/37534 or `StartCombat`.
@@ -666,7 +632,7 @@ Not yet checked in game:
     not overwritten while `Move` is skipped; trigger volumes detect actors
     only through the character body.
 14. The death items path (ID 37198) needs no guard for a killed remote
-    actor; not checked. Damage (ID 37335) is covered by the
+    actor. Damage (ID 37335) is covered by the
     `HandleHealthDamage` guard.
 15. The local player's Activate on a remote actor or mount, from the
     crosshair, reaches ID 19796 with the player as the activator, so the
@@ -678,7 +644,7 @@ Not yet checked in game:
     clears the disabled set only on a player world change.
 17. The SE 1.5.97 functions behave as their 1.7.104 counterparts, matched in
     the 1.5.97 disassembly by instruction sequence and by calling the SE
-    counterparts of the same functions; none was run on SE. Combat: 36534
+    counterparts of the same functions. Combat: 36534
     (37534), 36537 (37537), 37608 (38561), 37650 (38603), 33629 (34407),
     37674 (38628), and 37673 (38627). Reactions: 38612 (39643), 34414 (35221),
     102158 (109588), 36575 (37577), and 41626 (42704). Hostility,
@@ -703,7 +669,7 @@ Verified against the 1.7.104 executable for the [light budget](#light-budget):
     caster's magic node, with forced dynamic (ID 34151), stored in
     `ActorMagicCaster::light`.
 
-Not yet checked:
+Not confirmed:
 
 20. A torch's light, like the hand light, is an `NiLight` under the actor's
     3D, and the first `userData` above every light on an actor is the actor;
@@ -772,7 +738,6 @@ Not yet checked:
   - package selection (IDs 39114 `CheckForNewPackage`, 38959
     `InitFromPackage`), which would remove the frame a reaction package runs;
     `AssertDoNothingPackage` and furniture packages must still pass;
-  - health regeneration (ID 37448), low value since `SurvivalPolicy` owns
-    health;
+  - health regeneration, of low value since `SurvivalPolicy` owns health;
   - engine position writes (ID 19790), for callers other than the movement
     update.

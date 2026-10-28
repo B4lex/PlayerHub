@@ -1,54 +1,5 @@
 # Trade
 
-## Status
-
-Built on Windows with the rest of the plugin. In game: the trade screen
-opened and looked right ([UI overlay](ui-overlay.md#status)), the
-inventory capture with item details ran on SE 1.5.97, and a click on a
-single offered item removes it. A whole trade between two games, and the commit,
-have not run in game.
-
-- **Server:** `go test -race ./...` covers the hub's trades
-  (`internal/hub`): invitation, opening, relayed offers, reports, plugin
-  queries and replies, acceptances, and the commit with each player's
-  revisions; acceptances cleared by an offer and refused for stale revisions
-  or before their report; every request refusal, decline, cancel, a hidden
-  invitation and its expiry, closing on moving apart, `Exit`, a disconnect,
-  and a transformation; and the limit of pending plugin queries.
-  `internal/validate` covers every item, report, query, reply, and cancel
-  rule in [Network](network.md#trade).
-- **Wire, on Linux with g++ 16:** `WireCodec.cpp` with the regenerated
-  nanopb code decoded Go-encoded trade messages of every kind, including
-  player and plugin enchantments, tempering, names, and plugin queries up to
-  their limits, and rejected their invalid forms; the messages it encoded
-  passed the server's `validate.Message`, and it encoded nothing past the
-  item, plugin, and byte limits. The line and report limits were checked
-  at 32, before they became 15. `EstimateTradeItemBytes` stayed above the
-  encoded size, 1664 against 1580 bytes for the largest valid item.
-- **Session:** `TradeSession.cpp` ran 156 checks: every phase change, the
-  batch interval before an offer is sent, acceptance blockers and
-  acceptances taken back, a commit naming an older revision or arriving
-  without its report, the 16 kept revisions, refusals, crossing
-  invitations, timeouts, and the plugin check's queries, replies, and
-  timeout. All but the plugin check's 37 predate offer lines shown at once,
-  and none covers the beast form refusal.
-- **Windows and engine:** `TradeWindow.cpp`, `TradePrompt.cpp`, and the menu
-  entry ran in headless Dear ImGui harnesses ([UI overlay](ui-overlay.md#status)).
-  The [item details](#item-details) formulas and the [commit](#commit)'s
-  ownership calls were read from the 1.7.104 disassembly and compared with
-  their 1.5.97 counterparts (25915, 25916, 25901, 25893); no number was
-  compared with the game's. `TradeSync`, `TradeInventory`, and
-  `ItemInstance` have not run outside the game, and their engine calls have
-  not run in it.
-- **[Trade bot](#trade-bot):** two bots and an idle `cmd/loadgen` walker
-  traded with each other on a local server: an invitation answered at once,
-  offers with tempering, names, and a player enchantment, a plugin query
-  answered with `TradeBotMissing.esp` missing ahead of the report, a
-  `skip plugin` report that made the giver drop the line and send a new
-  revision, both acceptances and the commit, an edit after an acceptance,
-  `cancel menu`, a decline, `leave` closing the trade with `OUT_OF_RANGE`,
-  and a quit closing it with `DISCONNECTED`. Not run against the game.
-
 ## Scope
 
 Two nearby players exchange inventory items. One offers a trade from the
@@ -194,13 +145,11 @@ a request unanswered after 10 s, as for a lost message.
   - the peer's game lacks the enchantment (`MISSING_EFFECT` without a
     plugin) or cannot rebuild it (`BAD_ENCHANTMENT`).
 - `Accept` is possible once the window holds something on either side, the
-  own offer is sent, the peer reported on it, this game reported on the
-  peer's, and the player has had the cursor over each of the peer's lines
-  since the peer added or changed it
-  ([UI overlay](ui-overlay.md#trade-window), as Path of Exile asks, so a
-  swapped item cannot pass unseen). `TradeSync` gives each shown peer line
+  own offer is sent, the peer reported on it, and this game reported on the
+  peer's. `TradeSync` gives each shown peer line
   an id (`PeerLine::id`) that it keeps while the peer offers the same item
-  (`TradeItem` equal, count included). It first checks that the player still holds every offered item;
+  (`TradeItem` equal, count included), so the
+  [preview column](ui-overlay.md#preview-column) can follow it. It first checks that the player still holds every offered item;
   one gone (a script took it) refuses with a notice naming them and
   lists the inventory again. `TradeAccept` names both revisions; the server
   passes it on to the peer in the peer's terms
@@ -427,7 +376,7 @@ the peer's side.
 
 ## Engine assumptions
 
-To verify in game:
+Not confirmed in game:
 
 1. `RemoveItem` with no destination on a worn or favorited stack unequips it
    and removes it, and on a stack with extra data removes only that stack.
@@ -451,7 +400,8 @@ To verify in game:
 9. [Item details](#item-details): the formulas of 1.7.104 IDs 26498, 26499,
    26483, and 26465 were read from the disassembly, and SE 1.5.97's 25915,
    25916, 25901, and 25893 read the same settings, default object, and
-   constants; `kKeywordCuirass` is `ArmorCuirass` in every load order.
+   constants; `kKeywordCuirass` is `ArmorCuirass` in every load order. The
+   ported numbers have not been compared with the game's item card.
 10. `GetValue`'s enchantment lookup (ID 14563) returns the base form's own
    enchantment when the stack has none, so a pre-enchanted item's value
    includes it; and a player enchantment's `CalculateTotalGoldValue` is the
@@ -474,8 +424,7 @@ To verify in game:
 3. Invitations from muted or vanished players never show and expire for the
    sender.
 4. Both windows show both offers within a moment of an edit, and an edit
-   takes both acceptances back. A line the peer adds or changes keeps Accept
-   disabled until the player hovers it.
+   takes both acceptances back.
 5. A completed trade moves exactly the offered items and counts, with their
    enchantments, tempering, names, and souls, both ways, and nothing else.
 6. Items, and items with an enchantment or effect, from a plugin the

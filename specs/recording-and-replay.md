@@ -1,65 +1,5 @@
 # Recording and Replay
 
-## Status
-
-Implemented in Go and verified on Linux:
-
-- `go test -race ./...` in `server/` covers the format, store,
-  captures, markers (`internal/recording`), virtual-player numbering and replay
-  sessions with a fake clock (`internal/playback`), bot layout
-  (`internal/loadtest`), and, over a real WebSocket, capturing a live player,
-  replaying it to another client, the admin API's errors, and its
-  [request guard](#admin-api) (`internal/admin`): Host names, a body other
-  than JSON, and cross-site or cross-origin writes. A server on ports
-  3100/3101 answered `curl` the same way, with `/admin/` and `/debug/pprof/`
-  refused under a foreign Host too, and a `/debug/pprof/profile` GET refused
-  as `cross-site` or `same-site` but served as `none`.
-- `cmd/loadgen` against a server on port 3100 with a file-backed session store
-  and the default limits: two runs of 20 bots resumed the same 20 sessions
-  (every connection `new_session=false`, the file kept 20 tokens); 500 bots'
-  sessions were issued in 0.05 s; a file whose names were held stopped the run
-  with the taken name, and an unreachable `--admin` with the connection
-  error. With `--admin ""`, 5 of 8 bots got sessions and 3 were refused with
-  4008.
-- `npm run typecheck`, `npm test`, and `npm run build` in `admin-ui/`,
-  and the built panel loaded in headless Chromium against the Go server, live
-  over the event feed, with no console errors. Against a server on ports
-  3100/3101 with three loadgen bots, headless Chrome driven over the DevTools
-  protocol showed the Dashboard's player rows keeping the same height and
-  column widths across 12 snapshots, opened a row's command menu, moved
-  through it with the arrow keys and closed it with Escape, cancelled a
-  confirmation with Escape and with a click outside, and confirmed hide, kick,
-  and a session ban; an address ban of the loopback bots showed the server's
-  refusal as a toast. An address ban that succeeds was driven with `curl`.
-- Sessions page: `auth` tests cover listing, search, paging, rename, and
-  delete with bans, and an `internal/admin` test covers the routes over a real
-  WebSocket, including a connected session's rename refusal and its 4011 close
-  on delete. Against a server on ports 3100/3101 with 60 issued sessions and a
-  connected `cmd/tradebot`, headless Chrome driven over the DevTools protocol
-  showed the list and pager, refused an invalid and a held name, renamed an
-  offline session, searched, paged, and deleted the connected session, which
-  closed the bot with 4011. The row menu and dialogs were driven the same way
-  against a connected loadgen bot, an offline session, and a banned one:
-  rename stayed disabled for the connected session and its confirm button for
-  an unchanged or too-short name; a held name sent with Enter showed the
-  server's refusal in the dialog, and a valid one renamed the session; lift
-  removed the ban; Escape cancelled a delete, and confirming deleted the
-  session. Lifting a session with an address ban was not driven, because the
-  server refuses address bans of loopback bots.
-- Dashboard chat: a `hub` test checks that only accepted Global lines reach
-  `Options.OnGlobalChat`, and an `internal/admin` test reads `/api/events`
-  over a real WebSocket stack and gets each Global line once as a `chat`
-  event, without a whisper. Against a server on ports 3100/3101, headless
-  Chrome driven over the DevTools protocol, with two scripted clients
-  chatting, showed Global lines only, markup as plain text, wrapped long
-  lines, the Players panel not moving, the log following new lines while at
-  the bottom and holding its place while scrolled up, no horizontal scroll at
-  600 px, and no console errors.
-
-Replayed players are watched in game while developing the plugin; how one
-looks in every case is not verified (see
-[Engine assumptions](#engine-assumptions)).
-
 ## Scope
 
 The server hosts an admin panel that captures a connected player's behavior,
@@ -232,9 +172,9 @@ operator visits from driving it through the browser:
   only text, form, and multipart bodies cross-site without a preflight, and
   the API answers no preflight.
 
-Refusals answer `{"detail": ...}` like other errors.
 Commands are REST under `/api` ([server README](../server/README.md#admin-panel));
-errors answer `{"detail": ...}`, and player IDs are slots as decimal strings.
+errors, the guard's refusals included, answer `{"detail": ...}`, and player
+IDs are slots as decimal strings.
 Live state is one full snapshot pushed as a server-sent event (`event: state`)
 at `/api/events` on connect and after each change, coalesced to at most one per
 0.5 s: the first change after a quiet period is sent at once, and later ones
@@ -315,7 +255,7 @@ name or a connected session. `DELETE /api/sessions/{id}` answers 204 or 404.
 
 ## Engine assumptions
 
-Not checked in game:
+Not confirmed in game:
 
 1. A remote actor whose last checkpoint is idle at a fixed position stands
    still with its stance kept.

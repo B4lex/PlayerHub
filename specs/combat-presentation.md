@@ -1,52 +1,5 @@
 # Combat Presentation
 
-## Status
-
-Built on Windows with the rest of the plugin; the server side is covered by
-unit tests.
-
-- **Weapon stance and normal attacks:** run in game on Skyrim AE 1.7.104,
-  including sheathes cut off by a jump, which finish after the landing.
-  Publishing `weaponDrawn` when the sender's clip starts has not been checked
-  separately.
-- **Bow draws and spell casting:** confirmed in game: `EquipSpell` on an
-  actor that does not know the spell, the Healing Hands right-hand cast
-  looping until `InterruptCast`, a held bow draw, spell fire suppression,
-  and the last cast stop waiting for the graph to leave the cast branch
-  before locomotion is replayed (a replay with running casts). The rest is
-  under [Engine assumptions](#engine-assumptions).
-- **[Beast actions](#beast-actions):** run in game with one peer: werewolf
-  attacks, howls, and feeding were captured and relayed, and the peer's
-  werebear attacks all played on their first attempt. Against a server
-  playback of the local vampire lord, its levitation and its
-  [casts](#vampire-lord-casts) with both hands showed, holding the spells'
-  hand art. The vampire lord's melee, feeding, Mist Form, and bats, and the
-  attack ownership of a beast attack, were not run in game. The vocabulary
-  was read from the vanilla `WerewolfBehavior.hkx` and `VampireLord.hkx`
-  transitions and the beast races' attack data and IDLE records; that
-  `PlayerCharacter`'s graph holder vfunc 1 is the function Character's holder
-  uses (ID 38048) was read from the 1.7.104 executable.
-- **Not run in game:** left-hand and dual attacks, blocking, bashes, and
-  power attacks (except the observations noted below); the
-  [spell look](#spell-look), whose sources and form copies were read from the
-  1.7.104 executable; [catching up](#catching-up), whose weapon speed
-  bindings were read from the vanilla behavior files and channel layout from
-  the 1.7.104 executable; and capturing one attack per swing, chains from
-  `kHit` and `kDraw`, and single dual-wield bashes. A source with an attack
-  replacer was seen publishing two attacks per chained swing and two per
-  dual-wield bash, and a receiver with an MCO-style graph never chaining, which
-  the [capture](#capture) and [dispatch](#dispatch) rules below address; the
-  attack state writers were read from the 1.7.104 executable and the vanilla
-  clip annotations from `animationdatasinglefile.txt`. SE 1.5.97 was not
-  run: the spell fire detour's SE ID 33629 has the same entry bytes and
-  callees in the 1.5.97 disassembly, and the weapon speed channel layout is
-  not checked there.
-
-Graph event names, transitions, and conditions come from the vanilla
-`Skyrim - Animations.bsa` behavior files (`0_master.hkx`, `1hm_behavior.hkx`,
-`blockbehavior.hkx`, `bashbehavior.hkx`) and the `Skyrim.esm` idle and race
-records.
-
 ## Scope
 
 A remote actor shows its source's weapon stance, melee and bow attacks,
@@ -59,6 +12,12 @@ The wire fields are in [Network](network.md#checkpoint-and-context) and
 [Network](network.md#actions); the synchronized weapons, spell hands, and
 ammo are in [Appearance and equipment](appearance-and-equipment.md#equipment);
 isolation of hits is in [Remote actor](remote-actor.md#combat-isolation).
+
+Graph event names, transitions, and conditions come from the vanilla
+`Skyrim - Animations.bsa` behavior files (`0_master.hkx`, `1hm_behavior.hkx`,
+`blockbehavior.hkx`, `bashbehavior.hkx`, `WerewolfBehavior.hkx`,
+`VampireLord.hkx`) and the `Skyrim.esm` and `Dawnguard.esm` idle, race, and
+attack data records.
 
 ## Components
 
@@ -222,7 +181,9 @@ known checkpoint, into a bounded FIFO (32). The front action waits until:
 - the preceding attack has completed or its swing has hit.
 
 A queued action times out after 3 s, a dispatch is retried at most four times,
-and a furniture checkpoint discards the queue.
+and a furniture checkpoint discards the queue. Late join, graph replacement,
+respawn, and hit recovery first restore the current checkpoint; historical
+attacks are never replayed.
 
 ### Catching up
 
@@ -248,9 +209,7 @@ attacks of 1.5–3.3 s a queued attack reached the 3 s timeout and was lost.
 - Clearing the queue resets the scale; while the actor rides, the rider's scale
   is set back to 1 every pass.
 - Logs: `attack catch-up started`, `attack catch-up ended` with the peak speed,
-  and `dropped lagging queued attack` with the wait. Late join, graph replacement,
-respawn, and hit recovery first restore the current checkpoint; historical
-attacks are never replayed.
+  and `dropped lagging queued attack` with the wait.
 
 ### Dispatch
 
@@ -645,7 +604,7 @@ every fire. Melee, bash, and projectile hits are dropped by
 
 ## Engine assumptions
 
-To verify in game:
+Not confirmed in game:
 
 1. `high->attackData` holds the starting attack's data when the attack state
    first changes, and turns into the power data within the same window, for
@@ -694,7 +653,7 @@ To verify in game:
     runtime forms stay valid across save loads, as runtime actor bases do
     ([Appearance and equipment](appearance-and-equipment.md#actor-base)).
 
-To verify in game, for [beast actions](#beast-actions):
+Not confirmed in game for [beast actions](#beast-actions):
 
 13. Every vocabulary event reaches the player's graph through the holder's
     vfunc 1, called virtually, including the attack data events, idles

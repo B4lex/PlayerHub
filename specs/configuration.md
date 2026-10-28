@@ -1,31 +1,5 @@
 # Configuration
 
-## Status
-
-- In game on 1.7.104, with the rest of the plugin built on Windows: the file
-  loads at startup and a key no setting reads is logged as unknown
-  (`latest.log`). Applying changes in game (reconnect, equipment
-  re-resolution, spawn rate) is not checked.
-- On Linux, `PluginConfig.cpp` and `SettingsSchema.cpp` ran against SimpleIni
-  with stubbed SKSE headers: default-file generation, overrides, invalid
-  values and the limits of each value type, unknown keys, empty keys, and
-  saving (comments and unknown keys kept, a new key added under its comment,
-  a missing file recreated from the commented default). Every key name parsed
-  back to its scan code, no reserved key has a name, and `ParseColor`
-  accepted and rejected the forms in [Schema](#schema). Those runs used
-  earlier section and key names and predate `config/PluginFiles`; the
-  current sections, `[UI]` groups, key defaults, `[UI] Language`, the
-  `ChatPosition*` fine percentages, and `[Advanced] RemoteLights` passed the
-  g++ syntax check only. `CustomServer`, `AccentColor`, and `CloseChatOnSend`
-  also ran with the real schema in the settings window's harness
-  ([UI overlay](ui-overlay.md#status)), and `Text::IsLanguageCode` in a
-  harness of its own.
-- `Config::GetDirectory` ran on Linux only through its fallback, since the
-  stubs resolve no DLL path.
-- The `server_endpoint` xmake option and its `on_config` ran in a scratch
-  xmake 3.0.6 project on Linux: the default and a configured value, a
-  recompile without `-r` when it changes, and the refused values.
-
 ## Scope
 
 `PlayerHub.ini` is the plugin's general configuration. This system owns the

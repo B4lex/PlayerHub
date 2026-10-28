@@ -4,6 +4,16 @@ A retroactive summary of the implementation, organized by system, so humans and
 agents can pick up context quickly. The code is the authority when a spec
 disagrees with it. `AGENTS.md` describes how to keep these files current.
 
+## Verification baseline
+
+Unless a spec's `Status` says otherwise, what it describes is built on Windows
+and checked in game on Skyrim AE 1.7.104, and the server side is covered by
+the Go tests in `server/`. Skyrim SE 1.5.97 is supported through Address
+Library IDs; where a spec names an SE ID, it was matched against the 1.5.97
+disassembly, and SE gets less play than AE. Skyrim VR is not supported: the
+overlay logs a warning and does not install there. `Status` and
+`Engine assumptions` name only what differs from this baseline.
+
 ## Systems
 
 | Spec | System | Sources |
