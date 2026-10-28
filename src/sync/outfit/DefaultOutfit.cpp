@@ -81,7 +81,6 @@ namespace DefaultOutfit
 
         std::uint32_t unusable = 0;
         local.race = ResolveConfigured(settings.race, defaults.race, "Race", Config::kOutfitRaceFilter, unusable);
-        local.sex = settings.sex;
         for (std::size_t slot = 0; slot < settings.armor.size(); ++slot)
         {
             local.armor[slot] = ResolveConfigured(settings.armor[slot], defaults.armor[slot],
@@ -173,8 +172,7 @@ namespace DefaultOutfit
         a_appearance.defaultRace.reset();
         if (!IsBaseGameItem(a_appearance.race) && !local.race.IsEmpty())
         {
-            a_appearance.defaultRace
-                = Multiplayer::DefaultRace{ .race = local.race, .female = local.sex == Settings::kFemale };
+            a_appearance.defaultRace = local.race;
         }
     }
 

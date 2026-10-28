@@ -40,8 +40,6 @@ namespace Config
         constexpr std::array<Id, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> kWeaponTypeLabels{ Id::kNone,
             Id::kOutfitSword, Id::kOutfitDagger, Id::kOutfitWarAxe, Id::kOutfitMace, Id::kOutfitGreatsword,
             Id::kOutfitBattleaxe, Id::kOutfitBow, Id::kOutfitStaff, Id::kOutfitCrossbow };
-        constexpr std::array<Id, DefaultOutfitSettings::kSexNames.size()> kSexLabels{ Id::kOutfitMale,
-            Id::kOutfitFemale };
         constexpr std::array<Id, UISettings::kFrameColorNames.size()> kFrameColorLabels{ Id::kUIBorderVanilla,
             Id::kUIBorderAccent };
         struct BindableKey
@@ -200,8 +198,6 @@ namespace Config
 
             a_visitor.Comment(Id::kOutfitGroupCharacter);
             a_visitor.Form("Race", Id::kOutfitRace, a_settings.race, defaults.race, kOutfitRaceFilter);
-            a_visitor.Choice("Sex", Id::kOutfitSex, a_settings.sex, Id::kNone, DefaultOutfitSettings::kSexNames,
-                kSexLabels);
 
             a_visitor.Comment(Id::kOutfitGroupApparel);
             for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)

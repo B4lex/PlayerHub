@@ -269,7 +269,7 @@ every receiver.
 | `face_morphs` | exactly 19 finite floats; unset morphs hold `FLT_MAX` |
 | `face_parts` | exactly 4 `sint32`, each `-1..255` (`-1` for none); the plugin clamps to this range when capturing and parsing |
 | `tints` | at most 64; `index` `0..65535`, `type` `0..14`, a color, `alpha` `0..1` |
-| `default_race` | `{race, female}` with a base-game race, unset for none |
+| `default_race` | `{race, female}` with a base-game race, unset for none; receivers ignore `female`, which senders set to the appearance's `female` for 1.1.0 clients that still read it |
 
 Hair color is RGB rather than a form, because character editors commonly
 create dynamic color forms.

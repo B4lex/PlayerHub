@@ -188,6 +188,8 @@ typedef struct _playerhub_v1_Tint {
 typedef struct _playerhub_v1_DefaultRace {
     bool has_race;
     playerhub_v1_FormRef race;
+    /* Ignored by receivers; senders copy Appearance.female for 1.1.0 clients.
+ TODO: remove with the next protocol bump, making default_race a FormRef. */
     bool female;
 } playerhub_v1_DefaultRace;
 

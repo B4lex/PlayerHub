@@ -286,10 +286,9 @@ namespace AppearanceSync
                 return std::format("tints count {}", a_appearance.tints.size());
             }
             if (const auto& defaultRace = a_appearance.defaultRace; defaultRace
-                && (!IsValidFormReference(defaultRace->race, false)
-                    || !Multiplayer::IsBaseGamePlugin(defaultRace->race.plugin)))
+                && (!IsValidFormReference(*defaultRace, false) || !Multiplayer::IsBaseGamePlugin(defaultRace->plugin)))
             {
-                return std::format("defaultRace {}", formatForm(defaultRace->race));
+                return std::format("defaultRace {}", formatForm(*defaultRace));
             }
             for (std::size_t i = 0; i < a_appearance.headParts.size(); ++i)
             {
@@ -453,37 +452,34 @@ namespace AppearanceSync
         struct ResolvedRace
         {
             RE::TESRace* race{ nullptr };
-            bool female{ false };
             bool own{ false };
         };
 
         ResolvedRace ResolveRace(Multiplayer::PeerSlot a_playerID, const Multiplayer::AppearanceFormReference& a_race,
-            bool a_female, const std::optional<Multiplayer::DefaultRace>& a_defaultRace, std::uint64_t a_revision)
+            const std::optional<Multiplayer::AppearanceFormReference>& a_defaultRace, std::uint64_t a_revision)
         {
             auto* race = ResolveForm<RE::TESRace>(a_race);
             if (IsPlayableRace(race))
             {
-                return ResolvedRace{ .race = race, .female = a_female, .own = true };
+                return ResolvedRace{ .race = race, .own = true };
             }
 
-            auto* fallback = a_defaultRace ? ResolveForm<RE::TESRace>(a_defaultRace->race) : nullptr;
+            auto* fallback = a_defaultRace ? ResolveForm<RE::TESRace>(*a_defaultRace) : nullptr;
             const bool useDefault = IsPlayableRace(fallback);
             logs::warn(
                 "Appearance sync race unavailable: player={} revision={} race={}|{:06X} resolved={} "
                 "defaultRace={} using={}",
                 a_playerID, static_cast<unsigned long long>(a_revision), a_race.plugin, a_race.localFormID,
                 race != nullptr,
-                a_defaultRace ? std::format("{}|{:06X}", a_defaultRace->race.plugin, a_defaultRace->race.localFormID)
+                a_defaultRace ? std::format("{}|{:06X}", a_defaultRace->plugin, a_defaultRace->localFormID)
                               : std::string{ "none" },
                 useDefault ? "default" : "NordRace");
-            return ResolvedRace{ .race = useDefault ? fallback : LookupFallbackRace(),
-                .female = a_defaultRace ? a_defaultRace->female : a_female };
+            return ResolvedRace{ .race = useDefault ? fallback : LookupFallbackRace() };
         }
 
         ResolvedRace ResolveRace(Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance)
         {
-            return ResolveRace(
-                a_playerID, a_appearance.race, a_appearance.female, a_appearance.defaultRace, a_appearance.revision);
+            return ResolveRace(a_playerID, a_appearance.race, a_appearance.defaultRace, a_appearance.revision);
         }
 
         RE::BGSHeadPart* FindDefaultHeadPart(FaceRelatedData* a_faceData, std::uint8_t a_type)
@@ -730,7 +726,7 @@ namespace AppearanceSync
                 return BuildActorBase(a_playerID, a_appearance, *resolved.race);
             }
 
-            auto look = MakeDefaultAppearance(*resolved.race, resolved.female);
+            auto look = MakeDefaultAppearance(*resolved.race, a_appearance.female);
             look.name = a_appearance.name;
             look.level = a_appearance.level;
             look.weight = a_appearance.weight;
@@ -962,9 +958,9 @@ namespace AppearanceSync
     }
 
     std::string GetRaceName(Multiplayer::PeerSlot a_playerID, const Multiplayer::AppearanceFormReference& a_race,
-        const std::optional<Multiplayer::DefaultRace>& a_defaultRace)
+        const std::optional<Multiplayer::AppearanceFormReference>& a_defaultRace)
     {
-        const auto* race = ResolveRace(a_playerID, a_race, false, a_defaultRace, 0).race;
+        const auto* race = ResolveRace(a_playerID, a_race, a_defaultRace, 0).race;
         const char* name = race ? race->GetFullName() : nullptr;
         return name ? name : "";
     }

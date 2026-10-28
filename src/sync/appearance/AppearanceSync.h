@@ -37,7 +37,8 @@ namespace AppearanceSync
     };
 
     [[nodiscard]] std::string GetRaceName(Multiplayer::PeerSlot a_playerID,
-        const Multiplayer::AppearanceFormReference& a_race, const std::optional<Multiplayer::DefaultRace>& a_defaultRace);
+        const Multiplayer::AppearanceFormReference& a_race,
+        const std::optional<Multiplayer::AppearanceFormReference>& a_defaultRace);
 
     void AcceptRemoteAppearance(
         RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, Multiplayer::PlayerAppearance&& a_appearance);

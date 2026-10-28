@@ -82,18 +82,6 @@ msgctxt "OutfitRace"
 msgid "Race"
 msgstr "Razza"
 
-msgctxt "OutfitSex"
-msgid "Sex"
-msgstr "Sesso"
-
-msgctxt "OutfitMale"
-msgid "Male"
-msgstr "Maschio"
-
-msgctxt "OutfitFemale"
-msgid "Female"
-msgstr "Femmina"
-
 msgctxt "OutfitGroupApparel"
 msgid "Apparel"
 msgstr "Abbigliamento"

@@ -25,11 +25,6 @@ namespace Config
 
     struct DefaultOutfitSettings
     {
-        // Match RE::SEXES.
-        static constexpr std::uint32_t kMale = 0;
-        static constexpr std::uint32_t kFemale = 1;
-        static constexpr std::array<std::string_view, 2> kSexNames{ "Male", "Female" };
-
         // Biped slot bits, bit 0 being slot 30. Anniversary Edition's backpacks and
         // most mods' use slot 47.
         static constexpr std::array<std::uint32_t, 8> kArmorSlotMasks{ (1U << 0) | (1U << 1), 1U << 2, 1U << 3, 1U << 5,
@@ -39,7 +34,6 @@ namespace Config
         static_assert(kArmorSlotCount <= Multiplayer::DefaultOutfit::kMaximumArmor);
 
         Multiplayer::FormReference race;
-        std::uint32_t sex{ kMale };
         std::array<Multiplayer::FormReference, kArmorSlotCount> armor;
         // Indexed by RE::WEAPON_TYPE.
         std::array<Multiplayer::FormReference, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> weapons;

@@ -1139,9 +1139,11 @@ func (x *Tint) GetAlpha() float32 {
 }
 
 type DefaultRace struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Race          *FormRef               `protobuf:"bytes,1,opt,name=race,proto3" json:"race,omitempty"`
-	Female        bool                   `protobuf:"varint,2,opt,name=female,proto3" json:"female,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Race  *FormRef               `protobuf:"bytes,1,opt,name=race,proto3" json:"race,omitempty"`
+	// Ignored by receivers; senders copy Appearance.female for 1.1.0 clients.
+	// TODO: remove with the next protocol bump, making default_race a FormRef.
+	Female        bool `protobuf:"varint,2,opt,name=female,proto3" json:"female,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

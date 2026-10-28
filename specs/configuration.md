@@ -149,7 +149,6 @@ resolves every piece but the backpack.
 | Key | Meaning |
 | --- | --- |
 | `Race` | a playable race; base-game plugins define only the 10 vanilla ones |
-| `Sex` | `Male` or `Female`, shown with `Race` |
 | `<Slot>` | armor for that biped slot; `Head` also stands in for `Hair` |
 | `OneHandSword` … `Crossbow` | the weapon for that Creation Kit weapon type |
 | `Arrow`, `Bolt` | ammunition |
@@ -159,7 +158,7 @@ Every biped slot is synchronized, but only the most visible have an outfit key:
 for slot 47, which Anniversary Edition's `ccFSVSSE001-Backpacks.esl` and most
 mods use. A modded item covering none of these, such as a ring, is left off.
 
-Defaults, from `Skyrim.esm` unless noted: `Race` `NordRace`, `Sex` `Male`.
+Defaults, from `Skyrim.esm` unless noted: `Race` `NordRace`.
 
 | Key | Default |
 | --- | --- |
@@ -279,7 +278,7 @@ revision before the snapshot never misses a change.
 | `RemoteLights` | main loop | reading `RemoteLights` in the first pass after the revision changes |
 | `DefaultOutfit` | main loop | `Refresh`, first in `SyncCoordinator::OnFrame`, resolving every item again when `[DefaultOutfit]` differs |
 | `EquipmentSync` | main loop | the next capture selecting from the new outfit and publishing a new revision |
-| `AppearanceSync` | main loop | the next capture taking the new default race and sex, which publish a new revision for a modded race |
+| `AppearanceSync` | main loop | the next capture taking the new default race, which publishes a new revision for a modded race |
 | `ConnectionMonitor` | main loop | reading `ConnectAutomatically` and whether `DisplayName` and an endpoint are set when a game starts; ending the player's choice to connect when `DisplayName` is cleared, or while the endpoint is empty and no connection is welcomed |
 | `ServerClient` | transport, worker | reading `Config::GetServerEndpoint` for each attempt, and `DisplayName` and `ViewRadius` for each hello |
 | `ConnectionControls` | overlay | reading whether `Config::GetServerEndpoint` is empty each frame the `[Connection]` page draws |

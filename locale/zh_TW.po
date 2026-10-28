@@ -77,18 +77,6 @@ msgctxt "OutfitRace"
 msgid "Race"
 msgstr "種族"
 
-msgctxt "OutfitSex"
-msgid "Sex"
-msgstr "性別"
-
-msgctxt "OutfitMale"
-msgid "Male"
-msgstr "男性"
-
-msgctxt "OutfitFemale"
-msgid "Female"
-msgstr "女性"
-
 msgctxt "OutfitGroupApparel"
 msgid "Apparel"
 msgstr "服裝"

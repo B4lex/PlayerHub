@@ -167,6 +167,8 @@ message Tint {
 
 message DefaultRace {
   FormRef race = 1;
+  // Ignored by receivers; senders copy Appearance.female for 1.1.0 clients.
+  // TODO: remove with the next protocol bump, making default_race a FormRef.
   bool female = 2;
 }
 

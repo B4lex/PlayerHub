@@ -59,8 +59,8 @@ On the game thread, once per second:
   receive it and show it in the [player menu](ui-overlay.md#player-menu)
   only ([Player label](#player-label)). `name`
   is left empty: the server sets the [display name](#display-name).
-- `defaultRace`: the configured `[DefaultOutfit]` race and sex when `race` is
-  not from a base-game plugin, else unset.
+- `defaultRace`: the configured `[DefaultOutfit]` race when `race` is not from
+  a base-game plugin, else unset.
 - `female`, `weight`, `height`, `headParts[0..numHeadParts)`, the hair color
   form's RGB, `faceDetails`, and `faceData` morphs and parts. Extra parts are
   implied by their parent and skipped. A head part whose `BGSHeadPart::type`
@@ -139,9 +139,9 @@ that cannot be built keeps the previous base.
 | Face details | missing | the race's default face details |
 | Tint layer | no race tint asset with that index and type | dropped |
 
-A fallback race takes the sex of `defaultRace`, or the source's own without one,
-and the race's default look for that sex: default head parts and skin tone. The
-source's head parts, tints, morphs, presets, face details, and hair color belong
+A fallback race keeps the source's own sex and takes the race's default look for
+it: default head parts and skin tone. Mods add races but not sexes, so the
+outfit has no sex setting. The source's head parts, tints, morphs, presets, face details, and hair color belong
 to its own race and sex and are dropped; display name, level, weight, and height
 are kept. Each fallback is logged once per revision.
 `AppearanceSync::GetRaceName` applies the race rule alone to name a player's
@@ -601,7 +601,8 @@ Not confirmed in game for [shapeshifts](#shapeshifts):
    reload, a respawn, and a hit reaction. The local player's appearance,
    inventory, and equipment never change because of a remote actor.
 4. A peer missing a race or head part plugin sees a vanilla fallback, or the
-   source's default race and sex with the race's default look, and no crash.
+   source's default race in the source's sex with the race's default look, and
+   no crash.
 5. Armor from a missing plugin shows the source's outfit armor in the covered
    slots without displacing resolved items of the same or a higher slot in
    `kArmorSlotPrecedence`, and a body piece is never left out for a head piece

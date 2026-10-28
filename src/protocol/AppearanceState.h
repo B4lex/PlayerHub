@@ -48,14 +48,6 @@ namespace Multiplayer
         bool operator==(const AppearanceTint&) const = default;
     };
 
-    struct DefaultRace
-    {
-        AppearanceFormReference race;
-        bool female{ false };
-
-        bool operator==(const DefaultRace&) const = default;
-    };
-
     struct PlayerAppearance
     {
         static constexpr std::size_t kFaceMorphCount = 19;
@@ -88,7 +80,7 @@ namespace Multiplayer
         std::array<float, kFaceMorphCount> faceMorphs{};
         std::array<std::int32_t, kFacePartCount> faceParts{};
         std::vector<AppearanceTint> tints;
-        std::optional<DefaultRace> defaultRace;
+        std::optional<AppearanceFormReference> defaultRace;
         std::uint64_t revision{ 0 };
 
         [[nodiscard]] bool HasSameLook(const PlayerAppearance& a_other) const
@@ -116,7 +108,7 @@ namespace Multiplayer
         PeerSlot playerID{ 0 };
         std::uint16_t level{ 0 };
         std::optional<AppearanceFormReference> race;
-        std::optional<DefaultRace> defaultRace;
+        std::optional<AppearanceFormReference> defaultRace;
     };
 
     [[nodiscard]] inline bool IsValidAppearanceName(std::string_view a_name)
@@ -151,8 +143,8 @@ namespace Multiplayer
             return false;
         }
         if (a_appearance.defaultRace
-            && (!IsValidFormReference(a_appearance.defaultRace->race, false)
-                || !IsBaseGamePlugin(a_appearance.defaultRace->race.plugin)))
+            && (!IsValidFormReference(*a_appearance.defaultRace, false)
+                || !IsBaseGamePlugin(a_appearance.defaultRace->plugin)))
         {
             return false;
         }

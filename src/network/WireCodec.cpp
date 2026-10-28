@@ -309,15 +309,12 @@ namespace Network::Wire
             }
 
             a_result.defaultRace.reset();
-            if (a_appearance.has_default_race)
+            // DefaultRace.female is ignored: a fallback race keeps the source's sex.
+            if (a_appearance.has_default_race
+                && (!a_appearance.default_race.has_race
+                    || !ReadFormReference(a_appearance.default_race.race, a_result.defaultRace.emplace())))
             {
-                auto& defaultRace = a_result.defaultRace.emplace();
-                defaultRace.female = a_appearance.default_race.female;
-                if (!a_appearance.default_race.has_race
-                    || !ReadFormReference(a_appearance.default_race.race, defaultRace.race))
-                {
-                    return "defaultRace";
-                }
+                return "defaultRace";
             }
             return Multiplayer::IsValidAppearance(a_result) ? nullptr : "value ranges";
         }
@@ -1008,8 +1005,10 @@ namespace Network::Wire
         {
             appearance->has_default_race = true;
             appearance->default_race.has_race = true;
-            appearance->default_race.female = a_appearance.defaultRace->female;
-            written = written && WriteFormReference(a_appearance.defaultRace->race, appearance->default_race.race);
+            // 1.1.0 clients still take the fallback race's sex from this field.
+            // TODO: drop DefaultRace.female with the next protocol bump.
+            appearance->default_race.female = a_appearance.female;
+            written = written && WriteFormReference(*a_appearance.defaultRace, appearance->default_race.race);
         }
         if (!written)
         {
@@ -1512,16 +1511,12 @@ namespace Network::Wire
                 {
                     return std::unexpected("inspection race");
                 }
-                if (inspection.has_default_race)
+                if (inspection.has_default_race
+                    && (!inspection.default_race.has_race
+                        || !ReadFormReference(inspection.default_race.race, result.defaultRace.emplace())
+                        || !Multiplayer::IsBaseGamePlugin(result.defaultRace->plugin)))
                 {
-                    auto& defaultRace = result.defaultRace.emplace();
-                    defaultRace.female = inspection.default_race.female;
-                    if (!inspection.default_race.has_race
-                        || !ReadFormReference(inspection.default_race.race, defaultRace.race)
-                        || !Multiplayer::IsBaseGamePlugin(defaultRace.race.plugin))
-                    {
-                        return std::unexpected("inspection defaultRace");
-                    }
+                    return std::unexpected("inspection defaultRace");
                 }
                 return result;
             }
