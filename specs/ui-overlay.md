@@ -1632,14 +1632,12 @@ neither touches an engine object.
   The gap is taken out of the cell's pitch, so the cell size above and the
   grid's footprint are unchanged; the item fills the whole well (the user's
   choice).
-- A cell shows the item's [thumbnail](#3d-preview) on its background (light
-  blue-grey for an enchanted item, as Path of Exile tints magic items, else
-  the empty well's color, `kItemColor` = `kWellColor`, the user's choice)
-  and the count above one in its top left corner, in white with a dark
-  shadow. The background must be opaque, since the still is captured on
-  it. While thumbnails are off (`[UI] ItemPreview`) or unavailable, the
-  cell shows the name instead, in dark text on an enchanted item's
-  background and the style's text color on the well;
+- A cell shows the item's [thumbnail](#3d-preview) on the empty well's
+  color (`kItemColor` = `kWellColor`) for every item, enchanted or not (the
+  user's choice), and the count above one in its top left corner, in white
+  with a dark shadow. The background must be opaque, since the still is
+  captured on it. While thumbnails are off (`[UI] ItemPreview`) or
+  unavailable, the cell shows the name instead, in the style's text color;
   while one is captured, only the background. Hovering a cell frames it in
   the accent and shows the item in the preview column at once.
 - The player's offer: a clicked item appears at once; a line the other game
@@ -1762,7 +1760,7 @@ tooltips; the only tooltip left in the window is Accept's blocker.
 
   The card shows no equipped, favorite, or enchanted note: the user
   dropped equipped and favorite, and an enchanted item is told by its
-  effects and its cell.
+  effects and its glow.
 
 ## Settings window
 
@@ -2892,7 +2890,7 @@ Not confirmed in game:
     plugin and sees the item's row disabled. Escape, Cancel, and a
     message box or dialogue a script opens each close both windows.
 27. Both trade grids fill with thumbnails of the offered items within a
-    second or two, each on a dark or, for an enchanted item, blue cell,
+    second or two, each on a dark cell, enchanted or not,
     every one textured within about 2 s (`latest.log` shows `pending=0`
     on each `Item thumbnail captured` line), and keep them while the
     window is open; FPS stays steady meanwhile. With 15 lines offered

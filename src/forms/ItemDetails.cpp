@@ -84,11 +84,16 @@ namespace Forms
                 + "fEnchantmentEffectPointsMult"_gs.value_or(kDefaultEnchantmentPointsMult) * a_cost;
         }
 
-        std::string FormatNumber(float a_value)
+        // ID 51905: the item card shows a magnitude truncated to an integer, after scaling it by 100
+        // for an actor value flagged kDisplayedEffectMagnitudeTimesOneHundred.
+        std::int64_t GetDisplayedMagnitude(const RE::EffectSetting& a_effect, float a_magnitude)
         {
-            const auto rounded = std::round(a_value);
-            return std::abs(a_value - rounded) < 0.05F ? std::format("{}", static_cast<std::int64_t>(rounded))
-                                                       : std::format("{:.1f}", a_value);
+            const auto* info = RE::ActorValueList::GetActorValueInfo(a_effect.data.primaryAV);
+            if (info && info->flags.all(RE::ActorValueInfo::ActorValueFlag::kDisplayedEffectMagnitudeTimesOneHundred))
+            {
+                a_magnitude *= 100.0F;
+            }
+            return static_cast<std::int64_t>(a_magnitude);
         }
 
         template <class Replace>
@@ -121,7 +126,7 @@ namespace Forms
             const auto fillTag = [&](std::string_view a_tag) {
                 if (AsciiCase::Equals(a_tag, "mag"))
                 {
-                    return FormatNumber(a_magnitude);
+                    return std::format("{}", GetDisplayedMagnitude(a_effect, a_magnitude));
                 }
                 if (AsciiCase::Equals(a_tag, "dur"))
                 {

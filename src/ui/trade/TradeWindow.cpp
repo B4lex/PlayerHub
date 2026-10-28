@@ -62,18 +62,9 @@ namespace UI
         // Item backgrounds are opaque: the thumbnail of each item is captured on its own.
         constexpr ImU32 kWellColor = IM_COL32(8, 8, 10, 255);
         constexpr ImU32 kItemColor = kWellColor;
-        constexpr ImU32 kEnchantedColor = IM_COL32(130, 146, 204, 255);
-        // A fallback name on the light enchanted background; others take the style's text color.
-        constexpr ImU32 kEnchantedTextColor = IM_COL32(20, 20, 24, 255);
         constexpr ImU32 kCountShadow = IM_COL32(0, 0, 0, 220);
         constexpr float kCheckingPulsesPerSecond = 0.8F;
         constexpr float kAcceptedTintAlpha = 0.14F;
-
-        // The same background as the item's cell, so both draw the same still.
-        constexpr ImU32 ItemBackground(bool a_enchanted)
-        {
-            return a_enchanted ? kEnchantedColor : kItemColor;
-        }
 
         constexpr ImGuiWindowFlags kWindowFlags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse
             | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar
@@ -139,22 +130,22 @@ namespace UI
             std::string_view name;
             std::uint32_t count{ 0 };
             std::uint32_t formID{ 0 };
-            bool enchanted{ false };
         };
 
-        // An offered line's cell: its thumbnail on a background by kind, or its name while the
-        // thumbnail is unavailable, and its count in the corner as in Path of Exile.
+        // An offered line's cell: its thumbnail, or its name while the thumbnail is unavailable, and its
+        // count in the corner as in Path of Exile.
         void DrawItemCell(ImDrawList& a_drawList, const CellItem& a_item, const ImVec2& a_min, const ImVec2& a_max)
         {
             const auto fontSize = ImGui::GetFontSize();
-            if (ItemPreview::DrawThumbnail(a_drawList, a_item.formID, ItemBackground(a_item.enchanted), a_min, a_max)
+            if (ItemPreview::DrawThumbnail(a_drawList, a_item.formID, kItemColor, a_min, a_max)
                 == ItemPreview::Thumbnail::kUnavailable)
             {
                 const auto padding = kCellPaddingFonts * fontSize;
                 const ImVec4 clip{ a_min.x + padding, a_min.y + padding, a_max.x - padding, a_max.y - padding };
                 a_drawList.AddText(nullptr, fontSize * kFallbackNameScale,
                     ImVec2{ clip.x, a_item.count > 1 ? a_min.y + padding + fontSize : clip.y },
-                    a_item.enchanted ? kEnchantedTextColor : ImGui::GetColorU32(ImGuiCol_Text), a_item.name.data(), a_item.name.data() + a_item.name.size(), clip.z - clip.x, &clip);
+                    ImGui::GetColorU32(ImGuiCol_Text), a_item.name.data(), a_item.name.data() + a_item.name.size(),
+                    clip.z - clip.x, &clip);
             }
             if (a_item.count > 1)
             {
@@ -572,8 +563,7 @@ namespace UI
                         DrawItemCell(drawList,
                             CellItem{ .name = line.name,
                                 .count = line.count,
-                                .formID = line.formID,
-                                .enchanted = line.enchanted },
+                                .formID = line.formID },
                             a_min, a_max);
                         if (a_hovered)
                         {
@@ -597,8 +587,7 @@ namespace UI
                         DrawItemCell(*ImGui::GetWindowDrawList(),
                             CellItem{ .name = item.name,
                                 .count = line.count,
-                                .formID = item.formID,
-                                .enchanted = item.enchanted },
+                                .formID = item.formID },
                             a_min, a_max);
                         if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
                         {

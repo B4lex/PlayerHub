@@ -26,7 +26,6 @@ namespace TradeSync
         RE::FormID formID{ 0 };
         Forms::TradeCategory category{ Forms::TradeCategory::kMisc };
         Forms::ItemDetails details;
-        bool enchanted{ false };
         // Disabled until the peer's game reports on the row's plugins.
         bool checking{ false };
         // Why it cannot be offered, or empty.
@@ -47,7 +46,6 @@ namespace TradeSync
         std::string name;
         std::uint32_t count{ 0 };
         RE::FormID formID{ 0 };
-        bool enchanted{ false };
         Forms::ItemDetails details;
     };
 

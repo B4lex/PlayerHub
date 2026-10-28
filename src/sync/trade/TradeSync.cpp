@@ -275,7 +275,6 @@ namespace TradeSync
                     .formID = row.formID,
                     .category = row.category,
                     .details = row.details,
-                    .enchanted = row.item.IsEnchanted(),
                     .checking = check.checking,
                     .blocked = row.block ? std::string{ DescribeBlock(*row.block) } : check.rejected });
                 view.checkingPlugins = view.checkingPlugins || check.checking;
@@ -653,7 +652,6 @@ namespace TradeSync
                     .name = Forms::GetDisplayName(*resolved->object, item),
                     .count = item.count,
                     .formID = resolved->object->GetFormID(),
-                    .enchanted = item.IsEnchanted(),
                     .details = Forms::GetItemDetails(*resolved, item) });
             }
             Network::PublishTradeReport(s_session.ReportPeerOffer(std::move(skips)));
