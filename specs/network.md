@@ -263,6 +263,7 @@ every receiver.
 | `weight` | finite, `0..100` |
 | `height` | finite, `0.25..4` |
 | `head_parts` | at most 16, each with a form and `type` `0..6` |
+| `added_head_parts` | each with a form and any `type`, at most 32 parts together with `head_parts` |
 | `hair_color` | RGB `0..255`, unset for none |
 | `face_details` | form reference, unset for none |
 | `body_tint` | required, RGB `0..255` |
@@ -273,6 +274,14 @@ every receiver.
 
 Hair color is RGB rather than a form, because character editors commonly
 create dynamic color forms.
+
+`WireCodec` writes head parts in capture order: a part goes to `head_parts`
+while its type is `0..6` and that field has room, and to `added_head_parts`
+otherwise. Readers append `added_head_parts` after `head_parts`. The split
+keeps protocol 14 compatible with 1.1.0 clients, which drop a peer whose
+`head_parts` exceed those limits and skip `added_head_parts` as an unknown
+field, so they still show the vanilla-type parts. The next protocol bump
+merges the two fields.
 
 ### `Equipment`
 

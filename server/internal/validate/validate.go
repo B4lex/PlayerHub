@@ -27,8 +27,9 @@ const (
 	MaximumDisplayNameBytes = 15
 	SessionTokenBytes       = 32
 	MaximumLevel            = 0xFFFF
-	MaximumHeadParts        = 16
-	MaximumHeadPartType     = 6
+	MaximumHeadParts        = 32
+	MaximumListedHeadParts  = 16
+	MaximumListedHeadType   = 6
 	FaceMorphCount          = 19
 	FacePartCount           = 4
 	MinimumFacePart         = -1
@@ -175,11 +176,17 @@ func Appearance(a *pb.Appearance) error {
 		!between(a.GetWeight(), 0, 100) || !between(a.GetHeight(), 0.25, 4) {
 		return ErrAppearance
 	}
-	if len(a.GetHeadParts()) > MaximumHeadParts {
+	// TODO: merge added_head_parts into head_parts with the next protocol bump.
+	if len(a.GetHeadParts()) > MaximumListedHeadParts || len(a.GetHeadParts())+len(a.GetAddedHeadParts()) > MaximumHeadParts {
 		return ErrAppearance
 	}
 	for _, part := range a.GetHeadParts() {
-		if part.Form == nil || !formRef(part.Form) || part.GetType() > MaximumHeadPartType {
+		if part.Form == nil || !formRef(part.Form) || part.GetType() > MaximumListedHeadType {
+			return ErrAppearance
+		}
+	}
+	for _, part := range a.GetAddedHeadParts() {
+		if part.Form == nil || !formRef(part.Form) {
 			return ErrAppearance
 		}
 	}
@@ -209,6 +216,7 @@ func Appearance(a *pb.Appearance) error {
 			return ErrAppearance
 		}
 	}
+	// TODO: check default_race as a FormRef once the next protocol bump drops DefaultRace.
 	if race := a.DefaultRace; race != nil && (race.Race == nil || !baseGameFormRef(race.Race)) {
 		return ErrAppearance
 	}

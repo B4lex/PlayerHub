@@ -6,6 +6,9 @@ The face tint paths that differ by runtime have not run: the tint mask
 offset on AE 1.6.x and the face tint render on SE 1.5.97 (ID 26454), which
 rest on CommonLib and the 1.5.97 disassembly.
 
+Head parts of mod-added types and the extra parts listed on the receiver
+([Actor base](#actor-base)) have not run in game.
+
 ## Scope
 
 A remote actor looks like its source player's character, carries the player's
@@ -72,12 +75,15 @@ On the game thread, once per second:
   so a scaled character's legs keep the pace the source sees.
 - `female`, `weight`, `headParts[0..numHeadParts)`, the hair color
   form's RGB, `faceDetails`, and `faceData` morphs and parts. Extra parts are
-  implied by their parent and skipped. A head part whose `BGSHeadPart::type`
-  (PNAM, a `uint32` a mod can set to anything) lies outside the vanilla `0..6`
-  is skipped with one warning per part, since it would fail validation and
-  block every publish. RaceMenu add-ons use such types: `Racemenu
-  Handnails.esp` nails (41) and `InariTail_RM_2-3.esp` tails (40) were seen in
-  a player's log, so peers do not see those parts. Parts (presets)
+  implied by their parent and skipped; the receiver lists them again
+  ([Actor base](#actor-base)). A head part's `type` is `BGSHeadPart::type`
+  (PNAM), a `uint32` a mod can set to anything, and is sent as it is
+  ([wire split](network.md#appearance)): RaceMenu
+  add-ons such as `Racemenu Handnails.esp` nails (41) and
+  `InariTail_RM_2-3.esp` tails (40) lie outside the vanilla `0..6`
+  ([head part types](#engine-assumptions)). At most 32 top-level parts are
+  sent (`kMaximumHeadParts`); a capture over the limit logs one warning naming
+  the first part left out, again only after a capture within it. Parts (presets)
   are clamped to `-1..255` (`ClampFacePart`), with `-1` for none; see
   [face presets](#engine-assumptions).
 - `bodyTint`: `TESNPC::bodyTintColor`, or the skin tone mask's color if black.
@@ -129,9 +135,21 @@ engine default that is replaced rather than written. The base then gets:
 - the race's attack data map and the default combat style, which
   `TESNPC::InitItemImpl` fills only for NPCs loaded from plugins; weapon draws
   read the attack data map without a null check;
-- the resolved head parts, hair color, face details, morphs, parts, body tint,
-  and tint layers (`interpolationValue = alpha × 100`, with the matching
-  preset).
+- the resolved head parts, each followed by its extra parts, hair color, face
+  details, morphs, parts, body tint, and tint layers
+  (`interpolationValue = alpha × 100`, with the matching preset).
+
+`TESNPC::InitItemImpl` lists a plugin NPC's extra parts after their parent, and
+the head build attaches only the listed parts ([head
+parts](#engine-assumptions)). A runtime base skips `InitItemImpl`, so
+`ResolveHeadParts` lists the extras itself; otherwise every mesh a mod puts in
+an extra part, such as a hairline or a hair's main mesh, would be missing. The list
+follows the engine's rules (`HeadPartList`): a part of a type that holds one
+part (face, eyes, hair, facial hair, brows) that is already listed is skipped
+with its extras, a part already listed is not repeated, and the list stops at
+127 parts (`TESNPC::numHeadParts` is an `int8_t`). The engine tracks the
+types in a 32-bit mask indexed by `type` modulo 32, so a mod-added type can
+collide with a vanilla one there; `HeadPartList` compares exact types.
 
 Bases are never freed: a deleted reference may still point at its base for a
 few frames, and the leak is bounded by the source's publish rate. A revision
@@ -142,7 +160,7 @@ that cannot be built keeps the previous base.
 | Data | Unresolvable when | Fallback |
 | --- | --- | --- |
 | Race | plugin or form missing, not a race, or not playable | `defaultRace` if it resolves to a playable race, else `NordRace` (`Skyrim.esm` `013746`) |
-| Head part | missing, wrong type, or its valid-race list rejects the race | the race's default part of that type and sex, else omitted |
+| Head part | missing, wrong type, or its valid-race list rejects the race | the race's default part of that type and sex, else omitted; races have no default for a mod-added type, so such a part is left out |
 | Face part | none after resolution | the race's default face |
 | Hair color | color form creation fails | the race's default hair color |
 | Face details | missing | the race's default face details |
@@ -596,6 +614,24 @@ Not confirmed in game for [shapeshifts](#shapeshifts):
     the switch replaces the player's graph manager, which advances the graph
     epoch ([Locomotion](locomotion.md#source-capture)).
 
+Verified against the 1.7.104 executable for head parts, not confirmed in game:
+
+17. The head build for an actor (ID 25366) attaches exactly the base's
+    `headParts` (ID 26836 per part, without extra parts) when
+    `numHeadParts` is non-zero, and otherwise the race's defaults with their
+    extras (ID 24730). `TESNPC::InitItemImpl` (ID 24719) replaces a plugin
+    NPC's list with the expanded one from ID 24730: its own parts, then the
+    race's defaults, each part followed by its extras through the visitor at
+    ID 24856. That visitor skips a part whose type is one of `1..4` and `6`
+    (ID 23632) when the mask already has its bit.
+18. No head part code in the TESNPC or head build ranges indexes a table by
+    `BGSHeadPart::type`: it is compared with fixed vanilla types (face in
+    `PrepareHeadPartForShaders`, ID 26838; hair) or with another part's type,
+    or used as a 32-bit mask bit, where the shift wraps. A scan of both
+    executables for a `type` load used as an index found none in this code.
+    The 1.5.97 type check (ID 23632) is byte-identical; the 1.5.97 visitor and
+    head build were not traced.
+
 Read from RaceMenu's scripts and the vanilla skeleton for the
 [skeleton scale](#capture), not confirmed in game:
 
@@ -654,6 +690,14 @@ Read from RaceMenu's scripts and the vanilla skeleton for the
 14. A character made taller or shorter with RaceMenu's height slider or a
     reference scale appears to peers at the same height, whether or not they
     have RaceMenu; a player without RaceMenu appears at the base's height.
+15. A head part of any type that resolves on the receiver for the actor's race
+    is shown on the remote actor with its extra parts, so peers with the same
+    mods see the same hair, nails, and tails. A head part the receiver lacks,
+    or whose valid races reject the resolved race, is left out without
+    affecting the rest of the look.
+16. A player with up to 32 top-level head parts publishes all of them.
+17. A 1.1.0 peer still shows such a player, with only the parts of types
+    `0..6`.
 
 ## Known limitations
 

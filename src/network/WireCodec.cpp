@@ -10,6 +10,7 @@
 #include <format>
 #include <limits>
 #include <numeric>
+#include <type_traits>
 
 namespace Network::Wire
 {
@@ -235,6 +236,10 @@ namespace Network::Wire
             return result;
         }
 
+        // The highest head part type that head_parts holds; the rest go in added_head_parts.
+        // TODO: merge added_head_parts into head_parts with the next protocol bump.
+        constexpr std::uint32_t kMaximumListedHeadPartType = 6;
+
         const char* ReadAppearance(const playerhub_v1_Appearance& a_appearance, Multiplayer::PlayerAppearance& a_result)
         {
             using Multiplayer::PlayerAppearance;
@@ -254,16 +259,29 @@ namespace Network::Wire
             a_result.height = a_appearance.height;
 
             a_result.headParts.clear();
+            if (a_appearance.head_parts_count + a_appearance.added_head_parts_count > PlayerAppearance::kMaximumHeadParts)
+            {
+                return "headParts";
+            }
             for (pb_size_t i = 0; i < a_appearance.head_parts_count; ++i)
             {
                 const auto& part = a_appearance.head_parts[i];
                 auto& result = a_result.headParts.emplace_back();
-                if (!part.has_form || !ReadFormReference(part.form, result.form)
-                    || part.type > PlayerAppearance::kMaximumHeadPartType)
+                if (!part.has_form || !ReadFormReference(part.form, result.form) || part.type > kMaximumListedHeadPartType)
                 {
                     return "headParts";
                 }
-                result.type = static_cast<std::uint8_t>(part.type);
+                result.type = part.type;
+            }
+            for (pb_size_t i = 0; i < a_appearance.added_head_parts_count; ++i)
+            {
+                const auto& part = a_appearance.added_head_parts[i];
+                auto& result = a_result.headParts.emplace_back();
+                if (!part.has_form || !ReadFormReference(part.form, result.form))
+                {
+                    return "addedHeadParts";
+                }
+                result.type = part.type;
             }
 
             a_result.hairColor.reset();
@@ -960,7 +978,7 @@ namespace Network::Wire
         {
             return {};
         }
-        // About 8 KB; kept off the stack.
+        // About 16 KB; kept off the stack.
         auto appearance = std::make_unique<playerhub_v1_Appearance>();
         *appearance = playerhub_v1_Appearance_init_zero;
         appearance->revision = a_appearance.revision;
@@ -972,13 +990,18 @@ namespace Network::Wire
         bool written = CopyString(appearance->name, a_appearance.name)
             && WriteFormReference(a_appearance.race, appearance->race)
             && WriteOptionalFormReference(a_appearance.faceDetails, appearance->has_face_details, appearance->face_details);
-        appearance->head_parts_count = static_cast<pb_size_t>(a_appearance.headParts.size());
-        for (std::size_t i = 0; i < a_appearance.headParts.size(); ++i)
+        static_assert(std::extent_v<decltype(playerhub_v1_Appearance::added_head_parts)> >= PlayerAppearance::kMaximumHeadParts);
+        for (const auto& headPart : a_appearance.headParts)
         {
-            auto& part = appearance->head_parts[i];
+            // 1.1.0 receivers drop a peer whose head_parts hold a type above 6 or more than 16 parts.
+            // TODO: write every part to head_parts with the next protocol bump.
+            const bool listed = headPart.type <= kMaximumListedHeadPartType
+                && appearance->head_parts_count < std::size(appearance->head_parts);
+            auto& part = listed ? appearance->head_parts[appearance->head_parts_count++]
+                                : appearance->added_head_parts[appearance->added_head_parts_count++];
             part.has_form = true;
-            part.type = a_appearance.headParts[i].type;
-            written = written && WriteFormReference(a_appearance.headParts[i].form, part.form);
+            part.type = headPart.type;
+            written = written && WriteFormReference(headPart.form, part.form);
         }
         if (a_appearance.hairColor)
         {

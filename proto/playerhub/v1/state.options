@@ -3,6 +3,7 @@
 playerhub.v1.FormRef.plugin max_size:261
 playerhub.v1.Appearance.name max_size:129
 playerhub.v1.Appearance.head_parts max_count:16
+playerhub.v1.Appearance.added_head_parts max_count:32
 playerhub.v1.Appearance.face_morphs max_count:19
 playerhub.v1.Appearance.face_parts max_count:4
 playerhub.v1.Appearance.tints max_count:64

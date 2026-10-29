@@ -188,6 +188,11 @@ message Appearance {
   repeated sint32 face_parts = 13;
   repeated Tint tints = 14;
   DefaultRace default_race = 15;
+  // Head parts that 1.1.0 clients reject in head_parts: a type above 6, or
+  // more than 16 parts. They skip this field as unknown. At most 32 parts in
+  // both fields together.
+  // TODO: merge into head_parts with the next protocol bump.
+  repeated HeadPart added_head_parts = 16;
 }
 
 enum HandKind {

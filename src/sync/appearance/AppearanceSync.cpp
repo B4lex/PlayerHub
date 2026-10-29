@@ -17,6 +17,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -133,17 +134,20 @@ namespace AppearanceSync
             logs::warn("Appearance sync could not capture local appearance: {}", a_reason);
         }
 
-        void LogSkippedHeadPart(const RE::BGSHeadPart& a_headPart, const AppearanceFormReference& a_reference)
+        // Called once per capture with the first head part left out, or none.
+        void LogHeadPartOverflow(const std::optional<AppearanceFormReference>& a_firstLeftOut)
         {
-            static std::vector<RE::FormID> logged;
-            if (std::ranges::contains(logged, a_headPart.GetFormID()))
+            static bool overflowing = false;
+            if (overflowing == a_firstLeftOut.has_value())
             {
                 return;
             }
-            logged.push_back(a_headPart.GetFormID());
-            logs::warn("Appearance sync skipped a head part of an unknown type: part={}|{:06X} type={} editorID={}",
-                a_reference.plugin, a_reference.localFormID, a_headPart.type.underlying(),
-                a_headPart.GetFormEditorID());
+            overflowing = a_firstLeftOut.has_value();
+            if (overflowing)
+            {
+                logs::warn("Appearance sync left out head parts over the limit: limit={} firstLeftOut={}|{:06X}",
+                    AppearanceData::kMaximumHeadParts, a_firstLeftOut->plugin, a_firstLeftOut->localFormID);
+            }
         }
 
         template <class T>
@@ -293,7 +297,7 @@ namespace AppearanceSync
             for (std::size_t i = 0; i < a_appearance.headParts.size(); ++i)
             {
                 const auto& headPart = a_appearance.headParts[i];
-                if (!IsValidFormReference(headPart.form, false) || headPart.type > AppearanceData::kMaximumHeadPartType)
+                if (!IsValidFormReference(headPart.form, false))
                 {
                     return std::format(
                         "headParts[{}] {} type={}", i, FormatHeadPart(a_appearance.headParts, i), headPart.type);
@@ -377,6 +381,7 @@ namespace AppearanceSync
                 .weight = std::clamp(base->weight, 0.0F, AppearanceData::kMaximumWeight),
                 .height = std::clamp(height, AppearanceData::kMinimumHeight, AppearanceData::kMaximumHeight) };
 
+            std::optional<AppearanceFormReference> firstLeftOut;
             if (base->headParts)
             {
                 for (std::int8_t i = 0; i < base->numHeadParts; ++i)
@@ -388,20 +393,23 @@ namespace AppearanceSync
                         continue;
                     }
                     const auto reference = MakeFormReference(headPart);
-                    if (!reference || appearance.headParts.size() >= AppearanceData::kMaximumHeadParts)
+                    if (!reference)
                     {
                         continue;
                     }
-                    // PNAM is a uint32 that a mod's part can set outside the vanilla range.
-                    if (headPart->type.underlying() > AppearanceData::kMaximumHeadPartType)
+                    if (appearance.headParts.size() >= AppearanceData::kMaximumHeadParts)
                     {
-                        LogSkippedHeadPart(*headPart, *reference);
+                        if (!firstLeftOut)
+                        {
+                            firstLeftOut = reference;
+                        }
                         continue;
                     }
-                    appearance.headParts.push_back(AppearanceHeadPart{
-                        .form = *reference, .type = static_cast<std::uint8_t>(headPart->type.underlying()) });
+                    appearance.headParts.push_back(
+                        AppearanceHeadPart{ .form = *reference, .type = headPart->type.underlying() });
                 }
             }
+            LogHeadPartOverflow(firstLeftOut);
 
             if (base->headRelatedData)
             {
@@ -507,7 +515,7 @@ namespace AppearanceSync
             return ResolveRace(a_playerID, a_appearance.race, a_appearance.defaultRace, a_appearance.revision);
         }
 
-        RE::BGSHeadPart* FindDefaultHeadPart(FaceRelatedData* a_faceData, std::uint8_t a_type)
+        RE::BGSHeadPart* FindDefaultHeadPart(FaceRelatedData* a_faceData, std::uint32_t a_type)
         {
             if (!a_faceData || !a_faceData->headParts)
             {
@@ -523,16 +531,79 @@ namespace AppearanceSync
             return nullptr;
         }
 
+        // The engine's head part visitor (ID 23632) allows one part of each of these types.
+        bool IsExclusiveHeadPartType(std::uint32_t a_type)
+        {
+            switch (a_type)
+            {
+                case std::to_underlying(HeadPartType::kFace):
+                case std::to_underlying(HeadPartType::kEyes):
+                case std::to_underlying(HeadPartType::kHair):
+                case std::to_underlying(HeadPartType::kFacialHair):
+                case std::to_underlying(HeadPartType::kEyebrows):
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        // TESNPC::InitItemImpl (ID 24719) lists a plugin NPC's extra parts after
+        // their parent through the visitor at ID 24856, and the head build (ID 25366)
+        // attaches only the listed parts. A base built at runtime skips InitItemImpl,
+        // so it lists the extras itself, following the same visitor: an exclusive type
+        // already present skips the part and its extras. The visitor tests
+        // `1 << type` with a 32-bit shift, which wraps mod-added types onto vanilla
+        // bits; exclusivity here is tracked by the exact type instead.
+        class HeadPartList
+        {
+        public:
+            void Add(RE::BGSHeadPart* a_headPart)
+            {
+                if (!a_headPart || parts.size() >= kMaximumParts)
+                {
+                    return;
+                }
+                const auto type = a_headPart->type.underlying();
+                if (IsExclusiveHeadPartType(type))
+                {
+                    const auto bit = 1U << type;
+                    if (exclusiveTypes & bit)
+                    {
+                        return;
+                    }
+                    exclusiveTypes |= bit;
+                }
+                if (std::ranges::contains(parts, a_headPart))
+                {
+                    return;
+                }
+                parts.push_back(a_headPart);
+                for (auto* extraPart : a_headPart->extraParts)
+                {
+                    Add(extraPart);
+                }
+            }
+
+            [[nodiscard]] bool Has(std::uint32_t a_type) const
+            {
+                return std::ranges::any_of(
+                    parts, [a_type](const auto* a_part) { return a_part->type.underlying() == a_type; });
+            }
+
+            [[nodiscard]] std::vector<RE::BGSHeadPart*> Take() { return std::move(parts); }
+
+        private:
+            // TESNPC::numHeadParts is an int8_t.
+            static constexpr std::size_t kMaximumParts = (std::numeric_limits<std::int8_t>::max)();
+
+            std::vector<RE::BGSHeadPart*> parts;
+            std::uint32_t exclusiveTypes{ 0 };
+        };
+
         std::vector<RE::BGSHeadPart*> ResolveHeadParts(Multiplayer::PeerSlot a_playerID,
             const AppearanceData& a_appearance, RE::TESRace& a_race, FaceRelatedData* a_faceData)
         {
-            std::vector<RE::BGSHeadPart*> headParts;
-            const auto addUnique = [&headParts](RE::BGSHeadPart* a_headPart) {
-                if (a_headPart && std::ranges::find(headParts, a_headPart) == headParts.end())
-                {
-                    headParts.push_back(a_headPart);
-                }
-            };
+            HeadPartList headParts;
 
             for (const auto& reference : a_appearance.headParts)
             {
@@ -541,7 +612,7 @@ namespace AppearanceSync
                     && (!headPart->validRaces || headPart->validRaces->HasForm(&a_race));
                 if (usable)
                 {
-                    addUnique(headPart);
+                    headParts.Add(headPart);
                     continue;
                 }
 
@@ -551,17 +622,15 @@ namespace AppearanceSync
                     "fallback={:08X}",
                     a_playerID, static_cast<unsigned long long>(a_appearance.revision), reference.form.plugin,
                     reference.form.localFormID, reference.type, fallback ? fallback->GetFormID() : 0);
-                addUnique(fallback);
+                headParts.Add(fallback);
             }
 
-            const auto faceType = static_cast<std::uint8_t>(HeadPartType::kFace);
-            const bool hasFace = std::ranges::any_of(
-                headParts, [faceType](const auto* a_part) { return a_part->type.underlying() == faceType; });
-            if (!hasFace)
+            const auto faceType = std::to_underlying(HeadPartType::kFace);
+            if (!headParts.Has(faceType))
             {
-                addUnique(FindDefaultHeadPart(a_faceData, faceType));
+                headParts.Add(FindDefaultHeadPart(a_faceData, faceType));
             }
-            return headParts;
+            return headParts.Take();
         }
 
         RE::BGSColorForm* CreateHairColor(const AppearanceColor& a_color)
@@ -683,15 +752,18 @@ namespace AppearanceSync
                 npc->tintLayers->push_back(layer);
             }
 
+            const auto extraParts
+                = std::ranges::count_if(headParts, [](auto* a_part) { return a_part->IsExtraPart(); });
             logs::debug(
                 "Appearance sync built actor base: player={} revision={} base={:08X} name=\"{}\" race={:08X} female={} "
-                "weight={:.1f} height={:.2f} headParts={}/{} hairColor={:08X} faceDetails={:08X} tints={}/{} "
-                "droppedTints={} attackData={} combatStyle={:08X}",
+                "weight={:.1f} height={:.2f} headParts={}/{} extraParts={} hairColor={:08X} faceDetails={:08X} "
+                "tints={}/{} droppedTints={} attackData={} combatStyle={:08X}",
                 a_playerID, static_cast<unsigned long long>(a_appearance.revision), npc->GetFormID(), a_appearance.name,
-                a_race.GetFormID(), a_appearance.female, a_appearance.weight, a_appearance.height, headParts.size(),
-                a_appearance.headParts.size(), hairColor ? hairColor->GetFormID() : 0,
-                faceDetails ? faceDetails->GetFormID() : 0, npc->tintLayers->size(), a_appearance.tints.size(),
-                droppedTints, npc->attackDataMap != nullptr, npc->combatStyle ? npc->combatStyle->GetFormID() : 0);
+                a_race.GetFormID(), a_appearance.female, a_appearance.weight, a_appearance.height,
+                headParts.size() - static_cast<std::size_t>(extraParts), a_appearance.headParts.size(), extraParts,
+                hairColor ? hairColor->GetFormID() : 0, faceDetails ? faceDetails->GetFormID() : 0,
+                npc->tintLayers->size(), a_appearance.tints.size(), droppedTints, npc->attackDataMap != nullptr,
+                npc->combatStyle ? npc->combatStyle->GetFormID() : 0);
             return npc;
         }
 
@@ -711,8 +783,8 @@ namespace AppearanceSync
                 {
                     if (const auto reference = MakeFormReference(headPart))
                     {
-                        appearance.headParts.push_back(AppearanceHeadPart{
-                            .form = *reference, .type = static_cast<std::uint8_t>(headPart->type.underlying()) });
+                        appearance.headParts.push_back(
+                            AppearanceHeadPart{ .form = *reference, .type = headPart->type.underlying() });
                     }
                 }
             }
@@ -787,6 +859,109 @@ namespace AppearanceSync
                 look.height = a_appearance->height;
             }
             return BuildActorBase(a_playerID, look, a_race);
+        }
+
+        // Diagnostic: tint materials and face tint textures the remote's 3D shares with
+        // the player's would carry the remote's colors onto the player's head.
+        class PlayerShading
+        {
+        public:
+            PlayerShading()
+            {
+                auto* player = RE::PlayerCharacter::GetSingleton();
+                for (const bool firstPerson : { false, true })
+                {
+                    if (auto* root = player ? player->Get3D(firstPerson) : nullptr)
+                    {
+                        Visit(*root,
+                            [this](
+                                RE::BSGeometry&, RE::BSShaderMaterial& a_material, RE::NiSourceTexture* a_tintTexture) {
+                                materials.push_back(&a_material);
+                                if (a_tintTexture)
+                                {
+                                    textures.push_back(a_tintTexture);
+                                    textures.push_back(a_tintTexture->rendererTexture);
+                                }
+                            });
+                    }
+                }
+            }
+
+            [[nodiscard]] std::size_t CountShared(RE::NiAVObject& a_root, std::string& a_first) const
+            {
+                std::size_t shared = 0;
+                Visit(a_root,
+                    [&](RE::BSGeometry& a_geometry, RE::BSShaderMaterial& a_material,
+                        RE::NiSourceTexture* a_tintTexture) {
+                        const char* what = nullptr;
+                        if (std::ranges::contains(materials, &a_material))
+                        {
+                            what = "material";
+                        }
+                        else if (a_tintTexture
+                            && (std::ranges::contains(textures, a_tintTexture)
+                                || (a_tintTexture->rendererTexture
+                                    && std::ranges::contains(textures, a_tintTexture->rendererTexture))))
+                        {
+                            what = "tintTexture";
+                        }
+                        if (!what)
+                        {
+                            return;
+                        }
+                        if (shared++ == 0)
+                        {
+                            a_first = std::format("{} {} feature={}", a_geometry.name.c_str(), what,
+                                std::to_underlying(a_material.GetFeature()));
+                        }
+                    });
+                return shared;
+            }
+
+        private:
+            template <class Visitor>
+            static void Visit(RE::NiAVObject& a_root, Visitor&& a_visitor)
+            {
+                using Feature = RE::BSShaderMaterial::Feature;
+                RE::BSVisit::TraverseScenegraphGeometries(&a_root, [&](RE::BSGeometry* a_geometry) {
+                    auto* property = netimmerse_cast<RE::BSLightingShaderProperty*>(
+                        a_geometry->GetGeometryRuntimeData().shaderProperty.get());
+                    auto* material = property ? property->material : nullptr;
+                    const auto feature = material ? material->GetFeature() : Feature::kNone;
+                    if (feature == Feature::kFaceGen || feature == Feature::kFaceGenRGBTint
+                        || feature == Feature::kHairTint)
+                    {
+                        auto* tintTexture = feature == Feature::kFaceGen
+                            ? static_cast<RE::BSLightingShaderMaterialFacegen*>(material)->tintTexture.get()
+                            : nullptr;
+                        a_visitor(*a_geometry, *material, tintTexture);
+                    }
+                    return RE::BSVisit::BSVisitControl::kContinue;
+                });
+            }
+
+            std::vector<const void*> materials;
+            std::vector<const void*> textures;
+        };
+
+        void LogShadingSharedWithPlayer(
+            Multiplayer::PeerSlot a_playerID, RE::Actor& a_actor, std::uint64_t a_revision, std::string_view a_stage)
+        {
+            auto* root = a_actor.Get3D(false);
+            if (!root)
+            {
+                return;
+            }
+            std::string first;
+            const auto shared = PlayerShading{}.CountShared(*root, first);
+            if (shared > 0)
+            {
+                logs::warn(
+                    "Appearance sync remote actor shares shading with the local player: player={} actor={:08X} "
+                    "revision={} stage={} shared={} first={}",
+                    a_playerID, a_actor.GetHandle().native_handle(), static_cast<unsigned long long>(a_revision),
+                    a_stage, shared, first);
+            }
         }
 
         RE::NiSourceTexture* FindFaceTintTexture(RE::Actor& a_actor, const RE::TESNPC& a_base)
@@ -1134,6 +1309,7 @@ namespace AppearanceSync
         {
             PROFILE_SCOPE("ApplyActorPresentation colors");
             a_remote.colorsApplied = true;
+            LogShadingSharedWithPlayer(a_playerID, a_actor, a_remote.spawnedRevision, "colors");
             a_actor.UpdateHairColor();
             a_actor.UpdateSkinColor();
             logs::debug(
@@ -1149,6 +1325,7 @@ namespace AppearanceSync
             return;
         }
         a_remote.faceTintTexture.reset(tintTexture);
+        LogShadingSharedWithPlayer(a_playerID, a_actor, a_remote.spawnedRevision, "faceTint");
         const auto renderedTints = QueueFaceTintRender(*a_remote.spawnedBase, *tintTexture);
         logs::debug(
             "Appearance sync queued actor face tint: player={} actor={:08X} base={:08X} revision={} tints={}/{}",

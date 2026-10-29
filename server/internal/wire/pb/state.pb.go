@@ -1193,24 +1193,29 @@ func (x *DefaultRace) GetFemale() bool {
 }
 
 type Appearance struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Revision      uint64                 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Level         uint32                 `protobuf:"varint,3,opt,name=level,proto3" json:"level,omitempty"`
-	Race          *FormRef               `protobuf:"bytes,4,opt,name=race,proto3" json:"race,omitempty"`
-	Female        bool                   `protobuf:"varint,5,opt,name=female,proto3" json:"female,omitempty"`
-	Weight        float32                `protobuf:"fixed32,6,opt,name=weight,proto3" json:"weight,omitempty"`
-	Height        float32                `protobuf:"fixed32,7,opt,name=height,proto3" json:"height,omitempty"`
-	HeadParts     []*HeadPart            `protobuf:"bytes,8,rep,name=head_parts,json=headParts,proto3" json:"head_parts,omitempty"`
-	HairColor     *Color                 `protobuf:"bytes,9,opt,name=hair_color,json=hairColor,proto3" json:"hair_color,omitempty"`
-	FaceDetails   *FormRef               `protobuf:"bytes,10,opt,name=face_details,json=faceDetails,proto3" json:"face_details,omitempty"`
-	BodyTint      *Color                 `protobuf:"bytes,11,opt,name=body_tint,json=bodyTint,proto3" json:"body_tint,omitempty"`
-	FaceMorphs    []float32              `protobuf:"fixed32,12,rep,packed,name=face_morphs,json=faceMorphs,proto3" json:"face_morphs,omitempty"`
-	FaceParts     []int32                `protobuf:"zigzag32,13,rep,packed,name=face_parts,json=faceParts,proto3" json:"face_parts,omitempty"`
-	Tints         []*Tint                `protobuf:"bytes,14,rep,name=tints,proto3" json:"tints,omitempty"`
-	DefaultRace   *DefaultRace           `protobuf:"bytes,15,opt,name=default_race,json=defaultRace,proto3" json:"default_race,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Revision    uint64                 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	Name        string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Level       uint32                 `protobuf:"varint,3,opt,name=level,proto3" json:"level,omitempty"`
+	Race        *FormRef               `protobuf:"bytes,4,opt,name=race,proto3" json:"race,omitempty"`
+	Female      bool                   `protobuf:"varint,5,opt,name=female,proto3" json:"female,omitempty"`
+	Weight      float32                `protobuf:"fixed32,6,opt,name=weight,proto3" json:"weight,omitempty"`
+	Height      float32                `protobuf:"fixed32,7,opt,name=height,proto3" json:"height,omitempty"`
+	HeadParts   []*HeadPart            `protobuf:"bytes,8,rep,name=head_parts,json=headParts,proto3" json:"head_parts,omitempty"`
+	HairColor   *Color                 `protobuf:"bytes,9,opt,name=hair_color,json=hairColor,proto3" json:"hair_color,omitempty"`
+	FaceDetails *FormRef               `protobuf:"bytes,10,opt,name=face_details,json=faceDetails,proto3" json:"face_details,omitempty"`
+	BodyTint    *Color                 `protobuf:"bytes,11,opt,name=body_tint,json=bodyTint,proto3" json:"body_tint,omitempty"`
+	FaceMorphs  []float32              `protobuf:"fixed32,12,rep,packed,name=face_morphs,json=faceMorphs,proto3" json:"face_morphs,omitempty"`
+	FaceParts   []int32                `protobuf:"zigzag32,13,rep,packed,name=face_parts,json=faceParts,proto3" json:"face_parts,omitempty"`
+	Tints       []*Tint                `protobuf:"bytes,14,rep,name=tints,proto3" json:"tints,omitempty"`
+	DefaultRace *DefaultRace           `protobuf:"bytes,15,opt,name=default_race,json=defaultRace,proto3" json:"default_race,omitempty"`
+	// Head parts that 1.1.0 clients reject in head_parts: a type above 6, or
+	// more than 16 parts. They skip this field as unknown. At most 32 parts in
+	// both fields together.
+	// TODO: merge into head_parts with the next protocol bump.
+	AddedHeadParts []*HeadPart `protobuf:"bytes,16,rep,name=added_head_parts,json=addedHeadParts,proto3" json:"added_head_parts,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Appearance) Reset() {
@@ -1344,6 +1349,13 @@ func (x *Appearance) GetTints() []*Tint {
 func (x *Appearance) GetDefaultRace() *DefaultRace {
 	if x != nil {
 		return x.DefaultRace
+	}
+	return nil
+}
+
+func (x *Appearance) GetAddedHeadParts() []*HeadPart {
+	if x != nil {
+		return x.AddedHeadParts
 	}
 	return nil
 }
@@ -1704,7 +1716,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x05alpha\x18\x04 \x01(\x02R\x05alpha\"P\n" +
 	"\vDefaultRace\x12)\n" +
 	"\x04race\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\x04race\x12\x16\n" +
-	"\x06female\x18\x02 \x01(\bR\x06female\"\xc4\x04\n" +
+	"\x06female\x18\x02 \x01(\bR\x06female\"\x86\x05\n" +
 	"\n" +
 	"Appearance\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x12\x12\n" +
@@ -1726,7 +1738,8 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\n" +
 	"face_parts\x18\r \x03(\x11R\tfaceParts\x12(\n" +
 	"\x05tints\x18\x0e \x03(\v2\x12.playerhub.v1.TintR\x05tints\x12<\n" +
-	"\fdefault_race\x18\x0f \x01(\v2\x19.playerhub.v1.DefaultRaceR\vdefaultRace\"O\n" +
+	"\fdefault_race\x18\x0f \x01(\v2\x19.playerhub.v1.DefaultRaceR\vdefaultRace\x12@\n" +
+	"\x10added_head_parts\x18\x10 \x03(\v2\x16.playerhub.v1.HeadPartR\x0eaddedHeadParts\"O\n" +
 	"\x05Armor\x12)\n" +
 	"\x04form\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\x04form\x12\x1b\n" +
 	"\tslot_mask\x18\x02 \x01(\rR\bslotMask\"\xf2\x01\n" +
@@ -1900,27 +1913,28 @@ var file_playerhub_v1_state_proto_depIdxs = []int32{
 	12, // 15: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
 	14, // 16: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
 	15, // 17: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.DefaultRace
-	7,  // 18: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
-	6,  // 19: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
-	7,  // 20: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
-	7,  // 21: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
-	7,  // 22: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
-	17, // 23: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
-	18, // 24: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
-	7,  // 25: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
-	17, // 26: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
-	18, // 27: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
-	18, // 28: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
-	7,  // 29: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
-	19, // 30: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
-	18, // 31: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
-	18, // 32: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
-	17, // 33: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
-	34, // [34:34] is the sub-list for method output_type
-	34, // [34:34] is the sub-list for method input_type
-	34, // [34:34] is the sub-list for extension type_name
-	34, // [34:34] is the sub-list for extension extendee
-	0,  // [0:34] is the sub-list for field type_name
+	13, // 18: playerhub.v1.Appearance.added_head_parts:type_name -> playerhub.v1.HeadPart
+	7,  // 19: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
+	6,  // 20: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
+	7,  // 21: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
+	7,  // 22: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
+	7,  // 23: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
+	17, // 24: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
+	18, // 25: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
+	7,  // 26: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
+	17, // 27: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
+	18, // 28: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
+	18, // 29: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
+	7,  // 30: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
+	19, // 31: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
+	18, // 32: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
+	18, // 33: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
+	17, // 34: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
+	35, // [35:35] is the sub-list for method output_type
+	35, // [35:35] is the sub-list for method input_type
+	35, // [35:35] is the sub-list for extension type_name
+	35, // [35:35] is the sub-list for extension extendee
+	0,  // [0:35] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_state_proto_init() }

@@ -140,19 +140,21 @@ func TestBeastActionForm(t *testing.T) {
 
 func validAppearance() *pb.Appearance {
 	return &pb.Appearance{
-		Revision:    3,
-		Name:        "Lydia Stormblade",
-		Level:       12,
-		Race:        ref("Skyrim.esm", 79686),
-		Weight:      50,
-		Height:      1,
-		HeadParts:   []*pb.HeadPart{{Form: ref("Skyrim.esm", 324286), Type: 1}},
-		HairColor:   &pb.Color{R: 59, G: 42, B: 30},
-		BodyTint:    &pb.Color{R: 222, G: 188, B: 170},
-		FaceMorphs:  make([]float32, FaceMorphCount),
-		FaceParts:   []int32{0, -1, 255, 3},
-		Tints:       []*pb.Tint{{Index: 44, Type: 6, Color: &pb.Color{R: 1}, Alpha: 1}},
-		DefaultRace: &pb.DefaultRace{Race: ref("skyrim.ESM", 1), Female: true},
+		Revision:  3,
+		Name:      "Lydia Stormblade",
+		Level:     12,
+		Race:      ref("Skyrim.esm", 79686),
+		Weight:    50,
+		Height:    1,
+		HeadParts: []*pb.HeadPart{{Form: ref("Skyrim.esm", 324286), Type: 1}},
+		// A RaceMenu add-on type outside the vanilla 0..6.
+		AddedHeadParts: []*pb.HeadPart{{Form: ref("Racemenu Handnails.esp", 0x934), Type: 41}},
+		HairColor:      &pb.Color{R: 59, G: 42, B: 30},
+		BodyTint:       &pb.Color{R: 222, G: 188, B: 170},
+		FaceMorphs:     make([]float32, FaceMorphCount),
+		FaceParts:      []int32{0, -1, 255, 3},
+		Tints:          []*pb.Tint{{Index: 44, Type: 6, Color: &pb.Color{R: 1}, Alpha: 1}},
+		DefaultRace:    &pb.DefaultRace{Race: ref("skyrim.ESM", 1), Female: true},
 	}
 }
 
@@ -162,18 +164,33 @@ func TestAppearance(t *testing.T) {
 	if err := Appearance(valid); err != nil {
 		t.Fatal(err)
 	}
+	full := validAppearance()
+	for len(full.HeadParts) < MaximumListedHeadParts {
+		full.HeadParts = append(full.HeadParts, &pb.HeadPart{Form: ref("Mod.esp", uint32(len(full.HeadParts))), Type: 6})
+	}
+	for len(full.HeadParts)+len(full.AddedHeadParts) < MaximumHeadParts {
+		full.AddedHeadParts = append(full.AddedHeadParts,
+			&pb.HeadPart{Form: ref("Mod.esp", uint32(len(full.AddedHeadParts))), Type: 0xFFFFFFFF})
+	}
+	if err := Appearance(full); err != nil {
+		t.Fatalf("%d head parts: %v", MaximumHeadParts, err)
+	}
 	cases := map[string]func(*pb.Appearance){
-		"zero revision":        func(a *pb.Appearance) { a.Revision = 0 },
-		"long name":            func(a *pb.Appearance) { a.Name = strings.Repeat("é", 65) },
-		"control in name":      func(a *pb.Appearance) { a.Name = "a\x7f" },
-		"level above 65535":    func(a *pb.Appearance) { a.Level = 65536 },
-		"missing race":         func(a *pb.Appearance) { a.Race = nil },
-		"weight above 100":     func(a *pb.Appearance) { a.Weight = 100.5 },
-		"height below 0.25":    func(a *pb.Appearance) { a.Height = 0.2 },
-		"NaN height":           func(a *pb.Appearance) { a.Height = float32(math.NaN()) },
-		"too many head parts":  func(a *pb.Appearance) { a.HeadParts = make([]*pb.HeadPart, 17) },
-		"head part type":       func(a *pb.Appearance) { a.HeadParts[0].Type = 7 },
-		"head part no form":    func(a *pb.Appearance) { a.HeadParts[0].Form = nil },
+		"zero revision":         func(a *pb.Appearance) { a.Revision = 0 },
+		"long name":             func(a *pb.Appearance) { a.Name = strings.Repeat("é", 65) },
+		"control in name":       func(a *pb.Appearance) { a.Name = "a\x7f" },
+		"level above 65535":     func(a *pb.Appearance) { a.Level = 65536 },
+		"missing race":          func(a *pb.Appearance) { a.Race = nil },
+		"weight above 100":      func(a *pb.Appearance) { a.Weight = 100.5 },
+		"height below 0.25":     func(a *pb.Appearance) { a.Height = 0.2 },
+		"NaN height":            func(a *pb.Appearance) { a.Height = float32(math.NaN()) },
+		"too many listed parts": func(a *pb.Appearance) { a.HeadParts = make([]*pb.HeadPart, MaximumListedHeadParts+1) },
+		"head part type":        func(a *pb.Appearance) { a.HeadParts[0].Type = 7 },
+		"head part no form":     func(a *pb.Appearance) { a.HeadParts[0].Form = nil },
+		"too many head parts": func(a *pb.Appearance) {
+			a.AddedHeadParts = make([]*pb.HeadPart, MaximumHeadParts-len(a.HeadParts)+1)
+		},
+		"added part no form":   func(a *pb.Appearance) { a.AddedHeadParts[0].Form = nil },
 		"hair channel":         func(a *pb.Appearance) { a.HairColor.G = 256 },
 		"missing body tint":    func(a *pb.Appearance) { a.BodyTint = nil },
 		"18 face morphs":       func(a *pb.Appearance) { a.FaceMorphs = a.FaceMorphs[:18] },

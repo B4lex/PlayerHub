@@ -30,8 +30,8 @@ namespace Multiplayer
     struct AppearanceHeadPart
     {
         AppearanceFormReference form;
-        // BGSHeadPart::HeadPartType.
-        std::uint8_t type{ 0 };
+        // BGSHeadPart::type (PNAM). Mods use values beyond the vanilla HeadPartType range.
+        std::uint32_t type{ 0 };
 
         bool operator==(const AppearanceHeadPart&) const = default;
     };
@@ -52,12 +52,11 @@ namespace Multiplayer
     {
         static constexpr std::size_t kFaceMorphCount = 19;
         static constexpr std::size_t kFacePartCount = 4;
-        static constexpr std::size_t kMaximumHeadParts = 16;
+        static constexpr std::size_t kMaximumHeadParts = 32;
         static constexpr std::size_t kMaximumTints = 64;
         static constexpr std::size_t kMaximumNameLength = 128;
         static constexpr std::size_t kMaximumPluginNameLength = FormReference::kMaximumPluginNameLength;
         static constexpr std::uint32_t kMaximumLocalFormID = FormReference::kMaximumLocalFormID;
-        static constexpr std::uint8_t kMaximumHeadPartType = 6;
         static constexpr std::uint8_t kMaximumTintType = 14;
         static constexpr float kMaximumWeight = 100.0F;
         static constexpr float kMinimumHeight = 0.25F;
@@ -151,7 +150,7 @@ namespace Multiplayer
 
         for (const auto& headPart : a_appearance.headParts)
         {
-            if (!IsValidFormReference(headPart.form, false) || headPart.type > PlayerAppearance::kMaximumHeadPartType)
+            if (!IsValidFormReference(headPart.form, false))
             {
                 return false;
             }
