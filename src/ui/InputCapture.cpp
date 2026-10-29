@@ -58,6 +58,10 @@ namespace UI::InputCapture
         float s_capturedWheelSteps{ 0.0F };
         ImVec2 s_capturedMouseMotion{};
 
+        // Set while another plugin that detours the dispatch
+        bool s_inputHeldElsewhere{ false };
+        bool s_watchingDelivery{ false };
+
         std::vector<CapturedEvent> s_forwarding;
         bool s_imguiFocused{ false };
         bool s_imguiMouse{ false };
@@ -230,8 +234,9 @@ namespace UI::InputCapture
 
             if (a_button.IsDown())
             {
-                if (!a_state.focused && a_state.gameplay && device == RE::INPUT_DEVICE::kKeyboard
-                    && s_overlayActive.load(std::memory_order_acquire) && WindowManager::FocusByKey(code))
+                if (!a_state.focused && a_state.gameplay && !s_inputHeldElsewhere
+                    && device == RE::INPUT_DEVICE::kKeyboard && s_overlayActive.load(std::memory_order_acquire)
+                    && WindowManager::FocusByKey(code))
                 {
                     logs::debug("UI input: a window took focus with scan code {:#04x}", code);
                     a_state.focused = true;
@@ -342,6 +347,39 @@ namespace UI::InputCapture
             return kept;
         }
 
+        bool LeadsWithKeyboardOrMouse(const RE::InputEvent* a_events)
+        {
+            if (!a_events)
+            {
+                return false;
+            }
+            const auto device = a_events->GetDevice();
+            return device == RE::INPUT_DEVICE::kKeyboard || device == RE::INPUT_DEVICE::kMouse;
+        }
+
+        class DeliverySink final : public RE::BSTEventSink<RE::InputEvent*>
+        {
+        public:
+            RE::BSEventNotifyControl ProcessEvent(
+                RE::InputEvent* const* a_events, RE::BSTEventSource<RE::InputEvent*>*) override
+            {
+                if (!std::exchange(s_watchingDelivery, false))
+                {
+                    return RE::BSEventNotifyControl::kContinue;
+                }
+                const bool held = !a_events || !*a_events;
+                if (held != std::exchange(s_inputHeldElsewhere, held))
+                {
+                    logs::debug("UI input: another plugin {} keyboard and mouse input; focus keys {}",
+                        held ? "holds" : "no longer holds", held ? "pass to it" : "work again");
+                }
+                return RE::BSEventNotifyControl::kContinue;
+            }
+        };
+
+        DeliverySink s_deliverySink;
+        bool s_deliverySinkAdded{ false };
+
         void SetImGuiMouse(ImGuiIO& a_io, bool a_enabled)
         {
             if (a_enabled == s_imguiMouse)
@@ -398,6 +436,11 @@ namespace UI::InputCapture
                 // which one it came through.
                 const auto level = (std::min)(_depth, _detours - 1);
                 const auto previous = _previous[_detours - 1 - level];
+                if (!s_deliverySinkAdded && a_source)
+                {
+                    a_source->PrependEventSink(&s_deliverySink);
+                    s_deliverySinkAdded = true;
+                }
                 ++_depth;
                 if (level > 0 || !a_events || (!*a_events && !WindowManager::HasFocus()))
                 {
@@ -411,7 +454,9 @@ namespace UI::InputCapture
                         PROFILE_SCOPE("InputCapture");
                         events = Route(*a_events);
                     }
+                    s_watchingDelivery = LeadsWithKeyboardOrMouse(events);
                     previous(a_source, &events);
+                    s_watchingDelivery = false;
                 }
                 --_depth;
                 if (_depth == 0)

@@ -596,6 +596,17 @@ keyboard and the game receives no keyboard or mouse input.
   entry, so it needs no more trampoline bytes. After 8 detours, or if the
   instruction is no longer a `call`, it stops and logs a warning. The plugin
   that took the call over sees that one dispatch.
+- Focus keys do nothing while another plugin's menu holds input. Community
+  Shaders and SKSE Menu Framework hold it by dispatching an empty list in
+  place of the events from their detour of the same `call`. `InputCapture`
+  prepends a `BSTEventSink<InputEvent*>` (`DeliverySink`) to the dispatch's
+  source on its first call, ahead of any sink that could stop the dispatch.
+  After each routed list led by a keyboard or mouse event, the sink records
+  whether the game received an empty list (`s_inputHeldElsewhere`). Lists led
+  by a gamepad event say nothing, since Community Shaders lets those through,
+  and neither does a dispatch the sink does not see. While input is held,
+  a focus key goes to the game's list like any other key, so the other menu
+  receives it. A debug line is logged each time the state changes.
 - Every event of a key or button goes where its press went: a key held while a
   window takes focus is still released to the game, and a key that closed a
   window is not.
@@ -2635,6 +2646,11 @@ Not confirmed in game:
     texture that `kFRAMEBUFFER` then names. Its frame generation proxy's
     swap chain buffer has both shared flags, and a real swap chain's buffer
     has neither (checked against its source, not in game).
+18. `BSTEventSource<InputEvent*>::SendEvent` calls its sinks with an empty
+    list as with any other, and stops at the first sink that returns
+    `kStop` (1.7.104 disassembly). Community Shaders and SKSE Menu Framework
+    dispatch an empty list while their menu is open (checked against their
+    source), and on 1.5.97 the same detection is assumed to work.
 
 ## Acceptance criteria
 
@@ -2664,6 +2680,9 @@ Not confirmed in game:
    into the chat or a settings field do not open its menu, and Delete opens it once
    the window is closed; `PlayerHub.log` has one line about detouring input
    dispatch again.
+   With the Community Shaders or SKSE Menu Framework menu open, `T`, `F4`,
+   and the other focus keys open no overlay window and reach that menu,
+   for example typed into its search field. Once it closes they work again.
 5. The `[Connection]` page holds the display name field with one button beside
    it and a line under them. Opening the window with no display name puts the
    cursor in the field, the button cannot connect, and the status panel shows
@@ -3058,6 +3077,17 @@ Not confirmed in game:
 
 ## Known limitations
 
+- Another plugin's [held input](#input-focus) is learned from the last list of
+  keyboard or mouse input it dispatched. A focus key pressed in the dispatch
+  that opens that plugin's menu, or right after it closes with no keyboard
+  or mouse input in between, gets the previous state. A plugin that empties
+  a list for any other reason, such as dropping its only key, blocks focus
+  keys until the next list it passes on. The [trade window](#trade-window)
+  still takes focus while another plugin holds input, and the other menu
+  then gets no keyboard or mouse input until the trade window closes. A
+  plugin that blocks input some other way, or whose detour runs before
+  this one and empties the list, is not detected. In the second case focus
+  keys never reach the overlay anyway.
 - Under Community Shaders' frame generation the [backdrop](#backdrop) and
   [translucent surfaces](#background-blur) blur the scene without the HUD or
   menus, which draw on the UI layer. Under its HDR output without frame
