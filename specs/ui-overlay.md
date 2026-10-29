@@ -564,6 +564,22 @@ keyboard and the game receives no keyboard or mouse input.
   see when the other player accepts, takes it from any window with
   `WindowManager::TakeFocus`. The next dispatch releases either if gameplay
   is not the active context.
+- A focused window that returns true from `Window::LendsFocus` (read on the
+  input thread) lends focus to a window whose `Window::IsBorrowKey` takes the
+  pressed key: the trade window, while none of its fields or popups has the
+  keyboard, lends it to the chat's `OpenChat` key
+  ([Chat over a trade](#chat-over-a-trade)). `WindowManager` keeps the
+  lender, under `s_focusLock` with the focused window, and
+  `ReleaseFocus(*this)` by the borrower gives focus back to it rather than
+  to the game; the lender releasing drops it, and the borrower keeps focus.
+  `TakeFocus` and the release of every window on a menu drop the lender as
+  well. `WindowManager::Borrow` lends the same way without a key, for a
+  request the lender made: the trade's chat button.
+  `WindowManager::HoldsFocus` tells a window whether it is focused or lent
+  as of the call, since `WindowInput::focused` is the start of the frame's
+  draw. A borrower never hides the idle cursor
+  (`FocusedWindowHidesIdleCursor`), so the lender's cursor stays shown where
+  it is.
 - A window gives focus back with `WindowManager::ReleaseFocus(*this)`, or names
   release keys with `Window::IsReleaseKey`: `InputCapture` releases the focused
   window when such a key is pressed, and neither the window nor the game sees
@@ -1273,7 +1289,8 @@ never a line, so the history holds only what players said.
   Enter opens it only when bound. The key only opens: the chat closes by
   Enter and Escape as below. The whisper item in the
   [player menu in the world](#player-menu-in-the-world)
-  opens it too, with that player as the send target.
+  opens it too, with that player as the send target. It also opens over an
+  open trade ([Chat over a trade](#chat-over-a-trade)).
   Typing goes only to the chat; the character does not move or look around, and
   keys already held keep acting until released.
 - Escape closes an open menu, else the [player manager](#player-manager), else
@@ -1390,7 +1407,8 @@ listed, offline ones included, and undone.
   dragged by any empty part while it is open; every opening starts in the
   middle again. The open chat's windows
   have `ImGuiWindowFlags_NoBringToFrontOnFocus`, so a click in the chat or
-  the list leaves it in front. The list's button while it is open brings it
+  the list leaves it in front; they come to the front only when they
+  appear. The list's button while it is open brings it
   to the front.
 - It holds a title in the heading face with a close button at the right,
   a tab each for friends, muted, and vanished players as chips
@@ -1612,7 +1630,8 @@ neither touches an engine object.
   window, and a click on it does nothing. The cursor shows. A window kept from focus
   by a game menu retries each frame and gives the trade up with `FAILED`
   after `kFocusWaitSeconds` (2) of frame time, each frame counting at most
-  0.1 s; one that had focus and loses it cancels with `MENU`.
+  0.1 s; one that had focus and loses it, other than by
+  [lending it to the chat](#chat-over-a-trade), cancels with `MENU`.
 - The trade itself is a framed panel of 56 × 52.8 font sizes, the same share
   of the screen at every resolution, which cannot be moved or resized
   (`MenuFrame::WindowLayout::fixedPosition`). To its right, 2 font sizes
@@ -1699,8 +1718,8 @@ neither touches an engine object.
   item list's heading (the user asked for a sign that the list is still
   loading). A hovered row, also a disabled one, shows its item in the
   preview column at once.
-- The footer holds only Accept, disabled while blocked or accepted, and
-  Cancel.
+- The footer holds the [chat toggle](#chat-over-a-trade) at its left, and
+  Accept, disabled while blocked or accepted, and Cancel at its right.
   Acceptance shows on the grids alone, and a change taking it back shows as
   the tint going. `TradeSync`'s reason Accept is
   unavailable (nothing offered, the offer sending, a report awaited) is the
@@ -1709,6 +1728,42 @@ neither touches an engine object.
   no field or popup claims it, cancels as Cancel does.
 - A trade that ends releases focus; a window that cancelled waits for the
   view to close without taking focus again.
+
+### Chat over a trade
+
+Goal: players can talk while trading without cancelling it. Non-goal:
+opening the [player manager](#player-manager) on its own key during a
+trade (the user's choice).
+
+- `[Controls] OpenChat` opens the chat over the open trade while no trade
+  field or popup has the keyboard (`TradeWindow`'s `keysFree`, set after
+  each draw); the trade lends the chat focus ([Input focus](#input-focus))
+  and stays drawn behind it, backdrop included. `ManagePlayers` and other
+  windows' keys stay inactive.
+- A toggle button at the footer's left (`DrawChatButton`) opens the chat,
+  also with `OpenChat` unbound, and while the chat is open closes it,
+  labelled by which it does at a width that fits both. Opening goes through
+  `PlayerActivation::RequestWhisper` with the trade partner, which the chat
+  takes on its next draw with `WindowManager::Borrow`. The button acts on
+  the click (`ImGuiButtonFlags_PressedOnClick`, without holding the active
+  item), not the release: the click that closes the chat takes focus back
+  as any click on the trade does, so a release would open it again.
+- Each opening during a trade sets the send target to a whisper to the
+  other trader (`TradeSync::GetOpenPeer`) (the user's choice); the player
+  can change it.
+- The chat's windows come to the front when they appear (`BeginFramed`),
+  since they do not on focus and would otherwise stay behind the panel.
+- While lent, the trade handles no Escape, also in the frame the chat gives
+  focus back, so the Escape that closes the chat does not cancel the trade.
+  Closing the chat, by Escape or Enter, returns to the trade.
+- A left or right click on any of the trade's windows (`NoteClick`: the
+  panel, the model, the card) takes focus back with `TakeFocus`, which
+  closes the chat with its text kept, and the click goes on to what it
+  hit (the user's choice). A click that only closes a chat menu, or one on
+  the backdrop, does neither.
+- A game menu taking input releases both, and the trade cancels with
+  `MENU` as without the chat. A trade that ends while the chat is open
+  leaves the chat open.
 
 ### Preview column
 
@@ -2911,6 +2966,12 @@ Not confirmed in game:
     never appears in either offer, and its giver gets a notice naming the
     plugin and sees the item's row disabled. Escape, Cancel, and a
     message box or dialogue a script opens each close both windows.
+    Enter during the trade opens the chat in front of the panel, whispering
+    the other player, with the cursor where it was; Escape closes the chat
+    and the trade stays open, and a click on the panel closes the chat and
+    does what it would without it. Enter in the search field or a count
+    popup does not open the chat. The footer's chat button opens it the same
+    way, also with `OpenChat` unbound, and closes it again with one click.
 27. Both trade grids fill with thumbnails of the offered items within a
     second or two, each on a dark cell, enchanted or not,
     every one textured within about 2 s (`latest.log` shows `pending=0`

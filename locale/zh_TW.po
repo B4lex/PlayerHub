@@ -977,6 +977,14 @@ msgctxt "TradeCancel"
 msgid "Cancel"
 msgstr "取消"
 
+msgctxt "TradeOpenChat"
+msgid "Open chat"
+msgstr "開啟聊天"
+
+msgctxt "TradeCloseChat"
+msgid "Close chat"
+msgstr "關閉聊天"
+
 msgctxt "TradeCategoryAll"
 msgid "All"
 msgstr "全部"

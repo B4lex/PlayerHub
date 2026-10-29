@@ -24,6 +24,12 @@ namespace UI::WindowManager
 
     [[nodiscard]] bool Focus(const Window& a_window);
 
+    // As a borrow key does, for a request the focused window made.
+    [[nodiscard]] bool Borrow(const Window& a_borrower);
+
+    // Focused or lent, as of now rather than the start of the frame's draw.
+    [[nodiscard]] bool HoldsFocus(const Window& a_window);
+
     // Takes focus from any other window, as a window the player must see now does.
     bool TakeFocus(const Window& a_window);
 

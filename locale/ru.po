@@ -1010,6 +1010,14 @@ msgctxt "TradeCancel"
 msgid "Cancel"
 msgstr "Отмена"
 
+msgctxt "TradeOpenChat"
+msgid "Open chat"
+msgstr "Открыть чат"
+
+msgctxt "TradeCloseChat"
+msgid "Close chat"
+msgstr "Закрыть чат"
+
 msgctxt "TradeCategoryAll"
 msgid "All"
 msgstr "Все"

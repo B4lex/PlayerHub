@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "sync/chat/PlayerActivation.h"
 #include "sync/notices/Notices.h"
+#include "sync/trade/TradeSync.h"
 #include "ui/MenuFrame.h"
 #include "ui/Theme.h"
 #include "ui/WindowManager.h"
@@ -91,6 +92,12 @@ namespace UI
                 ImGuiStyleVar_WindowPadding, ImVec2{ padding.x + framePadding, padding.y + framePadding });
             const bool visible = ImGui::Begin(a_name, nullptr, a_flags);
             ImGui::PopStyleVar();
+            // A window that does not come to the front on focus would otherwise stay behind
+            // the trade window when it opens over one.
+            if (ImGui::IsWindowAppearing())
+            {
+                ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+            }
             if (visible)
             {
                 MenuFrame::Draw(ImGui::GetColorU32(Theme::GetFrameColor()), ImGui::GetColorU32(ImGuiCol_WindowBg));
@@ -153,6 +160,11 @@ namespace UI
                 managerOnly.store(a_scanCode != Config::Get()->controls.chatKey, std::memory_order_release);
             }
 
+            [[nodiscard]] bool IsBorrowKey(std::uint32_t a_scanCode) const override
+            {
+                return a_scanCode != 0 && a_scanCode == Config::Get()->controls.chatKey;
+            }
+
             [[nodiscard]] bool UsesMouse() const override { return true; }
             [[nodiscard]] bool HidesIdleCursor() const override { return !IsManagerOnly(); }
             [[nodiscard]] std::optional<ScreenPoint> GetCursorStart() const override
@@ -164,7 +176,8 @@ namespace UI
             void Draw(const WindowInput& a_input) override
             {
                 if (const auto player = PlayerActivation::TakeWhisperRequest();
-                    player && (a_input.focused || WindowManager::Focus(*this)))
+                    player
+                    && (a_input.focused || WindowManager::Focus(*this) || WindowManager::Borrow(*this)))
                 {
                     if (IsManagerOnly())
                     {
@@ -189,6 +202,10 @@ namespace UI
                     focusInput = true;
                     history.ScrollToLatest();
                     input.OnOpened();
+                    if (const auto peer = TradeSync::GetOpenPeer())
+                    {
+                        Whisper(*peer);
+                    }
                 }
                 wasFocused = a_input.focused;
                 wasOpen = open;

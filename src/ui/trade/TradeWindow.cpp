@@ -1,4 +1,5 @@
 #include "ui/trade/TradeWindow.h"
+#include "sync/chat/PlayerActivation.h"
 #include "sync/trade/TradeSync.h"
 #include "text/AsciiCase.h"
 #include "text/Text.h"
@@ -12,10 +13,12 @@
 #include "ui/widgets/Controls.h"
 
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cfloat>
 #include <cmath>
 #include <format>
@@ -184,6 +187,8 @@ namespace UI
         public:
             [[nodiscard]] bool UsesMouse() const override { return true; }
 
+            [[nodiscard]] bool LendsFocus() const override { return keysFree.load(std::memory_order_acquire); }
+
             void Draw(const WindowInput& a_input) override
             {
                 if (TradeSync::CopyView(revision, view))
@@ -192,22 +197,36 @@ namespace UI
                 }
                 if (view.phase != Phase::kOpen)
                 {
-                    if (a_input.focused)
+                    if (a_input.focused || hadFocus)
                     {
                         WindowManager::ReleaseFocus(*this);
                     }
                     Reset();
                     return;
                 }
-                if (!a_input.focused)
+                // Also when the chat gave focus back earlier in this frame, whose Escape
+                // must not cancel the trade too.
+                lent = !a_input.focused;
+                if (lent && !WindowManager::HoldsFocus(*this))
                 {
                     TakeFocus();
                     return;
                 }
                 hadFocus = true;
                 fieldActive = ImGui::IsAnyItemActive();
-                const bool escapeClaimed = fieldActive || ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+                const bool escapeClaimed
+                    = lent || fieldActive || ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+                clickedWhileLent = false;
                 DrawWindow();
+                if (clickedWhileLent && !closing)
+                {
+                    WindowManager::TakeFocus(*this);
+                }
+                // After the draw, so a field or popup a click opened this frame counts, and the
+                // chat button's press, read by the chat next frame, does not.
+                keysFree.store(!lent && !clickedWhileLent && !closing && !ImGui::IsAnyItemActive()
+                        && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId),
+                    std::memory_order_release);
                 if (!escapeClaimed && ImGui::IsKeyPressed(ImGuiKey_Escape, false))
                 {
                     Close(Multiplayer::TradeCloseReason::kCancelled);
@@ -218,6 +237,8 @@ namespace UI
             void Reset()
             {
                 hadFocus = false;
+                lent = false;
+                keysFree.store(false, std::memory_order_release);
                 closing = false;
                 waited = 0.0F;
                 focusWindow = true;
@@ -260,6 +281,19 @@ namespace UI
                 WindowManager::TakeFocus(*this);
             }
 
+            // In each of the trade's windows: a click on one while the chat holds focus takes it
+            // back, and the click goes on to what it hit.
+            void NoteClick()
+            {
+                if (lent
+                    && ImGui::IsWindowHovered(
+                        ImGuiHoveredFlags_RootAndChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem)
+                    && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right)))
+                {
+                    clickedWhileLent = true;
+                }
+            }
+
             void Close(Multiplayer::TradeCloseReason a_reason)
             {
                 closing = true;
@@ -292,6 +326,7 @@ namespace UI
                 };
                 if (MenuFrame::BeginWindow("Trade###Trade", layout, kWindowFlags, std::exchange(focusWindow, false)))
                 {
+                    NoteClick();
                     DrawTitle();
                     const auto& style = ImGui::GetStyle();
                     const auto available = ImGui::GetContentRegionAvail();
@@ -353,7 +388,9 @@ namespace UI
                     ImGui::SetNextWindowSize(
                         ImVec2{ a_arrangement.previewWidth, a_arrangement.modelSize }, ImGuiCond_Always);
                     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0.0F, 0.0F });
-                    if (ImGui::Begin("###TradeModel", nullptr, kModelFlags) && card)
+                    const bool visible = ImGui::Begin("###TradeModel", nullptr, kModelFlags);
+                    NoteClick();
+                    if (visible && card)
                     {
                         ItemPreview::DrawModel(
                             card->formID, ImVec2{ a_arrangement.previewWidth, a_arrangement.modelSize });
@@ -382,6 +419,7 @@ namespace UI
                     .fixedPosition = a_arrangement.card };
                 if (MenuFrame::BeginWindow("###TradeCard", layout, kCardFlags, false))
                 {
+                    NoteClick();
                     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + knotClearance);
                     // A window clips its content only half its padding from its edge, so a long
                     // card scrolls in a child clipped to the content area instead.
@@ -819,6 +857,8 @@ namespace UI
                 const auto fontSize = ImGui::GetFontSize();
                 const auto* const accept = Text::GetCString(Text::Id::kTradeAccept);
                 const auto* const cancel = Text::GetCString(Text::Id::kTradeCancel);
+                DrawChatButton();
+                ImGui::SameLine();
                 const auto buttonWidth = (std::max)(kFooterButtonWidthFonts * fontSize,
                     std::ceil((std::max)(ImGui::CalcTextSize(accept).x, ImGui::CalcTextSize(cancel).x)
                         + style.FramePadding.x * 2.0F));
@@ -843,6 +883,22 @@ namespace UI
                 }
             }
 
+            // Pressed on the click, which while lent has already taken focus back and so closes
+            // the chat; pressed on release, it would open the chat again.
+            void DrawChatButton()
+            {
+                const auto* const open = Text::GetCString(Text::Id::kTradeOpenChat);
+                const auto* const close = Text::GetCString(Text::Id::kTradeCloseChat);
+                const auto width = (std::max)(ImGui::CalcTextSize(open).x, ImGui::CalcTextSize(close).x)
+                    + ImGui::GetStyle().FramePadding.x * 2.0F;
+                if (ImGui::ButtonEx(lent ? close : open, ImVec2{ std::ceil(width), 0.0F },
+                        ImGuiButtonFlags_PressedOnClick | ImGuiButtonFlags_NoHoldingActiveId)
+                    && !lent)
+                {
+                    PlayerActivation::RequestWhisper(view.peer);
+                }
+            }
+
             TradeSync::View view;
             std::uint64_t revision{ 0 };
             std::uint64_t matchedRevision{ 0 };
@@ -861,6 +917,11 @@ namespace UI
             bool fieldActive{ false };
             float waited{ 0.0F };
             bool hadFocus{ false };
+            // The chat holds the focus this window lent it.
+            bool lent{ false };
+            bool clickedWhileLent{ false };
+            // Read on the input thread: no field or popup of the window has the keyboard.
+            std::atomic_bool keysFree{ false };
             bool closing{ false };
             bool focusWindow{ true };
         };

@@ -308,7 +308,7 @@ is not sent and it arrives full.
 | Combat (`IsInCombat`) or a `TESHitEvent` on the player while a trade is invited or open | `COMBAT` | client |
 | The local player in a beast form while a trade is invited or open | `TRANSFORMED` | client |
 | A context with a shapeshift, of either player, while invited or open | `TRANSFORMED` | server |
-| Anything taking input from the open window: a game menu, the console, dialogue, a loading screen | `MENU` | client |
+| Anything taking input from the open window: a game menu, the console, dialogue, a loading screen; not the chat opened over it | `MENU` | client |
 | The window cannot take input within 2 s of opening | `FAILED` | client |
 | Over `trade.keep_radius` (1000) apart, another space, `Exit` | `OUT_OF_RANGE` | server |
 | A disconnect | `DISCONNECTED` | server |

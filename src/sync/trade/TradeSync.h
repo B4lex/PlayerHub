@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -74,6 +75,8 @@ namespace TradeSync
     void Accept();
     [[nodiscard]] bool CopyView(std::uint64_t& a_revision, View& a_view);
     [[nodiscard]] TradeSession::Phase GetPhase();
+    // The other player of the open trade.
+    [[nodiscard]] std::optional<Multiplayer::PlayerIdentity> GetOpenPeer();
     // The slot of the player whose invitation awaits an answer, or 0.
     [[nodiscard]] Multiplayer::PeerSlot GetInvitingPlayer();
 

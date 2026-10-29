@@ -969,6 +969,14 @@ msgctxt "TradeCancel"
 msgid "Cancel"
 msgstr ""
 
+msgctxt "TradeOpenChat"
+msgid "Open chat"
+msgstr ""
+
+msgctxt "TradeCloseChat"
+msgid "Close chat"
+msgstr ""
+
 msgctxt "TradeCategoryAll"
 msgid "All"
 msgstr ""

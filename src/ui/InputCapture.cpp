@@ -234,9 +234,9 @@ namespace UI::InputCapture
 
             if (a_button.IsDown())
             {
-                if (!a_state.focused && a_state.gameplay && !s_inputHeldElsewhere
-                    && device == RE::INPUT_DEVICE::kKeyboard && s_overlayActive.load(std::memory_order_acquire)
-                    && WindowManager::FocusByKey(code))
+                // Also while focused, for a borrow key over a window that lends focus.
+                if (a_state.gameplay && !s_inputHeldElsewhere && device == RE::INPUT_DEVICE::kKeyboard
+                    && s_overlayActive.load(std::memory_order_acquire) && WindowManager::FocusByKey(code))
                 {
                     logs::debug("UI input: a window took focus with scan code {:#04x}", code);
                     a_state.focused = true;

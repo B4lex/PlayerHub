@@ -999,6 +999,14 @@ msgctxt "TradeCancel"
 msgid "Cancel"
 msgstr "キャンセル"
 
+msgctxt "TradeOpenChat"
+msgid "Open chat"
+msgstr "チャットを開く"
+
+msgctxt "TradeCloseChat"
+msgid "Close chat"
+msgstr "チャットを閉じる"
+
 msgctxt "TradeCategoryAll"
 msgid "All"
 msgstr "すべて"

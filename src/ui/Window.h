@@ -28,6 +28,13 @@ namespace UI
         // give it focus, before Draw can see the focus.
         virtual void OnFocusKey(std::uint32_t) {}
 
+        // Called on the input thread, and by WindowManager::Borrow on the overlay thread, while
+        // the window holds focus: whether another window may take focus from it now.
+        [[nodiscard]] virtual bool LendsFocus() const { return false; }
+
+        // One of the window's focus keys that also takes focus from a window that lends it.
+        [[nodiscard]] virtual bool IsBorrowKey(std::uint32_t) const { return false; }
+
         [[nodiscard]] virtual bool IsReleaseKey(std::uint32_t) const { return false; }
 
         [[nodiscard]] virtual bool CapturesKeys() const { return false; }

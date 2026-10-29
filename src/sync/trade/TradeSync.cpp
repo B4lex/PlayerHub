@@ -883,6 +883,16 @@ namespace TradeSync
         return s_phase.load(std::memory_order_acquire);
     }
 
+    std::optional<Multiplayer::PlayerIdentity> GetOpenPeer()
+    {
+        const std::scoped_lock lock{ s_viewLock };
+        if (s_view.phase != TradeSession::Phase::kOpen)
+        {
+            return std::nullopt;
+        }
+        return s_view.peer;
+    }
+
     Multiplayer::PeerSlot GetInvitingPlayer()
     {
         return s_invitingPlayer.load(std::memory_order_acquire);
