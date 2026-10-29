@@ -27,7 +27,10 @@ PB_BIND(playerhub_v1_Color, playerhub_v1_Color, AUTO)
 PB_BIND(playerhub_v1_HeadPart, playerhub_v1_HeadPart, 2)
 
 
-PB_BIND(playerhub_v1_Tint, playerhub_v1_Tint, AUTO)
+PB_BIND(playerhub_v1_Tint, playerhub_v1_Tint, 2)
+
+
+PB_BIND(playerhub_v1_Overlay, playerhub_v1_Overlay, 2)
 
 
 PB_BIND(playerhub_v1_DefaultRace, playerhub_v1_DefaultRace, 2)
@@ -46,6 +49,8 @@ PB_BIND(playerhub_v1_DefaultOutfit, playerhub_v1_DefaultOutfit, 2)
 
 
 PB_BIND(playerhub_v1_Equipment, playerhub_v1_Equipment, 4)
+
+
 
 
 

@@ -153,8 +153,14 @@ func validAppearance() *pb.Appearance {
 		BodyTint:       &pb.Color{R: 222, G: 188, B: 170},
 		FaceMorphs:     make([]float32, FaceMorphCount),
 		FaceParts:      []int32{0, -1, 255, 3},
-		Tints:          []*pb.Tint{{Index: 44, Type: 6, Color: &pb.Color{R: 1}, Alpha: 1}},
-		DefaultRace:    &pb.DefaultRace{Race: ref("skyrim.ESM", 1), Female: true},
+		Tints: []*pb.Tint{
+			{Index: 44, Type: 6, Color: &pb.Color{R: 1}, Alpha: 1},
+			{Index: 7, Type: 7, Color: &pb.Color{}, Alpha: 0.5,
+				Texture: `Actors\Character\Character Assets\TintMasks\BeautyMark_01.DDS`},
+		},
+		Overlays: []*pb.Overlay{{Area: pb.OverlayArea_OVERLAY_AREA_HANDS, Texture: "Actors/Character/Overlays/Ink.dds",
+			Color: &pb.Color{R: 255}, Alpha: 1, GlowColor: &pb.Color{}, GlowStrength: 25.5}},
+		DefaultRace: &pb.DefaultRace{Race: ref("skyrim.ESM", 1), Female: true},
 	}
 }
 
@@ -202,6 +208,21 @@ func TestAppearance(t *testing.T) {
 		"tint type":            func(a *pb.Appearance) { a.Tints[0].Type = 15 },
 		"tint alpha":           func(a *pb.Appearance) { a.Tints[0].Alpha = 1.01 },
 		"tint without color":   func(a *pb.Appearance) { a.Tints[0].Color = nil },
+		"tint texture not dds": func(a *pb.Appearance) { a.Tints[1].Texture = "Actors\\a.png" },
+		"tint texture parent":  func(a *pb.Appearance) { a.Tints[1].Texture = `Actors\..\..\a.dds` },
+		"tint texture drive":   func(a *pb.Appearance) { a.Tints[1].Texture = `C:\a.dds` },
+		"tint texture rooted":  func(a *pb.Appearance) { a.Tints[1].Texture = "/a.dds" },
+		"tint texture control": func(a *pb.Appearance) { a.Tints[1].Texture = "a\x01.dds" },
+		"tint texture long":    func(a *pb.Appearance) { a.Tints[1].Texture = strings.Repeat("a", 257) + ".dds" },
+		"too many overlays":    func(a *pb.Appearance) { a.Overlays = make([]*pb.Overlay, MaximumOverlays+1) },
+		"overlay area":         func(a *pb.Appearance) { a.Overlays[0].Area = 5 },
+		"overlay no area":      func(a *pb.Appearance) { a.Overlays[0].Area = pb.OverlayArea_OVERLAY_AREA_UNSPECIFIED },
+		"overlay no texture":   func(a *pb.Appearance) { a.Overlays[0].Texture = "" },
+		"overlay texture":      func(a *pb.Appearance) { a.Overlays[0].Texture = "../a.dds" },
+		"overlay no color":     func(a *pb.Appearance) { a.Overlays[0].Color = nil },
+		"overlay alpha":        func(a *pb.Appearance) { a.Overlays[0].Alpha = float32(math.NaN()) },
+		"overlay no glow":      func(a *pb.Appearance) { a.Overlays[0].GlowColor = nil },
+		"overlay glow":         func(a *pb.Appearance) { a.Overlays[0].GlowStrength = 100.5 },
 		"modded default race":  func(a *pb.Appearance) { a.DefaultRace.Race = ref("Mod.esp", 1) },
 		"default race no race": func(a *pb.Appearance) { a.DefaultRace.Race = nil },
 	}

@@ -2,6 +2,7 @@
 
 #include "protocol/FormReference.h"
 #include "protocol/PeerSlot.h"
+#include "text/AsciiCase.h"
 
 #include <algorithm>
 #include <array>
@@ -44,8 +45,30 @@ namespace Multiplayer
         std::uint8_t type{ 0 };
         AppearanceColor color{};
         float alpha{ 0.0F };
+        // TintMask::texture's path, relative to Data\Textures. Empty from 1.1.0 senders.
+        std::string texture;
 
         bool operator==(const AppearanceTint&) const = default;
+    };
+
+    enum class OverlayArea : std::uint8_t
+    {
+        kBody = 1,
+        kHands = 2,
+        kFeet = 3,
+        kFace = 4,
+    };
+
+    struct AppearanceOverlay
+    {
+        OverlayArea area{ OverlayArea::kBody };
+        std::string texture;
+        AppearanceColor color{};
+        float alpha{ 0.0F };
+        AppearanceColor glowColor{};
+        float glowStrength{ 0.0F };
+
+        bool operator==(const AppearanceOverlay&) const = default;
     };
 
     struct PlayerAppearance
@@ -54,6 +77,9 @@ namespace Multiplayer
         static constexpr std::size_t kFacePartCount = 4;
         static constexpr std::size_t kMaximumHeadParts = 32;
         static constexpr std::size_t kMaximumTints = 64;
+        static constexpr std::size_t kMaximumOverlays = 32;
+        static constexpr std::size_t kMaximumTexturePathLength = 260;
+        static constexpr float kMaximumOverlayGlowStrength = 100.0F;
         static constexpr std::size_t kMaximumNameLength = 128;
         static constexpr std::size_t kMaximumPluginNameLength = FormReference::kMaximumPluginNameLength;
         static constexpr std::uint32_t kMaximumLocalFormID = FormReference::kMaximumLocalFormID;
@@ -79,6 +105,7 @@ namespace Multiplayer
         std::array<float, kFaceMorphCount> faceMorphs{};
         std::array<std::int32_t, kFacePartCount> faceParts{};
         std::vector<AppearanceTint> tints;
+        std::vector<AppearanceOverlay> overlays;
         std::optional<AppearanceFormReference> defaultRace;
         std::uint64_t revision{ 0 };
 
@@ -88,7 +115,7 @@ namespace Multiplayer
                 && height == a_other.height && headParts == a_other.headParts && hairColor == a_other.hairColor
                 && faceDetails == a_other.faceDetails && bodyTint == a_other.bodyTint
                 && faceMorphs == a_other.faceMorphs && faceParts == a_other.faceParts && tints == a_other.tints
-                && defaultRace == a_other.defaultRace;
+                && overlays == a_other.overlays && defaultRace == a_other.defaultRace;
         }
 
         [[nodiscard]] bool HasSameLabel(const PlayerAppearance& a_other) const
@@ -127,6 +154,39 @@ namespace Multiplayer
         return true;
     }
 
+    // A relative path to a .dds file in printable ASCII that cannot leave the data folder.
+    [[nodiscard]] constexpr bool IsValidTexturePath(std::string_view a_path) noexcept
+    {
+        if (a_path.empty() || a_path.size() > PlayerAppearance::kMaximumTexturePathLength
+            || !AsciiCase::EndsWith(a_path, ".dds") || a_path.front() == '\\' || a_path.front() == '/')
+        {
+            return false;
+        }
+        std::size_t componentStart = 0;
+        for (std::size_t i = 0; i <= a_path.size(); ++i)
+        {
+            if (i == a_path.size() || a_path[i] == '\\' || a_path[i] == '/')
+            {
+                if (a_path.substr(componentStart, i - componentStart) == "..")
+                {
+                    return false;
+                }
+                componentStart = i + 1;
+                continue;
+            }
+            const auto byte = static_cast<unsigned char>(a_path[i]);
+            if (byte < 0x20 || byte > 0x7E || a_path[i] == ':')
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static_assert(IsValidTexturePath("Actors\\Character\\Character Assets\\TintMasks\\BeautyMark_01.DDS"));
+    static_assert(!IsValidTexturePath("..\\x.dds") && !IsValidTexturePath("a/../x.dds") && !IsValidTexturePath("C:x.dds"));
+    static_assert(!IsValidTexturePath("\\x.dds") && !IsValidTexturePath("x.png") && !IsValidTexturePath(""));
+
     [[nodiscard]] inline bool IsValidAppearance(const PlayerAppearance& a_appearance)
     {
         if (a_appearance.revision == 0 || !IsValidAppearanceName(a_appearance.name)
@@ -137,7 +197,8 @@ namespace Multiplayer
             || a_appearance.height < PlayerAppearance::kMinimumHeight
             || a_appearance.height > PlayerAppearance::kMaximumHeight
             || a_appearance.headParts.size() > PlayerAppearance::kMaximumHeadParts
-            || a_appearance.tints.size() > PlayerAppearance::kMaximumTints)
+            || a_appearance.tints.size() > PlayerAppearance::kMaximumTints
+            || a_appearance.overlays.size() > PlayerAppearance::kMaximumOverlays)
         {
             return false;
         }
@@ -165,7 +226,17 @@ namespace Multiplayer
         for (const auto& tint : a_appearance.tints)
         {
             if (tint.type > PlayerAppearance::kMaximumTintType || !std::isfinite(tint.alpha) || tint.alpha < 0.0F
-                || tint.alpha > 1.0F)
+                || tint.alpha > 1.0F || (!tint.texture.empty() && !IsValidTexturePath(tint.texture)))
+            {
+                return false;
+            }
+        }
+        for (const auto& overlay : a_appearance.overlays)
+        {
+            if (overlay.area < OverlayArea::kBody || overlay.area > OverlayArea::kFace
+                || !IsValidTexturePath(overlay.texture) || !std::isfinite(overlay.alpha) || overlay.alpha < 0.0F
+                || overlay.alpha > 1.0F || !std::isfinite(overlay.glowStrength) || overlay.glowStrength < 0.0F
+                || overlay.glowStrength > PlayerAppearance::kMaximumOverlayGlowStrength)
             {
                 return false;
             }

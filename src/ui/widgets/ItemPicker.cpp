@@ -28,8 +28,8 @@ namespace UI
         constexpr ImGuiTableFlags kListFlags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg;
     }
 
-    bool ItemPicker::Draw(
-        const char* a_id, FormReference& a_value, const FormReference& a_default, const Forms::ItemFilter& a_filter)
+    bool ItemPicker::Draw(const char* a_id, FormReference& a_value, const FormReference& a_default,
+        const Forms::ItemFilter& a_filter, bool a_allowNone)
     {
         if (!catalog)
         {
@@ -82,7 +82,7 @@ namespace UI
         bool changed = false;
         if (open)
         {
-            changed = DrawList(a_value, a_filter);
+            changed = DrawList(a_value, a_filter, a_allowNone);
             ImGui::EndCombo();
         }
 
@@ -150,7 +150,7 @@ namespace UI
         return label;
     }
 
-    bool ItemPicker::DrawList(FormReference& a_value, const Forms::ItemFilter& a_filter)
+    bool ItemPicker::DrawList(FormReference& a_value, const Forms::ItemFilter& a_filter, bool a_allowNone)
     {
         if (!catalog)
         {
@@ -178,9 +178,10 @@ namespace UI
             Search(a_filter);
         }
         const auto items = catalog->GetItems();
-        if (ImGui::IsItemDeactivated() && ImGui::IsKeyPressed(ImGuiKey_Enter, false) && !matches.empty())
+        const bool noneRow = a_allowNone && query.empty();
+        if (ImGui::IsItemDeactivated() && ImGui::IsKeyPressed(ImGuiKey_Enter, false) && (noneRow || !matches.empty()))
         {
-            a_value = items[matches.front()].reference;
+            a_value = noneRow ? FormReference{} : items[matches.front()].reference;
             ImGui::CloseCurrentPopup();
             return true;
         }
@@ -192,10 +193,25 @@ namespace UI
 
         bool changed = false;
         const Forms::CatalogItem* hovered = nullptr;
+        bool noneHovered = false;
         if (ImGui::BeginTable("##items", 2, kListFlags, ImVec2{ listWidth, available.y }))
         {
             ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn("Plugin", ImGuiTableColumnFlags_WidthFixed, kPluginColumnWidthFonts * fontSize);
+
+            if (noneRow)
+            {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                if (ImGui::Selectable(Text::GetCString(Text::Id::kItemPickerNone), a_value.IsEmpty(),
+                        ImGuiSelectableFlags_SpanAllColumns))
+                {
+                    a_value = {};
+                    changed = true;
+                    ImGui::CloseCurrentPopup();
+                }
+                noneHovered = ImGui::IsItemHovered();
+            }
 
             ImGuiListClipper clipper;
             clipper.Begin(static_cast<int>(matches.size()));
@@ -234,7 +250,7 @@ namespace UI
                 }
             }
             scrollToCurrent = false;
-            if (matches.empty())
+            if (matches.empty() && !noneRow)
             {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
@@ -246,7 +262,7 @@ namespace UI
         if (preview)
         {
             ImGui::SameLine();
-            DrawDetails(hovered ? hovered : current, previewWidth);
+            DrawDetails(noneHovered ? nullptr : (hovered ? hovered : current), previewWidth);
         }
         return changed;
     }

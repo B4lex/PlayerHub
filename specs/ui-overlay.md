@@ -2106,7 +2106,7 @@ default browser.
 
 ## Item picker
 
-`UI::ItemPicker::Draw(id, value, filter)` draws one form field as a searchable
+`UI::ItemPicker::Draw(id, value, default, filter, allowNone)` draws one form field as a searchable
 dropdown of loaded items that fit the setting's filter, instead of typing
 `Plugin|FormID`. A window keeps one picker for all its fields: it caches each
 field's label until the value changes, and only one list can be open. The
@@ -2121,16 +2121,19 @@ catalog and filters are in
   each with an explaining tooltip. A value for a plugin that is not loaded can
   still be written to the file.
 - The open list is 40 × 22 font sizes, with a search field that takes keyboard
-  focus and a two-column table of name and plugin. There is no empty row: a
-  form setting always has an item. Only visible rows are drawn
+  focus and a two-column table of name and plugin. A setting that may be empty
+  (`allowNone`, from the `Config::SettingsVisitor::Form` call) has a none row
+  first while the search field is empty, which picks the empty reference and
+  shows the closed field's dimmed none label; other settings have no empty
+  row, since they always hold an item. Only visible rows are drawn
   (`ImGuiListClipper`), and the current value is scrolled into view.
-- Clicking a row picks it, Enter picks the first match, Escape closes the list.
+- Clicking a row picks it, Enter picks the first row, Escape closes the list.
 - While the value differs from the setting's default, the field narrows for a
   reset icon button beside it, which sets the default; its tooltip names the
   default item.
 - With `[UI] ItemPreview`, a 13-font-size square panel to the right shows the
   hovered item's model, or the current value's, with its name and
-  `Plugin|0xID` below. Race lists have no panel, since the inventory renderer
+  `Plugin|0xID` below; it is empty for the none row or an empty value. Race lists have no panel, since the inventory renderer
   shows only items (`Forms::HasModel`).
 
 ### 3D preview

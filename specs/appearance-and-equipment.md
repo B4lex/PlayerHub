@@ -9,6 +9,9 @@ rest on CommonLib and the 1.5.97 disassembly.
 Head parts of mod-added types and the extra parts listed on the receiver
 ([Actor base](#actor-base)) have not run in game.
 
+Tint textures that differ from the receiver's race asset and RaceMenu overlays
+([Overlays](#overlays)) have not run in game.
+
 ## Scope
 
 A remote actor looks like its source player's character, carries the player's
@@ -27,7 +30,9 @@ configured is in [Configuration](configuration.md#settings).
 
 | Module | Responsibility |
 | --- | --- |
-| `sync/appearance/AppearanceSync` | Capture and publish; receive, build the actor base, respawn requests, hair, skin, and face tint presentation |
+| `sync/appearance/AppearanceSync` | Capture and publish; receive, build the actor base, respawn requests, hair, skin, face tint, and overlay presentation |
+| `actor/RaceMenuOverlays` | SKEE's overlay and override interfaces: capture the player's overlays, apply them to a remote actor, and release them ([Overlays](#overlays)) |
+| `forms/TextureFiles` | `TextureExists`: whether the receiver's loose files or archives hold a texture, cached per path |
 | `sync/equipment/EquipmentSync` | Capture and publish; receive, resolve, reconcile the actor's inventory and a vampire lord actor's spells and armor; hand readiness |
 | `sync/equipment/SpellStandIn` | Capture a spell hand's spell and look; resolve it to a runtime stand-in spell ([Combat presentation](combat-presentation.md#spell-look)) |
 | `sync/equipment/FakeLight` | A shadow-casting light's runtime copy without its shadow flags |
@@ -45,8 +50,9 @@ configured is in [Configuration](configuration.md#settings).
 
 The actor shows the source's race, sex, body weight, height, head parts (face,
 eyes, hair, beard, brows, scars), hair color, face morph sliders and presets,
-face detail texture, skin tone, and face tint layers (war paint, dirt, lip and
-cheek color).
+face detail texture, skin tone, face tint layers (war paint, dirt, lip and
+cheek color) with their textures, and RaceMenu overlays (body, hand, feet, and
+face paint).
 
 ### Capture
 
@@ -92,7 +98,14 @@ On the game thread, once per second:
   reads there (ID 39614), and `0xB20` on 1.7.104, as `GetNumTints` (ID 40700)
   reads it. Each mask maps to the race's `TintAsset` for the sex by
   texture (pointer, then case-insensitive path) for its stable `index`.
-  Zero-alpha masks and masks without an asset are skipped.
+  Zero-alpha masks and masks without an asset are skipped. `texture` is the
+  mask's `TESTexture::textureName`. RaceMenu shows an alternative or add-on
+  war paint by rewriting the path of the slot's race asset, which the mask
+  points at ([tint textures](#engine-assumptions)), so the index alone would
+  show the receiver's original texture for that slot. A mask whose path fails
+  the [texture path](network.md#texture-paths) rule is skipped and logged once
+  per path.
+- `overlays`: `RaceMenuOverlays::Capture` ([Overlays](#overlays)).
 
 A capture that differs from the last published one must repeat in two
 consecutive captures, so dragging an editor slider does not stream updates.
@@ -137,7 +150,10 @@ engine default that is replaced rather than written. The base then gets:
   read the attack data map without a null check;
 - the resolved head parts, each followed by its extra parts, hair color, face
   details, morphs, parts, body tint, and tint layers
-  (`interpolationValue = alpha × 100`, with the matching preset).
+  (`interpolationValue = alpha × 100`, with the matching preset). Each layer's
+  texture is kept beside the base in `RemoteState::baseTintTextures`: the race
+  asset's path when `texture` is empty or names the same file, else the sent
+  path.
 
 `TESNPC::InitItemImpl` lists a plugin NPC's extra parts after their parent, and
 the head build attaches only the listed parts ([head
@@ -164,7 +180,8 @@ that cannot be built keeps the previous base.
 | Face part | none after resolution | the race's default face |
 | Hair color | color form creation fails | the race's default hair color |
 | Face details | missing | the race's default face details |
-| Tint layer | no race tint asset with that index and type | dropped |
+| Tint layer | no race tint asset with that index and type, or a `texture` other than the asset's that `TextureExists` does not find | dropped |
+| Overlay | no SKEE, no free overlay slot of its area, or a texture `TextureExists` does not find | dropped |
 
 A fallback race keeps the source's own sex and takes the race's default look for
 it: default head parts and skin tone. Mods add races but not sexes, so the
@@ -194,10 +211,56 @@ each time.
   remote actor's face would render dark. The receiver
   finds the face geometry (named after the face part's editor ID), takes its
   FaceGen material's tint texture, and queues the engine's tint render
-  (ID 27040, SE 26454) with masks from the base's layers: race `TintAsset`
-  texture, layer color, and `interpolationValue / 100` alpha, at most 16
-  non-zero layers. It renders again whenever the head gets a new tint texture,
-  such as after a 3D reset.
+  (ID 27040, SE 26454) with masks from the base's layers: the layer's texture
+  from `baseTintTextures`, layer color, and `interpolationValue / 100` alpha,
+  at most 16 non-zero layers. The render reads only the mask texture's
+  `textureName` ([tint render](#engine-assumptions)), so each mask points at a
+  stack `MaskTexture` with `TESTexture`'s layout and the asset's vtable. It
+  renders again whenever the head gets a new tint texture, such as after a 3D
+  reset.
+- RaceMenu overlays are applied in the same pass as the colors, when the
+  spawned revision is the latest ([Overlays](#overlays)).
+
+### Overlays
+
+Goal: body, hand, feet, and face paint and tattoos that RaceMenu (SKEE) puts on
+overlay shapes show on the remote actor when both players have RaceMenu and the
+texture, with the source's color, transparency, and glow. Other NiOverride data
+(body morphs, node transforms, armor and skin overrides) is out of scope.
+
+- **Interfaces:** `RaceMenuOverlays::Initialize` runs at SKSE's
+  `kPostPostLoad`. It dispatches SKEE's interface exchange
+  (`0x9E3779B9`) to `skee` and queries `Overlay` and `Override` from the
+  returned map, both at version 2 or later; without them nothing is captured
+  or applied, and a line logs why. The interfaces are declared locally after
+  RaceMenu's `ModderResource/IPluginInterface.h`.
+- **Capture:** for each area, slots `0..GetOverlayCount(Normal, area)` of the
+  nodes `Body [Ovl#]`, `Hands [Ovl#]`, `Feet [Ovl#]`, and `Face [Ovl#]`, in
+  that order, up to 32 overlays. Spell overlays (`[SOvl#]`) are left out. Each
+  value is the node override for the player's sex, or the node's current
+  property when no override is saved, as RaceMenu reads them: texture (key 9,
+  index 0), tint color (7), alpha (8), glow color (0), and glow strength
+  (emissive multiple, 1), the last four at index `-1`. A slot without a
+  texture, with SKEE's default `actors\character\overlays\default.dds`, or
+  with alpha 0 is skipped; a path that fails the
+  [texture path](network.md#texture-paths) rule is skipped and logged once per
+  path. Missing color, alpha, or glow default to white, 1, and none. Alpha is
+  clamped to `0..1` and glow strength to `0..100`.
+- **Apply:** `RaceMenuOverlays::Apply` fills the receiver's slots of each area
+  from 0 in the order received, so a source's gaps close and layering order
+  holds; an overlay beyond the receiver's slot count, or whose texture
+  `TextureExists` does not find, is dropped. Each kept overlay becomes node
+  overrides for the actor base's sex with the five values, then
+  `AddOverlays` (immediate) installs the shapes and `SetNodeProperties`
+  applies the overrides. SKEE keeps both per reference and reapplies them when
+  the actor's 3D is rebuilt ([SKEE overlays](#engine-assumptions)). One debug
+  line counts applied, missing, and slotless overlays and names the first
+  missing texture.
+- **Release:** a new revision respawns the actor, so overlays are only ever
+  applied to a fresh reference. `ActorSpawner::Remove` calls
+  `RaceMenuOverlays::Release` for an actor that got overlays:
+  `RemoveAllNodeOverridesByReference` and a deferred `RemoveOverlays`, so
+  SKEE's co-save does not keep the retired reference.
 
 ### Shapeshifts
 
@@ -469,7 +532,9 @@ the settings change `[DefaultOutfit]` (`Refresh`, first in each pass), checked
 with the key's item filter. A form that is missing or does not fit is logged
 with its key (`Default outfit item ignored ... reason=does-not-fit`) and
 replaced by the key's default, or treated as unset when the default is unusable
-too, such as the Anniversary backpack on an install without it.
+too, such as the Anniversary backpack on an install without it. An empty
+`Head`, `Circlet`, or `Backpack` is unset by choice and resolves to no piece
+without a warning ([Configuration](configuration.md#defaultoutfit)).
 
 Each equipment capture selects pieces only for items not from base-game
 plugins:
@@ -646,6 +711,39 @@ Read from RaceMenu's scripts and the vanilla skeleton for the
     `height`, node scale included, whether or not SKEE scales the source's
     beast skeleton.
 
+Verified against the 1.7.104 and 1.5.97 executables for the
+[tint render](#spawn-and-respawn):
+
+19. The face tint render (ID 27040, SE 26454) reads a mask's `texture` only
+    for `textureName` (+0x8) and passes it to the texture load (ID 76005,
+    SE 74273) before it returns; the render job keeps the loaded texture, not
+    the mask.
+
+Read from RaceMenu's scripts (`RaceMenu.psc`) for
+[tint textures](#capture) and [overlays](#overlays), not confirmed in game:
+
+20. A war paint choice calls `Game.SetTintMaskTexturePath`
+    (`OnTintTextureChange`), and a loaded game reapplies the saved paths
+    (`LoadTints`, `Game.SetNthTintMaskTexturePath`); add-on war paints
+    (`AddWarpaint`) go through the same call. SKSE writes the path into the
+    mask's `TESTexture`, which is the race asset's, so the player's masks still
+    match their asset by pointer.
+21. Overlay editing saves node overrides on `<Area> [Ovl#]` with the keys in
+    [Overlays](#overlays) (`OnOverlayTextureChange`, `OnOverlayColorChange`,
+    `OnOverlayGlowColorChange`), and `UpdateOverlay` reads them back the same
+    way.
+
+Not confirmed in game:
+
+22. SKEE's `AddOverlays` installs overlays on a non-player reference whatever
+    `[Overlays] bPlayerOnly` says, and SKEE reinstalls them and reapplies its
+    node overrides when that reference's 3D is rebuilt. SKEE's co-save entries
+    for actors that are live when the game saves name no reference on load,
+    since remote actors are left out of saves
+    ([Saves](sync-pipeline.md#saves)).
+23. A path `TextureExists` finds, with or without a leading `textures\`, loads
+    the same file in the tint render and in SKEE.
+
 ## Acceptance criteria
 
 1. A remote actor shows the source's race, sex, weight, hair, eyes, hair color,
@@ -698,13 +796,27 @@ Read from RaceMenu's scripts and the vanilla skeleton for the
 16. A player with up to 32 top-level head parts publishes all of them.
 17. A 1.1.0 peer still shows such a player, with only the parts of types
     `0..6`.
+18. A player wearing a RaceMenu alternative or add-on war paint appears to
+    peers with it when they have its texture, and without that layer when they
+    do not; vanilla war paint shows as before.
+19. A player's RaceMenu body, hand, feet, and face paint appear on peers who
+    have RaceMenu and the textures, with the same color, transparency, and
+    glow, also after a cell change and a respawn. A peer without RaceMenu or a
+    texture sees the player without that overlay, and nothing else changes.
+20. A 1.1.0 peer shows such a player with the race's own tint textures and no
+    overlays.
 
 ## Known limitations
 
 - Voice type, actor values, mod-added transformation races, and
-  RaceMenu/NiOverride data (body morphs, overlays, node transforms, scaled bones)
-  are not synchronized, except the `NPC` node scale, which travels in
-  [`height`](#capture).
+  RaceMenu/NiOverride data other than overlays (body morphs, node transforms,
+  scaled bones, armor and skin overrides) are not synchronized, except the
+  `NPC` node scale, which travels in [`height`](#capture).
+- An overlay carries only its diffuse texture: the other texture set slots
+  RaceMenu can set (a `|`-separated path list, indices 1..8) and spell
+  overlays are not shown. A receiver with fewer slots of an area
+  (`skee64.ini` `iNumOverlays`) shows only the first overlays of it. A tint or
+  overlay whose path is not printable ASCII is not sent.
 - The transformation itself, its animation, effect shader, and sound, is not
   shown: the user chose an instant swap. The swap waits for a respawn,
   so the actor is briefly absent while the new form's 3D loads. Custom skin armor and far skins use the resolved race's.

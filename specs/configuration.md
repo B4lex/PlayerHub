@@ -140,8 +140,10 @@ What peers show in place of this player's race and items they cannot resolve
 ([Appearance and equipment](appearance-and-equipment.md#default-outfit)). Form
 values are `Plugin|FormID`, the defining plugin and its local hexadecimal ID, as
 in `Skyrim.esm|0x012E49`. A full load-order form ID is rejected, since it differs
-between modpacks. Every key has a value: an empty or malformed one is invalid and
-keeps the default. Only base-game forms are accepted: the five Special Edition
+between modpacks. A malformed value is invalid and keeps the default. `Head`,
+`Circlet`, and `Backpack` may be empty, which sets no piece for that slot, so
+peers show nothing there; every other key must have a value, and an empty one is
+invalid. Only base-game forms are accepted: the five Special Edition
 masters and `ccFSVSSE001-Backpacks.esl`, without other Creation Club content,
 so a peer on Special Edition or on Anniversary Edition without the upgrade
 resolves every piece but the backpack.

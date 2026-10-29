@@ -163,6 +163,25 @@ message Tint {
   uint32 type = 2;
   Color color = 3;
   float alpha = 4;
+  // Empty from 1.1.0 senders: the receiver's race texture for index and type.
+  string texture = 5;
+}
+
+enum OverlayArea {
+  OVERLAY_AREA_UNSPECIFIED = 0;
+  OVERLAY_AREA_BODY = 1;
+  OVERLAY_AREA_HANDS = 2;
+  OVERLAY_AREA_FEET = 3;
+  OVERLAY_AREA_FACE = 4;
+}
+
+message Overlay {
+  OverlayArea area = 1;
+  string texture = 2;
+  Color color = 3;
+  float alpha = 4;
+  Color glow_color = 5;
+  float glow_strength = 6;
 }
 
 message DefaultRace {
@@ -193,6 +212,7 @@ message Appearance {
   // both fields together.
   // TODO: merge into head_parts with the next protocol bump.
   repeated HeadPart added_head_parts = 16;
+  repeated Overlay overlays = 17;
 }
 
 enum HandKind {

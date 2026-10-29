@@ -493,6 +493,61 @@ func (BeastAction) EnumDescriptor() ([]byte, []int) {
 	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{5}
 }
 
+type OverlayArea int32
+
+const (
+	OverlayArea_OVERLAY_AREA_UNSPECIFIED OverlayArea = 0
+	OverlayArea_OVERLAY_AREA_BODY        OverlayArea = 1
+	OverlayArea_OVERLAY_AREA_HANDS       OverlayArea = 2
+	OverlayArea_OVERLAY_AREA_FEET        OverlayArea = 3
+	OverlayArea_OVERLAY_AREA_FACE        OverlayArea = 4
+)
+
+// Enum value maps for OverlayArea.
+var (
+	OverlayArea_name = map[int32]string{
+		0: "OVERLAY_AREA_UNSPECIFIED",
+		1: "OVERLAY_AREA_BODY",
+		2: "OVERLAY_AREA_HANDS",
+		3: "OVERLAY_AREA_FEET",
+		4: "OVERLAY_AREA_FACE",
+	}
+	OverlayArea_value = map[string]int32{
+		"OVERLAY_AREA_UNSPECIFIED": 0,
+		"OVERLAY_AREA_BODY":        1,
+		"OVERLAY_AREA_HANDS":       2,
+		"OVERLAY_AREA_FEET":        3,
+		"OVERLAY_AREA_FACE":        4,
+	}
+)
+
+func (x OverlayArea) Enum() *OverlayArea {
+	p := new(OverlayArea)
+	*p = x
+	return p
+}
+
+func (x OverlayArea) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (OverlayArea) Descriptor() protoreflect.EnumDescriptor {
+	return file_playerhub_v1_state_proto_enumTypes[6].Descriptor()
+}
+
+func (OverlayArea) Type() protoreflect.EnumType {
+	return &file_playerhub_v1_state_proto_enumTypes[6]
+}
+
+func (x OverlayArea) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use OverlayArea.Descriptor instead.
+func (OverlayArea) EnumDescriptor() ([]byte, []int) {
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{6}
+}
+
 type HandKind int32
 
 const (
@@ -529,11 +584,11 @@ func (x HandKind) String() string {
 }
 
 func (HandKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_playerhub_v1_state_proto_enumTypes[6].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[7].Descriptor()
 }
 
 func (HandKind) Type() protoreflect.EnumType {
-	return &file_playerhub_v1_state_proto_enumTypes[6]
+	return &file_playerhub_v1_state_proto_enumTypes[7]
 }
 
 func (x HandKind) Number() protoreflect.EnumNumber {
@@ -542,7 +597,7 @@ func (x HandKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HandKind.Descriptor instead.
 func (HandKind) EnumDescriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{6}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{7}
 }
 
 type FormRef struct {
@@ -1071,11 +1126,13 @@ func (x *HeadPart) GetType() uint32 {
 }
 
 type Tint struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Index         uint32                 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
-	Type          uint32                 `protobuf:"varint,2,opt,name=type,proto3" json:"type,omitempty"`
-	Color         *Color                 `protobuf:"bytes,3,opt,name=color,proto3" json:"color,omitempty"`
-	Alpha         float32                `protobuf:"fixed32,4,opt,name=alpha,proto3" json:"alpha,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Index uint32                 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Type  uint32                 `protobuf:"varint,2,opt,name=type,proto3" json:"type,omitempty"`
+	Color *Color                 `protobuf:"bytes,3,opt,name=color,proto3" json:"color,omitempty"`
+	Alpha float32                `protobuf:"fixed32,4,opt,name=alpha,proto3" json:"alpha,omitempty"`
+	// Empty from 1.1.0 senders: the receiver's race texture for index and type.
+	Texture       string `protobuf:"bytes,5,opt,name=texture,proto3" json:"texture,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1138,6 +1195,97 @@ func (x *Tint) GetAlpha() float32 {
 	return 0
 }
 
+func (x *Tint) GetTexture() string {
+	if x != nil {
+		return x.Texture
+	}
+	return ""
+}
+
+type Overlay struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Area          OverlayArea            `protobuf:"varint,1,opt,name=area,proto3,enum=playerhub.v1.OverlayArea" json:"area,omitempty"`
+	Texture       string                 `protobuf:"bytes,2,opt,name=texture,proto3" json:"texture,omitempty"`
+	Color         *Color                 `protobuf:"bytes,3,opt,name=color,proto3" json:"color,omitempty"`
+	Alpha         float32                `protobuf:"fixed32,4,opt,name=alpha,proto3" json:"alpha,omitempty"`
+	GlowColor     *Color                 `protobuf:"bytes,5,opt,name=glow_color,json=glowColor,proto3" json:"glow_color,omitempty"`
+	GlowStrength  float32                `protobuf:"fixed32,6,opt,name=glow_strength,json=glowStrength,proto3" json:"glow_strength,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Overlay) Reset() {
+	*x = Overlay{}
+	mi := &file_playerhub_v1_state_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Overlay) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Overlay) ProtoMessage() {}
+
+func (x *Overlay) ProtoReflect() protoreflect.Message {
+	mi := &file_playerhub_v1_state_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Overlay.ProtoReflect.Descriptor instead.
+func (*Overlay) Descriptor() ([]byte, []int) {
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *Overlay) GetArea() OverlayArea {
+	if x != nil {
+		return x.Area
+	}
+	return OverlayArea_OVERLAY_AREA_UNSPECIFIED
+}
+
+func (x *Overlay) GetTexture() string {
+	if x != nil {
+		return x.Texture
+	}
+	return ""
+}
+
+func (x *Overlay) GetColor() *Color {
+	if x != nil {
+		return x.Color
+	}
+	return nil
+}
+
+func (x *Overlay) GetAlpha() float32 {
+	if x != nil {
+		return x.Alpha
+	}
+	return 0
+}
+
+func (x *Overlay) GetGlowColor() *Color {
+	if x != nil {
+		return x.GlowColor
+	}
+	return nil
+}
+
+func (x *Overlay) GetGlowStrength() float32 {
+	if x != nil {
+		return x.GlowStrength
+	}
+	return 0
+}
+
 type DefaultRace struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Race  *FormRef               `protobuf:"bytes,1,opt,name=race,proto3" json:"race,omitempty"`
@@ -1150,7 +1298,7 @@ type DefaultRace struct {
 
 func (x *DefaultRace) Reset() {
 	*x = DefaultRace{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[8]
+	mi := &file_playerhub_v1_state_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1162,7 +1310,7 @@ func (x *DefaultRace) String() string {
 func (*DefaultRace) ProtoMessage() {}
 
 func (x *DefaultRace) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[8]
+	mi := &file_playerhub_v1_state_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1175,7 +1323,7 @@ func (x *DefaultRace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DefaultRace.ProtoReflect.Descriptor instead.
 func (*DefaultRace) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{8}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DefaultRace) GetRace() *FormRef {
@@ -1214,13 +1362,14 @@ type Appearance struct {
 	// both fields together.
 	// TODO: merge into head_parts with the next protocol bump.
 	AddedHeadParts []*HeadPart `protobuf:"bytes,16,rep,name=added_head_parts,json=addedHeadParts,proto3" json:"added_head_parts,omitempty"`
+	Overlays       []*Overlay  `protobuf:"bytes,17,rep,name=overlays,proto3" json:"overlays,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Appearance) Reset() {
 	*x = Appearance{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[9]
+	mi := &file_playerhub_v1_state_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1232,7 +1381,7 @@ func (x *Appearance) String() string {
 func (*Appearance) ProtoMessage() {}
 
 func (x *Appearance) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[9]
+	mi := &file_playerhub_v1_state_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1245,7 +1394,7 @@ func (x *Appearance) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Appearance.ProtoReflect.Descriptor instead.
 func (*Appearance) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{9}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Appearance) GetRevision() uint64 {
@@ -1360,6 +1509,13 @@ func (x *Appearance) GetAddedHeadParts() []*HeadPart {
 	return nil
 }
 
+func (x *Appearance) GetOverlays() []*Overlay {
+	if x != nil {
+		return x.Overlays
+	}
+	return nil
+}
+
 type Armor struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Form          *FormRef               `protobuf:"bytes,1,opt,name=form,proto3" json:"form,omitempty"`
@@ -1370,7 +1526,7 @@ type Armor struct {
 
 func (x *Armor) Reset() {
 	*x = Armor{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[10]
+	mi := &file_playerhub_v1_state_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1382,7 +1538,7 @@ func (x *Armor) String() string {
 func (*Armor) ProtoMessage() {}
 
 func (x *Armor) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[10]
+	mi := &file_playerhub_v1_state_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1395,7 +1551,7 @@ func (x *Armor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Armor.ProtoReflect.Descriptor instead.
 func (*Armor) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{10}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Armor) GetForm() *FormRef {
@@ -1425,7 +1581,7 @@ type Hand struct {
 
 func (x *Hand) Reset() {
 	*x = Hand{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[11]
+	mi := &file_playerhub_v1_state_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1437,7 +1593,7 @@ func (x *Hand) String() string {
 func (*Hand) ProtoMessage() {}
 
 func (x *Hand) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[11]
+	mi := &file_playerhub_v1_state_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1450,7 +1606,7 @@ func (x *Hand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Hand.ProtoReflect.Descriptor instead.
 func (*Hand) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{11}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Hand) GetKind() HandKind {
@@ -1499,7 +1655,7 @@ type DefaultOutfit struct {
 
 func (x *DefaultOutfit) Reset() {
 	*x = DefaultOutfit{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[12]
+	mi := &file_playerhub_v1_state_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1511,7 +1667,7 @@ func (x *DefaultOutfit) String() string {
 func (*DefaultOutfit) ProtoMessage() {}
 
 func (x *DefaultOutfit) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[12]
+	mi := &file_playerhub_v1_state_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1524,7 +1680,7 @@ func (x *DefaultOutfit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DefaultOutfit.ProtoReflect.Descriptor instead.
 func (*DefaultOutfit) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{12}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DefaultOutfit) GetArmor() []*Armor {
@@ -1567,7 +1723,7 @@ type Equipment struct {
 
 func (x *Equipment) Reset() {
 	*x = Equipment{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[13]
+	mi := &file_playerhub_v1_state_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1579,7 +1735,7 @@ func (x *Equipment) String() string {
 func (*Equipment) ProtoMessage() {}
 
 func (x *Equipment) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[13]
+	mi := &file_playerhub_v1_state_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1592,7 +1748,7 @@ func (x *Equipment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Equipment.ProtoReflect.Descriptor instead.
 func (*Equipment) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{13}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Equipment) GetRevision() uint64 {
@@ -1708,15 +1864,24 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x01b\x18\x03 \x01(\rR\x01b\"I\n" +
 	"\bHeadPart\x12)\n" +
 	"\x04form\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\x04form\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\rR\x04type\"q\n" +
+	"\x04type\x18\x02 \x01(\rR\x04type\"\x8b\x01\n" +
 	"\x04Tint\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\rR\x05index\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\rR\x04type\x12)\n" +
 	"\x05color\x18\x03 \x01(\v2\x13.playerhub.v1.ColorR\x05color\x12\x14\n" +
-	"\x05alpha\x18\x04 \x01(\x02R\x05alpha\"P\n" +
+	"\x05alpha\x18\x04 \x01(\x02R\x05alpha\x12\x18\n" +
+	"\atexture\x18\x05 \x01(\tR\atexture\"\xec\x01\n" +
+	"\aOverlay\x12-\n" +
+	"\x04area\x18\x01 \x01(\x0e2\x19.playerhub.v1.OverlayAreaR\x04area\x12\x18\n" +
+	"\atexture\x18\x02 \x01(\tR\atexture\x12)\n" +
+	"\x05color\x18\x03 \x01(\v2\x13.playerhub.v1.ColorR\x05color\x12\x14\n" +
+	"\x05alpha\x18\x04 \x01(\x02R\x05alpha\x122\n" +
+	"\n" +
+	"glow_color\x18\x05 \x01(\v2\x13.playerhub.v1.ColorR\tglowColor\x12#\n" +
+	"\rglow_strength\x18\x06 \x01(\x02R\fglowStrength\"P\n" +
 	"\vDefaultRace\x12)\n" +
 	"\x04race\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\x04race\x12\x16\n" +
-	"\x06female\x18\x02 \x01(\bR\x06female\"\x86\x05\n" +
+	"\x06female\x18\x02 \x01(\bR\x06female\"\xb9\x05\n" +
 	"\n" +
 	"Appearance\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x12\x12\n" +
@@ -1739,7 +1904,8 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"face_parts\x18\r \x03(\x11R\tfaceParts\x12(\n" +
 	"\x05tints\x18\x0e \x03(\v2\x12.playerhub.v1.TintR\x05tints\x12<\n" +
 	"\fdefault_race\x18\x0f \x01(\v2\x19.playerhub.v1.DefaultRaceR\vdefaultRace\x12@\n" +
-	"\x10added_head_parts\x18\x10 \x03(\v2\x16.playerhub.v1.HeadPartR\x0eaddedHeadParts\"O\n" +
+	"\x10added_head_parts\x18\x10 \x03(\v2\x16.playerhub.v1.HeadPartR\x0eaddedHeadParts\x121\n" +
+	"\boverlays\x18\x11 \x03(\v2\x15.playerhub.v1.OverlayR\boverlays\"O\n" +
 	"\x05Armor\x12)\n" +
 	"\x04form\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\x04form\x12\x1b\n" +
 	"\tslot_mask\x18\x02 \x01(\rR\bslotMask\"\xf2\x01\n" +
@@ -1850,7 +2016,13 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"+BEAST_ACTION_VAMPIRE_LORD_CAST_RELEASE_LEFT\x100\x120\n" +
 	",BEAST_ACTION_VAMPIRE_LORD_CAST_RELEASE_RIGHT\x101\x121\n" +
 	"-BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_LEFT\x102\x122\n" +
-	".BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT\x103*e\n" +
+	".BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT\x103*\x88\x01\n" +
+	"\vOverlayArea\x12\x1c\n" +
+	"\x18OVERLAY_AREA_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11OVERLAY_AREA_BODY\x10\x01\x12\x16\n" +
+	"\x12OVERLAY_AREA_HANDS\x10\x02\x12\x15\n" +
+	"\x11OVERLAY_AREA_FEET\x10\x03\x12\x15\n" +
+	"\x11OVERLAY_AREA_FACE\x10\x04*e\n" +
 	"\bHandKind\x12\x19\n" +
 	"\x15HAND_KIND_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10HAND_KIND_WEAPON\x10\x01\x12\x13\n" +
@@ -1869,8 +2041,8 @@ func file_playerhub_v1_state_proto_rawDescGZIP() []byte {
 	return file_playerhub_v1_state_proto_rawDescData
 }
 
-var file_playerhub_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_playerhub_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_playerhub_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
+var file_playerhub_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_playerhub_v1_state_proto_goTypes = []any{
 	(MovementState)(0),    // 0: playerhub.v1.MovementState
 	(CheckpointFlag)(0),   // 1: playerhub.v1.CheckpointFlag
@@ -1878,63 +2050,69 @@ var file_playerhub_v1_state_proto_goTypes = []any{
 	(AttackAction)(0),     // 3: playerhub.v1.AttackAction
 	(PowerDirection)(0),   // 4: playerhub.v1.PowerDirection
 	(BeastAction)(0),      // 5: playerhub.v1.BeastAction
-	(HandKind)(0),         // 6: playerhub.v1.HandKind
-	(*FormRef)(nil),       // 7: playerhub.v1.FormRef
-	(*Checkpoint)(nil),    // 8: playerhub.v1.Checkpoint
-	(*Context)(nil),       // 9: playerhub.v1.Context
-	(*Attack)(nil),        // 10: playerhub.v1.Attack
-	(*Action)(nil),        // 11: playerhub.v1.Action
-	(*Color)(nil),         // 12: playerhub.v1.Color
-	(*HeadPart)(nil),      // 13: playerhub.v1.HeadPart
-	(*Tint)(nil),          // 14: playerhub.v1.Tint
-	(*DefaultRace)(nil),   // 15: playerhub.v1.DefaultRace
-	(*Appearance)(nil),    // 16: playerhub.v1.Appearance
-	(*Armor)(nil),         // 17: playerhub.v1.Armor
-	(*Hand)(nil),          // 18: playerhub.v1.Hand
-	(*DefaultOutfit)(nil), // 19: playerhub.v1.DefaultOutfit
-	(*Equipment)(nil),     // 20: playerhub.v1.Equipment
+	(OverlayArea)(0),      // 6: playerhub.v1.OverlayArea
+	(HandKind)(0),         // 7: playerhub.v1.HandKind
+	(*FormRef)(nil),       // 8: playerhub.v1.FormRef
+	(*Checkpoint)(nil),    // 9: playerhub.v1.Checkpoint
+	(*Context)(nil),       // 10: playerhub.v1.Context
+	(*Attack)(nil),        // 11: playerhub.v1.Attack
+	(*Action)(nil),        // 12: playerhub.v1.Action
+	(*Color)(nil),         // 13: playerhub.v1.Color
+	(*HeadPart)(nil),      // 14: playerhub.v1.HeadPart
+	(*Tint)(nil),          // 15: playerhub.v1.Tint
+	(*Overlay)(nil),       // 16: playerhub.v1.Overlay
+	(*DefaultRace)(nil),   // 17: playerhub.v1.DefaultRace
+	(*Appearance)(nil),    // 18: playerhub.v1.Appearance
+	(*Armor)(nil),         // 19: playerhub.v1.Armor
+	(*Hand)(nil),          // 20: playerhub.v1.Hand
+	(*DefaultOutfit)(nil), // 21: playerhub.v1.DefaultOutfit
+	(*Equipment)(nil),     // 22: playerhub.v1.Equipment
 }
 var file_playerhub_v1_state_proto_depIdxs = []int32{
-	7,  // 0: playerhub.v1.Context.interior_cell:type_name -> playerhub.v1.FormRef
-	7,  // 1: playerhub.v1.Context.worldspace:type_name -> playerhub.v1.FormRef
-	7,  // 2: playerhub.v1.Context.furniture:type_name -> playerhub.v1.FormRef
+	8,  // 0: playerhub.v1.Context.interior_cell:type_name -> playerhub.v1.FormRef
+	8,  // 1: playerhub.v1.Context.worldspace:type_name -> playerhub.v1.FormRef
+	8,  // 2: playerhub.v1.Context.furniture:type_name -> playerhub.v1.FormRef
 	2,  // 3: playerhub.v1.Context.shapeshift:type_name -> playerhub.v1.Shapeshift
 	3,  // 4: playerhub.v1.Attack.action:type_name -> playerhub.v1.AttackAction
 	4,  // 5: playerhub.v1.Attack.direction:type_name -> playerhub.v1.PowerDirection
-	10, // 6: playerhub.v1.Action.attack:type_name -> playerhub.v1.Attack
+	11, // 6: playerhub.v1.Action.attack:type_name -> playerhub.v1.Attack
 	5,  // 7: playerhub.v1.Action.beast:type_name -> playerhub.v1.BeastAction
-	7,  // 8: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
-	12, // 9: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
-	7,  // 10: playerhub.v1.DefaultRace.race:type_name -> playerhub.v1.FormRef
-	7,  // 11: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
-	13, // 12: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
-	12, // 13: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
-	7,  // 14: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
-	12, // 15: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
-	14, // 16: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
-	15, // 17: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.DefaultRace
-	13, // 18: playerhub.v1.Appearance.added_head_parts:type_name -> playerhub.v1.HeadPart
-	7,  // 19: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
-	6,  // 20: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
-	7,  // 21: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
-	7,  // 22: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
-	7,  // 23: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
-	17, // 24: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
-	18, // 25: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
-	7,  // 26: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
-	17, // 27: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
-	18, // 28: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
-	18, // 29: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
-	7,  // 30: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
-	19, // 31: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
-	18, // 32: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
-	18, // 33: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
-	17, // 34: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
-	35, // [35:35] is the sub-list for method output_type
-	35, // [35:35] is the sub-list for method input_type
-	35, // [35:35] is the sub-list for extension type_name
-	35, // [35:35] is the sub-list for extension extendee
-	0,  // [0:35] is the sub-list for field type_name
+	8,  // 8: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
+	13, // 9: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
+	6,  // 10: playerhub.v1.Overlay.area:type_name -> playerhub.v1.OverlayArea
+	13, // 11: playerhub.v1.Overlay.color:type_name -> playerhub.v1.Color
+	13, // 12: playerhub.v1.Overlay.glow_color:type_name -> playerhub.v1.Color
+	8,  // 13: playerhub.v1.DefaultRace.race:type_name -> playerhub.v1.FormRef
+	8,  // 14: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
+	14, // 15: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
+	13, // 16: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
+	8,  // 17: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
+	13, // 18: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
+	15, // 19: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
+	17, // 20: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.DefaultRace
+	14, // 21: playerhub.v1.Appearance.added_head_parts:type_name -> playerhub.v1.HeadPart
+	16, // 22: playerhub.v1.Appearance.overlays:type_name -> playerhub.v1.Overlay
+	8,  // 23: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
+	7,  // 24: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
+	8,  // 25: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
+	8,  // 26: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
+	8,  // 27: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
+	19, // 28: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
+	20, // 29: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
+	8,  // 30: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
+	19, // 31: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
+	20, // 32: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
+	20, // 33: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
+	8,  // 34: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
+	21, // 35: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
+	20, // 36: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
+	20, // 37: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
+	19, // 38: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
+	39, // [39:39] is the sub-list for method output_type
+	39, // [39:39] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_state_proto_init() }
@@ -1951,8 +2129,8 @@ func file_playerhub_v1_state_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_playerhub_v1_state_proto_rawDesc), len(file_playerhub_v1_state_proto_rawDesc)),
-			NumEnums:      7,
-			NumMessages:   14,
+			NumEnums:      8,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

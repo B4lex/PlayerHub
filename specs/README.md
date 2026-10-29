@@ -24,7 +24,7 @@ overlay logs a warning and does not install there. `Status` and
 | [remote-actor.md](remote-actor.md) | Spawn, update order, registry, animation firewall, graph recovery, survival, combat and reaction isolation, world isolation, light budget | `src/actor/` |
 | [locomotion.md](locomotion.md) | Transform, movement state, direction, turning, ground offset, jumps, swimming, beast graphs | `sync/movement/`, `sync/animation/`, `actor/ActorMovement`, `actor/GroundProbe`, `actor/ActorAnimation`, `actor/JumpSound` |
 | [combat-presentation.md](combat-presentation.md) | Weapon stance, attack action stream, power attacks, bashes, blocking, bow draws, spell casts, spell look, beast actions | `sync/combat/`, `sync/shapeshift/`, `actor/ActorAnimation`, `actor/ActorShapeshift`, `actor/BeastActions`, `sync/equipment/SpellStandIn` |
-| [appearance-and-equipment.md](appearance-and-equipment.md) | Appearance, actor base, shapeshifts, player label, equipment, fake lights, default outfit, item filter and catalog | `sync/appearance/`, `sync/equipment/`, `sync/outfit/`, `src/forms/` |
+| [appearance-and-equipment.md](appearance-and-equipment.md) | Appearance, actor base, RaceMenu overlays, shapeshifts, player label, equipment, fake lights, default outfit, item filter and catalog | `sync/appearance/`, `sync/equipment/`, `sync/outfit/`, `src/forms/`, `actor/RaceMenuOverlays` |
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
 | [trade.md](trade.md) | Item exchange between two players: invitation, plugin check, offers, reports, acceptance, commit, cancelling, the trade bot; the only change a peer makes to the local world | `sync/trade/`, `forms/ItemInstance`, `protocol/TradeState.h`, `server/internal/hub/trade.go`, `server/cmd/tradebot` |
 | [configuration.md](configuration.md) | `PlayerHub.ini`, schema, snapshots, saving | `src/config/` |
@@ -47,6 +47,7 @@ criteria.
 | Spell look in hand | [combat-presentation](combat-presentation.md#spell-look), [appearance-and-equipment](appearance-and-equipment.md#equipment), [network](network.md#equipment) |
 | Blocking, bashes, power attacks | [combat-presentation](combat-presentation.md) |
 | Appearance and player labels | [appearance-and-equipment](appearance-and-equipment.md#appearance), [network](network.md#appearance-and-equipment) |
+| War paint textures and RaceMenu overlays | [appearance-and-equipment](appearance-and-equipment.md#overlays), [network](network.md#texture-paths), [remote-actor](remote-actor.md#components) |
 | Sessions and display names | [network](network.md#sessions), [appearance-and-equipment](appearance-and-equipment.md#display-name), [configuration](configuration.md#connection), [ui-overlay](ui-overlay.md#connection-controls) |
 | Equipment and default outfit | [appearance-and-equipment](appearance-and-equipment.md#equipment), [network](network.md#equipment), [configuration](configuration.md#defaultoutfit) |
 | Furniture | [native-interactions](native-interactions.md#furniture), [remote-actor](remote-actor.md#placement-ownership) |

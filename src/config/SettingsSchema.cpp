@@ -36,6 +36,8 @@ namespace Config
         constexpr std::array<Id, DefaultOutfitSettings::kArmorSlotCount> kArmorSlotLabels{ Id::kOutfitHead,
             Id::kOutfitBody, Id::kOutfitHands, Id::kOutfitAmulet, Id::kOutfitFeet, Id::kOutfitShield,
             Id::kOutfitCirclet, Id::kOutfitBackpack };
+        constexpr std::array<bool, DefaultOutfitSettings::kArmorSlotCount> kArmorSlotAllowsNone{ true, false, false,
+            false, false, false, true, true };
         // Unarmed has no setting. TwoHandAxe covers warhammers too.
         constexpr std::array<Id, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> kWeaponTypeLabels{ Id::kNone,
             Id::kOutfitSword, Id::kOutfitDagger, Id::kOutfitWarAxe, Id::kOutfitMace, Id::kOutfitGreatsword,
@@ -197,13 +199,13 @@ namespace Config
             const auto& defaults = GetDefaultConfig().defaultOutfit;
 
             a_visitor.Comment(Id::kOutfitGroupCharacter);
-            a_visitor.Form("Race", Id::kOutfitRace, a_settings.race, defaults.race, kOutfitRaceFilter);
+            a_visitor.Form("Race", Id::kOutfitRace, a_settings.race, defaults.race, kOutfitRaceFilter, false);
 
             a_visitor.Comment(Id::kOutfitGroupApparel);
             for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)
             {
                 a_visitor.Form(GetOutfitArmorKey(slot), kArmorSlotLabels[slot], a_settings.armor[slot],
-                    defaults.armor[slot], GetOutfitArmorFilter(slot));
+                    defaults.armor[slot], GetOutfitArmorFilter(slot), kArmorSlotAllowsNone[slot]);
             }
 
             a_visitor.Comment(Id::kOutfitGroupWeapons);
@@ -211,12 +213,12 @@ namespace Config
                 ++type)
             {
                 a_visitor.Form(GetOutfitWeaponKey(type), kWeaponTypeLabels[type], a_settings.weapons[type],
-                    defaults.weapons[type], GetOutfitWeaponFilter(type));
+                    defaults.weapons[type], GetOutfitWeaponFilter(type), false);
             }
 
             a_visitor.Comment(Id::kOutfitGroupMiscellaneous);
-            a_visitor.Form("Arrow", Id::kOutfitArrow, a_settings.arrow, defaults.arrow, kOutfitArrowFilter);
-            a_visitor.Form("Bolt", Id::kOutfitBolt, a_settings.bolt, defaults.bolt, kOutfitBoltFilter);
+            a_visitor.Form("Arrow", Id::kOutfitArrow, a_settings.arrow, defaults.arrow, kOutfitArrowFilter, false);
+            a_visitor.Form("Bolt", Id::kOutfitBolt, a_settings.bolt, defaults.bolt, kOutfitBoltFilter, false);
         }
 
         void DescribeUI(UISettings& a_settings, SettingsVisitor& a_visitor)

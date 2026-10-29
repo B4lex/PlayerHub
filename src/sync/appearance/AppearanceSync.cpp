@@ -1,8 +1,10 @@
 #include "sync/appearance/AppearanceSync.h"
+#include "actor/RaceMenuOverlays.h"
 #include "forms/BeastForms.h"
 #include "forms/DynamicForm.h"
 #include "forms/FormLookup.h"
 #include "forms/RaceForms.h"
+#include "forms/TextureFiles.h"
 #include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
@@ -18,6 +20,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -41,6 +44,7 @@ namespace AppearanceSync
         using Multiplayer::AppearanceColor;
         using Multiplayer::AppearanceFormReference;
         using Multiplayer::AppearanceHeadPart;
+        using Multiplayer::AppearanceOverlay;
         using Multiplayer::AppearanceTint;
         using AppearanceData = Multiplayer::PlayerAppearance;
         using FormLookup::MakeFormReference;
@@ -134,6 +138,17 @@ namespace AppearanceSync
             logs::warn("Appearance sync could not capture local appearance: {}", a_reason);
         }
 
+        void LogInvalidTintTexture(const std::string& a_texture)
+        {
+            static std::string lastTexture;
+            if (lastTexture == a_texture)
+            {
+                return;
+            }
+            lastTexture = a_texture;
+            logs::warn("Appearance sync left out a tint whose texture path peers would reject: texture=\"{}\"", a_texture);
+        }
+
         // Called once per capture with the first head part left out, or none.
         void LogHeadPartOverflow(const std::optional<AppearanceFormReference>& a_firstLeftOut)
         {
@@ -164,8 +179,21 @@ namespace AppearanceSync
                 return "none";
             }
             const auto& tint = a_tints[a_index];
-            return std::format("{}:{} #{:02X}{:02X}{:02X} alpha={}", tint.index, tint.type, tint.color.red,
-                tint.color.green, tint.color.blue, tint.alpha);
+            return std::format("{}:{} #{:02X}{:02X}{:02X} alpha={} texture=\"{}\"", tint.index, tint.type,
+                tint.color.red, tint.color.green, tint.color.blue, tint.alpha, tint.texture);
+        }
+
+        std::string FormatOverlay(const std::vector<AppearanceOverlay>& a_overlays, std::size_t a_index)
+        {
+            if (a_index >= a_overlays.size())
+            {
+                return "none";
+            }
+            const auto& overlay = a_overlays[a_index];
+            return std::format("area={} #{:02X}{:02X}{:02X} alpha={} glow=#{:02X}{:02X}{:02X}x{} texture=\"{}\"",
+                static_cast<int>(overlay.area), overlay.color.red, overlay.color.green, overlay.color.blue,
+                overlay.alpha, overlay.glowColor.red, overlay.glowColor.green, overlay.glowColor.blue,
+                overlay.glowStrength, overlay.texture);
         }
 
         std::string FormatHeadPart(const std::vector<AppearanceHeadPart>& a_headParts, std::size_t a_index)
@@ -239,6 +267,13 @@ namespace AppearanceSync
                     a_current.tints.size(), index, FormatTint(a_previous.tints, index),
                     FormatTint(a_current.tints, index)));
             }
+            if (a_previous.overlays != a_current.overlays)
+            {
+                const auto index = FindFirstDifference(a_previous.overlays, a_current.overlays);
+                add(std::format("overlays count {} -> {} first [{}] {} -> {}", a_previous.overlays.size(),
+                    a_current.overlays.size(), index, FormatOverlay(a_previous.overlays, index),
+                    FormatOverlay(a_current.overlays, index)));
+            }
             if (a_previous.defaultRace != a_current.defaultRace)
             {
                 add("defaultRace");
@@ -289,6 +324,10 @@ namespace AppearanceSync
             {
                 return std::format("tints count {}", a_appearance.tints.size());
             }
+            if (a_appearance.overlays.size() > AppearanceData::kMaximumOverlays)
+            {
+                return std::format("overlays count {}", a_appearance.overlays.size());
+            }
             if (const auto& defaultRace = a_appearance.defaultRace; defaultRace
                 && (!IsValidFormReference(*defaultRace, false) || !Multiplayer::IsBaseGamePlugin(defaultRace->plugin)))
             {
@@ -313,9 +352,20 @@ namespace AppearanceSync
             for (std::size_t i = 0; i < a_appearance.tints.size(); ++i)
             {
                 const auto& tint = a_appearance.tints[i];
-                if (tint.type > AppearanceData::kMaximumTintType || !inRange(tint.alpha, 0.0F, 1.0F))
+                if (tint.type > AppearanceData::kMaximumTintType || !inRange(tint.alpha, 0.0F, 1.0F)
+                    || (!tint.texture.empty() && !Multiplayer::IsValidTexturePath(tint.texture)))
                 {
                     return std::format("tints[{}] {}", i, FormatTint(a_appearance.tints, i));
+                }
+            }
+            for (std::size_t i = 0; i < a_appearance.overlays.size(); ++i)
+            {
+                const auto& overlay = a_appearance.overlays[i];
+                if (overlay.area < Multiplayer::OverlayArea::kBody || overlay.area > Multiplayer::OverlayArea::kFace
+                    || !Multiplayer::IsValidTexturePath(overlay.texture) || !inRange(overlay.alpha, 0.0F, 1.0F)
+                    || !inRange(overlay.glowStrength, 0.0F, AppearanceData::kMaximumOverlayGlowStrength))
+                {
+                    return std::format("overlays[{}] {}", i, FormatOverlay(a_appearance.overlays, i));
                 }
             }
             return std::format("revision {}", a_appearance.revision);
@@ -464,12 +514,24 @@ namespace AppearanceSync
                     {
                         continue;
                     }
+                    // RaceMenu's alternative and add-on war paints rewrite the race asset's
+                    // texture path (Game.SetTintMaskTexturePath), so the mask's path is the
+                    // one shown, and peers' race assets still hold the original.
+                    const char* path = mask->texture->textureName.c_str();
+                    std::string texture{ path ? path : "" };
+                    if (!Multiplayer::IsValidTexturePath(texture))
+                    {
+                        LogInvalidTintTexture(texture);
+                        continue;
+                    }
                     appearance.tints.push_back(AppearanceTint{ .index = asset->texture.index,
                         .type = type,
                         .color = ToAppearanceColor(mask->color),
-                        .alpha = (std::min)(mask->alpha, 1.0F) });
+                        .alpha = (std::min)(mask->alpha, 1.0F),
+                        .texture = std::move(texture) });
                 }
             }
+            appearance.overlays = RaceMenuOverlays::Capture(a_player);
 
             DefaultOutfit::SelectRace(appearance);
             return appearance;
@@ -672,8 +734,9 @@ namespace AppearanceSync
         // The TESNPC constructor already runs InitializeData, which leaves no class,
         // AI packages, factions, inventory, or outfits, and points faceData at a
         // shared engine default that must be replaced rather than written.
-        RE::TESNPC* BuildActorBase(
-            Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance, RE::TESRace& a_race)
+        // a_tintTextures receives the texture each of the base's tint layers renders.
+        RE::TESNPC* BuildActorBase(Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance,
+            RE::TESRace& a_race, std::vector<RE::BSFixedString>& a_tintTextures)
         {
             auto* npc = DynamicForm::Create<RE::TESNPC>();
             if (!npc)
@@ -735,6 +798,9 @@ namespace AppearanceSync
             npc->bodyTintColor.blue = a_appearance.bodyTint.blue;
 
             std::size_t droppedTints = 0;
+            std::size_t missingTextures = 0;
+            const AppearanceTint* firstMissing = nullptr;
+            a_tintTextures.clear();
             for (const auto& tint : a_appearance.tints)
             {
                 const auto* asset = FindTintAsset(faceData, tint.index, tint.type);
@@ -743,6 +809,15 @@ namespace AppearanceSync
                     ++droppedTints;
                     continue;
                 }
+                const auto& assetTexture = asset->texture.file.textureName;
+                const bool assetPath = tint.texture.empty() || AsciiCase::Equals(tint.texture, assetTexture.c_str());
+                if (!assetPath && !Forms::TextureExists(tint.texture))
+                {
+                    firstMissing = firstMissing ? firstMissing : std::addressof(tint);
+                    ++missingTextures;
+                    continue;
+                }
+                a_tintTextures.emplace_back(assetPath ? assetTexture : RE::BSFixedString{ tint.texture });
                 auto* layer = RE::calloc<RE::TESNPC::Layer>(1);
                 layer->tintColor = RE::Color{ tint.color.red, tint.color.green, tint.color.blue, 0 };
                 layer->tintIndex = tint.index;
@@ -757,12 +832,14 @@ namespace AppearanceSync
             logs::debug(
                 "Appearance sync built actor base: player={} revision={} base={:08X} name=\"{}\" race={:08X} female={} "
                 "weight={:.1f} height={:.2f} headParts={}/{} extraParts={} hairColor={:08X} faceDetails={:08X} "
-                "tints={}/{} droppedTints={} attackData={} combatStyle={:08X}",
+                "tints={}/{} droppedTints={} missingTintTextures={} firstMissing=\"{}\" attackData={} "
+                "combatStyle={:08X}",
                 a_playerID, static_cast<unsigned long long>(a_appearance.revision), npc->GetFormID(), a_appearance.name,
                 a_race.GetFormID(), a_appearance.female, a_appearance.weight, a_appearance.height,
                 headParts.size() - static_cast<std::size_t>(extraParts), a_appearance.headParts.size(), extraParts,
                 hairColor ? hairColor->GetFormID() : 0, faceDetails ? faceDetails->GetFormID() : 0,
-                npc->tintLayers->size(), a_appearance.tints.size(), droppedTints, npc->attackDataMap != nullptr,
+                npc->tintLayers->size(), a_appearance.tints.size(), droppedTints, missingTextures,
+                firstMissing ? std::string_view{ firstMissing->texture } : std::string_view{}, npc->attackDataMap != nullptr,
                 npc->combatStyle ? npc->combatStyle->GetFormID() : 0);
             return npc;
         }
@@ -809,7 +886,8 @@ namespace AppearanceSync
             return appearance;
         }
 
-        RE::TESNPC* CreateActorBase(Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance)
+        RE::TESNPC* CreateActorBase(Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance,
+            std::vector<RE::BSFixedString>& a_tintTextures)
         {
             const auto resolved = ResolveRace(a_playerID, a_appearance);
             if (!resolved.race)
@@ -820,7 +898,7 @@ namespace AppearanceSync
             }
             if (resolved.own)
             {
-                return BuildActorBase(a_playerID, a_appearance, *resolved.race);
+                return BuildActorBase(a_playerID, a_appearance, *resolved.race, a_tintTextures);
             }
 
             auto look = MakeDefaultAppearance(*resolved.race, a_appearance.female);
@@ -829,10 +907,11 @@ namespace AppearanceSync
             look.weight = a_appearance.weight;
             look.height = a_appearance.height;
             look.revision = a_appearance.revision;
-            return BuildActorBase(a_playerID, look, *resolved.race);
+            return BuildActorBase(a_playerID, look, *resolved.race, a_tintTextures);
         }
 
-        RE::TESNPC* CreateDefaultActorBase(Multiplayer::PeerSlot a_playerID)
+        RE::TESNPC* CreateDefaultActorBase(
+            Multiplayer::PeerSlot a_playerID, std::vector<RE::BSFixedString>& a_tintTextures)
         {
             auto* race = LookupFallbackRace();
             if (!race)
@@ -840,7 +919,7 @@ namespace AppearanceSync
                 logs::error("Appearance sync could not resolve NordRace: player={}", a_playerID);
                 return nullptr;
             }
-            return BuildActorBase(a_playerID, MakeDefaultAppearance(*race, false), *race);
+            return BuildActorBase(a_playerID, MakeDefaultAppearance(*race, false), *race, a_tintTextures);
         }
 
         // The beast races have no head data, so a beast base takes only the player's
@@ -858,110 +937,8 @@ namespace AppearanceSync
                 look.weight = a_appearance->weight;
                 look.height = a_appearance->height;
             }
-            return BuildActorBase(a_playerID, look, a_race);
-        }
-
-        // Diagnostic: tint materials and face tint textures the remote's 3D shares with
-        // the player's would carry the remote's colors onto the player's head.
-        class PlayerShading
-        {
-        public:
-            PlayerShading()
-            {
-                auto* player = RE::PlayerCharacter::GetSingleton();
-                for (const bool firstPerson : { false, true })
-                {
-                    if (auto* root = player ? player->Get3D(firstPerson) : nullptr)
-                    {
-                        Visit(*root,
-                            [this](
-                                RE::BSGeometry&, RE::BSShaderMaterial& a_material, RE::NiSourceTexture* a_tintTexture) {
-                                materials.push_back(&a_material);
-                                if (a_tintTexture)
-                                {
-                                    textures.push_back(a_tintTexture);
-                                    textures.push_back(a_tintTexture->rendererTexture);
-                                }
-                            });
-                    }
-                }
-            }
-
-            [[nodiscard]] std::size_t CountShared(RE::NiAVObject& a_root, std::string& a_first) const
-            {
-                std::size_t shared = 0;
-                Visit(a_root,
-                    [&](RE::BSGeometry& a_geometry, RE::BSShaderMaterial& a_material,
-                        RE::NiSourceTexture* a_tintTexture) {
-                        const char* what = nullptr;
-                        if (std::ranges::contains(materials, &a_material))
-                        {
-                            what = "material";
-                        }
-                        else if (a_tintTexture
-                            && (std::ranges::contains(textures, a_tintTexture)
-                                || (a_tintTexture->rendererTexture
-                                    && std::ranges::contains(textures, a_tintTexture->rendererTexture))))
-                        {
-                            what = "tintTexture";
-                        }
-                        if (!what)
-                        {
-                            return;
-                        }
-                        if (shared++ == 0)
-                        {
-                            a_first = std::format("{} {} feature={}", a_geometry.name.c_str(), what,
-                                std::to_underlying(a_material.GetFeature()));
-                        }
-                    });
-                return shared;
-            }
-
-        private:
-            template <class Visitor>
-            static void Visit(RE::NiAVObject& a_root, Visitor&& a_visitor)
-            {
-                using Feature = RE::BSShaderMaterial::Feature;
-                RE::BSVisit::TraverseScenegraphGeometries(&a_root, [&](RE::BSGeometry* a_geometry) {
-                    auto* property = netimmerse_cast<RE::BSLightingShaderProperty*>(
-                        a_geometry->GetGeometryRuntimeData().shaderProperty.get());
-                    auto* material = property ? property->material : nullptr;
-                    const auto feature = material ? material->GetFeature() : Feature::kNone;
-                    if (feature == Feature::kFaceGen || feature == Feature::kFaceGenRGBTint
-                        || feature == Feature::kHairTint)
-                    {
-                        auto* tintTexture = feature == Feature::kFaceGen
-                            ? static_cast<RE::BSLightingShaderMaterialFacegen*>(material)->tintTexture.get()
-                            : nullptr;
-                        a_visitor(*a_geometry, *material, tintTexture);
-                    }
-                    return RE::BSVisit::BSVisitControl::kContinue;
-                });
-            }
-
-            std::vector<const void*> materials;
-            std::vector<const void*> textures;
-        };
-
-        void LogShadingSharedWithPlayer(
-            Multiplayer::PeerSlot a_playerID, RE::Actor& a_actor, std::uint64_t a_revision, std::string_view a_stage)
-        {
-            auto* root = a_actor.Get3D(false);
-            if (!root)
-            {
-                return;
-            }
-            std::string first;
-            const auto shared = PlayerShading{}.CountShared(*root, first);
-            if (shared > 0)
-            {
-                logs::warn(
-                    "Appearance sync remote actor shares shading with the local player: player={} actor={:08X} "
-                    "revision={} stage={} shared={} first={}",
-                    a_playerID, a_actor.GetHandle().native_handle(), static_cast<unsigned long long>(a_revision),
-                    a_stage, shared, first);
-            }
+            std::vector<RE::BSFixedString> tintTextures;
+            return BuildActorBase(a_playerID, look, a_race, tintTextures);
         }
 
         RE::NiSourceTexture* FindFaceTintTexture(RE::Actor& a_actor, const RE::TESNPC& a_base)
@@ -997,6 +974,16 @@ namespace AppearanceSync
             return static_cast<RE::BSLightingShaderMaterialFacegen*>(material)->tintTexture.get();
         }
 
+        // The render (ID 27040, SE 26454) reads only a mask texture's textureName and
+        // loads the file by it (ID 76005, SE 74273) before it returns, so a path that
+        // no race asset holds can be passed in a stand-in with TESTexture's layout.
+        struct MaskTexture
+        {
+            const void* vtable;
+            RE::BSFixedString textureName;
+        };
+        static_assert(sizeof(MaskTexture) == sizeof(RE::TESTexture));
+
         // PrepareHeadPartForShaders (ID 26838, SE 26259) gives a runtime-built face a
         // blank tint texture and renders tint masks into it only for the player base,
         // or for other NPCs when bUseFaceGenPreprocessedHeads is off. Remote actor
@@ -1004,7 +991,8 @@ namespace AppearanceSync
         // render the engine uses (ID 27040, SE 26454) from the remote actor base's
         // tint layers. The SE IDs were matched against the 1.5.97 disassembly by their
         // code and callers.
-        std::size_t QueueFaceTintRender(const RE::TESNPC& a_base, RE::NiSourceTexture& a_texture)
+        std::size_t QueueFaceTintRender(const RE::TESNPC& a_base, std::span<const RE::BSFixedString> a_layerTextures,
+            RE::NiSourceTexture& a_texture)
         {
             PROFILE_FUNCTION();
             // A render job has 16 layer slots and does not check the mask count.
@@ -1015,22 +1003,27 @@ namespace AppearanceSync
             auto* race = a_base.race;
             const auto* faceData = GetFaceRelatedData(race, a_base.IsFemale());
             std::array<RE::TintMask, kMaximumRenderedTints> masks{};
+            std::array<MaskTexture, kMaximumRenderedTints> textures{};
             RE::BSTArray<RE::TintMask*> maskList;
             if (a_base.tintLayers)
             {
-                for (const auto* layer : *a_base.tintLayers)
+                for (std::uint32_t i = 0; i < a_base.tintLayers->size() && i < a_layerTextures.size(); ++i)
                 {
                     if (maskList.size() >= kMaximumRenderedTints)
                     {
                         break;
                     }
+                    const auto* layer = (*a_base.tintLayers)[i];
                     const auto* asset = layer ? FindTintAsset(faceData, layer->tintIndex) : nullptr;
                     if (!asset || layer->interpolationValue == 0)
                     {
                         continue;
                     }
+                    auto& texture = textures[maskList.size()];
+                    texture.vtable = *reinterpret_cast<const void* const*>(std::addressof(asset->texture.file));
+                    texture.textureName = a_layerTextures[i];
                     auto& mask = masks[maskList.size()];
-                    mask.texture = const_cast<RE::TESTexture*>(std::addressof(asset->texture.file));
+                    mask.texture = reinterpret_cast<RE::TESTexture*>(std::addressof(texture));
                     mask.color = layer->tintColor;
                     mask.alpha = static_cast<float>(layer->interpolationValue) / 100.0F;
                     mask.type = static_cast<RE::TintMask::Type>(asset->texture.skinTone.underlying());
@@ -1145,9 +1138,10 @@ namespace AppearanceSync
 
         logs::debug(
             "Appearance sync publishing local appearance: revision={} level={} race={}|{:06X} female={} headParts={} "
-            "tints={}",
+            "tints={} overlays={}",
             static_cast<unsigned long long>(candidate->revision), candidate->level, candidate->race.plugin,
-            candidate->race.localFormID, candidate->female, candidate->headParts.size(), candidate->tints.size());
+            candidate->race.localFormID, candidate->female, candidate->headParts.size(), candidate->tints.size(),
+            candidate->overlays.size());
         Network::PublishLocalAppearance(*candidate);
         published = std::move(candidate);
         candidate.reset();
@@ -1176,10 +1170,10 @@ namespace AppearanceSync
         const bool relabelOnly = a_remote.latest && a_remote.latest->HasSameLook(a_appearance);
         logs::debug(
             "Appearance sync accepted remote appearance: player={} revision={} name=\"{}\" level={} race={}|{:06X} "
-            "female={} headParts={} tints={} relabelOnly={}",
+            "female={} headParts={} tints={} overlays={} relabelOnly={}",
             a_playerID, static_cast<unsigned long long>(a_appearance.revision), a_appearance.name, a_appearance.level,
             a_appearance.race.plugin, a_appearance.race.localFormID, a_appearance.female, a_appearance.headParts.size(),
-            a_appearance.tints.size(), relabelOnly);
+            a_appearance.tints.size(), a_appearance.overlays.size(), relabelOnly);
 
         if (relabelOnly)
         {
@@ -1254,12 +1248,14 @@ namespace AppearanceSync
 
         if ((!a_remote.base || a_remote.baseRevision != revision) && a_remote.failedRevision != revision)
         {
-            auto* base
-                = a_remote.latest ? CreateActorBase(a_playerID, *a_remote.latest) : CreateDefaultActorBase(a_playerID);
+            std::vector<RE::BSFixedString> tintTextures;
+            auto* base = a_remote.latest ? CreateActorBase(a_playerID, *a_remote.latest, tintTextures)
+                                         : CreateDefaultActorBase(a_playerID, tintTextures);
             if (base)
             {
                 a_remote.base = base;
                 a_remote.baseRevision = revision;
+                a_remote.baseTintTextures = std::move(tintTextures);
             }
             else
             {
@@ -1309,9 +1305,13 @@ namespace AppearanceSync
         {
             PROFILE_SCOPE("ApplyActorPresentation colors");
             a_remote.colorsApplied = true;
-            LogShadingSharedWithPlayer(a_playerID, a_actor, a_remote.spawnedRevision, "colors");
             a_actor.UpdateHairColor();
             a_actor.UpdateSkinColor();
+            // A newer revision waiting for its respawn has a different look.
+            if (a_remote.latest && a_remote.latest->revision == a_remote.spawnedRevision)
+            {
+                RaceMenuOverlays::Apply(a_actor, a_remote.latest->overlays);
+            }
             logs::debug(
                 "Appearance sync applied actor colors: player={} actor={:08X} base={:08X} revision={} faceNode={}",
                 a_playerID, a_actor.GetHandle().native_handle(), a_remote.spawnedBase->GetFormID(),
@@ -1325,8 +1325,7 @@ namespace AppearanceSync
             return;
         }
         a_remote.faceTintTexture.reset(tintTexture);
-        LogShadingSharedWithPlayer(a_playerID, a_actor, a_remote.spawnedRevision, "faceTint");
-        const auto renderedTints = QueueFaceTintRender(*a_remote.spawnedBase, *tintTexture);
+        const auto renderedTints = QueueFaceTintRender(*a_remote.spawnedBase, a_remote.baseTintTextures, *tintTexture);
         logs::debug(
             "Appearance sync queued actor face tint: player={} actor={:08X} base={:08X} revision={} tints={}/{}",
             a_playerID, a_actor.GetHandle().native_handle(), a_remote.spawnedBase->GetFormID(),

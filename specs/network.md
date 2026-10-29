@@ -93,8 +93,8 @@ refused at the handshake ([Transport](#transport)).
   `liveness.ping_interval_seconds` (5) and closes a connection whose pong does
   not arrive within `liveness.timeout_seconds` (10). IXWebSocket answers pings
   on its own thread, so a paused game stays connected.
-- Boundary limits: 20 KiB per message (the largest valid `ClientMessage`, an
-  `Equipment`, is about 19 KB); `limits.messages_per_second` (120, burst 240) per connection,
+- Boundary limits: 48 KiB per message (the largest valid `ClientMessage`, an
+  `Appearance` with every tint and overlay path at full length, is about 44 KB); `limits.messages_per_second` (120, burst 240) per connection,
   over which the connection is closed with 4003; a recipient whose unsent
   ordered messages exceed `limits.ordered_backlog` (4096) is closed with 4002.
   Compression is off on both ends.
@@ -269,11 +269,23 @@ every receiver.
 | `body_tint` | required, RGB `0..255` |
 | `face_morphs` | exactly 19 finite floats; unset morphs hold `FLT_MAX` |
 | `face_parts` | exactly 4 `sint32`, each `-1..255` (`-1` for none); the plugin clamps to this range when capturing and parsing |
-| `tints` | at most 64; `index` `0..65535`, `type` `0..14`, a color, `alpha` `0..1` |
+| `tints` | at most 64; `index` `0..65535`, `type` `0..14`, a color, `alpha` `0..1`, `texture` empty or a [texture path](#texture-paths) |
+| `overlays` | at most 32; `area` `BODY`, `HANDS`, `FEET`, or `FACE`; a [texture path](#texture-paths); `color` and `glow_color` RGB `0..255`, both required; `alpha` `0..1`; `glow_strength` `0..100` |
 | `default_race` | `{race, female}` with a base-game race, unset for none; receivers ignore `female`, which senders set to the appearance's `female` for 1.1.0 clients that still read it |
 
 Hair color is RGB rather than a form, because character editors commonly
 create dynamic color forms.
+
+#### Texture paths
+
+A tint's `texture` and an overlay's `texture` name a file the receiver opens,
+so both ends accept only a relative `.dds` path (suffix compared without case)
+of 1..260 bytes of printable ASCII (`0x20..0x7E`), without `:`, without a
+leading `\` or `/`, and without a `..` component (`IsValidTexturePath`, Go
+`texturePath`). The plugin drops a captured tint or overlay whose path fails
+rather than the whole appearance. An empty tint `texture` comes from a 1.1.0
+sender. 1.1.0 receivers skip both fields as unknown and show the race's own
+tint texture and no overlays.
 
 `WireCodec` writes head parts in capture order: a part goes to `head_parts`
 while its type is `0..6` and that field has room, and to `added_head_parts`

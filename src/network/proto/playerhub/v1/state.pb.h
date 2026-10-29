@@ -108,6 +108,14 @@ typedef enum _playerhub_v1_BeastAction {
     playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT = 51
 } playerhub_v1_BeastAction;
 
+typedef enum _playerhub_v1_OverlayArea {
+    playerhub_v1_OverlayArea_OVERLAY_AREA_UNSPECIFIED = 0,
+    playerhub_v1_OverlayArea_OVERLAY_AREA_BODY = 1,
+    playerhub_v1_OverlayArea_OVERLAY_AREA_HANDS = 2,
+    playerhub_v1_OverlayArea_OVERLAY_AREA_FEET = 3,
+    playerhub_v1_OverlayArea_OVERLAY_AREA_FACE = 4
+} playerhub_v1_OverlayArea;
+
 typedef enum _playerhub_v1_HandKind {
     playerhub_v1_HandKind_HAND_KIND_UNSPECIFIED = 0,
     playerhub_v1_HandKind_HAND_KIND_WEAPON = 1,
@@ -183,7 +191,20 @@ typedef struct _playerhub_v1_Tint {
     bool has_color;
     playerhub_v1_Color color;
     float alpha;
+    /* Empty from 1.1.0 senders: the receiver's race texture for index and type. */
+    char texture[261];
 } playerhub_v1_Tint;
+
+typedef struct _playerhub_v1_Overlay {
+    playerhub_v1_OverlayArea area;
+    char texture[261];
+    bool has_color;
+    playerhub_v1_Color color;
+    float alpha;
+    bool has_glow_color;
+    playerhub_v1_Color glow_color;
+    float glow_strength;
+} playerhub_v1_Overlay;
 
 typedef struct _playerhub_v1_DefaultRace {
     bool has_race;
@@ -224,6 +245,8 @@ typedef struct _playerhub_v1_Appearance {
  TODO: merge into head_parts with the next protocol bump. */
     pb_size_t added_head_parts_count;
     playerhub_v1_HeadPart added_head_parts[32];
+    pb_size_t overlays_count;
+    playerhub_v1_Overlay overlays[32];
 } playerhub_v1_Appearance;
 
 typedef struct _playerhub_v1_Armor {
@@ -304,6 +327,10 @@ extern "C" {
 #define _playerhub_v1_BeastAction_MAX playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT
 #define _playerhub_v1_BeastAction_ARRAYSIZE ((playerhub_v1_BeastAction)(playerhub_v1_BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT+1))
 
+#define _playerhub_v1_OverlayArea_MIN playerhub_v1_OverlayArea_OVERLAY_AREA_UNSPECIFIED
+#define _playerhub_v1_OverlayArea_MAX playerhub_v1_OverlayArea_OVERLAY_AREA_FACE
+#define _playerhub_v1_OverlayArea_ARRAYSIZE ((playerhub_v1_OverlayArea)(playerhub_v1_OverlayArea_OVERLAY_AREA_FACE+1))
+
 #define _playerhub_v1_HandKind_MIN playerhub_v1_HandKind_HAND_KIND_UNSPECIFIED
 #define _playerhub_v1_HandKind_MAX playerhub_v1_HandKind_HAND_KIND_SPELL
 #define _playerhub_v1_HandKind_ARRAYSIZE ((playerhub_v1_HandKind)(playerhub_v1_HandKind_HAND_KIND_SPELL+1))
@@ -319,6 +346,8 @@ extern "C" {
 
 
 
+
+#define playerhub_v1_Overlay_area_ENUMTYPE playerhub_v1_OverlayArea
 
 
 
@@ -336,9 +365,10 @@ extern "C" {
 #define playerhub_v1_Action_init_default         {0, 0, 0, 0, {playerhub_v1_Attack_init_default}}
 #define playerhub_v1_Color_init_default          {0, 0, 0}
 #define playerhub_v1_HeadPart_init_default       {false, playerhub_v1_FormRef_init_default, 0}
-#define playerhub_v1_Tint_init_default           {0, 0, false, playerhub_v1_Color_init_default, 0}
+#define playerhub_v1_Tint_init_default           {0, 0, false, playerhub_v1_Color_init_default, 0, ""}
+#define playerhub_v1_Overlay_init_default        {_playerhub_v1_OverlayArea_MIN, "", false, playerhub_v1_Color_init_default, 0, false, playerhub_v1_Color_init_default, 0}
 #define playerhub_v1_DefaultRace_init_default    {false, playerhub_v1_FormRef_init_default, 0}
-#define playerhub_v1_Appearance_init_default     {0, "", 0, false, playerhub_v1_FormRef_init_default, 0, 0, 0, 0, {playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default}, false, playerhub_v1_Color_init_default, false, playerhub_v1_FormRef_init_default, false, playerhub_v1_Color_init_default, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {0, 0, 0, 0}, 0, {playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default}, false, playerhub_v1_DefaultRace_init_default, 0, {playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default}}
+#define playerhub_v1_Appearance_init_default     {0, "", 0, false, playerhub_v1_FormRef_init_default, 0, 0, 0, 0, {playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default}, false, playerhub_v1_Color_init_default, false, playerhub_v1_FormRef_init_default, false, playerhub_v1_Color_init_default, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {0, 0, 0, 0}, 0, {playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default, playerhub_v1_Tint_init_default}, false, playerhub_v1_DefaultRace_init_default, 0, {playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default, playerhub_v1_HeadPart_init_default}, 0, {playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default, playerhub_v1_Overlay_init_default}}
 #define playerhub_v1_Armor_init_default          {false, playerhub_v1_FormRef_init_default, 0}
 #define playerhub_v1_Hand_init_default           {_playerhub_v1_HandKind_MIN, false, playerhub_v1_FormRef_init_default, 0, false, playerhub_v1_FormRef_init_default, false, playerhub_v1_FormRef_init_default}
 #define playerhub_v1_DefaultOutfit_init_default  {0, {playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default}, 0, {playerhub_v1_Hand_init_default, playerhub_v1_Hand_init_default}, false, playerhub_v1_FormRef_init_default}
@@ -350,9 +380,10 @@ extern "C" {
 #define playerhub_v1_Action_init_zero            {0, 0, 0, 0, {playerhub_v1_Attack_init_zero}}
 #define playerhub_v1_Color_init_zero             {0, 0, 0}
 #define playerhub_v1_HeadPart_init_zero          {false, playerhub_v1_FormRef_init_zero, 0}
-#define playerhub_v1_Tint_init_zero              {0, 0, false, playerhub_v1_Color_init_zero, 0}
+#define playerhub_v1_Tint_init_zero              {0, 0, false, playerhub_v1_Color_init_zero, 0, ""}
+#define playerhub_v1_Overlay_init_zero           {_playerhub_v1_OverlayArea_MIN, "", false, playerhub_v1_Color_init_zero, 0, false, playerhub_v1_Color_init_zero, 0}
 #define playerhub_v1_DefaultRace_init_zero       {false, playerhub_v1_FormRef_init_zero, 0}
-#define playerhub_v1_Appearance_init_zero        {0, "", 0, false, playerhub_v1_FormRef_init_zero, 0, 0, 0, 0, {playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero}, false, playerhub_v1_Color_init_zero, false, playerhub_v1_FormRef_init_zero, false, playerhub_v1_Color_init_zero, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {0, 0, 0, 0}, 0, {playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero}, false, playerhub_v1_DefaultRace_init_zero, 0, {playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero}}
+#define playerhub_v1_Appearance_init_zero        {0, "", 0, false, playerhub_v1_FormRef_init_zero, 0, 0, 0, 0, {playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero}, false, playerhub_v1_Color_init_zero, false, playerhub_v1_FormRef_init_zero, false, playerhub_v1_Color_init_zero, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, {0, 0, 0, 0}, 0, {playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero, playerhub_v1_Tint_init_zero}, false, playerhub_v1_DefaultRace_init_zero, 0, {playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero, playerhub_v1_HeadPart_init_zero}, 0, {playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero, playerhub_v1_Overlay_init_zero}}
 #define playerhub_v1_Armor_init_zero             {false, playerhub_v1_FormRef_init_zero, 0}
 #define playerhub_v1_Hand_init_zero              {_playerhub_v1_HandKind_MIN, false, playerhub_v1_FormRef_init_zero, 0, false, playerhub_v1_FormRef_init_zero, false, playerhub_v1_FormRef_init_zero}
 #define playerhub_v1_DefaultOutfit_init_zero     {0, {playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero}, 0, {playerhub_v1_Hand_init_zero, playerhub_v1_Hand_init_zero}, false, playerhub_v1_FormRef_init_zero}
@@ -393,6 +424,13 @@ extern "C" {
 #define playerhub_v1_Tint_type_tag               2
 #define playerhub_v1_Tint_color_tag              3
 #define playerhub_v1_Tint_alpha_tag              4
+#define playerhub_v1_Tint_texture_tag            5
+#define playerhub_v1_Overlay_area_tag            1
+#define playerhub_v1_Overlay_texture_tag         2
+#define playerhub_v1_Overlay_color_tag           3
+#define playerhub_v1_Overlay_alpha_tag           4
+#define playerhub_v1_Overlay_glow_color_tag      5
+#define playerhub_v1_Overlay_glow_strength_tag   6
 #define playerhub_v1_DefaultRace_race_tag        1
 #define playerhub_v1_DefaultRace_female_tag      2
 #define playerhub_v1_Appearance_revision_tag     1
@@ -411,6 +449,7 @@ extern "C" {
 #define playerhub_v1_Appearance_tints_tag        14
 #define playerhub_v1_Appearance_default_race_tag 15
 #define playerhub_v1_Appearance_added_head_parts_tag 16
+#define playerhub_v1_Appearance_overlays_tag     17
 #define playerhub_v1_Armor_form_tag              1
 #define playerhub_v1_Armor_slot_mask_tag         2
 #define playerhub_v1_Hand_kind_tag               1
@@ -499,10 +538,23 @@ X(a, STATIC,   SINGULAR, UINT32,   type,              2)
 X(a, STATIC,   SINGULAR, UINT32,   index,             1) \
 X(a, STATIC,   SINGULAR, UINT32,   type,              2) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  color,             3) \
-X(a, STATIC,   SINGULAR, FLOAT,    alpha,             4)
+X(a, STATIC,   SINGULAR, FLOAT,    alpha,             4) \
+X(a, STATIC,   SINGULAR, STRING,   texture,           5)
 #define playerhub_v1_Tint_CALLBACK NULL
 #define playerhub_v1_Tint_DEFAULT NULL
 #define playerhub_v1_Tint_color_MSGTYPE playerhub_v1_Color
+
+#define playerhub_v1_Overlay_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UENUM,    area,              1) \
+X(a, STATIC,   SINGULAR, STRING,   texture,           2) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  color,             3) \
+X(a, STATIC,   SINGULAR, FLOAT,    alpha,             4) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  glow_color,        5) \
+X(a, STATIC,   SINGULAR, FLOAT,    glow_strength,     6)
+#define playerhub_v1_Overlay_CALLBACK NULL
+#define playerhub_v1_Overlay_DEFAULT NULL
+#define playerhub_v1_Overlay_color_MSGTYPE playerhub_v1_Color
+#define playerhub_v1_Overlay_glow_color_MSGTYPE playerhub_v1_Color
 
 #define playerhub_v1_DefaultRace_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  race,              1) \
@@ -527,7 +579,8 @@ X(a, STATIC,   REPEATED, FLOAT,    face_morphs,      12) \
 X(a, STATIC,   REPEATED, SINT32,   face_parts,       13) \
 X(a, STATIC,   REPEATED, MESSAGE,  tints,            14) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  default_race,     15) \
-X(a, STATIC,   REPEATED, MESSAGE,  added_head_parts,  16)
+X(a, STATIC,   REPEATED, MESSAGE,  added_head_parts,  16) \
+X(a, STATIC,   REPEATED, MESSAGE,  overlays,         17)
 #define playerhub_v1_Appearance_CALLBACK NULL
 #define playerhub_v1_Appearance_DEFAULT NULL
 #define playerhub_v1_Appearance_race_MSGTYPE playerhub_v1_FormRef
@@ -538,6 +591,7 @@ X(a, STATIC,   REPEATED, MESSAGE,  added_head_parts,  16)
 #define playerhub_v1_Appearance_tints_MSGTYPE playerhub_v1_Tint
 #define playerhub_v1_Appearance_default_race_MSGTYPE playerhub_v1_DefaultRace
 #define playerhub_v1_Appearance_added_head_parts_MSGTYPE playerhub_v1_HeadPart
+#define playerhub_v1_Appearance_overlays_MSGTYPE playerhub_v1_Overlay
 
 #define playerhub_v1_Armor_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  form,              1) \
@@ -597,6 +651,7 @@ extern const pb_msgdesc_t playerhub_v1_Action_msg;
 extern const pb_msgdesc_t playerhub_v1_Color_msg;
 extern const pb_msgdesc_t playerhub_v1_HeadPart_msg;
 extern const pb_msgdesc_t playerhub_v1_Tint_msg;
+extern const pb_msgdesc_t playerhub_v1_Overlay_msg;
 extern const pb_msgdesc_t playerhub_v1_DefaultRace_msg;
 extern const pb_msgdesc_t playerhub_v1_Appearance_msg;
 extern const pb_msgdesc_t playerhub_v1_Armor_msg;
@@ -613,6 +668,7 @@ extern const pb_msgdesc_t playerhub_v1_Equipment_msg;
 #define playerhub_v1_Color_fields &playerhub_v1_Color_msg
 #define playerhub_v1_HeadPart_fields &playerhub_v1_HeadPart_msg
 #define playerhub_v1_Tint_fields &playerhub_v1_Tint_msg
+#define playerhub_v1_Overlay_fields &playerhub_v1_Overlay_msg
 #define playerhub_v1_DefaultRace_fields &playerhub_v1_DefaultRace_msg
 #define playerhub_v1_Appearance_fields &playerhub_v1_Appearance_msg
 #define playerhub_v1_Armor_fields &playerhub_v1_Armor_msg
@@ -621,9 +677,9 @@ extern const pb_msgdesc_t playerhub_v1_Equipment_msg;
 #define playerhub_v1_Equipment_fields &playerhub_v1_Equipment_msg
 
 /* Maximum encoded size of messages (where known) */
-#define PLAYERHUB_V1_PLAYERHUB_V1_STATE_PB_H_MAX_SIZE playerhub_v1_Equipment_size
+#define PLAYERHUB_V1_PLAYERHUB_V1_STATE_PB_H_MAX_SIZE playerhub_v1_Appearance_size
 #define playerhub_v1_Action_size                 39
-#define playerhub_v1_Appearance_size             17156
+#define playerhub_v1_Appearance_size             44260
 #define playerhub_v1_Armor_size                  278
 #define playerhub_v1_Attack_size                 4
 #define playerhub_v1_Checkpoint_size             71
@@ -635,7 +691,8 @@ extern const pb_msgdesc_t playerhub_v1_Equipment_msg;
 #define playerhub_v1_FormRef_size                269
 #define playerhub_v1_Hand_size                   824
 #define playerhub_v1_HeadPart_size               278
-#define playerhub_v1_Tint_size                   37
+#define playerhub_v1_Overlay_size                315
+#define playerhub_v1_Tint_size                   300
 
 #ifdef __cplusplus
 } /* extern "C" */

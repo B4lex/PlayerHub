@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace AppearanceSync
 {
@@ -19,6 +20,8 @@ namespace AppearanceSync
         std::optional<Multiplayer::PlayerAppearance> latest;
         // A retired reference may still point at its base for a few frames.
         RE::TESNPC* base{ nullptr };
+        // The texture each of base's tint layers renders.
+        std::vector<RE::BSFixedString> baseTintTextures;
         std::uint64_t baseRevision{ 0 };
         std::optional<std::uint64_t> failedRevision;
         RE::TESNPC* beastBase{ nullptr };

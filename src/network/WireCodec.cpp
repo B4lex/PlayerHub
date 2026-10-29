@@ -324,6 +324,25 @@ namespace Network::Wire
                 result.index = static_cast<std::uint16_t>(tint.index);
                 result.type = static_cast<std::uint8_t>(tint.type);
                 result.alpha = tint.alpha;
+                result.texture = tint.texture;
+            }
+
+            a_result.overlays.clear();
+            for (pb_size_t i = 0; i < a_appearance.overlays_count; ++i)
+            {
+                const auto& overlay = a_appearance.overlays[i];
+                auto& result = a_result.overlays.emplace_back();
+                if (overlay.area < playerhub_v1_OverlayArea_OVERLAY_AREA_BODY
+                    || overlay.area > playerhub_v1_OverlayArea_OVERLAY_AREA_FACE || !overlay.has_color
+                    || !ReadColor(overlay.color, result.color) || !overlay.has_glow_color
+                    || !ReadColor(overlay.glow_color, result.glowColor))
+                {
+                    return "overlays";
+                }
+                result.area = static_cast<Multiplayer::OverlayArea>(overlay.area);
+                result.texture = overlay.texture;
+                result.alpha = overlay.alpha;
+                result.glowStrength = overlay.glow_strength;
             }
 
             a_result.defaultRace.reset();
@@ -974,11 +993,12 @@ namespace Network::Wire
     {
         using Multiplayer::PlayerAppearance;
         if (a_appearance.headParts.size() > PlayerAppearance::kMaximumHeadParts
-            || a_appearance.tints.size() > PlayerAppearance::kMaximumTints)
+            || a_appearance.tints.size() > PlayerAppearance::kMaximumTints
+            || a_appearance.overlays.size() > PlayerAppearance::kMaximumOverlays)
         {
             return {};
         }
-        // About 16 KB; kept off the stack.
+        // About 44 KB; kept off the stack.
         auto appearance = std::make_unique<playerhub_v1_Appearance>();
         *appearance = playerhub_v1_Appearance_init_zero;
         appearance->revision = a_appearance.revision;
@@ -1014,15 +1034,35 @@ namespace Network::Wire
         std::ranges::copy(a_appearance.faceMorphs, appearance->face_morphs);
         appearance->face_parts_count = PlayerAppearance::kFacePartCount;
         std::ranges::copy(a_appearance.faceParts, appearance->face_parts);
+        static_assert(std::extent_v<decltype(playerhub_v1_Appearance::tints)> >= PlayerAppearance::kMaximumTints);
+        static_assert(std::extent_v<decltype(playerhub_v1_Appearance::overlays)> >= PlayerAppearance::kMaximumOverlays);
+        static_assert(std::extent_v<decltype(playerhub_v1_Tint::texture)> > PlayerAppearance::kMaximumTexturePathLength);
+        static_assert(std::extent_v<decltype(playerhub_v1_Overlay::texture)> > PlayerAppearance::kMaximumTexturePathLength);
         appearance->tints_count = static_cast<pb_size_t>(a_appearance.tints.size());
         for (std::size_t i = 0; i < a_appearance.tints.size(); ++i)
         {
             const auto& tint = a_appearance.tints[i];
-            appearance->tints[i] = playerhub_v1_Tint{ .index = tint.index,
-                .type = tint.type,
-                .has_color = true,
-                .color = WriteColor(tint.color),
-                .alpha = tint.alpha };
+            auto& result = appearance->tints[i];
+            result.index = tint.index;
+            result.type = tint.type;
+            result.has_color = true;
+            result.color = WriteColor(tint.color);
+            result.alpha = tint.alpha;
+            written = written && CopyString(result.texture, tint.texture);
+        }
+        appearance->overlays_count = static_cast<pb_size_t>(a_appearance.overlays.size());
+        for (std::size_t i = 0; i < a_appearance.overlays.size(); ++i)
+        {
+            const auto& overlay = a_appearance.overlays[i];
+            auto& result = appearance->overlays[i];
+            result.area = static_cast<playerhub_v1_OverlayArea>(overlay.area);
+            result.has_color = true;
+            result.color = WriteColor(overlay.color);
+            result.alpha = overlay.alpha;
+            result.has_glow_color = true;
+            result.glow_color = WriteColor(overlay.glowColor);
+            result.glow_strength = overlay.glowStrength;
+            written = written && CopyString(result.texture, overlay.texture);
         }
         if (a_appearance.defaultRace)
         {

@@ -36,8 +36,9 @@ namespace Config
             float a_maximum) = 0;
         virtual void String(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment,
             bool (*a_isValid)(std::string_view)) = 0;
+        // With a_allowNone, an empty reference is valid and written as an empty value.
         virtual void Form(std::string_view a_key, Text::Id a_label, Multiplayer::FormReference& a_value,
-            const Multiplayer::FormReference& a_default, const Forms::ItemFilter& a_filter) = 0;
+            const Multiplayer::FormReference& a_default, const Forms::ItemFilter& a_filter, bool a_allowNone) = 0;
         // a_options are the INI values; a_optionLabels are shown for them.
         virtual void Choice(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
             std::span<const std::string_view> a_options, std::span<const Text::Id> a_optionLabels) = 0;

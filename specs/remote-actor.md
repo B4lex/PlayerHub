@@ -29,6 +29,7 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/SurvivalPolicy` | Actor flags, combat sanitization, package takeover, damage, kill, and magic guards |
 | `actor/CombatIsolation` | Hostility, combat start, and hit hooks |
 | `actor/PrecisionIsolation` | Excludes remote actors from Precision through its interface |
+| `actor/RaceMenuOverlays` | Applies a peer's RaceMenu overlays through SKEE and releases them when the actor is removed ([Appearance and equipment](appearance-and-equipment.md#overlays)) |
 | `actor/ReactionSuppression` | Dialogue, flee, and detection hooks |
 | `actor/ScenePackageSuppression` | Scene package action hooks |
 | `actor/RemoteCollision` | Placement ownership, the skipped movement update, collision, support, and Speed channel |

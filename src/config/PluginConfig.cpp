@@ -124,11 +124,16 @@ namespace Config
             }
 
             void Form(std::string_view a_key, Text::Id, FormReference& a_value, const FormReference&,
-                const Forms::ItemFilter&) override
+                const Forms::ItemFilter&, bool a_allowNone) override
             {
                 const auto value = Take(a_key);
                 if (!value)
                 {
+                    return;
+                }
+                if (a_allowNone && value->empty())
+                {
+                    a_value = {};
                     return;
                 }
                 if (auto parsed = ParseFormReference(*value))
@@ -303,7 +308,7 @@ namespace Config
             }
 
             void Form(std::string_view a_key, Text::Id, FormReference& a_value, const FormReference&,
-                const Forms::ItemFilter&) override
+                const Forms::ItemFilter&, bool) override
             {
                 Write(a_key, FormatFormReference(a_value), {});
             }

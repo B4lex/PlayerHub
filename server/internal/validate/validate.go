@@ -37,6 +37,9 @@ const (
 	MaximumTints            = 64
 	MaximumTintIndex        = 0xFFFF
 	MaximumTintType         = 14
+	MaximumOverlays         = 32
+	MaximumTexturePathBytes = 260
+	MaximumGlowStrength     = 100
 
 	MaximumArmor        = 32
 	MaximumOutfitArmor  = 8
@@ -212,7 +215,19 @@ func Appearance(a *pb.Appearance) error {
 	}
 	for _, tint := range a.GetTints() {
 		if tint.GetIndex() > MaximumTintIndex || tint.GetType() > MaximumTintType || tint.Color == nil ||
-			!color(tint.Color) || !between(tint.GetAlpha(), 0, 1) {
+			!color(tint.Color) || !between(tint.GetAlpha(), 0, 1) ||
+			(tint.GetTexture() != "" && !texturePath(tint.GetTexture())) {
+			return ErrAppearance
+		}
+	}
+	if len(a.GetOverlays()) > MaximumOverlays {
+		return ErrAppearance
+	}
+	for _, overlay := range a.GetOverlays() {
+		if overlay.GetArea() < pb.OverlayArea_OVERLAY_AREA_BODY || overlay.GetArea() > pb.OverlayArea_OVERLAY_AREA_FACE ||
+			!texturePath(overlay.GetTexture()) || overlay.Color == nil || !color(overlay.Color) ||
+			!between(overlay.GetAlpha(), 0, 1) || overlay.GlowColor == nil || !color(overlay.GlowColor) ||
+			!between(overlay.GetGlowStrength(), 0, MaximumGlowStrength) {
 			return ErrAppearance
 		}
 	}
@@ -415,6 +430,21 @@ func hasControl(s string) bool {
 		}
 	}
 	return false
+}
+
+// texturePath accepts a relative .dds path in printable ASCII that cannot leave
+// the receiver's data folder.
+func texturePath(p string) bool {
+	if p == "" || len(p) > MaximumTexturePathBytes || !strings.HasSuffix(strings.ToLower(p), ".dds") ||
+		p[0] == '\\' || p[0] == '/' {
+		return false
+	}
+	for i := 0; i < len(p); i++ {
+		if p[i] < 0x20 || p[i] > 0x7E || p[i] == ':' {
+			return false
+		}
+	}
+	return !slices.Contains(strings.FieldsFunc(p, func(r rune) bool { return r == '\\' || r == '/' }), "..")
 }
 
 func finite(v float32) bool {

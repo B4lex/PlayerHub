@@ -39,6 +39,10 @@ namespace DefaultOutfit
         FormReference ResolveConfigured(const FormReference& a_reference, const FormReference& a_default,
             std::string_view a_label, const Forms::ItemFilter& a_filter, std::uint32_t& a_unusable)
         {
+            if (a_reference.IsEmpty())
+            {
+                return {};
+            }
             const auto reason = FindUnusableReason(a_reference, a_filter);
             if (reason.empty())
             {

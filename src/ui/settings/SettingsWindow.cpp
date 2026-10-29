@@ -433,13 +433,14 @@ namespace UI
             }
 
             void Form(std::string_view a_key, Text::Id a_label, Multiplayer::FormReference& a_value,
-                const Multiplayer::FormReference& a_default, const Forms::ItemFilter& a_filter) override
+                const Multiplayer::FormReference& a_default, const Forms::ItemFilter& a_filter,
+                bool a_allowNone) override
             {
                 if (!BeginRow(a_key, a_label, Text::Id::kNone))
                 {
                     return;
                 }
-                itemPicker.Draw("##value", a_value, a_default, a_filter);
+                itemPicker.Draw("##value", a_value, a_default, a_filter, a_allowNone);
                 EndRow();
             }
 

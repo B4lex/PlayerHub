@@ -3,6 +3,7 @@
 #include "actor/CombatIsolation.h"
 #include "actor/JumpSound.h"
 #include "actor/PrecisionIsolation.h"
+#include "actor/RaceMenuOverlays.h"
 #include "actor/ReactionSuppression.h"
 #include "actor/RemoteCollision.h"
 #include "actor/ScenePackageSuppression.h"
@@ -82,6 +83,9 @@ namespace PluginStartup
         SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* a_message) {
             switch (a_message->type)
             {
+                case SKSE::MessagingInterface::kPostPostLoad:
+                    RaceMenuOverlays::Initialize();
+                    break;
                 case SKSE::MessagingInterface::kDataLoaded:
                     OnDataLoaded();
                     break;

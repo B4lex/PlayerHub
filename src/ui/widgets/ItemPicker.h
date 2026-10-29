@@ -24,7 +24,7 @@ namespace UI
     {
     public:
         bool Draw(const char* a_id, Multiplayer::FormReference& a_value, const Multiplayer::FormReference& a_default,
-            const Forms::ItemFilter& a_filter);
+            const Forms::ItemFilter& a_filter, bool a_allowNone);
 
         void Reset();
 
@@ -49,7 +49,7 @@ namespace UI
 
         const Label& GetLabel(
             ImGuiID a_id, const Multiplayer::FormReference& a_value, const Forms::ItemFilter& a_filter);
-        bool DrawList(Multiplayer::FormReference& a_value, const Forms::ItemFilter& a_filter);
+        bool DrawList(Multiplayer::FormReference& a_value, const Forms::ItemFilter& a_filter, bool a_allowNone);
         void DrawDetails(const Forms::CatalogItem* a_item, float a_width);
         void Search(const Forms::ItemFilter& a_filter);
 
