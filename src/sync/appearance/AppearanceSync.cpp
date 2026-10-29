@@ -38,6 +38,8 @@ namespace AppearanceSync
         // Bounds respawns from a form that flips back and forth; vanilla transformations
         // take far longer.
         constexpr float kMinimumShapeshiftIntervalSeconds = 1.0F;
+        constexpr float kMinimumRemoteHeight = 0.85F;
+        constexpr float kMaximumRemoteHeight = 1.15F;
         constexpr std::string_view kFallbackRacePlugin = "Skyrim.esm";
         constexpr RE::FormID kFallbackRaceLocalFormID = 0x00013746; // NordRace
 
@@ -763,7 +765,7 @@ namespace AppearanceSync
             npc->combatStyle = GetDefaultCombatStyle();
             npc->actorData.actorBaseFlags.set(a_appearance.female, RE::ACTOR_BASE_DATA::Flag::kFemale);
             npc->weight = a_appearance.weight;
-            npc->height = a_appearance.height;
+            npc->height = std::clamp(a_appearance.height, kMinimumRemoteHeight, kMaximumRemoteHeight);
 
             const auto headParts = ResolveHeadParts(a_playerID, a_appearance, a_race, faceData);
             if (!headParts.empty())
@@ -835,7 +837,7 @@ namespace AppearanceSync
                 "tints={}/{} droppedTints={} missingTintTextures={} firstMissing=\"{}\" attackData={} "
                 "combatStyle={:08X}",
                 a_playerID, static_cast<unsigned long long>(a_appearance.revision), npc->GetFormID(), a_appearance.name,
-                a_race.GetFormID(), a_appearance.female, a_appearance.weight, a_appearance.height,
+                a_race.GetFormID(), a_appearance.female, a_appearance.weight, npc->height,
                 headParts.size() - static_cast<std::size_t>(extraParts), a_appearance.headParts.size(), extraParts,
                 hairColor ? hairColor->GetFormID() : 0, faceDetails ? faceDetails->GetFormID() : 0,
                 npc->tintLayers->size(), a_appearance.tints.size(), droppedTints, missingTextures,

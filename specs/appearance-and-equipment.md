@@ -144,7 +144,10 @@ engine default that is replaced rather than written. The base then gets:
 - the `kUnique` flag: a remote player is one character, not a generic NPC;
 - the full name set to the player label, read by the crosshair and other name
   displays;
-- race and original race, sex, weight, and height;
+- race and original race, sex, weight, and height, with height clamped to
+  `0.85..1.15` (`kMinimumRemoteHeight`, `kMaximumRemoteHeight`) so an extreme
+  scale cannot make a remote actor a giant or a doll in another player's world;
+  the wire keeps the full [`height`](#capture) range;
 - the race's attack data map and the default combat style, which
   `TESNPC::InitItemImpl` fills only for NPCs loaded from plugins; weapon draws
   read the attack data map without a null check;
@@ -786,8 +789,9 @@ Not confirmed in game:
 13. A vampire player appears to peers in the character's own race, wearing and
     wielding what it has equipped.
 14. A character made taller or shorter with RaceMenu's height slider or a
-    reference scale appears to peers at the same height, whether or not they
-    have RaceMenu; a player without RaceMenu appears at the base's height.
+    reference scale appears to peers at the same height within `0.85..1.15`,
+    and at the nearer bound beyond it, whether or not they have RaceMenu; a
+    player without RaceMenu appears at the base's height.
 15. A head part of any type that resolves on the receiver for the actor's race
     is shown on the remote actor with its extra parts, so peers with the same
     mods see the same hair, nails, and tails. A head part the receiver lacks,
