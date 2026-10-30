@@ -26,6 +26,7 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/RemoteActor.h` | The replicated instance: handle, readiness, and `ActorMovement`, `ActorAnimation`, `ActorFurniture` state |
 | `actor/ActorRegistry` | Registered identity and per-actor flags, queried under a lock by hooks on any thread |
 | `actor/AnimationFirewall` | Rejects locally injected graph events; network dispatch bypasses it |
+| `actor/GraphRecovery` | Detects a local hit reaction and reverts the graph or resets 3D ([Graph recovery](#graph-recovery)) |
 | `actor/SurvivalPolicy` | Actor flags, combat sanitization, package takeover, damage, kill, and magic guards |
 | `actor/CombatIsolation` | Hostility, combat start, and hit hooks |
 | `actor/PrecisionIsolation` | Excludes remote actors from Precision through its interface |
@@ -77,18 +78,20 @@ its run-once package ([Package takeover](#package-takeover)).
 `ActorRuntime::Update` runs once per pass for an on-foot actor, in this order:
 
 1. validate the handle (a lost one is reported to the lifecycle);
-2. advance a playing network attack;
+2. advance a playing network attack (`AttackDispatch::Advance`);
 3. `ApplyRemoteReplicaPolicy`, then `SanitizeRemoteCombatState`;
-4. recover the graph if a recovery is pending;
+4. recover the graph if a recovery is pending (`GraphRecovery::Recover`);
 5. wait for 3D, controller, and graph (readiness);
 6. enable the animation firewall once 3D is loaded;
 7. advance an active native furniture interaction, which then owns placement,
    or otherwise place the actor by the network
    ([Placement ownership](#placement-ownership));
-8. hold the idle turn state, and apply the staged graph state;
-9. gate translation on settlement, except around a landing;
-10. attempt a deferred furniture entry;
-11. apply heading and translation (`ActorMovement::ApplyTranslation`).
+8. hold the idle turn state, and apply the staged graph state
+   (`ActorAnimation::ApplyAnimationUpdate`);
+9. attempt a deferred furniture entry, which then owns placement;
+10. choose the translation mode (`ActorAnimation::GetTranslationMode`,
+    [Locomotion](locomotion.md#translation)), and unless it holds, apply
+    heading and translation (`ActorMovement::ApplyTranslation`).
 
 Furniture owns position, heading, and graph while active. A rider and a mount
 have their own update (`UpdateRider`, `UpdateMount`,
@@ -191,10 +194,10 @@ firewall opens and Skyrim's native `RevertAnimationGraphManager` (ID 32883,
 SE 32139) resets the
 whole graph, including variables and partly active transitions. `DoReset3D(false)`
 is the fallback when the revert fails or the graph is not ready within 2 s.
-Translation stays paused until graph and controller have been ready for two
-consecutive passes; then all dispatch bookkeeping is invalidated and the newest
-locomotion and presentation checkpoint is replayed. A detected graph manager
-replacement also resets the bookkeeping.
+Starting a recovery invalidates all dispatch bookkeeping. Translation stays
+paused until graph and controller have been ready for two consecutive passes;
+then the newest locomotion and presentation checkpoint is replayed. A detected
+graph manager replacement also resets the bookkeeping.
 
 ## Survival and AI policy
 

@@ -1,7 +1,7 @@
 #include "sync/SyncCoordinator.h"
-#include "actor/ActorAnimation.h"
 #include "actor/ActorMovement.h"
 #include "actor/ActorRuntime.h"
+#include "actor/AttackDispatch.h"
 #include "actor/PrecisionIsolation.h"
 #include "actor/RemoteLights.h"
 #include "network/ServerClient.h"
@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -40,6 +41,8 @@ namespace SyncCoordinator
     {
         Peers s_peers;
         std::uint64_t s_peersConnectionGeneration = 0;
+        AnimationSync::LocalState s_localAnimation;
+        CheckpointPublisher::State s_publisher;
         bool s_actorsExcludedFromSaves = false;
 
         struct LocalFurnitureActivation
@@ -308,14 +311,15 @@ namespace SyncCoordinator
                 capturedAttack.reset();
             }
             const bool handPresentationStarted = CombatSync::CaptureLocalHandPresentation(local);
-            const auto graphEpoch = AnimationSync::ObserveLocalGraphEpoch(local);
-            AnimationSync::ObserveLocalMovementInput(local, a_delta);
+            const auto graphEpoch = AnimationSync::ObserveLocalGraphEpoch(s_localAnimation, local);
+            AnimationSync::ObserveLocalMovement(s_localAnimation, local, a_delta);
             // Flush equipment before a captured attack or hand presentation is published, so
             // peers receive a weapon swap ahead of its use.
             EquipmentSync::SyncEquipment(local, a_delta, capturedAttack.has_value() || handPresentationStarted);
             CombatSync::QueueLocalAttacks(capturedAttack, graphEpoch.changed);
             ShapeshiftSync::QueueLocalActions(graphEpoch.changed);
-            const auto publication = CheckpointPublisher::PublishLocalCheckpoint(local, a_delta, graphEpoch.epoch);
+            const auto publication = CheckpointPublisher::PublishLocalCheckpoint(
+                s_publisher, s_localAnimation, local, a_delta, graphEpoch.epoch);
             switch (publication.status)
             {
                 case CheckpointPublisher::Status::kDisconnected:
@@ -428,7 +432,7 @@ namespace SyncCoordinator
                 const bool readyForWeaponDraw = beast || EquipmentSync::IsReadyForWeaponDraw(a_peer.equipment);
 
                 bool furniturePlaying = FurnitureSync::SyncFurniture(remote, actor);
-                const bool attackPlaying = ActorAnimation::IsAnimationActionPlaying(actor);
+                const bool attackPlaying = AttackDispatch::IsPlaying(actor);
                 if (!attackPlaying && !furniturePlaying)
                 {
                     AnimationSync::SyncAnimation(remote, actor, readyForWeaponDraw, a_delta);
@@ -443,10 +447,11 @@ namespace SyncCoordinator
                     CombatSync::SyncCombat(remote, a_peer.combat, actor, handsSettled);
                     CombatSync::SyncHandPresentation(remote, actor, handsSettled, a_delta);
                 }
-                const auto translationState
-                    = AnimationSync::GetTranslationState(remote, actor, readyForWeaponDraw, furniturePlaying);
+                const auto presentableState = furniturePlaying
+                    ? std::nullopt
+                    : std::optional{ AnimationSync::GetPresentableState(remote, actor, readyForWeaponDraw) };
 
-                if (!ActorRuntime::Update(actor, a_delta, translationState))
+                if (!ActorRuntime::Update(actor, a_delta, presentableState))
                 {
                     ActorLifecycle::OnActorLost(remote, a_peer);
                 }

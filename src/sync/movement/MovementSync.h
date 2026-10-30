@@ -53,18 +53,31 @@ namespace MovementSync
         RE::FormID worldspaceID{ 0 };
     };
 
-    [[nodiscard]] LocalSample SampleLocalMovement(
-        const LocalFrame& a_local, RE::Actor& a_carrier, const RE::TESObjectCELL& a_cell, float a_snapshotElapsed);
-
-    [[nodiscard]] float GetCheckpointSpeed(const LocalSample& a_sample, Multiplayer::MovementState a_state);
-
     struct LocalSpace
     {
         Multiplayer::FormReference interiorCell;
         Multiplayer::FormReference worldspace;
     };
 
-    [[nodiscard]] const LocalSpace& SampleLocalSpace(const LocalSample& a_sample);
+    struct LocalState
+    {
+        RE::NiPoint3 previousPosition{};
+        RE::FormID previousCellID{ 0 };
+        RE::FormID previousWorldspaceID{ 0 };
+        bool hasPreviousPosition{ false };
+
+        RE::FormID spaceCellID{ 0 };
+        RE::FormID spaceWorldspaceID{ 0 };
+        LocalSpace space;
+        bool hasSpace{ false };
+    };
+
+    [[nodiscard]] LocalSample SampleLocalMovement(LocalState& a_state, const LocalFrame& a_local, RE::Actor& a_carrier,
+        const RE::TESObjectCELL& a_cell, float a_snapshotElapsed);
+
+    [[nodiscard]] float GetCheckpointSpeed(const LocalSample& a_sample, Multiplayer::MovementState a_state);
+
+    [[nodiscard]] const LocalSpace& SampleLocalSpace(LocalState& a_state, const LocalSample& a_sample);
 
     struct RemoteState
     {

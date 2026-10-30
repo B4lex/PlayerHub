@@ -1,5 +1,6 @@
 #include "actor/ActorShapeshift.h"
 #include "actor/ActorAnimation.h"
+#include "actor/AttackDispatch.h"
 #include "actor/BeastActions.h"
 #include "actor/GraphStance.h"
 #include "actor/RemoteActor.h"
@@ -111,7 +112,7 @@ namespace ActorShapeshift
         // human attack.
         if (accepted && Multiplayer::IsBeastAttack(a_action))
         {
-            ActorAnimation::OwnDispatchedAttack(a_remote, *actorPtr);
+            AttackDispatch::Own(a_remote, *actorPtr);
         }
         return accepted;
     }

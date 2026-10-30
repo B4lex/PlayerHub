@@ -41,6 +41,14 @@ namespace ActorMovement
         bool landingApproachEnded{ false };
     };
 
+    enum class TranslationMode
+    {
+        kStanding,
+        kMoving,
+        kAirborne,
+        kAttack
+    };
+
     void BeginPass();
 
     void SetTargetMovement(RemoteActor& a_remote, const RE::NiPoint3& a_checkpointPosition, float a_speed,
@@ -55,8 +63,7 @@ namespace ActorMovement
 
     [[nodiscard]] bool ShouldDeferLanding(RemoteActor& a_remote, bool a_landingPending, float a_deltaTime);
 
-    void ApplyTranslation(
-        RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime, Multiplayer::AnimationState a_translationState);
+    void ApplyTranslation(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime, TranslationMode a_mode);
 
     // Skyrim's movement update derives the pitch from the ground, and the
     // per-frame 3D update builds the body's rotation from it.

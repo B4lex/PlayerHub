@@ -117,7 +117,7 @@ if inWorld:
     CombatSync::CaptureLocalAttack         # dropped in a beast form
     CombatSync::CaptureLocalHandPresentation
     AnimationSync::ObserveLocalGraphEpoch
-    AnimationSync::ObserveLocalMovementInput   # stop hold timer, input history
+    AnimationSync::ObserveLocalMovement    # stop hold timer
     EquipmentSync::SyncEquipment           # flushed when an attack or presentation started
     CombatSync::QueueLocalAttacks
     ShapeshiftSync::QueueLocalActions      # beast actions the graph input hook captured
@@ -155,14 +155,14 @@ otherwise:
     unless furniture owns the actor:
         a beast: ShapeshiftSync::SyncBeast # beast actions, levitation, casts, Mist Form and bats
         otherwise: CombatSync::SyncCombat, SyncHandPresentation
-    AnimationSync::GetTranslationState
+    AnimationSync::GetPresentableState     # none while furniture owns the actor
     ActorRuntime::Update
     AppearanceSync::ApplyActorPresentation
 no actor: end a vacated furniture yield, ActorLifecycle::SpawnWhenDue
 ```
 
 Cross-feature results (`handsSettled`, `readyForWeaponDraw`, `furniturePlaying`,
-`attackPlaying`, the translation state) are passed as explicit arguments. A
+`attackPlaying`, the presentable state) are passed as explicit arguments. A
 feature never reads another feature's state fields to infer them.
 `ActorRuntime::Update` then applies the engine side in its own order
 ([Remote actor](remote-actor.md#update-order)).
@@ -186,6 +186,14 @@ One checkpoint is one coherent sample: `MountSync::SampleLocalMount`,
 form observed this pass. No stage publishes a partial
 checkpoint. The checkpoint always precedes the `Action` anchored to it, and a
 weapon swap is published before the attack or presentation that uses it.
+
+The local sampling state is held in structs that `SyncCoordinator` owns rather
+than in function statics, so it can be reset with `= {}` and its logic read
+apart from the engine: `CheckpointPublisher::State` (cadence, sequence, and
+`MovementSync::LocalState`, the previous position and the published space
+reference) and `AnimationSync::LocalState` (graph epoch, jump tracking, stop
+and arrival holds, and the last published state), which the per-pass
+observers also use. Nothing resets them yet; they live as long as the process.
 
 Appearance and equipment publish on their own schedules and republish on every
 new connection generation ([Network](network.md#latest-wins-publishers)).

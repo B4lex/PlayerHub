@@ -342,7 +342,7 @@ and its clip on the stack.
 
 A rider draws and sheathes with the checkpoint's `weaponDrawn`, through the
 riding graph's own mounted draw and sheathe.
-`ActorAnimation::ApplyRiderWeaponState` sets the target and the registry's
+`WeaponTransition::ApplyRiderWeaponState` sets the target and the registry's
 authoritative weapon state, and while the actor's `WEAPON_STATE` differs it
 calls `DrawWeaponMagicHands` every update until the matching transition
 animates, as on foot ([Remote actor](remote-actor.md)). A first draw waits for
@@ -357,7 +357,7 @@ was seated with. A rider seated drawn stayed drawn through every sheathe, one
 seated sheathed never drew, and a rider seated mid-sheathe redrew its weapon on
 the horse (`BeginWeaponDraw`, `weaponDraw`, `WeapEquip_Out` with
 `expectedWeaponDrawn=false`). An on-foot transition left pending at the seat
-also keeps `IsWeaponTransitionPlaying` true for the whole ride, deferring each
+also keeps `WeaponTransition::IsPlaying` true for the whole ride, deferring each
 hand swap by its 2 s bound, so seating clears it.
 
 ### Gait

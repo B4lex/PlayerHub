@@ -25,7 +25,10 @@ attack data records.
 | --- | --- |
 | `sync/combat/CombatSync` | Source attack and hand-presentation capture; receiver action queue, dispatch gating, and hand presentation stage |
 | `sync/animation/AnimationSync` | Weapon stance as part of the presentable state; graph epoch |
-| `actor/ActorAnimation` | `CanDispatchAttack`, `CanChainAttack`, `CanPowerUpAttack`, `DispatchAttack`, `ApplyBlock`, bow and cast operations |
+| `actor/AttackDispatch` | Attack gating (`CanStart`, `CanChain`, `CanPowerUp`), `Dispatch`, and attack ownership (`Own`, `Advance`) |
+| `actor/HandPresentation` | `ApplyBlock`, `ApplyBowDraw`, `ApplySpellCast`, and their ownership of the graph |
+| `actor/WeaponTransition` | The native draw and sheathe request and its completion ([Locomotion](locomotion.md#components)) |
+| `actor/ActorAnimation` | `GetCombatReadyState`, the graph and stance test every attack and hand presentation start shares |
 | `sync/equipment/SpellStandIn` | Spell hand look capture, resolution, and the stand-in spells |
 | `actor/AnimationEvents.h` | Event names and `GetPowerAttackEventDirection` |
 | `actor/BeastActions` | The beast action vocabulary and its graph events |
@@ -241,7 +244,7 @@ fallbacks; grounded locomotion is then reasserted.
   completion line counts the chains, rejections, and a chain still waiting
   for its swing.
 - A power attack of the same hand as the playing network attack powers it up
-  (`CanPowerUpAttack`) unless that is a bash or already powered. It does not wait
+  (`AttackDispatch::CanPowerUp`) unless that is a bash or already powered. It does not wait
   for the actor's attack state, which a remote actor reports well into the swing:
   waiting showed about 0.7 s of plain swing before the power attack against
   0.25 s on the source (observed in game). A graph not yet in its attack state
@@ -525,7 +528,7 @@ furniture:
   rejected event is retried at most 4 times, 0.25 s apart.
 - An accepted attack (`Multiplayer::IsBeastAttack`: the werewolf attacks and
   the vampire lord's melee) owns the graph as a human attack's
-  [dispatch](#dispatch) does (`ActorAnimation::OwnDispatchedAttack`), so
+  [dispatch](#dispatch) does (`AttackDispatch::Own`), so
   locomotion waits until its attack state ends and is then reasserted. Without
   it, the werewolf graph's `CombatAttacks` state rejects `moveStart` and
   `moveStop` over 100 times per attack and holds translation (seen in game).

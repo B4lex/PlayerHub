@@ -1,7 +1,8 @@
 #include "sync/combat/CombatSync.h"
-#include "actor/ActorAnimation.h"
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationEvents.h"
+#include "actor/AttackDispatch.h"
+#include "actor/HandPresentation.h"
 #include "actor/RemoteActor.h"
 #include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
@@ -502,7 +503,7 @@ namespace CombatSync
     void SyncCombat(const RemoteFrame& a_remote, RemoteState& a_state, RemoteActor& a_actor, bool a_handsSettled)
     {
         PROFILE_FUNCTION();
-        const bool playing = ActorAnimation::IsAnimationActionPlaying(a_actor);
+        const bool playing = AttackDispatch::IsPlaying(a_actor);
         UpdateAttackCatchUp(a_remote, a_state, a_actor, playing);
         if (a_state.pendingAnimationActions.empty())
         {
@@ -526,9 +527,9 @@ namespace CombatSync
         }
         auto& pending = a_state.pendingAnimationActions.front();
         const auto& action = pending.action;
-        const bool poweringUp = playing && ActorAnimation::CanPowerUpAttack(a_actor, action.attack);
+        const bool poweringUp = playing && AttackDispatch::CanPowerUp(a_actor, action.attack);
         const bool chaining = playing && !poweringUp;
-        if (chaining && !ActorAnimation::CanChainAttack(a_actor, action.attack))
+        if (chaining && !AttackDispatch::CanChain(a_actor, action.attack))
         {
             return;
         }
@@ -536,12 +537,12 @@ namespace CombatSync
         if (action.graphEpoch != a_remote.checkpoint.graphEpoch
             || action.checkpointSequence > a_remote.checkpoint.sequence || a_remote.checkpoint.animationState.jumping
             || !a_remote.checkpoint.furniture.IsEmpty() || !a_remote.checkpoint.animationState.weaponDrawn
-            || !a_handsSettled || (!playing && !ActorAnimation::CanDispatchAttack(a_actor, action.attack)))
+            || !a_handsSettled || (!playing && !AttackDispatch::CanStart(a_actor, action.attack)))
         {
             return;
         }
 
-        const bool accepted = ActorAnimation::DispatchAttack(a_actor, action.attack);
+        const bool accepted = AttackDispatch::Dispatch(a_actor, action.attack);
         if (!accepted && chaining)
         {
             // A closed combo window is not a rejection; the attack starts once the playing one completes.
@@ -581,15 +582,15 @@ namespace CombatSync
         const auto& target = checkpoint.handPresentation;
         const bool stanceAllows = checkpoint.animationState.weaponDrawn && !checkpoint.animationState.jumping
             && checkpoint.furniture.IsEmpty();
-        const bool mayStart = a_handsSettled && !ActorAnimation::IsAnimationActionPlaying(a_actor);
+        const bool mayStart = a_handsSettled && !AttackDispatch::IsPlaying(a_actor);
 
         // A bash plays from the held block, so the block only waits for other attacks to
         // start, never to be held.
-        ActorAnimation::ApplyBlock(a_actor, stanceAllows && target.blocking, mayStart, a_delta);
-        ActorAnimation::ApplyBowDraw(a_actor, stanceAllows && target.bowDrawn, mayStart, a_delta);
+        HandPresentation::ApplyBlock(a_actor, stanceAllows && target.blocking, mayStart, a_delta);
+        HandPresentation::ApplyBowDraw(a_actor, stanceAllows && target.bowDrawn, mayStart, a_delta);
         for (const bool leftHand : { true, false })
         {
-            ActorAnimation::ApplySpellCast(
+            HandPresentation::ApplySpellCast(
                 a_actor, leftHand, stanceAllows && target.IsCasting(leftHand), mayStart, a_delta);
         }
     }

@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <format>
 #include <iterator>
 #include <string_view>
@@ -14,6 +15,12 @@ namespace GraphStance
     namespace
     {
         using namespace BehaviorGraphLayout;
+
+        // The vanilla sneak branches tag iState 2 (BSiStateTaggingGenerator) and set
+        // IsSneaking (BSIsActiveModifier, which clears it on deactivation) while
+        // active. Neither covers every branch: MagicBehavior's sneak branches only
+        // tag iState, and the unarmed, weapon, and bow sneak idles only set IsSneaking.
+        constexpr std::int32_t kSneakStateTag = 2;
 
         enum class StanceAxis
         {
@@ -242,5 +249,79 @@ namespace GraphStance
                 a_selector.machine, a_state);
         });
         return description;
+    }
+
+    const char* GetMovingName(SelectorState a_selectors) noexcept
+    {
+        switch (a_selectors)
+        {
+            case SelectorState::kOff:
+                return "standing";
+            case SelectorState::kOn:
+                return "moving";
+            case SelectorState::kMixed:
+                return "mixed";
+            default:
+                return "unknown";
+        }
+    }
+
+    SneakReading ReadSneak(const RE::Actor& a_actor, SelectorState a_selectors)
+    {
+        switch (a_selectors)
+        {
+            case SelectorState::kOff:
+                return { .sneak = Sneak::kNotSneaking, .selectors = a_selectors };
+            case SelectorState::kOn:
+                return { .sneak = Sneak::kSneaking, .selectors = a_selectors };
+            case SelectorState::kMixed:
+                // Selectors disagree while one stance's branch blends into another's.
+                return { .sneak = Sneak::kUnknown, .selectors = a_selectors };
+            case SelectorState::kNone:
+                break;
+        }
+
+        // Fallback for graphs without the vanilla selectors. A sneak branch keeps
+        // these set while it blends out after SneakStop.
+        static const RE::BSFixedString isSneakingVariable{ "IsSneaking" };
+        bool isSneaking = false;
+        const bool isSneakingAvailable = a_actor.GetGraphVariableBool(isSneakingVariable, isSneaking);
+        const auto stateTag = ReadStateTag(a_actor);
+        if ((isSneakingAvailable && isSneaking) || stateTag == kSneakStateTag)
+        {
+            return { .sneak = Sneak::kSneaking };
+        }
+        return { .sneak = isSneakingAvailable && stateTag >= 0 ? Sneak::kNotSneaking : Sneak::kUnknown };
+    }
+
+    const char* GetSneakName(const SneakReading& a_reading) noexcept
+    {
+        switch (a_reading.selectors)
+        {
+            case SelectorState::kOff:
+                return "notSneaking/states";
+            case SelectorState::kOn:
+                return "sneaking/states";
+            case SelectorState::kMixed:
+                return "mixed/states";
+            default:
+                break;
+        }
+        switch (a_reading.sneak)
+        {
+            case Sneak::kNotSneaking:
+                return "notSneaking/variables";
+            case Sneak::kSneaking:
+                return "sneaking/variables";
+            default:
+                return "unknown";
+        }
+    }
+
+    std::int32_t ReadStateTag(const RE::Actor& a_actor)
+    {
+        static const RE::BSFixedString stateVariable{ "iState" };
+        std::int32_t value = -1;
+        return a_actor.GetGraphVariableInt(stateVariable, value) ? value : -1;
     }
 }

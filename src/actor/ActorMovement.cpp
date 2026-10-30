@@ -15,8 +15,6 @@ namespace ActorMovement
 {
     namespace
     {
-        using Multiplayer::IsMoving;
-
         constexpr float kArrivalTolerance = 1.0F;
         constexpr float kMinimumStep = 0.01F;
         constexpr float kAirborneTransformCatchUpSeconds = 0.2F;
@@ -245,8 +243,7 @@ namespace ActorMovement
         return false;
     }
 
-    void ApplyTranslation(
-        RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime, Multiplayer::AnimationState a_translationState)
+    void ApplyTranslation(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime, TranslationMode a_mode)
     {
         PROFILE_FUNCTION();
         const float deltaTime = FrameTime::Clamp(a_deltaTime);
@@ -260,12 +257,11 @@ namespace ActorMovement
         const float distanceSquared = offset.x * offset.x + offset.y * offset.y + offset.z * offset.z;
 
         const float distance = std::sqrt(distanceSquared);
-        const bool attackPlaying = ActorAnimation::IsAnimationActionPlaying(a_remote);
         if (deltaTime <= 0.0F || distance <= kMinimumStep)
         {
             return;
         }
-        if (!IsMoving(a_translationState.movementState) && !a_translationState.jumping && !attackPlaying)
+        if (a_mode == TranslationMode::kStanding)
         {
             const float pathSpeed = a_remote.movement.translationSpeed;
             if (pathSpeed < kRestingPathSpeed && distance - a_remote.movement.stoppingDistance <= kArrivalTolerance)
@@ -283,9 +279,9 @@ namespace ActorMovement
             return;
         }
 
-        const float catchUpTime = a_translationState.jumping ? kAirborneTransformCatchUpSeconds
-            : attackPlaying                                  ? kAttackTransformCatchUpSeconds
-                                                             : 0.0F;
+        const float catchUpTime = a_mode == TranslationMode::kAirborne ? kAirborneTransformCatchUpSeconds
+            : a_mode == TranslationMode::kAttack                       ? kAttackTransformCatchUpSeconds
+                                                                       : 0.0F;
         const float backlogSpeed = a_remote.movement.translationSpeed + distance / kLocomotionBacklogDrainSeconds;
         const float interpolationSpeed
             = catchUpTime > 0.0F ? (std::max)(backlogSpeed, distance / catchUpTime) : backlogSpeed;

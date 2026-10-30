@@ -1,6 +1,8 @@
 #include "sync/equipment/EquipmentSync.h"
-#include "actor/ActorAnimation.h"
+#include "actor/AttackDispatch.h"
+#include "actor/HandPresentation.h"
 #include "actor/RemoteActor.h"
+#include "actor/WeaponTransition.h"
 #include "forms/BeastForms.h"
 #include "forms/FormLookup.h"
 #include "forms/RaceForms.h"
@@ -658,9 +660,9 @@ namespace EquipmentSync
 
         bool IsHandSwapDeferred(const RE::Actor& a_actor, const RemoteActor& a_remoteActor)
         {
-            if (ActorAnimation::IsAnimationActionPlaying(a_remoteActor)
-                || ActorAnimation::IsHandPresentationPlaying(a_remoteActor)
-                || ActorAnimation::IsWeaponTransitionPlaying(a_remoteActor))
+            if (AttackDispatch::IsPlaying(a_remoteActor)
+                || HandPresentation::IsPlaying(a_remoteActor)
+                || WeaponTransition::IsPlaying(a_remoteActor))
             {
                 return true;
             }

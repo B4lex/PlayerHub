@@ -19,8 +19,6 @@ namespace CheckpointPublisher
 {
     namespace
     {
-        constexpr float kSnapshotIntervalSeconds = 0.05F;
-
         std::uint32_t GetSampleTime()
         {
             const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -29,25 +27,21 @@ namespace CheckpointPublisher
         }
     }
 
-    Publication PublishLocalCheckpoint(const LocalFrame& a_local, float a_delta, std::uint64_t a_graphEpoch)
+    Publication PublishLocalCheckpoint(State& a_state, AnimationSync::LocalState& a_animation,
+        const LocalFrame& a_local, float a_delta, std::uint64_t a_graphEpoch)
     {
         PROFILE_FUNCTION();
-        static float elapsed = kSnapshotIntervalSeconds;
-        static float scheduleElapsed = kSnapshotIntervalSeconds;
-        static std::uint64_t sequence = 0;
-
         // Not clamped: the elapsed time divides the distance travelled into the published speed.
-        elapsed += a_delta;
-        scheduleElapsed += a_delta;
-        if (scheduleElapsed < kSnapshotIntervalSeconds || !Network::IsConnected())
+        a_state.elapsed += a_delta;
+        a_state.scheduleElapsed += a_delta;
+        if (a_state.scheduleElapsed < kSnapshotIntervalSeconds || !Network::IsConnected())
         {
             return Publication{ .status = Network::IsConnected() ? Status::kNotDue : Status::kDisconnected };
         }
         // Keeping the remainder holds the average rate; whole missed intervals are dropped,
         // not sent as a burst.
-        scheduleElapsed = std::fmod(scheduleElapsed, kSnapshotIntervalSeconds);
-        const float snapshotElapsed = elapsed;
-        elapsed = 0.0F;
+        a_state.scheduleElapsed = std::fmod(a_state.scheduleElapsed, kSnapshotIntervalSeconds);
+        const float snapshotElapsed = std::exchange(a_state.elapsed, 0.0F);
 
         auto* cell = a_local.player.GetParentCell();
         if (!cell)
@@ -55,17 +49,17 @@ namespace CheckpointPublisher
             return Publication{ .status = Status::kSkipped };
         }
 
-        if (sequence >= static_cast<std::uint64_t>((std::numeric_limits<std::int64_t>::max)()))
+        if (a_state.sequence >= static_cast<std::uint64_t>((std::numeric_limits<std::int64_t>::max)()))
         {
-            sequence = 0;
+            a_state.sequence = 0;
         }
-        ++sequence;
+        const auto sequence = ++a_state.sequence;
 
         const auto mount = MountSync::SampleLocalMount(a_local, sequence);
-        const auto movement
-            = MovementSync::SampleLocalMovement(a_local, mount ? *mount : a_local.player, *cell, snapshotElapsed);
-        const auto animationState = AnimationSync::SampleLocalAnimation(a_local, sequence, movement);
-        const auto& space = MovementSync::SampleLocalSpace(movement);
+        const auto movement = MovementSync::SampleLocalMovement(
+            a_state.movement, a_local, mount ? *mount : a_local.player, *cell, snapshotElapsed);
+        const auto animationState = AnimationSync::SampleLocalAnimation(a_animation, a_local, sequence, movement);
+        const auto& space = MovementSync::SampleLocalSpace(a_state.movement, movement);
         auto furniture = FurnitureSync::SampleLocalFurniture(a_local, sequence);
         const auto handPresentation = CombatSync::SampleLocalHandPresentation();
         const bool dead = DeathSync::SampleLocalDeath(a_local, sequence);

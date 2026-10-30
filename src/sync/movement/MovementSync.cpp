@@ -13,16 +13,6 @@ namespace MovementSync
         constexpr float kMinimumHeadingTravel = 1.0F;
         constexpr float kTwoPi = 6.28318530717958647692F;
 
-        RE::NiPoint3 s_previousPosition{};
-        RE::FormID s_previousCellID = 0;
-        RE::FormID s_previousWorldspaceID = 0;
-        bool s_hasPreviousPosition = false;
-
-        RE::FormID s_localSpaceCellID = 0;
-        RE::FormID s_localSpaceWorldspaceID = 0;
-        LocalSpace s_localSpace;
-        bool s_hasLocalSpace = false;
-
         float SanitizePitch(float a_angle)
         {
             return std::isfinite(a_angle) ? std::clamp(a_angle, -Network::kMaximumPitch, Network::kMaximumPitch) : 0.0F;
@@ -41,15 +31,15 @@ namespace MovementSync
         return worldspace ? worldspace->GetFormID() : 0;
     }
 
-    LocalSample SampleLocalMovement(
-        const LocalFrame& a_local, RE::Actor& a_carrier, const RE::TESObjectCELL& a_cell, float a_snapshotElapsed)
+    LocalSample SampleLocalMovement(LocalState& a_state, const LocalFrame& a_local, RE::Actor& a_carrier,
+        const RE::TESObjectCELL& a_cell, float a_snapshotElapsed)
     {
         const auto position = a_carrier.GetPosition();
         const auto cellID = a_cell.GetFormID();
         const auto worldspaceID = GetWorldspaceID(a_local.player);
-        const bool comparableLocalSpace = s_hasPreviousPosition
-            && IsSameCoordinateSpace(cellID, worldspaceID, s_previousCellID, s_previousWorldspaceID)
-            && position.GetDistance(s_previousPosition) <= kRelocationDistance;
+        const bool comparableLocalSpace = a_state.hasPreviousPosition
+            && IsSameCoordinateSpace(cellID, worldspaceID, a_state.previousCellID, a_state.previousWorldspaceID)
+            && position.GetDistance(a_state.previousPosition) <= kRelocationDistance;
 
         const auto* actorState = a_carrier.AsActorState();
         const bool swimming = actorState && actorState->IsSwimming();
@@ -73,9 +63,9 @@ namespace MovementSync
         float speed = 0.0F;
         if (comparableLocalSpace && a_snapshotElapsed > 0.0F)
         {
-            const float deltaX = position.x - s_previousPosition.x;
-            const float deltaY = position.y - s_previousPosition.y;
-            const float deltaZ = position.z - s_previousPosition.z;
+            const float deltaX = position.x - a_state.previousPosition.x;
+            const float deltaY = position.y - a_state.previousPosition.y;
+            const float deltaZ = position.z - a_state.previousPosition.z;
             const float horizontalDistanceSquared = deltaX * deltaX + deltaY * deltaY;
             // A mount's gait follows the ground it covers. A swimmer moves along its
             // view, vertical included.
@@ -95,10 +85,10 @@ namespace MovementSync
         }
         direction = Multiplayer::NormalizeMovementDirection(direction);
 
-        s_previousPosition = position;
-        s_previousCellID = cellID;
-        s_previousWorldspaceID = worldspaceID;
-        s_hasPreviousPosition = true;
+        a_state.previousPosition = position;
+        a_state.previousCellID = cellID;
+        a_state.previousWorldspaceID = worldspaceID;
+        a_state.hasPreviousPosition = true;
 
         // The carrier's own movement update eases it toward the ground, and its
         // per-frame 3D update turns it into the body's rotation.
@@ -127,17 +117,17 @@ namespace MovementSync
         return a_sample.graphSpeed && Multiplayer::IsMoving(a_state) ? *a_sample.graphSpeed : a_sample.measuredSpeed;
     }
 
-    const LocalSpace& SampleLocalSpace(const LocalSample& a_sample)
+    const LocalSpace& SampleLocalSpace(LocalState& a_state, const LocalSample& a_sample)
     {
         // Exterior cell crossings keep the worldspace's reference.
         const auto cellID = a_sample.worldspaceID == 0 ? a_sample.cellID : 0;
-        if (s_hasLocalSpace && cellID == s_localSpaceCellID && a_sample.worldspaceID == s_localSpaceWorldspaceID)
+        if (a_state.hasSpace && cellID == a_state.spaceCellID && a_sample.worldspaceID == a_state.spaceWorldspaceID)
         {
-            return s_localSpace;
+            return a_state.space;
         }
-        s_hasLocalSpace = true;
-        s_localSpaceCellID = cellID;
-        s_localSpaceWorldspaceID = a_sample.worldspaceID;
+        a_state.hasSpace = true;
+        a_state.spaceCellID = cellID;
+        a_state.spaceWorldspaceID = a_sample.worldspaceID;
 
         auto reference
             = FormLookup::MakeFormReference(RE::TESForm::LookupByID(cellID != 0 ? cellID : a_sample.worldspaceID))
@@ -153,9 +143,9 @@ namespace MovementSync
             logs::debug("Publishing local space: cell={:08X} worldspace={:08X} reference={}|{:06X}", cellID,
                 a_sample.worldspaceID, reference.plugin, reference.localFormID);
         }
-        s_localSpace = cellID != 0 ? LocalSpace{ .interiorCell = std::move(reference) }
-                                   : LocalSpace{ .worldspace = std::move(reference) };
-        return s_localSpace;
+        a_state.space = cellID != 0 ? LocalSpace{ .interiorCell = std::move(reference) }
+                                    : LocalSpace{ .worldspace = std::move(reference) };
+        return a_state.space;
     }
 
     void OnCheckpointPlayed(RemoteState& a_state, const CheckpointUpdate& a_update)

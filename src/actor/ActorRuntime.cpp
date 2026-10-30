@@ -5,9 +5,12 @@
 #include "actor/ActorMovement.h"
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationFirewall.h"
+#include "actor/AttackDispatch.h"
+#include "actor/GraphRecovery.h"
 #include "actor/RemoteActor.h"
 #include "actor/RemoteCollision.h"
 #include "actor/SurvivalPolicy.h"
+#include "actor/WeaponTransition.h"
 #include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
@@ -71,7 +74,7 @@ namespace ActorRuntime
         }
     }
 
-    bool Update(RemoteActor& a_remote, float a_deltaTime, std::optional<Multiplayer::AnimationState> a_translationState)
+    bool Update(RemoteActor& a_remote, float a_deltaTime, std::optional<Multiplayer::AnimationState> a_presentableState)
     {
         PROFILE_FUNCTION();
         if (!GameThread::Require("UpdateControlledNPC"))
@@ -87,14 +90,14 @@ namespace ActorRuntime
         }
 
         auto* actor = actorPtr.get();
-        ActorAnimation::AdvanceAttackPlayback(*actor, a_remote.animation, a_deltaTime);
+        AttackDispatch::Advance(*actor, a_remote, a_deltaTime);
         SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);
         const bool furnitureLifecycleActive = ActorFurniture::IsFurnitureInteractionPlaying(a_remote);
         // Combat packages can be selected before the suppression flags are
         // reasserted, especially during town-wide alarm/flee evaluation. A package
         // the engine selects during a furniture interaction takes the occupancy back.
         SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready);
-        if (ActorAnimation::RecoverAuthoritativeAnimation(*actor, a_remote, a_deltaTime))
+        if (GraphRecovery::Recover(*actor, a_remote, a_deltaTime))
         {
             // Keep transform and graph writes paused until the reverted graph and its
             // controller stay available across consecutive passes.
@@ -122,33 +125,16 @@ namespace ActorRuntime
         // Graph events can reactivate an idle turn machine.
         ActorAnimation::HoldIdleTurnState(*actor, a_remote);
         ActorAnimation::ApplyAnimationUpdate(*actor, a_remote, a_deltaTime);
-        const bool landingCompletionPending = a_remote.animation.landingCompletionPending;
-        const bool holdForUnsettledDispatch = ActorAnimation::ShouldHoldTranslation(a_remote, a_deltaTime);
-        if (holdForUnsettledDispatch && !landingCompletionPending)
-        {
-            // Do not move until the matching locomotion revision has been accepted or bounded out.
-            return true;
-        }
         if (!furnitureLifecycleActive && ActorFurniture::AdvanceFurnitureInteraction(*actor, a_remote, a_deltaTime))
         {
             // Network interpolation here would pull the actor off its furniture marker.
             RemoteCollision::ReleaseToEngine(*actor, a_remote, "furniture", false);
             return true;
         }
-        if (holdForUnsettledDispatch)
+        if (const auto mode = ActorAnimation::GetTranslationMode(a_remote, a_presentableState, a_deltaTime))
         {
-            // The next update reconstructs the invalidated locomotion dispatch before translation resumes.
-            return true;
+            ActorMovement::ApplyTranslation(*actor, a_remote, a_deltaTime, *mode);
         }
-        if (!a_translationState && !landingCompletionPending)
-        {
-            // Translating during an intermediate state would pair the latest position with
-            // stale graph state.
-            return true;
-        }
-
-        const auto translationState = a_translationState.value_or(a_remote.animation.targetAnimationState);
-        ActorMovement::ApplyTranslation(*actor, a_remote, a_deltaTime, translationState);
         return true;
     }
 
@@ -181,7 +167,7 @@ namespace ActorRuntime
         if (AdvanceReadiness(*actor, a_remote, a_deltaTime))
         {
             ActorMount::ApplyGait(*actor, a_remote, a_gait, a_mountSpeed, a_deltaTime, false, "rider");
-            ActorAnimation::ApplyRiderWeaponState(*actor, a_remote, a_weaponDrawn);
+            WeaponTransition::ApplyRiderWeaponState(*actor, a_remote, a_weaponDrawn);
         }
         return true;
     }
@@ -211,9 +197,8 @@ namespace ActorRuntime
 
         // The mount's own graph is never firewalled: only its gait is driven.
         ActorMount::ApplyGait(*actor, a_remote, a_gait, a_remote.movement.groundSpeed, a_deltaTime, true, "mount");
-        const Multiplayer::AnimationState translationState{ .movementState
-            = a_gait.moving ? Multiplayer::MovementState::kRunning : Multiplayer::MovementState::kIdle };
-        ActorMovement::ApplyTranslation(*actor, a_remote, a_deltaTime, translationState);
+        ActorMovement::ApplyTranslation(*actor, a_remote, a_deltaTime,
+            a_gait.moving ? ActorMovement::TranslationMode::kMoving : ActorMovement::TranslationMode::kStanding);
         ActorMovement::ApplyPitch(*actor, a_remote, a_deltaTime);
         return true;
     }

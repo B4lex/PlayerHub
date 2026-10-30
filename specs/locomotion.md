@@ -24,17 +24,33 @@ custom graphs may slide or miss transitions.
 | Module | Responsibility |
 | --- | --- |
 | `sync/movement/MovementSync` | Source transform sample; receiver transform target and coordinate-space checks |
-| `sync/animation/AnimationSync` | Source movement state, jump, stance, and graph epoch; receiver staging and the translation gate |
+| `sync/animation/AnimationSync` | Source movement state, jump, stance, and graph epoch; receiver staging and the presentable state |
 | `actor/ActorMovement` | Direct translation and heading on the actor, and its ground offset |
 | `actor/GroundProbe` | The Havok ray that finds the walkable ground below a point |
-| `actor/ActorAnimation` | The actor's graph state machine: variables, events, staging, retries, landing, swim, weapon and presentation transitions, recovery |
-| `actor/GraphStance` | The sneak, standing/moving, and sprint selector states of the actor's active behavior |
+| `actor/ActorAnimation` | The actor's graph state and its per-pass update: graph observation, landing, swim, locomotion edges and variables, retries, direction cross-blend, stance reconciliation, and the translation mode |
+| `actor/WeaponTransition` | Draw and sheathe completion, the locomotion replay after them, and the native draw or sheathe request, on foot and riding |
+| `actor/GraphStance` | The sneak, standing/moving, and sprint selector states of the actor's active behavior, and the sneak and `iState` variable reads |
 | `actor/GraphProbe` | Debug builds only: the diagnostic dump of active states, clips, and variables |
 | `actor/BehaviorGraphLayout` | Havok layout reads shared by both: state names, the current state, the active behavior |
 | `actor/JumpSound` | Distance attenuation of the actor's takeoff and landing footstep sounds |
 
-`ActorAnimation` is one controller on purpose: landing, draw and sheathe, swim,
-recovery, and attack transitions share one graph lifecycle.
+The modules that drive the graph share one lifecycle. `ActorAnimation::State`,
+held by the `RemoteActor`, composes each part's state: the dispatch, landing,
+weapon transition, swim, stance reconciliation, attack
+([`AttackDispatch`](combat-presentation.md#components)), hand presentation
+([`HandPresentation`](combat-presentation.md#components)), and direction
+cross-blend parts belong to one graph instance and are reset together
+([Graph state](#graph-state)); graph recovery
+([Remote actor](remote-actor.md#graph-recovery)) and the translation hold
+outlive it. `ApplyAnimationUpdate` runs the phases in a fixed order each pass:
+observe the graph, the landing, the weapon transition, swim, then the
+locomotion dispatch (plan, stop edges, variables, start edges), the direction
+cross-blend, the native draw or sheathe request, stance reconciliation, and
+the debug [graph probe](#graph-probe). The landing sink check and the weapon
+transition can end the pass early to give the graph an update. Attack
+playback and graph recovery advance earlier in the actor update
+([Remote actor](remote-actor.md#update-order)), and hand presentation from
+`CombatSync`.
 
 ## Source capture
 
@@ -62,7 +78,7 @@ At each checkpoint, from the carrier (the player, or its mount while riding):
 - **Movement state**: `idle`, `walking`, `running`, `sprinting`, and the three
   sneaking states, from the player's `ActorState`. A change from moving to
   idle is published only once the movement bits have been clear for 0.06 s of
-  clamped frame time (`ObserveLocalMovementInput`, every pass); until then the
+  clamped frame time (`ObserveLocalMovement`, every pass); until then the
   previous moving state is published and `held local stop` is logged.
   Direction-key changes left the move input zero for 6–24 ms, and chained
   attacks dropped the bits for about 6 ms with the input held, so a 20 Hz
@@ -81,8 +97,7 @@ At each checkpoint, from the carrier (the player, or its mount while riding):
   `reason=moved`), which releases a player who kept moving through the load
   and whose bits never clear. The distance is horizontal because the player
   drops onto the ground after arriving. The hold is applied after the stop
-  hold and logged as `holding arrival standing` and `released arrival
-  standing`.
+  hold; its end is logged as `released arrival standing`.
 - **Jumping**: the graph's `bInJumpState` gives the responsive takeoff edge
   (physical jump or midair state when the graph lacks it). Once the player has
   actually been airborne, physical ground contact is the landing, since the
@@ -99,14 +114,6 @@ At each checkpoint, from the carrier (the player, or its mount while riding):
 - **Graph epoch**: observed every pass, and advanced when the player's graph
   manager is replaced or becomes unavailable
   ([Combat presentation](combat-presentation.md#action-stream)).
-- **Movement input diagnostic**: `ObserveLocalMovementInput` also keeps the last 12
-  passes of the player's `ActorState` movement, run, sprint, and sneak bits,
-  `PlayerControls` move input, auto-move and run flags, whether movement
-  controls are enabled, weapon and attack state, and midair. When a published
-  sample stops moving, and on the sample after it, `local movement input`
-  logs them newest first with each pass's age (`reason=stopped` or
-  `after-stop`), which shows why a sample published a stop between moving
-  ones.
 
 ## Receiver
 
@@ -152,34 +159,53 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   after setting the new ones. `moveStop` and `SprintStop` were rejected when sent
   after `Speed` was zeroed or `IsSprinting` cleared.
 - A state is latched once its variables and required events are accepted. A
-  variable failure stays pending until the graph is writable. A rejected event
-  gets four attempts spread over at least 0.1 s, so a high frame rate cannot
+  variable failure stays pending until the graph is writable. A rejected edge
+  gets at least four attempts over at least 0.75 s, so a high frame rate cannot
   spend them inside one graph blend, then convergence continues: Skyrim also
   returns false while an edge is already active or transitioning, so the result
-  is not a reliable acknowledgement. Locomotion edges retry for 0.75 s instead:
-  the graph refuses locomotion while it is still leaving an attack, and a power
-  attack's exit was measured holding it past 0.1 s. An edge into the state the
+  is not a reliable acknowledgement. The window is that long because the graph
+  refuses locomotion while it is still leaving an attack, and a power attack's
+  exit was measured holding it past 0.1 s. An edge into the state the
   graph already holds is skipped, and a latched sneak edge the graph never took
   or a standing graph under a moving latch is repaired by [stance
   reconciliation](#stance-reconciliation).
 - A graph that first appears, is replaced, or becomes unavailable (no 3D or no
   graph manager) drops all dispatch tracking through
   `InvalidateAnimationDispatch`, as recovery, furniture exit, and mounting do:
-  latched and staged locomotion, the landing and weapon-transition waits,
-  attack and hand-presentation ownership, and the direction cross-blend. The
-  next update asserts the current state in full.
-- Logs distinguish `processed`, `retrying-events`, `processed-event-timeout`, and
-  `variables-rejected`.
+  latched and staged locomotion, the landing, weapon-transition, and swim
+  `moveStart` waits, stance reconciliation, attack and hand-presentation
+  ownership, and the direction cross-blend. The next update asserts the current
+  state in full. The cast ownership flag mirrors the registry's and is left to
+  the next `ApplySpellCast`, which clears both.
+- `graph dispatch` lines report the result (`processed`, `retrying-stop-events`,
+  `retrying-events`, `processed-event-timeout`, or `variables-rejected`) and
+  each axis's edge (`move`, `sneak`, `sprint`, `jump`): `-` when not required,
+  `pending` while the variables are rejected, `sent`, `skipped` when the graph
+  already holds the state, `implied` for a `SprintStart` entered through
+  `iSyncSprintState` by an accepted `moveStart`, or `rejected`. `graph variable
+  refresh changed` lists every variable's write result whenever that set
+  changes.
 
 ### Translation
 
-- Translation waits for the graph revision that matches the checkpoint and for
-  staging to reach it, since translating while the graph request is unavailable
-  or rejected is the literal sliding failure. The hold gives up after 0.15 s
-  and follows the pose with the graph state reached so far: a rejected
-  locomotion event retries far longer than an actor may visibly stand still,
-  and holding for the whole retry left it running on the spot and then jumping
-  the backlog.
+- `ActorAnimation::GetTranslationMode` decides each pass, after the graph
+  update and a deferred furniture entry attempt, whether and how the actor
+  translates. Translating while the graph request is unavailable or rejected
+  is the literal sliding failure, so:
+  - it holds while the graph revision that matches the checkpoint is
+    unsettled, for at most 0.15 s, and then follows the pose with the graph
+    state reached so far: a rejected locomotion event retries far longer than
+    an actor may visibly stand still, and holding for the whole retry left it
+    running on the spot and then jumping the backlog;
+  - it follows the target state when that matches the presentable state
+    (`AnimationSync::GetPresentableState`) or jumps, and the presentable state
+    while a network attack plays;
+  - it holds while the target is a staged step toward the presentable state,
+    or while furniture owns the actor, except that a landing waiting for
+    `JumpLandEnd` keeps following the target.
+  The mode is airborne for a jumping state, attack while a network attack
+  plays, and otherwise moving or standing by the followed state, each as
+  below.
 - A played checkpoint opens its revision in `ApplyAnimationUpdate`, just
   before the variable write that settles it (`RequestCheckpointUpdate`). If
   the revision opened when the checkpoint played, the state staging, attack,
@@ -317,7 +343,8 @@ would stay 0 and each of these machines entered while moving would start
 standing. The
 receiver writes `iSyncIdleLocomotion` every pass with the other variables: 1
 while the dispatched state moves, 0 otherwise. A graph without the variable
-only logs `syncIdleVariable=false`; it does not hold the dispatch.
+only shows `syncIdle=false` in the `graph variable refresh changed` line; it
+does not hold the dispatch.
 
 - No one-shot `moveStart` follows a sneak edge taken while moving, a block,
   bow draw, or cast started while moving, or a weapon transition: with the
@@ -377,7 +404,7 @@ rejected `moveStop` for the whole retry window while already standing.
   pick a variant only on entry. Each axis reads off or on when every active selector
   of it agrees, mixed when they disagree (one stance's branch blending into
   another's), and none when no selector is active.
-- `ReadGraphSneak` uses the sneak selectors and, with none active (a custom
+- `GraphStance::ReadSneak` uses the sneak selectors and, with none active (a custom
   graph, or a branch without one), falls back to the variables: sneaking when
   `IsSneaking` is true or `iState` is 2, and not sneaking only when both are
   readable and neither holds. Those variables stay set while a sneak branch
@@ -423,12 +450,11 @@ rejected `moveStop` for the whole retry window while already standing.
     cannot keep sending edges. A sneak correction takes the sample; the moving
     axis waits for the next.
 - Dispatch logs carry the pre-event `graphMoving` (`standing`, `moving`,
-  `mixed`, `unknown` with no selector active, or `unread` when no move or sneak
-  edge was required), `moveAlreadyStarted`, `moveAlreadyStopped`, `sprintAlreadyStarted`,
-  `sprintAlreadyStopped`, and
-  `graphSneak` with its source (`sneaking/states`, `notSneaking/states`,
-  `mixed/states`, `sneaking/variables`, `notSneaking/variables`, or
-  `unknown`), `sneakAlreadyEntered`, and `sneakAlreadyLeft`. A correction logs
+  `mixed`, or `unknown` with no selector active) and `graphSneak` with its
+  source (`sneaking/states`, `notSneaking/states`, `mixed/states`,
+  `sneaking/variables`, `notSneaking/variables`, or `unknown`), both `unread`
+  when no move, sneak, or sprint edge was required, and an edge skipped this
+  way as `skipped`. A correction logs
   `graph sneak disagrees with the latched state` or `graph stands while the
   latched state moves`. A mixed reading logs `stance selectors disagree` with
   every active selector and its state, at most on the first and every 60th
@@ -697,6 +723,11 @@ referenced sub-behaviors when read from the main loop.
   timed-out sneak edge stays latched. Such a graph gets no move skips or
   standing correction.
 - A graph left moving under an idle target is not corrected.
+- The hold for a staged step has no bound: a compound change whose
+  intermediate step the graph keeps rejecting (idle to sprint, a stop from a
+  sprint, or sneak toggled while running) holds translation for the whole
+  locomotion retry window, up to 0.75 s, past the 0.15 s bound of the dispatch
+  hold. The 15-minute capture of 2026-10-21 had one retry.
 - An attenuated jump sound keeps its fixed-speaker output: it fades with
   distance but has no direction.
 - The [ground offset](#ground-offset) leaves a source standing on something
