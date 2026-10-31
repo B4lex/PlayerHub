@@ -51,6 +51,10 @@ const (
 	MaximumChatTextByte = 4 * MaximumChatTextRune
 
 	MaximumVanished = 1024
+
+	MaximumIdleEventBytes = 64
+	idleEventPrefix       = "Idle"
+	offsetStopEvent       = "OffsetStop"
 )
 
 var (
@@ -119,7 +123,34 @@ func Context(c *pb.Context) error {
 		c.GetShapeshift() < pb.Shapeshift_SHAPESHIFT_NONE || c.GetShapeshift() > pb.Shapeshift_SHAPESHIFT_WEREBEAR {
 		return ErrContext
 	}
+	// Furniture and beast forms play their own idles on every peer.
+	if c.GetIdle() != "" &&
+		(!HeldIdleEvent(c.GetIdle()) || c.Furniture != nil || c.GetShapeshift() != pb.Shapeshift_SHAPESHIFT_NONE) {
+		return ErrContext
+	}
 	return nil
+}
+
+// HeldIdleEvent reports whether a name is an idle graph event a player can be held
+// in: the Idle prefix in any case, as graph events compare, then identifier
+// characters, at most MaximumIdleEventBytes in all. Receivers send it to a graph.
+func HeldIdleEvent(name string) bool {
+	if len(name) <= len(idleEventPrefix) || len(name) > MaximumIdleEventBytes ||
+		!strings.EqualFold(name[:len(idleEventPrefix)], idleEventPrefix) {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		if c := name[i]; !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_') {
+			return false
+		}
+	}
+	return true
+}
+
+// IdleActionEvent reports whether a name may be relayed as an idle action: a held
+// idle event, or OffsetStop, which ends the carry-arm overlays idle clips start.
+func IdleActionEvent(name string) bool {
+	return HeldIdleEvent(name) || strings.EqualFold(name, offsetStopEvent)
 }
 
 // VampireLordFlags reports whether the checkpoint has a flag only a vampire lord
@@ -159,6 +190,11 @@ func Action(a *pb.Action) error {
 	switch kind := a.GetKind().(type) {
 	case *pb.Action_Beast:
 		if BeastActionForm(kind.Beast) == pb.Shapeshift_SHAPESHIFT_NONE {
+			return ErrAction
+		}
+		return nil
+	case *pb.Action_Idle:
+		if !IdleActionEvent(kind.Idle) {
 			return ErrAction
 		}
 		return nil

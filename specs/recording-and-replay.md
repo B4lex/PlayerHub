@@ -80,7 +80,9 @@ Timeline:
   are edges. It emits the appearance, equipment, context (with a new epoch),
   and checkpoint in effect at the target, or `Exit` when the recorded player
   was out of the world there. The new epoch makes the plugin drop attacks still
-  queued for the old position.
+  queued for the old position. The context carries the idle held at the target,
+  which receivers enter as a late joiner does
+  ([Idle presentation](idle-presentation.md#re-entry)).
 - A recorded `Enter` places nothing by itself: the next context or checkpoint
   sends `Enter`, and a checkpoint without a context since then sends the
   context in effect first.

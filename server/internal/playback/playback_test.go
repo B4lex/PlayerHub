@@ -36,7 +36,11 @@ func (p *fakePlayer) take() string {
 		case *pb.ClientMessage_Exit:
 			words = append(words, "exit")
 		case *pb.ClientMessage_Context:
-			words = append(words, fmt.Sprintf("context/e%d", body.Context.GraphEpoch))
+			word := fmt.Sprintf("context/e%d", body.Context.GraphEpoch)
+			if idle := body.Context.GetIdle(); idle != "" {
+				word += "/" + idle
+			}
+			words = append(words, word)
 		case *pb.ClientMessage_Checkpoint:
 			c := body.Checkpoint
 			word := fmt.Sprintf("cp%d/x%d", c.Sequence, c.X)
@@ -151,6 +155,34 @@ func TestSeekBackStartsANewEpochWithoutResendingPresentation(t *testing.T) {
 	clock.advance(300)
 	s.Advance()
 	expect(t, p.take(), "cp9/x30 cp10/x40 cp11/x50 action2/e6/cp11")
+}
+
+func TestSeekEmitsTheIdleHeldThere(t *testing.T) {
+	r := timeline()
+	idle := func(t int64, name string) recording.Message {
+		return message(t, &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{
+			Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: 5, Idle: name}}})
+	}
+	var messages []recording.Message
+	for _, m := range r.Messages {
+		if m.TMs == 300 && m.Message.GetCheckpoint() != nil {
+			messages = append(messages, idle(300, "IdleSitCrossLeggedEnter"))
+		}
+		if m.TMs == 700 && m.Message.GetCheckpoint() != nil {
+			messages = append(messages, idle(700, ""))
+		}
+		messages = append(messages, m)
+	}
+	r.Messages = messages
+	s, p, _ := newSession(t, r, Options{Autoplay: true})
+	s.Advance()
+	p.take()
+	s.Seek(500)
+	s.Advance()
+	expect(t, p.take(), "context/e6/IdleSitCrossLeggedEnter cp2/x50")
+	s.Seek(800)
+	s.Advance()
+	expect(t, p.take(), "context/e7 cp3/x80")
 }
 
 func TestPauseHoldsThePoseOnce(t *testing.T) {

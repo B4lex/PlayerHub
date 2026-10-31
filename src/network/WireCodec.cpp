@@ -9,6 +9,7 @@
 #include <cstring>
 #include <format>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <type_traits>
 
@@ -156,6 +157,14 @@ namespace Network::Wire
                 return false;
             }
             a_result.shapeshift = static_cast<Multiplayer::Shapeshift>(a_context.shapeshift);
+            const std::string_view idle{ a_context.idle };
+            if (!idle.empty()
+                && (!Multiplayer::IsValidHeldIdleEvent(idle) || a_context.has_furniture
+                    || a_result.shapeshift != Multiplayer::Shapeshift::kNone))
+            {
+                return false;
+            }
+            a_result.idle = idle.empty() ? nullptr : std::make_shared<const std::string>(idle);
             return a_result.graphEpoch != 0 && !(a_context.has_interior_cell && a_context.has_worldspace)
                 && ReadOptionalFormReference(
                     a_context.has_interior_cell, a_context.interior_cell, a_result.interiorCell)
@@ -198,6 +207,16 @@ namespace Network::Wire
                     return std::unexpected("beast action");
                 }
                 result.beast = static_cast<Multiplayer::BeastAction>(value);
+                return result;
+            }
+            if (a_action.which_kind == playerhub_v1_Action_idle_tag)
+            {
+                const std::string_view idle{ a_action.kind.idle };
+                if (!Multiplayer::IsValidIdleActionEvent(idle))
+                {
+                    return std::unexpected("idle");
+                }
+                result.idle = std::make_shared<const std::string>(idle);
                 return result;
             }
             if (a_action.which_kind != playerhub_v1_Action_attack_tag)
@@ -923,7 +942,8 @@ namespace Network::Wire
         context.shapeshift = static_cast<playerhub_v1_Shapeshift>(a_context.shapeshift);
         if (!WriteOptionalFormReference(a_context.interiorCell, context.has_interior_cell, context.interior_cell)
             || !WriteOptionalFormReference(a_context.worldspace, context.has_worldspace, context.worldspace)
-            || !WriteOptionalFormReference(a_context.furniture, context.has_furniture, context.furniture))
+            || !WriteOptionalFormReference(a_context.furniture, context.has_furniture, context.furniture)
+            || !CopyString(context.idle, Multiplayer::GetIdleEventName(a_context.idle)))
         {
             return {};
         }
@@ -986,6 +1006,21 @@ namespace Network::Wire
         action.checkpoint_sequence = a_checkpointSequence;
         action.which_kind = playerhub_v1_Action_beast_tag;
         action.kind.beast = static_cast<playerhub_v1_BeastAction>(a_action);
+        return EncodeClientMessage(playerhub_v1_ClientMessage_action_tag, playerhub_v1_Action_fields, &action);
+    }
+
+    std::string EncodeIdleAction(std::uint64_t a_actionSequence, std::uint64_t a_graphEpoch,
+        std::uint64_t a_checkpointSequence, std::string_view a_event)
+    {
+        playerhub_v1_Action action = playerhub_v1_Action_init_zero;
+        action.action_sequence = a_actionSequence;
+        action.graph_epoch = a_graphEpoch;
+        action.checkpoint_sequence = a_checkpointSequence;
+        action.which_kind = playerhub_v1_Action_idle_tag;
+        if (!Multiplayer::IsValidIdleActionEvent(a_event) || !CopyString(action.kind.idle, a_event))
+        {
+            return {};
+        }
         return EncodeClientMessage(playerhub_v1_ClientMessage_action_tag, playerhub_v1_Action_fields, &action);
     }
 

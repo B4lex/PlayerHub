@@ -27,7 +27,8 @@ namespace GraphStance
             kSneak,
             kMoving,
             kSprint,
-            kLevitation
+            kLevitation,
+            kIdle
         };
 
         struct StanceSelector
@@ -35,6 +36,7 @@ namespace GraphStance
             StanceAxis axis;
             std::string_view machine;
             std::string_view offState;
+            // Empty: every state but offState.
             std::string_view onState;
         };
 
@@ -166,6 +168,23 @@ namespace GraphStance
             // already belongs to the new stance.
             StanceSelector{ StanceAxis::kLevitation, "H2HBehavior", "Ground_State_Cam", "LevitationBase_State" },
             StanceSelector{ StanceAxis::kLevitation, "H2HBehavior", "Levitate_End", "Levitate_Start" },
+            // The machines that the vanilla Idle* events enter (0_master.hkx, mt_behavior.hkx,
+            // idlebehavior.hkx, 1hm_behavior.hkx), first and third person alike. Each idle
+            // returns to the default state when it ends: a gesture through its clip's
+            // IdleStop annotation, a held idle through its exit clip's IdleFurnitureExit.
+            // Every other state of the unarmed root and the dialogue idle machine is an
+            // idle, including furniture; the carry-arm machines hold the overlays some
+            // idle clips start until OffsetStop.
+            StanceSelector{ StanceAxis::kIdle, "MT_RootBehavior", "MT_State", {} },
+            StanceSelector{ StanceAxis::kIdle, "MT_BehaviorGraph", "MT_Default_State", "InteractionObjectState" },
+            StanceSelector{ StanceAxis::kIdle, "MT_BehaviorGraph", "MT_Default_State", "MT_BoyRitualState" },
+            StanceSelector{ StanceAxis::kIdle, "MT_Idle_3rdPersonBehavior", "InitialIdleState", {} },
+            StanceSelector{ StanceAxis::kIdle, "CarryLeftArmBehavior", "MTLeftArmState", {} },
+            StanceSelector{ StanceAxis::kIdle, "CarryRightArmBehavior", "MTRightArmState", {} },
+            StanceSelector{ StanceAxis::kIdle, "1HM_Behavior", "1HM_Ready_State", "CombatIdles" },
+            StanceSelector{ StanceAxis::kIdle, "RootBehaviorGraph", "Default_State", "FullBodyPlayerIdles" },
+            StanceSelector{ StanceAxis::kIdle, "RootBehaviorGraph", "Default_State", "StandingVampireFeed" },
+            StanceSelector{ StanceAxis::kIdle, "Master_Behavior", "Root", "IdleDLC2TentacleWarpBook" },
         };
 
 
@@ -229,16 +248,21 @@ namespace GraphStance
     StanceSelectors ReadStanceSelectors(RE::Actor& a_actor)
     {
         PROFILE_FUNCTION();
-        std::array<SelectorVotes, 4> votes{};
+        std::array<SelectorVotes, 5> votes{};
         VisitStanceSelectors(a_actor, [&](const StanceSelector& a_selector, std::string_view a_state) {
             auto& axis = votes[static_cast<std::size_t>(a_selector.axis)];
             axis.off = axis.off || a_state == a_selector.offState;
-            axis.on = axis.on || a_state == a_selector.onState;
+            // GetCurrentStateName reads "?" for a state it cannot find.
+            axis.on = axis.on
+                || (a_selector.onState.empty() ? a_state != a_selector.offState && a_state != "?"
+                                               : a_state == a_selector.onState);
         });
+        const auto& idle = votes[static_cast<std::size_t>(StanceAxis::kIdle)];
         return { .sneak = votes[static_cast<std::size_t>(StanceAxis::kSneak)].GetState(),
             .moving = votes[static_cast<std::size_t>(StanceAxis::kMoving)].GetState(),
             .sprinting = votes[static_cast<std::size_t>(StanceAxis::kSprint)].GetState(),
-            .levitating = votes[static_cast<std::size_t>(StanceAxis::kLevitation)].GetState() };
+            .levitating = votes[static_cast<std::size_t>(StanceAxis::kLevitation)].GetState(),
+            .idle = idle.on ? SelectorState::kOn : idle.off ? SelectorState::kOff : SelectorState::kNone };
     }
 
     std::string DescribeStanceSelectors(RE::Actor& a_actor)

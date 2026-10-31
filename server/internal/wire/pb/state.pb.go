@@ -780,11 +780,14 @@ func (x *Checkpoint) GetTime() uint32 {
 type Context struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Unset in a worldspace, so crossing exterior cells leaves the context unchanged.
-	InteriorCell  *FormRef   `protobuf:"bytes,1,opt,name=interior_cell,json=interiorCell,proto3" json:"interior_cell,omitempty"`
-	Worldspace    *FormRef   `protobuf:"bytes,2,opt,name=worldspace,proto3" json:"worldspace,omitempty"`
-	GraphEpoch    uint64     `protobuf:"varint,3,opt,name=graph_epoch,json=graphEpoch,proto3" json:"graph_epoch,omitempty"`
-	Furniture     *FormRef   `protobuf:"bytes,4,opt,name=furniture,proto3" json:"furniture,omitempty"`
-	Shapeshift    Shapeshift `protobuf:"varint,5,opt,name=shapeshift,proto3,enum=playerhub.v1.Shapeshift" json:"shapeshift,omitempty"`
+	InteriorCell *FormRef   `protobuf:"bytes,1,opt,name=interior_cell,json=interiorCell,proto3" json:"interior_cell,omitempty"`
+	Worldspace   *FormRef   `protobuf:"bytes,2,opt,name=worldspace,proto3" json:"worldspace,omitempty"`
+	GraphEpoch   uint64     `protobuf:"varint,3,opt,name=graph_epoch,json=graphEpoch,proto3" json:"graph_epoch,omitempty"`
+	Furniture    *FormRef   `protobuf:"bytes,4,opt,name=furniture,proto3" json:"furniture,omitempty"`
+	Shapeshift   Shapeshift `protobuf:"varint,5,opt,name=shapeshift,proto3,enum=playerhub.v1.Shapeshift" json:"shapeshift,omitempty"`
+	// The idle graph event that entered the idle the player is held in, such as a
+	// seat or a dance; empty for none.
+	Idle          string `protobuf:"bytes,6,opt,name=idle,proto3" json:"idle,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -854,6 +857,13 @@ func (x *Context) GetShapeshift() Shapeshift {
 	return Shapeshift_SHAPESHIFT_NONE
 }
 
+func (x *Context) GetIdle() string {
+	if x != nil {
+		return x.Idle
+	}
+	return ""
+}
+
 type Attack struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	Action AttackAction           `protobuf:"varint,1,opt,name=action,proto3,enum=playerhub.v1.AttackAction" json:"action,omitempty"`
@@ -916,6 +926,7 @@ type Action struct {
 	//
 	//	*Action_Attack
 	//	*Action_Beast
+	//	*Action_Idle
 	Kind          isAction_Kind `protobuf_oneof:"kind"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -997,6 +1008,15 @@ func (x *Action) GetBeast() BeastAction {
 	return BeastAction_BEAST_ACTION_UNSPECIFIED
 }
 
+func (x *Action) GetIdle() string {
+	if x != nil {
+		if x, ok := x.Kind.(*Action_Idle); ok {
+			return x.Idle
+		}
+	}
+	return ""
+}
+
 type isAction_Kind interface {
 	isAction_Kind()
 }
@@ -1009,9 +1029,16 @@ type Action_Beast struct {
 	Beast BeastAction `protobuf:"varint,5,opt,name=beast,proto3,enum=playerhub.v1.BeastAction,oneof"`
 }
 
+type Action_Idle struct {
+	// An idle graph event the player's graph accepted.
+	Idle string `protobuf:"bytes,6,opt,name=idle,proto3,oneof"`
+}
+
 func (*Action_Attack) isAction_Kind() {}
 
 func (*Action_Beast) isAction_Kind() {}
+
+func (*Action_Idle) isAction_Kind() {}
 
 type Color struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1835,7 +1862,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\tdirection\x18\t \x01(\rR\tdirection\x12\x14\n" +
 	"\x05flags\x18\n" +
 	" \x01(\rR\x05flags\x12\x12\n" +
-	"\x04time\x18\v \x01(\rR\x04time\"\x8c\x02\n" +
+	"\x04time\x18\v \x01(\rR\x04time\"\xa0\x02\n" +
 	"\aContext\x12:\n" +
 	"\rinterior_cell\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\finteriorCell\x125\n" +
 	"\n" +
@@ -1846,17 +1873,19 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\tfurniture\x18\x04 \x01(\v2\x15.playerhub.v1.FormRefR\tfurniture\x128\n" +
 	"\n" +
 	"shapeshift\x18\x05 \x01(\x0e2\x18.playerhub.v1.ShapeshiftR\n" +
-	"shapeshift\"x\n" +
+	"shapeshift\x12\x12\n" +
+	"\x04idle\x18\x06 \x01(\tR\x04idle\"x\n" +
 	"\x06Attack\x122\n" +
 	"\x06action\x18\x01 \x01(\x0e2\x1a.playerhub.v1.AttackActionR\x06action\x12:\n" +
-	"\tdirection\x18\x02 \x01(\x0e2\x1c.playerhub.v1.PowerDirectionR\tdirection\"\xee\x01\n" +
+	"\tdirection\x18\x02 \x01(\x0e2\x1c.playerhub.v1.PowerDirectionR\tdirection\"\x84\x02\n" +
 	"\x06Action\x12'\n" +
 	"\x0faction_sequence\x18\x01 \x01(\x04R\x0eactionSequence\x12\x1f\n" +
 	"\vgraph_epoch\x18\x02 \x01(\x04R\n" +
 	"graphEpoch\x12/\n" +
 	"\x13checkpoint_sequence\x18\x03 \x01(\x04R\x12checkpointSequence\x12.\n" +
 	"\x06attack\x18\x04 \x01(\v2\x14.playerhub.v1.AttackH\x00R\x06attack\x121\n" +
-	"\x05beast\x18\x05 \x01(\x0e2\x19.playerhub.v1.BeastActionH\x00R\x05beastB\x06\n" +
+	"\x05beast\x18\x05 \x01(\x0e2\x19.playerhub.v1.BeastActionH\x00R\x05beast\x12\x14\n" +
+	"\x04idle\x18\x06 \x01(\tH\x00R\x04idleB\x06\n" +
 	"\x04kind\"1\n" +
 	"\x05Color\x12\f\n" +
 	"\x01r\x18\x01 \x01(\rR\x01r\x12\f\n" +
@@ -2123,6 +2152,7 @@ func file_playerhub_v1_state_proto_init() {
 	file_playerhub_v1_state_proto_msgTypes[4].OneofWrappers = []any{
 		(*Action_Attack)(nil),
 		(*Action_Beast)(nil),
+		(*Action_Idle)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

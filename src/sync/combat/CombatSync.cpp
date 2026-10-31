@@ -500,6 +500,11 @@ namespace CombatSync
         ActorRegistry::SetAttackSpeedScale(a_actor, 1.0F);
     }
 
+    bool HasQueuedActions(const RemoteState& a_state)
+    {
+        return !a_state.pendingAnimationActions.empty();
+    }
+
     void SyncCombat(const RemoteFrame& a_remote, RemoteState& a_state, RemoteActor& a_actor, bool a_handsSettled)
     {
         PROFILE_FUNCTION();

@@ -8,6 +8,7 @@
 #include "sync/combat/CombatSync.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/furniture/FurnitureSync.h"
+#include "sync/idle/IdleSync.h"
 #include "sync/movement/MovementSync.h"
 #include "sync/nameplates/NameplateSync.h"
 #include "sync/shapeshift/ShapeshiftSync.h"
@@ -22,6 +23,7 @@ struct PeerState
     MovementSync::RemoteState space;
     CombatSync::RemoteState combat;
     ShapeshiftSync::RemoteState shapeshift;
+    IdleSync::RemoteState idle;
     ActorLifecycleState lifecycle;
     AppearanceSync::RemoteState appearance;
     EquipmentSync::RemoteState equipment;

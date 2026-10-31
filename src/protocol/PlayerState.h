@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol/FormReference.h"
+#include "protocol/IdleEvent.h"
 #include "protocol/MovementState.h"
 #include "protocol/PeerSlot.h"
 #include "protocol/Shapeshift.h"
@@ -38,6 +39,8 @@ namespace Network
         Multiplayer::FormReference worldspace;
         Multiplayer::FormReference furniture;
         Multiplayer::Shapeshift shapeshift{ Multiplayer::Shapeshift::kNone };
+        // The idle event that entered the idle the player is held in; null for none.
+        Multiplayer::IdleEvent idle;
         std::uint64_t graphEpoch{ 1 };
         std::uint64_t sequence{ 0 };
         std::uint32_t sampleTime{ 0 };
@@ -102,8 +105,9 @@ namespace Network
     struct AnimationAction
     {
         Multiplayer::PeerSlot playerID{ 0 };
-        // A beast action replaces the attack.
+        // A beast action or an idle event replaces the attack.
         Multiplayer::BeastAction beast{ Multiplayer::BeastAction::kNone };
+        Multiplayer::IdleEvent idle;
         Attack attack{};
         std::uint64_t actionSequence{ 0 };
         std::uint64_t graphEpoch{ 0 };

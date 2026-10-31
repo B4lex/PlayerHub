@@ -62,6 +62,7 @@ namespace ActorLifecycle
             lifecycle.actor.reset();
             RemoveMountActor(lifecycle);
             CombatSync::ClearRemoteActions(a_peer.combat);
+            IdleSync::ClearRemoteActions(a_peer.idle);
             a_peer.appliedSequence = 0;
             lifecycle.spawnRetryRemaining = 0.0F;
             lifecycle.strandedElapsed = 0.0F;
@@ -239,6 +240,7 @@ namespace ActorLifecycle
         RemoveMountActor(a_peer.lifecycle);
         a_peer.lifecycle.actor.reset();
         CombatSync::ClearRemoteActions(a_peer.combat);
+        IdleSync::ClearRemoteActions(a_peer.idle);
         a_peer.lifecycle.spawnRetryRemaining = kSpawnRetryDelaySeconds;
     }
 

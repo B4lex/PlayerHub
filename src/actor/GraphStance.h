@@ -7,7 +7,8 @@
 
 namespace GraphStance
 {
-    // kOff is not sneaking, standing, not sprinting, or on the ground; kOn the opposite.
+    // kOff is not sneaking, standing, not sprinting, on the ground, or not in an idle;
+    // kOn the opposite.
     enum class SelectorState
     {
         kNone,
@@ -22,6 +23,9 @@ namespace GraphStance
         SelectorState moving{ SelectorState::kNone };
         SelectorState sprinting{ SelectorState::kNone };
         SelectorState levitating{ SelectorState::kNone };
+        // kOn while any idle machine is in an idle, never kMixed: the root machines
+        // stay in their default state while a nested one plays an idle.
+        SelectorState idle{ SelectorState::kNone };
     };
 
     [[nodiscard]] StanceSelectors ReadStanceSelectors(RE::Actor& a_actor);

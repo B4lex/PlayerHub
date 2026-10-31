@@ -21,34 +21,50 @@ namespace GraphProbe
         constexpr std::size_t kWordValuesOffset = 0x10;
         static_assert(sizeof(RE::hkReferencedObject) == kWordValuesOffset);
 
+        template <class Visitor>
+        bool ForEachActiveNode(const RE::hkbBehaviorGraph& a_behavior, Visitor&& a_visitor)
+        {
+            if (!a_behavior.activeNodes)
+            {
+                return false;
+            }
+            for (const auto& nodeInfo : *a_behavior.activeNodes)
+            {
+                if (auto* node = nodeInfo.nodeClone ? nodeInfo.nodeClone : nodeInfo.nodeTemplate)
+                {
+                    a_visitor(*node);
+                }
+            }
+            return true;
+        }
+
+        void AppendClip(std::string& a_out, const RE::hkbNode& a_node)
+        {
+            if (const auto* clip = skyrim_cast<const RE::hkbClipGenerator*>(&a_node))
+            {
+                std::format_to(
+                    std::back_inserter(a_out), "{}{}", a_out.empty() ? "" : " ", GetName(clip->animationName));
+            }
+        }
+
         void AppendActiveNodes(std::string& a_out, const RE::hkbBehaviorGraph& a_behavior)
         {
             std::string clips;
             a_out += " states=[";
             bool firstState = true;
-            if (a_behavior.activeNodes)
-            {
-                for (const auto& nodeInfo : *a_behavior.activeNodes)
+            const bool available = ForEachActiveNode(a_behavior, [&](const RE::hkbNode& a_node) {
+                if (const auto* machine = skyrim_cast<const RE::hkbStateMachine*>(&a_node))
                 {
-                    auto* node = nodeInfo.nodeClone ? nodeInfo.nodeClone : nodeInfo.nodeTemplate;
-                    if (!node)
-                    {
-                        continue;
-                    }
-                    if (const auto* machine = skyrim_cast<RE::hkbStateMachine*>(node))
-                    {
-                        std::format_to(std::back_inserter(a_out), "{}{}>{}", firstState ? "" : " ",
-                            GetName(machine->name), GetCurrentStateName(*machine));
-                        firstState = false;
-                    }
-                    else if (const auto* clip = skyrim_cast<RE::hkbClipGenerator*>(node))
-                    {
-                        std::format_to(
-                            std::back_inserter(clips), "{}{}", clips.empty() ? "" : " ", GetName(clip->animationName));
-                    }
+                    std::format_to(std::back_inserter(a_out), "{}{}>{}", firstState ? "" : " ",
+                        GetName(machine->name), GetCurrentStateName(*machine));
+                    firstState = false;
                 }
-            }
-            else
+                else
+                {
+                    AppendClip(clips, a_node);
+                }
+            });
+            if (!available)
             {
                 a_out += "unavailable";
             }
@@ -132,6 +148,29 @@ namespace GraphProbe
         AppendActiveNodes(description, *behavior);
         AppendVariables(description, *behavior, a_snapshot);
         return description;
+    }
+
+    std::string DescribeActiveClips(RE::Actor& a_actor)
+    {
+        RE::BSTSmartPointer<RE::BSAnimationGraphManager> manager;
+        if (!a_actor.GetAnimationGraphManager(manager) || !manager)
+        {
+            return "graph=unavailable";
+        }
+
+        RE::BSSpinLockGuard lock{ manager->GetRuntimeData().updateLock };
+        const auto* behavior = GetActiveBehavior(*manager);
+        if (!behavior)
+        {
+            return "graph=unavailable";
+        }
+
+        std::string clips;
+        if (!ForEachActiveNode(*behavior, [&](const RE::hkbNode& a_node) { AppendClip(clips, a_node); }))
+        {
+            return std::format("graph={} clips=unavailable", manager->GetRuntimeData().activeGraph);
+        }
+        return std::format("graph={} clips=[{}]", manager->GetRuntimeData().activeGraph, clips);
     }
 }
 #endif

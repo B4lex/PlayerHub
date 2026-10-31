@@ -42,6 +42,7 @@ namespace CombatSync
     void AgeRemoteActions(const RemoteFrame& a_remote, RemoteState& a_state, float a_delta);
     void ClearRemoteActions(RemoteState& a_state);
     void ClearRemoteActions(RemoteState& a_state, RemoteActor& a_actor);
+    [[nodiscard]] bool HasQueuedActions(const RemoteState& a_state);
     void SyncCombat(const RemoteFrame& a_remote, RemoteState& a_state, RemoteActor& a_actor, bool a_handsSettled);
     void SyncHandPresentation(const RemoteFrame& a_remote, RemoteActor& a_actor, bool a_handsSettled, float a_delta);
 }

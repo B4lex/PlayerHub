@@ -798,17 +798,13 @@ Not confirmed in game:
     or whose valid races reject the resolved race, is left out without
     affecting the rest of the look.
 16. A player with up to 32 top-level head parts publishes all of them.
-17. A 1.1.0 peer still shows such a player, with only the parts of types
-    `0..6`.
-18. A player wearing a RaceMenu alternative or add-on war paint appears to
+17. A player wearing a RaceMenu alternative or add-on war paint appears to
     peers with it when they have its texture, and without that layer when they
     do not; vanilla war paint shows as before.
-19. A player's RaceMenu body, hand, feet, and face paint appear on peers who
+18. A player's RaceMenu body, hand, feet, and face paint appear on peers who
     have RaceMenu and the textures, with the same color, transparency, and
     glow, also after a cell change and a respawn. A peer without RaceMenu or a
     texture sees the player without that overlay, and nothing else changes.
-20. A 1.1.0 peer shows such a player with the race's own tint textures and no
-    overlays.
 
 ## Known limitations
 

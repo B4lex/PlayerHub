@@ -137,12 +137,20 @@ func (p *Player) AcceptAction(a *pb.Action) error {
 	}
 	// A beast form's own graph decides what it accepts, including actions with
 	// claws sheathed, such as howling and feeding.
-	if beast := a.GetBeast(); beast != pb.BeastAction_BEAST_ACTION_UNSPECIFIED {
-		if !validate.SameBeastGraph(p.Context.GetShapeshift(), validate.BeastActionForm(beast)) {
+	switch kind := a.GetKind().(type) {
+	case *pb.Action_Beast:
+		if !validate.SameBeastGraph(p.Context.GetShapeshift(), validate.BeastActionForm(kind.Beast)) {
 			return ErrIncompatibleStep
 		}
-	} else if !validate.WeaponDrawn(p.Checkpoint) || p.Context.GetShapeshift() != pb.Shapeshift_SHAPESHIFT_NONE {
-		return ErrIncompatibleStep
+	case *pb.Action_Idle:
+		// The human graph plays idles with the weapon drawn or sheathed.
+		if p.Context.GetShapeshift() != pb.Shapeshift_SHAPESHIFT_NONE {
+			return ErrIncompatibleStep
+		}
+	default:
+		if !validate.WeaponDrawn(p.Checkpoint) || p.Context.GetShapeshift() != pb.Shapeshift_SHAPESHIFT_NONE {
+			return ErrIncompatibleStep
+		}
 	}
 	if p.ActionSequence != 0 && a.GetActionSequence() != p.ActionSequence+1 {
 		return ErrActionGap
@@ -173,7 +181,7 @@ func (p *Player) SetEquipment(e *pb.Equipment) error {
 func sameContext(a, b *pb.Context) bool {
 	return sameFormRef(a.InteriorCell, b.InteriorCell) && sameFormRef(a.Worldspace, b.Worldspace) &&
 		a.GetGraphEpoch() == b.GetGraphEpoch() && a.GetShapeshift() == b.GetShapeshift() &&
-		sameFormRef(a.Furniture, b.Furniture)
+		sameFormRef(a.Furniture, b.Furniture) && a.GetIdle() == b.GetIdle()
 }
 
 // sameFormRef compares one client's references, which spell a plugin the same way each time.

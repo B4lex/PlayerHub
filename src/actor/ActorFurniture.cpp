@@ -2,6 +2,7 @@
 #include "actor/ActorMovement.h"
 #include "actor/ActorRegistry.h"
 #include "actor/AnimationFirewall.h"
+#include "actor/IdlePresentation.h"
 #include "actor/RemoteActor.h"
 #include "actor/SurvivalPolicy.h"
 #include "runtime/FrameTime.h"
@@ -693,8 +694,11 @@ namespace ActorFurniture
 
         // An interrupted entry idle can still reach its seated node after the engine
         // bookkeeping was cleared, which leaves the actor sitting with no occupancy,
-        // request, or target.
-        const bool residualSitSleepState = sitSleepState != RE::SIT_SLEEP_STATE::kNormal;
+        // request, or target. A network idle in the unarmed root's FurnitureState, such
+        // as IdleSitCrossLeggedEnter, sets the sitting state itself about 2 s in
+        // (observed in game) and its exit clip's IdleFurnitureExit returns it.
+        const bool residualSitSleepState
+            = sitSleepState != RE::SIT_SLEEP_STATE::kNormal && !IdlePresentation::IsPlaying(a_remote);
         const bool mustExitCurrentFurniture
             = occupiedFurnitureRefID != 0 || a_remote.furniture.requestedFurnitureRefID != 0 || residualSitSleepState;
         const bool furnitureAnimationOwned = a_remote.furniture.furnitureAnimationOwned;

@@ -4,8 +4,8 @@
 
 Some things the actor does are Skyrim's to perform: sitting in furniture,
 riding, and dying. For these the receiver hands the actor to a native engine
-path and takes it back afterwards, while no animation, idle, or event name
-crosses the wire. Only reconstructable checkpoint state does: `furniture`,
+path and takes it back afterwards, while no animation, idle, or event name of
+the interaction crosses the wire. Only reconstructable checkpoint state does: `furniture`,
 `mounted`, and `dead` ([Network](network.md#checkpoint-and-context)).
 
 While an interaction owns the actor, it owns its graph and placement:
@@ -47,7 +47,9 @@ otherwise stay seated for the source's whole exit. Furniture travels in the
 checkpoint's `Context`, so a change sends a context before the checkpoint. The
 server rejects attacks whose context has furniture, and a furniture checkpoint discards the source's queued attacks. A
 reference created at runtime (`FF`) has no form reference and is published as
-none.
+none. The idle events Skyrim sends the player around furniture
+(`IdlePlayer`, `IdleChairFrontEnter`, ...) are not relayed as idles
+([Idle presentation](idle-presentation.md#capture)).
 
 **Resolution.** A raw FormID names different references on peers whose load
 orders differ, such as furniture a light plugin adds to a replaced interior, so
@@ -74,8 +76,9 @@ receiver uses the NPC path. It waits until:
   actor resuming its source's furniture (below) waits only one update after
   readiness: it has no entry idle to tear down, and waiting would leave it
   standing on the seat;
-- its locomotion has settled and no attack, weapon, presentation, or recovery
-  transition is pending. A completed weapon clip counts as settled while the
+- its locomotion has settled and no attack, weapon, presentation, idle, or
+  recovery transition is pending; furniture in the checkpoint releases an idle
+  ([Idle presentation](idle-presentation.md#release)). A completed weapon clip counts as settled while the
   target is idle (after a sheathe, once the default state was forced), though
   its locomotion replay stays armed for later movement;
 - the actor is within 24 units of its pose;
@@ -201,7 +204,10 @@ When the checkpoint changes to zero or another reference:
 - **Seated without occupancy:** a sit or sleep state other than Normal is unwound
   through the forced exit even with no occupancy, request, or target left, since
   the get-up needs the occupied reference. Nothing else observes that state, and
-  the actor would hold the pose until something reset its graph.
+  the actor would hold the pose until something reset its graph. While a network
+  [idle](idle-presentation.md#ownership) owns the graph it is left alone: idles
+  such as sitting cross-legged set the sitting state themselves, and their exit
+  clip returns it.
 - **Completion:** once the actor is Normal and, unless a native exit released
   it, unoccupied, and a native exit's clip no longer drives it, the receiver
   clears any occupancy left behind, restores the do-nothing package, and

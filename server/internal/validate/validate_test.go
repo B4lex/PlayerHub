@@ -53,6 +53,9 @@ func TestContext(t *testing.T) {
 	if err := Context(&pb.Context{GraphEpoch: 1, Shapeshift: pb.Shapeshift_SHAPESHIFT_WEREBEAR}); err != nil {
 		t.Fatal(err)
 	}
+	if err := Context(&pb.Context{GraphEpoch: 1, Idle: "idleLooseSweepingStart"}); err != nil {
+		t.Fatal(err)
+	}
 	for name, c := range map[string]*pb.Context{
 		"zero graph epoch":      {},
 		"cell in a worldspace":  {InteriorCell: ref("Skyrim.esm", 5), Worldspace: ref("Skyrim.esm", 0x3C), GraphEpoch: 1},
@@ -64,6 +67,10 @@ func TestContext(t *testing.T) {
 		"form ID above 24 bits": {GraphEpoch: 1, Furniture: ref("Skyrim.esm", 0x1000000)},
 		"unknown shapeshift":    {GraphEpoch: 1, Shapeshift: 4},
 		"negative shapeshift":   {GraphEpoch: 1, Shapeshift: -1},
+		"idle exit event":       {GraphEpoch: 1, Idle: "OffsetStop"},
+		"idle without suffix":   {GraphEpoch: 1, Idle: "Idle"},
+		"idle in furniture":     {GraphEpoch: 1, Idle: "IdleLaugh", Furniture: ref("Skyrim.esm", 1)},
+		"idle in a beast form":  {GraphEpoch: 1, Idle: "IdleLaugh", Shapeshift: pb.Shapeshift_SHAPESHIFT_WEREWOLF},
 	} {
 		if Context(c) == nil {
 			t.Errorf("%s accepted", name)
@@ -79,13 +86,21 @@ func TestAction(t *testing.T) {
 	beast := func(action pb.BeastAction) *pb.Action {
 		return &pb.Action{ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Kind: &pb.Action_Beast{Beast: action}}
 	}
+	idle := func(name string) *pb.Action {
+		return &pb.Action{ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Kind: &pb.Action_Idle{Idle: name}}
+	}
 	for name, a := range map[string]*pb.Action{
-		"normal":       attack(pb.AttackAction_ATTACK_ACTION_NORMAL, pb.PowerDirection_POWER_DIRECTION_NONE),
-		"bash":         attack(pb.AttackAction_ATTACK_ACTION_BASH, pb.PowerDirection_POWER_DIRECTION_NONE),
-		"power right":  attack(pb.AttackAction_ATTACK_ACTION_DUAL, pb.PowerDirection_POWER_DIRECTION_RIGHT),
-		"power stands": attack(pb.AttackAction_ATTACK_ACTION_LEFT, pb.PowerDirection_POWER_DIRECTION_STANDING),
-		"howl":         beast(pb.BeastAction_BEAST_ACTION_WEREWOLF_HOWL_START),
-		"last beast":   beast(pb.BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT),
+		"normal":        attack(pb.AttackAction_ATTACK_ACTION_NORMAL, pb.PowerDirection_POWER_DIRECTION_NONE),
+		"bash":          attack(pb.AttackAction_ATTACK_ACTION_BASH, pb.PowerDirection_POWER_DIRECTION_NONE),
+		"power right":   attack(pb.AttackAction_ATTACK_ACTION_DUAL, pb.PowerDirection_POWER_DIRECTION_RIGHT),
+		"power stands":  attack(pb.AttackAction_ATTACK_ACTION_LEFT, pb.PowerDirection_POWER_DIRECTION_STANDING),
+		"howl":          beast(pb.BeastAction_BEAST_ACTION_WEREWOLF_HOWL_START),
+		"last beast":    beast(pb.BeastAction_BEAST_ACTION_VAMPIRE_LORD_CAST_INTERRUPT_RIGHT),
+		"idle":          idle("IdleLaugh"),
+		"idle any case": idle("idleLooseSweepingStart"),
+		"idle digits":   idle("IdlePointFar_02"),
+		"longest idle":  idle("Idle" + strings.Repeat("a", MaximumIdleEventBytes-4)),
+		"offset stop":   idle("OffsetStop"),
 	} {
 		if err := Action(a); err != nil {
 			t.Errorf("%s rejected", name)
@@ -106,6 +121,14 @@ func TestAction(t *testing.T) {
 		"unspecified beast":    beast(pb.BeastAction_BEAST_ACTION_UNSPECIFIED),
 		"beast gap value":      beast(20),
 		"beast past the last":  beast(52),
+		"empty idle":           idle(""),
+		"idle prefix only":     idle("Idle"),
+		"not an idle":          idle("attackStart"),
+		"idle with a space":    idle("Idle Laugh"),
+		"idle with a dot":      idle("Idle.Laugh"),
+		"idle not ASCII":       idle("IdleLaugh\u00e9"),
+		"long idle":            idle("Idle" + strings.Repeat("a", MaximumIdleEventBytes-3)),
+		"offset start":         idle("OffsetStart"),
 	} {
 		if Action(a) == nil {
 			t.Errorf("%s accepted", name)

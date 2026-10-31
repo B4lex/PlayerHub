@@ -495,7 +495,15 @@ namespace Network
             }
 
             latestReceivedActionSequences.insert_or_assign(a_action.playerID, a_action.actionSequence);
-            if (a_action.beast != Multiplayer::BeastAction::kNone)
+            if (a_action.idle)
+            {
+                logs::debug("Idle sync received idle action: player={} event={} actionSequence={} graphEpoch={} "
+                            "checkpointSequence={}",
+                    a_action.playerID, *a_action.idle, static_cast<unsigned long long>(a_action.actionSequence),
+                    static_cast<unsigned long long>(a_action.graphEpoch),
+                    static_cast<unsigned long long>(a_action.checkpointSequence));
+            }
+            else if (a_action.beast != Multiplayer::BeastAction::kNone)
             {
                 logs::debug("Shapeshift sync received beast action: player={} action={} actionSequence={} "
                             "graphEpoch={} checkpointSequence={}",
@@ -838,11 +846,12 @@ namespace Network
         {
             logs::debug(
                 "Publishing context: cell={}|{:06X} worldspace={}|{:06X} graphEpoch={} furniture={}:{:06X} "
-                "shapeshift={}",
+                "shapeshift={} idle={}",
                 context.interiorCell.plugin, context.interiorCell.localFormID, context.worldspace.plugin,
                 context.worldspace.localFormID, static_cast<unsigned long long>(context.graphEpoch),
                 context.furniture.plugin, context.furniture.localFormID,
-                Multiplayer::GetShapeshiftName(context.shapeshift));
+                Multiplayer::GetShapeshiftName(context.shapeshift),
+                context.idle ? std::string_view{ *context.idle } : std::string_view{ "-" });
             Send(Wire::EncodeContext(context));
         }
         Send(Wire::EncodeCheckpoint(Quantize(a_transform)));
@@ -905,6 +914,25 @@ namespace Network
             static_cast<unsigned>(a_action), static_cast<unsigned long long>(actionSequence),
             static_cast<unsigned long long>(a_graphEpoch), static_cast<unsigned long long>(a_checkpointSequence));
         Send(Wire::EncodeBeastAction(actionSequence, a_graphEpoch, a_checkpointSequence, a_action));
+    }
+
+    void PublishLocalIdleAction(
+        std::string_view a_event, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence)
+    {
+        PROFILE_FUNCTION();
+        if (!IsConnected() || a_graphEpoch == 0 || a_checkpointSequence == 0)
+        {
+            return;
+        }
+        std::uint64_t actionSequence;
+        {
+            const std::scoped_lock lock{ publishLock };
+            actionSequence = ++localActionSequence;
+        }
+        logs::debug("Idle sync publishing idle action: event={} actionSequence={} graphEpoch={} checkpointSequence={}",
+            a_event, static_cast<unsigned long long>(actionSequence), static_cast<unsigned long long>(a_graphEpoch),
+            static_cast<unsigned long long>(a_checkpointSequence));
+        Send(Wire::EncodeIdleAction(actionSequence, a_graphEpoch, a_checkpointSequence, a_event));
     }
 
     bool PublishChatMessage(Multiplayer::ChatChannel a_channel, PeerSlot a_recipient, std::string_view a_text,

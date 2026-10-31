@@ -250,7 +250,7 @@ namespace ActorAnimation
             }
             if (!IsAnimationStateSettled(a_remote) || state.attack.pending || state.dispatch.reassertReason
                 || HandPresentation::IsPlaying(a_remote) || WeaponTransition::IsUnsettled(a_remote)
-                || state.recovery.inProgress)
+                || IdlePresentation::IsPlaying(a_remote) || state.recovery.inProgress)
             {
                 state.graphProbeElapsed = 0.0F;
                 return;
@@ -449,8 +449,10 @@ namespace ActorAnimation
                     state.weapon, target, dispatch.latched, a_weaponTransitionCompleted) };
             plan.state = plan.weaponReplay.state;
             // A released graph may have left locomotion. Edges it already holds are
-            // skipped, so this asserts only the missing ones.
-            plan.reassert = dispatch.reassertReason && !state.attack.pending && !a_swimming;
+            // skipped, so this asserts only the missing ones. An idle holds it, since
+            // the idle states take no locomotion edge.
+            plan.reassert = dispatch.reassertReason && !state.attack.pending && !a_swimming
+                && !IdlePresentation::IsPlaying(a_remote);
 
             const bool isMoving = IsMoving(plan.state.movementState);
             const bool isSneaking = IsSneaking(plan.state.movementState);
@@ -895,7 +897,8 @@ namespace ActorAnimation
             const bool reconcilable = dispatch.hasLatched && dispatch.latched == target
                 && IsAnimationStateSettled(a_remote) && !target.jumping && !IsSprinting(target.movementState)
                 && !dispatch.reassertReason && !state.attack.pending && !state.recovery.inProgress
-                && !WeaponTransition::IsUnsettled(a_remote) && !HandPresentation::IsPlaying(a_remote) && !a_swimming;
+                && !WeaponTransition::IsUnsettled(a_remote) && !HandPresentation::IsPlaying(a_remote)
+                && !IdlePresentation::IsPlaying(a_remote) && !a_swimming;
             if (!reconcilable)
             {
                 stance.sampleElapsed = 0.0F;
@@ -1120,6 +1123,7 @@ namespace ActorAnimation
         a_state.stance = {};
         a_state.attack = {};
         a_state.hands = {};
+        a_state.idle = {};
         a_state.direction = {};
         a_state.processedRevision = 0;
     }
@@ -1170,12 +1174,13 @@ namespace ActorAnimation
         const auto* actorState = a_actor.AsActorState();
         const bool swimming = actorState && actorState->IsSwimming();
         AdvanceLanding(a_actor, a_remote, swimming, a_deltaTime);
+        IdlePresentation::Advance(a_actor, a_remote, a_deltaTime);
         if (std::exchange(state.checkpointUpdatePending, false))
         {
             RequestAnimationUpdate(state);
         }
         const auto weaponTransition = WeaponTransition::Advance(a_actor, a_remote, a_deltaTime);
-        if (weaponTransition.settling)
+        if (weaponTransition.settling || IdlePresentation::ConsumeReleaseSettle(a_remote))
         {
             return;
         }
@@ -1270,6 +1275,7 @@ namespace ActorAnimation
     bool IsFurnitureEntryBlocked(const RemoteActor& a_remote)
     {
         return a_remote.animation.attack.pending || HandPresentation::IsPlaying(a_remote)
-            || WeaponTransition::IsUnsettled(a_remote) || a_remote.animation.recovery.inProgress;
+            || WeaponTransition::IsUnsettled(a_remote) || IdlePresentation::IsPlaying(a_remote)
+            || a_remote.animation.recovery.inProgress;
     }
 }

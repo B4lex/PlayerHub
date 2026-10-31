@@ -16,5 +16,6 @@ namespace GraphProbe
     };
 
     [[nodiscard]] std::string Describe(RE::Actor& a_actor, Snapshot& a_snapshot);
+    [[nodiscard]] std::string DescribeActiveClips(RE::Actor& a_actor);
 }
 #endif

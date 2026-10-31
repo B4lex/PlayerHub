@@ -82,7 +82,7 @@ refused at the handshake ([Transport](#transport)).
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
   within `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (14) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (15) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
@@ -129,7 +129,7 @@ retries. What a refusal means for the client is in [Connection](#connection).
 | `Enter`, `Exit` | World presence. `Exit` when not in the world does nothing |
 | `Context` | A checkpoint's space and graph epoch ([below](#checkpoint-and-context)) |
 | `Checkpoint` | One quantized sample |
-| `Action` | One attack ([Actions](#actions)) |
+| `Action` | One attack, beast action, or idle event ([Actions](#actions)) |
 | `Appearance`, `Equipment` | Latest-wins presentation ([below](#appearance-and-equipment)) |
 | `ChatSend` | `{request_id, text, channel, recipient}`, answered with a `ChatResult` ([Chat](#chat)) |
 | `Ping` | `{request_id}`, answered with `Pong{request_id}` by the connection at once; the latency probe |
@@ -141,7 +141,7 @@ A rejected message is dropped and logged on the server (at most one summary
 per connection every 5 s); only `ChatSend` gets a `ChatResult` (`Ping` gets
 its `Pong` from the connection), an accepted `Inspect` gets an `Inspection`,
 and a refused `TradeRequest` a `TradeClose`. Graph
-event names never cross the network.
+event names cross the network only as [idle events](#actions).
 
 ## Checkpoint and context
 
@@ -169,6 +169,16 @@ context.
 | `graph_epoch` | `>= 1`, never decreasing while in the world |
 | `furniture` | occupied placed reference as a [form reference](#form-references), unset for none |
 | `shapeshift` | `NONE`, `WEREWOLF`, `VAMPIRE_LORD`, or `WEREBEAR`: the vanilla beast form the player is in ([Appearance and equipment](appearance-and-equipment.md#shapeshifts)) |
+| `idle` | the idle event that entered the idle the player is held in ([Idle presentation](idle-presentation.md#state-and-actions)), empty for none; a held idle name ([Actions](#actions)), only without `furniture` and with `shapeshift` `NONE` |
+
+The held idle is a context field rather than a checkpoint field: it changes
+only when an idle starts or ends, so it costs the 20 Hz checkpoints nothing,
+and the server stores it with the context and sends it in `PeerEnter`, so a
+late joiner gets it with the peer. Each change sends a context and forces the
+next checkpoint out, which idle suppression would otherwise hold back
+([Interest and delivery](interest-and-delivery.md#rate-classes-and-idle-suppression)).
+A checkpoint field would add bytes to every relayed entry or a flag and a
+string to the hand-written entry encoding, for a value that rarely changes.
 
 `protocol/Quantization.h` and `server/internal/wire/quantize.go` hold the same
 rules: positions round to quarter units (`kPositionScale`,
@@ -205,30 +215,43 @@ movement in [Locomotion](locomotion.md), stance and hands in
 
 ## Actions
 
-`Action` carries one attack or one beast action as a separate ordered stream,
-since a checkpoint field would collapse repeated actions.
+`Action` carries one attack, beast action, or idle event as a separate ordered
+stream, since a checkpoint field would collapse repeated actions.
 
 | Field | Validation |
 | --- | --- |
-| `action_sequence` | `>= 1`, exactly the previous plus one per player, shared by attacks and beast actions; the first one a server sees sets the boundary |
+| `action_sequence` | `>= 1`, exactly the previous plus one per player, shared by attacks, beast actions, and idle events; the first one a server sees sets the boundary |
 | `graph_epoch` | equal to the player's context epoch |
 | `checkpoint_sequence` | `>= 1`, a published checkpoint no newer than the latest |
-| `kind` | a oneof, required: `attack` or `beast` |
+| `kind` | a oneof, required: `attack`, `beast`, or `idle` |
 | `attack.action` | `NORMAL`, `LEFT`, `DUAL`, or `BASH` |
 | `attack.direction` | `NONE` for an attack that is not a power attack, else `STANDING`, `FORWARD`, `BACKWARD`, `LEFT`, `RIGHT` |
 | `beast` | a `BeastAction`: the `WEREWOLF_` values `1..19` (also the werebear's) or the `VAMPIRE_LORD_` values `32..51`; any other value is rejected |
+| `idle` | an idle graph event name ([Idle presentation](idle-presentation.md#capture)): a held idle name, or `OffsetStop` in any case |
+
+A held idle name, in an action or the context, starts with `Idle` in any case
+and continues with at least one more character, all from `[A-Za-z0-9_]`, 5 to
+64 bytes in all (`Multiplayer::IsValidHeldIdleEvent`, Go
+`validate.HeldIdleEvent`). Receivers send it to an actor's graph, so the
+plugin also checks it when decoding a `PeerContext`, `PeerEnter`, or
+`PeerAction` and when encoding. nanopb holds it in a 65-byte array and refuses
+a longer string while decoding.
 
 For an attack, the server also requires the latest checkpoint to have the
 weapon drawn and the context to have no shapeshift. A beast action needs a
 context whose form plays that graph (`validate.SameBeastGraph`: a werebear
 plays the werewolf's), and not the weapon drawn, since a beast howls and feeds
-sheathed. Either needs a context without furniture, and the server allows
+sheathed. An idle event needs a context without shapeshift, with the weapon
+drawn or sheathed. Each needs a context without furniture, and the server allows
 `limits.actions_per_second` (10, burst 10) per player. A duplicate, stale, or
-gapped sequence is rejected rather than played out of order. Graph event names
-stay out of the wire: the plugin maps each value to its event. The
+gapped sequence is rejected rather than played out of order. Attacks and beast
+actions keep graph event names out of the wire: the plugin maps each value to
+its event. Idle events carry the name, because any vanilla idle from any
+source counts and a viewer's graph decides whether it knows it. The
 vocabularies' meaning is in
-[Combat presentation](combat-presentation.md#action-stream) and
-[Combat presentation](combat-presentation.md#beast-actions).
+[Combat presentation](combat-presentation.md#action-stream),
+[Combat presentation](combat-presentation.md#beast-actions), and
+[Idle presentation](idle-presentation.md).
 
 ## Appearance and equipment
 
@@ -271,7 +294,7 @@ every receiver.
 | `face_parts` | exactly 4 `sint32`, each `-1..255` (`-1` for none); the plugin clamps to this range when capturing and parsing |
 | `tints` | at most 64; `index` `0..65535`, `type` `0..14`, a color, `alpha` `0..1`, `texture` empty or a [texture path](#texture-paths) |
 | `overlays` | at most 32; `area` `BODY`, `HANDS`, `FEET`, or `FACE`; a [texture path](#texture-paths); `color` and `glow_color` RGB `0..255`, both required; `alpha` `0..1`; `glow_strength` `0..100` |
-| `default_race` | `{race, female}` with a base-game race, unset for none; receivers ignore `female`, which senders set to the appearance's `female` for 1.1.0 clients that still read it |
+| `default_race` | `{race, female}` with a base-game race, unset for none; receivers ignore `female`, which senders still set to the appearance's `female`, a leftover of protocol 14, whose 1.1.0 clients read it |
 
 Hair color is RGB rather than a form, because character editors commonly
 create dynamic color forms.
@@ -283,17 +306,15 @@ so both ends accept only a relative `.dds` path (suffix compared without case)
 of 1..260 bytes of printable ASCII (`0x20..0x7E`), without `:`, without a
 leading `\` or `/`, and without a `..` component (`IsValidTexturePath`, Go
 `texturePath`). The plugin drops a captured tint or overlay whose path fails
-rather than the whole appearance. An empty tint `texture` comes from a 1.1.0
-sender. 1.1.0 receivers skip both fields as unknown and show the race's own
-tint texture and no overlays.
+rather than the whole appearance. An empty tint `texture` selects the race's
+own texture, as protocol 14 senders without the field did.
 
 `WireCodec` writes head parts in capture order: a part goes to `head_parts`
 while its type is `0..6` and that field has room, and to `added_head_parts`
 otherwise. Readers append `added_head_parts` after `head_parts`. The split
-keeps protocol 14 compatible with 1.1.0 clients, which drop a peer whose
-`head_parts` exceed those limits and skip `added_head_parts` as an unknown
-field, so they still show the vanilla-type parts. The next protocol bump
-merges the two fields.
+kept protocol 14 compatible with 1.1.0 clients, which drop a peer whose
+`head_parts` exceed those limits; protocol 15 refuses them at the handshake,
+and the two fields are not merged yet.
 
 ### `Equipment`
 
@@ -1089,4 +1110,9 @@ window, and are empty after a long gap. The status panel shows them.
 - Form references, spaces included, match only between peers that load the
   defining plugin under the same file name: a merged or renamed plugin is
   another plugin.
+- An action the server drops for exceeding `limits.actions_per_second` does not
+  advance the player's action sequence, so the next one leaves a gap and is
+  rejected, as is every later action until `Exit`. The plugin keeps its own
+  idle events well under the allowance
+  ([Idle presentation](idle-presentation.md#capture)).
 - Non-goals: server authority over movement, anti-cheat, and UDP.

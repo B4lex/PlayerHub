@@ -67,6 +67,9 @@ message Context {
   uint64 graph_epoch = 3;
   FormRef furniture = 4;
   Shapeshift shapeshift = 5;
+  // The idle graph event that entered the idle the player is held in, such as a
+  // seat or a dance; empty for none.
+  string idle = 6;
 }
 
 enum AttackAction {
@@ -144,6 +147,8 @@ message Action {
   oneof kind {
     Attack attack = 4;
     BeastAction beast = 5;
+    // An idle graph event the player's graph accepted.
+    string idle = 6;
   }
 }
 

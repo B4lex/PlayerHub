@@ -98,7 +98,9 @@ Every action carries `actionSequence`, `graphEpoch`, `checkpointSequence`, a
 is rebuilt or loses continuity, so actions from an old graph are never
 dispatched into a new one. The checkpoint sequence names a checkpoint published
 before the action, which makes the prerequisites reconstructable while
-transforms stay latest-wins.
+transforms stay latest-wins. Beast actions and
+[idle events](idle-presentation.md#state-and-actions) share the stream and its
+sequence.
 
 ### Capture
 

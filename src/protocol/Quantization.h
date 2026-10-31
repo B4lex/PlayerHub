@@ -59,8 +59,14 @@ namespace Network
         std::uint64_t graphEpoch{ 0 };
         Multiplayer::FormReference furniture;
         Multiplayer::Shapeshift shapeshift{ Multiplayer::Shapeshift::kNone };
+        Multiplayer::IdleEvent idle;
 
-        bool operator==(const CheckpointContext&) const = default;
+        bool operator==(const CheckpointContext& a_other) const
+        {
+            return interiorCell == a_other.interiorCell && worldspace == a_other.worldspace
+                && graphEpoch == a_other.graphEpoch && furniture == a_other.furniture
+                && shapeshift == a_other.shapeshift && Multiplayer::IsSameIdleEvent(idle, a_other.idle);
+        }
     };
 
     namespace Detail
@@ -84,7 +90,8 @@ namespace Network
             .worldspace = a_transform.worldspace,
             .graphEpoch = a_transform.graphEpoch,
             .furniture = a_transform.furniture,
-            .shapeshift = a_transform.shapeshift };
+            .shapeshift = a_transform.shapeshift,
+            .idle = a_transform.idle };
     }
 
     [[nodiscard]] inline QuantizedCheckpoint Quantize(const PlayerTransform& a_transform)
@@ -178,6 +185,7 @@ namespace Network
             .worldspace = a_context.worldspace,
             .furniture = a_context.furniture,
             .shapeshift = a_context.shapeshift,
+            .idle = a_context.idle,
             .graphEpoch = a_context.graphEpoch,
             .sequence = a_checkpoint.sequence,
             .sampleTime = a_checkpoint.time };

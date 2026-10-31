@@ -30,7 +30,7 @@ each feature's rules to its own system, the transport to
 | `runtime/VanillaIntro` | Whether the vanilla Helgen intro holds the connection ([Vanilla intro](#vanilla-intro)) |
 | `runtime/RemoteActorActivation` | The local player's activation of a remote actor or mount, on its worker thread ([UI overlay](ui-overlay.md#player-menu-in-the-world)) |
 | `runtime/PluginTime` | Plugin time per pass, averaged each second ([UI overlay](ui-overlay.md#plugin-time)) |
-| `runtime/PlayerGraphEventHook` | The local player's accepted graph input events, for [beast actions](combat-presentation.md#beast-actions) |
+| `runtime/PlayerGraphEventHook` | The local player's accepted graph input events, for [beast actions](combat-presentation.md#beast-actions), [idles](idle-presentation.md#capture), and the [graph event survey](#graph-event-survey) |
 | `sync/SyncCoordinator` | One frame entry, the stage order, the single network drain, and the peer map |
 | `sync/PeerState` | A peer's complete receive state, composed of feature-owned members |
 | `sync/SyncFrame` | `LocalFrame`, `RemoteFrame`, `RemotePose`, and `CheckpointUpdate` views for one pass |
@@ -38,6 +38,7 @@ each feature's rules to its own system, the transport to
 | `sync/CheckpointPublisher` | Checkpoint cadence and sequence; calls every feature's local sampler |
 | `sync/ActorLifecycle` | Spawn, retirement, stranded and lost actors, spawn throttling, save exclusion, the mount beside its rider |
 | `sync/presence/PresenceSync` | `Enter` and `Exit`, and the game session |
+| `sync/customanimation/GraphEventSurvey` | Debug builds: logs each distinct graph event the local player accepts ([Graph event survey](#graph-event-survey)) |
 
 `sync/` holds features seen on the wire and their game-thread state; `actor/`
 holds Skyrim actor mechanisms. For example, `CombatSync` decides when a network
@@ -76,8 +77,8 @@ builds stay comparable.
 - Network callbacks only validate and queue plain values behind a lock. Hook
   callbacks on worker threads only query `ActorRegistry`, which keeps its
   locking operations small and never touches `PeerState` or a graph, or, for
-  the local player's graph input, queue a beast action behind
-  `ShapeshiftSync`'s own lock.
+  the local player's graph input, queue a beast action or an idle event behind
+  `ShapeshiftSync`'s or `IdleSync`'s own lock.
 
 ## Frame sequence
 
@@ -118,14 +119,17 @@ if inWorld:
     CombatSync::CaptureLocalHandPresentation
     AnimationSync::ObserveLocalGraphEpoch
     AnimationSync::ObserveLocalMovement    # stop hold timer
+    GraphEventSurvey::LogLocalGraphEvents  # debug builds only
     EquipmentSync::SyncEquipment           # flushed when an attack or presentation started
     CombatSync::QueueLocalAttacks
     ShapeshiftSync::QueueLocalActions      # beast actions the graph input hook captured
+    IdleSync::QueueLocalIdles              # idle events it captured; the held idle
     CheckpointPublisher::PublishLocalCheckpoint
-        disconnected: discard queued attacks and beast actions
-        published: CombatSync::PublishLocalAttacks, then ShapeshiftSync::PublishLocalActions
+        disconnected: discard queued attacks, beast actions, and idle events
+        published: CombatSync::PublishLocalAttacks, ShapeshiftSync::PublishLocalActions,
+                   then IdleSync::PublishLocalIdles
     AppearanceSync::SyncAppearance
-else: discard captured attacks and beast actions
+else: discard captured attacks, beast actions, and idle events
 TradeSync::Sync                           # trade events, overlay commands, cancels, offers, a commit
 if no local cell: return
 PrecisionIsolation::Update                # reassert after the player's Havok world changes
@@ -139,12 +143,13 @@ RemoteLights::Update                      # with a world camera: the remote ligh
 ```text
 AppearanceSync advance timers; retire on a new appearance revision, or else on a new form
 retire on a coordinate-space change
-CombatSync::AgeRemoteActions, ShapeshiftSync::AgeRemoteActions
-not in the local space: clear attacks and beast actions, stop
+CombatSync, ShapeshiftSync, IdleSync::AgeRemoteActions
+not in the local space: clear attacks, beast actions, and idles, stop
 DeathSync::SyncDeath                       # a killed actor keeps only handle and look
 ActorLifecycle::RetireWhenStranded
 FurnitureSync yield check                  # hide an actor that would block furniture
-MountSync::SyncMount                       # riding: equipment, rider update with weapon state, look only
+MountSync::SyncMount                       # riding: queued attacks and idles cleared; equipment,
+                                           # rider update with weapon state, look only
 otherwise:
     MovementSync::SyncMovement             # played checkpoint's movement, then the pose
     EquipmentSync::SyncEquipment           # -> handsSettled, readyForWeaponDraw
@@ -154,7 +159,8 @@ otherwise:
     FurnitureSync::SyncFurnitureEntry
     unless furniture owns the actor:
         a beast: ShapeshiftSync::SyncBeast # beast actions, levitation, casts, Mist Form and bats
-        otherwise: CombatSync::SyncCombat, SyncHandPresentation
+        otherwise: IdleSync::SyncIdle      # release, then queued or held idles
+                   CombatSync::SyncCombat, SyncHandPresentation
     AnimationSync::GetPresentableState     # none while furniture owns the actor
     ActorRuntime::Update
     AppearanceSync::ApplyActorPresentation
@@ -162,7 +168,8 @@ no actor: end a vacated furniture yield, ActorLifecycle::SpawnWhenDue
 ```
 
 Cross-feature results (`handsSettled`, `readyForWeaponDraw`, `furniturePlaying`,
-`attackPlaying`, the presentable state) are passed as explicit arguments. A
+`attackPlaying`, a queued attack for `SyncIdle`, the presentable state) are
+passed as explicit arguments. A
 feature never reads another feature's state fields to infer them.
 `ActorRuntime::Update` then applies the engine side in its own order
 ([Remote actor](remote-actor.md#update-order)).
@@ -174,16 +181,17 @@ every 0.05 s of accumulated frame time while connected, keeping the remainder so
 the average rate holds, and drops whole missed intervals instead of sending a
 burst. A pass without a parent cell publishes nothing. The sequence wraps
 before `INT64_MAX`. `Network::PublishLocalPlayerTransform` sends the sample's
-context (cell, worldspace, graph epoch, furniture, shapeshift) first whenever it differs
+context (cell, worldspace, graph epoch, furniture, shapeshift, idle) first whenever it differs
 from the last one sent since `Enter`, then the quantized checkpoint
 ([Network](network.md#checkpoint-and-context)).
 
 One checkpoint is one coherent sample: `MountSync::SampleLocalMount`,
 `MovementSync::SampleLocalMovement` (from the mount while riding),
 `AnimationSync::SampleLocalAnimation`, `FurnitureSync::SampleLocalFurniture`,
-`CombatSync::SampleLocalHandPresentation`, `DeathSync::SampleLocalDeath`, and
-`ShapeshiftSync::SampleLocalVampireLord`, with the graph epoch and the local
-form observed this pass. No stage publishes a partial
+`CombatSync::SampleLocalHandPresentation`, `DeathSync::SampleLocalDeath`,
+`ShapeshiftSync::SampleLocalVampireLord`, and `IdleSync::SampleLocalIdle`, which
+ends the held idle on a state change sampled with it, with the graph epoch and
+the local form observed this pass. No stage publishes a partial
 checkpoint. The checkpoint always precedes the `Action` anchored to it, and a
 weapon swap is published before the attack or presentation that uses it.
 
@@ -197,6 +205,22 @@ observers also use. Nothing resets them yet; they live as long as the process.
 
 Appearance and equipment publish on their own schedules and republish on every
 new connection generation ([Network](network.md#latest-wins-publishers)).
+
+### Graph event survey
+
+A diagnostic that shows which graph events a modpack's animations use, as input
+for syncing animations outside the vanilla vocabulary. Nothing acts on it. It is
+compiled only when `NDEBUG` is not defined, like the
+[graph probe](locomotion.md#graph-probe).
+
+- `GraphEventSurvey::ObserveLocalGraphEvent` records, on the hook's thread,
+  each event name the player's graph accepts for the first time in the
+  process, up to 1024 names.
+- `GraphEventSurvey::LogLocalGraphEvents` logs `Local graph event first seen`
+  for each one 0.3 s of clamped frame time later, so the transition it started
+  has activated its clips, with the active graph (third or first person) and
+  every active `hkbClipGenerator`'s animation from
+  `GraphProbe::DescribeActiveClips`.
 
 ## World presence
 
@@ -279,7 +303,7 @@ intro never holds. `IsPlaying` reads an atomic, so the overlay may call it;
 `SyncCoordinator` owns one `std::unordered_map<Multiplayer::PeerSlot, PeerState>`
 keyed by the server's slot for the peer. `PeerState` holds the peer's
 `CheckpointPlayout`, the sequence whose checkpoint the current actor last
-received, and the feature-owned `combat`, `shapeshift`, `lifecycle`,
+received, and the feature-owned `combat`, `shapeshift`, `idle`, `lifecycle`,
 `appearance`, `equipment`, `furniture`, and `nameplate` members. Movement and animation keep their state
 on the `RemoteActor` instead. A `RemoteFrame` presents the played checkpoint,
 its sequence, and the interpolated pose; features never see a checkpoint that
@@ -303,8 +327,8 @@ pass:
    its stored checkpoint the same way.
 5. Appearance and equipment are latest-wins by revision and may arrive before
    any checkpoint. Neither alone spawns an actor.
-6. Actions are ordered and bounded by the combat system, and accepted against
-   the newest received checkpoint, played or not.
+6. Actions are ordered and bounded by the combat, shapeshift, or idle system,
+   by kind, and accepted against the newest received checkpoint, played or not.
 7. Inspections go to `PlayerDetails::Accept`
    ([UI overlay](ui-overlay.md#player-menu)).
 8. Trade events go to `TradeSync::QueueNetworkChanges`, which ends a trade
@@ -314,12 +338,12 @@ pass:
 
 `PlayCheckpoints` then advances every peer's playout. Each checkpoint that
 reaches its playback time is shown, in order, to furniture, animation,
-combat, and shapeshift (`OnCheckpointPlayed`) before it replaces the played
-one. Furniture
+combat, shapeshift, and idle (`OnCheckpointPlayed`) before it replaces the
+played one. Furniture
 resolves its reference into the local load order there, once per change.
 
-Furniture occupancy, weapon stance, and every other checkpoint field are
-reconstructable; historical attacks are not.
+Furniture occupancy, weapon stance, the held idle, and every other checkpoint
+field are reconstructable; historical attacks and ended idles are not.
 
 ## Checkpoint playout
 
@@ -430,8 +454,9 @@ player rides, its mount ([Native interactions](native-interactions.md#mounts)).
   pass may always start one spawn. A held-back spawn accumulates its wait, and
   a due spawn starts only once it has waited as long as the longest spawn held
   back in the previous pass, so a fixed peer order cannot starve later peers.
-- **Retirement** removes the actor and its mount, clears queued attacks and the
-  applied sequence, and keeps the latest reconstructable state for a respawn.
+- **Retirement** removes the actor and its mount, clears queued attacks, queued
+  idles, and the applied sequence, and keeps the latest reconstructable state,
+  the held idle included, for a respawn.
   Queued beast actions stay, since they may belong to the form the actor
   respawns in, and age out after 3 s. Reasons, each logged as `Recycling
   remote player actor ...`: a new appearance revision, a new

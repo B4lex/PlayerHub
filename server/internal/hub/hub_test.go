@@ -110,6 +110,16 @@ func beastAction(sequence, epoch, anchor uint64, beast pb.BeastAction) *pb.Clien
 		ActionSequence: sequence, GraphEpoch: epoch, CheckpointSequence: anchor, Kind: &pb.Action_Beast{Beast: beast}}}}
 }
 
+func idleContext(epoch uint64, idle string) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{
+		Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: epoch, Idle: idle}}}
+}
+
+func idleAction(sequence, anchor uint64, idle string) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Action{Action: &pb.Action{
+		ActionSequence: sequence, GraphEpoch: 1, CheckpointSequence: anchor, Kind: &pb.Action_Idle{Idle: idle}}}}
+}
+
 func vampireLordCheckpoint(sequence uint64, flag pb.CheckpointFlag) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{
 		Sequence: sequence, Flags: uint32(flag), Time: uint32(sequence * 50 % wire.TimeModulus)}}}
@@ -213,13 +223,24 @@ func describe(m *pb.ServerMessage) string {
 		if e.Equipment != nil {
 			s += fmt.Sprintf(" equipment %d", e.Equipment.Revision)
 		}
+		if idle := e.Context.GetIdle(); idle != "" {
+			s += " idle " + idle
+		}
 		return s
 	case *pb.ServerMessage_PeerContext:
-		return fmt.Sprintf("context %d epoch %d", body.PeerContext.Slot, body.PeerContext.Context.GraphEpoch)
+		s := fmt.Sprintf("context %d epoch %d", body.PeerContext.Slot, body.PeerContext.Context.GraphEpoch)
+		if idle := body.PeerContext.Context.GetIdle(); idle != "" {
+			s += " idle " + idle
+		}
+		return s
 	case *pb.ServerMessage_PeerLeave:
 		return fmt.Sprintf("leave %d %s", body.PeerLeave.Slot, strings.TrimPrefix(body.PeerLeave.Reason.String(), "LEAVE_REASON_"))
 	case *pb.ServerMessage_PeerAction:
-		return fmt.Sprintf("action %d:%d", body.PeerAction.Slot, body.PeerAction.Action.ActionSequence)
+		s := fmt.Sprintf("action %d:%d", body.PeerAction.Slot, body.PeerAction.Action.ActionSequence)
+		if idle := body.PeerAction.Action.GetIdle(); idle != "" {
+			s += " idle " + idle
+		}
+		return s
 	case *pb.ServerMessage_PeerAppearance:
 		return fmt.Sprintf("appearance %d:%d", body.PeerAppearance.Slot, body.PeerAppearance.Appearance.Revision)
 	case *pb.ServerMessage_PeerEquipment:
@@ -446,6 +467,70 @@ func TestBeastActionsFollowTheForm(t *testing.T) {
 	f.hub.Tick()
 	expect(t, f.received(b), "context 1 epoch 2", "states 1:2", "action 1:1", "context 1 epoch 3", "states 1:3",
 		"action 1:2")
+}
+
+func TestIdleIsHeldInTheContextAndRelayedAsActions(t *testing.T) {
+	f := newFixture(t)
+	a, b := f.connect(), f.connect()
+	f.placeAt(b, 1, 0)
+	f.send(a, enter())
+	f.send(a, idleContext(1, ""))
+	f.send(a, sheathedCheckpointAt(1, 10))
+	f.received(b)
+	f.send(a, sheathedCheckpointAt(2, 10))
+	f.hub.Tick()
+	expect(t, f.received(b))
+	// An idle player's unchanged checkpoint still follows the context that holds an
+	// idle, since clients apply a context with the next checkpoint.
+	f.send(a, idleContext(1, "IdleSitCrossLeggedEnter"))
+	f.send(a, sheathedCheckpointAt(3, 10))
+	f.send(a, idleAction(1, 3, "IdleSitCrossLeggedEnter"))
+	f.hub.Tick()
+	expect(t, f.received(b), "context 1 epoch 1 idle IdleSitCrossLeggedEnter", "states 1:3",
+		"action 1:1 idle IdleSitCrossLeggedEnter")
+	c := f.connect()
+	f.placeAt(c, 1, 5)
+	entered := f.received(c)
+	slices.Sort(entered)
+	expect(t, entered, "enter 1 state 3 idle IdleSitCrossLeggedEnter", "enter 2 state 1", "welcome 3")
+	f.send(a, idleContext(1, ""))
+	f.send(a, sheathedCheckpointAt(4, 10))
+	f.send(a, idleAction(2, 4, "IdleChairExitStart"))
+	f.hub.Tick()
+	expect(t, f.received(b), "enter 3 state 1", "context 1 epoch 1", "states 1:4", "action 1:2 idle IdleChairExitStart")
+}
+
+func TestIdleActionsNeedTheHumanFormOutsideFurniture(t *testing.T) {
+	f := newFixture(t)
+	a := f.connect()
+	f.send(a, enter())
+	f.send(a, idleContext(1, ""))
+	f.send(a, sheathedCheckpointAt(1, 10))
+	f.send(a, idleAction(1, 1, "IdleLaugh"))
+	f.send(a, idleAction(2, 1, "OffsetStop"))
+	f.send(a, contextMessage(1, true))
+	f.reject(a, idleAction(3, 1, "IdleLaugh"), world.ErrIncompatibleStep)
+	f.send(a, shapeshift(2, pb.Shapeshift_SHAPESHIFT_WEREWOLF))
+	f.send(a, sheathedCheckpointAt(2, 10))
+	f.reject(a, &pb.ClientMessage{Message: &pb.ClientMessage_Action{Action: &pb.Action{ActionSequence: 3,
+		GraphEpoch: 2, CheckpointSequence: 2, Kind: &pb.Action_Idle{Idle: "IdleLaugh"}}}}, world.ErrIncompatibleStep)
+}
+
+func TestIdleChangesTheContext(t *testing.T) {
+	f := newFixture(t)
+	a := f.connect()
+	f.send(a, enter())
+	if change, err := f.hub.members[a].SetContext(idleContext(1, "IdleLaugh").GetContext()); err != nil ||
+		change != world.ContextChanged {
+		t.Fatalf("first context: %v %v", change, err)
+	}
+	for idle, want := range map[string]world.ContextChange{
+		"IdleLaugh": world.ContextUnchanged, "IdleSalute": world.ContextChanged, "": world.ContextChanged} {
+		f.hub.members[a].Context = idleContext(1, "IdleLaugh").GetContext()
+		if change, err := f.hub.members[a].SetContext(idleContext(1, idle).GetContext()); err != nil || change != want {
+			t.Errorf("%q: got %v %v, want %v", idle, change, err, want)
+		}
+	}
 }
 
 func TestActionsAreRateLimited(t *testing.T) {
@@ -943,6 +1028,12 @@ func TestIdleCheckpointsAreSuppressedButAnchorsAreNot(t *testing.T) {
 	f.send(a, quarterCheckpoint(8, 11*wire.PositionScale+2))
 	f.hub.Tick()
 	expect(t, f.received(b), "states 1:8")
+}
+
+func sheathedCheckpointAt(sequence uint64, x int32) *pb.ClientMessage {
+	message := checkpointAt(sequence, x)
+	message.GetCheckpoint().Flags = 0
+	return message
 }
 
 func quarterCheckpoint(sequence uint64, x int32) *pb.ClientMessage {

@@ -157,11 +157,14 @@ is sent directly to the saved graph function, bypassing the hook.
   `WeapUnEquip` rejected every frame (seen in game).
 - On a mount, the gait events Skyrim sends are blocked instead
   ([Native interactions](native-interactions.md#mounts)).
-- Local attack, hit, cast, combat-target, and AI-driven events never take
-  graph ownership outside those windows.
+- Local attack, hit, cast, combat-target, and AI-driven events, idles the
+  actor's own AI or packages request included, never take graph ownership
+  outside those windows. Network idles go through the bypass
+  ([Idle presentation](idle-presentation.md#queue)).
 - `ForceDefaultGraphState` sends `IdleForceDefaultState` past the filter, then
   raises a carried torch again, because the reset also drops the graph's torch
-  arm layer.
+  arm layer. It also releases an idle the source left
+  ([Idle presentation](idle-presentation.md#release)).
 
 ### Graph channels
 
@@ -196,8 +199,9 @@ whole graph, including variables and partly active transitions. `DoReset3D(false
 is the fallback when the revert fails or the graph is not ready within 2 s.
 Starting a recovery invalidates all dispatch bookkeeping. Translation stays
 paused until graph and controller have been ready for two consecutive passes;
-then the newest locomotion and presentation checkpoint is replayed. A detected
-graph manager replacement also resets the bookkeeping.
+then the newest locomotion and presentation checkpoint is replayed, and a held
+idle is entered again from state ([Idle presentation](idle-presentation.md#re-entry)).
+A detected graph manager replacement also resets the bookkeeping.
 
 ## Survival and AI policy
 

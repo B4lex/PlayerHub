@@ -29,7 +29,7 @@ custom graphs may slide or miss transitions.
 | `actor/GroundProbe` | The Havok ray that finds the walkable ground below a point |
 | `actor/ActorAnimation` | The actor's graph state and its per-pass update: graph observation, landing, swim, locomotion edges and variables, retries, direction cross-blend, stance reconciliation, and the translation mode |
 | `actor/WeaponTransition` | Draw and sheathe completion, the locomotion replay after them, and the native draw or sheathe request, on foot and riding |
-| `actor/GraphStance` | The sneak, standing/moving, and sprint selector states of the actor's active behavior, and the sneak and `iState` variable reads |
+| `actor/GraphStance` | The sneak, standing/moving, and sprint selector states of the actor's active behavior, the idle reading ([Idle presentation](idle-presentation.md#graph-reading)), and the sneak and `iState` variable reads |
 | `actor/GraphProbe` | Debug builds only: the diagnostic dump of active states, clips, and variables |
 | `actor/BehaviorGraphLayout` | Havok layout reads shared by both: state names, the current state, the active behavior |
 | `actor/JumpSound` | Distance attenuation of the actor's takeoff and landing footstep sounds |
@@ -38,16 +38,19 @@ The modules that drive the graph share one lifecycle. `ActorAnimation::State`,
 held by the `RemoteActor`, composes each part's state: the dispatch, landing,
 weapon transition, swim, stance reconciliation, attack
 ([`AttackDispatch`](combat-presentation.md#components)), hand presentation
-([`HandPresentation`](combat-presentation.md#components)), and direction
+([`HandPresentation`](combat-presentation.md#components)), idle
+([`IdlePresentation`](idle-presentation.md#components)), and direction
 cross-blend parts belong to one graph instance and are reset together
 ([Graph state](#graph-state)); graph recovery
 ([Remote actor](remote-actor.md#graph-recovery)) and the translation hold
 outlive it. `ApplyAnimationUpdate` runs the phases in a fixed order each pass:
-observe the graph, the landing, the weapon transition, swim, then the
+observe the graph, the landing, the idle's ownership, the weapon transition,
+swim, then the
 locomotion dispatch (plan, stop edges, variables, start edges), the direction
 cross-blend, the native draw or sheathe request, stance reconciliation, and
-the debug [graph probe](#graph-probe). The landing sink check and the weapon
-transition can end the pass early to give the graph an update. Attack
+the debug [graph probe](#graph-probe). The landing sink check, the weapon
+transition, and an idle release can end the pass early to give the graph an
+update. Attack
 playback and graph recovery advance earlier in the actor update
 ([Remote actor](remote-actor.md#update-order)), and hand presentation from
 `CombatSync`.
@@ -173,8 +176,9 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   graph manager) drops all dispatch tracking through
   `InvalidateAnimationDispatch`, as recovery, furniture exit, and mounting do:
   latched and staged locomotion, the landing, weapon-transition, and swim
-  `moveStart` waits, stance reconciliation, attack and hand-presentation
-  ownership, and the direction cross-blend. The next update asserts the current
+  `moveStart` waits, stance reconciliation, attack, hand-presentation, and idle
+  ownership with the held idle the graph was given, and the direction
+  cross-blend. The next update asserts the current
   state in full. The cast ownership flag mirrors the registry's and is left to
   the next `ApplySpellCast`, which clears both.
 - `graph dispatch` lines report the result (`processed`, `retrying-stop-events`,
@@ -362,7 +366,8 @@ does not hold the dispatch.
 - When a landing completes, an attack, bow shot, cast, or block ends, or swimming
   stops (`locomotionReassertReason`: `landing`, `attack`, `bow-shot`, `cast`,
   `block`, `swim-stop`), the next dispatch asserts the target's locomotion edges
-  once no attack plays and the actor no longer swims. Edges the graph already
+  once no attack or [idle](idle-presentation.md#ownership) plays and the actor
+  no longer swims. Edges the graph already
   holds are skipped ([Stance reconciliation](#stance-reconciliation)), so only
   missing ones are sent. A pending reassert also counts as owning the graph for hand presentation
   starts, attack dispatch, and stance reconciliation. It logs `reasserted
@@ -435,7 +440,7 @@ rejected `moveStop` for the whole retry window while already standing.
 - `ReconcileGraphStance` samples the graph every 0.1 s while the dispatch is
   latched on the target and nothing else owns the graph: grounded and not
   sprinting, no attack or locomotion reassert pending, no unsettled weapon
-  transition, and no bow draw, cast, or block.
+  transition, and no bow draw, cast, block, or idle.
   - A sneak disagreement held for 0.5 s, longer than a `sneakStop` blend
     through the variable fallback, re-latches the opposite sneak variant of the
     target (`ToggleSneak`).

@@ -5,6 +5,7 @@
 #include "actor/GraphProbe.h"
 #include "actor/GraphRecovery.h"
 #include "actor/HandPresentation.h"
+#include "actor/IdlePresentation.h"
 #include "actor/WeaponTransition.h"
 #include "protocol/MovementState.h"
 
@@ -97,6 +98,7 @@ namespace ActorAnimation
         StanceReconciliation stance;
         AttackDispatch::State attack;
         HandPresentation::State hands;
+        IdlePresentation::State idle;
         DirectionBlend direction;
 
 #ifndef NDEBUG

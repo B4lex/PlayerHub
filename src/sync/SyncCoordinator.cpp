@@ -16,9 +16,11 @@
 #include "sync/chat/PlayerActivation.h"
 #include "sync/chat/PlayerDetails.h"
 #include "sync/combat/CombatSync.h"
+#include "sync/customanimation/GraphEventSurvey.h"
 #include "sync/death/DeathSync.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/furniture/FurnitureSync.h"
+#include "sync/idle/IdleSync.h"
 #include "sync/mount/MountSync.h"
 #include "sync/nameplates/NameplateSync.h"
 #include "sync/movement/MovementSync.h"
@@ -99,6 +101,7 @@ namespace SyncCoordinator
             a_peer.lifecycle = {};
             a_peer.combat = {};
             a_peer.shapeshift = {};
+            a_peer.idle = {};
             a_peer.space = {};
             a_peer.furniture = {};
             a_peer.playout.Reset();
@@ -168,6 +171,11 @@ namespace SyncCoordinator
                 const auto peer = a_peers.find(action.playerID);
                 const bool known = peer != a_peers.end();
                 const auto* newest = known ? peer->second.playout.GetNewest() : nullptr;
+                if (action.idle)
+                {
+                    IdleSync::AcceptRemoteAction(known ? &peer->second.idle : nullptr, newest, std::move(action));
+                    continue;
+                }
                 if (action.beast != Multiplayer::BeastAction::kNone)
                 {
                     ShapeshiftSync::AcceptRemoteAction(
@@ -193,6 +201,7 @@ namespace SyncCoordinator
                     AnimationSync::OnCheckpointPlayed(a_update);
                     CombatSync::OnCheckpointPlayed(peer.combat, a_update);
                     ShapeshiftSync::OnCheckpointPlayed(peer.shapeshift, a_update);
+                    IdleSync::OnCheckpointPlayed(peer.idle, a_update);
                 });
             }
         }
@@ -313,11 +322,15 @@ namespace SyncCoordinator
             const bool handPresentationStarted = CombatSync::CaptureLocalHandPresentation(local);
             const auto graphEpoch = AnimationSync::ObserveLocalGraphEpoch(s_localAnimation, local);
             AnimationSync::ObserveLocalMovement(s_localAnimation, local, a_delta);
+#ifndef NDEBUG
+            GraphEventSurvey::LogLocalGraphEvents(local, a_delta);
+#endif
             // Flush equipment before a captured attack or hand presentation is published, so
             // peers receive a weapon swap ahead of its use.
             EquipmentSync::SyncEquipment(local, a_delta, capturedAttack.has_value() || handPresentationStarted);
             CombatSync::QueueLocalAttacks(capturedAttack, graphEpoch.changed);
             ShapeshiftSync::QueueLocalActions(graphEpoch.changed);
+            IdleSync::QueueLocalIdles(local, transformed, graphEpoch.changed, a_delta);
             const auto publication = CheckpointPublisher::PublishLocalCheckpoint(
                 s_publisher, s_localAnimation, local, a_delta, graphEpoch.epoch);
             switch (publication.status)
@@ -325,11 +338,13 @@ namespace SyncCoordinator
                 case CheckpointPublisher::Status::kDisconnected:
                     CombatSync::DiscardLocalAttacks();
                     ShapeshiftSync::DiscardLocalActions();
+                    IdleSync::DiscardLocalIdles();
                     break;
                 case CheckpointPublisher::Status::kPublished:
                     // The checkpoint always precedes the action it anchors.
                     CombatSync::PublishLocalAttacks(publication.checkpoint);
                     ShapeshiftSync::PublishLocalActions(publication.checkpoint);
+                    IdleSync::PublishLocalIdles(publication.checkpoint);
                     break;
                 default:
                     break;
@@ -367,10 +382,12 @@ namespace SyncCoordinator
 
             CombatSync::AgeRemoteActions(remote, a_peer.combat, a_delta);
             ShapeshiftSync::AgeRemoteActions(remote, a_peer.shapeshift, a_delta);
+            IdleSync::AgeRemoteActions(remote, a_peer.idle, a_delta);
             if (!isInLocalSpace)
             {
                 CombatSync::ClearRemoteActions(a_peer.combat);
                 ShapeshiftSync::ClearRemoteActions(a_peer.shapeshift);
+                IdleSync::ClearRemoteActions(a_peer.idle);
                 return;
             }
             if (lifecycle.actor && DeathSync::SyncDeath(remote, a_peer))
@@ -403,6 +420,7 @@ namespace SyncCoordinator
             {
                 auto& actor = *lifecycle.actor;
                 CombatSync::ClearRemoteActions(a_peer.combat, actor);
+                IdleSync::ClearRemoteActions(a_peer.idle);
                 EquipmentSync::SyncEquipment(a_peer.equipment, a_playerID, actor, a_delta);
                 const bool readyForWeaponDraw = EquipmentSync::IsReadyForWeaponDraw(a_peer.equipment);
                 if (!MountSync::UpdateRider(remote, a_peer, readyForWeaponDraw, a_delta))
@@ -444,6 +462,10 @@ namespace SyncCoordinator
                 }
                 else if (!furniturePlaying)
                 {
+                    // Ends an idle the source's new state does not outlast before the
+                    // other stages start on that state.
+                    IdleSync::SyncIdle(remote, a_peer.idle, actor, handsSettled,
+                        CombatSync::HasQueuedActions(a_peer.combat));
                     CombatSync::SyncCombat(remote, a_peer.combat, actor, handsSettled);
                     CombatSync::SyncHandPresentation(remote, actor, handsSettled, a_delta);
                 }
@@ -503,6 +525,7 @@ namespace SyncCoordinator
             // Attacks captured before leaving would otherwise anchor to the first checkpoint after returning.
             CombatSync::DiscardLocalAttacks();
             ShapeshiftSync::DiscardLocalActions();
+            IdleSync::DiscardLocalIdles();
         }
         TradeSync::Sync(*a_player, inWorld, a_delta);
 

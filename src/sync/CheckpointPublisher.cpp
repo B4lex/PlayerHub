@@ -6,6 +6,7 @@
 #include "sync/combat/CombatSync.h"
 #include "sync/death/DeathSync.h"
 #include "sync/furniture/FurnitureSync.h"
+#include "sync/idle/IdleSync.h"
 #include "sync/mount/MountSync.h"
 #include "sync/movement/MovementSync.h"
 #include "sync/shapeshift/ShapeshiftSync.h"
@@ -64,6 +65,13 @@ namespace CheckpointPublisher
         const auto handPresentation = CombatSync::SampleLocalHandPresentation();
         const bool dead = DeathSync::SampleLocalDeath(a_local, sequence);
         const auto vampireLord = ShapeshiftSync::SampleLocalVampireLord(a_local);
+        const auto form = ShapeshiftSync::GetLocalForm();
+        auto idle = IdleSync::SampleLocalIdle({ .animationState = animationState,
+            .furniture = !furniture.IsEmpty(),
+            .mounted = static_cast<bool>(mount),
+            .dead = dead,
+            .swimming = movement.swimming,
+            .transformed = form != Multiplayer::Shapeshift::kNone });
 
         const Network::PlayerTransform checkpoint{ .x = movement.position.x,
             .y = movement.position.y,
@@ -84,7 +92,8 @@ namespace CheckpointPublisher
             .interiorCell = space.interiorCell,
             .worldspace = space.worldspace,
             .furniture = std::move(furniture),
-            .shapeshift = ShapeshiftSync::GetLocalForm(),
+            .shapeshift = form,
+            .idle = std::move(idle),
             .graphEpoch = a_graphEpoch,
             .sequence = sequence,
             .sampleTime = GetSampleTime() };

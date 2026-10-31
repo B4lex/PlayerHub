@@ -1,4 +1,6 @@
 #include "runtime/PlayerGraphEventHook.h"
+#include "sync/customanimation/GraphEventSurvey.h"
+#include "sync/idle/IdleSync.h"
 #include "sync/shapeshift/ShapeshiftSync.h"
 
 #include <cstdint>
@@ -17,6 +19,10 @@ namespace PlayerGraphEventHook
                 if (accepted)
                 {
                     ShapeshiftSync::ObserveLocalGraphEvent(a_eventName);
+                    IdleSync::ObserveLocalGraphEvent(a_eventName);
+#ifndef NDEBUG
+                    GraphEventSurvey::ObserveLocalGraphEvent(a_eventName);
+#endif
                 }
                 return accepted;
             }
