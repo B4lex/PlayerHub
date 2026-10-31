@@ -36,12 +36,13 @@ namespace ActorMovement
         constexpr float kGroundProbeIntervalSeconds = 0.1F;
         constexpr float kGroundProbeDistance = 8.0F;
         constexpr float kGroundProbeRefreshSeconds = 1.0F;
+        constexpr float kGroundSettleSeconds = 0.25F;
         constexpr float kGroundOffsetSmoothingSeconds = 0.15F;
         constexpr float kGroundOffsetResetDistance = 256.0F;
         constexpr float kGroundOffsetLogChange = 16.0F;
-        constexpr std::uint32_t kMaximumGroundProbesPerPass = 24;
+        constexpr std::uint32_t kMaximumGroundRaysPerPass = 24;
 
-        std::uint32_t s_groundProbesThisPass = 0;
+        std::uint32_t s_groundRaysThisPass = 0;
 
         void ApplySmoothedHeading(RE::Actor& a_actor, float a_targetHeading, float a_headingRate, float a_deltaTime)
         {
@@ -77,36 +78,39 @@ namespace ActorMovement
             return a_movement.landingPosition.value_or(a_movement.targetPosition);
         }
 
-        bool IsGroundProbeDue(const GroundOffset& a_ground, const RE::NiPoint3& a_sourceTarget)
+        bool IsGroundProbeDue(const GroundOffset& a_ground, const RE::NiPoint3& a_sourcePosition)
         {
             if (!a_ground.probed || a_ground.probeElapsed >= kGroundProbeRefreshSeconds)
             {
                 return true;
             }
-            const float deltaX = a_sourceTarget.x - a_ground.probePosition.x;
-            const float deltaY = a_sourceTarget.y - a_ground.probePosition.y;
+            const float deltaX = a_sourcePosition.x - a_ground.probePosition.x;
+            const float deltaY = a_sourcePosition.y - a_ground.probePosition.y;
             return a_ground.probeElapsed >= kGroundProbeIntervalSeconds
                 && deltaX * deltaX + deltaY * deltaY >= kGroundProbeDistance * kGroundProbeDistance;
         }
 
-        void ProbeGround(RE::Actor& a_actor, RemoteActor& a_remote, const RE::NiPoint3& a_sourceTarget)
+        void ProbeGround(RE::Actor& a_actor, RemoteActor& a_remote, const RE::NiPoint3& a_sourcePosition)
         {
             auto* cell = a_actor.GetParentCell();
             if (!cell)
             {
                 return;
             }
-            ++s_groundProbesThisPass;
             auto& ground = a_remote.movement.ground;
-            const auto hit = GroundProbe::FindGround(*cell, a_sourceTarget, kGroundProbeAbove, kGroundProbeBelow);
-            const float target = hit ? hit->z - a_sourceTarget.z : 0.0F;
+            const auto probe = GroundProbe::FindSupport(*cell, a_sourcePosition, kGroundProbeAbove, kGroundProbeBelow);
+            s_groundRaysThisPass += probe.rays;
+            const auto& hit = probe.ground;
+            const float target = hit ? hit->z - a_sourcePosition.z : 0.0F;
             if (!ground.probed || hit.has_value() != ground.hit
                 || std::abs(target - ground.loggedTarget) >= kGroundOffsetLogChange)
             {
-                logs::debug("Remote actor ground offset target changed: actor={:08X} target={:.1f} previous={:.1f} "
-                            "ground={} layer={} source=({:.1f},{:.1f},{:.1f})",
+                logs::debug(
+                    "Remote actor ground offset target changed: actor={:08X} target={:.1f} previous={:.1f} "
+                    "ground={} layer={} edge={} source=({:.1f},{:.1f},{:.1f})",
                     a_remote.handle.native_handle(), target, ground.target, hit.has_value(),
-                    hit ? static_cast<int>(hit->layer) : -1, a_sourceTarget.x, a_sourceTarget.y, a_sourceTarget.z);
+                    hit ? static_cast<int>(hit->layer) : -1, probe.edge, a_sourcePosition.x, a_sourcePosition.y,
+                    a_sourcePosition.z);
                 ground.loggedTarget = target;
             }
             if (!ground.probed)
@@ -117,23 +121,32 @@ namespace ActorMovement
             ground.hit = hit.has_value();
             ground.probed = true;
             ground.probeElapsed = 0.0F;
-            ground.probePosition = a_sourceTarget;
+            ground.probePosition = a_sourcePosition;
         }
 
-        void UpdateGroundOffset(
-            RE::Actor& a_actor, RemoteActor& a_remote, const RE::NiPoint3& a_sourceTarget, float a_deltaTime)
+        void UpdateGroundOffset(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)
         {
             auto& movement = a_remote.movement;
             auto& ground = movement.ground;
             ground.probeElapsed += a_deltaTime;
+            if (movement.sourceGrounded)
+            {
+                ground.groundedElapsed = (std::min)(ground.groundedElapsed + a_deltaTime, kGroundSettleSeconds);
+            }
+            // A controller reports kOnGround as soon as its capsule catches a ledge, while its
+            // feet are still below it and it climbs on, so a landing is not measured.
+            const bool settled = !ground.probed || ground.groundedElapsed >= kGroundSettleSeconds;
             if (movement.sourceSwimming)
             {
                 ground.target = 0.0F;
             }
-            else if (movement.sourceGrounded && s_groundProbesThisPass < kMaximumGroundProbesPerPass
-                     && IsGroundProbeDue(ground, a_sourceTarget))
+            else if (movement.sourceGrounded && settled && s_groundRaysThisPass < kMaximumGroundRaysPerPass
+                     && IsGroundProbeDue(ground, movement.checkpointPosition))
             {
-                ProbeGround(a_actor, a_remote, a_sourceTarget);
+                // The grounded flag describes the played checkpoint, not the pose
+                // interpolated toward the next one, which rises off the ground
+                // ahead of a takeoff.
+                ProbeGround(a_actor, a_remote, movement.checkpointPosition);
             }
             const float blend = 1.0F - std::exp(-a_deltaTime / kGroundOffsetSmoothingSeconds);
             ground.offset += (ground.target - ground.offset) * blend;
@@ -142,7 +155,7 @@ namespace ActorMovement
 
     void BeginPass()
     {
-        s_groundProbesThisPass = 0;
+        s_groundRaysThisPass = 0;
     }
 
     void SetTargetMovement(RemoteActor& a_remote, const RE::NiPoint3& a_checkpointPosition, float a_speed,
@@ -152,6 +165,10 @@ namespace ActorMovement
         if (travel.Length() > kGroundOffsetResetDistance)
         {
             a_remote.movement.ground = GroundOffset{};
+        }
+        if (!a_grounded)
+        {
+            a_remote.movement.ground.groundedElapsed = 0.0F;
         }
         a_remote.movement.checkpointPosition = a_checkpointPosition;
         a_remote.movement.sourceSwimming = a_swimming;
@@ -249,7 +266,7 @@ namespace ActorMovement
         const float deltaTime = FrameTime::Clamp(a_deltaTime);
         ApplySmoothedHeading(a_actor, a_remote.movement.targetHeading, a_remote.movement.targetHeadingRate, deltaTime);
 
-        UpdateGroundOffset(a_actor, a_remote, GetSourceTarget(a_remote.movement), deltaTime);
+        UpdateGroundOffset(a_actor, a_remote, deltaTime);
         const auto current = a_actor.GetPosition();
         const auto target = GetPlacementTarget(a_remote);
 

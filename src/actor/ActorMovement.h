@@ -15,6 +15,7 @@ namespace ActorMovement
         float offset{ 0.0F };
         float target{ 0.0F };
         float probeElapsed{ 0.0F };
+        float groundedElapsed{ 0.0F };
         RE::NiPoint3 probePosition{};
         bool probed{ false };
         bool hit{ false };

@@ -266,31 +266,51 @@ the landing approach and alignment, and the furniture entry alignment and exit
 check. The mount takes the same offset
 through its own translation, and its rider is carried with it.
 
-- **Probe.** While the checkpoint says `grounded` and not `swimming`,
-  `GroundProbe::FindGround` casts a ray straight down at the source's position
-  (the pose, or the pending landing position) from 96 units above it to 128
-  below, in the actor's cell's physics world, and takes the first hit on a
-  walkable layer. The offset target is the hit's height minus the source's;
-  without a hit it is 0, since the source then stands on something this world
-  lacks, such as a modded bridge, and its own height is the better guess than
-  the ground under it.
+- **Probe.** While the played checkpoint says `grounded` and not `swimming`,
+  `GroundProbe::FindSupport` casts a ray straight down at that checkpoint's
+  position from 96 units above it to 128 below, in the actor's cell's physics
+  world, and takes the first hit on a layer a character stands on. The
+  checkpoint's, not the pose's: the pose interpolates toward the next
+  checkpoint, which ahead of a takeoff is already in the air, so a probe there
+  would read the rise as a height difference and hold it, lowering the whole
+  jump and its landing. The offset target is the hit's height minus the
+  checkpoint's; without a hit it is 0, since the source then stands on
+  something this world lacks, such as a modded bridge, and its own height is
+  the better guess than the ground under it.
+- **Edges.** A character controller's capsule rests on an edge its center has
+  passed, so on a raised deck such as Riften's walkways a source landing on or
+  walking to the edge stood on the deck while the center ray fell to the floor
+  below, and the actor sank by the deck's height. When the center ray misses
+  or hits more than 8 units below the checkpoint (`kSupportTolerance`),
+  `GroundProbe::FindSupport` casts 8 more rays 24 units around it
+  (`kSupportRadius`) and takes the hit nearest the checkpoint's height. Where
+  this world's ground really is lower, the ring finds it lower too, so the
+  result is the same as the center's.
 - **When.** A probe is due on the first pass, once 0.1 s have passed and the
   source moved 8 horizontal units since the last probe, and every 1 s
-  regardless. A pass casts at most 24 rays across all actors
-  (`kMaximumGroundProbesPerPass`, reset by `ActorMovement::BeginPass` before
-  the peers sync); an actor over the budget stays due and is served by a later
-  pass, so an actor probed recently yields to the others.
+  regardless. After the first, a probe also waits until the source has been
+  grounded for 0.25 s (`kGroundSettleSeconds`, reset by any checkpoint that is
+  not grounded): a controller reports `kOnGround` as soon as its capsule
+  catches a ledge, and a source landing on a deck's edge was published 20–26
+  units below the deck top and climbed onto it over the next 0.1–0.2 s.
+  Measured then, the offset lifted the actor onto the deck in midair and
+  dropped it back as the source climbed. A probe starts only while fewer than
+  24 rays were cast in the pass across all actors
+  (`kMaximumGroundRaysPerPass`, reset by `ActorMovement::BeginPass` before
+  the peers sync), and an edge ring counts its rays; an actor over the budget stays due and is served by a later pass,
+  so an actor probed recently yields to the others.
 - **Hold.** While the source's controller is off the ground (a jump or a
-  fall), there is no probe and the target holds, so a jump arc keeps its shape
-  over the local ground. While it swims the target is 0, since water levels match
-  between load orders far more often than ground does.
+  fall) and until it settles, there is no probe and the target holds, so a
+  jump arc and its landing keep their shape over the local ground. While it
+  swims the target is 0, since water levels match between load orders far
+  more often than ground does.
 - **Smoothing.** The offset eases toward its target with a 0.15 s time
   constant; the first probe sets it at once, so a spawned actor is not seen
   sliding. A checkpoint more than 256 units from the previous one (a
   teleport) clears the offset and its probe state.
 - `Remote actor ground offset target changed` logs the first probe, a change
   between hit and miss, and a target 16 units or more from the last logged
-  one, with the hit layer.
+  one, with the hit layer and whether an edge ray found it (`edge`).
 
 ### Direction
 
@@ -665,13 +685,15 @@ horse's controller is unconfirmed:
     `hkpWorld::castRay` (ID 61400) after resetting its hit, and copies the
     collector's hit to the pick's output when `rootCollidable` is set. A
     non-zero `bhkPickData::ray` replaces `to` with `from + ray`.
-11. The ray's layer, `L_CUSTOMPICK1` (43), collides with every layer
-    `GroundProbe` accepts (static, animated static, transparent, clutter,
-    trees, props, terrain, ground, and the two small transparent layers), per
-    the COLL records; `L_LOS` misses transparent and `L_PATHINGPICK` clutter
-    and props. Water, triggers, invisible walls, and characters are hit but
-    skipped by the collector, which leaves its early-out fraction alone so the
-    ray continues past them. A remote actor's own body has the no-collision
+11. The ray's layer is `L_CHARCONTROLLER` (30), so it meets what a character
+    stands on. Per the COLL records it collides with every layer `GroundProbe`
+    accepts (static, animated static, transparent, clutter, trees, props,
+    terrain, trap, ground, large debris, the two small transparent layers,
+    invisible walls, and stair helpers), and it is the only layer colliding
+    with `L_STAIRHELPER` (31), the ramps over stairs, which a pick-layer ray
+    passes through to the floor below. Water, triggers, characters, and the other layers it collides with
+    are skipped by the collector, which leaves its early-out fraction alone so
+    the ray continues past them. A remote actor's own body has the no-collision
     bit ([Remote actor](remote-actor.md#character-body)).
 12. A hit's fraction is along the whole world ray, and the player's proxy
     controller and a horse's rigid-body controller report `kOnGround` while
