@@ -47,6 +47,8 @@ namespace NameplateSync
         bool isFriend{ false };
         float alpha{ 0.0F };
         float distanceFraction{ 0.0F };
+        // The level of the player's voice, 0 while silent.
+        float voiceLevel{ 0.0F };
     };
 
     void Clear();

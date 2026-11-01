@@ -6,6 +6,7 @@
 #include "ui/Fonts.h"
 #include "ui/Theme.h"
 #include "ui/hud/GameView.h"
+#include "ui/widgets/VoiceGlyphs.h"
 
 #include <imgui.h>
 
@@ -29,6 +30,9 @@ namespace UI
         constexpr float kDistanceFadeFraction = 0.15F;
         constexpr float kOutlineAlpha = 0.8F;
         constexpr float kMinimumDepth = 1e-5F;
+        // The speaking glyph's size against the name's height, and its gap to the name in its own sizes.
+        constexpr float kSpeakingScale = 0.6F;
+        constexpr float kSpeakingGap = 0.4F;
         constexpr std::array<ImVec2, 4> kOutlineOffsets{ { { -1.0F, -1.0F }, { 1.0F, -1.0F }, { -1.0F, 1.0F },
             { 1.0F, 1.0F } } };
 
@@ -119,6 +123,15 @@ namespace UI
                     }
                     const auto color = plate.isFriend ? ImVec4{ accent.x, accent.y, accent.z, alpha } : Theme::Tint(alpha);
                     drawList->AddText(font, size, origin, ImGui::GetColorU32(color), text, textEnd);
+                    if (plate.voiceLevel > 0.0F)
+                    {
+                        const auto glyph = std::round(textSize.y * kSpeakingScale);
+                        const ImVec2 glyphMin{ origin.x - glyph * (1.0F + kSpeakingGap),
+                            std::round(origin.y + (textSize.y - glyph) * 0.5F) };
+                        VoiceGlyphs::DrawSpeaking(*drawList, ImVec2{ glyphMin.x + outline, glyphMin.y + outline }, glyph,
+                            shadow, plate.voiceLevel);
+                        VoiceGlyphs::DrawSpeaking(*drawList, glyphMin, glyph, ImGui::GetColorU32(color), plate.voiceLevel);
+                    }
                 }
             }
         };

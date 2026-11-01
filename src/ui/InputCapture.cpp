@@ -1,4 +1,5 @@
 #include "ui/InputCapture.h"
+#include "runtime/KeyState.h"
 #include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "ui/WindowManager.h"
@@ -221,6 +222,17 @@ namespace UI::InputCapture
             {
                 owner = &s_keyboardOwners[code];
                 s_keyboardPressed[code] = a_button.IsPressed();
+                // Observed, never taken: a key bound to a voice action keeps its game action.
+                if (!a_button.IsPressed())
+                {
+                    KeyState::Record(code, false);
+                }
+                else if (a_button.IsDown()
+                         && !(s_textFieldActive.load(std::memory_order_acquire)
+                              && (ToImGuiKey(code) != ImGuiKey_None || TypesCharacter(code))))
+                {
+                    KeyState::Record(code, true);
+                }
             }
             else if (device == RE::INPUT_DEVICE::kMouse && code < s_mouseOwners.size())
             {

@@ -14,6 +14,7 @@
 #include "ui/hud/NameplateLayer.h"
 #include "ui/hud/NoticeStack.h"
 #include "ui/hud/StatusPanel.h"
+#include "ui/hud/VoiceIndicator.h"
 #include "ui/preview/ItemPreview.h"
 #include "ui/render/Backdrop.h"
 #include "ui/render/Gpu.h"
@@ -221,6 +222,7 @@ namespace UI::Overlay
         }
 
         WindowManager::Register(CreateNameplateLayer());
+        WindowManager::Register(CreateVoiceIndicator());
         WindowManager::Register(CreateStatusPanel());
         WindowManager::Register(CreateNoticeStack());
         WindowManager::Register(CreateWorldPlayerMenu());

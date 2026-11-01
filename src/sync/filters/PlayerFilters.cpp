@@ -94,7 +94,8 @@ namespace PlayerFilters
                 (*entry).*a_flag = a_value;
                 entry->name = a_player.name;
                 saved = *entry;
-                if (!entry->friended && !entry->muted && !entry->vanished)
+                if (!entry->friended && !entry->muted && !entry->vanished
+                    && entry->voiceVolume == Network::PlayerFilterStore::kDefaultVoiceVolume)
                 {
                     s_entries.erase(entry);
                 }
@@ -125,6 +126,55 @@ namespace PlayerFilters
         const std::scoped_lock lock{ s_lock };
         const auto* entry = FindLocked(a_session);
         return entry && entry->vanished;
+    }
+
+    std::uint32_t GetVoiceVolume(Multiplayer::SessionID a_session)
+    {
+        const std::scoped_lock lock{ s_lock };
+        const auto* entry = FindLocked(a_session);
+        return entry ? entry->voiceVolume : Network::PlayerFilterStore::kDefaultVoiceVolume;
+    }
+
+    void SetVoiceVolume(const Multiplayer::PlayerIdentity& a_player, std::uint32_t a_percent)
+    {
+        const auto percent = (std::min)(a_percent, Network::PlayerFilterStore::kMaximumVoiceVolume);
+        if (a_player.session == 0)
+        {
+            return;
+        }
+        Entry saved;
+        std::string server;
+        {
+            const std::scoped_lock lock{ s_lock };
+            RefreshLocked();
+            if (s_server.empty())
+            {
+                return;
+            }
+            auto entry = std::ranges::lower_bound(s_entries, a_player.session, {}, &Entry::session);
+            const bool found = entry != s_entries.end() && entry->session == a_player.session;
+            if ((found ? entry->voiceVolume : Network::PlayerFilterStore::kDefaultVoiceVolume) == percent)
+            {
+                return;
+            }
+            if (!found)
+            {
+                entry = s_entries.insert(entry, Entry{ .session = a_player.session });
+            }
+            entry->voiceVolume = percent;
+            entry->name = a_player.name;
+            saved = *entry;
+            if (!entry->friended && !entry->muted && !entry->vanished
+                && entry->voiceVolume == Network::PlayerFilterStore::kDefaultVoiceVolume)
+            {
+                s_entries.erase(entry);
+            }
+            server = s_server;
+            s_changes.fetch_add(1, std::memory_order_acq_rel);
+        }
+        Save(server, saved);
+        logs::debug("Player filters: voice volume {}% for session {} on {}", percent,
+            static_cast<unsigned long long>(a_player.session), Network::DescribeServer(server));
     }
 
     void SetFriend(const Multiplayer::PlayerIdentity& a_player, bool a_friend)

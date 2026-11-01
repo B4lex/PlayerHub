@@ -15,6 +15,7 @@
 #include "sync/shapeshift/ShapeshiftSync.h"
 #include "sync/skeleton/SkeletonSync.h"
 #include "sync/voice/VoiceSync.h"
+#include "sync/voicechat/VoiceChatSync.h"
 
 #include <cstdint>
 #include <unordered_map>
@@ -35,6 +36,7 @@ struct PeerState
     FurnitureSync::RemoteState furniture;
     NameplateSync::RemoteState nameplate;
     SkeletonSync::RemoteState skeleton;
+    VoiceChatSync::RemoteState voiceChat;
 };
 
 using Peers = std::unordered_map<Multiplayer::PeerSlot, PeerState>;

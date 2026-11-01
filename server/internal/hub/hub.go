@@ -42,13 +42,13 @@ type Options struct {
 	TradeRequestRadius float64
 	TradeKeepRadius    float64
 	TradeInviteSeconds float64
-	// Listeners beyond it are sent none of a speaker's voice.
-	VoiceRadius float64
-	Recorder    Recorder
+	Recorder           Recorder
 	Logger             *slog.Logger
 	OnChange           func()
 	// OnGlobalChat runs on the hub loop for each accepted Global line, so it must not block.
 	OnGlobalChat func(speaker *pb.PlayerIdentity, text string)
+	// Listeners beyond it are sent none of a speaker's voice.
+	VoiceRadius float64
 }
 
 type member struct {
