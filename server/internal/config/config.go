@@ -25,6 +25,17 @@ type Config struct {
 	Chat                Chat     `toml:"chat"`
 	Trade               Trade    `toml:"trade"`
 	Sessions            Sessions `toml:"sessions"`
+	Voice               Voice    `toml:"voice"`
+}
+
+type Voice struct {
+	Enabled          bool    `toml:"enabled"`
+	Listen           string  `toml:"listen"`
+	PublicHost       string  `toml:"public_host"`
+	PublicPort       int     `toml:"public_port"`
+	Radius           float64 `toml:"radius"`
+	PacketsPerSecond float64 `toml:"packets_per_second"`
+	PacketBurst      float64 `toml:"packet_burst"`
 }
 
 type Sessions struct {
@@ -107,6 +118,8 @@ func Default() Config {
 		Chat:     Chat{NearbyRadius: 8192},
 		Trade:    Trade{RequestRadius: 400, KeepRadius: 1000, InviteSeconds: 30},
 		Sessions: Sessions{Database: "sessions.db", LifetimeDays: 30},
+		Voice: Voice{Enabled: true, Listen: "0.0.0.0:3000", Radius: 3072, PacketsPerSecond: 60,
+			PacketBurst: 25},
 	}
 }
 
@@ -168,6 +181,16 @@ func (c Config) Validate() error {
 		return errors.New("trade.invite_seconds must be positive")
 	case c.Sessions.LifetimeDays <= 0:
 		return errors.New("sessions.lifetime_days must be positive")
+	case c.Voice.Enabled && c.Voice.Listen == "":
+		return errors.New("voice.listen must name a UDP address when voice is enabled")
+	case c.Voice.PublicPort < 0 || c.Voice.PublicPort > 65535:
+		return errors.New("voice.public_port must be within 0..65535")
+	case len(c.Voice.PublicHost) > 253 || strings.ContainsAny(c.Voice.PublicHost, "/ \t"):
+		return errors.New("voice.public_host must be a host name or address without a port")
+	case c.Voice.Radius < 100 || c.Voice.Radius > 65535:
+		return errors.New("voice.radius must be within 100..65535")
+	case c.Voice.PacketsPerSecond < 50 || c.Voice.PacketBurst < 1:
+		return errors.New("voice.packets_per_second must be at least 50, a speaker's frame rate, and voice.packet_burst positive")
 	}
 	for _, host := range c.AdminHosts {
 		if host == "" || strings.ContainsAny(host, ":/[] \t") {

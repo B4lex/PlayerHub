@@ -17,3 +17,7 @@ playerhub.v1.TradeReport.skipped max_count:15
 playerhub.v1.TradeSkip.plugin max_size:261
 playerhub.v1.TradePluginQuery.plugins type:FT_CALLBACK
 playerhub.v1.TradePluginReply.missing max_count:256
+playerhub.v1.VoiceAccess.host max_size:254
+playerhub.v1.VoiceAccess.key max_size:32
+playerhub.v1.VoiceFrame.opus max_size:400
+playerhub.v1.PeerVoice.opus max_size:400
