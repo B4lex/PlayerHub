@@ -13,6 +13,7 @@ import (
 	"playerhub/server/internal/interest"
 	"playerhub/server/internal/limit"
 	"playerhub/server/internal/validate"
+	"playerhub/server/internal/voice"
 	"playerhub/server/internal/wire"
 	"playerhub/server/internal/wire/pb"
 	"playerhub/server/internal/world"
@@ -41,7 +42,9 @@ type Options struct {
 	TradeRequestRadius float64
 	TradeKeepRadius    float64
 	TradeInviteSeconds float64
-	Recorder           Recorder
+	// Listeners beyond it are sent none of a speaker's voice.
+	VoiceRadius float64
+	Recorder    Recorder
 	Logger             *slog.Logger
 	OnChange           func()
 	// OnGlobalChat runs on the hub loop for each accepted Global line, so it must not block.
@@ -79,6 +82,11 @@ type member struct {
 	trade         *trade
 	tradeRequests limit.TokenBucket
 	tradeOffers   limit.TokenBucket
+
+	// Set for a client whose server carries voice.
+	voice        *voice.Endpoint
+	voiceTargets []*voice.Endpoint
+	voiceDirty   bool
 }
 
 type subscription struct {
@@ -106,6 +114,7 @@ type Identity struct {
 	Session     uint64
 	DisplayName string
 	Token       []byte
+	Voice       *voice.Endpoint
 }
 
 type Hub struct {
@@ -134,6 +143,9 @@ type Hub struct {
 
 	trades    map[uint32]*trade
 	nextTrade uint32
+
+	voiceDirty   []*member
+	voiceScratch []*voice.Endpoint
 }
 
 func New(opts Options) *Hub {
@@ -163,6 +175,9 @@ func New(opts Options) *Hub {
 	}
 	if opts.TradeInviteSeconds == 0 {
 		opts.TradeInviteSeconds = 30
+	}
+	if opts.VoiceRadius == 0 {
+		opts.VoiceRadius = 3072
 	}
 	h := &Hub{
 		opts: opts, members: make(map[uint32]*member), sessions: make(map[uint64]uint32),
@@ -230,6 +245,7 @@ func (h *Hub) connect(kind world.Kind, outbox *delivery.Outbox, identity Identit
 		heldAppearance: make(map[uint32]uint64),
 		heldEquipment:  make(map[uint32]uint64),
 		nearby:         make(map[uint32]uint64),
+		voice:          identity.Voice,
 	}
 	m.view.Slot, m.view.Session = m.Slot, identity.Session
 	h.members[m.Slot] = m
@@ -237,9 +253,13 @@ func (h *Hub) connect(kind world.Kind, outbox *delivery.Outbox, identity Identit
 		m.phase = slices.Index(h.phaseLoad, slices.Min(h.phaseLoad))
 		h.phaseLoad[m.phase]++
 		h.recipients = append(h.recipients, m)
-		outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Welcome{
-			Welcome: &pb.Welcome{Slot: m.Slot, SessionId: identity.Session, DisplayName: identity.DisplayName,
-				SessionToken: identity.Token}}}))
+		welcome := &pb.Welcome{Slot: m.Slot, SessionId: identity.Session, DisplayName: identity.DisplayName,
+			SessionToken: identity.Token}
+		if m.voice != nil {
+			m.voice.SetSlot(m.Slot)
+			welcome.Voice = m.voice.Access()
+		}
+		outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Welcome{Welcome: welcome}}))
 	}
 	h.opts.OnChange()
 	return m.Slot
@@ -258,6 +278,10 @@ func (h *Hub) Disconnect(slot uint32) {
 	}
 	for peer := range m.subscribed {
 		h.members[peer].subscribers = remove(h.members[peer].subscribers, m)
+		h.markVoice(h.members[peer])
+	}
+	if m.voice != nil {
+		m.voice.SetTargets(nil)
 	}
 	leave := leaveMessage(slot, pb.LeaveReason_LEAVE_REASON_DISCONNECTED)
 	for _, r := range h.recipients {
@@ -351,6 +375,7 @@ func (h *Hub) Handle(slot uint32, message *pb.ClientMessage) error {
 }
 
 func (h *Hub) Tick() {
+	h.updateDirtyVoice()
 	for _, m := range h.changed {
 		if m.changed {
 			h.distribute(m)
@@ -377,6 +402,10 @@ func (h *Hub) UpdateInterest() {
 	}
 	h.updateNearbyPlayers(now)
 	h.expireTrades(now)
+	// Distances change without subscription changes.
+	for _, r := range h.recipients {
+		h.updateVoiceTargets(r)
+	}
 }
 
 func (h *Hub) SetViewRadius(slot uint32, radius float64) {
@@ -1056,6 +1085,7 @@ func (h *Hub) evaluatePair(r, peer *member, now time.Time) {
 func (h *Hub) subscribe(r, peer *member, now time.Time) {
 	r.subscribed[peer.Slot] = &subscription{since: now, weight: 1}
 	peer.subscribers = append(peer.subscribers, r)
+	h.markVoice(peer)
 	// A new subscription is sent poses from the next ranking on.
 	state := peer.Checkpoint
 	if peer.Posed() {
@@ -1077,6 +1107,7 @@ func (h *Hub) subscribe(r, peer *member, now time.Time) {
 func (h *Hub) unsubscribe(r, peer *member, reason pb.LeaveReason) {
 	delete(r.subscribed, peer.Slot)
 	peer.subscribers = remove(peer.subscribers, r)
+	h.markVoice(peer)
 	r.outbox.Leave(peer.Slot, leaveMessage(peer.Slot, reason))
 }
 
@@ -1088,6 +1119,7 @@ func (h *Hub) unsubscribeAll(peer *member, reason pb.LeaveReason) {
 	}
 	clear(peer.subscribers)
 	peer.subscribers = peer.subscribers[:0]
+	h.markVoice(peer)
 }
 
 func (h *Hub) distribute(m *member) {
@@ -1145,4 +1177,48 @@ func remove(members []*member, m *member) []*member {
 		return members[:last]
 	}
 	return members
+}
+
+// markVoice recomputes the speaker's listeners at the next tick, so a listener that stops
+// receiving the speaker, such as by a vanish, stops hearing it within a send phase.
+func (h *Hub) markVoice(m *member) {
+	if m.voice != nil && !m.voiceDirty {
+		m.voiceDirty = true
+		h.voiceDirty = append(h.voiceDirty, m)
+	}
+}
+
+func (h *Hub) updateDirtyVoice() {
+	for _, m := range h.voiceDirty {
+		m.voiceDirty = false
+		if h.members[m.Slot] == m {
+			h.updateVoiceTargets(m)
+		}
+	}
+	clear(h.voiceDirty)
+	h.voiceDirty = h.voiceDirty[:0]
+}
+
+// updateVoiceTargets sends m's voice to the clients that receive m within the voice radius, so a
+// listener always has the speaker's character to place the voice at, and exclusions, hiding,
+// vanishing, and the visible cap apply to voice as to presentation.
+func (h *Hub) updateVoiceTargets(m *member) {
+	if m.voice == nil {
+		return
+	}
+	targets := h.voiceScratch[:0]
+	if m.Placed() {
+		radius := h.opts.VoiceRadius
+		for _, r := range m.subscribers {
+			if r.voice != nil && interest.Distance(&r.view, &m.view) <= radius {
+				targets = append(targets, r.voice)
+			}
+		}
+	}
+	if !slices.Equal(targets, m.voiceTargets) {
+		m.voiceTargets = slices.Clone(targets)
+		m.voice.SetTargets(m.voiceTargets)
+	}
+	clear(targets)
+	h.voiceScratch = targets[:0]
 }

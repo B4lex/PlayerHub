@@ -10,6 +10,9 @@ import (
 const (
 	budgetRetry          = 25 * time.Millisecond
 	priorityFloorSeconds = 0.025
+	// Voice frames waiting for a slow writer, about a third of a second of three speakers; older
+	// ones are dropped, since late voice is worth less than current voice.
+	voiceBacklog = 48
 )
 
 type itemKind uint8
@@ -54,6 +57,7 @@ type Outbox struct {
 	mu          sync.Mutex
 	ready       chan struct{}
 	ordered     []item
+	voice       [][]byte
 	live        int
 	replaceable map[replaceKey]int
 	latest      map[uint32]latestEntry
@@ -70,8 +74,9 @@ type Outbox struct {
 	allowanceAt time.Time
 	dues        []due
 
-	written  atomic.Uint64
-	replaced atomic.Uint64
+	written      atomic.Uint64
+	replaced     atomic.Uint64
+	voiceDropped atomic.Uint64
 }
 
 func NewOutbox(limit int) *Outbox {
@@ -218,6 +223,27 @@ func (o *Outbox) AppendGlobal(message []byte) {
 	o.appendLocked(item{itemMessage, 0, message})
 }
 
+// AppendVoice queues a PeerVoice outside the ordered stream, ahead of it in the next write.
+func (o *Outbox) AppendVoice(message []byte) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.closed {
+		return
+	}
+	if len(o.voice) >= voiceBacklog {
+		copy(o.voice, o.voice[1:])
+		o.voice[len(o.voice)-1] = nil
+		o.voice = o.voice[:len(o.voice)-1]
+		o.voiceDropped.Add(1)
+	}
+	o.voice = append(o.voice, message)
+	o.Signal()
+}
+
+func (o *Outbox) VoiceDropped() uint64 {
+	return o.voiceDropped.Load()
+}
+
 func (o *Outbox) Close() {
 	o.mu.Lock()
 	if !o.closed && o.budget != nil {
@@ -235,6 +261,7 @@ func (o *Outbox) Drain(b *Batch, now time.Time) (ok bool, next time.Time) {
 		return false, time.Time{}
 	}
 	b.ordered, o.ordered = o.ordered, b.ordered[:0]
+	b.voice, o.voice = o.voice, b.voice[:0]
 	o.live = 0
 	clear(o.replaceable)
 	b.latest = b.latest[:0]
@@ -279,6 +306,9 @@ func (o *Outbox) spendLocked(b *Batch, dues []due, now time.Time) []due {
 	}
 	o.allowanceAt = now
 	orderedBytes := 0
+	for _, message := range b.voice {
+		orderedBytes += len(message) + messageOverheadBytes
+	}
 	for _, i := range b.ordered {
 		if i.kind == itemMessage {
 			orderedBytes += len(i.bytes) + messageOverheadBytes

@@ -22,6 +22,7 @@ import (
 	"playerhub/server/internal/hub"
 	"playerhub/server/internal/limit"
 	"playerhub/server/internal/validate"
+	"playerhub/server/internal/voice"
 	"playerhub/server/internal/wire"
 	"playerhub/server/internal/wire/pb"
 )
@@ -53,6 +54,7 @@ type Server struct {
 	gate     *admission.Gate
 	trusted  []netip.Prefix
 	refusals *rejectionLog
+	voice    *voice.Relay
 
 	mu sync.Mutex
 	// Set on the hub goroutine as a client connects, so a session that connects again finds
@@ -62,6 +64,7 @@ type Server struct {
 
 type connection struct {
 	conn        *websocket.Conn
+	voice       *voice.Endpoint
 	cancel      context.CancelFunc
 	session     uint64
 	displayName string
@@ -86,6 +89,11 @@ func NewServer(loop *hub.Loop, store *auth.Store, c config.Config, log *slog.Log
 
 func (s *Server) UseBudget(b *delivery.Budget) {
 	s.budget = b
+}
+
+// UseVoice gives every later connection a voice endpoint on the relay.
+func (s *Server) UseVoice(r *voice.Relay) {
+	s.voice = r
 }
 
 func (s *Server) SetLoop(loop *hub.Loop) {
@@ -152,6 +160,15 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address net
 	}
 	current := &connection{conn: conn, cancel: cancel, session: identity.Session, displayName: identity.DisplayName,
 		address: address}
+	if s.voice != nil {
+		endpoint, err := s.voice.Register(outbox)
+		if err != nil {
+			s.log.Error("cannot give the connection a voice key; it has no voice", "error", err)
+		} else {
+			defer s.voice.Remove(endpoint)
+			current.voice, identity.Voice = endpoint, endpoint
+		}
+	}
 	var slot uint32
 	var replaced *connection
 	if !s.loop.Call(func(h *hub.Hub) {
@@ -483,13 +500,20 @@ func (s *Server) read(ctx context.Context, c *connection, slot uint32, outbox *d
 			return err
 		}
 		c.heard = true
-		if !rate.Allow(time.Now(), s.config.Limits.MessagesPerSecond, s.config.Limits.MessageBurst) {
-			return errRateLimited
-		}
 		message := &pb.ClientMessage{}
 		if typ != websocket.MessageBinary || proto.Unmarshal(data, message) != nil {
+			if !rate.Allow(time.Now(), s.config.Limits.MessagesPerSecond, s.config.Limits.MessageBurst) {
+				return errRateLimited
+			}
 			rejections.note("undecodable message")
 			continue
+		}
+		// Voice bypasses the hub and the message rate: the relay limits it per endpoint.
+		if handled := s.handleVoice(c, message, rejections); handled {
+			continue
+		}
+		if !rate.Allow(time.Now(), s.config.Limits.MessagesPerSecond, s.config.Limits.MessageBurst) {
+			return errRateLimited
 		}
 		if ping := message.GetPing(); ping != nil {
 			outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Pong{
@@ -506,6 +530,25 @@ func (s *Server) read(ctx context.Context, c *connection, slot uint32, outbox *d
 			}
 		})
 	}
+}
+
+func (s *Server) handleVoice(c *connection, message *pb.ClientMessage, rejections *rejectionLog) bool {
+	switch body := message.Message.(type) {
+	case *pb.ClientMessage_VoiceRoute:
+		if c.voice != nil {
+			c.voice.SetDatagrams(body.VoiceRoute.GetDatagrams())
+		}
+		return true
+	case *pb.ClientMessage_VoiceFrame:
+		frame := body.VoiceFrame
+		if err := validate.VoiceFrame(frame.GetSequence(), frame.GetOpus()); err != nil {
+			rejections.note(err.Error())
+		} else if c.voice != nil {
+			c.voice.FrameFromClient(frame.GetSequence(), frame.GetOpus(), frame.GetEnd(), time.Now())
+		}
+		return true
+	}
+	return false
 }
 
 func (s *Server) write(ctx context.Context, conn *websocket.Conn, outbox *delivery.Outbox) error {

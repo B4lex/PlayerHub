@@ -64,6 +64,9 @@ const (
 
 	MaximumVanished = 1024
 
+	MaximumVoiceSequence   = 0xFFFF
+	MaximumVoiceFrameBytes = 400
+
 	MaximumIdleEventBytes = 64
 	idleEventPrefix       = "Idle"
 	offsetStopEvent       = "OffsetStop"
@@ -78,6 +81,7 @@ var (
 	ErrChat        = errors.New("invalid chat message")
 	ErrDisplayName = errors.New("invalid display name")
 	ErrToken       = errors.New("invalid session token")
+	ErrVoice       = errors.New("invalid voice frame")
 	ErrVanish      = errors.New("invalid vanish")
 	ErrInspect     = errors.New("invalid inspect")
 	ErrPoseLimit   = errors.New("invalid pose limit")
@@ -117,9 +121,21 @@ func Message(m *pb.ClientMessage) error {
 			return ErrPoseLimit
 		}
 		return nil
+	case *pb.ClientMessage_VoiceRoute:
+		return nil
+	case *pb.ClientMessage_VoiceFrame:
+		return VoiceFrame(body.VoiceFrame.GetSequence(), body.VoiceFrame.GetOpus())
 	default:
 		return ErrUnexpected
 	}
+}
+
+// VoiceFrame checks one Opus frame's sequence and size; its content is the receivers' to decode.
+func VoiceFrame(sequence uint32, opus []byte) error {
+	if sequence > MaximumVoiceSequence || len(opus) == 0 || len(opus) > MaximumVoiceFrameBytes {
+		return ErrVoice
+	}
+	return nil
 }
 
 func Checkpoint(c *pb.Checkpoint) error {

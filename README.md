@@ -3,7 +3,7 @@
 Non-intrusive multiplayer for Skyrim. Each player keeps their own world and sees
 other players as remote actors: movement, animations, combat, appearance, and
 equipment are shared, while loot, quests, and enemies stay local. Players can
-trade items and chat.
+trade items, chat, and talk to the players near them.
 
 - `src/` — SKSE plugin (C++23, built with [XMake](https://xmake.io): `xmake`)
 - `server/` — Go server ([server/README.md](server/README.md))
@@ -14,7 +14,9 @@ trade items and chat.
 
 [Dockerfile](Dockerfile) builds the server and the admin panel into one image.
 [compose.yaml](compose.yaml) runs it with host networking, so `listen`,
-`admin_listen`, and `trusted_proxies` mean what they do without Docker. Copy
+`admin_listen`, `voice.listen`, and `trusted_proxies` mean what they do
+without Docker. Voice chat needs `voice.listen`'s UDP port open in the host's
+firewall. Copy
 `server/config.example.toml` to `server/config.toml`, add
 `admin_ui_directory = "/app/admin-ui"`, then run the published image:
 

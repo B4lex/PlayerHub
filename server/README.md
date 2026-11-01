@@ -26,6 +26,11 @@ On `listen`:
   plugin's does.
 - `GET /health` returns `{"status":"ok"}`.
 
+On `voice.listen`, UDP: the voice relay's encrypted datagrams
+(`../specs/voice-chat.md`). Players behind a reverse proxy that does not carry
+UDP, such as Cloudflare's, reach it directly at `voice.public_host`, or fall
+back to their WebSocket.
+
 On `admin_listen` only:
 
 - `/admin/` serves the built admin panel; `/api` is its API.
@@ -94,6 +99,15 @@ invite_seconds = 30         # an unanswered invitation expires
 [sessions]
 database = "sessions.db"    # SQLite file of player sessions; "" keeps them in memory
 lifetime_days = 30          # a session unused for this long is gone, with its display name
+
+[voice]
+enabled = true              # false gives clients no voice
+listen = "0.0.0.0:3000"     # UDP; the same port number as the TCP listen is fine
+public_host = ""            # where clients send datagrams; "" is the host they connected to
+public_port = 0             # 0 is listen's port; set it when a router forwards another one
+radius = 3072               # game units, horizontal; listeners beyond it get none of a speaker's voice
+packets_per_second = 60     # per speaker; a speaker sends 50; extra frames are dropped
+packet_burst = 25
 ```
 
 Players are identified by sessions (`../specs/network.md`, Sessions). The
@@ -160,6 +174,7 @@ go run ./cmd/tradebot --kit
 | `internal/interest` | Interest rules, exclusions, spatial grid |
 | `internal/world` | Player state and ordering rules, display name lookup |
 | `internal/delivery` | Per-recipient outboxes and batch writing |
+| `internal/voice` | Voice relay: UDP datagrams, per-connection keys, listeners, WebSocket fallback |
 | `internal/wire` | Hand-written encoding of hot messages, quantization, generated `pb` |
 | `internal/recording` | Format version 4, store, captures, timeline markers |
 | `internal/playback` | Virtual players and replay sessions |

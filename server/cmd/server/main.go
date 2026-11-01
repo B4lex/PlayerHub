@@ -24,6 +24,7 @@ import (
 	"playerhub/server/internal/playback"
 	"playerhub/server/internal/recording"
 	"playerhub/server/internal/session"
+	"playerhub/server/internal/voice"
 	"playerhub/server/internal/wire/pb"
 )
 
@@ -97,6 +98,7 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 		TradeRequestRadius: c.Trade.RequestRadius,
 		TradeKeepRadius:    c.Trade.KeepRadius,
 		TradeInviteSeconds: c.Trade.InviteSeconds,
+		VoiceRadius:        c.Voice.Radius,
 		ActionsPerSecond:   c.Limits.ActionsPerSecond,
 		ActionBurst:        c.Limits.ActionBurst,
 		Interest: interest.Config{
@@ -133,6 +135,17 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 	feed = admin.NewFeed(adminContext.State)
 	go feed.Run(loopContext)
 	go sessions.Maintain(loopContext)
+	if c.Voice.Enabled {
+		relay, err := voice.Listen(voice.Config{Listen: c.Voice.Listen, PublicHost: c.Voice.PublicHost,
+			PublicPort: c.Voice.PublicPort, Radius: c.Voice.Radius, PacketsPerSecond: c.Voice.PacketsPerSecond,
+			PacketBurst: c.Voice.PacketBurst}, log)
+		if err != nil {
+			return fmt.Errorf("cannot listen for voice datagrams on %q: %w", c.Voice.Listen, err)
+		}
+		go relay.Run(loopContext)
+		sessions.UseVoice(relay)
+		log.Info("relaying voice", "address", relay.LocalAddr(), "radius", c.Voice.Radius)
+	}
 
 	game := http.NewServeMux()
 	sessions.SetLoop(loop)

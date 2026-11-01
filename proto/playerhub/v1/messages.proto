@@ -8,7 +8,7 @@ option go_package = "playerhub/server/internal/wire/pb;pb";
 
 enum Protocol {
   PROTOCOL_UNSPECIFIED = 0;
-  PROTOCOL_VERSION = 15;
+  PROTOCOL_VERSION = 16;
 }
 
 message Hello {
@@ -51,6 +51,19 @@ message Inspect {
 
 message PoseLimit {
   uint32 players = 1;
+}
+
+// From a client: whether the voice datagrams of the Welcome's VoiceAccess reach it, so the server
+// sends it voice by datagram instead of PeerVoice.
+message VoiceRoute {
+  bool datagrams = 1;
+}
+
+// From a client: one Opus frame of its voice, when its datagrams do not reach the server.
+message VoiceFrame {
+  uint32 sequence = 1;
+  bytes opus = 2;
+  bool end = 3;
 }
 
 message TradeRequest {
@@ -176,7 +189,18 @@ message ClientMessage {
     TradePluginQuery trade_plugin_query = 19;
     TradePluginReply trade_plugin_reply = 20;
     PoseLimit pose_limit = 21;
+    VoiceRoute voice_route = 22;
+    VoiceFrame voice_frame = 23;
   }
+}
+
+// The voice datagram endpoint and this connection's key; absent when the server carries no voice.
+message VoiceAccess {
+  string host = 1;
+  uint32 port = 2;
+  uint32 id = 3;
+  bytes key = 4;
+  uint32 radius = 5;
 }
 
 message Welcome {
@@ -184,6 +208,7 @@ message Welcome {
   uint64 session_id = 2;
   string display_name = 3;
   bytes session_token = 4;
+  VoiceAccess voice = 5;
 }
 
 enum ChatRejection {
@@ -248,6 +273,13 @@ message PeerAppearance {
 message PeerEquipment {
   uint32 slot = 1;
   Equipment equipment = 2;
+}
+
+message PeerVoice {
+  uint32 slot = 1;
+  uint32 sequence = 2;
+  bytes opus = 3;
+  bool end = 4;
 }
 
 message PlayerIdentity {
@@ -329,5 +361,6 @@ message ServerMessage {
     TradePluginQuery trade_plugin_query = 21;
     TradePluginReply trade_plugin_reply = 22;
     Pong pong = 23;
+    PeerVoice peer_voice = 24;
   }
 }
