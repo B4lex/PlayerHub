@@ -7,6 +7,7 @@
 #include "sync/PlayerLabel.h"
 #include "sync/chat/ChatRoster.h"
 #include "sync/filters/PlayerFilters.h"
+#include "sync/voice/VoiceSync.h"
 
 #include <algorithm>
 #include <functional>
@@ -190,7 +191,8 @@ namespace NameplateSync
                 .label = state.label,
                 .isFriend = state.isFriend,
                 .alpha = state.alpha,
-                .distanceFraction = distance / range });
+                .distanceFraction = distance / range,
+                .voiceLevel = VoiceSync::GetSpeakingLevel(playerID) });
         }
         std::ranges::sort(s_plates, std::greater{}, &Plate::distanceFraction);
         PROFILE_PLOT("Nameplates", s_plates.size());

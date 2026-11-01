@@ -1,11 +1,13 @@
 #include "ui/chat/ChatPlayers.h"
 #include "sync/filters/PlayerFilters.h"
+#include "sync/voice/VoiceSync.h"
 #include "text/Text.h"
 #include "ui/Fonts.h"
 #include "ui/Theme.h"
 #include "ui/chat/ChatHistory.h"
 #include "ui/chat/ChatStyle.h"
 #include "ui/widgets/Controls.h"
+#include "ui/widgets/VoiceGlyphs.h"
 
 #include <algorithm>
 #include <cfloat>
@@ -258,16 +260,27 @@ namespace UI
                     const char* nameEnd = name + player.name.size();
                     const bool isMuted = markFont && std::ranges::binary_search(muted, player.session);
                     const bool isVanished = markFont && std::ranges::binary_search(vanished, player.session);
-                    const auto marksLeft = max.x - markSpace * static_cast<float>(isMuted + isVanished);
+                    const auto voiceLevel = VoiceSync::GetSpeakingLevel(player.playerID);
+                    const bool isSpeaking = voiceLevel > 0.0F;
+                    const auto marksLeft = max.x - markSpace * static_cast<float>(isMuted + isVanished + isSpeaking);
                     const ImVec4 nameClip{ min.x, min.y, marksLeft, max.y };
 
                     const auto nameColor = ImGui::GetColorU32(
                         index < nearbyMatches ? ChatStyle::kNearbyColor : kDistantPlayerColor);
                     drawList->AddText(nullptr, 0.0F, min, nameColor, name, nameEnd, 0.0F, &nameClip);
+                    if (isSpeaking)
+                    {
+                        // Ahead of the marks, where the player looks for who is talking.
+                        const ImVec2 speakingMin{ marksLeft + style.ItemSpacing.x,
+                            std::floor((min.y + max.y - markSize) * 0.5F) };
+                        VoiceGlyphs::DrawSpeaking(*drawList, speakingMin, markSize, ImGui::GetColorU32(Theme::GetAccent()),
+                            voiceLevel);
+                    }
                     if (isMuted || isVanished)
                     {
                         const auto markColor = ImGui::GetColorU32(mutedColor);
-                        ImVec2 markMin{ marksLeft + style.ItemSpacing.x, std::floor((min.y + max.y - markSize) * 0.5F) };
+                        ImVec2 markMin{ marksLeft + style.ItemSpacing.x + (isSpeaking ? markSpace : 0.0F),
+                            std::floor((min.y + max.y - markSize) * 0.5F) };
                         if (isMuted)
                         {
                             drawList->AddText(markFont, markSize, markMin, markColor, kMutedGlyph);
@@ -277,7 +290,7 @@ namespace UI
                         {
                             drawList->AddText(markFont, markSize, markMin, markColor, kVanishedGlyph);
                         }
-                        if (hovered && ImGui::IsMouseHoveringRect(ImVec2{ marksLeft, min.y }, max))
+                        if (hovered && ImGui::IsMouseHoveringRect(ImVec2{ marksLeft + (isSpeaking ? markSpace : 0.0F), min.y }, max))
                         {
                             const auto marks = isMuted && isVanished ? Text::Id::kChatMutedAndVanished
                                 : isMuted                            ? Text::Id::kPlayersMuted

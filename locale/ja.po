@@ -940,8 +940,8 @@ msgid "Mute"
 msgstr "ミュート"
 
 msgctxt "PlayerMenuMuteHint"
-msgid "Hide their messages in every channel."
-msgstr "すべてのチャンネルでこのプレイヤーのメッセージを隠します。"
+msgid "Hide their messages in every channel and silence their voice."
+msgstr "すべてのチャンネルでこのプレイヤーのメッセージを隠し、声を消します。"
 
 msgctxt "PlayerMenuUnmuteHint"
 msgid "Show their messages again."
@@ -1431,3 +1431,155 @@ msgstr "{} はオフラインです"
 msgctxt "ItemUnknownEffect"
 msgid "Unknown effect"
 msgstr "不明な効果"
+
+msgctxt "SectionVoice"
+msgid "Voice"
+msgstr "ボイス"
+
+msgctxt "VoiceComment"
+msgid "Talk to the players near you; their voices come from their characters."
+msgstr "近くのプレイヤーと話せます。声はそのキャラクターから聞こえます。"
+
+msgctxt "VoiceEnabled"
+msgid "Voice chat"
+msgstr "ボイスチャット"
+
+msgctxt "VoiceEnabledComment"
+msgid ""
+"Hear the players near you and let them hear you. Off keeps your microphone "
+"and speakers closed."
+msgstr "近くのプレイヤーの声を聞き、あなたの声も届けます。オフの間はマイクとスピーカーを開きません。"
+
+msgctxt "VoiceGroupMicrophone"
+msgid "Microphone"
+msgstr "マイク"
+
+msgctxt "VoiceMode"
+msgid "Transmit"
+msgstr "送信方法"
+
+msgctxt "VoiceModeComment"
+msgid ""
+"Push to talk sends your voice while you hold the microphone key. Voice "
+"activation sends it while you speak, and the key turns your microphone off "
+"and on."
+msgstr "プッシュトゥトークはマイクキーを押している間だけ声を送ります。音声検出は話している間に送り、キーでマイクをオフとオンに切り替えます。"
+
+msgctxt "VoiceModePushToTalk"
+msgid "Push to talk"
+msgstr "プッシュトゥトーク"
+
+msgctxt "VoiceModeVoiceActivation"
+msgid "Voice activation"
+msgstr "音声検出"
+
+msgctxt "VoiceInputLevel"
+msgid "Input level"
+msgstr "入力レベル"
+
+msgctxt "VoiceInputLevelComment"
+msgid ""
+"How loud your microphone is. It fills in the accent color while others hear "
+"you."
+msgstr "マイクの音量です。他のプレイヤーに聞こえている間はアクセントカラーで表示されます。"
+
+msgctxt "VoiceMeterClosed"
+msgid "Opens while connected to a server with voice chat"
+msgstr "ボイスチャットのあるサーバーに接続すると開きます"
+
+msgctxt "VoiceActivationLevel"
+msgid "Activation level"
+msgstr "検出レベル"
+
+msgctxt "VoiceActivationLevelComment"
+msgid ""
+"How loud you must speak to be heard. The mark on the input level shows it."
+msgstr "声が届くために必要な大きさです。入力レベルの目盛りで示されます。"
+
+msgctxt "VoiceNoiseSuppression"
+msgid "Noise suppression"
+msgstr "ノイズ抑制"
+
+msgctxt "VoiceNoiseSuppressionComment"
+msgid ""
+"Removes background noise, such as fans and typing, before your voice is "
+"sent."
+msgstr "ファンやタイピングなどの背景ノイズを、声を送る前に取り除きます。"
+
+msgctxt "VoiceInputDevice"
+msgid "Input device"
+msgstr "入力デバイス"
+
+msgctxt "VoiceInputDeviceComment"
+msgid "The microphone voice chat uses."
+msgstr "ボイスチャットで使うマイクです。"
+
+msgctxt "VoiceDefaultDevice"
+msgid "System default"
+msgstr "システムの既定"
+
+msgctxt "VoiceInputVolume"
+msgid "Microphone volume"
+msgstr "マイク音量"
+
+msgctxt "VoiceInputVolumeComment"
+msgid "How loud other players hear you."
+msgstr "他のプレイヤーに聞こえるあなたの声の大きさです。"
+
+msgctxt "VoiceGroupPlayers"
+msgid "Other players"
+msgstr "他のプレイヤー"
+
+msgctxt "VoiceOutputDevice"
+msgid "Output device"
+msgstr "出力デバイス"
+
+msgctxt "VoiceOutputDeviceComment"
+msgid "Where other players' voices play."
+msgstr "他のプレイヤーの声を再生する場所です。"
+
+msgctxt "VoiceOutputVolume"
+msgid "Voice volume"
+msgstr "ボイス音量"
+
+msgctxt "VoiceOutputVolumeComment"
+msgid "How loud other players' voices play."
+msgstr "他のプレイヤーの声の大きさです。"
+
+msgctxt "VoiceLipSync"
+msgid "Lip sync"
+msgstr "リップシンク"
+
+msgctxt "VoiceLipSyncComment"
+msgid "Moves other players' characters' mouths while they speak."
+msgstr "他のプレイヤーが話している間、そのキャラクターの口を動かします。"
+
+msgctxt "ControlsMicrophone"
+msgid "Microphone"
+msgstr "マイク"
+
+msgctxt "ControlsMicrophoneComment"
+msgid ""
+"Hold to talk with push to talk. With voice activation, turns your "
+"microphone off and on."
+msgstr "プッシュトゥトークでは押している間話せます。音声検出ではマイクをオフとオンに切り替えます。"
+
+msgctxt "PlayerMenuVoiceVolume"
+msgid "Voice volume"
+msgstr "ボイス音量"
+
+msgctxt "PlayerMenuVoiceVolumeHint"
+msgid "How loud their voice plays for you. They are not told."
+msgstr "このプレイヤーの声の大きさです。相手には通知されません。"
+
+msgctxt "StatusVoice"
+msgid "Voice"
+msgstr "ボイス"
+
+msgctxt "StatusVoiceDatagrams"
+msgid "UDP"
+msgstr "UDP"
+
+msgctxt "StatusVoiceWebSocket"
+msgid "WebSocket"
+msgstr "WebSocket"

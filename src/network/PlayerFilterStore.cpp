@@ -19,8 +19,9 @@ namespace Network::PlayerFilterStore
         constexpr std::string_view kFileName = "PlayerHub.players";
         constexpr std::string_view kFileHeader
             = "; Skyrim Multiplayer: your friends (f) and the players you muted (m) or vanished (v), per server.\n"
-              "; Each line: any of f, m, and v, the player's session, the server, and its name when last seen,\n"
-              "; separated by tabs.\n";
+              "; Each line: any of f, m, and v, then @ and the voice volume in percent if not 100, the player's\n"
+              "; session, the server, and its name when last seen, separated by tabs.\n";
+        constexpr char kVolumeMark = '@';
         constexpr char kSeparator = '\t';
 
         struct StoredEntry
@@ -36,7 +37,7 @@ namespace Network::PlayerFilterStore
 
         bool IsKept(const Entry& a_entry)
         {
-            return a_entry.friended || a_entry.muted || a_entry.vanished;
+            return a_entry.friended || a_entry.muted || a_entry.vanished || a_entry.voiceVolume != kDefaultVoiceVolume;
         }
 
         std::filesystem::path GetPath()
@@ -67,10 +68,23 @@ namespace Network::PlayerFilterStore
             {
                 return std::nullopt;
             }
-            result.entry.friended = flags.find('f') != std::string_view::npos;
-            result.entry.muted = flags.find('m') != std::string_view::npos;
-            result.entry.vanished = flags.find('v') != std::string_view::npos;
-            if (flags.find_first_not_of("fmv") != std::string_view::npos || !IsKept(result.entry))
+            auto letters = flags;
+            if (const auto mark = flags.find(kVolumeMark); mark != std::string_view::npos)
+            {
+                letters = flags.substr(0, mark);
+                const auto volume = flags.substr(mark + 1);
+                const auto parsedVolume
+                    = std::from_chars(volume.data(), volume.data() + volume.size(), result.entry.voiceVolume);
+                if (volume.empty() || parsedVolume.ec != std::errc{} || parsedVolume.ptr != volume.data() + volume.size()
+                    || result.entry.voiceVolume > kMaximumVoiceVolume)
+                {
+                    return std::nullopt;
+                }
+            }
+            result.entry.friended = letters.find('f') != std::string_view::npos;
+            result.entry.muted = letters.find('m') != std::string_view::npos;
+            result.entry.vanished = letters.find('v') != std::string_view::npos;
+            if (letters.find_first_not_of("fmv") != std::string_view::npos || !IsKept(result.entry))
             {
                 return std::nullopt;
             }
@@ -126,6 +140,11 @@ namespace Network::PlayerFilterStore
                 if (entry.vanished)
                 {
                     text.push_back('v');
+                }
+                if (entry.voiceVolume != kDefaultVoiceVolume)
+                {
+                    text.push_back(kVolumeMark);
+                    text.append(std::to_string(entry.voiceVolume));
                 }
                 text.push_back(kSeparator);
                 text.append(std::to_string(entry.session));

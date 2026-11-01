@@ -951,8 +951,8 @@ msgid "Mute"
 msgstr "Заглушить"
 
 msgctxt "PlayerMenuMuteHint"
-msgid "Hide their messages in every channel."
-msgstr "Скрыть его сообщения во всех каналах."
+msgid "Hide their messages in every channel and silence their voice."
+msgstr "Скрыть его сообщения во всех каналах и заглушить его голос."
 
 msgctxt "PlayerMenuUnmuteHint"
 msgid "Show their messages again."
@@ -1446,3 +1446,168 @@ msgstr "{} не в сети"
 msgctxt "ItemUnknownEffect"
 msgid "Unknown effect"
 msgstr "Неизвестный эффект"
+
+msgctxt "SectionVoice"
+msgid "Voice"
+msgstr "Голос"
+
+msgctxt "VoiceComment"
+msgid "Talk to the players near you; their voices come from their characters."
+msgstr "Говорите с игроками поблизости; их голоса звучат от их персонажей."
+
+msgctxt "VoiceEnabled"
+msgid "Voice chat"
+msgstr "Голосовой чат"
+
+msgctxt "VoiceEnabledComment"
+msgid ""
+"Hear the players near you and let them hear you. Off keeps your microphone "
+"and speakers closed."
+msgstr ""
+"Слышите игроков поблизости, и они слышат вас. Когда выключено, микрофон и "
+"динамики закрыты."
+
+msgctxt "VoiceGroupMicrophone"
+msgid "Microphone"
+msgstr "Микрофон"
+
+msgctxt "VoiceMode"
+msgid "Transmit"
+msgstr "Передача"
+
+msgctxt "VoiceModeComment"
+msgid ""
+"Push to talk sends your voice while you hold the microphone key. Voice "
+"activation sends it while you speak, and the key turns your microphone off "
+"and on."
+msgstr ""
+"Режим «нажми и говори» передаёт голос, пока вы держите клавишу микрофона. "
+"Активация голосом передаёт его, пока вы говорите, а клавиша выключает и "
+"включает микрофон."
+
+msgctxt "VoiceModePushToTalk"
+msgid "Push to talk"
+msgstr "Нажми и говори"
+
+msgctxt "VoiceModeVoiceActivation"
+msgid "Voice activation"
+msgstr "Активация голосом"
+
+msgctxt "VoiceInputLevel"
+msgid "Input level"
+msgstr "Уровень входа"
+
+msgctxt "VoiceInputLevelComment"
+msgid ""
+"How loud your microphone is. It fills in the accent color while others hear "
+"you."
+msgstr ""
+"Громкость вашего микрофона. Заполняется цветом акцента, пока вас слышат "
+"другие."
+
+msgctxt "VoiceMeterClosed"
+msgid "Opens while connected to a server with voice chat"
+msgstr "Открывается при подключении к серверу с голосовым чатом"
+
+msgctxt "VoiceActivationLevel"
+msgid "Activation level"
+msgstr "Порог активации"
+
+msgctxt "VoiceActivationLevelComment"
+msgid ""
+"How loud you must speak to be heard. The mark on the input level shows it."
+msgstr ""
+"Насколько громко нужно говорить, чтобы вас услышали. Его показывает отметка "
+"на уровне входа."
+
+msgctxt "VoiceNoiseSuppression"
+msgid "Noise suppression"
+msgstr "Шумоподавление"
+
+msgctxt "VoiceNoiseSuppressionComment"
+msgid ""
+"Removes background noise, such as fans and typing, before your voice is "
+"sent."
+msgstr ""
+"Убирает фоновый шум, например вентиляторы и набор текста, перед отправкой "
+"голоса."
+
+msgctxt "VoiceInputDevice"
+msgid "Input device"
+msgstr "Устройство ввода"
+
+msgctxt "VoiceInputDeviceComment"
+msgid "The microphone voice chat uses."
+msgstr "Микрофон голосового чата."
+
+msgctxt "VoiceDefaultDevice"
+msgid "System default"
+msgstr "По умолчанию в системе"
+
+msgctxt "VoiceInputVolume"
+msgid "Microphone volume"
+msgstr "Громкость микрофона"
+
+msgctxt "VoiceInputVolumeComment"
+msgid "How loud other players hear you."
+msgstr "Насколько громко вас слышат другие игроки."
+
+msgctxt "VoiceGroupPlayers"
+msgid "Other players"
+msgstr "Другие игроки"
+
+msgctxt "VoiceOutputDevice"
+msgid "Output device"
+msgstr "Устройство вывода"
+
+msgctxt "VoiceOutputDeviceComment"
+msgid "Where other players' voices play."
+msgstr "Где звучат голоса других игроков."
+
+msgctxt "VoiceOutputVolume"
+msgid "Voice volume"
+msgstr "Громкость голосов"
+
+msgctxt "VoiceOutputVolumeComment"
+msgid "How loud other players' voices play."
+msgstr "Насколько громко звучат голоса других игроков."
+
+msgctxt "VoiceLipSync"
+msgid "Lip sync"
+msgstr "Синхронизация губ"
+
+msgctxt "VoiceLipSyncComment"
+msgid "Moves other players' characters' mouths while they speak."
+msgstr "Двигает рты персонажей других игроков, пока они говорят."
+
+msgctxt "ControlsMicrophone"
+msgid "Microphone"
+msgstr "Микрофон"
+
+msgctxt "ControlsMicrophoneComment"
+msgid ""
+"Hold to talk with push to talk. With voice activation, turns your "
+"microphone off and on."
+msgstr ""
+"Удерживайте, чтобы говорить, в режиме «нажми и говори». При активации "
+"голосом выключает и включает микрофон."
+
+msgctxt "PlayerMenuVoiceVolume"
+msgid "Voice volume"
+msgstr "Громкость голоса"
+
+msgctxt "PlayerMenuVoiceVolumeHint"
+msgid "How loud their voice plays for you. They are not told."
+msgstr "Насколько громко звучит его голос для вас. Игрок об этом не узнает."
+
+msgctxt "StatusVoice"
+msgid "Voice"
+msgstr "Голос"
+
+msgctxt "StatusVoiceDatagrams"
+msgid "UDP"
+msgstr "UDP"
+
+msgctxt "StatusVoiceWebSocket"
+msgid "WebSocket"
+msgstr "WebSocket"

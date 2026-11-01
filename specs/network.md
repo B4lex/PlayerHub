@@ -20,13 +20,14 @@ refused at the handshake ([Transport](#transport)).
 | Module | Responsibility |
 | --- | --- |
 | `proto/playerhub/v1/` | The schema (`state.proto`, `messages.proto`) and nanopb size options. `proto/generate.sh` regenerates `server/internal/wire/pb` and `src/network/proto` |
-| `src/protocol/` | Plain wire values and shared validation: `PlayerState.h`, `MovementState.h`, `AppearanceState.h`, `EquipmentState.h`, `FormReference.h`, `ChatMessage.h`, `PeerSlot.h`, `Session.h`, and the quantization rules in `Quantization.h`. No Skyrim headers |
+| `src/protocol/` | Plain wire values and shared validation: `PlayerState.h`, `MovementState.h`, `AppearanceState.h`, `EquipmentState.h`, `FormReference.h`, `ChatMessage.h`, `PeerSlot.h`, `Session.h`, `VoiceFrame.h`, and the quantization rules in `Quantization.h`. No Skyrim headers |
 | `network/WireCodec` | nanopb encoding of client messages and validated decoding of server messages |
 | `network/ServerClient` | IXWebSocket transport: sends, dispatches received messages, merges each peer's context into its checkpoints, and queues per-player changes for `DrainRemotePlayerChanges` |
 | `network/ConnectionMonitor` | When to connect, reconnect schedule, latency probes, refusal, and the connection state |
 | `network/SessionStore` | The session tokens in `PlayerHub.session`, one per server |
 | `network/Refusal.h` | Why the server refused a connection, for the monitor and the UI |
 | `network/TrafficMeter` | Bytes per second in each direction |
+| `network/VoiceTransport` | The voice datagram socket and route, with the WebSocket as fallback ([Voice](#voice)) |
 | `server/internal/session` | WebSocket accept, hello and session authentication, reader and writer goroutines, liveness, per-connection limits |
 | `server/internal/auth` | The session store: tokens, unique display names, expiry |
 | `server/internal/admission` | Caps on players, pending hellos, and new sessions per address; the client address behind trusted proxies |
@@ -34,13 +35,16 @@ refused at the handshake ([Transport](#transport)).
 | `server/internal/world` | A player's accepted state and the ordering rules |
 | `server/internal/wire` | Hand-written encoding of checkpoint entries and batches, quantization for tools |
 | `server/internal/hub` | Applies accepted messages on one goroutine ([Interest and delivery](interest-and-delivery.md)) |
+| `server/internal/voice` | The voice relay: datagram keys and addresses, replay windows, forwarding ([Voice](#voice)) |
 
 ## Transport
 
 - One binary WebSocket message carries one `ClientMessage` or `ServerMessage`,
   each a protobuf `oneof`. The server listens at `/ws` on `listen`; the admin
   panel and API are served only on `admin_listen`
-  ([Recording and replay](recording-and-replay.md#admin-api)).
+  ([Recording and replay](recording-and-replay.md#admin-api)). Voice also
+  travels as encrypted UDP datagrams on `voice.listen`, outside the WebSocket
+  ([Voice](#voice)).
 - The server refuses with 403 an upgrade whose `Origin` scheme is not `ws` or
   `wss` (`session.playerOrigin`), so a web page cannot make its visitors'
   browsers join: a browser always sends the page's origin, which is never
@@ -82,11 +86,12 @@ refused at the handshake ([Transport](#transport)).
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
   within `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (15) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (16) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
-  `Welcome{slot, session_id, display_name, session_token}`. Slots are `uint32`
+  `Welcome{slot, session_id, display_name, session_token, voice}`, `voice`
+  only while the server carries voice ([Voice](#voice)). Slots are `uint32`
   from a counter that only rises and are never reused within a server run, so a
   slot names one connection. Replays and in-server bots get slots too.
 - Liveness runs on the transport, not the game: the server pings every
@@ -95,7 +100,8 @@ refused at the handshake ([Transport](#transport)).
   on its own thread, so a paused game stays connected.
 - Boundary limits: 48 KiB per message (the largest valid `ClientMessage`, an
   `Appearance` with every tint and overlay path at full length, is about 44 KB); `limits.messages_per_second` (120, burst 240) per connection,
-  over which the connection is closed with 4003; a recipient whose unsent
+  over which the connection is closed with 4003, counting every message but
+  `VoiceRoute` and `VoiceFrame`, which the relay limits instead ([Voice](#voice)); a recipient whose unsent
   ordered messages exceed `limits.ordered_backlog` (4096) is closed with 4002.
   Compression is off on both ends.
 
@@ -134,6 +140,8 @@ retries. What a refusal means for the client is in [Connection](#connection).
 | `ChatSend` | `{request_id, text, channel, recipient}`, answered with a `ChatResult` ([Chat](#chat)) |
 | `Ping` | `{request_id}`, answered with `Pong{request_id}` by the connection at once; the latency probe |
 | `Vanish` | `{session_id, vanished}`: stop or resume receiving a session's player ([Vanish](#vanish)) |
+| `VoiceRoute` | `{datagrams}`: whether the client receives the relay's voice datagrams ([Voice](#voice)) |
+| `VoiceFrame` | `{sequence, opus, end}`: one frame of the client's voice, while its datagrams do not reach the relay ([Voice](#voice)) |
 | `PoseLimit` | `{players}`: how many posed peers, nearest first, the client is sent [skeleton poses](#skeleton-pose-encoding) of, `0..32` (`validate.MaximumPosePlayers`); `0` until the first one ([Interest and delivery](interest-and-delivery.md#skeleton-poses)) |
 | `Inspect` | `{slot}`: ask for a player's level and race, answered with an `Inspection` ([Inspection](#inspection)) |
 | `TradeRequest`, `TradeAnswer`, `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept`, `TradeCancel` | A trade between two players ([Trade](#trade)) |
@@ -399,7 +407,8 @@ same list.
 
 | Message | Fields |
 | --- | --- |
-| `Welcome` | `slot`, `session_id`, `display_name`, and `session_token` only when the session was issued for this connection ([Sessions](#sessions)) |
+| `Welcome` | `slot`, `session_id`, `display_name`, and `session_token` only when the session was issued for this connection ([Sessions](#sessions)); `voice`, a `VoiceAccess`, while the server carries voice ([Voice](#voice)) |
+| `PeerVoice` | `slot`, `sequence`, `opus`, `end`: a frame of a peer's voice, for a client that takes no datagrams ([Voice](#voice)) |
 | `ChatResult` | `request_id` and `rejection`: `NONE` accepts the `ChatSend`, else `INVALID`, `RATE_LIMITED`, `NOT_IN_WORLD`, or `UNKNOWN_RECIPIENT` ([Chat](#chat)) |
 | `Pong` | `request_id` of the `Ping` |
 | `PeerStates` | `repeated Checkpoint` with `player` set; the concatenation of entries encoded once per sender |
@@ -827,6 +836,73 @@ Server messages:
 - `[trade]` in the server's configuration: `request_radius` (400),
   `keep_radius` (1000, at least `request_radius`), `invite_seconds` (30).
 
+### Voice
+
+A connection on a server with `voice.enabled` (the default) has a voice
+endpoint: a random nonzero 32-bit ID and a random AES-256-GCM key, both for
+that connection alone ([Voice chat](voice-chat.md)). Voice frames travel as UDP
+datagrams to and from `voice.listen` (`0.0.0.0:3000` by default, the TCP
+listen's port number), or over the WebSocket for a client whose datagrams do
+not arrive. Which clients receive a speaker's frames is in
+[Interest and delivery](interest-and-delivery.md#voice-listeners).
+
+`Welcome.voice` is a `VoiceAccess`:
+
+| Field | Meaning | Client validation |
+| --- | --- | --- |
+| `host` | where to send datagrams, `voice.public_host`; empty for the host the WebSocket connected to | at most 253 bytes of printable ASCII without spaces, `/`, or `\` (`Multiplayer::IsValidVoiceHost`) |
+| `port` | `voice.public_port`, or the listening port | `1..65535` |
+| `id` | the endpoint's ID | nonzero |
+| `key` | the endpoint's key | 32 bytes |
+| `radius` | `voice.radius`, toward which clients fade a speaker out | `100..65535` |
+
+A welcome whose access fails validation is kept without voice, and the
+plugin logs the fields. The server checks its configuration the same way:
+`voice.radius` within `100..65535`, `voice.public_port` within `0..65535`, and
+`voice.public_host` a host without a port, path, or whitespace.
+
+Datagrams (`server/internal/voice/datagram.go`, `network/VoiceTransport`):
+
+| Direction | Clear header, authenticated | Encrypted |
+| --- | --- | --- |
+| client to server | kind (1), ID (4, little-endian), counter (4) | voice: sequence (2), flags (1), Opus; probe: probe ID (4) |
+| server to client | kind (1), counter (4) | voice: speaker slot (4), sequence (2), flags (1), Opus; probe: the probe's ID (4) |
+
+- Kind 1 is voice and 2 a probe; flag bit 0 is `end`, and other bits are
+  rejected. Each datagram ends with GCM's 16-byte tag over the header and the
+  ciphertext. The 12-byte nonce is a direction byte (1 to the server, 2 to the
+  client), three zero bytes, the counter, and four zero bytes; each side's
+  counter rises with every datagram it sends under the key, so a nonce never
+  repeats.
+- The relay finds the endpoint by ID, opens the datagram, and accepts its
+  counter once and within the 64 below the highest seen (the same window on the
+  client). A datagram that fails any check, or is over 432 bytes (`voice.MaximumDatagramBytes`), is dropped
+  and counted, without a reply. Only the newest counter so far moves the
+  endpoint's address, so a client that changes address, as behind a NAT that
+  rebinds, is followed, and a late datagram from its old address does not take
+  it back.
+- A probe is answered at once to the address it came from. A voice datagram's
+  frame is forwarded to the speaker's listeners.
+- The relay sends a listener datagrams only after it said
+  `VoiceRoute{datagrams: true}` and an authentic datagram gave its address;
+  any other listener gets `PeerVoice` through its outbox
+  ([Interest and delivery](interest-and-delivery.md#voice-listeners)).
+- `VoiceFrame` and a datagram's frame are checked alike (`validate.VoiceFrame`):
+  `sequence` within `0..65535` and `opus` of 1 to 400 bytes. The Opus data is the
+  receivers' to decode; a decoder that fails plays silence.
+- A speaker may send `voice.packets_per_second` (60, burst `voice.packet_burst`
+  25) frames over both ways together; a client sends 50 while talking. Frames
+  over it are dropped without closing anything.
+- `VoiceRoute` and `VoiceFrame` are read on the connection's reader and never
+  reach the hub, so voice is neither ordered with the hub's messages nor
+  recorded ([Recording and replay](recording-and-replay.md)).
+- The client rejects a `PeerVoice` with a zero slot, a sequence above 65535,
+  or `opus` empty or over 400 bytes (nanopb's `max_size`), and drops one of
+  its own slot. A voice datagram is rejected for the same, a speaker of 0, or
+  unknown flags.
+- The endpoint ends with the connection; a datagram for it afterwards is an
+  unknown ID.
+
 ## Client
 
 - `ServerClient` runs its callbacks on the IXWebSocket thread. `WireCodec`
@@ -871,6 +947,10 @@ Server messages:
   address and players can share it: a failed or abandoned connection,
   vanishes over the limit, saving a session, and muting or vanishing a
   player.
+- A `Welcome` with voice access starts `VoiceTransport` for it
+  ([Voice chat](voice-chat.md#route)); one without it, and every lost connection,
+  stops it. `PeerVoice` goes straight to the voice sink on the transport
+  thread, outside the remote changes the pass drains.
 - Trade messages are decoded like the rest, a `TradeOffer` entry by entry
   and a `TradePluginQuery` name by name as for `PeerStates`, and validated
   as the server does, plus a `TradeClose` with an unknown reason, a
@@ -912,16 +992,20 @@ Server messages:
 
 ### Player filters
 
-- `PlayerFilterStore` keeps the local player's friends and the players it
-  muted or vanished in `PlayerHub.players`, next to `PlayerHub.session`: a
-  line per player and server, any of `f`, `m`, and `v` in that order, the
+- `PlayerFilterStore` keeps the local player's friends, the players it
+  muted or vanished, and its volume for each player's voice in
+  `PlayerHub.players`, next to `PlayerHub.session`: a line per player and
+  server, any of `f`, `m`, and `v` in that order followed by `@` and the voice
+  volume in percent (`0..200`) when it is not 100, the
   session ID, the WebSocket URL, and the name when last seen
   ([UI overlay](ui-overlay.md#friends)), separated by tabs, which neither a display
   name nor a URL holds; lines starting with `;` are comments, and a line
-  without a session, a server, a name, or a known flag is skipped with a
-  warning. It is read once, on first use, and written through
+  without a session, a server, a name, or a known flag or volume, or with a
+  volume out of range, is skipped with a warning. It is read once, on first
+  use, and written through
   `PlayerHub.players.tmp` on every change; a failed write lasts until the
-  game exits. A player with none of the three has no line.
+  game exits. A player with none of the three flags and the default volume has
+  no line.
 - The hello carries the sessions vanished on the attempt's URL, at most 1024
   with a warning for the rest. `Network::PublishVanish` sends a change only
   when the current socket's hello went to the server the change belongs to,
@@ -1070,8 +1154,8 @@ generation clears the sample.
 ### Traffic
 
 `TrafficMeter` counts each WebSocket message at the size IXWebSocket reports on
-the wire (`wireSize`), in each direction. TLS, TCP, and ping frames are not
-counted. Rates are averaged over the latest complete one-second wall-clock
+the wire (`wireSize`), in each direction, and each voice datagram with 28 bytes
+of IP and UDP headers. TLS, TCP, and ping frames are not counted. Rates are averaged over the latest complete one-second wall-clock
 window, and are empty after a long gap. The status panel shows them.
 
 ## Engine assumptions
@@ -1170,4 +1254,6 @@ window, and are empty after a long gap. The status panel shows them.
   rejected, as is every later action until `Exit`. The plugin keeps its own
   idle events well under the allowance
   ([Idle presentation](idle-presentation.md#capture)).
-- Non-goals: server authority over movement, anti-cheat, and UDP.
+- Non-goals: server authority over movement, anti-cheat, and UDP for anything
+  but voice, whose frames lose their worth when TCP holds them back behind a lost
+  segment, while every other message must arrive in order.

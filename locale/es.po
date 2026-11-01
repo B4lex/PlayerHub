@@ -953,8 +953,8 @@ msgid "Mute"
 msgstr "Silenciar"
 
 msgctxt "PlayerMenuMuteHint"
-msgid "Hide their messages in every channel."
-msgstr "Oculta sus mensajes en todos los canales."
+msgid "Hide their messages in every channel and silence their voice."
+msgstr "Oculta sus mensajes en todos los canales y silencia su voz."
 
 msgctxt "PlayerMenuUnmuteHint"
 msgid "Show their messages again."
@@ -1448,3 +1448,168 @@ msgstr "{} está desconectado"
 msgctxt "ItemUnknownEffect"
 msgid "Unknown effect"
 msgstr "Efecto desconocido"
+
+msgctxt "SectionVoice"
+msgid "Voice"
+msgstr "Voz"
+
+msgctxt "VoiceComment"
+msgid "Talk to the players near you; their voices come from their characters."
+msgstr "Habla con los jugadores cercanos; sus voces salen de sus personajes."
+
+msgctxt "VoiceEnabled"
+msgid "Voice chat"
+msgstr "Chat de voz"
+
+msgctxt "VoiceEnabledComment"
+msgid ""
+"Hear the players near you and let them hear you. Off keeps your microphone "
+"and speakers closed."
+msgstr ""
+"Escucha a los jugadores cercanos y deja que te oigan. Desactivado mantiene "
+"cerrados tu micrófono y tus altavoces."
+
+msgctxt "VoiceGroupMicrophone"
+msgid "Microphone"
+msgstr "Micrófono"
+
+msgctxt "VoiceMode"
+msgid "Transmit"
+msgstr "Transmitir"
+
+msgctxt "VoiceModeComment"
+msgid ""
+"Push to talk sends your voice while you hold the microphone key. Voice "
+"activation sends it while you speak, and the key turns your microphone off "
+"and on."
+msgstr ""
+"Pulsar para hablar envía tu voz mientras mantienes la tecla del micrófono. "
+"La activación por voz la envía mientras hablas, y la tecla apaga y enciende "
+"tu micrófono."
+
+msgctxt "VoiceModePushToTalk"
+msgid "Push to talk"
+msgstr "Pulsar para hablar"
+
+msgctxt "VoiceModeVoiceActivation"
+msgid "Voice activation"
+msgstr "Activación por voz"
+
+msgctxt "VoiceInputLevel"
+msgid "Input level"
+msgstr "Nivel de entrada"
+
+msgctxt "VoiceInputLevelComment"
+msgid ""
+"How loud your microphone is. It fills in the accent color while others hear "
+"you."
+msgstr ""
+"Lo fuerte que suena tu micrófono. Se llena del color de acento mientras los "
+"demás te oyen."
+
+msgctxt "VoiceMeterClosed"
+msgid "Opens while connected to a server with voice chat"
+msgstr "Se abre al conectarte a un servidor con chat de voz"
+
+msgctxt "VoiceActivationLevel"
+msgid "Activation level"
+msgstr "Nivel de activación"
+
+msgctxt "VoiceActivationLevelComment"
+msgid ""
+"How loud you must speak to be heard. The mark on the input level shows it."
+msgstr ""
+"Lo fuerte que debes hablar para que te oigan. La marca en el nivel de "
+"entrada lo indica."
+
+msgctxt "VoiceNoiseSuppression"
+msgid "Noise suppression"
+msgstr "Supresión de ruido"
+
+msgctxt "VoiceNoiseSuppressionComment"
+msgid ""
+"Removes background noise, such as fans and typing, before your voice is "
+"sent."
+msgstr ""
+"Elimina el ruido de fondo, como ventiladores y tecleo, antes de enviar tu "
+"voz."
+
+msgctxt "VoiceInputDevice"
+msgid "Input device"
+msgstr "Dispositivo de entrada"
+
+msgctxt "VoiceInputDeviceComment"
+msgid "The microphone voice chat uses."
+msgstr "El micrófono que usa el chat de voz."
+
+msgctxt "VoiceDefaultDevice"
+msgid "System default"
+msgstr "Predeterminado del sistema"
+
+msgctxt "VoiceInputVolume"
+msgid "Microphone volume"
+msgstr "Volumen del micrófono"
+
+msgctxt "VoiceInputVolumeComment"
+msgid "How loud other players hear you."
+msgstr "Lo fuerte que te oyen los demás jugadores."
+
+msgctxt "VoiceGroupPlayers"
+msgid "Other players"
+msgstr "Otros jugadores"
+
+msgctxt "VoiceOutputDevice"
+msgid "Output device"
+msgstr "Dispositivo de salida"
+
+msgctxt "VoiceOutputDeviceComment"
+msgid "Where other players' voices play."
+msgstr "Dónde suenan las voces de los demás jugadores."
+
+msgctxt "VoiceOutputVolume"
+msgid "Voice volume"
+msgstr "Volumen de voces"
+
+msgctxt "VoiceOutputVolumeComment"
+msgid "How loud other players' voices play."
+msgstr "Lo fuerte que suenan las voces de los demás jugadores."
+
+msgctxt "VoiceLipSync"
+msgid "Lip sync"
+msgstr "Sincronía labial"
+
+msgctxt "VoiceLipSyncComment"
+msgid "Moves other players' characters' mouths while they speak."
+msgstr "Mueve la boca de los personajes de los demás jugadores mientras hablan."
+
+msgctxt "ControlsMicrophone"
+msgid "Microphone"
+msgstr "Micrófono"
+
+msgctxt "ControlsMicrophoneComment"
+msgid ""
+"Hold to talk with push to talk. With voice activation, turns your "
+"microphone off and on."
+msgstr ""
+"Mantenla para hablar con pulsar para hablar. Con activación por voz, apaga "
+"y enciende tu micrófono."
+
+msgctxt "PlayerMenuVoiceVolume"
+msgid "Voice volume"
+msgstr "Volumen de voz"
+
+msgctxt "PlayerMenuVoiceVolumeHint"
+msgid "How loud their voice plays for you. They are not told."
+msgstr "Lo fuerte que suena su voz para ti. No se le avisa."
+
+msgctxt "StatusVoice"
+msgid "Voice"
+msgstr "Voz"
+
+msgctxt "StatusVoiceDatagrams"
+msgid "UDP"
+msgstr "UDP"
+
+msgctxt "StatusVoiceWebSocket"
+msgid "WebSocket"
+msgstr "WebSocket"

@@ -31,6 +31,7 @@
 #include "sync/skeleton/PoseWindow.h"
 #include "sync/skeleton/SkeletonSync.h"
 #include "sync/trade/TradeSync.h"
+#include "sync/voice/VoiceSync.h"
 
 #include <atomic>
 #include <cstddef>
@@ -107,6 +108,7 @@ namespace SyncCoordinator
             a_peer.shapeshift = {};
             a_peer.idle = {};
             a_peer.skeleton = {};
+            a_peer.voice = {};
             a_peer.space = {};
             a_peer.furniture = {};
             a_peer.playout.Reset();
@@ -524,12 +526,14 @@ namespace SyncCoordinator
         ActorLifecycle::RefillSpawnAllowance(a_delta);
         if (!a_player)
         {
+            VoiceSync::UpdateLocal(false);
             return;
         }
 
         YieldActivatedFurniture(s_peers, *a_player);
         OpenActivatedPlayerMenu(s_peers);
         const bool inWorld = PresenceSync::SyncPresence(LocalFrame{ .player = *a_player });
+        VoiceSync::UpdateLocal(inWorld);
         if (inWorld)
         {
             SyncLocalPlayer(*a_player, a_delta);
@@ -561,6 +565,8 @@ namespace SyncCoordinator
             SyncPeer(playerID, peer, local, localCellID, localWorldspaceID, localFurniture.get(), a_delta);
         }
         SkeletonSync::AssignSlots();
+        // Before the plates, which show who speaks.
+        VoiceSync::UpdatePeers(s_peers, *a_player, *localCell, a_delta);
         NameplateSync::Update(s_peers, *a_player, a_delta);
         if (const auto* camera = RE::Main::WorldRootCamera())
         {

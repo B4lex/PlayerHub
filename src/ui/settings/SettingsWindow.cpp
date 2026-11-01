@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
 #include "protocol/Session.h"
+#include "sync/voice/VoiceSync.h"
 #include "text/Text.h"
 #include "text/Utf8Case.h"
 #include "ui/Fonts.h"
@@ -65,8 +66,12 @@ namespace UI
         constexpr std::string_view kStagedSection = "DefaultOutfit";
         constexpr std::string_view kUISection = "UI";
         constexpr std::string_view kControlsSection = "Controls";
+        constexpr std::string_view kVoiceSection = "Voice";
         constexpr std::string_view kAdvancedSection = "Advanced";
-        constexpr std::string_view kDefaultsSections[]{ kUISection, kControlsSection, kAdvancedSection };
+        constexpr std::string_view kDefaultsSections[]{ kUISection, kControlsSection, kVoiceSection, kAdvancedSection };
+        constexpr std::string_view kInputMeterKey = "InputMeter";
+        constexpr float kMeterHeightFraction = 0.4F;
+        constexpr float kMeterMarkerFonts = 0.125F;
 
         constexpr std::string_view kConfigFileName = "PlayerHub.ini";
         constexpr std::uint32_t kEscapeScanCode = RE::BSKeyboardDevice::Key::kEscape;
@@ -605,12 +610,97 @@ namespace UI
 
             void Layout(std::string_view, std::uint32_t&, std::string_view, std::uint32_t, std::uint32_t) override {}
 
+            void AudioDevice(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment,
+                bool a_capture) override
+            {
+                if (!BeginRow(a_key, a_label, a_comment))
+                {
+                    return;
+                }
+                const auto* systemDefault = Text::GetCString(Text::Id::kVoiceDefaultDevice);
+                if (ImGui::BeginCombo("##value", a_value.empty() ? systemDefault : a_value.c_str()))
+                {
+                    if (ImGui::IsWindowAppearing())
+                    {
+                        // A device plugged in since the last opening shows from the next frames.
+                        VoiceSync::RefreshDevices();
+                    }
+                    VoiceSync::CopyDeviceNames(a_capture, deviceNames);
+                    if (ImGui::Selectable(systemDefault, a_value.empty()))
+                    {
+                        a_value.clear();
+                    }
+                    // A saved device that is unplugged stays listed, so the combo shows what is set.
+                    if (!a_value.empty() && !std::ranges::contains(deviceNames, a_value))
+                    {
+                        deviceNames.push_back(a_value);
+                    }
+                    for (std::size_t index = 0; index < deviceNames.size(); ++index)
+                    {
+                        const bool selected = deviceNames[index] == a_value;
+                        ImGui::PushID(static_cast<int>(index));
+                        if (ImGui::Selectable(deviceNames[index].c_str(), selected))
+                        {
+                            a_value = deviceNames[index];
+                        }
+                        ImGui::PopID();
+                        if (selected)
+                        {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+                EndRow();
+            }
+
+            void InputMeter(Text::Id a_label, std::uint32_t a_threshold) override
+            {
+                if (!BeginRow(kInputMeterKey, a_label, Text::Id::kVoiceInputLevelComment))
+                {
+                    return;
+                }
+                const auto status = VoiceSync::GetLocalStatus();
+                if (!status.microphoneOpen)
+                {
+                    DrawMutedText(Text::Get(Text::Id::kVoiceMeterClosed));
+                    EndRow();
+                    return;
+                }
+                const auto frameHeight = ImGui::GetFrameHeight();
+                const auto origin = ImGui::GetCursorScreenPos();
+                const auto height = std::floor(frameHeight * kMeterHeightFraction);
+                const ImVec2 min{ origin.x, std::floor(origin.y + (frameHeight - height) * 0.5F) };
+                const ImVec2 max{ origin.x + controlWidth, min.y + height };
+                auto* drawList = ImGui::GetWindowDrawList();
+                const auto rounding = ImGui::GetStyle().FrameRounding;
+                drawList->AddRectFilled(min, max, ImGui::GetColorU32(ImGuiCol_FrameBg), rounding);
+                const auto fill = std::clamp(status.inputLevel, 0.0F, 1.0F);
+                if (fill > 0.0F)
+                {
+                    const auto color = status.transmitting ? Theme::GetAccent() : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+                    drawList->AddRectFilled(min, ImVec2{ min.x + (max.x - min.x) * fill, max.y }, ImGui::GetColorU32(color),
+                        rounding);
+                }
+                if (status.voiceActivation)
+                {
+                    const auto x = std::round(min.x + (max.x - min.x) * static_cast<float>(a_threshold) / 100.0F);
+                    const auto width = (std::max)(1.0F, std::round(kMeterMarkerFonts * ImGui::GetFontSize()));
+                    drawList->AddRectFilled(ImVec2{ x - width * 0.5F, min.y - 2.0F }, ImVec2{ x + width * 0.5F, max.y + 2.0F },
+                        ImGui::GetColorU32(ImGuiCol_Text));
+                }
+                ImGui::Dummy(ImVec2{ controlWidth, frameHeight });
+                EndRow();
+            }
+
         private:
             struct TextField
             {
                 std::string text;
                 bool valid{ true };
             };
+
+            std::vector<std::string> deviceNames;
 
             struct SectionEntry
             {
@@ -960,7 +1050,8 @@ namespace UI
         bool LiveSectionsMatch(const Config::PluginConfig& a_left, const Config::PluginConfig& a_right)
         {
             return a_left.connection == a_right.connection && a_left.ui == a_right.ui
-                && a_left.controls == a_right.controls && a_left.advanced == a_right.advanced;
+                && a_left.controls == a_right.controls && a_left.voice == a_right.voice
+                && a_left.advanced == a_right.advanced;
         }
 
         class SettingsWindow final : public Window
@@ -1236,6 +1327,10 @@ namespace UI
                 {
                     return draft.controls == defaults.controls;
                 }
+                if (a_section == kVoiceSection)
+                {
+                    return draft.voice == defaults.voice;
+                }
                 return draft.advanced == defaults.advanced;
             }
 
@@ -1244,6 +1339,10 @@ namespace UI
                 if (a_section == kUISection)
                 {
                     draft.ui = GetShownUIDefaults();
+                }
+                else if (a_section == kVoiceSection)
+                {
+                    draft.voice = defaults.voice;
                 }
                 else if (a_section == kControlsSection)
                 {

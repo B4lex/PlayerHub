@@ -910,7 +910,7 @@ msgid "Mute"
 msgstr ""
 
 msgctxt "PlayerMenuMuteHint"
-msgid "Hide their messages in every channel."
+msgid "Hide their messages in every channel and silence their voice."
 msgstr ""
 
 msgctxt "PlayerMenuUnmuteHint"
@@ -1391,4 +1391,156 @@ msgstr ""
 
 msgctxt "ItemUnknownEffect"
 msgid "Unknown effect"
+msgstr ""
+
+msgctxt "SectionVoice"
+msgid "Voice"
+msgstr ""
+
+msgctxt "VoiceComment"
+msgid "Talk to the players near you; their voices come from their characters."
+msgstr ""
+
+msgctxt "VoiceEnabled"
+msgid "Voice chat"
+msgstr ""
+
+msgctxt "VoiceEnabledComment"
+msgid ""
+"Hear the players near you and let them hear you. Off keeps your microphone "
+"and speakers closed."
+msgstr ""
+
+msgctxt "VoiceGroupMicrophone"
+msgid "Microphone"
+msgstr ""
+
+msgctxt "VoiceMode"
+msgid "Transmit"
+msgstr ""
+
+msgctxt "VoiceModeComment"
+msgid ""
+"Push to talk sends your voice while you hold the microphone key. Voice "
+"activation sends it while you speak, and the key turns your microphone off "
+"and on."
+msgstr ""
+
+msgctxt "VoiceModePushToTalk"
+msgid "Push to talk"
+msgstr ""
+
+msgctxt "VoiceModeVoiceActivation"
+msgid "Voice activation"
+msgstr ""
+
+msgctxt "VoiceInputLevel"
+msgid "Input level"
+msgstr ""
+
+msgctxt "VoiceInputLevelComment"
+msgid ""
+"How loud your microphone is. It fills in the accent color while others hear "
+"you."
+msgstr ""
+
+msgctxt "VoiceMeterClosed"
+msgid "Opens while connected to a server with voice chat"
+msgstr ""
+
+msgctxt "VoiceActivationLevel"
+msgid "Activation level"
+msgstr ""
+
+msgctxt "VoiceActivationLevelComment"
+msgid ""
+"How loud you must speak to be heard. The mark on the input level shows it."
+msgstr ""
+
+msgctxt "VoiceNoiseSuppression"
+msgid "Noise suppression"
+msgstr ""
+
+msgctxt "VoiceNoiseSuppressionComment"
+msgid ""
+"Removes background noise, such as fans and typing, before your voice is "
+"sent."
+msgstr ""
+
+msgctxt "VoiceInputDevice"
+msgid "Input device"
+msgstr ""
+
+msgctxt "VoiceInputDeviceComment"
+msgid "The microphone voice chat uses."
+msgstr ""
+
+msgctxt "VoiceDefaultDevice"
+msgid "System default"
+msgstr ""
+
+msgctxt "VoiceInputVolume"
+msgid "Microphone volume"
+msgstr ""
+
+msgctxt "VoiceInputVolumeComment"
+msgid "How loud other players hear you."
+msgstr ""
+
+msgctxt "VoiceGroupPlayers"
+msgid "Other players"
+msgstr ""
+
+msgctxt "VoiceOutputDevice"
+msgid "Output device"
+msgstr ""
+
+msgctxt "VoiceOutputDeviceComment"
+msgid "Where other players' voices play."
+msgstr ""
+
+msgctxt "VoiceOutputVolume"
+msgid "Voice volume"
+msgstr ""
+
+msgctxt "VoiceOutputVolumeComment"
+msgid "How loud other players' voices play."
+msgstr ""
+
+msgctxt "VoiceLipSync"
+msgid "Lip sync"
+msgstr ""
+
+msgctxt "VoiceLipSyncComment"
+msgid "Moves other players' characters' mouths while they speak."
+msgstr ""
+
+msgctxt "ControlsMicrophone"
+msgid "Microphone"
+msgstr ""
+
+msgctxt "ControlsMicrophoneComment"
+msgid ""
+"Hold to talk with push to talk. With voice activation, turns your "
+"microphone off and on."
+msgstr ""
+
+msgctxt "PlayerMenuVoiceVolume"
+msgid "Voice volume"
+msgstr ""
+
+msgctxt "PlayerMenuVoiceVolumeHint"
+msgid "How loud their voice plays for you. They are not told."
+msgstr ""
+
+msgctxt "StatusVoice"
+msgid "Voice"
+msgstr ""
+
+msgctxt "StatusVoiceDatagrams"
+msgid "UDP"
+msgstr ""
+
+msgctxt "StatusVoiceWebSocket"
+msgid "WebSocket"
 msgstr ""

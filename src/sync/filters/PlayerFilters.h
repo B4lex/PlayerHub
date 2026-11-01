@@ -14,10 +14,13 @@ namespace PlayerFilters
     [[nodiscard]] bool IsFriend(Multiplayer::SessionID a_session);
     [[nodiscard]] bool IsMuted(Multiplayer::SessionID a_session);
     [[nodiscard]] bool IsVanished(Multiplayer::SessionID a_session);
+    // Percent, Network::PlayerFilterStore::kDefaultVoiceVolume for a player without an entry.
+    [[nodiscard]] std::uint32_t GetVoiceVolume(Multiplayer::SessionID a_session);
 
     void SetFriend(const Multiplayer::PlayerIdentity& a_player, bool a_friend);
     void SetMuted(const Multiplayer::PlayerIdentity& a_player, bool a_muted);
     void SetVanished(const Multiplayer::PlayerIdentity& a_player, bool a_vanished);
+    void SetVoiceVolume(const Multiplayer::PlayerIdentity& a_player, std::uint32_t a_percent);
 
     [[nodiscard]] std::uint64_t GetRevision();
 

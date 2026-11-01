@@ -10,6 +10,7 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <cfloat>
 #include <utility>
 
 namespace UI
@@ -56,6 +57,7 @@ namespace UI
         const bool whisper = ImGui::MenuItem(Text::GetCString(Id::kPlayerMenuWhisper), nullptr, false, player.playerID != 0);
         DrawTradeItems();
         DrawFilterItems();
+        DrawVoiceVolume();
         return whisper;
     }
 
@@ -126,6 +128,31 @@ namespace UI
             : pending              ? Id::kPlayerMenuTradeChecking
                                    : Id::kPlayerMenuTradeTooFar;
         ImGui::SetItemTooltip("%s", Text::GetCString(tooltip));
+    }
+
+    void ChatPlayerMenu::DrawVoiceVolume()
+    {
+        if (player.session == 0 || player.session == ChatRoster::GetLocalSession()
+            || PlayerFilters::IsMuted(player.session))
+        {
+            return;
+        }
+        ImGui::Separator();
+        ImGui::TextUnformatted(Text::GetCString(Id::kPlayerMenuVoiceVolume));
+        ImGui::SetItemTooltip("%s", Text::GetCString(Id::kPlayerMenuVoiceVolumeHint));
+        if (!voiceVolumeActive)
+        {
+            voiceVolume = static_cast<int>(PlayerFilters::GetVoiceVolume(player.session));
+        }
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        ImGui::SliderInt("##VoiceVolume", &voiceVolume, 0,
+            static_cast<int>(Network::PlayerFilterStore::kMaximumVoiceVolume), "%d%%", ImGuiSliderFlags_AlwaysClamp);
+        voiceVolumeActive = ImGui::IsItemActive();
+        // Saved on release, so a drag does not write the file in every frame.
+        if (ImGui::IsItemDeactivatedAfterEdit())
+        {
+            PlayerFilters::SetVoiceVolume(player, static_cast<std::uint32_t>(voiceVolume));
+        }
     }
 
     void ChatPlayerMenu::DrawFilterItems() const

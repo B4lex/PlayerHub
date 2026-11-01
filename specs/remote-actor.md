@@ -12,8 +12,9 @@ A remote actor is a local `RE::Actor` that stands in for a player who lives in
 another world. This system owns what makes it one: spawning and registration,
 readiness, the per-actor engine update, the animation firewall, graph recovery,
 survival, isolation from the local world in both directions, the budget
-of scene lights its torches and spells take, and showing its player's custom
-animations through the [skeleton pose](#skeleton-pose). The local
+of scene lights its torches and spells take, showing its player's custom
+animations through the [skeleton pose](#skeleton-pose), and the engine side of
+its [voice](#voice): its mouth and the rays that muffle it. The local
 world neither fights, moves, nor is moved by a remote actor, and the actor's
 own AI does not react to the local world. Local gameplay continues as if it
 were not there.
@@ -42,6 +43,8 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/ScenePackageSuppression` | Scene package action hooks |
 | `actor/RemoteCollision` | Placement ownership, the skipped movement update, collision, support, and Speed channel |
 | `actor/RemoteLights` | Keeps the configured number of remote actors' scene lights lit and culls the rest |
+| `actor/ActorLipSync` | Opens and closes a remote actor's mouth with its player's voice ([Voice](#voice)) |
+| `actor/VoiceOcclusion` | Whether level geometry stands between the player's and a speaker's heads ([Voice](#voice)) |
 | `runtime/RemoteActorActivation` | The local player's activation of a remote actor: the dead body's prompt and the player menu request |
 | `actor/ActorSkeleton` | Reads the local player's third-person bone rotations, and blends a remote actor's network pose over its graph's output |
 | `actor/ModdedGraph` | Reads the local player's third-person graph for modded events and active modded states |
@@ -594,6 +597,24 @@ engine drops a light from the scene once the `BSLight` holds the last
 reference to the `NiLight`, and an extra one would leave the light behind
 after its torch or spell is gone. `Remote light budget` logs the limit and
 the counted and culled lights whenever one of them changes.
+
+## Voice
+
+[Voice chat](voice-chat.md) decides when a player speaks and how loud; these
+two modules are its engine calls, on the game thread
+(`GameThread::Require`), from `VoiceSync::UpdatePeers`
+([Sync pipeline](sync-pipeline.md#frame-sequence)).
+
+- `ActorLipSync::Apply` takes an openness from 0 to 1 and writes the `Aah`
+  (0.75 of it) and `BigAah` (0.45 of its square) values of the actor's
+  `BSFaceGenAnimationData::phenomeKeyFrame` under the data's `lock`, the
+  keyframe the console's `mfg phoneme` sets; 0 closes the mouth. An actor
+  without face data, or a keyframe with fewer phonemes, is left alone.
+- `VoiceOcclusion::IsBlocked` casts one `bhkWorld::PickObject` ray between two
+  points in the player's cell's Havok world on the character controller layer,
+  as `GroundProbe` does, with a collector that keeps the closest hit on a
+  static, animated static, terrain, ground, or prop layer and lets the ray go
+  through characters, water, clutter, and the rest.
 
 ## Skeleton pose
 

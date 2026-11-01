@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -85,6 +86,10 @@ namespace Network
     void PublishPoseLimit(std::uint32_t a_players);
 
     [[nodiscard]] bool RequestInspection(Multiplayer::PeerSlot a_playerID);
+
+    // VoiceTransport's WebSocket side; any thread.
+    void PublishVoiceRoute(bool a_datagrams);
+    void PublishVoiceFrame(std::uint16_t a_sequence, bool a_end, std::span<const std::uint8_t> a_opus);
 
     [[nodiscard]] bool PublishTradeRequest(Multiplayer::PeerSlot a_playerID);
     void PublishTradeAnswer(Multiplayer::TradeID a_trade, bool a_accept);

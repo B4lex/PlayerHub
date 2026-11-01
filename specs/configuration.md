@@ -79,9 +79,14 @@ value described before it; reading and saving ignore it, and the settings
 window leaves the row out while the value is false.
 `Comment` names a group of the settings after it: a comment line above them
 in a new file, and a group heading in the settings window.
+`AudioDevice` is an audio device's system name, read and saved as a string
+(`SettingsVisitor::IsValidAudioDeviceName`: at most 255 bytes without a line
+break or `;`), and the settings window offers the devices it finds; it takes
+whether the device captures. `InputMeter` holds no value: the settings window
+alone draws the microphone's level against the threshold it takes.
 `Config::Describe` describes the sections in the order Connection,
-DefaultOutfit, UI, Controls, Advanced: the order of a new file's sections and
-of the settings window's sidebar
+DefaultOutfit, UI, Controls, Voice, Advanced: the order of a new file's
+sections and of the settings window's sidebar
 ([UI overlay](ui-overlay.md#settings-window)).
 
 ## Settings
@@ -221,6 +226,7 @@ the arrows, has that word in the game's language.
 | `ManagePlayers` | Opens the [player manager](ui-overlay.md#player-manager) alone, without the chat | `O` |
 | `AcceptTrade` | Accepts another player's trade invitation while it waits for an answer ([Trade](trade.md#invitation)). It is the game's only while no invitation waits | `Y` |
 | `DeclineTrade` | Declines another player's trade invitation, or withdraws the player's own, while it waits | `N` |
+| `Microphone` | Held to be heard with push-to-talk; pressed to turn the microphone off and on with voice activation ([Voice chat](voice-chat.md#activation)). The game keeps the key's own action | `V` |
 
 - A key is `F1`–`F12`, a letter `A`–`Z`, a digit `0`–`9`, `Minus`,
   `Equals`, `LeftBracket`, `RightBracket`, `Semicolon`, `Apostrophe`,
@@ -237,8 +243,8 @@ the arrows, has that word in the game's language.
   Ctrl, Alt) edit text and form shortcuts, Backspace also clears a binding
   in the window, and the Windows keys, the
   context-menu key, and Print Screen belong to the system.
-- An empty value leaves `ManagePlayers`, `AcceptTrade`, or `DeclineTrade`
-  unbound (scan code 0), and the file keeps it as `AcceptTrade =`; an
+- An empty value leaves `ManagePlayers`, `AcceptTrade`, `DeclineTrade`, or
+  `Microphone` unbound (scan code 0), and the file keeps it as `AcceptTrade =`; an
   unbound action has no key and the prompt leaves it out. An empty
   `OpenSettings` is `F4` and an empty `OpenChat` is `Enter`, since each key
   is the only way to open its window (a whisper from the
@@ -246,6 +252,24 @@ the arrows, has that word in the game's language.
   window sets the same values.
 - Two settings may hold the same key in the file; the window does not let
   the player bind one key twice. Unbound actions do not conflict.
+
+### `[Voice]`
+
+[Voice chat](voice-chat.md) with the players nearby: `Enabled`, then two
+groups, Microphone (`Mode`, the input meter, `ActivationLevel`,
+`NoiseSuppression`, `InputDevice`, `InputVolume`) and Other players
+(`OutputDevice`, `OutputVolume`, `LipSync`).
+
+| Key | Meaning | Default |
+| --- | --- | --- |
+| `Enabled` | Hears and is heard on a server that carries voice; off keeps the microphone and speakers closed | `true` |
+| `Mode` | `PushToTalk`, heard while `[Controls] Microphone` is held, or `VoiceActivation`, heard while speaking ([Voice chat](voice-chat.md#activation)) | `PushToTalk` |
+| `ActivationLevel` | The input level at which voice activation opens, `0..100` on the meter's scale, 0 at -60 dBFS and 100 at full scale; the settings window shows it only with `VoiceActivation` | `35` |
+| `NoiseSuppression` | Runs the microphone through RNNoise before encoding, and lets voice activation open only on speech | `true` |
+| `InputDevice`, `OutputDevice` | The capture and playback devices by their system names, as the settings window lists them; empty is the system's default device. A name no device has logs a warning and uses the default | empty |
+| `InputVolume` | Gain on the microphone in percent, `0..200` in steps of `5` | `100` |
+| `OutputVolume` | Gain on other players' voices in percent, `0..200` in steps of `5` | `100` |
+| `LipSync` | Moves speaking players' characters' mouths | `true` |
 
 ### `[Advanced]`
 
@@ -292,6 +316,7 @@ revision before the snapshot never misses a change.
 | `SettingsWindow` | overlay, input | reading `OpenSettings` on each focus key press |
 | `ChatWindow` | input | reading `OpenChat` and `ManagePlayers` on each focus key press |
 | `TradePrompt` | overlay, input | reading `AcceptTrade` and `DeclineTrade` on each focus key press and each frame it draws |
+| `VoiceSync` | main loop | reading `[Voice]` and `[Controls] Microphone` every frame in `Maintain`, and configuring the audio engine when they differ; `LipSync` each pass |
 | `StatusPanel`, item pickers, trade window | overlay | reading `[Advanced] StatusPanel` and `[UI] ItemPreview` each frame |
 | `ChatInput` | overlay | reading `CloseChatOnSend` on each Enter that sends or finds the field empty |
 | `Theme` | overlay | working out the accent, frame, and background colors from `AccentColor`, `BorderColor`, and `BackgroundOpacity` when the revision changes |
@@ -323,8 +348,8 @@ on its edges ([UI overlay](ui-overlay.md#size)) or one that moves it
 
 `Config::GetDirectory` is the directory of `PlayerHub.ini`, for the plugin's
 other files: the session tokens are kept there in `PlayerHub.session`, outside
-this file ([Network](network.md#session)), the friends, muted, and vanished players in
-`PlayerHub.players` ([Network](network.md#player-filters)), and the settings
+this file ([Network](network.md#session)), the friends, muted, and vanished players and
+voice volumes in `PlayerHub.players` ([Network](network.md#player-filters)), and the settings
 window's fonts and
 the menu frame's shape are read from `PlayerHub/fonts/` and `PlayerHub/frame/`
 under it ([UI overlay](ui-overlay.md#themed-faces)).

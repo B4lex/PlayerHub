@@ -22,6 +22,8 @@ namespace Config
         constexpr std::uint32_t kIntlBackslash = 0x56;
         constexpr std::uint32_t kDefaultSettingsKey = KeyboardKey::kF4;
         constexpr std::uint32_t kDefaultChatKey = KeyboardKey::kEnter;
+        // Unbound in the vanilla PC controls.
+        constexpr std::uint32_t kDefaultMicrophoneKey = KeyboardKey::kV;
 
         constexpr std::string_view kDefaultServerEndpoint = PLAYERHUB_DEFAULT_SERVER_ENDPOINT;
 
@@ -44,6 +46,8 @@ namespace Config
             Id::kOutfitBattleaxe, Id::kOutfitBow, Id::kOutfitStaff, Id::kOutfitCrossbow };
         constexpr std::array<Id, UISettings::kFrameColorNames.size()> kFrameColorLabels{ Id::kUIBorderVanilla,
             Id::kUIBorderAccent };
+        constexpr std::array<Id, VoiceSettings::kModeNames.size()> kVoiceModeLabels{ Id::kVoiceModePushToTalk,
+            Id::kVoiceModeVoiceActivation };
         struct BindableKey
         {
             std::string_view name;
@@ -275,6 +279,35 @@ namespace Config
                 Id::kControlsAcceptTradeComment, 0);
             a_visitor.Key("DeclineTrade", Id::kControlsDeclineTrade, a_settings.tradeDeclineKey,
                 Id::kControlsDeclineTradeComment, 0);
+            a_visitor.Key("Microphone", Id::kControlsMicrophone, a_settings.microphoneKey,
+                Id::kControlsMicrophoneComment, 0);
+        }
+
+        void DescribeVoice(VoiceSettings& a_settings, SettingsVisitor& a_visitor)
+        {
+            a_visitor.Section("Voice", Id::kSectionVoice, Id::kVoiceComment);
+            a_visitor.Bool("Enabled", Id::kVoiceEnabled, a_settings.enabled, Id::kVoiceEnabledComment);
+
+            a_visitor.Comment(Id::kVoiceGroupMicrophone);
+            a_visitor.Choice("Mode", Id::kVoiceMode, a_settings.mode, Id::kVoiceModeComment, VoiceSettings::kModeNames,
+                kVoiceModeLabels);
+            a_visitor.InputMeter(Id::kVoiceInputLevel, a_settings.activationLevel);
+            a_visitor.ShowNextIf(a_settings.mode == VoiceSettings::kVoiceActivation);
+            a_visitor.Percent("ActivationLevel", Id::kVoiceActivationLevel, a_settings.activationLevel,
+                Id::kVoiceActivationLevelComment, 0, VoiceSettings::kMaximumActivationLevel, 1);
+            a_visitor.Bool("NoiseSuppression", Id::kVoiceNoiseSuppression, a_settings.noiseSuppression,
+                Id::kVoiceNoiseSuppressionComment);
+            a_visitor.AudioDevice("InputDevice", Id::kVoiceInputDevice, a_settings.inputDevice,
+                Id::kVoiceInputDeviceComment, true);
+            a_visitor.Percent("InputVolume", Id::kVoiceInputVolume, a_settings.inputVolume, Id::kVoiceInputVolumeComment,
+                0, VoiceSettings::kMaximumVolume, VoiceSettings::kVolumeStep);
+
+            a_visitor.Comment(Id::kVoiceGroupPlayers);
+            a_visitor.AudioDevice("OutputDevice", Id::kVoiceOutputDevice, a_settings.outputDevice,
+                Id::kVoiceOutputDeviceComment, false);
+            a_visitor.Percent("OutputVolume", Id::kVoiceOutputVolume, a_settings.outputVolume,
+                Id::kVoiceOutputVolumeComment, 0, VoiceSettings::kMaximumVolume, VoiceSettings::kVolumeStep);
+            a_visitor.Bool("LipSync", Id::kVoiceLipSync, a_settings.lipSync, Id::kVoiceLipSyncComment);
         }
 
         void DescribeAdvanced(AdvancedSettings& a_settings, SettingsVisitor& a_visitor)
@@ -312,6 +345,7 @@ namespace Config
             config.controls.playersKey = KeyboardKey::kO;
             config.controls.tradeAcceptKey = KeyboardKey::kY;
             config.controls.tradeDeclineKey = KeyboardKey::kN;
+            config.controls.microphoneKey = kDefaultMicrophoneKey;
 
             auto& outfit = config.defaultOutfit;
             const auto skyrim = [](std::uint32_t a_localFormID) {
@@ -350,7 +384,17 @@ namespace Config
         DescribeDefaultOutfit(a_config.defaultOutfit, a_visitor);
         DescribeUI(a_config.ui, a_visitor);
         DescribeControls(a_config.controls, a_visitor);
+        DescribeVoice(a_config.voice, a_visitor);
         DescribeAdvanced(a_config.advanced, a_visitor);
+    }
+
+    bool SettingsVisitor::IsValidAudioDeviceName(std::string_view a_value)
+    {
+        // SimpleIni would keep a trailing comment in the value, and a line break would end it.
+        return a_value.size() <= VoiceSettings::kMaximumDeviceNameBytes
+            && std::ranges::none_of(a_value, [](char a_character) {
+                   return a_character == '\n' || a_character == '\r' || a_character == ';';
+               });
     }
 
     const PluginConfig& GetDefaultConfig()

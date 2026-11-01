@@ -918,8 +918,8 @@ msgid "Mute"
 msgstr "靜音"
 
 msgctxt "PlayerMenuMuteHint"
-msgid "Hide their messages in every channel."
-msgstr "在所有頻道中隱藏對方的訊息。"
+msgid "Hide their messages in every channel and silence their voice."
+msgstr "在所有頻道中隱藏對方的訊息，並將其語音靜音。"
 
 msgctxt "PlayerMenuUnmuteHint"
 msgid "Show their messages again."
@@ -1407,3 +1407,155 @@ msgstr "{} 已離線"
 msgctxt "ItemUnknownEffect"
 msgid "Unknown effect"
 msgstr "未知效果"
+
+msgctxt "SectionVoice"
+msgid "Voice"
+msgstr "語音"
+
+msgctxt "VoiceComment"
+msgid "Talk to the players near you; their voices come from their characters."
+msgstr "與附近的玩家交談；他們的聲音來自他們的角色。"
+
+msgctxt "VoiceEnabled"
+msgid "Voice chat"
+msgstr "語音聊天"
+
+msgctxt "VoiceEnabledComment"
+msgid ""
+"Hear the players near you and let them hear you. Off keeps your microphone "
+"and speakers closed."
+msgstr "聽見附近的玩家，也讓他們聽見你。關閉時不會開啟麥克風與喇叭。"
+
+msgctxt "VoiceGroupMicrophone"
+msgid "Microphone"
+msgstr "麥克風"
+
+msgctxt "VoiceMode"
+msgid "Transmit"
+msgstr "傳送方式"
+
+msgctxt "VoiceModeComment"
+msgid ""
+"Push to talk sends your voice while you hold the microphone key. Voice "
+"activation sends it while you speak, and the key turns your microphone off "
+"and on."
+msgstr "按鍵通話會在你按住麥克風鍵時傳送聲音。語音啟動會在你說話時傳送，而按鍵會關閉與開啟麥克風。"
+
+msgctxt "VoiceModePushToTalk"
+msgid "Push to talk"
+msgstr "按鍵通話"
+
+msgctxt "VoiceModeVoiceActivation"
+msgid "Voice activation"
+msgstr "語音啟動"
+
+msgctxt "VoiceInputLevel"
+msgid "Input level"
+msgstr "輸入音量"
+
+msgctxt "VoiceInputLevelComment"
+msgid ""
+"How loud your microphone is. It fills in the accent color while others hear "
+"you."
+msgstr "你的麥克風有多大聲。其他人聽得到你時，會以強調色填滿。"
+
+msgctxt "VoiceMeterClosed"
+msgid "Opens while connected to a server with voice chat"
+msgstr "連線到有語音聊天的伺服器時開啟"
+
+msgctxt "VoiceActivationLevel"
+msgid "Activation level"
+msgstr "啟動門檻"
+
+msgctxt "VoiceActivationLevelComment"
+msgid ""
+"How loud you must speak to be heard. The mark on the input level shows it."
+msgstr "你需要多大聲說話才會被聽見。輸入音量上的標記會顯示它。"
+
+msgctxt "VoiceNoiseSuppression"
+msgid "Noise suppression"
+msgstr "噪音抑制"
+
+msgctxt "VoiceNoiseSuppressionComment"
+msgid ""
+"Removes background noise, such as fans and typing, before your voice is "
+"sent."
+msgstr "在傳送聲音前去除風扇與打字等背景噪音。"
+
+msgctxt "VoiceInputDevice"
+msgid "Input device"
+msgstr "輸入裝置"
+
+msgctxt "VoiceInputDeviceComment"
+msgid "The microphone voice chat uses."
+msgstr "語音聊天使用的麥克風。"
+
+msgctxt "VoiceDefaultDevice"
+msgid "System default"
+msgstr "系統預設"
+
+msgctxt "VoiceInputVolume"
+msgid "Microphone volume"
+msgstr "麥克風音量"
+
+msgctxt "VoiceInputVolumeComment"
+msgid "How loud other players hear you."
+msgstr "其他玩家聽到你的音量。"
+
+msgctxt "VoiceGroupPlayers"
+msgid "Other players"
+msgstr "其他玩家"
+
+msgctxt "VoiceOutputDevice"
+msgid "Output device"
+msgstr "輸出裝置"
+
+msgctxt "VoiceOutputDeviceComment"
+msgid "Where other players' voices play."
+msgstr "播放其他玩家聲音的位置。"
+
+msgctxt "VoiceOutputVolume"
+msgid "Voice volume"
+msgstr "語音音量"
+
+msgctxt "VoiceOutputVolumeComment"
+msgid "How loud other players' voices play."
+msgstr "其他玩家聲音的播放音量。"
+
+msgctxt "VoiceLipSync"
+msgid "Lip sync"
+msgstr "嘴型同步"
+
+msgctxt "VoiceLipSyncComment"
+msgid "Moves other players' characters' mouths while they speak."
+msgstr "在其他玩家說話時讓其角色的嘴巴動起來。"
+
+msgctxt "ControlsMicrophone"
+msgid "Microphone"
+msgstr "麥克風"
+
+msgctxt "ControlsMicrophoneComment"
+msgid ""
+"Hold to talk with push to talk. With voice activation, turns your "
+"microphone off and on."
+msgstr "按鍵通話時按住以說話。語音啟動時關閉與開啟麥克風。"
+
+msgctxt "PlayerMenuVoiceVolume"
+msgid "Voice volume"
+msgstr "語音音量"
+
+msgctxt "PlayerMenuVoiceVolumeHint"
+msgid "How loud their voice plays for you. They are not told."
+msgstr "對方的聲音對你播放的音量。對方不會收到通知。"
+
+msgctxt "StatusVoice"
+msgid "Voice"
+msgstr "語音"
+
+msgctxt "StatusVoiceDatagrams"
+msgid "UDP"
+msgstr "UDP"
+
+msgctxt "StatusVoiceWebSocket"
+msgid "WebSocket"
+msgstr "WebSocket"

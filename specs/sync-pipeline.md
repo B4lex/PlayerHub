@@ -30,6 +30,7 @@ each feature's rules to its own system, the transport to
 | `runtime/VanillaIntro` | Whether the vanilla Helgen intro holds the connection ([Vanilla intro](#vanilla-intro)) |
 | `runtime/RemoteActorActivation` | The local player's activation of a remote actor or mount, on its worker thread ([UI overlay](ui-overlay.md#player-menu-in-the-world)) |
 | `runtime/PluginTime` | Plugin time per pass, averaged each second ([UI overlay](ui-overlay.md#plugin-time)) |
+| `runtime/KeyState` | Keyboard keys held and pressed as the input dispatch reports them, for [voice chat](voice-chat.md#activation)'s microphone key |
 | `runtime/PlayerGraphEventHook` | The local player's accepted graph input events, read once against the modded events, for [beast actions](combat-presentation.md#beast-actions), [idles](idle-presentation.md#capture), [pose windows](remote-actor.md#source-window), the [graph event survey](#graph-event-survey), and the [graph trace](#graph-trace) |
 | `sync/SyncCoordinator` | One frame entry, the stage order, the single network drain, and the peer map |
 | `sync/PeerState` | A peer's complete receive state, composed of feature-owned members |
@@ -38,6 +39,7 @@ each feature's rules to its own system, the transport to
 | `sync/CheckpointPublisher` | Checkpoint cadence and sequence; calls every feature's local sampler |
 | `sync/ActorLifecycle` | Spawn, retirement, stranded and lost actors, spawn throttling, save exclusion, the mount beside its rider |
 | `sync/presence/PresenceSync` | `Enter` and `Exit`, and the game session |
+| `sync/voice/VoiceSync` | [Voice chat](voice-chat.md)'s game-thread state: devices, the microphone key, speakers' parameters, occlusion, lip sync |
 | `sync/customanimation/GraphEventSurvey` | Debug builds: logs each distinct graph event the local player accepts ([Graph event survey](#graph-event-survey)) |
 | `sync/customanimation/GraphTrace` | Debug builds: logs the local player's modded graph behavior ([Graph trace](#graph-trace)) |
 
@@ -48,7 +50,7 @@ actor. `AppearanceSync` owns a peer's appearance revision, and `ActorSpawner`
 allocates the actor from the base that appearance selects.
 
 Dependencies run `runtime -> sync -> actor` for game-thread work,
-`sync -> network/protocol` for data, and `actor -> protocol` for value types only, plus
+`sync -> network/protocol` for data, `sync -> audio` for voice, and `actor -> protocol` for value types only, plus
 `actor -> runtime/GameThread` for the thread guard. `network/` and `protocol/`
 include no Skyrim headers. `runtime` calls the installers in `actor`, which own
 their detours and event sinks. `main.cpp` stays a small SKSE entry point.
@@ -79,7 +81,9 @@ builds stay comparable.
   callbacks on worker threads only query `ActorRegistry`, which keeps its
   locking operations small and never touches `PeerState` or a graph, or, for
   the local player's graph input, queue a beast action or an idle event behind
-  `ShapeshiftSync`'s or `IdleSync`'s own lock.
+  `ShapeshiftSync`'s or `IdleSync`'s own lock. Voice frames go from the
+  network threads to the audio engine without the pass
+  ([Voice chat](voice-chat.md#threads)).
 
 ## Frame sequence
 
@@ -94,7 +98,10 @@ builds stay comparable.
 4. runs `SyncCoordinator::OnFrame` only for a finite positive delta, so
    nothing advances in the main menu or while paused;
 5. calls `Network::UpdateConnectionMonitor` with that delta, or zero when the
-   frame did not advance.
+   frame did not advance;
+6. calls `VoiceSync::Maintain`, also when the frame did not advance, so
+   devices follow the connection in the main menu and players talk with a
+   menu open ([Voice chat](voice-chat.md#activation)).
 
 The original call reaches Skyrim's per-frame actor movement jobs, so the engine
 movement update runs before the pass and the network transform is the last
@@ -110,10 +117,11 @@ ApplyNetworkChanges                       # the one drain; trade events queued
 ServePlayerDetails                        # the open player menu's race and level
 PlayCheckpoints                           # each peer's due checkpoints play
 ActorLifecycle::RefillSpawnAllowance
-if no player: return
+if no player: VoiceSync::UpdateLocal(false), return
 YieldActivatedFurniture                   # queued local furniture activations
 OpenActivatedPlayerMenu                   # the latest activated remote actor's player menu
 inWorld = PresenceSync::SyncPresence
+VoiceSync::UpdateLocal(inWorld)           # the player is heard only in the world
 if inWorld:
     ShapeshiftSync::ObserveLocalForm       # the local beast form, for the graph input hook
     CombatSync::CaptureLocalAttack         # dropped in a beast form
@@ -135,6 +143,8 @@ TradeSync::Sync                           # trade events, overlay commands, canc
 if no local cell: return
 PrecisionIsolation::Update                # reassert after the player's Havok world changes
 for each peer: SyncPeer
+SkeletonSync::AssignSlots
+VoiceSync::UpdatePeers                    # speakers' gain, pan, occlusion; lip sync; speaking levels
 NameplateSync::Update                     # head nodes, line of sight, the plates the overlay draws
 RemoteLights::Update                      # with a world camera: the remote light budget
 ```

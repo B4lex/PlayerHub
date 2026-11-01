@@ -28,6 +28,7 @@ overlay logs a warning and does not install there. `Status` and
 | [idle-presentation.md](idle-presentation.md) | Vanilla idles (gestures, dances, seated and held idles, instruments): capture, held idle, receiver queue, ownership, release, re-entry | `sync/idle/`, `actor/IdlePresentation`, `protocol/IdleEvent.h` |
 | [native-interactions.md](native-interactions.md) | Furniture, mounts, death: where Skyrim drives the actor | `sync/furniture/`, `sync/mount/`, `sync/death/`, `actor/ActorFurniture`, `actor/ActorMount`, `actor/ActorDeath` |
 | [trade.md](trade.md) | Item exchange between two players: invitation, plugin check, offers, reports, acceptance, commit, cancelling, the trade bot; the only change a peer makes to the local world | `sync/trade/`, `forms/ItemInstance`, `protocol/TradeState.h`, `server/internal/hub/trade.go`, `server/cmd/tradebot` |
+| [voice-chat.md](voice-chat.md) | Proximity voice: devices, capture, noise suppression, push-to-talk and voice activation, Opus, the datagram route and its WebSocket fallback, jitter buffers, spatial mix, occlusion, lip sync, the relay | `src/audio/`, `network/VoiceTransport`, `sync/voice/`, `runtime/KeyState`, `actor/ActorLipSync`, `actor/VoiceOcclusion`, `server/internal/voice` |
 | [configuration.md](configuration.md) | `PlayerHub.ini`, schema, snapshots, saving | `src/config/` |
 | [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, localization, theme, background opacity, menu frame, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, player menu, player menu in the world, settings window, Discord link, item picker and preview | `src/ui/`, `src/text/`, `locale/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `admin-ui/` |
@@ -76,7 +77,8 @@ criteria.
 | Notices (toasts on the right) and chat notes | [ui-overlay](ui-overlay.md#notices), [ui-overlay](ui-overlay.md#notes), [trade](trade.md#notices) |
 | Players online list | [ui-overlay](ui-overlay.md#player-list), [network](network.md#roster), [network](network.md#nearby-players) |
 | Friends | [ui-overlay](ui-overlay.md#friends), [network](network.md#player-filters) |
-| Mute and vanish | [ui-overlay](ui-overlay.md#mute-and-vanish), [network](network.md#vanish), [interest-and-delivery](interest-and-delivery.md#subscriptions) |
+| Mute and vanish | [ui-overlay](ui-overlay.md#mute-and-vanish), [network](network.md#vanish), [interest-and-delivery](interest-and-delivery.md#subscriptions), [voice-chat](voice-chat.md#playback) |
+| Proximity voice chat (push-to-talk or voice activation, positional and occluded voices, noise suppression, speaking indicators, lip sync, per-player volume) | [voice-chat](voice-chat.md), [network](network.md#voice), [interest-and-delivery](interest-and-delivery.md#voice-listeners), [ui-overlay](ui-overlay.md#voice-chat), [remote-actor](remote-actor.md#voice), [configuration](configuration.md#voice), [sync-pipeline](sync-pipeline.md#frame-sequence) |
 | Player menu in the world (Activate on a player) | [ui-overlay](ui-overlay.md#player-menu-in-the-world), [remote-actor](remote-actor.md#spawn), [sync-pipeline](sync-pipeline.md#frame-sequence) |
 | Player menu heading (name, race, level; inspection) | [ui-overlay](ui-overlay.md#player-menu), [network](network.md#inspection), [sync-pipeline](sync-pipeline.md#frame-sequence), [appearance-and-equipment](appearance-and-equipment.md#resolution-and-fallback) |
 | Settings | [ui-overlay](ui-overlay.md#settings-window), [configuration](configuration.md) |
@@ -84,7 +86,7 @@ criteria.
 | Accent color | [ui-overlay](ui-overlay.md#accent-color), [configuration](configuration.md#ui) |
 | Scale | [ui-overlay](ui-overlay.md#scale), [configuration](configuration.md#ui) |
 | Background opacity and blur | [ui-overlay](ui-overlay.md#background-opacity), [configuration](configuration.md#ui) |
-| Key bindings | [ui-overlay](ui-overlay.md#key-bindings), [ui-overlay](ui-overlay.md#input-focus), [configuration](configuration.md#controls) |
+| Key bindings | [ui-overlay](ui-overlay.md#key-bindings), [ui-overlay](ui-overlay.md#input-focus), [configuration](configuration.md#controls), [voice-chat](voice-chat.md#activation) |
 | Input language switching while typing | [ui-overlay](ui-overlay.md#input-language) |
 | Localization and the language setting (the plugin's text in the game's or a picked language, from translation files anyone can add) | [ui-overlay](ui-overlay.md#localization), [ui-overlay](ui-overlay.md#translation-files), [configuration](configuration.md#ui), [configuration](configuration.md#schema), [trade](trade.md#item-details) |
 | Item trade | [trade](trade.md), [network](network.md#trade), [ui-overlay](ui-overlay.md#trade-window), [sync-pipeline](sync-pipeline.md#frame-sequence), [interest-and-delivery](interest-and-delivery.md#ordering), [configuration](configuration.md#controls) |

@@ -6,7 +6,8 @@ The plugin's own UI layer: [nameplates](#nameplates) over other players'
 heads, a status panel, the [display name hint](#display-name-hint),
 [notices](#notices), chat, the
 settings window, the
-[trade window and prompt](#trade-window), and the reusable item picker with a
+[trade window and prompt](#trade-window), the [voice chat](#voice-chat)
+indicators, and the reusable item picker with a
 3D preview. `ui/` never changes the game; it reaches
 the network only through the feature modules it presents, such as `ChatSync`,
 and the configuration through `Config`. Its text, and the notices the
@@ -42,6 +43,7 @@ src/ui/
   hud/DisplayNameHint         # where to enter a display name, while none is set
   hud/GameView                # whether the world is on screen, for the HUD layers
   hud/NoticeStack             # notices on the right edge, friends coming online
+  hud/VoiceIndicator          # the microphone while the player is heard or has turned it off
   chat/ChatWindow             # open and closed chat, focus by its keys, the manager alone, the send target's channel kept shown
   chat/ChatHistory            # lines, channel filters, unread marks, scrolling, the line menu
   chat/ChatInput              # target chip and its menu, text field, name list, notes
@@ -49,7 +51,7 @@ src/ui/
   chat/ChatPosition           # the open chat's corner, the drag that moves it, saving it
   chat/ChatPlayers            # the players online: the button on the filters' row, the list beside the chat
   chat/ChatStyle.h            # channel and failure colors, the chips' frame, the rule under the filters
-  chat/ChatPlayerMenu         # a player's menu: heading, whisper, trade, friend, mute and vanish items or their undoing
+  chat/ChatPlayerMenu         # a player's menu: heading, whisper, trade, friend, mute and vanish items or their undoing, voice volume
   chat/ChatPlayerManager      # player manager: friends, muted, and vanished tabs, over the chat or alone
   chat/WorldPlayerMenu        # a player's menu at the crosshair, opened by activating its character
   trade/TradePrompt           # a trade invitation waiting for an answer, answered by its keys
@@ -60,6 +62,7 @@ src/ui/
   settings/DiscordLink        # the Discord symbol and its invitation, opening the invite in the browser
   widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text, striped box
   widgets/ItemPicker          # item dropdown
+  widgets/VoiceGlyphs         # the speaking bars and the microphone, drawn from primitives
   preview/ItemPreview         # 3D item model, spinning and turned by dragging, and cached thumbnails
   render/Gpu                  # frame target, runtime-compiled full-screen passes, image blend modes
   render/Backdrop             # the game's frame blurred and darkened behind a full-screen window
@@ -67,7 +70,8 @@ src/sync/chat/ChatSync        # send to a target and why it failed, the server's
 src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners, the list's copy
 src/sync/chat/ChatComposer    # send target, the `@` prefix, name list, notes, sent lines
 src/sync/notices/Notices      # the notices queue any feature posts to
-src/sync/nameplates/NameplateSync # per peer: head node, line of sight, fade, label; the pass's plates
+src/sync/nameplates/NameplateSync # per peer: head node, line of sight, fade, label, voice level; the pass's plates
+src/sync/voice/VoiceSync      # speaking levels, the local microphone's state, audio devices (voice-chat.md)
 src/sync/filters/PlayerFilters # friends, muted and vanished players of the current server, publishing, friends coming online
 src/sync/chat/PlayerActivation # the activated player, and a whisper picked in its menu
 src/runtime/PluginTime        # plugin time per pass
@@ -588,6 +592,11 @@ keyboard and the game receives no keyboard or mouse input.
   punctuation, Space, the numpad), goes to a text field instead while one is
   active (`io.WantTextInput` as of the overlay's latest frame), so it still
   edits.
+- Every keyboard press and release the dispatch routes is also recorded in
+  `KeyState` ([Sync pipeline](sync-pipeline.md#components)), whoever owns the
+  key, for [voice chat](voice-chat.md#activation)'s microphone key; a press
+  that edits an active text field is not, and a release always is. Nothing is
+  taken from the game or a window by it.
 - While the focused window returns true from `Window::CapturesKeys`, each
   keyboard key pressed goes to its `Window::OnCapturedKey`, on the input
   thread, ahead of release keys, and neither ImGui nor the game sees the
@@ -698,7 +707,8 @@ by default; a change applies on the next frame.
 
 While connected, two grey lines follow with the received and sent traffic in
 KB/s ([Network](network.md#traffic)), without a value before the first
-window. Always shown below: the [plugin time](#plugin-time) in ms, without a
+window, then, on a server with voice, how voice travels: grey for datagrams,
+yellow for the WebSocket fallback ([Voice chat](voice-chat.md#route)). Always shown below: the [plugin time](#plugin-time) in ms, without a
 value before the first window.
 
 The panel is a debugging readout, not player guidance. It does not say why a
@@ -1390,6 +1400,10 @@ covers chat), and admin moderation.
   for all lines only when `PlayerFilters`' revision changes. A muted line
   marks no filter unread. A muted player's whisper does not become a whisper
   partner (`ChatSync::DrainLines`).
+- Muting also silences the player's voice: `VoiceSync` leaves a muted
+  speaker out of the mixer, so its frames are dropped on arrival
+  ([Voice chat](voice-chat.md#playback)). A vanished player's voice ends with
+  its character, since the server stops relaying it.
 - Vanishing is the server's: the client stops receiving the player
   ([Interest and delivery](interest-and-delivery.md#subscriptions)), so its
   remote actor leaves as for any `EXCLUDED` peer and returns, if in range,
@@ -1543,6 +1557,13 @@ level-up while the menu is open.
   of frame time, each frame counting at most 0.1 s, it stops waiting and
   shows the known details or the name alone, as for a reply the server's
   rate limit dropped. The answer is read once.
+
+- Below the mute and vanish items, for a player that is not muted, a
+  separator, a line naming the [voice volume](#voice-chat) with a tooltip
+  saying the player is not told, and a slider of the player's voice volume
+  from 0 to 200%. It shows `PlayerFilters::GetVoiceVolume` while not dragged
+  and saves with `PlayerFilters::SetVoiceVolume` on release, so a drag does not
+  write `PlayerHub.players` in every frame.
 
 ## Player menu in the world
 
@@ -1828,6 +1849,42 @@ tooltips; the only tooltip left in the window is Accept's blocker.
   dropped equipped and favorite, and an enchanted item is told by its
   effects and its glow.
 
+## Voice chat
+
+Goal: a player sees who is speaking, whether it is heard itself, and can set
+how loud each player is, without leaving the game. How voice is captured,
+carried, and played is in [Voice chat](voice-chat.md).
+
+- A speaking peer's nameplate has the speaking glyph left of its name: three
+  rounded bars, centered on the name's height at 0.6 of it, 0.4 of its size
+  from the name, that rise with the voice's level
+  (`VoiceGlyphs::DrawSpeaking`), in the name's color over the name's outline.
+  `NameplateSync` copies `VoiceSync::GetSpeakingLevel` into each plate
+  (`Plate::voiceLevel`), so a plate shows it only while in sight and in
+  range, as its name.
+- The [player list](#player-list) draws the same glyph in the accent, the
+  marks' size, before a speaking player's mute and vanish marks; the name is
+  cut before it.
+- `VoiceIndicator`, registered after the nameplates and drawn on the
+  background draw list like them, shows a microphone
+  (`VoiceGlyphs::DrawMicrophone`) 1.25 font sizes high at 32% of the screen's
+  width and one font size from its top, over a dark outline: in the accent
+  while the player is heard, and struck through in the negative color while
+  voice activation's microphone is off. It shows nothing outside a game,
+  while `UI::IsGameViewShown` is false, or while voice is not active.
+- The [player menu](#player-menu) carries the per-player voice volume.
+- The `[Voice]` page of the [settings window](#settings-window) draws two
+  rows of its own. An audio device (`SettingsVisitor::AudioDevice`) is a combo
+  of the system's default, then the devices `VoiceSync::CopyDeviceNames`
+  lists, with a saved device that is not plugged in kept in the list; opening
+  it asks the audio engine to list the devices again. The input meter
+  (`SettingsVisitor::InputMeter`) is a bar 0.4 of a frame high across the
+  control: the microphone's level from `VoiceSync::GetLocalStatus`, in the
+  accent while the player is heard and muted otherwise, with a mark at
+  `ActivationLevel` under voice activation. While the microphone is closed, as
+  without a connection, the row is a muted line saying when it opens instead.
+
+
 ## Settings window
 
 Players change `PlayerHub.ini` ([Configuration](configuration.md)) in game and
@@ -1861,8 +1918,8 @@ peers keep seeing the player.
   section in schema order under the [logo](#logo): `[Connection]`, which
   opens first and is the display name beside the
   [connection button](#connection-controls) above its other settings, then
-  `[DefaultOutfit]`, `[UI]`, `[Controls]`, and `[Advanced]` (the user's
-  order). Each section's title is the one its schema `Section` call gives
+  `[DefaultOutfit]`, `[UI]`, `[Controls]`, `[Voice]`, and `[Advanced]` (the
+  user's order, with `[Voice]` before the settings most players leave alone). Each section's title is the one its schema `Section` call gives
   ([Schema](configuration.md#schema)), so `[UI]` and `[Controls]` have titles
   other than their keys. The
   open section's item has an accent tint and, like a [notice](#notices), a
@@ -1935,7 +1992,7 @@ peers keep seeing the player.
   saved.
 - The footer's buttons share one width: 5.5 font sizes, or more where the
   longest of their labels needs it.
-- `[UI]`, `[Controls]`, and `[Advanced]` have a footer with one Defaults
+- `[UI]`, `[Controls]`, `[Voice]`, and `[Advanced]` have a footer with one Defaults
   button at its right, enabled while a setting the page shows differs from
   the built-in one (`Config::GetDefaultConfig`); the red line shares the
   footer, at its left. A click restores the page's settings at once and
