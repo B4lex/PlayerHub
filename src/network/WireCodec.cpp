@@ -1223,6 +1223,12 @@ namespace Network::Wire
         return EncodeClientMessage(playerhub_v1_ClientMessage_inspect_tag, playerhub_v1_Inspect_fields, &inspect);
     }
 
+    std::string EncodePoseLimit(std::uint32_t a_players)
+    {
+        playerhub_v1_PoseLimit limit{ a_players };
+        return EncodeClientMessage(playerhub_v1_ClientMessage_pose_limit_tag, playerhub_v1_PoseLimit_fields, &limit);
+    }
+
     std::string EncodeTradeRequest(Multiplayer::PeerSlot a_slot)
     {
         playerhub_v1_TradeRequest request{ a_slot };

@@ -3,6 +3,7 @@
 #include "actor/ActorSkeleton.h"
 #include "actor/RemoteActor.h"
 #include "config/PluginConfig.h"
+#include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
 #include "sync/skeleton/PoseWindow.h"
@@ -28,6 +29,8 @@ namespace SkeletonSync
         {
             bool share{ false };
             bool show{ false };
+            // The nearest posed peers shown, 0 while showing is off; the server sends no
+            // more peers' poses.
             std::uint32_t players{ 0 };
         };
 
@@ -63,9 +66,14 @@ namespace SkeletonSync
             {
                 s_configRevision = revision;
                 const auto& advanced = Config::Get()->advanced;
+                const auto players = advanced.GetShownCustomAnimationPlayers();
+                if (players != s_settings.players)
+                {
+                    Network::PublishPoseLimit(players);
+                }
                 s_settings = { .share = advanced.shareCustomAnimations,
                     .show = advanced.showCustomAnimations,
-                    .players = advanced.customAnimationPlayers };
+                    .players = players };
             }
             return s_settings;
         }
@@ -224,7 +232,7 @@ namespace SkeletonSync
     {
         PROFILE_FUNCTION();
         const auto& settings = GetSettings();
-        const auto limit = settings.show ? settings.players : 0;
+        const auto limit = settings.players;
         const auto shown = (std::min)(static_cast<std::size_t>(limit), s_candidates.size());
         if (shown < s_candidates.size())
         {

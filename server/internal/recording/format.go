@@ -15,7 +15,7 @@ import (
 
 const (
 	FormatName    = "playerhub-recording"
-	FormatVersion = 6
+	FormatVersion = 7
 )
 
 type Error struct{ message string }

@@ -134,6 +134,7 @@ retries. What a refusal means for the client is in [Connection](#connection).
 | `ChatSend` | `{request_id, text, channel, recipient}`, answered with a `ChatResult` ([Chat](#chat)) |
 | `Ping` | `{request_id}`, answered with `Pong{request_id}` by the connection at once; the latency probe |
 | `Vanish` | `{session_id, vanished}`: stop or resume receiving a session's player ([Vanish](#vanish)) |
+| `PoseLimit` | `{players}`: how many posed peers, nearest first, the client is sent [skeleton poses](#skeleton-pose-encoding) of, `0..32` (`validate.MaximumPosePlayers`); `0` until the first one ([Interest and delivery](interest-and-delivery.md#skeleton-poses)) |
 | `Inspect` | `{slot}`: ask for a player's level and race, answered with an `Inspection` ([Inspection](#inspection)) |
 | `TradeRequest`, `TradeAnswer`, `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept`, `TradeCancel` | A trade between two players ([Trade](#trade)) |
 
@@ -220,27 +221,52 @@ A client sends `skeleton` only inside a pose window, while its player plays an
 animation from a mod, with `[Advanced] ShareCustomAnimations` on
 ([Remote actor](remote-actor.md#source-window)). A window is the run of
 checkpoints that carry one; no message opens or closes it, so a late joiner
-sees an open window at once. The server relays it like any checkpoint, to
-every recipient. The field was added within protocol 15: a client or server
-built without it skips it on decode, and such a server's relay drops it, so a
-peer on either neither sends nor shows poses.
+sees an open window at once. The server relays the pose only to recipients
+that rank the sender among their `PoseLimit` nearest posed peers within the
+near distance, and the checkpoint without it to the others
+([Interest and delivery](interest-and-delivery.md#skeleton-poses)), which
+therefore see no window. The client sends `PoseLimit` after every `Welcome`,
+from `[Advanced] ShowCustomAnimations` and `CustomAnimationPlayers` (`0` while
+showing is off), and again whenever the main loop finds that value changed
+(`SkeletonSync`, through `Network::PublishPoseLimit`).
 `protocol/SkeletonPose.h` and `server/internal/validate` hold the same layout:
 
-1. a layout byte, `1` (`kSkeletonLayoutHuman`, `validate.SkeletonLayoutHuman`):
+1. a layout byte, `2` (`kSkeletonLayoutHuman`, `validate.SkeletonLayoutHuman`):
    the bone order of `Network::kSkeletonBoneNames`, 63 bones;
-2. a little-endian `uint64` presence mask, bit `i` for bone `i`; bit 63 must be
-   clear;
+2. the mask of missing bones, bit `i` for bone `i`, as an unsigned varint in
+   its shortest form, so `0` (every bone present, the usual case) is one byte;
+   bit 63 and above must be clear;
 3. the first bone's (`NPC COM`) local translation, three little-endian `int16`
    in 1/16 units;
-4. one little-endian `uint32` rotation per present bone, in bone order: the
-   index of the quaternion's largest component in the top two bits, then the
-   other three, scaled from ±1/√2 to `0..1023`, in 10 bits each; the largest
-   is made positive and rebuilt from the unit length.
+4. the rotations of the present bones in bone order, bit-packed least
+   significant bit first across bytes and padded with zero bits to a whole
+   byte: per bone, the index of the quaternion's largest component in two
+   bits, then the other three, each scaled from ±1/√2 to `0..2^b − 1` in `b`
+   bits. The largest is made positive and rebuilt from the unit length.
 
-The length must be exactly 15 bytes plus 4 per present bone, at most 267
+`b` is 9 for bones 0–22 (COM through the hands), 8 for the twist bones
+(23–30), `Weapon`, and `Shield`, and 7 for the fingers (31–60)
+(`Network::GetSkeletonComponentBits`, `validate.skeletonRotationBits`). An
+error in the trunk and limbs moves every bone below them, so they keep the
+finest steps. On 941 recorded poses (climbs and paragliding), these steps
+added at most 0.45° per bone in the trunk and limbs, 0.9° in the 8-bit bones,
+and 1.4° in fingers to 10 bits for every bone, which took 267 bytes a pose.
+Fingers are 30 of the 63 bones and move in these animations too (median 1°
+per checkpoint), so they keep coarser steps rather than being dropped.
+
+The length must be exactly the header plus the packed rotations of the
+present bones; a full pose is 211 bytes, and no pose exceeds 219
 (`MaximumSkeletonPoseSize`, the nanopb `max_size`). Every bit pattern of a
 rotation is a valid one, so nothing else is checked. A full pose makes a
-relayed entry about ten times as large as one without.
+relayed entry about eight times as large as one without.
+
+Poses travel whole on every checkpoint of a window. In the recorded windows
+nearly every bone turned on every checkpoint (42 of 63 by more than 0.5°, and
+no checkpoint with all of them below), so leaving out unchanged bones or poses
+saves little there; poses at 10 Hz interpolated with Catmull-Rom splines were
+off by 9° at the 95th percentile in the trunk and limbs; and differences from
+the previous pose would need every recipient to have received it, which the
+latest-wins outbox does not guarantee.
 
 ## Actions
 
@@ -342,7 +368,7 @@ own texture, as protocol 14 senders without the field did.
 while its type is `0..6` and that field has room, and to `added_head_parts`
 otherwise. Readers append `added_head_parts` after `head_parts`. The split
 kept protocol 14 compatible with 1.1.0 clients, which drop a peer whose
-`head_parts` exceed those limits; protocol 15 refuses them at the handshake,
+`head_parts` exceed those limits; protocols from 15 on refuse them at the handshake,
 and the two fields are not merged yet.
 
 ### `Equipment`

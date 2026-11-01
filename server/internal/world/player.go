@@ -34,10 +34,13 @@ type Player struct {
 	Session     uint64
 	DisplayName string
 
-	InWorld        bool
-	Context        *pb.Context
-	Checkpoint     *pb.Checkpoint
-	Entry          []byte
+	InWorld    bool
+	Context    *pb.Context
+	Checkpoint *pb.Checkpoint
+	Entry      []byte
+	// Entry without the skeleton pose, for subscribers that are not sent the pose; Entry itself
+	// when the checkpoint carries none.
+	PlainEntry     []byte
 	ActionSequence uint64
 	lastSequence   uint64
 
@@ -73,7 +76,7 @@ func (p *Player) Exit() bool {
 	p.InWorld = false
 	p.Context = nil
 	p.Checkpoint = nil
-	p.Entry = nil
+	p.Entry, p.PlainEntry = nil, nil
 	p.ActionSequence = 0
 	p.lastSequence = 0
 	return was
@@ -102,7 +105,7 @@ func (p *Player) SetContext(c *pb.Context) (ContextChange, error) {
 		if !sameFormRef(p.Context.InteriorCell, c.InteriorCell) || !sameFormRef(p.Context.Worldspace, c.Worldspace) {
 			change = ContextMoved
 			p.Checkpoint = nil
-			p.Entry = nil
+			p.Entry, p.PlainEntry = nil, nil
 		}
 	}
 	p.Context = c
@@ -127,7 +130,23 @@ func (p *Player) SetCheckpoint(c *pb.Checkpoint) error {
 	c.Player = p.Slot
 	p.Checkpoint = c
 	p.Entry = wire.AppendEntry(nil, p.Slot, c)
+	p.PlainEntry = p.Entry
+	if p.Posed() {
+		p.PlainEntry = wire.AppendEntry(nil, p.Slot, wire.WithoutSkeleton(c))
+	}
 	return nil
+}
+
+func (p *Player) Posed() bool {
+	return len(p.Checkpoint.GetSkeleton()) > 0
+}
+
+// EntryFor returns the entry with the skeleton pose for a subscriber sent poses, else without.
+func (p *Player) EntryFor(pose bool) []byte {
+	if pose {
+		return p.Entry
+	}
+	return p.PlainEntry
 }
 
 func (p *Player) AcceptAction(a *pb.Action) error {

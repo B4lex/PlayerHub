@@ -62,6 +62,8 @@ type member struct {
 
 	// The context view.Space was taken from, so a checkpoint recomputes it only after a change.
 	spaceContext *pb.Context
+	// The nearest posed peers this recipient is sent skeleton poses of at most.
+	poseLimit int
 
 	changed     bool
 	distributed *pb.Checkpoint
@@ -83,6 +85,14 @@ type subscription struct {
 	since    time.Time
 	interval time.Duration
 	weight   float64
+	// The recipient is sent the peer's skeleton pose.
+	pose bool
+}
+
+type posedPeer struct {
+	sub      *subscription
+	slot     uint32
+	distance float64
 }
 
 type candidate struct {
@@ -115,6 +125,7 @@ type Hub struct {
 	hidden     interest.Hidden
 	pairs      interest.Pairs
 	candidates []candidate
+	posed      []posedPeer
 
 	nearbyGrid   *interest.Grid
 	nearbyPass   uint64
@@ -315,6 +326,8 @@ func (h *Hub) Handle(slot uint32, message *pb.ClientMessage) error {
 		return h.vanish(m, body.Vanish)
 	case *pb.ClientMessage_Inspect:
 		return h.inspect(m, body.Inspect)
+	case *pb.ClientMessage_PoseLimit:
+		h.setPoseLimit(m, int(body.PoseLimit.GetPlayers()))
 	case *pb.ClientMessage_TradeRequest:
 		return h.requestTrade(m, body.TradeRequest)
 	case *pb.ClientMessage_TradeAnswer:
@@ -572,7 +585,7 @@ func (h *Hub) setContext(m *member, c *pb.Context, message *pb.ClientMessage) er
 }
 
 func (h *Hub) setCheckpoint(m *member, c *pb.Checkpoint, message *pb.ClientMessage) error {
-	wasPlaced := m.Placed()
+	wasPlaced, wasPosed := m.Placed(), m.Posed()
 	if err := m.SetCheckpoint(c); err != nil {
 		return err
 	}
@@ -594,6 +607,11 @@ func (h *Hub) setCheckpoint(m *member, c *pb.Checkpoint, message *pb.ClientMessa
 		h.evaluateTarget(m, now)
 		h.evaluateViewer(m, now)
 		return nil
+	}
+	if m.Posed() != wasPosed {
+		for _, r := range m.subscribers {
+			h.assignPoses(r)
+		}
 	}
 	if !m.forceNext && sameSample(m.distributed, c) {
 		return nil
@@ -621,7 +639,7 @@ func (h *Hub) relayAction(m *member, a *pb.Action, message *pb.ClientMessage) er
 		PeerAction: &pb.PeerAction{Slot: m.Slot, Action: a}}})
 	anchor, sequence := a.GetCheckpointSequence(), m.Checkpoint.GetSequence()
 	for _, r := range m.subscribers {
-		r.outbox.AppendAnchored(m.Slot, anchor, sequence, m.Entry, bytes)
+		r.outbox.AppendAnchored(m.Slot, anchor, sequence, m.EntryFor(r.subscribed[m.Slot].pose), bytes)
 	}
 	return nil
 }
@@ -858,6 +876,7 @@ func (h *Hub) evaluateViewer(r *member, now time.Time) {
 	}
 	clear(candidates)
 	h.candidates = candidates[:0]
+	h.assignPoses(r)
 }
 
 func (h *Hub) allowEnter(r *member, now time.Time) bool {
@@ -925,6 +944,65 @@ func (h *Hub) applyCap(r *member, candidates []candidate) []candidate {
 
 const fullPriorityDistance = 1024
 
+// A peer sent poses keeps them until another posed peer is a fifth nearer, or until it is a quarter
+// beyond the near distance, so peers at about the same distance or at the edge do not flap.
+const poseSlotHysteresis = 0.8
+
+func (h *Hub) setPoseLimit(r *member, players int) {
+	if r.poseLimit == players {
+		return
+	}
+	r.poseLimit = players
+	if players == 0 {
+		for _, sub := range r.subscribed {
+			sub.pose = false
+		}
+		return
+	}
+	h.assignPoses(r)
+}
+
+// assignPoses sends r the skeleton poses of its nearest r.poseLimit posed subscribed peers within
+// the near distance.
+func (h *Hub) assignPoses(r *member) {
+	if r.poseLimit == 0 {
+		return
+	}
+	ranked := h.posed[:0]
+	for slot, sub := range r.subscribed {
+		peer := h.members[slot]
+		if !peer.Posed() {
+			sub.pose = false
+			continue
+		}
+		distance := interest.Distance(&r.view, &peer.view)
+		if sub.pose {
+			distance *= poseSlotHysteresis
+		}
+		if distance > h.opts.Interest.NearDistance {
+			sub.pose = false
+			continue
+		}
+		ranked = append(ranked, posedPeer{sub: sub, slot: slot, distance: distance})
+	}
+	if len(ranked) > r.poseLimit {
+		slices.SortFunc(ranked, func(a, b posedPeer) int {
+			switch {
+			case a.distance < b.distance:
+				return -1
+			case a.distance > b.distance:
+				return 1
+			}
+			return int(a.slot) - int(b.slot)
+		})
+	}
+	for i, p := range ranked {
+		p.sub.pose = i < r.poseLimit
+	}
+	clear(ranked)
+	h.posed = ranked[:0]
+}
+
 func (h *Hub) setRateClass(r, peer *member, distance float64) {
 	sub := r.subscribed[peer.Slot]
 	interval := h.rules.Interval(distance)
@@ -969,13 +1047,21 @@ func (h *Hub) evaluatePair(r, peer *member, now time.Time) {
 	if h.rules.Decide(&r.view, &peer.view, time.Time{}, now).Visible && h.allowEnter(r, now) {
 		h.subscribe(r, peer, now)
 		h.setRateClass(r, peer, interest.Distance(&r.view, &peer.view))
+		if peer.Posed() {
+			h.assignPoses(r)
+		}
 	}
 }
 
 func (h *Hub) subscribe(r, peer *member, now time.Time) {
 	r.subscribed[peer.Slot] = &subscription{since: now, weight: 1}
 	peer.subscribers = append(peer.subscribers, r)
-	enter := &pb.PeerEnter{Slot: peer.Slot, Context: peer.Context, State: peer.Checkpoint}
+	// A new subscription is sent poses from the next ranking on.
+	state := peer.Checkpoint
+	if peer.Posed() {
+		state = wire.WithoutSkeleton(state)
+	}
+	enter := &pb.PeerEnter{Slot: peer.Slot, Context: peer.Context, State: state}
 	if a := peer.Appearance; a != nil && a.GetRevision() > r.heldAppearance[peer.Slot] {
 		enter.Appearance = a
 		r.heldAppearance[peer.Slot] = a.GetRevision()
@@ -1012,8 +1098,13 @@ func (h *Hub) distribute(m *member) {
 	m.distributed, m.forceNext = m.Checkpoint, false
 	sequence := m.Checkpoint.GetSequence()
 	now := h.opts.Clock.Now()
+	posed := m.Posed()
 	for _, r := range m.subscribers {
-		r.outbox.SetCheckpoint(m.Slot, sequence, m.Entry, now)
+		entry := m.Entry
+		if posed {
+			entry = m.EntryFor(r.subscribed[m.Slot].pose)
+		}
+		r.outbox.SetCheckpoint(m.Slot, sequence, entry, now)
 		if !r.touched {
 			r.touched = true
 			h.touched[r.phase] = append(h.touched[r.phase], r)

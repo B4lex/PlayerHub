@@ -42,6 +42,7 @@ namespace Network::Wire
     [[nodiscard]] std::string EncodePing(std::uint32_t a_requestID);
     [[nodiscard]] std::string EncodeVanish(Multiplayer::SessionID a_session, bool a_vanished);
     [[nodiscard]] std::string EncodeInspect(Multiplayer::PeerSlot a_slot);
+    [[nodiscard]] std::string EncodePoseLimit(std::uint32_t a_players);
     [[nodiscard]] std::string EncodeTradeRequest(Multiplayer::PeerSlot a_slot);
     [[nodiscard]] std::string EncodeTradeAnswer(Multiplayer::TradeID a_trade, bool a_accept);
     [[nodiscard]] std::string EncodeTradeOffer(const Multiplayer::TradeOffer& a_offer);

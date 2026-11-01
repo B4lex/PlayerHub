@@ -697,7 +697,12 @@ window or with `[Advanced] ShareCustomAnimations` off
   pass (`std::nth_element`) and logs `Remote skeleton pose slots` when the
   limit or the number of posed peers changes. A slot counts only from the
   latest ranking (`RemoteState::slotPass`), so a peer that missed a pass starts
-  without one. Peers beyond the cap keep the vanilla reproduction.
+  without one. Peers beyond the cap keep the vanilla reproduction. The server
+  sends poses of only as many posed peers as the cap, nearest first, and none
+  beyond its near distance (4096 by default), where they keep the vanilla
+  reproduction ([Interest and delivery](interest-and-delivery.md#skeleton-poses)), so the
+  client's ranking only settles where the two measure distance differently
+  (the server horizontally from the latest checkpoints).
 - **Blend.** A peer with a slot blends from the graph's output to its pose over
   0.2 s (`Remote skeleton pose blending in`), and back over 0.2 s, holding the
   last shown pose, once poses stop or the slot is lost, then releases the actor
@@ -769,11 +774,13 @@ window or with `[Advanced] ShareCustomAnimations` off
 
 ### Budget
 
-A full pose makes a relayed entry about ten times as large
-([Network](network.md#skeleton-pose-encoding)): 267 B per checkpoint at 20 Hz
-is about 5.3 KB/s per posed pair, only during windows, so a 50 Mbit uplink
-carries about 1200 posed pairs at once. Bone masks (fingers are 30 of 63
-bones), a lower pose rate, and delta encoding are the reductions left.
+A full pose makes a relayed entry about eight times as large
+([Network](network.md#skeleton-pose-encoding)): 211 B per checkpoint at 20 Hz
+is about 4.2 KB/s per posed pair, only during windows. The server sends each
+client the poses of at most its `CustomAnimationPlayers` nearest posed peers
+within the near distance ([Interest and delivery](interest-and-delivery.md#skeleton-poses)), so a
+client receives at most about 42 KB/s of poses at the default 10, however many
+players pose around it.
 
 ## Engine assumptions
 

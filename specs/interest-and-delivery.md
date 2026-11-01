@@ -142,6 +142,43 @@ leave and when the recipient disconnects.
   the newest. The checkpoint after a context change is always distributed,
   since clients apply a context with the next checkpoint they receive.
 
+## Skeleton poses
+
+A posed peer, one whose stored checkpoint carries a
+[skeleton pose](network.md#skeleton-pose-encoding), costs about eight times
+the bytes of a plain one, and a client shows only its
+`[Advanced] CustomAnimationPlayers` nearest posed peers
+([Remote actor](remote-actor.md#receiver)). So each recipient is sent the
+poses of at most its `PoseLimit` nearest posed subscribed peers within
+`interest.near_distance` (4096), and every other subscriber gets the same
+checkpoint without the pose, which its client reproduces from the graph as
+outside a window. A recipient's pose traffic is then bounded by its limit,
+however many players pose around it. Beyond the near distance a peer is
+written at the far rate, and poses interpolated over 0.1 s were off by 9–10°
+in the trunk and limbs at the 95th percentile on recorded climbs and
+paragliding ([Network](network.md#skeleton-pose-encoding)), so far peers
+show the vanilla reproduction instead.
+
+- `world.Player` encodes each posed checkpoint twice, `Entry` with the pose
+  and `PlainEntry` without (`wire.WithoutSkeleton`); a plain checkpoint has
+  one, shared by both. `distribute`, the checkpoint in front of an action,
+  and `PeerEnter` pick by the pair's `subscription.pose`. `PeerEnter` always
+  carries the checkpoint without the pose, since a new subscription is sent
+  poses from its first ranking on.
+- `Hub.assignPoses` ranks a recipient's posed subscribed peers by horizontal
+  distance, a peer already sent poses at 0.8 of its distance
+  (`poseSlotHysteresis`), leaves out those whose ranked distance exceeds the
+  near distance, and sets `pose` for the nearest `PoseLimit`. The scaling
+  keeps peers at about the same distance from trading places, and a peer
+  sent poses keeps them up to 5120 units, so one at the edge does not flap. It runs at the end of
+  each periodic pass for the recipient, at once for every subscriber of a peer
+  whose checkpoint starts or stops carrying a pose, so a window opens and a
+  freed place is taken without waiting for the pass, when an event subscribes
+  the recipient to a posed peer, and when the recipient's `PoseLimit`
+  changes. `0` sends no poses.
+- A pair whose `pose` changes switches with the next distributed checkpoint;
+  one already waiting in the outbox keeps its encoding.
+
 ## Budget
 
 Optional (`budget.enabled`), for an uplink that cannot carry the unbudgeted
@@ -287,6 +324,9 @@ which was not measured through the tunnel.
    disconnected.
 4. A peer walking out of range despawns and respawns when it returns, without
    flapping at the edge; an excluded or hidden peer disappears at once.
+5. A client receives skeleton poses only of as many posed peers as it shows,
+   the nearest ones within the near distance, and a peer that starts posing among them is shown posed
+   from its first posed checkpoint.
 
 ## Known limitations
 
@@ -294,6 +334,10 @@ which was not measured through the tunnel.
   per message; TLS adds about 22 bytes more per record.
 - The cap's default is provisional until the client's frame cost with many
   remote actors is measured in game.
+- Idle suppression compares the pose too, so a posed peer standing still
+  sends its plain checkpoint, unchanged but for sequence and time, to the
+  recipients not sent its pose on every checkpoint
+  ([Skeleton poses](#skeleton-poses)).
 - Exclusions and hiding are keyed by slot and last only for a connection;
   product rules such as block lists, parties, or instances would key them by
   session.

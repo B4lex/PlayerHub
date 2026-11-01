@@ -59,6 +59,11 @@ namespace Config
         std::uint32_t customAnimationPlayers{ 10 };
         bool statusPanel{ false };
 
+        [[nodiscard]] std::uint32_t GetShownCustomAnimationPlayers() const noexcept
+        {
+            return showCustomAnimations ? customAnimationPlayers : 0;
+        }
+
         bool operator==(const AdvancedSettings&) const = default;
     };
 

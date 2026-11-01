@@ -81,6 +81,9 @@ namespace Network
 
     void PublishVanish(std::string_view a_server, Multiplayer::SessionID a_session, bool a_vanished);
 
+    // Sent after every welcome too, from the configuration at that time.
+    void PublishPoseLimit(std::uint32_t a_players);
+
     [[nodiscard]] bool RequestInspection(Multiplayer::PeerSlot a_playerID);
 
     [[nodiscard]] bool PublishTradeRequest(Multiplayer::PeerSlot a_playerID);

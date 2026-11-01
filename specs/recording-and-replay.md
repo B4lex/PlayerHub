@@ -14,7 +14,7 @@ Global chat channel live, relayed by the hub ([Chat](network.md#chat)).
 
 | Module | Responsibility |
 | --- | --- |
-| `internal/recording` | Format version 6, `Store`, `Captures`, `Markers` |
+| `internal/recording` | Format version 7, `Store`, `Captures`, `Markers` |
 | `internal/playback` | `VirtualPlayer` numbering, `Session` timeline, `Manager`, `HubPlayer` |
 | `internal/loadtest` | `PlanBots`, in-server `Batch`es and their `Manager` |
 | `internal/admin` | REST routes under `/api`, the `/api/events` feed, panel files |
@@ -26,7 +26,7 @@ Global chat channel live, relayed by the hub ([Chat](network.md#chat)).
 One append-only JSON Lines file per capture, `server/recordings/<id>.jsonl`:
 
 ```text
-{"type":"header","format":"playerhub-recording","version":6,"id":...,"label":...,"playerId":"7","playerName":...,"startedAt":...}
+{"type":"header","format":"playerhub-recording","version":7,"id":...,"label":...,"playerId":"7","playerName":...,"startedAt":...}
 {"type":"message","t":0,"message":{"enter":{}}}
 {"type":"end","t":75266,"reason":"stopped"}
 ```

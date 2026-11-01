@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"math"
-	"math/bits"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -24,11 +23,16 @@ const (
 	movementStateMask      = 0x7
 	knownFlags             = 0xFFFF
 
-	SkeletonLayoutHuman     = 1
-	SkeletonBoneCount       = 63
-	skeletonHeaderBytes     = 1 + 8 + 3*2
-	skeletonRotationBytes   = 4
-	MaximumSkeletonPoseSize = skeletonHeaderBytes + skeletonRotationBytes*SkeletonBoneCount
+	SkeletonLayoutHuman      = 2
+	SkeletonBoneCount        = 63
+	skeletonFirstTwistBone   = 23
+	skeletonFirstFingerBone  = 31
+	skeletonFirstHeldBone    = 61
+	skeletonTranslationBytes = 3 * 2
+	maximumSkeletonMaskBytes = 9
+	allSkeletonBones         = 1<<SkeletonBoneCount - 1
+	MaximumSkeletonPoseSize  = 219
+	MaximumPosePlayers       = 32
 
 	MaximumNameBytes        = 128
 	MinimumDisplayNameBytes = 3
@@ -76,6 +80,7 @@ var (
 	ErrToken       = errors.New("invalid session token")
 	ErrVanish      = errors.New("invalid vanish")
 	ErrInspect     = errors.New("invalid inspect")
+	ErrPoseLimit   = errors.New("invalid pose limit")
 )
 
 var ErrUnexpected = errors.New("unexpected message")
@@ -107,6 +112,11 @@ func Message(m *pb.ClientMessage) error {
 			return ErrInspect
 		}
 		return nil
+	case *pb.ClientMessage_PoseLimit:
+		if body.PoseLimit.GetPlayers() > MaximumPosePlayers {
+			return ErrPoseLimit
+		}
+		return nil
 	default:
 		return ErrUnexpected
 	}
@@ -122,17 +132,39 @@ func Checkpoint(c *pb.Checkpoint) error {
 	return nil
 }
 
-// SkeletonPose reports whether b is empty or a layout byte, a little-endian presence
-// mask of SkeletonBoneCount bits, the root translation, and one rotation per present bone.
+// SkeletonPose reports whether b is empty or a layout byte, the shortest varint of a mask of
+// missing bones below bit SkeletonBoneCount, the root translation, and the bit-packed rotations of
+// the present bones.
 func SkeletonPose(b []byte) bool {
 	if len(b) == 0 {
 		return true
 	}
-	if len(b) < skeletonHeaderBytes || b[0] != SkeletonLayoutHuman {
+	if b[0] != SkeletonLayoutHuman {
 		return false
 	}
-	present := binary.LittleEndian.Uint64(b[1:9])
-	return present>>SkeletonBoneCount == 0 && len(b) == skeletonHeaderBytes+skeletonRotationBytes*bits.OnesCount64(present)
+	missing, n := binary.Uvarint(b[1:min(len(b), 1+maximumSkeletonMaskBytes)])
+	if n <= 0 || n != len(binary.AppendUvarint(nil, missing)) || missing&^allSkeletonBones != 0 {
+		return false
+	}
+	bits := 0
+	for bone := range SkeletonBoneCount {
+		if missing&(1<<bone) == 0 {
+			bits += skeletonRotationBits(bone)
+		}
+	}
+	return len(b) == 1+n+skeletonTranslationBytes+(bits+7)/8
+}
+
+// skeletonRotationBits counts a bone's two-bit index of its largest component and its three stored components.
+func skeletonRotationBits(bone int) int {
+	component := 8
+	switch {
+	case bone < skeletonFirstTwistBone:
+		component = 9
+	case bone >= skeletonFirstFingerBone && bone < skeletonFirstHeldBone:
+		component = 7
+	}
+	return 2 + 3*component
 }
 
 func WeaponDrawn(c *pb.Checkpoint) bool {

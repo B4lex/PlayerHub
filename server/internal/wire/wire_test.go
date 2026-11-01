@@ -6,6 +6,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"playerhub/server/internal/validate"
 	"playerhub/server/internal/wire/pb"
 )
 
@@ -14,7 +15,7 @@ func TestConcatenatedEntriesDecodeAsPeerStates(t *testing.T) {
 		{Sequence: 1, X: -5, Y: 70000, Z: 0, Heading: 4095, Pitch: -1609, Speed: 350, Direction: 128, Flags: 0x1F, Time: 16383},
 		{Sequence: 1 << 40},
 		{Sequence: 9, X: -2147483648, Y: 2147483647, Pitch: 1609, Speed: 100000, Direction: 255, Flags: 0xFFE,
-			Skeleton: make([]byte, 267)},
+			Skeleton: make([]byte, validate.MaximumSkeletonPoseSize)},
 	}
 	var entries []byte
 	for i, c := range checkpoints {
@@ -49,6 +50,20 @@ func TestEntryMatchesGeneratedEncoding(t *testing.T) {
 	}
 	if got := AppendEntry(nil, 7, c); string(got) != string(generated) {
 		t.Fatalf("hand-written %x, generated %x", got, generated)
+	}
+}
+
+func TestWithoutSkeletonKeepsEveryOtherField(t *testing.T) {
+	c := &pb.Checkpoint{Player: 1, Sequence: 2, X: 3, Y: 4, Z: 5, Heading: 6, Pitch: 7, Speed: 8, Direction: 9, Flags: 10,
+		Time: 11, Skeleton: []byte{12}}
+	want := proto.Clone(c).(*pb.Checkpoint)
+	want.Skeleton = nil
+	if got := WithoutSkeleton(c); !proto.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	// Every field is set above, so a new field must be added here and to WithoutSkeleton.
+	if fields := c.ProtoReflect().Descriptor().Fields().Len(); fields != 12 {
+		t.Fatalf("Checkpoint has %d fields", fields)
 	}
 }
 

@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"encoding/binary"
 	"fmt"
 	"slices"
 	"strings"
@@ -210,13 +211,20 @@ func describe(m *pb.ServerMessage) string {
 	case *pb.ServerMessage_PeerStates:
 		var states []string
 		for _, s := range body.PeerStates.States {
-			states = append(states, fmt.Sprintf("%d:%d", s.Player, s.Sequence))
+			state := fmt.Sprintf("%d:%d", s.Player, s.Sequence)
+			if len(s.Skeleton) > 0 {
+				state += "+pose"
+			}
+			states = append(states, state)
 		}
 		slices.Sort(states)
 		return "states " + strings.Join(states, " ")
 	case *pb.ServerMessage_PeerEnter:
 		e := body.PeerEnter
 		s := fmt.Sprintf("enter %d state %d", e.Slot, e.State.GetSequence())
+		if len(e.State.GetSkeleton()) > 0 {
+			s += "+pose"
+		}
 		if e.Appearance != nil {
 			s += fmt.Sprintf(" appearance %d", e.Appearance.Revision)
 		}
@@ -1042,9 +1050,106 @@ func TestIdleCheckpointsAreSuppressedButAnchorsAreNot(t *testing.T) {
 
 func skeletonCheckpoint(sequence uint64, x int32, rotation byte) *pb.ClientMessage {
 	message := quarterCheckpoint(sequence, x)
-	message.GetCheckpoint().Skeleton = []byte{validate.SkeletonLayoutHuman, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-		rotation, 0, 0, 0}
+	message.GetCheckpoint().Skeleton = pose(rotation)
 	return message
+}
+
+// pose holds bone 0 alone: its 29-bit rotation takes 4 bytes.
+func pose(rotation byte) []byte {
+	b := binary.AppendUvarint([]byte{validate.SkeletonLayoutHuman}, 1<<validate.SkeletonBoneCount-2)
+	return append(b, 0, 0, 0, 0, 0, 0, rotation, 0, 0, 0)
+}
+
+func posedAt(sequence uint64, x int32) *pb.ClientMessage {
+	message := checkpointAt(sequence, x)
+	message.GetCheckpoint().Skeleton = pose(byte(sequence))
+	return message
+}
+
+func poseLimit(players uint32) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_PoseLimit{PoseLimit: &pb.PoseLimit{Players: players}}}
+}
+
+func TestPosesFollowThePoseLimit(t *testing.T) {
+	f := newFixture(t)
+	viewer, peer := f.connect(), f.connect()
+	f.placeAt(viewer, 1, 0)
+	f.send(peer, enter())
+	f.send(peer, contextMessage(1, false))
+	f.send(peer, posedAt(1, 100))
+	expect(t, f.received(viewer), "welcome 1", "enter 2 state 1")
+	f.send(peer, posedAt(2, 100))
+	f.hub.Tick()
+	expect(t, f.received(viewer), "states 2:2")
+	f.send(viewer, poseLimit(4))
+	f.send(peer, posedAt(3, 100))
+	f.hub.Tick()
+	expect(t, f.received(viewer), "states 2:3+pose")
+	f.send(peer, posedAt(4, 100))
+	f.send(peer, action(1, 4))
+	expect(t, f.received(viewer), "states 2:4+pose", "action 2:1")
+	f.send(viewer, poseLimit(0))
+	f.send(peer, posedAt(5, 100))
+	f.hub.Tick()
+	expect(t, f.received(viewer), "states 2:5")
+}
+
+func TestPosesStayWithinTheNearDistance(t *testing.T) {
+	f := newFixture(t)
+	viewer, peer := f.connect(), f.connect()
+	f.placeAt(viewer, 1, 0)
+	f.send(viewer, poseLimit(4))
+	f.placeAt(peer, 1, 5000)
+	f.received(viewer)
+	step := func(sequence uint64, x int32, want string) {
+		t.Helper()
+		f.send(peer, posedAt(sequence, x))
+		f.hub.UpdateInterest()
+		f.hub.Tick()
+		f.clock.Advance(0.2)
+		expect(t, f.received(viewer), want)
+	}
+	step(2, 5000, "states 2:2")
+	step(3, 4000, "states 2:3+pose")
+	// The holder ranks at 0.8 of its distance: 4000 within the near distance of 4096.
+	step(4, 5000, "states 2:4+pose")
+	step(5, 5200, "states 2:5")
+	step(6, 5000, "states 2:6")
+}
+
+func TestPosesReachTheNearestPosedPeersWithHysteresis(t *testing.T) {
+	f := newFixture(t)
+	viewer, near, far := f.connect(), f.connect(), f.connect()
+	f.placeAt(viewer, 1, 0)
+	f.send(viewer, poseLimit(1))
+	f.placeAt(near, 1, 1000)
+	f.placeAt(far, 1, 2000)
+	f.received(viewer)
+	// Starting to pose takes a free slot at once.
+	f.send(far, posedAt(2, 2000))
+	f.hub.Tick()
+	expect(t, f.received(viewer), "states 3:2+pose")
+	f.send(near, posedAt(2, 1000))
+	f.send(far, posedAt(3, 2000))
+	f.hub.UpdateInterest()
+	f.hub.Tick()
+	expect(t, f.received(viewer), "states 2:2+pose 3:3")
+	// The holder ranks at 800.
+	f.send(near, posedAt(3, 1000))
+	f.send(far, posedAt(4, 850))
+	f.hub.UpdateInterest()
+	f.hub.Tick()
+	expect(t, f.received(viewer), "states 2:3+pose 3:4")
+	f.send(near, posedAt(4, 1000))
+	f.send(far, posedAt(5, 700))
+	f.hub.UpdateInterest()
+	f.hub.Tick()
+	expect(t, f.received(viewer), "states 2:4 3:5+pose")
+	// Ending a pose frees the slot at once.
+	f.send(near, posedAt(5, 1000))
+	f.send(far, checkpointAt(6, 700))
+	f.hub.Tick()
+	expect(t, f.received(viewer), "states 2:5+pose 3:6")
 }
 
 func sheathedCheckpointAt(sequence uint64, x int32) *pb.ClientMessage {

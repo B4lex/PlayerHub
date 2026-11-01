@@ -27,6 +27,9 @@ PB_BIND(playerhub_v1_Vanish, playerhub_v1_Vanish, AUTO)
 PB_BIND(playerhub_v1_Inspect, playerhub_v1_Inspect, AUTO)
 
 
+PB_BIND(playerhub_v1_PoseLimit, playerhub_v1_PoseLimit, AUTO)
+
+
 PB_BIND(playerhub_v1_TradeRequest, playerhub_v1_TradeRequest, AUTO)
 
 

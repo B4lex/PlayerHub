@@ -17,7 +17,7 @@ func quietLog() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-const testRecording = `{"type":"header","format":"playerhub-recording","version":6,"id":"20260921-101500-abc123","label":"Test capture","playerId":"player-1","playerName":"Lydia Stormblade","startedAt":"2026-09-21T10:15:00Z"}
+const testRecording = `{"type":"header","format":"playerhub-recording","version":7,"id":"20260921-101500-abc123","label":"Test capture","playerId":"player-1","playerName":"Lydia Stormblade","startedAt":"2026-09-21T10:15:00Z"}
 {"type":"message","t":0,"message":{"appearance":{"revision":"1","name":"Lydia Stormblade","level":12,"race":{"plugin":"Skyrim.esm","formId":79686},"female":true,"weight":42.5,"height":1,"headParts":[{"form":{"plugin":"Skyrim.esm","formId":333173},"type":1}],"hairColor":{"r":59,"g":42,"b":30},"bodyTint":{"r":222,"g":188,"b":170},"faceMorphs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3.4028235e+38],"faceParts":[0,1,-1,2],"tints":[{"index":44,"type":6,"color":{"r":1,"g":2,"b":3},"alpha":0.5}],"defaultRace":{"race":{"plugin":"Skyrim.esm","formId":1},"female":true}}}}
 {"type":"message","t":0,"message":{"equipment":{"revision":"1","armor":[{"form":{"plugin":"Skyrim.esm","formId":77385},"slotMask":4}],"rightHand":{"kind":"HAND_KIND_WEAPON","form":{"plugin":"Skyrim.esm","formId":77495},"weaponType":1},"leftHand":{"kind":"HAND_KIND_SPELL"},"defaultOutfit":{"hands":[{"kind":"HAND_KIND_TORCH","form":{"plugin":"Skyrim.esm","formId":2}}]}}}}
 {"type":"message","t":0,"message":{"enter":{}}}
@@ -73,8 +73,8 @@ func TestParseToleratesATornLastLine(t *testing.T) {
 
 func TestParseRejectsOtherVersions(t *testing.T) {
 	var recordingError *Error
-	older := strings.Replace(testRecording, `"version":6`, `"version":5`, 1)
-	if _, err := Parse([]byte(older)); !errors.As(err, &recordingError) || !strings.Contains(err.Error(), "version 5") {
+	older := strings.Replace(testRecording, `"version":7`, `"version":6`, 1)
+	if _, err := Parse([]byte(older)); !errors.As(err, &recordingError) || !strings.Contains(err.Error(), "version 6") {
 		t.Fatalf("got %v", err)
 	}
 }

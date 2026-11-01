@@ -716,6 +716,50 @@ func (x *Inspect) GetSlot() uint32 {
 	return 0
 }
 
+type PoseLimit struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Players       uint32                 `protobuf:"varint,1,opt,name=players,proto3" json:"players,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PoseLimit) Reset() {
+	*x = PoseLimit{}
+	mi := &file_playerhub_v1_messages_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PoseLimit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PoseLimit) ProtoMessage() {}
+
+func (x *PoseLimit) ProtoReflect() protoreflect.Message {
+	mi := &file_playerhub_v1_messages_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PoseLimit.ProtoReflect.Descriptor instead.
+func (*PoseLimit) Descriptor() ([]byte, []int) {
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *PoseLimit) GetPlayers() uint32 {
+	if x != nil {
+		return x.Players
+	}
+	return 0
+}
+
 type TradeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Slot          uint32                 `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
@@ -725,7 +769,7 @@ type TradeRequest struct {
 
 func (x *TradeRequest) Reset() {
 	*x = TradeRequest{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[7]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -737,7 +781,7 @@ func (x *TradeRequest) String() string {
 func (*TradeRequest) ProtoMessage() {}
 
 func (x *TradeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[7]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -750,7 +794,7 @@ func (x *TradeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradeRequest.ProtoReflect.Descriptor instead.
 func (*TradeRequest) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{7}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *TradeRequest) GetSlot() uint32 {
@@ -770,7 +814,7 @@ type TradeAnswer struct {
 
 func (x *TradeAnswer) Reset() {
 	*x = TradeAnswer{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[8]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -782,7 +826,7 @@ func (x *TradeAnswer) String() string {
 func (*TradeAnswer) ProtoMessage() {}
 
 func (x *TradeAnswer) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[8]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -795,7 +839,7 @@ func (x *TradeAnswer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradeAnswer.ProtoReflect.Descriptor instead.
 func (*TradeAnswer) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{8}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *TradeAnswer) GetTradeId() uint32 {
@@ -825,7 +869,7 @@ type TradeEffect struct {
 
 func (x *TradeEffect) Reset() {
 	*x = TradeEffect{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[9]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -837,7 +881,7 @@ func (x *TradeEffect) String() string {
 func (*TradeEffect) ProtoMessage() {}
 
 func (x *TradeEffect) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[9]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -850,7 +894,7 @@ func (x *TradeEffect) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradeEffect.ProtoReflect.Descriptor instead.
 func (*TradeEffect) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{9}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *TradeEffect) GetEffect() *FormRef {
@@ -905,7 +949,7 @@ type TradeItem struct {
 
 func (x *TradeItem) Reset() {
 	*x = TradeItem{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[10]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -917,7 +961,7 @@ func (x *TradeItem) String() string {
 func (*TradeItem) ProtoMessage() {}
 
 func (x *TradeItem) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[10]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -930,7 +974,7 @@ func (x *TradeItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradeItem.ProtoReflect.Descriptor instead.
 func (*TradeItem) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{10}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *TradeItem) GetItem() *FormRef {
@@ -1008,7 +1052,7 @@ type TradeOffer struct {
 
 func (x *TradeOffer) Reset() {
 	*x = TradeOffer{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[11]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1020,7 +1064,7 @@ func (x *TradeOffer) String() string {
 func (*TradeOffer) ProtoMessage() {}
 
 func (x *TradeOffer) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[11]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1033,7 +1077,7 @@ func (x *TradeOffer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradeOffer.ProtoReflect.Descriptor instead.
 func (*TradeOffer) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{11}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *TradeOffer) GetTradeId() uint32 {
@@ -1068,7 +1112,7 @@ type TradeSkip struct {
 
 func (x *TradeSkip) Reset() {
 	*x = TradeSkip{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[12]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1080,7 +1124,7 @@ func (x *TradeSkip) String() string {
 func (*TradeSkip) ProtoMessage() {}
 
 func (x *TradeSkip) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[12]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1093,7 +1137,7 @@ func (x *TradeSkip) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradeSkip.ProtoReflect.Descriptor instead.
 func (*TradeSkip) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{12}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *TradeSkip) GetIndex() uint32 {
@@ -1130,7 +1174,7 @@ type TradeReport struct {
 
 func (x *TradeReport) Reset() {
 	*x = TradeReport{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[13]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1142,7 +1186,7 @@ func (x *TradeReport) String() string {
 func (*TradeReport) ProtoMessage() {}
 
 func (x *TradeReport) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[13]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1155,7 +1199,7 @@ func (x *TradeReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradeReport.ProtoReflect.Descriptor instead.
 func (*TradeReport) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{13}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *TradeReport) GetTradeId() uint32 {
@@ -1192,7 +1236,7 @@ type TradeAccept struct {
 
 func (x *TradeAccept) Reset() {
 	*x = TradeAccept{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[14]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1204,7 +1248,7 @@ func (x *TradeAccept) String() string {
 func (*TradeAccept) ProtoMessage() {}
 
 func (x *TradeAccept) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[14]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1217,7 +1261,7 @@ func (x *TradeAccept) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradeAccept.ProtoReflect.Descriptor instead.
 func (*TradeAccept) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{14}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *TradeAccept) GetTradeId() uint32 {
@@ -1251,7 +1295,7 @@ type TradeCancel struct {
 
 func (x *TradeCancel) Reset() {
 	*x = TradeCancel{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[15]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1263,7 +1307,7 @@ func (x *TradeCancel) String() string {
 func (*TradeCancel) ProtoMessage() {}
 
 func (x *TradeCancel) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[15]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1276,7 +1320,7 @@ func (x *TradeCancel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradeCancel.ProtoReflect.Descriptor instead.
 func (*TradeCancel) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{15}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *TradeCancel) GetTradeId() uint32 {
@@ -1305,7 +1349,7 @@ type TradePluginQuery struct {
 
 func (x *TradePluginQuery) Reset() {
 	*x = TradePluginQuery{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[16]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1317,7 +1361,7 @@ func (x *TradePluginQuery) String() string {
 func (*TradePluginQuery) ProtoMessage() {}
 
 func (x *TradePluginQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[16]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1330,7 +1374,7 @@ func (x *TradePluginQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradePluginQuery.ProtoReflect.Descriptor instead.
 func (*TradePluginQuery) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{16}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *TradePluginQuery) GetTradeId() uint32 {
@@ -1359,7 +1403,7 @@ type TradePluginReply struct {
 
 func (x *TradePluginReply) Reset() {
 	*x = TradePluginReply{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[17]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1371,7 +1415,7 @@ func (x *TradePluginReply) String() string {
 func (*TradePluginReply) ProtoMessage() {}
 
 func (x *TradePluginReply) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[17]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1384,7 +1428,7 @@ func (x *TradePluginReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradePluginReply.ProtoReflect.Descriptor instead.
 func (*TradePluginReply) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{17}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *TradePluginReply) GetTradeId() uint32 {
@@ -1425,6 +1469,7 @@ type ClientMessage struct {
 	//	*ClientMessage_TradeCancel
 	//	*ClientMessage_TradePluginQuery
 	//	*ClientMessage_TradePluginReply
+	//	*ClientMessage_PoseLimit
 	Message       isClientMessage_Message `protobuf_oneof:"message"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1432,7 +1477,7 @@ type ClientMessage struct {
 
 func (x *ClientMessage) Reset() {
 	*x = ClientMessage{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[18]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1444,7 +1489,7 @@ func (x *ClientMessage) String() string {
 func (*ClientMessage) ProtoMessage() {}
 
 func (x *ClientMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[18]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1457,7 +1502,7 @@ func (x *ClientMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientMessage.ProtoReflect.Descriptor instead.
 func (*ClientMessage) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{18}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ClientMessage) GetMessage() isClientMessage_Message {
@@ -1647,6 +1692,15 @@ func (x *ClientMessage) GetTradePluginReply() *TradePluginReply {
 	return nil
 }
 
+func (x *ClientMessage) GetPoseLimit() *PoseLimit {
+	if x != nil {
+		if x, ok := x.Message.(*ClientMessage_PoseLimit); ok {
+			return x.PoseLimit
+		}
+	}
+	return nil
+}
+
 type isClientMessage_Message interface {
 	isClientMessage_Message()
 }
@@ -1731,6 +1785,10 @@ type ClientMessage_TradePluginReply struct {
 	TradePluginReply *TradePluginReply `protobuf:"bytes,20,opt,name=trade_plugin_reply,json=tradePluginReply,proto3,oneof"`
 }
 
+type ClientMessage_PoseLimit struct {
+	PoseLimit *PoseLimit `protobuf:"bytes,21,opt,name=pose_limit,json=poseLimit,proto3,oneof"`
+}
+
 func (*ClientMessage_Hello) isClientMessage_Message() {}
 
 func (*ClientMessage_Enter) isClientMessage_Message() {}
@@ -1771,6 +1829,8 @@ func (*ClientMessage_TradePluginQuery) isClientMessage_Message() {}
 
 func (*ClientMessage_TradePluginReply) isClientMessage_Message() {}
 
+func (*ClientMessage_PoseLimit) isClientMessage_Message() {}
+
 type Welcome struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Slot          uint32                 `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
@@ -1783,7 +1843,7 @@ type Welcome struct {
 
 func (x *Welcome) Reset() {
 	*x = Welcome{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[19]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1795,7 +1855,7 @@ func (x *Welcome) String() string {
 func (*Welcome) ProtoMessage() {}
 
 func (x *Welcome) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[19]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1808,7 +1868,7 @@ func (x *Welcome) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Welcome.ProtoReflect.Descriptor instead.
 func (*Welcome) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{19}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Welcome) GetSlot() uint32 {
@@ -1850,7 +1910,7 @@ type ChatResult struct {
 
 func (x *ChatResult) Reset() {
 	*x = ChatResult{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[20]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1862,7 +1922,7 @@ func (x *ChatResult) String() string {
 func (*ChatResult) ProtoMessage() {}
 
 func (x *ChatResult) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[20]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1875,7 +1935,7 @@ func (x *ChatResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatResult.ProtoReflect.Descriptor instead.
 func (*ChatResult) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{20}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ChatResult) GetRequestId() uint32 {
@@ -1901,7 +1961,7 @@ type Pong struct {
 
 func (x *Pong) Reset() {
 	*x = Pong{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[21]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1913,7 +1973,7 @@ func (x *Pong) String() string {
 func (*Pong) ProtoMessage() {}
 
 func (x *Pong) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[21]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1926,7 +1986,7 @@ func (x *Pong) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pong.ProtoReflect.Descriptor instead.
 func (*Pong) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{21}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *Pong) GetRequestId() uint32 {
@@ -1945,7 +2005,7 @@ type PeerStates struct {
 
 func (x *PeerStates) Reset() {
 	*x = PeerStates{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[22]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1957,7 +2017,7 @@ func (x *PeerStates) String() string {
 func (*PeerStates) ProtoMessage() {}
 
 func (x *PeerStates) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[22]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1970,7 +2030,7 @@ func (x *PeerStates) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerStates.ProtoReflect.Descriptor instead.
 func (*PeerStates) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{22}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *PeerStates) GetStates() []*Checkpoint {
@@ -1993,7 +2053,7 @@ type PeerEnter struct {
 
 func (x *PeerEnter) Reset() {
 	*x = PeerEnter{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[23]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2005,7 +2065,7 @@ func (x *PeerEnter) String() string {
 func (*PeerEnter) ProtoMessage() {}
 
 func (x *PeerEnter) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[23]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2018,7 +2078,7 @@ func (x *PeerEnter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerEnter.ProtoReflect.Descriptor instead.
 func (*PeerEnter) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{23}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *PeerEnter) GetSlot() uint32 {
@@ -2066,7 +2126,7 @@ type PeerContext struct {
 
 func (x *PeerContext) Reset() {
 	*x = PeerContext{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[24]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2078,7 +2138,7 @@ func (x *PeerContext) String() string {
 func (*PeerContext) ProtoMessage() {}
 
 func (x *PeerContext) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[24]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2091,7 +2151,7 @@ func (x *PeerContext) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerContext.ProtoReflect.Descriptor instead.
 func (*PeerContext) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{24}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *PeerContext) GetSlot() uint32 {
@@ -2118,7 +2178,7 @@ type PeerLeave struct {
 
 func (x *PeerLeave) Reset() {
 	*x = PeerLeave{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[25]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2130,7 +2190,7 @@ func (x *PeerLeave) String() string {
 func (*PeerLeave) ProtoMessage() {}
 
 func (x *PeerLeave) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[25]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2143,7 +2203,7 @@ func (x *PeerLeave) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerLeave.ProtoReflect.Descriptor instead.
 func (*PeerLeave) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{25}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *PeerLeave) GetSlot() uint32 {
@@ -2170,7 +2230,7 @@ type PeerAction struct {
 
 func (x *PeerAction) Reset() {
 	*x = PeerAction{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[26]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2182,7 +2242,7 @@ func (x *PeerAction) String() string {
 func (*PeerAction) ProtoMessage() {}
 
 func (x *PeerAction) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[26]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2195,7 +2255,7 @@ func (x *PeerAction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerAction.ProtoReflect.Descriptor instead.
 func (*PeerAction) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{26}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *PeerAction) GetSlot() uint32 {
@@ -2222,7 +2282,7 @@ type PeerAppearance struct {
 
 func (x *PeerAppearance) Reset() {
 	*x = PeerAppearance{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[27]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2234,7 +2294,7 @@ func (x *PeerAppearance) String() string {
 func (*PeerAppearance) ProtoMessage() {}
 
 func (x *PeerAppearance) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[27]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2247,7 +2307,7 @@ func (x *PeerAppearance) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerAppearance.ProtoReflect.Descriptor instead.
 func (*PeerAppearance) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{27}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *PeerAppearance) GetSlot() uint32 {
@@ -2274,7 +2334,7 @@ type PeerEquipment struct {
 
 func (x *PeerEquipment) Reset() {
 	*x = PeerEquipment{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[28]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2286,7 +2346,7 @@ func (x *PeerEquipment) String() string {
 func (*PeerEquipment) ProtoMessage() {}
 
 func (x *PeerEquipment) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[28]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2299,7 +2359,7 @@ func (x *PeerEquipment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerEquipment.ProtoReflect.Descriptor instead.
 func (*PeerEquipment) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{28}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *PeerEquipment) GetSlot() uint32 {
@@ -2327,7 +2387,7 @@ type PlayerIdentity struct {
 
 func (x *PlayerIdentity) Reset() {
 	*x = PlayerIdentity{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[29]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2339,7 +2399,7 @@ func (x *PlayerIdentity) String() string {
 func (*PlayerIdentity) ProtoMessage() {}
 
 func (x *PlayerIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[29]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2352,7 +2412,7 @@ func (x *PlayerIdentity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlayerIdentity.ProtoReflect.Descriptor instead.
 func (*PlayerIdentity) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{29}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *PlayerIdentity) GetSlot() uint32 {
@@ -2388,7 +2448,7 @@ type ChatMessage struct {
 
 func (x *ChatMessage) Reset() {
 	*x = ChatMessage{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[30]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2400,7 +2460,7 @@ func (x *ChatMessage) String() string {
 func (*ChatMessage) ProtoMessage() {}
 
 func (x *ChatMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[30]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2413,7 +2473,7 @@ func (x *ChatMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatMessage.ProtoReflect.Descriptor instead.
 func (*ChatMessage) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{30}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ChatMessage) GetChannel() ChatChannel {
@@ -2454,7 +2514,7 @@ type Roster struct {
 
 func (x *Roster) Reset() {
 	*x = Roster{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[31]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2466,7 +2526,7 @@ func (x *Roster) String() string {
 func (*Roster) ProtoMessage() {}
 
 func (x *Roster) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[31]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2479,7 +2539,7 @@ func (x *Roster) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Roster.ProtoReflect.Descriptor instead.
 func (*Roster) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{31}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *Roster) GetJoined() []*PlayerIdentity {
@@ -2507,7 +2567,7 @@ type NearbyPlayers struct {
 
 func (x *NearbyPlayers) Reset() {
 	*x = NearbyPlayers{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[32]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2519,7 +2579,7 @@ func (x *NearbyPlayers) String() string {
 func (*NearbyPlayers) ProtoMessage() {}
 
 func (x *NearbyPlayers) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[32]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2532,7 +2592,7 @@ func (x *NearbyPlayers) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NearbyPlayers.ProtoReflect.Descriptor instead.
 func (*NearbyPlayers) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{32}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *NearbyPlayers) GetJoined() []uint32 {
@@ -2561,7 +2621,7 @@ type Inspection struct {
 
 func (x *Inspection) Reset() {
 	*x = Inspection{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[33]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2573,7 +2633,7 @@ func (x *Inspection) String() string {
 func (*Inspection) ProtoMessage() {}
 
 func (x *Inspection) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[33]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2586,7 +2646,7 @@ func (x *Inspection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Inspection.ProtoReflect.Descriptor instead.
 func (*Inspection) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{33}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *Inspection) GetSlot() uint32 {
@@ -2628,7 +2688,7 @@ type TradeInvite struct {
 
 func (x *TradeInvite) Reset() {
 	*x = TradeInvite{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[34]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2640,7 +2700,7 @@ func (x *TradeInvite) String() string {
 func (*TradeInvite) ProtoMessage() {}
 
 func (x *TradeInvite) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[34]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2653,7 +2713,7 @@ func (x *TradeInvite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradeInvite.ProtoReflect.Descriptor instead.
 func (*TradeInvite) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{34}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *TradeInvite) GetTradeId() uint32 {
@@ -2686,7 +2746,7 @@ type TradeOpen struct {
 
 func (x *TradeOpen) Reset() {
 	*x = TradeOpen{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[35]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2698,7 +2758,7 @@ func (x *TradeOpen) String() string {
 func (*TradeOpen) ProtoMessage() {}
 
 func (x *TradeOpen) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[35]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2711,7 +2771,7 @@ func (x *TradeOpen) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradeOpen.ProtoReflect.Descriptor instead.
 func (*TradeOpen) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{35}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *TradeOpen) GetTradeId() uint32 {
@@ -2733,7 +2793,7 @@ type TradeCommit struct {
 
 func (x *TradeCommit) Reset() {
 	*x = TradeCommit{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[36]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2745,7 +2805,7 @@ func (x *TradeCommit) String() string {
 func (*TradeCommit) ProtoMessage() {}
 
 func (x *TradeCommit) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[36]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2758,7 +2818,7 @@ func (x *TradeCommit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradeCommit.ProtoReflect.Descriptor instead.
 func (*TradeCommit) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{36}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *TradeCommit) GetTradeId() uint32 {
@@ -2793,7 +2853,7 @@ type TradeClose struct {
 
 func (x *TradeClose) Reset() {
 	*x = TradeClose{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[37]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2805,7 +2865,7 @@ func (x *TradeClose) String() string {
 func (*TradeClose) ProtoMessage() {}
 
 func (x *TradeClose) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[37]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2818,7 +2878,7 @@ func (x *TradeClose) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TradeClose.ProtoReflect.Descriptor instead.
 func (*TradeClose) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{37}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *TradeClose) GetTradeId() uint32 {
@@ -2869,7 +2929,7 @@ type ServerMessage struct {
 
 func (x *ServerMessage) Reset() {
 	*x = ServerMessage{}
-	mi := &file_playerhub_v1_messages_proto_msgTypes[38]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2881,7 +2941,7 @@ func (x *ServerMessage) String() string {
 func (*ServerMessage) ProtoMessage() {}
 
 func (x *ServerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_messages_proto_msgTypes[38]
+	mi := &file_playerhub_v1_messages_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2894,7 +2954,7 @@ func (x *ServerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerMessage.ProtoReflect.Descriptor instead.
 func (*ServerMessage) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{38}
+	return file_playerhub_v1_messages_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ServerMessage) GetMessage() isServerMessage_Message {
@@ -3281,7 +3341,9 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"session_id\x18\x01 \x01(\x04R\tsessionId\x12\x1a\n" +
 	"\bvanished\x18\x02 \x01(\bR\bvanished\"\x1d\n" +
 	"\aInspect\x12\x12\n" +
-	"\x04slot\x18\x01 \x01(\rR\x04slot\"\"\n" +
+	"\x04slot\x18\x01 \x01(\rR\x04slot\"%\n" +
+	"\tPoseLimit\x12\x18\n" +
+	"\aplayers\x18\x01 \x01(\rR\aplayers\"\"\n" +
 	"\fTradeRequest\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\rR\x04slot\"@\n" +
 	"\vTradeAnswer\x12\x19\n" +
@@ -3328,7 +3390,7 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"\aplugins\x18\x02 \x03(\tR\aplugins\"G\n" +
 	"\x10TradePluginReply\x12\x19\n" +
 	"\btrade_id\x18\x01 \x01(\rR\atradeId\x12\x18\n" +
-	"\amissing\x18\x02 \x03(\rR\amissing\"\x8d\t\n" +
+	"\amissing\x18\x02 \x03(\rR\amissing\"\xc7\t\n" +
 	"\rClientMessage\x12+\n" +
 	"\x05hello\x18\x01 \x01(\v2\x13.playerhub.v1.HelloH\x00R\x05hello\x12+\n" +
 	"\x05enter\x18\x02 \x01(\v2\x13.playerhub.v1.EnterH\x00R\x05enter\x12(\n" +
@@ -3355,7 +3417,9 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"\ftrade_accept\x18\x11 \x01(\v2\x19.playerhub.v1.TradeAcceptH\x00R\vtradeAccept\x12>\n" +
 	"\ftrade_cancel\x18\x12 \x01(\v2\x19.playerhub.v1.TradeCancelH\x00R\vtradeCancel\x12N\n" +
 	"\x12trade_plugin_query\x18\x13 \x01(\v2\x1e.playerhub.v1.TradePluginQueryH\x00R\x10tradePluginQuery\x12N\n" +
-	"\x12trade_plugin_reply\x18\x14 \x01(\v2\x1e.playerhub.v1.TradePluginReplyH\x00R\x10tradePluginReplyB\t\n" +
+	"\x12trade_plugin_reply\x18\x14 \x01(\v2\x1e.playerhub.v1.TradePluginReplyH\x00R\x10tradePluginReply\x128\n" +
+	"\n" +
+	"pose_limit\x18\x15 \x01(\v2\x17.playerhub.v1.PoseLimitH\x00R\tposeLimitB\t\n" +
 	"\amessage\"\x84\x01\n" +
 	"\aWelcome\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\rR\x04slot\x12\x1d\n" +
@@ -3526,7 +3590,7 @@ func file_playerhub_v1_messages_proto_rawDescGZIP() []byte {
 }
 
 var file_playerhub_v1_messages_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_playerhub_v1_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
+var file_playerhub_v1_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_playerhub_v1_messages_proto_goTypes = []any{
 	(Protocol)(0),            // 0: playerhub.v1.Protocol
 	(ChatChannel)(0),         // 1: playerhub.v1.ChatChannel
@@ -3541,124 +3605,126 @@ var file_playerhub_v1_messages_proto_goTypes = []any{
 	(*Ping)(nil),             // 10: playerhub.v1.Ping
 	(*Vanish)(nil),           // 11: playerhub.v1.Vanish
 	(*Inspect)(nil),          // 12: playerhub.v1.Inspect
-	(*TradeRequest)(nil),     // 13: playerhub.v1.TradeRequest
-	(*TradeAnswer)(nil),      // 14: playerhub.v1.TradeAnswer
-	(*TradeEffect)(nil),      // 15: playerhub.v1.TradeEffect
-	(*TradeItem)(nil),        // 16: playerhub.v1.TradeItem
-	(*TradeOffer)(nil),       // 17: playerhub.v1.TradeOffer
-	(*TradeSkip)(nil),        // 18: playerhub.v1.TradeSkip
-	(*TradeReport)(nil),      // 19: playerhub.v1.TradeReport
-	(*TradeAccept)(nil),      // 20: playerhub.v1.TradeAccept
-	(*TradeCancel)(nil),      // 21: playerhub.v1.TradeCancel
-	(*TradePluginQuery)(nil), // 22: playerhub.v1.TradePluginQuery
-	(*TradePluginReply)(nil), // 23: playerhub.v1.TradePluginReply
-	(*ClientMessage)(nil),    // 24: playerhub.v1.ClientMessage
-	(*Welcome)(nil),          // 25: playerhub.v1.Welcome
-	(*ChatResult)(nil),       // 26: playerhub.v1.ChatResult
-	(*Pong)(nil),             // 27: playerhub.v1.Pong
-	(*PeerStates)(nil),       // 28: playerhub.v1.PeerStates
-	(*PeerEnter)(nil),        // 29: playerhub.v1.PeerEnter
-	(*PeerContext)(nil),      // 30: playerhub.v1.PeerContext
-	(*PeerLeave)(nil),        // 31: playerhub.v1.PeerLeave
-	(*PeerAction)(nil),       // 32: playerhub.v1.PeerAction
-	(*PeerAppearance)(nil),   // 33: playerhub.v1.PeerAppearance
-	(*PeerEquipment)(nil),    // 34: playerhub.v1.PeerEquipment
-	(*PlayerIdentity)(nil),   // 35: playerhub.v1.PlayerIdentity
-	(*ChatMessage)(nil),      // 36: playerhub.v1.ChatMessage
-	(*Roster)(nil),           // 37: playerhub.v1.Roster
-	(*NearbyPlayers)(nil),    // 38: playerhub.v1.NearbyPlayers
-	(*Inspection)(nil),       // 39: playerhub.v1.Inspection
-	(*TradeInvite)(nil),      // 40: playerhub.v1.TradeInvite
-	(*TradeOpen)(nil),        // 41: playerhub.v1.TradeOpen
-	(*TradeCommit)(nil),      // 42: playerhub.v1.TradeCommit
-	(*TradeClose)(nil),       // 43: playerhub.v1.TradeClose
-	(*ServerMessage)(nil),    // 44: playerhub.v1.ServerMessage
-	(*FormRef)(nil),          // 45: playerhub.v1.FormRef
-	(*Checkpoint)(nil),       // 46: playerhub.v1.Checkpoint
-	(*Context)(nil),          // 47: playerhub.v1.Context
-	(*Action)(nil),           // 48: playerhub.v1.Action
-	(*Appearance)(nil),       // 49: playerhub.v1.Appearance
-	(*Equipment)(nil),        // 50: playerhub.v1.Equipment
-	(*DefaultRace)(nil),      // 51: playerhub.v1.DefaultRace
+	(*PoseLimit)(nil),        // 13: playerhub.v1.PoseLimit
+	(*TradeRequest)(nil),     // 14: playerhub.v1.TradeRequest
+	(*TradeAnswer)(nil),      // 15: playerhub.v1.TradeAnswer
+	(*TradeEffect)(nil),      // 16: playerhub.v1.TradeEffect
+	(*TradeItem)(nil),        // 17: playerhub.v1.TradeItem
+	(*TradeOffer)(nil),       // 18: playerhub.v1.TradeOffer
+	(*TradeSkip)(nil),        // 19: playerhub.v1.TradeSkip
+	(*TradeReport)(nil),      // 20: playerhub.v1.TradeReport
+	(*TradeAccept)(nil),      // 21: playerhub.v1.TradeAccept
+	(*TradeCancel)(nil),      // 22: playerhub.v1.TradeCancel
+	(*TradePluginQuery)(nil), // 23: playerhub.v1.TradePluginQuery
+	(*TradePluginReply)(nil), // 24: playerhub.v1.TradePluginReply
+	(*ClientMessage)(nil),    // 25: playerhub.v1.ClientMessage
+	(*Welcome)(nil),          // 26: playerhub.v1.Welcome
+	(*ChatResult)(nil),       // 27: playerhub.v1.ChatResult
+	(*Pong)(nil),             // 28: playerhub.v1.Pong
+	(*PeerStates)(nil),       // 29: playerhub.v1.PeerStates
+	(*PeerEnter)(nil),        // 30: playerhub.v1.PeerEnter
+	(*PeerContext)(nil),      // 31: playerhub.v1.PeerContext
+	(*PeerLeave)(nil),        // 32: playerhub.v1.PeerLeave
+	(*PeerAction)(nil),       // 33: playerhub.v1.PeerAction
+	(*PeerAppearance)(nil),   // 34: playerhub.v1.PeerAppearance
+	(*PeerEquipment)(nil),    // 35: playerhub.v1.PeerEquipment
+	(*PlayerIdentity)(nil),   // 36: playerhub.v1.PlayerIdentity
+	(*ChatMessage)(nil),      // 37: playerhub.v1.ChatMessage
+	(*Roster)(nil),           // 38: playerhub.v1.Roster
+	(*NearbyPlayers)(nil),    // 39: playerhub.v1.NearbyPlayers
+	(*Inspection)(nil),       // 40: playerhub.v1.Inspection
+	(*TradeInvite)(nil),      // 41: playerhub.v1.TradeInvite
+	(*TradeOpen)(nil),        // 42: playerhub.v1.TradeOpen
+	(*TradeCommit)(nil),      // 43: playerhub.v1.TradeCommit
+	(*TradeClose)(nil),       // 44: playerhub.v1.TradeClose
+	(*ServerMessage)(nil),    // 45: playerhub.v1.ServerMessage
+	(*FormRef)(nil),          // 46: playerhub.v1.FormRef
+	(*Checkpoint)(nil),       // 47: playerhub.v1.Checkpoint
+	(*Context)(nil),          // 48: playerhub.v1.Context
+	(*Action)(nil),           // 49: playerhub.v1.Action
+	(*Appearance)(nil),       // 50: playerhub.v1.Appearance
+	(*Equipment)(nil),        // 51: playerhub.v1.Equipment
+	(*DefaultRace)(nil),      // 52: playerhub.v1.DefaultRace
 }
 var file_playerhub_v1_messages_proto_depIdxs = []int32{
 	1,  // 0: playerhub.v1.ChatSend.channel:type_name -> playerhub.v1.ChatChannel
-	45, // 1: playerhub.v1.TradeEffect.effect:type_name -> playerhub.v1.FormRef
-	45, // 2: playerhub.v1.TradeItem.item:type_name -> playerhub.v1.FormRef
-	45, // 3: playerhub.v1.TradeItem.enchantment:type_name -> playerhub.v1.FormRef
-	15, // 4: playerhub.v1.TradeItem.effects:type_name -> playerhub.v1.TradeEffect
-	16, // 5: playerhub.v1.TradeOffer.items:type_name -> playerhub.v1.TradeItem
+	46, // 1: playerhub.v1.TradeEffect.effect:type_name -> playerhub.v1.FormRef
+	46, // 2: playerhub.v1.TradeItem.item:type_name -> playerhub.v1.FormRef
+	46, // 3: playerhub.v1.TradeItem.enchantment:type_name -> playerhub.v1.FormRef
+	16, // 4: playerhub.v1.TradeItem.effects:type_name -> playerhub.v1.TradeEffect
+	17, // 5: playerhub.v1.TradeOffer.items:type_name -> playerhub.v1.TradeItem
 	2,  // 6: playerhub.v1.TradeSkip.reason:type_name -> playerhub.v1.TradeSkipReason
-	18, // 7: playerhub.v1.TradeReport.skipped:type_name -> playerhub.v1.TradeSkip
+	19, // 7: playerhub.v1.TradeReport.skipped:type_name -> playerhub.v1.TradeSkip
 	3,  // 8: playerhub.v1.TradeCancel.reason:type_name -> playerhub.v1.TradeCloseReason
 	6,  // 9: playerhub.v1.ClientMessage.hello:type_name -> playerhub.v1.Hello
 	7,  // 10: playerhub.v1.ClientMessage.enter:type_name -> playerhub.v1.Enter
 	8,  // 11: playerhub.v1.ClientMessage.exit:type_name -> playerhub.v1.Exit
-	46, // 12: playerhub.v1.ClientMessage.checkpoint:type_name -> playerhub.v1.Checkpoint
-	47, // 13: playerhub.v1.ClientMessage.context:type_name -> playerhub.v1.Context
-	48, // 14: playerhub.v1.ClientMessage.action:type_name -> playerhub.v1.Action
-	49, // 15: playerhub.v1.ClientMessage.appearance:type_name -> playerhub.v1.Appearance
-	50, // 16: playerhub.v1.ClientMessage.equipment:type_name -> playerhub.v1.Equipment
+	47, // 12: playerhub.v1.ClientMessage.checkpoint:type_name -> playerhub.v1.Checkpoint
+	48, // 13: playerhub.v1.ClientMessage.context:type_name -> playerhub.v1.Context
+	49, // 14: playerhub.v1.ClientMessage.action:type_name -> playerhub.v1.Action
+	50, // 15: playerhub.v1.ClientMessage.appearance:type_name -> playerhub.v1.Appearance
+	51, // 16: playerhub.v1.ClientMessage.equipment:type_name -> playerhub.v1.Equipment
 	9,  // 17: playerhub.v1.ClientMessage.chat:type_name -> playerhub.v1.ChatSend
 	10, // 18: playerhub.v1.ClientMessage.ping:type_name -> playerhub.v1.Ping
 	11, // 19: playerhub.v1.ClientMessage.vanish:type_name -> playerhub.v1.Vanish
 	12, // 20: playerhub.v1.ClientMessage.inspect:type_name -> playerhub.v1.Inspect
-	13, // 21: playerhub.v1.ClientMessage.trade_request:type_name -> playerhub.v1.TradeRequest
-	14, // 22: playerhub.v1.ClientMessage.trade_answer:type_name -> playerhub.v1.TradeAnswer
-	17, // 23: playerhub.v1.ClientMessage.trade_offer:type_name -> playerhub.v1.TradeOffer
-	19, // 24: playerhub.v1.ClientMessage.trade_report:type_name -> playerhub.v1.TradeReport
-	20, // 25: playerhub.v1.ClientMessage.trade_accept:type_name -> playerhub.v1.TradeAccept
-	21, // 26: playerhub.v1.ClientMessage.trade_cancel:type_name -> playerhub.v1.TradeCancel
-	22, // 27: playerhub.v1.ClientMessage.trade_plugin_query:type_name -> playerhub.v1.TradePluginQuery
-	23, // 28: playerhub.v1.ClientMessage.trade_plugin_reply:type_name -> playerhub.v1.TradePluginReply
-	4,  // 29: playerhub.v1.ChatResult.rejection:type_name -> playerhub.v1.ChatRejection
-	46, // 30: playerhub.v1.PeerStates.states:type_name -> playerhub.v1.Checkpoint
-	49, // 31: playerhub.v1.PeerEnter.appearance:type_name -> playerhub.v1.Appearance
-	50, // 32: playerhub.v1.PeerEnter.equipment:type_name -> playerhub.v1.Equipment
-	47, // 33: playerhub.v1.PeerEnter.context:type_name -> playerhub.v1.Context
-	46, // 34: playerhub.v1.PeerEnter.state:type_name -> playerhub.v1.Checkpoint
-	47, // 35: playerhub.v1.PeerContext.context:type_name -> playerhub.v1.Context
-	5,  // 36: playerhub.v1.PeerLeave.reason:type_name -> playerhub.v1.LeaveReason
-	48, // 37: playerhub.v1.PeerAction.action:type_name -> playerhub.v1.Action
-	49, // 38: playerhub.v1.PeerAppearance.appearance:type_name -> playerhub.v1.Appearance
-	50, // 39: playerhub.v1.PeerEquipment.equipment:type_name -> playerhub.v1.Equipment
-	1,  // 40: playerhub.v1.ChatMessage.channel:type_name -> playerhub.v1.ChatChannel
-	35, // 41: playerhub.v1.ChatMessage.sender:type_name -> playerhub.v1.PlayerIdentity
-	35, // 42: playerhub.v1.ChatMessage.recipient:type_name -> playerhub.v1.PlayerIdentity
-	35, // 43: playerhub.v1.Roster.joined:type_name -> playerhub.v1.PlayerIdentity
-	45, // 44: playerhub.v1.Inspection.race:type_name -> playerhub.v1.FormRef
-	51, // 45: playerhub.v1.Inspection.default_race:type_name -> playerhub.v1.DefaultRace
-	35, // 46: playerhub.v1.TradeInvite.sender:type_name -> playerhub.v1.PlayerIdentity
-	35, // 47: playerhub.v1.TradeInvite.recipient:type_name -> playerhub.v1.PlayerIdentity
-	3,  // 48: playerhub.v1.TradeClose.reason:type_name -> playerhub.v1.TradeCloseReason
-	25, // 49: playerhub.v1.ServerMessage.welcome:type_name -> playerhub.v1.Welcome
-	26, // 50: playerhub.v1.ServerMessage.chat_result:type_name -> playerhub.v1.ChatResult
-	28, // 51: playerhub.v1.ServerMessage.peer_states:type_name -> playerhub.v1.PeerStates
-	29, // 52: playerhub.v1.ServerMessage.peer_enter:type_name -> playerhub.v1.PeerEnter
-	30, // 53: playerhub.v1.ServerMessage.peer_context:type_name -> playerhub.v1.PeerContext
-	31, // 54: playerhub.v1.ServerMessage.peer_leave:type_name -> playerhub.v1.PeerLeave
-	32, // 55: playerhub.v1.ServerMessage.peer_action:type_name -> playerhub.v1.PeerAction
-	33, // 56: playerhub.v1.ServerMessage.peer_appearance:type_name -> playerhub.v1.PeerAppearance
-	34, // 57: playerhub.v1.ServerMessage.peer_equipment:type_name -> playerhub.v1.PeerEquipment
-	36, // 58: playerhub.v1.ServerMessage.chat_message:type_name -> playerhub.v1.ChatMessage
-	37, // 59: playerhub.v1.ServerMessage.roster:type_name -> playerhub.v1.Roster
-	39, // 60: playerhub.v1.ServerMessage.inspection:type_name -> playerhub.v1.Inspection
-	40, // 61: playerhub.v1.ServerMessage.trade_invite:type_name -> playerhub.v1.TradeInvite
-	41, // 62: playerhub.v1.ServerMessage.trade_open:type_name -> playerhub.v1.TradeOpen
-	17, // 63: playerhub.v1.ServerMessage.trade_offer:type_name -> playerhub.v1.TradeOffer
-	19, // 64: playerhub.v1.ServerMessage.trade_report:type_name -> playerhub.v1.TradeReport
-	20, // 65: playerhub.v1.ServerMessage.trade_accept:type_name -> playerhub.v1.TradeAccept
-	42, // 66: playerhub.v1.ServerMessage.trade_commit:type_name -> playerhub.v1.TradeCommit
-	43, // 67: playerhub.v1.ServerMessage.trade_close:type_name -> playerhub.v1.TradeClose
-	38, // 68: playerhub.v1.ServerMessage.nearby_players:type_name -> playerhub.v1.NearbyPlayers
-	22, // 69: playerhub.v1.ServerMessage.trade_plugin_query:type_name -> playerhub.v1.TradePluginQuery
-	23, // 70: playerhub.v1.ServerMessage.trade_plugin_reply:type_name -> playerhub.v1.TradePluginReply
-	27, // 71: playerhub.v1.ServerMessage.pong:type_name -> playerhub.v1.Pong
-	72, // [72:72] is the sub-list for method output_type
-	72, // [72:72] is the sub-list for method input_type
-	72, // [72:72] is the sub-list for extension type_name
-	72, // [72:72] is the sub-list for extension extendee
-	0,  // [0:72] is the sub-list for field type_name
+	14, // 21: playerhub.v1.ClientMessage.trade_request:type_name -> playerhub.v1.TradeRequest
+	15, // 22: playerhub.v1.ClientMessage.trade_answer:type_name -> playerhub.v1.TradeAnswer
+	18, // 23: playerhub.v1.ClientMessage.trade_offer:type_name -> playerhub.v1.TradeOffer
+	20, // 24: playerhub.v1.ClientMessage.trade_report:type_name -> playerhub.v1.TradeReport
+	21, // 25: playerhub.v1.ClientMessage.trade_accept:type_name -> playerhub.v1.TradeAccept
+	22, // 26: playerhub.v1.ClientMessage.trade_cancel:type_name -> playerhub.v1.TradeCancel
+	23, // 27: playerhub.v1.ClientMessage.trade_plugin_query:type_name -> playerhub.v1.TradePluginQuery
+	24, // 28: playerhub.v1.ClientMessage.trade_plugin_reply:type_name -> playerhub.v1.TradePluginReply
+	13, // 29: playerhub.v1.ClientMessage.pose_limit:type_name -> playerhub.v1.PoseLimit
+	4,  // 30: playerhub.v1.ChatResult.rejection:type_name -> playerhub.v1.ChatRejection
+	47, // 31: playerhub.v1.PeerStates.states:type_name -> playerhub.v1.Checkpoint
+	50, // 32: playerhub.v1.PeerEnter.appearance:type_name -> playerhub.v1.Appearance
+	51, // 33: playerhub.v1.PeerEnter.equipment:type_name -> playerhub.v1.Equipment
+	48, // 34: playerhub.v1.PeerEnter.context:type_name -> playerhub.v1.Context
+	47, // 35: playerhub.v1.PeerEnter.state:type_name -> playerhub.v1.Checkpoint
+	48, // 36: playerhub.v1.PeerContext.context:type_name -> playerhub.v1.Context
+	5,  // 37: playerhub.v1.PeerLeave.reason:type_name -> playerhub.v1.LeaveReason
+	49, // 38: playerhub.v1.PeerAction.action:type_name -> playerhub.v1.Action
+	50, // 39: playerhub.v1.PeerAppearance.appearance:type_name -> playerhub.v1.Appearance
+	51, // 40: playerhub.v1.PeerEquipment.equipment:type_name -> playerhub.v1.Equipment
+	1,  // 41: playerhub.v1.ChatMessage.channel:type_name -> playerhub.v1.ChatChannel
+	36, // 42: playerhub.v1.ChatMessage.sender:type_name -> playerhub.v1.PlayerIdentity
+	36, // 43: playerhub.v1.ChatMessage.recipient:type_name -> playerhub.v1.PlayerIdentity
+	36, // 44: playerhub.v1.Roster.joined:type_name -> playerhub.v1.PlayerIdentity
+	46, // 45: playerhub.v1.Inspection.race:type_name -> playerhub.v1.FormRef
+	52, // 46: playerhub.v1.Inspection.default_race:type_name -> playerhub.v1.DefaultRace
+	36, // 47: playerhub.v1.TradeInvite.sender:type_name -> playerhub.v1.PlayerIdentity
+	36, // 48: playerhub.v1.TradeInvite.recipient:type_name -> playerhub.v1.PlayerIdentity
+	3,  // 49: playerhub.v1.TradeClose.reason:type_name -> playerhub.v1.TradeCloseReason
+	26, // 50: playerhub.v1.ServerMessage.welcome:type_name -> playerhub.v1.Welcome
+	27, // 51: playerhub.v1.ServerMessage.chat_result:type_name -> playerhub.v1.ChatResult
+	29, // 52: playerhub.v1.ServerMessage.peer_states:type_name -> playerhub.v1.PeerStates
+	30, // 53: playerhub.v1.ServerMessage.peer_enter:type_name -> playerhub.v1.PeerEnter
+	31, // 54: playerhub.v1.ServerMessage.peer_context:type_name -> playerhub.v1.PeerContext
+	32, // 55: playerhub.v1.ServerMessage.peer_leave:type_name -> playerhub.v1.PeerLeave
+	33, // 56: playerhub.v1.ServerMessage.peer_action:type_name -> playerhub.v1.PeerAction
+	34, // 57: playerhub.v1.ServerMessage.peer_appearance:type_name -> playerhub.v1.PeerAppearance
+	35, // 58: playerhub.v1.ServerMessage.peer_equipment:type_name -> playerhub.v1.PeerEquipment
+	37, // 59: playerhub.v1.ServerMessage.chat_message:type_name -> playerhub.v1.ChatMessage
+	38, // 60: playerhub.v1.ServerMessage.roster:type_name -> playerhub.v1.Roster
+	40, // 61: playerhub.v1.ServerMessage.inspection:type_name -> playerhub.v1.Inspection
+	41, // 62: playerhub.v1.ServerMessage.trade_invite:type_name -> playerhub.v1.TradeInvite
+	42, // 63: playerhub.v1.ServerMessage.trade_open:type_name -> playerhub.v1.TradeOpen
+	18, // 64: playerhub.v1.ServerMessage.trade_offer:type_name -> playerhub.v1.TradeOffer
+	20, // 65: playerhub.v1.ServerMessage.trade_report:type_name -> playerhub.v1.TradeReport
+	21, // 66: playerhub.v1.ServerMessage.trade_accept:type_name -> playerhub.v1.TradeAccept
+	43, // 67: playerhub.v1.ServerMessage.trade_commit:type_name -> playerhub.v1.TradeCommit
+	44, // 68: playerhub.v1.ServerMessage.trade_close:type_name -> playerhub.v1.TradeClose
+	39, // 69: playerhub.v1.ServerMessage.nearby_players:type_name -> playerhub.v1.NearbyPlayers
+	23, // 70: playerhub.v1.ServerMessage.trade_plugin_query:type_name -> playerhub.v1.TradePluginQuery
+	24, // 71: playerhub.v1.ServerMessage.trade_plugin_reply:type_name -> playerhub.v1.TradePluginReply
+	28, // 72: playerhub.v1.ServerMessage.pong:type_name -> playerhub.v1.Pong
+	73, // [73:73] is the sub-list for method output_type
+	73, // [73:73] is the sub-list for method input_type
+	73, // [73:73] is the sub-list for extension type_name
+	73, // [73:73] is the sub-list for extension extendee
+	0,  // [0:73] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_messages_proto_init() }
@@ -3667,7 +3733,7 @@ func file_playerhub_v1_messages_proto_init() {
 		return
 	}
 	file_playerhub_v1_state_proto_init()
-	file_playerhub_v1_messages_proto_msgTypes[18].OneofWrappers = []any{
+	file_playerhub_v1_messages_proto_msgTypes[19].OneofWrappers = []any{
 		(*ClientMessage_Hello)(nil),
 		(*ClientMessage_Enter)(nil),
 		(*ClientMessage_Exit)(nil),
@@ -3688,8 +3754,9 @@ func file_playerhub_v1_messages_proto_init() {
 		(*ClientMessage_TradeCancel)(nil),
 		(*ClientMessage_TradePluginQuery)(nil),
 		(*ClientMessage_TradePluginReply)(nil),
+		(*ClientMessage_PoseLimit)(nil),
 	}
-	file_playerhub_v1_messages_proto_msgTypes[38].OneofWrappers = []any{
+	file_playerhub_v1_messages_proto_msgTypes[39].OneofWrappers = []any{
 		(*ServerMessage_Welcome)(nil),
 		(*ServerMessage_ChatResult)(nil),
 		(*ServerMessage_PeerStates)(nil),
@@ -3720,7 +3787,7 @@ func file_playerhub_v1_messages_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_playerhub_v1_messages_proto_rawDesc), len(file_playerhub_v1_messages_proto_rawDesc)),
 			NumEnums:      6,
-			NumMessages:   39,
+			NumMessages:   40,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -129,7 +129,7 @@ typedef struct _playerhub_v1_FormRef {
     uint32_t form_id;
 } playerhub_v1_FormRef;
 
-typedef PB_BYTES_ARRAY_T(267) playerhub_v1_Checkpoint_skeleton_t;
+typedef PB_BYTES_ARRAY_T(219) playerhub_v1_Checkpoint_skeleton_t;
 typedef struct _playerhub_v1_Checkpoint {
     uint32_t player;
     uint64_t sequence;
@@ -143,7 +143,6 @@ typedef struct _playerhub_v1_Checkpoint {
     uint32_t direction;
     uint32_t flags;
     uint32_t time;
-    /* Bone rotations of the sender's third-person skeleton; empty when not sent. */
     playerhub_v1_Checkpoint_skeleton_t skeleton;
 } playerhub_v1_Checkpoint;
 
@@ -696,7 +695,7 @@ extern const pb_msgdesc_t playerhub_v1_Equipment_msg;
 #define playerhub_v1_Appearance_size             44260
 #define playerhub_v1_Armor_size                  278
 #define playerhub_v1_Attack_size                 4
-#define playerhub_v1_Checkpoint_size             341
+#define playerhub_v1_Checkpoint_size             293
 #define playerhub_v1_Color_size                  18
 #define playerhub_v1_Context_size                895
 #define playerhub_v1_DefaultOutfit_size          4174

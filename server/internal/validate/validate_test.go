@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"encoding/binary"
 	"math"
 	"strings"
 	"testing"
@@ -27,23 +28,29 @@ func TestCheckpoint(t *testing.T) {
 		"time above 16383":    func(c *pb.Checkpoint) { c.Time = 16384 },
 		"unknown movement":    func(c *pb.Checkpoint) { c.Flags = 7 },
 		"unknown flag bit":    func(c *pb.Checkpoint) { c.Flags = 1 << 16 },
-		"skeleton layout":     func(c *pb.Checkpoint) { c.Skeleton[0] = 2 },
-		"skeleton bone 63":    func(c *pb.Checkpoint) { c.Skeleton[8] |= 0x80 },
+		"skeleton layout":     func(c *pb.Checkpoint) { c.Skeleton[0] = 1 },
+		"skeleton bone 63":    func(c *pb.Checkpoint) { c.Skeleton = skeleton(1<<63|allSkeletonBones, 0) },
+		"skeleton long mask":  func(c *pb.Checkpoint) { c.Skeleton = append([]byte{SkeletonLayoutHuman, 0x80, 0}, c.Skeleton[2:]...) },
 		"skeleton too short":  func(c *pb.Checkpoint) { c.Skeleton = c.Skeleton[:len(c.Skeleton)-1] },
 		"skeleton too long":   func(c *pb.Checkpoint) { c.Skeleton = append(c.Skeleton, 0) },
 		"skeleton no header":  func(c *pb.Checkpoint) { c.Skeleton = []byte{SkeletonLayoutHuman} },
 	}
-	// Bones 0 and 62 present: two rotations.
-	valid.Skeleton = append([]byte{SkeletonLayoutHuman, 1, 0, 0, 0, 0, 0, 0, 0x40, 1, 2, 3, 4, 5, 6},
-		make([]byte, 2*skeletonRotationBytes)...)
+	// Bones 0 and 62 present: 29 and 26 bits of rotations.
+	valid.Skeleton = skeleton(allSkeletonBones&^(1|1<<62), 7)
 	if err := Checkpoint(valid); err != nil {
 		t.Fatalf("valid checkpoint rejected: %v", err)
 	}
 	full := proto.Clone(valid).(*pb.Checkpoint)
-	full.Skeleton = append([]byte{SkeletonLayoutHuman, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0, 0, 0, 0, 0, 0},
-		make([]byte, SkeletonBoneCount*skeletonRotationBytes)...)
-	if err := Checkpoint(full); err != nil || len(full.Skeleton) != MaximumSkeletonPoseSize {
+	// 23 bones of 29 bits, 30 of 23, and 10 of 26.
+	full.Skeleton = skeleton(0, 203)
+	if err := Checkpoint(full); err != nil {
 		t.Fatalf("full skeleton of %d bytes rejected: %v", len(full.Skeleton), err)
+	}
+	// The longest mask with the fewest bits missing: one finger bone at bit 56 or above.
+	longest := proto.Clone(valid).(*pb.Checkpoint)
+	longest.Skeleton = skeleton(1<<56, 200)
+	if err := Checkpoint(longest); err != nil || len(longest.Skeleton) > MaximumSkeletonPoseSize {
+		t.Fatalf("skeleton of %d bytes rejected: %v", len(longest.Skeleton), err)
 	}
 	for name, mutate := range cases {
 		c := proto.Clone(valid).(*pb.Checkpoint)
@@ -52,6 +59,12 @@ func TestCheckpoint(t *testing.T) {
 			t.Errorf("%s accepted", name)
 		}
 	}
+}
+
+func skeleton(missing uint64, rotationBytes int) []byte {
+	b := binary.AppendUvarint([]byte{SkeletonLayoutHuman}, missing)
+	b = append(b, 1, 2, 3, 4, 5, 6)
+	return append(b, make([]byte, rotationBytes)...)
 }
 
 func TestContext(t *testing.T) {
@@ -489,5 +502,19 @@ func TestInspect(t *testing.T) {
 	}
 	if Message(inspect(0)) != ErrInspect {
 		t.Error("inspect without a slot accepted")
+	}
+}
+
+func TestPoseLimit(t *testing.T) {
+	limit := func(players uint32) *pb.ClientMessage {
+		return &pb.ClientMessage{Message: &pb.ClientMessage_PoseLimit{PoseLimit: &pb.PoseLimit{Players: players}}}
+	}
+	for _, players := range []uint32{0, MaximumPosePlayers} {
+		if err := Message(limit(players)); err != nil {
+			t.Errorf("pose limit %d rejected: %v", players, err)
+		}
+	}
+	if Message(limit(MaximumPosePlayers+1)) != ErrPoseLimit {
+		t.Error("pose limit above the maximum accepted")
 	}
 }
