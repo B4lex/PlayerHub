@@ -1,4 +1,5 @@
 #include "actor/ActorRegistry.h"
+#include "actor/ActorSkeleton.h"
 #include "actor/AnimationEvents.h"
 #include "actor/RemoteActor.h"
 #include "runtime/GameThread.h"
@@ -252,6 +253,7 @@ namespace ActorRegistry
             return;
         }
 
+        ActorSkeleton::ClearPose(a_remote);
         std::scoped_lock lock{ s_mutex };
         EraseRegistration(a_remote.animationGraphHolder);
         a_remote.animationGraphHolder = nullptr;

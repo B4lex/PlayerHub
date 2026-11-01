@@ -290,6 +290,15 @@ namespace Config
             a_visitor.Unsigned("RemoteLights", Id::kAdvancedRemoteLights, a_settings.remoteLights,
                 Id::kAdvancedRemoteLightsComment, AdvancedSettings::kMaximumRemoteLights, Id::kNone, 1);
 
+            a_visitor.Comment(Id::kAdvancedGroupCustomAnimations);
+            a_visitor.Bool("ShareCustomAnimations", Id::kAdvancedShareCustomAnimations,
+                a_settings.shareCustomAnimations, Id::kAdvancedShareCustomAnimationsComment);
+            a_visitor.Bool("ShowCustomAnimations", Id::kAdvancedShowCustomAnimations, a_settings.showCustomAnimations,
+                Id::kAdvancedShowCustomAnimationsComment);
+            a_visitor.Unsigned("CustomAnimationPlayers", Id::kAdvancedCustomAnimationPlayers,
+                a_settings.customAnimationPlayers, Id::kAdvancedCustomAnimationPlayersComment,
+                AdvancedSettings::kMaximumCustomAnimationPlayers, Id::kNone, 1);
+
             a_visitor.Comment(Id::kAdvancedGroupDiagnostics);
             a_visitor.Bool(
                 "StatusPanel", Id::kAdvancedStatusPanel, a_settings.statusPanel, Id::kAdvancedStatusPanelComment);

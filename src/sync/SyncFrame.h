@@ -21,12 +21,16 @@ struct RemotePose
     float speed{ 0.0F };
     float sampledSpeed{ 0.0F };
     float direction{ 0.0F };
+    // Progress from the played checkpoint to the next one; 0 without a segment.
+    float fraction{ 0.0F };
 };
 
 struct RemoteFrame
 {
     Multiplayer::PeerSlot playerID;
     const Network::PlayerTransform& checkpoint;
+    // The checkpoint the pose moves toward, if one waits.
+    const Network::PlayerTransform* next;
     const RemotePose& pose;
     // Local FormIDs of the checkpoint's references; zero when not loaded here.
     RE::FormID cellID;

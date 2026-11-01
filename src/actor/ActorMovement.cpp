@@ -37,6 +37,12 @@ namespace ActorMovement
         constexpr float kGroundProbeDistance = 8.0F;
         constexpr float kGroundProbeRefreshSeconds = 1.0F;
         constexpr float kGroundSettleSeconds = 0.25F;
+        // A climb's end leaves the source by a ledge lip, where a probe right after the
+        // window read the lip 21 to 28 units above it in a replay on the same world.
+        constexpr float kPosedGroundSettleSeconds = 0.5F;
+        // A source starting a climb presses against the wall, where edge rings read the
+        // ledge or the slope below: 30 units off in a replay on the same world.
+        constexpr float kPosedEdgeLeadSeconds = 0.5F;
         constexpr float kGroundOffsetSmoothingSeconds = 0.15F;
         constexpr float kGroundOffsetResetDistance = 256.0F;
         constexpr float kGroundOffsetLogChange = 16.0F;
@@ -117,6 +123,20 @@ namespace ActorMovement
             {
                 ground.offset = target;
             }
+            if (probe.edge)
+            {
+                if (!ground.edgeRun)
+                {
+                    ground.edgeRun = true;
+                    ground.edgeRunElapsed = 0.0F;
+                }
+            }
+            else
+            {
+                ground.edgeRun = false;
+                ground.plainTarget = target;
+            }
+            ground.afterPose = false;
             ground.target = target;
             ground.hit = hit.has_value();
             ground.probed = true;
@@ -129,13 +149,15 @@ namespace ActorMovement
             auto& movement = a_remote.movement;
             auto& ground = movement.ground;
             ground.probeElapsed += a_deltaTime;
+            ground.edgeRunElapsed += a_deltaTime;
+            const float settleSeconds = ground.afterPose ? kPosedGroundSettleSeconds : kGroundSettleSeconds;
             if (movement.sourceGrounded)
             {
-                ground.groundedElapsed = (std::min)(ground.groundedElapsed + a_deltaTime, kGroundSettleSeconds);
+                ground.groundedElapsed = (std::min)(ground.groundedElapsed + a_deltaTime, settleSeconds);
             }
             // A controller reports kOnGround as soon as its capsule catches a ledge, while its
             // feet are still below it and it climbs on, so a landing is not measured.
-            const bool settled = !ground.probed || ground.groundedElapsed >= kGroundSettleSeconds;
+            const bool settled = !ground.probed || ground.groundedElapsed >= settleSeconds;
             if (movement.sourceSwimming)
             {
                 ground.target = 0.0F;
@@ -159,25 +181,48 @@ namespace ActorMovement
     }
 
     void SetTargetMovement(RemoteActor& a_remote, const RE::NiPoint3& a_checkpointPosition, float a_speed,
-        bool a_swimming, bool a_grounded)
+        bool a_swimming, bool a_grounded, bool a_posed)
     {
-        const auto travel = a_checkpointPosition - a_remote.movement.checkpointPosition;
+        auto& movement = a_remote.movement;
+        auto& ground = movement.ground;
+        const auto travel = a_checkpointPosition - movement.checkpointPosition;
         if (travel.Length() > kGroundOffsetResetDistance)
         {
-            a_remote.movement.ground = GroundOffset{};
+            ground = GroundOffset{};
         }
-        if (!a_grounded)
+        if (a_posed && !movement.sourcePosed && ground.edgeRun && ground.edgeRunElapsed < kPosedEdgeLeadSeconds)
         {
-            a_remote.movement.ground.groundedElapsed = 0.0F;
+            logs::debug("Remote actor ground offset dropped edge probes before a pose: actor={:08X} target={:.1f} "
+                        "restored={:.1f} edgeSeconds={:.3f}",
+                a_remote.handle.native_handle(), ground.target, ground.plainTarget, ground.edgeRunElapsed);
+            ground.target = ground.plainTarget;
+            ground.loggedTarget = ground.plainTarget;
+            ground.edgeRun = false;
         }
-        a_remote.movement.checkpointPosition = a_checkpointPosition;
-        a_remote.movement.sourceSwimming = a_swimming;
-        a_remote.movement.sourceGrounded = a_grounded;
+        if (!a_posed && movement.sourcePosed)
+        {
+            ground.afterPose = true;
+        }
+        // A posed checkpoint holds the offset like an airborne one.
+        const bool grounded = a_grounded && !a_posed;
+        if (!grounded)
+        {
+            ground.groundedElapsed = 0.0F;
+        }
+        movement.checkpointPosition = a_checkpointPosition;
+        movement.sourceSwimming = a_swimming;
+        movement.sourceGrounded = grounded;
+        movement.sourcePosed = a_posed;
         if (std::isfinite(a_speed) && a_speed >= 0.0F)
         {
             a_remote.movement.groundSpeed = a_speed;
             ActorAnimation::RequestCheckpointUpdate(a_remote.animation);
         }
+    }
+
+    void SetPoseWeight(RemoteActor& a_remote, float a_weight)
+    {
+        a_remote.movement.poseWeight = a_weight;
     }
 
     void SetAnimationSample(RemoteActor& a_remote, float a_speed, float a_direction)
@@ -264,9 +309,27 @@ namespace ActorMovement
     {
         PROFILE_FUNCTION();
         const float deltaTime = FrameTime::Clamp(a_deltaTime);
-        ApplySmoothedHeading(a_actor, a_remote.movement.targetHeading, a_remote.movement.targetHeadingRate, deltaTime);
+        auto& movement = a_remote.movement;
+        // A heading snap starts the graph's NPC_Turn transitions, which only a full pose hides.
+        if (a_mode == TranslationMode::kPosed && movement.poseWeight >= 1.0F && std::isfinite(movement.targetHeading))
+        {
+            a_actor.SetHeading(movement.targetHeading);
+        }
+        else
+        {
+            ApplySmoothedHeading(a_actor, movement.targetHeading, movement.targetHeadingRate, deltaTime);
+        }
 
         UpdateGroundOffset(a_actor, a_remote, deltaTime);
+        if (a_mode == TranslationMode::kPosed)
+        {
+            // The pose shows where the source's body was at this position; any lag behind it
+            // reads as the animation happening beside its place, such as a climb off its wall.
+            auto target = movement.targetPosition;
+            target.z += movement.ground.offset;
+            a_actor.SetPosition(target, true);
+            return;
+        }
         const auto current = a_actor.GetPosition();
         const auto target = GetPlacementTarget(a_remote);
 

@@ -1,8 +1,10 @@
 package validate
 
 import (
+	"encoding/binary"
 	"errors"
 	"math"
+	"math/bits"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -21,6 +23,12 @@ const (
 	MaximumMovementState   = 6
 	movementStateMask      = 0x7
 	knownFlags             = 0xFFFF
+
+	SkeletonLayoutHuman     = 1
+	SkeletonBoneCount       = 63
+	skeletonHeaderBytes     = 1 + 8 + 3*2
+	skeletonRotationBytes   = 4
+	MaximumSkeletonPoseSize = skeletonHeaderBytes + skeletonRotationBytes*SkeletonBoneCount
 
 	MaximumNameBytes        = 128
 	MinimumDisplayNameBytes = 3
@@ -107,10 +115,24 @@ func Message(m *pb.ClientMessage) error {
 func Checkpoint(c *pb.Checkpoint) error {
 	if c.GetHeading() > MaximumHeading || c.GetPitch() > MaximumPitch || c.GetPitch() < -MaximumPitch ||
 		c.GetSpeed() > MaximumSpeed || c.GetDirection() > MaximumDirection || c.GetTime() > MaximumTime ||
-		c.GetFlags()&^knownFlags != 0 || c.GetFlags()&movementStateMask > MaximumMovementState {
+		c.GetFlags()&^knownFlags != 0 || c.GetFlags()&movementStateMask > MaximumMovementState ||
+		!SkeletonPose(c.GetSkeleton()) {
 		return ErrCheckpoint
 	}
 	return nil
+}
+
+// SkeletonPose reports whether b is empty or a layout byte, a little-endian presence
+// mask of SkeletonBoneCount bits, the root translation, and one rotation per present bone.
+func SkeletonPose(b []byte) bool {
+	if len(b) == 0 {
+		return true
+	}
+	if len(b) < skeletonHeaderBytes || b[0] != SkeletonLayoutHuman {
+		return false
+	}
+	present := binary.LittleEndian.Uint64(b[1:9])
+	return present>>SkeletonBoneCount == 0 && len(b) == skeletonHeaderBytes+skeletonRotationBytes*bits.OnesCount64(present)
 }
 
 func WeaponDrawn(c *pb.Checkpoint) bool {

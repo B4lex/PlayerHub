@@ -13,7 +13,8 @@ func TestConcatenatedEntriesDecodeAsPeerStates(t *testing.T) {
 	checkpoints := []*pb.Checkpoint{
 		{Sequence: 1, X: -5, Y: 70000, Z: 0, Heading: 4095, Pitch: -1609, Speed: 350, Direction: 128, Flags: 0x1F, Time: 16383},
 		{Sequence: 1 << 40},
-		{Sequence: 9, X: -2147483648, Y: 2147483647, Pitch: 1609, Speed: 100000, Direction: 255, Flags: 0xFFE},
+		{Sequence: 9, X: -2147483648, Y: 2147483647, Pitch: 1609, Speed: 100000, Direction: 255, Flags: 0xFFE,
+			Skeleton: make([]byte, 267)},
 	}
 	var entries []byte
 	for i, c := range checkpoints {
@@ -40,7 +41,8 @@ func TestConcatenatedEntriesDecodeAsPeerStates(t *testing.T) {
 }
 
 func TestEntryMatchesGeneratedEncoding(t *testing.T) {
-	c := &pb.Checkpoint{Player: 7, Sequence: 12, X: 3, Y: -4, Z: 5, Heading: 6, Pitch: -7, Speed: 8, Direction: 9, Flags: 10, Time: 11}
+	c := &pb.Checkpoint{Player: 7, Sequence: 12, X: 3, Y: -4, Z: 5, Heading: 6, Pitch: -7, Speed: 8, Direction: 9, Flags: 10, Time: 11,
+		Skeleton: []byte{1, 2, 3}}
 	generated, err := proto.MarshalOptions{Deterministic: true}.Marshal(&pb.PeerStates{States: []*pb.Checkpoint{c}})
 	if err != nil {
 		t.Fatal(err)

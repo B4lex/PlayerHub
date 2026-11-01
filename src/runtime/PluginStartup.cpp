@@ -1,4 +1,5 @@
 #include "runtime/PluginStartup.h"
+#include "actor/ActorSkeleton.h"
 #include "actor/AnimationFirewall.h"
 #include "actor/CombatIsolation.h"
 #include "actor/JumpSound.h"
@@ -38,11 +39,12 @@ namespace PluginStartup
             RemoteCollision::InstallHooks();
             ScenePackageSuppression::InstallHooks();
             JumpSound::InstallHooks();
+            ActorSkeleton::InstallHooks();
 
             logs::info(
                 "Installed remote-replica actor policy, damage/kill firewall, magic firewall, animation firewall, "
-                "alias and scene package suppression, reaction suppression, pass-through collision, and jump sound "
-                "attenuation");
+                "alias and scene package suppression, reaction suppression, pass-through collision, jump sound "
+                "attenuation, and skeleton pose replacement");
         }
 
         void OnDataLoaded()
@@ -67,7 +69,7 @@ namespace PluginStartup
     {
         return 14 + CombatIsolation::kTrampolineSize + ReactionSuppression::kTrampolineSize
             + RemoteCollision::kTrampolineSize + ScenePackageSuppression::kTrampolineSize
-            + JumpSound::kTrampolineSize + UI::Overlay::kTrampolineSize;
+            + JumpSound::kTrampolineSize + ActorSkeleton::kTrampolineSize + UI::Overlay::kTrampolineSize;
     }
 
     void Install()

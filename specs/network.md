@@ -162,6 +162,7 @@ context.
 | `direction` | `uint32`, graph `Direction` × 256, wrapping | `0..255` |
 | `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–15 `grounded` (the carrier's controller is on the ground, [Locomotion](locomotion.md#ground-offset)), `weaponDrawn`, `jumping`, `blocking`, `bowDrawn`, `castingLeft`, `castingRight`, `swimming`, `mounted`, `dead`, `levitating`, `mistForm`, `bats` (`CheckpointFlag`, mirrored by `Network::CheckpointFlags` with `static_assert`s in `WireCodec.cpp`) | unknown bits rejected; the last three only in a `VAMPIRE_LORD` context (`validate.VampireLordFlags`, `incompatible animation checkpoint`) |
 | `time` | `uint32`, the sender's `steady_clock` in milliseconds when sampled, modulo 16384 | `0..16383` |
+| `skeleton` | `bytes`, the sender's skeleton pose ([below](#skeleton-pose-encoding)); empty when not sent | empty, or the layout below (`validate.SkeletonPose`) |
 
 | `Context` field | Validation |
 | --- | --- |
@@ -212,6 +213,34 @@ movement in [Locomotion](locomotion.md), stance and hands in
 [Combat presentation](combat-presentation.md), furniture, mounts, and death in
 [Native interactions](native-interactions.md), swimming in
 [Remote actor](remote-actor.md#swimming).
+
+### Skeleton pose encoding
+
+A client sends `skeleton` only inside a pose window, while its player plays an
+animation from a mod, with `[Advanced] ShareCustomAnimations` on
+([Remote actor](remote-actor.md#source-window)). A window is the run of
+checkpoints that carry one; no message opens or closes it, so a late joiner
+sees an open window at once. The server relays it like any checkpoint, to
+every recipient. The field was added within protocol 15: a client or server
+built without it skips it on decode, and such a server's relay drops it, so a
+peer on either neither sends nor shows poses.
+`protocol/SkeletonPose.h` and `server/internal/validate` hold the same layout:
+
+1. a layout byte, `1` (`kSkeletonLayoutHuman`, `validate.SkeletonLayoutHuman`):
+   the bone order of `Network::kSkeletonBoneNames`, 63 bones;
+2. a little-endian `uint64` presence mask, bit `i` for bone `i`; bit 63 must be
+   clear;
+3. the first bone's (`NPC COM`) local translation, three little-endian `int16`
+   in 1/16 units;
+4. one little-endian `uint32` rotation per present bone, in bone order: the
+   index of the quaternion's largest component in the top two bits, then the
+   other three, scaled from ±1/√2 to `0..1023`, in 10 bits each; the largest
+   is made positive and rebuilt from the unit length.
+
+The length must be exactly 15 bytes plus 4 per present bone, at most 267
+(`MaximumSkeletonPoseSize`, the nanopb `max_size`). Every bit pattern of a
+rotation is a valid one, so nothing else is checked. A full pose makes a
+relayed entry about ten times as large as one without.
 
 ## Actions
 

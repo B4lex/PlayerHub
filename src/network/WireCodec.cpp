@@ -174,7 +174,7 @@ namespace Network::Wire
 
         QuantizedCheckpoint ReadCheckpoint(const playerhub_v1_Checkpoint& a_checkpoint)
         {
-            return QuantizedCheckpoint{ .sequence = a_checkpoint.sequence,
+            QuantizedCheckpoint result{ .sequence = a_checkpoint.sequence,
                 .x = a_checkpoint.x,
                 .y = a_checkpoint.y,
                 .z = a_checkpoint.z,
@@ -184,6 +184,10 @@ namespace Network::Wire
                 .direction = a_checkpoint.direction,
                 .flags = a_checkpoint.flags,
                 .time = a_checkpoint.time };
+            static_assert(sizeof(a_checkpoint.skeleton.bytes) == kMaximumSkeletonPoseBytes);
+            std::copy_n(a_checkpoint.skeleton.bytes, a_checkpoint.skeleton.size, result.skeleton.bytes.begin());
+            result.skeleton.size = static_cast<std::uint16_t>(a_checkpoint.skeleton.size);
+            return result;
         }
 
         std::expected<AnimationAction, std::string> ReadAction(
@@ -952,7 +956,7 @@ namespace Network::Wire
 
     std::string EncodeCheckpoint(const QuantizedCheckpoint& a_checkpoint)
     {
-        const playerhub_v1_Checkpoint checkpoint{ .player = 0,
+        playerhub_v1_Checkpoint checkpoint{ .player = 0,
             .sequence = a_checkpoint.sequence,
             .x = a_checkpoint.x,
             .y = a_checkpoint.y,
@@ -963,6 +967,8 @@ namespace Network::Wire
             .direction = a_checkpoint.direction,
             .flags = a_checkpoint.flags,
             .time = a_checkpoint.time };
+        checkpoint.skeleton.size = a_checkpoint.skeleton.size;
+        std::copy_n(a_checkpoint.skeleton.bytes.begin(), a_checkpoint.skeleton.size, checkpoint.skeleton.bytes);
         return EncodeClientMessage(playerhub_v1_ClientMessage_checkpoint_tag, playerhub_v1_Checkpoint_fields, &checkpoint);
     }
 

@@ -657,15 +657,17 @@ type Checkpoint struct {
 	Player   uint32                 `protobuf:"varint,1,opt,name=player,proto3" json:"player,omitempty"`
 	Sequence uint64                 `protobuf:"varint,2,opt,name=sequence,proto3" json:"sequence,omitempty"`
 	// Position in quarter units.
-	X             int32  `protobuf:"zigzag32,3,opt,name=x,proto3" json:"x,omitempty"`
-	Y             int32  `protobuf:"zigzag32,4,opt,name=y,proto3" json:"y,omitempty"`
-	Z             int32  `protobuf:"zigzag32,5,opt,name=z,proto3" json:"z,omitempty"`
-	Heading       uint32 `protobuf:"varint,6,opt,name=heading,proto3" json:"heading,omitempty"`
-	Pitch         int32  `protobuf:"zigzag32,7,opt,name=pitch,proto3" json:"pitch,omitempty"`
-	Speed         uint32 `protobuf:"varint,8,opt,name=speed,proto3" json:"speed,omitempty"`
-	Direction     uint32 `protobuf:"varint,9,opt,name=direction,proto3" json:"direction,omitempty"`
-	Flags         uint32 `protobuf:"varint,10,opt,name=flags,proto3" json:"flags,omitempty"`
-	Time          uint32 `protobuf:"varint,11,opt,name=time,proto3" json:"time,omitempty"`
+	X         int32  `protobuf:"zigzag32,3,opt,name=x,proto3" json:"x,omitempty"`
+	Y         int32  `protobuf:"zigzag32,4,opt,name=y,proto3" json:"y,omitempty"`
+	Z         int32  `protobuf:"zigzag32,5,opt,name=z,proto3" json:"z,omitempty"`
+	Heading   uint32 `protobuf:"varint,6,opt,name=heading,proto3" json:"heading,omitempty"`
+	Pitch     int32  `protobuf:"zigzag32,7,opt,name=pitch,proto3" json:"pitch,omitempty"`
+	Speed     uint32 `protobuf:"varint,8,opt,name=speed,proto3" json:"speed,omitempty"`
+	Direction uint32 `protobuf:"varint,9,opt,name=direction,proto3" json:"direction,omitempty"`
+	Flags     uint32 `protobuf:"varint,10,opt,name=flags,proto3" json:"flags,omitempty"`
+	Time      uint32 `protobuf:"varint,11,opt,name=time,proto3" json:"time,omitempty"`
+	// Bone rotations of the sender's third-person skeleton; empty when not sent.
+	Skeleton      []byte `protobuf:"bytes,12,opt,name=skeleton,proto3" json:"skeleton,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -775,6 +777,13 @@ func (x *Checkpoint) GetTime() uint32 {
 		return x.Time
 	}
 	return 0
+}
+
+func (x *Checkpoint) GetSkeleton() []byte {
+	if x != nil {
+		return x.Skeleton
+	}
+	return nil
 }
 
 type Context struct {
@@ -1848,7 +1857,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x18playerhub/v1/state.proto\x12\fplayerhub.v1\":\n" +
 	"\aFormRef\x12\x16\n" +
 	"\x06plugin\x18\x01 \x01(\tR\x06plugin\x12\x17\n" +
-	"\aform_id\x18\x02 \x01(\rR\x06formId\"\xf8\x01\n" +
+	"\aform_id\x18\x02 \x01(\rR\x06formId\"\x94\x02\n" +
 	"\n" +
 	"Checkpoint\x12\x16\n" +
 	"\x06player\x18\x01 \x01(\rR\x06player\x12\x1a\n" +
@@ -1862,7 +1871,8 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\tdirection\x18\t \x01(\rR\tdirection\x12\x14\n" +
 	"\x05flags\x18\n" +
 	" \x01(\rR\x05flags\x12\x12\n" +
-	"\x04time\x18\v \x01(\rR\x04time\"\xa0\x02\n" +
+	"\x04time\x18\v \x01(\rR\x04time\x12\x1a\n" +
+	"\bskeleton\x18\f \x01(\fR\bskeleton\"\xa0\x02\n" +
 	"\aContext\x12:\n" +
 	"\rinterior_cell\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\finteriorCell\x125\n" +
 	"\n" +

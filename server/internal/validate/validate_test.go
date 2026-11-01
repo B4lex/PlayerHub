@@ -27,9 +27,23 @@ func TestCheckpoint(t *testing.T) {
 		"time above 16383":    func(c *pb.Checkpoint) { c.Time = 16384 },
 		"unknown movement":    func(c *pb.Checkpoint) { c.Flags = 7 },
 		"unknown flag bit":    func(c *pb.Checkpoint) { c.Flags = 1 << 16 },
+		"skeleton layout":     func(c *pb.Checkpoint) { c.Skeleton[0] = 2 },
+		"skeleton bone 63":    func(c *pb.Checkpoint) { c.Skeleton[8] |= 0x80 },
+		"skeleton too short":  func(c *pb.Checkpoint) { c.Skeleton = c.Skeleton[:len(c.Skeleton)-1] },
+		"skeleton too long":   func(c *pb.Checkpoint) { c.Skeleton = append(c.Skeleton, 0) },
+		"skeleton no header":  func(c *pb.Checkpoint) { c.Skeleton = []byte{SkeletonLayoutHuman} },
 	}
+	// Bones 0 and 62 present: two rotations.
+	valid.Skeleton = append([]byte{SkeletonLayoutHuman, 1, 0, 0, 0, 0, 0, 0, 0x40, 1, 2, 3, 4, 5, 6},
+		make([]byte, 2*skeletonRotationBytes)...)
 	if err := Checkpoint(valid); err != nil {
 		t.Fatalf("valid checkpoint rejected: %v", err)
+	}
+	full := proto.Clone(valid).(*pb.Checkpoint)
+	full.Skeleton = append([]byte{SkeletonLayoutHuman, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0, 0, 0, 0, 0, 0},
+		make([]byte, SkeletonBoneCount*skeletonRotationBytes)...)
+	if err := Checkpoint(full); err != nil || len(full.Skeleton) != MaximumSkeletonPoseSize {
+		t.Fatalf("full skeleton of %d bytes rejected: %v", len(full.Skeleton), err)
 	}
 	for name, mutate := range cases {
 		c := proto.Clone(valid).(*pb.Checkpoint)

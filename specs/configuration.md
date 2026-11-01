@@ -249,8 +249,8 @@ the arrows, has that word in the game's language.
 
 ### `[Advanced]`
 
-Settings most players leave alone, in two groups: Performance, then
-Diagnostics.
+Settings most players leave alone, in three groups: Performance, Custom
+animations, then Diagnostics.
 
 The maximums are narrow so the settings window's sliders stay usable
 ([UI overlay](ui-overlay.md#settings-window)): a server clamps `ViewRadius`
@@ -263,6 +263,9 @@ maximum is invalid and loads as the default.
 | `ViewRadius` | Game units within which other players are shown, `0..15000`; the settings window's slider moves in steps of `100` (`AdvancedSettings::kViewRadiusStep`); sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection | `0`, the server's range, which the settings window shows by the schema's zero name |
 | `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..100`; `0` is unlimited and shown by the schema's zero name ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
 | `RemoteLights` | Lights on remote actors that light the scene at most, nearest to the camera first, `0..8` (`AdvancedSettings::kMaximumRemoteLights`); `0` leaves every one dark and has no zero name; the effects stay ([Remote actor](remote-actor.md#light-budget)) | `0` |
+| `ShareCustomAnimations` | Publishes the player's skeleton pose during a pose window, while the player plays an animation from a mod ([Remote actor](remote-actor.md#source-window)) | `true` |
+| `ShowCustomAnimations` | Shows remote actors with the poses their players send ([Remote actor](remote-actor.md#receiver)) | `true` |
+| `CustomAnimationPlayers` | Posed players shown with their poses at most, nearest to the local player first, `0..32` (`AdvancedSettings::kMaximumCustomAnimationPlayers`); `0` shows none and has no zero name | `10` |
 | `StatusPanel` | Shows the [status panel](ui-overlay.md#status-panel), a debugging readout | `false` |
 
 ## Snapshots
@@ -278,6 +281,8 @@ revision before the snapshot never misses a change.
 | --- | --- | --- |
 | `ActorLifecycle` | main loop | reading `SpawnsPerSecond` once per pass in `RefillSpawnAllowance` |
 | `RemoteLights` | main loop | reading `RemoteLights` in the first pass after the revision changes |
+| `PoseWindow` | main loop | reading `ShareCustomAnimations` in the first pass after the revision changes; off closes an open window |
+| `SkeletonSync` | main loop | reading the three custom animation keys in the first pass after the revision changes |
 | `DefaultOutfit` | main loop | `Refresh`, first in `SyncCoordinator::OnFrame`, resolving every item again when `[DefaultOutfit]` differs |
 | `EquipmentSync` | main loop | the next capture selecting from the new outfit and publishing a new revision |
 | `AppearanceSync` | main loop | the next capture taking the new default race, which publishes a new revision for a modded race |

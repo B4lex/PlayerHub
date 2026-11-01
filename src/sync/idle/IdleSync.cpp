@@ -319,9 +319,10 @@ namespace IdleSync
         }
     }
 
-    void ObserveLocalGraphEvent(const RE::BSFixedString& a_eventName)
+    void ObserveLocalGraphEvent(const RE::BSFixedString& a_eventName, bool a_modded)
     {
-        if (!s_captureOpen.load(std::memory_order_acquire))
+        // Modded idles reach peers as poses (Remote actor, Skeleton pose).
+        if (a_modded || !s_captureOpen.load(std::memory_order_acquire))
         {
             return;
         }
@@ -339,7 +340,8 @@ namespace IdleSync
         }
     }
 
-    void QueueLocalIdles(const LocalFrame& a_local, bool a_transformed, bool a_graphEpochChanged, float a_delta)
+    void QueueLocalIdles(
+        const LocalFrame& a_local, bool a_transformed, bool a_poseWindowOpened, bool a_graphEpochChanged, float a_delta)
     {
         PROFILE_FUNCTION();
         s_captureOpen.store(!a_transformed, std::memory_order_release);
@@ -357,6 +359,10 @@ namespace IdleSync
             // An idle of the previous graph cannot be attached to a checkpoint of this one.
             s_pending.clear();
             EndLocalHeld("graph-epoch");
+        }
+        if (a_poseWindowOpened)
+        {
+            EndLocalHeld("pose-window");
         }
 
         const auto* blocked = a_transformed ? "shapeshift" : FindLocalBlock(a_local.player);

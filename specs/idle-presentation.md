@@ -8,7 +8,9 @@ sitting cross-legged, leaning, kneeling, meditating, instruments, and any other
 Animations Wheel Menu SSE" (`IdlePlayWheelMenu.esp`), the console, scripts, or
 other mods. Each viewer sends the event to the remote actor's own behavior
 graph, so a viewer with an idle replacer sees that replacer. No pose crosses
-the wire, and nothing in the viewer's world changes.
+the wire for them, and nothing in the viewer's world changes. Modded `Idle*`
+events, those a graph lists past the vanilla events, are shown through
+[pose windows](remote-actor.md#source-window) instead.
 
 This system owns the source capture of idle events, the source's held idle, the
 receiver's idle queue, the remote actor's idle ownership, and the release and
@@ -53,7 +55,8 @@ Idle names, transitions, and clip annotations come from the vanilla
 
 `PlayerGraphEventHook` passes every event the player's graph accepts to
 `IdleSync::ObserveLocalGraphEvent` on whichever thread raised it. That returns
-at once unless the player is human (an atomic the main loop sets), keeps a name
+at once for a modded event (`PoseWindow::IsModdedEvent`, read once by the hook)
+or unless the player is human (an atomic the main loop sets), keeps a name
 that starts with `Idle` in any case or is `OffsetStop`, passes the
 [name rules](network.md#actions), and is not `IdleForceDefaultState` or
 `IdlePlayer`, and copies it into a fixed queue of 32 under a lock.
@@ -100,6 +103,8 @@ interaction. The sit/sleep state does not count: an idle in the unarmed root's
 The held idle ends, and the next context clears it, when:
 
 - an exit event is captured, or the drain finds the player blocked (above);
+- a [pose window](remote-actor.md#source-window) opens in the pass
+  (`pose-window`): a modded idle or other modded behavior took over the graph;
 - the sampled checkpoint has furniture, a mount, death, swimming, or a beast
   form, or its state changed from the previous sample by a start of movement,
   a jump, a draw or sheathe, or a sneak toggle. A stop does not end it, since
@@ -285,9 +290,8 @@ Not confirmed in game:
 
 - Instrument music is not played: the emote mod plays its own `Sound` records
   from its scripts on the player.
-- Modded idle events play only on peers whose graph has them; there is no pose
-  fallback yet. A modded idle in a state outside the vanilla idle machines is
-  held only for the 0.5 s entry window, so a late joiner does not see it.
+- A modded idle form played through a vanilla `Idle*` event is captured as
+  that vanilla event, so a peer plays its own clip for it, not the source's.
 - An event that steps within an idle (`IdleBook_PageTurn` within
   `IdleBook_Read`) becomes the held idle, so a peer re-entering from state
   plays only that step, or nothing where its graph takes the step only inside

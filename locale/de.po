@@ -438,6 +438,40 @@ msgstr ""
 "Begrenzt die unechten Lichter, die Spieler ausstrahlen (z. B. Fackeln).\n"
 "Schattenwerfende Lichter werden immer in unechte umgewandelt."
 
+msgctxt "AdvancedGroupCustomAnimations"
+msgid "Custom animations"
+msgstr "Eigene Animationen"
+
+msgctxt "AdvancedShareCustomAnimations"
+msgid "Share custom animations"
+msgstr "Eigene Animationen teilen"
+
+msgctxt "AdvancedShareCustomAnimationsComment"
+msgid ""
+"Sends your character's pose while it plays an animation from a mod, so\n"
+"other players see it even without that mod."
+msgstr "Sendet die Pose deines Charakters, während er eine Animation aus einer Mod abspielt, damit andere Spieler sie auch ohne diese Mod sehen."
+
+msgctxt "AdvancedShowCustomAnimations"
+msgid "Show custom animations"
+msgstr "Eigene Animationen anzeigen"
+
+msgctxt "AdvancedShowCustomAnimationsComment"
+msgid ""
+"Shows other players' animations from mods with the poses they send.\n"
+"Without it, they play a vanilla animation instead."
+msgstr "Zeigt die Animationen anderer Spieler aus Mods mit den Posen, die sie senden. Ohne diese Option spielen sie stattdessen eine Vanilla-Animation."
+
+msgctxt "AdvancedCustomAnimationPlayers"
+msgid "Custom animation limit"
+msgstr "Limit für eigene Animationen"
+
+msgctxt "AdvancedCustomAnimationPlayersComment"
+msgid ""
+"Players shown with their custom animations at once, nearest first.\n"
+"The others play a vanilla animation instead."
+msgstr "Spieler, die gleichzeitig mit ihren eigenen Animationen angezeigt werden, die nächsten zuerst. Die übrigen spielen stattdessen eine Vanilla-Animation."
+
 msgctxt "AdvancedGroupDiagnostics"
 msgid "Diagnostics"
 msgstr "Diagnose"

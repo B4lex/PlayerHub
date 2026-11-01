@@ -429,6 +429,40 @@ msgstr ""
 "Ogranicza sztuczne światła emitowane przez graczy (np. pochodnie).\n"
 "Światła rzucające cienie są zawsze zamieniane na sztuczne."
 
+msgctxt "AdvancedGroupCustomAnimations"
+msgid "Custom animations"
+msgstr "Własne animacje"
+
+msgctxt "AdvancedShareCustomAnimations"
+msgid "Share custom animations"
+msgstr "Udostępniaj własne animacje"
+
+msgctxt "AdvancedShareCustomAnimationsComment"
+msgid ""
+"Sends your character's pose while it plays an animation from a mod, so\n"
+"other players see it even without that mod."
+msgstr "Wysyła pozę twojej postaci, gdy odtwarza ona animację z moda, aby inni gracze widzieli ją nawet bez tego moda."
+
+msgctxt "AdvancedShowCustomAnimations"
+msgid "Show custom animations"
+msgstr "Pokazuj własne animacje"
+
+msgctxt "AdvancedShowCustomAnimationsComment"
+msgid ""
+"Shows other players' animations from mods with the poses they send.\n"
+"Without it, they play a vanilla animation instead."
+msgstr "Pokazuje animacje z modów innych graczy za pomocą wysyłanych przez nich póz. Bez tej opcji odtwarzają oni zamiast tego animację podstawową."
+
+msgctxt "AdvancedCustomAnimationPlayers"
+msgid "Custom animation limit"
+msgstr "Limit własnych animacji"
+
+msgctxt "AdvancedCustomAnimationPlayersComment"
+msgid ""
+"Players shown with their custom animations at once, nearest first.\n"
+"The others play a vanilla animation instead."
+msgstr "Gracze pokazywani jednocześnie z własnymi animacjami, najbliżsi jako pierwsi. Pozostali odtwarzają zamiast tego animację podstawową."
+
 msgctxt "AdvancedGroupDiagnostics"
 msgid "Diagnostics"
 msgstr "Diagnostyka"

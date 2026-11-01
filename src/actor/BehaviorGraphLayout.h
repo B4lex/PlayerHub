@@ -13,6 +13,11 @@ namespace BehaviorGraphLayout
     inline constexpr std::size_t kStateNameOffset = 0x60;
     inline constexpr std::size_t kStateIdOffset = 0x68;
     static_assert(sizeof(RE::hkbStateMachine::StateInfo) > kStateIdOffset);
+    // hkbVariableValueSet stores its word-sized values (bool, int, real) in the
+    // hkArray that follows hkReferencedObject, indexed like
+    // hkbBehaviorGraphData::variableInfos.
+    inline constexpr std::size_t kWordValuesOffset = 0x10;
+    static_assert(sizeof(RE::hkReferencedObject) == kWordValuesOffset);
 
     template <class T>
     const T& ReadAt(const void* a_object, std::size_t a_offset)
@@ -39,6 +44,11 @@ namespace BehaviorGraphLayout
             }
         }
         return "?";
+    }
+
+    inline const RE::hkArray<std::uint32_t>& GetWordValues(const RE::hkbVariableValueSet& a_values)
+    {
+        return ReadAt<RE::hkArray<std::uint32_t>>(&a_values, kWordValuesOffset);
     }
 
     // The caller holds the manager's updateLock.

@@ -13,9 +13,12 @@ struct RemoteActor;
 
 namespace IdleSync
 {
-    // Any thread: an input event the local player's graph accepted.
-    void ObserveLocalGraphEvent(const RE::BSFixedString& a_eventName);
-    void QueueLocalIdles(const LocalFrame& a_local, bool a_transformed, bool a_graphEpochChanged, float a_delta);
+    // Any thread: an input event the local player's graph accepted; a_modded when it is
+    // past the vanilla event list.
+    void ObserveLocalGraphEvent(const RE::BSFixedString& a_eventName, bool a_modded);
+    // a_poseWindowOpened: a pose window opened this pass, which ends the held idle.
+    void QueueLocalIdles(const LocalFrame& a_local, bool a_transformed, bool a_poseWindowOpened,
+        bool a_graphEpochChanged, float a_delta);
     void DiscardLocalIdles();
 
     struct LocalSample

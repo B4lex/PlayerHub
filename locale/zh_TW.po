@@ -407,6 +407,40 @@ msgstr ""
 "限制玩家發出的模擬光源（例如火把）。\n"
 "投射陰影的光源一律轉換為模擬光源。"
 
+msgctxt "AdvancedGroupCustomAnimations"
+msgid "Custom animations"
+msgstr "自訂動畫"
+
+msgctxt "AdvancedShareCustomAnimations"
+msgid "Share custom animations"
+msgstr "分享自訂動畫"
+
+msgctxt "AdvancedShareCustomAnimationsComment"
+msgid ""
+"Sends your character's pose while it plays an animation from a mod, so\n"
+"other players see it even without that mod."
+msgstr "在你的角色播放模組動畫時傳送其姿勢，讓沒有該模組的其他玩家也能看到。"
+
+msgctxt "AdvancedShowCustomAnimations"
+msgid "Show custom animations"
+msgstr "顯示自訂動畫"
+
+msgctxt "AdvancedShowCustomAnimationsComment"
+msgid ""
+"Shows other players' animations from mods with the poses they send.\n"
+"Without it, they play a vanilla animation instead."
+msgstr "以其他玩家傳送的姿勢顯示他們的模組動畫。關閉時，他們會改為播放原版動畫。"
+
+msgctxt "AdvancedCustomAnimationPlayers"
+msgid "Custom animation limit"
+msgstr "自訂動畫上限"
+
+msgctxt "AdvancedCustomAnimationPlayersComment"
+msgid ""
+"Players shown with their custom animations at once, nearest first.\n"
+"The others play a vanilla animation instead."
+msgstr "同時以自訂動畫顯示的玩家數量，由近到遠。其餘玩家會改為播放原版動畫。"
+
 msgctxt "AdvancedGroupDiagnostics"
 msgid "Diagnostics"
 msgstr "診斷"

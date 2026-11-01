@@ -431,6 +431,40 @@ msgstr ""
 "Ограничивает фальшивые источники света от игроков (например, факелы).\n"
 "Источники света, отбрасывающие тени, всегда превращаются в фальшивые."
 
+msgctxt "AdvancedGroupCustomAnimations"
+msgid "Custom animations"
+msgstr "Пользовательские анимации"
+
+msgctxt "AdvancedShareCustomAnimations"
+msgid "Share custom animations"
+msgstr "Передавать пользовательские анимации"
+
+msgctxt "AdvancedShareCustomAnimationsComment"
+msgid ""
+"Sends your character's pose while it plays an animation from a mod, so\n"
+"other players see it even without that mod."
+msgstr "Отправляет позу вашего персонажа, пока он проигрывает анимацию из мода, чтобы другие игроки видели её даже без этого мода."
+
+msgctxt "AdvancedShowCustomAnimations"
+msgid "Show custom animations"
+msgstr "Показывать пользовательские анимации"
+
+msgctxt "AdvancedShowCustomAnimationsComment"
+msgid ""
+"Shows other players' animations from mods with the poses they send.\n"
+"Without it, they play a vanilla animation instead."
+msgstr "Показывает анимации из модов других игроков по отправленным ими позам. Без этого они проигрывают вместо них стандартную анимацию."
+
+msgctxt "AdvancedCustomAnimationPlayers"
+msgid "Custom animation limit"
+msgstr "Лимит пользовательских анимаций"
+
+msgctxt "AdvancedCustomAnimationPlayersComment"
+msgid ""
+"Players shown with their custom animations at once, nearest first.\n"
+"The others play a vanilla animation instead."
+msgstr "Сколько игроков одновременно показываются со своими анимациями, начиная с ближайших. Остальные проигрывают вместо них стандартную анимацию."
+
 msgctxt "AdvancedGroupDiagnostics"
 msgid "Diagnostics"
 msgstr "Диагностика"

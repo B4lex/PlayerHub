@@ -2,6 +2,7 @@
 
 #ifndef NDEBUG
 #include "actor/BehaviorGraphLayout.h"
+#include "actor/GraphVocabulary.h"
 
 #include <algorithm>
 #include <bit>
@@ -14,12 +15,7 @@ namespace GraphProbe
     namespace
     {
         using namespace BehaviorGraphLayout;
-
-        // hkbVariableValueSet stores its word-sized values (bool, int, real) in the
-        // hkArray that follows hkReferencedObject, indexed like
-        // hkbBehaviorGraphData::variableInfos.
-        constexpr std::size_t kWordValuesOffset = 0x10;
-        static_assert(sizeof(RE::hkReferencedObject) == kWordValuesOffset);
+        using GraphVocabulary::kVanillaEventCount;
 
         template <class Visitor>
         bool ForEachActiveNode(const RE::hkbBehaviorGraph& a_behavior, Visitor&& a_visitor)
@@ -109,7 +105,7 @@ namespace GraphProbe
                 return;
             }
 
-            const auto& words = ReadAt<RE::hkArray<std::uint32_t>>(valueSet, kWordValuesOffset);
+            const auto& words = GetWordValues(*valueSet);
             const auto count = (std::min)({ words.size(), data->variableInfos.size(), strings->variableNames.size() });
             const bool full
                 = a_snapshot.graph != &a_behavior || a_snapshot.words.size() != static_cast<std::size_t>(count);
@@ -171,6 +167,66 @@ namespace GraphProbe
             return std::format("graph={} clips=unavailable", manager->GetRuntimeData().activeGraph);
         }
         return std::format("graph={} clips=[{}]", manager->GetRuntimeData().activeGraph, clips);
+    }
+
+    bool ReadTrace(RE::Actor& a_actor, TraceSample& a_sample)
+    {
+        a_sample.machines.clear();
+        a_sample.variables.clear();
+        a_sample.moddedEventNames.clear();
+
+        RE::BSTSmartPointer<RE::BSAnimationGraphManager> manager;
+        if (!a_actor.GetAnimationGraphManager(manager) || !manager)
+        {
+            a_sample.graph = nullptr;
+            return false;
+        }
+
+        RE::BSSpinLockGuard lock{ manager->GetRuntimeData().updateLock };
+        const auto* behavior = GetActiveBehavior(*manager);
+        const auto* data = behavior ? behavior->data.get() : nullptr;
+        const auto* strings = data ? data->stringData.get() : nullptr;
+        const auto* valueSet = behavior ? behavior->variableValueSet.get() : nullptr;
+        if (!strings || !valueSet || !behavior->activeNodes)
+        {
+            a_sample.graph = nullptr;
+            return false;
+        }
+
+        const auto activeGraph = manager->GetRuntimeData().activeGraph;
+        if (a_sample.graph != behavior || a_sample.activeGraph != activeGraph)
+        {
+            a_sample.graph = behavior;
+            a_sample.activeGraph = activeGraph;
+            a_sample.vanillaPrefix = GraphVocabulary::HasVanillaPrefix(*strings);
+            if (a_sample.vanillaPrefix)
+            {
+                for (auto index = kVanillaEventCount; index < strings->eventNames.size(); ++index)
+                {
+                    a_sample.moddedEventNames.emplace_back(GetName(strings->eventNames[index]));
+                }
+            }
+        }
+
+        ForEachActiveNode(*behavior, [&](const RE::hkbNode& a_node) {
+            if (const auto* machine = skyrim_cast<const RE::hkbStateMachine*>(&a_node))
+            {
+                a_sample.machines.push_back({ .machine = machine,
+                    .stateId = machine->currentStateID,
+                    .name = GetName(machine->name),
+                    .stateName = GetCurrentStateName(*machine) });
+            }
+        });
+
+        const auto& words = GetWordValues(*valueSet);
+        const auto count = (std::min)({ words.size(), data->variableInfos.size(), strings->variableNames.size() });
+        for (std::int32_t index = 0; index < count; ++index)
+        {
+            a_sample.variables.push_back({ .name = GetName(strings->variableNames[index]),
+                .type = data->variableInfos[index].m_type.get(),
+                .word = words[index] });
+        }
+        return true;
     }
 }
 #endif

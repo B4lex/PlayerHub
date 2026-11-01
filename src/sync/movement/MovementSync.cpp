@@ -185,8 +185,11 @@ namespace MovementSync
         {
             const RE::NiPoint3 checkpointPosition{ a_remote.checkpoint.x, a_remote.checkpoint.y,
                 a_remote.checkpoint.z };
+            // A SkyParkour climb keeps its source's controller on the ground while it rises
+            // a ledge, so a probe under a posed checkpoint pulled the actor down to the floor
+            // below.
             ActorMovement::SetTargetMovement(a_actor, checkpointPosition, a_remote.checkpoint.speed,
-                a_remote.checkpoint.swimming, a_remote.checkpoint.grounded);
+                a_remote.checkpoint.swimming, a_remote.checkpoint.grounded, !a_remote.checkpoint.skeleton.empty());
             a_appliedSequence = a_remote.checkpoint.sequence;
         }
         ActorMovement::SetAnimationSample(a_actor, a_remote.pose.sampledSpeed, a_remote.pose.direction);

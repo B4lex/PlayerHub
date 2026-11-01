@@ -131,7 +131,13 @@ namespace ActorRuntime
             RemoteCollision::ReleaseToEngine(*actor, a_remote, "furniture", false);
             return true;
         }
-        if (const auto mode = ActorAnimation::GetTranslationMode(a_remote, a_presentableState, a_deltaTime))
+        auto mode = ActorAnimation::GetTranslationMode(a_remote, a_presentableState, a_deltaTime);
+        if (a_remote.movement.poseWeight > 0.0F)
+        {
+            // The graph underneath may lag the network state, but the pose does not.
+            mode = ActorMovement::TranslationMode::kPosed;
+        }
+        if (mode)
         {
             ActorMovement::ApplyTranslation(*actor, a_remote, a_deltaTime, *mode);
         }

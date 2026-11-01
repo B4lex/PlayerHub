@@ -424,6 +424,40 @@ msgstr ""
 "プレイヤーが発する疑似光源（松明など）を制限します。\n"
 "影を落とす光源は常に疑似光源に変換されます。"
 
+msgctxt "AdvancedGroupCustomAnimations"
+msgid "Custom animations"
+msgstr "カスタムアニメーション"
+
+msgctxt "AdvancedShareCustomAnimations"
+msgid "Share custom animations"
+msgstr "カスタムアニメーションを共有"
+
+msgctxt "AdvancedShareCustomAnimationsComment"
+msgid ""
+"Sends your character's pose while it plays an animation from a mod, so\n"
+"other players see it even without that mod."
+msgstr "MODのアニメーションを再生している間、キャラクターのポーズを送信します。そのMODがない他のプレイヤーにも表示されます。"
+
+msgctxt "AdvancedShowCustomAnimations"
+msgid "Show custom animations"
+msgstr "カスタムアニメーションを表示"
+
+msgctxt "AdvancedShowCustomAnimationsComment"
+msgid ""
+"Shows other players' animations from mods with the poses they send.\n"
+"Without it, they play a vanilla animation instead."
+msgstr "他のプレイヤーのMODアニメーションを、送信されたポーズで表示します。オフの場合は、代わりにバニラのアニメーションを再生します。"
+
+msgctxt "AdvancedCustomAnimationPlayers"
+msgid "Custom animation limit"
+msgstr "カスタムアニメーションの上限"
+
+msgctxt "AdvancedCustomAnimationPlayersComment"
+msgid ""
+"Players shown with their custom animations at once, nearest first.\n"
+"The others play a vanilla animation instead."
+msgstr "カスタムアニメーションを同時に表示するプレイヤーの数です。近い順に選ばれます。それ以外のプレイヤーは代わりにバニラのアニメーションを再生します。"
+
 msgctxt "AdvancedGroupDiagnostics"
 msgid "Diagnostics"
 msgstr "診断"

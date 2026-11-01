@@ -1028,6 +1028,23 @@ func TestIdleCheckpointsAreSuppressedButAnchorsAreNot(t *testing.T) {
 	f.send(a, quarterCheckpoint(8, 11*wire.PositionScale+2))
 	f.hub.Tick()
 	expect(t, f.received(b), "states 1:8")
+	// A changed skeleton pose is distributed at the same position; an unchanged one is not.
+	f.send(a, skeletonCheckpoint(9, 11*wire.PositionScale+2, 1))
+	f.hub.Tick()
+	expect(t, f.received(b), "states 1:9")
+	f.send(a, skeletonCheckpoint(10, 11*wire.PositionScale+2, 1))
+	f.hub.Tick()
+	expect(t, f.received(b))
+	f.send(a, skeletonCheckpoint(11, 11*wire.PositionScale+2, 2))
+	f.hub.Tick()
+	expect(t, f.received(b), "states 1:11")
+}
+
+func skeletonCheckpoint(sequence uint64, x int32, rotation byte) *pb.ClientMessage {
+	message := quarterCheckpoint(sequence, x)
+	message.GetCheckpoint().Skeleton = []byte{validate.SkeletonLayoutHuman, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		rotation, 0, 0, 0}
+	return message
 }
 
 func sheathedCheckpointAt(sequence uint64, x int32) *pb.ClientMessage {

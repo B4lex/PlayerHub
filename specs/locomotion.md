@@ -209,7 +209,9 @@ when the applied checkpoint changes jump phase; no jump events are queued.
     `JumpLandEnd` keeps following the target.
   The mode is airborne for a jumping state, attack while a network attack
   plays, and otherwise moving or standing by the followed state, each as
-  below.
+  below. While a [skeleton pose](remote-actor.md#receiver) has weight on the
+  actor (`ActorMovement::State::poseWeight`, set by `SkeletonSync` in the
+  previous pass), the mode is posed instead, even where it would hold.
 - A played checkpoint opens its revision in `ApplyAnimationUpdate`, just
   before the variable write that settles it (`RequestCheckpointUpdate`). If
   the revision opened when the checkpoint played, the state staging, attack,
@@ -247,6 +249,14 @@ when the applied checkpoint changes jump phase; no jump events are queued.
   checkpoints say `running` at a low speed while it accelerates and `idle` while
   it still carries forward; without this the actor falls behind and teleports
   on the idle checkpoint.
+- Posed, the actor stands at the pose's position plus the ground offset every
+  pass, with no backlog drain, and at full pose weight takes the pose's
+  heading exactly. The pose was sampled with that transform, so any lag
+  behind it shows the animation beside its place: in a replayed SkyParkour
+  climb, the actor climbed off its wall. Below full weight the heading eases
+  as below, since a heading snap starts the graph's `NPC_Turn` transitions,
+  which only a full pose hides. The pose's blend-out keeps this placement, so
+  the chase afterwards starts on the target.
 - `SetPosition(next, true)` moves the reference and its controller. Heading
   follows the pose like position: at the pose's `headingRate` plus the
   remaining turn over 0.15 s, at most one turn per second, so an actor on the
@@ -301,7 +311,18 @@ through its own translation, and its rider is carried with it.
   so an actor probed recently yields to the others.
 - **Hold.** While the source's controller is off the ground (a jump or a
   fall) and until it settles, there is no probe and the target holds, so a
-  jump arc and its landing keep their shape over the local ground. While it
+  jump arc and its landing keep their shape over the local ground. A played
+  checkpoint that carries a [skeleton pose](remote-actor.md#receiver) holds it
+  the same way: a SkyParkour climb keeps its source's controller on the ground
+  while it rises a ledge. Climbs start against a wall and end by a ledge lip,
+  where the probe misreads the ground: in a replay on the same world, edge
+  rings read 30 units low at the wall just before the climb, and the first
+  probe after it read the lip 21 to 28 units above the source. So when the
+  first posed checkpoint plays less than 0.5 s after edge rings began giving
+  the target (`kPosedEdgeLeadSeconds`), the target returns to the last one a
+  center ray or a miss gave (`Remote actor ground offset dropped edge probes
+  before a pose`), and after the posed run the first probe waits for 0.5 s on
+  the ground instead of 0.25 (`kPosedGroundSettleSeconds`). While it
   swims the target is 0, since water levels match between load orders far
   more often than ground does.
 - **Smoothing.** The offset eases toward its target with a 0.15 s time

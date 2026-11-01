@@ -132,6 +132,11 @@ void CheckpointPlayout::Reset()
     pending = std::move(storage);
 }
 
+const Network::PlayerTransform* CheckpointPlayout::GetNext() const noexcept
+{
+    return hasPlayed && !pending.empty() ? &pending.front().checkpoint : nullptr;
+}
+
 const Network::PlayerTransform* CheckpointPlayout::GetNewest() const noexcept
 {
     if (!pending.empty())
@@ -263,4 +268,5 @@ void CheckpointPlayout::UpdatePose()
     pose.speed = static_cast<float>(distance / duration);
     pose.sampledSpeed = played.speed + (next.checkpoint.speed - played.speed) * fraction;
     pose.direction = InterpolateDirection(played, next.checkpoint, fraction);
+    pose.fraction = fraction;
 }

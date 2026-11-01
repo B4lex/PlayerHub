@@ -3,6 +3,7 @@
 #include "protocol/FormReference.h"
 #include "protocol/MovementState.h"
 #include "protocol/PlayerState.h"
+#include "protocol/SkeletonPose.h"
 
 #include <algorithm>
 #include <cmath>
@@ -50,6 +51,7 @@ namespace Network
         std::uint32_t direction{ 0 };
         std::uint32_t flags{ 0 };
         std::uint32_t time{ 0 };
+        EncodedSkeletonPose skeleton;
     };
 
     struct CheckpointContext
@@ -139,7 +141,8 @@ namespace Network
                 static_cast<float>(kMaximumQuantizedSpeed))),
             .direction = static_cast<std::uint32_t>(std::lround(direction * kDirectionSteps)) % kDirectionSteps,
             .flags = flags,
-            .time = a_transform.sampleTime % kSampleTimeModulus };
+            .time = a_transform.sampleTime % kSampleTimeModulus,
+            .skeleton = a_transform.skeleton };
     }
 
     [[nodiscard]] inline bool IsValidQuantizedCheckpoint(const QuantizedCheckpoint& a_checkpoint) noexcept
@@ -150,7 +153,8 @@ namespace Network
             && a_checkpoint.direction < kDirectionSteps && a_checkpoint.time < kSampleTimeModulus
             && (a_checkpoint.flags & ~kKnown) == 0
             && (a_checkpoint.flags & kMovementStateMask)
-                   <= static_cast<std::uint32_t>(Multiplayer::MovementState::kSneakingRunning);
+                   <= static_cast<std::uint32_t>(Multiplayer::MovementState::kSneakingRunning)
+            && IsValidSkeletonPose(a_checkpoint.skeleton.view());
     }
 
     [[nodiscard]] inline PlayerTransform Dequantize(
@@ -188,6 +192,7 @@ namespace Network
             .idle = a_context.idle,
             .graphEpoch = a_context.graphEpoch,
             .sequence = a_checkpoint.sequence,
-            .sampleTime = a_checkpoint.time };
+            .sampleTime = a_checkpoint.time,
+            .skeleton = a_checkpoint.skeleton };
     }
 }

@@ -30,7 +30,7 @@ each feature's rules to its own system, the transport to
 | `runtime/VanillaIntro` | Whether the vanilla Helgen intro holds the connection ([Vanilla intro](#vanilla-intro)) |
 | `runtime/RemoteActorActivation` | The local player's activation of a remote actor or mount, on its worker thread ([UI overlay](ui-overlay.md#player-menu-in-the-world)) |
 | `runtime/PluginTime` | Plugin time per pass, averaged each second ([UI overlay](ui-overlay.md#plugin-time)) |
-| `runtime/PlayerGraphEventHook` | The local player's accepted graph input events, for [beast actions](combat-presentation.md#beast-actions), [idles](idle-presentation.md#capture), and the [graph event survey](#graph-event-survey) |
+| `runtime/PlayerGraphEventHook` | The local player's accepted graph input events, read once against the modded events, for [beast actions](combat-presentation.md#beast-actions), [idles](idle-presentation.md#capture), [pose windows](remote-actor.md#source-window), the [graph event survey](#graph-event-survey), and the [graph trace](#graph-trace) |
 | `sync/SyncCoordinator` | One frame entry, the stage order, the single network drain, and the peer map |
 | `sync/PeerState` | A peer's complete receive state, composed of feature-owned members |
 | `sync/SyncFrame` | `LocalFrame`, `RemoteFrame`, `RemotePose`, and `CheckpointUpdate` views for one pass |
@@ -39,6 +39,7 @@ each feature's rules to its own system, the transport to
 | `sync/ActorLifecycle` | Spawn, retirement, stranded and lost actors, spawn throttling, save exclusion, the mount beside its rider |
 | `sync/presence/PresenceSync` | `Enter` and `Exit`, and the game session |
 | `sync/customanimation/GraphEventSurvey` | Debug builds: logs each distinct graph event the local player accepts ([Graph event survey](#graph-event-survey)) |
+| `sync/customanimation/GraphTrace` | Debug builds: logs the local player's modded graph behavior ([Graph trace](#graph-trace)) |
 
 `sync/` holds features seen on the wire and their game-thread state; `actor/`
 holds Skyrim actor mechanisms. For example, `CombatSync` decides when a network
@@ -189,11 +190,14 @@ One checkpoint is one coherent sample: `MountSync::SampleLocalMount`,
 `MovementSync::SampleLocalMovement` (from the mount while riding),
 `AnimationSync::SampleLocalAnimation`, `FurnitureSync::SampleLocalFurniture`,
 `CombatSync::SampleLocalHandPresentation`, `DeathSync::SampleLocalDeath`,
-`ShapeshiftSync::SampleLocalVampireLord`, and `IdleSync::SampleLocalIdle`, which
+`ShapeshiftSync::SampleLocalVampireLord`, `IdleSync::SampleLocalIdle`, which
 ends the held idle on a state change sampled with it, with the graph epoch and
-the local form observed this pass. No stage publishes a partial
+the local form observed this pass, and `SkeletonSync::SampleLocalSkeleton`
+([Remote actor](remote-actor.md#skeleton-pose)). No stage publishes a partial
 checkpoint. The checkpoint always precedes the `Action` anchored to it, and a
 weapon swap is published before the attack or presentation that uses it.
+`PoseWindow::Update` runs before `IdleSync::QueueLocalIdles`, since a window
+that opens ends the held idle, and before the checkpoint, whose pose it gates.
 
 The local sampling state is held in structs that `SyncCoordinator` owns rather
 than in function statics, so it can be reset with `= {}` and its logic read
@@ -221,6 +225,31 @@ compiled only when `NDEBUG` is not defined, like the
   has activated its clips, with the active graph (third or first person) and
   every active `hkbClipGenerator`'s animation from
   `GraphProbe::DescribeActiveClips`.
+
+### Graph trace
+
+A diagnostic that shows how a modded graph behavior runs on the local player:
+which events enter and leave it, the states it passes through, and the
+variables it reads and sets. Nothing acts on it. It is compiled only when
+`NDEBUG` is not defined.
+
+- An event at index 1217 or later and a variable at index 230 or later of a
+  graph with the vanilla prefix is modded
+  (`GraphVocabulary::kVanillaEventCount`, `kVanillaVariableCount`,
+  [Remote actor](remote-actor.md#source-window)). `GraphProbe::ReadTrace`
+  traces only such a graph. Each graph change logs `Graph trace graph changed`
+  with its modded event and variable names.
+- `GraphTrace::ObserveLocalGraphEvent` queues every event the player's graph
+  accepts (up to 256 between passes). `GraphTrace::Update` reads the active
+  graph each pass and turns accepted events, state machine changes (current
+  state, activation, deactivation), and changes of bool and integer variables
+  into lines. Consecutive repeats of one event collapse into one line with the
+  repeat count.
+- A modded event or a modded variable change opens a 3 s window, extended by
+  each later one; lines inside it are logged as `Graph trace:`. Lines from the
+  1.5 s before it opens are kept (up to 128) and logged first with their
+  offset in seconds, so the vanilla state the behavior started from shows.
+  `Graph trace opened` and `Graph trace closed` bound each window.
 
 ## World presence
 
@@ -392,7 +421,9 @@ presentation](combat-presentation.md#receiver-queue)).
   and pitch interpolate linearly and heading along the shorter arc;
   `RemotePose.speed` is the segment's distance over its duration and
   `headingRate` its turn over its duration (0 once the segment is reached or
-  without one). `sampledSpeed` interpolates the checkpoints' `speed` fields,
+  without one). `fraction` is the progress through the segment, 0 without
+  one, and `RemoteFrame.next` (`CheckpointPlayout::GetNext`) the checkpoint it
+  moves toward, for the [skeleton pose](remote-actor.md#skeleton-pose). `sampledSpeed` interpolates the checkpoints' `speed` fields,
   and `direction` their `direction` along the shorter way around while both
   move and differ by less than 1/8 turn; otherwise it holds the played
   checkpoint's, so a larger change steps and is cross-blended

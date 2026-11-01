@@ -398,6 +398,40 @@ msgid ""
 "Shadow-casting lights are always converted to fake ones."
 msgstr ""
 
+msgctxt "AdvancedGroupCustomAnimations"
+msgid "Custom animations"
+msgstr ""
+
+msgctxt "AdvancedShareCustomAnimations"
+msgid "Share custom animations"
+msgstr ""
+
+msgctxt "AdvancedShareCustomAnimationsComment"
+msgid ""
+"Sends your character's pose while it plays an animation from a mod, so\n"
+"other players see it even without that mod."
+msgstr ""
+
+msgctxt "AdvancedShowCustomAnimations"
+msgid "Show custom animations"
+msgstr ""
+
+msgctxt "AdvancedShowCustomAnimationsComment"
+msgid ""
+"Shows other players' animations from mods with the poses they send.\n"
+"Without it, they play a vanilla animation instead."
+msgstr ""
+
+msgctxt "AdvancedCustomAnimationPlayers"
+msgid "Custom animation limit"
+msgstr ""
+
+msgctxt "AdvancedCustomAnimationPlayersComment"
+msgid ""
+"Players shown with their custom animations at once, nearest first.\n"
+"The others play a vanilla animation instead."
+msgstr ""
+
 msgctxt "AdvancedGroupDiagnostics"
 msgid "Diagnostics"
 msgstr ""

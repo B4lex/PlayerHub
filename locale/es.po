@@ -434,6 +434,40 @@ msgstr ""
 "Limita las luces falsas que emiten los jugadores (p. ej., antorchas).\n"
 "Las luces que proyectan sombras siempre se convierten en falsas."
 
+msgctxt "AdvancedGroupCustomAnimations"
+msgid "Custom animations"
+msgstr "Animaciones personalizadas"
+
+msgctxt "AdvancedShareCustomAnimations"
+msgid "Share custom animations"
+msgstr "Compartir animaciones personalizadas"
+
+msgctxt "AdvancedShareCustomAnimationsComment"
+msgid ""
+"Sends your character's pose while it plays an animation from a mod, so\n"
+"other players see it even without that mod."
+msgstr "Envía la pose de tu personaje mientras reproduce una animación de un mod, para que otros jugadores la vean aunque no tengan ese mod."
+
+msgctxt "AdvancedShowCustomAnimations"
+msgid "Show custom animations"
+msgstr "Mostrar animaciones personalizadas"
+
+msgctxt "AdvancedShowCustomAnimationsComment"
+msgid ""
+"Shows other players' animations from mods with the poses they send.\n"
+"Without it, they play a vanilla animation instead."
+msgstr "Muestra las animaciones de mods de otros jugadores con las poses que envían. Sin esta opción, reproducen una animación original en su lugar."
+
+msgctxt "AdvancedCustomAnimationPlayers"
+msgid "Custom animation limit"
+msgstr "Límite de animaciones personalizadas"
+
+msgctxt "AdvancedCustomAnimationPlayersComment"
+msgid ""
+"Players shown with their custom animations at once, nearest first.\n"
+"The others play a vanilla animation instead."
+msgstr "Jugadores mostrados a la vez con sus animaciones personalizadas, los más cercanos primero. Los demás reproducen una animación original en su lugar."
+
 msgctxt "AdvancedGroupDiagnostics"
 msgid "Diagnostics"
 msgstr "Diagnóstico"

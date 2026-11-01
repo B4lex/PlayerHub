@@ -10,6 +10,7 @@
 #include "sync/mount/MountSync.h"
 #include "sync/movement/MovementSync.h"
 #include "sync/shapeshift/ShapeshiftSync.h"
+#include "sync/skeleton/SkeletonSync.h"
 
 #include <chrono>
 #include <cmath>
@@ -96,7 +97,8 @@ namespace CheckpointPublisher
             .idle = std::move(idle),
             .graphEpoch = a_graphEpoch,
             .sequence = sequence,
-            .sampleTime = GetSampleTime() };
+            .sampleTime = GetSampleTime(),
+            .skeleton = SkeletonSync::SampleLocalSkeleton(a_local) };
         Network::PublishLocalPlayerTransform(checkpoint);
         return Publication{ .status = Status::kPublished, .checkpoint = checkpoint };
     }

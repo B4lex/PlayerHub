@@ -13,7 +13,8 @@ const (
 )
 
 func AppendEntry(b []byte, slot uint32, c *pb.Checkpoint) []byte {
-	var body [64]byte
+	// The scalar fields take at most 64 bytes, and a skeleton pose at most 270 with its tag and length.
+	var body [384]byte
 	m := body[:0]
 	m = appendVarint(m, 1, uint64(slot))
 	m = appendVarint(m, 2, c.GetSequence())
@@ -26,6 +27,10 @@ func AppendEntry(b []byte, slot uint32, c *pb.Checkpoint) []byte {
 	m = appendVarint(m, 9, uint64(c.GetDirection()))
 	m = appendVarint(m, 10, uint64(c.GetFlags()))
 	m = appendVarint(m, 11, uint64(c.GetTime()))
+	if skeleton := c.GetSkeleton(); len(skeleton) > 0 {
+		m = protowire.AppendTag(m, 12, protowire.BytesType)
+		m = protowire.AppendBytes(m, skeleton)
+	}
 	b = protowire.AppendTag(b, peerStatesEntryField, protowire.BytesType)
 	return protowire.AppendBytes(b, m)
 }

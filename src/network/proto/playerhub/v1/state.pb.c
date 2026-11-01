@@ -9,7 +9,7 @@
 PB_BIND(playerhub_v1_FormRef, playerhub_v1_FormRef, 2)
 
 
-PB_BIND(playerhub_v1_Checkpoint, playerhub_v1_Checkpoint, AUTO)
+PB_BIND(playerhub_v1_Checkpoint, playerhub_v1_Checkpoint, 2)
 
 
 PB_BIND(playerhub_v1_Context, playerhub_v1_Context, 2)

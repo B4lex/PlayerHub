@@ -440,6 +440,40 @@ msgstr ""
 "Les lumières projetant des ombres sont toujours converties en fausses "
 "lumières."
 
+msgctxt "AdvancedGroupCustomAnimations"
+msgid "Custom animations"
+msgstr "Animations personnalisées"
+
+msgctxt "AdvancedShareCustomAnimations"
+msgid "Share custom animations"
+msgstr "Partager les animations personnalisées"
+
+msgctxt "AdvancedShareCustomAnimationsComment"
+msgid ""
+"Sends your character's pose while it plays an animation from a mod, so\n"
+"other players see it even without that mod."
+msgstr "Envoie la pose de votre personnage pendant qu'il joue une animation issue d'un mod, pour que les autres joueurs la voient même sans ce mod."
+
+msgctxt "AdvancedShowCustomAnimations"
+msgid "Show custom animations"
+msgstr "Afficher les animations personnalisées"
+
+msgctxt "AdvancedShowCustomAnimationsComment"
+msgid ""
+"Shows other players' animations from mods with the poses they send.\n"
+"Without it, they play a vanilla animation instead."
+msgstr "Affiche les animations de mods des autres joueurs avec les poses qu'ils envoient. Sans cette option, ils jouent une animation d'origine à la place."
+
+msgctxt "AdvancedCustomAnimationPlayers"
+msgid "Custom animation limit"
+msgstr "Limite d'animations personnalisées"
+
+msgctxt "AdvancedCustomAnimationPlayersComment"
+msgid ""
+"Players shown with their custom animations at once, nearest first.\n"
+"The others play a vanilla animation instead."
+msgstr "Joueurs affichés en même temps avec leurs animations personnalisées, les plus proches d'abord. Les autres jouent une animation d'origine à la place."
+
 msgctxt "AdvancedGroupDiagnostics"
 msgid "Diagnostics"
 msgstr "Diagnostic"

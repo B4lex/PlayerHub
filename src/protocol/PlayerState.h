@@ -5,6 +5,7 @@
 #include "protocol/MovementState.h"
 #include "protocol/PeerSlot.h"
 #include "protocol/Shapeshift.h"
+#include "protocol/SkeletonPose.h"
 
 #include <cstdint>
 
@@ -44,6 +45,7 @@ namespace Network
         std::uint64_t graphEpoch{ 1 };
         std::uint64_t sequence{ 0 };
         std::uint32_t sampleTime{ 0 };
+        EncodedSkeletonPose skeleton;
     };
 
     enum class AttackAction : std::uint8_t

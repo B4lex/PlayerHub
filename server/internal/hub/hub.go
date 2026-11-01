@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"bytes"
 	"errors"
 	"log/slog"
 	"math"
@@ -1027,11 +1028,13 @@ func (h *Hub) record(slot uint32, message *pb.ClientMessage) {
 }
 
 // sameSample compares positions in whole units, so an idle player's sub-unit drift, which
-// whole-unit checkpoints used to round away, still suppresses repeats.
+// whole-unit checkpoints used to round away, still suppresses repeats. A changed skeleton
+// pose is distributed, so an idle player's breathing streams while the sender sends poses.
 func sameSample(a, b *pb.Checkpoint) bool {
 	return a != nil && wholeUnits(a.X) == wholeUnits(b.X) && wholeUnits(a.Y) == wholeUnits(b.Y) &&
 		wholeUnits(a.Z) == wholeUnits(b.Z) && a.Heading == b.Heading && a.Pitch == b.Pitch &&
-		a.Speed == b.Speed && a.Direction == b.Direction && a.Flags == b.Flags
+		a.Speed == b.Speed && a.Direction == b.Direction && a.Flags == b.Flags &&
+		bytes.Equal(a.Skeleton, b.Skeleton)
 }
 
 func wholeUnits(v int32) float64 {

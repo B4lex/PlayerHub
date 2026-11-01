@@ -1,12 +1,19 @@
 # Remote Actor
 
+## Status
+
+The [skeleton pose](#skeleton-pose) slots have not run with more posed players
+than `[Advanced] CustomAnimationPlayers`, and dropping edge probes before a
+window has not triggered in a capture.
+
 ## Scope
 
 A remote actor is a local `RE::Actor` that stands in for a player who lives in
 another world. This system owns what makes it one: spawning and registration,
 readiness, the per-actor engine update, the animation firewall, graph recovery,
-survival, isolation from the local world in both directions, and the budget
-of scene lights its torches and spells take. The local
+survival, isolation from the local world in both directions, the budget
+of scene lights its torches and spells take, and showing its player's custom
+animations through the [skeleton pose](#skeleton-pose). The local
 world neither fights, moves, nor is moved by a remote actor, and the actor's
 own AI does not react to the local world. Local gameplay continues as if it
 were not there.
@@ -36,6 +43,11 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/RemoteCollision` | Placement ownership, the skipped movement update, collision, support, and Speed channel |
 | `actor/RemoteLights` | Keeps the configured number of remote actors' scene lights lit and culls the rest |
 | `runtime/RemoteActorActivation` | The local player's activation of a remote actor: the dead body's prompt and the player menu request |
+| `actor/ActorSkeleton` | Reads the local player's third-person bone rotations, and blends a remote actor's network pose over its graph's output |
+| `actor/ModdedGraph` | Reads the local player's third-person graph for modded events and active modded states |
+| `actor/GraphVocabulary`, `actor/VanillaGraphNames.h` | The vanilla event prefix and the generated vanilla machine and state name hashes ([Source window](#source-window)) |
+| `sync/skeleton/PoseWindow` | Opens, holds, and closes the local player's pose window on modded graph behavior |
+| `sync/skeleton/SkeletonSync` | Samples the local pose inside a window; ranks posed peers into slots, interpolates, and blends a remote actor's pose in and out |
 | `runtime/CodeDetour` | Shared entry detour: copies checked entry bytes, at the entry or past an entry guard, into a trampoline gateway |
 
 ## Spawn
@@ -90,7 +102,8 @@ its run-once package ([Package takeover](#package-takeover)).
    (`ActorAnimation::ApplyAnimationUpdate`);
 9. attempt a deferred furniture entry, which then owns placement;
 10. choose the translation mode (`ActorAnimation::GetTranslationMode`,
-    [Locomotion](locomotion.md#translation)), and unless it holds, apply
+    [Locomotion](locomotion.md#translation)), posed while a
+    [skeleton pose](#receiver) has weight, and unless it holds, apply
     heading and translation (`ActorMovement::ApplyTranslation`).
 
 Furniture owns position, heading, and graph while active. A rider and a mount
@@ -582,6 +595,186 @@ reference to the `NiLight`, and an extra one would leave the light behind
 after its torch or spell is gone. `Remote light budget` logs the limit and
 the counted and culled lights whenever one of them changes.
 
+## Skeleton pose
+
+A remote actor shows animations its player's game plays that the vanilla
+reproduction does not cover, such as new graph states from Paraglider or
+SkyParkour, and modded idles, by taking the bone pose its player's own game
+animated. Poses travel only while the source plays such an animation (a pose
+window), so every vanilla animation keeps syncing through the graph and a
+viewer with replacers sees its own. Viewers with and without the mod see the
+same pose. The actor's graph keeps running the vanilla reproduction
+underneath: weapon draws, sounds, footsteps, and spell art still come from
+it, and every bone the pose leaves out keeps the graph's output. Positions stay
+on checkpoints.
+
+Non-goals:
+
+- Replacers of vanilla clips (OAR and DAR walk, attack, and idle variants)
+  never open a window: they sync natively.
+- Modded behavior entered by vanilla events under modded conditions (MCO and
+  SCAR attack chains, a stagger an OAR replacer turns into another animation)
+  and modded idle forms played through vanilla events open no window yet.
+- A clip's side effects do not follow the pose: AnimObjects (Paraglider's
+  glider), `SoundPlay.*` annotations, and contrails.
+- Beast forms, furniture, mounts, and death keep the graph, since their
+  skeletons or native placement differ.
+- Replaying modded behavior natively on a viewer whose graph has it is
+  postponed: it would show the viewer's own variant and side effects, at the
+  cost of the per-mod state that replay needs.
+
+### Source window
+
+`sync/skeleton/PoseWindow` decides when the local player's checkpoints carry a
+pose; `SkeletonSync::SampleLocalSkeleton` returns an empty pose outside a
+window or with `[Advanced] ShareCustomAnimations` off
+([Configuration](configuration.md#advanced)).
+
+- **Modded event.** Pandora, Nemesis, and FNIS append their events to the
+  vanilla third-person `0_master` list, so an event at index
+  `GraphVocabulary::kVanillaEventCount` (1217) or later is modded, in a graph
+  with the vanilla prefix (`GraphVocabulary::HasVanillaPrefix`: the last
+  vanilla event and variable are `SoundPlay.NPCKillDLC2HeartStone` and
+  `iWantMountedWeaponAnims`, at 1216 and 229). Reads use the third-person graph
+  (`BSAnimationGraphManager::graphs[0]`). Whenever that graph changes, the
+  main loop publishes the sorted `GraphVocabulary::HashName` hashes of its
+  modded event names (`Pose window observed local graph`), and
+  `PoseWindow::IsModdedEvent` looks an event name up in them on the graph input
+  hook's thread. A graph without the prefix has no modded events.
+- **Open.** The graph input hook passes each accepted event and its reading to
+  `PoseWindow::ObserveLocalGraphEvent`, which keeps the first modded name and a
+  count until the next pass. `PoseWindow::Update`, before idles and the
+  checkpoint, opens a window on a pass that saw one (`Pose window opened`),
+  unless the setting is off, the player is in a beast form, in furniture,
+  mounted, or dead; any of these closes an open window. Further modded events
+  extend nothing on their own (Paraglider's DLL sends `StartPara` every frame).
+- **Hold.** Every 0.1 s of clamped frame time, `ModdedGraph::ReadModdedState`
+  reads the active state machines under the manager's `updateLock`: a machine
+  whose name is not vanilla, or a vanilla machine in a state whose name is not
+  vanilla, is modded (`Pose window entered modded state` with its names). The
+  window holds while one is active, and for at least 1 s after opening when
+  none has been, since a machine switches state on the graph update after the
+  event and a modded event can play its animation through vanilla states.
+- **Close.** After 0.25 s without a modded state past that, the window closes
+  (`Pose window closed` with `graph-vanilla` or `graph-unobserved`), so the
+  last poses show the vanilla state the receiver's graph reproduces and its
+  blend-out starts from there. A window also closes on a graph epoch change, a
+  graph change, a block above, a disconnect, or leaving the world. It never
+  closes on a modded exit event: Paraglider's landing leaves on the vanilla
+  `JumpLandEnd`.
+- **Vanilla names.** `actor/VanillaGraphNames.h` holds the sorted FNV-1a 64
+  hashes of the ASCII-lowercased machine and state names of the vanilla
+  character behaviors, looked up by binary search: 1056 machine and 3246 state
+  names. `scripts/generate_vanilla_graph_names.py` generates it from every
+  `.hkx` under `actors\character\behaviors` and
+  `actors\character\_1stperson\behaviors` of the vanilla
+  `Skyrim - Animations.bsa` (v105, LZ4), or from a directory of extracted
+  vanilla files, by parsing each hk_2010.2.0-r1 packfile: virtual fixups give
+  each object's class, and the local fixups of `hkbStateMachine::name` (0x38)
+  and `StateInfo::name` (0x60), the offsets `actor/BehaviorGraphLayout` reads
+  at runtime, give the names. It fails on a hash collision. Regenerate with
+  `python3 scripts/generate_vanilla_graph_names.py "<Data>/Skyrim - Animations.bsa"`
+  (needs the `lz4` package).
+- **Always-active machines.** A patch may add a modded machine that is active
+  in ordinary play, which would hold every window. Outside windows,
+  `ModdedGraph::CollectModdedMachines` samples every 0.1 s, and a modded machine
+  active in every sample for 2 s counts as vanilla for that graph from then on
+  (`Pose window treats an always active modded machine as ordinary`).
+- **Idles.** A modded `Idle*` event opens a window instead of reaching
+  [idle sync](idle-presentation.md#capture), and a window that opens ends the
+  source's held vanilla idle, so peers with and without the mod see the pose,
+  late joiners included.
+
+### Receiver
+
+- **Slots.** A peer is posed when `[Advanced] ShowCustomAnimations` is on and
+  its played checkpoint carries a pose in its human form. During the peer
+  loop, `SkeletonSync::SyncSkeleton` lists each posed peer with an owned actor
+  by the squared distance from its interpolated position to the local player,
+  scaled by 0.64 while it holds a slot, so peers at about the same distance do
+  not trade slots back and forth. `SkeletonSync::AssignSlots`, after the loop,
+  gives the nearest `[Advanced] CustomAnimationPlayers` a slot for the next
+  pass (`std::nth_element`) and logs `Remote skeleton pose slots` when the
+  limit or the number of posed peers changes. A slot counts only from the
+  latest ranking (`RemoteState::slotPass`), so a peer that missed a pass starts
+  without one. Peers beyond the cap keep the vanilla reproduction.
+- **Blend.** A peer with a slot blends from the graph's output to its pose over
+  0.2 s (`Remote skeleton pose blending in`), and back over 0.2 s, holding the
+  last shown pose, once poses stop or the slot is lost, then releases the actor
+  (`Remote skeleton pose released to the graph`). The weight follows clamped
+  frame time; turning it on again mid-way continues from the current weight.
+- **Ownership.** After `ActorRuntime::Update`, `SyncSkeleton` poses a ready
+  actor on foot, in its human form, outside furniture. Otherwise, and on a
+  mount or at death, `ReleaseSkeleton` clears the pose at once, and
+  `ActorRegistry::Unregister` clears it with the registration; a respawned
+  actor (another graph holder) starts from weight 0. Clearing shows the
+  graph's output from the next animation update.
+- **Interpolation.** The pose moves from the played checkpoint's toward
+  `RemoteFrame.next`'s at `RemotePose.fraction`
+  ([Sync pipeline](sync-pipeline.md#checkpoint-playout)), normalized-linear per
+  bone present in both (`Network::NlerpRotation`), so it stays with the
+  position it was sampled with. `SkeletonSync::RemoteState` keeps both decoded
+  poses by sequence, so a checkpoint is decoded once.
+- **Placement.** While the pose has weight, the actor stands exactly at the
+  interpolated network position and, at full weight, the network heading
+  ([Locomotion](locomotion.md#translation)), skipping the
+  translation holds and catch-up built for the vanilla reproduction, which
+  showed a climb beside its wall.
+- **Ground.** A posed checkpoint holds the
+  [ground offset](locomotion.md#ground-offset): a SkyParkour climb keeps its
+  source's controller on the ground while it rises a ledge, and a probe under it
+  pulled the actor down to the floor below. Edge-ring probes from just before
+  the window are dropped, and the first probe after it waits longer.
+- The [animation firewall](#animation-firewall) keeps rejecting modded events
+  local mods send to the remote actor.
+
+### Pose
+
+- **Bones.** `Network::kSkeletonBoneNames`: 63 bones of the vanilla human
+  skeleton: COM, pelvis, legs and toes, spine, neck, head, arms with their
+  twist bones, all 30 finger bones, `Weapon`, and `Shield`. `NPC Root`, skirt,
+  camera, look, magic, `AnimObject`, and sheath bones are left out, and so is
+  every bone a modded skeleton adds; physics bones are simulated by each
+  viewer. Only COM's translation travels, so the receiver's bone lengths
+  stay.
+- **Matching.** Bones match by name in the graph's Havok skeleton
+  (`characterInstance.setup->animationSkeleton`), whose indices are
+  `boneNodes` indices. A bone either skeleton lacks is skipped. The mapping is
+  rebuilt when the graph, its skeleton, or its bone count changes, and logged
+  (`Remote skeleton pose mapped a graph`, `Local skeleton pose mapped the
+  third-person graph`, with the number of bones found).
+- **Source.** `ActorSkeleton::ReadThirdPersonPose` takes the graph whose
+  `rootNode` is `Get3D(false)`, under the manager's `updateLock`, and reads
+  the local rotation of each mapped bone in the main-loop pass that publishes
+  the checkpoint. In first person the third-person graph keeps copying its
+  pose, and the modded events the first-person graph accepts drive it too:
+  SkyParkour windows opened, held, and sent changing poses with the active
+  graph 1.
+- **Hook.** The pose copy of `BShkbAnimationGraph` (ID 63589, SE 62644) writes
+  the generated pose into `boneNodes`' local transforms through ID 63856 (SE
+  62933). `ActorSkeleton` wraps its calls at ID 63358 + 0x319 (SE 62416 +
+  0x267), the graph manager's update, which calls it for every graph under
+  the manager's `updateLock`, and at ID 63359 + 0x77 (SE 62417 + 0x66). After
+  the copy, a graph whose holder has a pose gets the present bones' rotations,
+  and COM's translation, written over, before Skyrim derives the world
+  transforms from the locals later in the frame, or below weight 1 blended from the
+  copied locals toward the pose. A bone entry's local transform is found as ID
+  63856 finds it: a nonnegative index at +0x08 selects a 0x80-byte slot in the
+  array at the node's +0x130, whose object at +0x70, or the slot itself, holds
+  the transform.
+- **Threads.** The hook runs on the thread that updates the graph. Poses and
+  weights live in a map keyed like `ActorRegistry`, under a shared mutex the
+  hook takes shared; an atomic count skips the lock while no actor has a pose.
+  The main loop replaces an actor's pose each pass under the exclusive lock.
+
+### Budget
+
+A full pose makes a relayed entry about ten times as large
+([Network](network.md#skeleton-pose-encoding)): 267 B per checkpoint at 20 Hz
+is about 5.3 KB/s per posed pair, only during windows, so a 50 Mbit uplink
+carries about 1200 posed pairs at once. Bone masks (fingers are 30 of 63
+bones), a lower pose rate, and delta encoding are the reductions left.
+
 ## Engine assumptions
 
 Verified against the 1.7.104 executable:
@@ -687,6 +880,15 @@ Not confirmed:
     flag never shows a light Skyrim meant to hide; and SE 1.5.97 treats the
     flag and fade the same way.
 
+Not yet checked, for the [skeleton pose](#skeleton-pose):
+
+22. Pandora, Nemesis, and FNIS only append to the vanilla third-person
+    `0_master` event list, so the first 1217 events keep their vanilla order
+    (seen with Paraglider's and SkyParkour's patches).
+23. A patch names the machines and states it adds differently from every
+    vanilla one; a modded behavior placed in a state with a vanilla name holds
+    a window only for its first second.
+
 ## Acceptance criteria
 
 1. Bandits, draugr, and predators never detect, draw on, or attack a remote
@@ -724,7 +926,31 @@ Not confirmed:
     at once, and a torch put away or a player leaving frees a slot for the
     next one. The world's own lights stop flickering.
 
+11. A source gliding with Paraglider and climbing with SkyParkour shows its
+    glide and climb on a viewer with the mods and on one without, both with
+    the default settings: the actor blends into the pose at takeoff or the
+    climb's start, follows the source's positions without sinking into the
+    ground under a climb, and blends back into its vanilla graph after the
+    landing. Between windows, the source's checkpoints carry no pose and a
+    viewer's replacers show.
+12. A modded emote held by the source shows on a viewer who joins during it.
+13. With more posed players than `[Advanced] CustomAnimationPlayers`, the
+    nearest that many show their poses and the others their vanilla
+    reproduction, without trading slots between players at about the same
+    distance; turning `ShowCustomAnimations` off blends every posed actor back
+    within 0.2 s, and `ShareCustomAnimations` off stops the source's poses.
+14. Sitting down, mounting, dying, and transforming during a window hand the
+    actor back to its graph without a lasting wrong pose.
+15. A source in first person shows its climb on peers as in third person.
+
 ## Known limitations
+
+- The skeleton pose's COM translation is the source skeleton's, so a viewer's
+  actor of another height, race, sex, or skeleton mod stands slightly too high
+  or too low during a window. A window shows the source's variant of a modded
+  animation (Paraglider's broom, lantern, or staff set) without its props:
+  the glider and other AnimObjects, its sounds, and its contrails do not
+  show. Sounds and effects of the vanilla reproduction underneath still play.
 
 - Skeleton (bone) bodies are not isolated: local projectiles, melee, traps that
   test them, and the crosshair still find the remote actor, and it blocks local

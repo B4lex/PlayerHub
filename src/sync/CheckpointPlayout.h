@@ -36,6 +36,7 @@ public:
 
     [[nodiscard]] const Network::PlayerTransform& GetPlayed() const noexcept { return played; }
     [[nodiscard]] const RemotePose& GetPose() const noexcept { return pose; }
+    [[nodiscard]] const Network::PlayerTransform* GetNext() const noexcept;
     [[nodiscard]] const Network::PlayerTransform* GetNewest() const noexcept;
 
 private:

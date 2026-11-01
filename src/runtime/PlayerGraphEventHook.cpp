@@ -1,7 +1,9 @@
 #include "runtime/PlayerGraphEventHook.h"
 #include "sync/customanimation/GraphEventSurvey.h"
+#include "sync/customanimation/GraphTrace.h"
 #include "sync/idle/IdleSync.h"
 #include "sync/shapeshift/ShapeshiftSync.h"
+#include "sync/skeleton/PoseWindow.h"
 
 #include <cstdint>
 
@@ -18,10 +20,13 @@ namespace PlayerGraphEventHook
                 const bool accepted = _original(a_holder, a_eventName);
                 if (accepted)
                 {
+                    const bool modded = PoseWindow::IsModdedEvent(a_eventName);
                     ShapeshiftSync::ObserveLocalGraphEvent(a_eventName);
-                    IdleSync::ObserveLocalGraphEvent(a_eventName);
+                    IdleSync::ObserveLocalGraphEvent(a_eventName, modded);
+                    PoseWindow::ObserveLocalGraphEvent(a_eventName, modded);
 #ifndef NDEBUG
                     GraphEventSurvey::ObserveLocalGraphEvent(a_eventName);
+                    GraphTrace::ObserveLocalGraphEvent(a_eventName);
 #endif
                 }
                 return accepted;

@@ -16,3 +16,4 @@ playerhub.v1.Equipment.armor max_count:32
 playerhub.v1.Equipment.beast_armor max_count:8
 playerhub.v1.DefaultOutfit.armor max_count:8
 playerhub.v1.DefaultOutfit.hands max_count:2
+playerhub.v1.Checkpoint.skeleton max_size:267

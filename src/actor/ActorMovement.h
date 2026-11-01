@@ -20,6 +20,13 @@ namespace ActorMovement
         bool probed{ false };
         bool hit{ false };
         float loggedTarget{ 0.0F };
+        // The last target a center ray or a miss gave, and how long edge rings have given
+        // it since.
+        float plainTarget{ 0.0F };
+        bool edgeRun{ false };
+        float edgeRunElapsed{ 0.0F };
+        // Set when a posed hold ends, until the next probe.
+        bool afterPose{ false };
     };
 
     struct State
@@ -36,6 +43,9 @@ namespace ActorMovement
         float stoppingDistance{ 1.0F };
         bool sourceSwimming{ false };
         bool sourceGrounded{ false };
+        bool sourcePosed{ false };
+        // The skeleton pose's weight on the actor, which places it exactly while above 0.
+        float poseWeight{ 0.0F };
         GroundOffset ground;
         std::optional<RE::NiPoint3> landingPosition;
         float landingApproachElapsed{ 0.0F };
@@ -47,13 +57,17 @@ namespace ActorMovement
         kStanding,
         kMoving,
         kAirborne,
-        kAttack
+        kAttack,
+        // At the interpolated network transform, under a skeleton pose sampled with it.
+        kPosed
     };
 
     void BeginPass();
 
+    // a_posed: the checkpoint carries a skeleton pose, which holds the ground offset.
     void SetTargetMovement(RemoteActor& a_remote, const RE::NiPoint3& a_checkpointPosition, float a_speed,
-        bool a_swimming, bool a_grounded);
+        bool a_swimming, bool a_grounded, bool a_posed);
+    void SetPoseWeight(RemoteActor& a_remote, float a_weight);
 
     void SetAnimationSample(RemoteActor& a_remote, float a_speed, float a_direction);
 

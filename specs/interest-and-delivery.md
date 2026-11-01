@@ -133,6 +133,8 @@ leave and when the recipient disconnects.
   once.
 - A checkpoint equal to the last one handed to subscribers, except for its
   sequence and time, is not distributed, so an idle player costs nothing on the wire.
+  The skeleton pose is compared byte for byte, so a player standing in a pose
+  window streams its breathing ([Network](network.md#skeleton-pose-encoding)).
   Positions compare rounded to whole units (`sameSample`), so an idle
   player's sub-unit drift does not count as a change at quarter-unit
   precision.

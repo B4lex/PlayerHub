@@ -439,6 +439,40 @@ msgstr ""
 "Limita le luci finte emesse dai giocatori (ad es. torcia).\n"
 "Le luci che proiettano ombre vengono sempre convertite in luci finte."
 
+msgctxt "AdvancedGroupCustomAnimations"
+msgid "Custom animations"
+msgstr "Animazioni personalizzate"
+
+msgctxt "AdvancedShareCustomAnimations"
+msgid "Share custom animations"
+msgstr "Condividi animazioni personalizzate"
+
+msgctxt "AdvancedShareCustomAnimationsComment"
+msgid ""
+"Sends your character's pose while it plays an animation from a mod, so\n"
+"other players see it even without that mod."
+msgstr "Invia la posa del tuo personaggio mentre riproduce un'animazione di una mod, così gli altri giocatori la vedono anche senza quella mod."
+
+msgctxt "AdvancedShowCustomAnimations"
+msgid "Show custom animations"
+msgstr "Mostra animazioni personalizzate"
+
+msgctxt "AdvancedShowCustomAnimationsComment"
+msgid ""
+"Shows other players' animations from mods with the poses they send.\n"
+"Without it, they play a vanilla animation instead."
+msgstr "Mostra le animazioni da mod degli altri giocatori con le pose che inviano. Senza questa opzione, riproducono invece un'animazione originale."
+
+msgctxt "AdvancedCustomAnimationPlayers"
+msgid "Custom animation limit"
+msgstr "Limite animazioni personalizzate"
+
+msgctxt "AdvancedCustomAnimationPlayersComment"
+msgid ""
+"Players shown with their custom animations at once, nearest first.\n"
+"The others play a vanilla animation instead."
+msgstr "Giocatori mostrati contemporaneamente con le loro animazioni personalizzate, prima i più vicini. Gli altri riproducono invece un'animazione originale."
+
 msgctxt "AdvancedGroupDiagnostics"
 msgid "Diagnostics"
 msgstr "Diagnostica"

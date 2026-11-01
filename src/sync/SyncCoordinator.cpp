@@ -17,6 +17,7 @@
 #include "sync/chat/PlayerDetails.h"
 #include "sync/combat/CombatSync.h"
 #include "sync/customanimation/GraphEventSurvey.h"
+#include "sync/customanimation/GraphTrace.h"
 #include "sync/death/DeathSync.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/furniture/FurnitureSync.h"
@@ -27,6 +28,8 @@
 #include "sync/outfit/DefaultOutfit.h"
 #include "sync/presence/PresenceSync.h"
 #include "sync/shapeshift/ShapeshiftSync.h"
+#include "sync/skeleton/PoseWindow.h"
+#include "sync/skeleton/SkeletonSync.h"
 #include "sync/trade/TradeSync.h"
 
 #include <atomic>
@@ -63,6 +66,7 @@ namespace SyncCoordinator
             const auto& checkpoint = a_peer.playout.GetPlayed();
             return RemoteFrame{ .playerID = a_playerID,
                 .checkpoint = checkpoint,
+                .next = a_peer.playout.GetNext(),
                 .pose = a_peer.playout.GetPose(),
                 .cellID = a_peer.space.cellID,
                 .worldspaceID = a_peer.space.worldspaceID,
@@ -102,6 +106,7 @@ namespace SyncCoordinator
             a_peer.combat = {};
             a_peer.shapeshift = {};
             a_peer.idle = {};
+            a_peer.skeleton = {};
             a_peer.space = {};
             a_peer.furniture = {};
             a_peer.playout.Reset();
@@ -324,13 +329,17 @@ namespace SyncCoordinator
             AnimationSync::ObserveLocalMovement(s_localAnimation, local, a_delta);
 #ifndef NDEBUG
             GraphEventSurvey::LogLocalGraphEvents(local, a_delta);
+            GraphTrace::Update(local, a_delta);
 #endif
             // Flush equipment before a captured attack or hand presentation is published, so
             // peers receive a weapon swap ahead of its use.
             EquipmentSync::SyncEquipment(local, a_delta, capturedAttack.has_value() || handPresentationStarted);
             CombatSync::QueueLocalAttacks(capturedAttack, graphEpoch.changed);
             ShapeshiftSync::QueueLocalActions(graphEpoch.changed);
-            IdleSync::QueueLocalIdles(local, transformed, graphEpoch.changed, a_delta);
+            // Before idles, which end the held idle when a window opens, and before the
+            // checkpoint, whose pose the window gates.
+            const bool poseWindowOpened = PoseWindow::Update(local, transformed, graphEpoch.changed, a_delta);
+            IdleSync::QueueLocalIdles(local, transformed, poseWindowOpened, graphEpoch.changed, a_delta);
             const auto publication = CheckpointPublisher::PublishLocalCheckpoint(
                 s_publisher, s_localAnimation, local, a_delta, graphEpoch.epoch);
             switch (publication.status)
@@ -339,6 +348,7 @@ namespace SyncCoordinator
                     CombatSync::DiscardLocalAttacks();
                     ShapeshiftSync::DiscardLocalActions();
                     IdleSync::DiscardLocalIdles();
+                    PoseWindow::Discard();
                     break;
                 case CheckpointPublisher::Status::kPublished:
                     // The checkpoint always precedes the action it anchors.
@@ -393,6 +403,7 @@ namespace SyncCoordinator
             if (lifecycle.actor && DeathSync::SyncDeath(remote, a_peer))
             {
                 auto& actor = *lifecycle.actor;
+                SkeletonSync::ReleaseSkeleton(a_peer.skeleton, actor);
                 if (auto liveActor = actor.handle.get())
                 {
                     AppearanceSync::ApplyActorPresentation(a_peer.appearance, a_playerID, *liveActor, actor.ready);
@@ -419,6 +430,7 @@ namespace SyncCoordinator
             if (lifecycle.actor && MountSync::SyncMount(remote, a_peer, a_delta))
             {
                 auto& actor = *lifecycle.actor;
+                SkeletonSync::ReleaseSkeleton(a_peer.skeleton, actor);
                 CombatSync::ClearRemoteActions(a_peer.combat, actor);
                 IdleSync::ClearRemoteActions(a_peer.idle);
                 EquipmentSync::SyncEquipment(a_peer.equipment, a_playerID, actor, a_delta);
@@ -479,6 +491,8 @@ namespace SyncCoordinator
                 }
                 else if (auto liveActor = actor.handle.get())
                 {
+                    SkeletonSync::SyncSkeleton(remote, a_peer.skeleton, actor, actor.ready && !beast && !furniturePlaying,
+                        a_local.player.GetPosition(), a_delta);
                     AppearanceSync::ApplyActorPresentation(a_peer.appearance, a_playerID, *liveActor, actor.ready);
                 }
             }
@@ -526,6 +540,7 @@ namespace SyncCoordinator
             CombatSync::DiscardLocalAttacks();
             ShapeshiftSync::DiscardLocalActions();
             IdleSync::DiscardLocalIdles();
+            PoseWindow::Discard();
         }
         TradeSync::Sync(*a_player, inWorld, a_delta);
 
@@ -545,6 +560,7 @@ namespace SyncCoordinator
         {
             SyncPeer(playerID, peer, local, localCellID, localWorldspaceID, localFurniture.get(), a_delta);
         }
+        SkeletonSync::AssignSlots();
         NameplateSync::Update(s_peers, *a_player, a_delta);
         if (const auto* camera = RE::Main::WorldRootCamera())
         {
