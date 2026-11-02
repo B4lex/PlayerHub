@@ -46,11 +46,19 @@ namespace Multiplayer
         bool bowDrawn{ false };
         bool castingLeft{ false };
         bool castingRight{ false };
+        bool castReleasedLeft{ false };
+        bool castReleasedRight{ false };
+        bool dualCasting{ false };
         bool blocking{ false };
 
         [[nodiscard]] constexpr bool IsCasting(bool a_leftHand) const noexcept
         {
             return a_leftHand ? castingLeft : castingRight;
+        }
+
+        [[nodiscard]] constexpr bool IsCastReleased(bool a_leftHand) const noexcept
+        {
+            return a_leftHand ? castReleasedLeft : castReleasedRight;
         }
 
         constexpr bool operator==(const HandPresentation&) const noexcept = default;

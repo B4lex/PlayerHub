@@ -1,5 +1,9 @@
 # Combat Presentation
 
+## Status
+
+Dual casts ([Spells](#spells)) have not been confirmed in game.
+
 ## Scope
 
 A remote actor shows its source's weapon stance, melee and bow attacks,
@@ -322,7 +326,8 @@ reads the player. Everything is false unless the weapon is drawn:
   `kBowAttached`, or `kBowDrawn`; `kBowReleasing` and later are a release.
 - `castingLeft`/`castingRight`: a spell or scroll in that hand and a
   `MagicCaster::state` from the cast request through release (`kUnk01` to
-  `kUnk07`); `kNone` is a readied hand that is not casting.
+  `kUnk07`); `kNone` is a readied hand that is not casting. The release and
+  dual cast fields are in [Spells](#spells).
 - `blocking`: `Actor::IsBlocking()` without a bow or crossbow in the right hand
   (with a bow the block button zooms, and `BowZoom` sends `blockStart`). `IsBlocking()` is false while a bash plays,
   even from a held block (observed in game), so during `kBash` the player's
@@ -378,12 +383,38 @@ Crossbows (`crossbowAttackStart`) are not replicated.
 
 ### Spells
 
-A hand holding any spell or scroll holds a stand-in of one placeholder,
-Healing Hands (`Skyrim.esm` `0x04D3F2`, a concentration spell aimed at a target
-actor), that looks like the source's spell ([Spell look](#spell-look)). A cast
-plays Healing Hands' cast from that hand for as long as the source casts,
-whatever the source's spell.
+Goal: a peer sees the native cast of the source's spell: its charge, held
+ready, release, or concentration loop for its casting type and delivery, a
+ward, telekinesis, or ritual clip, and a dual cast. Non-goal: anything the
+spell does when it fires ([Isolation](#isolation)).
 
+A hand holding any spell or scroll holds a stand-in, a runtime copy of
+Healing Hands (`Skyrim.esm` `0x04D3F2`) carrying the source spell's look
+([Spell look](#spell-look)) and cast shape. The cast clips come from the
+vanilla idle records: `StartChargeImpl` performs the hand's attack action
+(`ActionLeftAttack`/`ActionRightAttack`), whose children under
+`AttackMagicLeftRoot`/`AttackMagicRightRoot` test `GetCurrentCastingType`,
+`GetCurrentDeliveryType`, `SpellHasKeyword` (`MagicWard`, `MagicTelekinesis`,
+`RitualSpellEffect`, `RitualSpellIllusion`), and `IsDualCasting`, and send the
+charge event (for example `MRh_SpellAimedStart`, `MLh_WardStart`,
+`DualMagic_SpellSelfStart`, `RitualSpellStart`). `StartReadyImpl` performs the
+ready action and `StartCastImpl` the release action
+(`MLh_SpellRelease_Event`/`MRh_SpellRelease_Event`). So the stand-in's
+casting type, delivery, charge time, and effect keywords pick the clips
+natively. `SpellHasKeyword` reads the keywords of the spell's effects, since
+vanilla spell records carry none of their own. A two-handed (ritual) spell
+casts on the left caster alone, and the left root's ritual branch tests the
+right hand's keyword (`SpellHasKeyword` with hand 1), which the right hand's
+stand-in satisfies, so the left cast plays `RitualSpellStart` or
+`RitualSpellAimConcentrationStart`.
+
+- **Capture.** Besides `castingLeft`/`castingRight`
+  ([Capture](#capture)), `castReleasedLeft`/`castReleasedRight` are set while
+  that caster is past `StartCast` (`kUnk04` through `kUnk07`): a
+  fire-and-forget hold was released, or a concentration cast started its loop.
+  `dualCasting` is the player's `Actor::IsDualCasting` while the left hand
+  casts: `Actor::TryDualCast` (ID 38762) runs a dual cast, and a two-handed
+  spell's cast, on the left caster. All three are ORed like the other fields.
 - **Cast.** The hand's own `ActorMagicCaster` casts it, as NPC casting does:
   `SetCurrentSpell` if needed, then `RequestCastImpl`. Sending the graph's cast
   events directly failed: the magic graph emits `InterruptCast` for a cast its
@@ -392,45 +423,72 @@ whatever the source's spell.
   only sends `BeginCast*` and left the caster in `kNone` (observed in game), so a
   start also moves an idle caster to `kUnk01`, as the engine's request does, and
   sets `bWantCastLeft`/`bWantCastRight`, which the magic graph needs to stay
-  casting; the variable is set again every pass while held. The engine then runs
-  charge, ready, and cast. `StartCastImpl` performs the hand's release action
-  (`ActionLeftRelease`/`ActionRightRelease`), which picks the clip through `IDLE`
-  conditions on casting type and delivery; the human aimed branches
-  (`RightCastAimed`, `LeftConcentrationAimed`) take delivery `>= 2`, so Healing
-  Hands' target-actor delivery (3) plays the aimed concentration clip. The
-  caster then waits in state 4, because spell fire is suppressed.
-- **Stop.** The variable is cleared and `InterruptCast(false)` performs the
-  hand's interrupt action and finishes the cast. `FinishCast` alone returned the
-  caster to `kNone` but left the clip looping (observed in game). The stop
-  completes once the caster is `kNone` and the hand's `IsCastingLeft` or
-  `IsCastingRight` is false, or after 1 s; no new cast starts on that hand
-  before. The last hand to stop also waits for the graph's `iState` to leave
-  10, the cast branch's tag (spell-ready locomotion reads 9). The graph kept 10
-  for about 0.2 s after both variables cleared, and a `moveStart` sent then was
-  accepted by the exiting cast lower body, which returned to the standing
-  spell-ready state, so the actor slid until its next stop (observed in game).
-  A cast also stops when the hand loses its spell.
+  casting; the variable is set again every pass while held. The engine then
+  charges for the spell's charge time and readies. A concentration caster
+  releases itself once ready and then waits in `kUnk04`, because spell fire is
+  suppressed.
+- **Dual cast.** A left cast with `dualCasting`, both hands holding the same
+  stand-in, sets the high process `isDualCasting` and the caster's dual flag
+  first, as `Actor::TryDualCast` and `MagicCaster::RequestCast` (ID 34401) do,
+  so the attack action takes the `CastDualMagic` branch. Any other left cast
+  clears both, since a graph reset can drop a cast without the
+  `FinishCastImpl` that clears them.
+- **Release.** A fire-and-forget caster waits in `kReady` after its ready
+  action. Once the checkpoint reports the hand released, the receiver does
+  what `MagicCaster::StartCast` (ID 34445) does for the player's release and
+  NPC combat: enters `kUnk04` and calls `StartCastImpl`. It stops setting the
+  want-cast variable then. A release that arrives while the receiver still
+  charges waits for its ready state, at most `kReleaseChargeWaitSeconds` (1 s),
+  even after the source's cast ended, since the receiver's charge started later
+  by its start's delay. The release clip's fire event reaches spell fire,
+  whose hook finishes the cast as native spell fire does; the caster returning
+  to `kNone` ends the hand's cast without an interrupt. So does a
+  fire-and-forget caster that returns to `kNone` by itself, as when the engine
+  releases at once because the ready action was rejected. After
+  `kReleaseFinishFallbackSeconds` (3 s) without that, the cast is interrupted.
+- **Stop.** A cast the source ended without a release, a concentration cast, or
+  a hand that lost its spell is stopped: the variable is cleared and
+  `InterruptCast(false)` performs the hand's interrupt action and finishes the
+  cast. `FinishCast` alone returned the caster to `kNone` but left the clip
+  looping (observed in game). So a charge the source cancels is cancelled.
+- **Ending.** The stop or released cast completes once the caster is `kNone`
+  and the hand's `IsCastingLeft` or `IsCastingRight` is false, or after 1 s; no
+  new cast starts on that hand before. The last hand to stop also waits for the
+  graph's `iState` to leave 10, the cast branch's tag (spell-ready locomotion
+  reads 9). The graph kept 10 for about 0.2 s after both variables cleared, and
+  a `moveStart` sent then was accepted by the exiting cast lower body, which
+  returned to the standing spell-ready state, so the actor slid until its next
+  stop (observed in game).
+- **No repeat.** A fire-and-forget cast that ended, released or interrupted,
+  while the checkpoint still reports the hand casting and released, is not
+  started again; the next cast starts after a checkpoint reports the hand idle
+  or casting without a release.
 - While a cast is held or stopping, the registry marks cast ownership, and the
   firewall passes cast events, which the caster sends then and on later updates
   ([Remote actor](remote-actor.md#animation-firewall)). Names are matched
   ignoring case: the left release idle sends `MLH_SpellRelease_event`.
-- A dual cast plays the one-handed cast in each hand. Staves stay weapons and
-  play no cast.
+- Staves stay weapons and play no cast.
 
 ### Spell look
 
 Goal: a peer recognizes the source's spell in hand by its hand art, hand light,
-and hand sounds, while the cast animation and its isolation stay the
-placeholder's. Non-goals: the source's casting type, delivery, dual casting,
-projectile, beam, hit effects, and release and hit sounds.
+and hand sounds. Non-goals: the projectile, beam, hit effects, and release and
+hit sounds.
 
 The magic caster takes a hand's art (`castingArt`), light (`light`), and sounds
 from the costliest effect of the hand's spell (`MagicItem::GetAVEffect`). A
 stand-in is a runtime copy of Healing Hands whose effect is a runtime copy of
 Healing Hands' effect with that art, light, and the draw/sheathe, charge, ready
 loop, and cast loop sounds replaced; the release and hit sounds are left out.
-Its casting type, delivery, charge time, and equip slot stay Healing Hands', so
-the cast plays and is suppressed exactly as above.
+It also carries a cast shape ([Spells](#spells)): the casting type
+(concentration, or fire-and-forget for anything else, including a scroll's),
+delivery, and charge time on the spell and its effect, and the keywords of all
+the spell's effects on its effect. The charge time goes into the effect's
+`spellmakingChargeTime` too, because `SpellItem::GetChargeTime` (ID 11496)
+returns the largest of those for an auto-calculated spell such as Healing
+Hands, whose effects have none, and the spell's own charge time only otherwise. Its equip slot and effect archetype stay
+Healing Hands', so it equips in either hand and nothing an archetype does on
+fire applies.
 
 - **Capture.** A spell or scroll hand sends the spell's reference and, as a
   fallback, the costliest effect's casting art and casting light references
@@ -438,19 +496,21 @@ the cast plays and is suppressed exactly as above.
   without a form. If the art or light exists but cannot be referenced, neither
   is sent, since a partial look would read as a spell without that part.
 - **Resolution**, in order:
-  1. The spell resolves to a `SpellItem` or `ScrollItem`: its art, light, and
-     sounds, as the receiver's version, so the receiver's visual mods apply.
+  1. The spell resolves to a `SpellItem` or `ScrollItem`: its art, light,
+     sounds, and cast shape, as the receiver's version, so the receiver's
+     visual mods apply.
   2. At least one of the art and light is sent and each sent one resolves
-     (`BGSArtObject`, `TESObjectLIGH`): those, with Healing Hands' sounds; an
-     unsent one is none. Many modded spells reuse vanilla art.
+     (`BGSArtObject`, `TESObjectLIGH`): those, with Healing Hands' sounds and
+     cast shape; an unsent one is none. Many modded spells reuse vanilla art.
   3. Otherwise Healing Hands itself.
 - **Stand-ins** are created on the game thread with `DynamicForm::Create` and
   `TESForm::Copy` (`MagicItem::Copy` copies the data and effects, not the equip
-  slot; `EffectSetting::Copy` not the sounds), cached by the form IDs of the
-  art, light, and four sounds, shared by every hand and peer with that look, and
-  never deleted. `Spell stand-in created` logs each one with its forms. The
-  stand-in's light is the look's [fake light](appearance-and-equipment.md#fake-lights)
-  version.
+  slot; `EffectSetting::Copy` neither the sounds nor the keywords), cached by
+  the form IDs of the art, light, four sounds, and keywords, the casting type,
+  delivery, and charge time, shared by every hand and peer with that look and
+  shape, and never deleted. `Spell stand-in created` logs each one with its
+  forms and shape. The stand-in's light is the look's
+  [fake light](appearance-and-equipment.md#fake-lights) version.
 - A spell change swaps the stand-in through `EquipSpell`, like any hand swap
   ([Appearance and equipment](appearance-and-equipment.md#reconciliation)).
 
@@ -560,7 +620,8 @@ The actor holds stand-ins of the source's vampire lord spells, sent as
 `beast_right_hand` and `beast_left_hand`
 ([Appearance and equipment](appearance-and-equipment.md#shapeshifts)), so
 its hands show their art and light and play their hand sounds as a human
-[spell look](#spell-look) does; the magic caster attaches the art once the
+[spell look](#spell-look) does (the stand-ins' cast shape is not used: the
+relayed events, not the caster, drive these casts); the magic caster attaches the art once the
 hand has a selected spell, a casting art, and a magic node
 (`ActorMagicCaster::CheckAttachCastingArt`, ID 34185, from its `Update`,
 read in the 1.7.104 disassembly). The beam, projectile, and effects stay
@@ -598,7 +659,7 @@ hooks install on every runtime; the spell fire entry detour is ID 34407 (SE
 | Hook | Effect for a remote actor |
 | --- | --- |
 | `ArrowReleaseHandler::ExecuteHandler` (`arrowRelease`) | Returns handled without launching the arrow or spending ammo |
-| Spell fire (ID 34407, entry detour), from `MLh_SpellFire_Event`/`MRh_SpellFire_Event` and a casting caster's update | Returns true without spending cost, applying or launching the spell, or entering casting state 6 |
+| Spell fire (ID 34407, entry detour), from `MLh_SpellFire_Event`/`MRh_SpellFire_Event` and a casting caster's update | Returns true without spending cost, applying or launching the spell, or entering casting state 6; a cast that is not concentration, running on a caster under cast ownership ([Spells](#spells)), is finished with `FinishCast`, as the skipped `FindTargets` (ID 34410) ends it |
 | `ActorMagicCaster::CastSpellImmediate` (vfunc 1) | Does not cast |
 | `ActorMagicCaster::CheckCast` (vfunc 0xA) | Returns true with `kOK`, so magicka or the casting-disabled flag never interrupt |
 
@@ -637,14 +698,15 @@ Not confirmed in game:
    own motion does not fight the network translation during a lunge.
 7. `MagicCaster::state` is `kNone` while a spell hand is readied and stays in
    `kUnk01..kUnk07` for the whole hold of concentration and fire-and-forget
-   spells (`observed local hand presentation`).
+   spells (`observed local hand presentation`), in `kUnk04..kUnk07` from a
+   fire-and-forget release or a concentration loop's start until the cast
+   ends, and the player's `IsDualCasting` stays true for a dual cast's hold.
 8. `UnequipSpell` empties only the given hand and lowers it through
    `ActionForceEquip` (`WeapOutRightReplaceForceEquip`, `WeapSoloEquip`, or
    `Magic_Solo_Equip`). `DrawWeaponMagicHands(true)` readies spell hands without
    other blocked `Magic*` or `M?h_*` events.
-9. The cast works from the left hand, dual casting, and while walking or
-   running. If a beam or heal still appears, extend suppression to
-   `MagicCaster::FindTargets`.
+9. The cast works from the left hand and while walking or running. If a beam
+   or heal still appears, extend suppression to `MagicCaster::FindTargets`.
 10. The graph takes `attackRelease` and locomotion events during a draw, the
     release clip ends within 0.5 s, `ArrowReleaseHandler` is the only launch path,
     and the release clip's own annotations still remove the nocked arrow.
@@ -652,22 +714,23 @@ Not confirmed in game:
     (`ActorMagicCaster::CheckAttachCastingArt`), and sounds
     (`ActorMagicCaster::PrepareSound`, ID 34438) come only from the selected
     spell's `GetAVEffect` (read from 1.7.104), so a stand-in shows the source's
-    look with Healing Hands' clips, and swapping stand-ins on a drawn hand
-    replaces the art and light.
-12. The copied stand-in plays the same cast clips as Healing Hands, and the
-    runtime forms stay valid across save loads, as runtime actor bases do
-    ([Appearance and equipment](appearance-and-equipment.md#actor-base)).
+    look, and swapping stand-ins on a drawn hand replaces the art and light.
+12. The runtime stand-in forms stay valid across save loads, as runtime actor
+    bases do ([Appearance and equipment](appearance-and-equipment.md#actor-base)).
+13. Setting the high process `isDualCasting` and the caster's dual flag before
+    `RequestCastImpl` plays the `DualMagic_*` charge, release, and loop clips with
+    both hands' art while the right caster stays idle, as on the source.
 
 Not confirmed in game for [beast actions](#beast-actions):
 
-13. Every vocabulary event reaches the player's graph through the holder's
+14. Every vocabulary event reaches the player's graph through the holder's
     vfunc 1, called virtually, including the attack data events, idles
     (feeding, howls, bats, casts), and casts; the string pool folds case, so
     `attackStartRight` and `AttackStartRight` are one pooled string.
-14. A remote beast accepts each event at the time its source's graph did:
+15. A remote beast accepts each event at the time its source's graph did:
     attacks once its claws are drawn, howls and feeding from the stance the
     source used. A paired feeding clip plays alone without the victim.
-15. A shader or art applied without a duration stays until marked finished,
+16. A shader or art applied without a duration stays until marked finished,
     follows the actor, and `SetAlpha` holds while the engine updates the
     actor; neither passes the remote actor's magic firewall, which only
     stops active effects.
@@ -691,25 +754,34 @@ Not confirmed in game for [beast actions](#beast-actions):
    source's arrows in the quiver; nothing is fired or spent.
 6. A spell or scroll hand shows the source spell's hand art and light while
    drawn and plays its draw, charge, and loop sounds; a peer without the spell
-   shows its art and light if it has those, and Healing Hands' look otherwise. A
-   cast plays Healing Hands' cast in that hand for as long as the source casts;
-   no projectile, beam, effect, or sound of a released spell appears.
-7. Sheathing, jumping, or sitting ends a draw, cast, or block first. A late
+   shows its art and light if it has those, and Healing Hands' look otherwise.
+7. A cast plays the source spell's native clips in that hand: a
+   fire-and-forget spell charges, holds ready for as long as the source holds
+   it, and plays its release when the source releases; a charge the source
+   cancels is cancelled; a concentration spell loops for as long as the source
+   casts; self, aimed, ward, telekinesis, ritual, and dual casts play their own
+   clips. A peer without the spell plays Healing Hands' cast. No projectile,
+   beam, effect, or sound of a released spell appears.
+8. Sheathing, jumping, or sitting ends a draw, cast, or block first. A late
    joiner sees an ongoing draw, cast, or block.
-8. Nothing is hit, staggered, or damaged.
-9. A werewolf or werebear peer's claw swings, power, side, running, and
-   sprinting attacks, howls, and feeding play on its remote actor in order;
-   a vampire lord peer's melee attacks, bats, feeding, and casts play too, and
-   its actor hovers or stands as the source does, including for a late
-   joiner. Its Mist Form shows the mist and a faded body for as long as the
-   source's lasts, and its bats show the swarm for the dash.
+9. Nothing is hit, staggered, or damaged.
+10. A werewolf or werebear peer's claw swings, power, side, running, and
+    sprinting attacks, howls, and feeding play on its remote actor in order;
+    a vampire lord peer's melee attacks, bats, feeding, and casts play too, and
+    its actor hovers or stands as the source does, including for a late
+    joiner. Its Mist Form shows the mist and a faded body for as long as the
+    source's lasts, and its bats show the swarm for the dash.
 
 ## Known limitations
 
-- The source's casting type, delivery, and dual casting are not shown: every
-  cast plays the aimed concentration clip. A fire-and-forget spell has no cast
-  loop sound, so a held cast may be quieter than the source's held charge.
-- A peer without the spell plays Healing Hands' sounds with the fallback art.
+- A peer without the spell plays Healing Hands' cast clips and sounds with the
+  fallback art: the wire carries no cast shape.
+- A fire-and-forget release that the receiver's charge cannot reach within
+  `kReleaseChargeWaitSeconds` shows as a cancelled charge. A second
+  fire-and-forget cast started so soon after a release that no checkpoint sees
+  the hand idle or charging in between is not shown.
+- A spell whose casting type or delivery differs between the source's and the
+  receiver's plugins plays the receiver's version's clips.
 - Crossbow attacks and bashes, shield charge (`BlockBashSprint`), block hit
   reactions, bash failures, sprint power attacks as their own animation (they
   start from idle records with perk conditions,

@@ -36,7 +36,10 @@ namespace Network
         inline constexpr std::uint32_t kLevitating = 1U << 13;
         inline constexpr std::uint32_t kMistForm = 1U << 14;
         inline constexpr std::uint32_t kBats = 1U << 15;
-        inline constexpr std::uint32_t kKnown = 0xFFFF;
+        inline constexpr std::uint32_t kCastReleasedLeft = 1U << 16;
+        inline constexpr std::uint32_t kCastReleasedRight = 1U << 17;
+        inline constexpr std::uint32_t kDualCasting = 1U << 18;
+        inline constexpr std::uint32_t kKnown = 0x7FFFF;
     }
 
     struct QuantizedCheckpoint
@@ -122,6 +125,9 @@ namespace Network
         set(a_transform.handPresentation.bowDrawn, kBowDrawn);
         set(a_transform.handPresentation.castingLeft, kCastingLeft);
         set(a_transform.handPresentation.castingRight, kCastingRight);
+        set(a_transform.handPresentation.castReleasedLeft, kCastReleasedLeft);
+        set(a_transform.handPresentation.castReleasedRight, kCastReleasedRight);
+        set(a_transform.handPresentation.dualCasting, kDualCasting);
         set(a_transform.handPresentation.blocking, kBlocking);
         set(a_transform.dead, kDead);
         set(a_transform.mounted, kMounted);
@@ -152,6 +158,9 @@ namespace Network
             && a_checkpoint.pitch <= kMaximumQuantizedPitch && a_checkpoint.speed <= kMaximumQuantizedSpeed
             && a_checkpoint.direction < kDirectionSteps && a_checkpoint.time < kSampleTimeModulus
             && (a_checkpoint.flags & ~kKnown) == 0
+            && ((a_checkpoint.flags & kCastReleasedLeft) == 0 || (a_checkpoint.flags & kCastingLeft) != 0)
+            && ((a_checkpoint.flags & kCastReleasedRight) == 0 || (a_checkpoint.flags & kCastingRight) != 0)
+            && ((a_checkpoint.flags & kDualCasting) == 0 || (a_checkpoint.flags & kCastingLeft) != 0)
             && (a_checkpoint.flags & kMovementStateMask)
                    <= static_cast<std::uint32_t>(Multiplayer::MovementState::kSneakingRunning)
             && IsValidSkeletonPose(a_checkpoint.skeleton.view());
@@ -177,6 +186,9 @@ namespace Network
             .handPresentation = Multiplayer::HandPresentation{ .bowDrawn = (flags & kBowDrawn) != 0,
                 .castingLeft = (flags & kCastingLeft) != 0,
                 .castingRight = (flags & kCastingRight) != 0,
+                .castReleasedLeft = (flags & kCastReleasedLeft) != 0,
+                .castReleasedRight = (flags & kCastReleasedRight) != 0,
+                .dualCasting = (flags & kDualCasting) != 0,
                 .blocking = (flags & kBlocking) != 0 },
             .dead = (flags & kDead) != 0,
             .mounted = (flags & kMounted) != 0,

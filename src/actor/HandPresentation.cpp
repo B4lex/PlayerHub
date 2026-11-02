@@ -21,6 +21,10 @@ namespace HandPresentation
         constexpr float kBowShotSeconds = 0.5F;
         constexpr float kBowShotFallbackSeconds = 2.0F;
         constexpr float kCastStopFallbackSeconds = 1.0F;
+        // How long a source release waits for the receiver's own charge, which started
+        // later by the start's delay.
+        constexpr float kReleaseChargeWaitSeconds = 1.0F;
+        constexpr float kReleaseFinishFallbackSeconds = 3.0F;
         // iState read 10 while a cast played and still about 0.2 s after both casters
         // were idle with IsCasting* cleared; spell-ready locomotion reads 9 (observed
         // in game). A moveStart in that window was accepted by the exiting cast lower
@@ -182,7 +186,7 @@ namespace HandPresentation
         logs::debug("Animation sync started bow draw: actor={:08X}", a_remote.handle.native_handle());
     }
 
-    void ApplySpellCast(RemoteActor& a_remote, bool a_leftHand, bool a_casting, bool a_mayStart, float a_deltaTime)
+    void ApplySpellCast(RemoteActor& a_remote, const CastRequest& a_request, bool a_mayStart, float a_deltaTime)
     {
         if (!GameThread::Require("ApplySpellCast"))
         {
@@ -197,14 +201,16 @@ namespace HandPresentation
         auto& actor = *actorPtr;
         auto& state = a_remote.animation;
         auto& cast = state.hands.cast;
-        const std::size_t hand = a_leftHand ? 1 : 0;
+        const bool leftHand = a_request.leftHand;
+        const std::size_t hand = leftHand ? 1 : 0;
+        const char* handName = leftHand ? "left" : "right";
         const float deltaTime = FrameTime::Clamp(a_deltaTime);
         static const RE::BSFixedString wantCastLeftVariable{ "bWantCastLeft" };
         static const RE::BSFixedString wantCastRightVariable{ "bWantCastRight" };
-        const auto& wantCastVariable = a_leftHand ? wantCastLeftVariable : wantCastRightVariable;
+        const auto& wantCastVariable = leftHand ? wantCastLeftVariable : wantCastRightVariable;
         static const RE::BSFixedString castingLeftVariable{ "IsCastingLeft" };
         static const RE::BSFixedString castingRightVariable{ "IsCastingRight" };
-        const auto& castingVariable = a_leftHand ? castingLeftVariable : castingRightVariable;
+        const auto& castingVariable = leftHand ? castingLeftVariable : castingRightVariable;
         const auto setCastOwnership = [&a_remote, &state](bool a_owned) {
             if (state.castAnimationOwned != a_owned)
             {
@@ -215,12 +221,24 @@ namespace HandPresentation
         const auto releaseCastOwnership = [&cast, &setCastOwnership]() {
             setCastOwnership(cast.held[0] || cast.held[1] || cast.stopping[0] || cast.stopping[1]);
         };
+        const auto beginStop = [&cast, hand]() {
+            cast.held[hand] = false;
+            cast.stopping[hand] = true;
+            cast.stopRequestElapsed[hand] = 0.0F;
+            cast.releaseRequested[hand] = false;
+            cast.released[hand] = false;
+            cast.releaseElapsed[hand] = 0.0F;
+        };
         CoolDown(cast.eventCooldown[hand], deltaTime);
+        if (!a_request.casting || !a_request.released)
+        {
+            cast.awaitingNewCast[hand] = false;
+        }
 
         // The caster, not raw graph events, drives the cast: the magic graph
         // interrupts a cast its caster did not request.
         auto* caster = actor.GetMagicCaster(
-            a_leftHand ? RE::MagicSystem::CastingSource::kLeftHand : RE::MagicSystem::CastingSource::kRightHand);
+            leftHand ? RE::MagicSystem::CastingSource::kLeftHand : RE::MagicSystem::CastingSource::kRightHand);
         const auto casterState = caster ? caster->state.get() : RE::MagicCaster::State::kNone;
 
         if (cast.stopping[hand])
@@ -260,24 +278,81 @@ namespace HandPresentation
             logs::debug(
                 "Animation sync stopped spell cast: actor={:08X} hand={} idle={} stopSeconds={:.3f} "
                 "reassertedLocomotion={} iState={}",
-                a_remote.handle.native_handle(), a_leftHand ? "left" : "right", idle, stopSeconds, presentationEnded,
-                graphStateTag);
+                a_remote.handle.native_handle(), handName, idle, stopSeconds, presentationEnded, graphStateTag);
             return;
         }
 
         if (cast.held[hand])
         {
-            if (a_casting && IsHoldingSpell(actor, a_leftHand))
+            const bool holdingSpell = IsHoldingSpell(actor, leftHand);
+            const auto* spell = caster ? caster->currentSpell : nullptr;
+            // A concentration caster releases itself once charged.
+            const bool releasable = spell && spell->GetCastingType() != RE::MagicSystem::CastingType::kConcentration;
+            if (a_request.released && releasable && !cast.releaseRequested[hand])
+            {
+                cast.releaseRequested[hand] = true;
+                cast.releaseElapsed[hand] = 0.0F;
+            }
+            // Spell fire finishes a released cast (CombatIsolation), which also clears
+            // the want-cast variable, so it is not set again. The engine releases by
+            // itself when the ready action is rejected.
+            if (releasable && casterState == RE::MagicCaster::State::kNone)
+            {
+                const bool releasedHere = cast.released[hand];
+                const float releaseSeconds = cast.releaseElapsed[hand];
+                beginStop();
+                cast.awaitingNewCast[hand] = a_request.casting;
+                logs::debug(
+                    "Animation sync finished released spell cast: actor={:08X} hand={} releasedHere={} "
+                    "releaseSeconds={:.3f}",
+                    a_remote.handle.native_handle(), handName, releasedHere, releaseSeconds);
+                return;
+            }
+            if (cast.released[hand])
+            {
+                cast.releaseElapsed[hand] += deltaTime;
+                if (holdingSpell && cast.releaseElapsed[hand] < kReleaseFinishFallbackSeconds)
+                {
+                    return;
+                }
+            }
+            else if (cast.releaseRequested[hand] && holdingSpell)
+            {
+                cast.releaseElapsed[hand] += deltaTime;
+                if (casterState == RE::MagicCaster::State::kReady)
+                {
+                    // MagicCaster::StartCast (ID 34445), which the player's release of a
+                    // charged hold and NPC combat call: enter kUnk04, then StartCastImpl
+                    // performs the hand's release action.
+                    caster->state = RE::MagicCaster::State::kUnk04;
+                    caster->StartCastImpl();
+                    logs::debug("Animation sync released spell cast: actor={:08X} hand={} waitSeconds={:.3f}",
+                        a_remote.handle.native_handle(), handName, cast.releaseElapsed[hand]);
+                    cast.released[hand] = true;
+                    cast.releaseElapsed[hand] = 0.0F;
+                    return;
+                }
+                if (cast.releaseElapsed[hand] < kReleaseChargeWaitSeconds)
+                {
+                    actor.SetGraphVariableBool(wantCastVariable, true);
+                    return;
+                }
+            }
+            else if (a_request.casting && holdingSpell)
             {
                 // The magic graph stays in its casting state only while this
-                // variable is set, and emits CastStop as soon as it clears. The
-                // caster's own release action selects the cast clip.
+                // variable is set, and emits CastStop as soon as it clears.
                 actor.SetGraphVariableBool(wantCastVariable, true);
                 return;
             }
-            cast.held[hand] = false;
-            cast.stopping[hand] = true;
-            cast.stopRequestElapsed[hand] = 0.0F;
+            logs::debug(
+                "Animation sync interrupting spell cast: actor={:08X} hand={} casterState={} releaseRequested={} "
+                "released={} holdingSpell={}",
+                a_remote.handle.native_handle(), handName, static_cast<std::uint32_t>(casterState),
+                cast.releaseRequested[hand], cast.released[hand], holdingSpell);
+            beginStop();
+            // A cast the source already released is not started again.
+            cast.awaitingNewCast[hand] = releasable && a_request.casting && a_request.released;
             actor.SetGraphVariableBool(wantCastVariable, false);
             // Only the interrupt performs the hand's interrupt action. FinishCast
             // returns the caster to idle but leaves a concentration clip looping
@@ -290,14 +365,15 @@ namespace HandPresentation
         }
 
         releaseCastOwnership();
-        if (!a_casting || !a_mayStart || !caster || cast.eventCooldown[hand] > 0.0F || state.hands.bow.drawHeld
-            || IsBlockPlaying(state.hands) || !IsHoldingSpell(actor, a_leftHand) || !CanStart(a_remote, actor))
+        if (!a_request.casting || !a_mayStart || !caster || cast.awaitingNewCast[hand]
+            || cast.eventCooldown[hand] > 0.0F || state.hands.bow.drawHeld || IsBlockPlaying(state.hands)
+            || !IsHoldingSpell(actor, leftHand) || !CanStart(a_remote, actor))
         {
             return;
         }
         cast.eventCooldown[hand] = kEventRetrySeconds;
 
-        auto* spell = actor.GetEquippedObject(a_leftHand)->As<RE::MagicItem>();
+        auto* spell = actor.GetEquippedObject(leftHand)->As<RE::MagicItem>();
         // The caster sends its graph events synchronously and on later updates, and
         // checks the casting-disabled flag, so both are opened before the request.
         setCastOwnership(true);
@@ -305,6 +381,19 @@ namespace HandPresentation
         if (caster->currentSpell != spell)
         {
             caster->SetCurrentSpell(spell);
+        }
+        // Actor::TryDualCast (ID 38762) sets the high process flag that the
+        // IsDualCasting idle condition reads, then RequestCast (ID 34401) copies it to
+        // the caster. FinishCastImpl clears both, but a graph reset drops a cast
+        // without finishing it, so a left cast always sets them.
+        const bool dual = leftHand && a_request.dual && actor.GetEquippedObject(false) == actor.GetEquippedObject(true);
+        if (leftHand)
+        {
+            if (auto* high = actor.GetHighProcess())
+            {
+                high->isDualCasting = dual;
+            }
+            caster->SetDualCasting(dual);
         }
         // RequestCastImpl only sends BeginCast. The caster ignores the graph's cast
         // annotations while idle, and the graph leaves its casting state again
@@ -318,9 +407,11 @@ namespace HandPresentation
         caster->RequestCastImpl();
 
         cast.held[hand] = true;
-        cast.stopRequestElapsed[hand] = 0.0F;
-        logs::debug("Animation sync started spell cast: actor={:08X} hand={} spell={:08X}",
-            a_remote.handle.native_handle(), a_leftHand ? "left" : "right", spell ? spell->GetFormID() : 0);
+        logs::debug(
+            "Animation sync started spell cast: actor={:08X} hand={} spell={:08X} castingType={} delivery={} dual={}",
+            a_remote.handle.native_handle(), handName, spell ? spell->GetFormID() : 0,
+            spell ? static_cast<std::uint32_t>(spell->GetCastingType()) : 0,
+            spell ? static_cast<std::uint32_t>(spell->GetDelivery()) : 0, dual);
     }
 
     void ApplyBlock(RemoteActor& a_remote, bool a_blocking, bool a_mayStart, float a_deltaTime)

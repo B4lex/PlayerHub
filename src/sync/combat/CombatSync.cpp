@@ -143,17 +143,45 @@ namespace CombatSync
             }
         }
 
-        bool IsCastingSpell(RE::PlayerCharacter& a_player, bool a_leftHand)
+        // MagicCaster::StartCast (ID 34445) enters kUnk04 when a charged hold is
+        // released; a concentration cast releases itself once ready. Spell fire then
+        // enters kCharging and FindTargets kCasting.
+        constexpr bool IsReleasedCastState(RE::MagicCaster::State a_state)
+        {
+            switch (a_state)
+            {
+                case RE::MagicCaster::State::kUnk04:
+                case RE::MagicCaster::State::kCharging:
+                case RE::MagicCaster::State::kCasting:
+                case RE::MagicCaster::State::kUnk07:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        struct HandCast
+        {
+            bool casting{ false };
+            bool released{ false };
+        };
+
+        HandCast GetHandCast(RE::PlayerCharacter& a_player, bool a_leftHand)
         {
             // A staff uses the same caster but stays a weapon.
             const auto* equipped = a_player.GetEquippedObject(a_leftHand);
             if (!equipped || !(equipped->Is(RE::FormType::Spell) || equipped->Is(RE::FormType::Scroll)))
             {
-                return false;
+                return {};
             }
             const auto* caster = a_player.GetMagicCaster(
                 a_leftHand ? RE::MagicSystem::CastingSource::kLeftHand : RE::MagicSystem::CastingSource::kRightHand);
-            return caster && IsCastingState(caster->state.get());
+            if (!caster)
+            {
+                return {};
+            }
+            const auto state = caster->state.get();
+            return { .casting = IsCastingState(state), .released = IsReleasedCastState(state) };
         }
 
         // Actor::IsBlocking is false while a bash plays, even when the bash returns
@@ -192,10 +220,16 @@ namespace CombatSync
             }
             const auto* rightHand = a_player.GetEquippedObject(false);
             const auto* weapon = rightHand ? rightHand->As<RE::TESObjectWEAP>() : nullptr;
+            const auto leftCast = GetHandCast(a_player, true);
+            const auto rightCast = GetHandCast(a_player, false);
             return Multiplayer::HandPresentation{ .bowDrawn
                 = weapon && weapon->IsBow() && IsBowDrawState(actorState->GetAttackState()),
-                .castingLeft = IsCastingSpell(a_player, true),
-                .castingRight = IsCastingSpell(a_player, false),
+                .castingLeft = leftCast.casting,
+                .castingRight = rightCast.casting,
+                .castReleasedLeft = leftCast.released,
+                .castReleasedRight = rightCast.released,
+                // A dual cast runs on the left caster (Actor::TryDualCast, ID 38762).
+                .dualCasting = leftCast.casting && a_player.IsDualCasting(),
                 // The block button zooms a bow (BowZoom sends blockStart) and bashes
                 // with a crossbow, so neither is presented as a block.
                 .blocking = IsBlocking(a_player, actorState->GetAttackState()) };
@@ -355,6 +389,9 @@ namespace CombatSync
         s_unpublishedHandPresentation.bowDrawn |= current.bowDrawn;
         s_unpublishedHandPresentation.castingLeft |= current.castingLeft;
         s_unpublishedHandPresentation.castingRight |= current.castingRight;
+        s_unpublishedHandPresentation.castReleasedLeft |= current.castReleasedLeft;
+        s_unpublishedHandPresentation.castReleasedRight |= current.castReleasedRight;
+        s_unpublishedHandPresentation.dualCasting |= current.dualCasting;
         s_unpublishedHandPresentation.blocking |= current.blocking;
         if (current == previous)
         {
@@ -362,9 +399,10 @@ namespace CombatSync
         }
 
         logs::debug(
-            "Animation sync observed local hand presentation: bowDrawn={} castingLeft={} castingRight={} blocking={} "
-            "attackState={}",
-            current.bowDrawn, current.castingLeft, current.castingRight, current.blocking,
+            "Animation sync observed local hand presentation: bowDrawn={} castingLeft={} castingRight={} "
+            "castReleasedLeft={} castReleasedRight={} dualCasting={} blocking={} attackState={}",
+            current.bowDrawn, current.castingLeft, current.castingRight, current.castReleasedLeft,
+            current.castReleasedRight, current.dualCasting, current.blocking,
             static_cast<std::underlying_type_t<RE::ATTACK_STATE_ENUM>>(a_local.player.AsActorState()
                     ? a_local.player.AsActorState()->GetAttackState()
                     : RE::ATTACK_STATE_ENUM::kNone));
@@ -595,8 +633,13 @@ namespace CombatSync
         HandPresentation::ApplyBowDraw(a_actor, stanceAllows && target.bowDrawn, mayStart, a_delta);
         for (const bool leftHand : { true, false })
         {
-            HandPresentation::ApplySpellCast(
-                a_actor, leftHand, stanceAllows && target.IsCasting(leftHand), mayStart, a_delta);
+            const bool casting = stanceAllows && target.IsCasting(leftHand);
+            HandPresentation::ApplySpellCast(a_actor,
+                HandPresentation::CastRequest{ .leftHand = leftHand,
+                    .casting = casting,
+                    .released = casting && target.IsCastReleased(leftHand),
+                    .dual = casting && leftHand && target.dualCasting },
+                mayStart, a_delta);
         }
     }
 }

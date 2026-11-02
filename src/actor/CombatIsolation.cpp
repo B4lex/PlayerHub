@@ -271,15 +271,27 @@ namespace CombatIsolation
         // applies the spell or launches its projectile, and enters the casting state.
         // Reached from the M?h_SpellFire_Event annotations and, while a concentration
         // cast is casting, from the caster update. The hand's release action
-        // (StartCastImpl) that selects the cast clip stays native. The annotation
-        // handlers are not hooked instead: a remote actor's cast reached this function
-        // without passing through their vtables (observed in game).
+        // (StartCastImpl) stays native. The annotation handlers are not hooked
+        // instead: a remote actor's cast reached this function without passing
+        // through their vtables (observed in game). Its FindTargets (ID 34410) ends
+        // with FinishCast for a cast that is not concentration, which the hook keeps
+        // for a cast the remote actor's caster runs, so a released fire-and-forget
+        // cast returns to idle as it would natively. A vampire lord's casts are
+        // relayed graph events instead.
         struct SpellFireHook
         {
             static bool Thunk(RE::MagicCaster* a_caster, RE::TESObjectREFR* a_target, bool a_flag)
             {
-                if (IsRemoteActorRelease(a_caster->GetCasterAsActor(), "SpellFire"))
+                auto* actor = a_caster->GetCasterAsActor();
+                if (IsRemoteActorRelease(actor, "SpellFire"))
                 {
+                    const auto* spell = a_caster->currentSpell;
+                    if (spell && spell->GetCastingType() != RE::MagicSystem::CastingType::kConcentration
+                        && a_caster->state.get() != RE::MagicCaster::State::kNone
+                        && ActorRegistry::IsCastAnimationOwned(actor))
+                    {
+                        a_caster->FinishCast();
+                    }
                     return true;
                 }
                 return _original(a_caster, a_target, a_flag);

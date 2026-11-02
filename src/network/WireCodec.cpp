@@ -43,6 +43,12 @@ namespace Network::Wire
             == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_MIST_FORM));
         static_assert(
             CheckpointFlags::kBats == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_BATS));
+        static_assert(CheckpointFlags::kCastReleasedLeft
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_LEFT));
+        static_assert(CheckpointFlags::kCastReleasedRight
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_RIGHT));
+        static_assert(CheckpointFlags::kDualCasting
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_DUAL_CASTING));
         static_assert(static_cast<int>(Multiplayer::ChatRejection::kUnknownRecipient)
             == playerhub_v1_ChatRejection_CHAT_REJECTION_UNKNOWN_RECIPIENT);
 

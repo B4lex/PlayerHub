@@ -21,7 +21,7 @@ const (
 	MaximumTime            = 16383
 	MaximumMovementState   = 6
 	movementStateMask      = 0x7
-	knownFlags             = 0xFFFF
+	knownFlags             = 0x7FFFF
 
 	SkeletonLayoutHuman      = 2
 	SkeletonBoneCount        = 63
@@ -126,10 +126,21 @@ func Checkpoint(c *pb.Checkpoint) error {
 	if c.GetHeading() > MaximumHeading || c.GetPitch() > MaximumPitch || c.GetPitch() < -MaximumPitch ||
 		c.GetSpeed() > MaximumSpeed || c.GetDirection() > MaximumDirection || c.GetTime() > MaximumTime ||
 		c.GetFlags()&^knownFlags != 0 || c.GetFlags()&movementStateMask > MaximumMovementState ||
-		!SkeletonPose(c.GetSkeleton()) {
+		!castFlags(c.GetFlags()) || !SkeletonPose(c.GetSkeleton()) {
 		return ErrCheckpoint
 	}
 	return nil
+}
+
+// castFlags reports whether each release flag comes with its hand's casting flag, and the dual
+// casting flag with the left hand's, which the dual cast runs on.
+func castFlags(flags uint32) bool {
+	requires := func(flag, casting pb.CheckpointFlag) bool {
+		return flags&uint32(flag) == 0 || flags&uint32(casting) != 0
+	}
+	return requires(pb.CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_LEFT, pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT) &&
+		requires(pb.CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_RIGHT, pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT) &&
+		requires(pb.CheckpointFlag_CHECKPOINT_FLAG_DUAL_CASTING, pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT)
 }
 
 // SkeletonPose reports whether b is empty or a layout byte, the shortest varint of a mask of

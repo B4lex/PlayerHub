@@ -31,7 +31,7 @@ namespace AnimationEvents
     // Graph event names are case-insensitive, and the left release idle sends MLH_SpellRelease_event.
     constexpr bool IsCastAnimationEvent(std::string_view a_eventName) noexcept
     {
-        for (const std::string_view prefix : { "MLh_", "MRh_", "DualMagic_" })
+        for (const std::string_view prefix : { "MLh_", "MRh_", "DualMagic_", "RitualSpell" })
         {
             if (AsciiCase::Equals(a_eventName.substr(0, prefix.size()), prefix))
             {
@@ -40,6 +40,12 @@ namespace AnimationEvents
         }
         return AsciiCase::Contains(a_eventName, "Cast");
     }
+
+    static_assert(IsCastAnimationEvent("MLH_SpellRelease_event"));
+    static_assert(IsCastAnimationEvent("DualMagic_SpellAimedStart"));
+    static_assert(IsCastAnimationEvent("RitualSpellAimConcentrationStart"));
+    static_assert(IsCastAnimationEvent("BeginCastLeft"));
+    static_assert(!IsCastAnimationEvent("attackStart"));
 
     enum class AttackEventHand
     {

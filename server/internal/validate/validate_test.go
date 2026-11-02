@@ -27,18 +27,34 @@ func TestCheckpoint(t *testing.T) {
 		"direction above 255": func(c *pb.Checkpoint) { c.Direction = 256 },
 		"time above 16383":    func(c *pb.Checkpoint) { c.Time = 16384 },
 		"unknown movement":    func(c *pb.Checkpoint) { c.Flags = 7 },
-		"unknown flag bit":    func(c *pb.Checkpoint) { c.Flags = 1 << 16 },
-		"skeleton layout":     func(c *pb.Checkpoint) { c.Skeleton[0] = 1 },
-		"skeleton bone 63":    func(c *pb.Checkpoint) { c.Skeleton = skeleton(1<<63|allSkeletonBones, 0) },
-		"skeleton long mask":  func(c *pb.Checkpoint) { c.Skeleton = append([]byte{SkeletonLayoutHuman, 0x80, 0}, c.Skeleton[2:]...) },
-		"skeleton too short":  func(c *pb.Checkpoint) { c.Skeleton = c.Skeleton[:len(c.Skeleton)-1] },
-		"skeleton too long":   func(c *pb.Checkpoint) { c.Skeleton = append(c.Skeleton, 0) },
-		"skeleton no header":  func(c *pb.Checkpoint) { c.Skeleton = []byte{SkeletonLayoutHuman} },
+		"unknown flag bit":    func(c *pb.Checkpoint) { c.Flags = 1 << 19 },
+		"left release without cast": func(c *pb.Checkpoint) {
+			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_LEFT | pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT)
+		},
+		"right release without cast": func(c *pb.Checkpoint) {
+			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_RIGHT | pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT)
+		},
+		"dual cast without left cast": func(c *pb.Checkpoint) {
+			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_DUAL_CASTING | pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT)
+		},
+		"skeleton layout":    func(c *pb.Checkpoint) { c.Skeleton[0] = 1 },
+		"skeleton bone 63":   func(c *pb.Checkpoint) { c.Skeleton = skeleton(1<<63|allSkeletonBones, 0) },
+		"skeleton long mask": func(c *pb.Checkpoint) { c.Skeleton = append([]byte{SkeletonLayoutHuman, 0x80, 0}, c.Skeleton[2:]...) },
+		"skeleton too short": func(c *pb.Checkpoint) { c.Skeleton = c.Skeleton[:len(c.Skeleton)-1] },
+		"skeleton too long":  func(c *pb.Checkpoint) { c.Skeleton = append(c.Skeleton, 0) },
+		"skeleton no header": func(c *pb.Checkpoint) { c.Skeleton = []byte{SkeletonLayoutHuman} },
 	}
 	// Bones 0 and 62 present: 29 and 26 bits of rotations.
 	valid.Skeleton = skeleton(allSkeletonBones&^(1|1<<62), 7)
 	if err := Checkpoint(valid); err != nil {
 		t.Fatalf("valid checkpoint rejected: %v", err)
+	}
+	casting := proto.Clone(valid).(*pb.Checkpoint)
+	casting.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT | pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT |
+		pb.CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_LEFT | pb.CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_RIGHT |
+		pb.CheckpointFlag_CHECKPOINT_FLAG_DUAL_CASTING)
+	if err := Checkpoint(casting); err != nil {
+		t.Fatalf("released dual cast rejected: %v", err)
 	}
 	full := proto.Clone(valid).(*pb.Checkpoint)
 	// 23 bones of 29 bits, 30 of 23, and 10 of 26.

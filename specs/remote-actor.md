@@ -157,7 +157,7 @@ is sent directly to the saved graph function, bypassing the hook.
 | --- | --- | --- |
 | `WeapEquip`, `WeapUnequip`, `Equip`, `Unequip` | Native draw and sheathe | [Combat presentation](combat-presentation.md#weapon-stance) |
 | `Magic_Equip`, `MagicForceEquip`, `MagicWeap_ForceEquip`, `MagicForceEquipRight`, `MagicForceEquipLeft`, `WeapSoloEquip`, `Magic_Solo_Equip` | Spell hand draw and single-hand swaps | [Combat presentation](combat-presentation.md#spells) |
-| `MLh_*`, `MRh_*`, `DualMagic_*`, names containing `Cast` (case-insensitive) | While a cast is owned | [Combat presentation](combat-presentation.md#spells) |
+| `MLh_*`, `MRh_*`, `DualMagic_*`, `RitualSpell*`, names containing `Cast` (case-insensitive) | While a cast is owned | [Combat presentation](combat-presentation.md#spells) |
 | `SwimStart`, `swimStop` | Skyrim manages swimming locally | [Locomotion](locomotion.md#swimming) |
 | `WeapOutRightReplaceForceEquip`, `WeapOutLeftReplaceForceEquip` | Equipping over a drawn weapon | [Combat presentation](combat-presentation.md#weapon-stance) |
 | `torchEquip`, `torchUnequip` | A carried torch's arm | [Appearance and equipment](appearance-and-equipment.md#equipment) |

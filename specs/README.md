@@ -44,7 +44,7 @@ criteria.
 | Swimming | [locomotion](locomotion.md#swimming), [remote-actor](remote-actor.md#swimming) |
 | Ground offset (different landscape mods) | [locomotion](locomotion.md#ground-offset), [network](network.md#checkpoint-and-context) |
 | Weapon stance and attacks | [combat-presentation](combat-presentation.md), [network](network.md#actions) |
-| Bow draws and spell casts | [combat-presentation](combat-presentation.md#hand-presentation), [appearance-and-equipment](appearance-and-equipment.md#equipment) |
+| Bow draws and spell casts (native cast clips per spell, releases, dual and ritual casts) | [combat-presentation](combat-presentation.md#hand-presentation), [appearance-and-equipment](appearance-and-equipment.md#equipment), [network](network.md#checkpoint-and-context), [remote-actor](remote-actor.md#animation-firewall) |
 | Spell look in hand | [combat-presentation](combat-presentation.md#spell-look), [appearance-and-equipment](appearance-and-equipment.md#equipment), [network](network.md#equipment) |
 | Blocking, bashes, power attacks | [combat-presentation](combat-presentation.md) |
 | Appearance and player labels | [appearance-and-equipment](appearance-and-equipment.md#appearance), [network](network.md#appearance-and-equipment) |
