@@ -16,6 +16,7 @@
 #include "sync/chat/PlayerActivation.h"
 #include "sync/chat/PlayerDetails.h"
 #include "sync/combat/CombatSync.h"
+#include "sync/combat/SpellEffectSync.h"
 #include "sync/customanimation/GraphEventSurvey.h"
 #include "sync/customanimation/GraphTrace.h"
 #include "sync/death/DeathSync.h"
@@ -333,7 +334,8 @@ namespace SyncCoordinator
 #endif
             // Flush equipment before a captured attack or hand presentation is published, so
             // peers receive a weapon swap ahead of its use.
-            EquipmentSync::SyncEquipment(local, a_delta, capturedAttack.has_value() || handPresentationStarted);
+            EquipmentSync::SyncEquipment(local, a_delta, capturedAttack.has_value() || handPresentationStarted,
+                SpellEffectSync::SampleLocalSpellEffects(local, a_delta));
             CombatSync::QueueLocalAttacks(capturedAttack, graphEpoch.changed);
             ShapeshiftSync::QueueLocalActions(graphEpoch.changed);
             // Before idles, which end the held idle when a window opens, and before the
@@ -399,6 +401,12 @@ namespace SyncCoordinator
                 ShapeshiftSync::ClearRemoteActions(a_peer.shapeshift);
                 IdleSync::ClearRemoteActions(a_peer.idle);
                 return;
+            }
+            if (lifecycle.actor)
+            {
+                // Mounted, dead, and on foot alike.
+                SpellEffectSync::SyncSpellEffects(a_peer.spellEffects,
+                    EquipmentSync::GetLatestEquipment(a_peer.equipment), a_playerID, *lifecycle.actor);
             }
             if (lifecycle.actor && DeathSync::SyncDeath(remote, a_peer))
             {

@@ -63,6 +63,9 @@ const (
 	MaximumChatTextRune = 512
 	MaximumChatTextByte = 4 * MaximumChatTextRune
 
+	MaximumSpellEffectShaders = 8
+	MaximumSpellEffectArt     = 8
+
 	MaximumVanished = 1024
 
 	MaximumIdleEventBytes = 64
@@ -379,7 +382,33 @@ func Equipment(e *pb.Equipment) error {
 	if outfit := e.DefaultOutfit; outfit != nil && !defaultOutfit(outfit) {
 		return ErrEquipment
 	}
+	if effects := e.SpellEffects; effects != nil && (!spellEffectForms(effects.GetShaders(), MaximumSpellEffectShaders) ||
+		!spellEffectForms(effects.GetArt(), MaximumSpellEffectArt)) {
+		return ErrEquipment
+	}
 	return nil
+}
+
+func spellEffectForms(forms []*pb.FormRef, maximum int) bool {
+	if len(forms) > maximum {
+		return false
+	}
+	type key struct {
+		plugin string
+		formID uint32
+	}
+	seen := make(map[key]struct{}, len(forms))
+	for _, form := range forms {
+		if !formRef(form) {
+			return false
+		}
+		k := key{form.GetPlugin(), form.GetFormId()}
+		if _, duplicate := seen[k]; duplicate {
+			return false
+		}
+		seen[k] = struct{}{}
+	}
+	return true
 }
 
 func Hello(h *pb.Hello) error {

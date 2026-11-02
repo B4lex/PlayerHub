@@ -83,6 +83,9 @@ target("PlayerHub")
     -- the generator version in proto/generate.sh, which produces the code in
     -- src/network/proto.
     add_files("lib/nanopb/*.c")
+    -- PeerEnter and ServerMessage exceed 64 kB at their static sizes, which the
+    -- generated code refuses to compile without 32-bit field descriptors.
+    add_defines("PB_FIELD_32BIT")
     add_headerfiles("src/**.h")
     add_includedirs("src", "src/network/proto", "lib/nanopb")
     add_packages("ixwebsocket-patched", "imgui", "simpleini")

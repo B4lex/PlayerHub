@@ -728,7 +728,8 @@ namespace EquipmentSync
         logs::debug("Registered local equipment event sink");
     }
 
-    void SyncEquipment(const LocalFrame& a_local, float a_delta, bool a_flush)
+    void SyncEquipment(
+        const LocalFrame& a_local, float a_delta, bool a_flush, const Multiplayer::SpellEffects& a_spellEffects)
     {
         PROFILE_FUNCTION();
         static float quietElapsed = 0.0F;
@@ -772,6 +773,16 @@ namespace EquipmentSync
 
         const bool captureDue = a_flush || (dirty && quietElapsed >= kCaptureQuietIntervalSeconds)
             || pollElapsed >= kCapturePollIntervalSeconds;
+        const auto setPending = [&](EquipmentData&& a_captured) {
+            if (published && published->HasSameItems(a_captured) && published->spellEffects == a_captured.spellEffects)
+            {
+                pending.reset();
+            }
+            else
+            {
+                pending = std::move(a_captured);
+            }
+        };
         std::uint32_t skipped = 0;
         if (captureDue)
         {
@@ -779,15 +790,17 @@ namespace EquipmentSync
             if (auto captured = CaptureLocalEquipment(a_local.player, published, skipped))
             {
                 dirty = false;
-                if (published && published->HasSameItems(*captured))
-                {
-                    pending.reset();
-                }
-                else
-                {
-                    pending = std::move(captured);
-                }
+                captured->spellEffects = a_spellEffects;
+                setPending(std::move(*captured));
             }
+        }
+        // Spell effects change without an equip event, and in beast forms that capture
+        // no items, so they go out on top of the latest items.
+        if (const auto& latest = pending ? pending : published; latest && latest->spellEffects != a_spellEffects)
+        {
+            auto updated = *latest;
+            updated.spellEffects = a_spellEffects;
+            setPending(std::move(updated));
         }
 
         if (!pending || (!a_flush && publishElapsed < kMinimumPublishIntervalSeconds))
@@ -810,8 +823,8 @@ namespace EquipmentSync
 
         logs::debug(
             "Equipment sync publishing local equipment: revision={} armor={} rightHand={}:{}|{:06X} "
-            "leftHand={}:{}|{:06X} ammo={}|{:06X} outfit={}/{}/{} beastHands={}/{} beastArmor={} skipped={} "
-            "flush={}",
+            "leftHand={}:{}|{:06X} ammo={}|{:06X} outfit={}/{}/{} beastHands={}/{} beastArmor={} "
+            "spellEffects={}/{} skipped={} flush={}",
             static_cast<unsigned long long>(pending->revision), pending->armor.size(),
             pending->rightHand ? Multiplayer::GetEquipmentHandKindName(pending->rightHand->kind) : "none",
             pending->rightHand ? pending->rightHand->form.plugin : "",
@@ -822,7 +835,8 @@ namespace EquipmentSync
             pending->ammo.IsEmpty() ? "<none>" : pending->ammo.plugin, pending->ammo.localFormID,
             pending->defaultOutfit.armor.size(), pending->defaultOutfit.hands.size(),
             !pending->defaultOutfit.ammo.IsEmpty(), pending->beastRightHand.has_value(),
-            pending->beastLeftHand.has_value(), pending->beastArmor.size(), skipped, a_flush);
+            pending->beastLeftHand.has_value(), pending->beastArmor.size(), pending->spellEffects.shaders.size(),
+            pending->spellEffects.art.size(), skipped, a_flush);
         Network::PublishLocalEquipment(*pending);
         published = std::move(pending);
         pending.reset();
@@ -837,10 +851,20 @@ namespace EquipmentSync
             return;
         }
 
-        logs::debug("Equipment sync accepted remote equipment: player={} revision={} armor={} rightHand={} leftHand={}",
+        // A revision that only changes spell effects keeps the resolved items, so it does
+        // not unsettle the hands that gate attacks and casts.
+        const bool sameItems = a_remote.latest && a_remote.resolved
+            && a_remote.resolvedRevision == a_remote.latest->revision && a_remote.latest->HasSameItems(a_equipment);
+        logs::debug("Equipment sync accepted remote equipment: player={} revision={} armor={} rightHand={} leftHand={} "
+                    "spellEffects={}/{} sameItems={}",
             a_playerID, static_cast<unsigned long long>(a_equipment.revision), a_equipment.armor.size(),
-            a_equipment.rightHand.has_value(), a_equipment.leftHand.has_value());
+            a_equipment.rightHand.has_value(), a_equipment.leftHand.has_value(), a_equipment.spellEffects.shaders.size(),
+            a_equipment.spellEffects.art.size(), sameItems);
         a_remote.latest = std::move(a_equipment);
+        if (sameItems)
+        {
+            a_remote.resolvedRevision = a_remote.latest->revision;
+        }
     }
 
     void OnActorSpawned(RemoteState& a_remote)
@@ -1236,6 +1260,11 @@ namespace EquipmentSync
             static_cast<unsigned long long>(a_remote.resolvedRevision), a_remote.attempts, removed, added,
             equippedArmor, a_remote.handsDeferred, targetRight ? targetRight->GetFormID() : 0,
             targetLeft ? targetLeft->GetFormID() : 0);
+    }
+
+    const Multiplayer::PlayerEquipment* GetLatestEquipment(const RemoteState& a_remote)
+    {
+        return a_remote.latest ? std::addressof(*a_remote.latest) : nullptr;
     }
 
     bool AreHandsSettled(const RemoteState& a_remote)

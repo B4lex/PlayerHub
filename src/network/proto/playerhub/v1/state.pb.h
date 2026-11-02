@@ -285,6 +285,15 @@ typedef struct _playerhub_v1_DefaultOutfit {
     playerhub_v1_FormRef ammo;
 } playerhub_v1_DefaultOutfit;
 
+/* The hit shaders and hit art that the player's own self-delivered spells show
+ on the player, each listed once. */
+typedef struct _playerhub_v1_SpellEffects {
+    pb_size_t shaders_count;
+    playerhub_v1_FormRef shaders[8];
+    pb_size_t art_count;
+    playerhub_v1_FormRef art[8];
+} playerhub_v1_SpellEffects;
+
 typedef struct _playerhub_v1_Equipment {
     uint64_t revision;
     pb_size_t armor_count;
@@ -305,6 +314,8 @@ typedef struct _playerhub_v1_Equipment {
     playerhub_v1_Hand beast_left_hand;
     pb_size_t beast_armor_count;
     playerhub_v1_Armor beast_armor[8];
+    bool has_spell_effects;
+    playerhub_v1_SpellEffects spell_effects;
 } playerhub_v1_Equipment;
 
 
@@ -367,6 +378,7 @@ extern "C" {
 
 
 
+
 /* Initializer values for message structs */
 #define playerhub_v1_FormRef_init_default        {"", 0}
 #define playerhub_v1_Checkpoint_init_default     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, {0}}}
@@ -382,7 +394,8 @@ extern "C" {
 #define playerhub_v1_Armor_init_default          {false, playerhub_v1_FormRef_init_default, 0}
 #define playerhub_v1_Hand_init_default           {_playerhub_v1_HandKind_MIN, false, playerhub_v1_FormRef_init_default, 0, false, playerhub_v1_FormRef_init_default, false, playerhub_v1_FormRef_init_default}
 #define playerhub_v1_DefaultOutfit_init_default  {0, {playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default}, 0, {playerhub_v1_Hand_init_default, playerhub_v1_Hand_init_default}, false, playerhub_v1_FormRef_init_default}
-#define playerhub_v1_Equipment_init_default      {0, 0, {playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default}, false, playerhub_v1_Hand_init_default, false, playerhub_v1_Hand_init_default, false, playerhub_v1_FormRef_init_default, false, playerhub_v1_DefaultOutfit_init_default, false, playerhub_v1_Hand_init_default, false, playerhub_v1_Hand_init_default, 0, {playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default}}
+#define playerhub_v1_SpellEffects_init_default   {0, {playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default}, 0, {playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default, playerhub_v1_FormRef_init_default}}
+#define playerhub_v1_Equipment_init_default      {0, 0, {playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default}, false, playerhub_v1_Hand_init_default, false, playerhub_v1_Hand_init_default, false, playerhub_v1_FormRef_init_default, false, playerhub_v1_DefaultOutfit_init_default, false, playerhub_v1_Hand_init_default, false, playerhub_v1_Hand_init_default, 0, {playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default, playerhub_v1_Armor_init_default}, false, playerhub_v1_SpellEffects_init_default}
 #define playerhub_v1_FormRef_init_zero           {"", 0}
 #define playerhub_v1_Checkpoint_init_zero        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, {0}}}
 #define playerhub_v1_Context_init_zero           {false, playerhub_v1_FormRef_init_zero, false, playerhub_v1_FormRef_init_zero, 0, false, playerhub_v1_FormRef_init_zero, _playerhub_v1_Shapeshift_MIN, ""}
@@ -397,7 +410,8 @@ extern "C" {
 #define playerhub_v1_Armor_init_zero             {false, playerhub_v1_FormRef_init_zero, 0}
 #define playerhub_v1_Hand_init_zero              {_playerhub_v1_HandKind_MIN, false, playerhub_v1_FormRef_init_zero, 0, false, playerhub_v1_FormRef_init_zero, false, playerhub_v1_FormRef_init_zero}
 #define playerhub_v1_DefaultOutfit_init_zero     {0, {playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero}, 0, {playerhub_v1_Hand_init_zero, playerhub_v1_Hand_init_zero}, false, playerhub_v1_FormRef_init_zero}
-#define playerhub_v1_Equipment_init_zero         {0, 0, {playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero}, false, playerhub_v1_Hand_init_zero, false, playerhub_v1_Hand_init_zero, false, playerhub_v1_FormRef_init_zero, false, playerhub_v1_DefaultOutfit_init_zero, false, playerhub_v1_Hand_init_zero, false, playerhub_v1_Hand_init_zero, 0, {playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero}}
+#define playerhub_v1_SpellEffects_init_zero      {0, {playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero}, 0, {playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero, playerhub_v1_FormRef_init_zero}}
+#define playerhub_v1_Equipment_init_zero         {0, 0, {playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero}, false, playerhub_v1_Hand_init_zero, false, playerhub_v1_Hand_init_zero, false, playerhub_v1_FormRef_init_zero, false, playerhub_v1_DefaultOutfit_init_zero, false, playerhub_v1_Hand_init_zero, false, playerhub_v1_Hand_init_zero, 0, {playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero, playerhub_v1_Armor_init_zero}, false, playerhub_v1_SpellEffects_init_zero}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define playerhub_v1_FormRef_plugin_tag          1
@@ -473,6 +487,8 @@ extern "C" {
 #define playerhub_v1_DefaultOutfit_armor_tag     1
 #define playerhub_v1_DefaultOutfit_hands_tag     2
 #define playerhub_v1_DefaultOutfit_ammo_tag      3
+#define playerhub_v1_SpellEffects_shaders_tag    1
+#define playerhub_v1_SpellEffects_art_tag        2
 #define playerhub_v1_Equipment_revision_tag      1
 #define playerhub_v1_Equipment_armor_tag         2
 #define playerhub_v1_Equipment_right_hand_tag    3
@@ -482,6 +498,7 @@ extern "C" {
 #define playerhub_v1_Equipment_beast_right_hand_tag 7
 #define playerhub_v1_Equipment_beast_left_hand_tag 8
 #define playerhub_v1_Equipment_beast_armor_tag   9
+#define playerhub_v1_Equipment_spell_effects_tag 10
 
 /* Struct field encoding specification for nanopb */
 #define playerhub_v1_FormRef_FIELDLIST(X, a) \
@@ -638,6 +655,14 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  ammo,              3)
 #define playerhub_v1_DefaultOutfit_hands_MSGTYPE playerhub_v1_Hand
 #define playerhub_v1_DefaultOutfit_ammo_MSGTYPE playerhub_v1_FormRef
 
+#define playerhub_v1_SpellEffects_FIELDLIST(X, a) \
+X(a, STATIC,   REPEATED, MESSAGE,  shaders,           1) \
+X(a, STATIC,   REPEATED, MESSAGE,  art,               2)
+#define playerhub_v1_SpellEffects_CALLBACK NULL
+#define playerhub_v1_SpellEffects_DEFAULT NULL
+#define playerhub_v1_SpellEffects_shaders_MSGTYPE playerhub_v1_FormRef
+#define playerhub_v1_SpellEffects_art_MSGTYPE playerhub_v1_FormRef
+
 #define playerhub_v1_Equipment_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT64,   revision,          1) \
 X(a, STATIC,   REPEATED, MESSAGE,  armor,             2) \
@@ -647,7 +672,8 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  ammo,              5) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  default_outfit,    6) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  beast_right_hand,   7) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  beast_left_hand,   8) \
-X(a, STATIC,   REPEATED, MESSAGE,  beast_armor,       9)
+X(a, STATIC,   REPEATED, MESSAGE,  beast_armor,       9) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  spell_effects,    10)
 #define playerhub_v1_Equipment_CALLBACK NULL
 #define playerhub_v1_Equipment_DEFAULT NULL
 #define playerhub_v1_Equipment_armor_MSGTYPE playerhub_v1_Armor
@@ -658,6 +684,7 @@ X(a, STATIC,   REPEATED, MESSAGE,  beast_armor,       9)
 #define playerhub_v1_Equipment_beast_right_hand_MSGTYPE playerhub_v1_Hand
 #define playerhub_v1_Equipment_beast_left_hand_MSGTYPE playerhub_v1_Hand
 #define playerhub_v1_Equipment_beast_armor_MSGTYPE playerhub_v1_Armor
+#define playerhub_v1_Equipment_spell_effects_MSGTYPE playerhub_v1_SpellEffects
 
 extern const pb_msgdesc_t playerhub_v1_FormRef_msg;
 extern const pb_msgdesc_t playerhub_v1_Checkpoint_msg;
@@ -673,6 +700,7 @@ extern const pb_msgdesc_t playerhub_v1_Appearance_msg;
 extern const pb_msgdesc_t playerhub_v1_Armor_msg;
 extern const pb_msgdesc_t playerhub_v1_Hand_msg;
 extern const pb_msgdesc_t playerhub_v1_DefaultOutfit_msg;
+extern const pb_msgdesc_t playerhub_v1_SpellEffects_msg;
 extern const pb_msgdesc_t playerhub_v1_Equipment_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
@@ -690,6 +718,7 @@ extern const pb_msgdesc_t playerhub_v1_Equipment_msg;
 #define playerhub_v1_Armor_fields &playerhub_v1_Armor_msg
 #define playerhub_v1_Hand_fields &playerhub_v1_Hand_msg
 #define playerhub_v1_DefaultOutfit_fields &playerhub_v1_DefaultOutfit_msg
+#define playerhub_v1_SpellEffects_fields &playerhub_v1_SpellEffects_msg
 #define playerhub_v1_Equipment_fields &playerhub_v1_Equipment_msg
 
 /* Maximum encoded size of messages (where known) */
@@ -703,11 +732,12 @@ extern const pb_msgdesc_t playerhub_v1_Equipment_msg;
 #define playerhub_v1_Context_size                895
 #define playerhub_v1_DefaultOutfit_size          4174
 #define playerhub_v1_DefaultRace_size            274
-#define playerhub_v1_Equipment_size              19008
+#define playerhub_v1_Equipment_size              23363
 #define playerhub_v1_FormRef_size                269
 #define playerhub_v1_Hand_size                   824
 #define playerhub_v1_HeadPart_size               278
 #define playerhub_v1_Overlay_size                315
+#define playerhub_v1_SpellEffects_size           4352
 #define playerhub_v1_Tint_size                   300
 
 #ifdef __cplusplus

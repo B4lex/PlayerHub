@@ -462,6 +462,25 @@ namespace Network::Wire
                     return "beastArmor";
                 }
             }
+            a_result.spellEffects = {};
+            if (a_equipment.has_spell_effects)
+            {
+                const auto& effects = a_equipment.spell_effects;
+                for (pb_size_t i = 0; i < effects.shaders_count; ++i)
+                {
+                    if (!ReadFormReference(effects.shaders[i], a_result.spellEffects.shaders.emplace_back()))
+                    {
+                        return "spellEffects.shaders";
+                    }
+                }
+                for (pb_size_t i = 0; i < effects.art_count; ++i)
+                {
+                    if (!ReadFormReference(effects.art[i], a_result.spellEffects.art.emplace_back()))
+                    {
+                        return "spellEffects.art";
+                    }
+                }
+            }
             a_result.defaultOutfit = {};
             if (a_equipment.has_default_outfit)
             {
@@ -1132,13 +1151,16 @@ namespace Network::Wire
         using Multiplayer::DefaultOutfit;
         using Multiplayer::PlayerEquipment;
         const auto& outfit = a_equipment.defaultOutfit;
+        const auto& effects = a_equipment.spellEffects;
         if (a_equipment.armor.size() > PlayerEquipment::kMaximumArmor
             || a_equipment.beastArmor.size() > PlayerEquipment::kMaximumBeastArmor
-            || outfit.armor.size() > DefaultOutfit::kMaximumArmor || outfit.hands.size() > DefaultOutfit::kMaximumHands)
+            || outfit.armor.size() > DefaultOutfit::kMaximumArmor || outfit.hands.size() > DefaultOutfit::kMaximumHands
+            || effects.shaders.size() > Multiplayer::SpellEffects::kMaximumShaders
+            || effects.art.size() > Multiplayer::SpellEffects::kMaximumArt)
         {
             return {};
         }
-        // About 13 KB; kept off the stack.
+        // About 17 KB; kept off the stack.
         auto equipment = std::make_unique<playerhub_v1_Equipment>();
         *equipment = playerhub_v1_Equipment_init_zero;
         equipment->revision = a_equipment.revision;
@@ -1189,6 +1211,21 @@ namespace Network::Wire
                 written = written && WriteHand(outfit.hands[i], result.hands[i]);
             }
             written = written && WriteOptionalFormReference(outfit.ammo, result.has_ammo, result.ammo);
+        }
+        if (!effects.IsEmpty())
+        {
+            auto& result = equipment->spell_effects;
+            equipment->has_spell_effects = true;
+            result.shaders_count = static_cast<pb_size_t>(effects.shaders.size());
+            for (std::size_t i = 0; i < effects.shaders.size(); ++i)
+            {
+                written = written && WriteFormReference(effects.shaders[i], result.shaders[i]);
+            }
+            result.art_count = static_cast<pb_size_t>(effects.art.size());
+            for (std::size_t i = 0; i < effects.art.size(); ++i)
+            {
+                written = written && WriteFormReference(effects.art[i], result.art[i]);
+            }
         }
         if (!written)
         {

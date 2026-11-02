@@ -16,7 +16,8 @@ namespace EquipmentSync
 {
     void RegisterEventSinks();
 
-    void SyncEquipment(const LocalFrame& a_local, float a_delta, bool a_flush);
+    void SyncEquipment(
+        const LocalFrame& a_local, float a_delta, bool a_flush, const Multiplayer::SpellEffects& a_spellEffects);
 
     struct ResolvedHand
     {
@@ -58,6 +59,8 @@ namespace EquipmentSync
     // A beast actor only.
     void SyncBeastEquipment(
         RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RemoteActor& a_remoteActor, float a_delta);
+
+    [[nodiscard]] const Multiplayer::PlayerEquipment* GetLatestEquipment(const RemoteState& a_remote);
 
     [[nodiscard]] bool AreHandsSettled(const RemoteState& a_remote);
 

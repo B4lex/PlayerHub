@@ -2,14 +2,16 @@
 
 ## Status
 
-Dual casts ([Spells](#spells)) have not been confirmed in game.
+Dual casts ([Spells](#spells)) and [spell effects](#spell-effects) have not
+been confirmed in game.
 
 ## Scope
 
 A remote actor shows its source's weapon stance, melee and bow attacks,
 bashes, power attacks, blocking, bow draws, and spell casts, standing or
-moving. Only animations and hand effects play. Nothing is hit, staggered,
-damaged, spent, or targeted, and no arrow, projectile, or spell effect is
+moving. Only animations, hand effects, and the look of the source's
+self-delivered spells on the source play. Nothing is hit, staggered, damaged,
+spent, or targeted, and no arrow, projectile, beam, or active magic effect is
 created.
 
 The wire fields are in [Network](network.md#checkpoint-and-context) and
@@ -34,6 +36,8 @@ attack data records.
 | `actor/WeaponTransition` | The native draw and sheathe request and its completion ([Locomotion](locomotion.md#components)) |
 | `actor/ActorAnimation` | `GetCombatReadyState`, the graph and stance test every attack and hand presentation start shares |
 | `sync/equipment/SpellStandIn` | Spell hand look capture, resolution, and the stand-in spells |
+| `sync/combat/SpellEffectSync` | Spell effect sampling on the source; resolution of a peer's spell effects |
+| `actor/ActorSpellEffects` | Starting and ending spell effect shaders and art on a remote actor |
 | `actor/AnimationEvents.h` | Event names and `GetPowerAttackEventDirection` |
 | `actor/BeastActions` | The beast action vocabulary and its graph events |
 | `actor/ActorShapeshift` | Beast action dispatch, vampire lord levitation and cast requests |
@@ -386,7 +390,8 @@ Crossbows (`crossbowAttackStart`) are not replicated.
 Goal: a peer sees the native cast of the source's spell: its charge, held
 ready, release, or concentration loop for its casting type and delivery, a
 ward, telekinesis, or ritual clip, and a dual cast. Non-goal: anything the
-spell does when it fires ([Isolation](#isolation)).
+spell does when it fires ([Isolation](#isolation)), apart from the look on the
+caster that [Spell effects](#spell-effects) shows.
 
 A hand holding any spell or scroll holds a stand-in, a runtime copy of
 Healing Hands (`Skyrim.esm` `0x04D3F2`) carrying the source spell's look
@@ -472,8 +477,8 @@ stand-in satisfies, so the left cast plays `RitualSpellStart` or
 ### Spell look
 
 Goal: a peer recognizes the source's spell in hand by its hand art, hand light,
-and hand sounds. Non-goals: the projectile, beam, hit effects, and release and
-hit sounds.
+and hand sounds. Non-goals: the projectile, beam, and release and hit sounds.
+Hit effects show only on the caster ([Spell effects](#spell-effects)).
 
 The magic caster takes a hand's art (`castingArt`), light (`light`), and sounds
 from the costliest effect of the hand's spell (`MagicItem::GetAVEffect`). A
@@ -513,6 +518,56 @@ fire applies.
   [fake light](appearance-and-equipment.md#fake-lights) version.
 - A spell change swaps the stand-in through `EquipSpell`, like any hand swap
   ([Appearance and equipment](appearance-and-equipment.md#reconciliation)).
+
+### Spell effects
+
+Goal: a peer sees the look the source's own spells give the source, such as a
+flesh spell's skin, a cloak's flames, a ward, or a healing glow, as the hit
+shaders and hit art on the remote actor, for as long as the source shows them.
+Non-goals: projectiles, beams, and a spell's look on anything but its caster,
+which would carry the source's combat into the peer's world and clutter it;
+anything an effect does besides its look ([Isolation](#isolation)).
+
+- **Capture.** `SpellEffectSync::SampleLocalSpellEffects` runs every pass and
+  samples every 0.1 s (`kSampleSeconds`). It keeps the player's active effects
+  that are neither inactive nor dispelled, whose caster is the player, and
+  whose spell is a spell, power, lesser power, or scroll with self delivery,
+  except the vampire lord's Mist Form and bats, which travel as checkpoint
+  flags ([Mist Form and bats](#mist-form-and-bats)). Self delivery has no
+  projectile or beam, so aimed, touch, and target-location spells, and a
+  cloak's hits on others, are left out by the delivery alone.
+- Only while such an effect exists, it scans the `ProcessLists` magic temp
+  effects for unfinished reference effects that target the player and whose
+  controller is an `ActiveEffectReferenceEffectController` (matched by vtable)
+  naming one of those effects: a `ShaderReferenceEffect`'s `effectData`, unless
+  it is an interface effect, and a `ModelReferenceEffect`'s `artObject`. Each
+  list is deduplicated, referenced ([Network](network.md#form-references),
+  dynamic forms left out), sorted, and cut to 8. Reading the reference effects
+  rather than the effect's `effectShader` and `hitEffectArt` keeps the engine's
+  own lifetime: an `FX Persist` effect shows its look for its whole duration,
+  another only while its shader or art plays, and a dispel or expiry ends it.
+- **Publish.** The sample travels in `Equipment.spell_effects`
+  ([Appearance and equipment](appearance-and-equipment.md#capture)), so a
+  change reaches peers within the 250 ms publish interval and a late joiner
+  receives the current look.
+- **Resolution.** When a new equipment revision changes the lists,
+  `SpellEffectSync::SyncSpellEffects` resolves each reference to a
+  `TESEffectShader` or `BGSArtObject`, the receiver's version, so its visual
+  mods apply. One that does not resolve is left out and logged.
+- **Show.** `ActorSpellEffects::Show` runs every pass for a ready, 3D-loaded
+  actor, on foot, mounted, or dead, and returns at once while neither the list
+  nor the shown set has entries. A new form starts with `ApplyEffectShader` or
+  `ApplyArtObject` without a duration, as the
+  [vampire lord powers](#mist-form-and-bats) do; a form that left the list
+  ends by marking the actor's reference effects of that form finished, found
+  through `ProcessLists` by target handle and form. No `ActiveEffect`,
+  archetype, script, or sound runs on the receiver. A start that fails is not
+  retried until the list or the 3D changes. When the actor's 3D root changes,
+  every shown form is ended and started again, since whether reference effects
+  follow a new 3D is not known; a respawned actor starts with none.
+- Logs: `Spell effect sync sampled local spell effects`,
+  `Spell effect sync resolved remote spell effects`, and
+  `Spell effect sync updated actor spell effects`.
 
 ### Moving lower body
 
@@ -735,6 +790,18 @@ Not confirmed in game for [beast actions](#beast-actions):
     actor; neither passes the remote actor's magic firewall, which only
     stops active effects.
 
+Not confirmed in game for [spell effects](#spell-effects):
+
+17. An active effect's hit shader and hit art are `ShaderReferenceEffect`s and
+    `ModelReferenceEffect`s in `ProcessLists::magicEffects` that target the
+    effect's target, with an `ActiveEffectReferenceEffectController` whose
+    `effect` is that active effect, for as long as the look shows, including
+    while the player is in first person; a non-persistent look's reference
+    effects end by themselves.
+18. A shader or art started without a duration on a remote actor plays as the
+    engine's own hit effect of that form does, and a non-persistent look plays
+    out before the source's reference effect, and so the peer's copy, ends.
+
 ## Acceptance criteria
 
 1. A remote actor converges to the source's drawn or sheathed stance without
@@ -761,7 +828,7 @@ Not confirmed in game for [beast actions](#beast-actions):
    cancels is cancelled; a concentration spell loops for as long as the source
    casts; self, aimed, ward, telekinesis, ritual, and dual casts play their own
    clips. A peer without the spell plays Healing Hands' cast. No projectile,
-   beam, effect, or sound of a released spell appears.
+   beam, or release or hit sound of a released spell appears.
 8. Sheathing, jumping, or sitting ends a draw, cast, or block first. A late
    joiner sees an ongoing draw, cast, or block.
 9. Nothing is hit, staggered, or damaged.
@@ -771,6 +838,12 @@ Not confirmed in game for [beast actions](#beast-actions):
     its actor hovers or stands as the source does, including for a late
     joiner. Its Mist Form shows the mist and a faded body for as long as the
     source's lasts, and its bats show the swarm for the dash.
+11. A self-delivered spell, power, or scroll the source casts on itself, such
+    as Oakflesh, Flame Cloak, a ward, or Healing, shows its hit shader and art
+    on the remote actor while the source shows them, including to a late
+    joiner, and they end when the source's end. A peer without the effect's
+    forms shows nothing for it. Aimed, touch, and target-location spells show
+    no effect anywhere, and no peer's actor value, AI, or world changes.
 
 ## Known limitations
 
@@ -799,6 +872,14 @@ Not confirmed in game for [beast actions](#beast-actions):
   fade the bat art attached to its 3D as well. Mist Form's start and end sounds,
   image space, and end shader, and the bats' reform shaders, come from the
   effects' scripts and are not shown.
+- Spell effects show only the reference effects: what an archetype or script
+  adds, such as an invisibility fade or a candlelight's light, and an
+  effect's sounds are not shown. Shouts, potions, enchantments, abilities,
+  diseases, and effects others cast on the source are not shown either.
+- At most 8 effect shaders and 8 art objects show at once. A spell effect
+  reaches peers up to the 0.1 s sample plus the 250 ms publish interval late,
+  so a look shorter than that can be shortened or missed. A shown look
+  restarts from its beginning when the remote actor's 3D changes.
 - A cancelled bow draw shows as a release.
 - A replacer clip that swings again after a hit in a plain attack is captured
   as a chained attack, and a chained replacer swing that writes `kSwing`

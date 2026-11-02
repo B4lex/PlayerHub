@@ -6,6 +6,13 @@
 #error Regenerate this file with the current version of nanopb generator.
 #endif
 
+
+/* The following messages exceed 64kB in size: playerhub_v1_PeerEnter, playerhub_v1_ServerMessage */
+
+/* The PB_FIELD_32BIT compilation option must be defined to support messages that exceed 64 kB in size. */
+#ifndef PB_FIELD_32BIT
+#error Enable PB_FIELD_32BIT to support messages exceeding 64kB in size: playerhub_v1_PeerEnter, playerhub_v1_ServerMessage
+#endif
 PB_BIND(playerhub_v1_Hello, playerhub_v1_Hello, AUTO)
 
 

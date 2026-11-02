@@ -1748,6 +1748,60 @@ func (x *DefaultOutfit) GetAmmo() *FormRef {
 	return nil
 }
 
+// The hit shaders and hit art that the player's own self-delivered spells show
+// on the player, each listed once.
+type SpellEffects struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Shaders       []*FormRef             `protobuf:"bytes,1,rep,name=shaders,proto3" json:"shaders,omitempty"`
+	Art           []*FormRef             `protobuf:"bytes,2,rep,name=art,proto3" json:"art,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SpellEffects) Reset() {
+	*x = SpellEffects{}
+	mi := &file_playerhub_v1_state_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SpellEffects) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SpellEffects) ProtoMessage() {}
+
+func (x *SpellEffects) ProtoReflect() protoreflect.Message {
+	mi := &file_playerhub_v1_state_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SpellEffects.ProtoReflect.Descriptor instead.
+func (*SpellEffects) Descriptor() ([]byte, []int) {
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *SpellEffects) GetShaders() []*FormRef {
+	if x != nil {
+		return x.Shaders
+	}
+	return nil
+}
+
+func (x *SpellEffects) GetArt() []*FormRef {
+	if x != nil {
+		return x.Art
+	}
+	return nil
+}
+
 type Equipment struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Revision      uint64                 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
@@ -1758,16 +1812,17 @@ type Equipment struct {
 	DefaultOutfit *DefaultOutfit         `protobuf:"bytes,6,opt,name=default_outfit,json=defaultOutfit,proto3" json:"default_outfit,omitempty"`
 	// The spell hands and worn armor of a vampire lord; the fields above keep the
 	// character's items.
-	BeastRightHand *Hand    `protobuf:"bytes,7,opt,name=beast_right_hand,json=beastRightHand,proto3" json:"beast_right_hand,omitempty"`
-	BeastLeftHand  *Hand    `protobuf:"bytes,8,opt,name=beast_left_hand,json=beastLeftHand,proto3" json:"beast_left_hand,omitempty"`
-	BeastArmor     []*Armor `protobuf:"bytes,9,rep,name=beast_armor,json=beastArmor,proto3" json:"beast_armor,omitempty"`
+	BeastRightHand *Hand         `protobuf:"bytes,7,opt,name=beast_right_hand,json=beastRightHand,proto3" json:"beast_right_hand,omitempty"`
+	BeastLeftHand  *Hand         `protobuf:"bytes,8,opt,name=beast_left_hand,json=beastLeftHand,proto3" json:"beast_left_hand,omitempty"`
+	BeastArmor     []*Armor      `protobuf:"bytes,9,rep,name=beast_armor,json=beastArmor,proto3" json:"beast_armor,omitempty"`
+	SpellEffects   *SpellEffects `protobuf:"bytes,10,opt,name=spell_effects,json=spellEffects,proto3" json:"spell_effects,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Equipment) Reset() {
 	*x = Equipment{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[14]
+	mi := &file_playerhub_v1_state_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1779,7 +1834,7 @@ func (x *Equipment) String() string {
 func (*Equipment) ProtoMessage() {}
 
 func (x *Equipment) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[14]
+	mi := &file_playerhub_v1_state_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1792,7 +1847,7 @@ func (x *Equipment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Equipment.ProtoReflect.Descriptor instead.
 func (*Equipment) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{14}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Equipment) GetRevision() uint64 {
@@ -1854,6 +1909,13 @@ func (x *Equipment) GetBeastLeftHand() *Hand {
 func (x *Equipment) GetBeastArmor() []*Armor {
 	if x != nil {
 		return x.BeastArmor
+	}
+	return nil
+}
+
+func (x *Equipment) GetSpellEffects() *SpellEffects {
+	if x != nil {
+		return x.SpellEffects
 	}
 	return nil
 }
@@ -1967,7 +2029,10 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\rDefaultOutfit\x12)\n" +
 	"\x05armor\x18\x01 \x03(\v2\x13.playerhub.v1.ArmorR\x05armor\x12(\n" +
 	"\x05hands\x18\x02 \x03(\v2\x12.playerhub.v1.HandR\x05hands\x12)\n" +
-	"\x04ammo\x18\x03 \x01(\v2\x15.playerhub.v1.FormRefR\x04ammo\"\xd5\x03\n" +
+	"\x04ammo\x18\x03 \x01(\v2\x15.playerhub.v1.FormRefR\x04ammo\"h\n" +
+	"\fSpellEffects\x12/\n" +
+	"\ashaders\x18\x01 \x03(\v2\x15.playerhub.v1.FormRefR\ashaders\x12'\n" +
+	"\x03art\x18\x02 \x03(\v2\x15.playerhub.v1.FormRefR\x03art\"\x96\x04\n" +
 	"\tEquipment\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x12)\n" +
 	"\x05armor\x18\x02 \x03(\v2\x13.playerhub.v1.ArmorR\x05armor\x121\n" +
@@ -1979,7 +2044,9 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x10beast_right_hand\x18\a \x01(\v2\x12.playerhub.v1.HandR\x0ebeastRightHand\x12:\n" +
 	"\x0fbeast_left_hand\x18\b \x01(\v2\x12.playerhub.v1.HandR\rbeastLeftHand\x124\n" +
 	"\vbeast_armor\x18\t \x03(\v2\x13.playerhub.v1.ArmorR\n" +
-	"beastArmor*\xea\x01\n" +
+	"beastArmor\x12?\n" +
+	"\rspell_effects\x18\n" +
+	" \x01(\v2\x1a.playerhub.v1.SpellEffectsR\fspellEffects*\xea\x01\n" +
 	"\rMovementState\x12\x17\n" +
 	"\x13MOVEMENT_STATE_IDLE\x10\x00\x12\x1a\n" +
 	"\x16MOVEMENT_STATE_WALKING\x10\x01\x12\x1a\n" +
@@ -2092,7 +2159,7 @@ func file_playerhub_v1_state_proto_rawDescGZIP() []byte {
 }
 
 var file_playerhub_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_playerhub_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_playerhub_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_playerhub_v1_state_proto_goTypes = []any{
 	(MovementState)(0),    // 0: playerhub.v1.MovementState
 	(CheckpointFlag)(0),   // 1: playerhub.v1.CheckpointFlag
@@ -2116,7 +2183,8 @@ var file_playerhub_v1_state_proto_goTypes = []any{
 	(*Armor)(nil),         // 19: playerhub.v1.Armor
 	(*Hand)(nil),          // 20: playerhub.v1.Hand
 	(*DefaultOutfit)(nil), // 21: playerhub.v1.DefaultOutfit
-	(*Equipment)(nil),     // 22: playerhub.v1.Equipment
+	(*SpellEffects)(nil),  // 22: playerhub.v1.SpellEffects
+	(*Equipment)(nil),     // 23: playerhub.v1.Equipment
 }
 var file_playerhub_v1_state_proto_depIdxs = []int32{
 	8,  // 0: playerhub.v1.Context.interior_cell:type_name -> playerhub.v1.FormRef
@@ -2150,19 +2218,22 @@ var file_playerhub_v1_state_proto_depIdxs = []int32{
 	19, // 28: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
 	20, // 29: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
 	8,  // 30: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
-	19, // 31: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
-	20, // 32: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
-	20, // 33: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
-	8,  // 34: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
-	21, // 35: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
-	20, // 36: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
-	20, // 37: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
-	19, // 38: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
-	39, // [39:39] is the sub-list for method output_type
-	39, // [39:39] is the sub-list for method input_type
-	39, // [39:39] is the sub-list for extension type_name
-	39, // [39:39] is the sub-list for extension extendee
-	0,  // [0:39] is the sub-list for field type_name
+	8,  // 31: playerhub.v1.SpellEffects.shaders:type_name -> playerhub.v1.FormRef
+	8,  // 32: playerhub.v1.SpellEffects.art:type_name -> playerhub.v1.FormRef
+	19, // 33: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
+	20, // 34: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
+	20, // 35: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
+	8,  // 36: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
+	21, // 37: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
+	20, // 38: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
+	20, // 39: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
+	19, // 40: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
+	22, // 41: playerhub.v1.Equipment.spell_effects:type_name -> playerhub.v1.SpellEffects
+	42, // [42:42] is the sub-list for method output_type
+	42, // [42:42] is the sub-list for method input_type
+	42, // [42:42] is the sub-list for extension type_name
+	42, // [42:42] is the sub-list for extension extendee
+	0,  // [0:42] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_state_proto_init() }
@@ -2181,7 +2252,7 @@ func file_playerhub_v1_state_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_playerhub_v1_state_proto_rawDesc), len(file_playerhub_v1_state_proto_rawDesc)),
 			NumEnums:      8,
-			NumMessages:   15,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

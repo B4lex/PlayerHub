@@ -121,7 +121,9 @@ if inWorld:
     AnimationSync::ObserveLocalGraphEpoch
     AnimationSync::ObserveLocalMovement    # stop hold timer
     GraphEventSurvey::LogLocalGraphEvents  # debug builds only
-    EquipmentSync::SyncEquipment           # flushed when an attack or presentation started
+    SpellEffectSync::SampleLocalSpellEffects
+    EquipmentSync::SyncEquipment           # flushed when an attack or presentation started;
+                                           # carries the sampled spell effects
     CombatSync::QueueLocalAttacks
     ShapeshiftSync::QueueLocalActions      # beast actions the graph input hook captured
     IdleSync::QueueLocalIdles              # idle events it captured; the held idle
@@ -146,6 +148,8 @@ AppearanceSync advance timers; retire on a new appearance revision, or else on a
 retire on a coordinate-space change
 CombatSync, ShapeshiftSync, IdleSync::AgeRemoteActions
 not in the local space: clear attacks, beast actions, and idles, stop
+SpellEffectSync::SyncSpellEffects          # with an actor, also mounted or dead: the latest
+                                           # equipment's spell effects
 DeathSync::SyncDeath                       # a killed actor keeps only handle and look
 ActorLifecycle::RetireWhenStranded
 FurnitureSync yield check                  # hide an actor that would block furniture
