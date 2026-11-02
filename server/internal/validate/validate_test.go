@@ -16,12 +16,12 @@ func ref(plugin string, formID uint32) *pb.FormRef {
 	return &pb.FormRef{Plugin: plugin, FormId: formID}
 }
 
-func refs(count int) []*pb.FormRef {
-	forms := make([]*pb.FormRef, count)
-	for i := range forms {
-		forms[i] = ref("Skyrim.esm", uint32(i+1))
+func testSpellEffects(count int) []*pb.SpellEffect {
+	effects := make([]*pb.SpellEffect, count)
+	for i := range effects {
+		effects[i] = &pb.SpellEffect{Effect: ref("Skyrim.esm", uint32(i+1)), ShaderShown: true}
 	}
-	return forms
+	return effects
 }
 
 func TestCheckpoint(t *testing.T) {
@@ -351,14 +351,14 @@ func TestEquipment(t *testing.T) {
 		"beast armor": func(e *pb.Equipment) {
 			e.BeastArmor = []*pb.Armor{{Form: ref("Dawnguard.esm", 0x11A84), SlotMask: 0x40}, {Form: ref("Mod.esp", 1), SlotMask: 1}}
 		},
-		"empty spell effects": func(e *pb.Equipment) { e.SpellEffects = &pb.SpellEffects{} },
 		"spell effects": func(e *pb.Equipment) {
-			e.SpellEffects = &pb.SpellEffects{Shaders: []*pb.FormRef{ref("Skyrim.esm", 1), ref("Mod.esp", 1)},
-				Art: []*pb.FormRef{ref("Skyrim.esm", 1)}}
+			e.SpellEffects = []*pb.SpellEffect{
+				{Effect: ref("Skyrim.esm", 1), ShaderShown: true, ArtShown: true, Shader: ref("Skyrim.esm", 2)},
+				{Effect: ref("Mod.esp", 1), ArtShown: true, Art: ref("Mod.esp", 2)},
+				{ShaderShown: true, Shader: ref("Skyrim.esm", 3)},
+			}
 		},
-		"most spell effects": func(e *pb.Equipment) {
-			e.SpellEffects = &pb.SpellEffects{Shaders: refs(8), Art: refs(8)}
-		},
+		"most spell effects": func(e *pb.Equipment) { e.SpellEffects = testSpellEffects(8) },
 	}
 	for name, mutate := range accepted {
 		e := validEquipment()
@@ -394,16 +394,25 @@ func TestEquipment(t *testing.T) {
 		"creation club outfit armor": func(e *pb.Equipment) {
 			e.DefaultOutfit.Armor[0].Form = ref("ccBGSSSE052-BA_Iron.esl", 0x801)
 		},
-		"too much outfit armor":   func(e *pb.Equipment) { e.DefaultOutfit.Armor = make([]*pb.Armor, 9) },
-		"too many effect shaders": func(e *pb.Equipment) { e.SpellEffects = &pb.SpellEffects{Shaders: refs(9)} },
-		"too much effect art":     func(e *pb.Equipment) { e.SpellEffects = &pb.SpellEffects{Art: refs(9)} },
-		"duplicate effect shader": func(e *pb.Equipment) {
-			e.SpellEffects = &pb.SpellEffects{Shaders: []*pb.FormRef{ref("Skyrim.esm", 2), ref("Skyrim.esm", 2)}}
+		"too much outfit armor":  func(e *pb.Equipment) { e.DefaultOutfit.Armor = make([]*pb.Armor, 9) },
+		"too many spell effects": func(e *pb.Equipment) { e.SpellEffects = testSpellEffects(9) },
+		"duplicate spell effect": func(e *pb.Equipment) {
+			e.SpellEffects = testSpellEffects(2)
+			e.SpellEffects[1].Effect = ref("Skyrim.esm", 1)
 		},
-		"invalid effect art": func(e *pb.Equipment) {
-			e.SpellEffects = &pb.SpellEffects{Art: []*pb.FormRef{ref("Skyrim.esm", 0x1000000)}}
+		"spell effect shows nothing": func(e *pb.Equipment) {
+			e.SpellEffects = []*pb.SpellEffect{{Effect: ref("Skyrim.esm", 1)}}
 		},
-		"unset effect shader":    func(e *pb.Equipment) { e.SpellEffects = &pb.SpellEffects{Shaders: []*pb.FormRef{nil}} },
+		"spell effect without forms": func(e *pb.Equipment) {
+			e.SpellEffects = []*pb.SpellEffect{{ShaderShown: true}}
+		},
+		"unshown spell effect shader": func(e *pb.Equipment) {
+			e.SpellEffects = []*pb.SpellEffect{{Effect: ref("Skyrim.esm", 1), ArtShown: true, Shader: ref("Skyrim.esm", 2)}}
+		},
+		"invalid spell effect art": func(e *pb.Equipment) {
+			e.SpellEffects = []*pb.SpellEffect{{ArtShown: true, Art: ref("Skyrim.esm", 0x1000000)}}
+		},
+		"unset spell effect":     func(e *pb.Equipment) { e.SpellEffects = []*pb.SpellEffect{nil} },
 		"duplicate outfit hand":  func(e *pb.Equipment) { e.DefaultOutfit.Hands[1] = weapon(5) },
 		"outfit spell":           func(e *pb.Equipment) { e.DefaultOutfit.Hands[1] = &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL} },
 		"modded outfit ammo":     func(e *pb.Equipment) { e.DefaultOutfit.Ammo = ref("Mod.esp", 1) },

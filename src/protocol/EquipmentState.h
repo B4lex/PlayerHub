@@ -51,18 +51,18 @@ namespace Multiplayer
         bool operator==(const DefaultOutfit&) const = default;
     };
 
-    struct SpellEffects
+    struct SpellEffect
     {
-        static constexpr std::size_t kMaximumShaders = 8;
-        static constexpr std::size_t kMaximumArt = 8;
+        // Empty when unreferenceable.
+        FormReference effect;
+        bool shaderShown{ false };
+        bool artShown{ false };
+        // Fallbacks; empty when not shown or unreferenceable.
+        FormReference shader;
+        FormReference art;
 
-        // Each sorted, without duplicates.
-        std::vector<FormReference> shaders;
-        std::vector<FormReference> art;
-
-        [[nodiscard]] bool IsEmpty() const noexcept { return shaders.empty() && art.empty(); }
-
-        bool operator==(const SpellEffects&) const = default;
+        bool operator==(const SpellEffect&) const = default;
+        auto operator<=>(const SpellEffect&) const = default;
     };
 
     struct PlayerEquipment
@@ -81,7 +81,9 @@ namespace Multiplayer
         std::optional<EquipmentHand> beastRightHand;
         std::optional<EquipmentHand> beastLeftHand;
         std::vector<EquipmentArmor> beastArmor;
-        SpellEffects spellEffects;
+        static constexpr std::size_t kMaximumSpellEffects = 8;
+        // Sorted, without duplicates.
+        std::vector<SpellEffect> spellEffects;
         std::uint64_t revision{ 0 };
 
         // Spell effects excluded.
@@ -227,33 +229,35 @@ namespace Multiplayer
         return true;
     }
 
-    [[nodiscard]] inline bool IsValidSpellEffectList(const std::vector<FormReference>& a_forms, std::size_t a_maximum)
+    [[nodiscard]] inline bool IsValidSpellEffect(const SpellEffect& a_effect)
     {
-        if (a_forms.size() > a_maximum)
+        return (a_effect.shaderShown || a_effect.artShown) && IsValidFormReference(a_effect.effect, true)
+            && IsValidFormReference(a_effect.shader, true) && IsValidFormReference(a_effect.art, true)
+            && (a_effect.shaderShown || a_effect.shader.IsEmpty()) && (a_effect.artShown || a_effect.art.IsEmpty())
+            && !(a_effect.effect.IsEmpty() && a_effect.shader.IsEmpty() && a_effect.art.IsEmpty());
+    }
+
+    [[nodiscard]] inline bool IsValidSpellEffects(const std::vector<SpellEffect>& a_effects)
+    {
+        if (a_effects.size() > PlayerEquipment::kMaximumSpellEffects)
         {
             return false;
         }
-        for (std::size_t i = 0; i < a_forms.size(); ++i)
+        for (std::size_t i = 0; i < a_effects.size(); ++i)
         {
-            if (!IsValidFormReference(a_forms[i], false))
+            if (!IsValidSpellEffect(a_effects[i]))
             {
                 return false;
             }
             for (std::size_t j = 0; j < i; ++j)
             {
-                if (a_forms[j] == a_forms[i])
+                if (!a_effects[i].effect.IsEmpty() && a_effects[j].effect == a_effects[i].effect)
                 {
                     return false;
                 }
             }
         }
         return true;
-    }
-
-    [[nodiscard]] inline bool IsValidSpellEffects(const SpellEffects& a_effects)
-    {
-        return IsValidSpellEffectList(a_effects.shaders, SpellEffects::kMaximumShaders)
-            && IsValidSpellEffectList(a_effects.art, SpellEffects::kMaximumArt);
     }
 
     [[nodiscard]] inline bool IsValidEquipment(const PlayerEquipment& a_equipment)

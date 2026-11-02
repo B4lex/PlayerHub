@@ -728,8 +728,8 @@ namespace EquipmentSync
         logs::debug("Registered local equipment event sink");
     }
 
-    void SyncEquipment(
-        const LocalFrame& a_local, float a_delta, bool a_flush, const Multiplayer::SpellEffects& a_spellEffects)
+    void SyncEquipment(const LocalFrame& a_local, float a_delta, bool a_flush,
+        const std::vector<Multiplayer::SpellEffect>& a_spellEffects)
     {
         PROFILE_FUNCTION();
         static float quietElapsed = 0.0F;
@@ -824,7 +824,7 @@ namespace EquipmentSync
         logs::debug(
             "Equipment sync publishing local equipment: revision={} armor={} rightHand={}:{}|{:06X} "
             "leftHand={}:{}|{:06X} ammo={}|{:06X} outfit={}/{}/{} beastHands={}/{} beastArmor={} "
-            "spellEffects={}/{} skipped={} flush={}",
+            "spellEffects={} skipped={} flush={}",
             static_cast<unsigned long long>(pending->revision), pending->armor.size(),
             pending->rightHand ? Multiplayer::GetEquipmentHandKindName(pending->rightHand->kind) : "none",
             pending->rightHand ? pending->rightHand->form.plugin : "",
@@ -835,8 +835,8 @@ namespace EquipmentSync
             pending->ammo.IsEmpty() ? "<none>" : pending->ammo.plugin, pending->ammo.localFormID,
             pending->defaultOutfit.armor.size(), pending->defaultOutfit.hands.size(),
             !pending->defaultOutfit.ammo.IsEmpty(), pending->beastRightHand.has_value(),
-            pending->beastLeftHand.has_value(), pending->beastArmor.size(), pending->spellEffects.shaders.size(),
-            pending->spellEffects.art.size(), skipped, a_flush);
+            pending->beastLeftHand.has_value(), pending->beastArmor.size(), pending->spellEffects.size(), skipped,
+            a_flush);
         Network::PublishLocalEquipment(*pending);
         published = std::move(pending);
         pending.reset();
@@ -856,10 +856,10 @@ namespace EquipmentSync
         const bool sameItems = a_remote.latest && a_remote.resolved
             && a_remote.resolvedRevision == a_remote.latest->revision && a_remote.latest->HasSameItems(a_equipment);
         logs::debug("Equipment sync accepted remote equipment: player={} revision={} armor={} rightHand={} leftHand={} "
-                    "spellEffects={}/{} sameItems={}",
+                    "spellEffects={} sameItems={}",
             a_playerID, static_cast<unsigned long long>(a_equipment.revision), a_equipment.armor.size(),
-            a_equipment.rightHand.has_value(), a_equipment.leftHand.has_value(), a_equipment.spellEffects.shaders.size(),
-            a_equipment.spellEffects.art.size(), sameItems);
+            a_equipment.rightHand.has_value(), a_equipment.leftHand.has_value(), a_equipment.spellEffects.size(),
+            sameItems);
         a_remote.latest = std::move(a_equipment);
         if (sameItems)
         {
