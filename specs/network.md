@@ -161,7 +161,7 @@ context.
 | `pitch` | `sint32`, radians × 1024 | `|pitch| <= 1609` (π/2) |
 | `speed` | `uint32`, units per second: the source graph's `Speed` while moving on foot, otherwise measured over the ground (3D while swimming) ([Locomotion](locomotion.md#source-capture)) | `<= 100000` |
 | `direction` | `uint32`, graph `Direction` × 256, wrapping | `0..255` |
-| `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–15 `grounded` (the carrier's controller is on the ground, [Locomotion](locomotion.md#ground-offset)), `weaponDrawn`, `jumping`, `blocking`, `bowDrawn`, `castingLeft`, `castingRight`, `swimming`, `mounted`, `dead`, `levitating`, `mistForm`, `bats` (`CheckpointFlag`, mirrored by `Network::CheckpointFlags` with `static_assert`s in `WireCodec.cpp`) | unknown bits rejected; the last three only in a `VAMPIRE_LORD` context (`validate.VampireLordFlags`, `incompatible animation checkpoint`) |
+| `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–15 `grounded` (the carrier's controller is on the ground and the carrier is not ragdolled, [Locomotion](locomotion.md#ground-offset)), `weaponDrawn`, `jumping`, `blocking`, `bowDrawn`, `castingLeft`, `castingRight`, `swimming`, `mounted`, `dead`, `levitating`, `mistForm`, `bats` (`CheckpointFlag`, mirrored by `Network::CheckpointFlags` with `static_assert`s in `WireCodec.cpp`) | unknown bits rejected; the last three only in a `VAMPIRE_LORD` context (`validate.VampireLordFlags`, `incompatible animation checkpoint`) |
 | `time` | `uint32`, the sender's `steady_clock` in milliseconds when sampled, modulo 16384 | `0..16383` |
 | `skeleton` | `bytes`, the sender's skeleton pose ([below](#skeleton-pose-encoding)); empty when not sent | empty, or the layout below (`validate.SkeletonPose`) |
 
@@ -218,7 +218,8 @@ movement in [Locomotion](locomotion.md), stance and hands in
 ### Skeleton pose encoding
 
 A client sends `skeleton` only inside a pose window, while its player plays an
-animation from a mod, with `[Advanced] ShareCustomAnimations` on
+animation from a mod, a stagger, a kill move, or a knockdown, with
+`[Advanced] ShareCustomAnimations` on
 ([Remote actor](remote-actor.md#source-window)). A window is the run of
 checkpoints that carry one; no message opens or closes it, so a late joiner
 sees an open window at once. The server relays the pose only to recipients

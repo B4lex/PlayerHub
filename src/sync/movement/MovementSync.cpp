@@ -94,8 +94,10 @@ namespace MovementSync
         // per-frame 3D update turns it into the body's rotation.
         const auto* controller = a_carrier.GetCharController();
         const float pitch = controller ? SanitizePitch(controller->pitchAngle) : 0.0F;
-        const bool grounded
-            = controller && controller->context.currentState == RE::hkpCharacterStateType::kOnGround;
+        // A ragdoll carries the reference with the body, off the ground, while the
+        // controller still reports kOnGround.
+        const bool grounded = controller && controller->context.currentState == RE::hkpCharacterStateType::kOnGround
+            && !a_carrier.IsInRagdollState();
 
         return LocalSample{ .position = position,
             .heading = heading,

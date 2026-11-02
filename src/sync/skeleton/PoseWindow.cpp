@@ -27,8 +27,8 @@ namespace PoseWindow
         // modded event can play its animation through vanilla states, so a window holds
         // this long without a modded state.
         constexpr float kMinimumWindowSeconds = 1.0F;
-        // Poses past the modded state, so the receiver's blend-out starts from the
-        // vanilla state its graph reproduces.
+        // Poses past the modded state or reaction, so the receiver's blend-out starts
+        // from the vanilla state its graph reproduces.
         constexpr float kTailSeconds = 0.25F;
         // A modded machine active this long outside windows belongs to the graph's
         // ordinary states, not to a behavior.
@@ -61,11 +61,13 @@ namespace PoseWindow
         struct Window
         {
             bool open{ false };
-            std::string event;
+            // The modded event or the reaction that opened the window.
+            std::string trigger;
             float elapsed{ 0.0F };
             float sampleElapsed{ 0.0F };
-            float vanillaElapsed{ 0.0F };
+            float inactiveElapsed{ 0.0F };
             bool observedModded{ false };
+            bool observedReaction{ false };
         };
 
         std::mutex s_vocabularyLock;
@@ -121,14 +123,49 @@ namespace PoseWindow
             return nullptr;
         }
 
+        const char* FindReaction(RE::PlayerCharacter& a_player)
+        {
+            if (a_player.IsInKillMove())
+            {
+                return "kill-move";
+            }
+            const auto* actorState = a_player.AsActorState();
+            if (actorState && actorState->GetKnockState() != RE::KNOCK_STATE_ENUM::kNormal)
+            {
+                return "knockdown";
+            }
+            if (actorState && actorState->IsStaggered())
+            {
+                return "stagger";
+            }
+            if (a_player.IsInRagdollState())
+            {
+                return "knockdown";
+            }
+            // The graph's output also follows a staggerStart a script sends straight to the graph.
+            static const RE::BSFixedString isStaggeringVariable{ "IsStaggering" };
+            bool staggering = false;
+            if (a_player.GetGraphVariableBool(isStaggeringVariable, staggering) && staggering)
+            {
+                return "stagger";
+            }
+            return nullptr;
+        }
+
+        std::uint32_t ReadLifeState(RE::PlayerCharacter& a_player)
+        {
+            const auto* actorState = a_player.AsActorState();
+            return actorState ? static_cast<std::uint32_t>(actorState->GetLifeState()) : 0;
+        }
+
         void Close(const char* a_reason)
         {
             if (!s_window.open)
             {
                 return;
             }
-            logs::debug("Pose window closed: event={} reason={} seconds={:.3f} observedModded={}", s_window.event,
-                a_reason, s_window.elapsed, s_window.observedModded);
+            logs::debug("Pose window closed: trigger={} reason={} seconds={:.3f} observedModded={} observedReaction={}",
+                s_window.trigger, a_reason, s_window.elapsed, s_window.observedModded, s_window.observedReaction);
             s_window = {};
             s_graph.candidates.clear();
             s_graph.sampleElapsed = 0.0F;
@@ -158,11 +195,18 @@ namespace PoseWindow
                 s_graph.vanillaPrefix, vocabulary ? vocabulary->moddedEvents.size() : 0, layout.activeGraph);
         }
 
-        void Open(RE::PlayerCharacter& a_player, std::string_view a_event, std::uint32_t a_count)
+        void OpenForEvent(RE::PlayerCharacter& a_player, std::string_view a_event, std::uint32_t a_count)
         {
-            s_window = Window{ .open = true, .event = std::string{ a_event } };
+            s_window = Window{ .open = true, .trigger = std::string{ a_event } };
             logs::debug("Pose window opened: event={} moddedEvents={} activeGraph={}", a_event, a_count,
                 ModdedGraph::ReadLayout(a_player).activeGraph);
+        }
+
+        void OpenForReaction(RE::PlayerCharacter& a_player, const char* a_reaction)
+        {
+            s_window = Window{ .open = true, .trigger = a_reaction, .observedReaction = true };
+            logs::debug("Pose window opened: reaction={} lifeState={} ragdoll={} activeGraph={}", a_reaction,
+                ReadLifeState(a_player), a_player.IsInRagdollState(), ModdedGraph::ReadLayout(a_player).activeGraph);
         }
 
         void ObserveWindow(RE::PlayerCharacter& a_player, float a_delta)
@@ -175,29 +219,40 @@ namespace PoseWindow
             }
             const float seconds = std::exchange(s_window.sampleElapsed, 0.0F);
             const auto reading = ModdedGraph::ReadModdedState(a_player, s_graph.ambient);
-            if (!reading.available)
+            const bool modded = reading.available && reading.modded;
+            if (modded && !s_window.observedModded)
+            {
+                logs::debug("Pose window entered modded state: machine={} state={} seconds={:.3f}", reading.machine,
+                    reading.state, s_window.elapsed);
+            }
+            s_window.observedModded = s_window.observedModded || modded;
+            const char* reaction = FindReaction(a_player);
+            if (reaction && !s_window.observedReaction)
+            {
+                logs::debug("Pose window entered reaction: reaction={} lifeState={} seconds={:.3f}", reaction,
+                    ReadLifeState(a_player), s_window.elapsed);
+            }
+            s_window.observedReaction = s_window.observedReaction || reaction;
+            if (modded || reaction)
+            {
+                s_window.inactiveElapsed = 0.0F;
+                return;
+            }
+            // Reactions are actor state, readable when the graph is not.
+            if (!reading.available && !s_window.observedReaction)
             {
                 return;
             }
-            if (reading.modded)
-            {
-                if (!s_window.observedModded)
-                {
-                    logs::debug("Pose window entered modded state: machine={} state={} seconds={:.3f}",
-                        reading.machine, reading.state, s_window.elapsed);
-                }
-                s_window.observedModded = true;
-                s_window.vanillaElapsed = 0.0F;
-                return;
-            }
-            if (!s_window.observedModded && s_window.elapsed < kMinimumWindowSeconds)
+            if (!s_window.observedModded && !s_window.observedReaction && s_window.elapsed < kMinimumWindowSeconds)
             {
                 return;
             }
-            s_window.vanillaElapsed += seconds;
-            if (s_window.vanillaElapsed >= kTailSeconds)
+            s_window.inactiveElapsed += seconds;
+            if (s_window.inactiveElapsed >= kTailSeconds)
             {
-                Close(s_window.observedModded ? "graph-vanilla" : "graph-unobserved");
+                Close(s_window.observedModded ? "graph-vanilla"
+                        : s_window.observedReaction ? "reaction-ended"
+                                                    : "graph-unobserved");
             }
         }
 
@@ -292,8 +347,16 @@ namespace PoseWindow
         // Repeats of a modded event extend nothing: the graph's modded state holds the window.
         if (!s_window.open && observedCount != 0 && s_graph.vanillaPrefix)
         {
-            Open(player, { observedName.data(), observedLength }, observedCount);
+            OpenForEvent(player, { observedName.data(), observedLength }, observedCount);
             return true;
+        }
+        if (!s_window.open)
+        {
+            if (const char* reaction = FindReaction(player))
+            {
+                OpenForReaction(player, reaction);
+                return true;
+            }
         }
         if (s_window.open)
         {

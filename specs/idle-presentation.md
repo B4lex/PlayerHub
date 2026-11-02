@@ -104,7 +104,8 @@ The held idle ends, and the next context clears it, when:
 
 - an exit event is captured, or the drain finds the player blocked (above);
 - a [pose window](remote-actor.md#source-window) opens in the pass
-  (`pose-window`): a modded idle or other modded behavior took over the graph;
+  (`pose-window`): a modded idle, other modded behavior, or a reaction took
+  over the graph;
 - the sampled checkpoint has furniture, a mount, death, swimming, or a beast
   form, or its state changed from the previous sample by a start of movement,
   a jump, a draw or sheathe, or a sneak toggle. A stop does not end it, since

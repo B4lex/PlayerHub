@@ -726,14 +726,13 @@ Death:
   source is standing still by then.
 - Furniture: crafting menus, recipes, ingredients, output, skill progression,
   sleep and wait UI, ownership and crime, arbitrary activators, doors,
-  containers, scripted furniture, paired idles, and killmoves are not
-  synchronized; there is no global reservation across clients; a peer without
+  containers, scripted furniture, and paired idles are not synchronized; there is no global reservation across clients; a peer without
   the furniture's plugin shows the actor standing, with no substitute furniture
   or seated idle.
 - Mounts: the source's mount appearance (a random vanilla horse stands in),
   mount and dismount animations, combat on horseback (attacks, bows, spells; a
   drawn weapon is shown), horse jumps, a mount left standing after a dismount,
   and the mount's approach are not shown.
-- Death: the killer, kill moves, death animations (the actor always goes straight
-  to ragdoll), where the body comes to rest (each peer simulates its own), and
-  bleedout are not shown.
+- Death: the killer, death animations including a kill move's paired death
+  (the actor always goes straight to ragdoll), where the body comes to rest
+  (each peer simulates its own), and bleedout are not shown.

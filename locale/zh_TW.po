@@ -417,9 +417,9 @@ msgstr "分享自訂動畫"
 
 msgctxt "AdvancedShareCustomAnimationsComment"
 msgid ""
-"Sends your character's pose while it plays an animation from a mod, so\n"
-"other players see it even without that mod."
-msgstr "在你的角色播放模組動畫時傳送其姿勢，讓沒有該模組的其他玩家也能看到。"
+"Sends your character's pose while it plays an animation from a mod, a\n"
+"stagger, a kill move, or a knockdown, so other players see it as you do."
+msgstr "在你的角色播放模組動畫、踉蹌、處決動作或倒地時傳送其姿勢，讓其他玩家看到與你相同的畫面。"
 
 msgctxt "AdvancedShowCustomAnimations"
 msgid "Show custom animations"

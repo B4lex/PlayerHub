@@ -408,8 +408,8 @@ msgstr ""
 
 msgctxt "AdvancedShareCustomAnimationsComment"
 msgid ""
-"Sends your character's pose while it plays an animation from a mod, so\n"
-"other players see it even without that mod."
+"Sends your character's pose while it plays an animation from a mod, a\n"
+"stagger, a kill move, or a knockdown, so other players see it as you do."
 msgstr ""
 
 msgctxt "AdvancedShowCustomAnimations"

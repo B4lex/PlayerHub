@@ -448,9 +448,9 @@ msgstr "Eigene Animationen teilen"
 
 msgctxt "AdvancedShareCustomAnimationsComment"
 msgid ""
-"Sends your character's pose while it plays an animation from a mod, so\n"
-"other players see it even without that mod."
-msgstr "Sendet die Pose deines Charakters, während er eine Animation aus einer Mod abspielt, damit andere Spieler sie auch ohne diese Mod sehen."
+"Sends your character's pose while it plays an animation from a mod, a\n"
+"stagger, a kill move, or a knockdown, so other players see it as you do."
+msgstr "Sendet die Pose deines Charakters, während er eine Animation aus einer Mod, ein Taumeln, einen Todesstoß oder ein Niederwerfen abspielt, damit andere Spieler sie so sehen wie du."
 
 msgctxt "AdvancedShowCustomAnimations"
 msgid "Show custom animations"

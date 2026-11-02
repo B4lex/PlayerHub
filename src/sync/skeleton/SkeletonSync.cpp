@@ -138,7 +138,9 @@ namespace SkeletonSync
             s_publishing = false;
             return {};
         }
-        const auto pose = ActorSkeleton::ReadThirdPersonPose(a_local.player);
+        const auto rootSpace = a_local.player.IsInRagdollState() ? ActorSkeleton::RootSpace::kReference
+                                                                 : ActorSkeleton::RootSpace::kParent;
+        const auto pose = ActorSkeleton::ReadThirdPersonPose(a_local.player, rootSpace);
         if (!pose)
         {
             return {};

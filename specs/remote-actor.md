@@ -4,7 +4,8 @@
 
 The [skeleton pose](#skeleton-pose) slots have not run with more posed players
 than `[Advanced] CustomAnimationPlayers`, and dropping edge probes before a
-window has not triggered in a capture.
+window has not triggered in a capture. [Reaction windows](#source-window)
+(staggers, kill moves) have not run in game; a paralysis knockdown has.
 
 ## Scope
 
@@ -46,7 +47,7 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/ActorSkeleton` | Reads the local player's third-person bone rotations, and blends a remote actor's network pose over its graph's output |
 | `actor/ModdedGraph` | Reads the local player's third-person graph for modded events and active modded states |
 | `actor/GraphVocabulary`, `actor/VanillaGraphNames.h` | The vanilla event prefix and the generated vanilla machine and state name hashes ([Source window](#source-window)) |
-| `sync/skeleton/PoseWindow` | Opens, holds, and closes the local player's pose window on modded graph behavior |
+| `sync/skeleton/PoseWindow` | Opens, holds, and closes the local player's pose window on modded graph behavior and on reactions |
 | `sync/skeleton/SkeletonSync` | Samples the local pose inside a window; ranks posed peers into slots, interpolates, and blends a remote actor's pose in and out |
 | `runtime/CodeDetour` | Shared entry detour: copies checked entry bytes, at the entry or past an entry guard, into a trampoline gateway |
 
@@ -598,27 +599,38 @@ the counted and culled lights whenever one of them changes.
 ## Skeleton pose
 
 A remote actor shows animations its player's game plays that the vanilla
-reproduction does not cover, such as new graph states from Paraglider or
-SkyParkour, and modded idles, by taking the bone pose its player's own game
-animated. Poses travel only while the source plays such an animation (a pose
-window), so every vanilla animation keeps syncing through the graph and a
-viewer with replacers sees its own. Viewers with and without the mod see the
-same pose. The actor's graph keeps running the vanilla reproduction
-underneath: weapon draws, sounds, footsteps, and spell art still come from
-it, and every bone the pose leaves out keeps the graph's output. Positions stay
-on checkpoints.
+reproduction does not cover, by taking the bone pose its player's own game
+animated: new graph states from Paraglider or SkyParkour, modded idles, and the
+reactions the reproduction leaves out, namely staggers, the player's own kill
+moves, and knockdowns with their ragdoll and get-up. Poses travel only while the
+source plays such an animation (a pose window), so every animation the
+reproduction covers keeps syncing through the graph and a viewer with
+replacers sees its own. Viewers with and without the mod see the same pose.
+The actor's graph keeps running the vanilla reproduction underneath: weapon
+draws, sounds, footsteps, and spell art still come from it, and every bone the
+pose leaves out keeps the graph's output. Positions stay on checkpoints.
 
 Non-goals:
 
 - Replacers of vanilla clips (OAR and DAR walk, attack, and idle variants)
-  never open a window: they sync natively.
+  never open a window: they sync natively. A replacer of a reaction's clip
+  shows through that reaction's window as the source played it. JellyFish
+  SnowAngel, for example, sends `staggerStart` from its power's magic effect
+  script, and its OAR submod, conditioned on that effect, replaces the backward
+  stagger clips; a viewer's actor never has the effect.
 - Modded behavior entered by vanilla events under modded conditions (MCO and
-  SCAR attack chains, a stagger an OAR replacer turns into another animation)
-  and modded idle forms played through vanilla events open no window yet.
+  SCAR attack chains) and modded idle forms played through vanilla events open
+  no window yet.
+- Other vanilla states the reproduction leaves out open no window: bleedout,
+  attack recoils, shouts, ritual spells, and non-lethal paired animations are
+  left for native replay or later, and flinches and block hit reactions layer
+  over locomotion and fire too often for a whole-body pose.
 - A clip's side effects do not follow the pose: AnimObjects (Paraglider's
   glider), `SoundPlay.*` annotations, and contrails.
 - Beast forms, furniture, mounts, and death keep the graph, since their
-  skeletons or native placement differ.
+  skeletons or native placement differ. A player killed by a kill move goes
+  straight to its ragdoll on peers, like any other death: its paired death
+  belongs to an attacker that lives only in its own world.
 - Replaying modded behavior natively on a viewer whose graph has it is
   postponed: it would show the viewer's own variant and side effects, at the
   cost of the per-mod state that replay needs.
@@ -646,17 +658,30 @@ window or with `[Advanced] ShareCustomAnimations` off
   count until the next pass. `PoseWindow::Update`, before idles and the
   checkpoint, opens a window on a pass that saw one (`Pose window opened`),
   unless the setting is off, the player is in a beast form, in furniture,
-  mounted, or dead; any of these closes an open window. Further modded events
-  extend nothing on their own (Paraglider's DLL sends `StartPara` every frame).
+  mounted, or dead; any of these closes an open window.
+  Further modded events extend nothing on their own (Paraglider's DLL sends
+  `StartPara` every frame).
+- **Reactions.** On a pass without a window, `PoseWindow::Update` also opens
+  one while the player is in a reaction (`Pose window opened` with `reaction=`
+  and the life state): `kill-move` while `Actor::IsInKillMove`, which the dead
+  block limits to the attacker's side, `knockdown` while the knock state is not `kNormal` or the actor is
+  ragdolled (`IsInRagdollState`, which paralysis also sets), and `stagger`
+  while `ActorState::IsStaggered` or the graph's `IsStaggering` holds; a
+  `staggerStart` a script sends to the graph sets the latter. A reaction is
+  sampled with the modded state and holds the window like one, without the 1 s
+  minimum, and its end closes the window after the tail (`reaction-ended`).
+  A modded window that enters a reaction logs `Pose window entered reaction`.
 - **Hold.** Every 0.1 s of clamped frame time, `ModdedGraph::ReadModdedState`
   reads the active state machines under the manager's `updateLock`: a machine
   whose name is not vanilla, or a vanilla machine in a state whose name is not
   vanilla, is modded (`Pose window entered modded state` with its names). The
-  window holds while one is active, and for at least 1 s after opening when
-  none has been, since a machine switches state on the graph update after the
-  event and a modded event can play its animation through vanilla states.
-- **Close.** After 0.25 s without a modded state past that, the window closes
-  (`Pose window closed` with `graph-vanilla` or `graph-unobserved`), so the
+  window holds while one is active or a reaction is, and a window opened by a
+  modded event holds for at least 1 s after opening when neither has been,
+  since a machine switches state on the graph update after the event and a
+  modded event can play its animation through vanilla states.
+- **Close.** After 0.25 s without a modded state or reaction past that, the
+  window closes (`Pose window closed` with `graph-vanilla`, `reaction-ended`,
+  or `graph-unobserved`), so the
   last poses show the vanilla state the receiver's graph reproduces and its
   blend-out starts from there. A window also closes on a graph epoch change, a
   graph change, a block above, a disconnect, or leaving the world. It never
@@ -709,8 +734,8 @@ window or with `[Advanced] ShareCustomAnimations` off
   (`Remote skeleton pose released to the graph`). The weight follows clamped
   frame time; turning it on again mid-way continues from the current weight.
 - **Ownership.** After `ActorRuntime::Update`, `SyncSkeleton` poses a ready
-  actor on foot, in its human form, outside furniture. Otherwise, and on a
-  mount or at death, `ReleaseSkeleton` clears the pose at once, and
+  actor on foot, in its human form, outside furniture. At death and on a
+  mount, `ReleaseSkeleton` clears the pose at once, and
   `ActorRegistry::Unregister` clears it with the registration; a respawned
   actor (another graph holder) starts from weight 0. Clearing shows the
   graph's output from the next animation update.
@@ -755,6 +780,21 @@ window or with `[Advanced] ShareCustomAnimations` off
   pose, and the modded events the first-person graph accepts drive it too:
   SkyParkour windows opened, held, and sent changing poses with the active
   graph 1.
+- **Ragdoll.** While the player is ragdolled (`IsInRagdollState`: paralysis, a
+  knockdown), Skyrim moves the reference with the body: in a paralysis
+  recording the published height rose by 69 units as the ragdoll started and
+  the heading kept turning, while COM's local stayed at (0, 0, 4.8) with no
+  rotation and no bone moved more than 1° per sample, so bone locals alone
+  carry neither the tilt nor the fall. So `SampleLocalSkeleton` then reads COM
+  in `ActorSkeleton::RootSpace::kReference`: from its world transform, relative
+  to an upright frame at the actor's position and heading, with the translation
+  divided by its parent's world scale. The receiver applies it as COM's local
+  under its upright root at the same position and heading, so the tilt and fall
+  travel in the pose. Outside a ragdoll COM keeps its local (`kParent`); on an
+  upright actor both spaces read the same COM transform. Each change of space
+  logs `Local skeleton pose root space`. The source also stops publishing
+  `grounded` while ragdolled ([Locomotion](locomotion.md#source-capture)), so
+  receivers do not probe ground under the raised reference.
 - **Hook.** The pose copy of `BShkbAnimationGraph` (ID 63589, SE 62644) writes
   the generated pose into `boneNodes`' local transforms through ID 63856 (SE
   62933). `ActorSkeleton` wraps its calls at ID 63358 + 0x319 (SE 62416 +
@@ -766,7 +806,13 @@ window or with `[Advanced] ShareCustomAnimations` off
   copied locals toward the pose. A bone entry's local transform is found as ID
   63856 finds it: a nonnegative index at +0x08 selects a 0x80-byte slot in the
   array at the node's +0x130, whose object at +0x70, or the slot itself, holds
-  the transform.
+  the transform. That slot is a `BSFlattenedBoneTree::BoneEntry`, whose world
+  transform at +0x34 the reference root space reads.
+- **Ragdoll copy.** While a graph's ragdoll is in the physics world (ID 63564),
+  ID 63589 skips the copy; ID 63587 drives the ragdoll and queues the graph, and
+  after the physics step ID 63563 runs the ragdoll driver's post-physics step,
+  copies the result into the locals through ID 63856, and applies its
+  world-from-model through ID 63569.
 - **Threads.** The hook runs on the thread that updates the graph. Poses and
   weights live in a map keyed like `ActorRegistry`, under a shared mutex the
   hook takes shared; an atomic count skips the lock while no actor has a pose.
@@ -895,6 +941,9 @@ Not yet checked, for the [skeleton pose](#skeleton-pose):
 23. A patch names the machines and states it adds differently from every
     vanilla one; a modded behavior placed in a state with a vanilla name holds
     a window only for its first second.
+24. `kIsInKillMove` is set on both the attacker and the victim for the paired
+    clip, and the victim is `kDying` from the clip's start, so the dead block
+    keeps a victim from opening a window.
 
 ## Acceptance criteria
 
@@ -949,15 +998,25 @@ Not yet checked, for the [skeleton pose](#skeleton-pose):
 14. Sitting down, mounting, dying, and transforming during a window hand the
     actor back to its graph without a lasting wrong pose.
 15. A source in first person shows its climb on peers as in third person.
+16. A source staggered by a hit shows its stagger on peers, and one using the
+    JellyFish SnowAngel power shows the snow angel on a viewer with the mod and
+    on one without; each window closes with `reaction-ended`.
+17. A source's kill move shows the source's side on peers. A source killed by a
+    kill move opens no window and ragdolls on peers as soon as it dies.
+18. A source knocked down by Unrelenting Force or a giant shows the fall, the
+    ragdoll, and the get-up on peers.
 
 ## Known limitations
 
 - The skeleton pose's COM translation is the source skeleton's, so a viewer's
   actor of another height, race, sex, or skeleton mod stands slightly too high
-  or too low during a window. A window shows the source's variant of a modded
-  animation (Paraglider's broom, lantern, or staff set) without its props:
-  the glider and other AnimObjects, its sounds, and its contrails do not
-  show. Sounds and effects of the vanilla reproduction underneath still play.
+  or too low during a window. A kill move shows only the source's side, since
+  its partner lives in the source's world, and a reaction shows the source's
+  clip, not a viewer's replacer of it. A window shows the source's variant of
+  a modded animation (Paraglider's broom, lantern, or staff set) without its
+  props: the glider and other AnimObjects, its sounds, and its contrails do
+  not show. Sounds and effects of the vanilla reproduction underneath still
+  play.
 
 - Skeleton (bone) bodies are not isolated: local projectiles, melee, traps that
   test them, and the crosshair still find the remote actor, and it blocks local

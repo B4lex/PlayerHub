@@ -112,8 +112,10 @@ At each checkpoint, from the carrier (the player, or its mount while riding):
   swims upward, so no jump is published while swimming.
 - **Swimming** from the carrier's `ActorState`.
 - **Grounded**: the carrier's character controller state
-  (`context.currentState`) is `kOnGround`, for the
-  [ground offset](#ground-offset).
+  (`context.currentState`) is `kOnGround` and the carrier is not ragdolled,
+  for the [ground offset](#ground-offset). A ragdoll carries the reference
+  off the ground with the body while the controller still reports
+  `kOnGround`.
 - **Graph epoch**: observed every pass, and advanced when the player's graph
   manager is replaced or becomes unavailable
   ([Combat presentation](combat-presentation.md#action-stream)).

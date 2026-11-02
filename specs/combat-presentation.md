@@ -714,8 +714,9 @@ Not confirmed in game for [beast actions](#beast-actions):
   reactions, bash failures, sprint power attacks as their own animation (they
   start from idle records with perk conditions,
   `AttackRightForwardSprinting_2hand` and its children, which the action stream
-  does not replicate), kill moves, and creature attacks are not
-  replicated.
+  does not replicate), and creature attacks are not replicated. Kill moves
+  show through [pose windows](remote-actor.md#source-window), not the action
+  stream.
 - Beast actions are animations only: a howl's fear or summon, Raise Dead's
   thrall, Vampiric Grip, the drain beam, and the feeding victim are not
   shown. A vampire lord's spell hands show the spell's hand look, not its

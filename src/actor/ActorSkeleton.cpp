@@ -96,32 +96,46 @@ namespace ActorSkeleton
             return mapped;
         }
 
-        // A nonnegative index at +0x08 of a boneNodes entry selects a 0x80-byte slot
-        // in the array at node + 0x130: the object at the slot's +0x70 when set, or
-        // the slot itself, holds the local transform (ID 63856, SE 62933).
-        RE::NiTransform* GetBoneLocal(const RE::BShkbAnimationGraph::BoneNodeEntry& a_entry)
+        struct BoneTransforms
+        {
+            RE::NiTransform* local{ nullptr };
+            const RE::NiTransform* world{ nullptr };
+        };
+
+        // A nonnegative index at +0x08 of a boneNodes entry selects a slot of the
+        // BSFlattenedBoneTree at the entry's node (ID 63856, SE 62933): the object at
+        // the slot's +0x70 when set, or the slot itself, holds the transforms.
+        BoneTransforms GetBoneTransforms(const RE::BShkbAnimationGraph::BoneNodeEntry& a_entry)
         {
             constexpr std::size_t kSlotArrayOffset = 0x130;
-            constexpr std::size_t kSlotSize = 0x80;
-            constexpr std::size_t kSlotObjectOffset = 0x70;
+            using Slot = RE::BSFlattenedBoneTree::BoneEntry;
+            static_assert(offsetof(Slot, local) == 0x00 && offsetof(Slot, world) == 0x34 && offsetof(Slot, node) == 0x70);
             auto* node = a_entry.node;
             if (!node)
             {
-                return nullptr;
+                return {};
             }
             const auto index = static_cast<std::int32_t>(a_entry.unk08);
             if (index < 0)
             {
-                return &node->local;
+                return { &node->local, &node->world };
             }
-            auto* slots = *reinterpret_cast<std::byte**>(reinterpret_cast<std::byte*>(node) + kSlotArrayOffset);
+            auto* slots = *reinterpret_cast<Slot**>(reinterpret_cast<std::byte*>(node) + kSlotArrayOffset);
             if (!slots)
             {
-                return nullptr;
+                return {};
             }
-            auto* slot = slots + static_cast<std::size_t>(index) * kSlotSize;
-            auto* object = *reinterpret_cast<RE::NiAVObject**>(slot + kSlotObjectOffset);
-            return object ? &object->local : reinterpret_cast<RE::NiTransform*>(slot);
+            auto& slot = slots[index];
+            if (slot.node)
+            {
+                return { &slot.node->local, &slot.node->world };
+            }
+            return { &slot.local, &slot.world };
+        }
+
+        RE::NiTransform* GetBoneLocal(const RE::BShkbAnimationGraph::BoneNodeEntry& a_entry)
+        {
+            return GetBoneTransforms(a_entry).local;
         }
 
         void WriteRotation(RE::NiMatrix3& a_matrix, const Network::SkeletonRotation& a_rotation)
@@ -282,6 +296,56 @@ namespace ActorSkeleton
 
         LocalMapping s_localMapping;
         std::uint32_t s_localMissingGraphCount = 0;
+
+        struct RootTransform
+        {
+            RE::NiMatrix3 rotate;
+            RE::NiPoint3 translate;
+        };
+
+        // Heading zero faces +Y and a positive heading turns toward +X, so an upright
+        // actor's 3D maps its local +Y to (sin, cos, 0).
+        RE::NiMatrix3 GetHeadingRotation(float a_heading)
+        {
+            const float sine = std::sin(a_heading);
+            const float cosine = std::cos(a_heading);
+            RE::NiMatrix3 rotation;
+            rotation.entry[0][0] = cosine;
+            rotation.entry[0][1] = sine;
+            rotation.entry[0][2] = 0.0F;
+            rotation.entry[1][0] = -sine;
+            rotation.entry[1][1] = cosine;
+            rotation.entry[1][2] = 0.0F;
+            rotation.entry[2][0] = 0.0F;
+            rotation.entry[2][1] = 0.0F;
+            rotation.entry[2][2] = 1.0F;
+            return rotation;
+        }
+
+        // The receiver applies the root as a local of a parent that stands upright at the
+        // published position and heading, scaled like the sender's parent.
+        std::optional<RootTransform> ReadReferenceRoot(RE::Actor& a_actor, const BoneTransforms& a_bone)
+        {
+            if (!a_bone.local || !a_bone.world || !(a_bone.local->scale > 0.0F))
+            {
+                return std::nullopt;
+            }
+            const float parentScale = a_bone.world->scale / a_bone.local->scale;
+            if (!std::isfinite(parentScale) || !(parentScale > 0.0F))
+            {
+                return std::nullopt;
+            }
+            float heading = a_actor.GetAngleZ();
+            if (!std::isfinite(heading))
+            {
+                heading = 0.0F;
+            }
+            const auto inverse = GetHeadingRotation(heading).Transpose();
+            return RootTransform{ .rotate = inverse * a_bone.world->rotate,
+                .translate = inverse * (a_bone.world->translate - a_actor.GetPosition()) / parentScale };
+        }
+
+        std::optional<RootSpace> s_loggedRootSpace;
     }
 
     void InstallHooks()
@@ -294,7 +358,7 @@ namespace ActorSkeleton
             PoseCopyHook<1>::_original.address() != 0);
     }
 
-    std::optional<Network::SkeletonPose> ReadThirdPersonPose(RE::Actor& a_actor)
+    std::optional<Network::SkeletonPose> ReadThirdPersonPose(RE::Actor& a_actor, RootSpace a_rootSpace)
     {
         PROFILE_FUNCTION();
         const auto* root = a_actor.Get3D(false);
@@ -347,17 +411,34 @@ namespace ActorSkeleton
             {
                 continue;
             }
-            const auto* local = GetBoneLocal(graph->boneNodes[static_cast<std::uint32_t>(index)]);
+            const auto transforms = GetBoneTransforms(graph->boneNodes[static_cast<std::uint32_t>(index)]);
+            const auto* local = transforms.local;
             if (!local)
             {
                 continue;
             }
-            pose.rotations[bone] = ReadRotation(local->rotate);
             pose.present |= std::uint64_t{ 1 } << bone;
-            if (bone == Network::kSkeletonRootBone)
+            if (bone != Network::kSkeletonRootBone)
             {
-                pose.rootTranslation = { local->translate.x, local->translate.y, local->translate.z };
+                pose.rotations[bone] = ReadRotation(local->rotate);
+                continue;
             }
+
+            const auto referenceRoot
+                = a_rootSpace == RootSpace::kReference ? ReadReferenceRoot(a_actor, transforms) : std::nullopt;
+            const auto space = referenceRoot ? RootSpace::kReference : RootSpace::kParent;
+            if (s_loggedRootSpace != space)
+            {
+                s_loggedRootSpace = space;
+                logs::debug("Local skeleton pose root space: space={} requested={}",
+                    space == RootSpace::kReference ? "reference" : "parent",
+                    a_rootSpace == RootSpace::kReference ? "reference" : "parent");
+            }
+
+            const auto rootTransform
+                = referenceRoot ? *referenceRoot : RootTransform{ .rotate = local->rotate, .translate = local->translate };
+            pose.rotations[bone] = ReadRotation(rootTransform.rotate);
+            pose.rootTranslation = { rootTransform.translate.x, rootTransform.translate.y, rootTransform.translate.z };
         }
         return pose;
     }
