@@ -6,7 +6,6 @@
 #include "sync/CheckpointPlayout.h"
 #include "sync/appearance/AppearanceSync.h"
 #include "sync/combat/CombatSync.h"
-#include "sync/combat/SpellEffectSync.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/furniture/FurnitureSync.h"
 #include "sync/idle/IdleSync.h"
@@ -29,7 +28,6 @@ struct PeerState
     ActorLifecycleState lifecycle;
     AppearanceSync::RemoteState appearance;
     EquipmentSync::RemoteState equipment;
-    SpellEffectSync::RemoteState spellEffects;
     FurnitureSync::RemoteState furniture;
     NameplateSync::RemoteState nameplate;
     SkeletonSync::RemoteState skeleton;

@@ -51,20 +51,6 @@ namespace Multiplayer
         bool operator==(const DefaultOutfit&) const = default;
     };
 
-    struct SpellEffects
-    {
-        static constexpr std::size_t kMaximumShaders = 8;
-        static constexpr std::size_t kMaximumArt = 8;
-
-        // Each sorted, without duplicates.
-        std::vector<FormReference> shaders;
-        std::vector<FormReference> art;
-
-        [[nodiscard]] bool IsEmpty() const noexcept { return shaders.empty() && art.empty(); }
-
-        bool operator==(const SpellEffects&) const = default;
-    };
-
     struct PlayerEquipment
     {
         static constexpr std::size_t kMaximumArmor = 32;
@@ -81,10 +67,8 @@ namespace Multiplayer
         std::optional<EquipmentHand> beastRightHand;
         std::optional<EquipmentHand> beastLeftHand;
         std::vector<EquipmentArmor> beastArmor;
-        SpellEffects spellEffects;
         std::uint64_t revision{ 0 };
 
-        // Spell effects excluded.
         [[nodiscard]] bool HasSameItems(const PlayerEquipment& a_other) const
         {
             return rightHand == a_other.rightHand && leftHand == a_other.leftHand && ammo == a_other.ammo
@@ -227,35 +211,6 @@ namespace Multiplayer
         return true;
     }
 
-    [[nodiscard]] inline bool IsValidSpellEffectList(const std::vector<FormReference>& a_forms, std::size_t a_maximum)
-    {
-        if (a_forms.size() > a_maximum)
-        {
-            return false;
-        }
-        for (std::size_t i = 0; i < a_forms.size(); ++i)
-        {
-            if (!IsValidFormReference(a_forms[i], false))
-            {
-                return false;
-            }
-            for (std::size_t j = 0; j < i; ++j)
-            {
-                if (a_forms[j] == a_forms[i])
-                {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    [[nodiscard]] inline bool IsValidSpellEffects(const SpellEffects& a_effects)
-    {
-        return IsValidSpellEffectList(a_effects.shaders, SpellEffects::kMaximumShaders)
-            && IsValidSpellEffectList(a_effects.art, SpellEffects::kMaximumArt);
-    }
-
     [[nodiscard]] inline bool IsValidEquipment(const PlayerEquipment& a_equipment)
     {
         if (a_equipment.revision == 0
@@ -263,8 +218,7 @@ namespace Multiplayer
             || a_equipment.armor.size() > PlayerEquipment::kMaximumArmor
             || a_equipment.beastArmor.size() > PlayerEquipment::kMaximumBeastArmor
             || !IsValidFormReference(a_equipment.ammo, true) || !IsValidDefaultOutfit(a_equipment.defaultOutfit)
-            || !IsValidArmorList(a_equipment.armor) || !IsValidArmorList(a_equipment.beastArmor)
-            || !IsValidSpellEffects(a_equipment.spellEffects))
+            || !IsValidArmorList(a_equipment.armor) || !IsValidArmorList(a_equipment.beastArmor))
         {
             return false;
         }

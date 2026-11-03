@@ -250,13 +250,6 @@ message DefaultOutfit {
   FormRef ammo = 3;
 }
 
-// The hit shaders and hit art that the player's own self-delivered spells show
-// on the player, each listed once.
-message SpellEffects {
-  repeated FormRef shaders = 1;
-  repeated FormRef art = 2;
-}
-
 message Equipment {
   uint64 revision = 1;
   repeated Armor armor = 2;
@@ -269,5 +262,4 @@ message Equipment {
   Hand beast_right_hand = 7;
   Hand beast_left_hand = 8;
   repeated Armor beast_armor = 9;
-  SpellEffects spell_effects = 10;
 }

@@ -411,16 +411,6 @@ Capture, when the race has a [playable race](#playable-race):
 - `defaultOutfit`: the pieces for items that are not from base-game plugins
   ([Default outfit](#default-outfit)).
 - `beast_right_hand`, `beast_left_hand`, `beast_armor`: unset or empty.
-- `spell_effects`: the latest sample of the player's visible
-  [spell effects](combat-presentation.md#spell-effects).
-
-The spell effects ride on this message because they are reconstructable state
-that late joiners need and that changes far less often than the checkpoint;
-the message already carries revisions, coalescing, and the `PeerEnter` copy.
-They change without an equip event and while a beast form captures no items,
-so a sample that differs from the pending or last published capture (in that
-order) is published as a copy of it with the new effects. Before any capture
-of items, effects wait.
 
 Without a [playable race](#playable-race), as in a transformation, which
 unequips everything, the last published items stand; outside the vanilla beast
@@ -440,7 +430,7 @@ records point at their unenchanted item through `templateWeapon` or
 item if the root is dynamic. Crafted, unenchanted items are ordinary forms.
 
 Publishing: when the capture differs from the last published one (revision
-excluded, armor compared as a set, spell effects included), at least 250 ms apart, sending only the
+excluded, armor compared as a set), at least 250 ms apart, sending only the
 newest capture when the interval ends. Each publish increments `revision`, and
 the last one is republished on every new connection. The sender publishes every
 referenceable item, vanilla or not; all filtering is on the receiver.
@@ -508,10 +498,7 @@ worn armor, and equipped hand objects with the resolved set. When they differ:
    with another, and never counts as inventory. The
    ammo is equipped, which fills the quiver; remote shots never spend it.
 
-A revision whose items equal the previous one's (`HasSameItems`, which leaves
-out the spell effects) keeps the resolved items and the reconciliation state,
-so a spell effect change does not unsettle the hands that gate attacks and
-casts. A mismatch is checked every frame until the first mutation pass, so a new
+A mismatch is checked every frame until the first mutation pass, so a new
 revision applies at once; afterwards, and while matching, every 0.25 s. At most
 4 mutation passes run before the state matches; then the actor keeps what it
 reached until a new revision, a respawn, or a later match resets the budget.

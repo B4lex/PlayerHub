@@ -79,9 +79,7 @@ refused at the handshake ([Transport](#transport)).
 - The nanopb runtime is built from the `lib/nanopb` submodule at tag `0.4.9`,
   the generator version `proto/generate.sh` pins: the xmake `nanopb` package
   depends on `protoc`, whose install test fails under wine
-  (`STATUS_DLL_NOT_FOUND`). The plugin target defines `PB_FIELD_32BIT`:
-  `PeerEnter` and `ServerMessage` exceed 64 kB at their static sizes, and the
-  generated code refuses to compile without 32-bit field descriptors.
+  (`STATUS_DLL_NOT_FOUND`).
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
   within `limits.hello_timeout_seconds` (5). A version other than
@@ -440,7 +438,6 @@ and the two fields are not merged yet.
 | `default_outfit` | unset is empty |
 | `beast_right_hand`, `beast_left_hand` | a `SPELL` hand, unset for empty: a vampire lord's spells, while the fields above keep the character's items ([Appearance and equipment](appearance-and-equipment.md#shapeshifts)) |
 | `beast_armor` | at most 8, as `armor`: the vampire lord's worn armor |
-| `spell_effects` | unset is none; `shaders` and `art` each at most 8 unique form references (`validate.MaximumSpellEffectShaders`, `MaximumSpellEffectArt`, `Multiplayer::SpellEffects`): the effect shaders and art objects the player's own self-delivered spells show on the player ([Combat presentation](combat-presentation.md#spell-effects)) |
 | outfit `armor` | at most 8, non-zero slot masks |
 | outfit `hands` | at most 2, a weapon with a weapon type or a torch, no casting art or light, no two with the same kind and weapon type |
 | outfit references and `default_race.race` | from a base-game plugin, compared without case |
