@@ -27,7 +27,7 @@ func TestCheckpoint(t *testing.T) {
 		"direction above 255": func(c *pb.Checkpoint) { c.Direction = 256 },
 		"time above 16383":    func(c *pb.Checkpoint) { c.Time = 16384 },
 		"unknown movement":    func(c *pb.Checkpoint) { c.Flags = 7 },
-		"unknown flag bit":    func(c *pb.Checkpoint) { c.Flags = 1 << 19 },
+		"unknown flag bit":    func(c *pb.Checkpoint) { c.Flags = 1 << 23 },
 		"left release without cast": func(c *pb.Checkpoint) {
 			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_LEFT | pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT)
 		},
@@ -36,6 +36,16 @@ func TestCheckpoint(t *testing.T) {
 		},
 		"dual cast without left cast": func(c *pb.Checkpoint) {
 			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_DUAL_CASTING | pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT)
+		},
+		"shout release without shout": func(c *pb.Checkpoint) {
+			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_RELEASED)
+		},
+		"shout words without shout": func(c *pb.Checkpoint) {
+			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS)
+		},
+		"two and three words": func(c *pb.Checkpoint) {
+			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUTING | pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS |
+				pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS)
 		},
 		"skeleton layout":    func(c *pb.Checkpoint) { c.Skeleton[0] = 1 },
 		"skeleton bone 63":   func(c *pb.Checkpoint) { c.Skeleton = skeleton(1<<63|allSkeletonBones, 0) },
@@ -55,6 +65,12 @@ func TestCheckpoint(t *testing.T) {
 		pb.CheckpointFlag_CHECKPOINT_FLAG_DUAL_CASTING)
 	if err := Checkpoint(casting); err != nil {
 		t.Fatalf("released dual cast rejected: %v", err)
+	}
+	shouting := proto.Clone(valid).(*pb.Checkpoint)
+	shouting.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUTING | pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_RELEASED |
+		pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS)
+	if err := Checkpoint(shouting); err != nil {
+		t.Fatalf("released three-word shout rejected: %v", err)
 	}
 	full := proto.Clone(valid).(*pb.Checkpoint)
 	// 23 bones of 29 bits, 30 of 23, and 10 of 26.
@@ -132,6 +148,9 @@ func TestAction(t *testing.T) {
 	idle := func(name string) *pb.Action {
 		return &pb.Action{ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Kind: &pb.Action_Idle{Idle: name}}
 	}
+	power := func(ref *pb.FormRef) *pb.Action {
+		return &pb.Action{ActionSequence: 1, GraphEpoch: 1, CheckpointSequence: 1, Kind: &pb.Action_Power{Power: ref}}
+	}
 	for name, a := range map[string]*pb.Action{
 		"normal":        attack(pb.AttackAction_ATTACK_ACTION_NORMAL, pb.PowerDirection_POWER_DIRECTION_NONE),
 		"bash":          attack(pb.AttackAction_ATTACK_ACTION_BASH, pb.PowerDirection_POWER_DIRECTION_NONE),
@@ -144,6 +163,7 @@ func TestAction(t *testing.T) {
 		"idle digits":   idle("IdlePointFar_02"),
 		"longest idle":  idle("Idle" + strings.Repeat("a", MaximumIdleEventBytes-4)),
 		"offset stop":   idle("OffsetStop"),
+		"power":         power(&pb.FormRef{Plugin: "Skyrim.esm", FormId: 0x0E40DF}),
 	} {
 		if err := Action(a); err != nil {
 			t.Errorf("%s rejected", name)
@@ -172,6 +192,9 @@ func TestAction(t *testing.T) {
 		"idle not ASCII":       idle("IdleLaugh\u00e9"),
 		"long idle":            idle("Idle" + strings.Repeat("a", MaximumIdleEventBytes-3)),
 		"offset start":         idle("OffsetStart"),
+		"empty power":          power(nil),
+		"power without plugin": power(&pb.FormRef{FormId: 0x0E40DF}),
+		"power form too large": power(&pb.FormRef{Plugin: "Skyrim.esm", FormId: MaximumLocalFormID + 1}),
 	} {
 		if Action(a) == nil {
 			t.Errorf("%s accepted", name)
@@ -312,6 +335,7 @@ func validEquipment() *pb.Equipment {
 		RightHand: weapon(1),
 		LeftHand:  &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL},
 		Ammo:      ref("Skyrim.esm", 118996),
+		Shout:     ref("Skyrim.esm", 0x013E07),
 		DefaultOutfit: &pb.DefaultOutfit{
 			Armor: []*pb.Armor{{Form: ref("Dawnguard.esm", 1), SlotMask: 1}},
 			Hands: []*pb.Hand{weapon(5), {Kind: pb.HandKind_HAND_KIND_TORCH, Form: ref("Skyrim.esm", 2)}},
@@ -378,12 +402,13 @@ func TestEquipment(t *testing.T) {
 		"creation club outfit armor": func(e *pb.Equipment) {
 			e.DefaultOutfit.Armor[0].Form = ref("ccBGSSSE052-BA_Iron.esl", 0x801)
 		},
-		"too much outfit armor":  func(e *pb.Equipment) { e.DefaultOutfit.Armor = make([]*pb.Armor, 9) },
-		"duplicate outfit hand":  func(e *pb.Equipment) { e.DefaultOutfit.Hands[1] = weapon(5) },
-		"outfit spell":           func(e *pb.Equipment) { e.DefaultOutfit.Hands[1] = &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL} },
-		"modded outfit ammo":     func(e *pb.Equipment) { e.DefaultOutfit.Ammo = ref("Mod.esp", 1) },
-		"invalid ammo reference": func(e *pb.Equipment) { e.Ammo = ref("", 1) },
-		"beast weapon":           func(e *pb.Equipment) { e.BeastRightHand = weapon(1) },
+		"too much outfit armor":   func(e *pb.Equipment) { e.DefaultOutfit.Armor = make([]*pb.Armor, 9) },
+		"duplicate outfit hand":   func(e *pb.Equipment) { e.DefaultOutfit.Hands[1] = weapon(5) },
+		"outfit spell":            func(e *pb.Equipment) { e.DefaultOutfit.Hands[1] = &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL} },
+		"modded outfit ammo":      func(e *pb.Equipment) { e.DefaultOutfit.Ammo = ref("Mod.esp", 1) },
+		"invalid ammo reference":  func(e *pb.Equipment) { e.Ammo = ref("", 1) },
+		"invalid shout reference": func(e *pb.Equipment) { e.Shout = ref("", 1) },
+		"beast weapon":            func(e *pb.Equipment) { e.BeastRightHand = weapon(1) },
 		"beast torch": func(e *pb.Equipment) {
 			e.BeastLeftHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_TORCH, Form: ref("Skyrim.esm", 1)}
 		},

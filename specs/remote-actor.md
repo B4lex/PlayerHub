@@ -136,7 +136,7 @@ and hook counts are only accessed under the exclusive lock. Per actor it holds:
   never resolve a handle), and by the actor's `MagicTarget` and
   `ActorValueOwner`, so the damage and magic hooks, which see every actor in
   the world, find a remote actor without scanning;
-- ownership flags that open the firewall: furniture, cast, mounted rider, dead
+- ownership flags that open the firewall: furniture, cast, voice, mounted rider, dead
   (`IsDead` also hides a body's activation prompt);
 - `networkPlaced`, the published graph Speed, and mount gait speed;
 - the furniture each actor holds, for the local activation hook
@@ -159,6 +159,7 @@ is sent directly to the saved graph function, bypassing the hook.
 | `WeapEquip`, `WeapUnequip`, `Equip`, `Unequip` | Native draw and sheathe | [Combat presentation](combat-presentation.md#weapon-stance) |
 | `Magic_Equip`, `MagicForceEquip`, `MagicWeap_ForceEquip`, `MagicForceEquipRight`, `MagicForceEquipLeft`, `WeapSoloEquip`, `Magic_Solo_Equip` | Spell hand draw and single-hand swaps | [Combat presentation](combat-presentation.md#spells) |
 | `MLh_*`, `MRh_*`, `DualMagic_*`, `RitualSpell*`, names containing `Cast` (case-insensitive) | While a cast is owned | [Combat presentation](combat-presentation.md#spells) |
+| Names containing `shout` or `BreathExhale` (case-insensitive: `shoutStart`, `shoutStop`, `shoutReleaseSlowTime`, `ShoutSprint*Start`, `MT_BreathExhaleShort`, `CombatReady_BreathExhaleShort`) | While a shout is owned | [Combat presentation](combat-presentation.md#shouts-and-powers) |
 | `SwimStart`, `swimStop` | Skyrim manages swimming locally | [Locomotion](locomotion.md#swimming) |
 | `WeapOutRightReplaceForceEquip`, `WeapOutLeftReplaceForceEquip` | Equipping over a drawn weapon | [Combat presentation](combat-presentation.md#weapon-stance) |
 | `torchEquip`, `torchUnequip` | A carried torch's arm | [Appearance and equipment](appearance-and-equipment.md#equipment) |
@@ -223,8 +224,8 @@ A detected graph manager replacement also resets the bookkeeping.
 - `ApplyRemoteReplicaPolicy`, on every update, clears `kPlayerTeammate`,
   `kCanDoFavor`, `kCanSpeak`, `kAttackOnSight`, and `kAngryWithPlayer`, and
   disables attacking and casting. Presentation clears `kAttackingDisabled` or
-  `kCastingDisabled` only for one synchronous dispatch, and a held cast keeps
-  `kCastingDisabled` clear.
+  `kCastingDisabled` only for one synchronous dispatch, and a held cast or
+  shout keeps `kCastingDisabled` clear.
 - Immediately before Skyrim's actor update, the live AI process is marked as
   ignoring combat and any combat controller is marked inactive. The original
   update still runs, so graph and controller processing continue.
@@ -233,7 +234,12 @@ A detected graph manager replacement also resets the bookkeeping.
   package ([Package takeover](#package-takeover)).
 - Guards on `KillImpl`, `KillDying`, `HandleHealthDamage`, and health
   `ModActorValue` keep the actor alive, and a magic firewall keeps local magic
-  off it. A dead registration lets these calls through and stops reasserting
+  off it: `MagicTarget::AddTarget` on `Character` refuses a hostile or
+  detrimental effect, and any shout's (`kVoicePower`) effect unless the remote
+  actor cast it on itself, since effects arriving through projectiles or
+  explosions do not always keep their caster. Each update dispels an active
+  effect the hook missed by the same rule, with `Dispelling magic effect that
+  bypassed the remote actor firewall`. A dead registration lets these calls through and stops reasserting
   the policy ([Native interactions](native-interactions.md#death)).
 
 ## Combat isolation
@@ -337,7 +343,7 @@ reaction is decided. AE Address Library IDs are stable, and the 1.6.640 and
 
 | ID | Function | Moved entry bytes | Registered remote actor |
 | --- | --- | --- | --- |
-| 39643 | AI process dialogue response `(process, DialogueItem by value, speaker, listener, flag)` | `mov rax, rsp; mov [rax+10h], rdx` | as speaker: returns without starting it and releases the item |
+| 39643 | AI process dialogue response `(process, DialogueItem by value, speaker, listener, flag)` | `mov rax, rsp; mov [rax+10h], rdx` | as speaker: returns without starting it and releases the item, except a shouted word ([Combat presentation](combat-presentation.md#voice-state)): a topic of subtype `kVoicePowerStartShort`, `kVoicePowerStartLong`, `kVoicePowerEndShort`, or `kVoicePowerEndLong` |
 | 37577 | `Actor::IsFleeing` | `push rbx; sub rsp, 20h` | returns false |
 | 42704 | `ActorKnowledge::SetDetectionState(state)` | `push rbx; sub rsp, 20h` | as knowledge owner: returns without storing or notifying |
 
@@ -624,8 +630,9 @@ Non-goals:
   SCAR attack chains) and modded idle forms played through vanilla events open
   no window yet.
 - Other vanilla states the reproduction leaves out open no window: bleedout,
-  attack recoils, shouts, ritual spells, and non-lethal paired animations are
-  left for native replay or later, and flinches and block hit reactions layer
+  attack recoils, ritual spells, and non-lethal paired animations are left
+  for native replay or later (shouts replay natively,
+  [Combat presentation](combat-presentation.md#shouts-and-powers)), and flinches and block hit reactions layer
   over locomotion and fire too often for a whole-body pose.
 - A clip's side effects do not follow the pose: AnimObjects (Paraglider's
   glider), `SoundPlay.*` annotations, and contrails.

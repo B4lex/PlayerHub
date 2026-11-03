@@ -27,6 +27,7 @@ namespace Network
         float direction{ 0.0F };
         Multiplayer::AnimationState animationState{};
         Multiplayer::HandPresentation handPresentation{};
+        Multiplayer::VoicePresentation voice{};
         bool dead{ false };
         bool mounted{ false };
         bool swimming{ false };
@@ -107,9 +108,10 @@ namespace Network
     struct AnimationAction
     {
         Multiplayer::PeerSlot playerID{ 0 };
-        // A beast action or an idle event replaces the attack.
+        // A beast action, an idle event, or a power replaces the attack.
         Multiplayer::BeastAction beast{ Multiplayer::BeastAction::kNone };
         Multiplayer::IdleEvent idle;
+        Multiplayer::FormReference power;
         Attack attack{};
         std::uint64_t actionSequence{ 0 };
         std::uint64_t graphEpoch{ 0 };

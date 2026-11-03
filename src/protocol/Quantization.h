@@ -39,7 +39,11 @@ namespace Network
         inline constexpr std::uint32_t kCastReleasedLeft = 1U << 16;
         inline constexpr std::uint32_t kCastReleasedRight = 1U << 17;
         inline constexpr std::uint32_t kDualCasting = 1U << 18;
-        inline constexpr std::uint32_t kKnown = 0x7FFFF;
+        inline constexpr std::uint32_t kShouting = 1U << 19;
+        inline constexpr std::uint32_t kShoutReleased = 1U << 20;
+        inline constexpr std::uint32_t kShoutTwoWords = 1U << 21;
+        inline constexpr std::uint32_t kShoutThreeWords = 1U << 22;
+        inline constexpr std::uint32_t kKnown = 0x7FFFFF;
     }
 
     struct QuantizedCheckpoint
@@ -129,6 +133,11 @@ namespace Network
         set(a_transform.handPresentation.castReleasedRight, kCastReleasedRight);
         set(a_transform.handPresentation.dualCasting, kDualCasting);
         set(a_transform.handPresentation.blocking, kBlocking);
+        const auto& voice = a_transform.voice;
+        set(voice.shouting, kShouting);
+        set(voice.shouting && voice.released, kShoutReleased);
+        set(voice.shouting && voice.words == 2, kShoutTwoWords);
+        set(voice.shouting && voice.words >= 3, kShoutThreeWords);
         set(a_transform.dead, kDead);
         set(a_transform.mounted, kMounted);
         set(a_transform.swimming, kSwimming);
@@ -163,6 +172,9 @@ namespace Network
             && ((a_checkpoint.flags & kCastReleasedLeft) == 0 || (a_checkpoint.flags & kCastingLeft) != 0)
             && ((a_checkpoint.flags & kCastReleasedRight) == 0 || (a_checkpoint.flags & kCastingRight) != 0)
             && ((a_checkpoint.flags & kDualCasting) == 0 || (a_checkpoint.flags & kCastingLeft) != 0)
+            && ((a_checkpoint.flags & (kShoutReleased | kShoutTwoWords | kShoutThreeWords)) == 0
+                || (a_checkpoint.flags & kShouting) != 0)
+            && (a_checkpoint.flags & (kShoutTwoWords | kShoutThreeWords)) != (kShoutTwoWords | kShoutThreeWords)
             && (a_checkpoint.flags & kMovementStateMask)
                    <= static_cast<std::uint32_t>(Multiplayer::MovementState::kSneakingRunning);
     }
@@ -191,6 +203,12 @@ namespace Network
                 .castReleasedRight = (flags & kCastReleasedRight) != 0,
                 .dualCasting = (flags & kDualCasting) != 0,
                 .blocking = (flags & kBlocking) != 0 },
+            .voice = Multiplayer::VoicePresentation{ .shouting = (flags & kShouting) != 0,
+                .released = (flags & kShoutReleased) != 0,
+                .words = static_cast<std::uint8_t>((flags & kShouting) == 0 ? 0
+                        : (flags & kShoutThreeWords) != 0                ? 3
+                        : (flags & kShoutTwoWords) != 0                  ? 2
+                                                                         : 1) },
             .dead = (flags & kDead) != 0,
             .mounted = (flags & kMounted) != 0,
             .swimming = (flags & kSwimming) != 0,

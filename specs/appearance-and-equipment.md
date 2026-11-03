@@ -144,6 +144,15 @@ engine default that is replaced rather than written. The base then gets:
 - the `kUnique` flag: a remote player is one character, not a generic NPC;
 - the full name set to the player label, read by the crosshair and other name
   displays;
+- the race's default voice type for its sex when `Skyrim.esm` `VoicesPlayer`
+  (`0x068ACA`) holds it, else `MaleEvenToned` (`0x013AD2`) or
+  `FemaleEvenToned` (`0x013ADD`): the shouted words' dialogue requires a voice
+  type in that list
+  ([Combat presentation](combat-presentation.md#shout-and-power-receiver)),
+  and the `PlayerVoiceMale`/`PlayerVoiceFemale` default objects are empty in
+  `Skyrim.esm`;
+  every other line a remote actor would say is suppressed
+  ([Remote actor](remote-actor.md#reaction-suppression));
 - race and original race, sex, weight, and height, with height clamped to
   `0.85..1.15` (`kMinimumRemoteHeight`, `kMaximumRemoteHeight`) so an extreme
   scale cannot make a remote actor a giant or a doll in another player's world;
@@ -389,9 +398,10 @@ Triggers:
   weapon clearing both hands.
 - A full capture runs once per second anyway, for changes without an event
   (game load, script equips, race change).
-- A captured attack or a starting hand presentation captures at once and, if
-  changed, publishes immediately, bypassing the quiet window and the minimum
-  interval, so the new weapon arrives before its use.
+- A captured attack, a starting hand presentation, or a starting shout
+  captures at once and, if changed, publishes immediately, bypassing the
+  quiet window and the minimum interval, so the new weapon or shout arrives
+  before its use.
 
 Capture, when the race has a [playable race](#playable-race):
 
@@ -408,6 +418,9 @@ Capture, when the race has a [playable race](#playable-race):
 - `ammo`: the worn `TESAmmo` entry. `Actor::GetCurrentAmmo` (vfunc 0x9E) reads
   `MiddleHighProcessData::bothHands` instead, which an actor without
   middle-high process data does not have.
+- `shout`: the voice slot (`Actor::selectedPower`) when it holds a
+  `TESShout`; a power is sent when cast
+  ([Combat presentation](combat-presentation.md#shouts-and-powers)).
 - `defaultOutfit`: the pieces for items that are not from base-game plugins
   ([Default outfit](#default-outfit)).
 - `beast_right_hand`, `beast_left_hand`, `beast_armor`: unset or empty.
@@ -450,7 +463,10 @@ stand-in; a spell drop also names the look it fell back to (`look`,
 `placeholder`). The filter is one
 policy function returning a form or a drop reason, whose drop branch selects
 the default outfit. A resolved or outfit torch is then replaced by its
-[fake light](#fake-lights) version.
+[fake light](#fake-lights) version. A shout resolves to a `TESShout` with a
+spell in at least one variation (else `no-spell`) and otherwise falls back to
+Unrelenting Force; it is not equipped, only cast
+([Combat presentation](combat-presentation.md#shout-and-power-receiver)).
 
 ### Fake lights
 
@@ -488,6 +504,12 @@ worn armor, and equipped hand objects with the resolved set. When they differ:
    dual-wielding one weapon), plus 20 of the resolved ammo.
 2. Every other object, and any excess, is removed and deleted, never
    transferred to a container or the player: gold, leveled items, script items.
+   Worn non-playable armor is kept at its count and is not compared with the
+   worn set: peers publish only playable armor outside beast forms, so it comes
+   from the actor's own magic, such as `Dragonborn.esm`
+   `DLC2DragonbornAspectArmor01`, which Dragon Aspect's script equips and
+   unequips when the effect ends. Once unworn it is removed as any other
+   object.
 3. Equipped armor and hand objects outside the set are unequipped. A spell in
    a hand that should be empty is removed with
    `ActorEquipManager::UnequipSpell` (ID 38902, SE 37946, Papyrus
@@ -811,7 +833,8 @@ Not confirmed in game:
 
 ## Known limitations
 
-- Voice type, actor values, mod-added transformation races, and
+- Voice type (the actor speaks with its race's player voice, or the even-toned
+  one of its sex), actor values, mod-added transformation races, and
   RaceMenu/NiOverride data other than overlays (body morphs, node transforms,
   scaled bones, armor and skin overrides) are not synchronized, except the
   `NPC` node scale, which travels in [`height`](#capture).
@@ -823,8 +846,8 @@ Not confirmed in game:
 - The transformation itself, its animation, effect shader, and sound, is not
   shown: the user chose an instant swap. The swap waits for a respawn,
   so the actor is briefly absent while the new form's 3D loads. Custom skin armor and far skins use the resolved race's.
-- Enchantments, tempering, poison, charge, player-given names, the equipped shout
-  or power, and SMP/CBPC physics are not shown.
+- Enchantments, tempering, poison, charge, player-given names, and SMP/CBPC
+  physics are not shown.
 - An outfit piece stands in only for its slot and weapon type, not for the
   missing item's look. A default race shows its own default face.
 - Tint capture is off on VR.

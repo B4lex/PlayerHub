@@ -34,6 +34,7 @@ namespace EquipmentSync
         ResolvedHand rightHand;
         ResolvedHand leftHand;
         RE::TESAmmo* ammo{ nullptr };
+        RE::TESShout* shout{ nullptr };
         ResolvedHand beastRightHand;
         ResolvedHand beastLeftHand;
         std::vector<RE::TESObjectARMO*> beastArmor;
@@ -60,6 +61,10 @@ namespace EquipmentSync
         RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RemoteActor& a_remoteActor, float a_delta);
 
     [[nodiscard]] bool AreHandsSettled(const RemoteState& a_remote);
+
+    // The resolved shout of the latest equipment, or its stand-in; null for none or
+    // while the latest revision is unresolved.
+    [[nodiscard]] RE::TESShout* GetShout(const RemoteState& a_remote);
 
     [[nodiscard]] bool IsReadyForWeaponDraw(const RemoteState& a_remote);
 }

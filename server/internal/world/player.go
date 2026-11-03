@@ -161,8 +161,9 @@ func (p *Player) AcceptAction(a *pb.Action) error {
 		if !validate.SameBeastGraph(p.Context.GetShapeshift(), validate.BeastActionForm(kind.Beast)) {
 			return ErrIncompatibleStep
 		}
-	case *pb.Action_Idle:
-		// The human graph plays idles with the weapon drawn or sheathed.
+	case *pb.Action_Idle, *pb.Action_Power:
+		// The human graph plays idles with the weapon drawn or sheathed, and a power
+		// casts in either stance.
 		if p.Context.GetShapeshift() != pb.Shapeshift_SHAPESHIFT_NONE {
 			return ErrIncompatibleStep
 		}

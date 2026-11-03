@@ -11,6 +11,7 @@
 #include "sync/movement/MovementSync.h"
 #include "sync/shapeshift/ShapeshiftSync.h"
 #include "sync/skeleton/SkeletonSync.h"
+#include "sync/voice/VoiceSync.h"
 
 #include <chrono>
 #include <cmath>
@@ -83,6 +84,7 @@ namespace CheckpointPublisher
             .direction = movement.direction,
             .animationState = animationState,
             .handPresentation = handPresentation,
+            .voice = VoiceSync::SampleLocalVoice(),
             .dead = dead,
             .mounted = static_cast<bool>(mount),
             .swimming = movement.swimming,

@@ -75,6 +75,8 @@ namespace Network
         Multiplayer::BeastAction a_action, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
     void PublishLocalIdleAction(
         std::string_view a_event, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
+    void PublishLocalPowerAction(
+        const Multiplayer::FormReference& a_power, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
 
     [[nodiscard]] bool PublishChatMessage(Multiplayer::ChatChannel a_channel, Multiplayer::PeerSlot a_recipient,
         std::string_view a_text, std::function<void(Multiplayer::ChatRejection)> a_onRejected);

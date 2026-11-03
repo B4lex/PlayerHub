@@ -61,6 +61,21 @@ namespace ReactionSuppression
             sizedDelete(a_item, sizeof(RE::DialogueItem));
         }
 
+        // The shouted words: the voice state update (ID 38805) says one of these topic
+        // subtypes as it releases each word (ID 39337).
+        bool IsShoutTopic(const RE::DialogueItem* a_item)
+        {
+            using Subtype = RE::DIALOGUE_DATA::Subtype;
+            const auto* topic = a_item ? a_item->topic : nullptr;
+            if (!topic)
+            {
+                return false;
+            }
+            const auto subtype = topic->data.subtype.get();
+            return subtype == Subtype::kVoicePowerStartShort || subtype == Subtype::kVoicePowerStartLong
+                || subtype == Subtype::kVoicePowerEndShort || subtype == Subtype::kVoicePowerEndLong;
+        }
+
         // The AI process starting a dialogue item (ID 39643), reached only from
         // ID 39642 once it has chosen a topic response for the speaker. Skyrim's own
         // barks, such as hit and combat lines, start here. a_item points at a by-value
@@ -70,7 +85,7 @@ namespace ReactionSuppression
             static void Thunk(RE::AIProcess* a_process, RE::DialogueItem** a_item, RE::Actor* a_speaker,
                 RE::TESObjectREFR* a_listener, bool a_flag)
             {
-                if (ActorRegistry::IsRegistered(a_speaker))
+                if (ActorRegistry::IsRegistered(a_speaker) && !IsShoutTopic(a_item ? *a_item : nullptr))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     if (const auto count = CountSuppression(suppressedCount))

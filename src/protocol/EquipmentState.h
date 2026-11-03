@@ -67,13 +67,15 @@ namespace Multiplayer
         std::optional<EquipmentHand> beastRightHand;
         std::optional<EquipmentHand> beastLeftHand;
         std::vector<EquipmentArmor> beastArmor;
+        // The shout in the voice slot; empty for a power or nothing.
+        FormReference shout;
         std::uint64_t revision{ 0 };
 
         [[nodiscard]] bool HasSameItems(const PlayerEquipment& a_other) const
         {
             return rightHand == a_other.rightHand && leftHand == a_other.leftHand && ammo == a_other.ammo
                 && defaultOutfit == a_other.defaultOutfit && beastRightHand == a_other.beastRightHand
-                && beastLeftHand == a_other.beastLeftHand && HasSameArmor(armor, a_other.armor)
+                && beastLeftHand == a_other.beastLeftHand && shout == a_other.shout && HasSameArmor(armor, a_other.armor)
                 && HasSameArmor(beastArmor, a_other.beastArmor);
         }
 
@@ -217,7 +219,8 @@ namespace Multiplayer
             || a_equipment.revision > static_cast<std::uint64_t>((std::numeric_limits<std::int64_t>::max)())
             || a_equipment.armor.size() > PlayerEquipment::kMaximumArmor
             || a_equipment.beastArmor.size() > PlayerEquipment::kMaximumBeastArmor
-            || !IsValidFormReference(a_equipment.ammo, true) || !IsValidDefaultOutfit(a_equipment.defaultOutfit)
+            || !IsValidFormReference(a_equipment.ammo, true) || !IsValidFormReference(a_equipment.shout, true)
+            || !IsValidDefaultOutfit(a_equipment.defaultOutfit)
             || !IsValidArmorList(a_equipment.armor) || !IsValidArmorList(a_equipment.beastArmor))
         {
             return false;

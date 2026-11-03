@@ -733,6 +733,31 @@ namespace AppearanceSync
             return form ? form->As<RE::TESCombatStyle>() : nullptr;
         }
 
+        // The shouted words a player says are VoicePowers dialogue conditioned on a voice
+        // type in Skyrim.esm VoicesPlayer, which holds the playable races' default voice
+        // types; every other line a remote actor would say is suppressed
+        // (ReactionSuppression). The PlayerVoiceMale/Female default objects are empty in
+        // Skyrim.esm.
+        RE::BGSVoiceType* GetShoutVoiceType(const RE::TESRace& a_race, bool a_female)
+        {
+            constexpr RE::FormID kVoicesPlayerFormID = 0x068ACA;
+            constexpr RE::FormID kMaleEvenTonedFormID = 0x013AD2;
+            constexpr RE::FormID kFemaleEvenTonedFormID = 0x013ADD;
+            auto* dataHandler = RE::TESDataHandler::GetSingleton();
+            if (!dataHandler)
+            {
+                return nullptr;
+            }
+            auto* raceVoice = a_race.defaultVoiceTypes[a_female ? RE::SEXES::kFemale : RE::SEXES::kMale];
+            const auto* voicesPlayer = dataHandler->LookupForm<RE::BGSListForm>(kVoicesPlayerFormID, "Skyrim.esm");
+            if (raceVoice && voicesPlayer && voicesPlayer->HasForm(raceVoice))
+            {
+                return raceVoice;
+            }
+            return dataHandler->LookupForm<RE::BGSVoiceType>(
+                a_female ? kFemaleEvenTonedFormID : kMaleEvenTonedFormID, "Skyrim.esm");
+        }
+
         // The TESNPC constructor already runs InitializeData, which leaves no class,
         // AI packages, factions, inventory, or outfits, and points faceData at a
         // shared engine default that must be replaced rather than written.
@@ -764,6 +789,7 @@ namespace AppearanceSync
             npc->attackDataMap = a_race.attackDataMap;
             npc->combatStyle = GetDefaultCombatStyle();
             npc->actorData.actorBaseFlags.set(a_appearance.female, RE::ACTOR_BASE_DATA::Flag::kFemale);
+            npc->voiceType = GetShoutVoiceType(a_race, a_appearance.female);
             npc->weight = a_appearance.weight;
             npc->height = std::clamp(a_appearance.height, kMinimumRemoteHeight, kMaximumRemoteHeight);
 

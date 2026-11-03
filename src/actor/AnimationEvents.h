@@ -47,6 +47,20 @@ namespace AnimationEvents
     static_assert(IsCastAnimationEvent("BeginCastLeft"));
     static_assert(!IsCastAnimationEvent("attackStart"));
 
+    // The voice idles' events (Skyrim.esm VoiceRoot and its children): shoutStart, the
+    // release's breath exhale or ShoutSprint*Start and shoutReleaseSlowTime, and
+    // shoutStop.
+    constexpr bool IsVoiceAnimationEvent(std::string_view a_eventName) noexcept
+    {
+        return AsciiCase::Contains(a_eventName, "shout") || AsciiCase::Contains(a_eventName, "BreathExhale");
+    }
+
+    static_assert(IsVoiceAnimationEvent("shoutStart"));
+    static_assert(IsVoiceAnimationEvent("ShoutSprintLongestStart"));
+    static_assert(IsVoiceAnimationEvent("MT_BreathExhaleShort"));
+    static_assert(IsVoiceAnimationEvent("CombatReady_BreathExhaleShort"));
+    static_assert(!IsVoiceAnimationEvent("attackStart"));
+
     enum class AttackEventHand
     {
         kRight,

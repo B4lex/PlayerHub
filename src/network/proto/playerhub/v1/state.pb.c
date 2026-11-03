@@ -18,7 +18,7 @@ PB_BIND(playerhub_v1_Context, playerhub_v1_Context, 2)
 PB_BIND(playerhub_v1_Attack, playerhub_v1_Attack, AUTO)
 
 
-PB_BIND(playerhub_v1_Action, playerhub_v1_Action, AUTO)
+PB_BIND(playerhub_v1_Action, playerhub_v1_Action, 2)
 
 
 PB_BIND(playerhub_v1_Color, playerhub_v1_Color, AUTO)

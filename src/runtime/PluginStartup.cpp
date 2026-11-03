@@ -24,6 +24,7 @@
 #include "sync/outfit/DefaultOutfit.h"
 #include "sync/presence/PresenceSync.h"
 #include "sync/trade/TradeSync.h"
+#include "sync/voice/VoiceSync.h"
 #include "text/Text.h"
 #include "ui/Overlay.h"
 
@@ -62,6 +63,7 @@ namespace PluginStartup
             PresenceSync::RegisterEventSinks();
             RemoteActorActivation::RegisterEventSink();
             TradeSync::RegisterEventSinks();
+            VoiceSync::RegisterEventSinks();
             VanillaIntro::Initialize();
             Network::Initialize();
         }

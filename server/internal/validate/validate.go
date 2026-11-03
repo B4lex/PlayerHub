@@ -21,7 +21,7 @@ const (
 	MaximumTime            = 16383
 	MaximumMovementState   = 6
 	movementStateMask      = 0x7
-	knownFlags             = 0x7FFFF
+	knownFlags             = 0x7FFFFF
 
 	SkeletonLayoutHuman       = 2
 	SkeletonLayoutHumanChange = 3 // a change from the stream's last pose (wire.ResolveSkeletonPose)
@@ -127,7 +127,7 @@ func Checkpoint(c *pb.Checkpoint) error {
 	if c.GetHeading() > MaximumHeading || c.GetPitch() > MaximumPitch || c.GetPitch() < -MaximumPitch ||
 		c.GetSpeed() > MaximumSpeed || c.GetDirection() > MaximumDirection || c.GetTime() > MaximumTime ||
 		c.GetFlags()&^knownFlags != 0 || c.GetFlags()&movementStateMask > MaximumMovementState ||
-		!castFlags(c.GetFlags()) || !SkeletonPose(c.GetSkeleton()) {
+		!castFlags(c.GetFlags()) || !shoutFlags(c.GetFlags()) || !SkeletonPose(c.GetSkeleton()) {
 		return ErrCheckpoint
 	}
 	return nil
@@ -142,6 +142,18 @@ func castFlags(flags uint32) bool {
 	return requires(pb.CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_LEFT, pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT) &&
 		requires(pb.CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_RIGHT, pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT) &&
 		requires(pb.CheckpointFlag_CHECKPOINT_FLAG_DUAL_CASTING, pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT)
+}
+
+// shoutFlags reports whether the release and word flags come with the shouting flag, and at most
+// one word flag is set.
+func shoutFlags(flags uint32) bool {
+	const (
+		shouting = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUTING)
+		twoWords = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS)
+		three    = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS)
+		shout    = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_RELEASED) | twoWords | three
+	)
+	return (flags&shout == 0 || flags&shouting != 0) && flags&(twoWords|three) != twoWords|three
 }
 
 // SkeletonPose reports whether b is empty or a layout byte, the shortest varint of a mask of
@@ -279,6 +291,11 @@ func Action(a *pb.Action) error {
 			return ErrAction
 		}
 		return nil
+	case *pb.Action_Power:
+		if kind.Power == nil || !formRef(kind.Power) {
+			return ErrAction
+		}
+		return nil
 	case *pb.Action_Attack:
 		attack := kind.Attack
 		if attack.GetAction() < pb.AttackAction_ATTACK_ACTION_NORMAL || attack.GetAction() > pb.AttackAction_ATTACK_ACTION_BASH ||
@@ -373,7 +390,7 @@ func Equipment(e *pb.Equipment) error {
 			return ErrEquipment
 		}
 	}
-	if e.Ammo != nil && !formRef(e.Ammo) {
+	if (e.Ammo != nil && !formRef(e.Ammo)) || (e.Shout != nil && !formRef(e.Shout)) {
 		return ErrEquipment
 	}
 	if outfit := e.DefaultOutfit; outfit != nil && !defaultOutfit(outfit) {

@@ -87,7 +87,7 @@ PB_BIND(playerhub_v1_PeerContext, playerhub_v1_PeerContext, 2)
 PB_BIND(playerhub_v1_PeerLeave, playerhub_v1_PeerLeave, AUTO)
 
 
-PB_BIND(playerhub_v1_PeerAction, playerhub_v1_PeerAction, AUTO)
+PB_BIND(playerhub_v1_PeerAction, playerhub_v1_PeerAction, 2)
 
 
 PB_BIND(playerhub_v1_PeerAppearance, playerhub_v1_PeerAppearance, 4)

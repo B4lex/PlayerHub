@@ -55,6 +55,7 @@ namespace ActorRegistry
             bool furnitureAnimationOwned{ false };
             bool nativeFurnitureExit{ false };
             bool castAnimationOwned{ false };
+            bool voiceAnimationOwned{ false };
             bool dead{ false };
             bool mounted{ false };
             bool gaitDriven{ false };
@@ -382,6 +383,23 @@ namespace ActorRegistry
         return registration && registration->castAnimationOwned;
     }
 
+    void SetVoiceAnimationOwned(const RemoteActor& a_remote, bool a_owned)
+    {
+        SetShared(a_remote, &Registration::voiceAnimationOwned, a_owned);
+    }
+
+    bool IsVoiceAnimationOwned(const RE::Actor* a_actor)
+    {
+        if (!a_actor)
+        {
+            return false;
+        }
+
+        const auto lock = LockSharedUnlessMainThread();
+        const auto* registration = Find(a_actor);
+        return registration && registration->voiceAnimationOwned;
+    }
+
     void SetDead(const RemoteActor& a_remote)
     {
         SetShared(a_remote, &Registration::dead, true);
@@ -520,6 +538,7 @@ namespace ActorRegistry
             .animationFirewallEnabled = registration->animationFirewallEnabled,
             .furnitureAnimationOwned = registration->furnitureAnimationOwned,
             .castAnimationOwned = registration->castAnimationOwned,
+            .voiceAnimationOwned = registration->voiceAnimationOwned,
             .dead = registration->dead,
             .mounted = registration->mounted,
             .gaitDriven = registration->gaitDriven };

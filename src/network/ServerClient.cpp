@@ -1018,6 +1018,28 @@ namespace Network
         Send(Wire::EncodeIdleAction(actionSequence, a_graphEpoch, a_checkpointSequence, a_event));
     }
 
+    void PublishLocalPowerAction(
+        const Multiplayer::FormReference& a_power, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence)
+    {
+        PROFILE_FUNCTION();
+        // An unencodable power would leave a gap in the action sequence.
+        if (!IsConnected() || a_graphEpoch == 0 || a_checkpointSequence == 0 || a_power.IsEmpty()
+            || !Multiplayer::IsValidFormReference(a_power, false))
+        {
+            return;
+        }
+        std::uint64_t actionSequence;
+        {
+            const std::scoped_lock lock{ publishLock };
+            actionSequence = ++localActionSequence;
+        }
+        logs::debug("Voice sync publishing power action: power={}|{:06X} actionSequence={} graphEpoch={} "
+                    "checkpointSequence={}",
+            a_power.plugin, a_power.localFormID, static_cast<unsigned long long>(actionSequence),
+            static_cast<unsigned long long>(a_graphEpoch), static_cast<unsigned long long>(a_checkpointSequence));
+        Send(Wire::EncodePowerAction(actionSequence, a_graphEpoch, a_checkpointSequence, a_power));
+    }
+
     bool PublishChatMessage(Multiplayer::ChatChannel a_channel, PeerSlot a_recipient, std::string_view a_text,
         std::function<void(Multiplayer::ChatRejection)> a_onRejected)
     {

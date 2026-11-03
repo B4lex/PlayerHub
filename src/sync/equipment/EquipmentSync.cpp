@@ -254,6 +254,18 @@ namespace EquipmentSync
                     ++a_skipped;
                 }
             }
+            // The voice slot holds a shout or a power; powers travel as actions when cast.
+            if (auto* voice = a_player.GetActorRuntimeData().selectedPower; voice && voice->Is(RE::FormType::Shout))
+            {
+                if (auto reference = FormLookup::MakeFormReference(voice))
+                {
+                    equipment.shout = std::move(*reference);
+                }
+                else
+                {
+                    ++a_skipped;
+                }
+            }
             DefaultOutfit::Select(equipment);
             return equipment;
         }
@@ -293,6 +305,45 @@ namespace EquipmentSync
                 return { .dropReason = "wrong-type" };
             }
             return { .form = ammo };
+        }
+
+        bool HasShoutSpell(const RE::TESShout& a_shout)
+        {
+            return std::ranges::any_of(
+                a_shout.variations, [](const RE::TESShout::Variation& a_variation) { return a_variation.spell; });
+        }
+
+        Resolution<RE::TESShout> ResolveShout(const Multiplayer::FormReference& a_reference)
+        {
+            auto* form = FormLookup::ResolveForm(a_reference);
+            if (!form)
+            {
+                return { .dropReason = "missing" };
+            }
+            auto* shout = form->As<RE::TESShout>();
+            if (!shout)
+            {
+                return { .dropReason = "wrong-type" };
+            }
+            if (!HasShoutSpell(*shout))
+            {
+                return { .dropReason = "no-spell" };
+            }
+            return { .form = shout };
+        }
+
+        // A peer without the source's shout casts this vanilla one in its place.
+        RE::TESShout* GetStandInShout()
+        {
+            constexpr RE::FormID kUnrelentingForceShoutFormID = 0x013E07;
+            static RE::TESShout* standIn = [] {
+                auto* dataHandler = RE::TESDataHandler::GetSingleton();
+                auto* shout = dataHandler
+                    ? dataHandler->LookupForm<RE::TESShout>(kUnrelentingForceShoutFormID, "Skyrim.esm")
+                    : nullptr;
+                return shout && HasShoutSpell(*shout) ? shout : nullptr;
+            }();
+            return standIn;
         }
 
         Resolution<RE::TESBoundObject> ResolveHand(const EquipmentHand& a_entry)
@@ -412,6 +463,7 @@ namespace EquipmentSync
             a_remote.rightHand = {};
             a_remote.leftHand = {};
             a_remote.ammo = nullptr;
+            a_remote.shout = nullptr;
             a_remote.beastRightHand = {};
             a_remote.beastLeftHand = {};
             a_remote.beastArmor.clear();
@@ -491,6 +543,18 @@ namespace EquipmentSync
                 }
             }
 
+            if (!equipment.shout.IsEmpty())
+            {
+                const auto resolution = ResolveShout(equipment.shout);
+                a_remote.shout = resolution.form;
+                if (!a_remote.shout)
+                {
+                    a_remote.shout = GetStandInShout();
+                    LogUnresolvedEntry(a_playerID, revision, "shout", equipment.shout, resolution.dropReason,
+                        FormatStandIn(a_remote.shout));
+                }
+            }
+
             // A vampire lord's casts are relayed graph events rather than caster requests,
             // so its hands keep stand-ins, whose fire stays suppressed.
             a_remote.beastRightHand = ResolveHandEntry(
@@ -514,11 +578,11 @@ namespace EquipmentSync
 
             logs::debug(
                 "Equipment sync resolved remote equipment: player={} revision={} armor={}/{} rightHand={:08X} "
-                "leftHand={:08X} ammo={:08X} beastRightHand={:08X} beastLeftHand={:08X} beastArmor={}/{}",
+                "leftHand={:08X} ammo={:08X} shout={:08X} beastRightHand={:08X} beastLeftHand={:08X} beastArmor={}/{}",
                 a_playerID, static_cast<unsigned long long>(revision), a_remote.armor.size(), equipment.armor.size(),
                 a_remote.rightHand.object ? a_remote.rightHand.object->GetFormID() : 0,
                 a_remote.leftHand.object ? a_remote.leftHand.object->GetFormID() : 0,
-                a_remote.ammo ? a_remote.ammo->GetFormID() : 0,
+                a_remote.ammo ? a_remote.ammo->GetFormID() : 0, a_remote.shout ? a_remote.shout->GetFormID() : 0,
                 a_remote.beastRightHand.object ? a_remote.beastRightHand.object->GetFormID() : 0,
                 a_remote.beastLeftHand.object ? a_remote.beastLeftHand.object->GetFormID() : 0,
                 a_remote.beastArmor.size(), equipment.beastArmor.size());
@@ -558,6 +622,17 @@ namespace EquipmentSync
             return a_equippedLeft == a_remote.leftHand.object;
         }
 
+        // Peers publish only playable armor outside beast forms, so a non-playable piece the
+        // actor wears comes from its own magic: Dragon Aspect's script
+        // (DLC2DragonbornAspectArtSCRIPT) equips DLC2DragonbornAspectArmor01 and unequips it
+        // when the effect ends, after which the unworn piece is removed as any leftover.
+        bool IsWornEffectArmor(const RE::TESBoundObject* a_object, const RE::InventoryEntryData* a_entry)
+        {
+            const auto* armor = a_object ? a_object->As<RE::TESObjectARMO>() : nullptr;
+            return armor && a_entry && a_entry->IsWorn()
+                && (armor->GetFormFlags() & RE::TESObjectARMO::RecordFlags::kNonPlayable) != 0;
+        }
+
         bool IsPresentationMatched(RE::Actor& a_actor, const RemoteState& a_remote)
         {
             if (GetEquippedHandObject(a_actor, false) != a_remote.rightHand.object
@@ -575,7 +650,7 @@ namespace EquipmentSync
             RE::TESBoundObject* wornAmmo = nullptr;
             for (const auto* entry : *changes->entryList)
             {
-                if (!entry || !entry->object || !entry->IsWorn())
+                if (!entry || !entry->object || !entry->IsWorn() || IsWornEffectArmor(entry->object, entry))
                 {
                     continue;
                 }
@@ -813,8 +888,8 @@ namespace EquipmentSync
 
         logs::debug(
             "Equipment sync publishing local equipment: revision={} armor={} rightHand={}:{}|{:06X} "
-            "leftHand={}:{}|{:06X} ammo={}|{:06X} outfit={}/{}/{} beastHands={}/{} beastArmor={} skipped={} "
-            "flush={}",
+            "leftHand={}:{}|{:06X} ammo={}|{:06X} shout={}|{:06X} outfit={}/{}/{} beastHands={}/{} beastArmor={} "
+            "skipped={} flush={}",
             static_cast<unsigned long long>(pending->revision), pending->armor.size(),
             pending->rightHand ? Multiplayer::GetEquipmentHandKindName(pending->rightHand->kind) : "none",
             pending->rightHand ? pending->rightHand->form.plugin : "",
@@ -823,6 +898,7 @@ namespace EquipmentSync
             pending->leftHand ? pending->leftHand->form.plugin : "",
             pending->leftHand ? pending->leftHand->form.localFormID : 0,
             pending->ammo.IsEmpty() ? "<none>" : pending->ammo.plugin, pending->ammo.localFormID,
+            pending->shout.IsEmpty() ? "<none>" : pending->shout.plugin, pending->shout.localFormID,
             pending->defaultOutfit.armor.size(), pending->defaultOutfit.hands.size(),
             !pending->defaultOutfit.ammo.IsEmpty(), pending->beastRightHand.has_value(),
             pending->beastLeftHand.has_value(), pending->beastArmor.size(), skipped, a_flush);
@@ -930,6 +1006,14 @@ namespace EquipmentSync
                     auto& count = required[equipped];
                     count = (std::max)(count, entry->second.first);
                 }
+            }
+        }
+        for (const auto& [object, data] : inventory)
+        {
+            if (IsWornEffectArmor(object, data.second.get()))
+            {
+                auto& count = required[object];
+                count = (std::max)(count, data.first);
             }
         }
 
@@ -1239,6 +1323,12 @@ namespace EquipmentSync
             static_cast<unsigned long long>(a_remote.resolvedRevision), a_remote.attempts, removed, added,
             equippedArmor, a_remote.handsDeferred, targetRight ? targetRight->GetFormID() : 0,
             targetLeft ? targetLeft->GetFormID() : 0);
+    }
+
+    RE::TESShout* GetShout(const RemoteState& a_remote)
+    {
+        const auto latestRevision = a_remote.latest ? a_remote.latest->revision : 0;
+        return a_remote.resolved && a_remote.resolvedRevision == latestRevision ? a_remote.shout : nullptr;
     }
 
     bool AreHandsSettled(const RemoteState& a_remote)

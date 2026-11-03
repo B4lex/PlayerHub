@@ -49,6 +49,14 @@ namespace Network::Wire
             == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_RIGHT));
         static_assert(CheckpointFlags::kDualCasting
             == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_DUAL_CASTING));
+        static_assert(CheckpointFlags::kShouting
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUTING));
+        static_assert(CheckpointFlags::kShoutReleased
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_RELEASED));
+        static_assert(CheckpointFlags::kShoutTwoWords
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS));
+        static_assert(CheckpointFlags::kShoutThreeWords
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS));
         static_assert(static_cast<int>(Multiplayer::ChatRejection::kUnknownRecipient)
             == playerhub_v1_ChatRejection_CHAT_REJECTION_UNKNOWN_RECIPIENT);
 
@@ -227,6 +235,14 @@ namespace Network::Wire
                     return std::unexpected("idle");
                 }
                 result.idle = std::make_shared<const std::string>(idle);
+                return result;
+            }
+            if (a_action.which_kind == playerhub_v1_Action_power_tag)
+            {
+                if (!ReadFormReference(a_action.kind.power, result.power))
+                {
+                    return std::unexpected("power");
+                }
                 return result;
             }
             if (a_action.which_kind != playerhub_v1_Action_attack_tag)
@@ -441,6 +457,10 @@ namespace Network::Wire
             if (!ReadOptionalFormReference(a_equipment.has_ammo, a_equipment.ammo, a_result.ammo))
             {
                 return "ammo";
+            }
+            if (!ReadOptionalFormReference(a_equipment.has_shout, a_equipment.shout, a_result.shout))
+            {
+                return "shout";
             }
             a_result.beastRightHand.reset();
             if (a_equipment.has_beast_right_hand
@@ -1036,6 +1056,22 @@ namespace Network::Wire
         return EncodeClientMessage(playerhub_v1_ClientMessage_action_tag, playerhub_v1_Action_fields, &action);
     }
 
+    std::string EncodePowerAction(std::uint64_t a_actionSequence, std::uint64_t a_graphEpoch,
+        std::uint64_t a_checkpointSequence, const Multiplayer::FormReference& a_power)
+    {
+        playerhub_v1_Action action = playerhub_v1_Action_init_zero;
+        action.action_sequence = a_actionSequence;
+        action.graph_epoch = a_graphEpoch;
+        action.checkpoint_sequence = a_checkpointSequence;
+        action.which_kind = playerhub_v1_Action_power_tag;
+        if (a_power.IsEmpty() || !Multiplayer::IsValidFormReference(a_power, false)
+            || !WriteFormReference(a_power, action.kind.power))
+        {
+            return {};
+        }
+        return EncodeClientMessage(playerhub_v1_ClientMessage_action_tag, playerhub_v1_Action_fields, &action);
+    }
+
     std::string EncodeAppearance(const Multiplayer::PlayerAppearance& a_appearance)
     {
         using Multiplayer::PlayerAppearance;
@@ -1159,6 +1195,7 @@ namespace Network::Wire
             written = written && WriteHand(*a_equipment.leftHand, equipment->left_hand);
         }
         written = written && WriteOptionalFormReference(a_equipment.ammo, equipment->has_ammo, equipment->ammo);
+        written = written && WriteOptionalFormReference(a_equipment.shout, equipment->has_shout, equipment->shout);
         if (a_equipment.beastRightHand)
         {
             equipment->has_beast_right_hand = true;

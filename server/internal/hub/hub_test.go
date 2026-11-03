@@ -524,6 +524,23 @@ func TestIdleActionsNeedTheHumanFormOutsideFurniture(t *testing.T) {
 		GraphEpoch: 2, CheckpointSequence: 2, Kind: &pb.Action_Idle{Idle: "IdleLaugh"}}}}, world.ErrIncompatibleStep)
 }
 
+func TestPowerActionsNeedTheHumanForm(t *testing.T) {
+	power := func(sequence, epoch uint64) *pb.ClientMessage {
+		return &pb.ClientMessage{Message: &pb.ClientMessage_Action{Action: &pb.Action{ActionSequence: sequence,
+			GraphEpoch: epoch, CheckpointSequence: epoch,
+			Kind: &pb.Action_Power{Power: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 0x0E40DF}}}}}
+	}
+	f := newFixture(t)
+	a := f.connect()
+	f.send(a, enter())
+	f.send(a, idleContext(1, ""))
+	f.send(a, sheathedCheckpointAt(1, 10))
+	f.send(a, power(1, 1))
+	f.send(a, shapeshift(2, pb.Shapeshift_SHAPESHIFT_WEREWOLF))
+	f.send(a, sheathedCheckpointAt(2, 10))
+	f.reject(a, power(2, 2), world.ErrIncompatibleStep)
+}
+
 func TestIdleChangesTheContext(t *testing.T) {
 	f := newFixture(t)
 	a := f.connect()

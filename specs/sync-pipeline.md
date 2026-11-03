@@ -118,17 +118,19 @@ if inWorld:
     ShapeshiftSync::ObserveLocalForm       # the local beast form, for the graph input hook
     CombatSync::CaptureLocalAttack         # dropped in a beast form
     CombatSync::CaptureLocalHandPresentation
+    VoiceSync::CaptureLocalVoice           # the shout's voice state
     AnimationSync::ObserveLocalGraphEpoch
     AnimationSync::ObserveLocalMovement    # stop hold timer
     GraphEventSurvey::LogLocalGraphEvents  # debug builds only
-    EquipmentSync::SyncEquipment           # flushed when an attack or presentation started
+    EquipmentSync::SyncEquipment           # flushed when an attack, presentation, or shout started
     CombatSync::QueueLocalAttacks
+    VoiceSync::QueueLocalPowers            # powers the spell cast event sink captured
     ShapeshiftSync::QueueLocalActions      # beast actions the graph input hook captured
     IdleSync::QueueLocalIdles              # idle events it captured; the held idle
     CheckpointPublisher::PublishLocalCheckpoint
-        disconnected: discard queued attacks, beast actions, and idle events
+        disconnected: discard queued attacks, beast actions, idle events, and powers
         published: CombatSync::PublishLocalAttacks, ShapeshiftSync::PublishLocalActions,
-                   then IdleSync::PublishLocalIdles
+                   IdleSync::PublishLocalIdles, then VoiceSync::PublishLocalPowers
     AppearanceSync::SyncAppearance
 else: discard captured attacks, beast actions, and idle events
 TradeSync::Sync                           # trade events, overlay commands, cancels, offers, a commit
@@ -144,12 +146,13 @@ RemoteLights::Update                      # with a world camera: the remote ligh
 ```text
 AppearanceSync advance timers; retire on a new appearance revision, or else on a new form
 retire on a coordinate-space change
-CombatSync, ShapeshiftSync, IdleSync::AgeRemoteActions
-not in the local space: clear attacks, beast actions, and idles, stop
-DeathSync::SyncDeath                       # a killed actor keeps only handle and look
+CombatSync, ShapeshiftSync, IdleSync, VoiceSync::AgeRemoteActions
+not in the local space: clear attacks, beast actions, idles, and powers, stop
+DeathSync::SyncDeath                       # a killed actor keeps only handle and look; shout released
 ActorLifecycle::RetireWhenStranded
 FurnitureSync yield check                  # hide an actor that would block furniture
-MountSync::SyncMount                       # riding: queued attacks and idles cleared; equipment,
+MountSync::SyncMount                       # riding: queued attacks, idles, and powers cleared,
+                                           # shout released; equipment,
                                            # rider update with weapon state, look only
 otherwise:
     MovementSync::SyncMovement             # played checkpoint's movement, then the pose
@@ -162,6 +165,8 @@ otherwise:
         a beast: ShapeshiftSync::SyncBeast # beast actions, levitation, casts, Mist Form and bats
         otherwise: IdleSync::SyncIdle      # release, then queued or held idles
                    CombatSync::SyncCombat, SyncHandPresentation
+                   VoiceSync::SyncVoice    # the shout, then one queued power
+    furniture or a beast: VoiceSync::ClearRemote
     AnimationSync::GetPresentableState     # none while furniture owns the actor
     ActorRuntime::Update
     AppearanceSync::ApplyActorPresentation
@@ -189,13 +194,15 @@ from the last one sent since `Enter`, then the quantized checkpoint
 One checkpoint is one coherent sample: `MountSync::SampleLocalMount`,
 `MovementSync::SampleLocalMovement` (from the mount while riding),
 `AnimationSync::SampleLocalAnimation`, `FurnitureSync::SampleLocalFurniture`,
-`CombatSync::SampleLocalHandPresentation`, `DeathSync::SampleLocalDeath`,
+`CombatSync::SampleLocalHandPresentation`, `VoiceSync::SampleLocalVoice`,
+`DeathSync::SampleLocalDeath`,
 `ShapeshiftSync::SampleLocalVampireLord`, `IdleSync::SampleLocalIdle`, which
 ends the held idle on a state change sampled with it, with the graph epoch and
 the local form observed this pass, and `SkeletonSync::SampleLocalSkeleton`
 ([Remote actor](remote-actor.md#skeleton-pose)). No stage publishes a partial
 checkpoint. The checkpoint always precedes the `Action` anchored to it, and a
-weapon swap is published before the attack or presentation that uses it.
+weapon or shout swap is published before the attack, presentation, or shout
+that uses it.
 `PoseWindow::Update` runs before `IdleSync::QueueLocalIdles`, since a window
 that opens ends the held idle, and before the checkpoint, whose pose it gates.
 

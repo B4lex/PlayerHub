@@ -24,11 +24,15 @@ namespace SurvivalPolicy
             return a_actor.SetGraphVariableBool(inJumpStateVariable, a_jumping);
         }
 
-        bool ShouldSuppressRemoteActorEffect(const RE::MagicItem* a_magicItem, const RE::Effect* a_effect)
+        // A remote actor's own shout reaches itself only through its self effects,
+        // which SpellIsolation filters.
+        bool ShouldSuppressRemoteActorEffect(
+            const RE::MagicItem* a_magicItem, const RE::Effect* a_effect, bool a_castBySelf)
         {
             // Effects propagated through projectiles or explosions do not always
             // retain a caster.
-            if (a_magicItem && a_magicItem->GetSpellType() == RE::MagicSystem::SpellType::kVoicePower)
+            if (!a_castBySelf && a_magicItem
+                && a_magicItem->GetSpellType() == RE::MagicSystem::SpellType::kVoicePower)
             {
                 return true;
             }
@@ -44,7 +48,10 @@ namespace SurvivalPolicy
         std::pair<std::uint32_t, std::uint32_t> BlockMagicEffect(
             RE::MagicTarget* a_target, const RE::MagicTarget::AddTargetData& a_targetData)
         {
-            if (!a_target || !ShouldSuppressRemoteActorEffect(a_targetData.magicItem, a_targetData.effect))
+            const auto* caster = a_targetData.caster ? a_targetData.caster->As<RE::Actor>() : nullptr;
+            const bool castBySelf = caster && caster->AsMagicTarget() == a_target;
+            if (!a_target
+                || !ShouldSuppressRemoteActorEffect(a_targetData.magicItem, a_targetData.effect, castBySelf))
             {
                 return {};
             }
@@ -74,7 +81,8 @@ namespace SurvivalPolicy
                     continue;
                 }
 
-                if (ShouldSuppressRemoteActorEffect(activeEffect->spell, activeEffect->effect))
+                const bool castBySelf = activeEffect->caster == a_actor.GetHandle();
+                if (ShouldSuppressRemoteActorEffect(activeEffect->spell, activeEffect->effect, castBySelf))
                 {
                     effectsToDispel.push_back(activeEffect);
                 }
@@ -493,7 +501,7 @@ namespace SurvivalPolicy
         flags.reset(RE::Actor::BOOL_FLAGS::kCanDoFavor, RE::Actor::BOOL_FLAGS::kCanSpeak,
             RE::Actor::BOOL_FLAGS::kAttackOnSight, RE::Actor::BOOL_FLAGS::kAngryWithPlayer);
         flags.set(RE::Actor::BOOL_FLAGS::kAttackingDisabled, RE::Actor::BOOL_FLAGS::kDoNotShowOnStealthMeter);
-        if (ActorRegistry::IsCastAnimationOwned(&a_actor))
+        if (ActorRegistry::IsCastAnimationOwned(&a_actor) || ActorRegistry::IsVoiceAnimationOwned(&a_actor))
         {
             flags.reset(RE::Actor::BOOL_FLAGS::kCastingDisabled);
         }

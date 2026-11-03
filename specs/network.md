@@ -130,7 +130,7 @@ retries. What a refusal means for the client is in [Connection](#connection).
 | `Enter`, `Exit` | World presence. `Exit` when not in the world does nothing |
 | `Context` | A checkpoint's space and graph epoch ([below](#checkpoint-and-context)) |
 | `Checkpoint` | One quantized sample |
-| `Action` | One attack, beast action, or idle event ([Actions](#actions)) |
+| `Action` | One attack, beast action, idle event, or power ([Actions](#actions)) |
 | `Appearance`, `Equipment` | Latest-wins presentation ([below](#appearance-and-equipment)) |
 | `ChatSend` | `{request_id, text, channel, recipient}`, answered with a `ChatResult` ([Chat](#chat)) |
 | `Ping` | `{request_id}`, answered with `Pong{request_id}` by the connection at once; the latency probe |
@@ -162,7 +162,7 @@ context.
 | `pitch` | `sint32`, radians × 1024 | `|pitch| <= 1609` (π/2) |
 | `speed` | `uint32`, units per second: the source graph's `Speed` while moving on foot, otherwise measured over the ground (3D while swimming) ([Locomotion](locomotion.md#source-capture)) | `<= 100000` |
 | `direction` | `uint32`, graph `Direction` × 256, wrapping | `0..255` |
-| `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–18 `grounded` (the carrier's controller is on the ground and the carrier is not ragdolled, [Locomotion](locomotion.md#ground-offset)), `weaponDrawn`, `jumping`, `blocking`, `bowDrawn`, `castingLeft`, `castingRight`, `swimming`, `mounted`, `dead`, `levitating`, `mistForm`, `bats`, `castReleasedLeft`, `castReleasedRight`, `dualCasting` ([Combat presentation](combat-presentation.md#spells)) (`CheckpointFlag`, mirrored by `Network::CheckpointFlags` with `static_assert`s in `WireCodec.cpp`) | unknown bits rejected; `levitating`, `mistForm`, and `bats` only in a `VAMPIRE_LORD` context (`validate.VampireLordFlags`, `incompatible animation checkpoint`); `castReleasedLeft` and `dualCasting` only with `castingLeft`, `castReleasedRight` only with `castingRight` (`validate.castFlags`, `IsValidQuantizedCheckpoint`) |
+| `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–22 `grounded` (the carrier's controller is on the ground and the carrier is not ragdolled, [Locomotion](locomotion.md#ground-offset)), `weaponDrawn`, `jumping`, `blocking`, `bowDrawn`, `castingLeft`, `castingRight`, `swimming`, `mounted`, `dead`, `levitating`, `mistForm`, `bats`, `castReleasedLeft`, `castReleasedRight`, `dualCasting` ([Combat presentation](combat-presentation.md#spells)), `shouting`, `shoutReleased`, `shoutTwoWords`, `shoutThreeWords` ([Combat presentation](combat-presentation.md#shouts-and-powers)) (`CheckpointFlag`, mirrored by `Network::CheckpointFlags` with `static_assert`s in `WireCodec.cpp`) | unknown bits rejected; `levitating`, `mistForm`, and `bats` only in a `VAMPIRE_LORD` context (`validate.VampireLordFlags`, `incompatible animation checkpoint`); `castReleasedLeft` and `dualCasting` only with `castingLeft`, `castReleasedRight` only with `castingRight` (`validate.castFlags`, `IsValidQuantizedCheckpoint`); `shoutReleased` and the word flags only with `shouting`, and at most one word flag (`validate.shoutFlags`, `IsValidQuantizedCheckpoint`) |
 | `time` | `uint32`, the sender's `steady_clock` in milliseconds when sampled, modulo 16384 | `0..16383` |
 | `skeleton` | `bytes`, the sender's skeleton pose ([below](#skeleton-pose-encoding)); empty when not sent | empty, or a layout below: whole (`validate.SkeletonPose`) or a [change](#pose-changes) that resolves against the stream's previous pose |
 
@@ -324,19 +324,20 @@ the trunk and limbs, so the rate stays.
 
 ## Actions
 
-`Action` carries one attack, beast action, or idle event as a separate ordered
-stream, since a checkpoint field would collapse repeated actions.
+`Action` carries one attack, beast action, idle event, or power as a separate
+ordered stream, since a checkpoint field would collapse repeated actions.
 
 | Field | Validation |
 | --- | --- |
-| `action_sequence` | `>= 1`, exactly the previous plus one per player, shared by attacks, beast actions, and idle events; the first one a server sees sets the boundary |
+| `action_sequence` | `>= 1`, exactly the previous plus one per player, shared by every kind; the first one a server sees sets the boundary |
 | `graph_epoch` | equal to the player's context epoch |
 | `checkpoint_sequence` | `>= 1`, a published checkpoint no newer than the latest |
-| `kind` | a oneof, required: `attack`, `beast`, or `idle` |
+| `kind` | a oneof, required: `attack`, `beast`, `idle`, or `power` |
 | `attack.action` | `NORMAL`, `LEFT`, `DUAL`, or `BASH` |
 | `attack.direction` | `NONE` for an attack that is not a power attack, else `STANDING`, `FORWARD`, `BACKWARD`, `LEFT`, `RIGHT` |
 | `beast` | a `BeastAction`: the `WEREWOLF_` values `1..19` (also the werebear's) or the `VAMPIRE_LORD_` values `32..51`; any other value is rejected |
 | `idle` | an idle graph event name ([Idle presentation](idle-presentation.md#capture)): a held idle name, or `OffsetStop` in any case |
+| `power` | a [form reference](#form-references), required: the lesser or greater power the player cast ([Combat presentation](combat-presentation.md#shouts-and-powers)) |
 
 A held idle name, in an action or the context, starts with `Idle` in any case
 and continues with at least one more character, all from `[A-Za-z0-9_]`, 5 to
@@ -350,8 +351,8 @@ For an attack, the server also requires the latest checkpoint to have the
 weapon drawn and the context to have no shapeshift. A beast action needs a
 context whose form plays that graph (`validate.SameBeastGraph`: a werebear
 plays the werewolf's), and not the weapon drawn, since a beast howls and feeds
-sheathed. An idle event needs a context without shapeshift, with the weapon
-drawn or sheathed. Each needs a context without furniture, and the server allows
+sheathed. An idle event or a power needs a context without shapeshift, with the
+weapon drawn or sheathed. Each needs a context without furniture, and the server allows
 `limits.actions_per_second` (10, burst 10) per player. A duplicate, stale, or
 gapped sequence is rejected rather than played out of order. Attacks and beast
 actions keep graph event names out of the wire: the plugin maps each value to
@@ -435,6 +436,7 @@ and the two fields are not merged yet.
 | hand `casting_art`, `casting_light` | only for `SPELL`, each a form reference or unset: the spell's hand look, used when the receiver lacks the spell ([Combat presentation](combat-presentation.md#spell-look)) |
 | hand `weapon_type` | `WEAPON_TYPE` `1..9`, only for a weapon; two-handed types (5, 6, 7, 9) only in the right hand, which then requires an empty left hand |
 | `ammo` | form reference, unset for none |
+| `shout` | form reference, unset when the voice slot holds a power or nothing: the shout the checkpoint's shout flags present ([Combat presentation](combat-presentation.md#shouts-and-powers)) |
 | `default_outfit` | unset is empty |
 | `beast_right_hand`, `beast_left_hand` | a `SPELL` hand, unset for empty: a vampire lord's spells, while the fields above keep the character's items ([Appearance and equipment](appearance-and-equipment.md#shapeshifts)) |
 | `beast_armor` | at most 8, as `armor`: the vampire lord's worn armor |

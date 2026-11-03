@@ -104,28 +104,37 @@ const (
 	CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_LEFT  CheckpointFlag = 65536
 	CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_RIGHT CheckpointFlag = 131072
 	CheckpointFlag_CHECKPOINT_FLAG_DUAL_CASTING        CheckpointFlag = 262144
+	CheckpointFlag_CHECKPOINT_FLAG_SHOUTING            CheckpointFlag = 524288
+	CheckpointFlag_CHECKPOINT_FLAG_SHOUT_RELEASED      CheckpointFlag = 1048576
+	// The words a shout charges beyond its first; at most one is set.
+	CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS   CheckpointFlag = 2097152
+	CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS CheckpointFlag = 4194304
 )
 
 // Enum value maps for CheckpointFlag.
 var (
 	CheckpointFlag_name = map[int32]string{
-		0:      "CHECKPOINT_FLAG_NONE",
-		8:      "CHECKPOINT_FLAG_GROUNDED",
-		16:     "CHECKPOINT_FLAG_WEAPON_DRAWN",
-		32:     "CHECKPOINT_FLAG_JUMPING",
-		64:     "CHECKPOINT_FLAG_BLOCKING",
-		128:    "CHECKPOINT_FLAG_BOW_DRAWN",
-		256:    "CHECKPOINT_FLAG_CASTING_LEFT",
-		512:    "CHECKPOINT_FLAG_CASTING_RIGHT",
-		1024:   "CHECKPOINT_FLAG_SWIMMING",
-		2048:   "CHECKPOINT_FLAG_MOUNTED",
-		4096:   "CHECKPOINT_FLAG_DEAD",
-		8192:   "CHECKPOINT_FLAG_LEVITATING",
-		16384:  "CHECKPOINT_FLAG_MIST_FORM",
-		32768:  "CHECKPOINT_FLAG_BATS",
-		65536:  "CHECKPOINT_FLAG_CAST_RELEASED_LEFT",
-		131072: "CHECKPOINT_FLAG_CAST_RELEASED_RIGHT",
-		262144: "CHECKPOINT_FLAG_DUAL_CASTING",
+		0:       "CHECKPOINT_FLAG_NONE",
+		8:       "CHECKPOINT_FLAG_GROUNDED",
+		16:      "CHECKPOINT_FLAG_WEAPON_DRAWN",
+		32:      "CHECKPOINT_FLAG_JUMPING",
+		64:      "CHECKPOINT_FLAG_BLOCKING",
+		128:     "CHECKPOINT_FLAG_BOW_DRAWN",
+		256:     "CHECKPOINT_FLAG_CASTING_LEFT",
+		512:     "CHECKPOINT_FLAG_CASTING_RIGHT",
+		1024:    "CHECKPOINT_FLAG_SWIMMING",
+		2048:    "CHECKPOINT_FLAG_MOUNTED",
+		4096:    "CHECKPOINT_FLAG_DEAD",
+		8192:    "CHECKPOINT_FLAG_LEVITATING",
+		16384:   "CHECKPOINT_FLAG_MIST_FORM",
+		32768:   "CHECKPOINT_FLAG_BATS",
+		65536:   "CHECKPOINT_FLAG_CAST_RELEASED_LEFT",
+		131072:  "CHECKPOINT_FLAG_CAST_RELEASED_RIGHT",
+		262144:  "CHECKPOINT_FLAG_DUAL_CASTING",
+		524288:  "CHECKPOINT_FLAG_SHOUTING",
+		1048576: "CHECKPOINT_FLAG_SHOUT_RELEASED",
+		2097152: "CHECKPOINT_FLAG_SHOUT_TWO_WORDS",
+		4194304: "CHECKPOINT_FLAG_SHOUT_THREE_WORDS",
 	}
 	CheckpointFlag_value = map[string]int32{
 		"CHECKPOINT_FLAG_NONE":                0,
@@ -145,6 +154,10 @@ var (
 		"CHECKPOINT_FLAG_CAST_RELEASED_LEFT":  65536,
 		"CHECKPOINT_FLAG_CAST_RELEASED_RIGHT": 131072,
 		"CHECKPOINT_FLAG_DUAL_CASTING":        262144,
+		"CHECKPOINT_FLAG_SHOUTING":            524288,
+		"CHECKPOINT_FLAG_SHOUT_RELEASED":      1048576,
+		"CHECKPOINT_FLAG_SHOUT_TWO_WORDS":     2097152,
+		"CHECKPOINT_FLAG_SHOUT_THREE_WORDS":   4194304,
 	}
 )
 
@@ -944,6 +957,7 @@ type Action struct {
 	//	*Action_Attack
 	//	*Action_Beast
 	//	*Action_Idle
+	//	*Action_Power
 	Kind          isAction_Kind `protobuf_oneof:"kind"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1034,6 +1048,15 @@ func (x *Action) GetIdle() string {
 	return ""
 }
 
+func (x *Action) GetPower() *FormRef {
+	if x != nil {
+		if x, ok := x.Kind.(*Action_Power); ok {
+			return x.Power
+		}
+	}
+	return nil
+}
+
 type isAction_Kind interface {
 	isAction_Kind()
 }
@@ -1051,11 +1074,18 @@ type Action_Idle struct {
 	Idle string `protobuf:"bytes,6,opt,name=idle,proto3,oneof"`
 }
 
+type Action_Power struct {
+	// A lesser or greater power the player cast.
+	Power *FormRef `protobuf:"bytes,7,opt,name=power,proto3,oneof"`
+}
+
 func (*Action_Attack) isAction_Kind() {}
 
 func (*Action_Beast) isAction_Kind() {}
 
 func (*Action_Idle) isAction_Kind() {}
+
+func (*Action_Power) isAction_Kind() {}
 
 type Color struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1761,8 +1791,10 @@ type Equipment struct {
 	BeastRightHand *Hand    `protobuf:"bytes,7,opt,name=beast_right_hand,json=beastRightHand,proto3" json:"beast_right_hand,omitempty"`
 	BeastLeftHand  *Hand    `protobuf:"bytes,8,opt,name=beast_left_hand,json=beastLeftHand,proto3" json:"beast_left_hand,omitempty"`
 	BeastArmor     []*Armor `protobuf:"bytes,9,rep,name=beast_armor,json=beastArmor,proto3" json:"beast_armor,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// The shout in the player's voice slot; unset for a power or nothing.
+	Shout         *FormRef `protobuf:"bytes,10,opt,name=shout,proto3" json:"shout,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Equipment) Reset() {
@@ -1858,6 +1890,13 @@ func (x *Equipment) GetBeastArmor() []*Armor {
 	return nil
 }
 
+func (x *Equipment) GetShout() *FormRef {
+	if x != nil {
+		return x.Shout
+	}
+	return nil
+}
+
 var File_playerhub_v1_state_proto protoreflect.FileDescriptor
 
 const file_playerhub_v1_state_proto_rawDesc = "" +
@@ -1895,7 +1934,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x04idle\x18\x06 \x01(\tR\x04idle\"x\n" +
 	"\x06Attack\x122\n" +
 	"\x06action\x18\x01 \x01(\x0e2\x1a.playerhub.v1.AttackActionR\x06action\x12:\n" +
-	"\tdirection\x18\x02 \x01(\x0e2\x1c.playerhub.v1.PowerDirectionR\tdirection\"\x84\x02\n" +
+	"\tdirection\x18\x02 \x01(\x0e2\x1c.playerhub.v1.PowerDirectionR\tdirection\"\xb3\x02\n" +
 	"\x06Action\x12'\n" +
 	"\x0faction_sequence\x18\x01 \x01(\x04R\x0eactionSequence\x12\x1f\n" +
 	"\vgraph_epoch\x18\x02 \x01(\x04R\n" +
@@ -1903,7 +1942,8 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x13checkpoint_sequence\x18\x03 \x01(\x04R\x12checkpointSequence\x12.\n" +
 	"\x06attack\x18\x04 \x01(\v2\x14.playerhub.v1.AttackH\x00R\x06attack\x121\n" +
 	"\x05beast\x18\x05 \x01(\x0e2\x19.playerhub.v1.BeastActionH\x00R\x05beast\x12\x14\n" +
-	"\x04idle\x18\x06 \x01(\tH\x00R\x04idleB\x06\n" +
+	"\x04idle\x18\x06 \x01(\tH\x00R\x04idle\x12-\n" +
+	"\x05power\x18\a \x01(\v2\x15.playerhub.v1.FormRefH\x00R\x05powerB\x06\n" +
 	"\x04kind\"1\n" +
 	"\x05Color\x12\f\n" +
 	"\x01r\x18\x01 \x01(\rR\x01r\x12\f\n" +
@@ -1967,7 +2007,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\rDefaultOutfit\x12)\n" +
 	"\x05armor\x18\x01 \x03(\v2\x13.playerhub.v1.ArmorR\x05armor\x12(\n" +
 	"\x05hands\x18\x02 \x03(\v2\x12.playerhub.v1.HandR\x05hands\x12)\n" +
-	"\x04ammo\x18\x03 \x01(\v2\x15.playerhub.v1.FormRefR\x04ammo\"\xd5\x03\n" +
+	"\x04ammo\x18\x03 \x01(\v2\x15.playerhub.v1.FormRefR\x04ammo\"\x82\x04\n" +
 	"\tEquipment\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x12)\n" +
 	"\x05armor\x18\x02 \x03(\v2\x13.playerhub.v1.ArmorR\x05armor\x121\n" +
@@ -1979,7 +2019,9 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x10beast_right_hand\x18\a \x01(\v2\x12.playerhub.v1.HandR\x0ebeastRightHand\x12:\n" +
 	"\x0fbeast_left_hand\x18\b \x01(\v2\x12.playerhub.v1.HandR\rbeastLeftHand\x124\n" +
 	"\vbeast_armor\x18\t \x03(\v2\x13.playerhub.v1.ArmorR\n" +
-	"beastArmor*\xea\x01\n" +
+	"beastArmor\x12+\n" +
+	"\x05shout\x18\n" +
+	" \x01(\v2\x15.playerhub.v1.FormRefR\x05shout*\xea\x01\n" +
 	"\rMovementState\x12\x17\n" +
 	"\x13MOVEMENT_STATE_IDLE\x10\x00\x12\x1a\n" +
 	"\x16MOVEMENT_STATE_WALKING\x10\x01\x12\x1a\n" +
@@ -1987,7 +2029,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x18MOVEMENT_STATE_SPRINTING\x10\x03\x12 \n" +
 	"\x1cMOVEMENT_STATE_SNEAKING_IDLE\x10\x04\x12#\n" +
 	"\x1fMOVEMENT_STATE_SNEAKING_WALKING\x10\x05\x12#\n" +
-	"\x1fMOVEMENT_STATE_SNEAKING_RUNNING\x10\x06*\xbb\x04\n" +
+	"\x1fMOVEMENT_STATE_SNEAKING_RUNNING\x10\x06*\xd3\x05\n" +
 	"\x0eCheckpointFlag\x12\x18\n" +
 	"\x14CHECKPOINT_FLAG_NONE\x10\x00\x12\x1c\n" +
 	"\x18CHECKPOINT_FLAG_GROUNDED\x10\b\x12 \n" +
@@ -2005,7 +2047,11 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x14CHECKPOINT_FLAG_BATS\x10\x80\x80\x02\x12(\n" +
 	"\"CHECKPOINT_FLAG_CAST_RELEASED_LEFT\x10\x80\x80\x04\x12)\n" +
 	"#CHECKPOINT_FLAG_CAST_RELEASED_RIGHT\x10\x80\x80\b\x12\"\n" +
-	"\x1cCHECKPOINT_FLAG_DUAL_CASTING\x10\x80\x80\x10*p\n" +
+	"\x1cCHECKPOINT_FLAG_DUAL_CASTING\x10\x80\x80\x10\x12\x1e\n" +
+	"\x18CHECKPOINT_FLAG_SHOUTING\x10\x80\x80 \x12$\n" +
+	"\x1eCHECKPOINT_FLAG_SHOUT_RELEASED\x10\x80\x80@\x12&\n" +
+	"\x1fCHECKPOINT_FLAG_SHOUT_TWO_WORDS\x10\x80\x80\x80\x01\x12(\n" +
+	"!CHECKPOINT_FLAG_SHOUT_THREE_WORDS\x10\x80\x80\x80\x02*p\n" +
 	"\n" +
 	"Shapeshift\x12\x13\n" +
 	"\x0fSHAPESHIFT_NONE\x10\x00\x12\x17\n" +
@@ -2127,42 +2173,44 @@ var file_playerhub_v1_state_proto_depIdxs = []int32{
 	4,  // 5: playerhub.v1.Attack.direction:type_name -> playerhub.v1.PowerDirection
 	11, // 6: playerhub.v1.Action.attack:type_name -> playerhub.v1.Attack
 	5,  // 7: playerhub.v1.Action.beast:type_name -> playerhub.v1.BeastAction
-	8,  // 8: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
-	13, // 9: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
-	6,  // 10: playerhub.v1.Overlay.area:type_name -> playerhub.v1.OverlayArea
-	13, // 11: playerhub.v1.Overlay.color:type_name -> playerhub.v1.Color
-	13, // 12: playerhub.v1.Overlay.glow_color:type_name -> playerhub.v1.Color
-	8,  // 13: playerhub.v1.DefaultRace.race:type_name -> playerhub.v1.FormRef
-	8,  // 14: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
-	14, // 15: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
-	13, // 16: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
-	8,  // 17: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
-	13, // 18: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
-	15, // 19: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
-	17, // 20: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.DefaultRace
-	14, // 21: playerhub.v1.Appearance.added_head_parts:type_name -> playerhub.v1.HeadPart
-	16, // 22: playerhub.v1.Appearance.overlays:type_name -> playerhub.v1.Overlay
-	8,  // 23: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
-	7,  // 24: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
-	8,  // 25: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
-	8,  // 26: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
-	8,  // 27: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
-	19, // 28: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
-	20, // 29: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
-	8,  // 30: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
-	19, // 31: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
-	20, // 32: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
-	20, // 33: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
-	8,  // 34: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
-	21, // 35: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
-	20, // 36: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
-	20, // 37: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
-	19, // 38: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
-	39, // [39:39] is the sub-list for method output_type
-	39, // [39:39] is the sub-list for method input_type
-	39, // [39:39] is the sub-list for extension type_name
-	39, // [39:39] is the sub-list for extension extendee
-	0,  // [0:39] is the sub-list for field type_name
+	8,  // 8: playerhub.v1.Action.power:type_name -> playerhub.v1.FormRef
+	8,  // 9: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
+	13, // 10: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
+	6,  // 11: playerhub.v1.Overlay.area:type_name -> playerhub.v1.OverlayArea
+	13, // 12: playerhub.v1.Overlay.color:type_name -> playerhub.v1.Color
+	13, // 13: playerhub.v1.Overlay.glow_color:type_name -> playerhub.v1.Color
+	8,  // 14: playerhub.v1.DefaultRace.race:type_name -> playerhub.v1.FormRef
+	8,  // 15: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
+	14, // 16: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
+	13, // 17: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
+	8,  // 18: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
+	13, // 19: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
+	15, // 20: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
+	17, // 21: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.DefaultRace
+	14, // 22: playerhub.v1.Appearance.added_head_parts:type_name -> playerhub.v1.HeadPart
+	16, // 23: playerhub.v1.Appearance.overlays:type_name -> playerhub.v1.Overlay
+	8,  // 24: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
+	7,  // 25: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
+	8,  // 26: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
+	8,  // 27: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
+	8,  // 28: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
+	19, // 29: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
+	20, // 30: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
+	8,  // 31: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
+	19, // 32: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
+	20, // 33: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
+	20, // 34: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
+	8,  // 35: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
+	21, // 36: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
+	20, // 37: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
+	20, // 38: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
+	19, // 39: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
+	8,  // 40: playerhub.v1.Equipment.shout:type_name -> playerhub.v1.FormRef
+	41, // [41:41] is the sub-list for method output_type
+	41, // [41:41] is the sub-list for method input_type
+	41, // [41:41] is the sub-list for extension type_name
+	41, // [41:41] is the sub-list for extension extendee
+	0,  // [0:41] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_state_proto_init() }
@@ -2174,6 +2222,7 @@ func file_playerhub_v1_state_proto_init() {
 		(*Action_Attack)(nil),
 		(*Action_Beast)(nil),
 		(*Action_Idle)(nil),
+		(*Action_Power)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

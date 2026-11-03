@@ -30,6 +30,7 @@
 #include "sync/shapeshift/ShapeshiftSync.h"
 #include "sync/skeleton/PoseWindow.h"
 #include "sync/skeleton/SkeletonSync.h"
+#include "sync/voice/VoiceSync.h"
 #include "sync/trade/TradeSync.h"
 
 #include <atomic>
@@ -187,6 +188,11 @@ namespace SyncCoordinator
                         known ? &peer->second.shapeshift : nullptr, newest, std::move(action));
                     continue;
                 }
+                if (!action.power.IsEmpty())
+                {
+                    VoiceSync::AcceptRemoteAction(known ? &peer->second.voice : nullptr, newest, std::move(action));
+                    continue;
+                }
                 CombatSync::AcceptRemoteAction(known ? &peer->second.combat : nullptr, newest, std::move(action));
             }
 
@@ -325,16 +331,19 @@ namespace SyncCoordinator
                 capturedAttack.reset();
             }
             const bool handPresentationStarted = CombatSync::CaptureLocalHandPresentation(local);
+            const bool shoutStarted = VoiceSync::CaptureLocalVoice(local, transformed);
             const auto graphEpoch = AnimationSync::ObserveLocalGraphEpoch(s_localAnimation, local);
             AnimationSync::ObserveLocalMovement(s_localAnimation, local, a_delta);
 #ifndef NDEBUG
             GraphEventSurvey::LogLocalGraphEvents(local, a_delta);
             GraphTrace::Update(local, a_delta);
 #endif
-            // Flush equipment before a captured attack or hand presentation is published, so
-            // peers receive a weapon swap ahead of its use.
-            EquipmentSync::SyncEquipment(local, a_delta, capturedAttack.has_value() || handPresentationStarted);
+            // Flush equipment before a captured attack, hand presentation, or shout is published,
+            // so peers receive a weapon or shout swap ahead of its use.
+            EquipmentSync::SyncEquipment(
+                local, a_delta, capturedAttack.has_value() || handPresentationStarted || shoutStarted);
             CombatSync::QueueLocalAttacks(capturedAttack, graphEpoch.changed);
+            VoiceSync::QueueLocalPowers(transformed, graphEpoch.changed);
             ShapeshiftSync::QueueLocalActions(graphEpoch.changed);
             // Before idles, which end the held idle when a window opens, and before the
             // checkpoint, whose pose the window gates.
@@ -348,6 +357,7 @@ namespace SyncCoordinator
                     CombatSync::DiscardLocalAttacks();
                     ShapeshiftSync::DiscardLocalActions();
                     IdleSync::DiscardLocalIdles();
+                    VoiceSync::DiscardLocalPowers();
                     PoseWindow::Discard();
                     break;
                 case CheckpointPublisher::Status::kPublished:
@@ -355,6 +365,7 @@ namespace SyncCoordinator
                     CombatSync::PublishLocalAttacks(publication.checkpoint);
                     ShapeshiftSync::PublishLocalActions(publication.checkpoint);
                     IdleSync::PublishLocalIdles(publication.checkpoint);
+                    VoiceSync::PublishLocalPowers(publication.checkpoint);
                     break;
                 default:
                     break;
@@ -393,17 +404,20 @@ namespace SyncCoordinator
             CombatSync::AgeRemoteActions(remote, a_peer.combat, a_delta);
             ShapeshiftSync::AgeRemoteActions(remote, a_peer.shapeshift, a_delta);
             IdleSync::AgeRemoteActions(remote, a_peer.idle, a_delta);
+            VoiceSync::AgeRemoteActions(remote, a_peer.voice, a_delta);
             if (!isInLocalSpace)
             {
                 CombatSync::ClearRemoteActions(a_peer.combat);
                 ShapeshiftSync::ClearRemoteActions(a_peer.shapeshift);
                 IdleSync::ClearRemoteActions(a_peer.idle);
+                VoiceSync::ClearRemoteActions(a_peer.voice);
                 return;
             }
             if (lifecycle.actor && DeathSync::SyncDeath(remote, a_peer))
             {
                 auto& actor = *lifecycle.actor;
                 SkeletonSync::ReleaseSkeleton(a_peer.skeleton, actor);
+                VoiceSync::ClearRemote(a_peer.voice, actor);
                 if (auto liveActor = actor.handle.get())
                 {
                     AppearanceSync::ApplyActorPresentation(a_peer.appearance, a_playerID, *liveActor, actor.ready);
@@ -433,6 +447,7 @@ namespace SyncCoordinator
                 SkeletonSync::ReleaseSkeleton(a_peer.skeleton, actor);
                 CombatSync::ClearRemoteActions(a_peer.combat, actor);
                 IdleSync::ClearRemoteActions(a_peer.idle);
+                VoiceSync::ClearRemote(a_peer.voice, actor);
                 EquipmentSync::SyncEquipment(a_peer.equipment, a_playerID, actor, a_delta);
                 const bool readyForWeaponDraw = EquipmentSync::IsReadyForWeaponDraw(a_peer.equipment);
                 if (!MountSync::UpdateRider(remote, a_peer, readyForWeaponDraw, a_delta))
@@ -480,6 +495,12 @@ namespace SyncCoordinator
                         CombatSync::HasQueuedActions(a_peer.combat));
                     CombatSync::SyncCombat(remote, a_peer.combat, actor, handsSettled);
                     CombatSync::SyncHandPresentation(remote, actor, handsSettled, a_delta);
+                    VoiceSync::SyncVoice(
+                        remote, a_peer.voice, actor, EquipmentSync::GetShout(a_peer.equipment), a_delta);
+                }
+                else
+                {
+                    VoiceSync::ClearRemote(a_peer.voice, actor);
                 }
                 const auto presentableState = furniturePlaying
                     ? std::nullopt
