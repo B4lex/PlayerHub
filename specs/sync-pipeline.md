@@ -128,7 +128,8 @@ if inWorld:
     ShapeshiftSync::QueueLocalActions      # beast actions the graph input hook captured
     IdleSync::QueueLocalIdles              # idle events it captured; the held idle
     CheckpointPublisher::PublishLocalCheckpoint
-        disconnected: discard queued attacks, beast actions, idle events, and powers
+        disconnected: discard queued attacks, beast actions, idle events, and powers;
+                      reset hand and voice presentation to this pass's
         published: CombatSync::PublishLocalAttacks, ShapeshiftSync::PublishLocalActions,
                    IdleSync::PublishLocalIdles, then VoiceSync::PublishLocalPowers
     AppearanceSync::SyncAppearance

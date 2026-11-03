@@ -328,13 +328,18 @@ offset moves the detour past an entry guard that only returns. The
 bytes are compared first: if another plugin already patched the function, that
 hook is skipped and an error is logged. An entry detour pads moved bytes past
 the fifth with NOPs. A plugin that hooks the same entry later by copying its
-first bytes breaks, because it copies this plugin's relative branch; a function
-known to be hooked that way is detoured at its call sites instead. A call-site
+first bytes breaks, because it copies this plugin's relative branch, so a
+function with few callers is detoured at its call sites instead
+([Spell world isolation](combat-presentation.md#spell-world-isolation)). A call-site
 detour chains to whatever the call pointed to, so another plugin's hook there
-keeps working. `WriteCalleeDetour` finds the site as the first call to the
-callee within a search length of the caller's entry, so the offset may differ
-between runtimes; a site another plugin detoured first is not found, and the
-hook is skipped with an error. Startup logs which hooks were
+keeps working. `WriteCalleeDetour` finds the site as the caller's first call
+to the callee, so the offset may differ between runtimes. The scan ends where
+the caller's code does, as `RtlLookupFunctionEntry` reports it: its `.pdata`
+chunk and the chunks right after it whose unwind info chains to the same
+function (`UNW_FLAG_CHAININFO`), as the compiler emits a function split around
+a call (ID 34451's launch call is in such a chunk). A site another plugin
+detoured first is not found, and the hook is skipped with an error, rather
+than matching a call in the next function. Startup logs which hooks were
 installed. Suppressions are logged with the path, both form IDs, and a count,
 throttled.
 

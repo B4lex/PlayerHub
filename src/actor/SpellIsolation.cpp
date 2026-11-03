@@ -13,10 +13,8 @@ namespace SpellIsolation
     namespace
     {
         using ActorConstants::ShouldLogOccurrence;
-        using CodeDetour::EntryDetourTrampolineSize;
         using CodeDetour::WriteCalleeDetour;
         using CodeDetour::WriteEntryDetour;
-        using Prologue = std::span<const std::uint8_t>;
         using Archetype = RE::EffectSetting::Archetype;
 
         constexpr std::array<std::uint8_t, 5> kSpellFirePrologue{
@@ -24,71 +22,49 @@ namespace SpellIsolation
             0x57, // push rdi
             0x41, 0x56 // push r14
         };
-        // Past the entry guard test r8, r8; je to its ret, on both runtimes.
-        constexpr std::array<std::uint8_t, 7> kSpellImpactPrologue{
-            0x48, 0x8B, 0xC4, // mov rax, rsp
-            0x4C, 0x89, 0x48, 0x20 // mov [rax+20h], r9
-        };
         constexpr std::array<std::uint8_t, 5> kHitDataPrologue{
             0x48, 0x8B, 0xC4, // mov rax, rsp
             0x55, // push rbp
             0x56 // push rsi
         };
-        constexpr std::array<std::uint8_t, 7> kDestructiblePrologue{
-            0x48, 0x81, 0xEC, 0xA8, 0x00, 0x00, 0x00 // sub rsp, 0A8h
+        // Every caller of each function on 1.5.97 and on 1.7.104, found by scanning
+        // both executables for calls, jumps, and pointers to it. These functions
+        // are not entry-detoured: a plugin that hooks an entry later by copying its
+        // first bytes into a gateway, as PapyrusExtender does for ID 44213 at
+        // kDataLoaded, would copy our relative branch, which then jumps elsewhere.
+        constexpr std::array kSpellImpactCallers{
+            RELOCATION_ID(33633, 34411),
+            RELOCATION_ID(42943, 44123),
+            RELOCATION_ID(43015, 44206),
         };
-        // SE opens with test rdx, rdx; je to its ret, which 1.7.104 does later.
-        constexpr std::array<std::uint8_t, 8> kSEDestructiblePrologue{
-            0x53, // push rbx
-            0x48, 0x81, 0xEC, 0xB0, 0x00, 0x00, 0x00 // sub rsp, 0B0h
+        constexpr std::array kDestructibleCallers{
+            RELOCATION_ID(14069, 14168),
+            RELOCATION_ID(25298, 25818),
+            RELOCATION_ID(42943, 44123),
+            RELOCATION_ID(55578, 56107),
         };
-        // Past the entry guard test r9, r9; je to its ret, on both runtimes.
-        constexpr std::array<std::uint8_t, 5> kImpactImpulsePrologue{
-            0x48, 0x8B, 0xC4, // mov rax, rsp
-            0x56, // push rsi
-            0x57 // push rdi
+        constexpr std::array kImpactImpulseCallers{ RELOCATION_ID(42943, 44123) };
+        constexpr std::array kExplosionUpdateCallers{ RELOCATION_ID(42679, 43851) };
+        // SE's FindTargets (ID 33632) reaches the launch only through ID 33670; an SE
+        // ID of 0 marks a caller only AE has.
+        constexpr std::array kSpellLaunchCallers{
+            RELOCATION_ID(0, 34410),
+            RELOCATION_ID(33670, 34450),
+            RELOCATION_ID(33671, 34451),
         };
-        constexpr std::array<std::uint8_t, 5> kExplosionTargetsPrologue{
-            0x48, 0x8B, 0xC4, // mov rax, rsp
-            0x55, // push rbp
-            0x53 // push rbx
-        };
-        constexpr std::array<std::uint8_t, 5> kExplosionForcesPrologue{
-            0x40, 0x53, // push rbx
-            0x55, // push rbp
-            0x56, // push rsi
-            0x57 // push rdi
-        };
-        constexpr std::array<std::uint8_t, 5> kSpellLaunchPrologue{
-            0x40, 0x55, // push rbp
-            0x53, // push rbx
-            0x56, // push rsi
-            0x57 // push rdi
-        };
-        // test reg, reg (3 bytes) and a near je (6 bytes).
-        constexpr std::ptrdiff_t kEntryGuardSize = 9;
-        // Covers each call site found below (at most +0x479, SE) with room for
-        // another runtime's layout.
-        constexpr std::size_t kCallSearchLength = 0x800;
-        // The callers of the impact effects (ID 44213, SE 43022): the cone impact,
-        // ProcessImpacts, and the beam and flame hits. The function itself is not
-        // detoured: PapyrusExtender hooks its entry later, at kDataLoaded, by
-        // copying its first 7 bytes into a gateway, and a copied relative branch
-        // of ours would jump elsewhere.
+        // The cone's impact pass (ID 43806) also calls the impact effects, but a
+        // remote cone records no impacts for it, since ConeHitsHook skips its HandleHits.
         constexpr std::array kImpactEffectsCallers{
-            RELOCATION_ID(42638, 43806),
             RELOCATION_ID(42943, 44123),
             RELOCATION_ID(43014, 44205),
         };
+        constexpr std::array kProjectileUpdateCallers{ RELOCATION_ID(43025, 44216) };
 
-        static_assert(6 * EntryDetourTrampolineSize(5) + EntryDetourTrampolineSize(kSpellImpactPrologue.size())
-                + EntryDetourTrampolineSize(kSEDestructiblePrologue.size())
-                + (kImpactEffectsCallers.size() + 1) * CodeDetour::kCallDetourTrampolineSize
-            == kTrampolineSize);
-        static_assert(kSpellFirePrologue.size() == 5 && kHitDataPrologue.size() == 5
-            && kImpactImpulsePrologue.size() == 5 && kExplosionTargetsPrologue.size() == 5
-            && kExplosionForcesPrologue.size() == 5
-            && kSpellLaunchPrologue.size() == 5 && kDestructiblePrologue.size() <= kSEDestructiblePrologue.size());
+        static_assert(kSpellImpactCallers.size() + kDestructibleCallers.size() + kImpactImpulseCallers.size()
+                + 2 * kExplosionUpdateCallers.size() + kSpellLaunchCallers.size() + kImpactEffectsCallers.size()
+                + kProjectileUpdateCallers.size()
+            == kCallDetourCount);
+        static_assert(kSpellFirePrologue.size() == 5 && kHitDataPrologue.size() == 5);
 
         void LogSuppressed(std::atomic_uint32_t& a_counter, std::string_view a_path, const RE::TESForm* a_source,
             const RE::TESForm* a_target)
@@ -313,7 +289,7 @@ namespace SpellIsolation
 
         // Applies a projectile's spell where it struck (ID 34412, SE 33634):
         // `(caster, location, projectile, target, ...)`. Every projectile impact
-        // (Projectile::ProcessImpacts, HandleHits, the arrow and cone impacts, and a
+        // (Projectile::ProcessImpacts, HandleHits, the arrow impacts, and a
         // lobber's detonation through ID 34411) casts through it with the shooter's
         // own caster, including target-location summons and the spell's effects on
         // objects.
@@ -387,6 +363,22 @@ namespace SpellIsolation
                     return;
                 }
                 _original(a_projectile, a_impact, a_arg3, a_arg4);
+            }
+
+            static inline REL::Relocation<decltype(Thunk)> _original;
+        };
+
+        struct ConeHitsHook
+        {
+            static bool Thunk(RE::Projectile* a_projectile, void* a_hits)
+            {
+                if (IsRemoteProjectile(a_projectile))
+                {
+                    static std::atomic_uint32_t suppressedCount{ 0 };
+                    LogSuppressed(suppressedCount, "ConeHits", a_projectile, nullptr);
+                    return true;
+                }
+                return _original(a_projectile, a_hits);
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -546,6 +538,9 @@ namespace SpellIsolation
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
+        // Written once by InstallHooks on the main thread before the game loop starts.
+        bool s_isolatesNativeCasts{ false };
+
         // Set while a remote actor's native spell fire runs on this thread, so the
         // caster's own CastSpellImmediate inside it is not taken for a script's cast.
         thread_local const RE::MagicCaster* t_nativeSpellFireCaster{ nullptr };
@@ -625,6 +620,32 @@ namespace SpellIsolation
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
+        // True when every caller's call was detoured. Any detoured site gives the
+        // original, since all call the same function.
+        template <class Hook>
+        bool DetourCallers(
+            std::span<const REL::RelocationID> a_callers, REL::RelocationID a_callee, std::string_view a_name)
+        {
+            bool complete = true;
+            for (const auto& caller : a_callers)
+            {
+                if (caller.id() == 0)
+                {
+                    continue;
+                }
+                if (const auto original = WriteCalleeDetour(REL::ID(caller), REL::ID(a_callee),
+                        reinterpret_cast<std::uintptr_t>(&Hook::Thunk), a_name))
+                {
+                    Hook::_original = original;
+                }
+                else
+                {
+                    complete = false;
+                }
+            }
+            return complete;
+        }
+
         void InstallVTableHooks()
         {
             // Every actor's hand casters share this vtable; the thunks pass other
@@ -645,12 +666,15 @@ namespace SpellIsolation
             NonActorMagicTargetHook::_original
                 = nonActorMagicTargetVTable.write_vfunc(0x1, NonActorMagicTargetHook::Thunk);
 
+            REL::Relocation<std::uintptr_t> coneProjectileVTable{ RE::VTABLE_ConeProjectile[0] };
+            ConeHitsHook::_original = coneProjectileVTable.write_vfunc(0xBE, ConeHitsHook::Thunk);
+
             logs::debug(
                 "Remote spell vtable hooks: castSpellImmediate={} checkCast={} characterMagicTarget={} "
-                "playerMagicTarget={} objectMagicTarget={}",
+                "playerMagicTarget={} objectMagicTarget={} coneHits={}",
                 CastSpellImmediateHook::_original.address() != 0, CheckCastHook::_original.address() != 0,
                 ActorMagicTargetHook<0>::_original.address() != 0, ActorMagicTargetHook<1>::_original.address() != 0,
-                NonActorMagicTargetHook::_original.address() != 0);
+                NonActorMagicTargetHook::_original.address() != 0, ConeHitsHook::_original.address() != 0);
         }
     }
 
@@ -662,47 +686,42 @@ namespace SpellIsolation
         // 1.5.97 disassembly by its callers, call sequence, and field offsets.
         SpellFireHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(33629, 34407)), kSpellFirePrologue,
             reinterpret_cast<std::uintptr_t>(&SpellFireHook::Thunk), "spell fire");
-        SpellImpactHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(33634, 34412)), kSpellImpactPrologue,
-            reinterpret_cast<std::uintptr_t>(&SpellImpactHook::Thunk), "projectile spell impact", kEntryGuardSize);
         HitDataHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(37633, 38586)), kHitDataPrologue,
             reinterpret_cast<std::uintptr_t>(&HitDataHook::Thunk), "hit data");
-        DestructibleHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(35934, 36909)),
-            REL::Relocate(Prologue{ kSEDestructiblePrologue }, Prologue{ kDestructiblePrologue }),
-            reinterpret_cast<std::uintptr_t>(&DestructibleHook::Thunk), "destructible update",
-            REL::Relocate(std::ptrdiff_t{ kEntryGuardSize }, std::ptrdiff_t{ 0 }));
-        ImpactImpulseHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(43024, 44215)),
-            kImpactImpulsePrologue, reinterpret_cast<std::uintptr_t>(&ImpactImpulseHook::Thunk),
-            "projectile impact impulse", kEntryGuardSize);
-        ExplosionTargetsHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(42677, 43849)),
-            kExplosionTargetsPrologue, reinterpret_cast<std::uintptr_t>(&ExplosionTargetsHook::Thunk),
-            "explosion targets");
-        ExplosionForcesHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(42678, 43850)),
-            kExplosionForcesPrologue, reinterpret_cast<std::uintptr_t>(&ExplosionForcesHook::Thunk),
-            "explosion forces");
-        SpellLaunchHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(33672, 34452)), kSpellLaunchPrologue,
-            reinterpret_cast<std::uintptr_t>(&SpellLaunchHook::Thunk), "spell projectile launch");
-        // Every site calls the same function, so any detoured one gives the original.
-        std::size_t impactEffectsSites = 0;
-        for (const auto caller : kImpactEffectsCallers)
-        {
-            if (const auto original = WriteCalleeDetour(REL::ID(caller), kCallSearchLength,
-                    REL::ID(RELOCATION_ID(43022, 44213)), reinterpret_cast<std::uintptr_t>(&ImpactEffectsHook::Thunk),
-                    "projectile impact effects"))
-            {
-                ImpactEffectsHook::_original = original;
-                ++impactEffectsSites;
-            }
-        }
-        ProjectileExplosionHook::_original = WriteCalleeDetour(REL::ID(RELOCATION_ID(43025, 44216)),
-            kCallSearchLength, REL::ID(RELOCATION_ID(42657, 43829)),
-            reinterpret_cast<std::uintptr_t>(&ProjectileExplosionHook::Thunk), "projectile explosion");
+        const bool spellImpact = DetourCallers<SpellImpactHook>(
+            kSpellImpactCallers, RELOCATION_ID(33634, 34412), "projectile spell impact");
+        const bool destructible = DetourCallers<DestructibleHook>(
+            kDestructibleCallers, RELOCATION_ID(35934, 36909), "destructible update");
+        const bool impactImpulse = DetourCallers<ImpactImpulseHook>(
+            kImpactImpulseCallers, RELOCATION_ID(43024, 44215), "projectile impact impulse");
+        const bool explosionTargets = DetourCallers<ExplosionTargetsHook>(
+            kExplosionUpdateCallers, RELOCATION_ID(42677, 43849), "explosion targets");
+        const bool explosionForces = DetourCallers<ExplosionForcesHook>(
+            kExplosionUpdateCallers, RELOCATION_ID(42678, 43850), "explosion forces");
+        const bool spellLaunch = DetourCallers<SpellLaunchHook>(
+            kSpellLaunchCallers, RELOCATION_ID(33672, 34452), "spell projectile launch");
+        const bool impactEffects = DetourCallers<ImpactEffectsHook>(
+            kImpactEffectsCallers, RELOCATION_ID(43022, 44213), "projectile impact effects");
+        const bool projectileExplosion = DetourCallers<ProjectileExplosionHook>(
+            kProjectileUpdateCallers, RELOCATION_ID(42657, 43829), "projectile explosion");
         logs::debug(
-            "Remote spell isolation hooks: spellFire={} spellImpact={} hitData={} destructible={} impactImpulse={} "
-            "explosionTargets={} explosionForces={} spellLaunch={} impactEffects={}/{} projectileExplosion={}",
-            SpellFireHook::_original.address() != 0, SpellImpactHook::_original.address() != 0,
-            HitDataHook::_original.address() != 0, DestructibleHook::_original.address() != 0,
-            ImpactImpulseHook::_original.address() != 0, ExplosionTargetsHook::_original.address() != 0,
-            ExplosionForcesHook::_original.address() != 0, SpellLaunchHook::_original.address() != 0,
-            impactEffectsSites, kImpactEffectsCallers.size(), ProjectileExplosionHook::_original.address() != 0);
+            "Remote spell isolation hooks: spellFire={} hitData={} spellImpact={} destructible={} impactImpulse={} "
+            "explosionTargets={} explosionForces={} spellLaunch={} impactEffects={} projectileExplosion={}",
+            SpellFireHook::_original.address() != 0, HitDataHook::_original.address() != 0, spellImpact, destructible,
+            impactImpulse, explosionTargets, explosionForces, spellLaunch, impactEffects, projectileExplosion);
+
+        s_isolatesNativeCasts = SpellFireHook::_original.address() != 0 && HitDataHook::_original.address() != 0
+            && spellImpact && destructible && impactImpulse && explosionTargets && explosionForces && spellLaunch
+            && impactEffects && projectileExplosion;
+        if (!s_isolatesNativeCasts)
+        {
+            logs::error("Remote spell isolation is incomplete: remote hands hold stand-ins, and remote shouts and "
+                        "powers are not cast");
+        }
+    }
+
+    bool IsolatesNativeCasts()
+    {
+        return s_isolatesNativeCasts;
     }
 }

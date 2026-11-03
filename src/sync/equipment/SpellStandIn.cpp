@@ -1,4 +1,5 @@
 #include "sync/equipment/SpellStandIn.h"
+#include "actor/SpellIsolation.h"
 #include "forms/DynamicForm.h"
 #include "forms/FormLookup.h"
 #include "runtime/GameThread.h"
@@ -324,7 +325,7 @@ namespace SpellStandIn
             // A scroll is an inventory item that EquipSpell does not take and its
             // cast consumes, so it keeps a stand-in.
             auto* nativeSpell = form->As<RE::SpellItem>();
-            if (a_allowNative && nativeSpell && IsHandSpell(*nativeSpell))
+            if (a_allowNative && SpellIsolation::IsolatesNativeCasts() && nativeSpell && IsHandSpell(*nativeSpell))
             {
                 return { .spell = nativeSpell, .source = "native" };
             }

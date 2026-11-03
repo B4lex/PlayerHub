@@ -32,7 +32,7 @@ namespace CombatSync
     [[nodiscard]] bool CaptureLocalHandPresentation(const LocalFrame& a_local);
     [[nodiscard]] Multiplayer::HandPresentation SampleLocalHandPresentation();
     void QueueLocalAttacks(std::optional<Network::Attack> a_capturedAttack, bool a_graphEpochChanged);
-    void DiscardLocalAttacks();
+    void DiscardLocalCombat();
     void PublishLocalAttacks(const Network::PlayerTransform& a_checkpoint);
 
     void OnCheckpointPlayed(RemoteState& a_state, const CheckpointUpdate& a_update);

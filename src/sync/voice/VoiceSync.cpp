@@ -168,9 +168,10 @@ namespace VoiceSync
         }
     }
 
-    void DiscardLocalPowers()
+    void DiscardLocalVoice()
     {
         s_pendingPowers.clear();
+        s_unpublishedVoice = s_currentVoice;
     }
 
     void PublishLocalPowers(const Network::PlayerTransform& a_checkpoint)

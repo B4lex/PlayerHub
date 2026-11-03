@@ -346,7 +346,10 @@ reads the player. Everything is false unless the weapon is drawn:
   decides instead, or `ActorState::wantBlocking` without that variable.
 
 Fields are ORed across passes until the next checkpoint samples and clears them,
-so a presentation shorter than the interval still reaches peers once. A field
+so a presentation shorter than the interval still reaches peers once. While
+disconnected, `DiscardLocalCombat` resets them to the current pass's values each
+pass, so the first checkpoint after connecting carries no presentation that
+ended offline. A field
 turning on flushes equipment first, so a new spell or bow arrives before its use.
 
 ### Receiver stage
@@ -626,7 +629,9 @@ read from 1.7.104):
   `shoutReleased` is `kPrecast` or `kPostcast`. The words are 2 in
   `kContinue` and 1 in earlier states; once released, the released
   variation's. They are ORed, and the words maximized, until the next
-  checkpoint samples them (`SampleLocalVoice`). A shout starting flushes
+  checkpoint samples them (`SampleLocalVoice`); while disconnected,
+  `DiscardLocalVoice` resets them to the current pass's values, so a shout
+  that ended offline is not published on connecting. A shout starting flushes
   equipment, so its shout arrives first. In a beast form nothing is captured.
 - Equipment carries the voice slot's shout (`selectedPower` when it is a
   `TESShout`, [Appearance and equipment](appearance-and-equipment.md#capture)).
@@ -866,14 +871,15 @@ so a hazard cast around the caster acts for it.
 | Hook (1.7.104, SE) | Drops for a remote source |
 | --- | --- |
 | `MagicTarget::AddTarget` (vfunc 1) of `Character` and `PlayerCharacter` (both ID 38786, SE 37832, chained after the [magic firewall](remote-actor.md#survival-and-ai-policy)) and `NonActorMagicTarget` (vtable 1, its `MagicTarget` base at +0x10; vtable 0 is `BSExtraData`) | Any effect on another actor or an object, and on the caster itself any archetype but value modifiers (`kValueModifier`, `kDualValueModifier`, `kPeakValueModifier`, `kValueAndParts`, `kAccumulateMagnitude`), `kInvisibility`, `kLight`, `kNightEye`, `kEtherealize`, `kDisguise`, `kCloak`, and `kSpawnHazard` (not for a shout or power), except an effect in `kIgnoredEffects`. Returns false, as the magic firewall does |
-| Projectile spell impact (ID 34412 + 9, SE 33634 + 9) `(caster, location, projectile, target, …)` | The spell where a projectile struck. Every impact casts through it with the shooter's own caster: `Projectile::ProcessImpacts` (ID 44123), `HandleHits` (ID 44204, beams and flames) and the cone and arrow impacts through ID 44206, and a lobber's detonation through ID 34411. This includes target-location summons |
+| Projectile spell impact (ID 34412, SE 33634) `(caster, location, projectile, target, …)`, call detours in its callers: `Projectile::ProcessImpacts` (ID 44123, SE 42943), the beam, flame, and arrow impacts (ID 44206, SE 43015), and a lobber's detonation (ID 34411, SE 33633) | The spell where a projectile struck. Every impact casts through it with the shooter's own caster. This includes target-location summons |
 | HitData processing (ID 38586, SE 37633) `(target, hitData)` | A hit whose `aggressor` is remote: damage, stagger, hit impulse, hit effects, `TESHitEvent`. Spell projectiles (ID 44123 + 0x269), beams (ID 44204 + 0x3AA), and explosions (ID 43849 + 0x412) reach it without the actor hit hook |
-| `TaskQueueInterface::QueueUpdateDestructibleObject` (ID 36909, SE 35934 + 9) | Destruction damage whose cause is a remote source |
-| Projectile impact impulse (ID 44215 + 9, SE 43024 + 9) | The push on the rigid body a projectile struck (`ScaleGameplayImpulseForce`, ID 26004, then the body's point impulse) |
-| Explosion targets (ID 43849, SE 42677) | Every reference the explosion found: actor cause, HitData, the enchantment, and the impulse (ID 39895). Sets `kTargetsProcessed`, as the original does first, so the update does not call it again |
-| Explosion forces (ID 43850, SE 42678) | The impulses on bodies in the radius (`SetLinearImpulse`/`SetAngularImpulse`, IDs 78091/78092). Sets `kForcesApplied`, as the original does |
-| Spell projectile launch (ID 34452, SE 33672), from `FindTargets` and the area and target-location casts | Returns true without launching when the current spell's projectile (`GetAVEffect`) has `kExplosionAltTrigger` and an `explosionProximity`: a rune. The callers only test the result, which the original always sets; `Projectile::Launch` (ID 44108) is not failed instead, because this caller uses the new projectile without a null check |
-| Impact effects (ID 44213, SE 43022) `(projectile, target, impact, …)`, call detours in each caller: the cone impact (ID 43806 + 0x3A3, SE 42638 + 0x479), `ProcessImpacts` (ID 44123 + 0x407, SE 42943 + 0x410), and the beam and flame hits (ID 44205 + 0x18A, SE 43014 + 0x1EA) | The impact data set's art, particles, decal, sound, and light, the hit reference's actor cause, and the hazard an impact places (a wall's flames) |
+| `TaskQueueInterface::QueueUpdateDestructibleObject` (ID 36909, SE 35934), call detours in its callers: IDs 14168, 25818, 44123 (`ProcessImpacts`), and 56107 (SE 14069, 25298, 42943, 55578) | Destruction damage whose cause is a remote source |
+| Projectile impact impulse (ID 44215, SE 43024), call detour in its only caller, `ProcessImpacts` | The push on the rigid body a projectile struck (`ScaleGameplayImpulseForce`, ID 26004, then the body's point impulse) |
+| `ConeProjectile::HandleHits` (vfunc 0xBE, ID 43802, SE 42634; reached only through its vtable) | Everything a cone touches, such as Unrelenting Force or a breath shout: the push on each non-actor rigid body, which the cone applies itself (`SetLinearImpulse`/`SetAngularImpulse`, IDs 78091/78092) rather than through ID 44215, and its hits on references. Returns true, as the original does on its only exit |
+| Explosion targets (ID 43849, SE 42677), call detour in its only caller, the explosion update (ID 43851, SE 42679) | Every reference the explosion found: actor cause, HitData, the enchantment, and the impulse (ID 39895). Sets `kTargetsProcessed`, as the original does first, so the update does not call it again |
+| Explosion forces (ID 43850, SE 42678), call detour in the explosion update | The impulses on bodies in the radius (`SetLinearImpulse`/`SetAngularImpulse`, IDs 78091/78092). Sets `kForcesApplied`, as the original does |
+| Spell projectile launch (ID 34452, SE 33672), call detours in its callers: `FindTargets` (ID 34410; SE's reaches it only through 33670) and the area and target-location casts (IDs 34450 and 34451, SE 33670 and 33671) | Returns true without launching when the current spell's projectile (`GetAVEffect`) has `kExplosionAltTrigger` and an `explosionProximity`: a rune. The callers only test the result, which the original always sets; `Projectile::Launch` (ID 44108) is not failed instead, because this caller uses the new projectile without a null check |
+| Impact effects (ID 44213, SE 43022) `(projectile, target, impact, …)`, call detours in each caller: `ProcessImpacts` (ID 44123 + 0x407, SE 42943 + 0x410), and the beam and flame hits (ID 44205 + 0x18A, SE 43014 + 0x1EA) | The impact data set's art, particles, decal, sound, and light, the hit reference's actor cause, and the hazard an impact places (a wall's flames). The cone's own impact pass (ID 43806) also calls it, but is not detoured: a remote cone records no impacts there, because its `HandleHits` is skipped |
 | Explosion factory (ID 43829, SE 42657) call in the projectile update (ID 44216 + 0x3C8, SE 43025 + 0x39F, call detour) | Returns no explosion for a remote projectile, read from the creation record at +0x20, where the update stores it. A null explosion is an ordinary result there, and the projectile is killed as after one |
 
 The explosion target and force hooks cover explosions a remote source creates
@@ -883,17 +889,32 @@ caster. A rune's proximity detonation (ID 44217, and
 never launched, and any other remote projectile that detonates vanishes
 without an explosion or a spell.
 
-The impact effects and explosion factory are detoured at their call sites,
-which `CodeDetour::WriteCalleeDetour` finds by call target from the caller's
-entry, so a runtime whose code layout differs from 1.7.104's (such as
-1.6.1170) still finds them. The impact effects' entry is left untouched because
-PapyrusExtender hooks it at `kDataLoaded`, after this plugin, by copying its
-first 7 bytes into its own gateway, and a relative branch of ours copied
-there would jump into unmapped memory on the first projectile impact.
+Only spell fire and HitData processing are entry-detoured: they have eight
+or more callers, which differ between runtimes (spell fire's caster update
+call exists only on AE). Every other function is detoured at each of its
+callers' calls, found by scanning the 1.5.97 and 1.7.104 executables for calls,
+jumps, and pointers to it. `CodeDetour::WriteCalleeDetour` finds each site by
+call target within the caller ([Detours](remote-actor.md#detours)), so a runtime whose
+code layout differs from 1.7.104's (such as 1.6.1170) still finds them. A
+plugin that hooks an entry after this plugin by copying its first bytes into a
+gateway copies our relative branch, which then jumps elsewhere; PapyrusExtender
+does this for the impact effects at `kDataLoaded`, which crashed every
+projectile impact while that entry was detoured. Of the plugins checked
+(powerofthree's plugins, Precision, Valhalla Combat, MaxsuIFrame, TrueHUD,
+DodgeFramework, EngineFixes, and Blade and Blunt from source; the common SKSE
+DLLs by their ID constants), none hooks the spell fire or HitData entry: they
+patch calls inside it or call it.
 
-The ID 34412 and 44215 detours sit past an entry guard (`test r8/r9, r9; je`
-to `ret`), as does SE's 35934 (`test rdx, rdx; je`), which 1.7.104 tests after
-its `sub rsp`. Each logs `Suppressed remote spell world effect` with the path
+Native casts depend on every detour above, but a detour can fail to install
+(a prologue or call site another plugin changed), and that is only logged.
+`SpellIsolation::IsolatesNativeCasts` is true only when both entry detours and
+the call detour at every caller of each other function installed; the vtable
+hooks cannot fail. Otherwise `InstallHooks` logs one error, every hand holds a stand-in
+(`SpellStandIn::Resolve` ignores `a_allowNative`), and
+`VoicePresentation::ApplyShout` and `CastPower` cast no shout or power, so a
+remote actor releases nothing native.
+
+Each hook logs `Suppressed remote spell world effect` with the path
 and both form IDs, and the magic target hooks `Suppressed remote actor magic
 effect` with the archetype, throttled.
 
@@ -1027,7 +1048,9 @@ Not confirmed in game for [spell world isolation](#spell-world-isolation)
 22. Every impact visual and impact-placed hazard of a projectile comes from
     the impact effects (ID 44213), and every explosion of a projectile from
     the projectile update's factory call (ID 44216), for missiles,
-    lobbers, beams, flames, cones, and barriers. A hazard cast around the
+    lobbers, beams, flames, cones, and barriers. A cone records its impacts
+    (`AddImpact`, vfunc 0xBD) only from its `HandleHits`, so a remote cone's
+    impact pass (ID 43806) has nothing to process. A hazard cast around the
     caster (`kSpawnHazard`), and the projectiles and explosions it launches,
     such as a blizzard's, carry the remote actor as `ownerActor` or actor
     cause.

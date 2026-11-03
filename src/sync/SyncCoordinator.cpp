@@ -354,10 +354,10 @@ namespace SyncCoordinator
             switch (publication.status)
             {
                 case CheckpointPublisher::Status::kDisconnected:
-                    CombatSync::DiscardLocalAttacks();
+                    CombatSync::DiscardLocalCombat();
                     ShapeshiftSync::DiscardLocalActions();
                     IdleSync::DiscardLocalIdles();
-                    VoiceSync::DiscardLocalPowers();
+                    VoiceSync::DiscardLocalVoice();
                     PoseWindow::Discard();
                     break;
                 case CheckpointPublisher::Status::kPublished:
@@ -558,7 +558,7 @@ namespace SyncCoordinator
         else
         {
             // Attacks captured before leaving would otherwise anchor to the first checkpoint after returning.
-            CombatSync::DiscardLocalAttacks();
+            CombatSync::DiscardLocalCombat();
             ShapeshiftSync::DiscardLocalActions();
             IdleSync::DiscardLocalIdles();
             PoseWindow::Discard();

@@ -18,7 +18,7 @@ namespace VoiceSync
     [[nodiscard]] bool CaptureLocalVoice(const LocalFrame& a_local, bool a_transformed);
     [[nodiscard]] Multiplayer::VoicePresentation SampleLocalVoice();
     void QueueLocalPowers(bool a_transformed, bool a_graphEpochChanged);
-    void DiscardLocalPowers();
+    void DiscardLocalVoice();
     void PublishLocalPowers(const Network::PlayerTransform& a_checkpoint);
 
     struct PendingPower

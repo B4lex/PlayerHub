@@ -4,6 +4,7 @@
 #include "actor/AttackDispatch.h"
 #include "actor/IdlePresentation.h"
 #include "actor/RemoteActor.h"
+#include "actor/SpellIsolation.h"
 #include "actor/WeaponTransition.h"
 #include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
@@ -143,12 +144,6 @@ namespace VoicePresentation
         {
             return;
         }
-        auto actorPtr = a_remote.handle.get();
-        if (!actorPtr)
-        {
-            return;
-        }
-        auto& actor = *actorPtr;
         auto& voice = a_remote.animation.voice;
         const float deltaTime = FrameTime::Clamp(a_deltaTime);
         voice.startCooldown = (std::max)(voice.startCooldown - deltaTime, 0.0F);
@@ -156,6 +151,16 @@ namespace VoicePresentation
         {
             voice.awaitingNewShout = false;
         }
+        if (!voice.held && !a_request.shouting)
+        {
+            return;
+        }
+        auto actorPtr = a_remote.handle.get();
+        if (!actorPtr)
+        {
+            return;
+        }
+        auto& actor = *actorPtr;
 
         auto* high = actor.GetHighProcess();
         const auto voiceState = high ? high->voiceState.get() : VoiceState::kNone;
@@ -202,7 +207,8 @@ namespace VoicePresentation
         }
 
         if (!a_request.shouting || !a_request.shout || voice.awaitingNewShout || !a_mayStart
-            || voice.startCooldown > 0.0F || !high || voiceState != VoiceState::kNone || !CanStart(a_remote, actor))
+            || !SpellIsolation::IsolatesNativeCasts() || voice.startCooldown > 0.0F || !high
+            || voiceState != VoiceState::kNone || !CanStart(a_remote, actor))
         {
             return;
         }
@@ -259,7 +265,7 @@ namespace VoicePresentation
 
     bool CastPower(RemoteActor& a_remote, RE::SpellItem& a_power)
     {
-        if (!GameThread::Require("CastPower"))
+        if (!GameThread::Require("CastPower") || !SpellIsolation::IsolatesNativeCasts())
         {
             return false;
         }
