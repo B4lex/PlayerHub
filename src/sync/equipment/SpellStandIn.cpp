@@ -166,6 +166,16 @@ namespace SpellStandIn
             return look;
         }
 
+        // What a hand casts: fire-and-forget and concentration spells, not powers or
+        // abilities, which the source never holds in a hand anyway.
+        bool IsHandSpell(const RE::SpellItem& a_spell)
+        {
+            const auto castingType = a_spell.GetCastingType();
+            return a_spell.GetSpellType() == RE::MagicSystem::SpellType::kSpell
+                && (castingType == RE::MagicSystem::CastingType::kFireAndForget
+                    || castingType == RE::MagicSystem::CastingType::kConcentration);
+        }
+
         // MagicItem::Copy (ID 11297) and EffectSetting::Copy (ID 11059) copy the
         // record data and effects, but not the equip slot or the effect's sounds and
         // keywords.
@@ -280,7 +290,7 @@ namespace SpellStandIn
         return hand;
     }
 
-    Resolution Resolve(const Multiplayer::EquipmentHand& a_hand)
+    Resolution Resolve(const Multiplayer::EquipmentHand& a_hand, bool a_allowNative)
     {
         if (!GameThread::Require("SpellStandIn::Resolve"))
         {
@@ -311,6 +321,13 @@ namespace SpellStandIn
         }
         else
         {
+            // A scroll is an inventory item that EquipSpell does not take and its
+            // cast consumes, so it keeps a stand-in.
+            auto* nativeSpell = form->As<RE::SpellItem>();
+            if (a_allowNative && nativeSpell && IsHandSpell(*nativeSpell))
+            {
+                return { .spell = nativeSpell, .source = "native" };
+            }
             const auto* spell = form->As<RE::MagicItem>();
             look = ReadLook(spell->GetAVEffect());
             shape = ReadShape(*spell);
@@ -322,7 +339,10 @@ namespace SpellStandIn
         }
         if (!look)
         {
-            return { .spell = placeholder, .source = "placeholder", .dropReason = dropReason };
+            // A copy of the placeholder rather than the placeholder itself, which
+            // would cast natively.
+            source = "placeholder";
+            look = ReadLook(placeholderEffect);
         }
         if (!shape)
         {
@@ -331,7 +351,7 @@ namespace SpellStandIn
         auto* standIn = GetStandIn(*placeholder, *placeholderEffect, *look, *shape);
         if (!standIn)
         {
-            return { .spell = placeholder, .source = "placeholder", .dropReason = "stand-in-failed" };
+            return { .dropReason = "stand-in-failed" };
         }
         return { .spell = standIn, .source = source, .dropReason = dropReason };
     }

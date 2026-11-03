@@ -395,6 +395,11 @@ namespace HandPresentation
             }
             caster->SetDualCasting(dual);
         }
+        // ActorMagicCaster::Update (ID 34143) spends magicka over a fire-and-forget
+        // charge and a concentration cast, and interrupts a charge whose remaining
+        // cost exceeds the actor's magicka; kSkipCheckCast skips both. Both
+        // FinishCastImpl and InterruptCastImpl clear the flag, so every cast sets it.
+        caster->SetSkipCheckCast();
         // RequestCastImpl only sends BeginCast. The caster ignores the graph's cast
         // annotations while idle, and the graph leaves its casting state again
         // unless the want-cast variable is set, so both are set as a cast request

@@ -239,7 +239,8 @@ A detected graph manager replacement also resets the bookkeeping.
 
 Local enemies, creatures, guards, and followers never become hostile to a
 remote actor, target it, or start combat with it, and its replicated attacks
-hit nothing.
+hit nothing. The exception is a spell it casts natively, whose effects reach
+local actors ([Combat presentation](combat-presentation.md#isolation)).
 
 ### Why the flag and the hooks
 
