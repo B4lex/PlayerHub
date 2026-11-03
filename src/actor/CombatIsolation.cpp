@@ -267,6 +267,18 @@ namespace CombatIsolation
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
+        // Set while a remote actor's native spell fire runs on this thread, so the
+        // caster's own CastSpellImmediate inside it is not taken for a script's cast.
+        thread_local const RE::MagicCaster* t_nativeSpellFireCaster{ nullptr };
+
+        // A remote actor holds its source's own spell, which casts natively, or a
+        // stand-in (SpellStandIn), a dynamic copy of Healing Hands whose fire would
+        // heal. Nothing else puts a dynamic spell in its hands.
+        bool IsNativeRemoteSpell(const RE::MagicItem* a_spell)
+        {
+            return a_spell && !a_spell->IsDynamicForm();
+        }
+
         // The magic caster's spell fire (ID 34407): checks the cast, spends the cost,
         // applies the spell or launches its projectile, and enters the casting state.
         // Reached from the M?h_SpellFire_Event annotations and, while a concentration
@@ -275,14 +287,29 @@ namespace CombatIsolation
         // instead: a remote actor's cast reached this function without passing
         // through their vtables (observed in game). Its FindTargets (ID 34410) ends
         // with FinishCast for a cast that is not concentration, which the hook keeps
-        // for a cast the remote actor's caster runs, so a released fire-and-forget
-        // cast returns to idle as it would natively. A vampire lord's casts are
-        // relayed graph events instead.
+        // for a suppressed stand-in cast the remote actor's caster runs, so a released
+        // fire-and-forget cast returns to idle as it would natively. A vampire lord's
+        // casts are relayed graph events instead, and its hands hold stand-ins.
         struct SpellFireHook
         {
             static bool Thunk(RE::MagicCaster* a_caster, RE::TESObjectREFR* a_target, bool a_flag)
             {
                 auto* actor = a_caster->GetCasterAsActor();
+                if (ActorRegistry::IsRegistered(actor) && IsNativeRemoteSpell(a_caster->currentSpell))
+                {
+                    static std::atomic_uint32_t nativeCount{ 0 };
+                    if (const auto count = ++nativeCount; ShouldLogOccurrence(count))
+                    {
+                        logs::debug("Remote actor native spell fire: actor={:08X} spell={:08X} state={} count={}",
+                            actor->GetFormID(), a_caster->currentSpell->GetFormID(),
+                            static_cast<std::uint32_t>(a_caster->state.get()), count);
+                    }
+                    const auto* outer = t_nativeSpellFireCaster;
+                    t_nativeSpellFireCaster = a_caster;
+                    const bool result = _original(a_caster, a_target, a_flag);
+                    t_nativeSpellFireCaster = outer;
+                    return result;
+                }
                 if (IsRemoteActorRelease(actor, "SpellFire"))
                 {
                     const auto* spell = a_caster->currentSpell;
@@ -307,7 +334,8 @@ namespace CombatIsolation
                 RE::TESObjectREFR* a_target, float a_effectiveness, bool a_hostileEffectivenessOnly,
                 float a_magnitudeOverride, RE::Actor* a_blameActor)
             {
-                if (IsRemoteActorRelease(a_caster->GetCasterAsActor(), "CastSpellImmediate"))
+                if (a_caster != t_nativeSpellFireCaster
+                    && IsRemoteActorRelease(a_caster->GetCasterAsActor(), "CastSpellImmediate"))
                 {
                     return;
                 }

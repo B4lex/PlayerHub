@@ -34,7 +34,7 @@ configured is in [Configuration](configuration.md#settings).
 | `actor/RaceMenuOverlays` | SKEE's overlay and override interfaces: capture the player's overlays, apply them to a remote actor, and release them ([Overlays](#overlays)) |
 | `forms/TextureFiles` | `TextureExists`: whether the receiver's loose files or archives hold a texture, cached per path |
 | `sync/equipment/EquipmentSync` | Capture and publish; receive, resolve, reconcile the actor's inventory and a vampire lord actor's spells and armor; hand readiness |
-| `sync/equipment/SpellStandIn` | Capture a spell hand's spell and look; resolve it to a runtime stand-in spell ([Combat presentation](combat-presentation.md#spell-look)) |
+| `sync/equipment/SpellStandIn` | Capture a spell hand's spell and look; resolve it to the receiver's own spell or a runtime stand-in spell ([Combat presentation](combat-presentation.md#spell-look)) |
 | `sync/equipment/FakeLight` | A shadow-casting light's runtime copy without its shadow flags |
 | `sync/outfit/DefaultOutfit` | Resolve `[DefaultOutfit]` and select the pieces for a capture |
 | `sync/PlayerLabel.h` | `PlayerLabel::Format` |
@@ -441,11 +441,13 @@ An entry is accepted if `TESDataHandler::LookupForm` resolves it to the expected
 type: `TESObjectARMO`, `TESObjectWEAP`, a carriable `TESObjectLIGH`, or
 `TESAmmo`. Any loaded plugin qualifies, at any local load-order index. A
 reference names the defining plugin, so a form overridden by a local mod still
-resolves, as the receiver's version. A spell hand resolves to a stand-in
-spell ([Combat presentation](combat-presentation.md#spell-look)). Each drop is
+resolves, as the receiver's version. A spell hand resolves to the receiver's
+own version of a hand spell, or otherwise to a stand-in spell
+([Combat presentation](combat-presentation.md#spell-look)). Each drop is
 logged once per revision with player, plugin, form ID, reason (`missing`,
-`wrong-type`, and for a spell `unsent`), and the stand-in; a spell drop also
-names the look it fell back to (`look`, `placeholder`). The filter is one
+`wrong-type`, and for a spell `unsent` and `stand-in-failed`), and the
+stand-in; a spell drop also names the look it fell back to (`look`,
+`placeholder`). The filter is one
 policy function returning a form or a drop reason, whose drop branch selects
 the default outfit. A resolved or outfit torch is then replaced by its
 [fake light](#fake-lights) version.
@@ -471,7 +473,8 @@ never deleted, and logged once as `Fake light created`.
 
 It applies to a remote torch in `ResolveHandEntry`, whether the source's own
 or the outfit's, and to the hand light of every spell stand-in
-([Combat presentation](combat-presentation.md#spell-look)). The scene light
+([Combat presentation](combat-presentation.md#spell-look)), not to a spell
+the actor holds as its own. The scene light
 budget still counts these lights ([Remote actor](remote-actor.md#light-budget)).
 
 ### Reconciliation
@@ -494,7 +497,7 @@ worn armor, and equipped hand objects with the resolved set. When they differ:
 5. Armor, then the right hand, then the left, are equipped with
    `ActorEquipManager::EquipObject` in the matching `BGSEquipSlot` (either for
    two-handed), `queueEquip=false`, `forceEquip=true`, `playSounds=false`. A
-   spell hand uses `EquipSpell` in its slot, which also replaces a stand-in
+   spell hand uses `EquipSpell` in its slot, which also replaces a held spell
    with another, and never counts as inventory. The
    ammo is equipped, which fills the quiver; remote shots never spend it.
 

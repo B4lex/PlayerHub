@@ -14,11 +14,13 @@ namespace SpellStandIn
     struct Resolution
     {
         RE::SpellItem* spell{ nullptr };
-        // "spell", "look", or "placeholder".
+        // "native", or for a stand-in "spell", "look", or "placeholder".
         std::string_view source;
         // Why the source's spell was not used.
         std::string_view dropReason;
     };
 
-    [[nodiscard]] Resolution Resolve(const Multiplayer::EquipmentHand& a_hand);
+    // a_allowNative: the hand may hold the receiver's own version of the source's
+    // spell, which casts natively, instead of a stand-in.
+    [[nodiscard]] Resolution Resolve(const Multiplayer::EquipmentHand& a_hand, bool a_allowNative);
 }

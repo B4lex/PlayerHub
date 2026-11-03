@@ -345,7 +345,8 @@ namespace EquipmentSync
         }
 
         ResolvedHand ResolveHandEntry(Multiplayer::PeerSlot a_playerID, std::uint64_t a_revision, std::string_view a_slot,
-            const std::optional<EquipmentHand>& a_entry, const Multiplayer::DefaultOutfit& a_outfit)
+            const std::optional<EquipmentHand>& a_entry, const Multiplayer::DefaultOutfit& a_outfit,
+            bool a_nativeSpell = true)
         {
             if (!a_entry)
             {
@@ -353,7 +354,7 @@ namespace EquipmentSync
             }
             if (a_entry->kind == EquipmentHandKind::kSpell)
             {
-                const auto resolution = SpellStandIn::Resolve(*a_entry);
+                const auto resolution = SpellStandIn::Resolve(*a_entry, a_nativeSpell);
                 if (!resolution.dropReason.empty())
                 {
                     LogUnresolvedEntry(a_playerID, a_revision, a_slot, a_entry->form, resolution.dropReason,
@@ -490,10 +491,12 @@ namespace EquipmentSync
                 }
             }
 
+            // A vampire lord's casts are relayed graph events rather than caster requests,
+            // so its hands keep stand-ins, whose fire stays suppressed.
             a_remote.beastRightHand = ResolveHandEntry(
-                a_playerID, revision, "beastRightHand", equipment.beastRightHand, equipment.defaultOutfit);
+                a_playerID, revision, "beastRightHand", equipment.beastRightHand, equipment.defaultOutfit, false);
             a_remote.beastLeftHand = ResolveHandEntry(
-                a_playerID, revision, "beastLeftHand", equipment.beastLeftHand, equipment.defaultOutfit);
+                a_playerID, revision, "beastLeftHand", equipment.beastLeftHand, equipment.defaultOutfit, false);
             for (const auto& entry : equipment.beastArmor)
             {
                 const auto resolution = ResolveArmor(entry);
