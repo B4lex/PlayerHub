@@ -151,6 +151,8 @@ namespace Network
             .skeleton = a_transform.skeleton };
     }
 
+    // Leaves out the skeleton pose: a received one may be a change from an earlier pose, which
+    // the connection resolves (ServerClient).
     [[nodiscard]] inline bool IsValidQuantizedCheckpoint(const QuantizedCheckpoint& a_checkpoint) noexcept
     {
         using namespace CheckpointFlags;
@@ -162,8 +164,7 @@ namespace Network
             && ((a_checkpoint.flags & kCastReleasedRight) == 0 || (a_checkpoint.flags & kCastingRight) != 0)
             && ((a_checkpoint.flags & kDualCasting) == 0 || (a_checkpoint.flags & kCastingLeft) != 0)
             && (a_checkpoint.flags & kMovementStateMask)
-                   <= static_cast<std::uint32_t>(Multiplayer::MovementState::kSneakingRunning)
-            && IsValidSkeletonPose(a_checkpoint.skeleton.view());
+                   <= static_cast<std::uint32_t>(Multiplayer::MovementState::kSneakingRunning);
     }
 
     [[nodiscard]] inline PlayerTransform Dequantize(

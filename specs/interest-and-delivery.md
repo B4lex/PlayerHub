@@ -22,7 +22,7 @@ client which players it reaches without them
 | `interest.Hidden`, `interest.Pairs` | The admin exclusion rules |
 | `hub.Hub` | All world state; subscriptions; turns accepted messages into outbox traffic. Methods run on one goroutine and take an injectable clock |
 | `hub.Loop` | Runs a hub: submitted work in order, a tick per send phase, and the interest pass at `interest.update_hz` |
-| `delivery.Outbox` | One recipient's pending traffic: latest-wins checkpoints, ordered messages, latest-wins presentation; rate classes and the budget's choice of checkpoints |
+| `delivery.Outbox` | One recipient's pending traffic: latest-wins checkpoints, ordered messages, latest-wins presentation; rate classes, the budget's choice of checkpoints, and the per-peer pose references posed entries are encoded against |
 | `delivery.Budget` | The uplink shared by every recipient |
 | `delivery.Batch` | One drain of an outbox, written as WebSocket messages |
 | `session` writer | Waits for its outbox, drains it, and writes |
@@ -145,8 +145,10 @@ leave and when the recipient disconnects.
 ## Skeleton poses
 
 A posed peer, one whose stored checkpoint carries a
-[skeleton pose](network.md#skeleton-pose-encoding), costs about eight times
-the bytes of a plain one, and a client shows only its
+[skeleton pose](network.md#skeleton-pose-encoding), costs about four times
+the bytes of a plain one with its pose sent as a
+[change](network.md#pose-changes), and eight times with a whole pose, and a
+client shows only its
 `[Advanced] CustomAnimationPlayers` nearest posed peers
 ([Remote actor](remote-actor.md#receiver)). So each recipient is sent the
 poses of at most its `PoseLimit` nearest posed subscribed peers within
@@ -159,12 +161,24 @@ in the trunk and limbs at the 95th percentile on recorded climbs and
 paragliding ([Network](network.md#skeleton-pose-encoding)), so far peers
 show the vanilla reproduction instead.
 
-- `world.Player` encodes each posed checkpoint twice, `Entry` with the pose
-  and `PlainEntry` without (`wire.WithoutSkeleton`); a plain checkpoint has
-  one, shared by both. `distribute`, the checkpoint in front of an action,
-  and `PeerEnter` pick by the pair's `subscription.pose`. `PeerEnter` always
-  carries the checkpoint without the pose, since a new subscription is sent
-  poses from its first ranking on.
+- `world.Player` holds each posed checkpoint as two `wire.Entry` values,
+  `Entry` with the pose and `PlainEntry` without (`wire.WithoutSkeleton`); a
+  plain checkpoint has one, shared by both. `distribute`, the checkpoint in
+  front of an action, and `PeerEnter` pick by the pair's `subscription.pose`.
+  `PeerEnter` always carries the checkpoint without the pose, since a new
+  subscription is sent poses from its first ranking on.
+- A posed `wire.Entry` keeps its fields encoded and its pose read
+  (`wire.SkeletonPose`, shared by every recipient and never changed), and is
+  encoded per recipient when the outbox drains it: the pose as a change from
+  the one this recipient was last written of the peer, held per peer in
+  `Outbox.poses`. `Drain` encodes the ordered items in order, dropping a
+  peer's reference at the `PeerEnter` or `PeerLeave` that the outbox's
+  `Enter` and `Leave` queue, and then the latest-wins entries, which the
+  writer sends after them; a latest-wins entry sets the reference only when it
+  is written, so one the budget holds back is encoded again from the
+  reference then current. A replaced entry was never written, so it is never
+  a reference. The encodings live in the `delivery.Batch`'s scratch buffer
+  until it is written. The per-recipient work is bounded by `PoseLimit`.
 - `Hub.assignPoses` ranks a recipient's posed subscribed peers by horizontal
   distance, a peer already sent poses at 0.8 of its distance
   (`poseSlotHysteresis`), leaves out those whose ranked distance exceeds the
@@ -206,7 +220,8 @@ what limits the rate, or every player's latency rises.
 ## Batching
 
 - A checkpoint accepted by the hub is encoded once as a `PeerStates` entry
-  (`wire.AppendEntry`) and marked changed. Each send interval
+  (`wire.NewEntry`; a posed one per recipient, [above](#skeleton-poses)) and
+  marked changed. Each send interval
   (`send_rate_hz`, default 20) is split into phases of about 5 ms
   (`sendPhaseSeconds`; 10 at 20 Hz, one at 200 Hz and above), and the loop
   ticks once per phase. Every tick sets each changed sender's entry in its
@@ -221,7 +236,8 @@ what limits the rate, or every player's latency rises.
   stream as one `PeerStates`, every ordered message as its own WebSocket
   message, and the remaining latest-wins entries as one final `PeerStates`. A
   batch is the entries' bytes placed one after another behind one header, so
-  each entry is encoded once however many recipients receive it.
+  each entry without a pose is encoded once however many recipients receive
+  it.
 - Ordered messages wake the writer at once and take every pending
   checkpoint along; otherwise checkpoints wait for the recipient's phase, so
   batching adds at most one send interval of delay. The ticker drops missed
@@ -327,6 +343,9 @@ which was not measured through the tunnel.
 5. A client receives skeleton poses only of as many posed peers as it shows,
    the nearest ones within the near distance, and a peer that starts posing among them is shown posed
    from its first posed checkpoint.
+6. Poses sent as changes show the same as whole ones, also after the peer
+   leaves range and returns, after either player reconnects, and while the
+   budget holds checkpoints back.
 
 ## Known limitations
 

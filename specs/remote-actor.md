@@ -657,8 +657,9 @@ window or with `[Advanced] ShareCustomAnimations` off
   `PoseWindow::ObserveLocalGraphEvent`, which keeps the first modded name and a
   count until the next pass. `PoseWindow::Update`, before idles and the
   checkpoint, opens a window on a pass that saw one (`Pose window opened`),
-  unless the setting is off, the player is in a beast form, in furniture,
-  mounted, or dead; any of these closes an open window.
+  unless the setting is off, the client is not connected, or the player is in
+  a beast form, in furniture, mounted, or dead; any of these closes an open
+  window.
   Further modded events extend nothing on their own (Paraglider's DLL sends
   `StartPara` every frame).
 - **Reactions.** On a pass without a window, `PoseWindow::Update` also opens
@@ -820,13 +821,13 @@ window or with `[Advanced] ShareCustomAnimations` off
 
 ### Budget
 
-A full pose makes a relayed entry about eight times as large
-([Network](network.md#skeleton-pose-encoding)): 211 B per checkpoint at 20 Hz
-is about 4.2 KB/s per posed pair, only during windows. The server sends each
-client the poses of at most its `CustomAnimationPlayers` nearest posed peers
-within the near distance ([Interest and delivery](interest-and-delivery.md#skeleton-poses)), so a
-client receives at most about 42 KB/s of poses at the default 10, however many
-players pose around it.
+A whole pose is 211 B and a [change](network.md#pose-changes) from the
+previous one averaged 87 B on a recorded window, so a posed pair costs about
+1.8 KB/s of poses at 20 Hz, only during windows. The server sends each client
+the poses of at most its `CustomAnimationPlayers` nearest posed peers within
+the near distance ([Interest and delivery](interest-and-delivery.md#skeleton-poses)), so a
+client receives about 18 KB/s of poses at the default 10, and at most 42 KB/s
+were every pose sent whole, however many players pose around it.
 
 ## Engine assumptions
 

@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "network/PlayerFilterStore.h"
 #include "network/SessionStore.h"
+#include "network/SkeletonDelta.h"
 #include "network/TrafficMeter.h"
 #include "network/WireCodec.h"
 #include "protocol/Quantization.h"
@@ -68,6 +69,11 @@ namespace Network
         bool tradeEventsLost = false;
         std::unordered_set<PeerSlot> pendingExits;
         std::unordered_set<PeerSlot> pendingDisconnects;
+        // The skeleton pose the server last sent of each peer, which a layout-3 pose is a change
+        // from. Reset where the server resets its own: PeerEnter, PeerLeave, a new connection.
+        std::unordered_map<PeerSlot, QuantizedSkeletonPose> receivedPoses;
+        // Peers whose last pose could not be resolved, so each failure run is logged once.
+        std::unordered_set<PeerSlot> unresolvedPoses;
         PeerSlot localSlot = 0;
 
         constexpr std::size_t kMaximumPendingChatMessages = 128;
@@ -86,6 +92,9 @@ namespace Network
         std::mutex publishLock;
         std::optional<CheckpointContext> sentContext;
         std::uint64_t localActionSequence = 0;
+        // The skeleton pose last sent on sentPoseSocket; the server keeps the same per connection.
+        std::weak_ptr<ix::WebSocket> sentPoseSocket;
+        std::optional<QuantizedSkeletonPose> sentPose;
 
         std::mutex attemptLock;
         std::string attemptEndpoint;
@@ -134,21 +143,45 @@ namespace Network
             return socket;
         }
 
-        void Send(const std::string& a_message)
+        void SendOn(const std::shared_ptr<ix::WebSocket>& a_socket, const std::string& a_message)
         {
             if (a_message.empty())
             {
                 logs::error("Could not encode a message for the server");
                 return;
             }
-            if (const auto current = GetSocket())
+            if (a_socket)
             {
-                const auto info = current->sendBinary(a_message);
+                const auto info = a_socket->sendBinary(a_message);
                 if (info.success)
                 {
                     CountSentBytes(info.wireSize);
                 }
             }
+        }
+
+        void Send(const std::string& a_message)
+        {
+            SendOn(GetSocket(), a_message);
+        }
+
+        // The caller sends a_skeleton on a_socket next, so that socket's server session holds
+        // the same reference.
+        void EncodeSentSkeletonLocked(const std::shared_ptr<ix::WebSocket>& a_socket, EncodedSkeletonPose& a_skeleton)
+        {
+            const auto pose = ReadSkeletonPose(a_skeleton.view());
+            if (!pose)
+            {
+                a_skeleton = {};
+                return;
+            }
+            if (sentPoseSocket.owner_before(a_socket) || a_socket.owner_before(sentPoseSocket))
+            {
+                sentPoseSocket = a_socket;
+                sentPose.reset();
+            }
+            a_skeleton = EncodeSkeletonPoseChange(*pose, sentPose ? &*sentPose : nullptr);
+            sentPose = *pose;
         }
 
         void SendHello(ix::WebSocket& a_socket)
@@ -263,6 +296,8 @@ namespace Network
             tradeEventsLost = false;
             pendingExits.clear();
             pendingDisconnects.clear();
+            receivedPoses.clear();
+            unresolvedPoses.clear();
         }
 
         void ResetRoster(PeerSlot a_localSlot)
@@ -286,14 +321,49 @@ namespace Network
             ClearRequests();
         }
 
+        // Only on PeerEnter and PeerLeave, which also reset the server's pose reference.
         void ForgetRemoteWorldStateLocked(PeerSlot a_slot)
         {
+            receivedPoses.erase(a_slot);
+            unresolvedPoses.erase(a_slot);
             pendingTransforms.erase(a_slot);
             latestReceivedSequences.erase(a_slot);
             peerContexts.erase(a_slot);
             latestReceivedActionSequences.erase(a_slot);
             std::erase_if(pendingAnimationActions,
                 [a_slot](const AnimationAction& a_action) { return a_action.playerID == a_slot; });
+        }
+
+        // Every received checkpoint, in order, whether or not it is accepted: the server's
+        // reference moves with each pose it sends.
+        void ResolveSkeletonLocked(PeerSlot a_slot, EncodedSkeletonPose& a_skeleton)
+        {
+            if (a_skeleton.empty())
+            {
+                return;
+            }
+            const auto reference = receivedPoses.find(a_slot);
+            const auto pose
+                = ResolveSkeletonPose(a_skeleton.view(), reference != receivedPoses.end() ? &reference->second : nullptr);
+            if (!pose)
+            {
+                if (unresolvedPoses.insert(a_slot).second)
+                {
+                    logs::warn("Dropped an unresolvable skeleton pose of peer {}, and its next ones until one "
+                               "resolves: layout={} size={} reference={}",
+                        a_slot, a_skeleton.bytes[0], a_skeleton.size, reference != receivedPoses.end());
+                }
+                // Later changes build on the pose this one would have given.
+                if (reference != receivedPoses.end())
+                {
+                    receivedPoses.erase(reference);
+                }
+                a_skeleton = {};
+                return;
+            }
+            receivedPoses.insert_or_assign(a_slot, *pose);
+            unresolvedPoses.erase(a_slot);
+            a_skeleton = EncodeSkeletonPose(*pose);
         }
 
         void AcceptCheckpointLocked(
@@ -399,12 +469,13 @@ namespace Network
             callback(a_rejection);
         }
 
-        void OnPeerStates(const Wire::PeerStates& a_states)
+        void OnPeerStates(Wire::PeerStates& a_states)
         {
             const auto received = std::chrono::steady_clock::now();
             std::scoped_lock lock{ remoteChangesLock };
-            for (const auto& entry : a_states.entries)
+            for (auto& entry : a_states.entries)
             {
+                ResolveSkeletonLocked(entry.slot, entry.checkpoint.skeleton);
                 if (entry.slot != localSlot)
                 {
                     AcceptCheckpointLocked(entry.slot, entry.checkpoint, received);
@@ -431,6 +502,7 @@ namespace Network
                 AcceptEquipmentLocked(a_enter.slot, std::move(*a_enter.equipment));
             }
             peerContexts.insert_or_assign(a_enter.slot, a_enter.context);
+            ResolveSkeletonLocked(a_enter.slot, a_enter.state.skeleton);
             AcceptCheckpointLocked(a_enter.slot, a_enter.state, std::chrono::steady_clock::now());
         }
 
@@ -705,6 +777,9 @@ namespace Network
                     if (!decoded)
                     {
                         logs::warn("Ignored a malformed server message: {}", decoded.error());
+                        // It may have carried poses the server now builds on.
+                        std::scoped_lock lock{ remoteChangesLock };
+                        receivedPoses.clear();
                         break;
                     }
                     Dispatch(std::move(*decoded));
@@ -855,7 +930,14 @@ namespace Network
                 context.idle ? std::string_view{ *context.idle } : std::string_view{ "-" });
             Send(Wire::EncodeContext(context));
         }
-        Send(Wire::EncodeCheckpoint(Quantize(a_transform)));
+        auto checkpoint = Quantize(a_transform);
+        const auto current = GetSocket();
+        if (!checkpoint.skeleton.empty())
+        {
+            const std::scoped_lock lock{ publishLock };
+            EncodeSentSkeletonLocked(current, checkpoint.skeleton);
+        }
+        SendOn(current, Wire::EncodeCheckpoint(checkpoint));
     }
 
     void PublishLocalAppearance(const Multiplayer::PlayerAppearance& a_appearance)

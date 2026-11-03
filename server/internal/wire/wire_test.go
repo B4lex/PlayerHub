@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -15,11 +16,11 @@ func TestConcatenatedEntriesDecodeAsPeerStates(t *testing.T) {
 		{Sequence: 1, X: -5, Y: 70000, Z: 0, Heading: 4095, Pitch: -1609, Speed: 350, Direction: 128, Flags: 0x1F, Time: 16383},
 		{Sequence: 1 << 40},
 		{Sequence: 9, X: -2147483648, Y: 2147483647, Pitch: 1609, Speed: 100000, Direction: 255, Flags: 0xFFE,
-			Skeleton: make([]byte, validate.MaximumSkeletonPoseSize)},
+			Skeleton: randomPose(rand.New(rand.NewPCG(1, 2)), allSkeletonBones).Append(nil)},
 	}
 	var entries []byte
 	for i, c := range checkpoints {
-		entries = AppendEntry(entries, uint32(i+1)*1000, c)
+		entries = NewEntry(uint32(i+1)*1000, c).Append(entries, nil)
 	}
 	frame := AppendPeerStatesHeader(nil, len(entries))
 	frame = append(frame, entries...)
@@ -42,14 +43,38 @@ func TestConcatenatedEntriesDecodeAsPeerStates(t *testing.T) {
 }
 
 func TestEntryMatchesGeneratedEncoding(t *testing.T) {
-	c := &pb.Checkpoint{Player: 7, Sequence: 12, X: 3, Y: -4, Z: 5, Heading: 6, Pitch: -7, Speed: 8, Direction: 9, Flags: 10, Time: 11,
-		Skeleton: []byte{1, 2, 3}}
-	generated, err := proto.MarshalOptions{Deterministic: true}.Marshal(&pb.PeerStates{States: []*pb.Checkpoint{c}})
-	if err != nil {
+	random := rand.New(rand.NewPCG(3, 4))
+	for _, skeleton := range [][]byte{nil, randomPose(random, allSkeletonBones&^0b1011).Append(nil)} {
+		c := &pb.Checkpoint{Player: 7, Sequence: 12, X: 3, Y: -4, Z: 5, Heading: 6, Pitch: -7, Speed: 8, Direction: 9,
+			Flags: 10, Time: 11, Skeleton: skeleton}
+		generated, err := proto.MarshalOptions{Deterministic: true}.Marshal(&pb.PeerStates{States: []*pb.Checkpoint{c}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := NewEntry(7, c).Append(nil, nil); string(got) != string(generated) {
+			t.Fatalf("hand-written %x, generated %x", got, generated)
+		}
+	}
+}
+
+func TestPosedEntryCarriesAChangeFromTheReference(t *testing.T) {
+	random := rand.New(rand.NewPCG(5, 6))
+	reference := randomPose(random, allSkeletonBones)
+	pose := nudge(random, reference, 2)
+	entry := NewEntry(3, &pb.Checkpoint{Sequence: 2, X: 40, Skeleton: pose.Append(nil)})
+	entries := entry.Append(nil, reference)
+	frame := append(AppendPeerStatesHeader(nil, len(entries)), entries...)
+	var decoded pb.ServerMessage
+	if err := proto.Unmarshal(frame, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if got := AppendEntry(nil, 7, c); string(got) != string(generated) {
-		t.Fatalf("hand-written %x, generated %x", got, generated)
+	state := decoded.GetPeerStates().GetStates()[0]
+	if state.GetPlayer() != 3 || state.GetSequence() != 2 || state.GetX() != 40 ||
+		state.GetSkeleton()[0] != validate.SkeletonLayoutHumanChange {
+		t.Fatalf("got %v", state)
+	}
+	if resolved, ok := ResolveSkeletonPose(state.GetSkeleton(), reference); !ok || *resolved != *pose {
+		t.Fatal("the entry's pose does not resolve to the checkpoint's")
 	}
 }
 

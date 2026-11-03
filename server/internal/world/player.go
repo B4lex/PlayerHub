@@ -37,10 +37,10 @@ type Player struct {
 	InWorld    bool
 	Context    *pb.Context
 	Checkpoint *pb.Checkpoint
-	Entry      []byte
+	Entry      *wire.Entry
 	// Entry without the skeleton pose, for subscribers that are not sent the pose; Entry itself
 	// when the checkpoint carries none.
-	PlainEntry     []byte
+	PlainEntry     *wire.Entry
 	ActionSequence uint64
 	lastSequence   uint64
 
@@ -129,10 +129,10 @@ func (p *Player) SetCheckpoint(c *pb.Checkpoint) error {
 	// The sender's slot, as every relayed copy carries it.
 	c.Player = p.Slot
 	p.Checkpoint = c
-	p.Entry = wire.AppendEntry(nil, p.Slot, c)
+	p.Entry = wire.NewEntry(p.Slot, c)
 	p.PlainEntry = p.Entry
-	if p.Posed() {
-		p.PlainEntry = wire.AppendEntry(nil, p.Slot, wire.WithoutSkeleton(c))
+	if p.Entry.Pose() != nil {
+		p.PlainEntry = wire.NewEntry(p.Slot, wire.WithoutSkeleton(c))
 	}
 	return nil
 }
@@ -142,7 +142,7 @@ func (p *Player) Posed() bool {
 }
 
 // EntryFor returns the entry with the skeleton pose for a subscriber sent poses, else without.
-func (p *Player) EntryFor(pose bool) []byte {
+func (p *Player) EntryFor(pose bool) *wire.Entry {
 	if pose {
 		return p.Entry
 	}

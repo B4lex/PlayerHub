@@ -23,16 +23,17 @@ const (
 	movementStateMask      = 0x7
 	knownFlags             = 0x7FFFF
 
-	SkeletonLayoutHuman      = 2
-	SkeletonBoneCount        = 63
-	skeletonFirstTwistBone   = 23
-	skeletonFirstFingerBone  = 31
-	skeletonFirstHeldBone    = 61
-	skeletonTranslationBytes = 3 * 2
-	maximumSkeletonMaskBytes = 9
-	allSkeletonBones         = 1<<SkeletonBoneCount - 1
-	MaximumSkeletonPoseSize  = 219
-	MaximumPosePlayers       = 32
+	SkeletonLayoutHuman       = 2
+	SkeletonLayoutHumanChange = 3 // a change from the stream's last pose (wire.ResolveSkeletonPose)
+	SkeletonBoneCount         = 63
+	skeletonFirstTwistBone    = 23
+	skeletonFirstFingerBone   = 31
+	skeletonFirstHeldBone     = 61
+	skeletonTranslationBytes  = 3 * 2
+	maximumSkeletonMaskBytes  = 9
+	allSkeletonBones          = 1<<SkeletonBoneCount - 1
+	MaximumSkeletonPoseSize   = 219
+	MaximumPosePlayers        = 32
 
 	MaximumNameBytes        = 128
 	MinimumDisplayNameBytes = 3
@@ -150,11 +151,8 @@ func SkeletonPose(b []byte) bool {
 	if len(b) == 0 {
 		return true
 	}
-	if b[0] != SkeletonLayoutHuman {
-		return false
-	}
-	missing, n := binary.Uvarint(b[1:min(len(b), 1+maximumSkeletonMaskBytes)])
-	if n <= 0 || n != len(binary.AppendUvarint(nil, missing)) || missing&^allSkeletonBones != 0 {
+	missing, n, ok := SkeletonHeader(b, SkeletonLayoutHuman)
+	if !ok {
 		return false
 	}
 	bits := 0
@@ -163,19 +161,37 @@ func SkeletonPose(b []byte) bool {
 			bits += skeletonRotationBits(bone)
 		}
 	}
-	return len(b) == 1+n+skeletonTranslationBytes+(bits+7)/8
+	return len(b) == n+skeletonTranslationBytes+(bits+7)/8
+}
+
+// SkeletonHeader reads a pose's layout byte, which must be layout, and the shortest varint of its
+// mask of missing bones below bit SkeletonBoneCount; n is the header's size.
+func SkeletonHeader(b []byte, layout byte) (missing uint64, n int, ok bool) {
+	if len(b) == 0 || b[0] != layout {
+		return 0, 0, false
+	}
+	var shortest [binary.MaxVarintLen64]byte
+	missing, n = binary.Uvarint(b[1:min(len(b), 1+maximumSkeletonMaskBytes)])
+	if n <= 0 || n != binary.PutUvarint(shortest[:], missing) || missing&^allSkeletonBones != 0 {
+		return 0, 0, false
+	}
+	return missing, 1 + n, true
 }
 
 // skeletonRotationBits counts a bone's two-bit index of its largest component and its three stored components.
 func skeletonRotationBits(bone int) int {
-	component := 8
+	return 2 + 3*SkeletonComponentBits(bone)
+}
+
+// SkeletonComponentBits is the width of each stored quaternion component of a bone.
+func SkeletonComponentBits(bone int) int {
 	switch {
 	case bone < skeletonFirstTwistBone:
-		component = 9
+		return 9
 	case bone >= skeletonFirstFingerBone && bone < skeletonFirstHeldBone:
-		component = 7
+		return 7
 	}
-	return 2 + 3*component
+	return 8
 }
 
 func WeaponDrawn(c *pb.Checkpoint) bool {

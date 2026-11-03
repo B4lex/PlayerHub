@@ -2,6 +2,7 @@
 #include "actor/GraphVocabulary.h"
 #include "actor/ModdedGraph.h"
 #include "config/PluginConfig.h"
+#include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
 
@@ -104,6 +105,11 @@ namespace PoseWindow
 
         const char* FindBlock(RE::PlayerCharacter& a_player, bool a_transformed)
         {
+            // A window opened while disconnected is discarded on the same pass.
+            if (!Network::IsConnected())
+            {
+                return "disconnected";
+            }
             if (a_transformed)
             {
                 return "shapeshift";

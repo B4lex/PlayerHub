@@ -2,10 +2,10 @@
 
 #include <algorithm>
 #include <array>
-#include <bit>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
 
@@ -34,6 +34,8 @@ namespace Network
     inline constexpr std::size_t kSkeletonRootBone = 0;
 
     inline constexpr std::uint8_t kSkeletonLayoutHuman = 2;
+    // The change from the pose its stream last carried (network/SkeletonDelta).
+    inline constexpr std::uint8_t kSkeletonLayoutHumanChange = 3;
 
     inline constexpr std::size_t kSkeletonFirstTwistBone = 23;
     inline constexpr std::size_t kSkeletonFirstFingerBone = 31;
@@ -93,6 +95,24 @@ namespace Network
         std::array<float, 3> rootTranslation{};
     };
 
+    // Smallest three: the index of the largest component, made positive since q and -q are the
+    // same rotation, and the other three in GetSkeletonComponentBits steps.
+    struct QuantizedSkeletonRotation
+    {
+        std::uint8_t largest{ 0 };
+        std::array<std::uint16_t, 3> components{};
+
+        [[nodiscard]] bool operator==(const QuantizedSkeletonRotation&) const = default;
+    };
+
+    // A pose as layout 2 stores it; rotations of absent bones are unspecified.
+    struct QuantizedSkeletonPose
+    {
+        std::uint64_t present{ 0 };
+        std::array<std::int16_t, 3> rootTranslation{};
+        std::array<QuantizedSkeletonRotation, kSkeletonBoneCount> rotations{};
+    };
+
     struct EncodedSkeletonPose
     {
         std::array<std::uint8_t, kMaximumSkeletonPoseBytes> bytes{};
@@ -111,10 +131,10 @@ namespace Network
             return (1U << a_bits) - 1;
         }
 
-        inline std::uint32_t PackRotationComponent(float a_value, std::uint32_t a_bits) noexcept
+        inline std::uint16_t PackRotationComponent(float a_value, std::uint32_t a_bits) noexcept
         {
             const float unit = std::clamp((a_value / kSqrtHalf + 1.0F) * 0.5F, 0.0F, 1.0F);
-            return static_cast<std::uint32_t>(std::lround(unit * static_cast<float>(GetComponentMaximum(a_bits))));
+            return static_cast<std::uint16_t>(std::lround(unit * static_cast<float>(GetComponentMaximum(a_bits))));
         }
 
         inline float UnpackRotationComponent(std::uint32_t a_value, std::uint32_t a_bits) noexcept
@@ -123,7 +143,7 @@ namespace Network
                 * kSqrtHalf;
         }
 
-        // Least significant bit first, within and across bytes.
+        // Least significant bit first, within and across bytes. At most 24 bits per Write.
         class BitWriter
         {
         public:
@@ -158,6 +178,7 @@ namespace Network
             std::uint32_t count_{ 0 };
         };
 
+        // Reads zero bits past the end; Finished tells whether it read exactly the bytes there are.
         class BitReader
         {
         public:
@@ -181,6 +202,12 @@ namespace Network
                 return value;
             }
 
+            // Every byte read, none past the end, and the padding of the last one zero.
+            [[nodiscard]] bool Finished() const noexcept
+            {
+                return next_ == bytes_.size() && count_ < 8 && pending_ == 0;
+            }
+
         private:
             std::span<const std::uint8_t> bytes_;
             std::size_t next_;
@@ -188,10 +215,7 @@ namespace Network
             std::uint32_t count_{ 0 };
         };
 
-        // Smallest three: the largest component's index in two bits, then the other three.
-        // The largest is made positive, since q and -q are the same rotation, and restored
-        // from the unit length.
-        inline void WriteRotation(BitWriter& a_writer, const SkeletonRotation& a_rotation, std::uint32_t a_bits) noexcept
+        inline QuantizedSkeletonRotation QuantizeRotation(const SkeletonRotation& a_rotation, std::uint32_t a_bits) noexcept
         {
             std::array components{ a_rotation.x, a_rotation.y, a_rotation.z, a_rotation.w };
             float length = 0.0F;
@@ -214,31 +238,53 @@ namespace Network
                 }
             }
             const float sign = components[largest] < 0.0F ? -1.0F : 1.0F;
-            a_writer.Write(static_cast<std::uint32_t>(largest), 2);
+            QuantizedSkeletonRotation result{ .largest = static_cast<std::uint8_t>(largest) };
+            std::size_t stored = 0;
             for (std::size_t i = 0; i < components.size(); ++i)
             {
                 if (i != largest)
                 {
-                    a_writer.Write(PackRotationComponent(components[i] * sign / length, a_bits), a_bits);
+                    result.components[stored++] = PackRotationComponent(components[i] * sign / length, a_bits);
                 }
             }
+            return result;
         }
 
-        inline SkeletonRotation ReadRotation(BitReader& a_reader, std::uint32_t a_bits) noexcept
+        // The largest component is rebuilt from the unit length.
+        inline SkeletonRotation DequantizeRotation(const QuantizedSkeletonRotation& a_rotation, std::uint32_t a_bits) noexcept
         {
-            const auto largest = static_cast<std::size_t>(a_reader.Read(2));
             std::array<float, 4> components{};
             float sum = 0.0F;
+            std::size_t stored = 0;
             for (std::size_t i = 0; i < components.size(); ++i)
             {
-                if (i != largest)
+                if (i != a_rotation.largest)
                 {
-                    components[i] = UnpackRotationComponent(a_reader.Read(a_bits), a_bits);
+                    components[i] = UnpackRotationComponent(a_rotation.components[stored++], a_bits);
                     sum += components[i] * components[i];
                 }
             }
-            components[largest] = std::sqrt((std::max)(0.0F, 1.0F - sum));
+            components[a_rotation.largest] = std::sqrt((std::max)(0.0F, 1.0F - sum));
             return SkeletonRotation{ components[0], components[1], components[2], components[3] };
+        }
+
+        inline void WriteRotation(BitWriter& a_writer, const QuantizedSkeletonRotation& a_rotation, std::uint32_t a_bits) noexcept
+        {
+            a_writer.Write(a_rotation.largest, 2);
+            for (const auto component : a_rotation.components)
+            {
+                a_writer.Write(component, a_bits);
+            }
+        }
+
+        inline QuantizedSkeletonRotation ReadRotation(BitReader& a_reader, std::uint32_t a_bits) noexcept
+        {
+            QuantizedSkeletonRotation result{ .largest = static_cast<std::uint8_t>(a_reader.Read(2)) };
+            for (auto& component : result.components)
+            {
+                component = static_cast<std::uint16_t>(a_reader.Read(a_bits));
+            }
+            return result;
         }
 
         // Unsigned LEB128 of at most 63 bits, in its shortest form only.
@@ -280,10 +326,11 @@ namespace Network
             return (bits + 7) / 8;
         }
 
-        // The offset of the root translation, or 0 when the header is invalid.
-        inline std::size_t ReadPresentBones(std::span<const std::uint8_t> a_bytes, std::uint64_t& a_present) noexcept
+        // The offset after the mask of missing bones, or 0 when the header is invalid.
+        inline std::size_t ReadPresentBones(
+            std::span<const std::uint8_t> a_bytes, std::uint8_t a_layout, std::uint64_t& a_present) noexcept
         {
-            if (a_bytes.empty() || a_bytes[0] != kSkeletonLayoutHuman)
+            if (a_bytes.empty() || a_bytes[0] != a_layout)
             {
                 return 0;
             }
@@ -295,6 +342,12 @@ namespace Network
             }
             a_present = kAllSkeletonBones & ~missing;
             return 1 + maskBytes;
+        }
+
+        inline void WriteHeader(EncodedSkeletonPose& a_pose, std::uint8_t a_layout, std::uint64_t a_present) noexcept
+        {
+            a_pose.bytes[a_pose.size++] = a_layout;
+            WriteVarint(a_pose, kAllSkeletonBones & ~a_present);
         }
 
         template <class T>
@@ -326,21 +379,56 @@ namespace Network
             return true;
         }
         std::uint64_t present = 0;
-        const auto translation = Detail::ReadPresentBones(a_bytes, present);
+        const auto translation = Detail::ReadPresentBones(a_bytes, kSkeletonLayoutHuman, present);
         return translation != 0
             && a_bytes.size() == translation + kSkeletonTranslationBytes + Detail::GetRotationBytes(present);
     }
 
-    [[nodiscard]] inline EncodedSkeletonPose EncodeSkeletonPose(const SkeletonPose& a_pose) noexcept
+    [[nodiscard]] inline QuantizedSkeletonPose QuantizeSkeletonPose(const SkeletonPose& a_pose) noexcept
+    {
+        QuantizedSkeletonPose result{ .present = a_pose.present & kAllSkeletonBones };
+        for (std::size_t axis = 0; axis < result.rootTranslation.size(); ++axis)
+        {
+            const float translation = a_pose.rootTranslation[axis];
+            const float scaled = std::isfinite(translation) ? std::round(translation * kSkeletonTranslationScale) : 0.0F;
+            result.rootTranslation[axis] = static_cast<std::int16_t>(std::clamp(scaled, -32768.0F, 32767.0F));
+        }
+        for (std::size_t bone = 0; bone < kSkeletonBoneCount; ++bone)
+        {
+            if ((result.present >> bone) & 1)
+            {
+                result.rotations[bone] = Detail::QuantizeRotation(a_pose.rotations[bone], GetSkeletonComponentBits(bone));
+            }
+        }
+        return result;
+    }
+
+    [[nodiscard]] inline SkeletonPose DequantizeSkeletonPose(const QuantizedSkeletonPose& a_pose) noexcept
+    {
+        SkeletonPose result{ .present = a_pose.present };
+        for (std::size_t axis = 0; axis < result.rootTranslation.size(); ++axis)
+        {
+            result.rootTranslation[axis] = static_cast<float>(a_pose.rootTranslation[axis]) / kSkeletonTranslationScale;
+        }
+        for (std::size_t bone = 0; bone < kSkeletonBoneCount; ++bone)
+        {
+            if ((a_pose.present >> bone) & 1)
+            {
+                result.rotations[bone] = Detail::DequantizeRotation(a_pose.rotations[bone], GetSkeletonComponentBits(bone));
+            }
+        }
+        return result;
+    }
+
+    // Layout 2.
+    [[nodiscard]] inline EncodedSkeletonPose EncodeSkeletonPose(const QuantizedSkeletonPose& a_pose) noexcept
     {
         EncodedSkeletonPose result;
         const auto present = a_pose.present & kAllSkeletonBones;
-        result.bytes[result.size++] = kSkeletonLayoutHuman;
-        Detail::WriteVarint(result, kAllSkeletonBones & ~present);
-        for (const float translation : a_pose.rootTranslation)
+        Detail::WriteHeader(result, kSkeletonLayoutHuman, present);
+        for (const auto translation : a_pose.rootTranslation)
         {
-            const float scaled = std::isfinite(translation) ? std::round(translation * kSkeletonTranslationScale) : 0.0F;
-            Detail::WriteLittleEndian(result, static_cast<std::int16_t>(std::clamp(scaled, -32768.0F, 32767.0F)));
+            Detail::WriteLittleEndian(result, translation);
         }
         Detail::BitWriter writer{ result };
         for (std::size_t bone = 0; bone < kSkeletonBoneCount; ++bone)
@@ -354,33 +442,40 @@ namespace Network
         return result;
     }
 
-    // An empty or invalid encoding leaves no bone present.
-    [[nodiscard]] inline SkeletonPose DecodeSkeletonPose(const EncodedSkeletonPose& a_encoded) noexcept
+    [[nodiscard]] inline EncodedSkeletonPose EncodeSkeletonPose(const SkeletonPose& a_pose) noexcept
     {
-        SkeletonPose result;
-        const auto bytes = a_encoded.view();
-        if (bytes.empty() || !IsValidSkeletonPose(bytes))
+        return EncodeSkeletonPose(QuantizeSkeletonPose(a_pose));
+    }
+
+    // Layout 2 only; empty when a_bytes is empty or invalid.
+    [[nodiscard]] inline std::optional<QuantizedSkeletonPose> ReadSkeletonPose(std::span<const std::uint8_t> a_bytes) noexcept
+    {
+        if (a_bytes.empty() || !IsValidSkeletonPose(a_bytes))
         {
-            return result;
+            return std::nullopt;
         }
-        std::uint64_t present = 0;
-        const auto translation = Detail::ReadPresentBones(bytes, present);
+        QuantizedSkeletonPose result;
+        const auto translation = Detail::ReadPresentBones(a_bytes, kSkeletonLayoutHuman, result.present);
         for (std::size_t axis = 0; axis < result.rootTranslation.size(); ++axis)
         {
-            result.rootTranslation[axis]
-                = static_cast<float>(Detail::ReadLittleEndian<std::int16_t>(bytes, translation + 2 * axis))
-                / kSkeletonTranslationScale;
+            result.rootTranslation[axis] = Detail::ReadLittleEndian<std::int16_t>(a_bytes, translation + 2 * axis);
         }
-        Detail::BitReader reader{ bytes, translation + kSkeletonTranslationBytes };
+        Detail::BitReader reader{ a_bytes, translation + kSkeletonTranslationBytes };
         for (std::size_t bone = 0; bone < kSkeletonBoneCount; ++bone)
         {
-            if ((present >> bone) & 1)
+            if ((result.present >> bone) & 1)
             {
                 result.rotations[bone] = Detail::ReadRotation(reader, GetSkeletonComponentBits(bone));
             }
         }
-        result.present = present;
         return result;
+    }
+
+    // An empty or invalid encoding leaves no bone present.
+    [[nodiscard]] inline SkeletonPose DecodeSkeletonPose(const EncodedSkeletonPose& a_encoded) noexcept
+    {
+        const auto pose = ReadSkeletonPose(a_encoded.view());
+        return pose ? DequantizeSkeletonPose(*pose) : SkeletonPose{};
     }
 
     // Along the shorter arc; a degenerate result keeps a_from.

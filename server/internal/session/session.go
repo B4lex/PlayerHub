@@ -477,6 +477,8 @@ var (
 func (s *Server) read(ctx context.Context, c *connection, slot uint32, outbox *delivery.Outbox, log *slog.Logger) error {
 	var rate limit.TokenBucket
 	rejections := newRejectionLog(log, "rejected player messages")
+	// The skeleton pose this connection last carried, which the client sends the next as a change from.
+	var pose *wire.SkeletonPose
 	for {
 		typ, data, err := c.conn.Read(ctx)
 		if err != nil {
@@ -495,6 +497,17 @@ func (s *Server) read(ctx context.Context, c *connection, slot uint32, outbox *d
 			outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Pong{
 				Pong: &pb.Pong{RequestId: ping.GetRequestId()}}}))
 			continue
+		}
+		// Before validation, since the client's reference moves with every pose it sends.
+		if c := message.GetCheckpoint(); len(c.GetSkeleton()) > 0 {
+			resolved, ok := wire.ResolveSkeletonPose(c.Skeleton, pose)
+			// One that does not resolve leaves no reference, so changes are refused until a whole pose.
+			pose = resolved
+			if !ok {
+				rejections.note("unresolvable skeleton pose")
+				continue
+			}
+			c.Skeleton = resolved.Append(nil)
 		}
 		if err := validate.Message(message); err != nil {
 			rejections.note(err.Error())

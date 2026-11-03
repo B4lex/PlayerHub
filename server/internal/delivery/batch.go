@@ -5,6 +5,8 @@ import "playerhub/server/internal/wire"
 type Batch struct {
 	ordered []item
 	latest  [][]byte
+	// Holds the entries encoded for this recipient, which ordered and latest point into.
+	scratch []byte
 	entries []byte
 	frame   []byte
 }

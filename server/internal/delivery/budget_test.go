@@ -37,7 +37,7 @@ func drainAt(t *testing.T, o *Outbox, now time.Time) (peers []uint32, ordered in
 
 func TestBudgetSpreadsCheckpointsWithoutStarving(t *testing.T) {
 	start := time.Unix(1000, 0)
-	size := len(entry(1, 1))
+	size := len(entry(1, 1).Plain())
 	budget := NewBudget(float64(size*4+messageOverheadBytes)*40/uplinkShare, 0)
 	o := NewOutbox(64)
 	o.UseBudget(budget)
@@ -65,7 +65,7 @@ func TestBudgetSpreadsCheckpointsWithoutStarving(t *testing.T) {
 
 func TestBudgetPrefersNearPeersAndSendsOrderedMessages(t *testing.T) {
 	now := time.Unix(1000, 0)
-	size := len(entry(1, 1))
+	size := len(entry(1, 1).Plain())
 	budget := NewBudget(float64(size*2+messageOverheadBytes)*40/uplinkShare, 0)
 	o := NewOutbox(256)
 	o.UseBudget(budget)

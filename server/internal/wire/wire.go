@@ -1,6 +1,8 @@
 package wire
 
 import (
+	"slices"
+
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 
@@ -12,10 +14,62 @@ const (
 	peerStatesEntryField protowire.Number = 1
 )
 
-func AppendEntry(b []byte, slot uint32, c *pb.Checkpoint) []byte {
-	// The scalar fields take at most 64 bytes, and a skeleton pose at most 222 with its tag and length.
-	var body [288]byte
-	m := body[:0]
+const skeletonField protowire.Number = 12
+
+// Entry is one checkpoint as a PeerStates entry. A posed one is written per recipient, its
+// skeleton pose as a change from the one that recipient was last written of the player.
+type Entry struct {
+	// The whole entry, when it carries no pose.
+	plain []byte
+	// The entry's fields before the pose.
+	fields []byte
+	pose   *SkeletonPose
+}
+
+// NewEntry reads c's pose as layout 2; one that does not read is left out.
+func NewEntry(slot uint32, c *pb.Checkpoint) *Entry {
+	if pose, ok := ReadSkeletonPose(c.GetSkeleton()); ok {
+		return &Entry{fields: appendFields(nil, slot, c), pose: pose}
+	}
+	var fields [maximumFieldsSize]byte
+	return &Entry{plain: appendEntry(nil, appendFields(fields[:0], slot, c))}
+}
+
+func (e *Entry) Pose() *SkeletonPose {
+	return e.pose
+}
+
+// Plain returns the entry when it carries no pose, else nil.
+func (e *Entry) Plain() []byte {
+	return e.plain
+}
+
+// Append appends the entry for a recipient last written reference as the player's pose.
+func (e *Entry) Append(b []byte, reference *SkeletonPose) []byte {
+	if e.pose == nil {
+		return append(b, e.plain...)
+	}
+	// The pose goes first, since the lengths in front of it depend on its size, and then moves
+	// behind them.
+	start := len(b)
+	b = e.pose.AppendChange(b, reference)
+	pose := len(b) - start
+	body := len(e.fields) + protowire.SizeTag(skeletonField) + protowire.SizeBytes(pose)
+	prefix := protowire.SizeTag(peerStatesEntryField) + protowire.SizeVarint(uint64(body)) + body - pose
+	b = slices.Grow(b, prefix)[:len(b)+prefix]
+	copy(b[start+prefix:], b[start:start+pose])
+	header := protowire.AppendTag(b[start:start], peerStatesEntryField, protowire.BytesType)
+	header = protowire.AppendVarint(header, uint64(body))
+	header = append(header, e.fields...)
+	header = protowire.AppendTag(header, skeletonField, protowire.BytesType)
+	protowire.AppendVarint(header, uint64(pose))
+	return b
+}
+
+// The scalar fields take at most 64 bytes.
+const maximumFieldsSize = 64
+
+func appendFields(m []byte, slot uint32, c *pb.Checkpoint) []byte {
 	m = appendVarint(m, 1, uint64(slot))
 	m = appendVarint(m, 2, c.GetSequence())
 	m = appendZigZag(m, 3, c.GetX())
@@ -26,13 +80,12 @@ func AppendEntry(b []byte, slot uint32, c *pb.Checkpoint) []byte {
 	m = appendVarint(m, 8, uint64(c.GetSpeed()))
 	m = appendVarint(m, 9, uint64(c.GetDirection()))
 	m = appendVarint(m, 10, uint64(c.GetFlags()))
-	m = appendVarint(m, 11, uint64(c.GetTime()))
-	if skeleton := c.GetSkeleton(); len(skeleton) > 0 {
-		m = protowire.AppendTag(m, 12, protowire.BytesType)
-		m = protowire.AppendBytes(m, skeleton)
-	}
+	return appendVarint(m, 11, uint64(c.GetTime()))
+}
+
+func appendEntry(b, body []byte) []byte {
 	b = protowire.AppendTag(b, peerStatesEntryField, protowire.BytesType)
-	return protowire.AppendBytes(b, m)
+	return protowire.AppendBytes(b, body)
 }
 
 // WithoutSkeleton returns a copy of c without its skeleton pose.

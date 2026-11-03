@@ -12,8 +12,8 @@ import (
 	"playerhub/server/internal/wire/pb"
 )
 
-func entry(peer uint32, sequence uint64) []byte {
-	return wire.AppendEntry(nil, peer, &pb.Checkpoint{Sequence: sequence})
+func entry(peer uint32, sequence uint64) *wire.Entry {
+	return wire.NewEntry(peer, &pb.Checkpoint{Sequence: sequence})
 }
 
 func leave(peer uint32) []byte {

@@ -22,7 +22,8 @@ refused at the handshake ([Transport](#transport)).
 | `proto/playerhub/v1/` | The schema (`state.proto`, `messages.proto`) and nanopb size options. `proto/generate.sh` regenerates `server/internal/wire/pb` and `src/network/proto` |
 | `src/protocol/` | Plain wire values and shared validation: `PlayerState.h`, `MovementState.h`, `AppearanceState.h`, `EquipmentState.h`, `FormReference.h`, `ChatMessage.h`, `PeerSlot.h`, `Session.h`, and the quantization rules in `Quantization.h`. No Skyrim headers |
 | `network/WireCodec` | nanopb encoding of client messages and validated decoding of server messages |
-| `network/ServerClient` | IXWebSocket transport: sends, dispatches received messages, merges each peer's context into its checkpoints, and queues per-player changes for `DrainRemotePlayerChanges` |
+| `network/SkeletonDelta` | Writes a skeleton pose as a [change](#pose-changes) from its stream's previous one, and resolves a received pose against it |
+| `network/ServerClient` | IXWebSocket transport: sends, dispatches received messages, holds both directions' [pose references](#pose-changes), merges each peer's context into its checkpoints, and queues per-player changes for `DrainRemotePlayerChanges` |
 | `network/ConnectionMonitor` | When to connect, reconnect schedule, latency probes, refusal, and the connection state |
 | `network/SessionStore` | The session tokens in `PlayerHub.session`, one per server |
 | `network/Refusal.h` | Why the server refused a connection, for the monitor and the UI |
@@ -32,7 +33,7 @@ refused at the handshake ([Transport](#transport)).
 | `server/internal/admission` | Caps on players, pending hellos, and new sessions per address; the client address behind trusted proxies |
 | `server/internal/validate` | Field validation of client messages |
 | `server/internal/world` | A player's accepted state and the ordering rules |
-| `server/internal/wire` | Hand-written encoding of checkpoint entries and batches, quantization for tools |
+| `server/internal/wire` | Hand-written encoding of checkpoint entries and batches, the skeleton pose codec with [changes](#pose-changes), quantization for tools |
 | `server/internal/hub` | Applies accepted messages on one goroutine ([Interest and delivery](interest-and-delivery.md)) |
 
 ## Transport
@@ -163,7 +164,7 @@ context.
 | `direction` | `uint32`, graph `Direction` × 256, wrapping | `0..255` |
 | `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–18 `grounded` (the carrier's controller is on the ground and the carrier is not ragdolled, [Locomotion](locomotion.md#ground-offset)), `weaponDrawn`, `jumping`, `blocking`, `bowDrawn`, `castingLeft`, `castingRight`, `swimming`, `mounted`, `dead`, `levitating`, `mistForm`, `bats`, `castReleasedLeft`, `castReleasedRight`, `dualCasting` ([Combat presentation](combat-presentation.md#spells)) (`CheckpointFlag`, mirrored by `Network::CheckpointFlags` with `static_assert`s in `WireCodec.cpp`) | unknown bits rejected; `levitating`, `mistForm`, and `bats` only in a `VAMPIRE_LORD` context (`validate.VampireLordFlags`, `incompatible animation checkpoint`); `castReleasedLeft` and `dualCasting` only with `castingLeft`, `castReleasedRight` only with `castingRight` (`validate.castFlags`, `IsValidQuantizedCheckpoint`) |
 | `time` | `uint32`, the sender's `steady_clock` in milliseconds when sampled, modulo 16384 | `0..16383` |
-| `skeleton` | `bytes`, the sender's skeleton pose ([below](#skeleton-pose-encoding)); empty when not sent | empty, or the layout below (`validate.SkeletonPose`) |
+| `skeleton` | `bytes`, the sender's skeleton pose ([below](#skeleton-pose-encoding)); empty when not sent | empty, or a layout below: whole (`validate.SkeletonPose`) or a [change](#pose-changes) that resolves against the stream's previous pose |
 
 | `Context` field | Validation |
 | --- | --- |
@@ -230,7 +231,8 @@ therefore see no window. The client sends `PoseLimit` after every `Welcome`,
 from `[Advanced] ShowCustomAnimations` and `CustomAnimationPlayers` (`0` while
 showing is off), and again whenever the main loop finds that value changed
 (`SkeletonSync`, through `Network::PublishPoseLimit`).
-`protocol/SkeletonPose.h` and `server/internal/validate` hold the same layout:
+`protocol/SkeletonPose.h` and `server/internal/validate` hold the same layout
+of a whole pose:
 
 1. a layout byte, `2` (`kSkeletonLayoutHuman`, `validate.SkeletonLayoutHuman`):
    the bone order of `Network::kSkeletonBoneNames`, 63 bones;
@@ -247,7 +249,7 @@ showing is off), and again whenever the main loop finds that value changed
 
 `b` is 9 for bones 0–22 (COM through the hands), 8 for the twist bones
 (23–30), `Weapon`, and `Shield`, and 7 for the fingers (31–60)
-(`Network::GetSkeletonComponentBits`, `validate.skeletonRotationBits`). An
+(`Network::GetSkeletonComponentBits`, `validate.SkeletonComponentBits`). An
 error in the trunk and limbs moves every bone below them, so they keep the
 finest steps. On 941 recorded poses (climbs and paragliding), these steps
 added at most 0.45° per bone in the trunk and limbs, 0.9° in the 8-bit bones,
@@ -258,16 +260,67 @@ per checkpoint), so they keep coarser steps rather than being dropped.
 The length must be exactly the header plus the packed rotations of the
 present bones; a full pose is 211 bytes, and no pose exceeds 219
 (`MaximumSkeletonPoseSize`, the nanopb `max_size`). Every bit pattern of a
-rotation is a valid one, so nothing else is checked. A full pose makes a
-relayed entry about eight times as large as one without.
+rotation is a valid one, so nothing else is checked.
 
-Poses travel whole on every checkpoint of a window. In the recorded windows
-nearly every bone turned on every checkpoint (42 of 63 by more than 0.5°, and
-no checkpoint with all of them below), so leaving out unchanged bones or poses
-saves little there; poses at 10 Hz interpolated with Catmull-Rom splines were
-off by 9° at the 95th percentile in the trunk and limbs; and differences from
-the previous pose would need every recipient to have received it, which the
-latest-wins outbox does not guarantee.
+#### Pose changes
+
+Each stream of poses carries most of them as a change from the stream's
+previous pose, its reference: layout `3` (`kSkeletonLayoutHumanChange`,
+`validate.SkeletonLayoutHumanChange`), written by
+`Network::EncodeSkeletonPoseChange` and `wire.SkeletonPose.AppendChange`, and
+read by `Network::ResolveSkeletonPose` and `wire.ResolveSkeletonPose`. A
+change rebuilds exactly the quantized pose its sender had, so no error
+accumulates. In the recorded windows nearly every bone turned on every
+checkpoint, but by a few quantization steps, and about half the finger
+rotations not at all: over a recorded window of 43 checkpoints, a change
+averaged 87 bytes against 211 for the whole pose.
+
+1. the layout byte `3`, then the mask of missing bones as in layout 2;
+2. bit-packed as in layout 2: a 2-bit order `k`, then the three translation
+   changes from the reference's;
+3. per present bone in bone order: a bit, `0` for the reference's rotation
+   unchanged; else a bit, `1` for the rotation written whole as in layout 2,
+   `0` for a change: a 2-bit `k`, then the three stored components' changes,
+   with the reference's largest-component index kept.
+
+Changes are signed Exp-Golomb codes of order `k`: zigzag `v` to
+`u = 2v` or `−2v − 1`, take `w = u + 2^k` of bit width `n`, and write
+`n − 1 − k` zero bits, a one bit, then the low `n − 1` bits of `w`. A reader
+refuses more than 20 zero bits. The encoder picks each `k` and each bone's
+form by size, and sends the whole pose instead when the change would not be
+smaller, so a change is never larger than its whole pose. A change is refused when it
+reads past its end or leaves bytes or nonzero padding bits, when it keeps or
+changes a bone the reference lacks, when a translation leaves `int16` or a
+component leaves `0..2^b − 1`, when it is longer than 219 bytes, and when the
+stream holds no reference.
+
+A stream is one sender's poses in order on one connection, which delivers
+every message in order, so both ends hold the same reference without
+acknowledgements:
+
+- **Client to server.** The reference is the pose this client last sent on the
+  current socket (`ServerClient`'s `sentPose`, reset when the socket changes)
+  and the pose its session last resolved (`session.Server.read`). The session
+  resolves each checkpoint's pose before validating anything else, so a
+  checkpoint rejected later still moves the reference, and replaces it with
+  layout 2: the hub, recordings, and replays see only whole poses. An
+  unresolvable pose drops its checkpoint and leaves no reference, so changes
+  are refused until a whole pose.
+- **Server to client.** The reference is the pose of the peer last written to
+  this recipient: the outbox encodes posed entries per recipient as it drains
+  them, in write order ([Interest and delivery](interest-and-delivery.md#skeleton-poses)).
+  Both ends drop it at the peer's `PeerEnter` and `PeerLeave` and with the
+  connection; a checkpoint without a pose leaves it. The client resolves each
+  entry as it decodes the message, before anything may discard the
+  checkpoint, and passes layout 2 on (`ServerClient::ResolveSkeletonLocked`).
+  An unresolvable pose is dropped with the reference, and logged once until
+  one resolves (`Dropped an unresolvable skeleton pose`). A server message
+  that fails to decode drops every reference, since it may have carried
+  poses.
+
+Poses still travel on every checkpoint of a window. Poses at 10 Hz
+interpolated with Catmull-Rom splines were off by 9° at the 95th percentile in
+the trunk and limbs, so the rate stays.
 
 ## Actions
 
