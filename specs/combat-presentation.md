@@ -2,9 +2,7 @@
 
 ## Status
 
-Dual casts ([Spells](#spells)) have not been confirmed in game. The isolation
-of a native hand's spell from the local world ([Spell world
-isolation](#spell-world-isolation)) has not run in game.
+Dual casts ([Spells](#spells)) have not been confirmed in game.
 
 ## Scope
 
@@ -731,7 +729,7 @@ so a hazard cast around the caster acts for it.
 
 | Hook (1.7.104, SE) | Drops for a remote source |
 | --- | --- |
-| `MagicTarget::AddTarget` (vfunc 1) of `Character` and `PlayerCharacter` (both ID 38786, SE 37832, chained after the [magic firewall](remote-actor.md#survival-and-ai-policy)) and `NonActorMagicTarget` | Any effect on another actor or an object, and on the caster itself any archetype but value modifiers (`kValueModifier`, `kDualValueModifier`, `kPeakValueModifier`, `kValueAndParts`, `kAccumulateMagnitude`), `kInvisibility`, `kLight`, `kNightEye`, `kEtherealize`, `kDisguise`, `kCloak`, and `kSpawnHazard`. Returns false, as the magic firewall does |
+| `MagicTarget::AddTarget` (vfunc 1) of `Character` and `PlayerCharacter` (both ID 38786, SE 37832, chained after the [magic firewall](remote-actor.md#survival-and-ai-policy)) and `NonActorMagicTarget` (vtable 1, its `MagicTarget` base at +0x10; vtable 0 is `BSExtraData`) | Any effect on another actor or an object, and on the caster itself any archetype but value modifiers (`kValueModifier`, `kDualValueModifier`, `kPeakValueModifier`, `kValueAndParts`, `kAccumulateMagnitude`), `kInvisibility`, `kLight`, `kNightEye`, `kEtherealize`, `kDisguise`, `kCloak`, and `kSpawnHazard`. Returns false, as the magic firewall does |
 | Projectile spell impact (ID 34412 + 9, SE 33634 + 9) `(caster, location, projectile, target, …)` | The spell where a projectile struck. Every impact casts through it with the shooter's own caster: `Projectile::ProcessImpacts` (ID 44123), `HandleHits` (ID 44204, beams and flames) and the cone and arrow impacts through ID 44206, and a lobber's detonation through ID 34411. This includes target-location summons |
 | HitData processing (ID 38586, SE 37633) `(target, hitData)` | A hit whose `aggressor` is remote: damage, stagger, hit impulse, hit effects, `TESHitEvent`. Spell projectiles (ID 44123 + 0x269), beams (ID 44204 + 0x3AA), and explosions (ID 43849 + 0x412) reach it without the actor hit hook |
 | `TaskQueueInterface::QueueUpdateDestructibleObject` (ID 36909, SE 35934 + 9) | Destruction damage whose cause is a remote source |
@@ -855,8 +853,7 @@ Not confirmed in game for [spell world isolation](#spell-world-isolation)
 
 20. A remote actor's touch spell and every spell a cloak or hazard applies
     reach `MagicTarget::AddTarget` with the remote actor, or a reference whose
-    actor cause is the remote actor, as `AddTargetData::caster`. A self spell
-    reaches it with the caster as both caster and target.
+    actor cause is the remote actor, as `AddTargetData::caster`.
 21. Every spell, hit, impulse, and destruction a remote projectile or
     explosion causes passes through one of the hooked functions; in
     particular, a spell projectile's hit on an object reaches scripts

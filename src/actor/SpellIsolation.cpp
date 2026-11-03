@@ -188,9 +188,9 @@ namespace SpellIsolation
 
         // Returns false when a remote actor's magic must not attach to the target:
         // anything but the caster itself, and on the caster only self-contained
-        // archetypes. a_targetActor is null for a non-actor target.
-        bool MayAddTarget(const RE::MagicTarget::AddTargetData& a_data, const RE::Actor* a_targetActor,
-            const RE::TESObjectREFR* a_targetRef, std::string_view a_path)
+        // archetypes.
+        bool MayAddTarget(RE::MagicTarget* a_target, const RE::MagicTarget::AddTargetData& a_data,
+            std::string_view a_path)
         {
             if (!IsRemoteSource(a_data.caster))
             {
@@ -198,7 +198,8 @@ namespace SpellIsolation
             }
 
             const auto* baseEffect = a_data.effect ? a_data.effect->baseEffect : nullptr;
-            const bool self = a_targetActor && a_data.caster == a_targetActor;
+            const auto* casterActor = a_data.caster->As<RE::Actor>();
+            const bool self = casterActor && casterActor->AsMagicTarget() == a_target;
             if (self && baseEffect && IsSelfContainedArchetype(baseEffect->GetArchetype()))
             {
                 return true;
@@ -208,10 +209,11 @@ namespace SpellIsolation
             const auto count = ++suppressedCount;
             if (ShouldLogOccurrence(count))
             {
+                const auto* targetRef = a_target->GetTargetStatsObject();
                 logs::debug(
                     "Suppressed remote actor magic effect: path={} source={:08X} target={:08X} self={} spell={:08X} "
                     "effect={:08X} archetype={} count={}",
-                    a_path, a_data.caster->GetFormID(), a_targetRef ? a_targetRef->GetFormID() : 0, self,
+                    a_path, a_data.caster->GetFormID(), targetRef ? targetRef->GetFormID() : 0, self,
                     a_data.magicItem ? a_data.magicItem->GetFormID() : 0, baseEffect ? baseEffect->GetFormID() : 0,
                     baseEffect ? static_cast<std::int32_t>(baseEffect->GetArchetype()) : -1, count);
             }
@@ -226,8 +228,7 @@ namespace SpellIsolation
         {
             static bool Thunk(RE::MagicTarget* a_target, RE::MagicTarget::AddTargetData& a_data)
             {
-                const auto* actor = static_cast<RE::Actor*>(a_target);
-                if (!MayAddTarget(a_data, actor, actor, "ActorTarget"))
+                if (!MayAddTarget(a_target, a_data, "ActorTarget"))
                 {
                     return false;
                 }
@@ -237,11 +238,14 @@ namespace SpellIsolation
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
+        // A non-actor's MagicTarget lives at +0x10 of NonActorMagicTarget, after its
+        // BSExtraData base, so its AddTarget is in vtable 1 with the subobject as
+        // `this`. Vtable 0 slot 1 is BSExtraData::GetType.
         struct NonActorMagicTargetHook
         {
-            static bool Thunk(RE::NonActorMagicTarget* a_target, RE::MagicTarget::AddTargetData& a_data)
+            static bool Thunk(RE::MagicTarget* a_target, RE::MagicTarget::AddTargetData& a_data)
             {
-                if (!MayAddTarget(a_data, nullptr, a_target->GetTargetStatsObject(), "ObjectTarget"))
+                if (!MayAddTarget(a_target, a_data, "ObjectTarget"))
                 {
                     return false;
                 }
@@ -581,7 +585,7 @@ namespace SpellIsolation
             REL::Relocation<std::uintptr_t> playerMagicTargetVTable{ RE::VTABLE_PlayerCharacter[4] };
             ActorMagicTargetHook<1>::_original
                 = playerMagicTargetVTable.write_vfunc(0x1, ActorMagicTargetHook<1>::Thunk);
-            REL::Relocation<std::uintptr_t> nonActorMagicTargetVTable{ RE::VTABLE_NonActorMagicTarget[0] };
+            REL::Relocation<std::uintptr_t> nonActorMagicTargetVTable{ RE::VTABLE_NonActorMagicTarget[1] };
             NonActorMagicTargetHook::_original
                 = nonActorMagicTargetVTable.write_vfunc(0x1, NonActorMagicTargetHook::Thunk);
 
