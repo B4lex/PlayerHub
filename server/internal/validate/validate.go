@@ -63,7 +63,8 @@ const (
 	MaximumChatTextRune = 512
 	MaximumChatTextByte = 4 * MaximumChatTextRune
 
-	MaximumSpellEffects = 8
+	MaximumSpellEffectShaders = 8
+	MaximumSpellEffectArt     = 8
 
 	MaximumVanished = 1024
 
@@ -381,32 +382,27 @@ func Equipment(e *pb.Equipment) error {
 	if outfit := e.DefaultOutfit; outfit != nil && !defaultOutfit(outfit) {
 		return ErrEquipment
 	}
-	if !spellEffects(e.GetSpellEffects()) {
+	if effects := e.SpellEffects; effects != nil && (!spellEffectForms(effects.GetShaders(), MaximumSpellEffectShaders) ||
+		!spellEffectForms(effects.GetArt(), MaximumSpellEffectArt)) {
 		return ErrEquipment
 	}
 	return nil
 }
 
-func spellEffects(effects []*pb.SpellEffect) bool {
-	if len(effects) > MaximumSpellEffects {
+func spellEffectForms(forms []*pb.FormRef, maximum int) bool {
+	if len(forms) > maximum {
 		return false
 	}
 	type key struct {
 		plugin string
 		formID uint32
 	}
-	seen := make(map[key]struct{}, len(effects))
-	for _, s := range effects {
-		if s == nil || !s.GetShaderShown() && !s.GetArtShown() || !optionalFormRef(s.Effect) ||
-			!optionalFormRef(s.Shader) || !optionalFormRef(s.Art) ||
-			s.Shader != nil && !s.GetShaderShown() || s.Art != nil && !s.GetArtShown() ||
-			s.Effect == nil && s.Shader == nil && s.Art == nil {
+	seen := make(map[key]struct{}, len(forms))
+	for _, form := range forms {
+		if !formRef(form) {
 			return false
 		}
-		if s.Effect == nil {
-			continue
-		}
-		k := key{s.Effect.GetPlugin(), s.Effect.GetFormId()}
+		k := key{form.GetPlugin(), form.GetFormId()}
 		if _, duplicate := seen[k]; duplicate {
 			return false
 		}

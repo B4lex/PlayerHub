@@ -13,13 +13,12 @@ struct RemoteActor;
 
 namespace SpellEffectSync
 {
-    [[nodiscard]] const std::vector<Multiplayer::SpellEffect>& SampleLocalSpellEffects(
-        const LocalFrame& a_local, float a_delta);
+    [[nodiscard]] const Multiplayer::SpellEffects& SampleLocalSpellEffects(const LocalFrame& a_local, float a_delta);
 
     struct RemoteState
     {
         std::uint64_t resolvedRevision{ 0 };
-        std::vector<Multiplayer::SpellEffect> resolvedEffects;
+        Multiplayer::SpellEffects resolvedEffects;
         std::vector<RE::TESEffectShader*> shaders;
         std::vector<RE::BGSArtObject*> art;
     };

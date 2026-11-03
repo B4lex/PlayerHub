@@ -16,8 +16,8 @@ namespace EquipmentSync
 {
     void RegisterEventSinks();
 
-    void SyncEquipment(const LocalFrame& a_local, float a_delta, bool a_flush,
-        const std::vector<Multiplayer::SpellEffect>& a_spellEffects);
+    void SyncEquipment(
+        const LocalFrame& a_local, float a_delta, bool a_flush, const Multiplayer::SpellEffects& a_spellEffects);
 
     struct ResolvedHand
     {

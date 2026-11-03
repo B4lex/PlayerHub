@@ -462,18 +462,23 @@ namespace Network::Wire
                     return "beastArmor";
                 }
             }
-            a_result.spellEffects.clear();
-            for (pb_size_t i = 0; i < a_equipment.spell_effects_count; ++i)
+            a_result.spellEffects = {};
+            if (a_equipment.has_spell_effects)
             {
-                const auto& effect = a_equipment.spell_effects[i];
-                auto& result = a_result.spellEffects.emplace_back();
-                result.shaderShown = effect.shader_shown;
-                result.artShown = effect.art_shown;
-                if (!ReadOptionalFormReference(effect.has_effect, effect.effect, result.effect)
-                    || !ReadOptionalFormReference(effect.has_shader, effect.shader, result.shader)
-                    || !ReadOptionalFormReference(effect.has_art, effect.art, result.art))
+                const auto& effects = a_equipment.spell_effects;
+                for (pb_size_t i = 0; i < effects.shaders_count; ++i)
                 {
-                    return "spellEffects";
+                    if (!ReadFormReference(effects.shaders[i], a_result.spellEffects.shaders.emplace_back()))
+                    {
+                        return "spellEffects.shaders";
+                    }
+                }
+                for (pb_size_t i = 0; i < effects.art_count; ++i)
+                {
+                    if (!ReadFormReference(effects.art[i], a_result.spellEffects.art.emplace_back()))
+                    {
+                        return "spellEffects.art";
+                    }
                 }
             }
             a_result.defaultOutfit = {};
@@ -1146,14 +1151,16 @@ namespace Network::Wire
         using Multiplayer::DefaultOutfit;
         using Multiplayer::PlayerEquipment;
         const auto& outfit = a_equipment.defaultOutfit;
+        const auto& effects = a_equipment.spellEffects;
         if (a_equipment.armor.size() > PlayerEquipment::kMaximumArmor
             || a_equipment.beastArmor.size() > PlayerEquipment::kMaximumBeastArmor
             || outfit.armor.size() > DefaultOutfit::kMaximumArmor || outfit.hands.size() > DefaultOutfit::kMaximumHands
-            || a_equipment.spellEffects.size() > PlayerEquipment::kMaximumSpellEffects)
+            || effects.shaders.size() > Multiplayer::SpellEffects::kMaximumShaders
+            || effects.art.size() > Multiplayer::SpellEffects::kMaximumArt)
         {
             return {};
         }
-        // About 19 KB; kept off the stack.
+        // About 17 KB; kept off the stack.
         auto equipment = std::make_unique<playerhub_v1_Equipment>();
         *equipment = playerhub_v1_Equipment_init_zero;
         equipment->revision = a_equipment.revision;
@@ -1205,16 +1212,20 @@ namespace Network::Wire
             }
             written = written && WriteOptionalFormReference(outfit.ammo, result.has_ammo, result.ammo);
         }
-        equipment->spell_effects_count = static_cast<pb_size_t>(a_equipment.spellEffects.size());
-        for (std::size_t i = 0; i < a_equipment.spellEffects.size(); ++i)
+        if (!effects.IsEmpty())
         {
-            const auto& effect = a_equipment.spellEffects[i];
-            auto& result = equipment->spell_effects[i];
-            result.shader_shown = effect.shaderShown;
-            result.art_shown = effect.artShown;
-            written = written && WriteOptionalFormReference(effect.effect, result.has_effect, result.effect)
-                && WriteOptionalFormReference(effect.shader, result.has_shader, result.shader)
-                && WriteOptionalFormReference(effect.art, result.has_art, result.art);
+            auto& result = equipment->spell_effects;
+            equipment->has_spell_effects = true;
+            result.shaders_count = static_cast<pb_size_t>(effects.shaders.size());
+            for (std::size_t i = 0; i < effects.shaders.size(); ++i)
+            {
+                written = written && WriteFormReference(effects.shaders[i], result.shaders[i]);
+            }
+            result.art_count = static_cast<pb_size_t>(effects.art.size());
+            for (std::size_t i = 0; i < effects.art.size(); ++i)
+            {
+                written = written && WriteFormReference(effects.art[i], result.art[i]);
+            }
         }
         if (!written)
         {

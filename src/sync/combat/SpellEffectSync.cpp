@@ -6,7 +6,6 @@
 #include "runtime/Profiling.h"
 
 #include <algorithm>
-#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -17,19 +16,7 @@ namespace SpellEffectSync
         constexpr float kSampleSeconds = 0.1F;
 
         using Multiplayer::FormReference;
-        using Multiplayer::SpellEffect;
-
-        // Pointers only compared between samples, never dereferenced afterwards.
-        struct ShownEffect
-        {
-            const RE::EffectSetting* effect{ nullptr };
-            const RE::TESEffectShader* shader{ nullptr };
-            const RE::BGSArtObject* art{ nullptr };
-            bool shaderShown{ false };
-            bool artShown{ false };
-
-            bool operator==(const ShownEffect&) const = default;
-        };
+        using Multiplayer::SpellEffects;
 
         // Self delivery has no projectile or beam, and the types are what the player
         // casts from a hand, a scroll, or the power key.
@@ -95,79 +82,61 @@ namespace SpellEffectSync
             }
         }
 
-        ShownEffect& FindOrAdd(std::vector<ShownEffect>& a_shown, const RE::EffectSetting* a_effect)
+        template <class T>
+        std::vector<FormReference> MakeReferences(const std::vector<T*>& a_forms, std::size_t a_maximum)
         {
-            const auto found = std::ranges::find(a_shown, a_effect, &ShownEffect::effect);
-            return found != a_shown.end() ? *found : a_shown.emplace_back(ShownEffect{ .effect = a_effect });
-        }
-
-        bool HaveSameEntries(const std::vector<ShownEffect>& a_shown, const std::vector<ShownEffect>& a_other)
-        {
-            return a_shown.size() == a_other.size() && std::ranges::all_of(a_shown, [&](const ShownEffect& a_entry) {
-                return std::ranges::find(a_other, a_entry) != a_other.end();
-            });
-        }
-
-        FormReference MakeReference(const RE::TESForm* a_form)
-        {
-            auto reference = a_form ? FormLookup::MakeFormReference(a_form) : std::nullopt;
-            return reference ? std::move(*reference) : FormReference{};
-        }
-
-        // Dynamic forms cannot be referenced and are left out; an entry left with
-        // nothing to resolve is dropped.
-        std::vector<SpellEffect> MakeReferences(const std::vector<ShownEffect>& a_shown)
-        {
-            std::vector<SpellEffect> effects;
-            effects.reserve(a_shown.size());
-            for (const auto& entry : a_shown)
+            std::vector<FormReference> references;
+            references.reserve(a_forms.size());
+            for (const auto* form : a_forms)
             {
-                SpellEffect effect{ .effect = MakeReference(entry.effect),
-                    .shaderShown = entry.shaderShown,
-                    .artShown = entry.artShown,
-                    .shader = MakeReference(entry.shader),
-                    .art = MakeReference(entry.art) };
-                if (!effect.effect.IsEmpty() || !effect.shader.IsEmpty() || !effect.art.IsEmpty())
+                // Dynamic forms cannot be referenced and are left out.
+                if (auto reference = FormLookup::MakeFormReference(form))
                 {
-                    effects.push_back(std::move(effect));
+                    references.push_back(std::move(*reference));
                 }
             }
-            std::ranges::sort(effects);
-            const auto duplicates = std::ranges::unique(effects);
-            effects.erase(duplicates.begin(), duplicates.end());
-            if (effects.size() > Multiplayer::PlayerEquipment::kMaximumSpellEffects)
+            std::ranges::sort(references);
+            const auto duplicates = std::ranges::unique(references);
+            references.erase(duplicates.begin(), duplicates.end());
+            if (references.size() > a_maximum)
             {
-                effects.resize(Multiplayer::PlayerEquipment::kMaximumSpellEffects);
+                references.resize(a_maximum);
             }
-            return effects;
+            return references;
         }
 
         template <class T>
-        T* ResolveFallback(const FormReference& a_reference, Multiplayer::PeerSlot a_playerID, std::uint64_t a_revision,
-            std::string_view a_kind)
+        bool Resolve(const std::vector<FormReference>& a_references, std::vector<T*>& a_forms,
+            Multiplayer::PeerSlot a_playerID, std::uint64_t a_revision, std::string_view a_kind)
         {
-            if (a_reference.IsEmpty())
+            a_forms.clear();
+            bool complete = true;
+            for (const auto& reference : a_references)
             {
-                return nullptr;
-            }
-            auto* form = FormLookup::ResolveForm<T>(a_reference);
-            if (!form)
-            {
+                if (auto* form = FormLookup::ResolveForm<T>(reference))
+                {
+                    a_forms.push_back(form);
+                    continue;
+                }
+                complete = false;
                 logs::debug("Spell effect sync could not resolve remote {}: player={} revision={} form={}|{:06X}",
-                    a_kind, a_playerID, static_cast<unsigned long long>(a_revision), a_reference.plugin,
-                    a_reference.localFormID);
+                    a_kind, a_playerID, static_cast<unsigned long long>(a_revision), reference.plugin,
+                    reference.localFormID);
             }
-            return form;
+            return complete;
         }
     }
 
-    const std::vector<SpellEffect>& SampleLocalSpellEffects(const LocalFrame& a_local, float a_delta)
+    const SpellEffects& SampleLocalSpellEffects(const LocalFrame& a_local, float a_delta)
     {
         static float sampleElapsed = kSampleSeconds;
-        static std::vector<SpellEffect> sampled;
-        static std::vector<ShownEffect> sampledShown;
-        static std::vector<ShownEffect> shown;
+        static SpellEffects sampled;
+        // Pointers only compared with the next sample's, never dereferenced.
+        static std::vector<RE::TESEffectShader*> sampledShaders;
+        static std::vector<RE::BGSArtObject*> sampledArt;
         static std::vector<const RE::ActiveEffect*> shownEffects;
+        static std::vector<RE::TESEffectShader*> shaders;
+        static std::vector<RE::BGSArtObject*> art;
 
         sampleElapsed += FrameTime::Clamp(a_delta);
         if (sampleElapsed < kSampleSeconds)
@@ -180,7 +149,8 @@ namespace SpellEffectSync
         auto& player = a_local.player;
         const auto playerHandle = player.GetHandle().native_handle();
         shownEffects.clear();
-        shown.clear();
+        shaders.clear();
+        art.clear();
         auto* magicTarget = player.AsMagicTarget();
         if (auto* activeEffects = magicTarget ? magicTarget->GetActiveEffectList() : nullptr)
         {
@@ -197,44 +167,39 @@ namespace SpellEffectSync
         {
             processLists->ForEachMagicTempEffect([&](RE::BSTempEffect* a_effect) {
                 auto* referenceEffect = a_effect ? a_effect->As<RE::ReferenceEffect>() : nullptr;
-                const auto* activeEffect = referenceEffect && !referenceEffect->finished
-                        && referenceEffect->target.native_handle() == playerHandle
-                    ? GetControllingEffect(*referenceEffect)
-                    : nullptr;
-                if (!activeEffect || std::ranges::find(shownEffects, activeEffect) == shownEffects.end())
+                if (!referenceEffect || referenceEffect->finished
+                    || referenceEffect->target.native_handle() != playerHandle
+                    || std::ranges::find(shownEffects, GetControllingEffect(*referenceEffect)) == shownEffects.end())
                 {
                     return RE::BSContainer::ForEachResult::kContinue;
                 }
-                if (const auto* shader = a_effect->As<RE::ShaderReferenceEffect>())
+                if (auto* shader = a_effect->As<RE::ShaderReferenceEffect>())
                 {
-                    if (!shader->IsInterfaceEffect() && shader->effectData)
+                    if (!shader->IsInterfaceEffect())
                     {
-                        auto& entry = FindOrAdd(shown, activeEffect->GetBaseObject());
-                        entry.shaderShown = true;
-                        entry.shader = entry.shader ? entry.shader : shader->effectData;
+                        AddUnique(shaders, shader->effectData);
                     }
                 }
-                else if (const auto* model = a_effect->As<RE::ModelReferenceEffect>())
+                else if (auto* model = a_effect->As<RE::ModelReferenceEffect>())
                 {
-                    if (model->artObject)
-                    {
-                        auto& entry = FindOrAdd(shown, activeEffect->GetBaseObject());
-                        entry.artShown = true;
-                        entry.art = entry.art ? entry.art : model->artObject;
-                    }
+                    AddUnique(art, model->artObject);
                 }
                 return RE::BSContainer::ForEachResult::kContinue;
             });
         }
 
-        if (HaveSameEntries(shown, sampledShown))
+        std::ranges::sort(shaders);
+        std::ranges::sort(art);
+        if (shaders == sampledShaders && art == sampledArt)
         {
             return sampled;
         }
-        sampledShown = shown;
-        sampled = MakeReferences(shown);
-        logs::debug("Spell effect sync sampled local spell effects: effects={}/{} activeEffects={}", sampled.size(),
-            shown.size(), shownEffects.size());
+        sampledShaders = shaders;
+        sampledArt = art;
+        sampled = SpellEffects{ .shaders = MakeReferences(shaders, SpellEffects::kMaximumShaders),
+            .art = MakeReferences(art, SpellEffects::kMaximumArt) };
+        logs::debug("Spell effect sync sampled local spell effects: shaders={}/{} art={}/{} activeEffects={}",
+            sampled.shaders.size(), shaders.size(), sampled.art.size(), art.size(), shownEffects.size());
         return sampled;
     }
 
@@ -247,50 +212,16 @@ namespace SpellEffectSync
             if (a_latest->spellEffects != a_state.resolvedEffects)
             {
                 a_state.resolvedEffects = a_latest->spellEffects;
-                a_state.shaders.clear();
-                a_state.art.clear();
-                std::uint32_t own = 0;
-                std::uint32_t fallback = 0;
-                for (const auto& entry : a_state.resolvedEffects)
-                {
-                    // The receiver's version of the effect, so its replacers apply.
-                    const auto* effect
-                        = entry.effect.IsEmpty() ? nullptr : FormLookup::ResolveForm<RE::EffectSetting>(entry.effect);
-                    if (effect)
-                    {
-                        ++own;
-                        if (effect->data.flags.any(RE::EffectSetting::EffectSettingData::Flag::kNoHitEffect))
-                        {
-                            continue;
-                        }
-                        if (entry.shaderShown)
-                        {
-                            AddUnique(a_state.shaders, effect->data.effectShader);
-                        }
-                        if (entry.artShown)
-                        {
-                            AddUnique(a_state.art, effect->data.hitEffectArt);
-                        }
-                        continue;
-                    }
-                    ++fallback;
-                    if (entry.shaderShown)
-                    {
-                        AddUnique(a_state.shaders,
-                            ResolveFallback<RE::TESEffectShader>(
-                                entry.shader, a_playerID, a_latest->revision, "shader"));
-                    }
-                    if (entry.artShown)
-                    {
-                        AddUnique(a_state.art,
-                            ResolveFallback<RE::BGSArtObject>(entry.art, a_playerID, a_latest->revision, "art"));
-                    }
-                }
+                const bool shaders = Resolve(
+                    a_state.resolvedEffects.shaders, a_state.shaders, a_playerID, a_latest->revision, "shader");
+                const bool art
+                    = Resolve(a_state.resolvedEffects.art, a_state.art, a_playerID, a_latest->revision, "art");
                 logs::debug(
-                    "Spell effect sync resolved remote spell effects: player={} revision={} effects={} "
-                    "own={} fallback={} shaders={} art={}",
-                    a_playerID, static_cast<unsigned long long>(a_latest->revision), a_state.resolvedEffects.size(),
-                    own, fallback, a_state.shaders.size(), a_state.art.size());
+                    "Spell effect sync resolved remote spell effects: player={} revision={} shaders={}/{} "
+                    "art={}/{} complete={}",
+                    a_playerID, static_cast<unsigned long long>(a_latest->revision), a_state.shaders.size(),
+                    a_state.resolvedEffects.shaders.size(), a_state.art.size(), a_state.resolvedEffects.art.size(),
+                    shaders && art);
             }
         }
         ActorSpellEffects::Show(a_actor, a_state.shaders, a_state.art);

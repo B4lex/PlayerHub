@@ -250,17 +250,11 @@ message DefaultOutfit {
   FormRef ammo = 3;
 }
 
-// A magic effect of the player's own self-delivered spell whose hit shader or
-// hit art shows on the player.
-message SpellEffect {
-  // Unset when the effect cannot be referenced.
-  FormRef effect = 1;
-  bool shader_shown = 2;
-  bool art_shown = 3;
-  // The shown shader and art, for a receiver without the effect; each unset when
-  // not shown or not referenceable.
-  FormRef shader = 4;
-  FormRef art = 5;
+// The hit shaders and hit art that the player's own self-delivered spells show
+// on the player, each listed once.
+message SpellEffects {
+  repeated FormRef shaders = 1;
+  repeated FormRef art = 2;
 }
 
 message Equipment {
@@ -275,5 +269,5 @@ message Equipment {
   Hand beast_right_hand = 7;
   Hand beast_left_hand = 8;
   repeated Armor beast_armor = 9;
-  repeated SpellEffect spell_effects = 10;
+  SpellEffects spell_effects = 10;
 }

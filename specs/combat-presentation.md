@@ -540,32 +540,20 @@ anything an effect does besides its look ([Isolation](#isolation)).
   effects for unfinished reference effects that target the player and whose
   controller is an `ActiveEffectReferenceEffectController` (matched by vtable)
   naming one of those effects: a `ShaderReferenceEffect`'s `effectData`, unless
-  it is an interface effect, and a `ModelReferenceEffect`'s `artObject`. One
-  entry per magic effect (`ActiveEffect::GetBaseObject`) records whether its
-  hit shader and hit art show and the shown forms. Entries are referenced
-  ([Network](network.md#form-references); a dynamic form is left unset, and an
-  entry with nothing referenceable is dropped), sorted, deduplicated, and cut
-  to 8. The reference effects decide when a look shows rather than the
-  effect's data, which keeps the engine's own lifetime: an `FX Persist` effect
-  shows its look for its whole duration, another only while its shader or art
-  plays, and a dispel or expiry ends it.
+  it is an interface effect, and a `ModelReferenceEffect`'s `artObject`. Each
+  list is deduplicated, referenced ([Network](network.md#form-references),
+  dynamic forms left out), sorted, and cut to 8. Reading the reference effects
+  rather than the effect's `effectShader` and `hitEffectArt` keeps the engine's
+  own lifetime: an `FX Persist` effect shows its look for its whole duration,
+  another only while its shader or art plays, and a dispel or expiry ends it.
 - **Publish.** The sample travels in `Equipment.spell_effects`
   ([Appearance and equipment](appearance-and-equipment.md#capture)), so a
   change reaches peers within the 250 ms publish interval and a late joiner
   receives the current look.
-- **Resolution.** When a new equipment revision changes the entries,
-  `SpellEffectSync::SyncSpellEffects` resolves them in the order the
-  [spell look](#spell-look) uses, so players with different replacers each see
-  their own version, and deduplicates the resulting shaders and art:
-  1. The magic effect resolves to an `EffectSetting`: the receiver's version's
-     `effectShader` while the source's hit shader shows and `hitEffectArt`
-     while its hit art shows; nothing for a part the receiver's version lacks,
-     or for a `kNoHitEffect` effect. A replacer that points the effect at other forms therefore
-     applies on the receiver, and one only the source has does not reach it.
-  2. Otherwise each shown part's fallback form, if it resolves to a
-     `TESEffectShader` or `BGSArtObject` (as the receiver's version, so mesh
-     and texture replacers still apply); one that does not is left out and
-     logged.
+- **Resolution.** When a new equipment revision changes the lists,
+  `SpellEffectSync::SyncSpellEffects` resolves each reference to a
+  `TESEffectShader` or `BGSArtObject`, the receiver's version, so its visual
+  mods apply. One that does not resolve is left out and logged.
 - **Show.** `ActorSpellEffects::Show` runs every pass for a ready, 3D-loaded
   actor, on foot, mounted, or dead, and returns at once while neither the list
   nor the shown set has entries. A new form starts with `ApplyEffectShader` or
@@ -804,8 +792,7 @@ Not confirmed in game for [beast actions](#beast-actions):
 
 Not confirmed in game for [spell effects](#spell-effects):
 
-17. An active effect's hit shader and hit art, its base effect's
-    `effectShader` and `hitEffectArt`, are `ShaderReferenceEffect`s and
+17. An active effect's hit shader and hit art are `ShaderReferenceEffect`s and
     `ModelReferenceEffect`s in `ProcessLists::magicEffects` that target the
     effect's target, with an `ActiveEffectReferenceEffectController` whose
     `effect` is that active effect, for as long as the look shows, including
@@ -854,9 +841,8 @@ Not confirmed in game for [spell effects](#spell-effects):
 11. A self-delivered spell, power, or scroll the source casts on itself, such
     as Oakflesh, Flame Cloak, a ward, or Healing, shows its hit shader and art
     on the remote actor while the source shows them, including to a late
-    joiner, and they end when the source's end. A peer shows its own version
-    of the effect's look; a peer without the effect shows the source's
-    shader and art if it has them, and nothing otherwise. Aimed, touch, and target-location spells show
+    joiner, and they end when the source's end. A peer without the effect's
+    forms shows nothing for it. Aimed, touch, and target-location spells show
     no effect anywhere, and no peer's actor value, AI, or world changes.
 
 ## Known limitations
@@ -886,14 +872,11 @@ Not confirmed in game for [spell effects](#spell-effects):
   fade the bat art attached to its 3D as well. Mist Form's start and end sounds,
   image space, and end shader, and the bats' reform shaders, come from the
   effects' scripts and are not shown.
-- The source's effects decide when a look shows: a part the source's version
-  of the effect lacks, such as a hit shader its replacer removed, does not
-  show on a receiver whose version has one.
 - Spell effects show only the reference effects: what an archetype or script
   adds, such as an invisibility fade or a candlelight's light, and an
   effect's sounds are not shown. Shouts, potions, enchantments, abilities,
   diseases, and effects others cast on the source are not shown either.
-- At most 8 magic effects show at once. A spell effect
+- At most 8 effect shaders and 8 art objects show at once. A spell effect
   reaches peers up to the 0.1 s sample plus the 250 ms publish interval late,
   so a look shorter than that can be shortened or missed. A shown look
   restarts from its beginning when the remote actor's 3D changes.
