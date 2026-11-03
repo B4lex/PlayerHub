@@ -8,6 +8,7 @@
 #include "actor/ReactionSuppression.h"
 #include "actor/RemoteCollision.h"
 #include "actor/ScenePackageSuppression.h"
+#include "actor/SpellIsolation.h"
 #include "actor/SurvivalPolicy.h"
 #include "config/PluginConfig.h"
 #include "forms/BeastForms.h"
@@ -35,6 +36,7 @@ namespace PluginStartup
             AnimationFirewall::InstallHooks();
             SurvivalPolicy::InstallHooks();
             CombatIsolation::InstallHooks();
+            SpellIsolation::InstallHooks();
             ReactionSuppression::InstallHooks();
             RemoteCollision::InstallHooks();
             ScenePackageSuppression::InstallHooks();
@@ -42,9 +44,9 @@ namespace PluginStartup
             ActorSkeleton::InstallHooks();
 
             logs::info(
-                "Installed remote-replica actor policy, damage/kill firewall, magic firewall, animation firewall, "
-                "alias and scene package suppression, reaction suppression, pass-through collision, jump sound "
-                "attenuation, and skeleton pose replacement");
+                "Installed remote-replica actor policy, damage/kill firewall, magic firewall, spell world isolation, "
+                "animation firewall, alias and scene package suppression, reaction suppression, pass-through "
+                "collision, jump sound attenuation, and skeleton pose replacement");
         }
 
         void OnDataLoaded()
@@ -67,7 +69,8 @@ namespace PluginStartup
 
     std::size_t TrampolineSize()
     {
-        return 14 + CombatIsolation::kTrampolineSize + ReactionSuppression::kTrampolineSize
+        return 14 + CombatIsolation::kTrampolineSize + SpellIsolation::kTrampolineSize
+            + ReactionSuppression::kTrampolineSize
             + RemoteCollision::kTrampolineSize + ScenePackageSuppression::kTrampolineSize
             + JumpSound::kTrampolineSize + ActorSkeleton::kTrampolineSize + UI::Overlay::kTrampolineSize;
     }

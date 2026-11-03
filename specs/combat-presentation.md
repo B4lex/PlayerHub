@@ -2,17 +2,20 @@
 
 ## Status
 
-Dual casts ([Spells](#spells)) have not been confirmed in game. Native spell
-casting ([Spells](#spells), [Isolation](#isolation)) has not run in game.
+Dual casts ([Spells](#spells)) have not been confirmed in game. The isolation
+of a native hand's spell from the local world ([Spell world
+isolation](#spell-world-isolation)) has not run in game.
 
 ## Scope
 
 A remote actor shows its source's weapon stance, melee and bow attacks,
 bashes, power attacks, blocking, bow draws, and spell casts, standing or
 moving. Only animations and hand effects play, except a spell the receiver
-also has: it casts natively, so its effects, projectiles, and beams act in the
-receiver's world ([Spells](#spells)). Otherwise nothing is hit, staggered,
-damaged, spent, or targeted, and no arrow is launched.
+also has: it casts natively, so its projectiles and beams show in flight in
+the receiver's world, and its self effects apply to the remote actor
+([Spells](#spells)). Nothing is hit, staggered, damaged, pushed,
+spent, summoned, or targeted, and no arrow is launched
+([Spell world isolation](#spell-world-isolation)).
 
 The wire fields are in [Network](network.md#checkpoint-and-context) and
 [Network](network.md#actions); the synchronized weapons, spell hands, and
@@ -36,6 +39,7 @@ attack data records.
 | `actor/WeaponTransition` | The native draw and sheathe request and its completion ([Locomotion](locomotion.md#components)) |
 | `actor/ActorAnimation` | `GetCombatReadyState`, the graph and stance test every attack and hand presentation start shares |
 | `sync/equipment/SpellStandIn` | Spell hand look capture, resolution, and the stand-in spells |
+| `actor/SpellIsolation` | Spell fire and cast hooks, and the hooks that keep a remote actor's magic, projectiles, explosions, and hazards from acting on the local world |
 | `actor/AnimationEvents.h` | Event names and `GetPowerAttackEventDirection` |
 | `actor/BeastActions` | The beast action vocabulary and its graph events |
 | `actor/ActorShapeshift` | Beast action dispatch, vampire lord levitation and cast requests |
@@ -389,9 +393,9 @@ Goal: a peer sees the native cast of the source's spell: its charge, held
 ready, release, or concentration loop for its casting type and delivery, a
 ward, telekinesis, or ritual clip, and a dual cast. When the peer has the
 spell, it also sees what the spell does when it fires, as a native NPC cast:
-its effects on the caster, projectiles, beams, impacts, and sounds. Keeping
-those effects out of the peer's world is a later step
-([Known limitations](#known-limitations)).
+its self effects on the caster, and its projectiles, beams, and sprays in
+flight. None of it acts on or marks the peer's world
+([Spell world isolation](#spell-world-isolation)).
 
 A hand holding a fire-and-forget or concentration `SpellItem` that the
 receiver has holds the receiver's own version of that spell (a native hand),
@@ -460,10 +464,12 @@ spell satisfies, so the left cast plays `RitualSpellStart` or
   by its start's delay. The release clip's fire event reaches spell fire, which
   for a native hand fires and finishes the cast, and for a stand-in is
   suppressed by a hook that finishes the cast as native spell fire does; the
-  caster returning
-  to `kNone` ends the hand's cast without an interrupt. So does a
-  fire-and-forget caster that returns to `kNone` by itself, as when the engine
-  releases at once because the ready action was rejected. After
+  caster returning to `kNone` ends the hand's cast without an interrupt. So
+  does a fire-and-forget caster that returns to `kNone` by itself, as when the
+  engine releases at once because the ready action was rejected. Whether the
+  cast is fire-and-forget is read from the spell when the cast starts: a
+  native cast's finish clears the caster's `currentSpell`, so reading it then
+  held every native cast for the fallback (observed in a replay). After
   `kReleaseFinishFallbackSeconds` (3 s) without that, the cast is interrupted.
 - **Stop.** A cast the source ended without a release, a concentration cast, or
   a hand that lost its spell is stopped: the variable is cleared and
@@ -680,7 +686,8 @@ resolves these at `kDataLoaded`.
 
 Draw and cast clips natively run the release paths. These hooks keep a
 registered actor from releasing anything but a native hand's spell; other
-actors pass through. The vtable hooks install on every runtime; the spell fire
+actors pass through. The arrow hook is in `CombatIsolation`, the others in
+`SpellIsolation`. The vtable hooks install on every runtime; the spell fire
 entry detour is ID 34407 (SE 33629).
 
 | Hook | Effect for a remote actor |
@@ -697,11 +704,66 @@ is `IsDynamicForm`, which needs no lock on the threads that run spell fire.
 
 Hooking the `M?h_SpellFire_Event` handlers did not stop the caster reaching
 state 6 (observed in game), so spell fire itself is hooked. Melee, bash, and
-arrow hits are dropped by [combat isolation](remote-actor.md#combat-isolation);
-its actor hit hook also drops a native spell projectile's physical hit
-(`ProjectileHit`), not the spell it applies. The magic firewall keeps hostile
-and detrimental effects off remote actors, so a native self spell, which is
-neither, applies to the caster.
+arrow hits are dropped by [combat isolation](remote-actor.md#combat-isolation).
+The magic firewall keeps hostile and detrimental effects from local sources
+off remote actors ([Remote actor](remote-actor.md#survival-and-ai-policy)).
+
+### Spell world isolation
+
+Goal: a native hand's spell shows its cast, its flight, and its effects on
+the caster, and leaves no trace in the receiver's world. Projectiles, beams,
+and sprays fly and vanish where they strike, without an explosion, impact
+art, particles, decal, sound, or light; a rune is never launched, and a wall
+spell places no flames. Self effects that stay on the caster (a flesh spell's
+shader, Candlelight, invisibility, a cloak's aura, a ward, and a hazard cast
+around the caster, such as Blizzard or Circle of Protection) apply to the
+remote actor. No local actor, the local player, or any object takes damage,
+a hit, a stagger, an effect, a push, or destruction; no creature is summoned
+or reanimated, and no weapon is bound.
+
+`SpellIsolation` drops each part where the engine applies it, so the fire,
+launch, and flight stay native. A source is remote when it is a registered
+actor, or a projectile, explosion, or hazard acting for one: a projectile's
+`shooter` or `actorCause`, an explosion's `actorOwner` or `actorCause`, a
+hazard's `ownerActor`, or any reference's `GetActorCause`.
+`Hazard::SetActorCause` (ID 43966) stores its cause's actor as `ownerActor`,
+so a hazard cast around the caster acts for it.
+
+| Hook (1.7.104, SE) | Drops for a remote source |
+| --- | --- |
+| `MagicTarget::AddTarget` (vfunc 1) of `Character` and `PlayerCharacter` (both ID 38786, SE 37832, chained after the [magic firewall](remote-actor.md#survival-and-ai-policy)) and `NonActorMagicTarget` | Any effect on another actor or an object, and on the caster itself any archetype but value modifiers (`kValueModifier`, `kDualValueModifier`, `kPeakValueModifier`, `kValueAndParts`, `kAccumulateMagnitude`), `kInvisibility`, `kLight`, `kNightEye`, `kEtherealize`, `kDisguise`, `kCloak`, and `kSpawnHazard`. Returns false, as the magic firewall does |
+| Projectile spell impact (ID 34412 + 9, SE 33634 + 9) `(caster, location, projectile, target, …)` | The spell where a projectile struck. Every impact casts through it with the shooter's own caster: `Projectile::ProcessImpacts` (ID 44123), `HandleHits` (ID 44204, beams and flames) and the cone and arrow impacts through ID 44206, and a lobber's detonation through ID 34411. This includes target-location summons |
+| HitData processing (ID 38586, SE 37633) `(target, hitData)` | A hit whose `aggressor` is remote: damage, stagger, hit impulse, hit effects, `TESHitEvent`. Spell projectiles (ID 44123 + 0x269), beams (ID 44204 + 0x3AA), and explosions (ID 43849 + 0x412) reach it without the actor hit hook |
+| `TaskQueueInterface::QueueUpdateDestructibleObject` (ID 36909, SE 35934 + 9) | Destruction damage whose cause is a remote source |
+| Projectile impact impulse (ID 44215 + 9, SE 43024 + 9) | The push on the rigid body a projectile struck (`ScaleGameplayImpulseForce`, ID 26004, then the body's point impulse) |
+| Explosion targets (ID 43849, SE 42677) | Every reference the explosion found: actor cause, HitData, the enchantment, and the impulse (ID 39895). Sets `kTargetsProcessed`, as the original does first, so the update does not call it again |
+| Explosion forces (ID 43850, SE 42678) | The impulses on bodies in the radius (`SetLinearImpulse`/`SetAngularImpulse`, IDs 78091/78092). Sets `kForcesApplied`, as the original does |
+| Spell projectile launch (ID 34452, SE 33672), from `FindTargets` and the area and target-location casts | Returns true without launching when the current spell's projectile (`GetAVEffect`) has `kExplosionAltTrigger` and an `explosionProximity`: a rune. The callers only test the result, which the original always sets; `Projectile::Launch` (ID 44108) is not failed instead, because this caller uses the new projectile without a null check |
+| Impact effects (ID 44213, SE 43022) `(projectile, target, impact, …)` | The impact data set's art, particles, decal, sound, and light, the hit reference's actor cause, and the hazard an impact places (a wall's flames). Its callers are `ProcessImpacts` (+0x407), the beam and flame hits (ID 44205), and the cone impact (ID 43806) |
+| Explosion factory call in the projectile update (ID 44216 + 0x3C8, SE 43025 + 0x39F, call detour) | Returns no explosion for a remote projectile, read from the creation record at +0x20, where the update stores it. A null explosion is an ordinary result there, and the projectile is killed as after one |
+
+The explosion target and force hooks cover explosions a remote source creates
+outside the projectile update, such as those of a hazard cast around the
+caster. A rune's proximity detonation (ID 44217, and
+`GrenadeProjectile::OnTriggerEnter`, ID 43933) is not hooked: a remote rune is
+never launched, and any other remote projectile that detonates vanishes
+without an explosion or a spell.
+
+The ID 34412 and 44215 detours sit past an entry guard (`test r8/r9, r9; je`
+to `ret`), as does SE's 35934 (`test rdx, rdx; je`), which 1.7.104 tests after
+its `sub rsp`. Each logs `Suppressed remote spell world effect` with the path
+and both form IDs, and the magic target hooks `Suppressed remote actor magic
+effect` with the archetype, throttled.
+
+The self archetypes are an allowlist rather than a list of world-changing
+ones, so a modded archetype use defaults to dropped: a script effect
+(`kScript`, such as Transmute), a summon, a bound weapon (equipment sync owns
+the hands), telekinesis, or a transformation does nothing. A cloak's and a
+spawned hazard's own spells reach targets through new `AddTarget` calls with
+the remote actor or the hazard as their source, so the aura and the hazard
+around the caster show while their effects are dropped. The allowlist applies to every effect
+whose source is the remote actor itself, including its abilities and
+equipment enchantments.
 
 ## Engine assumptions
 
@@ -788,6 +850,29 @@ Not confirmed in game for [beast actions](#beast-actions):
     actor; neither passes the remote actor's magic firewall, which only
     stops active effects.
 
+Not confirmed in game for [spell world isolation](#spell-world-isolation)
+(each hook site was read from the 1.7.104 and 1.5.97 disassembly):
+
+20. A remote actor's touch spell and every spell a cloak or hazard applies
+    reach `MagicTarget::AddTarget` with the remote actor, or a reference whose
+    actor cause is the remote actor, as `AddTargetData::caster`. A self spell
+    reaches it with the caster as both caster and target.
+21. Every spell, hit, impulse, and destruction a remote projectile or
+    explosion causes passes through one of the hooked functions; in
+    particular, a spell projectile's hit on an object reaches scripts
+    (`OnHit`, `OnMagicEffectApply`) only through the spell impact (ID 34412)
+    and `AddTarget`.
+22. Every impact visual and impact-placed hazard of a projectile comes from
+    the impact effects (ID 44213), and every explosion of a projectile from
+    the projectile update's factory call (ID 44216 + 0x3C8), for missiles,
+    lobbers, beams, flames, cones, and barriers. A hazard cast around the
+    caster (`kSpawnHazard`), and the projectiles and explosions it launches,
+    such as a blizzard's, carry the remote actor as `ownerActor` or actor
+    cause.
+23. The spell projectile launch (ID 34452) is the only path that launches a
+    rune for a remote actor's cast, and returning true without a projectile
+    ends a fire-and-forget target-location cast as a launch does.
+
 ## Acceptance criteria
 
 1. A remote actor converges to the source's drawn or sheathed stance without
@@ -815,10 +900,16 @@ Not confirmed in game for [beast actions](#beast-actions):
    casts; self, aimed, ward, telekinesis, ritual, and dual casts play their own
    clips. A peer without the spell plays Healing Hands' cast, and no
    projectile, beam, effect, or release sound appears; a peer with it sees the
-   spell's native release, effects, projectiles, beams, and sounds.
+   spell's native release, self effects, and projectiles, beams, and sprays
+   in flight, which vanish where they strike.
 8. Sheathing, jumping, or sitting ends a draw, cast, or block first. A late
    joiner sees an ongoing draw, cast, or block.
-9. Nothing is hit, staggered, or damaged, except by a native hand's spell.
+9. Nothing is hit, staggered, damaged, pushed, or destroyed, and no local
+   actor, object, or the local player receives an effect, including from a
+   native hand's projectiles, beams, sprays, cloaks, and hazards. A native
+   projectile leaves no explosion, impact effect, decal, or wall flames, and a
+   rune is not launched. A native summon, reanimation, bound weapon, or
+   scripted effect does nothing.
 10. A werewolf or werebear peer's claw swings, power, side, running, and
     sprinting attacks, howls, and feeding play on its remote actor in order;
     a vampire lord peer's melee attacks, bats, feeding, and casts play too, and
@@ -828,12 +919,15 @@ Not confirmed in game for [beast actions](#beast-actions):
 
 ## Known limitations
 
-- A native hand's spell acts in the receiver's world as an NPC's cast would:
-  its projectiles, beams, cloaks, and area effects can damage and affect the
-  local player and local actors (only their physical projectile hit is
-  dropped), and summons, light spells, and other archetypes run there.
-  Aiming follows the remote actor's facing, not the source's crosshair. These
-  are left for a later step.
+- A native hand's spell aims along the remote actor's facing, not the
+  source's crosshair, so its projectiles and beams may strike elsewhere than
+  on the source. Where it strikes shows nothing, and its hit art and shaders
+  on local targets do not show, since its effects never attach there.
+- A remote actor's self effects with an archetype outside the allowlist
+  ([Spell world isolation](#spell-world-isolation)) do not show at all, and
+  scripts attached to an allowed self effect still run on the remote actor.
+- Non-goals: showing a peer's summons, reanimated thralls, or bound weapons.
+  Each would be a local actor or item with its own synchronization.
 - A native hand's light is the spell's own, not its
   [fake light](appearance-and-equipment.md#fake-lights) version, so a spell
   whose hand light casts shadows takes a shadow-casting light slot.

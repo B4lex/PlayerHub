@@ -207,6 +207,17 @@ namespace ActorRegistry
         {
             return Find(std::addressof(a_actor));
         }
+
+        bool IsRegisteredNativeHandle(std::uint32_t a_nativeHandle)
+        {
+            if (a_nativeHandle == 0)
+            {
+                return false;
+            }
+
+            const auto lock = LockSharedUnlessMainThread();
+            return FindIndexed(s_byHandle, a_nativeHandle) != nullptr;
+        }
     }
 
     void Register(RemoteActor& a_remote, RE::Actor& a_actor)
@@ -272,14 +283,12 @@ namespace ActorRegistry
 
     bool IsRegistered(RE::ActorHandle a_handle)
     {
-        const auto nativeHandle = a_handle.native_handle();
-        if (nativeHandle == 0)
-        {
-            return false;
-        }
+        return IsRegisteredNativeHandle(a_handle.native_handle());
+    }
 
-        const auto lock = LockSharedUnlessMainThread();
-        return FindIndexed(s_byHandle, nativeHandle) != nullptr;
+    bool IsRegistered(RE::ObjectRefHandle a_handle)
+    {
+        return IsRegisteredNativeHandle(a_handle.native_handle());
     }
 
     bool EnableAnimationFirewall(const RemoteActor& a_remote)

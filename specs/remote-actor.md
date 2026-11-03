@@ -36,7 +36,8 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/AnimationFirewall` | Rejects locally injected graph events; network dispatch bypasses it |
 | `actor/GraphRecovery` | Detects a local hit reaction and reverts the graph or resets 3D ([Graph recovery](#graph-recovery)) |
 | `actor/SurvivalPolicy` | Actor flags, combat sanitization, package takeover, damage, kill, and magic guards |
-| `actor/CombatIsolation` | Hostility, combat start, and hit hooks |
+| `actor/CombatIsolation` | Hostility, combat start, melee and actor hit, and arrow release hooks |
+| `actor/SpellIsolation` | Spell fire and cast hooks and spell world isolation ([Combat presentation](combat-presentation.md#isolation)) |
 | `actor/PrecisionIsolation` | Excludes remote actors from Precision through its interface |
 | `actor/RaceMenuOverlays` | Applies a peer's RaceMenu overlays through SKEE and releases them when the actor is removed ([Appearance and equipment](appearance-and-equipment.md#overlays)) |
 | `actor/ReactionSuppression` | Dialogue, flee, and detection hooks |
@@ -239,8 +240,8 @@ A detected graph manager replacement also resets the bookkeeping.
 
 Local enemies, creatures, guards, and followers never become hostile to a
 remote actor, target it, or start combat with it, and its replicated attacks
-hit nothing. The exception is a spell it casts natively, whose effects reach
-local actors ([Combat presentation](combat-presentation.md#isolation)).
+hit nothing. A spell it casts natively shows its projectiles in flight
+but acts on nothing ([Combat presentation](combat-presentation.md#spell-world-isolation)).
 
 ### Why the flag and the hooks
 
@@ -901,8 +902,8 @@ Not confirmed in game:
 17. The SE 1.5.97 functions behave as their 1.7.104 counterparts, matched in
     the 1.5.97 disassembly by instruction sequence and by calling the SE
     counterparts of the same functions. Combat: 36534
-    (37534), 36537 (37537), 37608 (38561), 37650 (38603), 33629 (34407),
-    37674 (38628), and 37673 (38627). Reactions: 38612 (39643), 34414 (35221),
+    (37534), 36537 (37537), 37608 (38561), 37650 (38603), 37674 (38628), and
+    37673 (38627); spell fire 33629 (34407). Reactions: 38612 (39643), 34414 (35221),
     102158 (109588), 36575 (37577), and 41626 (42704). Hostility,
     IsHostileToActor, spell fire, the swing target, and the three reaction
     detours have the same entry bytes on SE; StartCombat and the hit frame open

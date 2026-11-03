@@ -17,6 +17,7 @@ namespace ActorRegistry
 
     [[nodiscard]] bool IsRegistered(const RE::Actor* a_actor);
     [[nodiscard]] bool IsRegistered(RE::ActorHandle a_handle);
+    [[nodiscard]] bool IsRegistered(RE::ObjectRefHandle a_handle);
 
     [[nodiscard]] bool EnableAnimationFirewall(const RemoteActor& a_remote);
     void DisableAnimationFirewall(const RemoteActor& a_remote);
