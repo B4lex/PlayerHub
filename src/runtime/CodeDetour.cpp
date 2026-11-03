@@ -47,6 +47,23 @@ namespace CodeDetour
         return SKSE::GetTrampoline().write_call<5>(site, a_thunk);
     }
 
+    std::uintptr_t WriteCalleeDetour(REL::ID a_caller, std::size_t a_searchLength, REL::ID a_callee,
+        std::uintptr_t a_thunk, std::string_view a_name)
+    {
+        const auto caller = REL::Relocation<std::uintptr_t>{ a_caller }.address();
+        const auto callee = REL::Relocation<std::uintptr_t>{ a_callee }.address();
+        for (std::size_t offset = 0; offset + kBranchSize <= a_searchLength; ++offset)
+        {
+            if (ReadCallTarget(caller + offset) == callee)
+            {
+                logs::debug("Found {} call at ID {} + {:#x}", a_name, a_caller.id(), offset);
+                return SKSE::GetTrampoline().write_call<5>(caller + offset, a_thunk);
+            }
+        }
+        logs::error("Did not install {} hook: no call to ID {} in ID {}", a_name, a_callee.id(), a_caller.id());
+        return 0;
+    }
+
     std::uintptr_t ReadCallTarget(std::uintptr_t a_site)
     {
         if (*reinterpret_cast<const std::uint8_t*>(a_site) != 0xE8)

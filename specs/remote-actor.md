@@ -50,7 +50,7 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/GraphVocabulary`, `actor/VanillaGraphNames.h` | The vanilla event prefix and the generated vanilla machine and state name hashes ([Source window](#source-window)) |
 | `sync/skeleton/PoseWindow` | Opens, holds, and closes the local player's pose window on modded graph behavior and on reactions |
 | `sync/skeleton/SkeletonSync` | Samples the local pose inside a window; ranks posed peers into slots, interpolates, and blends a remote actor's pose in and out |
-| `runtime/CodeDetour` | Shared entry detour: copies checked entry bytes, at the entry or past an entry guard, into a trampoline gateway |
+| `runtime/CodeDetour` | Shared entry detour, which copies checked entry bytes, at the entry or past an entry guard, into a trampoline gateway; call-site detours at a fixed offset or found by call target |
 
 ## Spawn
 
@@ -327,8 +327,14 @@ jumps back to the next byte, then writes a 5-byte branch to the thunk. An
 offset moves the detour past an entry guard that only returns. The
 bytes are compared first: if another plugin already patched the function, that
 hook is skipped and an error is logged. An entry detour pads moved bytes past
-the fifth with NOPs. A call-site detour chains to whatever the call pointed to, so
-another plugin's hook there keeps working. Startup logs which hooks were
+the fifth with NOPs. A plugin that hooks the same entry later by copying its
+first bytes breaks, because it copies this plugin's relative branch; a function
+known to be hooked that way is detoured at its call sites instead. A call-site
+detour chains to whatever the call pointed to, so another plugin's hook there
+keeps working. `WriteCalleeDetour` finds the site as the first call to the
+callee within a search length of the caller's entry, so the offset may differ
+between runtimes; a site another plugin detoured first is not found, and the
+hook is skipped with an error. Startup logs which hooks were
 installed. Suppressions are logged with the path, both form IDs, and a count,
 throttled.
 

@@ -14,6 +14,7 @@ namespace SpellIsolation
     {
         using ActorConstants::ShouldLogOccurrence;
         using CodeDetour::EntryDetourTrampolineSize;
+        using CodeDetour::WriteCalleeDetour;
         using CodeDetour::WriteEntryDetour;
         using Prologue = std::span<const std::uint8_t>;
         using Archetype = RE::EffectSetting::Archetype;
@@ -64,30 +65,30 @@ namespace SpellIsolation
             0x56, // push rsi
             0x57 // push rdi
         };
-        constexpr std::array<std::uint8_t, 7> kImpactEffectsPrologue{
-            0x48, 0x8B, 0xC4, // mov rax, rsp
-            0x48, 0x89, 0x50, 0x10 // mov [rax+10h], rdx
-        };
-        constexpr std::array<std::uint8_t, 6> kSEImpactEffectsPrologue{
-            0x48, 0x8B, 0xC4, // mov rax, rsp
-            0x55, // push rbp
-            0x41, 0x54 // push r12
-        };
         // test reg, reg (3 bytes) and a near je (6 bytes).
         constexpr std::ptrdiff_t kEntryGuardSize = 9;
-        // The projectile update's call of the explosion factory (ID 43829, SE 42657).
-        constexpr std::ptrdiff_t kProjectileExplosionCallOffset = 0x3C8;
-        constexpr std::ptrdiff_t kSEProjectileExplosionCallOffset = 0x39F;
+        // Covers each call site found below (at most +0x479, SE) with room for
+        // another runtime's layout.
+        constexpr std::size_t kCallSearchLength = 0x800;
+        // The callers of the impact effects (ID 44213, SE 43022): the cone impact,
+        // ProcessImpacts, and the beam and flame hits. The function itself is not
+        // detoured: PapyrusExtender hooks its entry later, at kDataLoaded, by
+        // copying its first 7 bytes into a gateway, and a copied relative branch
+        // of ours would jump elsewhere.
+        constexpr std::array kImpactEffectsCallers{
+            RELOCATION_ID(42638, 43806),
+            RELOCATION_ID(42943, 44123),
+            RELOCATION_ID(43014, 44205),
+        };
 
         static_assert(6 * EntryDetourTrampolineSize(5) + EntryDetourTrampolineSize(kSpellImpactPrologue.size())
-                + EntryDetourTrampolineSize(kImpactEffectsPrologue.size())
-                + EntryDetourTrampolineSize(kSEDestructiblePrologue.size()) + CodeDetour::kCallDetourTrampolineSize
+                + EntryDetourTrampolineSize(kSEDestructiblePrologue.size())
+                + (kImpactEffectsCallers.size() + 1) * CodeDetour::kCallDetourTrampolineSize
             == kTrampolineSize);
         static_assert(kSpellFirePrologue.size() == 5 && kHitDataPrologue.size() == 5
             && kImpactImpulsePrologue.size() == 5 && kExplosionTargetsPrologue.size() == 5
             && kExplosionForcesPrologue.size() == 5
-            && kSpellLaunchPrologue.size() == 5 && kDestructiblePrologue.size() <= kSEDestructiblePrologue.size()
-            && kSEImpactEffectsPrologue.size() <= kImpactEffectsPrologue.size());
+            && kSpellLaunchPrologue.size() == 5 && kDestructiblePrologue.size() <= kSEDestructiblePrologue.size());
 
         void LogSuppressed(std::atomic_uint32_t& a_counter, std::string_view a_path, const RE::TESForm* a_source,
             const RE::TESForm* a_target)
@@ -468,8 +469,7 @@ namespace SpellIsolation
 
         // A projectile's impact effects (ID 44213, SE 43022): the impact data set's
         // art, particles, decal, and sound, the hit reference's actor cause, and the
-        // hazard an impact places, such as a wall spell's flames. Called from
-        // ProcessImpacts, the beam and flame hits (ID 44205), and the cone impact.
+        // hazard an impact places, such as a wall spell's flames.
         struct ImpactEffectsHook
         {
             static void Thunk(RE::Projectile* a_projectile, RE::TESObjectREFR* a_target, void* a_impact,
@@ -487,9 +487,10 @@ namespace SpellIsolation
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
-        // The projectile update's explosion (ID 44216 + 0x3C8, SE 43025 + 0x39F):
-        // it fills a creation record, with the projectile at +0x20, and treats a
-        // null explosion as none, killing the projectile as it would after one.
+        // The explosion factory (ID 43829, SE 42657) as the projectile update calls
+        // it (ID 44216 + 0x3C8, SE 43025 + 0x39F): that call fills a creation
+        // record, with the projectile at +0x20, and treats a null explosion as
+        // none, killing the projectile as it would after one.
         struct ProjectileExplosionHook
         {
             static constexpr std::ptrdiff_t kRecordProjectileOffset = 0x20;
@@ -680,20 +681,28 @@ namespace SpellIsolation
             "explosion forces");
         SpellLaunchHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(33672, 34452)), kSpellLaunchPrologue,
             reinterpret_cast<std::uintptr_t>(&SpellLaunchHook::Thunk), "spell projectile launch");
-        ImpactEffectsHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(43022, 44213)),
-            REL::Relocate(Prologue{ kSEImpactEffectsPrologue }, Prologue{ kImpactEffectsPrologue }),
-            reinterpret_cast<std::uintptr_t>(&ImpactEffectsHook::Thunk), "projectile impact effects");
-        ProjectileExplosionHook::_original = CodeDetour::WriteCallDetour(REL::ID(RELOCATION_ID(43025, 44216)),
-            REL::Relocate(std::ptrdiff_t{ kSEProjectileExplosionCallOffset },
-                std::ptrdiff_t{ kProjectileExplosionCallOffset }),
+        // Every site calls the same function, so any detoured one gives the original.
+        std::size_t impactEffectsSites = 0;
+        for (const auto caller : kImpactEffectsCallers)
+        {
+            if (const auto original = WriteCalleeDetour(REL::ID(caller), kCallSearchLength,
+                    REL::ID(RELOCATION_ID(43022, 44213)), reinterpret_cast<std::uintptr_t>(&ImpactEffectsHook::Thunk),
+                    "projectile impact effects"))
+            {
+                ImpactEffectsHook::_original = original;
+                ++impactEffectsSites;
+            }
+        }
+        ProjectileExplosionHook::_original = WriteCalleeDetour(REL::ID(RELOCATION_ID(43025, 44216)),
+            kCallSearchLength, REL::ID(RELOCATION_ID(42657, 43829)),
             reinterpret_cast<std::uintptr_t>(&ProjectileExplosionHook::Thunk), "projectile explosion");
         logs::debug(
             "Remote spell isolation hooks: spellFire={} spellImpact={} hitData={} destructible={} impactImpulse={} "
-            "explosionTargets={} explosionForces={} spellLaunch={} impactEffects={} projectileExplosion={}",
+            "explosionTargets={} explosionForces={} spellLaunch={} impactEffects={}/{} projectileExplosion={}",
             SpellFireHook::_original.address() != 0, SpellImpactHook::_original.address() != 0,
             HitDataHook::_original.address() != 0, DestructibleHook::_original.address() != 0,
             ImpactImpulseHook::_original.address() != 0, ExplosionTargetsHook::_original.address() != 0,
             ExplosionForcesHook::_original.address() != 0, SpellLaunchHook::_original.address() != 0,
-            ImpactEffectsHook::_original.address() != 0, ProjectileExplosionHook::_original.address() != 0);
+            impactEffectsSites, kImpactEffectsCallers.size(), ProjectileExplosionHook::_original.address() != 0);
     }
 }

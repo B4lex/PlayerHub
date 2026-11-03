@@ -30,5 +30,11 @@ namespace CodeDetour
     [[nodiscard]] std::uintptr_t WriteCallDetour(
         REL::ID a_id, std::ptrdiff_t a_offset, std::uintptr_t a_thunk, std::string_view a_name);
 
+    // Detours the first call to a_callee within a_searchLength bytes of
+    // a_caller's entry, so the site need not be at the same offset on every
+    // runtime. A site another plugin already detoured is not found.
+    [[nodiscard]] std::uintptr_t WriteCalleeDetour(REL::ID a_caller, std::size_t a_searchLength, REL::ID a_callee,
+        std::uintptr_t a_thunk, std::string_view a_name);
+
     [[nodiscard]] std::uintptr_t ReadCallTarget(std::uintptr_t a_site);
 }

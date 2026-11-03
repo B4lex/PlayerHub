@@ -873,8 +873,8 @@ so a hazard cast around the caster acts for it.
 | Explosion targets (ID 43849, SE 42677) | Every reference the explosion found: actor cause, HitData, the enchantment, and the impulse (ID 39895). Sets `kTargetsProcessed`, as the original does first, so the update does not call it again |
 | Explosion forces (ID 43850, SE 42678) | The impulses on bodies in the radius (`SetLinearImpulse`/`SetAngularImpulse`, IDs 78091/78092). Sets `kForcesApplied`, as the original does |
 | Spell projectile launch (ID 34452, SE 33672), from `FindTargets` and the area and target-location casts | Returns true without launching when the current spell's projectile (`GetAVEffect`) has `kExplosionAltTrigger` and an `explosionProximity`: a rune. The callers only test the result, which the original always sets; `Projectile::Launch` (ID 44108) is not failed instead, because this caller uses the new projectile without a null check |
-| Impact effects (ID 44213, SE 43022) `(projectile, target, impact, …)` | The impact data set's art, particles, decal, sound, and light, the hit reference's actor cause, and the hazard an impact places (a wall's flames). Its callers are `ProcessImpacts` (+0x407), the beam and flame hits (ID 44205), and the cone impact (ID 43806) |
-| Explosion factory call in the projectile update (ID 44216 + 0x3C8, SE 43025 + 0x39F, call detour) | Returns no explosion for a remote projectile, read from the creation record at +0x20, where the update stores it. A null explosion is an ordinary result there, and the projectile is killed as after one |
+| Impact effects (ID 44213, SE 43022) `(projectile, target, impact, …)`, call detours in each caller: the cone impact (ID 43806 + 0x3A3, SE 42638 + 0x479), `ProcessImpacts` (ID 44123 + 0x407, SE 42943 + 0x410), and the beam and flame hits (ID 44205 + 0x18A, SE 43014 + 0x1EA) | The impact data set's art, particles, decal, sound, and light, the hit reference's actor cause, and the hazard an impact places (a wall's flames) |
+| Explosion factory (ID 43829, SE 42657) call in the projectile update (ID 44216 + 0x3C8, SE 43025 + 0x39F, call detour) | Returns no explosion for a remote projectile, read from the creation record at +0x20, where the update stores it. A null explosion is an ordinary result there, and the projectile is killed as after one |
 
 The explosion target and force hooks cover explosions a remote source creates
 outside the projectile update, such as those of a hazard cast around the
@@ -882,6 +882,14 @@ caster. A rune's proximity detonation (ID 44217, and
 `GrenadeProjectile::OnTriggerEnter`, ID 43933) is not hooked: a remote rune is
 never launched, and any other remote projectile that detonates vanishes
 without an explosion or a spell.
+
+The impact effects and explosion factory are detoured at their call sites,
+which `CodeDetour::WriteCalleeDetour` finds by call target from the caller's
+entry, so a runtime whose code layout differs from 1.7.104's (such as
+1.6.1170) still finds them. The impact effects' entry is left untouched because
+PapyrusExtender hooks it at `kDataLoaded`, after this plugin, by copying its
+first 7 bytes into its own gateway, and a relative branch of ours copied
+there would jump into unmapped memory on the first projectile impact.
 
 The ID 34412 and 44215 detours sit past an entry guard (`test r8/r9, r9; je`
 to `ret`), as does SE's 35934 (`test rdx, rdx; je`), which 1.7.104 tests after
@@ -1018,7 +1026,7 @@ Not confirmed in game for [spell world isolation](#spell-world-isolation)
     and `AddTarget`.
 22. Every impact visual and impact-placed hazard of a projectile comes from
     the impact effects (ID 44213), and every explosion of a projectile from
-    the projectile update's factory call (ID 44216 + 0x3C8), for missiles,
+    the projectile update's factory call (ID 44216), for missiles,
     lobbers, beams, flames, cones, and barriers. A hazard cast around the
     caster (`kSpawnHazard`), and the projectiles and explosions it launches,
     such as a blizzard's, carry the remote actor as `ownerActor` or actor
