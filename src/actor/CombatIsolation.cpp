@@ -1,6 +1,7 @@
 #include "actor/CombatIsolation.h"
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
+#include "actor/GameplayPolicy.h"
 #include "runtime/CodeDetour.h"
 
 #include <array>
@@ -14,6 +15,7 @@ namespace CombatIsolation
     {
         using ActorConstants::ShouldLogOccurrence;
         using CodeDetour::EntryDetourTrampolineSize;
+        using CodeDetour::WriteCalleeDetour;
         using CodeDetour::WriteEntryDetour;
 
         bool IsRemoteActorCombatQuery(const RE::Actor* a_actor, const RE::Actor* a_target, std::string_view a_path)
@@ -34,14 +36,18 @@ namespace CombatIsolation
             return true;
         }
 
-        bool IsRemoteActorHit(const RE::Actor* a_aggressor, const RE::TESObjectREFR* a_target, std::string_view a_path)
-        {
-            if (!ActorRegistry::IsRegistered(a_aggressor)
-                && (!a_target || !ActorRegistry::IsRegistered(a_target->As<RE::Actor>())))
-            {
-                return false;
-            }
+        // Written once by InstallHooks on the main thread before the game loop starts:
+        // a remote attack may reach the local player only while every hook that keeps
+        // it from the rest of the world is installed.
+        bool s_attacksReachable{ false };
 
+        bool AttacksReachPlayer()
+        {
+            return s_attacksReachable && GameplayPolicy::AttacksReachPlayer();
+        }
+
+        void LogSuppressedHit(const RE::Actor* a_aggressor, const RE::TESObjectREFR* a_target, std::string_view a_path)
+        {
             static std::atomic_uint32_t suppressedCount{ 0 };
             const auto count = ++suppressedCount;
             if (ShouldLogOccurrence(count))
@@ -49,6 +55,38 @@ namespace CombatIsolation
                 logs::debug("Suppressed hit involving remote actor: path={} aggressor={:08X} target={:08X} count={}",
                     a_path, a_aggressor ? a_aggressor->GetFormID() : 0, a_target ? a_target->GetFormID() : 0, count);
             }
+        }
+
+        // A remote actor's swing, before it has a target: it goes on only while its
+        // attacks may reach the local player, which the actor hit decides.
+        bool IsIsolatedRemoteSwing(const RE::Actor* a_attacker, std::string_view a_path)
+        {
+            if (!ActorRegistry::IsRegistered(a_attacker) || AttacksReachPlayer())
+            {
+                return false;
+            }
+            LogSuppressedHit(a_attacker, nullptr, a_path);
+            return true;
+        }
+
+        // A hit on a remote actor never lands, since its health is a replica. A remote
+        // actor's hit lands only where the [Gameplay] isolation of its source allows.
+        bool IsIsolatedHit(const RE::Actor* a_aggressor, const RE::TESObjectREFR* a_target,
+            const RE::Projectile* a_projectile, std::string_view a_path)
+        {
+            const bool remoteTarget = a_target && ActorRegistry::IsRegistered(a_target->As<RE::Actor>());
+            if (!remoteTarget && !ActorRegistry::IsRegistered(a_aggressor))
+            {
+                return false;
+            }
+            using GameplayPolicy::Source;
+            const auto source = a_projectile ? GameplayPolicy::Classify(*a_projectile) : Source::kAttack;
+            if (!remoteTarget && (source != Source::kAttack || s_attacksReachable)
+                && GameplayPolicy::MayAffect(source, a_target))
+            {
+                return false;
+            }
+            LogSuppressedHit(a_aggressor, a_target, a_path);
             return true;
         }
 
@@ -111,7 +149,7 @@ namespace CombatIsolation
                 + EntryDetourTrampolineSize(kIsHostileToActorPrologue.size())
                 + EntryDetourTrampolineSize(kStartCombatPrologue.size())
                 + EntryDetourTrampolineSize(kWeaponSwingHitPrologue.size())
-                + 2 * EntryDetourTrampolineSize(kHitPrologue.size())
+                + 2 * EntryDetourTrampolineSize(kHitPrologue.size()) + CodeDetour::kCallDetourTrampolineSize
             == kTrampolineSize);
         static_assert(kSEStartCombatPrologue.size() <= kStartCombatPrologue.size()
             && kSEWeaponSwingHitPrologue.size() <= kWeaponSwingHitPrologue.size()
@@ -179,7 +217,7 @@ namespace CombatIsolation
         {
             static void Thunk(RE::Actor* a_attacker, bool a_leftHand, bool a_flag)
             {
-                if (IsRemoteActorHit(a_attacker, nullptr, "WeaponSwing"))
+                if (IsIsolatedRemoteSwing(a_attacker, "WeaponSwing"))
                 {
                     return;
                 }
@@ -197,7 +235,7 @@ namespace CombatIsolation
         {
             static RE::TESObjectREFR* Thunk(RE::Actor* a_attacker)
             {
-                if (IsRemoteActorHit(a_attacker, nullptr, "SwingHitTarget"))
+                if (IsIsolatedRemoteSwing(a_attacker, "SwingHitTarget"))
                 {
                     return nullptr;
                 }
@@ -216,7 +254,7 @@ namespace CombatIsolation
             static void Thunk(
                 RE::Actor* a_aggressor, RE::TESObjectREFR* a_target, RE::Projectile* a_projectile, bool a_leftHand)
             {
-                if (IsRemoteActorHit(a_aggressor, a_target, a_projectile ? "ProjectileHit" : "ActorHit"))
+                if (IsIsolatedHit(a_aggressor, a_target, a_projectile, a_projectile ? "ProjectileHit" : "ActorHit"))
                 {
                     return;
                 }
@@ -226,13 +264,33 @@ namespace CombatIsolation
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
+        // The melee hit frame's object hit (ID 38620, SE 37666), called when the swing
+        // struck no actor: the hit on the struck object, including the weapon's
+        // enchantment cast on it (ID 34409). A remote actor's attack reaches only the
+        // local player, so its object hits are always dropped.
+        struct ObjectHitHook
+        {
+            static void Thunk(RE::Actor* a_attacker, void* a_object, std::uint64_t a_arg3)
+            {
+                if (ActorRegistry::IsRegistered(a_attacker))
+                {
+                    LogSuppressedHit(a_attacker, nullptr, "ObjectHit");
+                    return;
+                }
+                _original(a_attacker, a_object, a_arg3);
+            }
+
+            static inline REL::Relocation<decltype(Thunk)> _original;
+        };
+
         // The arrowRelease annotation handler launches the nocked arrow and spends
-        // the ammo. A remote actor's bow draw keeps the arrow model it attached.
+        // the ammo. A remote actor's bow draw keeps the arrow model it attached,
+        // unless its attacks may reach the local player.
         struct ArrowReleaseHandlerHook
         {
             static bool Thunk(RE::AnimHandler* a_handler, RE::Actor& a_actor, const RE::BSFixedString& a_tag)
             {
-                if (IsRemoteActorRelease(&a_actor, "ArrowRelease"))
+                if (!AttacksReachPlayer() && IsRemoteActorRelease(&a_actor, "ArrowRelease"))
                 {
                     return true;
                 }
@@ -273,12 +331,22 @@ namespace CombatIsolation
         ActorHitHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(37673, 38627)),
             REL::Relocate(Prologue{ kSEActorHitPrologue }, Prologue{ kHitPrologue }),
             reinterpret_cast<std::uintptr_t>(&ActorHitHook::Thunk), "actor hit", kActorHitGuardSize);
+        ObjectHitHook::_original = WriteCalleeDetour(REL::ID(RELOCATION_ID(37650, 38603)),
+            REL::ID(RELOCATION_ID(37666, 38620)), reinterpret_cast<std::uintptr_t>(&ObjectHitHook::Thunk),
+            "melee object hit");
         logs::debug(
             "Remote actor combat isolation hooks: hostility={} isHostileToActor={} startCombat={} weaponSwingHit={} "
-            "swingHitTarget={} actorHit={}",
+            "swingHitTarget={} actorHit={} objectHit={}",
             HostilityHook::_original.address() != 0, IsHostileToActorHook::_original.address() != 0,
             StartCombatHook::_original.address() != 0, WeaponSwingHitHook::_original.address() != 0,
-            SwingHitTargetHook::_original.address() != 0,
-            ActorHitHook::_original.address() != 0);
+            SwingHitTargetHook::_original.address() != 0, ActorHitHook::_original.address() != 0,
+            ObjectHitHook::_original.address() != 0);
+        s_attacksReachable = WeaponSwingHitHook::_original.address() != 0
+            && SwingHitTargetHook::_original.address() != 0 && ActorHitHook::_original.address() != 0
+            && ObjectHitHook::_original.address() != 0;
+        if (!s_attacksReachable)
+        {
+            logs::error("Remote actor combat isolation is incomplete: remote attacks stay isolated");
+        }
     }
 }

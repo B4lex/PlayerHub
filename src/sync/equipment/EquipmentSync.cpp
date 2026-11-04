@@ -1,5 +1,6 @@
 #include "sync/equipment/EquipmentSync.h"
 #include "actor/AttackDispatch.h"
+#include "actor/GameplayPolicy.h"
 #include "actor/HandPresentation.h"
 #include "actor/RemoteActor.h"
 #include "actor/WeaponTransition.h"
@@ -452,13 +453,16 @@ namespace EquipmentSync
         void EnsureResolved(RemoteState& a_remote, Multiplayer::PeerSlot a_playerID)
         {
             const auto revision = a_remote.latest ? a_remote.latest->revision : 0;
-            if (a_remote.resolved && a_remote.resolvedRevision == revision)
+            const bool nativeSpells = GameplayPolicy::ShowsSpellEffects();
+            if (a_remote.resolved && a_remote.resolvedRevision == revision
+                && a_remote.resolvedNativeSpells == nativeSpells)
             {
                 return;
             }
 
             a_remote.resolved = true;
             a_remote.resolvedRevision = revision;
+            a_remote.resolvedNativeSpells = nativeSpells;
             a_remote.armor.clear();
             a_remote.rightHand = {};
             a_remote.leftHand = {};

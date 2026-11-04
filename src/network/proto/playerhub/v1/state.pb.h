@@ -44,7 +44,9 @@ typedef enum _playerhub_v1_CheckpointFlag {
     playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_RELEASED = 1048576,
     /* The words a shout charges beyond its first; at most one is set. */
     playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS = 2097152,
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS = 4194304
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS = 4194304,
+    /* A released shout whose fire fails; only with CHECKPOINT_FLAG_SHOUT_RELEASED. */
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED = 8388608
 } playerhub_v1_CheckpointFlag;
 
 typedef enum _playerhub_v1_Shapeshift {
@@ -328,8 +330,8 @@ extern "C" {
 #define _playerhub_v1_MovementState_ARRAYSIZE ((playerhub_v1_MovementState)(playerhub_v1_MovementState_MOVEMENT_STATE_SNEAKING_RUNNING+1))
 
 #define _playerhub_v1_CheckpointFlag_MIN playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_NONE
-#define _playerhub_v1_CheckpointFlag_MAX playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS
-#define _playerhub_v1_CheckpointFlag_ARRAYSIZE ((playerhub_v1_CheckpointFlag)(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS+1))
+#define _playerhub_v1_CheckpointFlag_MAX playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED
+#define _playerhub_v1_CheckpointFlag_ARRAYSIZE ((playerhub_v1_CheckpointFlag)(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED+1))
 
 #define _playerhub_v1_Shapeshift_MIN playerhub_v1_Shapeshift_SHAPESHIFT_NONE
 #define _playerhub_v1_Shapeshift_MAX playerhub_v1_Shapeshift_SHAPESHIFT_WEREBEAR

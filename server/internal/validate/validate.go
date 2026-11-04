@@ -21,7 +21,7 @@ const (
 	MaximumTime            = 16383
 	MaximumMovementState   = 6
 	movementStateMask      = 0x7
-	knownFlags             = 0x7FFFFF
+	knownFlags             = 0xFFFFFF
 
 	SkeletonLayoutHuman       = 2
 	SkeletonLayoutHumanChange = 3 // a change from the stream's last pose (wire.ResolveSkeletonPose)
@@ -144,16 +144,19 @@ func castFlags(flags uint32) bool {
 		requires(pb.CheckpointFlag_CHECKPOINT_FLAG_DUAL_CASTING, pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT)
 }
 
-// shoutFlags reports whether the release and word flags come with the shouting flag, and at most
-// one word flag is set.
+// shoutFlags reports whether the release and word flags come with the shouting flag, at most
+// one word flag is set, and the failure flag comes with the release flag.
 func shoutFlags(flags uint32) bool {
 	const (
 		shouting = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUTING)
+		released = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_RELEASED)
 		twoWords = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS)
 		three    = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS)
-		shout    = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_RELEASED) | twoWords | three
+		failed   = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED)
+		shout    = released | twoWords | three
 	)
-	return (flags&shout == 0 || flags&shouting != 0) && flags&(twoWords|three) != twoWords|three
+	return (flags&shout == 0 || flags&shouting != 0) && flags&(twoWords|three) != twoWords|three &&
+		(flags&failed == 0 || flags&released != 0)
 }
 
 // SkeletonPose reports whether b is empty or a layout byte, the shortest varint of a mask of

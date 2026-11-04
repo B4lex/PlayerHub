@@ -6,6 +6,7 @@
 
 #include <RE/Skyrim.h>
 
+#include <cstdint>
 #include <deque>
 
 struct RemoteActor;
@@ -30,8 +31,12 @@ namespace VoiceSync
     struct RemoteState
     {
         std::deque<PendingPower> pendingPowers;
+        // Counts the source's shouts, so a shout the actor already played is told from
+        // the next one, which may already be released by then.
+        std::uint32_t shoutID{ 0 };
     };
 
+    void OnCheckpointPlayed(RemoteState& a_state, const CheckpointUpdate& a_update);
     void AcceptRemoteAction(
         RemoteState* a_state, const Network::PlayerTransform* a_checkpoint, Network::AnimationAction&& a_action);
     void AgeRemoteActions(const RemoteFrame& a_remote, RemoteState& a_state, float a_delta);

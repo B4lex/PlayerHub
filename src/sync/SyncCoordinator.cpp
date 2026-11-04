@@ -2,7 +2,9 @@
 #include "actor/ActorMovement.h"
 #include "actor/ActorRuntime.h"
 #include "actor/AttackDispatch.h"
+#include "actor/GameplayPolicy.h"
 #include "actor/PrecisionIsolation.h"
+#include "actor/RemoteCollision.h"
 #include "actor/RemoteLights.h"
 #include "network/ServerClient.h"
 #include "runtime/GameThread.h"
@@ -213,6 +215,7 @@ namespace SyncCoordinator
                     CombatSync::OnCheckpointPlayed(peer.combat, a_update);
                     ShapeshiftSync::OnCheckpointPlayed(peer.shapeshift, a_update);
                     IdleSync::OnCheckpointPlayed(peer.idle, a_update);
+                    VoiceSync::OnCheckpointPlayed(peer.voice, a_update);
                 });
             }
         }
@@ -538,6 +541,7 @@ namespace SyncCoordinator
         // A pass that returns before the peers are synced leaves no plates behind.
         NameplateSync::Clear();
         RestoreSaveEligibility(s_peers);
+        GameplayPolicy::Update();
         DefaultOutfit::Refresh();
         ApplyNetworkChanges(s_peers);
         ServePlayerDetails(s_peers);
@@ -548,6 +552,7 @@ namespace SyncCoordinator
             return;
         }
 
+        RemoteCollision::TrackLocalPlayer(*a_player);
         YieldActivatedFurniture(s_peers, *a_player);
         OpenActivatedPlayerMenu(s_peers);
         const bool inWorld = PresenceSync::SyncPresence(LocalFrame{ .player = *a_player });

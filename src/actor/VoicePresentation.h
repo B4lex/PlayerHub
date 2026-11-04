@@ -15,10 +15,14 @@ namespace VoicePresentation
         bool held{ false };
         // Mirrors the registry's voice ownership.
         bool owned{ false };
-        // A shout that ended while the source still reports it released.
-        bool awaitingNewShout{ false };
+        // Mirrors the registry's voice fire suppression.
+        bool fireSuppressed{ false };
+        // The source shout the actor holds or last held, which it does not start again.
+        std::uint32_t shoutID{ 0 };
         RE::TESShout* shout{ nullptr };
         float heldElapsed{ 0.0F };
+        // How long a released shout has outlasted the source's.
+        float outlastedElapsed{ 0.0F };
         float startCooldown{ 0.0F };
     };
 
@@ -26,8 +30,11 @@ namespace VoicePresentation
     {
         // The source's shout or its stand-in; null while unresolved.
         RE::TESShout* shout{ nullptr };
+        // VoiceSync's count of the source's shouts.
+        std::uint32_t shoutID{ 0 };
         bool shouting{ false };
         bool released{ false };
+        bool failed{ false };
         std::uint8_t words{ 0 };
     };
 

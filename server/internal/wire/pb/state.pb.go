@@ -109,6 +109,8 @@ const (
 	// The words a shout charges beyond its first; at most one is set.
 	CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS   CheckpointFlag = 2097152
 	CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS CheckpointFlag = 4194304
+	// A released shout whose fire fails; only with CHECKPOINT_FLAG_SHOUT_RELEASED.
+	CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED CheckpointFlag = 8388608
 )
 
 // Enum value maps for CheckpointFlag.
@@ -135,6 +137,7 @@ var (
 		1048576: "CHECKPOINT_FLAG_SHOUT_RELEASED",
 		2097152: "CHECKPOINT_FLAG_SHOUT_TWO_WORDS",
 		4194304: "CHECKPOINT_FLAG_SHOUT_THREE_WORDS",
+		8388608: "CHECKPOINT_FLAG_SHOUT_FAILED",
 	}
 	CheckpointFlag_value = map[string]int32{
 		"CHECKPOINT_FLAG_NONE":                0,
@@ -158,6 +161,7 @@ var (
 		"CHECKPOINT_FLAG_SHOUT_RELEASED":      1048576,
 		"CHECKPOINT_FLAG_SHOUT_TWO_WORDS":     2097152,
 		"CHECKPOINT_FLAG_SHOUT_THREE_WORDS":   4194304,
+		"CHECKPOINT_FLAG_SHOUT_FAILED":        8388608,
 	}
 )
 
@@ -2029,7 +2033,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x18MOVEMENT_STATE_SPRINTING\x10\x03\x12 \n" +
 	"\x1cMOVEMENT_STATE_SNEAKING_IDLE\x10\x04\x12#\n" +
 	"\x1fMOVEMENT_STATE_SNEAKING_WALKING\x10\x05\x12#\n" +
-	"\x1fMOVEMENT_STATE_SNEAKING_RUNNING\x10\x06*\xd3\x05\n" +
+	"\x1fMOVEMENT_STATE_SNEAKING_RUNNING\x10\x06*\xf8\x05\n" +
 	"\x0eCheckpointFlag\x12\x18\n" +
 	"\x14CHECKPOINT_FLAG_NONE\x10\x00\x12\x1c\n" +
 	"\x18CHECKPOINT_FLAG_GROUNDED\x10\b\x12 \n" +
@@ -2051,7 +2055,8 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x18CHECKPOINT_FLAG_SHOUTING\x10\x80\x80 \x12$\n" +
 	"\x1eCHECKPOINT_FLAG_SHOUT_RELEASED\x10\x80\x80@\x12&\n" +
 	"\x1fCHECKPOINT_FLAG_SHOUT_TWO_WORDS\x10\x80\x80\x80\x01\x12(\n" +
-	"!CHECKPOINT_FLAG_SHOUT_THREE_WORDS\x10\x80\x80\x80\x02*p\n" +
+	"!CHECKPOINT_FLAG_SHOUT_THREE_WORDS\x10\x80\x80\x80\x02\x12#\n" +
+	"\x1cCHECKPOINT_FLAG_SHOUT_FAILED\x10\x80\x80\x80\x04*p\n" +
 	"\n" +
 	"Shapeshift\x12\x13\n" +
 	"\x0fSHAPESHIFT_NONE\x10\x00\x12\x17\n" +

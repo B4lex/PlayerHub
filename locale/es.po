@@ -24,6 +24,10 @@ msgctxt "SectionControls"
 msgid "Keybinds"
 msgstr "Teclas"
 
+msgctxt "SectionGameplay"
+msgid "Gameplay"
+msgstr "Jugabilidad"
+
 msgctxt "SectionAdvanced"
 msgid "Advanced"
 msgstr "Avanzado"
@@ -381,6 +385,84 @@ msgid ""
 msgstr ""
 "Rechaza la oferta de intercambio de otro jugador, o retira la tuya, mientras "
 "espera respuesta."
+
+msgctxt "GameplayGroupEffects"
+msgid "Effects"
+msgstr "Efectos"
+
+msgctxt "GameplayShowSpellEffects"
+msgid "Show spell effects"
+msgstr "Mostrar efectos de hechizos"
+
+msgctxt "GameplayShowSpellEffectsComment"
+msgid ""
+"Shows what other players' spells do: projectiles, beams, and effects on the\n"
+"caster. Without it, they cast with only the spell's look in hand."
+msgstr "Muestra lo que hacen los hechizos de otros jugadores: proyectiles, rayos y efectos sobre el lanzador. Si no, lanzan con solo el aspecto del hechizo en la mano."
+
+msgctxt "GameplayShowShoutEffects"
+msgid "Show shout effects"
+msgstr "Mostrar efectos de gritos"
+
+msgctxt "GameplayShowShoutEffectsComment"
+msgid ""
+"Shows the breath, wave, or projectile of other players' shouts, and what\n"
+"their shouts and powers do to them. Without it, they only shout the words."
+msgstr "Muestra el aliento, la onda o el proyectil de los gritos de otros jugadores y lo que sus gritos y poderes les hacen. Si no, solo gritan las palabras."
+
+msgctxt "GameplayShowImpactEffects"
+msgid "Show impact effects"
+msgstr "Mostrar efectos de impacto"
+
+msgctxt "GameplayShowImpactEffectsComment"
+msgid ""
+"Shows harmless explosions and impacts where other players' isolated\n"
+"projectiles strike. Without it, those projectiles vanish where they strike."
+msgstr "Muestra explosiones e impactos inofensivos donde golpean los proyectiles aislados de otros jugadores. Si no, esos proyectiles desaparecen donde golpean."
+
+msgctxt "GameplayGroupIsolation"
+msgid "Isolation"
+msgstr "Aislamiento"
+
+msgctxt "GameplayIsolateSpellEffects"
+msgid "Isolate spell effects"
+msgstr "Aislar efectos de hechizos"
+
+msgctxt "GameplayIsolateSpellEffectsComment"
+msgid ""
+"Keeps other players' spells out of your world. Without it, they can harm\n"
+"you, characters, and objects, and summon creatures."
+msgstr "Mantiene los hechizos de otros jugadores fuera de tu mundo. Si no, pueden dañarte a ti, a personajes y objetos, e invocar criaturas."
+
+msgctxt "GameplayIsolateShoutEffects"
+msgid "Isolate shout effects"
+msgstr "Aislar efectos de gritos"
+
+msgctxt "GameplayIsolateShoutEffectsComment"
+msgid ""
+"Keeps other players' shouts and powers out of your world. Without it, they\n"
+"can harm and push you, characters, and objects."
+msgstr "Mantiene los gritos y poderes de otros jugadores fuera de tu mundo. Si no, pueden dañarte y empujarte a ti, a personajes y objetos."
+
+msgctxt "GameplayIsolateAttacks"
+msgid "Isolate attacks"
+msgstr "Aislar ataques"
+
+msgctxt "GameplayIsolateAttacksComment"
+msgid ""
+"Keeps other players' weapons from hitting you, and their bows from shooting\n"
+"arrows. Without it, their attacks can hit you, but nothing else."
+msgstr "Impide que las armas de otros jugadores te golpeen y que sus arcos disparen flechas. Si no, sus ataques pueden golpearte a ti, pero a nada más."
+
+msgctxt "GameplayDisableCollision"
+msgid "Disable collision"
+msgstr "Desactivar colisión"
+
+msgctxt "GameplayDisableCollisionComment"
+msgid ""
+"Lets you walk through other players. Without it, they block you as other\n"
+"characters do, and still pass through everything else."
+msgstr "Te permite atravesar a otros jugadores. Si no, te bloquean como otros personajes y siguen atravesando todo lo demás."
 
 msgctxt "AdvancedGroupPerformance"
 msgid "Performance"

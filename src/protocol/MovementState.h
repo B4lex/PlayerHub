@@ -70,6 +70,9 @@ namespace Multiplayer
 
         bool shouting{ false };
         bool released{ false };
+        // A released shout whose fire fails on the source, as a shout whose spells count
+        // as powers once they were used today.
+        bool failed{ false };
         // The shout's words, 1 to kMaximumWords while shouting, else 0.
         std::uint8_t words{ 0 };
 

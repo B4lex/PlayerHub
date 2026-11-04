@@ -7,6 +7,7 @@
 #include "text/AsciiCase.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -56,11 +57,13 @@ namespace ActorRegistry
             bool nativeFurnitureExit{ false };
             bool castAnimationOwned{ false };
             bool voiceAnimationOwned{ false };
+            bool voiceFireSuppressed{ false };
             bool dead{ false };
             bool mounted{ false };
             bool gaitDriven{ false };
             float gaitSpeed{ 0.0F };
             bool networkPlaced{ false };
+            std::uint16_t solidCharacterGroup{ 0 };
             float authoritativeSpeed{ 0.0F };
             float attackSpeedScale{ 1.0F };
             bool landingCompletionObservationAllowed{ false };
@@ -79,6 +82,29 @@ namespace ActorRegistry
         // Registrations whose attackSpeedScale is not 1.
         std::atomic<std::size_t> s_attackSpeedScaledCount{ 0 };
         std::atomic<std::size_t> s_nativeFurnitureExitCount{ 0 };
+        // Registrations per Havok system group whose character body collides with the
+        // local player's controller alone, read by the collision filter on physics
+        // threads without the lock.
+        std::array<std::atomic<std::uint8_t>, 1U << 16> s_solidCharacterGroups{};
+        std::atomic<std::size_t> s_solidCharacterCount{ 0 };
+
+        void CountSolidCharacterGroup(std::uint16_t a_group, bool a_added)
+        {
+            if (a_group == 0)
+            {
+                return;
+            }
+            if (a_added)
+            {
+                s_solidCharacterGroups[a_group].fetch_add(1, std::memory_order_release);
+                s_solidCharacterCount.fetch_add(1, std::memory_order_release);
+            }
+            else
+            {
+                s_solidCharacterGroups[a_group].fetch_sub(1, std::memory_order_release);
+                s_solidCharacterCount.fetch_sub(1, std::memory_order_release);
+            }
+        }
 
         template <class Key>
         void IndexRegistration(std::unordered_map<Key, Registration*>& a_index, Key a_key, Registration& a_registration)
@@ -129,6 +155,7 @@ namespace ActorRegistry
             {
                 s_networkPlacedCount.fetch_sub(1, std::memory_order_relaxed);
             }
+            CountSolidCharacterGroup(registration->second.solidCharacterGroup, false);
             if (registration->second.attackSpeedScale != 1.0F)
             {
                 s_attackSpeedScaledCount.fetch_sub(1, std::memory_order_relaxed);
@@ -400,6 +427,23 @@ namespace ActorRegistry
         return registration && registration->voiceAnimationOwned;
     }
 
+    void SetVoiceFireSuppressed(const RemoteActor& a_remote, bool a_suppressed)
+    {
+        SetShared(a_remote, &Registration::voiceFireSuppressed, a_suppressed);
+    }
+
+    bool IsVoiceFireSuppressed(const RE::Actor* a_actor)
+    {
+        if (!a_actor)
+        {
+            return false;
+        }
+
+        const auto lock = LockSharedUnlessMainThread();
+        const auto* registration = Find(a_actor);
+        return registration && registration->voiceFireSuppressed;
+    }
+
     void SetDead(const RemoteActor& a_remote)
     {
         SetShared(a_remote, &Registration::dead, true);
@@ -444,6 +488,32 @@ namespace ActorRegistry
         const auto* registration = Find(a_actor);
         // A dead actor is left to Skyrim's death and ragdoll.
         return registration && registration->networkPlaced && !registration->dead;
+    }
+
+    void SetSolidCharacterGroup(const RemoteActor& a_remote, std::uint16_t a_group)
+    {
+        auto lock = LockUnlessMainThread();
+        auto* registration = Find(a_remote.animationGraphHolder);
+        if (!registration || registration->solidCharacterGroup == a_group)
+        {
+            return;
+        }
+        LockForWrite(lock);
+        // The new group counts before the old one stops, so a group that only moves
+        // never reads as plain.
+        CountSolidCharacterGroup(a_group, true);
+        CountSolidCharacterGroup(registration->solidCharacterGroup, false);
+        registration->solidCharacterGroup = a_group;
+    }
+
+    bool HasSolidCharacters()
+    {
+        return s_solidCharacterCount.load(std::memory_order_acquire) != 0;
+    }
+
+    bool IsSolidCharacterGroup(std::uint16_t a_group)
+    {
+        return a_group != 0 && s_solidCharacterGroups[a_group].load(std::memory_order_acquire) != 0;
     }
 
     void SetAttackSpeedScale(const RemoteActor& a_remote, float a_scale)

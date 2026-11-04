@@ -34,6 +34,34 @@ namespace VoiceSync
             return type == RE::MagicSystem::SpellType::kPower || type == RE::MagicSystem::SpellType::kLesserPower;
         }
 
+        // The actor's list of powers used today (ID 38742, SE 37793), which a power's
+        // cast check reads.
+        bool HasUsedPower(RE::Actor& a_actor, RE::MagicItem* a_spell)
+        {
+            using func_t = bool(RE::Actor*, RE::MagicItem*);
+            static REL::Relocation<func_t> func{ RELOCATION_ID(37793, 38742) };
+            return func(std::addressof(a_actor), a_spell);
+        }
+
+        // Spell fire (ID 34407) checks the cast once more in the casting state, which for
+        // the voice spell of a shout with kTreatSpellsAsPowers (ID 38812, SE 37858) fails
+        // with kPowerUsed while the actor's used powers hold it; its fire then marks the
+        // shout's spells used (ActorMagicCaster::SpellCast, ID 34144). The release before
+        // it checks the cast outside that state, so a shout used today, such as Dragon
+        // Aspect, says its word and plays its release clip, then fails at the fire and the
+        // voice caster's fire handler (ID 42818) enters kFail.
+        bool WillFireFail(RE::PlayerCharacter& a_player, const RE::HighProcessData& a_high)
+        {
+            const auto* shout = a_high.currentShout;
+            if (!shout || (shout->GetFormFlags() & RE::TESShout::RecordFlags::kTreatSpellsAsPowers) == 0)
+            {
+                return false;
+            }
+            const auto* caster = a_player.GetMagicCaster(RE::MagicSystem::CastingSource::kOther);
+            auto* spell = caster ? caster->currentSpell : nullptr;
+            return spell && HasUsedPower(a_player, spell);
+        }
+
         // The voice state update (ID 38805) stores a released shout's variation before
         // its release; while charging, kContinue already means a second word.
         Multiplayer::VoicePresentation GetVoicePresentation(RE::PlayerCharacter& a_player)
@@ -57,7 +85,10 @@ namespace VoiceSync
                 words = static_cast<std::uint8_t>(
                     (std::min)(variation + 1, static_cast<std::int32_t>(Multiplayer::VoicePresentation::kMaximumWords)));
             }
-            return { .shouting = true, .released = released, .words = words };
+            return { .shouting = true,
+                .released = released,
+                .failed = state == VoiceState::kPrecast && WillFireFail(a_player, *high),
+                .words = words };
         }
 
         // TESSpellCastEvent is sent for each spell the player's casters fire, including a
@@ -113,14 +144,16 @@ namespace VoiceSync
         s_currentVoice = current;
         s_unpublishedVoice.shouting |= current.shouting;
         s_unpublishedVoice.released |= current.released;
+        s_unpublishedVoice.failed |= current.failed;
         s_unpublishedVoice.words = (std::max)(s_unpublishedVoice.words, current.words);
         if (current == previous)
         {
             return false;
         }
         const auto* high = a_local.player.GetHighProcess();
-        logs::debug("Voice sync observed local shout: shouting={} released={} words={} voiceState={} shout={:08X}",
-            current.shouting, current.released, current.words,
+        logs::debug(
+            "Voice sync observed local shout: shouting={} released={} failed={} words={} voiceState={} shout={:08X}",
+            current.shouting, current.released, current.failed, current.words,
             high ? static_cast<std::uint32_t>(high->voiceState.get()) : 0,
             high && high->currentShout ? high->currentShout->GetFormID() : 0);
         return current.shouting && !previous.shouting;
@@ -186,6 +219,18 @@ namespace VoiceSync
         s_pendingPowers.clear();
     }
 
+    void OnCheckpointPlayed(RemoteState& a_state, const CheckpointUpdate& a_update)
+    {
+        // A charge after a release starts another shout: one shout's capture runs from
+        // kRequest through kPostcast, and a new one starts unreleased.
+        const auto& voice = a_update.checkpoint.voice;
+        const auto& previous = a_update.previous.voice;
+        if (voice.shouting && (a_update.inserted || !previous.shouting || (previous.released && !voice.released)))
+        {
+            ++a_state.shoutID;
+        }
+    }
+
     void AcceptRemoteAction(
         RemoteState* a_state, const Network::PlayerTransform* a_checkpoint, Network::AnimationAction&& a_action)
     {
@@ -244,8 +289,12 @@ namespace VoiceSync
         const auto& checkpoint = a_remote.checkpoint;
         const auto& voice = checkpoint.voice;
         VoicePresentation::ApplyShout(a_actor,
-            VoicePresentation::ShoutRequest{
-                .shout = a_shout, .shouting = voice.shouting, .released = voice.released, .words = voice.words },
+            VoicePresentation::ShoutRequest{ .shout = a_shout,
+                .shoutID = a_state.shoutID,
+                .shouting = voice.shouting,
+                .released = voice.released,
+                .failed = voice.failed,
+                .words = voice.words },
             a_actor.ready, a_delta);
 
         // One power per pass, once the checkpoint it follows has played.

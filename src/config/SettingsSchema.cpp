@@ -277,6 +277,28 @@ namespace Config
                 Id::kControlsDeclineTradeComment, 0);
         }
 
+        void DescribeGameplay(GameplaySettings& a_settings, SettingsVisitor& a_visitor)
+        {
+            a_visitor.Section("Gameplay", Id::kSectionGameplay, Id::kNone);
+            a_visitor.Comment(Id::kGameplayGroupEffects);
+            a_visitor.Bool("ShowSpellEffects", Id::kGameplayShowSpellEffects, a_settings.showSpellEffects,
+                Id::kGameplayShowSpellEffectsComment);
+            a_visitor.Bool("ShowShoutEffects", Id::kGameplayShowShoutEffects, a_settings.showShoutEffects,
+                Id::kGameplayShowShoutEffectsComment);
+            a_visitor.Bool("ShowImpactEffects", Id::kGameplayShowImpactEffects, a_settings.showImpactEffects,
+                Id::kGameplayShowImpactEffectsComment);
+
+            a_visitor.Comment(Id::kGameplayGroupIsolation);
+            a_visitor.Bool("IsolateSpellEffects", Id::kGameplayIsolateSpellEffects, a_settings.isolateSpellEffects,
+                Id::kGameplayIsolateSpellEffectsComment);
+            a_visitor.Bool("IsolateShoutEffects", Id::kGameplayIsolateShoutEffects, a_settings.isolateShoutEffects,
+                Id::kGameplayIsolateShoutEffectsComment);
+            a_visitor.Bool("IsolateAttacks", Id::kGameplayIsolateAttacks, a_settings.isolateAttacks,
+                Id::kGameplayIsolateAttacksComment);
+            a_visitor.Bool("DisableCollision", Id::kGameplayDisableCollision, a_settings.disableCollision,
+                Id::kGameplayDisableCollisionComment);
+        }
+
         void DescribeAdvanced(AdvancedSettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("Advanced", Id::kSectionAdvanced, Id::kNone);
@@ -350,6 +372,7 @@ namespace Config
         DescribeDefaultOutfit(a_config.defaultOutfit, a_visitor);
         DescribeUI(a_config.ui, a_visitor);
         DescribeControls(a_config.controls, a_visitor);
+        DescribeGameplay(a_config.gameplay, a_visitor);
         DescribeAdvanced(a_config.advanced, a_visitor);
     }
 

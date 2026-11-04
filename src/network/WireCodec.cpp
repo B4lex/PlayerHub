@@ -57,6 +57,8 @@ namespace Network::Wire
             == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS));
         static_assert(CheckpointFlags::kShoutThreeWords
             == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS));
+        static_assert(CheckpointFlags::kShoutFailed
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED));
         static_assert(static_cast<int>(Multiplayer::ChatRejection::kUnknownRecipient)
             == playerhub_v1_ChatRejection_CHAT_REJECTION_UNKNOWN_RECIPIENT);
 

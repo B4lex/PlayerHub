@@ -30,6 +30,8 @@ namespace EquipmentSync
         std::optional<Multiplayer::PlayerEquipment> latest;
         std::uint64_t resolvedRevision{ 0 };
         bool resolved{ false };
+        // [Gameplay] ShowSpellEffects when the hands were resolved.
+        bool resolvedNativeSpells{ false };
         std::vector<RE::TESObjectARMO*> armor;
         ResolvedHand rightHand;
         ResolvedHand leftHand;

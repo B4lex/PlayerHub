@@ -1,6 +1,8 @@
 #include "actor/RemoteCollision.h"
 #include "actor/ActorRegistry.h"
+#include "actor/GameplayPolicy.h"
 #include "actor/RemoteActor.h"
+#include "runtime/CodeDetour.h"
 #include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
 
@@ -52,6 +54,90 @@ namespace RemoteCollision
                 || a_layer == RE::COL_LAYER::kBipedNoCC;
         }
 
+        // Every caller of the collision filter's info comparison (ID 78553, SE 76681)
+        // on 1.5.97 and on 1.7.104, found by scanning both executables: the pair,
+        // shape, ray, and phantom filters.
+        constexpr std::array kFilterInfoCallers{
+            RELOCATION_ID(76181, 78009),
+            RELOCATION_ID(76676, 78548),
+            RELOCATION_ID(76677, 78549),
+            RELOCATION_ID(76678, 78550),
+            RELOCATION_ID(76679, 78551),
+            RELOCATION_ID(76680, 78552),
+            RELOCATION_ID(77228, 79115),
+        };
+        static_assert(kFilterInfoCallers.size() == kFilterInfoCallerCount);
+
+        constexpr std::uint32_t kLayerMask = RE::CFilter::Flags::kLayerMask;
+        constexpr std::uint32_t kCharControllerLayer = std::to_underlying(RE::COL_LAYER::kCharController);
+        // The comparison lets a first side on this layer past the no-collision bit.
+        constexpr std::uint32_t kNoCollisionExemptLayer = std::to_underlying(RE::COL_LAYER::kCustomPick2);
+
+        // Written once by InstallHooks on the main thread before the game loop starts.
+        bool s_solidFilterInstalled{ false };
+        // The local player's controller phantom's filter info, which the comparison
+        // receives for the player's movement; 0 while the player has none.
+        std::atomic<std::uint32_t> s_playerControllerInfo{ 0 };
+
+        std::uint16_t GetSystemGroup(std::uint32_t a_info)
+        {
+            return static_cast<std::uint16_t>(a_info >> 16);
+        }
+
+        bool IsSolidCharacterBody(std::uint32_t a_info)
+        {
+            return (a_info & kLayerMask) == kCharControllerLayer
+                && ActorRegistry::IsSolidCharacterGroup(GetSystemGroup(a_info));
+        }
+
+        // A solid remote character body collides with the local player's controller
+        // alone. Pairs within one actor's system group stay the comparison's own.
+        bool MaySolidPairCollide(std::uint32_t a_infoA, std::uint32_t a_infoB)
+        {
+            const bool solidA = IsSolidCharacterBody(a_infoA);
+            const bool solidB = IsSolidCharacterBody(a_infoB);
+            if ((!solidA && !solidB) || GetSystemGroup(a_infoA) == GetSystemGroup(a_infoB))
+            {
+                return true;
+            }
+            if (solidA && solidB)
+            {
+                return false;
+            }
+            if (solidB && (a_infoA & kLayerMask) == kNoCollisionExemptLayer)
+            {
+                return true;
+            }
+            const auto other = solidA ? a_infoB : a_infoA;
+            const auto player = s_playerControllerInfo.load(std::memory_order_relaxed);
+            return player != 0 && (other & kLayerMask) == kCharControllerLayer
+                && GetSystemGroup(other) == GetSystemGroup(player);
+        }
+
+        // Takes two filter infos and returns whether they collide. The pair filter
+        // behind broadphase pairs, phantom overlaps, and contact agents, and the ray
+        // and shape filters behind queries, all call it.
+        struct FilterInfoHook
+        {
+            static bool Thunk(void* a_filter, std::uint32_t a_infoA, std::uint32_t a_infoB)
+            {
+                if (ActorRegistry::HasSolidCharacters() && !MaySolidPairCollide(a_infoA, a_infoB))
+                {
+                    return false;
+                }
+                return _original(a_filter, a_infoA, a_infoB);
+            }
+
+            static inline REL::Relocation<decltype(Thunk)> _original;
+        };
+
+        // A network-placed character body is solid to the local player while
+        // [Gameplay] DisableCollision is off and every comparison call is detoured.
+        bool IsSolidToPlayer()
+        {
+            return s_solidFilterInstalled && !GameplayPolicy::DisablesCollision();
+        }
+
         // Skyrim's movement update (ID 37356) moves an actor by its animation's
         // root motion through its character controller, which pushes out of and
         // pushes local bodies, and then feeds the achieved motion back into the
@@ -67,8 +153,12 @@ namespace RemoteCollision
         // player's update, and keep it for everything else.
         struct UpdateMovementHook
         {
-            static void AddBumpedCharacter(RE::Actor* a_mover, PassThrough& a_passThrough)
+            static void AddBumpedCharacter(RE::Actor* a_mover, PassThrough& a_passThrough, bool a_solidToPlayer)
             {
+                if (a_solidToPlayer && a_mover && a_mover->IsPlayerRef())
+                {
+                    return;
+                }
                 auto* controller = a_mover ? a_mover->GetCharController() : nullptr;
                 auto* bumped = controller ? controller->bumpedCharCollisionObject.get() : nullptr;
                 if (!bumped)
@@ -87,14 +177,16 @@ namespace RemoteCollision
                 }
             }
 
-            static void AddRemoteBody(RE::hkpCollidable* a_collidable, PassThrough& a_passThrough)
+            static void AddRemoteBody(RE::hkpCollidable* a_collidable, PassThrough& a_passThrough, bool a_solidToPlayer)
             {
                 if (!a_collidable)
                 {
                     return;
                 }
                 auto& filter = a_collidable->broadPhaseHandle.collisionFilterInfo;
-                if (filter.QNoCollision() || !IsCharacterLayer(filter.GetCollisionLayer()))
+                const auto layer = filter.GetCollisionLayer();
+                if (filter.QNoCollision() || !IsCharacterLayer(layer)
+                    || (a_solidToPlayer && layer == RE::COL_LAYER::kCharController))
                 {
                     return;
                 }
@@ -105,7 +197,8 @@ namespace RemoteCollision
                 }
             }
 
-            static void AddOverlappingRemoteBodies(RE::Actor& a_player, PassThrough& a_passThrough)
+            static void AddOverlappingRemoteBodies(
+                RE::Actor& a_player, PassThrough& a_passThrough, bool a_solidToPlayer)
             {
                 auto* controller = skyrim_cast<RE::bhkCharProxyController*>(a_player.GetCharController());
                 auto* proxy = controller ? controller->GetCharacterProxy() : nullptr;
@@ -119,13 +212,13 @@ namespace RemoteCollision
                     case RE::hkpPhantomType::kSimpleShape:
                         for (auto* collidable : static_cast<RE::hkpSimpleShapePhantom*>(phantom)->collisionDetails)
                         {
-                            AddRemoteBody(collidable, a_passThrough);
+                            AddRemoteBody(collidable, a_passThrough, a_solidToPlayer);
                         }
                         break;
                     case RE::hkpPhantomType::kCachingShape:
                         for (auto& detail : static_cast<RE::hkpCachingShapePhantom*>(phantom)->collisionDetails)
                         {
-                            AddRemoteBody(detail.collidable, a_passThrough);
+                            AddRemoteBody(detail.collidable, a_passThrough, a_solidToPlayer);
                         }
                         break;
                     default:
@@ -151,10 +244,11 @@ namespace RemoteCollision
                 }
 
                 PassThrough passThrough;
-                AddBumpedCharacter(a_actor, passThrough);
+                const bool solidToPlayer = IsSolidToPlayer();
+                AddBumpedCharacter(a_actor, passThrough, solidToPlayer);
                 if (a_actor && a_actor->IsPlayerRef())
                 {
-                    AddOverlappingRemoteBodies(*a_actor, passThrough);
+                    AddOverlappingRemoteBodies(*a_actor, passThrough, solidToPlayer);
                 }
                 _original(a_actor, a_delta);
             }
@@ -177,24 +271,66 @@ namespace RemoteCollision
         // Skyrim gives every actor but the player a rigid-body controller (ID
         // 37171), whose character body is also its world collision: a body the
         // physics step simulates, which collides with and pushes local bodies and
-        // triggers. It needs its collision only while Skyrim moves the actor.
-        void SetCharacterBodyIsolated(RE::Actor& a_actor, bool a_isolated, std::string_view a_owner)
+        // triggers. It needs its collision only while Skyrim moves the actor, or with
+        // the local player's controller alone while it is solid to the player.
+        enum class BodyCollision
+        {
+            kIsolated,
+            kSolidToPlayer,
+            kRestored,
+        };
+
+        std::string_view GetName(BodyCollision a_collision)
+        {
+            switch (a_collision)
+            {
+            case BodyCollision::kIsolated:
+                return "disabled";
+            case BodyCollision::kSolidToPlayer:
+                return "solid to the local player";
+            case BodyCollision::kRestored:
+            default:
+                return "restored";
+            }
+        }
+
+        void SetCharacterBodyCollision(
+            RE::Actor& a_actor, RemoteActor& a_remote, BodyCollision a_collision, std::string_view a_owner)
         {
             auto* controller = a_actor.GetCharController();
             auto* body = controller ? controller->GetRigidBody() : nullptr;
-            if (!body)
+            auto* filter = body ? std::addressof(body->collidable.broadPhaseHandle.collisionFilterInfo) : nullptr;
+            const auto group = filter ? static_cast<std::uint16_t>(filter->GetSystemGroup()) : std::uint16_t{ 0 };
+            if (a_collision == BodyCollision::kSolidToPlayer && group == 0)
             {
-                return;
+                // Without a system group the filter cannot tell the body apart.
+                a_collision = BodyCollision::kIsolated;
             }
-            auto& filter = body->collidable.broadPhaseHandle.collisionFilterInfo;
-            if (filter.QNoCollision() == a_isolated)
+            const auto solidGroup = a_collision == BodyCollision::kSolidToPlayer ? group : std::uint16_t{ 0 };
+            const bool groupChanged = a_remote.collision.solidGroup != solidGroup;
+            // The group counts before the bit clears and stops after it is set, so the
+            // body never collides with everything in between.
+            if (solidGroup != 0)
             {
-                return;
+                ActorRegistry::SetSolidCharacterGroup(a_remote, solidGroup);
             }
-            filter.SetNoCollision(a_isolated);
-            logs::debug("Remote actor character body collision {}: actor={:08X} owner={} controller={}",
-                a_isolated ? "disabled" : "restored", a_actor.GetHandle().native_handle(), a_owner,
-                skyrim_cast<RE::bhkCharProxyController*>(controller) ? "proxy" : "rigidBody");
+            const bool isolated = a_collision == BodyCollision::kIsolated;
+            const bool bitChanged = filter && filter->QNoCollision() != isolated;
+            if (bitChanged)
+            {
+                filter->SetNoCollision(isolated);
+            }
+            if (solidGroup == 0)
+            {
+                ActorRegistry::SetSolidCharacterGroup(a_remote, 0);
+            }
+            a_remote.collision.solidGroup = solidGroup;
+            if (bitChanged || groupChanged)
+            {
+                logs::debug("Remote actor character body collision {}: actor={:08X} owner={} controller={} group={}",
+                    GetName(a_collision), a_actor.GetHandle().native_handle(), a_owner,
+                    skyrim_cast<RE::bhkCharProxyController*>(controller) ? "proxy" : "rigidBody", group);
+            }
         }
 
         constexpr float kSkeletonRecheckSeconds = 0.5F;
@@ -275,6 +411,24 @@ namespace RemoteCollision
 
     void InstallHooks()
     {
+        std::size_t installed = 0;
+        for (const auto& caller : kFilterInfoCallers)
+        {
+            if (const auto original = CodeDetour::WriteCalleeDetour(REL::ID(caller),
+                    REL::ID(RELOCATION_ID(76681, 78553)), reinterpret_cast<std::uintptr_t>(&FilterInfoHook::Thunk),
+                    "collision filter info"))
+            {
+                FilterInfoHook::_original = original;
+                ++installed;
+            }
+        }
+        s_solidFilterInstalled = installed == kFilterInfoCallers.size();
+        logs::debug("Remote actor collision filter hooks: installed={}/{}", installed, kFilterInfoCallers.size());
+        if (!s_solidFilterInstalled)
+        {
+            logs::error("Remote actor collision filter is incomplete: remote players stay passable");
+        }
+
         // Actor movement update call (ID 37350 + 0xFB on 1.7.104, ID 36359 + 0xF0 on
         // SE), its only caller, as patched by powerofthree's Tweaks. write_call chains
         // onto another plugin's detour.
@@ -297,7 +451,8 @@ namespace RemoteCollision
         PROFILE_FUNCTION();
         SetNetworkPlaced(a_remote, true, "network");
         SetBodyPlacesActor(a_actor, false);
-        SetCharacterBodyIsolated(a_actor, true, "network");
+        SetCharacterBodyCollision(a_actor, a_remote,
+            IsSolidToPlayer() ? BodyCollision::kSolidToPlayer : BodyCollision::kIsolated, "network");
         ReportSupport(a_actor, a_remote);
     }
 
@@ -309,7 +464,8 @@ namespace RemoteCollision
             SetBodyPlacesActor(a_actor, true);
         }
         SetNetworkPlaced(a_remote, false, a_owner);
-        SetCharacterBodyIsolated(a_actor, a_carried, a_owner);
+        SetCharacterBodyCollision(
+            a_actor, a_remote, a_carried ? BodyCollision::kIsolated : BodyCollision::kRestored, a_owner);
         if (!a_carried && a_remote.collision.skeletonIsolated)
         {
             a_remote.collision.skeletonIsolated = false;
@@ -317,6 +473,15 @@ namespace RemoteCollision
             logs::debug("Remote actor skeleton collision restored: actor={:08X} owner={} bodies={}",
                 a_remote.handle.native_handle(), a_owner, changed);
         }
+    }
+
+    void TrackLocalPlayer(RE::PlayerCharacter& a_player)
+    {
+        auto* controller = skyrim_cast<RE::bhkCharProxyController*>(a_player.GetCharController());
+        auto* proxy = controller ? controller->GetCharacterProxy() : nullptr;
+        auto* phantom = proxy ? proxy->shapePhantom : nullptr;
+        s_playerControllerInfo.store(
+            phantom ? phantom->collidable.broadPhaseHandle.collisionFilterInfo.filter : 0, std::memory_order_relaxed);
     }
 
     void IsolateCarriedSkeleton(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)

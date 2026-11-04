@@ -32,6 +32,9 @@ namespace ActorRegistry
     [[nodiscard]] bool IsCastAnimationOwned(const RE::Actor* a_actor);
     void SetVoiceAnimationOwned(const RemoteActor& a_remote, bool a_owned);
     [[nodiscard]] bool IsVoiceAnimationOwned(const RE::Actor* a_actor);
+    // The fire of the actor's held shout is skipped, as its source's failed.
+    void SetVoiceFireSuppressed(const RemoteActor& a_remote, bool a_suppressed);
+    [[nodiscard]] bool IsVoiceFireSuppressed(const RE::Actor* a_actor);
 
     void SetDead(const RemoteActor& a_remote);
     [[nodiscard]] bool IsDead(const RE::Actor* a_actor);
@@ -43,6 +46,12 @@ namespace ActorRegistry
     [[nodiscard]] std::optional<float> GetGaitSpeed(const RE::Actor* a_actor);
     void SetNetworkPlaced(const RemoteActor& a_remote, bool a_networkPlaced);
     [[nodiscard]] bool IsNetworkPlaced(const RE::Actor* a_actor);
+    // The Havok system group of the actor's character body while that body collides
+    // with the local player's controller alone; 0 for none. Unregister releases it.
+    void SetSolidCharacterGroup(const RemoteActor& a_remote, std::uint16_t a_group);
+    [[nodiscard]] bool HasSolidCharacters();
+    // Lock-free, for the collision filter.
+    [[nodiscard]] bool IsSolidCharacterGroup(std::uint16_t a_group);
     // Scales the actor's polled weapon speeds while its attacks catch up with the
     // source; 1 leaves them to Skyrim.
     void SetAttackSpeedScale(const RemoteActor& a_remote, float a_scale);

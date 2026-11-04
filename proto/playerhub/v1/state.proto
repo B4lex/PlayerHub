@@ -60,6 +60,8 @@ enum CheckpointFlag {
   // The words a shout charges beyond its first; at most one is set.
   CHECKPOINT_FLAG_SHOUT_TWO_WORDS = 2097152;
   CHECKPOINT_FLAG_SHOUT_THREE_WORDS = 4194304;
+  // A released shout whose fire fails; only with CHECKPOINT_FLAG_SHOUT_RELEASED.
+  CHECKPOINT_FLAG_SHOUT_FAILED = 8388608;
 }
 
 enum Shapeshift {

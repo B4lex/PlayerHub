@@ -27,7 +27,7 @@ func TestCheckpoint(t *testing.T) {
 		"direction above 255": func(c *pb.Checkpoint) { c.Direction = 256 },
 		"time above 16383":    func(c *pb.Checkpoint) { c.Time = 16384 },
 		"unknown movement":    func(c *pb.Checkpoint) { c.Flags = 7 },
-		"unknown flag bit":    func(c *pb.Checkpoint) { c.Flags = 1 << 23 },
+		"unknown flag bit":    func(c *pb.Checkpoint) { c.Flags = 1 << 24 },
 		"left release without cast": func(c *pb.Checkpoint) {
 			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_LEFT | pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT)
 		},
@@ -42,6 +42,9 @@ func TestCheckpoint(t *testing.T) {
 		},
 		"shout words without shout": func(c *pb.Checkpoint) {
 			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS)
+		},
+		"shout failure without release": func(c *pb.Checkpoint) {
+			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUTING | pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED)
 		},
 		"two and three words": func(c *pb.Checkpoint) {
 			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUTING | pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS |
@@ -71,6 +74,10 @@ func TestCheckpoint(t *testing.T) {
 		pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS)
 	if err := Checkpoint(shouting); err != nil {
 		t.Fatalf("released three-word shout rejected: %v", err)
+	}
+	shouting.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED)
+	if err := Checkpoint(shouting); err != nil {
+		t.Fatalf("failed released shout rejected: %v", err)
 	}
 	full := proto.Clone(valid).(*pb.Checkpoint)
 	// 23 bones of 29 bits, 30 of 23, and 10 of 26.

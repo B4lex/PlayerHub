@@ -23,6 +23,10 @@ msgctxt "SectionControls"
 msgid "Keybinds"
 msgstr ""
 
+msgctxt "SectionGameplay"
+msgid "Gameplay"
+msgstr ""
+
 msgctxt "SectionAdvanced"
 msgid "Advanced"
 msgstr ""
@@ -351,6 +355,84 @@ msgid ""
 "Declines another player's trade offer, or withdraws your own, while it "
 "waits\n"
 "for an answer."
+msgstr ""
+
+msgctxt "GameplayGroupEffects"
+msgid "Effects"
+msgstr ""
+
+msgctxt "GameplayShowSpellEffects"
+msgid "Show spell effects"
+msgstr ""
+
+msgctxt "GameplayShowSpellEffectsComment"
+msgid ""
+"Shows what other players' spells do: projectiles, beams, and effects on the\n"
+"caster. Without it, they cast with only the spell's look in hand."
+msgstr ""
+
+msgctxt "GameplayShowShoutEffects"
+msgid "Show shout effects"
+msgstr ""
+
+msgctxt "GameplayShowShoutEffectsComment"
+msgid ""
+"Shows the breath, wave, or projectile of other players' shouts, and what\n"
+"their shouts and powers do to them. Without it, they only shout the words."
+msgstr ""
+
+msgctxt "GameplayShowImpactEffects"
+msgid "Show impact effects"
+msgstr ""
+
+msgctxt "GameplayShowImpactEffectsComment"
+msgid ""
+"Shows harmless explosions and impacts where other players' isolated\n"
+"projectiles strike. Without it, those projectiles vanish where they strike."
+msgstr ""
+
+msgctxt "GameplayGroupIsolation"
+msgid "Isolation"
+msgstr ""
+
+msgctxt "GameplayIsolateSpellEffects"
+msgid "Isolate spell effects"
+msgstr ""
+
+msgctxt "GameplayIsolateSpellEffectsComment"
+msgid ""
+"Keeps other players' spells out of your world. Without it, they can harm\n"
+"you, characters, and objects, and summon creatures."
+msgstr ""
+
+msgctxt "GameplayIsolateShoutEffects"
+msgid "Isolate shout effects"
+msgstr ""
+
+msgctxt "GameplayIsolateShoutEffectsComment"
+msgid ""
+"Keeps other players' shouts and powers out of your world. Without it, they\n"
+"can harm and push you, characters, and objects."
+msgstr ""
+
+msgctxt "GameplayIsolateAttacks"
+msgid "Isolate attacks"
+msgstr ""
+
+msgctxt "GameplayIsolateAttacksComment"
+msgid ""
+"Keeps other players' weapons from hitting you, and their bows from shooting\n"
+"arrows. Without it, their attacks can hit you, but nothing else."
+msgstr ""
+
+msgctxt "GameplayDisableCollision"
+msgid "Disable collision"
+msgstr ""
+
+msgctxt "GameplayDisableCollisionComment"
+msgid ""
+"Lets you walk through other players. Without it, they block you as other\n"
+"characters do, and still pass through everything else."
 msgstr ""
 
 msgctxt "AdvancedGroupPerformance"

@@ -1,6 +1,7 @@
 #include "actor/SpellIsolation.h"
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
+#include "actor/GameplayPolicy.h"
 
 #include <algorithm>
 #include <array>
@@ -16,6 +17,7 @@ namespace SpellIsolation
         using CodeDetour::WriteCalleeDetour;
         using CodeDetour::WriteEntryDetour;
         using Archetype = RE::EffectSetting::Archetype;
+        using GameplayPolicy::Source;
 
         constexpr std::array<std::uint8_t, 5> kSpellFirePrologue{
             0x40, 0x56, // push rsi
@@ -218,9 +220,24 @@ namespace SpellIsolation
                 && !(archetype == Archetype::kSpawnHazard && IsVoiceOrPower(a_item)) && !IsIgnoredEffect(a_effect);
         }
 
-        // Returns false when a remote actor's magic must not attach to the target:
-        // anything but the caster itself, and on the caster only self-contained
-        // archetypes.
+        // Effects on the caster that a sync stage owns whatever the isolation: the
+        // hands are equipment sync's, and a beast form is shapeshift sync's.
+        bool IsPresentationOwnedEffect(const RE::EffectSetting& a_effect)
+        {
+            switch (a_effect.GetArchetype())
+            {
+            case Archetype::kBoundWeapon:
+            case Archetype::kWerewolf:
+            case Archetype::kVampireLord:
+                return true;
+            default:
+                return IsIgnoredEffect(a_effect);
+            }
+        }
+
+        // Returns false when a remote actor's magic must not attach to the target.
+        // While its source is isolated, that is anything but the caster itself, and
+        // on the caster anything but self-contained archetypes.
         bool MayAddTarget(RE::MagicTarget* a_target, const RE::MagicTarget::AddTargetData& a_data,
             std::string_view a_path)
         {
@@ -232,7 +249,17 @@ namespace SpellIsolation
             const auto* baseEffect = a_data.effect ? a_data.effect->baseEffect : nullptr;
             const auto* casterActor = a_data.caster->As<RE::Actor>();
             const bool self = casterActor && casterActor->AsMagicTarget() == a_target;
-            if (self && baseEffect && IsSelfContainedEffect(*baseEffect, a_data.magicItem))
+            const auto source = GameplayPolicy::Classify(a_data.magicItem);
+            if (self)
+            {
+                if (baseEffect
+                    && (IsSelfContainedEffect(*baseEffect, a_data.magicItem)
+                        || (GameplayPolicy::MayAffectWorld(source) && !IsPresentationOwnedEffect(*baseEffect))))
+                {
+                    return true;
+                }
+            }
+            else if (GameplayPolicy::MayAffect(source, a_target->GetTargetStatsObject()))
             {
                 return true;
             }
@@ -298,7 +325,8 @@ namespace SpellIsolation
             static void Thunk(RE::MagicCaster* a_caster, const RE::NiPoint3* a_location, RE::Projectile* a_projectile,
                 RE::TESObjectREFR* a_target, float a_arg5, float a_arg6, bool a_arg7, bool a_arg8)
             {
-                if (IsRemoteProjectile(a_projectile))
+                if (IsRemoteProjectile(a_projectile)
+                    && !GameplayPolicy::MayAffect(GameplayPolicy::Classify(*a_projectile), a_target))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     LogSuppressed(suppressedCount, "SpellImpact", a_projectile, a_target);
@@ -310,6 +338,18 @@ namespace SpellIsolation
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
+        // A hit carries its projectile or explosion as its source; a melee hit has none.
+        Source ClassifyHit(const RE::HitData& a_hitData)
+        {
+            if (const auto source = a_hitData.sourceRef.get())
+            {
+                return GameplayPolicy::Classify(*source);
+            }
+            return a_hitData.weapon || a_hitData.flags.any(RE::HitData::Flag::kMeleeAttack, RE::HitData::Flag::kBash)
+                ? Source::kAttack
+                : Source::kSpell;
+        }
+
         // Processes a HitData against an actor (ID 38586, SE 37633): damage, stagger,
         // impulses, hit effects, and the target's TESHitEvent. Spell projectiles,
         // beams, and explosions reach it without the actor hit (ID 38627) that
@@ -318,7 +358,9 @@ namespace SpellIsolation
         {
             static void Thunk(RE::Actor* a_target, RE::HitData& a_hitData)
             {
-                if (ActorRegistry::IsRegistered(a_hitData.aggressor))
+                if (ActorRegistry::IsRegistered(a_hitData.aggressor)
+                    && (ActorRegistry::IsRegistered(a_target)
+                        || !GameplayPolicy::MayAffect(ClassifyHit(a_hitData), a_target)))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     LogSuppressed(suppressedCount, "HitData", nullptr, a_target);
@@ -337,7 +379,7 @@ namespace SpellIsolation
             static void Thunk(RE::TaskQueueInterface* a_queue, RE::TESObjectREFR* a_ref, float a_damage, bool a_arg4,
                 RE::TESObjectREFR* a_cause)
             {
-                if (IsRemoteSource(a_cause))
+                if (IsRemoteSource(a_cause) && !GameplayPolicy::MayAffect(GameplayPolicy::Classify(*a_cause), a_ref))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     LogSuppressed(suppressedCount, "Destructible", a_cause, a_ref);
@@ -356,7 +398,8 @@ namespace SpellIsolation
         {
             static void Thunk(RE::Projectile* a_projectile, void* a_impact, void* a_arg3, void* a_arg4)
             {
-                if (IsRemoteProjectile(a_projectile))
+                if (IsRemoteProjectile(a_projectile)
+                    && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_projectile)))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     LogSuppressed(suppressedCount, "ImpactImpulse", a_projectile, nullptr);
@@ -372,7 +415,8 @@ namespace SpellIsolation
         {
             static bool Thunk(RE::Projectile* a_projectile, void* a_hits)
             {
-                if (IsRemoteProjectile(a_projectile))
+                if (IsRemoteProjectile(a_projectile)
+                    && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_projectile)))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     LogSuppressed(suppressedCount, "ConeHits", a_projectile, nullptr);
@@ -393,7 +437,8 @@ namespace SpellIsolation
         {
             static void Thunk(RE::Explosion* a_explosion)
             {
-                if (IsRemoteExplosion(a_explosion))
+                if (IsRemoteExplosion(a_explosion)
+                    && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_explosion)))
                 {
                     a_explosion->GetExplosionRuntimeData().flags.set(RE::Explosion::Flags::kTargetsProcessed);
                     static std::atomic_uint32_t suppressedCount{ 0 };
@@ -414,7 +459,8 @@ namespace SpellIsolation
         {
             static void Thunk(RE::Explosion* a_explosion)
             {
-                if (IsRemoteExplosion(a_explosion))
+                if (IsRemoteExplosion(a_explosion)
+                    && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_explosion)))
                 {
                     a_explosion->GetExplosionRuntimeData().flags.set(RE::Explosion::Flags::kForcesApplied);
                     static std::atomic_uint32_t suppressedCount{ 0 };
@@ -447,7 +493,8 @@ namespace SpellIsolation
                 const auto* spell = a_caster ? a_caster->currentSpell : nullptr;
                 const auto* effect = spell ? spell->GetAVEffect() : nullptr;
                 if (effect && IsProximityProjectile(effect->data.projectileBase)
-                    && ActorRegistry::IsRegistered(a_caster->GetCasterAsActor()))
+                    && ActorRegistry::IsRegistered(a_caster->GetCasterAsActor())
+                    && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(spell)))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     LogSuppressed(suppressedCount, "ProximityLaunch", spell, effect->data.projectileBase);
@@ -467,7 +514,8 @@ namespace SpellIsolation
             static void Thunk(RE::Projectile* a_projectile, RE::TESObjectREFR* a_target, void* a_impact,
                 void* a_arg4, std::uint32_t a_arg5, bool a_arg6)
             {
-                if (IsRemoteProjectile(a_projectile))
+                if (IsRemoteProjectile(a_projectile) && !GameplayPolicy::ShowsImpactEffects()
+                    && !GameplayPolicy::MayAffect(GameplayPolicy::Classify(*a_projectile), a_target))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     LogSuppressed(suppressedCount, "ImpactEffects", a_projectile, a_target);
@@ -482,7 +530,9 @@ namespace SpellIsolation
         // The explosion factory (ID 43829, SE 42657) as the projectile update calls
         // it (ID 44216 + 0x3C8, SE 43025 + 0x39F): that call fills a creation
         // record, with the projectile at +0x20, and treats a null explosion as
-        // none, killing the projectile as it would after one.
+        // none, killing the projectile as it would after one. The explosion update
+        // processes targets until kTargetsProcessed and applies forces until
+        // kForcesApplied, so an explosion created with both set acts on nothing.
         struct ProjectileExplosionHook
         {
             static constexpr std::ptrdiff_t kRecordProjectileOffset = 0x20;
@@ -490,13 +540,24 @@ namespace SpellIsolation
             static RE::Explosion* Thunk(std::byte* a_record)
             {
                 auto* projectile = *reinterpret_cast<RE::Projectile**>(a_record + kRecordProjectileOffset);
-                if (IsRemoteProjectile(projectile))
+                if (!IsRemoteProjectile(projectile)
+                    || GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*projectile)))
                 {
-                    static std::atomic_uint32_t suppressedCount{ 0 };
-                    LogSuppressed(suppressedCount, "ProjectileExplosion", projectile, nullptr);
+                    return _original(a_record);
+                }
+                static std::atomic_uint32_t suppressedCount{ 0 };
+                LogSuppressed(suppressedCount, "ProjectileExplosion", projectile, nullptr);
+                if (!GameplayPolicy::ShowsImpactEffects())
+                {
                     return nullptr;
                 }
-                return _original(a_record);
+                auto* explosion = _original(a_record);
+                if (explosion)
+                {
+                    using Flags = RE::Explosion::Flags;
+                    explosion->GetExplosionRuntimeData().flags.set(Flags::kTargetsProcessed, Flags::kForcesApplied);
+                }
+                return explosion;
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -563,13 +624,24 @@ namespace SpellIsolation
         // with FinishCast for a cast that is not concentration, which the hook keeps
         // for a suppressed stand-in cast the remote actor's caster runs, so a released
         // fire-and-forget cast returns to idle as it would natively. A vampire lord's
-        // casts are relayed graph events instead, and its hands hold stand-ins.
+        // casts are relayed graph events instead, and its hands hold stand-ins. The
+        // voice caster's Voice_SpellFire_Event handler (ID 42818) enters kPostcast
+        // once this returns true and resets the voice on false, so a hidden shout
+        // finishes as a fired one.
         struct SpellFireHook
         {
+            static bool IsSuppressedShoutFire(const RE::Actor* a_actor, const RE::MagicItem* a_spell)
+            {
+                return a_spell->GetSpellType() == RE::MagicSystem::SpellType::kVoicePower
+                    && ActorRegistry::IsVoiceFireSuppressed(a_actor);
+            }
+
             static bool Thunk(RE::MagicCaster* a_caster, RE::TESObjectREFR* a_target, bool a_flag)
             {
                 auto* actor = a_caster->GetCasterAsActor();
-                if (ActorRegistry::IsRegistered(actor) && IsNativeRemoteSpell(a_caster->currentSpell))
+                if (ActorRegistry::IsRegistered(actor) && IsNativeRemoteSpell(a_caster->currentSpell)
+                    && GameplayPolicy::ShowsNativeFire(a_caster->currentSpell)
+                    && !IsSuppressedShoutFire(actor, a_caster->currentSpell))
                 {
                     static std::atomic_uint32_t nativeCount{ 0 };
                     if (const auto count = ++nativeCount; ShouldLogOccurrence(count))
@@ -589,7 +661,8 @@ namespace SpellIsolation
                     const auto* spell = a_caster->currentSpell;
                     if (spell && spell->GetCastingType() != RE::MagicSystem::CastingType::kConcentration
                         && a_caster->state.get() != RE::MagicCaster::State::kNone
-                        && ActorRegistry::IsCastAnimationOwned(actor))
+                        && (ActorRegistry::IsCastAnimationOwned(actor)
+                            || (IsVoiceOrPower(spell) && ActorRegistry::IsVoiceAnimationOwned(actor))))
                     {
                         a_caster->FinishCast();
                     }

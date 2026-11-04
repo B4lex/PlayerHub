@@ -375,8 +375,8 @@ pass:
 
 `PlayCheckpoints` then advances every peer's playout. Each checkpoint that
 reaches its playback time is shown, in order, to furniture, animation,
-combat, shapeshift, and idle (`OnCheckpointPlayed`) before it replaces the
-played one. Furniture
+combat, shapeshift, idle, and voice (`OnCheckpointPlayed`) before it replaces
+the played one. Furniture
 resolves its reference into the local load order there, once per change.
 
 Furniture occupancy, weapon stance, the held idle, and every other checkpoint

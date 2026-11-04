@@ -24,6 +24,10 @@ msgctxt "SectionControls"
 msgid "Keybinds"
 msgstr "按鍵設定"
 
+msgctxt "SectionGameplay"
+msgid "Gameplay"
+msgstr "遊戲玩法"
+
 msgctxt "SectionAdvanced"
 msgid "Advanced"
 msgstr "進階"
@@ -357,6 +361,84 @@ msgid ""
 "waits\n"
 "for an answer."
 msgstr "在等待回覆時拒絕其他玩家的交易邀請，或撤回你自己的邀請。"
+
+msgctxt "GameplayGroupEffects"
+msgid "Effects"
+msgstr "效果"
+
+msgctxt "GameplayShowSpellEffects"
+msgid "Show spell effects"
+msgstr "顯示法術效果"
+
+msgctxt "GameplayShowSpellEffectsComment"
+msgid ""
+"Shows what other players' spells do: projectiles, beams, and effects on the\n"
+"caster. Without it, they cast with only the spell's look in hand."
+msgstr "顯示其他玩家法術的作用：投射物、光束與施法者身上的效果。關閉時，他們施法只會在手上顯示法術外觀。"
+
+msgctxt "GameplayShowShoutEffects"
+msgid "Show shout effects"
+msgstr "顯示龍吼效果"
+
+msgctxt "GameplayShowShoutEffectsComment"
+msgid ""
+"Shows the breath, wave, or projectile of other players' shouts, and what\n"
+"their shouts and powers do to them. Without it, they only shout the words."
+msgstr "顯示其他玩家龍吼的吐息、衝擊波或投射物，以及龍吼與能力對他們自身的作用。關閉時，他們只會喊出龍語。"
+
+msgctxt "GameplayShowImpactEffects"
+msgid "Show impact effects"
+msgstr "顯示命中效果"
+
+msgctxt "GameplayShowImpactEffectsComment"
+msgid ""
+"Shows harmless explosions and impacts where other players' isolated\n"
+"projectiles strike. Without it, those projectiles vanish where they strike."
+msgstr "在其他玩家被隔離的投射物命中處顯示無害的爆炸與命中效果。關閉時，這些投射物會在命中處消失。"
+
+msgctxt "GameplayGroupIsolation"
+msgid "Isolation"
+msgstr "隔離"
+
+msgctxt "GameplayIsolateSpellEffects"
+msgid "Isolate spell effects"
+msgstr "隔離法術效果"
+
+msgctxt "GameplayIsolateSpellEffectsComment"
+msgid ""
+"Keeps other players' spells out of your world. Without it, they can harm\n"
+"you, characters, and objects, and summon creatures."
+msgstr "讓其他玩家的法術不影響你的世界。關閉時，它們可能傷害你、角色與物件，並召喚生物。"
+
+msgctxt "GameplayIsolateShoutEffects"
+msgid "Isolate shout effects"
+msgstr "隔離龍吼效果"
+
+msgctxt "GameplayIsolateShoutEffectsComment"
+msgid ""
+"Keeps other players' shouts and powers out of your world. Without it, they\n"
+"can harm and push you, characters, and objects."
+msgstr "讓其他玩家的龍吼與能力不影響你的世界。關閉時，它們可能傷害並推開你、角色與物件。"
+
+msgctxt "GameplayIsolateAttacks"
+msgid "Isolate attacks"
+msgstr "隔離攻擊"
+
+msgctxt "GameplayIsolateAttacksComment"
+msgid ""
+"Keeps other players' weapons from hitting you, and their bows from shooting\n"
+"arrows. Without it, their attacks can hit you, but nothing else."
+msgstr "讓其他玩家的武器不會擊中你，弓也不會射出箭。關閉時，他們的攻擊可能擊中你，但不會擊中其他東西。"
+
+msgctxt "GameplayDisableCollision"
+msgid "Disable collision"
+msgstr "停用碰撞"
+
+msgctxt "GameplayDisableCollisionComment"
+msgid ""
+"Lets you walk through other players. Without it, they block you as other\n"
+"characters do, and still pass through everything else."
+msgstr "讓你能穿過其他玩家。關閉時，他們會像其他角色一樣擋住你，但仍會穿過其他一切。"
 
 msgctxt "AdvancedGroupPerformance"
 msgid "Performance"

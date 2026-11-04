@@ -2,6 +2,7 @@
 #include "actor/ActorAnimation.h"
 #include "actor/ActorRegistry.h"
 #include "actor/AttackDispatch.h"
+#include "actor/GameplayPolicy.h"
 #include "actor/IdlePresentation.h"
 #include "actor/RemoteActor.h"
 #include "actor/SpellIsolation.h"
@@ -23,6 +24,10 @@ namespace VoicePresentation
         constexpr float kChargeHoldFallbackSeconds = 2.0F;
         // Beyond the engine's own fShoutTimeout for a request or a release.
         constexpr float kShoutFallbackSeconds = 12.0F;
+        // The source ends a released shout about when the actor does, both seen through
+        // the playout delay; a release still held this long after the source's ended or
+        // was followed by another lingers. A release in kPrecast waits as long for its fire.
+        constexpr float kOutlastSeconds = 1.0F;
 
         float GetFloatSetting(const char* a_name, float a_default)
         {
@@ -92,6 +97,38 @@ namespace VoicePresentation
             }
         }
 
+        void SetFireSuppressed(RemoteActor& a_remote, bool a_suppressed)
+        {
+            auto& voice = a_remote.animation.voice;
+            if (voice.fireSuppressed == a_suppressed)
+            {
+                return;
+            }
+            voice.fireSuppressed = a_suppressed;
+            ActorRegistry::SetVoiceFireSuppressed(a_remote, a_suppressed);
+            if (a_suppressed)
+            {
+                logs::debug("Voice sync suppresses the fire of a shout that failed on its source: actor={:08X} "
+                            "shout={:08X}",
+                    a_remote.handle.native_handle(), voice.shout ? voice.shout->GetFormID() : 0);
+            }
+        }
+
+        // The voice reset (ID 39524, SE 38514) on the actor's process: with a_clear, it
+        // returns to kNone, clears the shout, variation, and elapsed time, and releases
+        // the word's sound, as kPostcast's end does.
+        void ResetVoice(RE::Actor& a_actor)
+        {
+            auto* process = a_actor.GetActorRuntimeData().currentProcess;
+            if (!process)
+            {
+                return;
+            }
+            using func_t = void(RE::AIProcess*, bool, const char*);
+            static REL::Relocation<func_t> func{ RELOCATION_ID(38514, 39524) };
+            func(process, true, nullptr);
+        }
+
         // The voice caster's interrupt performs the voice interrupt action (shoutStop).
         // The voice state is then cleared as its reset (ID 39524) does for a shout that
         // has not released: nothing has played that the reset would stop.
@@ -134,7 +171,37 @@ namespace VoicePresentation
             voice.held = false;
             voice.shout = nullptr;
             voice.heldElapsed = 0.0F;
+            voice.outlastedElapsed = 0.0F;
+            SetFireSuppressed(a_remote, false);
             SetOwnership(a_remote, false);
+        }
+
+        // The voice update (ID 38805) ends kPostcast once the actor is not speaking
+        // (HighProcessData::unk467, else no queueofGreetings) and kSoundFileDone, the
+        // voice caster holds no spell, and the graph's IsShouting is false; kRequest and
+        // kPrecast, and kPostcast otherwise, end at fShoutTimeout. Logs which condition
+        // held the voice.
+        void EndLingeringShout(RemoteActor& a_remote, RE::Actor& a_actor, const RE::HighProcessData& a_high,
+            VoiceState a_voiceState, const char* a_reason)
+        {
+            auto* caster = a_actor.GetMagicCaster(RE::MagicSystem::CastingSource::kOther);
+            bool isShouting = false;
+            const bool hasIsShouting = a_actor.GetGraphVariableBool("IsShouting", isShouting);
+            logs::debug("Voice sync ending lingering shout: actor={:08X} reason={} voiceState={} unk467={} "
+                        "queuedGreetings={} soundFileDone={} casterSpell={:08X} casterState={} isShouting={}",
+                a_remote.handle.native_handle(), a_reason, static_cast<std::uint32_t>(a_voiceState), a_high.unk467,
+                a_high.queueofGreetings.size(),
+                a_actor.GetActorRuntimeData().boolBits.all(RE::Actor::BOOL_BITS::kSoundFileDone),
+                caster && caster->currentSpell ? caster->currentSpell->GetFormID() : 0,
+                caster ? static_cast<std::uint32_t>(caster->state.get()) : 0,
+                hasIsShouting ? (isShouting ? "true" : "false") : "missing");
+            // As the voice update's own timeout: the caster finishes, then the voice resets.
+            if (caster)
+            {
+                caster->FinishCast();
+            }
+            ResetVoice(a_actor);
+            EndShout(a_remote, a_reason, a_voiceState);
         }
     }
 
@@ -147,11 +214,7 @@ namespace VoicePresentation
         auto& voice = a_remote.animation.voice;
         const float deltaTime = FrameTime::Clamp(a_deltaTime);
         voice.startCooldown = (std::max)(voice.startCooldown - deltaTime, 0.0F);
-        if (!a_request.shouting || !a_request.released)
-        {
-            voice.awaitingNewShout = false;
-        }
-        if (!voice.held && !a_request.shouting)
+        if (!voice.held && (!a_request.shouting || a_request.shoutID == voice.shoutID))
         {
             return;
         }
@@ -169,7 +232,6 @@ namespace VoicePresentation
             voice.heldElapsed += deltaTime;
             if (!high || voiceState == VoiceState::kNone)
             {
-                voice.awaitingNewShout = a_request.shouting && a_request.released;
                 EndShout(a_remote, "finished", voiceState);
                 return;
             }
@@ -179,12 +241,29 @@ namespace VoicePresentation
                 EndShout(a_remote, "timed-out", voiceState);
                 return;
             }
-            // From its release on, the shout plays out natively.
+            const bool current = a_request.shouting && a_request.shoutID == voice.shoutID;
+            // The release comes with its failure, before the actor's own fire.
+            if (current && a_request.failed)
+            {
+                SetFireSuppressed(a_remote, true);
+            }
+            // From its release on, the shout plays out natively, until it outlasts the
+            // source's or another follows it, which waits on the voice state.
             if (!IsCharging(voiceState))
             {
+                voice.outlastedElapsed = current ? 0.0F : voice.outlastedElapsed + deltaTime;
+                const bool superseded = a_request.shouting && !current;
+                // A shout started while the graph still plays the last one gets no release
+                // clip and never fires (observed in game); the engine starts none then.
+                bool graphShouting = false;
+                if ((voice.outlastedElapsed >= kOutlastSeconds || (superseded && voiceState != VoiceState::kPrecast))
+                    && !(actor.GetGraphVariableBool("IsShouting", graphShouting) && graphShouting))
+                {
+                    EndLingeringShout(a_remote, actor, *high, voiceState, superseded ? "superseded" : "outlasted");
+                }
                 return;
             }
-            if (!a_request.shouting)
+            if (!current)
             {
                 InterruptShout(actor, *high);
                 EndShout(a_remote, "interrupted", voiceState);
@@ -206,7 +285,7 @@ namespace VoicePresentation
             return;
         }
 
-        if (!a_request.shouting || !a_request.shout || voice.awaitingNewShout || !a_mayStart
+        if (!a_request.shouting || !a_request.shout || a_request.shoutID == voice.shoutID || !a_mayStart
             || !SpellIsolation::IsolatesNativeCasts() || voice.startCooldown > 0.0F || !high
             || voiceState != VoiceState::kNone || !CanStart(a_remote, actor))
         {
@@ -234,10 +313,18 @@ namespace VoicePresentation
             return;
         }
         voice.held = true;
+        voice.shoutID = a_request.shoutID;
         voice.shout = a_request.shout;
         voice.heldElapsed = 0.0F;
-        logs::debug("Voice sync started shout: actor={:08X} shout={:08X} variation={} released={}",
-            a_remote.handle.native_handle(), a_request.shout->GetFormID(), variation, a_request.released);
+        voice.outlastedElapsed = 0.0F;
+        logs::debug("Voice sync started shout: actor={:08X} shout={:08X} shoutID={} variation={} released={} "
+                    "failed={}",
+            a_remote.handle.native_handle(), a_request.shout->GetFormID(), a_request.shoutID, variation,
+            a_request.released, a_request.failed);
+        if (a_request.failed)
+        {
+            SetFireSuppressed(a_remote, true);
+        }
     }
 
     void Release(RemoteActor& a_remote)
@@ -247,7 +334,6 @@ namespace VoicePresentation
             return;
         }
         auto& voice = a_remote.animation.voice;
-        voice.awaitingNewShout = false;
         if (!voice.held)
         {
             SetOwnership(a_remote, false);
@@ -265,7 +351,8 @@ namespace VoicePresentation
 
     bool CastPower(RemoteActor& a_remote, RE::SpellItem& a_power)
     {
-        if (!GameThread::Require("CastPower") || !SpellIsolation::IsolatesNativeCasts())
+        if (!GameThread::Require("CastPower") || !SpellIsolation::IsolatesNativeCasts()
+            || !GameplayPolicy::ShowsShoutEffects())
         {
             return false;
         }

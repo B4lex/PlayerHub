@@ -80,8 +80,8 @@ window leaves the row out while the value is false.
 `Comment` names a group of the settings after it: a comment line above them
 in a new file, and a group heading in the settings window.
 `Config::Describe` describes the sections in the order Connection,
-DefaultOutfit, UI, Controls, Advanced: the order of a new file's sections and
-of the settings window's sidebar
+DefaultOutfit, UI, Controls, Gameplay, Advanced: the order of a new file's
+sections and of the settings window's sidebar
 ([UI overlay](ui-overlay.md#settings-window)).
 
 ## Settings
@@ -247,6 +247,25 @@ the arrows, has that word in the game's language.
 - Two settings may hold the same key in the file; the window does not let
   the player bind one key twice. Unbound actions do not conflict.
 
+### `[Gameplay]`
+
+How other players' actions show and how far they reach into the local
+world, in two groups: Effects (`ShowSpellEffects`, `ShowShoutEffects`,
+`ShowImpactEffects`) and Isolation (`IsolateSpellEffects`,
+`IsolateShoutEffects`, `IsolateAttacks`, `DisableCollision`). Each applies to
+what this client shows of remote actors, not to what peers see of the local
+player. `GameplayPolicy` follows the section for the hooks that read it.
+
+| Key | Meaning | Default |
+| --- | --- | --- |
+| `ShowSpellEffects` | Remote hands may hold the receiver's own spell, whose fire shows natively; off, every hand holds a stand-in, which shows the cast and the spell's look in hand only ([Combat presentation](combat-presentation.md#spells)) | `true` |
+| `ShowShoutEffects` | Remote shouts and powers fire their spells; off, a shout still charges, speaks its words, and plays its release, without its breath, wave, projectile, or self effects, and a power casts nothing ([Combat presentation](combat-presentation.md#shout-and-power-receiver)) | `true` |
+| `ShowImpactEffects` | An isolated remote projectile shows its explosion and impact effects where it strikes, acting on nothing; off, it vanishes there ([Combat presentation](combat-presentation.md#spell-world-isolation)) | `false` |
+| `IsolateSpellEffects` | Remote spells act on nothing; off, they act on the local world as a local NPC's would ([Combat presentation](combat-presentation.md#isolation-settings)) | `true` |
+| `IsolateShoutEffects` | The same for remote shouts and powers | `true` |
+| `IsolateAttacks` | Remote weapon attacks hit nothing and bows shoot no arrows; off, swings, bashes, and arrows hit the local player and nothing else ([Remote actor](remote-actor.md#attacks-on-the-local-player)) | `true` |
+| `DisableCollision` | The local player passes through remote actors; off, a network-placed remote actor or mount blocks the local player, and only the local player ([Remote actor](remote-actor.md#solid-to-the-local-player)) | `true` |
+
 ### `[Advanced]`
 
 Settings most players leave alone, in three groups: Performance, Custom
@@ -282,6 +301,8 @@ revision before the snapshot never misses a change.
 | `ActorLifecycle` | main loop | reading `SpawnsPerSecond` once per pass in `RefillSpawnAllowance` |
 | `RemoteLights` | main loop | reading `RemoteLights` in the first pass after the revision changes |
 | `PoseWindow` | main loop | reading `ShareCustomAnimations` in the first pass after the revision changes; off closes an open window |
+| `GameplayPolicy` | main loop | reading `[Gameplay]` first in `SyncCoordinator::OnFrame` after the revision changes, into atomics the isolation hooks read on any thread |
+| `EquipmentSync` hands | main loop | resolving a remote actor's hands again when `ShowSpellEffects` differs from the value they were resolved with |
 | `SkeletonSync` | main loop | reading the three custom animation keys in the first pass after the revision changes, and sending a changed `PoseLimit` |
 | `DefaultOutfit` | main loop | `Refresh`, first in `SyncCoordinator::OnFrame`, resolving every item again when `[DefaultOutfit]` differs |
 | `EquipmentSync` | main loop | the next capture selecting from the new outfit and publishing a new revision |
