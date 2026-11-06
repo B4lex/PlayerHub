@@ -3,6 +3,7 @@
 #include "actor/ActorRegistry.h"
 #include "actor/GraphStance.h"
 #include "actor/RemoteActor.h"
+#include "actor/StaffSpell.h"
 #include "actor/WeaponTransition.h"
 #include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
@@ -64,10 +65,15 @@ namespace HandPresentation
             return weapon && weapon->IsBow();
         }
 
-        bool IsHoldingSpell(const RE::Actor& a_actor, bool a_leftHand)
+        // A staff stays the hand's weapon and casts the hand's selected spell.
+        RE::MagicItem* GetHandSpell(RE::Actor& a_actor, bool a_leftHand)
         {
-            const auto* hand = a_actor.GetEquippedObject(a_leftHand);
-            return hand && hand->Is(RE::FormType::Spell);
+            auto* hand = a_actor.GetEquippedObject(a_leftHand);
+            if (hand && hand->Is(RE::FormType::Spell))
+            {
+                return hand->As<RE::MagicItem>();
+            }
+            return StaffSpell::GetSpell(a_actor, a_leftHand);
         }
 
         bool CanStart(const RemoteActor& a_remote, const RE::Actor& a_actor)
@@ -284,7 +290,7 @@ namespace HandPresentation
 
         if (cast.held[hand])
         {
-            const bool holdingSpell = IsHoldingSpell(actor, leftHand);
+            const bool holdingSpell = GetHandSpell(actor, leftHand) != nullptr;
             const bool releasable = cast.releasable[hand];
             if (a_request.released && releasable && !cast.releaseRequested[hand])
             {
@@ -365,13 +371,13 @@ namespace HandPresentation
         releaseCastOwnership();
         if (!a_request.casting || !a_mayStart || !caster || cast.awaitingNewCast[hand]
             || cast.eventCooldown[hand] > 0.0F || state.hands.bow.drawHeld || IsBlockPlaying(state.hands)
-            || !IsHoldingSpell(actor, leftHand) || !CanStart(a_remote, actor))
+            || !GetHandSpell(actor, leftHand) || !CanStart(a_remote, actor))
         {
             return;
         }
         cast.eventCooldown[hand] = kEventRetrySeconds;
 
-        auto* spell = actor.GetEquippedObject(leftHand)->As<RE::MagicItem>();
+        auto* spell = GetHandSpell(actor, leftHand);
         // The caster sends its graph events synchronously and on later updates, and
         // checks the casting-disabled flag, so both are opened before the request.
         setCastOwnership(true);

@@ -21,6 +21,8 @@ namespace EquipmentSync
     struct ResolvedHand
     {
         RE::TESBoundObject* object{ nullptr };
+        // What a staff casts: the receiver's version of its enchantment or a stand-in.
+        RE::MagicItem* staffSpell{ nullptr };
         bool twoHanded{ false };
         bool spell{ false };
     };

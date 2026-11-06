@@ -35,6 +35,8 @@ namespace Multiplayer
         std::uint8_t weaponType{ 0 };
         FormReference castingArt;
         FormReference castingLight;
+        // A staff only.
+        FormReference enchantment;
 
         bool operator==(const EquipmentHand&) const = default;
     };
@@ -57,6 +59,7 @@ namespace Multiplayer
         static constexpr std::size_t kMaximumBeastArmor = 8;
         static constexpr std::uint8_t kMinimumWeaponType = 1;
         static constexpr std::uint8_t kMaximumWeaponType = 9;
+        static constexpr std::uint8_t kStaffWeaponType = 8;
 
         std::vector<EquipmentArmor> armor;
         std::optional<EquipmentHand> rightHand;
@@ -132,12 +135,23 @@ namespace Multiplayer
 
     [[nodiscard]] inline bool IsValidEquipmentHand(const EquipmentHand& a_hand, bool a_leftHand)
     {
+        const bool validLook
+            = IsValidFormReference(a_hand.castingArt, true) && IsValidFormReference(a_hand.castingLight, true);
+        const bool hasLook = !a_hand.castingArt.IsEmpty() || !a_hand.castingLight.IsEmpty();
         if (a_hand.kind == EquipmentHandKind::kSpell)
         {
-            return IsValidFormReference(a_hand.form, true) && a_hand.weaponType == 0
-                && IsValidFormReference(a_hand.castingArt, true) && IsValidFormReference(a_hand.castingLight, true);
+            return IsValidFormReference(a_hand.form, true) && a_hand.weaponType == 0 && validLook
+                && a_hand.enchantment.IsEmpty();
         }
-        if (!IsValidFormReference(a_hand.form, false) || !a_hand.castingArt.IsEmpty() || !a_hand.castingLight.IsEmpty())
+        if (!IsValidFormReference(a_hand.form, false))
+        {
+            return false;
+        }
+        if (a_hand.weaponType == PlayerEquipment::kStaffWeaponType && a_hand.kind == EquipmentHandKind::kWeapon)
+        {
+            return validLook && IsValidFormReference(a_hand.enchantment, true);
+        }
+        if (hasLook || !a_hand.enchantment.IsEmpty())
         {
             return false;
         }
@@ -170,7 +184,8 @@ namespace Multiplayer
         for (std::size_t i = 0; i < a_outfit.hands.size(); ++i)
         {
             const auto& hand = a_outfit.hands[i];
-            if (!isBaseGameItem(hand.form) || !hand.castingArt.IsEmpty() || !hand.castingLight.IsEmpty())
+            if (!isBaseGameItem(hand.form) || !hand.castingArt.IsEmpty() || !hand.castingLight.IsEmpty()
+                || !hand.enchantment.IsEmpty())
             {
                 return false;
             }

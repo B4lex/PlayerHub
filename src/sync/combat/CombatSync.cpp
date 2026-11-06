@@ -4,6 +4,7 @@
 #include "actor/AttackDispatch.h"
 #include "actor/HandPresentation.h"
 #include "actor/RemoteActor.h"
+#include "actor/StaffSpell.h"
 #include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
@@ -168,9 +169,11 @@ namespace CombatSync
 
         HandCast GetHandCast(RE::PlayerCharacter& a_player, bool a_leftHand)
         {
-            // A staff uses the same caster but stays a weapon.
+            // A staff stays a weapon and casts on the same caster.
             const auto* equipped = a_player.GetEquippedObject(a_leftHand);
-            if (!equipped || !(equipped->Is(RE::FormType::Spell) || equipped->Is(RE::FormType::Scroll)))
+            if (!equipped
+                || !(equipped->Is(RE::FormType::Spell) || equipped->Is(RE::FormType::Scroll)
+                    || StaffSpell::GetSpell(a_player, a_leftHand)))
             {
                 return {};
             }

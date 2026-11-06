@@ -3,6 +3,7 @@
 #include "actor/GameplayPolicy.h"
 #include "actor/HandPresentation.h"
 #include "actor/RemoteActor.h"
+#include "actor/StaffSpell.h"
 #include "actor/WeaponTransition.h"
 #include "forms/BeastForms.h"
 #include "forms/FormLookup.h"
@@ -87,14 +88,15 @@ namespace EquipmentSync
             return a_type >= RE::WEAPON_TYPE::kOneHandSword && a_type <= RE::WEAPON_TYPE::kCrossbow;
         }
 
-        std::optional<EquipmentHand> CaptureHand(RE::TESForm* a_form, bool a_leftHand, std::uint32_t& a_skipped)
+        std::optional<EquipmentHand> CaptureHand(RE::Actor& a_actor, bool a_leftHand, std::uint32_t& a_skipped)
         {
-            if (!a_form)
+            auto* form = a_actor.GetEquippedObject(a_leftHand);
+            if (!form)
             {
                 return std::nullopt;
             }
 
-            if (auto* weapon = a_form->As<RE::TESObjectWEAP>())
+            if (auto* weapon = form->As<RE::TESObjectWEAP>())
             {
                 const auto type = weapon->GetWeaponType();
                 // The engine may also return a two-handed weapon for the left hand.
@@ -110,17 +112,23 @@ namespace EquipmentSync
                     ++a_skipped;
                     return std::nullopt;
                 }
-                return EquipmentHand{ .form = *reference,
+                EquipmentHand hand{ .form = *reference,
                     .kind = EquipmentHandKind::kWeapon,
                     .weaponType = static_cast<std::uint8_t>(type) };
+                // The template root drops the staff's enchantment, which is what it casts.
+                if (auto* spell = StaffSpell::GetSpell(a_actor, a_leftHand))
+                {
+                    SpellStandIn::CaptureStaff(*spell, hand, a_skipped);
+                }
+                return hand;
             }
 
-            if (a_form->Is(RE::FormType::Spell) || a_form->Is(RE::FormType::Scroll))
+            if (form->Is(RE::FormType::Spell) || form->Is(RE::FormType::Scroll))
             {
-                return SpellStandIn::Capture(*a_form->As<RE::MagicItem>(), a_skipped);
+                return SpellStandIn::Capture(*form->As<RE::MagicItem>(), a_skipped);
             }
 
-            auto* light = a_form->As<RE::TESObjectLIGH>();
+            auto* light = form->As<RE::TESObjectLIGH>();
             if (!light || !a_leftHand || !light->CanBeCarried())
             {
                 return std::nullopt;
@@ -238,8 +246,8 @@ namespace EquipmentSync
 
             EquipmentData equipment;
             CaptureWornArmor(a_player, true, EquipmentData::kMaximumArmor, equipment.armor, a_skipped);
-            equipment.rightHand = CaptureHand(a_player.GetEquippedObject(false), false, a_skipped);
-            equipment.leftHand = CaptureHand(a_player.GetEquippedObject(true), true, a_skipped);
+            equipment.rightHand = CaptureHand(a_player, false, a_skipped);
+            equipment.leftHand = CaptureHand(a_player, true, a_skipped);
             if (equipment.rightHand && Multiplayer::IsTwoHandedWeaponType(equipment.rightHand->weaponType))
             {
                 equipment.leftHand.reset();
@@ -404,15 +412,19 @@ namespace EquipmentSync
             {
                 return {};
             }
+            const auto logCastDrop = [&](const Multiplayer::FormReference& a_form, std::string_view a_castSlot,
+                                         const SpellStandIn::Resolution& a_resolution) {
+                if (!a_resolution.dropReason.empty())
+                {
+                    LogUnresolvedEntry(a_playerID, a_revision, a_castSlot, a_form, a_resolution.dropReason,
+                        std::format("{}:{}", a_resolution.spell ? a_resolution.source : "none",
+                            FormatStandIn(a_resolution.spell)));
+                }
+            };
             if (a_entry->kind == EquipmentHandKind::kSpell)
             {
                 const auto resolution = SpellStandIn::Resolve(*a_entry, a_nativeSpell);
-                if (!resolution.dropReason.empty())
-                {
-                    LogUnresolvedEntry(a_playerID, a_revision, a_slot, a_entry->form, resolution.dropReason,
-                        std::format(
-                            "{}:{}", resolution.spell ? resolution.source : "none", FormatStandIn(resolution.spell)));
-                }
+                logCastDrop(a_entry->form, a_slot, resolution);
                 return resolution.spell ? ResolvedHand{ .object = resolution.spell, .spell = true } : ResolvedHand{};
             }
             const auto resolution = ResolveHand(*a_entry);
@@ -432,9 +444,19 @@ namespace EquipmentSync
                 object = std::addressof(FakeLight::Get(*light));
             }
             const auto* weapon = object->As<RE::TESObjectWEAP>();
-            return ResolvedHand{ .object = object,
+            ResolvedHand hand{ .object = object,
                 .twoHanded
                 = weapon && Multiplayer::IsTwoHandedWeaponType(static_cast<std::uint8_t>(weapon->GetWeaponType())) };
+            // A staff sent without its enchantment or look casts nothing on the source.
+            const bool castingStaff
+                = !a_entry->enchantment.IsEmpty() || !a_entry->castingArt.IsEmpty() || !a_entry->castingLight.IsEmpty();
+            if (weapon && weapon->IsStaff() && castingStaff)
+            {
+                const auto staffResolution = SpellStandIn::ResolveStaff(*a_entry);
+                logCastDrop(a_entry->enchantment, std::format("{}Staff", a_slot), staffResolution);
+                hand.staffSpell = staffResolution.spell;
+            }
+            return hand;
         }
 
         void ResetReconciliation(RemoteState& a_remote)
@@ -582,10 +604,13 @@ namespace EquipmentSync
 
             logs::debug(
                 "Equipment sync resolved remote equipment: player={} revision={} armor={}/{} rightHand={:08X} "
-                "leftHand={:08X} ammo={:08X} shout={:08X} beastRightHand={:08X} beastLeftHand={:08X} beastArmor={}/{}",
+                "leftHand={:08X} staffSpells={:08X}/{:08X} ammo={:08X} shout={:08X} beastRightHand={:08X} "
+                "beastLeftHand={:08X} beastArmor={}/{}",
                 a_playerID, static_cast<unsigned long long>(revision), a_remote.armor.size(), equipment.armor.size(),
                 a_remote.rightHand.object ? a_remote.rightHand.object->GetFormID() : 0,
                 a_remote.leftHand.object ? a_remote.leftHand.object->GetFormID() : 0,
+                a_remote.rightHand.staffSpell ? a_remote.rightHand.staffSpell->GetFormID() : 0,
+                a_remote.leftHand.staffSpell ? a_remote.leftHand.staffSpell->GetFormID() : 0,
                 a_remote.ammo ? a_remote.ammo->GetFormID() : 0, a_remote.shout ? a_remote.shout->GetFormID() : 0,
                 a_remote.beastRightHand.object ? a_remote.beastRightHand.object->GetFormID() : 0,
                 a_remote.beastLeftHand.object ? a_remote.beastLeftHand.object->GetFormID() : 0,
@@ -626,6 +651,25 @@ namespace EquipmentSync
             return a_equippedLeft == a_remote.leftHand.object;
         }
 
+        // A staff casts its hand's selection, which equipping a staff without the
+        // source's enchantment does not set. A weapon, torch, or empty hand keeps no
+        // selection that casts.
+        bool IsStaffSpellMatched(RE::Actor& a_actor, const ResolvedHand& a_hand, bool a_leftHand)
+        {
+            if (a_hand.spell)
+            {
+                return true;
+            }
+            auto* selected = StaffSpell::GetSelected(a_actor, a_leftHand);
+            return a_hand.staffSpell ? selected == a_hand.staffSpell : StaffSpell::IsCastless(selected);
+        }
+
+        bool AreStaffSpellsMatched(RE::Actor& a_actor, const RemoteState& a_remote)
+        {
+            return IsStaffSpellMatched(a_actor, a_remote.rightHand, false)
+                && IsStaffSpellMatched(a_actor, a_remote.leftHand, true);
+        }
+
         // Peers publish only playable armor outside beast forms, so a non-playable piece the
         // actor wears comes from its own magic: Dragon Aspect's script
         // (DLC2DragonbornAspectArtSCRIPT) equips DLC2DragonbornAspectArmor01 and unequips it
@@ -640,7 +684,8 @@ namespace EquipmentSync
         bool IsPresentationMatched(RE::Actor& a_actor, const RemoteState& a_remote)
         {
             if (GetEquippedHandObject(a_actor, false) != a_remote.rightHand.object
-                || !IsLeftHandMatched(a_remote, GetEquippedHandObject(a_actor, true)))
+                || !IsLeftHandMatched(a_remote, GetEquippedHandObject(a_actor, true))
+                || !AreStaffSpellsMatched(a_actor, a_remote))
             {
                 return false;
             }
@@ -976,7 +1021,7 @@ namespace EquipmentSync
         auto* equippedLeft = GetEquippedHandObject(*actor, true);
         auto* equippedAmmo = GetWornAmmo(*actor);
         const bool handsMatch = equippedRight == a_remote.rightHand.object && IsLeftHandMatched(a_remote, equippedLeft)
-            && equippedAmmo == a_remote.ammo;
+            && equippedAmmo == a_remote.ammo && AreStaffSpellsMatched(*actor, a_remote);
         const bool handsDeferred = !handsMatch && IsHandSwapDeferred(*actor, a_remoteActor)
             && a_remote.handDeferralElapsed < kMaximumHandDeferralSeconds;
 
@@ -1192,6 +1237,22 @@ namespace EquipmentSync
                 equipManager->EquipObject(
                     actor, a_remote.ammo, nullptr, kSynchronizedAmmoCount, nullptr, false, true, false);
                 swappedHands = true;
+            }
+            // A spell hand's selection is EquipSpell's.
+            for (const bool leftHand : { false, true })
+            {
+                const auto& hand = leftHand ? a_remote.leftHand : a_remote.rightHand;
+                if (!AsSpell(GetEquippedHandObject(*actor, leftHand)) && !IsStaffSpellMatched(*actor, hand, leftHand))
+                {
+                    const auto id = [](const RE::TESForm* a_form) { return a_form ? a_form->GetFormID() : 0; };
+                    const auto previous = id(StaffSpell::GetSelected(*actor, leftHand));
+                    StaffSpell::Select(*actor, leftHand, hand.staffSpell);
+                    swappedHands = true;
+                    logs::debug("Equipment sync selected staff spell: player={} actor={:08X} hand={} spell={:08X} "
+                                "previous={:08X} selected={:08X}",
+                        a_playerID, a_remoteActor.handle.native_handle(), leftHand ? "left" : "right",
+                        id(hand.staffSpell), previous, id(StaffSpell::GetSelected(*actor, leftHand)));
+                }
             }
         }
 

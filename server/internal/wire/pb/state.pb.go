@@ -1656,12 +1656,15 @@ func (x *Armor) GetSlotMask() uint32 {
 }
 
 type Hand struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Kind          HandKind               `protobuf:"varint,1,opt,name=kind,proto3,enum=playerhub.v1.HandKind" json:"kind,omitempty"`
-	Form          *FormRef               `protobuf:"bytes,2,opt,name=form,proto3" json:"form,omitempty"`
-	WeaponType    uint32                 `protobuf:"varint,3,opt,name=weapon_type,json=weaponType,proto3" json:"weapon_type,omitempty"`
-	CastingArt    *FormRef               `protobuf:"bytes,4,opt,name=casting_art,json=castingArt,proto3" json:"casting_art,omitempty"`
-	CastingLight  *FormRef               `protobuf:"bytes,5,opt,name=casting_light,json=castingLight,proto3" json:"casting_light,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Kind       HandKind               `protobuf:"varint,1,opt,name=kind,proto3,enum=playerhub.v1.HandKind" json:"kind,omitempty"`
+	Form       *FormRef               `protobuf:"bytes,2,opt,name=form,proto3" json:"form,omitempty"`
+	WeaponType uint32                 `protobuf:"varint,3,opt,name=weapon_type,json=weaponType,proto3" json:"weapon_type,omitempty"`
+	// The hand look of a spell, or of a staff's enchantment.
+	CastingArt   *FormRef `protobuf:"bytes,4,opt,name=casting_art,json=castingArt,proto3" json:"casting_art,omitempty"`
+	CastingLight *FormRef `protobuf:"bytes,5,opt,name=casting_light,json=castingLight,proto3" json:"casting_light,omitempty"`
+	// A staff's enchantment, the spell the staff casts.
+	Enchantment   *FormRef `protobuf:"bytes,6,opt,name=enchantment,proto3" json:"enchantment,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1727,6 +1730,13 @@ func (x *Hand) GetCastingArt() *FormRef {
 func (x *Hand) GetCastingLight() *FormRef {
 	if x != nil {
 		return x.CastingLight
+	}
+	return nil
+}
+
+func (x *Hand) GetEnchantment() *FormRef {
+	if x != nil {
+		return x.Enchantment
 	}
 	return nil
 }
@@ -2115,7 +2125,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\boverlays\x18\x11 \x03(\v2\x15.playerhub.v1.OverlayR\boverlays\"O\n" +
 	"\x05Armor\x12)\n" +
 	"\x04form\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\x04form\x12\x1b\n" +
-	"\tslot_mask\x18\x02 \x01(\rR\bslotMask\"\xf2\x01\n" +
+	"\tslot_mask\x18\x02 \x01(\rR\bslotMask\"\xab\x02\n" +
 	"\x04Hand\x12*\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x16.playerhub.v1.HandKindR\x04kind\x12)\n" +
 	"\x04form\x18\x02 \x01(\v2\x15.playerhub.v1.FormRefR\x04form\x12\x1f\n" +
@@ -2123,7 +2133,8 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"weaponType\x126\n" +
 	"\vcasting_art\x18\x04 \x01(\v2\x15.playerhub.v1.FormRefR\n" +
 	"castingArt\x12:\n" +
-	"\rcasting_light\x18\x05 \x01(\v2\x15.playerhub.v1.FormRefR\fcastingLight\"\x8f\x01\n" +
+	"\rcasting_light\x18\x05 \x01(\v2\x15.playerhub.v1.FormRefR\fcastingLight\x127\n" +
+	"\venchantment\x18\x06 \x01(\v2\x15.playerhub.v1.FormRefR\venchantment\"\x8f\x01\n" +
 	"\rDefaultOutfit\x12)\n" +
 	"\x05armor\x18\x01 \x03(\v2\x13.playerhub.v1.ArmorR\x05armor\x12(\n" +
 	"\x05hands\x18\x02 \x03(\v2\x12.playerhub.v1.HandR\x05hands\x12)\n" +
@@ -2323,25 +2334,26 @@ var file_playerhub_v1_state_proto_depIdxs = []int32{
 	8,  // 26: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
 	8,  // 27: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
 	8,  // 28: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
-	19, // 29: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
-	20, // 30: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
-	8,  // 31: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
-	19, // 32: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
-	20, // 33: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
-	20, // 34: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
-	8,  // 35: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
-	21, // 36: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
-	20, // 37: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
-	20, // 38: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
-	19, // 39: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
-	8,  // 40: playerhub.v1.Equipment.shout:type_name -> playerhub.v1.FormRef
-	8,  // 41: playerhub.v1.ActiveEffect.effect:type_name -> playerhub.v1.FormRef
-	23, // 42: playerhub.v1.Effects.effects:type_name -> playerhub.v1.ActiveEffect
-	43, // [43:43] is the sub-list for method output_type
-	43, // [43:43] is the sub-list for method input_type
-	43, // [43:43] is the sub-list for extension type_name
-	43, // [43:43] is the sub-list for extension extendee
-	0,  // [0:43] is the sub-list for field type_name
+	8,  // 29: playerhub.v1.Hand.enchantment:type_name -> playerhub.v1.FormRef
+	19, // 30: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
+	20, // 31: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
+	8,  // 32: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
+	19, // 33: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
+	20, // 34: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
+	20, // 35: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
+	8,  // 36: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
+	21, // 37: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
+	20, // 38: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
+	20, // 39: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
+	19, // 40: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
+	8,  // 41: playerhub.v1.Equipment.shout:type_name -> playerhub.v1.FormRef
+	8,  // 42: playerhub.v1.ActiveEffect.effect:type_name -> playerhub.v1.FormRef
+	23, // 43: playerhub.v1.Effects.effects:type_name -> playerhub.v1.ActiveEffect
+	44, // [44:44] is the sub-list for method output_type
+	44, // [44:44] is the sub-list for method input_type
+	44, // [44:44] is the sub-list for extension type_name
+	44, // [44:44] is the sub-list for extension extendee
+	0,  // [0:44] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_state_proto_init() }

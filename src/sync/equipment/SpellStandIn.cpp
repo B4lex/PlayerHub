@@ -169,11 +169,12 @@ namespace SpellStandIn
         }
 
         // What a hand casts: fire-and-forget and concentration spells, not powers or
-        // abilities, which the source never holds in a hand anyway.
-        bool IsHandSpell(const RE::SpellItem& a_spell)
+        // abilities, which the source never holds in a hand anyway, and a staff's
+        // enchantment of those casting types.
+        bool IsHandCast(const RE::MagicItem& a_spell, RE::MagicSystem::SpellType a_type)
         {
             const auto castingType = a_spell.GetCastingType();
-            return a_spell.GetSpellType() == RE::MagicSystem::SpellType::kSpell
+            return a_spell.GetSpellType() == a_type
                 && (castingType == RE::MagicSystem::CastingType::kFireAndForget
                     || castingType == RE::MagicSystem::CastingType::kConcentration);
         }
@@ -258,6 +259,109 @@ namespace SpellStandIn
             }
             return spell;
         }
+
+        void CaptureLook(const RE::MagicItem& a_spell, Multiplayer::EquipmentHand& a_hand, std::uint32_t& a_skipped)
+        {
+            const auto look = ReadLook(a_spell.GetAVEffect());
+            const auto art = look.castingArt ? FormLookup::MakeFormReference(look.castingArt) : std::nullopt;
+            const auto light = look.castingLight ? FormLookup::MakeFormReference(look.castingLight) : std::nullopt;
+            // A partial look would read as a spell without that part.
+            if ((look.castingArt && !art) || (look.castingLight && !light))
+            {
+                ++a_skipped;
+                return;
+            }
+            if (art)
+            {
+                a_hand.castingArt = *art;
+            }
+            if (light)
+            {
+                a_hand.castingLight = *light;
+            }
+        }
+
+        // The receiver's version of the source's spell, which casts natively, when it
+        // may; a scroll is an inventory item that EquipSpell does not take and its
+        // cast consumes, so it keeps a stand-in.
+        RE::MagicItem* GetNativeCast(RE::TESForm& a_form, bool a_staff)
+        {
+            if (a_staff)
+            {
+                auto* enchantment = a_form.As<RE::EnchantmentItem>();
+                return enchantment && IsHandCast(*enchantment, RE::MagicSystem::SpellType::kStaffEnchantment)
+                    ? enchantment
+                    : nullptr;
+            }
+            auto* spell = a_form.As<RE::SpellItem>();
+            return spell && IsHandCast(*spell, RE::MagicSystem::SpellType::kSpell) ? spell : nullptr;
+        }
+
+        Resolution ResolveCast(const Multiplayer::FormReference& a_reference, const Multiplayer::EquipmentHand& a_hand,
+            bool a_staff, bool a_allowNative)
+        {
+            if (!GameThread::Require("SpellStandIn::Resolve"))
+            {
+                return { .dropReason = "off-game-thread" };
+            }
+            auto* placeholder = FormLookup::ResolveForm<RE::SpellItem>(kPlaceholderSpell);
+            auto* placeholderEffect = placeholder ? placeholder->GetAVEffect() : nullptr;
+            if (!placeholderEffect)
+            {
+                return { .dropReason = "missing-placeholder-spell" };
+            }
+
+            std::string_view source = "spell";
+            std::string_view dropReason;
+            std::optional<Look> look;
+            std::optional<Shape> shape;
+            if (a_reference.IsEmpty())
+            {
+                dropReason = "unsent";
+            }
+            else if (auto* form = FormLookup::ResolveForm(a_reference); !form)
+            {
+                dropReason = "missing";
+            }
+            else if (a_staff ? !form->Is(RE::FormType::Enchantment)
+                             : !form->Is(RE::FormType::Spell) && !form->Is(RE::FormType::Scroll))
+            {
+                dropReason = "wrong-type";
+            }
+            else
+            {
+                if (auto* native = GetNativeCast(*form, a_staff); native && a_allowNative
+                    && SpellIsolation::IsolatesNativeCasts() && GameplayPolicy::ShowsSpellEffects())
+                {
+                    return { .spell = native, .source = "native" };
+                }
+                const auto* spell = form->As<RE::MagicItem>();
+                look = ReadLook(spell->GetAVEffect());
+                shape = ReadShape(*spell);
+            }
+            if (!look)
+            {
+                source = "look";
+                look = ResolveSentLook(a_hand, *placeholderEffect);
+            }
+            if (!look)
+            {
+                // A copy of the placeholder rather than the placeholder itself, which
+                // would cast natively.
+                source = "placeholder";
+                look = ReadLook(placeholderEffect);
+            }
+            if (!shape)
+            {
+                shape = ReadShape(*placeholder);
+            }
+            auto* standIn = GetStandIn(*placeholder, *placeholderEffect, *look, *shape);
+            if (!standIn)
+            {
+                return { .dropReason = "stand-in-failed" };
+            }
+            return { .spell = standIn, .source = source, .dropReason = dropReason };
+        }
     }
 
     Multiplayer::EquipmentHand Capture(const RE::MagicItem& a_spell, std::uint32_t& a_skipped)
@@ -271,91 +375,30 @@ namespace SpellStandIn
         {
             ++a_skipped;
         }
+        CaptureLook(a_spell, hand, a_skipped);
+        return hand;
+    }
 
-        const auto look = ReadLook(a_spell.GetAVEffect());
-        const auto art = look.castingArt ? FormLookup::MakeFormReference(look.castingArt) : std::nullopt;
-        const auto light = look.castingLight ? FormLookup::MakeFormReference(look.castingLight) : std::nullopt;
-        // A partial look would read as a spell without that part.
-        if ((look.castingArt && !art) || (look.castingLight && !light))
+    void CaptureStaff(const RE::MagicItem& a_enchantment, Multiplayer::EquipmentHand& a_hand, std::uint32_t& a_skipped)
+    {
+        if (auto reference = FormLookup::MakeFormReference(std::addressof(a_enchantment)))
+        {
+            a_hand.enchantment = std::move(*reference);
+        }
+        else
         {
             ++a_skipped;
-            return hand;
         }
-        if (art)
-        {
-            hand.castingArt = *art;
-        }
-        if (light)
-        {
-            hand.castingLight = *light;
-        }
-        return hand;
+        CaptureLook(a_enchantment, a_hand, a_skipped);
     }
 
     Resolution Resolve(const Multiplayer::EquipmentHand& a_hand, bool a_allowNative)
     {
-        if (!GameThread::Require("SpellStandIn::Resolve"))
-        {
-            return { .dropReason = "off-game-thread" };
-        }
-        auto* placeholder = FormLookup::ResolveForm<RE::SpellItem>(kPlaceholderSpell);
-        auto* placeholderEffect = placeholder ? placeholder->GetAVEffect() : nullptr;
-        if (!placeholderEffect)
-        {
-            return { .dropReason = "missing-placeholder-spell" };
-        }
+        return ResolveCast(a_hand.form, a_hand, false, a_allowNative);
+    }
 
-        std::string_view source = "spell";
-        std::string_view dropReason;
-        std::optional<Look> look;
-        std::optional<Shape> shape;
-        if (a_hand.form.IsEmpty())
-        {
-            dropReason = "unsent";
-        }
-        else if (auto* form = FormLookup::ResolveForm(a_hand.form); !form)
-        {
-            dropReason = "missing";
-        }
-        else if (!form->Is(RE::FormType::Spell) && !form->Is(RE::FormType::Scroll))
-        {
-            dropReason = "wrong-type";
-        }
-        else
-        {
-            // A scroll is an inventory item that EquipSpell does not take and its
-            // cast consumes, so it keeps a stand-in.
-            auto* nativeSpell = form->As<RE::SpellItem>();
-            if (a_allowNative && SpellIsolation::IsolatesNativeCasts() && GameplayPolicy::ShowsSpellEffects()
-                && nativeSpell && IsHandSpell(*nativeSpell))
-            {
-                return { .spell = nativeSpell, .source = "native" };
-            }
-            const auto* spell = form->As<RE::MagicItem>();
-            look = ReadLook(spell->GetAVEffect());
-            shape = ReadShape(*spell);
-        }
-        if (!look)
-        {
-            source = "look";
-            look = ResolveSentLook(a_hand, *placeholderEffect);
-        }
-        if (!look)
-        {
-            // A copy of the placeholder rather than the placeholder itself, which
-            // would cast natively.
-            source = "placeholder";
-            look = ReadLook(placeholderEffect);
-        }
-        if (!shape)
-        {
-            shape = ReadShape(*placeholder);
-        }
-        auto* standIn = GetStandIn(*placeholder, *placeholderEffect, *look, *shape);
-        if (!standIn)
-        {
-            return { .dropReason = "stand-in-failed" };
-        }
-        return { .spell = standIn, .source = source, .dropReason = dropReason };
+    Resolution ResolveStaff(const Multiplayer::EquipmentHand& a_hand)
+    {
+        return ResolveCast(a_hand.enchantment, a_hand, true, true);
     }
 }

@@ -251,8 +251,11 @@ message Hand {
   HandKind kind = 1;
   FormRef form = 2;
   uint32 weapon_type = 3;
+  // The hand look of a spell, or of a staff's enchantment.
   FormRef casting_art = 4;
   FormRef casting_light = 5;
+  // A staff's enchantment, the spell the staff casts.
+  FormRef enchantment = 6;
 }
 
 message DefaultOutfit {

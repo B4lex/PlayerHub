@@ -62,6 +62,7 @@ const (
 	MaximumMagnitude    = 1e6
 	MinimumWeaponType   = 1
 	MaximumWeaponType   = 9
+	StaffWeaponType     = 8
 	MaximumChatTextRune = 512
 	MaximumChatTextByte = 4 * MaximumChatTextRune
 
@@ -498,7 +499,8 @@ func defaultOutfit(o *pb.DefaultOutfit) bool {
 		default:
 			return false
 		}
-		if h.Form == nil || !baseGameFormRef(h.Form) || h.CastingArt != nil || h.CastingLight != nil {
+		if h.Form == nil || !baseGameFormRef(h.Form) || h.CastingArt != nil || h.CastingLight != nil ||
+			h.Enchantment != nil {
 			return false
 		}
 		k := key{h.GetKind(), h.GetWeaponType()}
@@ -534,11 +536,15 @@ func armorEntry(a *pb.Armor) bool {
 }
 
 func hand(h *pb.Hand, left bool) bool {
+	look := optionalFormRef(h.CastingArt) && optionalFormRef(h.CastingLight)
 	if h.GetKind() == pb.HandKind_HAND_KIND_SPELL {
-		return optionalFormRef(h.Form) && h.GetWeaponType() == 0 && optionalFormRef(h.CastingArt) &&
-			optionalFormRef(h.CastingLight)
+		return optionalFormRef(h.Form) && h.GetWeaponType() == 0 && look && h.Enchantment == nil
 	}
-	if h.CastingArt != nil || h.CastingLight != nil {
+	staff := h.GetKind() == pb.HandKind_HAND_KIND_WEAPON && h.GetWeaponType() == StaffWeaponType
+	if staff && !(look && optionalFormRef(h.Enchantment)) {
+		return false
+	}
+	if !staff && (h.CastingArt != nil || h.CastingLight != nil || h.Enchantment != nil) {
 		return false
 	}
 	switch h.GetKind() {

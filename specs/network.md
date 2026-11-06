@@ -435,7 +435,8 @@ and the two fields are not merged yet.
 | `armor` | at most 32, unique references; `slot_mask` non-zero (bit 0 is slot 30) |
 | `right_hand`, `left_hand` | a hand, unset for empty |
 | hand `kind` | `WEAPON`, `TORCH` (left hand only), or `SPELL` (no weapon type; the spell or scroll as `form`, unset when unreferenceable) |
-| hand `casting_art`, `casting_light` | only for `SPELL`, each a form reference or unset: the spell's hand look, used when the receiver lacks the spell ([Combat presentation](combat-presentation.md#spell-look)) |
+| hand `casting_art`, `casting_light` | only for `SPELL` and a staff (`WEAPON` with weapon type 8), each a form reference or unset: the hand look of the spell or of the staff's enchantment, used when the receiver lacks it ([Combat presentation](combat-presentation.md#spell-look)) |
+| hand `enchantment` | only for a staff, a form reference or unset: the staff enchantment the staff casts, unset when it casts nothing or is unreferenceable ([Combat presentation](combat-presentation.md#staves)) |
 | hand `weapon_type` | `WEAPON_TYPE` `1..9`, only for a weapon; two-handed types (5, 6, 7, 9) only in the right hand, which then requires an empty left hand |
 | `ammo` | form reference, unset for none |
 | `shout` | form reference, unset when the voice slot holds a power or nothing: the shout the checkpoint's shout flags present ([Combat presentation](combat-presentation.md#shouts-and-powers)) |
@@ -443,7 +444,7 @@ and the two fields are not merged yet.
 | `beast_right_hand`, `beast_left_hand` | a `SPELL` hand, unset for empty: a vampire lord's spells, while the fields above keep the character's items ([Appearance and equipment](appearance-and-equipment.md#shapeshifts)) |
 | `beast_armor` | at most 8, as `armor`: the vampire lord's worn armor |
 | outfit `armor` | at most 8, non-zero slot masks |
-| outfit `hands` | at most 2, a weapon with a weapon type or a torch, no casting art or light, no two with the same kind and weapon type |
+| outfit `hands` | at most 2, a weapon with a weapon type or a torch, no casting art, light, or enchantment, no two with the same kind and weapon type |
 | outfit references and `default_race.race` | from a base-game plugin, compared without case |
 
 `slot_mask` and `weapon_type` are hints that select the default outfit piece;

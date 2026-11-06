@@ -12,14 +12,15 @@ Powers and a remote actor's shouted words
 ## Scope
 
 A remote actor shows its source's weapon stance, melee and bow attacks,
-bashes, power attacks, blocking, bow draws, spell casts, shouts, and powers,
-standing or moving. Only animations and hand effects play, except a spell the
-receiver also has: it casts natively, so its projectiles and beams show in
-flight in the receiver's world, and its self effects apply to the remote actor
-([Spells](#spells)). Shouts and powers always cast natively
-([Shouts and powers](#shouts-and-powers)). The lasting effects that show on
-the source's actor, such as invisibility, follow the source's active effects
-rather than the casts a peer sees ([Active effects](#active-effects)).
+bashes, power attacks, blocking, bow draws, spell and staff casts, shouts, and
+powers, standing or moving. Only animations and hand effects play, except a
+spell or staff enchantment the receiver also has: it casts natively, so its
+projectiles and beams show in flight in the receiver's world, and its self
+effects apply to the remote actor ([Spells](#spells)). Shouts and powers
+always cast natively ([Shouts and powers](#shouts-and-powers)). The lasting
+effects that show on the source's actor, such as invisibility, follow the
+source's active effects rather than the casts a peer sees
+([Active effects](#active-effects)).
 Nothing is hit, staggered, damaged, pushed, spent, summoned, or targeted, and
 no arrow is launched ([Spell world isolation](#spell-world-isolation)).
 
@@ -46,7 +47,8 @@ attack data records.
 | `actor/AimPresentation` | The aim target hook that points a remote actor's bow draw and aimed casts along the source's look pitch |
 | `actor/WeaponTransition` | The native draw and sheathe request and its completion ([Locomotion](locomotion.md#components)) |
 | `actor/ActorAnimation` | `GetCombatReadyState`, the graph and stance test every attack and hand presentation start shares |
-| `sync/equipment/SpellStandIn` | Spell hand look capture, resolution, and the stand-in spells |
+| `sync/equipment/SpellStandIn` | Spell hand and staff look capture, resolution, and the stand-in spells |
+| `actor/StaffSpell` | What a staff in a hand casts (the actor's selection for that hand), and selecting it |
 | `actor/SpellIsolation` | Spell fire and cast hooks, and the hooks that keep a remote actor's magic, projectiles, explosions, and hazards from acting on the local world |
 | `actor/SelfEffects` | Which of a remote actor's own effects may stay on it (the self allowlist, `kActorScriptEffects`, `kIgnoredEffects`, effects a sync stage owns) and which are presented from the source's active effects (`IsPresented`) |
 | `sync/effects/EffectSync` | Source capture and publishing of the presented active effects; receiver hold, resolution, and reconciliation |
@@ -345,10 +347,11 @@ reads the player. Everything is false unless the weapon is drawn:
 
 - `bowDrawn`: a bow in the right hand and `ATTACK_STATE_ENUM` `kBowDraw`,
   `kBowAttached`, or `kBowDrawn`; `kBowReleasing` and later are a release.
-- `castingLeft`/`castingRight`: a spell or scroll in that hand and a
-  `MagicCaster::state` from the cast request through release (`kUnk01` to
-  `kUnk07`); `kNone` is a readied hand that is not casting. The release and
-  dual cast fields are in [Spells](#spells).
+- `castingLeft`/`castingRight`: a spell or scroll in that hand, or a staff
+  that casts ([Staves](#staves)), and a `MagicCaster::state` from the cast
+  request through release (`kUnk01` to `kUnk07`); `kNone` is a readied hand
+  that is not casting. The release and dual cast fields are in
+  [Spells](#spells).
 - `blocking`: `Actor::IsBlocking()` without a bow or crossbow in the right hand
   (with a bow the block button zooms, and `BowZoom` sends `blockStart`). `IsBlocking()` is false while a bash plays,
   even from a held block (observed in game), so during `kBash` the player's
@@ -511,14 +514,53 @@ spell satisfies, so the left cast plays `RitualSpellStart` or
   firewall passes cast events, which the caster sends then and on later updates
   ([Remote actor](remote-actor.md#animation-firewall)). Names are matched
   ignoring case: the left release idle sends `MLH_SpellRelease_event`.
-- Staves stay weapons and play no cast.
+
+### Staves
+
+Goal: a peer sees the source's staff cast as it sees a spell hand's
+([Spells](#spells)): the staff's charge, release, or concentration loop, and,
+when the peer has the staff's enchantment, what it fires, isolated as a
+native hand's. Non-goals: the staff's charge, which the source spends alone.
+
+- **Selection.** A staff stays a weapon in its hand. Equipping an enchanted
+  weapon selects its enchantment for that hand (`Actor::selectedSpells`,
+  ID 38752 through `Actor::SelectSpell`, ID 38768), and the hand's caster
+  casts the selection. `HasEquippedSpell` (condition function 570, ID 21554),
+  which roots `AttackMagicLeftRoot` and `AttackMagicRightRoot`, accepts any
+  selection but a weapon enchantment, so a staff enchantment casts from the
+  staff and a sword's enchantment never does. `StaffSpell::GetSpell` is a
+  held staff's selection unless it is none or a weapon enchantment.
+- **Capture.** The staff is sent as its unenchanted template root
+  ([Appearance and equipment](appearance-and-equipment.md#capture)), so its
+  hand also carries `StaffSpell::GetSpell` as `enchantment`, with that
+  enchantment's look as for a spell hand ([Spell look](#spell-look)). A staff
+  that casts nothing carries neither. The cast and release fields come from
+  the staff's caster as for a spell hand.
+- **Resolution.** `SpellStandIn::ResolveStaff` resolves the enchantment as
+  `Resolve` resolves a spell hand's spell: while `ShowSpellEffects` is on, the
+  receiver's version of a fire-and-forget or concentration staff enchantment
+  casts natively; otherwise the staff casts a stand-in with that
+  enchantment's look and cast shape, the sent look, or Healing Hands' look.
+  A staff sent without an enchantment or a look has no spell.
+- **Selection on the receiver.** Equipment reconciliation selects the
+  resolved spell into the staff's hand
+  ([Appearance and equipment](appearance-and-equipment.md#reconciliation)),
+  since the staff the actor holds, the template root or a default outfit
+  staff, selects nothing when equipped.
+- **Cast.** The hand presentation treats the selection as the hand's spell
+  and casts it as in [Spells](#spells). `kSkipCheckCast` also covers the
+  staff's charge, which the remote actor's staff never has:
+  `ActorMagicCaster::CheckCast` (ID 34145), which spell fire calls, passes at
+  once while the flag is set. A stand-in's fire stays suppressed and a
+  native enchantment fires natively, both as for a spell hand;
+  `GameplayPolicy` classifies a staff enchantment as a spell.
 
 ### Spell look
 
-Goal: a peer recognizes the source's spell in hand by its hand art, hand light,
-and hand sounds. A native hand has them as its own; this section covers the
-stand-in, which also leaves out the release and hit sounds, the projectile,
-the beam, and the hit effects.
+Goal: a peer recognizes the source's spell in hand, or the spell a staff
+casts, by its hand art, hand light, and hand sounds. A native hand has them as
+its own; this section covers the stand-in, which also leaves out the release
+and hit sounds, the projectile, the beam, and the hit effects.
 
 The magic caster takes a hand's art (`castingArt`), light (`light`), and sounds
 from the costliest effect of the hand's spell (`MagicItem::GetAVEffect`). A
@@ -1340,6 +1382,24 @@ matched on SE 1.5.97:
     a remote actor's native spell projectiles leave along its aim
     (`Actor::GetAimAngle` reads `AimPitchCurrent` while `bAimActive` is set).
 
+Verified in game for [staves](#staves), read from the 1.7.104 disassembly;
+`Actor::SelectSpell` was matched to SE 37819 against 1.5.97:
+
+35. A remote actor holding a staff plays the staff's cast clips for its
+    selection from the hand's attack action, and the clips' fire annotation
+    reaches spell fire (ID 34407) as a spell hand's does.
+36. `Actor::SelectSpell` on a hand that holds a staff gives the hand's caster
+    the selection's hand art, light, and sounds while the staff is drawn, as
+    equipping an enchanted staff does.
+37. The player's selection for a staff hand stays the staff's enchantment
+    from its equip until it is unequipped.
+
+Not confirmed for [staves](#staves):
+
+38. Nothing replaces a selection on a remote actor's weapon hand but its
+    equipment changes; reconciliation would select it again at its next
+    check.
+
 ## Acceptance criteria
 
 1. A remote actor converges to the source's drawn or sheathed stance without
@@ -1393,11 +1453,17 @@ matched on SE 1.5.97:
     summons anything. Dragon Aspect's armor art stays on the actor for as long
     as the effect lasts.
 
-12. A bow drawn or a spell aimed while the source looks up or down points
+12. A staff cast plays on peers as a spell cast of the staff's enchantment,
+    from the staff in that hand: its charge, hold, release, or loop, its hand
+    art and light, and, for a peer with the enchantment, its projectiles,
+    beams, and sprays in flight, isolated as in 9. A peer without it sees the
+    cast with the enchantment's look or Healing Hands'. A staff that casts
+    nothing and any other weapon never cast.
+13. A bow drawn or a spell aimed while the source looks up or down points
     the same way on peers, follows as the source looks around, and returns
     level when the source looks level. Looking around with the weapon
     sheathed while standing still sends no checkpoints.
-13. A peer that sees the source's actor sees the source's invisibility,
+14. A peer that sees the source's actor sees the source's invisibility,
     ethereal look, light, and the shaders and art of its flesh spells,
     cloaks, potions, abilities, and worn enchantments, once each and for as
     long as the source's last: also as a late joiner, after either player
@@ -1422,6 +1488,8 @@ matched on SE 1.5.97:
   whose script acts on the local player, such as its screen, is not in
   `kIgnoredEffects` and still runs.
 - A power the peer does not have shows nothing.
+- A staff whose enchantment is dynamic, as a mod may create, casts nothing
+  on peers unless its look can be referenced, and then casts a stand-in.
 - A lasting look made by a script, such as Dragon Aspect's armor or Mist
   Form's alpha, or by an archetype outside the self allowlist and
   `kActorScriptEffects` shows only from a cast the peer sees, not as an

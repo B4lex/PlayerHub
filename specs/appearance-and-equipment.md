@@ -409,8 +409,10 @@ Capture, when the race has a [playable race](#playable-race):
   object is a playable `TESObjectARMO`, including shields, deduplicated after
   enchantment reduction. Skin armor never appears in inventory.
 - Hands from `Actor::GetEquippedObject(false/true)`: a `TESObjectWEAP` other
-  than hand-to-hand is `weapon` with its type; a carriable `TESObjectLIGH` in the
-  left hand is `torch`; a `SpellItem` or `ScrollItem` is a `SPELL` hand with
+  than hand-to-hand is `weapon` with its type, and a staff that casts also
+  carries the spell it casts and that spell's look
+  ([Combat presentation](combat-presentation.md#staves)); a carriable
+  `TESObjectLIGH` in the left hand is `torch`; a `SpellItem` or `ScrollItem` is a `SPELL` hand with
   the spell and its look ([Combat presentation](combat-presentation.md#spell-look));
   bare fists or anything else is an unset hand. A two-handed
   weapon, bow, or crossbow is reported in the right hand only. Dual-wielding one
@@ -441,6 +443,8 @@ A player-enchanted item keeps its base form and carries the enchantment as
 records point at their unenchanted item through `templateWeapon` or
 `templateArmor`; the sender follows that chain, at most 8 steps, and skips the
 item if the root is dynamic. Crafted, unenchanted items are ordinary forms.
+Vanilla staves keep their model in the root, and a staff's enchantment, which
+is what it casts, travels beside it in the hand.
 
 Publishing: when the capture differs from the last published one (revision
 excluded, armor compared as a set), at least 250 ms apart, sending only the
@@ -456,7 +460,11 @@ type: `TESObjectARMO`, `TESObjectWEAP`, a carriable `TESObjectLIGH`, or
 reference names the defining plugin, so a form overridden by a local mod still
 resolves, as the receiver's version. A spell hand resolves to the receiver's
 own version of a hand spell, or otherwise to a stand-in spell
-([Combat presentation](combat-presentation.md#spell-look)). Each drop is
+([Combat presentation](combat-presentation.md#spell-look)). A hand whose
+resolved weapon, or default outfit stand-in, is a staff also resolves the
+staff's enchantment that way, when one or its look was sent
+([Combat presentation](combat-presentation.md#staves)); its drops are logged
+with the hand's slot followed by `Staff`. Each drop is
 logged once per revision with player, plugin, form ID, reason (`missing`,
 `wrong-type`, and for a spell `unsent` and `stand-in-failed`), and the
 stand-in; a spell drop also names the look it fell back to (`look`,
@@ -522,6 +530,11 @@ worn armor, and equipped hand objects with the resolved set. When they differ:
    spell hand uses `EquipSpell` in its slot, which also replaces a held spell
    with another, and never counts as inventory. The
    ammo is equipped, which fills the quiver; remote shots never spend it.
+6. Each hand that holds no spell gets its selection
+   (`Actor::selectedSpells`) through `Actor::SelectSpell` (ID 38768, SE
+   37819): a staff's resolved spell, and otherwise none, which also clears
+   what a staff left. A weapon's own enchantment, which never casts, may stay
+   selected. A spell hand's selection is `EquipSpell`'s.
 
 A mismatch is checked every frame until the first mutation pass, so a new
 revision applies at once; afterwards, and while matching, every 0.25 s. At most
@@ -535,8 +548,9 @@ Hand timing:
 - Armor applies immediately in every graph state. Hand and ammo swaps are
   instant on the live actor, even while drawn, but wait while a draw or sheathe,
   an attack, a bow draw or shot, or a cast owns the graph, bounded to 2 s.
-- `handsMatch` requires the equipped ammo too, so a bow draw nocks the right
-  arrow. `AreHandsSettled` gates attack dispatch and hand presentation, and
+- `handsMatch` requires the equipped ammo and the hands' selections too, so a
+  bow draw nocks the right arrow and a staff casts its own spell.
+  `AreHandsSettled` gates attack dispatch and hand presentation, and
   `IsReadyForWeaponDraw` holds a first draw, at most 1 s.
 - Retiring an actor keeps the equipment state; the new reference reconciles
   from it. Equipment never triggers a respawn.
@@ -847,7 +861,7 @@ Not confirmed in game:
   shown: the user chose an instant swap. The swap waits for a respawn,
   so the actor is briefly absent while the new form's 3D loads. Custom skin armor and far skins use the resolved race's.
 - Enchantments, tempering, poison, charge, player-given names, and SMP/CBPC
-  physics are not shown.
+  physics are not shown, except the spell a staff casts.
 - An outfit piece stands in only for its slot and weapon type, not for the
   missing item's look. A default race shows its own default face.
 - Tint capture is off on VR.

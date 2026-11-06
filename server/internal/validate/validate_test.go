@@ -399,6 +399,15 @@ func TestEquipment(t *testing.T) {
 				CastingArt: ref("Skyrim.esm", 2), CastingLight: ref("Skyrim.esm", 3)}
 		},
 		"right spell": func(e *pb.Equipment) { e.RightHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL} },
+		"staff with enchantment and look": func(e *pb.Equipment) {
+			e.LeftHand = weapon(StaffWeaponType)
+			e.LeftHand.Enchantment = ref("Skyrim.esm", 0x10FCF6)
+			e.LeftHand.CastingArt, e.LeftHand.CastingLight = ref("Skyrim.esm", 2), ref("Skyrim.esm", 3)
+		},
+		"staff with look only": func(e *pb.Equipment) {
+			e.RightHand = weapon(StaffWeaponType)
+			e.RightHand.CastingArt = ref("Mod.esp", 2)
+		},
 		"beast spells": func(e *pb.Equipment) {
 			e.BeastRightHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL, Form: ref("Dawnguard.esm", 0x2DE)}
 			e.BeastLeftHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_SPELL, CastingArt: ref("Skyrim.esm", 2)}
@@ -427,6 +436,24 @@ func TestEquipment(t *testing.T) {
 		"invalid casting art":     func(e *pb.Equipment) { e.LeftHand.CastingArt = ref("Skyrim.esm", 0x1000000) },
 		"invalid casting light":   func(e *pb.Equipment) { e.LeftHand.CastingLight = ref("", 1) },
 		"weapon with casting art": func(e *pb.Equipment) { e.RightHand.CastingArt = ref("Skyrim.esm", 1) },
+		"weapon with enchantment": func(e *pb.Equipment) { e.RightHand.Enchantment = ref("Skyrim.esm", 1) },
+		"spell with enchantment":  func(e *pb.Equipment) { e.LeftHand.Enchantment = ref("Skyrim.esm", 1) },
+		"invalid staff enchantment": func(e *pb.Equipment) {
+			e.RightHand = weapon(StaffWeaponType)
+			e.RightHand.Enchantment = ref("", 1)
+		},
+		"invalid staff casting art": func(e *pb.Equipment) {
+			e.RightHand = weapon(StaffWeaponType)
+			e.RightHand.CastingArt = ref("Skyrim.esm", 0x1000000)
+		},
+		"torch with enchantment": func(e *pb.Equipment) {
+			e.LeftHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_TORCH, Form: ref("Skyrim.esm", 1),
+				Enchantment: ref("Skyrim.esm", 2)}
+		},
+		"outfit staff with enchantment": func(e *pb.Equipment) {
+			e.DefaultOutfit.Hands[0] = weapon(StaffWeaponType)
+			e.DefaultOutfit.Hands[0].Enchantment = ref("Skyrim.esm", 1)
+		},
 		"torch with casting light": func(e *pb.Equipment) {
 			e.LeftHand = &pb.Hand{Kind: pb.HandKind_HAND_KIND_TORCH, Form: ref("Skyrim.esm", 1),
 				CastingLight: ref("Skyrim.esm", 2)}
