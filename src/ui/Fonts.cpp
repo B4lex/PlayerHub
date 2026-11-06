@@ -228,13 +228,15 @@ namespace UI::Fonts
             const auto data = MapFile(a_path);
             if (data.empty())
             {
-                logs::warn("UI overlay: could not read logo {}; using a text title", a_path.string());
+                logs::warn("UI overlay: could not read logo {}; using a text title and the plugin's pointer",
+                    a_path.string());
                 return nullptr;
             }
             const auto font = AddSource(a_atlas, a_sizePixels, data, false);
             if (!font)
             {
-                logs::warn("UI overlay: could not load logo {}; using a text title", a_path.string());
+                logs::warn("UI overlay: could not load logo {}; using a text title and the plugin's pointer",
+                    a_path.string());
                 s_views.pop_back();
                 return nullptr;
             }

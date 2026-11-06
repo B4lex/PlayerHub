@@ -97,6 +97,15 @@ only so the overlay matches the game's own menus, for use with a copy of
 Skyrim. It is kept in its own file rather than built into the plugin for this
 reason, and the plugin works without it.
 
+The game's mouse cursor,
+[assets/cursor/cursor.svg](assets/cursor/cursor.svg) and its glyphs (U+E005
+to U+E007) in `assets/fonts/PlayerHub.ttf`, is exported from Skyrim's
+`Interface/cursormenu.swf`, with a ring in place of its tail, and belongs to
+Bethesda Softworks on the same terms:
+it is not covered by the plugin's license, is included only for use with a copy
+of Skyrim, and is kept out of the plugin's binary, which draws its own cursor
+without the font.
+
 The Discord symbol beside the community invitation,
 [assets/logo/discord.svg](assets/logo/discord.svg) and its glyph in
 `assets/fonts/PlayerHub.ttf`, is a trademark of Discord Inc., used unmodified

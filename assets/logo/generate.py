@@ -3,13 +3,14 @@
 # requires-python = ">=3.10"
 # dependencies = ["fonttools==4.66.1", "skia-pathops==0.9.2"]
 # ///
-"""Builds assets/fonts/PlayerHub.ttf from logo.svg, discord.svg, and the icons.
+"""Builds assets/fonts/PlayerHub.ttf from logo.svg, discord.svg, the icons, and the cursor.
 
 The overlay draws the logos and icons as glyphs of this font, so Dear ImGui
 rasterizes them at any size: U+E000 is the white letters and U+E001 the orange
 bar with the black scratches cut out of it, U+E002 the Discord symbol scaled to
 the same height, and U+E003 onwards the ICONS, each scaled so its SVG height is
-the em. Run it with `uv run --script`.
+the em, then U+E005 the game cursor's dark outline, U+E006 its light band, and
+U+E007 its ring's opaque centre, from ../cursor/cursor.svg. Run it with `uv run --script`.
 
 An icon SVG holds paths filled or stroked (round caps and joins) in black or
 white, painted in order: black adds to the glyph and white cuts it away, so the
@@ -31,6 +32,8 @@ SOURCE = HERE / "logo.svg"
 DISCORD_SOURCE = HERE / "discord.svg"
 ICONS_DIRECTORY = HERE.parent / "icons"
 ICONS = {0xE003: "muted.svg", 0xE004: "vanished.svg"}
+CURSOR_SOURCE = HERE.parent / "cursor" / "cursor.svg"
+CURSOR = {0xE005: "outline", 0xE006: "band", 0xE007: "centre"}
 OUTPUT = HERE.parent / "fonts" / "PlayerHub.ttf"
 
 LETTERS = "white"
@@ -45,6 +48,9 @@ SCALE = 4
 ICON_CONIC_TOLERANCE = 0.01
 # Curves become quadratic within this many font units.
 MAXIMUM_ERROR = 1.0
+# The scale `Interface/cursormenu.swf` places the cursor at (mc_Cursor's matrix,
+# 16.16 fixed point), so the glyphs have the shape's proportions on screen.
+CURSOR_PLACEMENT = (0.619049072265625, 0.6341552734375)
 
 
 def read_paths(source, fills):
@@ -91,9 +97,27 @@ def read_icon(source):
     return width, height, glyph
 
 
-def flip(path, height, scale=SCALE):
+def read_cursor(source):
+    root = ElementTree.parse(source).getroot()
+    width, height = (float(root.get(name)) for name in ("width", "height"))
+    paths = {}
+    for element in root.iter("{http://www.w3.org/2000/svg}path"):
+        if element.get("transform") or element.get("fill-rule") != "evenodd":
+            raise SystemExit(f"{source.name}: only untransformed evenodd paths are supported")
+        path = pathops.Path(fillType=pathops.FillType.EVEN_ODD)
+        parse_path(element.get("d"), path.getPen())
+        # Even-odd regions become contours that TrueType's nonzero rule fills the same.
+        path.simplify(fix_winding=True)
+        paths[element.get("id")] = path
+    if set(paths) != set(CURSOR.values()):
+        raise SystemExit(f"{source.name}: expected paths {sorted(CURSOR.values())}, found {sorted(paths)}")
+    return width, height, paths
+
+
+def flip(path, height, scale=SCALE, scale_x=None):
     flipped = pathops.Path()
-    path.draw(TransformPen(flipped.getPen(), (scale, 0, 0, -scale, 0, height * scale)))
+    scale_x = scale if scale_x is None else scale_x
+    path.draw(TransformPen(flipped.getPen(), (scale_x, 0, 0, -scale, 0, height * scale)))
     # TrueType fills nonzero; outer contours run clockwise by convention.
     flipped.simplify(clockwise=True)
     return flipped
@@ -135,6 +159,16 @@ def main():
         icon_scale = em / icon_height
         glyphs[name] = to_glyph(flip(icon, icon_height, icon_scale))
         advances[name] = round(icon_width * icon_scale)
+        characters[character] = name
+
+    # The cursor's height is the em and its tip the glyphs' top left, so a font size
+    # in pixels is the cursor's height and the text position its tip.
+    cursor_width, cursor_height, cursor = read_cursor(CURSOR_SOURCE)
+    cursor_scale = em / cursor_height
+    cursor_scale_x = cursor_scale * CURSOR_PLACEMENT[0] / CURSOR_PLACEMENT[1]
+    for character, name in CURSOR.items():
+        glyphs[name] = to_glyph(flip(cursor[name], cursor_height, cursor_scale, cursor_scale_x))
+        advances[name] = round(cursor_width * cursor_scale_x)
         characters[character] = name
 
     # The em is the logo's height, so a font size in pixels is its height.

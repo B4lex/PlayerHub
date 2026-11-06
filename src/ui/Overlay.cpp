@@ -3,6 +3,7 @@
 #include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "text/Text.h"
+#include "ui/Cursor.h"
 #include "ui/Fonts.h"
 #include "ui/InputLanguage.h"
 #include "ui/MenuFrame.h"
@@ -25,7 +26,6 @@
 #include <imgui.h>
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
 #include <optional>
 
@@ -120,7 +120,6 @@ namespace UI::Overlay
             auto& style = ImGui::GetStyle();
             style = baseStyle;
             style.ScaleAllSizes(scale);
-            style.MouseCursorScale = (std::max)(std::round(scale), 1.0F);
             style.FontScaleMain = scale;
         }
 
@@ -164,12 +163,14 @@ namespace UI::Overlay
             io.DisplaySize = ImVec2{ static_cast<float>(swapChainDesc.bufferDesc.width),
                 static_cast<float>(swapChainDesc.bufferDesc.height) };
             ApplyScale(io.DisplaySize.y);
+            Cursor::PlaceTooltips(ImGui::GetStyle());
             ApplyLanguage();
             Fonts::Update(*io.Fonts, kBaseFontSize);
             const auto wheelSteps = InputCapture::ForwardToImGui();
 
             ImGui::NewFrame();
             WindowManager::DrawAll(wheelSteps);
+            Cursor::Draw();
             ImGui::Render();
             Backdrop::BlurPopups(*ImGui::GetDrawData());
 

@@ -387,7 +387,6 @@ namespace UI::InputCapture
                 return;
             }
             s_imguiMouse = a_enabled;
-            a_io.MouseDrawCursor = a_enabled;
             if (a_enabled)
             {
                 a_io.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
@@ -517,6 +516,11 @@ namespace UI::InputCapture
         InputDispatchHook::_site = REL::Relocation<std::uintptr_t>{ InputDispatchHook::GetCallerID() }.address()
             + InputDispatchHook::kCallOffset;
         logs::debug("UI input capture hook installed={}", InputDispatchHook::Detour());
+    }
+
+    bool ShowsCursor()
+    {
+        return s_imguiMouse;
     }
 
     float ForwardToImGui()

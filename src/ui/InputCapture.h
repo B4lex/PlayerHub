@@ -11,4 +11,7 @@ namespace UI::InputCapture
     void Install();
 
     [[nodiscard]] float ForwardToImGui();
+
+    // Whether the focused window takes the mouse this frame, as ForwardToImGui last decided.
+    [[nodiscard]] bool ShowsCursor();
 }

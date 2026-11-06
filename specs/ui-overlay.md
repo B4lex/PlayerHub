@@ -32,6 +32,7 @@ src/ui/
   Fonts.h/.cpp                # system fonts with fallbacks, shipped themed faces and logo
   Theme.h/.cpp                # look of the interactive windows: accent, rounded borders
   MenuFrame.h/.cpp            # Skyrim's menu frame around a window, from its shipped shape
+  Cursor.h/.cpp               # the overlay's own cursors in the frame's style, drawn at the mouse
   Window.h                    # interface every window implements
   WindowManager.h/.cpp        # registered windows, draw order, input focus
   InputCapture.h/.cpp         # input dispatch hook: focus keys, routing to ImGui
@@ -82,6 +83,7 @@ assets/fonts/                 # Sovngarde Light and Bold with their license, the
 assets/logo/                  # the logo's and the Discord symbol's SVGs and the script that makes their font
 assets/icons/                 # SVGs of the icons in the logo font
 assets/frame/                 # the menu frame's shape, deployed beside the DLL
+assets/cursor/                # the game cursor's SVG, built into the logo font
 ```
 
 Every screen is an independent `UI::Window`. `Overlay::Install` registers each
@@ -118,12 +120,10 @@ changes, from the next frame after the setting applies.
   user chose this over scaling only the glyphs, which would need every layout
   redone. The cursor's speed ([Input focus](#input-focus)) stays on the
   display's scale alone.
-- The software cursor's size, `MouseCursorScale`, is the overlay scale
-  rounded to a whole number, at least 1. The cursor is a bitmap in the font
-  atlas that the DX11 backend samples linearly, so a fractional scale such
-  as 1.33 at 1440p blurred it. `ImGuiStyle::ScaleAllSizes` truncates the
-  scale (checked against Dear ImGui 1.92.9), which made it 0 at any scale
-  below 1, and the cursor did not draw.
+- The [cursor](#cursor) is measured in font sizes too, so it follows the
+  scale. It is drawn as lines, or as glyphs rasterized at its size, rather
+  than a scaled bitmap, so a fractional scale such as 1.33 at 1440p does not
+  blur it.
 - The range is the user's. The trade window draws at a smaller font size
   where the display cannot hold its layout at the scale
   ([Window](#window)).
@@ -277,8 +277,9 @@ The settings window's sidebar is headed by the PlayerHUB logo, drawn from
 U+E000 is the letters and U+E001 the underline bar. Dear ImGui rasterizes and
 caches them at any size with the other glyphs, so the logo stays sharp at every
 scale and costs two quads a frame. U+E002 is the Discord symbol of the
-[Discord link](#discord-link), and U+E003 and U+E004 the muted and vanished
-marks of the [player list](#player-list).
+[Discord link](#discord-link), U+E003 and U+E004 the muted and vanished
+marks of the [player list](#player-list), and U+E005 to U+E007 the
+[game cursor](#game-cursor).
 
 - `assets/logo/logo.svg` is the source. `assets/logo/generate.py`, run with
   `uv run --script`, merges its white paths into the letters, cuts its black
@@ -537,6 +538,69 @@ is not part of the plugin.
   then the style's border width and rounding, so a window lays itself out the
   same way with or without the shape.
 
+### Cursor
+
+The overlay draws its own cursors in place of Dear ImGui's software cursor.
+The normal one is the game's cursor art, from the logo font; the others are
+the plugin's, in the style of the [menu frame](#menu-frame), which
+`UI::Cursor` builds in code.
+
+- `Cursor::Draw` runs after the windows and before `ImGui::Render`, while
+  `InputCapture::ShowsCursor` holds, and draws the shape for
+  `ImGui::GetMouseCursor` at `io.MousePos` on the foreground draw list, so it
+  is above every window. `io.MouseDrawCursor` stays off.
+- Shapes: the pointer for `Arrow`, and also for `Hand`, `NotAllowed`, `Wait`,
+  and `Progress`, which have no drawing of their own; an I-beam for
+  `TextInput`; a resize shape for each `Resize` direction and a move shape
+  for `ResizeAll`. `None` draws nothing.
+- The pointer is the [game's cursor](#game-cursor) while `Fonts::GetLogo`
+  has its font, and the plugin's woven pointer without it.
+- The plugin's pointer clicks at the outer corner of the line at its tip,
+  where ImGui's full miter puts it; the resize and move shapes click at
+  their centre.
+- A shape is layers of strands, open or closed polylines. A layer fills the
+  backing inside its closed convex strands, then draws every strand's
+  border, the line widened by a border on each side, then every line, so the
+  strands of a layer join cleanly and a later layer's border cuts the lines it
+  crosses. A weave draws the over piece again as a last layer, with its
+  border a point shorter at each end so no border crosses the line there.
+- Lengths are in `kUnitFonts`, a fraction of the font size, so the shapes
+  follow the overlay's scale.
+- Dear ImGui keeps a tooltip out of a box from the mouse to 24 px times
+  `ImGuiStyle::MouseCursorScale` right and down, placing it beside the box
+  when it fits and below it otherwise; the scale is meant for its own cursor.
+  `Cursor::PlaceTooltips` sets the scale each frame before `ImGui::NewFrame`
+  so the box is the normal cursor's extent (`kVanillaHeightFonts`, or
+  `kPointerExtentUnits` without the logo font) plus `kTooltipGapFonts`, so a
+  tooltip never covers the cursor. `ScaleAllSizes` would otherwise truncate
+  the scale to a whole number, 0 below an overlay scale of 1.
+- The line color is `Theme::GetFrameColor`, so the plugin's cursors follow
+  `[UI] BorderColor`. The backing is fixed and opaque, unlike the frame's, so
+  they stay visible at any background opacity.
+
+#### Game cursor
+
+- The art is shape 1 of `Interface/cursormenu.swf` in
+  `Skyrim - Interface.bsa`, with its tail replaced by a ring at the user's
+  request. `assets/cursor/cursor.svg` holds it in the SWF's pixels, one
+  even-odd path per fill: `outline`, `band`, and `centre`. The file is the
+  source; nothing in the repository regenerates it.
+- `assets/logo/generate.py`, which makes the [logo](#logo) font, resolves
+  the even-odd paths into nonzero contours with skia-pathops, scales the
+  shape so its height is the font's em, with the proportions the movie
+  places it at (`mc_Cursor`'s matrix), and adds the outline as U+E005, the
+  band as U+E006, and the centre as U+E007. The tip is at the glyphs' top
+  left, so the font size in pixels is the cursor's height and the text
+  position its tip.
+- The art is Bethesda's and the plugin is under GPL-3.0-or-later, so it is
+  in the shipped font file rather than in the DLL.
+- `Cursor::Draw` draws the three glyphs at `io.MousePos` in `kVanillaOutline`,
+  `kVanillaBand`, and `kVanillaCentre`: the SWF's colors, and an opaque one
+  for the centre, which is its own glyph so nothing shows through it.
+  `kVanillaHeightFonts` sets the height in font sizes, smaller than the game
+  shows it ([Engine assumptions](#engine-assumptions)), which the user found
+  too large.
+
 ## Input focus
 
 At most one window holds input focus. While one does, ImGui receives the
@@ -636,7 +700,7 @@ keyboard and the game receives no keyboard or mouse input.
   input always reaches the game.
 - A window that returns true from `Window::UsesMouse` gets mouse movement and
   buttons through ImGui: `InputCapture` clears `NoMouse`, sets
-  `io.MouseDrawCursor`, and moves an absolute cursor by DirectInput's relative
+  shows the overlay's [cursor](#cursor) (`InputCapture::ShowsCursor`), and moves an absolute cursor by DirectInput's relative
   counts, scaled by `backBufferHeight / 1080` and clamped to the back buffer. The
   cursor starts at `Window::GetCursorStart`, or centered without one, whenever
   such a window takes focus, and its position is
@@ -1062,7 +1126,7 @@ never a line, so the history holds only what players said.
   channel's color over the fill the send target's chip has
   (`ChatStyle::kChipFillAlpha`, 18%, and 30% under the cursor). Off, it is
   the theme's muted text color with no fill, and under the cursor the text
-  color with an 8% fill. Over either the cursor is a hand. A faint rule as
+  color with an 8% fill. Over either the cursor asks for the hand ([Cursor](#cursor)). A faint rule as
   wide as the chat, in the theme's separator color, separates the filters
   from the lines. It is as far under the chips as the inside of the frame's
   line is above them (the window's padding and the frame's, less
@@ -1129,7 +1193,7 @@ never a line, so the history holds only what players said.
   cut at its edge. With nothing to list it shows one row saying why: no
   name matches the search, nobody else is online, or there is no roster.
 - A name acts as a sender's name does in the lines: under the cursor it is
-  underlined and the cursor is a hand, a click whispers the player, and a
+  underlined and the cursor asks for the hand, a click whispers the player, and a
   right click opens its [player menu](#player-menu). The keyboard then
   returns to the chat's field.
 - A muted or vanished player has a mark at the list's right edge, in the
@@ -1434,7 +1498,7 @@ listed, offline ones included, and undone.
   has nobody on this server, and a search matching nobody a line saying so.
   `ImGuiListClipper` draws only the rows in view.
 - A name acts as a sender's name does in the chat's lines, on every tab:
-  under the cursor it is underlined and the cursor is a hand, a click
+  under the cursor it is underlined and the cursor asks for the hand, a click
   whispers the player while it is online, and a right click opens its
   [player menu](#player-menu) (`##ManagePlayersMenu`), offline too. An
   offline player has no slot, so its menu has no race and level line and
@@ -2734,6 +2798,12 @@ Not confirmed in game:
     `kStop` (1.7.104 disassembly). Community Shaders and SKSE Menu Framework
     dispatch an empty list while their menu is open (checked against their
     source), and on 1.5.97 the same detection is assumed to work.
+19. The game's cursor is 60 px tall at 1080p. In 1.7.104 `CursorMenu`'s
+    constructor loads its movie with `ScaleModeType::kShowAll` (the
+    `mov dword ptr [rsp+0x20], 1` before `BSScaleformManager::LoadMovie`),
+    the movie's stage is 640 x 480, and the shape is placed at 0.634 of its
+    height. That assumes the movie's viewport is the whole screen, so the
+    stage fits the screen's height.
 
 ## Acceptance criteria
 
@@ -2847,6 +2917,14 @@ Not confirmed in game:
     not move sideways when the chat opens. The log has one
     `UI overlay: menu frame` line. With `PlayerHub/frame/` removed, the log
     warns and both windows have a rounded line in the frame color.
+    Over either window the cursor is the [game cursor](#game-cursor),
+    smaller than in the game's menus, sharp at 1080p, 1440p, and 4K, clicking
+    at its tip, and a tooltip appears right of it without covering it;
+    with `PlayerHub/fonts/PlayerHub.ttf` removed, the log warns and it
+    is the plugin's woven pointer; it becomes a resize cursor
+    on the chat's edges and knots, the move cursor while the chat is dragged,
+    and the I-beam over a text field, whose lines turn the accent with
+    `BorderColor = Accent`. No other cursor shows under or beside it.
 11. With `Ulf Stone` online, `@u` lists it; Tab or Enter turns the chip to
     a whisper to that player and empties the field, and a line reaches only
     that player, labeled in violet as sent to it for the sender and as from
