@@ -21,7 +21,7 @@ const (
 	MaximumTime            = 16383
 	MaximumMovementState   = 6
 	movementStateMask      = 0x7
-	knownFlags             = 0x7FFFF
+	knownFlags             = 0xFFFFFF
 
 	SkeletonLayoutHuman       = 2
 	SkeletonLayoutHumanChange = 3 // a change from the stream's last pose (wire.ResolveSkeletonPose)
@@ -58,6 +58,8 @@ const (
 	MaximumOutfitArmor  = 8
 	MaximumBeastArmor   = 8
 	MaximumOutfitHands  = 2
+	MaximumEffects      = 32
+	MaximumMagnitude    = 1e6
 	MinimumWeaponType   = 1
 	MaximumWeaponType   = 9
 	MaximumChatTextRune = 512
@@ -76,6 +78,7 @@ var (
 	ErrAction      = errors.New("invalid animation action")
 	ErrAppearance  = errors.New("invalid player appearance")
 	ErrEquipment   = errors.New("invalid player equipment")
+	ErrEffects     = errors.New("invalid player effects")
 	ErrChat        = errors.New("invalid chat message")
 	ErrDisplayName = errors.New("invalid display name")
 	ErrToken       = errors.New("invalid session token")
@@ -103,6 +106,8 @@ func Message(m *pb.ClientMessage) error {
 		return Appearance(body.Appearance)
 	case *pb.ClientMessage_Equipment:
 		return Equipment(body.Equipment)
+	case *pb.ClientMessage_Effects:
+		return Effects(body.Effects)
 	case *pb.ClientMessage_Vanish:
 		if body.Vanish.GetSessionId() == 0 {
 			return ErrVanish
@@ -127,7 +132,7 @@ func Checkpoint(c *pb.Checkpoint) error {
 	if c.GetHeading() > MaximumHeading || c.GetPitch() > MaximumPitch || c.GetPitch() < -MaximumPitch ||
 		c.GetSpeed() > MaximumSpeed || c.GetDirection() > MaximumDirection || c.GetTime() > MaximumTime ||
 		c.GetFlags()&^knownFlags != 0 || c.GetFlags()&movementStateMask > MaximumMovementState ||
-		!castFlags(c.GetFlags()) || !SkeletonPose(c.GetSkeleton()) {
+		!castFlags(c.GetFlags()) || !shoutFlags(c.GetFlags()) || !SkeletonPose(c.GetSkeleton()) {
 		return ErrCheckpoint
 	}
 	return nil
@@ -142,6 +147,21 @@ func castFlags(flags uint32) bool {
 	return requires(pb.CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_LEFT, pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT) &&
 		requires(pb.CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_RIGHT, pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT) &&
 		requires(pb.CheckpointFlag_CHECKPOINT_FLAG_DUAL_CASTING, pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_LEFT)
+}
+
+// shoutFlags reports whether the release and word flags come with the shouting flag, at most
+// one word flag is set, and the failure flag comes with the release flag.
+func shoutFlags(flags uint32) bool {
+	const (
+		shouting = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUTING)
+		released = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_RELEASED)
+		twoWords = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS)
+		three    = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS)
+		failed   = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED)
+		shout    = released | twoWords | three
+	)
+	return (flags&shout == 0 || flags&shouting != 0) && flags&(twoWords|three) != twoWords|three &&
+		(flags&failed == 0 || flags&released != 0)
 }
 
 // SkeletonPose reports whether b is empty or a layout byte, the shortest varint of a mask of
@@ -279,6 +299,11 @@ func Action(a *pb.Action) error {
 			return ErrAction
 		}
 		return nil
+	case *pb.Action_Power:
+		if kind.Power == nil || !formRef(kind.Power) {
+			return ErrAction
+		}
+		return nil
 	case *pb.Action_Attack:
 		attack := kind.Attack
 		if attack.GetAction() < pb.AttackAction_ATTACK_ACTION_NORMAL || attack.GetAction() > pb.AttackAction_ATTACK_ACTION_BASH ||
@@ -373,11 +398,34 @@ func Equipment(e *pb.Equipment) error {
 			return ErrEquipment
 		}
 	}
-	if e.Ammo != nil && !formRef(e.Ammo) {
+	if (e.Ammo != nil && !formRef(e.Ammo)) || (e.Shout != nil && !formRef(e.Shout)) {
 		return ErrEquipment
 	}
 	if outfit := e.DefaultOutfit; outfit != nil && !defaultOutfit(outfit) {
 		return ErrEquipment
+	}
+	return nil
+}
+
+func Effects(e *pb.Effects) error {
+	if e.GetRevision() == 0 || len(e.GetEffects()) > MaximumEffects {
+		return ErrEffects
+	}
+	type key struct {
+		plugin string
+		formID uint32
+	}
+	seen := make(map[key]struct{}, len(e.GetEffects()))
+	for _, effect := range e.GetEffects() {
+		if effect.Effect == nil || !formRef(effect.Effect) ||
+			!between(effect.GetMagnitude(), -MaximumMagnitude, MaximumMagnitude) {
+			return ErrEffects
+		}
+		k := key{effect.Effect.GetPlugin(), effect.Effect.GetFormId()}
+		if _, duplicate := seen[k]; duplicate {
+			return ErrEffects
+		}
+		seen[k] = struct{}{}
 	}
 	return nil
 }

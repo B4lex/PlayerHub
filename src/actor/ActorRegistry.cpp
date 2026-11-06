@@ -55,6 +55,8 @@ namespace ActorRegistry
             bool furnitureAnimationOwned{ false };
             bool nativeFurnitureExit{ false };
             bool castAnimationOwned{ false };
+            bool voiceAnimationOwned{ false };
+            bool voiceFireSuppressed{ false };
             bool dead{ false };
             bool mounted{ false };
             bool gaitDriven{ false };
@@ -78,7 +80,6 @@ namespace ActorRegistry
         // Registrations whose attackSpeedScale is not 1.
         std::atomic<std::size_t> s_attackSpeedScaledCount{ 0 };
         std::atomic<std::size_t> s_nativeFurnitureExitCount{ 0 };
-
         template <class Key>
         void IndexRegistration(std::unordered_map<Key, Registration*>& a_index, Key a_key, Registration& a_registration)
         {
@@ -207,6 +208,17 @@ namespace ActorRegistry
         {
             return Find(std::addressof(a_actor));
         }
+
+        bool IsRegisteredNativeHandle(std::uint32_t a_nativeHandle)
+        {
+            if (a_nativeHandle == 0)
+            {
+                return false;
+            }
+
+            const auto lock = LockSharedUnlessMainThread();
+            return FindIndexed(s_byHandle, a_nativeHandle) != nullptr;
+        }
     }
 
     void Register(RemoteActor& a_remote, RE::Actor& a_actor)
@@ -272,14 +284,12 @@ namespace ActorRegistry
 
     bool IsRegistered(RE::ActorHandle a_handle)
     {
-        const auto nativeHandle = a_handle.native_handle();
-        if (nativeHandle == 0)
-        {
-            return false;
-        }
+        return IsRegisteredNativeHandle(a_handle.native_handle());
+    }
 
-        const auto lock = LockSharedUnlessMainThread();
-        return FindIndexed(s_byHandle, nativeHandle) != nullptr;
+    bool IsRegistered(RE::ObjectRefHandle a_handle)
+    {
+        return IsRegisteredNativeHandle(a_handle.native_handle());
     }
 
     bool EnableAnimationFirewall(const RemoteActor& a_remote)
@@ -371,6 +381,40 @@ namespace ActorRegistry
         const auto lock = LockSharedUnlessMainThread();
         const auto* registration = Find(a_actor);
         return registration && registration->castAnimationOwned;
+    }
+
+    void SetVoiceAnimationOwned(const RemoteActor& a_remote, bool a_owned)
+    {
+        SetShared(a_remote, &Registration::voiceAnimationOwned, a_owned);
+    }
+
+    bool IsVoiceAnimationOwned(const RE::Actor* a_actor)
+    {
+        if (!a_actor)
+        {
+            return false;
+        }
+
+        const auto lock = LockSharedUnlessMainThread();
+        const auto* registration = Find(a_actor);
+        return registration && registration->voiceAnimationOwned;
+    }
+
+    void SetVoiceFireSuppressed(const RemoteActor& a_remote, bool a_suppressed)
+    {
+        SetShared(a_remote, &Registration::voiceFireSuppressed, a_suppressed);
+    }
+
+    bool IsVoiceFireSuppressed(const RE::Actor* a_actor)
+    {
+        if (!a_actor)
+        {
+            return false;
+        }
+
+        const auto lock = LockSharedUnlessMainThread();
+        const auto* registration = Find(a_actor);
+        return registration && registration->voiceFireSuppressed;
     }
 
     void SetDead(const RemoteActor& a_remote)
@@ -511,6 +555,7 @@ namespace ActorRegistry
             .animationFirewallEnabled = registration->animationFirewallEnabled,
             .furnitureAnimationOwned = registration->furnitureAnimationOwned,
             .castAnimationOwned = registration->castAnimationOwned,
+            .voiceAnimationOwned = registration->voiceAnimationOwned,
             .dead = registration->dead,
             .mounted = registration->mounted,
             .gaitDriven = registration->gaitDriven };

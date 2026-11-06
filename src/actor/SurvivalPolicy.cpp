@@ -24,11 +24,15 @@ namespace SurvivalPolicy
             return a_actor.SetGraphVariableBool(inJumpStateVariable, a_jumping);
         }
 
-        bool ShouldSuppressRemoteActorEffect(const RE::MagicItem* a_magicItem, const RE::Effect* a_effect)
+        // A remote actor's own shout reaches itself only through its self effects,
+        // which SpellIsolation filters.
+        bool ShouldSuppressRemoteActorEffect(
+            const RE::MagicItem* a_magicItem, const RE::Effect* a_effect, bool a_castBySelf)
         {
             // Effects propagated through projectiles or explosions do not always
             // retain a caster.
-            if (a_magicItem && a_magicItem->GetSpellType() == RE::MagicSystem::SpellType::kVoicePower)
+            if (!a_castBySelf && a_magicItem
+                && a_magicItem->GetSpellType() == RE::MagicSystem::SpellType::kVoicePower)
             {
                 return true;
             }
@@ -44,7 +48,10 @@ namespace SurvivalPolicy
         std::pair<std::uint32_t, std::uint32_t> BlockMagicEffect(
             RE::MagicTarget* a_target, const RE::MagicTarget::AddTargetData& a_targetData)
         {
-            if (!a_target || !ShouldSuppressRemoteActorEffect(a_targetData.magicItem, a_targetData.effect))
+            const auto* caster = a_targetData.caster ? a_targetData.caster->As<RE::Actor>() : nullptr;
+            const bool castBySelf = caster && caster->AsMagicTarget() == a_target;
+            if (!a_target
+                || !ShouldSuppressRemoteActorEffect(a_targetData.magicItem, a_targetData.effect, castBySelf))
             {
                 return {};
             }
@@ -74,7 +81,8 @@ namespace SurvivalPolicy
                     continue;
                 }
 
-                if (ShouldSuppressRemoteActorEffect(activeEffect->spell, activeEffect->effect))
+                const bool castBySelf = activeEffect->caster == a_actor.GetHandle();
+                if (ShouldSuppressRemoteActorEffect(activeEffect->spell, activeEffect->effect, castBySelf))
                 {
                     effectsToDispel.push_back(activeEffect);
                 }
@@ -412,6 +420,49 @@ namespace SurvivalPolicy
 
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
+
+        RE::FormID GetProcessIdleID(const RE::AIProcess* a_process)
+        {
+            const auto* high = a_process ? a_process->high : nullptr;
+            return high && high->currentProcessIdle ? high->currentProcessIdle->GetFormID() : 0;
+        }
+
+        // The do-nothing package's procedure (ID 39268, case 28 of the procedure update
+        // ID 39637) first requests a sheathe whenever the weapon is out, and only once it
+        // is sheathed reads AIProcess::target. With a target it faces it and requests a
+        // kActionIdle, which the animation firewall blocks, so the procedure never
+        // completes and runs again on every update; without one it advances past its only
+        // step (ID 39158). Its target resolution (ID 39799) sets none for this package
+        // type, so a cleared target stays cleared.
+        void ClearDoNothingProcedureTarget(RE::Actor& a_actor, RE::WEAPON_STATE a_weaponState)
+        {
+            auto* process = a_actor.GetActorRuntimeData().currentProcess;
+            const auto* package = a_actor.GetCurrentPackage();
+            if (!process || process->target == 0 || !package
+                || package->packData.packType.get() != RE::PACKAGE_TYPE::kDoNothing)
+            {
+                return;
+            }
+            const auto targetHandle = process->target;
+            process->target = 0;
+
+            // Main-loop thread only, like the caller.
+            static std::uint32_t s_clearedTargetCount = 0;
+            const auto clearedCount = ++s_clearedTargetCount;
+            if (!ShouldLogOccurrence(clearedCount))
+            {
+                return;
+            }
+            const auto target = RE::TESObjectREFR::LookupByHandle(targetHandle);
+            const auto* targetBase = target ? target->GetBaseObject() : nullptr;
+            logs::debug(
+                "Cleared local AI target from remote actor: actor={:08X} target={:08X} targetBase={:08X} "
+                "weaponState={} processIdle={:08X} count={}",
+                a_actor.GetHandle().native_handle(), target ? target->GetFormID() : 0,
+                targetBase ? targetBase->GetFormID() : 0,
+                static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(a_weaponState), GetProcessIdleID(process),
+                clearedCount);
+        }
     }
 
     void InstallHooks()
@@ -493,7 +544,7 @@ namespace SurvivalPolicy
         flags.reset(RE::Actor::BOOL_FLAGS::kCanDoFavor, RE::Actor::BOOL_FLAGS::kCanSpeak,
             RE::Actor::BOOL_FLAGS::kAttackOnSight, RE::Actor::BOOL_FLAGS::kAngryWithPlayer);
         flags.set(RE::Actor::BOOL_FLAGS::kAttackingDisabled, RE::Actor::BOOL_FLAGS::kDoNotShowOnStealthMeter);
-        if (ActorRegistry::IsCastAnimationOwned(&a_actor))
+        if (ActorRegistry::IsCastAnimationOwned(&a_actor) || ActorRegistry::IsVoiceAnimationOwned(&a_actor))
         {
             flags.reset(RE::Actor::BOOL_FLAGS::kCastingDisabled);
         }
@@ -618,6 +669,31 @@ namespace SurvivalPolicy
         const bool weaponTransitionPending = actorState
             && (authoritativeWeaponDrawn ? weaponState != RE::WEAPON_STATE::kDrawn
                                          : weaponState != RE::WEAPON_STATE::kSheathed);
+
+        const bool weaponStateOpposed = actorState
+            && (authoritativeWeaponDrawn
+                    ? weaponState == RE::WEAPON_STATE::kWantToSheathe || weaponState == RE::WEAPON_STATE::kSheathing
+                    : weaponState == RE::WEAPON_STATE::kWantToDraw || weaponState == RE::WEAPON_STATE::kDrawing);
+        if (weaponStateOpposed)
+        {
+            // Main-loop thread only, like the rest of this function.
+            static std::uint32_t s_opposedWeaponStateCount = 0;
+            const auto opposedCount = ++s_opposedWeaponStateCount;
+            if (ShouldLogOccurrence(opposedCount))
+            {
+                const auto* process = runtimeData.currentProcess;
+                const auto* package = a_actor.GetCurrentPackage();
+                logs::debug(
+                    "Remote actor weapon state opposes the network: actor={:08X} weaponState={} "
+                    "desiredWeaponDrawn={} package={} aiTargetHandle={:08X} processIdle={:08X} count={}",
+                    a_actor.GetHandle().native_handle(),
+                    static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(weaponState), authoritativeWeaponDrawn,
+                    package ? static_cast<std::underlying_type_t<RE::PACKAGE_TYPE>>(package->packData.packType.get())
+                            : -1,
+                    process ? process->target : 0, GetProcessIdleID(process), opposedCount);
+            }
+        }
+        ClearDoNothingProcedureTarget(a_actor, weaponState);
         std::uint32_t observationRequestCount = 0;
         if (cowerRequests != 0)
         {

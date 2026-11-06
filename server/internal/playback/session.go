@@ -80,6 +80,7 @@ type Session struct {
 	contexts    []timed[*pb.Context]
 	appearances []timed[*pb.Appearance]
 	equipment   []timed[*pb.Equipment]
+	effects     []timed[*pb.Effects]
 	presence    []timed[bool]
 	duration    int64
 
@@ -130,6 +131,8 @@ func NewSession(id, playerID string, r *recording.Recording, player Player, o Op
 			s.appearances = append(s.appearances, timed[*pb.Appearance]{m.TMs, body.Appearance})
 		case *pb.ClientMessage_Equipment:
 			s.equipment = append(s.equipment, timed[*pb.Equipment]{m.TMs, body.Equipment})
+		case *pb.ClientMessage_Effects:
+			s.effects = append(s.effects, timed[*pb.Effects]{m.TMs, body.Effects})
 		case *pb.ClientMessage_Enter:
 			s.presence = append(s.presence, timed[bool]{m.TMs, true})
 		case *pb.ClientMessage_Exit:
@@ -333,6 +336,7 @@ func (s *Session) emitSnapshotLocked(position float64) {
 			s.player.Send(&pb.ClientMessage{Message: &pb.ClientMessage_Equipment{Equipment: numbered}})
 		}
 	}
+	s.sendEffectsLocked(recordedAt(s.effects, position))
 	checkpoint := s.checkpointAtLocked(position)
 	if checkpoint == nil {
 		s.exitWorldLocked()
@@ -386,12 +390,20 @@ func (s *Session) emitLocked(m recording.Message) {
 		if numbered := s.virtual.Equipment(body.Equipment); numbered != nil {
 			s.player.Send(&pb.ClientMessage{Message: &pb.ClientMessage_Equipment{Equipment: numbered}})
 		}
+	case *pb.ClientMessage_Effects:
+		s.sendEffectsLocked(body.Effects)
 	case *pb.ClientMessage_Action:
 		if s.inWorld && s.lastCheckpoint != nil {
 			if numbered := s.virtual.Action(body.Action); numbered != nil {
 				s.player.Send(&pb.ClientMessage{Message: &pb.ClientMessage_Action{Action: numbered}})
 			}
 		}
+	}
+}
+
+func (s *Session) sendEffectsLocked(e *pb.Effects) {
+	if numbered := s.virtual.Effects(e); numbered != nil {
+		s.player.Send(&pb.ClientMessage{Message: &pb.ClientMessage_Effects{Effects: numbered}})
 	}
 }
 
@@ -476,6 +488,16 @@ func latestAt[T any](series []timed[T], position float64) T {
 	}
 	index := sort.Search(len(series), func(i int) bool { return float64(series[i].tMs) > position }) - 1
 	return series[max(index, 0)].value
+}
+
+// recordedAt is latestAt without the first value standing in before it was recorded.
+func recordedAt[T any](series []timed[T], position float64) T {
+	var zero T
+	index := sort.Search(len(series), func(i int) bool { return float64(series[i].tMs) > position }) - 1
+	if index < 0 {
+		return zero
+	}
+	return series[index].value
 }
 
 func checkpointMessage(c *pb.Checkpoint) *pb.ClientMessage {

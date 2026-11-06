@@ -18,7 +18,7 @@ PB_BIND(playerhub_v1_Context, playerhub_v1_Context, 2)
 PB_BIND(playerhub_v1_Attack, playerhub_v1_Attack, AUTO)
 
 
-PB_BIND(playerhub_v1_Action, playerhub_v1_Action, AUTO)
+PB_BIND(playerhub_v1_Action, playerhub_v1_Action, 2)
 
 
 PB_BIND(playerhub_v1_Color, playerhub_v1_Color, AUTO)
@@ -49,6 +49,12 @@ PB_BIND(playerhub_v1_DefaultOutfit, playerhub_v1_DefaultOutfit, 2)
 
 
 PB_BIND(playerhub_v1_Equipment, playerhub_v1_Equipment, 4)
+
+
+PB_BIND(playerhub_v1_ActiveEffect, playerhub_v1_ActiveEffect, 2)
+
+
+PB_BIND(playerhub_v1_Effects, playerhub_v1_Effects, 4)
 
 
 

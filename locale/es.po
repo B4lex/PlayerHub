@@ -24,6 +24,10 @@ msgctxt "SectionControls"
 msgid "Keybinds"
 msgstr "Teclas"
 
+msgctxt "SectionGameplay"
+msgid "Gameplay"
+msgstr "Jugabilidad"
+
 msgctxt "SectionAdvanced"
 msgid "Advanced"
 msgstr "Avanzado"
@@ -381,6 +385,58 @@ msgid ""
 msgstr ""
 "Rechaza la oferta de intercambio de otro jugador, o retira la tuya, mientras "
 "espera respuesta."
+
+msgctxt "GameplayGroupEffects"
+msgid "Effects"
+msgstr "Efectos"
+
+msgctxt "GameplayShowSpellEffects"
+msgid "Show spell effects"
+msgstr "Mostrar efectos de hechizos"
+
+msgctxt "GameplayShowSpellEffectsComment"
+msgid ""
+"Shows what other players' spells do: projectiles, beams, and effects on the\n"
+"caster."
+msgstr "Muestra lo que hacen los hechizos de otros jugadores: proyectiles, rayos y efectos sobre el lanzador."
+
+msgctxt "GameplayShowShoutEffects"
+msgid "Show shout effects"
+msgstr "Mostrar efectos de gritos"
+
+msgctxt "GameplayShowShoutEffectsComment"
+msgid ""
+"Shows the breath, wave, or projectile of other players' shouts, and what\n"
+"their shouts and powers do to them."
+msgstr "Muestra el aliento, la onda o el proyectil de los gritos de otros jugadores y lo que sus gritos y poderes les hacen."
+
+msgctxt "GameplayGroupIsolation"
+msgid "Isolation"
+msgstr "Aislamiento"
+
+msgctxt "GameplayIsolateSpellEffects"
+msgid "Isolate spell effects"
+msgstr "Aislar efectos de hechizos"
+
+msgctxt "GameplayIsolateSpellEffectsComment"
+msgid "Keeps other players' spells out of your world."
+msgstr "Mantiene los hechizos de otros jugadores fuera de tu mundo."
+
+msgctxt "GameplayIsolateShoutEffects"
+msgid "Isolate shout effects"
+msgstr "Aislar efectos de gritos"
+
+msgctxt "GameplayIsolateShoutEffectsComment"
+msgid "Keeps other players' shouts and powers out of your world."
+msgstr "Mantiene los gritos y poderes de otros jugadores fuera de tu mundo."
+
+msgctxt "GameplayDisableCollision"
+msgid "Disable collision"
+msgstr "Desactivar colisión"
+
+msgctxt "GameplayDisableCollisionComment"
+msgid "Lets you walk through other players."
+msgstr "Te permite atravesar a otros jugadores."
 
 msgctxt "AdvancedGroupPerformance"
 msgid "Performance"

@@ -24,6 +24,10 @@ msgctxt "SectionControls"
 msgid "Keybinds"
 msgstr "キー設定"
 
+msgctxt "SectionGameplay"
+msgid "Gameplay"
+msgstr "ゲームプレイ"
+
 msgctxt "SectionAdvanced"
 msgid "Advanced"
 msgstr "詳細設定"
@@ -372,6 +376,58 @@ msgid ""
 msgstr ""
 "返答待ちの他のプレイヤーからの取引の申し出を断るか、自分の申し出を取り下げま"
 "す。"
+
+msgctxt "GameplayGroupEffects"
+msgid "Effects"
+msgstr "エフェクト"
+
+msgctxt "GameplayShowSpellEffects"
+msgid "Show spell effects"
+msgstr "呪文のエフェクトを表示"
+
+msgctxt "GameplayShowSpellEffectsComment"
+msgid ""
+"Shows what other players' spells do: projectiles, beams, and effects on the\n"
+"caster."
+msgstr "他のプレイヤーの呪文の効果（投射物、光線、術者へのエフェクト）を表示します。"
+
+msgctxt "GameplayShowShoutEffects"
+msgid "Show shout effects"
+msgstr "シャウトのエフェクトを表示"
+
+msgctxt "GameplayShowShoutEffectsComment"
+msgid ""
+"Shows the breath, wave, or projectile of other players' shouts, and what\n"
+"their shouts and powers do to them."
+msgstr "他のプレイヤーのシャウトのブレス、衝撃波、投射物と、シャウトやパワーが本人に与える効果を表示します。"
+
+msgctxt "GameplayGroupIsolation"
+msgid "Isolation"
+msgstr "隔離"
+
+msgctxt "GameplayIsolateSpellEffects"
+msgid "Isolate spell effects"
+msgstr "呪文の効果を隔離"
+
+msgctxt "GameplayIsolateSpellEffectsComment"
+msgid "Keeps other players' spells out of your world."
+msgstr "他のプレイヤーの呪文があなたの世界に影響しないようにします。"
+
+msgctxt "GameplayIsolateShoutEffects"
+msgid "Isolate shout effects"
+msgstr "シャウトの効果を隔離"
+
+msgctxt "GameplayIsolateShoutEffectsComment"
+msgid "Keeps other players' shouts and powers out of your world."
+msgstr "他のプレイヤーのシャウトとパワーがあなたの世界に影響しないようにします。"
+
+msgctxt "GameplayDisableCollision"
+msgid "Disable collision"
+msgstr "衝突を無効化"
+
+msgctxt "GameplayDisableCollisionComment"
+msgid "Lets you walk through other players."
+msgstr "他のプレイヤーをすり抜けられるようにします。"
 
 msgctxt "AdvancedGroupPerformance"
 msgid "Performance"

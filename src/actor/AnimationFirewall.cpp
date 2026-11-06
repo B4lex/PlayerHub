@@ -20,6 +20,7 @@ namespace AnimationFirewall
     {
         using ActorConstants::ShouldLogOccurrence;
         using AnimationEvents::IsCastAnimationEvent;
+        using AnimationEvents::IsVoiceAnimationEvent;
         using AnimationEvents::IsWeaponTransitionEndEvent;
         using AnimationEvents::IsWeaponTransitionTraceEvent;
 
@@ -164,7 +165,8 @@ namespace AnimationFirewall
                     allowClientManagedEvent = IsClientManagedAnimationEvent(eventView);
                     allowNativeGraphEvent
                         = registration->furnitureAnimationOwned || registration->dead || registration->mounted;
-                    allowCastEvent = registration->castAnimationOwned && IsCastAnimationEvent(eventView);
+                    allowCastEvent = (registration->castAnimationOwned && IsCastAnimationEvent(eventView))
+                        || (registration->voiceAnimationOwned && IsVoiceAnimationEvent(eventView));
                     // A seated rider's riding graph follows its mount.
                     blockMountGaitEvent
                         = registration->gaitDriven && !registration->mounted && IsMountGaitEvent(eventView);

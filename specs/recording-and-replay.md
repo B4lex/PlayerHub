@@ -45,9 +45,10 @@ follow every wire change.
 
 A capture is started per player from the panel and runs until stopped or the
 player disconnects. It starts with the player's presence (`Enter` or `Exit`),
-appearance, equipment, context, and checkpoint at time zero, so it replays
-without the earlier session. It records every accepted `Enter`, `Exit`,
-`Context`, `Checkpoint`, `Action`, `Appearance`, and `Equipment`; chat is never
+appearance, equipment, effects, context, and checkpoint at time zero, so it
+replays without the earlier session. It records every accepted `Enter`, `Exit`,
+`Context`, `Checkpoint`, `Action`, `Appearance`, `Equipment`, and `Effects`;
+chat is never
 recorded. The hub encodes a line and hands it to the capture's writer
 goroutine without waiting for the disk; a capture whose queue (4096 lines)
 fills is ended rather than stalling the hub, and a disk error ends only the
@@ -72,13 +73,14 @@ message itself and never modifies the recorded one:
 | context `graph_epoch` | the recording's epoch plus an offset; after a seek or loop the next context starts at `last + 1`; never decreases |
 | action `action_sequence` | its own counter, so skipped actions leave no gap |
 | action `checkpoint_sequence`, `graph_epoch` | the latest emitted checkpoint's and context's |
-| appearance, equipment `revision` | its own counters; resent only when the content differs from what clients show |
+| appearance, equipment, effects `revision` | its own counters; resent only when the content differs from what clients show |
 
 Timeline:
 
 - **Seek** does not replay what it skips, since state is latest-wins and actions
-  are edges. It emits the appearance, equipment, context (with a new epoch),
-  and checkpoint in effect at the target, or `Exit` when the recorded player
+  are edges. It emits the appearance, equipment, effects, context (with a new
+  epoch), and checkpoint in effect at the target (no effects before the first
+  recorded ones, sent as an empty list when the replay showed some), or `Exit` when the recorded player
   was out of the world there. The new epoch makes the plugin drop attacks still
   queued for the old position. The context carries the idle held at the target,
   which receivers enter as a late joiner does

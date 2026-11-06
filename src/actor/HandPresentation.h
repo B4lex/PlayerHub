@@ -23,6 +23,7 @@ namespace HandPresentation
         std::array<bool, 2> releaseRequested{};
         std::array<bool, 2> released{};
         std::array<bool, 2> awaitingNewCast{};
+        std::array<bool, 2> releasable{};
         std::array<float, 2> releaseElapsed{};
         std::array<float, 2> stopRequestElapsed{};
         std::array<float, 2> eventCooldown{};

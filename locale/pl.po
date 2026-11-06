@@ -25,6 +25,10 @@ msgctxt "SectionControls"
 msgid "Keybinds"
 msgstr "Klawisze"
 
+msgctxt "SectionGameplay"
+msgid "Gameplay"
+msgstr "Rozgrywka"
+
 msgctxt "SectionAdvanced"
 msgid "Advanced"
 msgstr "Zaawansowane"
@@ -376,6 +380,58 @@ msgid ""
 msgstr ""
 "Odrzuca ofertę wymiany innego gracza lub wycofuje twoją, gdy czeka ona na "
 "odpowiedź."
+
+msgctxt "GameplayGroupEffects"
+msgid "Effects"
+msgstr "Efekty"
+
+msgctxt "GameplayShowSpellEffects"
+msgid "Show spell effects"
+msgstr "Pokazuj efekty zaklęć"
+
+msgctxt "GameplayShowSpellEffectsComment"
+msgid ""
+"Shows what other players' spells do: projectiles, beams, and effects on the\n"
+"caster."
+msgstr "Pokazuje działanie zaklęć innych graczy: pociski, promienie i efekty na rzucającym."
+
+msgctxt "GameplayShowShoutEffects"
+msgid "Show shout effects"
+msgstr "Pokazuj efekty krzyków"
+
+msgctxt "GameplayShowShoutEffectsComment"
+msgid ""
+"Shows the breath, wave, or projectile of other players' shouts, and what\n"
+"their shouts and powers do to them."
+msgstr "Pokazuje oddech, falę lub pocisk krzyków innych graczy oraz działanie ich krzyków i mocy na nich samych."
+
+msgctxt "GameplayGroupIsolation"
+msgid "Isolation"
+msgstr "Izolacja"
+
+msgctxt "GameplayIsolateSpellEffects"
+msgid "Isolate spell effects"
+msgstr "Izoluj efekty zaklęć"
+
+msgctxt "GameplayIsolateSpellEffectsComment"
+msgid "Keeps other players' spells out of your world."
+msgstr "Trzyma zaklęcia innych graczy z dala od twojego świata."
+
+msgctxt "GameplayIsolateShoutEffects"
+msgid "Isolate shout effects"
+msgstr "Izoluj efekty krzyków"
+
+msgctxt "GameplayIsolateShoutEffectsComment"
+msgid "Keeps other players' shouts and powers out of your world."
+msgstr "Trzyma krzyki i moce innych graczy z dala od twojego świata."
+
+msgctxt "GameplayDisableCollision"
+msgid "Disable collision"
+msgstr "Wyłącz kolizję"
+
+msgctxt "GameplayDisableCollisionComment"
+msgid "Lets you walk through other players."
+msgstr "Pozwala przechodzić przez innych graczy."
 
 msgctxt "AdvancedGroupPerformance"
 msgid "Performance"

@@ -1861,8 +1861,8 @@ peers keep seeing the player.
   section in schema order under the [logo](#logo): `[Connection]`, which
   opens first and is the display name beside the
   [connection button](#connection-controls) above its other settings, then
-  `[DefaultOutfit]`, `[UI]`, `[Controls]`, and `[Advanced]` (the user's
-  order). Each section's title is the one its schema `Section` call gives
+  `[DefaultOutfit]`, `[UI]`, `[Controls]`, `[Gameplay]`, and `[Advanced]`
+  (the user's order). Each section's title is the one its schema `Section` call gives
   ([Schema](configuration.md#schema)), so `[UI]` and `[Controls]` have titles
   other than their keys. The
   open section's item has an accent tint and, like a [notice](#notices), a
@@ -1885,8 +1885,8 @@ peers keep seeing the player.
   unsigned value or a percentage, a text field for a string, an item picker for a form, a combo for a choice, a button showing
   the key for a key ([Key bindings](#key-bindings)), and swatches for a color
   ([Accent color](#accent-color)). Group comments are small muted
-  capitals (`Utf8Case::AppendUpper`) above their rows, as on `[DefaultOutfit]`, `[UI]`, and
-  `[Advanced]` ([Configuration](configuration.md#settings)).
+  capitals (`Utf8Case::AppendUpper`) above their rows, as on `[DefaultOutfit]`, `[UI]`,
+  `[Gameplay]`, and `[Advanced]` ([Configuration](configuration.md#settings)).
   `[UI] Language` is a combo of the loaded languages
   ([Localization](#localization)).
   `[Connection] DisplayName` is drawn beside the
@@ -1935,7 +1935,7 @@ peers keep seeing the player.
   saved.
 - The footer's buttons share one width: 5.5 font sizes, or more where the
   longest of their labels needs it.
-- `[UI]`, `[Controls]`, and `[Advanced]` have a footer with one Defaults
+- `[UI]`, `[Controls]`, `[Gameplay]`, and `[Advanced]` have a footer with one Defaults
   button at its right, enabled while a setting the page shows differs from
   the built-in one (`Config::GetDefaultConfig`); the red line shares the
   footer, at its left. A click restores the page's settings at once and

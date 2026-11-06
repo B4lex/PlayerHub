@@ -23,6 +23,10 @@ msgctxt "SectionControls"
 msgid "Keybinds"
 msgstr ""
 
+msgctxt "SectionGameplay"
+msgid "Gameplay"
+msgstr ""
+
 msgctxt "SectionAdvanced"
 msgid "Advanced"
 msgstr ""
@@ -351,6 +355,58 @@ msgid ""
 "Declines another player's trade offer, or withdraws your own, while it "
 "waits\n"
 "for an answer."
+msgstr ""
+
+msgctxt "GameplayGroupEffects"
+msgid "Effects"
+msgstr ""
+
+msgctxt "GameplayShowSpellEffects"
+msgid "Show spell effects"
+msgstr ""
+
+msgctxt "GameplayShowSpellEffectsComment"
+msgid ""
+"Shows what other players' spells do: projectiles, beams, and effects on the\n"
+"caster."
+msgstr ""
+
+msgctxt "GameplayShowShoutEffects"
+msgid "Show shout effects"
+msgstr ""
+
+msgctxt "GameplayShowShoutEffectsComment"
+msgid ""
+"Shows the breath, wave, or projectile of other players' shouts, and what\n"
+"their shouts and powers do to them."
+msgstr ""
+
+msgctxt "GameplayGroupIsolation"
+msgid "Isolation"
+msgstr ""
+
+msgctxt "GameplayIsolateSpellEffects"
+msgid "Isolate spell effects"
+msgstr ""
+
+msgctxt "GameplayIsolateSpellEffectsComment"
+msgid "Keeps other players' spells out of your world."
+msgstr ""
+
+msgctxt "GameplayIsolateShoutEffects"
+msgid "Isolate shout effects"
+msgstr ""
+
+msgctxt "GameplayIsolateShoutEffectsComment"
+msgid "Keeps other players' shouts and powers out of your world."
+msgstr ""
+
+msgctxt "GameplayDisableCollision"
+msgid "Disable collision"
+msgstr ""
+
+msgctxt "GameplayDisableCollisionComment"
+msgid "Lets you walk through other players."
 msgstr ""
 
 msgctxt "AdvancedGroupPerformance"

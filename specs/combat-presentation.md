@@ -3,18 +3,30 @@
 ## Status
 
 Dual casts ([Spells](#spells)) have not been confirmed in game.
+[Active effects](#active-effects) have not run in game.
+Powers and a remote actor's shouted words
+([Shouts and powers](#shouts-and-powers)) have not run in game. The
+`[Gameplay]` settings' non-default values
+([Isolation settings](#isolation-settings)) have not run in game.
 
 ## Scope
 
 A remote actor shows its source's weapon stance, melee and bow attacks,
-bashes, power attacks, blocking, bow draws, and spell casts, standing or
-moving. Only animations and hand effects play. Nothing is hit, staggered,
-damaged, spent, or targeted, and no arrow, projectile, or spell effect is
-created.
+bashes, power attacks, blocking, bow draws, spell casts, shouts, and powers,
+standing or moving. Only animations and hand effects play, except a spell the
+receiver also has: it casts natively, so its projectiles and beams show in
+flight in the receiver's world, and its self effects apply to the remote actor
+([Spells](#spells)). Shouts and powers always cast natively
+([Shouts and powers](#shouts-and-powers)). The lasting effects that show on
+the source's actor, such as invisibility, follow the source's active effects
+rather than the casts a peer sees ([Active effects](#active-effects)).
+Nothing is hit, staggered, damaged, pushed, spent, summoned, or targeted, and
+no arrow is launched ([Spell world isolation](#spell-world-isolation)).
 
 The wire fields are in [Network](network.md#checkpoint-and-context) and
 [Network](network.md#actions); the synchronized weapons, spell hands, and
-ammo are in [Appearance and equipment](appearance-and-equipment.md#equipment);
+ammo, and the equipped shout are in
+[Appearance and equipment](appearance-and-equipment.md#equipment);
 isolation of hits is in [Remote actor](remote-actor.md#combat-isolation).
 
 Graph event names, transitions, and conditions come from the vanilla
@@ -34,6 +46,13 @@ attack data records.
 | `actor/WeaponTransition` | The native draw and sheathe request and its completion ([Locomotion](locomotion.md#components)) |
 | `actor/ActorAnimation` | `GetCombatReadyState`, the graph and stance test every attack and hand presentation start shares |
 | `sync/equipment/SpellStandIn` | Spell hand look capture, resolution, and the stand-in spells |
+| `actor/SpellIsolation` | Spell fire and cast hooks, and the hooks that keep a remote actor's magic, projectiles, explosions, and hazards from acting on the local world |
+| `actor/SelfEffects` | Which of a remote actor's own effects may stay on it (the self allowlist, `kIgnoredEffects`, effects a sync stage owns) and which are presented from the source's active effects (`IsPresented`) |
+| `sync/effects/EffectSync` | Source capture and publishing of the presented active effects; receiver hold, resolution, and reconciliation |
+| `actor/EffectPresentation` | The runtime spells that carry presented effects, and their application to and removal from a remote actor |
+| `actor/GameplayPolicy` | The `[Gameplay]` values for hooks on any thread, the source classification, and `MayAffectWorld` ([Isolation settings](#isolation-settings)) |
+| `sync/voice/VoiceSync` | Source shout and power capture and publishing; receiver power queue and the shout stage |
+| `actor/VoicePresentation` | `ApplyShout`, `CastPower`, `Release`: the actor's native shout and power casts and their ownership of the voice graph events |
 | `actor/AnimationEvents.h` | Event names and `GetPowerAttackEventDirection` |
 | `actor/BeastActions` | The beast action vocabulary and its graph events |
 | `actor/ActorShapeshift` | Beast action dispatch, vampire lord levitation and cast requests |
@@ -43,11 +62,12 @@ attack data records.
 ## State or action
 
 - **Checkpoint state** for what lasts: `weaponDrawn`, `bowDrawn`,
-  `castingLeft`, `castingRight`, and `blocking`. Each lasts longer than the
+  `castingLeft`, `castingRight`, `blocking`, and `shouting`. Each lasts longer than the
   0.05 s interval, a late joiner sees it, and a lost end cannot leave an actor
   drawing or blocking forever.
 - **Ordered actions** for what is short and can repeat faster than the interval:
-  swings, bashes, and power attacks. A latest-wins field would lose them.
+  swings, bashes, power attacks, and powers. A latest-wins field would lose
+  them.
 
 Hand presentation fields live in `Network::PlayerTransform::handPresentation`
 (`Multiplayer::HandPresentation`), not in `AnimationState`, because a change to
@@ -335,7 +355,10 @@ reads the player. Everything is false unless the weapon is drawn:
   decides instead, or `ActorState::wantBlocking` without that variable.
 
 Fields are ORed across passes until the next checkpoint samples and clears them,
-so a presentation shorter than the interval still reaches peers once. A field
+so a presentation shorter than the interval still reaches peers once. While
+disconnected, `DiscardLocalCombat` resets them to the current pass's values each
+pass, so the first checkpoint after connecting carries no presentation that
+ended offline. A field
 turning on flushes equipment first, so a new spell or bow arrives before its use.
 
 ### Receiver stage
@@ -385,12 +408,20 @@ Crossbows (`crossbowAttackStart`) are not replicated.
 
 Goal: a peer sees the native cast of the source's spell: its charge, held
 ready, release, or concentration loop for its casting type and delivery, a
-ward, telekinesis, or ritual clip, and a dual cast. Non-goal: anything the
-spell does when it fires ([Isolation](#isolation)).
+ward, telekinesis, or ritual clip, and a dual cast. When the peer has the
+spell, it also sees what the spell does when it fires, as a native NPC cast:
+its self effects on the caster, and its projectiles, beams, and sprays in
+flight. None of it acts on or marks the peer's world
+([Spell world isolation](#spell-world-isolation)).
 
-A hand holding any spell or scroll holds a stand-in, a runtime copy of
-Healing Hands (`Skyrim.esm` `0x04D3F2`) carrying the source spell's look
-([Spell look](#spell-look)) and cast shape. The cast clips come from the
+While `[Gameplay] ShowSpellEffects` is on, a hand holding a fire-and-forget
+or concentration `SpellItem` that the receiver has holds the receiver's own
+version of that spell (a native hand),
+whose own data picks the clips and whose fire runs natively. Any other spell
+or scroll hand, and every hand of a vampire lord, holds a stand-in, a runtime
+copy of Healing Hands (`Skyrim.esm` `0x04D3F2`) carrying the source spell's
+look ([Spell look](#spell-look)) and cast shape, whose fire stays suppressed
+([Isolation](#isolation)). The cast clips come from the
 vanilla idle records: `StartChargeImpl` performs the hand's attack action
 (`ActionLeftAttack`/`ActionRightAttack`), whose children under
 `AttackMagicLeftRoot`/`AttackMagicRightRoot` test `GetCurrentCastingType`,
@@ -399,13 +430,13 @@ vanilla idle records: `StartChargeImpl` performs the hand's attack action
 charge event (for example `MRh_SpellAimedStart`, `MLh_WardStart`,
 `DualMagic_SpellSelfStart`, `RitualSpellStart`). `StartReadyImpl` performs the
 ready action and `StartCastImpl` the release action
-(`MLh_SpellRelease_Event`/`MRh_SpellRelease_Event`). So the stand-in's
+(`MLh_SpellRelease_Event`/`MRh_SpellRelease_Event`). So the held spell's
 casting type, delivery, charge time, and effect keywords pick the clips
 natively. `SpellHasKeyword` reads the keywords of the spell's effects, since
 vanilla spell records carry none of their own. A two-handed (ritual) spell
 casts on the left caster alone, and the left root's ritual branch tests the
 right hand's keyword (`SpellHasKeyword` with hand 1), which the right hand's
-stand-in satisfies, so the left cast plays `RitualSpellStart` or
+spell satisfies, so the left cast plays `RitualSpellStart` or
 `RitualSpellAimConcentrationStart`.
 
 - **Capture.** Besides `castingLeft`/`castingRight`
@@ -423,12 +454,20 @@ stand-in satisfies, so the left cast plays `RitualSpellStart` or
   only sends `BeginCast*` and left the caster in `kNone` (observed in game), so a
   start also moves an idle caster to `kUnk01`, as the engine's request does, and
   sets `bWantCastLeft`/`bWantCastRight`, which the magic graph needs to stay
-  casting; the variable is set again every pass while held. The engine then
+  casting; the variable is set again every pass while held. A start also sets
+  the caster's `kSkipCheckCast` (`SetSkipCheckCast`), so the receiver's copy of
+  the source's magicka never ends a cast the source holds: the caster update
+  (ID 34143) otherwise drains magicka over a fire-and-forget charge and a
+  concentration cast, and interrupts a charge whose remaining cost exceeds the
+  actor's magicka. A runtime actor base has only its race's magicka, which a
+  held ward drains: without the flag, a fire-and-forget charge beside a ward
+  was back in `kNone` before the source's release (observed in a replay). The
+  engine then
   charges for the spell's charge time and readies. A concentration caster
-  releases itself once ready and then waits in `kUnk04`, because spell fire is
-  suppressed.
+  releases itself once ready. A native one then casts, firing from the caster
+  update; a stand-in waits in `kUnk04`, because its fire is suppressed.
 - **Dual cast.** A left cast with `dualCasting`, both hands holding the same
-  stand-in, sets the high process `isDualCasting` and the caster's dual flag
+  spell, sets the high process `isDualCasting` and the caster's dual flag
   first, as `Actor::TryDualCast` and `MagicCaster::RequestCast` (ID 34401) do,
   so the attack action takes the `CastDualMagic` branch. Any other left cast
   clears both, since a graph reset can drop a cast without the
@@ -440,11 +479,15 @@ stand-in satisfies, so the left cast plays `RitualSpellStart` or
   want-cast variable then. A release that arrives while the receiver still
   charges waits for its ready state, at most `kReleaseChargeWaitSeconds` (1 s),
   even after the source's cast ended, since the receiver's charge started later
-  by its start's delay. The release clip's fire event reaches spell fire,
-  whose hook finishes the cast as native spell fire does; the caster returning
-  to `kNone` ends the hand's cast without an interrupt. So does a
-  fire-and-forget caster that returns to `kNone` by itself, as when the engine
-  releases at once because the ready action was rejected. After
+  by its start's delay. The release clip's fire event reaches spell fire, which
+  for a native hand fires and finishes the cast, and for a stand-in is
+  suppressed by a hook that finishes the cast as native spell fire does; the
+  caster returning to `kNone` ends the hand's cast without an interrupt. So
+  does a fire-and-forget caster that returns to `kNone` by itself, as when the
+  engine releases at once because the ready action was rejected. Whether the
+  cast is fire-and-forget is read from the spell when the cast starts: a
+  native cast's finish clears the caster's `currentSpell`, so reading it then
+  held every native cast for the fallback (observed in a replay). After
   `kReleaseFinishFallbackSeconds` (3 s) without that, the cast is interrupted.
 - **Stop.** A cast the source ended without a release, a concentration cast, or
   a hand that lost its spell is stopped: the variable is cleared and
@@ -472,8 +515,9 @@ stand-in satisfies, so the left cast plays `RitualSpellStart` or
 ### Spell look
 
 Goal: a peer recognizes the source's spell in hand by its hand art, hand light,
-and hand sounds. Non-goals: the projectile, beam, hit effects, and release and
-hit sounds.
+and hand sounds. A native hand has them as its own; this section covers the
+stand-in, which also leaves out the release and hit sounds, the projectile,
+the beam, and the hit effects.
 
 The magic caster takes a hand's art (`castingArt`), light (`light`), and sounds
 from the costliest effect of the hand's spell (`MagicItem::GetAVEffect`). A
@@ -495,14 +539,24 @@ fire applies.
   ([Network](network.md#equipment)). An unreferenceable (dynamic) spell is sent
   without a form. If the art or light exists but cannot be referenced, neither
   is sent, since a partial look would read as a spell without that part.
-- **Resolution**, in order:
-  1. The spell resolves to a `SpellItem` or `ScrollItem`: its art, light,
-     sounds, and cast shape, as the receiver's version, so the receiver's
-     visual mods apply.
-  2. At least one of the art and light is sent and each sent one resolves
-     (`BGSArtObject`, `TESObjectLIGH`): those, with Healing Hands' sounds and
-     cast shape; an unsent one is none. Many modded spells reuse vanilla art.
-  3. Otherwise Healing Hands itself.
+- **Resolution** (`SpellStandIn::Resolve`), in order:
+  1. Outside a vampire lord's hands, while `[Gameplay] ShowSpellEffects` is
+     on, the spell resolves to a `SpellItem` of type spell, fire-and-forget or
+     concentration: the hand holds it, the receiver's version (`native`).
+     `EquipmentSync::EnsureResolved` resolves the hands again when the setting
+     differs from the value they were resolved with
+     (`RemoteState::resolvedNativeSpells`).
+  2. It resolves to another `SpellItem` or a `ScrollItem`: a stand-in with its
+     art, light, sounds, and cast shape, as the receiver's version, so the
+     receiver's visual mods apply. A scroll keeps a stand-in because
+     `EquipSpell` takes only a `SpellItem` and a scroll's cast consumes it.
+  3. At least one of the art and light is sent and each sent one resolves
+     (`BGSArtObject`, `TESObjectLIGH`): a stand-in with those, Healing Hands'
+     sounds, and its cast shape; an unsent one is none. Many modded spells
+     reuse vanilla art.
+  4. Otherwise a stand-in with Healing Hands' look and shape, never Healing
+     Hands itself, which would cast natively. If no stand-in can be created,
+     the hand is empty.
 - **Stand-ins** are created on the game thread with `DynamicForm::Create` and
   `TESForm::Copy` (`MagicItem::Copy` copies the data and effects, not the equip
   slot; `EffectSetting::Copy` neither the sounds nor the keywords), cached by
@@ -511,7 +565,7 @@ fire applies.
   shape, and never deleted. `Spell stand-in created` logs each one with its
   forms and shape. The stand-in's light is the look's
   [fake light](appearance-and-equipment.md#fake-lights) version.
-- A spell change swaps the stand-in through `EquipSpell`, like any hand swap
+- A spell change swaps the held spell through `EquipSpell`, like any hand swap
   ([Appearance and equipment](appearance-and-equipment.md#reconciliation)).
 
 ### Moving lower body
@@ -532,6 +586,177 @@ locomotion, and a locomotion reassert sends whichever of `moveStart`,
 touching the stance. Without the hold the base locomotion re-enters standing,
 the actor slides, and the graph then rejects the next `moveStop` until its
 retries run out.
+
+## Shouts and powers
+
+Goal: a peer sees and hears the source's shout as a native NPC shout of the
+same shout and word count: its charge, each word spoken and its clip, and the
+release, with its breath, wave, or projectile in flight and its self effects,
+such as Dragon Aspect, on the remote actor. A power the source casts applies
+its self effects to the remote actor. None of it acts on the peer's world
+([Spell world isolation](#spell-world-isolation)). A peer without the shout
+sees Unrelenting Force of the same word count in its place.
+
+Non-goals: shout recovery on the remote actor (the source decides when it can
+shout), and a beast form's howls, which are [beast actions](#beast-actions).
+
+### Voice state
+
+A shout runs through the high process's `voiceState` (`RE::VOICE_STATE`,
+read from 1.7.104):
+
+- The shout key's button handler (`ShoutHandler`, ID 42430) starts the voice slot's
+  shout with its first variation through the actor's shout start (ID 38804,
+  SE 37850): it stores the shout and variation in the high process, enters
+  `kRequest`, and requests the variation's spell from the voice caster
+  (`CastingSource::kOther`). The caster's `BeginCastVoice` annotation
+  (`VoiceSpellCastHandler`) enters `kStart`.
+- The voice update (ID 38805) adds the frame time to `voiceTimeElapsed`. It
+  leaves `kStart` at `fShoutTime1` (0.2) and `kContinue` at `fShoutTime2`
+  (0.9), the player earlier once the key is up, and then reads the actor's
+  shout level: for an NPC the high process's `currentShoutVariation` (ID
+  38810), for the player the highest known variation while the key is held.
+  Level 0 releases one word from `kStart`; any other enters `kContinue`,
+  which releases that level.
+- A release says the word's dialogue topic (subtypes
+  `kVoicePowerStartShort`, `kVoicePowerStartLong`, `kVoicePowerEndShort`,
+  `kVoicePowerEndLong`; `Skyrim.esm` `Shout01a`, `Shout01b`, `Shout02`,
+  `Shout03` of the `VoicePowers` quest) through the process's say (ID 39337),
+  which queues it while the actor is still speaking. A player's responses
+  are conditioned on `GetEquippedShout` (the actor's `selectedPower`, ID
+  38771, SE 37822) and on a voice type in `VoicesPlayer` (`0x068ACA`, the
+  playable races' default voice types). It then performs the voice action, and starts the caster's cast, entering
+  `kPrecast`. The release clip's `Voice_SpellFire_Event`
+  (`VoiceSpellFireHandler`, ID 42818) fires through spell fire (ID 34407),
+  enters `kPostcast`, and sets the recovery time. `kPostcast` returns to
+  `kNone` once the actor is not speaking (`HighProcessData::unk467`, else an
+  empty `queueofGreetings`), `kSoundFileDone` is set, the voice caster holds
+  no spell, and the graph's `IsShouting` is false. `kRequest`, `kPrecast`,
+  and a `kPostcast` that does not end time out at `fShoutTimeout` (8): the
+  caster's `FinishCast`, then the voice reset (ID 39524, SE 38514).
+- Spell fire checks the cast again in casting state 5, where the voice spell
+  of a shout with `kTreatSpellsAsPowers` (ID 38812, SE 37858) fails with
+  `kPowerUsed` while it is among the actor's used powers (ID 38742, SE
+  37793). The fire's `ActorMagicCaster::SpellCast` (ID 34144) adds the
+  shout's spells to them; the release's own cast check runs outside that
+  state. A shout used today, such as Dragon Aspect, therefore speaks its
+  word and plays its release clip, then fails: the fire handler resets the
+  voice to `kFail`, and the next voice update to `kNone`.
+- The voice idles' events are `shoutStart`, the release's
+  `MT_BreathExhaleShort`, `CombatReady_BreathExhaleShort`,
+  `shoutReleaseSlowTime`, or `ShoutSprint*Start`, and `shoutStop`.
+- A power has no animation: the key's release fires it at once through the
+  caster's cast without an animation (ID 34409, SE 33631).
+
+### Shout and power capture
+
+- `VoiceSync::CaptureLocalVoice` reads the player every pass. `shouting` is a
+  `voiceState` from `kRequest` through `kPostcast` with a current shout;
+  `shoutReleased` is `kPrecast` or `kPostcast`. `shoutFailed` is `kPrecast`
+  with a fire that will fail: the current shout has `kTreatSpellsAsPowers`
+  and the voice caster's spell is a used power. The words are 2 in
+  `kContinue` and 1 in earlier states; once released, the released
+  variation's. They are ORed, and the words maximized, until the next
+  checkpoint samples them (`SampleLocalVoice`); while disconnected,
+  `DiscardLocalVoice` resets them to the current pass's values, so a shout
+  that ended offline is not published on connecting. A shout starting flushes
+  equipment, so its shout arrives first. In a beast form nothing is captured.
+- Equipment carries the voice slot's shout (`selectedPower` when it is a
+  `TESShout`, [Appearance and equipment](appearance-and-equipment.md#capture)).
+- A power travels as a `power` [action](network.md#actions).
+  `SpellCastEventSink` queues each `TESSpellCastEvent` of the player, on any
+  thread, at most 8; `QueueLocalPowers` keeps those whose spell is the voice
+  slot's `selectedPower` and a power or lesser power, so a script's cast is
+  not sent. `PublishLocalPowers` publishes them after the next checkpoint,
+  anchored to it, unless it is in furniture or a beast form. A graph epoch
+  change or a disconnect discards them.
+- Logs: `Voice sync observed local shout` and
+  `Voice sync observed local power cast`.
+
+### Shout and power receiver
+
+`VoiceSync::SyncVoice` runs after the hand presentation stage for a human
+actor on foot and outside furniture; mounting, death, furniture, and a beast
+form call `VoicePresentation::Release`, which interrupts a charging shout and
+ends the ownership.
+
+- **Shout.** `EquipmentSync::GetShout` resolves `shout` to a `TESShout` with
+  a spell in at least one variation, else to Unrelenting Force (`Skyrim.esm`
+  `0x013E07`), logged as an unresolved `shout` item. The variation is the
+  highest up to the word count that has a spell, else the lowest above it.
+- **Identity.** `VoiceSync::OnCheckpointPlayed` counts the source's shouts
+  in `RemoteState::shoutID` on every played checkpoint, so a pass that plays
+  several does not lose one: a `shouting` checkpoint after one that was not,
+  or an unreleased one after a released one, starts the next shout.
+- **Start.** A checkpoint `shouting` with a shout ID other than the one the
+  actor last held starts a shout once the actor's
+  `voiceState` is `kNone` and the actor is ready: a settled graph, no
+  recovery, locomotion reassert, attack, idle, or weapon transition, not
+  swimming, and the weapon fully drawn or sheathed. `ApplyShout` calls the
+  shout start (ID 38804) with the shout in `selectedPower`, the voice
+  ownership set, and `kCastingDisabled` cleared, at most every 0.25 s.
+- **Charge.** While charging, `currentShoutVariation` follows the checkpoint's
+  words. In `kStart` and `kContinue`, `voiceTimeElapsed` is set to 0 every
+  pass until the source decides: a release, or two words or more in
+  `kStart`. Then it is raised to `fShoutTime1` or `fShoutTime2` (read from
+  the game settings), and the next voice update moves on with that level, so
+  the receiver releases as the source did. A charge still undecided after
+  `kChargeHoldFallbackSeconds` (2 s) moves on: the source decides within
+  `fShoutTime2`.
+- **Interrupt.** A checkpoint no longer `shouting` while the actor charges
+  interrupts the voice caster (its interrupt action plays `shoutStop`) and
+  clears the voice state, shout, variation, and elapsed time as the engine's
+  reset (ID 39524) does before a release. From its release on, a shout plays
+  out natively.
+- **Ending.** The shout ends once `voiceState` is `kNone`, or is interrupted
+  after `kShoutFallbackSeconds` (12 s), beyond the engine's own
+  `fShoutTimeout` (8). A shout that ended while the source still reports it
+  is not shouted again, and the next one starts even when it is already
+  released. A released shout also ends, as the voice update's timeout ends
+  it, once it outlasts the source's shout by `kOutlastSeconds` (1 s), or,
+  outside `kPrecast`, as soon as the source starts its next shout: both are
+  seen through the same playout delay, so the receiver's voice otherwise
+  lingers, and a lingering voice would hold back the next shout. In game the
+  remote actor's `kPostcast` was held by a queued word (`queueofGreetings`
+  of 1, `unk467` false) after its clip, the caster, and the sound had ended.
+  A release in `kPrecast` waits up to `kOutlastSeconds` for its fire. Either
+  end waits until the graph's `IsShouting` is false: a shout started while
+  the graph still plays the last one got no release clip and never fired.
+- **Failed fire.** A `shoutFailed` checkpoint of the held shout sets the
+  registry's voice fire suppression until the shout ends: the actor speaks
+  its words and plays its release clip, and its fire is suppressed as a
+  hidden shout's ([Isolation](#isolation)), so no effect shows that the
+  source did not get.
+- **Words.** The remote actor's base takes a voice type in `VoicesPlayer`
+  ([Appearance and equipment](appearance-and-equipment.md#actor-base)), its
+  `selectedPower` holds the shout from its start, and the dialogue hook
+  passes the shout topics
+  ([Remote actor](remote-actor.md#reaction-suppression)).
+- **Hidden effects.** While `[Gameplay] ShowShoutEffects` is off, the shout
+  starts, charges, speaks its words, and plays its release clip as above,
+  and its fire is suppressed ([Isolation](#isolation)); `CastPower` casts no
+  power.
+- **Ownership.** While a shout is held, the registry marks voice ownership:
+  the firewall passes the voice events
+  ([Remote actor](remote-actor.md#animation-firewall)), and the survival
+  policy keeps `kCastingDisabled` clear.
+- **Power.** `VoiceSync::AcceptRemoteAction` queues `power` actions, at most
+  8, each dropped after 3 s. The front one waits for its checkpoint to play;
+  one from another graph epoch, unresolved, or not a power or lesser power is
+  dropped. `VoicePresentation::CastPower` casts it through ID 34409 on the
+  voice caster, one per pass. A peer without the power sees nothing, as a
+  power plays no animation.
+- Logs: `Voice sync started shout`, `Voice sync ended shout` (with
+  `finished`, `interrupted`, `timed-out`, `superseded`, `outlasted`, or
+  `released`), `Voice sync ending lingering shout` (the `kPostcast` end
+  conditions), `Voice sync suppresses the fire of a shout that failed on its
+  source`, and `Voice sync cast remote power`.
+
+A shout's and a power's spells fire through spell fire as native spells, so
+[spell world isolation](#spell-world-isolation) keeps them from the local
+world. The magic firewall, which drops every voice power effect on a remote
+actor, lets through the remote actor's own
+([Remote actor](remote-actor.md#survival-and-ai-policy)).
 
 ## Beast actions
 
@@ -649,24 +874,258 @@ resolves these at `kDataLoaded`.
   target handle and form and marks them finished. A change the actor cannot
   show yet is tried again on the next pass; a respawn starts without them.
 
+## Active effects
+
+Goal: a peer sees the lasting effects that show on the source player's actor
+whenever it sees that actor, also as a late joiner and after either player
+changes space or the actor respawns, not only after a cast the peer saw fire:
+invisibility, an ethereal look, a light, and the shaders and art of a flesh
+spell, a cloak, a potion, an ability, or a worn enchantment. Each is the
+native effect, run by the remote actor's own magic system, and it ends when
+the source's ends. Non-goals: effects with no look on another actor (a value
+modifier without shaders or art, Night Eye, Muffle); a stand-in for an effect
+the peer does not have, which shows nothing; hiding an invisible player's
+nameplate or [player menu](ui-overlay.md#player-menu-in-the-world);
+concentration effects, which last only while the cast that the
+[cast replay](#spells) shows does; hostile and detrimental effects, which the
+[magic firewall](remote-actor.md#survival-and-ai-policy) drops on a remote
+actor; and spawned hazards, which are placed once when their effect starts.
+
+- **Presented effects.** `SelfEffects::IsPresented`: a constant or
+  fire-and-forget effect, neither hostile nor detrimental, of a self archetype
+  ([Spell world isolation](#spell-world-isolation)) other than `kSpawnHazard`,
+  not one a sync stage owns, that shows: of archetype `kInvisibility`,
+  `kLight`, or `kEtherealize`, or with a hit shader, enchant shader, hit effect
+  art, or enchant effect art. Source and receiver apply the same test, each to
+  its own records.
+- **Capture.** `EffectSync::SyncLocalEffects` reads the player's active
+  effects every `kCapturePollIntervalSeconds` (0.1 s), skipping inactive and
+  dispelled ones, whatever cast them: a spell, potion, scroll, ability,
+  enchantment, or another actor. Each is sent as its effect and magnitude
+  rather than its item, because crafted potions and player enchantments are
+  dynamic forms that cannot be referenced; a dynamic effect is skipped. One
+  entry per effect, the strongest, ordered by reference, at most 32 (the rest
+  are counted as skipped). A changed list is published as
+  [`Effects`](network.md#effects) with a new revision, and the last one is
+  republished on every new connection generation.
+- **Hold.** A peer's first effects take effect at once. Later ones wait for
+  the peer's playout delay (`CheckpointPlayout::GetDelay`, at most 1 s),
+  because the source captures an effect after its cast fires and the peer
+  plays that cast its playout delay after the checkpoint arrives, so the
+  effect starts and ends with the replayed cast or attack. At most 8 wait; a
+  ninth makes the oldest take effect.
+- **Resolution.** Each effect resolves by its reference to the receiver's
+  `EffectSetting`; one the receiver lacks or does not class as presented is
+  skipped and logged. While `[Gameplay] ShowSpellEffects` is off nothing
+  resolves, so every applied effect is removed.
+- **Application.** `EffectPresentation` keeps one runtime spell per effect, a
+  copy of Candlelight (`Skyrim.esm` `0x043324`, one effect without conditions)
+  whose effect entry is replaced. Its casting type follows the effect's, so
+  the effect runs as its record expects. A constant effect becomes an ability,
+  added with `Actor::AddSpell` and ended with `RemoveSpell`; its magnitude is
+  set on the shared spell before each add. A fire-and-forget effect becomes a
+  self spell lasting `kTimedDurationSeconds` (24 h), cast on the actor by its
+  instant caster through `CastSpellImmediate` with the source's magnitude as
+  the override, and ended by dispelling that spell's active effects. The
+  runtime spells are never deleted.
+- **Reconciliation.** `EffectSync::SyncEffects`, once the actor is ready and
+  its 3D is loaded (shaders and art attach to loaded 3D), runs when the
+  resolved list changes and every `kCheckIntervalSeconds` (1 s): it removes
+  applied effects the list dropped or whose magnitude changed, applies the
+  missing ones, and reapplies an effect the engine ended while the list keeps
+  it, as when the actor's own replayed action breaks its invisibility, at most
+  `kMaximumReapplies` (3) times, one per check; a failed application counts
+  as one. A new actor starts with
+  nothing applied.
+- **One owner.** While `ShowSpellEffects` is on, the `AddTarget` hook drops a
+  presented effect from any other source on a remote actor itself: a native
+  spell's or power's fire, its race's abilities, and its worn enchantments,
+  logging `Dropped remote actor effect that effect sync presents`. So an
+  effect shows once and ends when the source's does, also when the receiver's
+  copy of the spell lasts longer. The runtime spells pass the self allowlist
+  as any self effect does, and the `CastSpellImmediate` hook lets them
+  through.
+
 ## Isolation
 
 Draw and cast clips natively run the release paths. These hooks keep a
-registered actor from releasing anything; other actors pass through. The vtable
-hooks install on every runtime; the spell fire entry detour is ID 34407 (SE
-33629).
+registered actor from releasing anything but a native hand's spell; other
+actors pass through. The arrow hook is in `CombatIsolation`, the others in
+`SpellIsolation`. The vtable hooks install on every runtime; the spell fire
+entry detour is ID 34407 (SE 33629).
 
 | Hook | Effect for a remote actor |
 | --- | --- |
 | `ArrowReleaseHandler::ExecuteHandler` (`arrowRelease`) | Returns handled without launching the arrow or spending ammo |
-| Spell fire (ID 34407, entry detour), from `MLh_SpellFire_Event`/`MRh_SpellFire_Event` and a casting caster's update | Returns true without spending cost, applying or launching the spell, or entering casting state 6; a cast that is not concentration, running on a caster under cast ownership ([Spells](#spells)), is finished with `FinishCast`, as the skipped `FindTargets` (ID 34410) ends it |
-| `ActorMagicCaster::CastSpellImmediate` (vfunc 1) | Does not cast |
+| Spell fire (ID 34407, entry detour), from `MLh_SpellFire_Event`/`MRh_SpellFire_Event`, `Voice_SpellFire_Event`, and a casting caster's update | A native spell whose effects show (`GameplayPolicy::ShowsNativeFire`: `ShowShoutEffects` for a shout's or power's spell, `ShowSpellEffects` for any other) runs the original: cost, application or launch, casting state 6 (`Remote actor native spell fire`, throttled). A stand-in, a native spell whose effects are hidden, or the voice spell of a shout under voice fire suppression ([Shouts and powers](#shout-and-power-receiver)) returns true without spending cost, applying or launching the spell, or entering casting state 6; a cast that is not concentration, running on a caster under cast or voice ownership ([Spells](#spells), [Shouts and powers](#shout-and-power-receiver)), is finished with `FinishCast`, as the skipped `FindTargets` (ID 34410) ends it. The voice caster's fire handler (ID 42818) then enters `kPostcast` as after a fired shout |
+| `ActorMagicCaster::CastSpellImmediate` (vfunc 1) | Does not cast, except on the caster whose native spell fire is running on that thread (a `thread_local`), in case the fire applies a self spell through it |
 | `ActorMagicCaster::CheckCast` (vfunc 0xA) | Returns true with `kOK`, so magicka or the casting-disabled flag never interrupt |
 
+The hooks tell the two apart by the caster's `currentSpell`: stand-ins are
+dynamic forms, and nothing else gives a remote actor a dynamic spell, since a
+dynamic spell is sent without a form and resolves to a stand-in. So the check
+is `IsDynamicForm`, which needs no lock on the threads that run spell fire.
+
 Hooking the `M?h_SpellFire_Event` handlers did not stop the caster reaching
-state 6 (observed in game), so spell fire itself is hooked, and it suppressed
-every fire. Melee, bash, and projectile hits are dropped by
-[combat isolation](remote-actor.md#combat-isolation).
+state 6 (observed in game), so spell fire itself is hooked. Melee, bash, and
+arrow hits are dropped by [combat isolation](remote-actor.md#combat-isolation).
+The magic firewall keeps hostile and detrimental effects from local sources
+off remote actors ([Remote actor](remote-actor.md#survival-and-ai-policy)).
+
+### Spell world isolation
+
+Goal: a native hand's spell, shout, or power shows its cast, its flight, and
+its effects on the caster, and, while isolated (the default,
+[Isolation settings](#isolation-settings)), leaves no trace in the
+receiver's world. Projectiles, beams, and sprays fly and vanish where they
+strike, without an explosion, impact art, particles, decal, sound, or light;
+a rune is never launched, and a wall
+spell places no flames. Self effects that stay on the caster (a flesh spell's
+shader, Candlelight, invisibility, a cloak's aura, a ward, and a hazard cast
+around the caster, such as Blizzard or Circle of Protection) apply to the
+remote actor. No local actor, the local player, or any object takes damage,
+a hit, a stagger, an effect, a push, or destruction; no creature is summoned
+or reanimated, and no weapon is bound.
+
+`SpellIsolation` drops each part where the engine applies it, so the fire,
+launch, and flight stay native. A source is remote when it is a registered
+actor, or a projectile, explosion, or hazard acting for one: a projectile's
+`shooter` or `actorCause`, an explosion's `actorOwner` or `actorCause`, a
+hazard's `ownerActor`, or any reference's `GetActorCause`.
+`Hazard::SetActorCause` (ID 43966) stores its cause's actor as `ownerActor`,
+so a hazard cast around the caster acts for it.
+
+| Hook (1.7.104, SE) | Drops for a remote source |
+| --- | --- |
+| `MagicTarget::AddTarget` (vfunc 1) of `Character` and `PlayerCharacter` (both ID 38786, SE 37832, chained after the [magic firewall](remote-actor.md#survival-and-ai-policy)) and `NonActorMagicTarget` (vtable 1, its `MagicTarget` base at +0x10; vtable 0 is `BSExtraData`) | Any effect on another actor or an object, and on the caster itself any archetype but value modifiers (`kValueModifier`, `kDualValueModifier`, `kPeakValueModifier`, `kValueAndParts`, `kAccumulateMagnitude`), `kInvisibility`, `kLight`, `kNightEye`, `kEtherealize`, `kDisguise`, `kCloak`, and `kSpawnHazard` (not for a shout or power), except an effect in `kIgnoredEffects`; on the caster also a presented effect from anything but its [active effect](#active-effects) spell. Returns false, as the magic firewall does |
+| Projectile spell impact (ID 34412, SE 33634) `(caster, location, projectile, target, …)`, call detours in its callers: `Projectile::ProcessImpacts` (ID 44123, SE 42943), the beam, flame, and arrow impacts (ID 44206, SE 43015), and a lobber's detonation (ID 34411, SE 33633) | The spell where a projectile struck. Every impact casts through it with the shooter's own caster. This includes target-location summons |
+| HitData processing (ID 38586, SE 37633) `(target, hitData)` | A hit whose `aggressor` is remote: damage, stagger, hit impulse, hit effects, `TESHitEvent`. Spell projectiles (ID 44123 + 0x269), beams (ID 44204 + 0x3AA), and explosions (ID 43849 + 0x412) reach it without the actor hit hook |
+| `TaskQueueInterface::QueueUpdateDestructibleObject` (ID 36909, SE 35934), call detours in its callers: IDs 14168, 25818, 44123 (`ProcessImpacts`), and 56107 (SE 14069, 25298, 42943, 55578) | Destruction damage whose cause is a remote source |
+| Projectile impact impulse (ID 44215, SE 43024), call detour in its only caller, `ProcessImpacts` | The push on the rigid body a projectile struck (`ScaleGameplayImpulseForce`, ID 26004, then the body's point impulse) |
+| `ConeProjectile::HandleHits` (vfunc 0xBE, ID 43802, SE 42634; reached only through its vtable) | Everything a cone touches, such as Unrelenting Force or a breath shout: the push on each non-actor rigid body, which the cone applies itself (`SetLinearImpulse`/`SetAngularImpulse`, IDs 78091/78092) rather than through ID 44215, and its hits on references. Returns true, as the original does on its only exit |
+| Explosion targets (ID 43849, SE 42677), call detour in its only caller, the explosion update (ID 43851, SE 42679) | Every reference the explosion found: actor cause, HitData, the enchantment, and the impulse (ID 39895). Sets `kTargetsProcessed`, as the original does first, so the update does not call it again |
+| Explosion forces (ID 43850, SE 42678), call detour in the explosion update | The impulses on bodies in the radius (`SetLinearImpulse`/`SetAngularImpulse`, IDs 78091/78092). Sets `kForcesApplied`, as the original does |
+| Spell projectile launch (ID 34452, SE 33672), call detours in its callers: `FindTargets` (ID 34410; SE's reaches it only through 33670) and the area and target-location casts (IDs 34450 and 34451, SE 33670 and 33671) | Returns true without launching when the current spell's projectile (`GetAVEffect`) has `kExplosionAltTrigger` and an `explosionProximity`: a rune. The callers only test the result, which the original always sets; `Projectile::Launch` (ID 44108) is not failed instead, because this caller uses the new projectile without a null check |
+| Impact effects (ID 44213, SE 43022) `(projectile, target, impact, …)`, call detours in each caller: `ProcessImpacts` (ID 44123 + 0x407, SE 42943 + 0x410), and the beam and flame hits (ID 44205 + 0x18A, SE 43014 + 0x1EA) | The impact data set's art, particles, decal, sound, and light, the hit reference's actor cause, and the hazard an impact places (a wall's flames). The cone's own impact pass (ID 43806) also calls it, but is not detoured: a remote cone records no impacts there, because its `HandleHits` is skipped |
+| Explosion factory (ID 43829, SE 42657) call in the projectile update (ID 44216 + 0x3C8, SE 43025 + 0x39F, call detour) | Returns no explosion for a remote projectile, read from the creation record at +0x20, where the update stores it. A null explosion is an ordinary result there, and the projectile is killed as after one |
+
+The explosion target and force hooks cover explosions a remote source creates
+outside the projectile update, such as those of a hazard cast around the
+caster. A rune's proximity detonation (ID 44217, and
+`GrenadeProjectile::OnTriggerEnter`, ID 43933) is not hooked: a remote rune is
+never launched, and any other remote projectile that detonates vanishes
+without an explosion or a spell.
+
+Only spell fire and HitData processing are entry-detoured: they have eight
+or more callers, which differ between runtimes (spell fire's caster update
+call exists only on AE). Every other function is detoured at each of its
+callers' calls, found by scanning the 1.5.97 and 1.7.104 executables for calls,
+jumps, and pointers to it. `CodeDetour::WriteCalleeDetour` finds each site by
+call target within the caller ([Detours](remote-actor.md#detours)), so a runtime whose
+code layout differs from 1.7.104's (such as 1.6.1170) still finds them. A
+plugin that hooks an entry after this plugin by copying its first bytes into a
+gateway copies our relative branch, which then jumps elsewhere; PapyrusExtender
+does this for the impact effects at `kDataLoaded`, which crashed every
+projectile impact while that entry was detoured. Of the plugins checked
+(powerofthree's plugins, Precision, Valhalla Combat, MaxsuIFrame, TrueHUD,
+DodgeFramework, EngineFixes, and Blade and Blunt from source; the common SKSE
+DLLs by their ID constants), none hooks the spell fire or HitData entry: they
+patch calls inside it or call it.
+
+Native casts depend on every detour above, but a detour can fail to install
+(a prologue or call site another plugin changed), and that is only logged.
+`SpellIsolation::IsolatesNativeCasts` is true only when both entry detours and
+the call detour at every caller of each other function installed; the vtable
+hooks cannot fail. Otherwise `InstallHooks` logs one error, every hand holds a stand-in
+(`SpellStandIn::Resolve` ignores `a_allowNative`), and
+`VoicePresentation::ApplyShout` and `CastPower` cast no shout or power, so a
+remote actor releases nothing native.
+
+Each hook logs `Suppressed remote spell world effect` with the path
+and both form IDs, and the magic target hooks `Suppressed remote actor magic
+effect` with the archetype, throttled.
+
+The self archetypes are an allowlist rather than a list of world-changing
+ones, so a modded archetype use defaults to dropped: a script effect
+(`kScript`, such as Transmute), a summon, a bound weapon (equipment sync owns
+the hands), telekinesis, or a transformation does nothing. A cloak's and a
+spawned hazard's own spells reach targets through new `AddTarget` calls with
+the remote actor or the hazard as their source, so the aura and the hazard
+around the caster show while their effects are dropped. The allowlist applies to every effect
+whose source is the remote actor itself, including its abilities and
+equipment enchantments.
+
+A shout's or power's spawned hazard is dropped too (`SelfEffects::IsSelfContained`),
+because the vanilla ones run scripts on the caster that change the world:
+Storm Call's set the weather (`magicSetWeatherScript`) and place activators
+that cast lightning (`magicProjectileStormScript`), and the Wind Stone
+power's places an activator (`magicPlaceActivatorScript`). Effects in
+`kIgnoredEffects` are dropped as well, because their scripts reach past the
+caster: Become Ethereal's `VoiceMakeEthereal` (`Skyrim.esm` `0x064D68`) runs
+`magicImodScript`, whose image space modifiers apply to the local screen
+whichever actor the effect is on, so a remote Become Ethereal shows the shout
+without the ethereal look. The engine's own effect modifier (`EffectSetting`
+data `imageSpaceMod`) is triggered only for an effect on the player (ID
+34144). The other vanilla shout and power self effects that the allowlist
+passes and that carry a script act on the caster alone: Mist Form's alpha
+(`magicSetActorAlphaScript`), Dragon Aspect's armor art
+(`DLC2DragonbornAspectArtSCRIPT`, kept by
+[equipment reconciliation](appearance-and-equipment.md#reconciliation)) and
+shaders, and sounds (read from `Skyrim.esm`, `Dawnguard.esm`,
+`Dragonborn.esm`, and their scripts). Slow Time's, Aura Whisper's, and
+Subterfuge's `magicImodScript` effects are of archetypes the allowlist
+already drops.
+
+### Isolation settings
+
+Goal: each player decides how far other players' spells and shouts reach
+into their own world, and whether their effects show. The defaults show the
+effects and keep the world isolated. Non-goals: remote spells or shouts that
+reach the local player alone, since a spell or shout that is not isolated acts
+on the whole local world; remote weapon attacks that land, which
+[combat isolation](remote-actor.md#combat-isolation) always drops; and impact
+effects shown for an isolated projectile.
+
+`GameplayPolicy` holds the `[Gameplay]` values
+([Configuration](configuration.md#gameplay)) in atomics that `Update` writes
+first in `SyncCoordinator::OnFrame` after the configuration revision changes,
+so the hooks read them on any thread and a change applies from the next pass.
+
+- **Source.** `GameplayPolicy::Classify` names what a remote effect or hit
+  comes from. A magic item is a shout for a voice power, power, or lesser
+  power; an attack for an enchantment or a poison (a weapon's, ammunition's,
+  or exploding ammunition's explosion's); a spell otherwise, including a
+  staff's enchantment, a scroll, and an ability. An arrow or bolt projectile
+  is an attack; any other projectile goes by its `spell`. An explosion is an
+  attack with a `weaponSource`, else goes by its `magicCaster`'s current
+  spell. A remote actor as a reference is an attack (a melee hit's
+  destruction); a hazard and anything else is a spell. A HitData goes by its
+  `sourceRef`, the projectile or explosion, and without one is an attack when
+  it has a `weapon` or the melee or bash flag, else a spell.
+- **Reach.** `MayAffectWorld` is true for a spell while
+  `IsolateSpellEffects` is off and for a shout while `IsolateShoutEffects`
+  is off, and never for an attack, so a weapon's enchantment or poison and
+  an arrow never reach anything.
+- **Hooks.** The `SpellIsolation` hooks (`AddTarget` on anything but the
+  caster, the projectile spell impact, HitData processing, destructible
+  damage, impact effects, impact impulse, cone hits, explosion targets and
+  forces, the rune launch, the explosion factory) drop what `MayAffectWorld`
+  refuses for their source.
+  On the caster, `AddTarget` passes a self-contained effect as above and, while
+  its source may affect the world, any other effect but those a sync stage
+  owns: bound weapons (equipment), werewolf and vampire lord transformations
+  (shapeshifts), and `kIgnoredEffects`. HitData processing always drops a
+  remote aggressor's hit on a remote actor.
+- **Hidden effects.** `ShowSpellEffects` off makes every hand a stand-in
+  ([Spell look](#spell-look)), the spell fire hook suppresses a native
+  hand's fire until the hands are resolved again, and no
+  [active effect](#active-effects) is applied. `ShowShoutEffects` off
+  suppresses a shout's fire and casts no power
+  ([Shout and power receiver](#shout-and-power-receiver)).
+
+Native casts still need every detour (`IsolatesNativeCasts`), whatever the
+isolation settings, since the stand-in suppression and the cast finish live
+in the same hooks.
 
 ## Engine assumptions
 
@@ -705,8 +1164,9 @@ Not confirmed in game:
    `ActionForceEquip` (`WeapOutRightReplaceForceEquip`, `WeapSoloEquip`, or
    `Magic_Solo_Equip`). `DrawWeaponMagicHands(true)` readies spell hands without
    other blocked `Magic*` or `M?h_*` events.
-9. The cast works from the left hand and while walking or running. If a beam
-   or heal still appears, extend suppression to `MagicCaster::FindTargets`.
+9. The cast works from the left hand and while walking or running. A stand-in
+   shows no beam or heal; if one appears, extend suppression to
+   `MagicCaster::FindTargets`.
 10. The graph takes `attackRelease` and locomotion events during a draw, the
     release clip ends within 0.5 s, `ArrowReleaseHandler` is the only launch path,
     and the release clip's own annotations still remove the nocked arrow.
@@ -721,19 +1181,108 @@ Not confirmed in game:
     `RequestCastImpl` plays the `DualMagic_*` charge, release, and loop clips with
     both hands' art while the right caster stays idle, as on the source.
 
+Not confirmed in game for native hands ([Spells](#spells)):
+
+14. `EquipSpell` equips a remote actor's own `SpellItem` in the requested hand
+    slot as it does a stand-in, a ritual spell (both-hands equip slot) in both,
+    and the caster then attaches its hand art and light.
+15. A remote actor's native spell fire, with no combat target, aims an aimed or
+    concentration spell along the actor's facing and launches its projectile
+    or beam, applies a self spell to the actor, and finishes a fire-and-forget
+    cast through `FindTargets`, so the cast state machine ends as with a
+    stand-in. A concentration cast keeps firing at zero magicka, because
+    `CheckCast` reports `kOK`.
+16. `kSkipCheckCast`, set before `RequestCastImpl`, lasts until the cast's
+    `FinishCastImpl` or `InterruptCastImpl` (IDs 34141, 34140) and makes the
+    caster update (ID 34143) skip its magicka drain and charge interrupt
+    (read from 1.7.104; the SE caster is assumed to match). No other magicka
+    check outside `CheckCast` ends a remote cast.
+
 Not confirmed in game for [beast actions](#beast-actions):
 
-14. Every vocabulary event reaches the player's graph through the holder's
+17. Every vocabulary event reaches the player's graph through the holder's
     vfunc 1, called virtually, including the attack data events, idles
     (feeding, howls, bats, casts), and casts; the string pool folds case, so
     `attackStartRight` and `AttackStartRight` are one pooled string.
-15. A remote beast accepts each event at the time its source's graph did:
+18. A remote beast accepts each event at the time its source's graph did:
     attacks once its claws are drawn, howls and feeding from the stance the
     source used. A paired feeding clip plays alone without the victim.
-16. A shader or art applied without a duration stays until marked finished,
+19. A shader or art applied without a duration stays until marked finished,
     follows the actor, and `SetAlpha` holds while the engine updates the
     actor; neither passes the remote actor's magic firewall, which only
     stops active effects.
+
+Not confirmed in game for [spell world isolation](#spell-world-isolation)
+(each hook site was read from the 1.7.104 and 1.5.97 disassembly):
+
+20. A remote actor's touch spell and every spell a cloak or hazard applies
+    reach `MagicTarget::AddTarget` with the remote actor, or a reference whose
+    actor cause is the remote actor, as `AddTargetData::caster`.
+21. Every spell, hit, impulse, and destruction a remote projectile or
+    explosion causes passes through one of the hooked functions; in
+    particular, a spell projectile's hit on an object reaches scripts
+    (`OnHit`, `OnMagicEffectApply`) only through the spell impact (ID 34412)
+    and `AddTarget`.
+22. Every impact visual and impact-placed hazard of a projectile comes from
+    the impact effects (ID 44213), and every explosion of a projectile from
+    the projectile update's factory call (ID 44216), for missiles,
+    lobbers, beams, flames, cones, and barriers. A cone records its impacts
+    (`AddImpact`, vfunc 0xBD) only from its `HandleHits`, so a remote cone's
+    impact pass (ID 43806) has nothing to process. A hazard cast around the
+    caster (`kSpawnHazard`), and the projectiles and explosions it launches,
+    such as a blizzard's, carry the remote actor as `ownerActor` or actor
+    cause.
+23. The spell projectile launch (ID 34452) is the only path that launches a
+    rune for a remote actor's cast, and returning true without a projectile
+    ends a fire-and-forget target-location cast as a launch does.
+
+Not confirmed in game for [shouts and powers](#shouts-and-powers) (read from
+the 1.7.104 disassembly; the SE IDs 37850 and 33631 were matched against
+1.5.97):
+
+24. A remote actor's high process runs the voice update every frame, adding
+    the frame time to `voiceTimeElapsed` before it compares it, so a value
+    written on the main loop holds or ends the charge; its graph takes the
+    voice idles' events and sends `BeginCastVoice` and
+    `Voice_SpellFire_Event` to its voice caster.
+25. A remote actor with a `VoicesPlayer` voice type and the shout in
+    `selectedPower` speaks the shout topics through the dialogue response hook
+    (ID 39643), with the voice files of that voice type, and the shout start
+    succeeds while the actor is not staggered.
+26. `TESSpellCastEvent` is sent for a power the shout key casts, from spell
+    fire through ID 34409, and the player casts the voice slot's power only
+    with the shout key.
+27. A power cast through ID 34409 without a target applies a self power to
+    the remote actor and fires an aimed one along its facing.
+
+Not confirmed in game for [isolation settings](#isolation-settings) (read
+from the 1.7.104 disassembly):
+
+28. The voice fire handler (ID 42818) runs spell fire on the voice caster in
+    `kPrecast` and enters `kPostcast` (ID 39526) when it returns true, resets
+    the voice (ID 39524) when it returns false.
+29. A ranged hit's HitData `sourceRef` is its projectile or explosion, an
+    explosion from exploding ammunition keeps the `weaponSource`, and a spell
+    explosion's `magicCaster` holds the spell once it applies it.
+
+Not confirmed in game for [active effects](#active-effects), read from the
+1.7.104 disassembly; SE was not checked:
+
+30. `Actor::AddSpell` (ID 38716, SE 37771) applies a permanent spell (an
+    ability, disease, or addiction, ID 11290) through ID 34464, which runs the
+    instant caster's `FindTargets` (ID 34410) without `CastSpellImmediate`, so
+    an ability reaches `AddTarget` with the actor as caster and target.
+31. `ActorMagicCaster::CastSpellImmediate` (ID 34404) stores its magnitude
+    override at caster `+0x3C` while it runs `FindTargets` and then clears it.
+
+Not confirmed at all:
+
+32. An effect in a runtime ability or self spell looks as when its own item
+    applies it: invisibility's refraction, a light, a shader for as long as
+    the effect with `kFXPersist`, and its art. An ability's effect lasts until
+    `RemoveSpell`, and dispelling a timed effect removes its shader and art.
+33. `MagicItem::Copy` gives the copy its own effect entries, as the
+    [spell stand-ins](#spell-look) also rely on.
 
 ## Acceptance criteria
 
@@ -760,20 +1309,95 @@ Not confirmed in game for [beast actions](#beast-actions):
    it, and plays its release when the source releases; a charge the source
    cancels is cancelled; a concentration spell loops for as long as the source
    casts; self, aimed, ward, telekinesis, ritual, and dual casts play their own
-   clips. A peer without the spell plays Healing Hands' cast. No projectile,
-   beam, effect, or sound of a released spell appears.
+   clips. A peer without the spell plays Healing Hands' cast, and no
+   projectile, beam, effect, or release sound appears; a peer with it sees the
+   spell's native release, self effects, and projectiles, beams, and sprays
+   in flight, which vanish where they strike.
 8. Sheathing, jumping, or sitting ends a draw, cast, or block first. A late
    joiner sees an ongoing draw, cast, or block.
-9. Nothing is hit, staggered, or damaged.
+9. Nothing is hit, staggered, damaged, pushed, or destroyed, and no local
+   actor, object, or the local player receives an effect, including from a
+   native hand's projectiles, beams, sprays, cloaks, and hazards. A native
+   projectile leaves no explosion, impact effect, decal, or wall flames, and a
+   rune is not launched. A native summon, reanimation, bound weapon, or
+   scripted effect does nothing.
 10. A werewolf or werebear peer's claw swings, power, side, running, and
     sprinting attacks, howls, and feeding play on its remote actor in order;
     a vampire lord peer's melee attacks, bats, feeding, and casts play too, and
     its actor hovers or stands as the source does, including for a late
     joiner. Its Mist Form shows the mist and a faded body for as long as the
     source's lasts, and its bats show the swarm for the dash.
+11. A shout plays on peers with the source's shout and word count: the charge
+    for as long as the source charges, each word spoken, the release clip, its
+    breath, wave, or projectile in flight, and its self effects on the actor.
+    A charge the source drops is interrupted. A peer without the shout sees
+    Unrelenting Force of that many words. A cast power applies its self
+    effects to the actor. No shout or power changes the peer's weather,
+    time, or screen, staggers, pushes, or affects a local actor or object, or
+    summons anything. Dragon Aspect's armor art stays on the actor for as long
+    as the effect lasts.
+
+12. A peer that sees the source's actor sees the source's invisibility,
+    ethereal look, light, and the shaders and art of its flesh spells,
+    cloaks, potions, abilities, and worn enchantments, once each and for as
+    long as the source's last: also as a late joiner, after either player
+    changes space, and after the actor respawns. An effect ends on peers when
+    the source's ends, including invisibility that an attack breaks. A peer
+    without the effect shows nothing for it, and `ShowSpellEffects` off shows
+    none.
 
 ## Known limitations
 
+- A shout aims along the remote actor's facing, as a native hand's spell
+  does. Shouts whose effects are scripts, summons, or world changes show only
+  the shout itself: Storm Call's storm and lightning, Clear Skies, Slow Time,
+  Whirlwind Sprint's dash (the actor follows the source's checkpoints
+  instead), Aura Whisper, Kyne's Peace, Animal Allegiance, Call Dragon, Call
+  of Valor, and Throw Voice.
+- The shouted words are the voice of the actor's race and sex, or the
+  even-toned voice of its sex, not the source's: voice types are not
+  synchronized.
+- A remote Become Ethereal shows no ethereal look
+  ([Spell world isolation](#spell-world-isolation)). A modded self effect
+  whose script acts on the local player, such as its screen, is not in
+  `kIgnoredEffects` and still runs.
+- A power the peer does not have shows nothing.
+- A lasting look made by a script, such as Dragon Aspect's armor or Mist
+  Form's alpha, or by an archetype outside the self allowlist shows only from
+  a cast the peer sees, not as an [active effect](#active-effects).
+- An active effect applied from state, for a late joiner or a respawned
+  actor, starts again: its shader's fade-in and its sounds play then, and its
+  remaining duration is not shown.
+- Turning `ShowSpellEffects` on keeps the presented effects that the remote
+  actor's own abilities and enchantments added while it was off, beside the
+  applied copies, until the actor respawns.
+- An ability the engine reapplies by itself takes the magnitude last set on
+  its shared runtime spell, which may be another peer's; no look depends on
+  it.
+- Shouts and powers of a riding source are not shown: the voice stage runs
+  only for an actor on foot.
+- A native hand's spell aims along the remote actor's facing, not the
+  source's crosshair, so its projectiles and beams may strike elsewhere than
+  on the source. Where it strikes shows nothing, and its hit art and shaders
+  on local targets do not show, since its effects never attach there.
+- A remote actor's self effects with an archetype outside the allowlist
+  ([Spell world isolation](#spell-world-isolation)) do not show at all, and
+  scripts attached to an allowed self effect still run on the remote actor.
+- Non-goals: showing a peer's summons, reanimated thralls, or bound weapons.
+  Each would be a local actor or item with its own synchronization. With
+  `IsolateSpellEffects` off, a remote summon or thrall is a local actor
+  under the remote actor's command, not the peer's creature.
+- With spells or shouts not isolated, a local actor they harm never turns
+  hostile to the remote actor: [combat isolation](remote-actor.md#combat-isolation)
+  keeps its hostility hooks whatever the settings.
+- A hazard's effects go by the hazard's own spell, and an explosion without
+  a caster's spell counts as a spell, so a shout's hazard or explosion
+  follows `IsolateSpellEffects` rather than `IsolateShoutEffects`.
+- A native hand's light is the spell's own, not its
+  [fake light](appearance-and-equipment.md#fake-lights) version, so a spell
+  whose hand light casts shadows takes a shadow-casting light slot.
+- Scrolls and a vampire lord's spells keep stand-ins: their casts show no
+  effects.
 - A peer without the spell plays Healing Hands' cast clips and sounds with the
   fallback art: the wire carries no cast shape.
 - A fire-and-forget release that the receiver's charge cannot reach within

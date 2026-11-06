@@ -285,15 +285,13 @@ namespace HandPresentation
         if (cast.held[hand])
         {
             const bool holdingSpell = IsHoldingSpell(actor, leftHand);
-            const auto* spell = caster ? caster->currentSpell : nullptr;
-            // A concentration caster releases itself once charged.
-            const bool releasable = spell && spell->GetCastingType() != RE::MagicSystem::CastingType::kConcentration;
+            const bool releasable = cast.releasable[hand];
             if (a_request.released && releasable && !cast.releaseRequested[hand])
             {
                 cast.releaseRequested[hand] = true;
                 cast.releaseElapsed[hand] = 0.0F;
             }
-            // Spell fire finishes a released cast (CombatIsolation), which also clears
+            // Spell fire finishes a released cast (SpellIsolation), which also clears
             // the want-cast variable, so it is not set again. The engine releases by
             // itself when the ready action is rejected.
             if (releasable && casterState == RE::MagicCaster::State::kNone)
@@ -395,6 +393,11 @@ namespace HandPresentation
             }
             caster->SetDualCasting(dual);
         }
+        // ActorMagicCaster::Update (ID 34143) spends magicka over a fire-and-forget
+        // charge and a concentration cast, and interrupts a charge whose remaining
+        // cost exceeds the actor's magicka; kSkipCheckCast skips both. Both
+        // FinishCastImpl and InterruptCastImpl clear the flag, so every cast sets it.
+        caster->SetSkipCheckCast();
         // RequestCastImpl only sends BeginCast. The caster ignores the graph's cast
         // annotations while idle, and the graph leaves its casting state again
         // unless the want-cast variable is set, so both are set as a cast request
@@ -407,6 +410,10 @@ namespace HandPresentation
         caster->RequestCastImpl();
 
         cast.held[hand] = true;
+        // Read at the start: a native cast's finish clears the caster's currentSpell
+        // before the caster is seen idle (observed in a replay), and a concentration
+        // caster releases itself once charged.
+        cast.releasable[hand] = spell && spell->GetCastingType() != RE::MagicSystem::CastingType::kConcentration;
         logs::debug(
             "Animation sync started spell cast: actor={:08X} hand={} spell={:08X} castingType={} delivery={} dual={}",
             a_remote.handle.native_handle(), handName, spell ? spell->GetFormID() : 0,

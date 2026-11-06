@@ -429,9 +429,10 @@ namespace CombatSync
         }
     }
 
-    void DiscardLocalAttacks()
+    void DiscardLocalCombat()
     {
         s_pendingAttacks.clear();
+        s_unpublishedHandPresentation = s_currentHandPresentation;
     }
 
     void PublishLocalAttacks(const Network::PlayerTransform& a_checkpoint)

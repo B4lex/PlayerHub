@@ -46,6 +46,7 @@ type Player struct {
 
 	Appearance *pb.Appearance
 	Equipment  *pb.Equipment
+	Effects    *pb.Effects
 }
 
 func (p *Player) Name() string {
@@ -161,8 +162,9 @@ func (p *Player) AcceptAction(a *pb.Action) error {
 		if !validate.SameBeastGraph(p.Context.GetShapeshift(), validate.BeastActionForm(kind.Beast)) {
 			return ErrIncompatibleStep
 		}
-	case *pb.Action_Idle:
-		// The human graph plays idles with the weapon drawn or sheathed.
+	case *pb.Action_Idle, *pb.Action_Power:
+		// The human graph plays idles with the weapon drawn or sheathed, and a power
+		// casts in either stance.
 		if p.Context.GetShapeshift() != pb.Shapeshift_SHAPESHIFT_NONE {
 			return ErrIncompatibleStep
 		}
@@ -194,6 +196,14 @@ func (p *Player) SetEquipment(e *pb.Equipment) error {
 		return ErrStaleRevision
 	}
 	p.Equipment = e
+	return nil
+}
+
+func (p *Player) SetEffects(e *pb.Effects) error {
+	if p.Effects != nil && e.GetRevision() <= p.Effects.GetRevision() {
+		return ErrStaleRevision
+	}
+	p.Effects = e
 	return nil
 }
 

@@ -121,12 +121,24 @@ namespace Config
         bool operator==(const ControlsSettings&) const = default;
     };
 
+    struct GameplaySettings
+    {
+        bool showSpellEffects{ true };
+        bool showShoutEffects{ true };
+        bool isolateSpellEffects{ true };
+        bool isolateShoutEffects{ true };
+        bool disableCollision{ true };
+
+        bool operator==(const GameplaySettings&) const = default;
+    };
+
     struct PluginConfig
     {
         ConnectionSettings connection;
         DefaultOutfitSettings defaultOutfit;
         UISettings ui;
         ControlsSettings controls;
+        GameplaySettings gameplay;
         AdvancedSettings advanced;
 
         bool operator==(const PluginConfig&) const = default;

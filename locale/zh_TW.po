@@ -24,6 +24,10 @@ msgctxt "SectionControls"
 msgid "Keybinds"
 msgstr "按鍵設定"
 
+msgctxt "SectionGameplay"
+msgid "Gameplay"
+msgstr "遊戲玩法"
+
 msgctxt "SectionAdvanced"
 msgid "Advanced"
 msgstr "進階"
@@ -357,6 +361,58 @@ msgid ""
 "waits\n"
 "for an answer."
 msgstr "在等待回覆時拒絕其他玩家的交易邀請，或撤回你自己的邀請。"
+
+msgctxt "GameplayGroupEffects"
+msgid "Effects"
+msgstr "效果"
+
+msgctxt "GameplayShowSpellEffects"
+msgid "Show spell effects"
+msgstr "顯示法術效果"
+
+msgctxt "GameplayShowSpellEffectsComment"
+msgid ""
+"Shows what other players' spells do: projectiles, beams, and effects on the\n"
+"caster."
+msgstr "顯示其他玩家法術的作用：投射物、光束與施法者身上的效果。"
+
+msgctxt "GameplayShowShoutEffects"
+msgid "Show shout effects"
+msgstr "顯示龍吼效果"
+
+msgctxt "GameplayShowShoutEffectsComment"
+msgid ""
+"Shows the breath, wave, or projectile of other players' shouts, and what\n"
+"their shouts and powers do to them."
+msgstr "顯示其他玩家龍吼的吐息、衝擊波或投射物，以及龍吼與能力對他們自身的作用。"
+
+msgctxt "GameplayGroupIsolation"
+msgid "Isolation"
+msgstr "隔離"
+
+msgctxt "GameplayIsolateSpellEffects"
+msgid "Isolate spell effects"
+msgstr "隔離法術效果"
+
+msgctxt "GameplayIsolateSpellEffectsComment"
+msgid "Keeps other players' spells out of your world."
+msgstr "讓其他玩家的法術不影響你的世界。"
+
+msgctxt "GameplayIsolateShoutEffects"
+msgid "Isolate shout effects"
+msgstr "隔離龍吼效果"
+
+msgctxt "GameplayIsolateShoutEffectsComment"
+msgid "Keeps other players' shouts and powers out of your world."
+msgstr "讓其他玩家的龍吼與能力不影響你的世界。"
+
+msgctxt "GameplayDisableCollision"
+msgid "Disable collision"
+msgstr "停用碰撞"
+
+msgctxt "GameplayDisableCollisionComment"
+msgid "Lets you walk through other players."
+msgstr "讓你能穿過其他玩家。"
 
 msgctxt "AdvancedGroupPerformance"
 msgid "Performance"

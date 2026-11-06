@@ -1,6 +1,7 @@
 #include "actor/CombatIsolation.h"
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
+#include "actor/GameplayPolicy.h"
 #include "runtime/CodeDetour.h"
 
 #include <array>
@@ -34,14 +35,8 @@ namespace CombatIsolation
             return true;
         }
 
-        bool IsRemoteActorHit(const RE::Actor* a_aggressor, const RE::TESObjectREFR* a_target, std::string_view a_path)
+        void LogSuppressedHit(const RE::Actor* a_aggressor, const RE::TESObjectREFR* a_target, std::string_view a_path)
         {
-            if (!ActorRegistry::IsRegistered(a_aggressor)
-                && (!a_target || !ActorRegistry::IsRegistered(a_target->As<RE::Actor>())))
-            {
-                return false;
-            }
-
             static std::atomic_uint32_t suppressedCount{ 0 };
             const auto count = ++suppressedCount;
             if (ShouldLogOccurrence(count))
@@ -49,6 +44,36 @@ namespace CombatIsolation
                 logs::debug("Suppressed hit involving remote actor: path={} aggressor={:08X} target={:08X} count={}",
                     a_path, a_aggressor ? a_aggressor->GetFormID() : 0, a_target ? a_target->GetFormID() : 0, count);
             }
+        }
+
+        bool IsRemoteActorSwing(const RE::Actor* a_attacker, std::string_view a_path)
+        {
+            if (!ActorRegistry::IsRegistered(a_attacker))
+            {
+                return false;
+            }
+            LogSuppressedHit(a_attacker, nullptr, a_path);
+            return true;
+        }
+
+        // A hit on a remote actor never lands, since its health is a replica, and
+        // neither does a remote actor's weapon hit. Its spell's hit lands only where
+        // the [Gameplay] isolation of its source allows.
+        bool IsIsolatedHit(const RE::Actor* a_aggressor, const RE::TESObjectREFR* a_target,
+            const RE::Projectile* a_projectile, std::string_view a_path)
+        {
+            const bool remoteTarget = a_target && ActorRegistry::IsRegistered(a_target->As<RE::Actor>());
+            if (!remoteTarget && !ActorRegistry::IsRegistered(a_aggressor))
+            {
+                return false;
+            }
+            using GameplayPolicy::Source;
+            const auto source = a_projectile ? GameplayPolicy::Classify(*a_projectile) : Source::kAttack;
+            if (!remoteTarget && GameplayPolicy::MayAffectWorld(source))
+            {
+                return false;
+            }
+            LogSuppressedHit(a_aggressor, a_target, a_path);
             return true;
         }
 
@@ -85,11 +110,6 @@ namespace CombatIsolation
             0x56, // push rsi
             0x57 // push rdi
         };
-        constexpr std::array<std::uint8_t, 5> kSpellFirePrologue{
-            0x40, 0x56, // push rsi
-            0x57, // push rdi
-            0x41, 0x56 // push r14
-        };
         constexpr std::array<std::uint8_t, 6> kWeaponSwingHitPrologue{
             0x48, 0x8B, 0xC4, // mov rax, rsp
             0x88, 0x50, 0x10 // mov [rax+10h], dl
@@ -115,7 +135,6 @@ namespace CombatIsolation
         static_assert(EntryDetourTrampolineSize(kHostilityPrologue.size())
                 + EntryDetourTrampolineSize(kIsHostileToActorPrologue.size())
                 + EntryDetourTrampolineSize(kStartCombatPrologue.size())
-                + EntryDetourTrampolineSize(kSpellFirePrologue.size())
                 + EntryDetourTrampolineSize(kWeaponSwingHitPrologue.size())
                 + 2 * EntryDetourTrampolineSize(kHitPrologue.size())
             == kTrampolineSize);
@@ -185,7 +204,7 @@ namespace CombatIsolation
         {
             static void Thunk(RE::Actor* a_attacker, bool a_leftHand, bool a_flag)
             {
-                if (IsRemoteActorHit(a_attacker, nullptr, "WeaponSwing"))
+                if (IsRemoteActorSwing(a_attacker, "WeaponSwing"))
                 {
                     return;
                 }
@@ -203,7 +222,7 @@ namespace CombatIsolation
         {
             static RE::TESObjectREFR* Thunk(RE::Actor* a_attacker)
             {
-                if (IsRemoteActorHit(a_attacker, nullptr, "SwingHitTarget"))
+                if (IsRemoteActorSwing(a_attacker, "SwingHitTarget"))
                 {
                     return nullptr;
                 }
@@ -222,7 +241,7 @@ namespace CombatIsolation
             static void Thunk(
                 RE::Actor* a_aggressor, RE::TESObjectREFR* a_target, RE::Projectile* a_projectile, bool a_leftHand)
             {
-                if (IsRemoteActorHit(a_aggressor, a_target, a_projectile ? "ProjectileHit" : "ActorHit"))
+                if (IsIsolatedHit(a_aggressor, a_target, a_projectile, a_projectile ? "ProjectileHit" : "ActorHit"))
                 {
                     return;
                 }
@@ -248,91 +267,14 @@ namespace CombatIsolation
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
-        struct CheckCastHook
-        {
-            static bool Thunk(RE::MagicCaster* a_caster, RE::MagicItem* a_spell, bool a_dualCast,
-                float* a_effectStrength, RE::MagicSystem::CannotCastReason* a_reason, bool a_useBaseValueForCost)
-            {
-                if (ActorRegistry::IsRegistered(a_caster->GetCasterAsActor()))
-                {
-                    if (a_reason)
-                    {
-                        *a_reason = RE::MagicSystem::CannotCastReason::kOK;
-                    }
-                    return true;
-                }
-                return _original(a_caster, a_spell, a_dualCast, a_effectStrength, a_reason, a_useBaseValueForCost);
-            }
-
-            static inline REL::Relocation<decltype(Thunk)> _original;
-        };
-
-        // The magic caster's spell fire (ID 34407): checks the cast, spends the cost,
-        // applies the spell or launches its projectile, and enters the casting state.
-        // Reached from the M?h_SpellFire_Event annotations and, while a concentration
-        // cast is casting, from the caster update. The hand's release action
-        // (StartCastImpl) stays native. The annotation handlers are not hooked
-        // instead: a remote actor's cast reached this function without passing
-        // through their vtables (observed in game). Its FindTargets (ID 34410) ends
-        // with FinishCast for a cast that is not concentration, which the hook keeps
-        // for a cast the remote actor's caster runs, so a released fire-and-forget
-        // cast returns to idle as it would natively. A vampire lord's casts are
-        // relayed graph events instead.
-        struct SpellFireHook
-        {
-            static bool Thunk(RE::MagicCaster* a_caster, RE::TESObjectREFR* a_target, bool a_flag)
-            {
-                auto* actor = a_caster->GetCasterAsActor();
-                if (IsRemoteActorRelease(actor, "SpellFire"))
-                {
-                    const auto* spell = a_caster->currentSpell;
-                    if (spell && spell->GetCastingType() != RE::MagicSystem::CastingType::kConcentration
-                        && a_caster->state.get() != RE::MagicCaster::State::kNone
-                        && ActorRegistry::IsCastAnimationOwned(actor))
-                    {
-                        a_caster->FinishCast();
-                    }
-                    return true;
-                }
-                return _original(a_caster, a_target, a_flag);
-            }
-
-            static inline REL::Relocation<decltype(Thunk)> _original;
-        };
-
-        // Casts a spell without its animation, for example from a script.
-        struct CastSpellImmediateHook
-        {
-            static void Thunk(RE::MagicCaster* a_caster, RE::MagicItem* a_spell, bool a_noHitEffectArt,
-                RE::TESObjectREFR* a_target, float a_effectiveness, bool a_hostileEffectivenessOnly,
-                float a_magnitudeOverride, RE::Actor* a_blameActor)
-            {
-                if (IsRemoteActorRelease(a_caster->GetCasterAsActor(), "CastSpellImmediate"))
-                {
-                    return;
-                }
-                _original(a_caster, a_spell, a_noHitEffectArt, a_target, a_effectiveness, a_hostileEffectivenessOnly,
-                    a_magnitudeOverride, a_blameActor);
-            }
-
-            static inline REL::Relocation<decltype(Thunk)> _original;
-        };
-
         void InstallReleaseHooks()
         {
             // IHandlerFunctor vfunc 1 is ExecuteHandler.
             REL::Relocation<std::uintptr_t> arrowReleaseHandlerVTable{ RE::VTABLE_ArrowReleaseHandler[0] };
             ArrowReleaseHandlerHook::_original
                 = arrowReleaseHandlerVTable.write_vfunc(0x1, ArrowReleaseHandlerHook::Thunk);
-
-            // Every actor's hand casters share this vtable; the thunks pass other
-            // actors through unchanged.
-            REL::Relocation<std::uintptr_t> actorMagicCasterVTable{ RE::VTABLE_ActorMagicCaster[0] };
-            CastSpellImmediateHook::_original = actorMagicCasterVTable.write_vfunc(0x1, CastSpellImmediateHook::Thunk);
-            CheckCastHook::_original = actorMagicCasterVTable.write_vfunc(0xA, CheckCastHook::Thunk);
-            logs::debug("Remote actor release hooks: arrowRelease={} castSpellImmediate={} checkCast={}",
-                ArrowReleaseHandlerHook::_original.address() != 0, CastSpellImmediateHook::_original.address() != 0,
-                CheckCastHook::_original.address() != 0);
+            logs::debug(
+                "Remote actor release hooks: arrowRelease={}", ArrowReleaseHandlerHook::_original.address() != 0);
         }
     }
 
@@ -351,8 +293,6 @@ namespace CombatIsolation
         WeaponSwingHitHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(37650, 38603)),
             REL::Relocate(Prologue{ kSEWeaponSwingHitPrologue }, Prologue{ kWeaponSwingHitPrologue }),
             reinterpret_cast<std::uintptr_t>(&WeaponSwingHitHook::Thunk), "weapon swing hit");
-        SpellFireHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(33629, 34407)), kSpellFirePrologue,
-            reinterpret_cast<std::uintptr_t>(&SpellFireHook::Thunk), "spell fire");
         SwingHitTargetHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(37674, 38628)), kHitPrologue,
             reinterpret_cast<std::uintptr_t>(&SwingHitTargetHook::Thunk), "swing hit target");
         ActorHitHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(37673, 38627)),
@@ -360,10 +300,9 @@ namespace CombatIsolation
             reinterpret_cast<std::uintptr_t>(&ActorHitHook::Thunk), "actor hit", kActorHitGuardSize);
         logs::debug(
             "Remote actor combat isolation hooks: hostility={} isHostileToActor={} startCombat={} weaponSwingHit={} "
-            "spellFire={} swingHitTarget={} actorHit={}",
+            "swingHitTarget={} actorHit={}",
             HostilityHook::_original.address() != 0, IsHostileToActorHook::_original.address() != 0,
             StartCombatHook::_original.address() != 0, WeaponSwingHitHook::_original.address() != 0,
-            SpellFireHook::_original.address() != 0, SwingHitTargetHook::_original.address() != 0,
-            ActorHitHook::_original.address() != 0);
+            SwingHitTargetHook::_original.address() != 0, ActorHitHook::_original.address() != 0);
     }
 }

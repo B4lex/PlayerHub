@@ -38,6 +38,8 @@ public:
     [[nodiscard]] const RemotePose& GetPose() const noexcept { return pose; }
     [[nodiscard]] const Network::PlayerTransform* GetNext() const noexcept;
     [[nodiscard]] const Network::PlayerTransform* GetNewest() const noexcept;
+    // How long a checkpoint waits beyond the least recent transit before it plays, in seconds.
+    [[nodiscard]] double GetDelay() const noexcept;
 
 private:
     struct Entry
@@ -51,7 +53,6 @@ private:
     void PlayNext();
     void UpdatePose();
     void ObserveDryPlayout(Multiplayer::PeerSlot a_playerID);
-    [[nodiscard]] double GetDelay() const noexcept;
 
     std::vector<Entry> pending;
     Network::PlayerTransform played{};

@@ -57,6 +57,7 @@ type member struct {
 	subscribed     map[uint32]*subscription
 	heldAppearance map[uint32]uint64
 	heldEquipment  map[uint32]uint64
+	heldEffects    map[uint32]uint64
 	nearby         map[uint32]uint64
 	nearbyDue      time.Time
 
@@ -229,6 +230,7 @@ func (h *Hub) connect(kind world.Kind, outbox *delivery.Outbox, identity Identit
 		subscribed:     make(map[uint32]*subscription),
 		heldAppearance: make(map[uint32]uint64),
 		heldEquipment:  make(map[uint32]uint64),
+		heldEffects:    make(map[uint32]uint64),
 		nearby:         make(map[uint32]uint64),
 	}
 	m.view.Slot, m.view.Session = m.Slot, identity.Session
@@ -266,12 +268,14 @@ func (h *Hub) Disconnect(slot uint32) {
 		_, subscribed := r.subscribed[slot]
 		_, holdsAppearance := r.heldAppearance[slot]
 		_, holdsEquipment := r.heldEquipment[slot]
-		if !subscribed && !holdsAppearance && !holdsEquipment {
+		_, holdsEffects := r.heldEffects[slot]
+		if !subscribed && !holdsAppearance && !holdsEquipment && !holdsEffects {
 			continue
 		}
 		delete(r.subscribed, slot)
 		delete(r.heldAppearance, slot)
 		delete(r.heldEquipment, slot)
+		delete(r.heldEffects, slot)
 		r.outbox.Leave(slot, leave)
 	}
 	delete(h.members, slot)
@@ -320,6 +324,8 @@ func (h *Hub) Handle(slot uint32, message *pb.ClientMessage) error {
 		return h.setAppearance(m, body.Appearance, message)
 	case *pb.ClientMessage_Equipment:
 		return h.setEquipment(m, body.Equipment, message)
+	case *pb.ClientMessage_Effects:
+		return h.setEffects(m, body.Effects, message)
 	case *pb.ClientMessage_Chat:
 		return h.chat(m, body.Chat)
 	case *pb.ClientMessage_Vanish:
@@ -523,6 +529,9 @@ func (h *Hub) InitialMessages(slot uint32) []*pb.ClientMessage {
 	if m.Equipment != nil {
 		messages = append(messages, &pb.ClientMessage{Message: &pb.ClientMessage_Equipment{Equipment: m.Equipment}})
 	}
+	if m.Effects != nil {
+		messages = append(messages, &pb.ClientMessage{Message: &pb.ClientMessage_Effects{Effects: m.Effects}})
+	}
 	if m.Context != nil {
 		messages = append(messages, &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: m.Context}})
 	}
@@ -680,6 +689,23 @@ func (h *Hub) setEquipment(m *member, e *pb.Equipment, message *pb.ClientMessage
 	for _, r := range m.subscribers {
 		r.heldEquipment[m.Slot] = e.GetRevision()
 		r.outbox.Replace(m.Slot, delivery.ReplaceEquipment, bytes)
+	}
+	return nil
+}
+
+func (h *Hub) setEffects(m *member, e *pb.Effects, message *pb.ClientMessage) error {
+	if err := m.SetEffects(e); err != nil {
+		return err
+	}
+	h.record(m.Slot, message)
+	if len(m.subscribers) == 0 {
+		return nil
+	}
+	bytes := wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_PeerEffects{
+		PeerEffects: &pb.PeerEffects{Slot: m.Slot, Effects: e}}})
+	for _, r := range m.subscribers {
+		r.heldEffects[m.Slot] = e.GetRevision()
+		r.outbox.Replace(m.Slot, delivery.ReplaceEffects, bytes)
 	}
 	return nil
 }
@@ -1072,6 +1098,12 @@ func (h *Hub) subscribe(r, peer *member, now time.Time) {
 	}
 	r.outbox.Enter(peer.Slot, peer.Checkpoint.GetSequence(),
 		wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_PeerEnter{PeerEnter: enter}}))
+	// Effects follow the enter: the client's static PeerEnter would exceed nanopb's 64 KB field limit.
+	if e := peer.Effects; e != nil && e.GetRevision() > r.heldEffects[peer.Slot] {
+		r.heldEffects[peer.Slot] = e.GetRevision()
+		r.outbox.Replace(peer.Slot, delivery.ReplaceEffects, wire.Marshal(&pb.ServerMessage{
+			Message: &pb.ServerMessage_PeerEffects{PeerEffects: &pb.PeerEffects{Slot: peer.Slot, Effects: e}}}))
+	}
 }
 
 func (h *Hub) unsubscribe(r, peer *member, reason pb.LeaveReason) {

@@ -25,6 +25,10 @@ msgctxt "SectionControls"
 msgid "Keybinds"
 msgstr "Клавиши"
 
+msgctxt "SectionGameplay"
+msgid "Gameplay"
+msgstr "Игровой процесс"
+
 msgctxt "SectionAdvanced"
 msgid "Advanced"
 msgstr "Дополнительно"
@@ -378,6 +382,58 @@ msgid ""
 msgstr ""
 "Отклоняет предложение обмена от другого игрока или отзывает ваше, пока оно "
 "ждёт ответа."
+
+msgctxt "GameplayGroupEffects"
+msgid "Effects"
+msgstr "Эффекты"
+
+msgctxt "GameplayShowSpellEffects"
+msgid "Show spell effects"
+msgstr "Показывать эффекты заклинаний"
+
+msgctxt "GameplayShowSpellEffectsComment"
+msgid ""
+"Shows what other players' spells do: projectiles, beams, and effects on the\n"
+"caster."
+msgstr "Показывает действие заклинаний других игроков: снаряды, лучи и эффекты на заклинателе."
+
+msgctxt "GameplayShowShoutEffects"
+msgid "Show shout effects"
+msgstr "Показывать эффекты криков"
+
+msgctxt "GameplayShowShoutEffectsComment"
+msgid ""
+"Shows the breath, wave, or projectile of other players' shouts, and what\n"
+"their shouts and powers do to them."
+msgstr "Показывает дыхание, волну или снаряд криков других игроков и действие их криков и сил на них самих."
+
+msgctxt "GameplayGroupIsolation"
+msgid "Isolation"
+msgstr "Изоляция"
+
+msgctxt "GameplayIsolateSpellEffects"
+msgid "Isolate spell effects"
+msgstr "Изолировать эффекты заклинаний"
+
+msgctxt "GameplayIsolateSpellEffectsComment"
+msgid "Keeps other players' spells out of your world."
+msgstr "Не пускает заклинания других игроков в ваш мир."
+
+msgctxt "GameplayIsolateShoutEffects"
+msgid "Isolate shout effects"
+msgstr "Изолировать эффекты криков"
+
+msgctxt "GameplayIsolateShoutEffectsComment"
+msgid "Keeps other players' shouts and powers out of your world."
+msgstr "Не пускает крики и силы других игроков в ваш мир."
+
+msgctxt "GameplayDisableCollision"
+msgid "Disable collision"
+msgstr "Отключить столкновения"
+
+msgctxt "GameplayDisableCollisionComment"
+msgid "Lets you walk through other players."
+msgstr "Позволяет проходить сквозь других игроков."
 
 msgctxt "AdvancedGroupPerformance"
 msgid "Performance"

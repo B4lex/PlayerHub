@@ -1,10 +1,10 @@
 #include "actor/RemoteCollision.h"
 #include "actor/ActorRegistry.h"
+#include "actor/GameplayPolicy.h"
 #include "actor/RemoteActor.h"
 #include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
 
-#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstddef>
@@ -56,19 +56,24 @@ namespace RemoteCollision
         // root motion through its character controller, which pushes out of and
         // pushes local bodies, and then feeds the achieved motion back into the
         // graph. For a network-placed actor all of that fights the network
-        // transform, so it is skipped. Otherwise, the character body a moving
-        // controller bumped into ignores collision for that update when either
-        // character is remote.
+        // transform, so it is skipped. Otherwise, while remote actors are not
+        // solid, the character body a moving controller bumped into ignores
+        // collision for that update when either character is remote.
         //
         // The player's proxy controller also collides with remote skeleton
         // bodies, such as a seated rider's legs at its mount's flanks. Its
         // phantom's overlap list holds every body its movement can touch, so the
-        // remote character and skeleton bodies in it ignore collision for the
-        // player's update, and keep it for everything else.
+        // remote skeleton bodies in it, and the character bodies while remote
+        // actors are not solid, ignore collision for the player's update, and
+        // keep it for everything else.
         struct UpdateMovementHook
         {
-            static void AddBumpedCharacter(RE::Actor* a_mover, PassThrough& a_passThrough)
+            static void AddBumpedCharacter(RE::Actor* a_mover, PassThrough& a_passThrough, bool a_solid)
             {
+                if (a_solid)
+                {
+                    return;
+                }
                 auto* controller = a_mover ? a_mover->GetCharController() : nullptr;
                 auto* bumped = controller ? controller->bumpedCharCollisionObject.get() : nullptr;
                 if (!bumped)
@@ -87,14 +92,16 @@ namespace RemoteCollision
                 }
             }
 
-            static void AddRemoteBody(RE::hkpCollidable* a_collidable, PassThrough& a_passThrough)
+            static void AddRemoteBody(RE::hkpCollidable* a_collidable, PassThrough& a_passThrough, bool a_solid)
             {
                 if (!a_collidable)
                 {
                     return;
                 }
                 auto& filter = a_collidable->broadPhaseHandle.collisionFilterInfo;
-                if (filter.QNoCollision() || !IsCharacterLayer(filter.GetCollisionLayer()))
+                const auto layer = filter.GetCollisionLayer();
+                if (filter.QNoCollision() || !IsCharacterLayer(layer)
+                    || (a_solid && layer == RE::COL_LAYER::kCharController))
                 {
                     return;
                 }
@@ -105,7 +112,7 @@ namespace RemoteCollision
                 }
             }
 
-            static void AddOverlappingRemoteBodies(RE::Actor& a_player, PassThrough& a_passThrough)
+            static void AddOverlappingRemoteBodies(RE::Actor& a_player, PassThrough& a_passThrough, bool a_solid)
             {
                 auto* controller = skyrim_cast<RE::bhkCharProxyController*>(a_player.GetCharController());
                 auto* proxy = controller ? controller->GetCharacterProxy() : nullptr;
@@ -119,13 +126,13 @@ namespace RemoteCollision
                     case RE::hkpPhantomType::kSimpleShape:
                         for (auto* collidable : static_cast<RE::hkpSimpleShapePhantom*>(phantom)->collisionDetails)
                         {
-                            AddRemoteBody(collidable, a_passThrough);
+                            AddRemoteBody(collidable, a_passThrough, a_solid);
                         }
                         break;
                     case RE::hkpPhantomType::kCachingShape:
                         for (auto& detail : static_cast<RE::hkpCachingShapePhantom*>(phantom)->collisionDetails)
                         {
-                            AddRemoteBody(detail.collidable, a_passThrough);
+                            AddRemoteBody(detail.collidable, a_passThrough, a_solid);
                         }
                         break;
                     default:
@@ -151,10 +158,11 @@ namespace RemoteCollision
                 }
 
                 PassThrough passThrough;
-                AddBumpedCharacter(a_actor, passThrough);
+                const bool solid = !GameplayPolicy::DisablesCollision();
+                AddBumpedCharacter(a_actor, passThrough, solid);
                 if (a_actor && a_actor->IsPlayerRef())
                 {
-                    AddOverlappingRemoteBodies(*a_actor, passThrough);
+                    AddOverlappingRemoteBodies(*a_actor, passThrough, solid);
                 }
                 _original(a_actor, a_delta);
             }
@@ -177,24 +185,42 @@ namespace RemoteCollision
         // Skyrim gives every actor but the player a rigid-body controller (ID
         // 37171), whose character body is also its world collision: a body the
         // physics step simulates, which collides with and pushes local bodies and
-        // triggers. It needs its collision only while Skyrim moves the actor.
-        void SetCharacterBodyIsolated(RE::Actor& a_actor, bool a_isolated, std::string_view a_owner)
+        // triggers. It needs its collision only while Skyrim moves the actor, or while
+        // remote actors are solid.
+        enum class BodyCollision
+        {
+            kIsolated,
+            kSolid,
+            kRestored,
+        };
+
+        std::string_view GetName(BodyCollision a_collision)
+        {
+            switch (a_collision)
+            {
+            case BodyCollision::kIsolated:
+                return "disabled";
+            case BodyCollision::kSolid:
+                return "solid";
+            case BodyCollision::kRestored:
+            default:
+                return "restored";
+            }
+        }
+
+        void SetCharacterBodyCollision(RE::Actor& a_actor, BodyCollision a_collision, std::string_view a_owner)
         {
             auto* controller = a_actor.GetCharController();
             auto* body = controller ? controller->GetRigidBody() : nullptr;
-            if (!body)
+            auto* filter = body ? std::addressof(body->collidable.broadPhaseHandle.collisionFilterInfo) : nullptr;
+            const bool isolated = a_collision == BodyCollision::kIsolated;
+            if (filter && filter->QNoCollision() != isolated)
             {
-                return;
+                filter->SetNoCollision(isolated);
+                logs::debug("Remote actor character body collision {}: actor={:08X} owner={} controller={}",
+                    GetName(a_collision), a_actor.GetHandle().native_handle(), a_owner,
+                    skyrim_cast<RE::bhkCharProxyController*>(controller) ? "proxy" : "rigidBody");
             }
-            auto& filter = body->collidable.broadPhaseHandle.collisionFilterInfo;
-            if (filter.QNoCollision() == a_isolated)
-            {
-                return;
-            }
-            filter.SetNoCollision(a_isolated);
-            logs::debug("Remote actor character body collision {}: actor={:08X} owner={} controller={}",
-                a_isolated ? "disabled" : "restored", a_actor.GetHandle().native_handle(), a_owner,
-                skyrim_cast<RE::bhkCharProxyController*>(controller) ? "proxy" : "rigidBody");
         }
 
         constexpr float kSkeletonRecheckSeconds = 0.5F;
@@ -297,7 +323,8 @@ namespace RemoteCollision
         PROFILE_FUNCTION();
         SetNetworkPlaced(a_remote, true, "network");
         SetBodyPlacesActor(a_actor, false);
-        SetCharacterBodyIsolated(a_actor, true, "network");
+        SetCharacterBodyCollision(a_actor,
+            !GameplayPolicy::DisablesCollision() ? BodyCollision::kSolid : BodyCollision::kIsolated, "network");
         ReportSupport(a_actor, a_remote);
     }
 
@@ -309,7 +336,7 @@ namespace RemoteCollision
             SetBodyPlacesActor(a_actor, true);
         }
         SetNetworkPlaced(a_remote, false, a_owner);
-        SetCharacterBodyIsolated(a_actor, a_carried, a_owner);
+        SetCharacterBodyCollision(a_actor, a_carried ? BodyCollision::kIsolated : BodyCollision::kRestored, a_owner);
         if (!a_carried && a_remote.collision.skeletonIsolated)
         {
             a_remote.collision.skeletonIsolated = false;

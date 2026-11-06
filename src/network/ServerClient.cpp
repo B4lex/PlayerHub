@@ -61,6 +61,8 @@ namespace Network
         std::unordered_map<PeerSlot, std::uint64_t> latestReceivedAppearanceRevisions;
         std::unordered_map<PeerSlot, RemotePlayerEquipment> pendingEquipment;
         std::unordered_map<PeerSlot, std::uint64_t> latestReceivedEquipmentRevisions;
+        std::unordered_map<PeerSlot, RemotePlayerEffects> pendingEffects;
+        std::unordered_map<PeerSlot, std::uint64_t> latestReceivedEffectsRevisions;
         std::deque<AnimationAction> pendingAnimationActions;
         std::unordered_map<PeerSlot, std::uint64_t> latestReceivedActionSequences;
         std::unordered_map<PeerSlot, Multiplayer::PlayerInspection> pendingInspections;
@@ -289,6 +291,8 @@ namespace Network
             latestReceivedAppearanceRevisions.clear();
             pendingEquipment.clear();
             latestReceivedEquipmentRevisions.clear();
+            pendingEffects.clear();
+            latestReceivedEffectsRevisions.clear();
             pendingAnimationActions.clear();
             latestReceivedActionSequences.clear();
             pendingInspections.clear();
@@ -414,6 +418,18 @@ namespace Network
                 a_slot, RemotePlayerEquipment{ .playerID = a_slot, .equipment = std::move(a_equipment) });
         }
 
+        void AcceptEffectsLocked(PeerSlot a_slot, Multiplayer::PlayerEffects&& a_effects)
+        {
+            const auto latest = latestReceivedEffectsRevisions.find(a_slot);
+            if (latest != latestReceivedEffectsRevisions.end() && a_effects.revision <= latest->second)
+            {
+                return;
+            }
+            latestReceivedEffectsRevisions.insert_or_assign(a_slot, a_effects.revision);
+            pendingEffects.insert_or_assign(
+                a_slot, RemotePlayerEffects{ .playerID = a_slot, .effects = std::move(a_effects) });
+        }
+
         void OnWelcome(const Wire::Welcome& a_welcome)
         {
             // Kept even when the connection is closing: the session exists on the server and
@@ -536,6 +552,8 @@ namespace Network
                 latestReceivedAppearanceRevisions.erase(a_leave.slot);
                 pendingEquipment.erase(a_leave.slot);
                 latestReceivedEquipmentRevisions.erase(a_leave.slot);
+                pendingEffects.erase(a_leave.slot);
+                latestReceivedEffectsRevisions.erase(a_leave.slot);
                 pendingExits.erase(a_leave.slot);
                 pendingDisconnects.insert(a_leave.slot);
                 return;
@@ -720,6 +738,11 @@ namespace Network
                     {
                         std::scoped_lock lock{ remoteChangesLock };
                         AcceptEquipmentLocked(a_value.slot, std::move(a_value.equipment));
+                    }
+                    else if constexpr (std::is_same_v<T, Wire::PeerEffects>)
+                    {
+                        std::scoped_lock lock{ remoteChangesLock };
+                        AcceptEffectsLocked(a_value.slot, std::move(a_value.effects));
                     }
                     else if constexpr (std::is_same_v<T, Multiplayer::ChatMessage>)
                     {
@@ -958,6 +981,15 @@ namespace Network
         }
     }
 
+    void PublishLocalEffects(const Multiplayer::PlayerEffects& a_effects)
+    {
+        PROFILE_FUNCTION();
+        if (IsConnected() && Multiplayer::IsValidEffects(a_effects))
+        {
+            Send(Wire::EncodeEffects(a_effects));
+        }
+    }
+
     void PublishLocalAttack(const Attack& a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence)
     {
         PROFILE_FUNCTION();
@@ -1016,6 +1048,28 @@ namespace Network
             a_event, static_cast<unsigned long long>(actionSequence), static_cast<unsigned long long>(a_graphEpoch),
             static_cast<unsigned long long>(a_checkpointSequence));
         Send(Wire::EncodeIdleAction(actionSequence, a_graphEpoch, a_checkpointSequence, a_event));
+    }
+
+    void PublishLocalPowerAction(
+        const Multiplayer::FormReference& a_power, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence)
+    {
+        PROFILE_FUNCTION();
+        // An unencodable power would leave a gap in the action sequence.
+        if (!IsConnected() || a_graphEpoch == 0 || a_checkpointSequence == 0 || a_power.IsEmpty()
+            || !Multiplayer::IsValidFormReference(a_power, false))
+        {
+            return;
+        }
+        std::uint64_t actionSequence;
+        {
+            const std::scoped_lock lock{ publishLock };
+            actionSequence = ++localActionSequence;
+        }
+        logs::debug("Voice sync publishing power action: power={}|{:06X} actionSequence={} graphEpoch={} "
+                    "checkpointSequence={}",
+            a_power.plugin, a_power.localFormID, static_cast<unsigned long long>(actionSequence),
+            static_cast<unsigned long long>(a_graphEpoch), static_cast<unsigned long long>(a_checkpointSequence));
+        Send(Wire::EncodePowerAction(actionSequence, a_graphEpoch, a_checkpointSequence, a_power));
     }
 
     bool PublishChatMessage(Multiplayer::ChatChannel a_channel, PeerSlot a_recipient, std::string_view a_text,
@@ -1266,6 +1320,13 @@ namespace Network
             changes.equipment.push_back(std::move(entry.second));
         }
         pendingEquipment.clear();
+
+        changes.effects.reserve(pendingEffects.size());
+        for (auto& entry : pendingEffects)
+        {
+            changes.effects.push_back(std::move(entry.second));
+        }
+        pendingEffects.clear();
 
         changes.animationActions.reserve(pendingAnimationActions.size());
         while (!pendingAnimationActions.empty())

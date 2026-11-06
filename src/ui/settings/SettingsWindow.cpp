@@ -65,8 +65,10 @@ namespace UI
         constexpr std::string_view kStagedSection = "DefaultOutfit";
         constexpr std::string_view kUISection = "UI";
         constexpr std::string_view kControlsSection = "Controls";
+        constexpr std::string_view kGameplaySection = "Gameplay";
         constexpr std::string_view kAdvancedSection = "Advanced";
-        constexpr std::string_view kDefaultsSections[]{ kUISection, kControlsSection, kAdvancedSection };
+        constexpr std::string_view kDefaultsSections[]{ kUISection, kControlsSection, kGameplaySection,
+            kAdvancedSection };
 
         constexpr std::string_view kConfigFileName = "PlayerHub.ini";
         constexpr std::uint32_t kEscapeScanCode = RE::BSKeyboardDevice::Key::kEscape;
@@ -960,7 +962,8 @@ namespace UI
         bool LiveSectionsMatch(const Config::PluginConfig& a_left, const Config::PluginConfig& a_right)
         {
             return a_left.connection == a_right.connection && a_left.ui == a_right.ui
-                && a_left.controls == a_right.controls && a_left.advanced == a_right.advanced;
+                && a_left.controls == a_right.controls && a_left.gameplay == a_right.gameplay
+                && a_left.advanced == a_right.advanced;
         }
 
         class SettingsWindow final : public Window
@@ -1236,6 +1239,10 @@ namespace UI
                 {
                     return draft.controls == defaults.controls;
                 }
+                if (a_section == kGameplaySection)
+                {
+                    return draft.gameplay == defaults.gameplay;
+                }
                 return draft.advanced == defaults.advanced;
             }
 
@@ -1248,6 +1255,10 @@ namespace UI
                 else if (a_section == kControlsSection)
                 {
                     draft.controls = defaults.controls;
+                }
+                else if (a_section == kGameplaySection)
+                {
+                    draft.gameplay = defaults.gameplay;
                 }
                 else
                 {

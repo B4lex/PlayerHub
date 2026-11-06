@@ -64,6 +64,21 @@ namespace Multiplayer
         constexpr bool operator==(const HandPresentation&) const noexcept = default;
     };
 
+    struct VoicePresentation
+    {
+        static constexpr std::uint8_t kMaximumWords = 3;
+
+        bool shouting{ false };
+        bool released{ false };
+        // A released shout whose fire fails on the source, as a shout whose spells count
+        // as powers once they were used today.
+        bool failed{ false };
+        // The shout's words, 1 to kMaximumWords while shouting, else 0.
+        std::uint8_t words{ 0 };
+
+        constexpr bool operator==(const VoicePresentation&) const noexcept = default;
+    };
+
     // Movement direction relative to the body facing, in the behavior graph's
     // `Direction` units: 0 forward, 0.25 right, 0.5 backward, 0.75 left.
     [[nodiscard]] inline float NormalizeMovementDirection(float a_direction) noexcept

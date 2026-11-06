@@ -577,13 +577,14 @@ namespace IdleSync
         PROFILE_FUNCTION();
         const auto& checkpoint = a_remote.checkpoint;
         const auto& hands = checkpoint.handPresentation;
-        const bool combatPending
-            = a_attackQueued || hands.blocking || hands.bowDrawn || hands.castingLeft || hands.castingRight;
+        const bool shouting = checkpoint.voice.shouting;
+        const bool combatPending = a_attackQueued || hands.blocking || hands.bowDrawn || hands.castingLeft
+            || hands.castingRight || shouting;
         if (combatPending)
         {
-            // An idle state takes no attack, block, bow, or cast event, and the source
-            // left its idle to start one.
-            IdlePresentation::Release(a_actor, a_attackQueued ? "attack" : "hands");
+            // An idle state takes no attack, block, bow, cast, or shout event, and the
+            // source left its idle to start one.
+            IdlePresentation::Release(a_actor, a_attackQueued ? "attack" : shouting ? "shout" : "hands");
         }
         if (a_state.interruption || !checkpoint.furniture.IsEmpty())
         {

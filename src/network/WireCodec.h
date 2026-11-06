@@ -2,6 +2,7 @@
 
 #include "protocol/AppearanceState.h"
 #include "protocol/ChatMessage.h"
+#include "protocol/EffectState.h"
 #include "protocol/EquipmentState.h"
 #include "protocol/PeerSlot.h"
 #include "protocol/PlayerState.h"
@@ -35,8 +36,11 @@ namespace Network::Wire
         std::uint64_t a_checkpointSequence, Multiplayer::BeastAction a_action);
     [[nodiscard]] std::string EncodeIdleAction(std::uint64_t a_actionSequence, std::uint64_t a_graphEpoch,
         std::uint64_t a_checkpointSequence, std::string_view a_event);
+    [[nodiscard]] std::string EncodePowerAction(std::uint64_t a_actionSequence, std::uint64_t a_graphEpoch,
+        std::uint64_t a_checkpointSequence, const Multiplayer::FormReference& a_power);
     [[nodiscard]] std::string EncodeAppearance(const Multiplayer::PlayerAppearance& a_appearance);
     [[nodiscard]] std::string EncodeEquipment(const Multiplayer::PlayerEquipment& a_equipment);
+    [[nodiscard]] std::string EncodeEffects(const Multiplayer::PlayerEffects& a_effects);
     [[nodiscard]] std::string EncodeChat(std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel,
         Multiplayer::PeerSlot a_recipient, std::string_view a_text);
     [[nodiscard]] std::string EncodePing(std::uint32_t a_requestID);
@@ -142,6 +146,12 @@ namespace Network::Wire
         Multiplayer::PlayerEquipment equipment;
     };
 
+    struct PeerEffects
+    {
+        Multiplayer::PeerSlot slot{ 0 };
+        Multiplayer::PlayerEffects effects;
+    };
+
     struct RosterChange
     {
         std::vector<Multiplayer::PlayerIdentity> joined;
@@ -155,7 +165,7 @@ namespace Network::Wire
     };
 
     using ServerMessage = std::variant<Welcome, ChatResult, Pong, PeerStates, PeerEnter, PeerContext, PeerLeave,
-        AnimationAction, PeerAppearance, PeerEquipment, Multiplayer::ChatMessage, RosterChange, NearbyPlayersChange,
+        AnimationAction, PeerAppearance, PeerEquipment, PeerEffects, Multiplayer::ChatMessage, RosterChange, NearbyPlayersChange,
         Multiplayer::PlayerInspection, Multiplayer::TradeEvent>;
 
     class Decoder

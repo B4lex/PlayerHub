@@ -49,6 +49,16 @@ namespace Network::Wire
             == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_RIGHT));
         static_assert(CheckpointFlags::kDualCasting
             == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_DUAL_CASTING));
+        static_assert(CheckpointFlags::kShouting
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUTING));
+        static_assert(CheckpointFlags::kShoutReleased
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_RELEASED));
+        static_assert(CheckpointFlags::kShoutTwoWords
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS));
+        static_assert(CheckpointFlags::kShoutThreeWords
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS));
+        static_assert(CheckpointFlags::kShoutFailed
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED));
         static_assert(static_cast<int>(Multiplayer::ChatRejection::kUnknownRecipient)
             == playerhub_v1_ChatRejection_CHAT_REJECTION_UNKNOWN_RECIPIENT);
 
@@ -227,6 +237,14 @@ namespace Network::Wire
                     return std::unexpected("idle");
                 }
                 result.idle = std::make_shared<const std::string>(idle);
+                return result;
+            }
+            if (a_action.which_kind == playerhub_v1_Action_power_tag)
+            {
+                if (!ReadFormReference(a_action.kind.power, result.power))
+                {
+                    return std::unexpected("power");
+                }
                 return result;
             }
             if (a_action.which_kind != playerhub_v1_Action_attack_tag)
@@ -442,6 +460,10 @@ namespace Network::Wire
             {
                 return "ammo";
             }
+            if (!ReadOptionalFormReference(a_equipment.has_shout, a_equipment.shout, a_result.shout))
+            {
+                return "shout";
+            }
             a_result.beastRightHand.reset();
             if (a_equipment.has_beast_right_hand
                 && !ReadHand(a_equipment.beast_right_hand, a_result.beastRightHand.emplace()))
@@ -486,6 +508,23 @@ namespace Network::Wire
                 }
             }
             return Multiplayer::IsValidEquipment(a_result) ? nullptr : "value ranges";
+        }
+
+        const char* ReadEffects(const playerhub_v1_Effects& a_effects, Multiplayer::PlayerEffects& a_result)
+        {
+            a_result.revision = a_effects.revision;
+            a_result.effects.clear();
+            for (pb_size_t i = 0; i < a_effects.effects_count; ++i)
+            {
+                const auto& entry = a_effects.effects[i];
+                auto& effect = a_result.effects.emplace_back();
+                if (!entry.has_effect || !ReadFormReference(entry.effect, effect.effect))
+                {
+                    return "effects.effect";
+                }
+                effect.magnitude = entry.magnitude;
+            }
+            return Multiplayer::IsValidEffects(a_result) ? nullptr : "value ranges";
         }
 
         bool ReadPlayerIdentity(const playerhub_v1_PlayerIdentity& a_identity, Multiplayer::PlayerIdentity& a_result)
@@ -1036,6 +1075,22 @@ namespace Network::Wire
         return EncodeClientMessage(playerhub_v1_ClientMessage_action_tag, playerhub_v1_Action_fields, &action);
     }
 
+    std::string EncodePowerAction(std::uint64_t a_actionSequence, std::uint64_t a_graphEpoch,
+        std::uint64_t a_checkpointSequence, const Multiplayer::FormReference& a_power)
+    {
+        playerhub_v1_Action action = playerhub_v1_Action_init_zero;
+        action.action_sequence = a_actionSequence;
+        action.graph_epoch = a_graphEpoch;
+        action.checkpoint_sequence = a_checkpointSequence;
+        action.which_kind = playerhub_v1_Action_power_tag;
+        if (a_power.IsEmpty() || !Multiplayer::IsValidFormReference(a_power, false)
+            || !WriteFormReference(a_power, action.kind.power))
+        {
+            return {};
+        }
+        return EncodeClientMessage(playerhub_v1_ClientMessage_action_tag, playerhub_v1_Action_fields, &action);
+    }
+
     std::string EncodeAppearance(const Multiplayer::PlayerAppearance& a_appearance)
     {
         using Multiplayer::PlayerAppearance;
@@ -1159,6 +1214,7 @@ namespace Network::Wire
             written = written && WriteHand(*a_equipment.leftHand, equipment->left_hand);
         }
         written = written && WriteOptionalFormReference(a_equipment.ammo, equipment->has_ammo, equipment->ammo);
+        written = written && WriteOptionalFormReference(a_equipment.shout, equipment->has_shout, equipment->shout);
         if (a_equipment.beastRightHand)
         {
             equipment->has_beast_right_hand = true;
@@ -1195,6 +1251,31 @@ namespace Network::Wire
             return {};
         }
         return EncodeClientMessage(playerhub_v1_ClientMessage_equipment_tag, playerhub_v1_Equipment_fields, equipment.get());
+    }
+
+    std::string EncodeEffects(const Multiplayer::PlayerEffects& a_effects)
+    {
+        if (!Multiplayer::IsValidEffects(a_effects))
+        {
+            return {};
+        }
+        auto effects = std::make_unique<playerhub_v1_Effects>();
+        *effects = playerhub_v1_Effects_init_zero;
+        effects->revision = a_effects.revision;
+        effects->effects_count = static_cast<pb_size_t>(a_effects.effects.size());
+        bool written = true;
+        for (std::size_t i = 0; i < a_effects.effects.size(); ++i)
+        {
+            auto& result = effects->effects[i];
+            result.has_effect = true;
+            written = written && WriteFormReference(a_effects.effects[i].effect, result.effect);
+            result.magnitude = a_effects.effects[i].magnitude;
+        }
+        if (!written)
+        {
+            return {};
+        }
+        return EncodeClientMessage(playerhub_v1_ClientMessage_effects_tag, playerhub_v1_Effects_fields, effects.get());
     }
 
     std::string EncodeChat(std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel,
@@ -1595,6 +1676,21 @@ namespace Network::Wire
                 if (const auto* field = ReadEquipment(equipment.equipment, result.equipment))
                 {
                     return std::unexpected(std::string{ "peer equipment " } + field);
+                }
+                return result;
+            }
+            case playerhub_v1_ServerMessage_peer_effects_tag:
+            {
+                const auto& effects = message.message.peer_effects;
+                PeerEffects result;
+                result.slot = effects.slot;
+                if (effects.slot == 0 || !effects.has_effects)
+                {
+                    return std::unexpected("peer effects");
+                }
+                if (const auto* field = ReadEffects(effects.effects, result.effects))
+                {
+                    return std::unexpected(std::string{ "peer effects " } + field);
                 }
                 return result;
             }

@@ -6,6 +6,7 @@
 #include "actor/GraphRecovery.h"
 #include "actor/HandPresentation.h"
 #include "actor/IdlePresentation.h"
+#include "actor/VoicePresentation.h"
 #include "actor/WeaponTransition.h"
 #include "protocol/MovementState.h"
 
@@ -88,6 +89,7 @@ namespace ActorAnimation
         bool castAnimationOwned{ false };
         std::uint32_t turnStateOverrides{ 0 };
         TranslationHold translationHold;
+        VoicePresentation::State voice;
         GraphRecovery::State recovery;
 
         // Tied to one graph instance; InvalidateAnimationDispatch resets each of them.

@@ -118,18 +118,22 @@ if inWorld:
     ShapeshiftSync::ObserveLocalForm       # the local beast form, for the graph input hook
     CombatSync::CaptureLocalAttack         # dropped in a beast form
     CombatSync::CaptureLocalHandPresentation
+    VoiceSync::CaptureLocalVoice           # the shout's voice state
     AnimationSync::ObserveLocalGraphEpoch
     AnimationSync::ObserveLocalMovement    # stop hold timer
     GraphEventSurvey::LogLocalGraphEvents  # debug builds only
-    EquipmentSync::SyncEquipment           # flushed when an attack or presentation started
+    EquipmentSync::SyncEquipment           # flushed when an attack, presentation, or shout started
     CombatSync::QueueLocalAttacks
+    VoiceSync::QueueLocalPowers            # powers the spell cast event sink captured
     ShapeshiftSync::QueueLocalActions      # beast actions the graph input hook captured
     IdleSync::QueueLocalIdles              # idle events it captured; the held idle
     CheckpointPublisher::PublishLocalCheckpoint
-        disconnected: discard queued attacks, beast actions, and idle events
+        disconnected: discard queued attacks, beast actions, idle events, and powers;
+                      reset hand and voice presentation to this pass's
         published: CombatSync::PublishLocalAttacks, ShapeshiftSync::PublishLocalActions,
-                   then IdleSync::PublishLocalIdles
+                   IdleSync::PublishLocalIdles, then VoiceSync::PublishLocalPowers
     AppearanceSync::SyncAppearance
+    EffectSync::SyncLocalEffects           # the presented active effects, polled
 else: discard captured attacks, beast actions, and idle events
 TradeSync::Sync                           # trade events, overlay commands, cancels, offers, a commit
 if no local cell: return
@@ -144,12 +148,15 @@ RemoteLights::Update                      # with a world camera: the remote ligh
 ```text
 AppearanceSync advance timers; retire on a new appearance revision, or else on a new form
 retire on a coordinate-space change
-CombatSync, ShapeshiftSync, IdleSync::AgeRemoteActions
-not in the local space: clear attacks, beast actions, and idles, stop
-DeathSync::SyncDeath                       # a killed actor keeps only handle and look
+CombatSync, ShapeshiftSync, IdleSync, VoiceSync::AgeRemoteActions
+EffectSync::AgeRemoteEffects               # held effects take effect after the playout delay
+not in the local space: clear attacks, beast actions, idles, and powers, stop
+EffectSync::SyncEffects                    # with an actor, in every state below
+DeathSync::SyncDeath                       # a killed actor keeps only handle and look; shout released
 ActorLifecycle::RetireWhenStranded
 FurnitureSync yield check                  # hide an actor that would block furniture
-MountSync::SyncMount                       # riding: queued attacks and idles cleared; equipment,
+MountSync::SyncMount                       # riding: queued attacks, idles, and powers cleared,
+                                           # shout released; equipment,
                                            # rider update with weapon state, look only
 otherwise:
     MovementSync::SyncMovement             # played checkpoint's movement, then the pose
@@ -162,6 +169,8 @@ otherwise:
         a beast: ShapeshiftSync::SyncBeast # beast actions, levitation, casts, Mist Form and bats
         otherwise: IdleSync::SyncIdle      # release, then queued or held idles
                    CombatSync::SyncCombat, SyncHandPresentation
+                   VoiceSync::SyncVoice    # the shout, then one queued power
+    furniture or a beast: VoiceSync::ClearRemote
     AnimationSync::GetPresentableState     # none while furniture owns the actor
     ActorRuntime::Update
     AppearanceSync::ApplyActorPresentation
@@ -189,13 +198,15 @@ from the last one sent since `Enter`, then the quantized checkpoint
 One checkpoint is one coherent sample: `MountSync::SampleLocalMount`,
 `MovementSync::SampleLocalMovement` (from the mount while riding),
 `AnimationSync::SampleLocalAnimation`, `FurnitureSync::SampleLocalFurniture`,
-`CombatSync::SampleLocalHandPresentation`, `DeathSync::SampleLocalDeath`,
+`CombatSync::SampleLocalHandPresentation`, `VoiceSync::SampleLocalVoice`,
+`DeathSync::SampleLocalDeath`,
 `ShapeshiftSync::SampleLocalVampireLord`, `IdleSync::SampleLocalIdle`, which
 ends the held idle on a state change sampled with it, with the graph epoch and
 the local form observed this pass, and `SkeletonSync::SampleLocalSkeleton`
 ([Remote actor](remote-actor.md#skeleton-pose)). No stage publishes a partial
 checkpoint. The checkpoint always precedes the `Action` anchored to it, and a
-weapon swap is published before the attack or presentation that uses it.
+weapon or shout swap is published before the attack, presentation, or shout
+that uses it.
 `PoseWindow::Update` runs before `IdleSync::QueueLocalIdles`, since a window
 that opens ends the held idle, and before the checkpoint, whose pose it gates.
 
@@ -207,7 +218,7 @@ reference) and `AnimationSync::LocalState` (graph epoch, jump tracking, stop
 and arrival holds, and the last published state), which the per-pass
 observers also use. Nothing resets them yet; they live as long as the process.
 
-Appearance and equipment publish on their own schedules and republish on every
+Appearance, equipment, and effects publish on their own schedules and republish on every
 new connection generation ([Network](network.md#latest-wins-publishers)).
 
 ### Graph event survey
@@ -333,7 +344,7 @@ intro never holds. `IsPlaying` reads an atomic, so the overlay may call it;
 keyed by the server's slot for the peer. `PeerState` holds the peer's
 `CheckpointPlayout`, the sequence whose checkpoint the current actor last
 received, and the feature-owned `combat`, `shapeshift`, `idle`, `lifecycle`,
-`appearance`, `equipment`, `furniture`, and `nameplate` members. Movement and animation keep their state
+`appearance`, `equipment`, `effects`, `furniture`, and `nameplate` members. Movement and animation keep their state
 on the `RemoteActor` instead. A `RemoteFrame` presents the played checkpoint,
 its sequence, and the interpolated pose; features never see a checkpoint that
 has not played.
@@ -346,7 +357,7 @@ pass:
    Reconnecting rebuilds peers from the server's `PeerEnter` messages.
 2. A `PeerLeave` for any reason but `DISCONNECTED` (the peer left the world,
    went out of range, or was excluded) removes the actor and resets the
-   playout and combat state, but keeps appearance and equipment
+   playout and combat state, but keeps appearance, equipment, and effects
    until a `PeerEnter` places the player again. Leaves apply first, since
    changes drained with them arrived after them.
 3. `PeerLeave` with `DISCONNECTED` removes the actor and all state.
@@ -354,8 +365,8 @@ pass:
    its arrival time on the transport thread, go into the peer's playout with a
    rising sequence. A stale one is logged and ignored. A `PeerEnter` delivers
    its stored checkpoint the same way.
-5. Appearance and equipment are latest-wins by revision and may arrive before
-   any checkpoint. Neither alone spawns an actor.
+5. Appearance, equipment, and effects are latest-wins by revision and may
+   arrive before any checkpoint. None alone spawns an actor.
 6. Actions are ordered and bounded by the combat, shapeshift, or idle system,
    by kind, and accepted against the newest received checkpoint, played or not.
 7. Inspections go to `PlayerDetails::Accept`
@@ -367,8 +378,8 @@ pass:
 
 `PlayCheckpoints` then advances every peer's playout. Each checkpoint that
 reaches its playback time is shown, in order, to furniture, animation,
-combat, shapeshift, and idle (`OnCheckpointPlayed`) before it replaces the
-played one. Furniture
+combat, shapeshift, idle, and voice (`OnCheckpointPlayed`) before it replaces
+the played one. Furniture
 resolves its reference into the local load order there, once per change.
 
 Furniture occupancy, weapon stance, the held idle, and every other checkpoint

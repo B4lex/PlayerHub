@@ -3,6 +3,7 @@
 #include "network/Refusal.h"
 #include "protocol/AppearanceState.h"
 #include "protocol/ChatMessage.h"
+#include "protocol/EffectState.h"
 #include "protocol/EquipmentState.h"
 #include "protocol/PeerSlot.h"
 #include "protocol/PlayerState.h"
@@ -38,11 +39,18 @@ namespace Network
         Multiplayer::PlayerEquipment equipment;
     };
 
+    struct RemotePlayerEffects
+    {
+        Multiplayer::PeerSlot playerID{ 0 };
+        Multiplayer::PlayerEffects effects;
+    };
+
     struct RemotePlayerChanges
     {
         std::vector<RemotePlayerTransform> transforms;
         std::vector<RemotePlayerAppearance> appearances;
         std::vector<RemotePlayerEquipment> equipment;
+        std::vector<RemotePlayerEffects> effects;
         std::vector<AnimationAction> animationActions;
         std::vector<Multiplayer::PlayerInspection> inspections;
         std::vector<Multiplayer::TradeEvent> tradeEvents;
@@ -70,11 +78,15 @@ namespace Network
 
     void PublishLocalEquipment(const Multiplayer::PlayerEquipment& a_equipment);
 
+    void PublishLocalEffects(const Multiplayer::PlayerEffects& a_effects);
+
     void PublishLocalAttack(const Attack& a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
     void PublishLocalBeastAction(
         Multiplayer::BeastAction a_action, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
     void PublishLocalIdleAction(
         std::string_view a_event, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
+    void PublishLocalPowerAction(
+        const Multiplayer::FormReference& a_power, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
 
     [[nodiscard]] bool PublishChatMessage(Multiplayer::ChatChannel a_channel, Multiplayer::PeerSlot a_recipient,
         std::string_view a_text, std::function<void(Multiplayer::ChatRejection)> a_onRejected);

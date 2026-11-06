@@ -63,6 +63,7 @@ namespace ActorLifecycle
             RemoveMountActor(lifecycle);
             CombatSync::ClearRemoteActions(a_peer.combat);
             IdleSync::ClearRemoteActions(a_peer.idle);
+            VoiceSync::ClearRemoteActions(a_peer.voice);
             a_peer.appliedSequence = 0;
             lifecycle.spawnRetryRemaining = 0.0F;
             lifecycle.strandedElapsed = 0.0F;
@@ -241,6 +242,7 @@ namespace ActorLifecycle
         a_peer.lifecycle.actor.reset();
         CombatSync::ClearRemoteActions(a_peer.combat);
         IdleSync::ClearRemoteActions(a_peer.idle);
+        VoiceSync::ClearRemoteActions(a_peer.voice);
         a_peer.lifecycle.spawnRetryRemaining = kSpawnRetryDelaySeconds;
     }
 
@@ -305,6 +307,7 @@ namespace ActorLifecycle
         lifecycle.actor->form = spawnBase.form;
         AppearanceSync::OnActorSpawned(a_peer.appearance, spawnBase);
         EquipmentSync::OnActorSpawned(a_peer.equipment);
+        EffectSync::OnActorSpawned(a_peer.effects);
         FurnitureSync::OnActorSpawned(a_remote, *lifecycle.actor);
         a_peer.appliedSequence = a_remote.checkpoint.sequence;
         lifecycle.spawnedCellID = a_remote.cellID;

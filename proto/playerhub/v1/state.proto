@@ -55,6 +55,13 @@ enum CheckpointFlag {
   CHECKPOINT_FLAG_CAST_RELEASED_LEFT = 65536;
   CHECKPOINT_FLAG_CAST_RELEASED_RIGHT = 131072;
   CHECKPOINT_FLAG_DUAL_CASTING = 262144;
+  CHECKPOINT_FLAG_SHOUTING = 524288;
+  CHECKPOINT_FLAG_SHOUT_RELEASED = 1048576;
+  // The words a shout charges beyond its first; at most one is set.
+  CHECKPOINT_FLAG_SHOUT_TWO_WORDS = 2097152;
+  CHECKPOINT_FLAG_SHOUT_THREE_WORDS = 4194304;
+  // A released shout whose fire fails; only with CHECKPOINT_FLAG_SHOUT_RELEASED.
+  CHECKPOINT_FLAG_SHOUT_FAILED = 8388608;
 }
 
 enum Shapeshift {
@@ -153,6 +160,8 @@ message Action {
     BeastAction beast = 5;
     // An idle graph event the player's graph accepted.
     string idle = 6;
+    // A lesser or greater power the player cast.
+    FormRef power = 7;
   }
 }
 
@@ -262,4 +271,17 @@ message Equipment {
   Hand beast_right_hand = 7;
   Hand beast_left_hand = 8;
   repeated Armor beast_armor = 9;
+  // The shout in the player's voice slot; unset for a power or nothing.
+  FormRef shout = 10;
+}
+
+// A magic effect active on the player that shows on the actor.
+message ActiveEffect {
+  FormRef effect = 1;
+  float magnitude = 2;
+}
+
+message Effects {
+  uint64 revision = 1;
+  repeated ActiveEffect effects = 2;
 }

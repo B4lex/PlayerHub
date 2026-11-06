@@ -17,6 +17,7 @@ namespace ActorRegistry
 
     [[nodiscard]] bool IsRegistered(const RE::Actor* a_actor);
     [[nodiscard]] bool IsRegistered(RE::ActorHandle a_handle);
+    [[nodiscard]] bool IsRegistered(RE::ObjectRefHandle a_handle);
 
     [[nodiscard]] bool EnableAnimationFirewall(const RemoteActor& a_remote);
     void DisableAnimationFirewall(const RemoteActor& a_remote);
@@ -29,6 +30,11 @@ namespace ActorRegistry
 
     void SetCastAnimationOwned(const RemoteActor& a_remote, bool a_owned);
     [[nodiscard]] bool IsCastAnimationOwned(const RE::Actor* a_actor);
+    void SetVoiceAnimationOwned(const RemoteActor& a_remote, bool a_owned);
+    [[nodiscard]] bool IsVoiceAnimationOwned(const RE::Actor* a_actor);
+    // The fire of the actor's held shout is skipped, as its source's failed.
+    void SetVoiceFireSuppressed(const RemoteActor& a_remote, bool a_suppressed);
+    [[nodiscard]] bool IsVoiceFireSuppressed(const RE::Actor* a_actor);
 
     void SetDead(const RemoteActor& a_remote);
     [[nodiscard]] bool IsDead(const RE::Actor* a_actor);
@@ -53,6 +59,7 @@ namespace ActorRegistry
         bool animationFirewallEnabled{ false };
         bool furnitureAnimationOwned{ false };
         bool castAnimationOwned{ false };
+        bool voiceAnimationOwned{ false };
         bool dead{ false };
         bool mounted{ false };
         bool gaitDriven{ false };

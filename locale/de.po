@@ -24,6 +24,10 @@ msgctxt "SectionControls"
 msgid "Keybinds"
 msgstr "Tastenbelegung"
 
+msgctxt "SectionGameplay"
+msgid "Gameplay"
+msgstr "Gameplay"
+
 msgctxt "SectionAdvanced"
 msgid "Advanced"
 msgstr "Erweitert"
@@ -385,6 +389,58 @@ msgid ""
 msgstr ""
 "Lehnt das Handelsangebot eines anderen Spielers ab oder zieht dein eigenes "
 "zurück, solange es auf eine Antwort wartet."
+
+msgctxt "GameplayGroupEffects"
+msgid "Effects"
+msgstr "Effekte"
+
+msgctxt "GameplayShowSpellEffects"
+msgid "Show spell effects"
+msgstr "Zaubereffekte anzeigen"
+
+msgctxt "GameplayShowSpellEffectsComment"
+msgid ""
+"Shows what other players' spells do: projectiles, beams, and effects on the\n"
+"caster."
+msgstr "Zeigt, was die Zauber anderer Spieler bewirken: Projektile, Strahlen und Effekte auf dem Zaubernden."
+
+msgctxt "GameplayShowShoutEffects"
+msgid "Show shout effects"
+msgstr "Schreieffekte anzeigen"
+
+msgctxt "GameplayShowShoutEffectsComment"
+msgid ""
+"Shows the breath, wave, or projectile of other players' shouts, and what\n"
+"their shouts and powers do to them."
+msgstr "Zeigt den Atem, die Welle oder das Projektil der Schreie anderer Spieler und was ihre Schreie und Kräfte bei ihnen bewirken."
+
+msgctxt "GameplayGroupIsolation"
+msgid "Isolation"
+msgstr "Isolierung"
+
+msgctxt "GameplayIsolateSpellEffects"
+msgid "Isolate spell effects"
+msgstr "Zaubereffekte isolieren"
+
+msgctxt "GameplayIsolateSpellEffectsComment"
+msgid "Keeps other players' spells out of your world."
+msgstr "Hält die Zauber anderer Spieler aus deiner Welt heraus."
+
+msgctxt "GameplayIsolateShoutEffects"
+msgid "Isolate shout effects"
+msgstr "Schreieffekte isolieren"
+
+msgctxt "GameplayIsolateShoutEffectsComment"
+msgid "Keeps other players' shouts and powers out of your world."
+msgstr "Hält die Schreie und Kräfte anderer Spieler aus deiner Welt heraus."
+
+msgctxt "GameplayDisableCollision"
+msgid "Disable collision"
+msgstr "Kollision deaktivieren"
+
+msgctxt "GameplayDisableCollisionComment"
+msgid "Lets you walk through other players."
+msgstr "Lässt dich durch andere Spieler hindurchgehen."
 
 msgctxt "AdvancedGroupPerformance"
 msgid "Performance"
