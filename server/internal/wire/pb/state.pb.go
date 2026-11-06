@@ -1901,6 +1901,111 @@ func (x *Equipment) GetShout() *FormRef {
 	return nil
 }
 
+// A magic effect active on the player that shows on the actor.
+type ActiveEffect struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Effect        *FormRef               `protobuf:"bytes,1,opt,name=effect,proto3" json:"effect,omitempty"`
+	Magnitude     float32                `protobuf:"fixed32,2,opt,name=magnitude,proto3" json:"magnitude,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActiveEffect) Reset() {
+	*x = ActiveEffect{}
+	mi := &file_playerhub_v1_state_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActiveEffect) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActiveEffect) ProtoMessage() {}
+
+func (x *ActiveEffect) ProtoReflect() protoreflect.Message {
+	mi := &file_playerhub_v1_state_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActiveEffect.ProtoReflect.Descriptor instead.
+func (*ActiveEffect) Descriptor() ([]byte, []int) {
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ActiveEffect) GetEffect() *FormRef {
+	if x != nil {
+		return x.Effect
+	}
+	return nil
+}
+
+func (x *ActiveEffect) GetMagnitude() float32 {
+	if x != nil {
+		return x.Magnitude
+	}
+	return 0
+}
+
+type Effects struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Revision      uint64                 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	Effects       []*ActiveEffect        `protobuf:"bytes,2,rep,name=effects,proto3" json:"effects,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Effects) Reset() {
+	*x = Effects{}
+	mi := &file_playerhub_v1_state_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Effects) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Effects) ProtoMessage() {}
+
+func (x *Effects) ProtoReflect() protoreflect.Message {
+	mi := &file_playerhub_v1_state_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Effects.ProtoReflect.Descriptor instead.
+func (*Effects) Descriptor() ([]byte, []int) {
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *Effects) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *Effects) GetEffects() []*ActiveEffect {
+	if x != nil {
+		return x.Effects
+	}
+	return nil
+}
+
 var File_playerhub_v1_state_proto protoreflect.FileDescriptor
 
 const file_playerhub_v1_state_proto_rawDesc = "" +
@@ -2025,7 +2130,13 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\vbeast_armor\x18\t \x03(\v2\x13.playerhub.v1.ArmorR\n" +
 	"beastArmor\x12+\n" +
 	"\x05shout\x18\n" +
-	" \x01(\v2\x15.playerhub.v1.FormRefR\x05shout*\xea\x01\n" +
+	" \x01(\v2\x15.playerhub.v1.FormRefR\x05shout\"[\n" +
+	"\fActiveEffect\x12-\n" +
+	"\x06effect\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\x06effect\x12\x1c\n" +
+	"\tmagnitude\x18\x02 \x01(\x02R\tmagnitude\"[\n" +
+	"\aEffects\x12\x1a\n" +
+	"\brevision\x18\x01 \x01(\x04R\brevision\x124\n" +
+	"\aeffects\x18\x02 \x03(\v2\x1a.playerhub.v1.ActiveEffectR\aeffects*\xea\x01\n" +
 	"\rMovementState\x12\x17\n" +
 	"\x13MOVEMENT_STATE_IDLE\x10\x00\x12\x1a\n" +
 	"\x16MOVEMENT_STATE_WALKING\x10\x01\x12\x1a\n" +
@@ -2143,7 +2254,7 @@ func file_playerhub_v1_state_proto_rawDescGZIP() []byte {
 }
 
 var file_playerhub_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_playerhub_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_playerhub_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_playerhub_v1_state_proto_goTypes = []any{
 	(MovementState)(0),    // 0: playerhub.v1.MovementState
 	(CheckpointFlag)(0),   // 1: playerhub.v1.CheckpointFlag
@@ -2168,6 +2279,8 @@ var file_playerhub_v1_state_proto_goTypes = []any{
 	(*Hand)(nil),          // 20: playerhub.v1.Hand
 	(*DefaultOutfit)(nil), // 21: playerhub.v1.DefaultOutfit
 	(*Equipment)(nil),     // 22: playerhub.v1.Equipment
+	(*ActiveEffect)(nil),  // 23: playerhub.v1.ActiveEffect
+	(*Effects)(nil),       // 24: playerhub.v1.Effects
 }
 var file_playerhub_v1_state_proto_depIdxs = []int32{
 	8,  // 0: playerhub.v1.Context.interior_cell:type_name -> playerhub.v1.FormRef
@@ -2211,11 +2324,13 @@ var file_playerhub_v1_state_proto_depIdxs = []int32{
 	20, // 38: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
 	19, // 39: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
 	8,  // 40: playerhub.v1.Equipment.shout:type_name -> playerhub.v1.FormRef
-	41, // [41:41] is the sub-list for method output_type
-	41, // [41:41] is the sub-list for method input_type
-	41, // [41:41] is the sub-list for extension type_name
-	41, // [41:41] is the sub-list for extension extendee
-	0,  // [0:41] is the sub-list for field type_name
+	8,  // 41: playerhub.v1.ActiveEffect.effect:type_name -> playerhub.v1.FormRef
+	23, // 42: playerhub.v1.Effects.effects:type_name -> playerhub.v1.ActiveEffect
+	43, // [43:43] is the sub-list for method output_type
+	43, // [43:43] is the sub-list for method input_type
+	43, // [43:43] is the sub-list for extension type_name
+	43, // [43:43] is the sub-list for extension extendee
+	0,  // [0:43] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_state_proto_init() }
@@ -2235,7 +2350,7 @@ func file_playerhub_v1_state_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_playerhub_v1_state_proto_rawDesc), len(file_playerhub_v1_state_proto_rawDesc)),
 			NumEnums:      8,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

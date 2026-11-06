@@ -46,6 +46,7 @@ type Player struct {
 
 	Appearance *pb.Appearance
 	Equipment  *pb.Equipment
+	Effects    *pb.Effects
 }
 
 func (p *Player) Name() string {
@@ -195,6 +196,14 @@ func (p *Player) SetEquipment(e *pb.Equipment) error {
 		return ErrStaleRevision
 	}
 	p.Equipment = e
+	return nil
+}
+
+func (p *Player) SetEffects(e *pb.Effects) error {
+	if p.Effects != nil && e.GetRevision() <= p.Effects.GetRevision() {
+		return ErrStaleRevision
+	}
+	p.Effects = e
 	return nil
 }
 

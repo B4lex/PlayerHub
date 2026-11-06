@@ -274,3 +274,14 @@ message Equipment {
   // The shout in the player's voice slot; unset for a power or nothing.
   FormRef shout = 10;
 }
+
+// A magic effect active on the player that shows on the actor.
+message ActiveEffect {
+  FormRef effect = 1;
+  float magnitude = 2;
+}
+
+message Effects {
+  uint64 revision = 1;
+  repeated ActiveEffect effects = 2;
+}

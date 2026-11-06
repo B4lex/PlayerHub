@@ -351,6 +351,36 @@ func validEquipment() *pb.Equipment {
 	}
 }
 
+func TestEffects(t *testing.T) {
+	valid := func() *pb.Effects {
+		return &pb.Effects{Revision: 1, Effects: []*pb.ActiveEffect{
+			{Effect: ref("Skyrim.esm", 0x1EA6A)}, {Effect: ref("Mod.esp", 0x801), Magnitude: 40}}}
+	}
+	if err := Effects(valid()); err != nil {
+		t.Fatal(err)
+	}
+	if err := Effects(&pb.Effects{Revision: 1}); err != nil {
+		t.Fatal("no effects rejected")
+	}
+	rejected := map[string]func(*pb.Effects){
+		"zero revision":      func(e *pb.Effects) { e.Revision = 0 },
+		"too many effects":   func(e *pb.Effects) { e.Effects = make([]*pb.ActiveEffect, MaximumEffects+1) },
+		"missing effect":     func(e *pb.Effects) { e.Effects[0].Effect = nil },
+		"invalid reference":  func(e *pb.Effects) { e.Effects[0].Effect = ref("", 1) },
+		"duplicate effect":   func(e *pb.Effects) { e.Effects[1].Effect = ref("Skyrim.esm", 0x1EA6A) },
+		"infinite magnitude": func(e *pb.Effects) { e.Effects[0].Magnitude = float32(math.Inf(1)) },
+		"NaN magnitude":      func(e *pb.Effects) { e.Effects[0].Magnitude = float32(math.NaN()) },
+		"huge magnitude":     func(e *pb.Effects) { e.Effects[0].Magnitude = -2e6 },
+	}
+	for name, mutate := range rejected {
+		e := valid()
+		mutate(e)
+		if err := Effects(e); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}
+
 func TestEquipment(t *testing.T) {
 	if err := Equipment(validEquipment()); err != nil {
 		t.Fatal(err)

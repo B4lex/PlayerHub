@@ -2,6 +2,7 @@ package playback
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -55,6 +56,8 @@ func (p *fakePlayer) take() string {
 			words = append(words, fmt.Sprintf("appearance%d:%s", body.Appearance.Revision, body.Appearance.Name))
 		case *pb.ClientMessage_Equipment:
 			words = append(words, fmt.Sprintf("equipment%d", body.Equipment.Revision))
+		case *pb.ClientMessage_Effects:
+			words = append(words, fmt.Sprintf("effects%d/%d", body.Effects.Revision, len(body.Effects.Effects)))
 		}
 	}
 	p.sent = nil
@@ -183,6 +186,22 @@ func TestSeekEmitsTheIdleHeldThere(t *testing.T) {
 	s.Seek(800)
 	s.Advance()
 	expect(t, p.take(), "context/e7 cp3/x80")
+}
+
+func TestSeekBeforeTheFirstEffectsEndsThem(t *testing.T) {
+	r := timeline()
+	r.Messages = append(r.Messages, message(300, &pb.ClientMessage{Message: &pb.ClientMessage_Effects{Effects: &pb.Effects{
+		Revision: 4, Effects: []*pb.ActiveEffect{{Effect: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 0x1EA6A}}}}}}))
+	slices.SortStableFunc(r.Messages, func(a, b recording.Message) int { return int(a.TMs - b.TMs) })
+	s, p, _ := newSession(t, r, Options{Autoplay: false, StartMs: 500})
+	s.Advance()
+	expect(t, p.take(), "appearance1:Lydia equipment1 effects1/1 enter context/e5 cp1/x50/held")
+	s.Seek(100)
+	s.Advance()
+	expect(t, p.take(), "effects2/0 context/e6 cp2/x10/held")
+	s.Seek(600)
+	s.Advance()
+	expect(t, p.take(), "effects3/1 context/e7 cp3/x60/held")
 }
 
 func TestPauseHoldsThePoseOnce(t *testing.T) {

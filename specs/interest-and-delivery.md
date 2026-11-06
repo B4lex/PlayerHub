@@ -83,7 +83,7 @@ rule here.
 - A player's `Exit` ends every subscription to it with `EXITED` and every
   subscription it has with `VIEWER_UNPLACED`.
 - A peer's disconnect sends `PeerLeave(DISCONNECTED)` to every recipient that
-  receives it or holds its appearance or equipment, and the recipients forget
+  receives it or holds its appearance, equipment, or effects, and the recipients forget
   their record of it. Its exclusions are dropped too.
 
 ## Ordering
@@ -91,8 +91,10 @@ rule here.
 1. `Welcome` is the first message a client receives.
 2. `PeerEnter` precedes everything else about a peer and carries, in order,
    the peer's appearance and equipment (only when newer than the recipient's
-   record), context, and stored checkpoint. A paused game publishes nothing,
-   and the stored checkpoint still places the peer at once.
+   record), context, and stored checkpoint. The peer's effects, when newer
+   than the recipient's record, follow it as a `PeerEffects` queued like a
+   replacement ([Network](network.md#server-messages)). A paused game
+   publishes nothing, and the stored checkpoint still places the peer at once.
 3. An ordered message about a peer (`PeerContext`, `PeerAction`, `PeerLeave`)
    is never overtaken by, and never overtakes, that peer's checkpoints. Before
    one is queued, the hub hands the peer's undistributed checkpoint to its
@@ -105,7 +107,7 @@ rule here.
    ([Combat presentation](combat-presentation.md#action-stream)).
 5. `PeerLeave` resets the peer's action stream on the client, so the next
    action after a new `PeerEnter` starts a new boundary.
-6. Appearance and equipment are latest-wins per (recipient, peer): a newer one
+6. Appearance, equipment, and effects are latest-wins per (recipient, peer): a newer one
    drops the unsent one and is queued at the end, keeping the true order.
 7. Chat, results, roster and local player changes, inspections, and trade messages are
    ordered with everything else in the outbox, so a player receives the
@@ -114,9 +116,9 @@ rule here.
 
 ## Records per pair
 
-For each recipient the hub records the appearance and equipment revision of
-each peer it has sent, whether or not the peer is subscribed now. `PeerEnter`
-includes them only when newer, which matches the client, which keeps
+For each recipient the hub records the appearance, equipment, and effects
+revision of each peer it has sent, whether or not the peer is subscribed now.
+`PeerEnter` and the `PeerEffects` after it include them only when newer, which matches the client, which keeps
 presentation until `PeerLeave(DISCONNECTED)`. The record is dropped on that
 leave and when the recipient disconnects.
 

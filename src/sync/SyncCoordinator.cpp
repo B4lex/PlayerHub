@@ -20,6 +20,7 @@
 #include "sync/customanimation/GraphEventSurvey.h"
 #include "sync/customanimation/GraphTrace.h"
 #include "sync/death/DeathSync.h"
+#include "sync/effects/EffectSync.h"
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/furniture/FurnitureSync.h"
 #include "sync/idle/IdleSync.h"
@@ -171,6 +172,12 @@ namespace SyncCoordinator
             {
                 auto& state = a_peers[update.playerID];
                 EquipmentSync::AcceptRemoteEquipment(state.equipment, update.playerID, std::move(update.equipment));
+            }
+
+            for (auto& update : changes.effects)
+            {
+                auto& state = a_peers[update.playerID];
+                EffectSync::AcceptRemoteEffects(state.effects, update.playerID, std::move(update.effects));
             }
 
             for (auto& action : changes.animationActions)
@@ -373,6 +380,7 @@ namespace SyncCoordinator
                     break;
             }
             AppearanceSync::SyncAppearance(local, transformed, a_delta);
+            EffectSync::SyncLocalEffects(local, a_delta);
         }
 
         void SyncPeer(Multiplayer::PeerSlot a_playerID, PeerState& a_peer, const LocalFrame& a_local,
@@ -407,6 +415,7 @@ namespace SyncCoordinator
             ShapeshiftSync::AgeRemoteActions(remote, a_peer.shapeshift, a_delta);
             IdleSync::AgeRemoteActions(remote, a_peer.idle, a_delta);
             VoiceSync::AgeRemoteActions(remote, a_peer.voice, a_delta);
+            EffectSync::AgeRemoteEffects(a_peer.effects, a_peer.playout.GetDelay(), a_delta);
             if (!isInLocalSpace)
             {
                 CombatSync::ClearRemoteActions(a_peer.combat);
@@ -414,6 +423,10 @@ namespace SyncCoordinator
                 IdleSync::ClearRemoteActions(a_peer.idle);
                 VoiceSync::ClearRemoteActions(a_peer.voice);
                 return;
+            }
+            if (lifecycle.actor)
+            {
+                EffectSync::SyncEffects(a_peer.effects, a_playerID, *lifecycle.actor, a_delta);
             }
             if (lifecycle.actor && DeathSync::SyncDeath(remote, a_peer))
             {

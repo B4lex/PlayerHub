@@ -51,6 +51,12 @@ PB_BIND(playerhub_v1_DefaultOutfit, playerhub_v1_DefaultOutfit, 2)
 PB_BIND(playerhub_v1_Equipment, playerhub_v1_Equipment, 4)
 
 
+PB_BIND(playerhub_v1_ActiveEffect, playerhub_v1_ActiveEffect, 2)
+
+
+PB_BIND(playerhub_v1_Effects, playerhub_v1_Effects, 4)
+
+
 
 
 

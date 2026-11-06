@@ -134,6 +134,10 @@ func equipment(revision uint64) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Equipment{Equipment: &pb.Equipment{Revision: revision}}}
 }
 
+func effects(revision uint64) *pb.ClientMessage {
+	return &pb.ClientMessage{Message: &pb.ClientMessage_Effects{Effects: &pb.Effects{Revision: revision}}}
+}
+
 func chat(id uint32, text string) *pb.ClientMessage {
 	return chatOn(pb.ChatChannel_CHAT_CHANNEL_GLOBAL, id, text)
 }
@@ -253,6 +257,8 @@ func describe(m *pb.ServerMessage) string {
 		return fmt.Sprintf("appearance %d:%d", body.PeerAppearance.Slot, body.PeerAppearance.Appearance.Revision)
 	case *pb.ServerMessage_PeerEquipment:
 		return fmt.Sprintf("equipment %d:%d", body.PeerEquipment.Slot, body.PeerEquipment.Equipment.Revision)
+	case *pb.ServerMessage_PeerEffects:
+		return fmt.Sprintf("effects %d:%d", body.PeerEffects.Slot, body.PeerEffects.Effects.Revision)
 	case *pb.ServerMessage_ChatMessage:
 		c := body.ChatMessage
 		channel := strings.ToLower(strings.TrimPrefix(c.Channel.String(), "CHAT_CHANNEL_"))
@@ -344,11 +350,12 @@ func TestPeerEnterCarriesPresentationThenState(t *testing.T) {
 	f.received(b)
 	f.send(a, appearance(1, "Lydia"))
 	f.send(a, equipment(2))
+	f.send(a, effects(3))
 	f.send(a, enter())
 	f.send(a, contextMessage(1, false))
 	expect(t, f.received(b))
 	f.send(a, checkpoint(5))
-	expect(t, f.received(b), "enter 1 state 5 appearance 1 equipment 2")
+	expect(t, f.received(b), "enter 1 state 5 appearance 1 equipment 2", "effects 1:3")
 	expect(t, f.received(a), "enter 2 state 1")
 }
 
@@ -619,6 +626,24 @@ func TestExitAndReenterKeepPresentation(t *testing.T) {
 	f.send(a, appearance(4, "Lydia"))
 	f.place(a, 1)
 	expect(t, f.received(b), "appearance 1:3", "leave 1 EXITED", "enter 1 state 1 appearance 4")
+}
+
+func TestEffectsAreLatestWins(t *testing.T) {
+	f := newFixture(t)
+	a, b := f.connect(), f.connect()
+	f.place(b, 1)
+	f.place(a, 1)
+	f.received(b)
+	f.send(a, effects(1))
+	f.send(a, effects(2))
+	if err := f.hub.Handle(a, effects(2)); err == nil {
+		t.Fatal("a repeated effects revision should be rejected")
+	}
+	expect(t, f.received(b), "effects 1:2")
+	f.send(a, exit())
+	f.send(a, effects(3))
+	f.place(a, 1)
+	expect(t, f.received(b), "leave 1 EXITED", "enter 1 state 1", "effects 1:3")
 }
 
 func TestDisconnectReachesHoldersOfPresentation(t *testing.T) {

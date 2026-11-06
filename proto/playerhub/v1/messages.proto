@@ -176,6 +176,7 @@ message ClientMessage {
     TradePluginQuery trade_plugin_query = 19;
     TradePluginReply trade_plugin_reply = 20;
     PoseLimit pose_limit = 21;
+    Effects effects = 22;
   }
 }
 
@@ -248,6 +249,11 @@ message PeerAppearance {
 message PeerEquipment {
   uint32 slot = 1;
   Equipment equipment = 2;
+}
+
+message PeerEffects {
+  uint32 slot = 1;
+  Effects effects = 2;
 }
 
 message PlayerIdentity {
@@ -329,5 +335,6 @@ message ServerMessage {
     TradePluginQuery trade_plugin_query = 21;
     TradePluginReply trade_plugin_reply = 22;
     Pong pong = 23;
+    PeerEffects peer_effects = 24;
   }
 }

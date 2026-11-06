@@ -3,6 +3,7 @@
 #include "network/Refusal.h"
 #include "protocol/AppearanceState.h"
 #include "protocol/ChatMessage.h"
+#include "protocol/EffectState.h"
 #include "protocol/EquipmentState.h"
 #include "protocol/PeerSlot.h"
 #include "protocol/PlayerState.h"
@@ -38,11 +39,18 @@ namespace Network
         Multiplayer::PlayerEquipment equipment;
     };
 
+    struct RemotePlayerEffects
+    {
+        Multiplayer::PeerSlot playerID{ 0 };
+        Multiplayer::PlayerEffects effects;
+    };
+
     struct RemotePlayerChanges
     {
         std::vector<RemotePlayerTransform> transforms;
         std::vector<RemotePlayerAppearance> appearances;
         std::vector<RemotePlayerEquipment> equipment;
+        std::vector<RemotePlayerEffects> effects;
         std::vector<AnimationAction> animationActions;
         std::vector<Multiplayer::PlayerInspection> inspections;
         std::vector<Multiplayer::TradeEvent> tradeEvents;
@@ -69,6 +77,8 @@ namespace Network
     void PublishLocalAppearance(const Multiplayer::PlayerAppearance& a_appearance);
 
     void PublishLocalEquipment(const Multiplayer::PlayerEquipment& a_equipment);
+
+    void PublishLocalEffects(const Multiplayer::PlayerEffects& a_effects);
 
     void PublishLocalAttack(const Attack& a_attack, std::uint64_t a_graphEpoch, std::uint64_t a_checkpointSequence);
     void PublishLocalBeastAction(

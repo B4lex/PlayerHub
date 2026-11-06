@@ -209,7 +209,8 @@ func Parse(data []byte) (*Recording, error) {
 func validateRecorded(m *pb.ClientMessage) error {
 	switch m.Message.(type) {
 	case *pb.ClientMessage_Enter, *pb.ClientMessage_Exit, *pb.ClientMessage_Context, *pb.ClientMessage_Checkpoint,
-		*pb.ClientMessage_Action, *pb.ClientMessage_Appearance, *pb.ClientMessage_Equipment:
+		*pb.ClientMessage_Action, *pb.ClientMessage_Appearance, *pb.ClientMessage_Equipment,
+		*pb.ClientMessage_Effects:
 		return validate.Message(m)
 	}
 	return errors.New("message kind is never recorded")

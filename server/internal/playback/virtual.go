@@ -16,11 +16,13 @@ type VirtualPlayer struct {
 	actionSequence     uint64
 	appearanceRevision uint64
 	equipmentRevision  uint64
+	effectsRevision    uint64
 	epoch              uint64
 	epochOffset        int64
 	epochBreak         bool
 	appearance         *pb.Appearance
 	equipment          *pb.Equipment
+	effects            *pb.Effects
 }
 
 func (v *VirtualPlayer) BreakContinuity() {
@@ -93,5 +95,22 @@ func (v *VirtualPlayer) Equipment(recorded *pb.Equipment) *pb.Equipment {
 	v.equipment = proto.Clone(e).(*pb.Equipment)
 	v.equipmentRevision++
 	e.Revision = v.equipmentRevision
+	return e
+}
+
+// Effects numbers the recorded effects; nil stands for none, so a seek to before the first
+// recorded effects ends those of a later position.
+func (v *VirtualPlayer) Effects(recorded *pb.Effects) *pb.Effects {
+	e := &pb.Effects{}
+	if recorded != nil {
+		e = proto.Clone(recorded).(*pb.Effects)
+	}
+	e.Revision = 0
+	if (v.effects == nil && len(e.GetEffects()) == 0) || (v.effects != nil && proto.Equal(e, v.effects)) {
+		return nil
+	}
+	v.effects = proto.Clone(e).(*pb.Effects)
+	v.effectsRevision++
+	e.Revision = v.effectsRevision
 	return e
 }

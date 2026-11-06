@@ -131,7 +131,7 @@ retries. What a refusal means for the client is in [Connection](#connection).
 | `Context` | A checkpoint's space and graph epoch ([below](#checkpoint-and-context)) |
 | `Checkpoint` | One quantized sample |
 | `Action` | One attack, beast action, idle event, or power ([Actions](#actions)) |
-| `Appearance`, `Equipment` | Latest-wins presentation ([below](#appearance-and-equipment)) |
+| `Appearance`, `Equipment`, `Effects` | Latest-wins presentation ([below](#appearance-and-equipment)) |
 | `ChatSend` | `{request_id, text, channel, recipient}`, answered with a `ChatResult` ([Chat](#chat)) |
 | `Ping` | `{request_id}`, answered with `Pong{request_id}` by the connection at once; the latency probe |
 | `Vanish` | `{session_id, vanished}`: stop or resume receiving a session's player ([Vanish](#vanish)) |
@@ -365,7 +365,8 @@ vocabularies' meaning is in
 
 ## Appearance and equipment
 
-Both are reconstructable state that changes rarely, so each has its own
+Appearance, equipment, and active effects are reconstructable state that
+changes rarely, so each has its own
 latest-wins message with a source-local `revision` (`>= 1`, strictly rising
 per connection). Capture, resolution, and fallbacks are in
 [Appearance and equipment](appearance-and-equipment.md).
@@ -451,6 +452,17 @@ base-game plugins are the five Special Edition masters and
 `Multiplayer::IsBaseGamePlugin` and the server's `baseGamePlugins` hold the
 same list.
 
+### `Effects`
+
+The lasting effects that show on the player's actor
+([Combat presentation](combat-presentation.md#active-effects)).
+
+| Field | Validation |
+| --- | --- |
+| `effects` | at most 32 `ActiveEffect`, unique by `effect` (compared as sent) |
+| `ActiveEffect.effect` | required form reference: the magic effect, not the item that applied it, which is dynamic for crafted potions and player enchantments |
+| `ActiveEffect.magnitude` | finite, `-1e6..1e6` |
+
 ## Server messages
 
 | Message | Fields |
@@ -459,10 +471,10 @@ same list.
 | `ChatResult` | `request_id` and `rejection`: `NONE` accepts the `ChatSend`, else `INVALID`, `RATE_LIMITED`, `NOT_IN_WORLD`, or `UNKNOWN_RECIPIENT` ([Chat](#chat)) |
 | `Pong` | `request_id` of the `Ping` |
 | `PeerStates` | `repeated Checkpoint` with `player` set; the concatenation of entries encoded once per sender |
-| `PeerEnter` | `slot`, `appearance` and `equipment` when newer than what the recipient holds, `context`, `state` (the stored checkpoint) |
+| `PeerEnter` | `slot`, `appearance` and `equipment` when newer than what the recipient holds, `context`, `state` (the stored checkpoint). Effects are not a field: nanopb's static `PeerEnter`, about 63 KB with appearance and equipment, would exceed its 16-bit field limit without `PB_FIELD_32BIT` |
 | `PeerContext` | `slot`, `context` |
 | `PeerLeave` | `slot`, `reason`: `OUT_OF_RANGE`, `EXCLUDED`, `EXITED`, `DISCONNECTED`, `VIEWER_UNPLACED` |
-| `PeerAction`, `PeerAppearance`, `PeerEquipment` | `slot` and the message |
+| `PeerAction`, `PeerAppearance`, `PeerEquipment`, `PeerEffects` | `slot` and the message; `PeerEffects` also follows a `PeerEnter` when the recipient holds no newer revision |
 | `ChatMessage` | `channel`, `sender`, `recipient` (whisper only), `text`; each a `PlayerIdentity{slot, name, session_id}` |
 | `Roster` | `joined`, a list of `PlayerIdentity`, and `left`, a slot or 0 ([Roster](#roster)) |
 | `NearbyPlayers` | `joined` and `left`, packed slots entering and leaving the recipient's Nearby chat reach ([Nearby players](#nearby-players)) |
@@ -476,7 +488,7 @@ When each is sent and in what order is
 
 - A player is in the world between `Enter` and `Exit`, and placed once it also
   has a context and a checkpoint. `Exit` forgets the context, checkpoint,
-  sequences, and action stream; appearance and equipment are kept.
+  sequences, and action stream; appearance, equipment, and effects are kept.
 - A connection that closes, for any reason, is removed from the hub: its
   capture ends, and every recipient that received it or holds its presentation
   gets `PeerLeave` with `DISCONNECTED`.
@@ -899,8 +911,8 @@ Server messages:
   receives complete `PlayerTransform` values. A checkpoint of a peer without a
   context (no `PeerEnter` yet) is dropped, and so is a context whose epoch
   falls.
-- Only the newest pending checkpoint (by sequence), appearance, and equipment
-  (by revision) per peer are kept until the pass drains them. A checkpoint is
+- Only the newest pending checkpoint (by sequence), appearance, equipment, and
+  effects (by revision) per peer are kept until the pass drains them. A checkpoint is
   stamped with its `steady_clock` arrival, once per `PeerStates` or
   `PeerEnter`, for the playout clock. `PeerEnter`
   starts a fresh checkpoint and action stream. `PeerLeave` forgets the peer's
@@ -993,8 +1005,8 @@ Server messages:
 
 ### Latest-wins publishers
 
-Every welcome advances the connection generation. Appearance and equipment
-republish their last state on each new generation, because the server forgets
+Every welcome advances the connection generation. Appearance, equipment, and
+effects republish their last state on each new generation, because the server forgets
 a connection's state when it drops; `PresenceSync` sends `Enter` again, and
 the next checkpoint sends its context. Remote players are then rebuilt from
 the server's `PeerEnter` messages.
@@ -1138,7 +1150,7 @@ window, and are empty after a long gap. The status panel shows them.
 ## Acceptance criteria
 
 1. Two clients see each other move, attack, sit, ride, die, and change
-   appearance and equipment.
+   appearance, equipment, and lasting effects.
 2. A client that joins while a peer's game is paused sees that peer at once.
 3. A client with another protocol version tells the player in the settings
    window whether the server runs a newer or an older version of the mod, and

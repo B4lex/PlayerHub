@@ -133,6 +133,7 @@ if inWorld:
         published: CombatSync::PublishLocalAttacks, ShapeshiftSync::PublishLocalActions,
                    IdleSync::PublishLocalIdles, then VoiceSync::PublishLocalPowers
     AppearanceSync::SyncAppearance
+    EffectSync::SyncLocalEffects           # the presented active effects, polled
 else: discard captured attacks, beast actions, and idle events
 TradeSync::Sync                           # trade events, overlay commands, cancels, offers, a commit
 if no local cell: return
@@ -148,7 +149,9 @@ RemoteLights::Update                      # with a world camera: the remote ligh
 AppearanceSync advance timers; retire on a new appearance revision, or else on a new form
 retire on a coordinate-space change
 CombatSync, ShapeshiftSync, IdleSync, VoiceSync::AgeRemoteActions
+EffectSync::AgeRemoteEffects               # held effects take effect after the playout delay
 not in the local space: clear attacks, beast actions, idles, and powers, stop
+EffectSync::SyncEffects                    # with an actor, in every state below
 DeathSync::SyncDeath                       # a killed actor keeps only handle and look; shout released
 ActorLifecycle::RetireWhenStranded
 FurnitureSync yield check                  # hide an actor that would block furniture
@@ -215,7 +218,7 @@ reference) and `AnimationSync::LocalState` (graph epoch, jump tracking, stop
 and arrival holds, and the last published state), which the per-pass
 observers also use. Nothing resets them yet; they live as long as the process.
 
-Appearance and equipment publish on their own schedules and republish on every
+Appearance, equipment, and effects publish on their own schedules and republish on every
 new connection generation ([Network](network.md#latest-wins-publishers)).
 
 ### Graph event survey
@@ -341,7 +344,7 @@ intro never holds. `IsPlaying` reads an atomic, so the overlay may call it;
 keyed by the server's slot for the peer. `PeerState` holds the peer's
 `CheckpointPlayout`, the sequence whose checkpoint the current actor last
 received, and the feature-owned `combat`, `shapeshift`, `idle`, `lifecycle`,
-`appearance`, `equipment`, `furniture`, and `nameplate` members. Movement and animation keep their state
+`appearance`, `equipment`, `effects`, `furniture`, and `nameplate` members. Movement and animation keep their state
 on the `RemoteActor` instead. A `RemoteFrame` presents the played checkpoint,
 its sequence, and the interpolated pose; features never see a checkpoint that
 has not played.
@@ -354,7 +357,7 @@ pass:
    Reconnecting rebuilds peers from the server's `PeerEnter` messages.
 2. A `PeerLeave` for any reason but `DISCONNECTED` (the peer left the world,
    went out of range, or was excluded) removes the actor and resets the
-   playout and combat state, but keeps appearance and equipment
+   playout and combat state, but keeps appearance, equipment, and effects
    until a `PeerEnter` places the player again. Leaves apply first, since
    changes drained with them arrived after them.
 3. `PeerLeave` with `DISCONNECTED` removes the actor and all state.
@@ -362,8 +365,8 @@ pass:
    its arrival time on the transport thread, go into the peer's playout with a
    rising sequence. A stale one is logged and ignored. A `PeerEnter` delivers
    its stored checkpoint the same way.
-5. Appearance and equipment are latest-wins by revision and may arrive before
-   any checkpoint. Neither alone spawns an actor.
+5. Appearance, equipment, and effects are latest-wins by revision and may
+   arrive before any checkpoint. None alone spawns an actor.
 6. Actions are ordered and bounded by the combat, shapeshift, or idle system,
    by kind, and accepted against the newest received checkpoint, played or not.
 7. Inspections go to `PlayerDetails::Accept`

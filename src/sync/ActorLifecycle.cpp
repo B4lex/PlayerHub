@@ -307,6 +307,7 @@ namespace ActorLifecycle
         lifecycle.actor->form = spawnBase.form;
         AppearanceSync::OnActorSpawned(a_peer.appearance, spawnBase);
         EquipmentSync::OnActorSpawned(a_peer.equipment);
+        EffectSync::OnActorSpawned(a_peer.effects);
         FurnitureSync::OnActorSpawned(a_remote, *lifecycle.actor);
         a_peer.appliedSequence = a_remote.checkpoint.sequence;
         lifecycle.spawnedCellID = a_remote.cellID;

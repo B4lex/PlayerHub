@@ -211,6 +211,7 @@ typedef struct _playerhub_v1_ClientMessage {
         playerhub_v1_TradePluginQuery trade_plugin_query;
         playerhub_v1_TradePluginReply trade_plugin_reply;
         playerhub_v1_PoseLimit pose_limit;
+        playerhub_v1_Effects effects;
     } message;
 } playerhub_v1_ClientMessage;
 
@@ -276,6 +277,12 @@ typedef struct _playerhub_v1_PeerEquipment {
     bool has_equipment;
     playerhub_v1_Equipment equipment;
 } playerhub_v1_PeerEquipment;
+
+typedef struct _playerhub_v1_PeerEffects {
+    uint32_t slot;
+    bool has_effects;
+    playerhub_v1_Effects effects;
+} playerhub_v1_PeerEffects;
 
 typedef struct _playerhub_v1_PlayerIdentity {
     uint32_t slot;
@@ -363,6 +370,7 @@ typedef struct _playerhub_v1_ServerMessage {
         playerhub_v1_TradePluginQuery trade_plugin_query;
         playerhub_v1_TradePluginReply trade_plugin_reply;
         playerhub_v1_Pong pong;
+        playerhub_v1_PeerEffects peer_effects;
     } message;
 } playerhub_v1_ServerMessage;
 
@@ -432,6 +440,7 @@ extern "C" {
 
 
 
+
 #define playerhub_v1_ChatMessage_channel_ENUMTYPE playerhub_v1_ChatChannel
 
 
@@ -475,6 +484,7 @@ extern "C" {
 #define playerhub_v1_PeerAction_init_default     {0, false, playerhub_v1_Action_init_default}
 #define playerhub_v1_PeerAppearance_init_default {0, false, playerhub_v1_Appearance_init_default}
 #define playerhub_v1_PeerEquipment_init_default  {0, false, playerhub_v1_Equipment_init_default}
+#define playerhub_v1_PeerEffects_init_default    {0, false, playerhub_v1_Effects_init_default}
 #define playerhub_v1_PlayerIdentity_init_default {0, "", 0}
 #define playerhub_v1_ChatMessage_init_default    {_playerhub_v1_ChatChannel_MIN, false, playerhub_v1_PlayerIdentity_init_default, false, playerhub_v1_PlayerIdentity_init_default, ""}
 #define playerhub_v1_Roster_init_default         {{{NULL}, NULL}, 0}
@@ -515,6 +525,7 @@ extern "C" {
 #define playerhub_v1_PeerAction_init_zero        {0, false, playerhub_v1_Action_init_zero}
 #define playerhub_v1_PeerAppearance_init_zero    {0, false, playerhub_v1_Appearance_init_zero}
 #define playerhub_v1_PeerEquipment_init_zero     {0, false, playerhub_v1_Equipment_init_zero}
+#define playerhub_v1_PeerEffects_init_zero       {0, false, playerhub_v1_Effects_init_zero}
 #define playerhub_v1_PlayerIdentity_init_zero    {0, "", 0}
 #define playerhub_v1_ChatMessage_init_zero       {_playerhub_v1_ChatChannel_MIN, false, playerhub_v1_PlayerIdentity_init_zero, false, playerhub_v1_PlayerIdentity_init_zero, ""}
 #define playerhub_v1_Roster_init_zero            {{{NULL}, NULL}, 0}
@@ -597,6 +608,7 @@ extern "C" {
 #define playerhub_v1_ClientMessage_trade_plugin_query_tag 19
 #define playerhub_v1_ClientMessage_trade_plugin_reply_tag 20
 #define playerhub_v1_ClientMessage_pose_limit_tag 21
+#define playerhub_v1_ClientMessage_effects_tag   22
 #define playerhub_v1_Welcome_slot_tag            1
 #define playerhub_v1_Welcome_session_id_tag      2
 #define playerhub_v1_Welcome_display_name_tag    3
@@ -620,6 +632,8 @@ extern "C" {
 #define playerhub_v1_PeerAppearance_appearance_tag 2
 #define playerhub_v1_PeerEquipment_slot_tag      1
 #define playerhub_v1_PeerEquipment_equipment_tag 2
+#define playerhub_v1_PeerEffects_slot_tag        1
+#define playerhub_v1_PeerEffects_effects_tag     2
 #define playerhub_v1_PlayerIdentity_slot_tag     1
 #define playerhub_v1_PlayerIdentity_name_tag     2
 #define playerhub_v1_PlayerIdentity_session_id_tag 3
@@ -667,6 +681,7 @@ extern "C" {
 #define playerhub_v1_ServerMessage_trade_plugin_query_tag 21
 #define playerhub_v1_ServerMessage_trade_plugin_reply_tag 22
 #define playerhub_v1_ServerMessage_pong_tag      23
+#define playerhub_v1_ServerMessage_peer_effects_tag 24
 
 /* Struct field encoding specification for nanopb */
 #define playerhub_v1_Hello_FIELDLIST(X, a) \
@@ -823,7 +838,8 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_accept,message.trade_accept), 
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_cancel,message.trade_cancel),  18) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_plugin_query,message.trade_plugin_query),  19) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_plugin_reply,message.trade_plugin_reply),  20) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,pose_limit,message.pose_limit),  21)
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,pose_limit,message.pose_limit),  21) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,effects,message.effects),  22)
 #define playerhub_v1_ClientMessage_CALLBACK NULL
 #define playerhub_v1_ClientMessage_DEFAULT NULL
 #define playerhub_v1_ClientMessage_message_hello_MSGTYPE playerhub_v1_Hello
@@ -847,6 +863,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,pose_limit,message.pose_limit),  21)
 #define playerhub_v1_ClientMessage_message_trade_plugin_query_MSGTYPE playerhub_v1_TradePluginQuery
 #define playerhub_v1_ClientMessage_message_trade_plugin_reply_MSGTYPE playerhub_v1_TradePluginReply
 #define playerhub_v1_ClientMessage_message_pose_limit_MSGTYPE playerhub_v1_PoseLimit
+#define playerhub_v1_ClientMessage_message_effects_MSGTYPE playerhub_v1_Effects
 
 #define playerhub_v1_Welcome_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   slot,              1) \
@@ -919,6 +936,13 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  equipment,         2)
 #define playerhub_v1_PeerEquipment_CALLBACK NULL
 #define playerhub_v1_PeerEquipment_DEFAULT NULL
 #define playerhub_v1_PeerEquipment_equipment_MSGTYPE playerhub_v1_Equipment
+
+#define playerhub_v1_PeerEffects_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   slot,              1) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  effects,           2)
+#define playerhub_v1_PeerEffects_CALLBACK NULL
+#define playerhub_v1_PeerEffects_DEFAULT NULL
+#define playerhub_v1_PeerEffects_effects_MSGTYPE playerhub_v1_Effects
 
 #define playerhub_v1_PlayerIdentity_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   slot,              1) \
@@ -1010,7 +1034,8 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_close,message.trade_close),  1
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,nearby_players,message.nearby_players),  20) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_plugin_query,message.trade_plugin_query),  21) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_plugin_reply,message.trade_plugin_reply),  22) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,pong,message.pong),  23)
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,pong,message.pong),  23) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (message,peer_effects,message.peer_effects),  24)
 #define playerhub_v1_ServerMessage_CALLBACK NULL
 #define playerhub_v1_ServerMessage_DEFAULT NULL
 #define playerhub_v1_ServerMessage_message_welcome_MSGTYPE playerhub_v1_Welcome
@@ -1036,6 +1061,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,pong,message.pong),  23)
 #define playerhub_v1_ServerMessage_message_trade_plugin_query_MSGTYPE playerhub_v1_TradePluginQuery
 #define playerhub_v1_ServerMessage_message_trade_plugin_reply_MSGTYPE playerhub_v1_TradePluginReply
 #define playerhub_v1_ServerMessage_message_pong_MSGTYPE playerhub_v1_Pong
+#define playerhub_v1_ServerMessage_message_peer_effects_MSGTYPE playerhub_v1_PeerEffects
 
 extern const pb_msgdesc_t playerhub_v1_Hello_msg;
 extern const pb_msgdesc_t playerhub_v1_Enter_msg;
@@ -1067,6 +1093,7 @@ extern const pb_msgdesc_t playerhub_v1_PeerLeave_msg;
 extern const pb_msgdesc_t playerhub_v1_PeerAction_msg;
 extern const pb_msgdesc_t playerhub_v1_PeerAppearance_msg;
 extern const pb_msgdesc_t playerhub_v1_PeerEquipment_msg;
+extern const pb_msgdesc_t playerhub_v1_PeerEffects_msg;
 extern const pb_msgdesc_t playerhub_v1_PlayerIdentity_msg;
 extern const pb_msgdesc_t playerhub_v1_ChatMessage_msg;
 extern const pb_msgdesc_t playerhub_v1_Roster_msg;
@@ -1109,6 +1136,7 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_PeerAction_fields &playerhub_v1_PeerAction_msg
 #define playerhub_v1_PeerAppearance_fields &playerhub_v1_PeerAppearance_msg
 #define playerhub_v1_PeerEquipment_fields &playerhub_v1_PeerEquipment_msg
+#define playerhub_v1_PeerEffects_fields &playerhub_v1_PeerEffects_msg
 #define playerhub_v1_PlayerIdentity_fields &playerhub_v1_PlayerIdentity_msg
 #define playerhub_v1_ChatMessage_fields &playerhub_v1_ChatMessage_msg
 #define playerhub_v1_Roster_fields &playerhub_v1_Roster_msg
@@ -1140,6 +1168,7 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_PeerAction_size             314
 #define playerhub_v1_PeerAppearance_size         44270
 #define playerhub_v1_PeerContext_size            904
+#define playerhub_v1_PeerEffects_size            8980
 #define playerhub_v1_PeerEnter_size              64748
 #define playerhub_v1_PeerEquipment_size          19290
 #define playerhub_v1_PeerLeave_size              8

@@ -37,6 +37,7 @@ type Replaceable uint8
 const (
 	ReplaceAppearance Replaceable = iota
 	ReplaceEquipment
+	ReplaceEffects
 )
 
 type replaceKey struct {

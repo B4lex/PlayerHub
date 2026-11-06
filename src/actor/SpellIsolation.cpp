@@ -1,7 +1,9 @@
 #include "actor/SpellIsolation.h"
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
+#include "actor/EffectPresentation.h"
 #include "actor/GameplayPolicy.h"
+#include "actor/SelfEffects.h"
 
 #include <algorithm>
 #include <array>
@@ -16,7 +18,6 @@ namespace SpellIsolation
         using ActorConstants::ShouldLogOccurrence;
         using CodeDetour::WriteCalleeDetour;
         using CodeDetour::WriteEntryDetour;
-        using Archetype = RE::EffectSetting::Archetype;
         using GameplayPolicy::Source;
 
         constexpr std::array<std::uint8_t, 5> kSpellFirePrologue{
@@ -140,99 +141,13 @@ namespace SpellIsolation
             return IsRemoteCause(a_ref->GetActorCause());
         }
 
-        // Archetypes whose effect stays on the actor it applies to: its actor
-        // values, look, light, and a cloak's aura. A cloak applies its spell to
-        // others through new AddTarget calls, and a spawned hazard applies its
-        // spell the same way, both with the remote actor as their source.
-        bool IsSelfContainedArchetype(Archetype a_archetype)
+        // A presented effect on a remote actor comes from the source's active effects
+        // alone, so a native cast, ability, or enchantment does not add a second copy
+        // or outlast the source's.
+        bool IsPresentedElsewhere(const RE::EffectSetting& a_effect, const RE::MagicItem* a_item)
         {
-            switch (a_archetype)
-            {
-            case Archetype::kValueModifier:
-            case Archetype::kDualValueModifier:
-            case Archetype::kPeakValueModifier:
-            case Archetype::kValueAndParts:
-            case Archetype::kAccumulateMagnitude:
-            case Archetype::kInvisibility:
-            case Archetype::kLight:
-            case Archetype::kNightEye:
-            case Archetype::kEtherealize:
-            case Archetype::kDisguise:
-            case Archetype::kCloak:
-            case Archetype::kSpawnHazard:
-                return true;
-            default:
-                return false;
-            }
-        }
-
-        bool IsVoiceOrPower(const RE::MagicItem* a_item)
-        {
-            if (!a_item)
-            {
-                return false;
-            }
-            using SpellType = RE::MagicSystem::SpellType;
-            const auto type = a_item->GetSpellType();
-            return type == SpellType::kVoicePower || type == SpellType::kPower || type == SpellType::kLesserPower;
-        }
-
-        // The vanilla hazards a shout or power spawns run scripts on the caster that
-        // change the world: Storm Call's set the weather (magicSetWeatherScript) and
-        // place activators that cast lightning (magicProjectileStormScript), and the Wind
-        // Stone power's places an activator (magicPlaceActivatorScript).
-        struct IgnoredEffect
-        {
-            std::string_view plugin;
-            RE::FormID localFormID;
-        };
-
-        // Self effects of an allowlisted archetype whose scripts reach past the caster.
-        // VoiceMakeEthereal's magicImodScript applies its image space modifiers to the
-        // local screen whichever actor the effect is on.
-        constexpr std::array kIgnoredEffects{
-            IgnoredEffect{ .plugin = "Skyrim.esm", .localFormID = 0x064D68 },
-        };
-
-        bool IsIgnoredEffect(const RE::EffectSetting& a_effect)
-        {
-            // Remote magic reaches a target only after the data has loaded.
-            static const auto ignored = [] {
-                std::array<RE::FormID, kIgnoredEffects.size()> formIDs{};
-                if (auto* dataHandler = RE::TESDataHandler::GetSingleton())
-                {
-                    for (std::size_t index = 0; index < kIgnoredEffects.size(); ++index)
-                    {
-                        const auto& entry = kIgnoredEffects[index];
-                        formIDs[index] = dataHandler->LookupFormID(entry.localFormID, entry.plugin);
-                    }
-                }
-                return formIDs;
-            }();
-            const auto formID = a_effect.GetFormID();
-            return std::ranges::find(ignored, formID) != ignored.end();
-        }
-
-        bool IsSelfContainedEffect(const RE::EffectSetting& a_effect, const RE::MagicItem* a_item)
-        {
-            const auto archetype = a_effect.GetArchetype();
-            return IsSelfContainedArchetype(archetype)
-                && !(archetype == Archetype::kSpawnHazard && IsVoiceOrPower(a_item)) && !IsIgnoredEffect(a_effect);
-        }
-
-        // Effects on the caster that a sync stage owns whatever the isolation: the
-        // hands are equipment sync's, and a beast form is shapeshift sync's.
-        bool IsPresentationOwnedEffect(const RE::EffectSetting& a_effect)
-        {
-            switch (a_effect.GetArchetype())
-            {
-            case Archetype::kBoundWeapon:
-            case Archetype::kWerewolf:
-            case Archetype::kVampireLord:
-                return true;
-            default:
-                return IsIgnoredEffect(a_effect);
-            }
+            return GameplayPolicy::ShowsSpellEffects() && SelfEffects::IsPresented(a_effect)
+                && !EffectPresentation::IsPresentationSpell(a_item);
         }
 
         // Returns false when a remote actor's magic must not attach to the target.
@@ -250,11 +165,23 @@ namespace SpellIsolation
             const auto* casterActor = a_data.caster->As<RE::Actor>();
             const bool self = casterActor && casterActor->AsMagicTarget() == a_target;
             const auto source = GameplayPolicy::Classify(a_data.magicItem);
+            if (self && baseEffect && IsPresentedElsewhere(*baseEffect, a_data.magicItem))
+            {
+                static std::atomic_uint32_t presentedCount{ 0 };
+                if (const auto count = ++presentedCount; ShouldLogOccurrence(count))
+                {
+                    logs::debug("Dropped remote actor effect that effect sync presents: path={} source={:08X} "
+                                "spell={:08X} effect={:08X} count={}",
+                        a_path, a_data.caster->GetFormID(), a_data.magicItem ? a_data.magicItem->GetFormID() : 0,
+                        baseEffect->GetFormID(), count);
+                }
+                return false;
+            }
             if (self)
             {
                 if (baseEffect
-                    && (IsSelfContainedEffect(*baseEffect, a_data.magicItem)
-                        || (GameplayPolicy::MayAffectWorld(source) && !IsPresentationOwnedEffect(*baseEffect))))
+                    && (SelfEffects::IsSelfContained(*baseEffect, a_data.magicItem)
+                        || (GameplayPolicy::MayAffectWorld(source) && !SelfEffects::IsPresentationOwned(*baseEffect))))
                 {
                     return true;
                 }
@@ -650,7 +577,7 @@ namespace SpellIsolation
                     if (spell && spell->GetCastingType() != RE::MagicSystem::CastingType::kConcentration
                         && a_caster->state.get() != RE::MagicCaster::State::kNone
                         && (ActorRegistry::IsCastAnimationOwned(actor)
-                            || (IsVoiceOrPower(spell) && ActorRegistry::IsVoiceAnimationOwned(actor))))
+                            || (SelfEffects::IsVoiceOrPower(spell) && ActorRegistry::IsVoiceAnimationOwned(actor))))
                     {
                         a_caster->FinishCast();
                     }
@@ -669,7 +596,7 @@ namespace SpellIsolation
                 RE::TESObjectREFR* a_target, float a_effectiveness, bool a_hostileEffectivenessOnly,
                 float a_magnitudeOverride, RE::Actor* a_blameActor)
             {
-                if (a_caster != t_nativeSpellFireCaster
+                if (a_caster != t_nativeSpellFireCaster && !EffectPresentation::IsPresentationSpell(a_spell)
                     && IsRemoteActorCaster(a_caster->GetCasterAsActor(), "CastSpellImmediate"))
                 {
                     return;

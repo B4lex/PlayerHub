@@ -510,6 +510,23 @@ namespace Network::Wire
             return Multiplayer::IsValidEquipment(a_result) ? nullptr : "value ranges";
         }
 
+        const char* ReadEffects(const playerhub_v1_Effects& a_effects, Multiplayer::PlayerEffects& a_result)
+        {
+            a_result.revision = a_effects.revision;
+            a_result.effects.clear();
+            for (pb_size_t i = 0; i < a_effects.effects_count; ++i)
+            {
+                const auto& entry = a_effects.effects[i];
+                auto& effect = a_result.effects.emplace_back();
+                if (!entry.has_effect || !ReadFormReference(entry.effect, effect.effect))
+                {
+                    return "effects.effect";
+                }
+                effect.magnitude = entry.magnitude;
+            }
+            return Multiplayer::IsValidEffects(a_result) ? nullptr : "value ranges";
+        }
+
         bool ReadPlayerIdentity(const playerhub_v1_PlayerIdentity& a_identity, Multiplayer::PlayerIdentity& a_result)
         {
             a_result = Multiplayer::PlayerIdentity{
@@ -1236,6 +1253,31 @@ namespace Network::Wire
         return EncodeClientMessage(playerhub_v1_ClientMessage_equipment_tag, playerhub_v1_Equipment_fields, equipment.get());
     }
 
+    std::string EncodeEffects(const Multiplayer::PlayerEffects& a_effects)
+    {
+        if (!Multiplayer::IsValidEffects(a_effects))
+        {
+            return {};
+        }
+        auto effects = std::make_unique<playerhub_v1_Effects>();
+        *effects = playerhub_v1_Effects_init_zero;
+        effects->revision = a_effects.revision;
+        effects->effects_count = static_cast<pb_size_t>(a_effects.effects.size());
+        bool written = true;
+        for (std::size_t i = 0; i < a_effects.effects.size(); ++i)
+        {
+            auto& result = effects->effects[i];
+            result.has_effect = true;
+            written = written && WriteFormReference(a_effects.effects[i].effect, result.effect);
+            result.magnitude = a_effects.effects[i].magnitude;
+        }
+        if (!written)
+        {
+            return {};
+        }
+        return EncodeClientMessage(playerhub_v1_ClientMessage_effects_tag, playerhub_v1_Effects_fields, effects.get());
+    }
+
     std::string EncodeChat(std::uint32_t a_requestID, Multiplayer::ChatChannel a_channel,
         Multiplayer::PeerSlot a_recipient, std::string_view a_text)
     {
@@ -1634,6 +1676,21 @@ namespace Network::Wire
                 if (const auto* field = ReadEquipment(equipment.equipment, result.equipment))
                 {
                     return std::unexpected(std::string{ "peer equipment " } + field);
+                }
+                return result;
+            }
+            case playerhub_v1_ServerMessage_peer_effects_tag:
+            {
+                const auto& effects = message.message.peer_effects;
+                PeerEffects result;
+                result.slot = effects.slot;
+                if (effects.slot == 0 || !effects.has_effects)
+                {
+                    return std::unexpected("peer effects");
+                }
+                if (const auto* field = ReadEffects(effects.effects, result.effects))
+                {
+                    return std::unexpected(std::string{ "peer effects " } + field);
                 }
                 return result;
             }

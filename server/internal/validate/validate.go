@@ -58,6 +58,8 @@ const (
 	MaximumOutfitArmor  = 8
 	MaximumBeastArmor   = 8
 	MaximumOutfitHands  = 2
+	MaximumEffects      = 32
+	MaximumMagnitude    = 1e6
 	MinimumWeaponType   = 1
 	MaximumWeaponType   = 9
 	MaximumChatTextRune = 512
@@ -76,6 +78,7 @@ var (
 	ErrAction      = errors.New("invalid animation action")
 	ErrAppearance  = errors.New("invalid player appearance")
 	ErrEquipment   = errors.New("invalid player equipment")
+	ErrEffects     = errors.New("invalid player effects")
 	ErrChat        = errors.New("invalid chat message")
 	ErrDisplayName = errors.New("invalid display name")
 	ErrToken       = errors.New("invalid session token")
@@ -103,6 +106,8 @@ func Message(m *pb.ClientMessage) error {
 		return Appearance(body.Appearance)
 	case *pb.ClientMessage_Equipment:
 		return Equipment(body.Equipment)
+	case *pb.ClientMessage_Effects:
+		return Effects(body.Effects)
 	case *pb.ClientMessage_Vanish:
 		if body.Vanish.GetSessionId() == 0 {
 			return ErrVanish
@@ -398,6 +403,29 @@ func Equipment(e *pb.Equipment) error {
 	}
 	if outfit := e.DefaultOutfit; outfit != nil && !defaultOutfit(outfit) {
 		return ErrEquipment
+	}
+	return nil
+}
+
+func Effects(e *pb.Effects) error {
+	if e.GetRevision() == 0 || len(e.GetEffects()) > MaximumEffects {
+		return ErrEffects
+	}
+	type key struct {
+		plugin string
+		formID uint32
+	}
+	seen := make(map[key]struct{}, len(e.GetEffects()))
+	for _, effect := range e.GetEffects() {
+		if effect.Effect == nil || !formRef(effect.Effect) ||
+			!between(effect.GetMagnitude(), -MaximumMagnitude, MaximumMagnitude) {
+			return ErrEffects
+		}
+		k := key{effect.Effect.GetPlugin(), effect.Effect.GetFormId()}
+		if _, duplicate := seen[k]; duplicate {
+			return ErrEffects
+		}
+		seen[k] = struct{}{}
 	}
 	return nil
 }

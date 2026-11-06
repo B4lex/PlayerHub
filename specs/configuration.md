@@ -259,7 +259,7 @@ player. `GameplayPolicy` follows the section for the hooks that read it.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `ShowSpellEffects` | Remote hands may hold the receiver's own spell, whose fire shows natively; off, every hand holds a stand-in, which shows the cast and the spell's look in hand only ([Combat presentation](combat-presentation.md#spells)) | `true` |
+| `ShowSpellEffects` | Remote hands may hold the receiver's own spell, whose fire shows natively; off, every hand holds a stand-in, which shows the cast and the spell's look in hand only ([Combat presentation](combat-presentation.md#spells)). It also governs the lasting effects shown on remote players from their active effects ([Combat presentation](combat-presentation.md#active-effects)) | `true` |
 | `ShowShoutEffects` | Remote shouts and powers fire their spells; off, a shout still charges, speaks its words, and plays its release, without its breath, wave, projectile, or self effects, and a power casts nothing ([Combat presentation](combat-presentation.md#shout-and-power-receiver)) | `true` |
 | `IsolateSpellEffects` | Remote spells act on nothing; off, they act on the local world as a local NPC's would ([Combat presentation](combat-presentation.md#isolation-settings)) | `true` |
 | `IsolateShoutEffects` | The same for remote shouts and powers | `true` |
