@@ -512,6 +512,13 @@ is not part of the plugin.
   `FollowUpperCorner` gives the window the dragged rect before `Begin`, within
   the minimum size and the display, so it moves in the same frame as the
   cursor.
+- Dear ImGui moves a movable window by a drag on its empty space but sets no
+  cursor for it, so `MenuFrame::ShowMoveCursor`, called after `Begin` by
+  `BeginWindow` and by the chat's `BeginFramed`, sets `ResizeAll` while Dear
+  ImGui's `MovingWindow` is the current window and the drag has passed Dear
+  ImGui's drag threshold, as the [chat's move](#position) does. Of the
+  chat's windows only the [player manager](#player-manager) can be moved
+  this way.
 - `MenuFrame::BeginPrompt` begins the [trade prompt](#prompt) and the
   [display name hint](#display-name-hint) the same way: sized to the content,
   without inputs or focus, centered 6 font sizes from the top under the
@@ -2313,9 +2320,16 @@ picker's panel) or as cached thumbnails for many cells.
   choice), as a horizontal drag to the right turns it. Holding the button
   pauses the spin, which resumes from where the player left the model as
   soon as it is released (the user's choice).
-  The spin advances by the frame time of the updates that render the model,
-  so it pauses rather than jumps while thumbnails hold the renderer. A light
-  (`FormType::Light`) does not spin, since ID 51778 does not turn it.
+  A spinning model is captured at most every `kSpinCaptureIntervalSeconds`
+  (1/30 s), on the update closest to it assuming the next update is as long
+  as the current one, since each capture renders the inventory scene twice
+  on the main thread; at 30°/s a capture turns it by about 1°. The draw
+  keeps the last capture in between. A turn, a new size, a watch, or an
+  animation still captures on its own schedule. The spin advances by the
+  frame time of the updates that render the model or wait for its next
+  spin capture (`Model::spinWaited`), so it pauses rather than jumps while
+  thumbnails hold the renderer. A light (`FormType::Light`) does not spin,
+  since ID 51778 does not turn it.
 - `Update` runs in `Overlay::DrawFrame` before `ImGui::NewFrame`, when the
   game frame is finished and the overlay has not drawn. It advances a clock
   by the clamped frame time and picks one form to have loaded
@@ -2323,8 +2337,10 @@ picker's panel) or as cached thumbnails for many cells.
   or a new size), else a still waiting for its first capture (the loaded
   form's, else the earliest requested), else the model's for its refresh
   or while a fresh load is watched, else a still due for its refresh, else
-  an [animated](#3d-preview) or spinning model's, else none, which stops
-  the renderer (`End3D`) and keeps the images. Pending stills come before
+  an [animated](#3d-preview) model's or one whose spin capture is due, else
+  nothing while a spin capture is not yet due, which keeps the renderer and
+  its load, else none, which stops the renderer (`End3D`) and keeps the
+  images. Pending stills come before
   the model's refresh and glow watch, which would otherwise hold stills back
   for up to 3 s while the player moves between items (seen in a log).
   `Inventory3DManager::Begin3D(kInventory)` is called once, and
@@ -2333,7 +2349,7 @@ picker's panel) or as cached thumbnails for many cells.
 - A load serves its whole form (`ServeLoaded`): once it is ready, the same
   update captures every still of the form that a window drew last frame
   and that is due, then the model if it is the form's and due, animated,
-  or spinning. So adding the hovered item to an offer captures its cell's
+  or due a spin capture. So adding the hovered item to an offer captures its cell's
   still from the model's load on the next update, without loading again.
   A model loading in the background is
   attached only by `Render`, so while none is attached, `Update` calls

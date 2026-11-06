@@ -542,6 +542,18 @@ namespace UI::MenuFrame
         list.PopClipRect();
     }
 
+    void ShowMoveCursor()
+    {
+        // Dear ImGui sets no cursor of its own while it moves a window, and starts the move
+        // on the click, before the drag threshold.
+        const auto* moving = ImGui::GetCurrentContext()->MovingWindow;
+        if (moving && moving->RootWindow == ImGui::GetCurrentWindow()->RootWindow
+            && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+        {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+        }
+    }
+
     bool BeginWindow(const char* a_name, const WindowLayout& a_layout, ImGuiWindowFlags a_flags, bool a_focus)
     {
         const auto& display = ImGui::GetIO().DisplaySize;
@@ -582,6 +594,7 @@ namespace UI::MenuFrame
             if (visible)
             {
                 GrabUpperCorners(display);
+                ShowMoveCursor();
             }
         }
         if (visible)

@@ -20,6 +20,9 @@ namespace UI::MenuFrame
     // a translucent line color shows as brighter specks.
     void Draw(ImU32 a_line, ImU32 a_backing);
 
+    // After Begin: shows the move cursor while Dear ImGui drags the current window.
+    void ShowMoveCursor();
+
     struct WindowLayout
     {
         ImVec2 sizeFonts;

@@ -101,6 +101,7 @@ namespace UI
             }
             if (visible)
             {
+                MenuFrame::ShowMoveCursor();
                 MenuFrame::Draw(ImGui::GetColorU32(Theme::GetFrameColor()), ImGui::GetColorU32(ImGuiCol_WindowBg));
             }
             return visible;
