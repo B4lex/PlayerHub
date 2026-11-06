@@ -1088,6 +1088,19 @@ func TestIdleCheckpointsAreSuppressedButAnchorsAreNot(t *testing.T) {
 	f.send(a, skeletonCheckpoint(11, 11*wire.PositionScale+2, 2))
 	f.hub.Tick()
 	expect(t, f.received(b), "states 1:11")
+	// An aim moving up or down while standing is distributed.
+	f.send(a, lookCheckpoint(12, 11*wire.PositionScale+2, 2, 300))
+	f.hub.Tick()
+	expect(t, f.received(b), "states 1:12")
+	f.send(a, lookCheckpoint(13, 11*wire.PositionScale+2, 2, 300))
+	f.hub.Tick()
+	expect(t, f.received(b))
+}
+
+func lookCheckpoint(sequence uint64, x int32, rotation byte, lookPitch int32) *pb.ClientMessage {
+	message := skeletonCheckpoint(sequence, x, rotation)
+	message.GetCheckpoint().LookPitch = lookPitch
+	return message
 }
 
 func skeletonCheckpoint(sequence uint64, x int32, rotation byte) *pb.ClientMessage {

@@ -160,11 +160,12 @@ context.
 | `x`, `y`, `z` | `sint32`, quarter game units | any |
 | `heading` | `uint32`, 1/4096 turn | `0..4095` |
 | `pitch` | `sint32`, radians × 1024 | `|pitch| <= 1609` (π/2) |
+| `look_pitch` | `sint32`, radians × 1024: the player's view pitch while the weapon is drawn, 0 otherwise ([Combat presentation](combat-presentation.md#aim)) | `|look_pitch| <= 1609` (π/2) |
 | `speed` | `uint32`, units per second: the source graph's `Speed` while moving on foot, otherwise measured over the ground (3D while swimming) ([Locomotion](locomotion.md#source-capture)) | `<= 100000` |
 | `direction` | `uint32`, graph `Direction` × 256, wrapping | `0..255` |
 | `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–23 `grounded` (the carrier's controller is on the ground and the carrier is not ragdolled, [Locomotion](locomotion.md#ground-offset)), `weaponDrawn`, `jumping`, `blocking`, `bowDrawn`, `castingLeft`, `castingRight`, `swimming`, `mounted`, `dead`, `levitating`, `mistForm`, `bats`, `castReleasedLeft`, `castReleasedRight`, `dualCasting` ([Combat presentation](combat-presentation.md#spells)), `shouting`, `shoutReleased`, `shoutTwoWords`, `shoutThreeWords`, `shoutFailed` ([Combat presentation](combat-presentation.md#shouts-and-powers)) (`CheckpointFlag`, mirrored by `Network::CheckpointFlags` with `static_assert`s in `WireCodec.cpp`) | unknown bits rejected; `levitating`, `mistForm`, and `bats` only in a `VAMPIRE_LORD` context (`validate.VampireLordFlags`, `incompatible animation checkpoint`); `castReleasedLeft` and `dualCasting` only with `castingLeft`, `castReleasedRight` only with `castingRight` (`validate.castFlags`, `IsValidQuantizedCheckpoint`); `shoutReleased` and the word flags only with `shouting`, at most one word flag, and `shoutFailed` only with `shoutReleased` (`validate.shoutFlags`, `IsValidQuantizedCheckpoint`) |
 | `time` | `uint32`, the sender's `steady_clock` in milliseconds when sampled, modulo 16384 | `0..16383` |
-| `skeleton` | `bytes`, the sender's skeleton pose ([below](#skeleton-pose-encoding)); empty when not sent | empty, or a layout below: whole (`validate.SkeletonPose`) or a [change](#pose-changes) that resolves against the stream's previous pose |
+| `skeleton` | `bytes`, the last field, since the server writes each recipient's pose change behind the encoded others ([Interest and delivery](interest-and-delivery.md#skeleton-poses)): the sender's skeleton pose ([below](#skeleton-pose-encoding)); empty when not sent | empty, or a layout below: whole (`validate.SkeletonPose`) or a [change](#pose-changes) that resolves against the stream's previous pose |
 
 | `Context` field | Validation |
 | --- | --- |
@@ -186,7 +187,7 @@ string to the hand-written entry encoding, for a value that rarely changes.
 `protocol/Quantization.h` and `server/internal/wire/quantize.go` hold the same
 rules: positions round to quarter units (`kPositionScale`,
 `wire.PositionScale`, 4) and speed to whole units, heading is normalized to
-[0, 2π) first, pitch is clamped, and direction wraps (1.0 is 0). Whole-unit
+[0, 2π) first, pitch and look pitch are clamped, and direction wraps (1.0 is 0). Whole-unit
 positions changed the length of a 50 ms walking segment by about 12% (about 4%
 running), and the receiver follows the interpolated path exactly, so it showed
 as a change in speed at every checkpoint; quarter units cut that to a quarter.

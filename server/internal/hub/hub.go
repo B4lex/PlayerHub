@@ -1156,7 +1156,7 @@ func (h *Hub) record(slot uint32, message *pb.ClientMessage) {
 func sameSample(a, b *pb.Checkpoint) bool {
 	return a != nil && wholeUnits(a.X) == wholeUnits(b.X) && wholeUnits(a.Y) == wholeUnits(b.Y) &&
 		wholeUnits(a.Z) == wholeUnits(b.Z) && a.Heading == b.Heading && a.Pitch == b.Pitch &&
-		a.Speed == b.Speed && a.Direction == b.Direction && a.Flags == b.Flags &&
+		a.Speed == b.Speed && a.Direction == b.Direction && a.Flags == b.Flags && a.LookPitch == b.LookPitch &&
 		bytes.Equal(a.Skeleton, b.Skeleton)
 }
 

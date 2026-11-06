@@ -234,6 +234,7 @@ void CheckpointPlayout::UpdatePose()
     pose = RemotePose{ .position = GetPosition(played),
         .heading = played.heading,
         .pitch = played.pitch,
+        .lookPitch = played.lookPitch,
         .speed = played.speed,
         .sampledSpeed = played.speed,
         .direction = played.direction };
@@ -265,6 +266,7 @@ void CheckpointPlayout::UpdatePose()
     pose.heading = played.heading + turn * fraction;
     pose.headingRate = fraction < 1.0F ? static_cast<float>(turn / duration) : 0.0F;
     pose.pitch = played.pitch + (next.checkpoint.pitch - played.pitch) * fraction;
+    pose.lookPitch = played.lookPitch + (next.checkpoint.lookPitch - played.lookPitch) * fraction;
     pose.speed = static_cast<float>(distance / duration);
     pose.sampledSpeed = played.speed + (next.checkpoint.speed - played.speed) * fraction;
     pose.direction = InterpolateDirection(played, next.checkpoint, fraction);

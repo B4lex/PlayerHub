@@ -153,6 +153,8 @@ typedef struct _playerhub_v1_Checkpoint {
     uint32_t direction;
     uint32_t flags;
     uint32_t time;
+    int32_t look_pitch;
+    /* Last: the server writes each recipient's pose change behind the other fields. */
     playerhub_v1_Checkpoint_skeleton_t skeleton;
 } playerhub_v1_Checkpoint;
 
@@ -396,7 +398,7 @@ extern "C" {
 
 /* Initializer values for message structs */
 #define playerhub_v1_FormRef_init_default        {"", 0}
-#define playerhub_v1_Checkpoint_init_default     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, {0}}}
+#define playerhub_v1_Checkpoint_init_default     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, {0}}}
 #define playerhub_v1_Context_init_default        {false, playerhub_v1_FormRef_init_default, false, playerhub_v1_FormRef_init_default, 0, false, playerhub_v1_FormRef_init_default, _playerhub_v1_Shapeshift_MIN, ""}
 #define playerhub_v1_Attack_init_default         {_playerhub_v1_AttackAction_MIN, _playerhub_v1_PowerDirection_MIN}
 #define playerhub_v1_Action_init_default         {0, 0, 0, 0, {playerhub_v1_Attack_init_default}}
@@ -413,7 +415,7 @@ extern "C" {
 #define playerhub_v1_ActiveEffect_init_default   {false, playerhub_v1_FormRef_init_default, 0}
 #define playerhub_v1_Effects_init_default        {0, 0, {playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default, playerhub_v1_ActiveEffect_init_default}}
 #define playerhub_v1_FormRef_init_zero           {"", 0}
-#define playerhub_v1_Checkpoint_init_zero        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, {0}}}
+#define playerhub_v1_Checkpoint_init_zero        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, {0}}}
 #define playerhub_v1_Context_init_zero           {false, playerhub_v1_FormRef_init_zero, false, playerhub_v1_FormRef_init_zero, 0, false, playerhub_v1_FormRef_init_zero, _playerhub_v1_Shapeshift_MIN, ""}
 #define playerhub_v1_Attack_init_zero            {_playerhub_v1_AttackAction_MIN, _playerhub_v1_PowerDirection_MIN}
 #define playerhub_v1_Action_init_zero            {0, 0, 0, 0, {playerhub_v1_Attack_init_zero}}
@@ -444,7 +446,8 @@ extern "C" {
 #define playerhub_v1_Checkpoint_direction_tag    9
 #define playerhub_v1_Checkpoint_flags_tag        10
 #define playerhub_v1_Checkpoint_time_tag         11
-#define playerhub_v1_Checkpoint_skeleton_tag     12
+#define playerhub_v1_Checkpoint_look_pitch_tag   12
+#define playerhub_v1_Checkpoint_skeleton_tag     13
 #define playerhub_v1_Context_interior_cell_tag   1
 #define playerhub_v1_Context_worldspace_tag      2
 #define playerhub_v1_Context_graph_epoch_tag     3
@@ -539,7 +542,8 @@ X(a, STATIC,   SINGULAR, UINT32,   speed,             8) \
 X(a, STATIC,   SINGULAR, UINT32,   direction,         9) \
 X(a, STATIC,   SINGULAR, UINT32,   flags,            10) \
 X(a, STATIC,   SINGULAR, UINT32,   time,             11) \
-X(a, STATIC,   SINGULAR, BYTES,    skeleton,         12)
+X(a, STATIC,   SINGULAR, SINT32,   look_pitch,       12) \
+X(a, STATIC,   SINGULAR, BYTES,    skeleton,         13)
 #define playerhub_v1_Checkpoint_CALLBACK NULL
 #define playerhub_v1_Checkpoint_DEFAULT NULL
 
@@ -758,7 +762,7 @@ extern const pb_msgdesc_t playerhub_v1_Effects_msg;
 #define playerhub_v1_Appearance_size             44260
 #define playerhub_v1_Armor_size                  278
 #define playerhub_v1_Attack_size                 4
-#define playerhub_v1_Checkpoint_size             293
+#define playerhub_v1_Checkpoint_size             299
 #define playerhub_v1_Color_size                  18
 #define playerhub_v1_Context_size                895
 #define playerhub_v1_DefaultOutfit_size          4174

@@ -43,6 +43,7 @@ attack data records.
 | `sync/animation/AnimationSync` | Weapon stance as part of the presentable state; graph epoch |
 | `actor/AttackDispatch` | Attack gating (`CanStart`, `CanChain`, `CanPowerUp`), `Dispatch`, and attack ownership (`Own`, `Advance`) |
 | `actor/HandPresentation` | `ApplyBlock`, `ApplyBowDraw`, `ApplySpellCast`, and their ownership of the graph |
+| `actor/AimPresentation` | The aim target hook that points a remote actor's bow draw and aimed casts along the source's look pitch |
 | `actor/WeaponTransition` | The native draw and sheathe request and its completion ([Locomotion](locomotion.md#components)) |
 | `actor/ActorAnimation` | `GetCombatReadyState`, the graph and stance test every attack and hand presentation start shares |
 | `sync/equipment/SpellStandIn` | Spell hand look capture, resolution, and the stand-in spells |
@@ -586,6 +587,40 @@ locomotion, and a locomotion reassert sends whichever of `moveStart`,
 touching the stance. Without the hold the base locomotion re-enters standing,
 the actor slides, and the graph then rejects the next `moveStop` until its
 retries run out.
+
+### Aim
+
+Goal: a peer sees the source's drawn bow and aimed spells point up or down
+where the source looks. Non-goals: the aim's yaw apart from the body's
+heading, and where the head looks.
+
+The vanilla bow draw and aimed cast behaviors bend the upper body with a
+`BSDirectAtModifier`, whose target comes from `BSDirectAtModifierInterface`
+vfunc 1 (ID 43657, SE 42496). Its mode argument asks for a head-tracking
+target (1) or an aim target (2, 3). For the player, the aim target is the
+player's position plus 4000 units along Euler (`data.angle.x`, 0, heading), so
+the player's aim follows its view pitch. For any other actor it is the aim
+target its movement controller holds from combat (ID 37838), which a remote
+actor never has, so its aim stays level.
+
+- **Capture.** `MovementSync` samples the player's `data.angle.x`
+  (`GetAngleX`, positive looking down), not the mount's, and
+  `GetCheckpointLookPitch` publishes it as the checkpoint's `look_pitch`
+  while `weaponDrawn` is set, and 0 otherwise: nothing else aims, and a
+  sheathed player looking around would defeat the server's
+  [idle suppression](interest-and-delivery.md#rate-classes-and-idle-suppression).
+- **Receiver.** The pose interpolates the look pitch between checkpoints
+  ([Sync pipeline](sync-pipeline.md#checkpoint-playout)), and each pass
+  `MovementSync::SyncLookPitch` hands it to
+  `AimPresentation::SetLookPitch` for the player's own actor, never a mount.
+  It is kept in the actor's `ActorRegistry` registration
+  (`SetLookPitch`, `GetLookPitch`), since the modifier asks from animation
+  workers.
+- **Hook.** `AimPresentation`'s hook answers an aim mode for an actor whose
+  registration has a look pitch with the player's formula, from the remote
+  actor's position and heading and the look pitch. Head tracking, other
+  actors, and a mount, which never has a look pitch, go to Skyrim. The
+  modifier's own gain smooths the target's steps.
 
 ## Shouts and powers
 
@@ -1296,6 +1331,15 @@ Not confirmed at all:
 33. `MagicItem::Copy` gives the copy its own effect entries, as the
     [spell stand-ins](#spell-look) also rely on.
 
+Not confirmed in game for [aim](#aim), read from the 1.7.104 disassembly and
+matched on SE 1.5.97:
+
+34. The vanilla bow draw and aimed cast behaviors take their aim from a
+    `BSDirectAtModifier` in modes 2 and 3, the player's `data.angle.x`
+    follows the camera's pitch in third person while the weapon is drawn, and
+    a remote actor's native spell projectiles leave along its aim
+    (`Actor::GetAimAngle` reads `AimPitchCurrent` while `bAimActive` is set).
+
 ## Acceptance criteria
 
 1. A remote actor converges to the source's drawn or sheathed stance without
@@ -1349,7 +1393,11 @@ Not confirmed at all:
     summons anything. Dragon Aspect's armor art stays on the actor for as long
     as the effect lasts.
 
-12. A peer that sees the source's actor sees the source's invisibility,
+12. A bow drawn or a spell aimed while the source looks up or down points
+    the same way on peers, follows as the source looks around, and returns
+    level when the source looks level. Looking around with the weapon
+    sheathed while standing still sends no checkpoints.
+13. A peer that sees the source's actor sees the source's invisibility,
     ethereal look, light, and the shaders and art of its flesh spells,
     cloaks, potions, abilities, and worn enchantments, once each and for as
     long as the source's last: also as a late joiner, after either player
@@ -1389,9 +1437,12 @@ Not confirmed at all:
   it.
 - Shouts and powers of a riding source are not shown: the voice stage runs
   only for an actor on foot.
-- A native hand's spell aims along the remote actor's facing, not the
-  source's crosshair, so its projectiles and beams may strike elsewhere than
-  on the source. Where it strikes shows nothing, and its hit art and shaders
+- A native hand's spell aims along the remote actor's facing and the
+  source's [look pitch](#aim) from the remote actor's own position, not at
+  what the source's crosshair is on, so its projectiles and beams may strike
+  elsewhere than on the source.
+- A riding source's aim is not shown: hand presentation and the look pitch
+  apply only to an actor on foot. Where it strikes shows nothing, and its hit art and shaders
   on local targets do not show, since its effects never attach there.
 - A remote actor's self effects with an archetype outside the allowlist
   ([Spell world isolation](#spell-world-isolation)) do not show at all, and

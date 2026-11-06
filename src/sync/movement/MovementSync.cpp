@@ -1,5 +1,6 @@
 #include "sync/movement/MovementSync.h"
 #include "actor/ActorMovement.h"
+#include "actor/AimPresentation.h"
 #include "actor/RemoteActor.h"
 #include "forms/FormLookup.h"
 
@@ -98,10 +99,13 @@ namespace MovementSync
         // controller still reports kOnGround.
         const bool grounded = controller && controller->context.currentState == RE::hkpCharacterStateType::kOnGround
             && !a_carrier.IsInRagdollState();
+        // The player's aim, not a mount's.
+        const float lookPitch = SanitizePitch(a_local.player.GetAngleX());
 
         return LocalSample{ .position = position,
             .heading = heading,
             .pitch = pitch,
+            .lookPitch = lookPitch,
             .measuredSpeed = speed,
             .graphSpeed = graphSpeedAvailable ? std::optional<float>{ graphSpeed } : std::nullopt,
             .direction = direction,
@@ -117,6 +121,13 @@ namespace MovementSync
         // An idle checkpoint keeps the measured speed, so a graph Speed still easing
         // to zero does not defeat the server's idle repeat suppression.
         return a_sample.graphSpeed && Multiplayer::IsMoving(a_state) ? *a_sample.graphSpeed : a_sample.measuredSpeed;
+    }
+
+    float GetCheckpointLookPitch(const LocalSample& a_sample, const Multiplayer::AnimationState& a_state)
+    {
+        // Only a drawn weapon or spell aims, and a sheathed player's view would defeat the
+        // server's idle repeat suppression.
+        return a_state.weaponDrawn ? a_sample.lookPitch : 0.0F;
     }
 
     const LocalSpace& SampleLocalSpace(LocalState& a_state, const LocalSample& a_sample)
@@ -197,5 +208,10 @@ namespace MovementSync
         ActorMovement::SetAnimationSample(a_actor, a_remote.pose.sampledSpeed, a_remote.pose.direction);
         ActorMovement::SetTargetTransform(a_actor, a_remote.pose.position, a_remote.pose.heading,
             a_remote.pose.headingRate, a_remote.pose.pitch, a_remote.pose.speed);
+    }
+
+    void SyncLookPitch(const RemoteFrame& a_remote, RemoteActor& a_actor)
+    {
+        AimPresentation::SetLookPitch(a_actor, a_remote.pose.lookPitch);
     }
 }

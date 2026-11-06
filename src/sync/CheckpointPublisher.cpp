@@ -80,6 +80,7 @@ namespace CheckpointPublisher
             .z = movement.position.z,
             .heading = movement.heading,
             .pitch = movement.pitch,
+            .lookPitch = MovementSync::GetCheckpointLookPitch(movement, animationState),
             .speed = MovementSync::GetCheckpointSpeed(movement, animationState.movementState),
             .direction = movement.direction,
             .animationState = animationState,

@@ -64,6 +64,8 @@ namespace ActorRegistry
             bool networkPlaced{ false };
             float authoritativeSpeed{ 0.0F };
             float attackSpeedScale{ 1.0F };
+            // Unset for an actor that takes no aim, such as a mount.
+            std::optional<float> lookPitch;
             bool landingCompletionObservationAllowed{ false };
             bool observeJumpLandEndEvent{ false };
             bool observeWeaponTransitionEndEvent{ false };
@@ -541,6 +543,23 @@ namespace ActorRegistry
         return registration->networkPlaced && !registration->dead
             ? std::optional<float>{ registration->authoritativeSpeed }
             : std::nullopt;
+    }
+
+    void SetLookPitch(const RemoteActor& a_remote, float a_pitch)
+    {
+        SetShared(a_remote, &Registration::lookPitch, std::optional<float>{ a_pitch });
+    }
+
+    std::optional<float> GetLookPitch(const RE::Actor* a_actor)
+    {
+        if (!a_actor)
+        {
+            return std::nullopt;
+        }
+
+        const auto lock = LockSharedUnlessMainThread();
+        const auto* registration = Find(a_actor);
+        return registration ? registration->lookPitch : std::nullopt;
     }
 
     std::optional<GraphInput> FindGraphInput(const RE::IAnimationGraphManagerHolder* a_holder)

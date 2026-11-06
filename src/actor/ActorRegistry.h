@@ -52,6 +52,8 @@ namespace ActorRegistry
     [[nodiscard]] std::optional<float> GetAttackSpeedScale(const RE::Actor* a_actor);
     void SetAuthoritativeSpeed(const RemoteActor& a_remote, float a_speed);
     [[nodiscard]] std::optional<float> GetAuthoritativeSpeed(const RE::Actor* a_actor);
+    void SetLookPitch(const RemoteActor& a_remote, float a_pitch);
+    [[nodiscard]] std::optional<float> GetLookPitch(const RE::Actor* a_actor);
 
     struct GraphInput
     {

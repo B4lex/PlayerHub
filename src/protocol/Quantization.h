@@ -55,6 +55,7 @@ namespace Network
         std::int32_t z{ 0 };
         std::uint32_t heading{ 0 };
         std::int32_t pitch{ 0 };
+        std::int32_t lookPitch{ 0 };
         std::uint32_t speed{ 0 };
         std::uint32_t direction{ 0 };
         std::uint32_t flags{ 0 };
@@ -92,6 +93,16 @@ namespace Network
                 static_cast<double>((std::numeric_limits<std::int32_t>::min)()),
                 static_cast<double>((std::numeric_limits<std::int32_t>::max)())));
         }
+
+        [[nodiscard]] inline std::int32_t QuantizePitch(float a_pitch) noexcept
+        {
+            return std::clamp(RoundToInt32(a_pitch * kPitchScale), -kMaximumQuantizedPitch, kMaximumQuantizedPitch);
+        }
+
+        [[nodiscard]] constexpr bool IsValidQuantizedPitch(std::int32_t a_pitch) noexcept
+        {
+            return a_pitch >= -kMaximumQuantizedPitch && a_pitch <= kMaximumQuantizedPitch;
+        }
     }
 
     [[nodiscard]] inline CheckpointContext GetCheckpointContext(const PlayerTransform& a_transform)
@@ -113,8 +124,6 @@ namespace Network
         {
             heading += kTwoPi;
         }
-        const auto pitch = std::clamp(Detail::RoundToInt32(a_transform.pitch * kPitchScale), -kMaximumQuantizedPitch,
-            kMaximumQuantizedPitch);
         const float speed = std::isfinite(a_transform.speed) ? a_transform.speed : 0.0F;
         const float direction = Multiplayer::NormalizeMovementDirection(a_transform.direction);
 
@@ -153,7 +162,8 @@ namespace Network
             .y = Detail::RoundToInt32(a_transform.y * kPositionScale),
             .z = Detail::RoundToInt32(a_transform.z * kPositionScale),
             .heading = static_cast<std::uint32_t>(std::lround(heading / kTwoPi * kHeadingSteps)) % kHeadingSteps,
-            .pitch = pitch,
+            .pitch = Detail::QuantizePitch(a_transform.pitch),
+            .lookPitch = Detail::QuantizePitch(a_transform.lookPitch),
             .speed = static_cast<std::uint32_t>(std::clamp(std::round(speed), 0.0F,
                 static_cast<float>(kMaximumQuantizedSpeed))),
             .direction = static_cast<std::uint32_t>(std::lround(direction * kDirectionSteps)) % kDirectionSteps,
@@ -167,8 +177,8 @@ namespace Network
     [[nodiscard]] inline bool IsValidQuantizedCheckpoint(const QuantizedCheckpoint& a_checkpoint) noexcept
     {
         using namespace CheckpointFlags;
-        return a_checkpoint.heading < kHeadingSteps && a_checkpoint.pitch >= -kMaximumQuantizedPitch
-            && a_checkpoint.pitch <= kMaximumQuantizedPitch && a_checkpoint.speed <= kMaximumQuantizedSpeed
+        return a_checkpoint.heading < kHeadingSteps && Detail::IsValidQuantizedPitch(a_checkpoint.pitch)
+            && Detail::IsValidQuantizedPitch(a_checkpoint.lookPitch) && a_checkpoint.speed <= kMaximumQuantizedSpeed
             && a_checkpoint.direction < kDirectionSteps && a_checkpoint.time < kSampleTimeModulus
             && (a_checkpoint.flags & ~kKnown) == 0
             && ((a_checkpoint.flags & kCastReleasedLeft) == 0 || (a_checkpoint.flags & kCastingLeft) != 0)
@@ -193,6 +203,7 @@ namespace Network
             .z = static_cast<float>(a_checkpoint.z) / kPositionScale,
             .heading = static_cast<float>(a_checkpoint.heading) * kTwoPi / static_cast<float>(kHeadingSteps),
             .pitch = static_cast<float>(a_checkpoint.pitch) / kPitchScale,
+            .lookPitch = static_cast<float>(a_checkpoint.lookPitch) / kPitchScale,
             .speed = static_cast<float>(a_checkpoint.speed),
             .direction = static_cast<float>(a_checkpoint.direction) / static_cast<float>(kDirectionSteps),
             .animationState = Multiplayer::AnimationState{

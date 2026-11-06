@@ -20,9 +20,9 @@ const (
 )
 
 type Sample struct {
-	X, Y, Z, Heading, Pitch, Speed, Direction float64
-	MovementState                             pb.MovementState
-	Flags                                     pb.CheckpointFlag
+	X, Y, Z, Heading, Pitch, Speed, Direction, LookPitch float64
+	MovementState                                        pb.MovementState
+	Flags                                                pb.CheckpointFlag
 }
 
 func Quantize(s Sample, sequence uint64) *pb.Checkpoint {
@@ -36,11 +36,16 @@ func Quantize(s Sample, sequence uint64) *pb.Checkpoint {
 		Y:         roundInt32(s.Y * PositionScale),
 		Z:         roundInt32(s.Z * PositionScale),
 		Heading:   uint32(math.Round(heading/(2*math.Pi)*HeadingSteps)) % HeadingSteps,
-		Pitch:     int32(max(-MaximumPitch, min(MaximumPitch, math.Round(s.Pitch*PitchScale)))),
+		Pitch:     quantizePitch(s.Pitch),
 		Speed:     uint32(max(0, min(MaximumSpeed, math.Round(s.Speed)))),
 		Direction: uint32(math.Round(max(0, s.Direction)*DirectionSteps)) % DirectionSteps,
 		Flags:     uint32(s.MovementState) | uint32(s.Flags),
+		LookPitch: quantizePitch(s.LookPitch),
 	}
+}
+
+func quantizePitch(v float64) int32 {
+	return int32(max(-MaximumPitch, min(MaximumPitch, math.Round(v*PitchScale))))
 }
 
 func SampleTime(t time.Time) uint32 {

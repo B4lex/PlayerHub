@@ -196,6 +196,7 @@ namespace Network::Wire
                 .z = a_checkpoint.z,
                 .heading = a_checkpoint.heading,
                 .pitch = a_checkpoint.pitch,
+                .lookPitch = a_checkpoint.look_pitch,
                 .speed = a_checkpoint.speed,
                 .direction = a_checkpoint.direction,
                 .flags = a_checkpoint.flags,
@@ -1011,7 +1012,8 @@ namespace Network::Wire
             .speed = a_checkpoint.speed,
             .direction = a_checkpoint.direction,
             .flags = a_checkpoint.flags,
-            .time = a_checkpoint.time };
+            .time = a_checkpoint.time,
+            .look_pitch = a_checkpoint.lookPitch };
         checkpoint.skeleton.size = a_checkpoint.skeleton.size;
         std::copy_n(a_checkpoint.skeleton.bytes.begin(), a_checkpoint.skeleton.size, checkpoint.skeleton.bytes);
         return EncodeClientMessage(playerhub_v1_ClientMessage_checkpoint_tag, playerhub_v1_Checkpoint_fields, &checkpoint);

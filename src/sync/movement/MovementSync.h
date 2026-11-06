@@ -43,6 +43,7 @@ namespace MovementSync
         RE::NiPoint3 position{};
         float heading{ 0.0F };
         float pitch{ 0.0F };
+        float lookPitch{ 0.0F };
         float measuredSpeed{ 0.0F };
         std::optional<float> graphSpeed{};
         float direction{ 0.0F };
@@ -77,6 +78,8 @@ namespace MovementSync
 
     [[nodiscard]] float GetCheckpointSpeed(const LocalSample& a_sample, Multiplayer::MovementState a_state);
 
+    [[nodiscard]] float GetCheckpointLookPitch(const LocalSample& a_sample, const Multiplayer::AnimationState& a_state);
+
     [[nodiscard]] const LocalSpace& SampleLocalSpace(LocalState& a_state, const LocalSample& a_sample);
 
     struct RemoteState
@@ -91,4 +94,6 @@ namespace MovementSync
         const RemoteFrame& a_remote, RE::FormID a_localCellID, RE::FormID a_localWorldspaceID);
 
     void SyncMovement(const RemoteFrame& a_remote, std::uint64_t& a_appliedSequence, RemoteActor& a_actor);
+
+    void SyncLookPitch(const RemoteFrame& a_remote, RemoteActor& a_actor);
 }

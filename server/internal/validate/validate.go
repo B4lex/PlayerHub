@@ -130,6 +130,7 @@ func Message(m *pb.ClientMessage) error {
 
 func Checkpoint(c *pb.Checkpoint) error {
 	if c.GetHeading() > MaximumHeading || c.GetPitch() > MaximumPitch || c.GetPitch() < -MaximumPitch ||
+		c.GetLookPitch() > MaximumPitch || c.GetLookPitch() < -MaximumPitch ||
 		c.GetSpeed() > MaximumSpeed || c.GetDirection() > MaximumDirection || c.GetTime() > MaximumTime ||
 		c.GetFlags()&^knownFlags != 0 || c.GetFlags()&movementStateMask > MaximumMovementState ||
 		!castFlags(c.GetFlags()) || !shoutFlags(c.GetFlags()) || !SkeletonPose(c.GetSkeleton()) {

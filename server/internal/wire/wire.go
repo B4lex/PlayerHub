@@ -14,7 +14,7 @@ const (
 	peerStatesEntryField protowire.Number = 1
 )
 
-const skeletonField protowire.Number = 12
+const skeletonField protowire.Number = 13
 
 // Entry is one checkpoint as a PeerStates entry. A posed one is written per recipient, its
 // skeleton pose as a change from the one that recipient was last written of the player.
@@ -80,7 +80,8 @@ func appendFields(m []byte, slot uint32, c *pb.Checkpoint) []byte {
 	m = appendVarint(m, 8, uint64(c.GetSpeed()))
 	m = appendVarint(m, 9, uint64(c.GetDirection()))
 	m = appendVarint(m, 10, uint64(c.GetFlags()))
-	return appendVarint(m, 11, uint64(c.GetTime()))
+	m = appendVarint(m, 11, uint64(c.GetTime()))
+	return appendZigZag(m, 12, c.GetLookPitch())
 }
 
 func appendEntry(b, body []byte) []byte {
@@ -91,7 +92,7 @@ func appendEntry(b, body []byte) []byte {
 // WithoutSkeleton returns a copy of c without its skeleton pose.
 func WithoutSkeleton(c *pb.Checkpoint) *pb.Checkpoint {
 	return &pb.Checkpoint{Player: c.Player, Sequence: c.Sequence, X: c.X, Y: c.Y, Z: c.Z, Heading: c.Heading,
-		Pitch: c.Pitch, Speed: c.Speed, Direction: c.Direction, Flags: c.Flags, Time: c.Time}
+		Pitch: c.Pitch, Speed: c.Speed, Direction: c.Direction, Flags: c.Flags, Time: c.Time, LookPitch: c.LookPitch}
 }
 
 func AppendPeerStatesHeader(b []byte, entriesLength int) []byte {

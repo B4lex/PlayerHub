@@ -428,8 +428,8 @@ presentation](combat-presentation.md#receiver-queue)).
   first after a reset plays at once, so a peer appears without delay.
   Checkpoints played in the same pass each reach `OnCheckpointPlayed` in order.
   At most 16 wait; beyond that the oldest is dropped.
-- **Pose.** Between the played checkpoint and the next waiting one, position
-  and pitch interpolate linearly and heading along the shorter arc;
+- **Pose.** Between the played checkpoint and the next waiting one, position,
+  pitch, and look pitch interpolate linearly and heading along the shorter arc;
   `RemotePose.speed` is the segment's distance over its duration and
   `headingRate` its turn over its duration (0 once the segment is reached or
   without one). `fraction` is the progress through the segment, 0 without

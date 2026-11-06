@@ -13,9 +13,10 @@ import (
 
 func TestConcatenatedEntriesDecodeAsPeerStates(t *testing.T) {
 	checkpoints := []*pb.Checkpoint{
-		{Sequence: 1, X: -5, Y: 70000, Z: 0, Heading: 4095, Pitch: -1609, Speed: 350, Direction: 128, Flags: 0x1F, Time: 16383},
+		{Sequence: 1, X: -5, Y: 70000, Z: 0, Heading: 4095, Pitch: -1609, Speed: 350, Direction: 128, Flags: 0x1F, Time: 16383,
+			LookPitch: 1609},
 		{Sequence: 1 << 40},
-		{Sequence: 9, X: -2147483648, Y: 2147483647, Pitch: 1609, Speed: 100000, Direction: 255, Flags: 0xFFE,
+		{Sequence: 9, X: -2147483648, Y: 2147483647, Pitch: 1609, Speed: 100000, Direction: 255, Flags: 0xFFE, LookPitch: -1609,
 			Skeleton: randomPose(rand.New(rand.NewPCG(1, 2)), allSkeletonBones).Append(nil)},
 	}
 	var entries []byte
@@ -46,7 +47,7 @@ func TestEntryMatchesGeneratedEncoding(t *testing.T) {
 	random := rand.New(rand.NewPCG(3, 4))
 	for _, skeleton := range [][]byte{nil, randomPose(random, allSkeletonBones&^0b1011).Append(nil)} {
 		c := &pb.Checkpoint{Player: 7, Sequence: 12, X: 3, Y: -4, Z: 5, Heading: 6, Pitch: -7, Speed: 8, Direction: 9,
-			Flags: 10, Time: 11, Skeleton: skeleton}
+			Flags: 10, Time: 11, LookPitch: -12, Skeleton: skeleton}
 		generated, err := proto.MarshalOptions{Deterministic: true}.Marshal(&pb.PeerStates{States: []*pb.Checkpoint{c}})
 		if err != nil {
 			t.Fatal(err)
@@ -80,24 +81,24 @@ func TestPosedEntryCarriesAChangeFromTheReference(t *testing.T) {
 
 func TestWithoutSkeletonKeepsEveryOtherField(t *testing.T) {
 	c := &pb.Checkpoint{Player: 1, Sequence: 2, X: 3, Y: 4, Z: 5, Heading: 6, Pitch: 7, Speed: 8, Direction: 9, Flags: 10,
-		Time: 11, Skeleton: []byte{12}}
+		Time: 11, LookPitch: 12, Skeleton: []byte{13}}
 	want := proto.Clone(c).(*pb.Checkpoint)
 	want.Skeleton = nil
 	if got := WithoutSkeleton(c); !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 	// Every field is set above, so a new field must be added here and to WithoutSkeleton.
-	if fields := c.ProtoReflect().Descriptor().Fields().Len(); fields != 12 {
+	if fields := c.ProtoReflect().Descriptor().Fields().Len(); fields != 13 {
 		t.Fatalf("Checkpoint has %d fields", fields)
 	}
 }
 
 func TestQuantize(t *testing.T) {
-	c := Quantize(Sample{X: 1.375, Y: -1.375, Z: 0.1, Heading: -0.0001, Pitch: 2, Speed: -1, Direction: 0.999,
+	c := Quantize(Sample{X: 1.375, Y: -1.375, Z: 0.1, Heading: -0.0001, Pitch: 2, Speed: -1, Direction: 0.999, LookPitch: -0.5,
 		MovementState: pb.MovementState_MOVEMENT_STATE_SNEAKING_RUNNING,
 		Flags:         pb.CheckpointFlag_CHECKPOINT_FLAG_MOUNTED}, 3)
 	want := &pb.Checkpoint{Sequence: 3, X: 6, Y: -6, Z: 0, Heading: 0, Pitch: 1609, Speed: 0, Direction: 0,
-		Flags: 6 | uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_MOUNTED)}
+		Flags: 6 | uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_MOUNTED), LookPitch: -512}
 	if !proto.Equal(c, want) {
 		t.Fatalf("got %v, want %v", c, want)
 	}

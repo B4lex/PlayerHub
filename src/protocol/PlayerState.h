@@ -23,6 +23,9 @@ namespace Network
         // Skyrim eases a pitching race's controller toward the ground's slope and
         // keeps any other at zero.
         float pitch{ 0.0F };
+        // The player's data.angle.x, positive looking down, which Skyrim aims the
+        // player's bow and spells along.
+        float lookPitch{ 0.0F };
         float speed{ 0.0F };
         float direction{ 0.0F };
         Multiplayer::AnimationState animationState{};

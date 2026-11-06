@@ -1,5 +1,6 @@
 #include "runtime/PluginStartup.h"
 #include "actor/ActorSkeleton.h"
+#include "actor/AimPresentation.h"
 #include "actor/AnimationFirewall.h"
 #include "actor/CombatIsolation.h"
 #include "actor/JumpSound.h"
@@ -35,6 +36,7 @@ namespace PluginStartup
         void InstallRemoteActorHooks()
         {
             AnimationFirewall::InstallHooks();
+            AimPresentation::InstallHooks();
             SurvivalPolicy::InstallHooks();
             CombatIsolation::InstallHooks();
             SpellIsolation::InstallHooks();
@@ -46,8 +48,8 @@ namespace PluginStartup
 
             logs::info(
                 "Installed remote-replica actor policy, damage/kill firewall, magic firewall, spell world isolation, "
-                "animation firewall, alias and scene package suppression, reaction suppression, pass-through "
-                "collision, jump sound attenuation, and skeleton pose replacement");
+                "animation firewall, aim targets, alias and scene package suppression, reaction suppression, "
+                "pass-through collision, jump sound attenuation, and skeleton pose replacement");
         }
 
         void OnDataLoaded()
