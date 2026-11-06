@@ -47,7 +47,7 @@ attack data records.
 | `actor/ActorAnimation` | `GetCombatReadyState`, the graph and stance test every attack and hand presentation start shares |
 | `sync/equipment/SpellStandIn` | Spell hand look capture, resolution, and the stand-in spells |
 | `actor/SpellIsolation` | Spell fire and cast hooks, and the hooks that keep a remote actor's magic, projectiles, explosions, and hazards from acting on the local world |
-| `actor/SelfEffects` | Which of a remote actor's own effects may stay on it (the self allowlist, `kIgnoredEffects`, effects a sync stage owns) and which are presented from the source's active effects (`IsPresented`) |
+| `actor/SelfEffects` | Which of a remote actor's own effects may stay on it (the self allowlist, `kActorScriptEffects`, `kIgnoredEffects`, effects a sync stage owns) and which are presented from the source's active effects (`IsPresented`) |
 | `sync/effects/EffectSync` | Source capture and publishing of the presented active effects; receiver hold, resolution, and reconciliation |
 | `actor/EffectPresentation` | The runtime spells that carry presented effects, and their application to and removal from a remote actor |
 | `actor/GameplayPolicy` | The `[Gameplay]` values for hooks on any thread, the source classification, and `MayAffectWorld` ([Isolation settings](#isolation-settings)) |
@@ -893,6 +893,7 @@ actor; and spawned hazards, which are placed once when their effect starts.
 
 - **Presented effects.** `SelfEffects::IsPresented`: a constant or
   fire-and-forget effect, neither hostile nor detrimental, of a self archetype
+  or in `kActorScriptEffects`
   ([Spell world isolation](#spell-world-isolation)) other than `kSpawnHazard`,
   not one a sync stage owns, that shows: of archetype `kInvisibility`,
   `kLight`, or `kEtherealize`, or with a hit shader, enchant shader, hit effect
@@ -997,7 +998,7 @@ so a hazard cast around the caster acts for it.
 
 | Hook (1.7.104, SE) | Drops for a remote source |
 | --- | --- |
-| `MagicTarget::AddTarget` (vfunc 1) of `Character` and `PlayerCharacter` (both ID 38786, SE 37832, chained after the [magic firewall](remote-actor.md#survival-and-ai-policy)) and `NonActorMagicTarget` (vtable 1, its `MagicTarget` base at +0x10; vtable 0 is `BSExtraData`) | Any effect on another actor or an object, and on the caster itself any archetype but value modifiers (`kValueModifier`, `kDualValueModifier`, `kPeakValueModifier`, `kValueAndParts`, `kAccumulateMagnitude`), `kInvisibility`, `kLight`, `kNightEye`, `kEtherealize`, `kDisguise`, `kCloak`, and `kSpawnHazard` (not for a shout or power), except an effect in `kIgnoredEffects`; on the caster also a presented effect from anything but its [active effect](#active-effects) spell. Returns false, as the magic firewall does |
+| `MagicTarget::AddTarget` (vfunc 1) of `Character` and `PlayerCharacter` (both ID 38786, SE 37832, chained after the [magic firewall](remote-actor.md#survival-and-ai-policy)) and `NonActorMagicTarget` (vtable 1, its `MagicTarget` base at +0x10; vtable 0 is `BSExtraData`) | Any effect on another actor or an object, and on the caster itself any archetype but value modifiers (`kValueModifier`, `kDualValueModifier`, `kPeakValueModifier`, `kValueAndParts`, `kAccumulateMagnitude`), `kInvisibility`, `kLight`, `kNightEye`, `kEtherealize`, `kDisguise`, `kCloak`, `kSpawnHazard` (not for a shout or power), and the `kScript` effects in `kActorScriptEffects`, except an effect in `kIgnoredEffects`; on the caster also a presented effect from anything but its [active effect](#active-effects) spell. Returns false, as the magic firewall does |
 | Projectile spell impact (ID 34412, SE 33634) `(caster, location, projectile, target, …)`, call detours in its callers: `Projectile::ProcessImpacts` (ID 44123, SE 42943), the beam, flame, and arrow impacts (ID 44206, SE 43015), and a lobber's detonation (ID 34411, SE 33633) | The spell where a projectile struck. Every impact casts through it with the shooter's own caster. This includes target-location summons |
 | HitData processing (ID 38586, SE 37633) `(target, hitData)` | A hit whose `aggressor` is remote: damage, stagger, hit impulse, hit effects, `TESHitEvent`. Spell projectiles (ID 44123 + 0x269), beams (ID 44204 + 0x3AA), and explosions (ID 43849 + 0x412) reach it without the actor hit hook |
 | `TaskQueueInterface::QueueUpdateDestructibleObject` (ID 36909, SE 35934), call detours in its callers: IDs 14168, 25818, 44123 (`ProcessImpacts`), and 56107 (SE 14069, 25298, 42943, 55578) | Destruction damage whose cause is a remote source |
@@ -1054,6 +1055,17 @@ the remote actor or the hazard as their source, so the aura and the hazard
 around the caster show while their effects are dropped. The allowlist applies to every effect
 whose source is the remote actor itself, including its abilities and
 equipment enchantments.
+
+`kActorScriptEffects` lets through the vanilla `kScript` effects a player can
+have that show and whose scripts act on the actor alone, read from
+`Skyrim.esm`, `Dragonborn.esm`, USSEP, and their scripts: Philter of the
+Phantom's `AbGhostPotionEffect` (`Skyrim.esm` `0x103647`, a ghost shader and
+`magicSetActorAlphaScript`), Shadowcloak of Nocturnal's shader effect (no
+vanilla script; USSEP's only dispels the caster's own spell), the Blades
+potion's and the home-cooked meal's shader effects (no script), and the Black
+Book powers and abilities, the Tree Stone power, and the Apocrypha reward
+effect (`magicSoundPlayIntroOutro`). Each entry must still be of `kScript`, so
+a mod that changes its archetype falls back to the archetype allowlist.
 
 A shout's or power's spawned hazard is dropped too (`SelfEffects::IsSelfContained`),
 because the vanilla ones run scripts on the caster that change the world:
@@ -1363,8 +1375,9 @@ Not confirmed at all:
   `kIgnoredEffects` and still runs.
 - A power the peer does not have shows nothing.
 - A lasting look made by a script, such as Dragon Aspect's armor or Mist
-  Form's alpha, or by an archetype outside the self allowlist shows only from
-  a cast the peer sees, not as an [active effect](#active-effects).
+  Form's alpha, or by an archetype outside the self allowlist and
+  `kActorScriptEffects` shows only from a cast the peer sees, not as an
+  [active effect](#active-effects).
 - An active effect applied from state, for a late joiner or a respawned
   actor, starts again: its shader's fade-in and its sounds play then, and its
   remaining duration is not shown.

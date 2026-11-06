@@ -152,7 +152,7 @@ namespace SpellIsolation
 
         // Returns false when a remote actor's magic must not attach to the target.
         // While its source is isolated, that is anything but the caster itself, and
-        // on the caster anything but self-contained archetypes.
+        // on the caster anything but self-contained effects.
         bool MayAddTarget(RE::MagicTarget* a_target, const RE::MagicTarget::AddTargetData& a_data,
             std::string_view a_path)
         {

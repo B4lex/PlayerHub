@@ -40,7 +40,7 @@ namespace SelfEffects
         // change the world: Storm Call's set the weather (magicSetWeatherScript) and
         // place activators that cast lightning (magicProjectileStormScript), and the Wind
         // Stone power's places an activator (magicPlaceActivatorScript).
-        struct IgnoredEffect
+        struct EffectReference
         {
             std::string_view plugin;
             RE::FormID localFormID;
@@ -50,27 +50,62 @@ namespace SelfEffects
         // VoiceMakeEthereal's magicImodScript applies its image space modifiers to the
         // local screen whichever actor the effect is on.
         constexpr std::array kIgnoredEffects{
-            IgnoredEffect{ .plugin = "Skyrim.esm", .localFormID = 0x064D68 },
+            EffectReference{ .plugin = "Skyrim.esm", .localFormID = 0x064D68 },
         };
 
+        // kScript effects a player can have that show and whose scripts act on the
+        // actor alone: none, magicSetActorAlphaScript (SetAlpha on the target), or
+        // magicSoundPlayIntroOutro (sounds played at the target). USSEP's
+        // USSEP_TG09ShadowCloakScript on 0x017121 only dispels the caster's own
+        // TGNightingaleShadow when the effect finishes.
+        constexpr std::array kActorScriptEffects{
+            EffectReference{ .plugin = "Skyrim.esm", .localFormID = 0x103647 },      // AbGhostPotionEffect
+            EffectReference{ .plugin = "Skyrim.esm", .localFormID = 0x017121 },      // TGNightingaleShadowFFSelf
+            EffectReference{ .plugin = "Skyrim.esm", .localFormID = 0x0E6DF4 },      // BladesAlchPotion
+            EffectReference{ .plugin = "Skyrim.esm", .localFormID = 0x0F5FF6 },      // MarriageFoodMagicEffect
+            EffectReference{ .plugin = "Dragonborn.esm", .localFormID = 0x01E7FF },  // DLC2BlackBookNoDamageEffect
+            EffectReference{ .plugin = "Dragonborn.esm", .localFormID = 0x01E7FC },  // DLC2BlackBookNoMagickaEffect
+            EffectReference{ .plugin = "Dragonborn.esm", .localFormID = 0x01E7F9 },  // DLC2BlackBookNoStaminaEffect
+            EffectReference{ .plugin = "Dragonborn.esm", .localFormID = 0x034833 },  // DLC2BlackBookSeekerCombatEffect
+            EffectReference{ .plugin = "Dragonborn.esm", .localFormID = 0x034835 },  // DLC2BlackBookSeekerMagicEffect
+            EffectReference{ .plugin = "Dragonborn.esm", .localFormID = 0x034836 },  // DLC2BlackBookSeekerStealthEffect
+            EffectReference{ .plugin = "Dragonborn.esm", .localFormID = 0x01DFAA },  // DLC2StandingStoneTreeEffect
+            EffectReference{ .plugin = "Dragonborn.esm", .localFormID = 0x029A25 },  // DLC2ApocryphaRewardCastingEffect
+        };
+
+        template <std::size_t N>
+        std::array<RE::FormID, N> LookupEffects(const std::array<EffectReference, N>& a_references)
+        {
+            std::array<RE::FormID, N> formIDs{};
+            if (auto* dataHandler = RE::TESDataHandler::GetSingleton())
+            {
+                for (std::size_t index = 0; index < N; ++index)
+                {
+                    const auto& entry = a_references[index];
+                    formIDs[index] = dataHandler->LookupFormID(entry.localFormID, entry.plugin);
+                }
+            }
+            return formIDs;
+        }
+
+        // Remote magic reaches a target, and the player's effects are captured, only
+        // after the data has loaded.
         bool IsIgnoredEffect(const RE::EffectSetting& a_effect)
         {
-            // Remote magic reaches a target, and the player's effects are captured,
-            // only after the data has loaded.
-            static const auto ignored = [] {
-                std::array<RE::FormID, kIgnoredEffects.size()> formIDs{};
-                if (auto* dataHandler = RE::TESDataHandler::GetSingleton())
-                {
-                    for (std::size_t index = 0; index < kIgnoredEffects.size(); ++index)
-                    {
-                        const auto& entry = kIgnoredEffects[index];
-                        formIDs[index] = dataHandler->LookupFormID(entry.localFormID, entry.plugin);
-                    }
-                }
-                return formIDs;
-            }();
-            const auto formID = a_effect.GetFormID();
-            return std::ranges::find(ignored, formID) != ignored.end();
+            static const auto formIDs = LookupEffects(kIgnoredEffects);
+            return std::ranges::find(formIDs, a_effect.GetFormID()) != formIDs.end();
+        }
+
+        bool IsActorScriptEffect(const RE::EffectSetting& a_effect)
+        {
+            static const auto formIDs = LookupEffects(kActorScriptEffects);
+            return a_effect.GetArchetype() == Archetype::kScript
+                && std::ranges::find(formIDs, a_effect.GetFormID()) != formIDs.end();
+        }
+
+        bool IsSelfContainedEffect(const RE::EffectSetting& a_effect)
+        {
+            return IsSelfContainedArchetype(a_effect.GetArchetype()) || IsActorScriptEffect(a_effect);
         }
 
         // Lights, invisibility's refraction, and the ethereal shader come from the
@@ -106,7 +141,7 @@ namespace SelfEffects
     bool IsSelfContained(const RE::EffectSetting& a_effect, const RE::MagicItem* a_item)
     {
         const auto archetype = a_effect.GetArchetype();
-        return IsSelfContainedArchetype(archetype)
+        return IsSelfContainedEffect(a_effect)
             && !(archetype == Archetype::kSpawnHazard && IsVoiceOrPower(a_item)) && !IsIgnoredEffect(a_effect);
     }
 
@@ -133,6 +168,6 @@ namespace SelfEffects
         const auto archetype = a_effect.GetArchetype();
         return (castingType == CastingType::kConstantEffect || castingType == CastingType::kFireAndForget)
             && !a_effect.IsHostile() && !a_effect.IsDetrimental() && archetype != Archetype::kSpawnHazard
-            && IsSelfContainedArchetype(archetype) && !IsPresentationOwned(a_effect) && HasLook(a_effect);
+            && IsSelfContainedEffect(a_effect) && !IsPresentationOwned(a_effect) && HasLook(a_effect);
     }
 }
