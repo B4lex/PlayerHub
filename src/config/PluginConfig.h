@@ -125,10 +125,8 @@ namespace Config
     {
         bool showSpellEffects{ true };
         bool showShoutEffects{ true };
-        bool showImpactEffects{ false };
         bool isolateSpellEffects{ true };
         bool isolateShoutEffects{ true };
-        bool isolateAttacks{ true };
         bool disableCollision{ true };
 
         bool operator==(const GameplaySettings&) const = default;

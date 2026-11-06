@@ -44,7 +44,7 @@ attack data records.
 | `actor/ActorAnimation` | `GetCombatReadyState`, the graph and stance test every attack and hand presentation start shares |
 | `sync/equipment/SpellStandIn` | Spell hand look capture, resolution, and the stand-in spells |
 | `actor/SpellIsolation` | Spell fire and cast hooks, and the hooks that keep a remote actor's magic, projectiles, explosions, and hazards from acting on the local world |
-| `actor/GameplayPolicy` | The `[Gameplay]` values for hooks on any thread, the source classification, and `MayAffect`/`MayAffectWorld` ([Isolation settings](#isolation-settings)) |
+| `actor/GameplayPolicy` | The `[Gameplay]` values for hooks on any thread, the source classification, and `MayAffectWorld` ([Isolation settings](#isolation-settings)) |
 | `sync/voice/VoiceSync` | Source shout and power capture and publishing; receiver power queue and the shout stage |
 | `actor/VoicePresentation` | `ApplyShout`, `CastPower`, `Release`: the actor's native shout and power casts and their ownership of the voice graph events |
 | `actor/AnimationEvents.h` | Event names and `GetPowerAttackEventDirection` |
@@ -900,8 +900,8 @@ Goal: a native hand's spell, shout, or power shows its cast, its flight, and
 its effects on the caster, and, while isolated (the default,
 [Isolation settings](#isolation-settings)), leaves no trace in the
 receiver's world. Projectiles, beams, and sprays fly and vanish where they
-strike, without an explosion, impact art, particles, decal, sound, or light
-unless `[Gameplay] ShowImpactEffects` shows them; a rune is never launched, and a wall
+strike, without an explosion, impact art, particles, decal, sound, or light;
+a rune is never launched, and a wall
 spell places no flames. Self effects that stay on the caster (a flesh spell's
 shader, Candlelight, invisibility, a cloak's aura, a ward, and a hazard cast
 around the caster, such as Blizzard or Circle of Protection) apply to the
@@ -1000,11 +1000,13 @@ already drops.
 
 ### Isolation settings
 
-Goal: each player decides how far other players' spells, shouts, and attacks
-reach into their own world, and whether their spell and shout effects show.
-The defaults show the effects and keep the world isolated. Non-goal: remote
-spells or shouts that reach the local player alone; a spell or shout that is
-not isolated acts on the whole local world.
+Goal: each player decides how far other players' spells and shouts reach
+into their own world, and whether their effects show. The defaults show the
+effects and keep the world isolated. Non-goals: remote spells or shouts that
+reach the local player alone, since a spell or shout that is not isolated acts
+on the whole local world; remote weapon attacks that land, which
+[combat isolation](remote-actor.md#combat-isolation) always drops; and impact
+effects shown for an isolated projectile.
 
 `GameplayPolicy` holds the `[Gameplay]` values
 ([Configuration](configuration.md#gameplay)) in atomics that `Update` writes
@@ -1024,27 +1026,18 @@ so the hooks read them on any thread and a change applies from the next pass.
   it has a `weapon` or the melee or bash flag, else a spell.
 - **Reach.** `MayAffectWorld` is true for a spell while
   `IsolateSpellEffects` is off and for a shout while `IsolateShoutEffects`
-  is off, and never for an attack. `MayAffect(source, target)` is that,
-  and for an attack also true when the target is the local player and
-  attacks reach it ([Remote actor](remote-actor.md#attacks-on-the-local-player)).
-- **Hooks.** The `SpellIsolation` hooks that act on one target or place
-  (`AddTarget` on anything but the caster, the projectile spell impact,
-  HitData processing, destructible damage, impact effects) drop what
-  `MayAffect` refuses; those that act on the world around a projectile or
-  explosion (impact impulse, cone hits, explosion targets and forces, the
-  rune launch, the explosion factory) drop what `MayAffectWorld` refuses.
+  is off, and never for an attack, so a weapon's enchantment or poison and
+  an arrow never reach anything.
+- **Hooks.** The `SpellIsolation` hooks (`AddTarget` on anything but the
+  caster, the projectile spell impact, HitData processing, destructible
+  damage, impact effects, impact impulse, cone hits, explosion targets and
+  forces, the rune launch, the explosion factory) drop what `MayAffectWorld`
+  refuses for their source.
   On the caster, `AddTarget` passes a self-contained effect as above and, while
   its source may affect the world, any other effect but those a sync stage
   owns: bound weapons (equipment), werewolf and vampire lord transformations
   (shapeshifts), and `kIgnoredEffects`. HitData processing always drops a
   remote aggressor's hit on a remote actor.
-- **Impact effects.** While `ShowImpactEffects` is on, the impact effects
-  hook passes every remote projectile's impact, and the explosion factory
-  creates the explosion of a projectile whose source is isolated with
-  `kTargetsProcessed` and `kForcesApplied` already set, so the explosion
-  update shows it and never processes its targets or forces, whatever the
-  explosion's own classification. The impact's hazard is placed and acts for
-  the remote actor, so its spell is dropped where it reaches a target.
 - **Hidden effects.** `ShowSpellEffects` off makes every hand a stand-in
   ([Spell look](#spell-look)), and the spell fire hook suppresses a native
   hand's fire until the hands are resolved again. `ShowShoutEffects` off
@@ -1189,10 +1182,7 @@ from the 1.7.104 disassembly):
 28. The voice fire handler (ID 42818) runs spell fire on the voice caster in
     `kPrecast` and enters `kPostcast` (ID 39526) when it returns true, resets
     the voice (ID 39524) when it returns false.
-29. An explosion whose `kTargetsProcessed` and `kForcesApplied` are set when
-    the factory returns shows its art, light, sound, and image space without
-    damaging, staggering, enchanting, or pushing anything.
-30. A ranged hit's HitData `sourceRef` is its projectile or explosion, an
+29. A ranged hit's HitData `sourceRef` is its projectile or explosion, an
     explosion from exploding ammunition keeps the `weaponSource`, and a spell
     explosion's `magicCaster` holds the spell once it applies it.
 
@@ -1284,8 +1274,6 @@ from the 1.7.104 disassembly):
 - A hazard's effects go by the hazard's own spell, and an explosion without
   a caster's spell counts as a spell, so a shout's hazard or explosion
   follows `IsolateSpellEffects` rather than `IsolateShoutEffects`.
-- Impact effects shown for an isolated projectile still mark the struck
-  reference with the remote actor as its cause.
 - A native hand's light is the spell's own, not its
   [fake light](appearance-and-equipment.md#fake-lights) version, so a spell
   whose hand light casts shadows takes a shadow-casting light slot.

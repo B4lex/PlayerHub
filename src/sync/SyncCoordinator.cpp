@@ -4,7 +4,6 @@
 #include "actor/AttackDispatch.h"
 #include "actor/GameplayPolicy.h"
 #include "actor/PrecisionIsolation.h"
-#include "actor/RemoteCollision.h"
 #include "actor/RemoteLights.h"
 #include "network/ServerClient.h"
 #include "runtime/GameThread.h"
@@ -552,7 +551,6 @@ namespace SyncCoordinator
             return;
         }
 
-        RemoteCollision::TrackLocalPlayer(*a_player);
         YieldActivatedFurniture(s_peers, *a_player);
         OpenActivatedPlayerMenu(s_peers);
         const bool inWorld = PresenceSync::SyncPresence(LocalFrame{ .player = *a_player });

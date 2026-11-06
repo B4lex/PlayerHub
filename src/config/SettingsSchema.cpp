@@ -285,16 +285,12 @@ namespace Config
                 Id::kGameplayShowSpellEffectsComment);
             a_visitor.Bool("ShowShoutEffects", Id::kGameplayShowShoutEffects, a_settings.showShoutEffects,
                 Id::kGameplayShowShoutEffectsComment);
-            a_visitor.Bool("ShowImpactEffects", Id::kGameplayShowImpactEffects, a_settings.showImpactEffects,
-                Id::kGameplayShowImpactEffectsComment);
 
             a_visitor.Comment(Id::kGameplayGroupIsolation);
             a_visitor.Bool("IsolateSpellEffects", Id::kGameplayIsolateSpellEffects, a_settings.isolateSpellEffects,
                 Id::kGameplayIsolateSpellEffectsComment);
             a_visitor.Bool("IsolateShoutEffects", Id::kGameplayIsolateShoutEffects, a_settings.isolateShoutEffects,
                 Id::kGameplayIsolateShoutEffectsComment);
-            a_visitor.Bool("IsolateAttacks", Id::kGameplayIsolateAttacks, a_settings.isolateAttacks,
-                Id::kGameplayIsolateAttacksComment);
             a_visitor.Bool("DisableCollision", Id::kGameplayDisableCollision, a_settings.disableCollision,
                 Id::kGameplayDisableCollisionComment);
         }

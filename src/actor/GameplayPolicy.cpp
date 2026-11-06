@@ -14,10 +14,8 @@ namespace GameplayPolicy
         // Each flag stands alone, so relaxed order is enough.
         std::atomic_bool s_showSpellEffects{ kDefaults.showSpellEffects };
         std::atomic_bool s_showShoutEffects{ kDefaults.showShoutEffects };
-        std::atomic_bool s_showImpactEffects{ kDefaults.showImpactEffects };
         std::atomic_bool s_isolateSpellEffects{ kDefaults.isolateSpellEffects };
         std::atomic_bool s_isolateShoutEffects{ kDefaults.isolateShoutEffects };
-        std::atomic_bool s_isolateAttacks{ kDefaults.isolateAttacks };
         std::atomic_bool s_disableCollision{ kDefaults.disableCollision };
 
         std::optional<std::uint64_t> s_configRevision;
@@ -50,16 +48,13 @@ namespace GameplayPolicy
         s_applied = settings;
         Store(s_showSpellEffects, settings.showSpellEffects);
         Store(s_showShoutEffects, settings.showShoutEffects);
-        Store(s_showImpactEffects, settings.showImpactEffects);
         Store(s_isolateSpellEffects, settings.isolateSpellEffects);
         Store(s_isolateShoutEffects, settings.isolateShoutEffects);
-        Store(s_isolateAttacks, settings.isolateAttacks);
         Store(s_disableCollision, settings.disableCollision);
-        logs::debug("Gameplay policy: showSpellEffects={} showShoutEffects={} showImpactEffects={} "
-                    "isolateSpellEffects={} isolateShoutEffects={} isolateAttacks={} disableCollision={}",
-            settings.showSpellEffects, settings.showShoutEffects, settings.showImpactEffects,
-            settings.isolateSpellEffects, settings.isolateShoutEffects, settings.isolateAttacks,
-            settings.disableCollision);
+        logs::debug("Gameplay policy: showSpellEffects={} showShoutEffects={} isolateSpellEffects={} "
+                    "isolateShoutEffects={} disableCollision={}",
+            settings.showSpellEffects, settings.showShoutEffects, settings.isolateSpellEffects,
+            settings.isolateShoutEffects, settings.disableCollision);
     }
 
     bool ShowsSpellEffects()
@@ -70,16 +65,6 @@ namespace GameplayPolicy
     bool ShowsShoutEffects()
     {
         return Load(s_showShoutEffects);
-    }
-
-    bool ShowsImpactEffects()
-    {
-        return Load(s_showImpactEffects);
-    }
-
-    bool AttacksReachPlayer()
-    {
-        return !Load(s_isolateAttacks);
     }
 
     bool DisablesCollision()
@@ -162,15 +147,6 @@ namespace GameplayPolicy
         default:
             return false;
         }
-    }
-
-    bool MayAffect(Source a_source, const RE::TESObjectREFR* a_target)
-    {
-        if (a_source == Source::kAttack)
-        {
-            return a_target && a_target->IsPlayerRef() && AttacksReachPlayer();
-        }
-        return MayAffectWorld(a_source);
     }
 
     bool ShowsNativeFire(const RE::MagicItem* a_spell)

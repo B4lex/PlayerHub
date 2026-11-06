@@ -259,7 +259,7 @@ namespace SpellIsolation
                     return true;
                 }
             }
-            else if (GameplayPolicy::MayAffect(source, a_target->GetTargetStatsObject()))
+            else if (GameplayPolicy::MayAffectWorld(source))
             {
                 return true;
             }
@@ -326,7 +326,7 @@ namespace SpellIsolation
                 RE::TESObjectREFR* a_target, float a_arg5, float a_arg6, bool a_arg7, bool a_arg8)
             {
                 if (IsRemoteProjectile(a_projectile)
-                    && !GameplayPolicy::MayAffect(GameplayPolicy::Classify(*a_projectile), a_target))
+                    && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_projectile)))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     LogSuppressed(suppressedCount, "SpellImpact", a_projectile, a_target);
@@ -360,7 +360,7 @@ namespace SpellIsolation
             {
                 if (ActorRegistry::IsRegistered(a_hitData.aggressor)
                     && (ActorRegistry::IsRegistered(a_target)
-                        || !GameplayPolicy::MayAffect(ClassifyHit(a_hitData), a_target)))
+                        || !GameplayPolicy::MayAffectWorld(ClassifyHit(a_hitData))))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     LogSuppressed(suppressedCount, "HitData", nullptr, a_target);
@@ -379,7 +379,7 @@ namespace SpellIsolation
             static void Thunk(RE::TaskQueueInterface* a_queue, RE::TESObjectREFR* a_ref, float a_damage, bool a_arg4,
                 RE::TESObjectREFR* a_cause)
             {
-                if (IsRemoteSource(a_cause) && !GameplayPolicy::MayAffect(GameplayPolicy::Classify(*a_cause), a_ref))
+                if (IsRemoteSource(a_cause) && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_cause)))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     LogSuppressed(suppressedCount, "Destructible", a_cause, a_ref);
@@ -514,8 +514,8 @@ namespace SpellIsolation
             static void Thunk(RE::Projectile* a_projectile, RE::TESObjectREFR* a_target, void* a_impact,
                 void* a_arg4, std::uint32_t a_arg5, bool a_arg6)
             {
-                if (IsRemoteProjectile(a_projectile) && !GameplayPolicy::ShowsImpactEffects()
-                    && !GameplayPolicy::MayAffect(GameplayPolicy::Classify(*a_projectile), a_target))
+                if (IsRemoteProjectile(a_projectile)
+                    && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_projectile)))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     LogSuppressed(suppressedCount, "ImpactEffects", a_projectile, a_target);
@@ -530,9 +530,7 @@ namespace SpellIsolation
         // The explosion factory (ID 43829, SE 42657) as the projectile update calls
         // it (ID 44216 + 0x3C8, SE 43025 + 0x39F): that call fills a creation
         // record, with the projectile at +0x20, and treats a null explosion as
-        // none, killing the projectile as it would after one. The explosion update
-        // processes targets until kTargetsProcessed and applies forces until
-        // kForcesApplied, so an explosion created with both set acts on nothing.
+        // none, killing the projectile as it would after one.
         struct ProjectileExplosionHook
         {
             static constexpr std::ptrdiff_t kRecordProjectileOffset = 0x20;
@@ -547,17 +545,7 @@ namespace SpellIsolation
                 }
                 static std::atomic_uint32_t suppressedCount{ 0 };
                 LogSuppressed(suppressedCount, "ProjectileExplosion", projectile, nullptr);
-                if (!GameplayPolicy::ShowsImpactEffects())
-                {
-                    return nullptr;
-                }
-                auto* explosion = _original(a_record);
-                if (explosion)
-                {
-                    using Flags = RE::Explosion::Flags;
-                    explosion->GetExplosionRuntimeData().flags.set(Flags::kTargetsProcessed, Flags::kForcesApplied);
-                }
-                return explosion;
+                return nullptr;
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;

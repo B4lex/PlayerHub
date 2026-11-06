@@ -250,9 +250,10 @@ the arrows, has that word in the game's language.
 ### `[Gameplay]`
 
 How other players' actions show and how far they reach into the local
-world, in two groups: Effects (`ShowSpellEffects`, `ShowShoutEffects`,
-`ShowImpactEffects`) and Isolation (`IsolateSpellEffects`,
-`IsolateShoutEffects`, `IsolateAttacks`, `DisableCollision`). Each applies to
+world, in two groups: Effects (`ShowSpellEffects`, `ShowShoutEffects`) and
+Isolation (`IsolateSpellEffects`, `IsolateShoutEffects`, `DisableCollision`).
+Remote weapon attacks have no setting: they always hit nothing
+([Remote actor](remote-actor.md#combat-isolation)). Each applies to
 what this client shows of remote actors, not to what peers see of the local
 player. `GameplayPolicy` follows the section for the hooks that read it.
 
@@ -260,11 +261,9 @@ player. `GameplayPolicy` follows the section for the hooks that read it.
 | --- | --- | --- |
 | `ShowSpellEffects` | Remote hands may hold the receiver's own spell, whose fire shows natively; off, every hand holds a stand-in, which shows the cast and the spell's look in hand only ([Combat presentation](combat-presentation.md#spells)) | `true` |
 | `ShowShoutEffects` | Remote shouts and powers fire their spells; off, a shout still charges, speaks its words, and plays its release, without its breath, wave, projectile, or self effects, and a power casts nothing ([Combat presentation](combat-presentation.md#shout-and-power-receiver)) | `true` |
-| `ShowImpactEffects` | An isolated remote projectile shows its explosion and impact effects where it strikes, acting on nothing; off, it vanishes there ([Combat presentation](combat-presentation.md#spell-world-isolation)) | `false` |
 | `IsolateSpellEffects` | Remote spells act on nothing; off, they act on the local world as a local NPC's would ([Combat presentation](combat-presentation.md#isolation-settings)) | `true` |
 | `IsolateShoutEffects` | The same for remote shouts and powers | `true` |
-| `IsolateAttacks` | Remote weapon attacks hit nothing and bows shoot no arrows; off, swings, bashes, and arrows hit the local player and nothing else ([Remote actor](remote-actor.md#attacks-on-the-local-player)) | `true` |
-| `DisableCollision` | The local player passes through remote actors; off, a network-placed remote actor or mount blocks the local player, and only the local player ([Remote actor](remote-actor.md#solid-to-the-local-player)) | `true` |
+| `DisableCollision` | The local player passes through remote actors; off, a network-placed remote actor or mount collides as a local NPC does, with the local player, NPCs, projectiles, clutter, traps, and trigger volumes ([Remote actor](remote-actor.md#solid-remote-actors)); weapon hits between them still do not land | `true` |
 
 ### `[Advanced]`
 

@@ -6,9 +6,8 @@ The [skeleton pose](#skeleton-pose) slots have not run with more posed players
 than `[Advanced] CustomAnimationPlayers`, and dropping edge probes before a
 window has not triggered in a capture. [Reaction windows](#source-window)
 (staggers, kill moves) have not run in game; a paralysis knockdown has.
-[Attacks on the local player](#attacks-on-the-local-player) and
-[solid remote actors](#solid-to-the-local-player), the non-default values of
-`[Gameplay] IsolateAttacks` and `DisableCollision`, have not run in game.
+[Solid remote actors](#solid-remote-actors), the non-default value of
+`[Gameplay] DisableCollision`, have not run in game.
 
 ## Scope
 
@@ -35,17 +34,17 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/ActorSpawner` | Create, remove, and save-exclude a remote actor reference |
 | `actor/ActorRuntime` | Readiness and the fixed per-actor engine update, for actors, riders, and mounts |
 | `actor/RemoteActor.h` | The replicated instance: handle, readiness, and `ActorMovement`, `ActorAnimation`, `ActorFurniture` state |
-| `actor/ActorRegistry` | Registered identity and per-actor flags, queried under a lock by hooks on any thread, and the solid character groups the collision filter reads without it |
+| `actor/ActorRegistry` | Registered identity and per-actor flags, queried under a lock by hooks on any thread |
 | `actor/AnimationFirewall` | Rejects locally injected graph events; network dispatch bypasses it |
 | `actor/GraphRecovery` | Detects a local hit reaction and reverts the graph or resets 3D ([Graph recovery](#graph-recovery)) |
 | `actor/SurvivalPolicy` | Actor flags, combat sanitization, package takeover, damage, kill, and magic guards |
-| `actor/CombatIsolation` | Hostility, combat start, melee, actor, and object hit, and arrow release hooks |
+| `actor/CombatIsolation` | Hostility, combat start, melee and actor hit, and arrow release hooks |
 | `actor/SpellIsolation` | Spell fire and cast hooks and spell world isolation ([Combat presentation](combat-presentation.md#isolation)) |
 | `actor/PrecisionIsolation` | Excludes remote actors from Precision through its interface |
 | `actor/RaceMenuOverlays` | Applies a peer's RaceMenu overlays through SKEE and releases them when the actor is removed ([Appearance and equipment](appearance-and-equipment.md#overlays)) |
 | `actor/ReactionSuppression` | Dialogue, flee, and detection hooks |
 | `actor/ScenePackageSuppression` | Scene package action hooks |
-| `actor/RemoteCollision` | Placement ownership, the skipped movement update, collision and the filter that keeps solid bodies to the local player, support, and Speed channel |
+| `actor/RemoteCollision` | Placement ownership, the skipped movement update, collision, support, and Speed channel |
 | `actor/RemoteLights` | Keeps the configured number of remote actors' scene lights lit and culls the rest |
 | `runtime/RemoteActorActivation` | The local player's activation of a remote actor: the dead body's prompt and the player menu request |
 | `actor/ActorSkeleton` | Reads the local player's third-person bone rotations, and blends a remote actor's network pose over its graph's output |
@@ -233,8 +232,9 @@ A detected graph manager replacement also resets the bookkeeping.
   ignoring combat and any combat controller is marked inactive. The original
   update still runs, so graph and controller processing continue.
 - `SanitizeRemoteCombatState`, once per pass, stops combat, clears flee flags,
-  stops alarms, resets a fear emotion, and takes back any engine-selected
-  package ([Package takeover](#package-takeover)).
+  stops alarms, resets a fear emotion, takes back any engine-selected
+  package ([Package takeover](#package-takeover)), and clears the do-nothing
+  procedure's target ([Do-nothing procedure target](#do-nothing-procedure-target)).
 - Guards on `KillImpl`, `KillDying`, `HandleHealthDamage`, and health
   `ModActorValue` keep the actor alive, and a magic firewall keeps local magic
   off it: `MagicTarget::AddTarget` on `Character` refuses a hostile or
@@ -248,9 +248,10 @@ A detected graph manager replacement also resets the bookkeeping.
 ## Combat isolation
 
 Local enemies, creatures, guards, and followers never become hostile to a
-remote actor, target it, or start combat with it, and its replicated attacks
-hit nothing, or only the local player while `[Gameplay] IsolateAttacks` is
-off ([Attacks on the local player](#attacks-on-the-local-player)). A spell it casts natively shows its projectiles in flight
+remote actor, target it, or start combat with it. Its replicated attacks hit
+nothing and the local player's attacks on it do not land, whatever the
+`[Gameplay]` settings, including while remote actors are
+[solid](#solid-remote-actors). A spell it casts natively shows its projectiles in flight
 but acts on nothing ([Combat presentation](combat-presentation.md#spell-world-isolation)).
 
 ### Why the flag and the hooks
@@ -283,10 +284,9 @@ run the local hit pipeline. Three more hooks drop hits:
 
 | ID | Function | Hook | Drops when |
 | --- | --- | --- | --- |
-| 38603 | Melee hit frame `(attacker, leftHand, flag)`: reach sweep, the swing's target (38628), then the actor hit (38627) at +0x40A for each swept actor and +0x45A for the target, or the object hit (38620) at +0x485 without one | entry detour, `mov rax, rsp; mov [rax+10h], dl` | the attacker is remote and its attacks do not reach the local player; returns without sweeping |
+| 38603 | Melee hit frame `(attacker, leftHand, flag)`: reach sweep, the swing's target (38628), then the actor hit (38627) at +0x40A for each swept actor and +0x45A for the target, or the object hit (38620) at +0x485 without one | entry detour, `mov rax, rsp; mov [rax+10h], dl` | the attacker is remote; returns without sweeping |
 | 38628 | Swing hit target `(attacker)`, returns the target or null (Precision's `CalculateCurrentHitTargetForWeaponSwing`) | entry detour, `mov rax, rsp; mov [rax+8], rcx` | the same; returns null |
-| 38627 | Actor hit `(aggressor, target, projectile, leftHand)`: HitData, damage, stagger, hit effects, `TESHitEvent` | detour at +9, `mov rax, rsp; mov [rax+8], rcx` | the target is remote, or the aggressor is and `GameplayPolicy::MayAffect` refuses the hit's source on the target; returns |
-| 38620 (SE 37666) | Object hit `(attacker, object, flag)`: the hit on an object the swing struck, including the weapon's enchantment cast on it (ID 34409) | call detour in 38603 (SE 37650) | the attacker is remote; returns |
+| 38627 | Actor hit `(aggressor, target, projectile, leftHand)`: HitData, damage, stagger, hit effects, `TESHitEvent` | detour at +9, `mov rax, rsp; mov [rax+8], rcx` | the target is remote, or the aggressor is and the hit has no projectile or `GameplayPolicy::MayAffectWorld` refuses its projectile's source ([Isolation settings](combat-presentation.md#isolation-settings)); returns |
 
 The melee hook also covers the queued path: when 38603 defers itself (ID
 36915), the deferred task (ID 36991) calls 38603 again. Skipping it drops
@@ -323,33 +323,6 @@ drop:
   actors again. `PrecisionIsolation::Update` compares the player cell's world
   each pass and reasserts every exclusion on each pass for 1 s after a change,
   so the order of Precision's job and the main loop does not matter.
-
-### Attacks on the local player
-
-Goal: while `[Gameplay] IsolateAttacks` is off, a remote actor's melee
-swings, bashes, and arrows hit the local player as a local NPC's would, and
-nothing else in the local world. Non-goals: the local player's hits on a
-remote actor, whose health is a replica, and local actors fighting a remote
-actor.
-
-- The swing hooks (38603, 38628) and the `arrowRelease` handler
-  ([Combat presentation](combat-presentation.md#isolation)) pass a remote
-  actor through, so it sweeps, picks its target, and launches its nocked
-  arrow from the equipped ammunition, which equipment reconciliation keeps at
-  its synchronized count.
-- The actor hit (38627) lets a remote aggressor's hit land on the local
-  player alone, classified as an attack, or as its projectile's source
-  ([Isolation settings](combat-presentation.md#isolation-settings)). HitData
-  processing, the projectile spell impact, and `AddTarget` let a weapon's
-  enchantment or poison reach the local player the same way. The object hit
-  (38620), impact impulses, destruction, and explosion targets stay dropped
-  for an attack.
-- The hostility hooks stay, so the local player's followers never fight the
-  remote actor.
-- Attacks reach the player only while 38603, 38628, 38627, and the 38620 call
-  detour are all installed (`CombatIsolation`'s `s_attacksReachable`);
-  otherwise `InstallHooks` logs an error and attacks stay isolated whatever
-  the setting.
 
 ### Detours
 
@@ -447,6 +420,37 @@ one pass after entry. Two changes contain it:
 In a capture, each of 21 hits across three actors was followed on the next
 pass by exactly one takeover of `DefaultMasterPackage`, and no actor reported
 `kWantToSheathe` while the network held the weapon drawn.
+
+### Do-nothing procedure target
+
+The do-nothing package's own procedure (ID 39268) requests a sheathe whenever
+the weapon is out. Only once the weapon is sheathed does it read
+`AIProcess::target`: with a target it faces it and requests a `kActionIdle`.
+The firewall blocks that idle's event (`MotionDrivenIdle`, the
+`MotionDrivenDialogueStartIfNotCasual` family), so the procedure never
+completes and runs on every update. A draw in that state never settles. The
+procedure's sheathe request fails mid-equip and leaves `kWantToSheathe`, and
+`WeaponTransition::RequestNativeTransition` draws again. In a capture, a
+remote bow user alternated `kDrawing` and `kWantToSheathe` for seven minutes
+after a shout, replaying the equip clip. Its attacks and casts waited on the
+unsettled transition and timed out.
+
+`SanitizeRemoteCombatState` therefore clears `AIProcess::target` whenever the
+current package is the do-nothing type. Without a target, the procedure
+completes after its sheathe step, so a running procedure cannot hold the
+actor. Nothing the plugin does relies on a remote actor's process target. Two
+debug logs make the next fight traceable:
+
+- `Cleared local AI target from remote actor` names the target reference and
+  base, the weapon state, and the high process's current idle.
+- `Remote actor weapon state opposes the network` fires when `ActorState`
+  heads away from the authoritative state: `kWantToSheathe` or `kSheathing`
+  while drawn is wanted, `kWantToDraw` or `kDrawing` while sheathed is. It
+  names the package type, the process target handle, and the current idle.
+  `WeaponTransition` only ever requests the network's state, so these states
+  come from local AI, or from a sheathe still playing when a draw arrives.
+
+Both logs use the blocked-event throttle.
 
 ### Scene packages
 
@@ -601,48 +605,39 @@ uses (ID 37314, ID 37652) save and restore it; the AI procedure that clears it
 `Remote actor character body places the actor` and `no longer places the actor`
 log each change.
 
-### Solid to the local player
+### Solid remote actors
 
-Goal: while `[Gameplay] DisableCollision` is off, a remote actor or mount
-blocks the local player as a local NPC does, and still passes through
-everything else, so it never pushes local actors or clutter or triggers local
-volumes. Non-goal: a remote actor that local NPCs bump into.
+Goal: while `[Gameplay] DisableCollision` is off, a network-placed remote
+actor or mount collides as a local NPC does: it blocks the local player and
+local NPCs, stops arrows and spells, and pushes clutter. It also sets off
+local traps, pressure plates, and trigger volumes, an exception to world
+isolation the player opts into ([Known limitations](#known-limitations)).
+Non-goal: a body that collides with the local player and arrows alone; that
+needed a detour at each of the collision comparison's seven callers and a
+per-group registry, which were dropped for this simpler rule.
 
 - `RemoteCollision::PlaceByNetwork` then clears the no-collision bit on a
-  network-placed actor's character body instead of setting it, and registers
-  the body's Havok system group (bits 16–31 of its filter info) with the
-  registry (`ActorRegistry::SetSolidCharacterGroup`) first. Setting the bit
-  again unregisters it after, and `ActorRegistry::Unregister` releases it, so
-  a group never counts for a body that collides with everything. A body
-  without a system group stays isolated. A rider stays isolated, and a
+  network-placed actor's character body instead of setting it. A rider stays
+  isolated, and a
   furniture or dead actor is Skyrim's.
-- The collision filter's info comparison (ID 78553, SE 76681) is detoured at
-  each of its seven callers (IDs 78009, 78548–78552, 79115; SE 76181,
-  76676–76680, 77228): the pair, shape, ray, and phantom filters. While any
-  group is registered, a pair across a registered group's `kCharController`
-  body and another system group collides only when the other side is the
-  local player's controller phantom (`kCharController`, the player's system
-  group, read by `RemoteCollision::TrackLocalPlayer` each pass), or when the
-  other side is the comparison's first and on `kCustomPick2`, which the
-  comparison exempts from the no-collision bit. Every other pair goes to the
-  comparison. Two registered bodies never collide. The registry keeps a
-  lock-free count per group (64 KiB), so the test is a layer compare and one
-  atomic load per side.
 - The body still does not place the actor (`kNoSim`), and `SetPosition` warps
-  it to the network position every pass, so a push from the player moves
-  only the body until the next pass.
-- Solid bodies need all seven detours; otherwise `InstallHooks` logs an error
-  and remote actors stay passable whatever the setting.
+  it to the network position every pass, so a push moves only the body
+  until the next pass.
+- The local player's arrows stop on the actor through that body
+  (`L_PROJECTILE` collides with `L_CHARCONTROLLER`, not with a live actor's
+  `L_BIPED` bones), and the actor hit then drops their hit
+  ([Hooks](#hooks)).
 
 ### Pass-through for the local player
 
 Every remote character and skeleton body the local player's proxy phantom
 overlaps is ignored for the player's own movement update, which also lets the
 player walk through a seated rider's legs
-([Native interactions](native-interactions.md#mounts)). While remote actors
-are [solid to the local player](#solid-to-the-local-player), character
-bodies are left out, so the player bumps into them, and the character body
-the player bumped is not passed through; skeleton bodies still are.
+([Native interactions](native-interactions.md#mounts)), and the character body
+any moving controller bumped is ignored for that update when either side is
+remote. While remote actors are [solid](#solid-remote-actors), character
+bodies are left out of both, so the player and local NPCs bump into them;
+skeleton bodies are still passed through for the player.
 
 ## Light budget
 
@@ -1035,21 +1030,31 @@ Not yet checked, for the [skeleton pose](#skeleton-pose):
     keeps a victim from opening a window.
 
 Read from the 1.7.104 and 1.5.97 disassembly, not run in game, for
-[attacks on the local player](#attacks-on-the-local-player) and
-[solid remote actors](#solid-to-the-local-player):
+[solid remote actors](#solid-remote-actors):
 
-25. ID 38620 (SE 37666) is the object hit of the melee hit frame, called
-    without a result in 38603 + 0x485 (SE 37650 + 0x3B4) when the swing has no
-    actor target; its other callers are HitData processing (ID 38586) and a
-    tail call in ID 54918.
-26. ID 78553 (SE 76681) takes the filter in `rcx` and the two filter infos in
-    `edx` and `r8d`, returns in `al`, and is reached only through calls at
-    the seven listed callers. The local player's proxy phantom's filter info
-    is what the comparison receives for the player's movement, and a
-    character proxy that collides with a remote character body is blocked by
-    it as by a local NPC's.
-27. A remote actor's launched arrow aims along its facing and hits the local
-    player through the projectile impact (ID 44218) and the actor hit.
+25. A character proxy or rigid-body controller that collides with a remote
+    character body is blocked by it as by a local NPC's, and the body, warped
+    every pass, does not drift from the network position.
+26. An arrow's collision with an actor is a pair of its `kProjectile` body or
+    cast and the actor's `kCharController` body, as the layer matrix has it
+    (Skyrim.esm `COLL` records: `L_PROJECTILE` collides with
+    `L_CHARCONTROLLER` and `L_BIPED_NO_CC`, not `L_BIPED`).
+
+Read from the 1.7.104 disassembly only, for the
+[do-nothing procedure target](#do-nothing-procedure-target):
+
+27. The procedure update (ID 39637) picks the procedure from a per-package-type
+    table, and the do-nothing type's only entry is case 28, ID 39268. That
+    procedure calls `DrawWeaponMagicHands(false)` and returns whenever
+    `WEAPON_STATE` is not `kSheathed`. Otherwise it resolves
+    `AIProcess::target` (+0x114). When the target is empty, it runs ID 39799,
+    which sets one only for a package with target data or of type Sandbox or
+    Patrol, and then advances the procedure index (ID 39158). When a target is
+    set, it requests `kActionIdle` through `SetupSpecialIdle` (ID 39256).
+    `DrawWeaponMagicHands` (ID 37279) leaves `kWantToSheathe` when the sheathe
+    action is refused and turns `kWantToSheathe` straight into `kDrawn` on a
+    draw request. SE 1.5.97 shares the `AIProcess` layout and is assumed to
+    share this procedure.
 
 ## Acceptance criteria
 
@@ -1072,14 +1077,15 @@ Read from the 1.7.104 and 1.5.97 disassembly, not run in game, for
    sanitization log shows the do-nothing package (27) after the hit, without
    alternating `weaponState` 4 and 2. It still uses furniture after being hit.
 7. A remote actor walking through NPCs, a doorway, or clutter, or idling inside
-   an object, moves smoothly without shaking, including after a dismount. The
-   local player walks through it on foot and riding; local clutter and bodies
-   are not pushed.
+   an object, moves smoothly without shaking, including after a dismount. With
+   `DisableCollision` on, the local player walks through it on foot and
+   riding, and local clutter and bodies are not pushed.
 8. A swimming remote actor logs `supported=false`, swims, and leaves swimming
    when its player wades out (`supported=true`), including up a shallow shore.
 9. Placement owners log `owner=furniture`, `owner=mount`, `owner=death`, and
    `owner=network` around each interaction. A dying actor still ragdolls onto
-   the ground. A remote actor on a pressure plate does not trigger it.
+   the ground. With `DisableCollision` on, a remote actor on a pressure plate
+   does not trigger it.
 10. With more remote players holding torches or flame spells than
     `[Advanced] RemoteLights`, only that many nearest the camera light their
     surroundings, the others still show their flames, and walking between two
@@ -1111,6 +1117,22 @@ Read from the 1.7.104 and 1.5.97 disassembly, not run in game, for
     kill move opens no window and ragdolls on peers as soon as it dies.
 18. A source knocked down by Unrelenting Force or a giant shows the fall, the
     ragdoll, and the get-up on peers.
+19. With `DisableCollision` on or off, a remote actor's sword swing, bash,
+    and bow shot through the local player or a local NPC do nothing, and the
+    bow launches no arrow; the local player's on a remote actor do no damage
+    and show no impact sound, blood, stagger, or hit reaction. With
+    `DisableCollision` off, the local player's arrow stops on the remote actor
+    instead of passing through.
+20. With `DisableCollision` off, a standing remote actor blocks the local
+    player and a walking local NPC, stops the player's arrows and spells, and
+    a remote actor stepping on a pressure plate sets it off; with it on, all
+    pass through it. Switching the setting applies to each actor on its next
+    pass.
+21. A remote actor that shouts, then draws a weapon and attacks or casts,
+    draws once and plays every attack and cast. The log shows no
+    `MotionDrivenIdle` blocked on every pass, and no
+    `Remote actor weapon state opposes the network` beyond the first few lines
+    around a draw that follows a sheathe.
 
 ## Known limitations
 
@@ -1124,17 +1146,20 @@ Read from the 1.7.104 and 1.5.97 disassembly, not run in game, for
   not show. Sounds and effects of the vanilla reproduction underneath still
   play.
 
-- With `IsolateAttacks` off, a remote arrow that misses stays stuck where it
-  landed, as a local NPC's does, and can be picked up. An exploding arrow's
-  explosion harms no one, since explosion targets stay dropped for attacks.
-- Solid remote actors are solid only to the local player's controller: the
-  player's own arrows, spells, and camera still pass through their character
-  bodies, and a solid actor turned solid while overlapping the player blocks
-  the player only once they separate, since the filter is not re-run on
-  existing pairs.
-- Skeleton (bone) bodies are not isolated: local projectiles, melee, traps that
-  test them, and the crosshair still find the remote actor, and it blocks local
-  arrows. Isolating them means setting the same bit on every bone body,
+- Weapon hits between the local player and a remote actor show nothing, not
+  even their impact sound or blood, since the hit never runs. A remote bow
+  shows its draw and release with the nocked arrow model but launches no
+  arrow.
+- [Solid remote actors](#solid-remote-actors) set off local traps, pressure
+  plates, and trigger volumes, including quest and scene triggers that react
+  to any actor, and push local clutter, so with `DisableCollision` off a
+  remote player can change the local world. An actor turned solid while
+  overlapping another body collides with it only once they separate, since
+  the bit is set without re-running the filter on existing pairs.
+- Skeleton (bone) bodies are not isolated: local spells, melee, traps that
+  test them, and the crosshair still find the remote actor. Arrows do not
+  collide with a live actor's `L_BIPED` bones, so they strike a remote actor
+  only through its solid character body. Isolating them means setting the same bit on every bone body,
   reapplying it after a 3D rebuild, and restoring it on death so the ragdoll
   lands. The player's own movement ignores them, and a seated rider's are
   isolated.

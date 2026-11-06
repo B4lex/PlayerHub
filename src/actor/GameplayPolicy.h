@@ -20,8 +20,6 @@ namespace GameplayPolicy
 
     [[nodiscard]] bool ShowsSpellEffects();
     [[nodiscard]] bool ShowsShoutEffects();
-    [[nodiscard]] bool ShowsImpactEffects();
-    [[nodiscard]] bool AttacksReachPlayer();
     [[nodiscard]] bool DisablesCollision();
 
     [[nodiscard]] Source Classify(const RE::MagicItem* a_item);
@@ -31,11 +29,8 @@ namespace GameplayPolicy
     // explosion, or hazard.
     [[nodiscard]] Source Classify(RE::TESObjectREFR& a_source);
 
-    // Whether a remote source may act on the local world beyond the player.
+    // Whether a remote source may act on the local world, the player included.
     [[nodiscard]] bool MayAffectWorld(Source a_source);
-    // Whether a remote source may act on a_target, a local reference, or on a
-    // place when a_target is null.
-    [[nodiscard]] bool MayAffect(Source a_source, const RE::TESObjectREFR* a_target);
     // Whether a native spell fire of a remote actor shows what the spell does.
     [[nodiscard]] bool ShowsNativeFire(const RE::MagicItem* a_spell);
 }

@@ -420,6 +420,49 @@ namespace SurvivalPolicy
 
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
+
+        RE::FormID GetProcessIdleID(const RE::AIProcess* a_process)
+        {
+            const auto* high = a_process ? a_process->high : nullptr;
+            return high && high->currentProcessIdle ? high->currentProcessIdle->GetFormID() : 0;
+        }
+
+        // The do-nothing package's procedure (ID 39268, case 28 of the procedure update
+        // ID 39637) first requests a sheathe whenever the weapon is out, and only once it
+        // is sheathed reads AIProcess::target. With a target it faces it and requests a
+        // kActionIdle, which the animation firewall blocks, so the procedure never
+        // completes and runs again on every update; without one it advances past its only
+        // step (ID 39158). Its target resolution (ID 39799) sets none for this package
+        // type, so a cleared target stays cleared.
+        void ClearDoNothingProcedureTarget(RE::Actor& a_actor, RE::WEAPON_STATE a_weaponState)
+        {
+            auto* process = a_actor.GetActorRuntimeData().currentProcess;
+            const auto* package = a_actor.GetCurrentPackage();
+            if (!process || process->target == 0 || !package
+                || package->packData.packType.get() != RE::PACKAGE_TYPE::kDoNothing)
+            {
+                return;
+            }
+            const auto targetHandle = process->target;
+            process->target = 0;
+
+            // Main-loop thread only, like the caller.
+            static std::uint32_t s_clearedTargetCount = 0;
+            const auto clearedCount = ++s_clearedTargetCount;
+            if (!ShouldLogOccurrence(clearedCount))
+            {
+                return;
+            }
+            const auto target = RE::TESObjectREFR::LookupByHandle(targetHandle);
+            const auto* targetBase = target ? target->GetBaseObject() : nullptr;
+            logs::debug(
+                "Cleared local AI target from remote actor: actor={:08X} target={:08X} targetBase={:08X} "
+                "weaponState={} processIdle={:08X} count={}",
+                a_actor.GetHandle().native_handle(), target ? target->GetFormID() : 0,
+                targetBase ? targetBase->GetFormID() : 0,
+                static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(a_weaponState), GetProcessIdleID(process),
+                clearedCount);
+        }
     }
 
     void InstallHooks()
@@ -626,6 +669,31 @@ namespace SurvivalPolicy
         const bool weaponTransitionPending = actorState
             && (authoritativeWeaponDrawn ? weaponState != RE::WEAPON_STATE::kDrawn
                                          : weaponState != RE::WEAPON_STATE::kSheathed);
+
+        const bool weaponStateOpposed = actorState
+            && (authoritativeWeaponDrawn
+                    ? weaponState == RE::WEAPON_STATE::kWantToSheathe || weaponState == RE::WEAPON_STATE::kSheathing
+                    : weaponState == RE::WEAPON_STATE::kWantToDraw || weaponState == RE::WEAPON_STATE::kDrawing);
+        if (weaponStateOpposed)
+        {
+            // Main-loop thread only, like the rest of this function.
+            static std::uint32_t s_opposedWeaponStateCount = 0;
+            const auto opposedCount = ++s_opposedWeaponStateCount;
+            if (ShouldLogOccurrence(opposedCount))
+            {
+                const auto* process = runtimeData.currentProcess;
+                const auto* package = a_actor.GetCurrentPackage();
+                logs::debug(
+                    "Remote actor weapon state opposes the network: actor={:08X} weaponState={} "
+                    "desiredWeaponDrawn={} package={} aiTargetHandle={:08X} processIdle={:08X} count={}",
+                    a_actor.GetHandle().native_handle(),
+                    static_cast<std::underlying_type_t<RE::WEAPON_STATE>>(weaponState), authoritativeWeaponDrawn,
+                    package ? static_cast<std::underlying_type_t<RE::PACKAGE_TYPE>>(package->packData.packType.get())
+                            : -1,
+                    process ? process->target : 0, GetProcessIdleID(process), opposedCount);
+            }
+        }
+        ClearDoNothingProcedureTarget(a_actor, weaponState);
         std::uint32_t observationRequestCount = 0;
         if (cowerRequests != 0)
         {
