@@ -45,6 +45,9 @@ namespace UI::ItemPreview
         // Dragging across this many font sizes turns the model by one radian.
         constexpr float kTurnFontsPerRadian = 8.0F;
         constexpr float kSpinRadiansPerSecond = std::numbers::pi_v<float> / 6.0F;
+        // A capture renders the inventory scene twice on the main thread, too costly to repeat
+        // every frame for a slow spin.
+        constexpr float kSpinCaptureIntervalSeconds = 1.0F / 30.0F;
         constexpr ImVec4 kBlack{ 0.0F, 0.0F, 0.0F, 1.0F };
         constexpr ImVec4 kWhite{ 1.0F, 1.0F, 1.0F, 1.0F };
         // Every direction's ambient color in captures, so faces turned from the scene's light are lit.
@@ -154,6 +157,9 @@ float4 Separate(Vertex input) : SV_Target
             // ID 51778 does not turn a light, which would be captured every update for nothing.
             bool spins{ false };
             bool held{ false };
+            // Frame time of the updates that skipped it since its last capture while it spins.
+            float spinWaited{ 0.0F };
+            bool spinDue{ false };
             // Its local transform as fitted and turned, put back when it is loaded again.
             std::optional<RE::NiTransform> transform;
             double requestedSince{ 0.0 };
@@ -181,6 +187,8 @@ float4 Separate(Vertex input) : SV_Target
         {
             std::uint32_t formID{ 0 };
             float freshAfter{ -1.0F };
+            // Keeps the renderer and its load for a spin capture that is not due yet.
+            bool waits{ false };
         };
 
         struct GameTransform
@@ -1117,6 +1125,13 @@ float4 Separate(Vertex input) : SV_Target
 
         bool IsModelSpinning() { return model.spins && !model.held && !modelUnavailable && IsModelCaptured(); }
 
+        // Captures on the update closest to the interval, taking the next update to be as long as
+        // this one.
+        bool IsSpinCaptureDue(float a_delta)
+        {
+            return model.spinWaited + a_delta * 1.5F >= kSpinCaptureIntervalSeconds;
+        }
+
         // The model goes first, since the item the player hovers is the one a click adds and its
         // load then serves the new still at once. A pending still comes before the model's own
         // refresh and glow watch, which held stills back for seconds while the player moved
@@ -1139,9 +1154,13 @@ float4 Separate(Vertex input) : SV_Target
             {
                 return { .formID = still->formID, .freshAfter = still->capturedAt };
             }
-            if (IsModelAnimating() || IsModelSpinning())
+            if (IsModelAnimating() || model.spinDue)
             {
                 return { .formID = model.formID };
+            }
+            if (IsModelSpinning())
+            {
+                return { .formID = model.formID, .waits = true };
             }
             return {};
         }
@@ -1153,7 +1172,7 @@ float4 Separate(Vertex input) : SV_Target
                 return false;
             }
             return IsModelUrgent() || (IsModelRefreshDue() && IsFreshLoad(model.formID, model.capturedAt))
-                || IsModelWatched() || IsModelAnimating() || IsModelSpinning();
+                || IsModelWatched() || IsModelAnimating() || model.spinDue;
         }
 
         bool IsStillServed(const ThumbnailSlot& a_slot)
@@ -1226,11 +1245,11 @@ float4 Separate(Vertex input) : SV_Target
         {
             const bool refresh = IsModelRefreshDue() && IsFreshLoad(model.formID, model.capturedAt);
             SetTransform(a_object, model.transform ? *model.transform : GameTransformOf(a_object));
-            // Advanced only by updates that render the model, so it pauses rather than jumps
-            // while stills hold the renderer.
+            // Advanced only by updates that render the model or wait for its next spin capture,
+            // so it pauses rather than jumps while stills hold the renderer.
             if (IsModelSpinning())
             {
-                model.turn.x -= kSpinRadiansPerSecond * a_delta;
+                model.turn.x -= kSpinRadiansPerSecond * (std::exchange(model.spinWaited, 0.0F) + a_delta);
             }
             if (model.turn.x != 0.0F || model.turn.y != 0.0F)
             {
@@ -1497,10 +1516,16 @@ float4 Separate(Vertex input) : SV_Target
         PROFILE_SCOPE("ItemPreview");
         const float delta = FrameTime::Clamp(ImGui::GetIO().DeltaTime);
         clock += delta;
+        model.spinDue = IsModelSpinning() && IsSpinCaptureDue(delta);
         const auto work = ChooseWork();
         if (work.formID == 0)
         {
             StopRenderer();
+            return;
+        }
+        if (work.waits)
+        {
+            model.spinWaited += delta;
             return;
         }
         Start(*manager);
