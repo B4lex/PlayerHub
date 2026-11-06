@@ -14,4 +14,18 @@ namespace UI::Fonts
     [[nodiscard]] ImFont* GetText();
     [[nodiscard]] ImFont* GetHeading();
     [[nodiscard]] ImFont* GetLogo();
+
+    // The current font size before the overlay scale, as ImGui::PushFont takes it.
+    [[nodiscard]] float GetBaseSize();
+
+    // Draws at a_pixels, a size after the overlay scale, until destroyed.
+    class SizeScope
+    {
+    public:
+        explicit SizeScope(float a_pixels);
+        ~SizeScope();
+
+        SizeScope(const SizeScope&) = delete;
+        SizeScope& operator=(const SizeScope&) = delete;
+    };
 }

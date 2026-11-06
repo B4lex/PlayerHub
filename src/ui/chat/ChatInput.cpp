@@ -1,5 +1,6 @@
 #include "ui/chat/ChatInput.h"
 #include "config/PluginConfig.h"
+#include "protocol/ChatMessage.h"
 #include "sync/chat/ChatRoster.h"
 #include "text/Text.h"
 #include "ui/chat/ChatStyle.h"
@@ -419,10 +420,15 @@ namespace UI
 
         // Keyboard focus applies on a later frame, so it is requested until
         // taken. Not from an item the mouse holds, which would lose its click.
-        if ((a_frame.focus || !fieldActive) && !a_frame.menuOpen && !menuOpen && !ImGui::IsAnyItemActive()
-            && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        if ((a_frame.focus || !fieldActive) && !a_frame.passive && !a_frame.menuOpen && !menuOpen
+            && !ImGui::IsAnyItemActive() && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
             ImGui::SetKeyboardFocusHere();
+        }
+        else if (a_frame.passive && ImGui::GetActiveID() == ImGui::GetID("##ChatInput"))
+        {
+            // Focus went elsewhere without a click that would have left the field.
+            ImGui::ClearActiveID();
         }
         // Past its last line the field scrolls without a scrollbar, as a
         // single-line field does sideways. The wrap keeps the scrollbar's
@@ -452,13 +458,14 @@ namespace UI
 
         if (entered)
         {
+            const bool blank = Multiplayer::TrimChatText(draft).empty();
             const auto result = composer.Submit(draft);
             Measure(draft, draft.size());
             if (result != ChatSync::Composer::SubmitResult::kClose)
             {
                 return Outcome::kSubmitted;
             }
-            if (Config::Get()->ui.closeChatOnSend)
+            if (Config::Get()->ui.closeChatOnSend && (blank || !a_frame.stayOnSend))
             {
                 return Outcome::kClose;
             }

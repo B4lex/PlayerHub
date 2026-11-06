@@ -31,6 +31,10 @@ namespace UI
             bool escape{ false };
             bool closeMenu{ false };
             bool menuOpen{ false };
+            // Shown without holding focus: the field neither asks for the keyboard nor keeps it.
+            bool passive{ false };
+            // A line sent keeps the chat open whatever [UI] CloseChatOnSend says.
+            bool stayOnSend{ false };
         };
 
         void OnOpened();

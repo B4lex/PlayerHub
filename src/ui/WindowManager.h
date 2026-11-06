@@ -24,7 +24,8 @@ namespace UI::WindowManager
 
     [[nodiscard]] bool Focus(const Window& a_window);
 
-    // As a borrow key does, for a request the focused window made.
+    // As a borrow key does, without a key: for a request the focused window made, or a click
+    // on the borrower.
     [[nodiscard]] bool Borrow(const Window& a_borrower);
 
     // Focused or lent, as of now rather than the start of the frame's draw.

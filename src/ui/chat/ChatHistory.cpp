@@ -273,7 +273,7 @@ namespace UI
     }
 
     std::optional<Multiplayer::PlayerIdentity> ChatHistory::DrawLines(
-        const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu, bool a_wheelElsewhere)
+        const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu, bool a_wheelElsewhere, bool a_pageKeys)
     {
         std::optional<Multiplayer::PlayerIdentity> picked;
         if (rewrappedHeight >= 0.0F)
@@ -370,11 +370,11 @@ namespace UI
             const auto wheel = a_input.wheelSteps
                 + (ImGui::IsWindowHovered() || a_wheelElsewhere ? 0.0F : ImGui::GetIO().MouseWheel);
             auto scroll = ImGui::GetScrollY() - wheel * kWheelLines * lineHeight;
-            if (ImGui::IsKeyPressed(ImGuiKey_PageUp))
+            if (a_pageKeys && ImGui::IsKeyPressed(ImGuiKey_PageUp))
             {
                 scroll -= size.y - lineHeight;
             }
-            if (ImGui::IsKeyPressed(ImGuiKey_PageDown))
+            if (a_pageKeys && ImGui::IsKeyPressed(ImGuiKey_PageDown))
             {
                 scroll += size.y - lineHeight;
             }

@@ -1,5 +1,4 @@
 #include "ui/trade/TradeWindow.h"
-#include "sync/chat/PlayerActivation.h"
 #include "sync/trade/TradeSync.h"
 #include "text/AsciiCase.h"
 #include "text/Text.h"
@@ -10,6 +9,7 @@
 #include "ui/preview/ItemPreview.h"
 #include "ui/render/Backdrop.h"
 #include "ui/trade/ItemCard.h"
+#include "ui/trade/TradeDock.h"
 #include "ui/widgets/Controls.h"
 
 #include <imgui.h>
@@ -36,13 +36,14 @@ namespace UI
         using Phase = TradeSession::Phase;
 
         constexpr ImVec2 kPanelSizeFonts{ 56.0F, 52.8F };
+        constexpr float kChatWidthFonts = 28.5F;
         constexpr float kPreviewWidthFonts = 28.0F;
-        // Narrower than this, the preview column is left out.
-        constexpr float kMinimumPreviewWidthFonts = 12.0F;
         constexpr float kMinimumCardHeightFonts = 12.0F;
         constexpr float kCardPaddingFonts = 0.6F;
-        constexpr float kPreviewGapFonts = 2.0F;
+        constexpr float kColumnGapFonts = 2.0F;
         constexpr float kScreenMarginFonts = 1.0F;
+        constexpr float kLayoutWidthFonts
+            = kChatWidthFonts + kColumnGapFonts + kPanelSizeFonts.x + kColumnGapFonts + kPreviewWidthFonts;
         constexpr float kCountColumnFonts = 4.0F;
         constexpr float kCountFieldFonts = 7.0F;
         constexpr float kFooterButtonWidthFonts = 6.5F;
@@ -88,14 +89,27 @@ namespace UI
             Text::Id::kTradeCategoryIngredients, Text::Id::kTradeCategoryBooks, Text::Id::kTradeCategoryScrolls,
             Text::Id::kTradeCategorySoulGems, Text::Id::kTradeCategoryKeys, Text::Id::kTradeCategoryMiscellaneous };
 
-        // Where the panel and the preview column go: the two centered together, the column's
-        // model above its card, both as tall as the panel.
+        // The font size the layout is drawn at: the overlay's, or the largest the display holds
+        // the layout at, so the layout looks the same on every display.
+        float GetLayoutFontSize()
+        {
+            const auto fontSize = ImGui::GetFontSize();
+            const auto& display = ImGui::GetIO().DisplaySize;
+            const auto margins = 2.0F * kScreenMarginFonts;
+            const auto fitting = (std::min)(
+                display.x / (kLayoutWidthFonts + margins), display.y / (kPanelSizeFonts.y + margins));
+            return (std::min)(fitting, fontSize);
+        }
+
+        // Where the chat column, the panel, and the preview column go: centered together, all as
+        // tall as the panel, the preview's model above its card.
         struct Arrangement
         {
+            ImVec2 chat;
+            ImVec2 chatSize;
             ImVec2 panel;
             ImVec2 model;
             ImVec2 card;
-            // Zero when the display leaves no room for the column.
             float previewWidth{ 0.0F };
             float modelSize{ 0.0F };
             // The card's window shrinks to its content up to this.
@@ -107,18 +121,17 @@ namespace UI
             const auto fontSize = ImGui::GetFontSize();
             const auto& display = ImGui::GetIO().DisplaySize;
             const ImVec2 panel{ kPanelSizeFonts.x * fontSize, kPanelSizeFonts.y * fontSize };
-            const auto gap = kPreviewGapFonts * fontSize;
-            auto previewWidth = std::floor((std::min)(
-                kPreviewWidthFonts * fontSize, display.x - 2.0F * kScreenMarginFonts * fontSize - gap - panel.x));
-            if (previewWidth < kMinimumPreviewWidthFonts * fontSize)
-            {
-                previewWidth = 0.0F;
-            }
-            const auto column = previewWidth > 0.0F ? previewWidth + gap : 0.0F;
-            const auto left = std::floor((std::max)((display.x - column - panel.x) * 0.5F, 0.0F));
+            const auto gap = kColumnGapFonts * fontSize;
+            const auto chatWidth = std::floor(kChatWidthFonts * fontSize);
+            const auto previewWidth = std::floor(kPreviewWidthFonts * fontSize);
+            const auto width = chatWidth + gap + panel.x + gap + previewWidth;
+            const auto left = std::floor((std::max)((display.x - width) * 0.5F, 0.0F));
             const auto top = std::floor((std::max)((display.y - panel.y) * 0.5F, 0.0F));
-            const auto columnLeft = left + panel.x + gap;
-            Arrangement arrangement{ .panel = ImVec2{ left, top },
+            const auto panelLeft = std::floor(left + chatWidth + gap);
+            const auto columnLeft = panelLeft + panel.x + gap;
+            Arrangement arrangement{ .chat = ImVec2{ left, top },
+                .chatSize = ImVec2{ chatWidth, std::floor(panel.y) },
+                .panel = ImVec2{ panelLeft, top },
                 .model = ImVec2{ columnLeft, top },
                 .previewWidth = previewWidth };
             arrangement.modelSize = std::floor(
@@ -222,8 +235,8 @@ namespace UI
                 {
                     WindowManager::TakeFocus(*this);
                 }
-                // After the draw, so a field or popup a click opened this frame counts, and the
-                // chat button's press, read by the chat next frame, does not.
+                // After the draw, so a field or popup a click opened this frame counts. The chat
+                // draws after this window and borrows focus by a click in the same frame.
                 keysFree.store(!lent && !clickedWhileLent && !closing && !ImGui::IsAnyItemActive()
                         && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId),
                     std::memory_order_release);
@@ -318,9 +331,12 @@ namespace UI
 
             void DrawWindow()
             {
+                const Fonts::SizeScope fontSize{ GetLayoutFontSize() };
                 const Theme::Scope theme;
                 Backdrop::Draw();
                 const auto arrangement = Arrange();
+                TradeDock::Set(TradeDock::Column{
+                    .min = arrangement.chat, .size = arrangement.chatSize, .fontSize = ImGui::GetFontSize() });
                 const MenuFrame::WindowLayout layout{
                     .sizeFonts = kPanelSizeFonts, .paddingFonts = 1.0F, .fixedPosition = arrangement.panel
                 };
@@ -345,10 +361,7 @@ namespace UI
                 }
                 ImGui::End();
                 // After the panel, so the item hovered in it this frame is the one shown.
-                if (arrangement.previewWidth > 0.0F)
-                {
-                    DrawPreview(arrangement);
-                }
+                DrawPreview(arrangement);
             }
 
             // What the grids' area holds besides their cells: the inventory list beside the grids,
@@ -513,8 +526,7 @@ namespace UI
 
             void DrawTitle() const
             {
-                const auto& style = ImGui::GetStyle();
-                ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kTitleScale);
+                ImGui::PushFont(Fonts::GetHeading(), Fonts::GetBaseSize() * kTitleScale);
                 const std::array<std::string_view, 1> name{ view.peer.name };
                 Controls::AccentedText(Text::Get(Text::Id::kTradeTitle), name);
                 ImGui::PopFont();
@@ -857,8 +869,6 @@ namespace UI
                 const auto fontSize = ImGui::GetFontSize();
                 const auto* const accept = Text::GetCString(Text::Id::kTradeAccept);
                 const auto* const cancel = Text::GetCString(Text::Id::kTradeCancel);
-                DrawChatButton();
-                ImGui::SameLine();
                 const auto buttonWidth = (std::max)(kFooterButtonWidthFonts * fontSize,
                     std::ceil((std::max)(ImGui::CalcTextSize(accept).x, ImGui::CalcTextSize(cancel).x)
                         + style.FramePadding.x * 2.0F));
@@ -880,22 +890,6 @@ namespace UI
                 if (Controls::DangerButton(cancel, ImVec2{ buttonWidth, 0.0F }))
                 {
                     Close(Multiplayer::TradeCloseReason::kCancelled);
-                }
-            }
-
-            // Pressed on the click, which while lent has already taken focus back and so closes
-            // the chat; pressed on release, it would open the chat again.
-            void DrawChatButton()
-            {
-                const auto* const open = Text::GetCString(Text::Id::kTradeOpenChat);
-                const auto* const close = Text::GetCString(Text::Id::kTradeCloseChat);
-                const auto width = (std::max)(ImGui::CalcTextSize(open).x, ImGui::CalcTextSize(close).x)
-                    + ImGui::GetStyle().FramePadding.x * 2.0F;
-                if (ImGui::ButtonEx(lent ? close : open, ImVec2{ std::ceil(width), 0.0F },
-                        ImGuiButtonFlags_PressedOnClick | ImGuiButtonFlags_NoHoldingActiveId)
-                    && !lent)
-                {
-                    PlayerActivation::RequestWhisper(view.peer);
                 }
             }
 

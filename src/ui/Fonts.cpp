@@ -7,6 +7,7 @@
 #include <REX/W32/OLE32.h>
 #include <REX/W32/SHELL32.h>
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include <array>
 #include <climits>
@@ -327,5 +328,21 @@ namespace UI::Fonts
     ImFont* GetLogo()
     {
         return s_logo;
+    }
+
+    float GetBaseSize()
+    {
+        return ImGui::GetCurrentContext()->FontSizeBase;
+    }
+
+    SizeScope::SizeScope(float a_pixels)
+    {
+        const auto& style = ImGui::GetStyle();
+        ImGui::PushFont(nullptr, a_pixels / (style.FontScaleMain * style.FontScaleDpi));
+    }
+
+    SizeScope::~SizeScope()
+    {
+        ImGui::PopFont();
     }
 }

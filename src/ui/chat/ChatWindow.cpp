@@ -3,6 +3,7 @@
 #include "sync/chat/PlayerActivation.h"
 #include "sync/notices/Notices.h"
 #include "sync/trade/TradeSync.h"
+#include "ui/Fonts.h"
 #include "ui/MenuFrame.h"
 #include "ui/Theme.h"
 #include "ui/WindowManager.h"
@@ -13,6 +14,7 @@
 #include "ui/chat/ChatPosition.h"
 #include "ui/chat/ChatSize.h"
 #include "ui/chat/ChatStyle.h"
+#include "ui/trade/TradeDock.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -92,8 +94,7 @@ namespace UI
                 ImGuiStyleVar_WindowPadding, ImVec2{ padding.x + framePadding, padding.y + framePadding });
             const bool visible = ImGui::Begin(a_name, nullptr, a_flags);
             ImGui::PopStyleVar();
-            // A window that does not come to the front on focus would otherwise stay behind
-            // the trade window when it opens over one.
+            // The chat's windows do not come to the front on focus, so they do when they appear.
             if (ImGui::IsWindowAppearing())
             {
                 ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
@@ -193,24 +194,42 @@ namespace UI
                     manager.Open();
                 }
                 const bool open = a_input.focused && !managerShown;
+                const auto dock = TradeDock::Get();
 
                 const auto now = ImGui::GetTime();
-                history.Collect(now, open);
+                history.Collect(now, open || dock);
 
-                if (open && !wasOpen)
+                if (dock && !wasDocked)
                 {
-                    focusInput = true;
-                    history.ScrollToLatest();
-                    input.OnOpened();
                     if (const auto peer = TradeSync::GetOpenPeer())
                     {
                         Whisper(*peer);
                     }
                 }
+                wasDocked = dock.has_value();
+                if (open && !wasOpen)
+                {
+                    focusInput = true;
+                    input.OnOpened();
+                    // The docked lines stay in view, scrolled where the player left them.
+                    if (!dock)
+                    {
+                        history.ScrollToLatest();
+                    }
+                }
                 wasFocused = a_input.focused;
                 wasOpen = open;
-                RouteRejections(open);
+                RouteRejections(open || dock);
 
+                if (dock)
+                {
+                    size.Release();
+                    position.Release();
+                    manager.Close();
+                    // A click on the column takes focus during the draw.
+                    wasOpen = DrawDocked(open, *dock);
+                    return;
+                }
                 if (open)
                 {
                     DrawOpen(a_input);
@@ -335,12 +354,7 @@ namespace UI
                 const bool closeMenu = escape && menuOpen;
                 const bool closeManager = escape && !menuOpen && manager.IsOpen();
 
-                auto& composer = input.GetComposer();
-                if (!(composer.GetTarget() == shownTarget))
-                {
-                    shownTarget = composer.GetTarget();
-                    history.SetShown(shownTarget.channel, true);
-                }
+                ShowTargetChannel();
                 const auto ruleGap = padding.y + framePadding - MenuFrame::GetMetrics().inset;
                 history.DrawFilters();
                 players.DrawButton();
@@ -356,7 +370,7 @@ namespace UI
                                      .corner = (std::max)({ MenuFrame::GetMetrics().corner, grip.x, grip.y }) },
                         units, anchor);
                 const auto picked = history.DrawLines(a_input, ImVec2{ 0.0F, -(spacing.y + input.GetFieldHeight()) },
-                    closeMenu, players.IsHovered() || manager.IsHovered());
+                    closeMenu, players.IsHovered() || manager.IsHovered(), true);
                 if (picked)
                 {
                     Whisper(*picked);
@@ -400,6 +414,90 @@ namespace UI
                 if (manager.IsOpen())
                 {
                     DrawPlayerManager(closeMenu);
+                }
+            }
+
+            // The chat column of an open trade, shown at the trade's font size whether or not the
+            // chat holds focus. Returns whether it does after the draw.
+            bool DrawDocked(bool a_focused, const TradeDock::Column& a_dock)
+            {
+                const Fonts::SizeScope fontSize{ a_dock.fontSize };
+                const Theme::Scope theme;
+                ImGui::SetNextWindowPos(a_dock.min, ImGuiCond_Always);
+                ImGui::SetNextWindowSize(a_dock.size, ImGuiCond_Always);
+                if (focusInput)
+                {
+                    ImGui::SetNextWindowFocus();
+                }
+                bool focused = a_focused;
+                if (!BeginFramed("##Chat"))
+                {
+                    ImGui::End();
+                    return focused;
+                }
+                // Before the items, so the click goes on to what it hit. Not while a trade popup
+                // is open: the window is then not hovered, and the click only closes the popup.
+                if (!focused && ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows)
+                    && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                    && WindowManager::Borrow(*this))
+                {
+                    focused = true;
+                    managerOnly.store(false, std::memory_order_release);
+                    input.OnOpened();
+                }
+                const auto framePadding = GetFramePadding();
+                const auto& padding = ImGui::GetStyle().WindowPadding;
+                const bool escape = focused && ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+                const bool menuOpen = history.IsMenuOpen() || input.IsMenuOpen();
+                const bool closeMenu = escape && menuOpen;
+
+                ShowTargetChannel();
+                // Without focus the column only shows, at full opacity.
+                ImGui::PushStyleVar(ImGuiStyleVar_DisabledAlpha, 1.0F);
+                ImGui::BeginDisabled(!focused);
+                const auto ruleGap = padding.y + framePadding - MenuFrame::GetMetrics().inset;
+                history.DrawFilters();
+                ChatStyle::DrawRule(ruleGap);
+                const auto& spacing = ImGui::GetStyle().ItemSpacing;
+                const auto picked = history.DrawLines(WindowInput{ .focused = focused },
+                    ImVec2{ 0.0F, -(spacing.y + input.GetFieldHeight()) }, closeMenu, !focused, focused);
+                if (picked)
+                {
+                    Whisper(*picked);
+                }
+                input.DrawListing();
+                const auto outcome = input.Draw(ChatInput::Frame{ .focus = focusInput && focused,
+                    .escape = escape && !menuOpen,
+                    .closeMenu = closeMenu,
+                    .menuOpen = menuOpen,
+                    .passive = !focused,
+                    .stayOnSend = true });
+                ImGui::EndDisabled();
+                ImGui::PopStyleVar();
+                if (focused)
+                {
+                    focusInput = false;
+                }
+                if (outcome != ChatInput::Outcome::kNone)
+                {
+                    history.ScrollToLatest();
+                }
+                if (outcome == ChatInput::Outcome::kClose)
+                {
+                    WindowManager::ReleaseFocus(*this);
+                    focused = false;
+                }
+                ImGui::End();
+                return focused;
+            }
+
+            void ShowTargetChannel()
+            {
+                const auto& target = input.GetComposer().GetTarget();
+                if (!(target == shownTarget))
+                {
+                    shownTarget = target;
+                    history.SetShown(shownTarget.channel, true);
                 }
             }
 
@@ -524,6 +622,7 @@ namespace UI
             std::atomic_bool managerOnly{ false };
             bool wasFocused{ false };
             bool wasOpen{ false };
+            bool wasDocked{ false };
             bool focusInput{ false };
         };
     }

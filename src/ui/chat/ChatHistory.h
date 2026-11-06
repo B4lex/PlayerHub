@@ -30,7 +30,7 @@ namespace UI
         void DrawFilters();
 
         std::optional<Multiplayer::PlayerIdentity> DrawLines(
-            const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu, bool a_wheelElsewhere);
+            const WindowInput& a_input, ImVec2 a_size, bool a_closeMenu, bool a_wheelElsewhere, bool a_pageKeys);
         [[nodiscard]] bool IsMenuOpen() const { return menuOpen; }
 
         float FindRecent(double a_now);

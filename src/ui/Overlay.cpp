@@ -222,11 +222,12 @@ namespace UI::Overlay
         WindowManager::Register(CreateNameplateLayer());
         WindowManager::Register(CreateStatusPanel());
         WindowManager::Register(CreateNoticeStack());
-        WindowManager::Register(CreateChatWindow());
         WindowManager::Register(CreateWorldPlayerMenu());
         WindowManager::Register(CreateTradePrompt());
         WindowManager::Register(CreateDisplayNameHint());
         WindowManager::Register(CreateTradeWindow());
+        // After the trade window, which places the chat's column in the frame it draws.
+        WindowManager::Register(CreateChatWindow());
         WindowManager::Register(CreateSettingsWindow());
         InputCapture::Install();
         InputLanguage::Install();

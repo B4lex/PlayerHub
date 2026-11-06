@@ -53,7 +53,8 @@ src/ui/
   chat/ChatPlayerManager      # player manager: friends, muted, and vanished tabs, over the chat or alone
   chat/WorldPlayerMenu        # a player's menu at the crosshair, opened by activating its character
   trade/TradePrompt           # a trade invitation waiting for an answer, answered by its keys
-  trade/TradeWindow           # the open trade: a fixed panel with both offers as grids, own items, Accept and Cancel, and the preview column
+  trade/TradeWindow           # the open trade: the layout of chat, panel, and preview column, the panel's offers as grids, own items, Accept and Cancel
+  trade/TradeDock             # the trade layout's chat column, set by the trade window for the chat in the same frame
   trade/ItemCard              # the preview column's item card in the vanilla layout
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
   settings/ConnectionControls # connection button, the line under it, one-line summary
@@ -86,7 +87,9 @@ assets/frame/                 # the menu frame's shape, deployed beside the DLL
 Every screen is an independent `UI::Window`. `Overlay::Install` registers each
 with `WindowManager`, and `Overlay::DrawFrame` draws them in registration order.
 Windows never reference each other, and a window's header exposes only a
-factory, such as `CreateChatWindow`, so its state stays in its `.cpp`.
+factory, such as `CreateChatWindow`, so its state stays in its `.cpp`. The
+trade window places the chat through `trade/TradeDock`, which both include
+([Chat in a trade](#chat-in-a-trade)).
 
 ## Rendering
 
@@ -121,10 +124,9 @@ changes, from the next frame after the setting applies.
   as 1.33 at 1440p blurred it. `ImGuiStyle::ScaleAllSizes` truncates the
   scale (checked against Dear ImGui 1.92.9), which made it 0 at any scale
   below 1, and the cursor did not draw.
-- The range is the user's. At 130% the trade panel's 52.8 font sizes are
-  1.7% taller than the display at any resolution (1098 px at 1080p), so the
-  panel is placed at the display's top and its bottom is cut; at 125% it
-  fits with 12 px to spare at 1080p.
+- The range is the user's. The trade window draws at a smaller font size
+  where the display cannot hold its layout at the scale
+  ([Window](#window)).
 - The settings window's size is set only when it is first shown, so
   `MenuFrame::BeginWindow` scales its last size and keeps its center when the
   font size changes, whether it changed while the window was open or closed
@@ -568,13 +570,13 @@ keyboard and the game receives no keyboard or mouse input.
   input thread) lends focus to a window whose `Window::IsBorrowKey` takes the
   pressed key: the trade window, while none of its fields or popups has the
   keyboard, lends it to the chat's `OpenChat` key
-  ([Chat over a trade](#chat-over-a-trade)). `WindowManager` keeps the
+  ([Chat in a trade](#chat-in-a-trade)). `WindowManager` keeps the
   lender, under `s_focusLock` with the focused window, and
   `ReleaseFocus(*this)` by the borrower gives focus back to it rather than
   to the game; the lender releasing drops it, and the borrower keeps focus.
   `TakeFocus` and the release of every window on a menu drop the lender as
   well. `WindowManager::Borrow` lends the same way without a key, for a
-  request the lender made: the trade's chat button.
+  click on the borrower: the chat docked in a trade.
   `WindowManager::HoldsFocus` tells a window whether it is focused or lent
   as of the call, since `WindowInput::focused` is the start of the frame's
   draw. A borrower never hides the idle cursor
@@ -1140,6 +1142,8 @@ never a line, so the history holds only what players said.
   arrive.
 - A button as wide as the list stands at its bottom, below the names, and
   opens the [player manager](#player-manager).
+- The [chat in a trade](#chat-in-a-trade) has no players button and
+  draws no list; a list left open shows again after the trade.
 - Only the button closes the list. A chat closed by Escape, also from the
   search field, by Enter, or by a menu that opens by itself shows the list
   again, with its search, when it opens. Closing the list empties the
@@ -1289,8 +1293,9 @@ never a line, so the history holds only what players said.
   Enter opens it only when bound. The key only opens: the chat closes by
   Enter and Escape as below. The whisper item in the
   [player menu in the world](#player-menu-in-the-world)
-  opens it too, with that player as the send target. It also opens over an
-  open trade ([Chat over a trade](#chat-over-a-trade)).
+  opens it too, with that player as the send target. During a trade the
+  chat is docked in the trade window instead
+  ([Chat in a trade](#chat-in-a-trade)).
   Typing goes only to the chat; the character does not move or look around, and
   keys already held keep acting until released.
 - Escape closes an open menu, else the [player manager](#player-manager), else
@@ -1631,15 +1636,23 @@ neither touches an engine object.
   by a game menu retries each frame and gives the trade up with `FAILED`
   after `kFocusWaitSeconds` (2) of frame time, each frame counting at most
   0.1 s; one that had focus and loses it, other than by
-  [lending it to the chat](#chat-over-a-trade), cancels with `MENU`.
-- The trade itself is a framed panel of 56 × 52.8 font sizes, the same share
-  of the screen at every resolution, which cannot be moved or resized
-  (`MenuFrame::WindowLayout::fixedPosition`). To its right, 2 font sizes
-  apart, as the inventory menu shows its item (the user's choice), the
-  [preview column](#preview-column) is 28 font sizes wide, less
-  on a narrow display while at least 12 fit within a 1 font size margin,
-  and left out otherwise. Panel and column are centered together, and the
-  panel vertically; the column is as tall as the panel.
+  [lending it to the chat](#chat-in-a-trade), cancels with `MENU`.
+- The window is laid out as one piece of three columns, 2 font sizes apart
+  and each as tall as the panel, centered together on the display: the
+  [chat](#chat-in-a-trade), 28.5 font sizes wide; the trade itself, a framed
+  panel of 56 × 52.8 font sizes, which cannot be moved or resized
+  (`MenuFrame::WindowLayout::fixedPosition`); and the
+  [preview column](#preview-column), 28 font sizes wide, right of the panel
+  as the inventory menu shows its item (the user's choice).
+- The layout, 116.5 × 52.8 font sizes, is drawn at the overlay's font size
+  where the display holds it with a 1 font size margin on every side, and
+  otherwise at the largest font size that does (`GetLayoutFontSize`,
+  pushed with `Fonts::SizeScope` before the theme, so every length in font
+  sizes follows it). It therefore looks the same on 16:9 and on every wider
+  display (the user's choice over narrowing the chat or the preview). A
+  16:9 display is 120 font sizes across at `[UI] Scale` 100%, so on 16:9
+  from about 101% the trade's text is smaller than the scale asks; on 21:9
+  the height binds from about 123%.
 - The title names the other player, in the accent; the window has no close
   button, Cancel and Escape close it. The left column holds the player's
   items, and the right column the peer's offer above the player's own, each
@@ -1718,8 +1731,8 @@ neither touches an engine object.
   item list's heading (the user asked for a sign that the list is still
   loading). A hovered row, also a disabled one, shows its item in the
   preview column at once.
-- The footer holds the [chat toggle](#chat-over-a-trade) at its left, and
-  Accept, disabled while blocked or accepted, and Cancel at its right.
+- The footer holds Accept, disabled while blocked or accepted, and Cancel
+  at its right.
   Acceptance shows on the grids alone, and a change taking it back shows as
   the tint going. `TradeSync`'s reason Accept is
   unavailable (nothing offered, the offer sending, a report awaited) is the
@@ -1729,41 +1742,56 @@ neither touches an engine object.
 - A trade that ends releases focus; a window that cancelled waits for the
   view to close without taking focus again.
 
-### Chat over a trade
+### Chat in a trade
 
-Goal: players can talk while trading without cancelling it. Non-goal:
-opening the [player manager](#player-manager) on its own key during a
-trade (the user's choice).
+Goal: players can talk while trading without cancelling it, with the chat
+in view beside the trade. Non-goals: the [player list](#player-list) and
+the [player manager](#player-manager) during a trade (the user's choice:
+the list would cover the panel; names in the lines, Tab, and `@` still
+pick a whisper target), and resizing or moving the docked chat.
 
-- `[Controls] OpenChat` opens the chat over the open trade while no trade
-  field or popup has the keyboard (`TradeWindow`'s `keysFree`, set after
-  each draw); the trade lends the chat focus ([Input focus](#input-focus))
-  and stays drawn behind it, backdrop included. `ManagePlayers` and other
-  windows' keys stay inactive.
-- A toggle button at the footer's left (`DrawChatButton`) opens the chat,
-  also with `OpenChat` unbound, and while the chat is open closes it,
-  labelled by which it does at a width that fits both. Opening goes through
-  `PlayerActivation::RequestWhisper` with the trade partner, which the chat
-  takes on its next draw with `WindowManager::Borrow`. The button acts on
-  the click (`ImGuiButtonFlags_PressedOnClick`, without holding the active
-  item), not the release: the click that closes the chat takes focus back
-  as any click on the trade does, so a release would open it again.
-- Each opening during a trade sets the send target to a whisper to the
-  other trader (`TradeSync::GetOpenPeer`) (the user's choice); the player
-  can change it.
-- The chat's windows come to the front when they appear (`BeginFramed`),
-  since they do not on focus and would otherwise stay behind the panel.
+- In each frame the trade window draws its panel, it gives the chat its
+  layout's left column and font size (`TradeDock::Set`; `TradeDock::Get`
+  returns it for that frame only). The chat window is registered after the
+  trade window, so it draws there in the same frame, as the open chat does:
+  the filters, the lines, and the input row in the menu frame, but without
+  the players button, at the column's size rather than `[UI] ChatWidth`,
+  `ChatLines`, and the chat's position, and whether or not it holds focus.
+  The closed chat's recent lines are not drawn, and lines arriving count
+  as read on the channels shown.
+- The trade lends the chat focus ([Input focus](#input-focus)) on
+  `[Controls] OpenChat` while no trade field or popup has the keyboard
+  (`TradeWindow`'s `keysFree`, set after each draw), and on a left or right
+  click on the docked chat (`WindowManager::Borrow`). The click is read
+  before the chat's items, so it goes on to what it hit, such as a place in
+  the field or a sender's name. While a trade popup is open, Dear ImGui
+  reports the chat not hovered, so a click there only closes the popup.
+  `ManagePlayers` and other windows' keys stay inactive.
+- Without focus the docked chat only shows: its items are disabled at full
+  opacity (`ImGui::BeginDisabled` with `DisabledAlpha` 1), its field asks
+  for no keyboard and gives up one it still holds
+  (`ChatInput::Frame::passive`), Page Up and Down leave its lines, and the
+  wheel scrolls them only under the cursor.
+- When the docked chat appears, the send target becomes a whisper to the
+  other trader (`TradeSync::GetOpenPeer`); the player can change it, and
+  focusing the chat again keeps the change. Focusing it leaves the lines
+  where they are scrolled.
 - While lent, the trade handles no Escape, also in the frame the chat gives
-  focus back, so the Escape that closes the chat does not cancel the trade.
-  Closing the chat, by Escape or Enter, returns to the trade.
+  focus back, so the Escape that leaves the chat does not cancel the trade.
+  A line sent keeps the docked chat focused, with the field emptied and the
+  keyboard back in it, whatever `[UI] CloseChatOnSend` says
+  (`ChatInput::Frame::stayOnSend`; the user's choice). Escape, and Enter in
+  an empty field while that setting is on, leave it as they close the open
+  chat ([Sending](#sending)), returning focus to the trade; the chat stays
+  in its column.
 - A left or right click on any of the trade's windows (`NoteClick`: the
-  panel, the model, the card) takes focus back with `TakeFocus`, which
-  closes the chat with its text kept, and the click goes on to what it
-  hit (the user's choice). A click that only closes a chat menu, or one on
-  the backdrop, does neither.
+  panel, the model, the card) takes focus back with `TakeFocus`, keeping
+  the chat's text, and the click goes on to what it hit (the user's
+  choice). A click that only closes a chat menu, or one on the backdrop,
+  does neither.
 - A game menu taking input releases both, and the trade cancels with
-  `MENU` as without the chat. A trade that ends while the chat is open
-  leaves the chat open.
+  `MENU` as without the chat. A trade that ends while the chat holds focus
+  leaves the chat open at its own position and size.
 
 ### Preview column
 
@@ -2966,12 +2994,15 @@ Not confirmed in game:
     never appears in either offer, and its giver gets a notice naming the
     plugin and sees the item's row disabled. Escape, Cancel, and a
     message box or dialogue a script opens each close both windows.
-    Enter during the trade opens the chat in front of the panel, whispering
-    the other player, with the cursor where it was; Escape closes the chat
-    and the trade stays open, and a click on the panel closes the chat and
-    does what it would without it. Enter in the search field or a count
-    popup does not open the chat. The footer's chat button opens it the same
-    way, also with `OpenChat` unbound, and closes it again with one click.
+    The chat stands left of the panel during the trade, whispering the other
+    player, and shows lines as they arrive. Enter, or a click on it, also
+    with `OpenChat` unbound, lets the player type there with the cursor
+    where it was; a line sent leaves the field focused for the next one;
+    Escape returns to the trade, which stays open, and a click
+    on the panel leaves the chat with its text kept and does what it would
+    without it. Enter in the search field or a count popup does not focus the
+    chat. At 1920×1080 and 3440×1440, at `Scale` 100 and 130, chat, panel,
+    and preview column look the same, centered, with nothing cut off.
 27. Both trade grids fill with thumbnails of the offered items within a
     second or two, each on a dark cell, enchanted or not,
     every one textured within about 2 s (`latest.log` shows `pending=0`
