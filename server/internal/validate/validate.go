@@ -41,8 +41,6 @@ const (
 	SessionTokenBytes       = 32
 	MaximumLevel            = 0xFFFF
 	MaximumHeadParts        = 32
-	MaximumListedHeadParts  = 16
-	MaximumListedHeadType   = 6
 	FaceMorphCount          = 19
 	FacePartCount           = 4
 	MinimumFacePart         = -1
@@ -323,16 +321,10 @@ func Appearance(a *pb.Appearance) error {
 		!between(a.GetWeight(), 0, 100) || !between(a.GetHeight(), 0.25, 4) {
 		return ErrAppearance
 	}
-	// TODO: merge added_head_parts into head_parts with the next protocol bump.
-	if len(a.GetHeadParts()) > MaximumListedHeadParts || len(a.GetHeadParts())+len(a.GetAddedHeadParts()) > MaximumHeadParts {
+	if len(a.GetHeadParts()) > MaximumHeadParts {
 		return ErrAppearance
 	}
 	for _, part := range a.GetHeadParts() {
-		if part.Form == nil || !formRef(part.Form) || part.GetType() > MaximumListedHeadType {
-			return ErrAppearance
-		}
-	}
-	for _, part := range a.GetAddedHeadParts() {
 		if part.Form == nil || !formRef(part.Form) {
 			return ErrAppearance
 		}
@@ -359,8 +351,7 @@ func Appearance(a *pb.Appearance) error {
 	}
 	for _, tint := range a.GetTints() {
 		if tint.GetIndex() > MaximumTintIndex || tint.GetType() > MaximumTintType || tint.Color == nil ||
-			!color(tint.Color) || !between(tint.GetAlpha(), 0, 1) ||
-			(tint.GetTexture() != "" && !texturePath(tint.GetTexture())) {
+			!color(tint.Color) || !between(tint.GetAlpha(), 0, 1) || !texturePath(tint.GetTexture()) {
 			return ErrAppearance
 		}
 	}
@@ -375,8 +366,7 @@ func Appearance(a *pb.Appearance) error {
 			return ErrAppearance
 		}
 	}
-	// TODO: check default_race as a FormRef once the next protocol bump drops DefaultRace.
-	if race := a.DefaultRace; race != nil && (race.Race == nil || !baseGameFormRef(race.Race)) {
+	if a.DefaultRace != nil && !baseGameFormRef(a.DefaultRace) {
 		return ErrAppearance
 	}
 	return nil

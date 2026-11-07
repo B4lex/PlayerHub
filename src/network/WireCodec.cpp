@@ -285,10 +285,6 @@ namespace Network::Wire
             return result;
         }
 
-        // The highest head part type that head_parts holds; the rest go in added_head_parts.
-        // TODO: merge added_head_parts into head_parts with the next protocol bump.
-        constexpr std::uint32_t kMaximumListedHeadPartType = 6;
-
         const char* ReadAppearance(const playerhub_v1_Appearance& a_appearance, Multiplayer::PlayerAppearance& a_result)
         {
             using Multiplayer::PlayerAppearance;
@@ -308,7 +304,7 @@ namespace Network::Wire
             a_result.height = a_appearance.height;
 
             a_result.headParts.clear();
-            if (a_appearance.head_parts_count + a_appearance.added_head_parts_count > PlayerAppearance::kMaximumHeadParts)
+            if (a_appearance.head_parts_count > PlayerAppearance::kMaximumHeadParts)
             {
                 return "headParts";
             }
@@ -316,19 +312,9 @@ namespace Network::Wire
             {
                 const auto& part = a_appearance.head_parts[i];
                 auto& result = a_result.headParts.emplace_back();
-                if (!part.has_form || !ReadFormReference(part.form, result.form) || part.type > kMaximumListedHeadPartType)
-                {
-                    return "headParts";
-                }
-                result.type = part.type;
-            }
-            for (pb_size_t i = 0; i < a_appearance.added_head_parts_count; ++i)
-            {
-                const auto& part = a_appearance.added_head_parts[i];
-                auto& result = a_result.headParts.emplace_back();
                 if (!part.has_form || !ReadFormReference(part.form, result.form))
                 {
-                    return "addedHeadParts";
+                    return "headParts";
                 }
                 result.type = part.type;
             }
@@ -395,10 +381,7 @@ namespace Network::Wire
             }
 
             a_result.defaultRace.reset();
-            // DefaultRace.female is ignored: a fallback race keeps the source's sex.
-            if (a_appearance.has_default_race
-                && (!a_appearance.default_race.has_race
-                    || !ReadFormReference(a_appearance.default_race.race, a_result.defaultRace.emplace())))
+            if (a_appearance.has_default_race && !ReadFormReference(a_appearance.default_race, a_result.defaultRace.emplace()))
             {
                 return "defaultRace";
             }
@@ -1116,15 +1099,10 @@ namespace Network::Wire
         bool written = CopyString(appearance->name, a_appearance.name)
             && WriteFormReference(a_appearance.race, appearance->race)
             && WriteOptionalFormReference(a_appearance.faceDetails, appearance->has_face_details, appearance->face_details);
-        static_assert(std::extent_v<decltype(playerhub_v1_Appearance::added_head_parts)> >= PlayerAppearance::kMaximumHeadParts);
+        static_assert(std::extent_v<decltype(playerhub_v1_Appearance::head_parts)> >= PlayerAppearance::kMaximumHeadParts);
         for (const auto& headPart : a_appearance.headParts)
         {
-            // 1.1.0 receivers drop a peer whose head_parts hold a type above 6 or more than 16 parts.
-            // TODO: write every part to head_parts with the next protocol bump.
-            const bool listed = headPart.type <= kMaximumListedHeadPartType
-                && appearance->head_parts_count < std::size(appearance->head_parts);
-            auto& part = listed ? appearance->head_parts[appearance->head_parts_count++]
-                                : appearance->added_head_parts[appearance->added_head_parts_count++];
+            auto& part = appearance->head_parts[appearance->head_parts_count++];
             part.has_form = true;
             part.type = headPart.type;
             written = written && WriteFormReference(headPart.form, part.form);
@@ -1173,11 +1151,7 @@ namespace Network::Wire
         if (a_appearance.defaultRace)
         {
             appearance->has_default_race = true;
-            appearance->default_race.has_race = true;
-            // 1.1.0 clients still take the fallback race's sex from this field.
-            // TODO: drop DefaultRace.female with the next protocol bump.
-            appearance->default_race.female = a_appearance.female;
-            written = written && WriteFormReference(*a_appearance.defaultRace, appearance->default_race.race);
+            written = written && WriteFormReference(*a_appearance.defaultRace, appearance->default_race);
         }
         if (!written)
         {
@@ -1728,8 +1702,7 @@ namespace Network::Wire
                     return std::unexpected("inspection race");
                 }
                 if (inspection.has_default_race
-                    && (!inspection.default_race.has_race
-                        || !ReadFormReference(inspection.default_race.race, result.defaultRace.emplace())
+                    && (!ReadFormReference(inspection.default_race, result.defaultRace.emplace())
                         || !Multiplayer::IsBaseGamePlugin(result.defaultRace->plugin)))
                 {
                     return std::unexpected("inspection defaultRace");

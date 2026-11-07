@@ -355,7 +355,7 @@ namespace AppearanceSync
             {
                 const auto& tint = a_appearance.tints[i];
                 if (tint.type > AppearanceData::kMaximumTintType || !inRange(tint.alpha, 0.0F, 1.0F)
-                    || (!tint.texture.empty() && !Multiplayer::IsValidTexturePath(tint.texture)))
+                    || !Multiplayer::IsValidTexturePath(tint.texture))
                 {
                     return std::format("tints[{}] {}", i, FormatTint(a_appearance.tints, i));
                 }
@@ -838,7 +838,7 @@ namespace AppearanceSync
                     continue;
                 }
                 const auto& assetTexture = asset->texture.file.textureName;
-                const bool assetPath = tint.texture.empty() || AsciiCase::Equals(tint.texture, assetTexture.c_str());
+                const bool assetPath = AsciiCase::Equals(tint.texture, assetTexture.c_str());
                 if (!assetPath && !Forms::TextureExists(tint.texture))
                 {
                     firstMissing = firstMissing ? firstMissing : std::addressof(tint);
@@ -903,10 +903,12 @@ namespace AppearanceSync
                     if (color && asset->texture.skinTone == SkinTone::kSkinTone)
                     {
                         appearance.bodyTint = ToAppearanceColor(color->color);
+                        const char* path = asset->texture.file.textureName.c_str();
                         appearance.tints.push_back(AppearanceTint{ .index = asset->texture.index,
                             .type = static_cast<std::uint8_t>(SkinTone::kSkinTone),
                             .color = appearance.bodyTint,
-                            .alpha = 1.0F });
+                            .alpha = 1.0F,
+                            .texture = path ? path : "" });
                         break;
                     }
                 }

@@ -2682,7 +2682,7 @@ type Inspection struct {
 	Slot          uint32                 `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
 	Level         uint32                 `protobuf:"varint,2,opt,name=level,proto3" json:"level,omitempty"`
 	Race          *FormRef               `protobuf:"bytes,3,opt,name=race,proto3" json:"race,omitempty"`
-	DefaultRace   *DefaultRace           `protobuf:"bytes,4,opt,name=default_race,json=defaultRace,proto3" json:"default_race,omitempty"`
+	DefaultRace   *FormRef               `protobuf:"bytes,4,opt,name=default_race,json=defaultRace,proto3" json:"default_race,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2738,7 +2738,7 @@ func (x *Inspection) GetRace() *FormRef {
 	return nil
 }
 
-func (x *Inspection) GetDefaultRace() *DefaultRace {
+func (x *Inspection) GetDefaultRace() *FormRef {
 	if x != nil {
 		return x.DefaultRace
 	}
@@ -3567,13 +3567,13 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"\x04left\x18\x02 \x01(\rR\x04left\";\n" +
 	"\rNearbyPlayers\x12\x16\n" +
 	"\x06joined\x18\x01 \x03(\rR\x06joined\x12\x12\n" +
-	"\x04left\x18\x02 \x03(\rR\x04left\"\x9f\x01\n" +
+	"\x04left\x18\x02 \x03(\rR\x04left\"\x9b\x01\n" +
 	"\n" +
 	"Inspection\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\rR\x04slot\x12\x14\n" +
 	"\x05level\x18\x02 \x01(\rR\x05level\x12)\n" +
-	"\x04race\x18\x03 \x01(\v2\x15.playerhub.v1.FormRefR\x04race\x12<\n" +
-	"\fdefault_race\x18\x04 \x01(\v2\x19.playerhub.v1.DefaultRaceR\vdefaultRace\"\x9a\x01\n" +
+	"\x04race\x18\x03 \x01(\v2\x15.playerhub.v1.FormRefR\x04race\x128\n" +
+	"\fdefault_race\x18\x04 \x01(\v2\x15.playerhub.v1.FormRefR\vdefaultRace\"\x9a\x01\n" +
 	"\vTradeInvite\x12\x19\n" +
 	"\btrade_id\x18\x01 \x01(\rR\atradeId\x124\n" +
 	"\x06sender\x18\x02 \x01(\v2\x1c.playerhub.v1.PlayerIdentityR\x06sender\x12:\n" +
@@ -3735,7 +3735,6 @@ var file_playerhub_v1_messages_proto_goTypes = []any{
 	(*Appearance)(nil),       // 51: playerhub.v1.Appearance
 	(*Equipment)(nil),        // 52: playerhub.v1.Equipment
 	(*Effects)(nil),          // 53: playerhub.v1.Effects
-	(*DefaultRace)(nil),      // 54: playerhub.v1.DefaultRace
 }
 var file_playerhub_v1_messages_proto_depIdxs = []int32{
 	1,  // 0: playerhub.v1.ChatSend.channel:type_name -> playerhub.v1.ChatChannel
@@ -3786,7 +3785,7 @@ var file_playerhub_v1_messages_proto_depIdxs = []int32{
 	37, // 45: playerhub.v1.ChatMessage.recipient:type_name -> playerhub.v1.PlayerIdentity
 	37, // 46: playerhub.v1.Roster.joined:type_name -> playerhub.v1.PlayerIdentity
 	47, // 47: playerhub.v1.Inspection.race:type_name -> playerhub.v1.FormRef
-	54, // 48: playerhub.v1.Inspection.default_race:type_name -> playerhub.v1.DefaultRace
+	47, // 48: playerhub.v1.Inspection.default_race:type_name -> playerhub.v1.FormRef
 	37, // 49: playerhub.v1.TradeInvite.sender:type_name -> playerhub.v1.PlayerIdentity
 	37, // 50: playerhub.v1.TradeInvite.recipient:type_name -> playerhub.v1.PlayerIdentity
 	3,  // 51: playerhub.v1.TradeClose.reason:type_name -> playerhub.v1.TradeCloseReason

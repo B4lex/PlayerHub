@@ -83,8 +83,7 @@ On the game thread, once per second:
   form's RGB, `faceDetails`, and `faceData` morphs and parts. Extra parts are
   implied by their parent and skipped; the receiver lists them again
   ([Actor base](#actor-base)). A head part's `type` is `BGSHeadPart::type`
-  (PNAM), a `uint32` a mod can set to anything, and is sent as it is
-  ([wire split](network.md#appearance)): RaceMenu
+  (PNAM), a `uint32` a mod can set to anything, and is sent as it is: RaceMenu
   add-ons such as `Racemenu Handnails.esp` nails (41) and
   `InariTail_RM_2-3.esp` tails (40) lie outside the vanilla `0..6`
   ([head part types](#engine-assumptions)). At most 32 top-level parts are
@@ -164,8 +163,7 @@ engine default that is replaced rather than written. The base then gets:
   details, morphs, parts, body tint, and tint layers
   (`interpolationValue = alpha × 100`, with the matching preset). Each layer's
   texture is kept beside the base in `RemoteState::baseTintTextures`: the race
-  asset's path when `texture` is empty or names the same file, else the sent
-  path.
+  asset's path when `texture` names the same file, else the sent path.
 
 `TESNPC::InitItemImpl` lists a plugin NPC's extra parts after their parent, and
 the head build attaches only the listed parts ([head

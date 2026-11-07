@@ -397,16 +397,15 @@ every receiver.
 | `female` | boolean |
 | `weight` | finite, `0..100` |
 | `height` | finite, `0.25..4` |
-| `head_parts` | at most 16, each with a form and `type` `0..6` |
-| `added_head_parts` | each with a form and any `type`, at most 32 parts together with `head_parts` |
+| `head_parts` | at most 32, each with a form and any `type` |
 | `hair_color` | RGB `0..255`, unset for none |
 | `face_details` | form reference, unset for none |
 | `body_tint` | required, RGB `0..255` |
 | `face_morphs` | exactly 19 finite floats; unset morphs hold `FLT_MAX` |
 | `face_parts` | exactly 4 `sint32`, each `-1..255` (`-1` for none); the plugin clamps to this range when capturing and parsing |
-| `tints` | at most 64; `index` `0..65535`, `type` `0..14`, a color, `alpha` `0..1`, `texture` empty or a [texture path](#texture-paths) |
+| `tints` | at most 64; `index` `0..65535`, `type` `0..14`, a color, `alpha` `0..1`, a [texture path](#texture-paths) |
 | `overlays` | at most 32; `area` `BODY`, `HANDS`, `FEET`, or `FACE`; a [texture path](#texture-paths); `color` and `glow_color` RGB `0..255`, both required; `alpha` `0..1`; `glow_strength` `0..100` |
-| `default_race` | `{race, female}` with a base-game race, unset for none; receivers ignore `female`, which senders still set to the appearance's `female`, a leftover of protocol 14, whose 1.1.0 clients read it |
+| `default_race` | a base-game race, unset for none; the fallback race keeps the appearance's `female` |
 
 Hair color is RGB rather than a form, because character editors commonly
 create dynamic color forms.
@@ -418,15 +417,7 @@ so both ends accept only a relative `.dds` path (suffix compared without case)
 of 1..260 bytes of printable ASCII (`0x20..0x7E`), without `:`, without a
 leading `\` or `/`, and without a `..` component (`IsValidTexturePath`, Go
 `texturePath`). The plugin drops a captured tint or overlay whose path fails
-rather than the whole appearance. An empty tint `texture` selects the race's
-own texture, as protocol 14 senders without the field did.
-
-`WireCodec` writes head parts in capture order: a part goes to `head_parts`
-while its type is `0..6` and that field has room, and to `added_head_parts`
-otherwise. Readers append `added_head_parts` after `head_parts`. The split
-kept protocol 14 compatible with 1.1.0 clients, which drop a peer whose
-`head_parts` exceed those limits; protocols from 15 on refuse them at the handshake,
-and the two fields are not merged yet.
+rather than the whole appearance.
 
 ### `Equipment`
 
@@ -445,7 +436,7 @@ and the two fields are not merged yet.
 | `beast_armor` | at most 8, as `armor`: the vampire lord's worn armor |
 | outfit `armor` | at most 8, non-zero slot masks |
 | outfit `hands` | at most 2, a weapon with a weapon type or a torch, no casting art, light, or enchantment, no two with the same kind and weapon type |
-| outfit references and `default_race.race` | from a base-game plugin, compared without case |
+| outfit references and `default_race` | from a base-game plugin, compared without case |
 
 `slot_mask` and `weapon_type` are hints that select the default outfit piece;
 the receiver's locally resolved form decides how an item is equipped. The

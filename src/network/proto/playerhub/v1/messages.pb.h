@@ -316,7 +316,7 @@ typedef struct _playerhub_v1_Inspection {
     bool has_race;
     playerhub_v1_FormRef race;
     bool has_default_race;
-    playerhub_v1_DefaultRace default_race;
+    playerhub_v1_FormRef default_race;
 } playerhub_v1_Inspection;
 
 typedef struct _playerhub_v1_TradeInvite {
@@ -489,7 +489,7 @@ extern "C" {
 #define playerhub_v1_ChatMessage_init_default    {_playerhub_v1_ChatChannel_MIN, false, playerhub_v1_PlayerIdentity_init_default, false, playerhub_v1_PlayerIdentity_init_default, ""}
 #define playerhub_v1_Roster_init_default         {{{NULL}, NULL}, 0}
 #define playerhub_v1_NearbyPlayers_init_default  {{{NULL}, NULL}, {{NULL}, NULL}}
-#define playerhub_v1_Inspection_init_default     {0, 0, false, playerhub_v1_FormRef_init_default, false, playerhub_v1_DefaultRace_init_default}
+#define playerhub_v1_Inspection_init_default     {0, 0, false, playerhub_v1_FormRef_init_default, false, playerhub_v1_FormRef_init_default}
 #define playerhub_v1_TradeInvite_init_default    {0, false, playerhub_v1_PlayerIdentity_init_default, false, playerhub_v1_PlayerIdentity_init_default}
 #define playerhub_v1_TradeOpen_init_default      {0}
 #define playerhub_v1_TradeCommit_init_default    {0, 0, 0}
@@ -530,7 +530,7 @@ extern "C" {
 #define playerhub_v1_ChatMessage_init_zero       {_playerhub_v1_ChatChannel_MIN, false, playerhub_v1_PlayerIdentity_init_zero, false, playerhub_v1_PlayerIdentity_init_zero, ""}
 #define playerhub_v1_Roster_init_zero            {{{NULL}, NULL}, 0}
 #define playerhub_v1_NearbyPlayers_init_zero     {{{NULL}, NULL}, {{NULL}, NULL}}
-#define playerhub_v1_Inspection_init_zero        {0, 0, false, playerhub_v1_FormRef_init_zero, false, playerhub_v1_DefaultRace_init_zero}
+#define playerhub_v1_Inspection_init_zero        {0, 0, false, playerhub_v1_FormRef_init_zero, false, playerhub_v1_FormRef_init_zero}
 #define playerhub_v1_TradeInvite_init_zero       {0, false, playerhub_v1_PlayerIdentity_init_zero, false, playerhub_v1_PlayerIdentity_init_zero}
 #define playerhub_v1_TradeOpen_init_zero         {0}
 #define playerhub_v1_TradeCommit_init_zero       {0, 0, 0}
@@ -982,7 +982,7 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  default_race,      4)
 #define playerhub_v1_Inspection_CALLBACK NULL
 #define playerhub_v1_Inspection_DEFAULT NULL
 #define playerhub_v1_Inspection_race_MSGTYPE playerhub_v1_FormRef
-#define playerhub_v1_Inspection_default_race_MSGTYPE playerhub_v1_DefaultRace
+#define playerhub_v1_Inspection_default_race_MSGTYPE playerhub_v1_FormRef
 
 #define playerhub_v1_TradeInvite_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   trade_id,          1) \
@@ -1164,12 +1164,12 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_Enter_size                  0
 #define playerhub_v1_Exit_size                   0
 #define playerhub_v1_Inspect_size                6
-#define playerhub_v1_Inspection_size             561
+#define playerhub_v1_Inspection_size             556
 #define playerhub_v1_PeerAction_size             314
-#define playerhub_v1_PeerAppearance_size         44270
+#define playerhub_v1_PeerAppearance_size         39737
 #define playerhub_v1_PeerContext_size            904
 #define playerhub_v1_PeerEffects_size            8980
-#define playerhub_v1_PeerEnter_size              66386
+#define playerhub_v1_PeerEnter_size              61853
 #define playerhub_v1_PeerEquipment_size          20922
 #define playerhub_v1_PeerLeave_size              8
 #define playerhub_v1_Ping_size                   6

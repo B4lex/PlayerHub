@@ -274,7 +274,7 @@ func describe(m *pb.ServerMessage) string {
 			s += fmt.Sprintf(" race %s|%X", i.Race.Plugin, i.Race.FormId)
 		}
 		if i.DefaultRace != nil {
-			s += fmt.Sprintf(" default %s|%X", i.DefaultRace.Race.GetPlugin(), i.DefaultRace.Race.GetFormId())
+			s += fmt.Sprintf(" default %s|%X", i.DefaultRace.GetPlugin(), i.DefaultRace.GetFormId())
 		}
 		return s
 	case *pb.ServerMessage_TradeInvite:
@@ -1297,7 +1297,7 @@ func TestInspect(t *testing.T) {
 	a, b := f.connectAs("Lydia"), f.connectAs("Serana")
 	f.send(b, &pb.ClientMessage{Message: &pb.ClientMessage_Appearance{Appearance: &pb.Appearance{
 		Revision: 1, Name: "Serana", Level: 31, Race: &pb.FormRef{Plugin: "Mod.esp", FormId: 0x812},
-		DefaultRace: &pb.DefaultRace{Race: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 0x13746}, Female: true}}}})
+		DefaultRace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 0x13746}}}})
 	v := f.hub.Connect(world.KindReplay, nil)
 	f.send(v, appearance(1, "Lydia"))
 	f.received(a)

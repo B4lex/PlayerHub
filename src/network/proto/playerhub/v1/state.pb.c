@@ -33,9 +33,6 @@ PB_BIND(playerhub_v1_Tint, playerhub_v1_Tint, 2)
 PB_BIND(playerhub_v1_Overlay, playerhub_v1_Overlay, 2)
 
 
-PB_BIND(playerhub_v1_DefaultRace, playerhub_v1_DefaultRace, 2)
-
-
 PB_BIND(playerhub_v1_Appearance, playerhub_v1_Appearance, 4)
 
 

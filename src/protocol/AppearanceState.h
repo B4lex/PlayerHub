@@ -45,7 +45,7 @@ namespace Multiplayer
         std::uint8_t type{ 0 };
         AppearanceColor color{};
         float alpha{ 0.0F };
-        // TintMask::texture's path, relative to Data\Textures. Empty from 1.1.0 senders.
+        // TintMask::texture's path, relative to Data\Textures.
         std::string texture;
 
         bool operator==(const AppearanceTint&) const = default;
@@ -226,7 +226,7 @@ namespace Multiplayer
         for (const auto& tint : a_appearance.tints)
         {
             if (tint.type > PlayerAppearance::kMaximumTintType || !std::isfinite(tint.alpha) || tint.alpha < 0.0F
-                || tint.alpha > 1.0F || (!tint.texture.empty() && !IsValidTexturePath(tint.texture)))
+                || tint.alpha > 1.0F || !IsValidTexturePath(tint.texture))
             {
                 return false;
             }

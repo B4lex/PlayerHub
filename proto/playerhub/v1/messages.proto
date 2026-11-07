@@ -284,7 +284,7 @@ message Inspection {
   uint32 slot = 1;
   uint32 level = 2;
   FormRef race = 3;
-  DefaultRace default_race = 4;
+  FormRef default_race = 4;
 }
 
 message TradeInvite {

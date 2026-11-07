@@ -238,27 +238,28 @@ func TestBeastActionForm(t *testing.T) {
 
 func validAppearance() *pb.Appearance {
 	return &pb.Appearance{
-		Revision:  3,
-		Name:      "Lydia Stormblade",
-		Level:     12,
-		Race:      ref("Skyrim.esm", 79686),
-		Weight:    50,
-		Height:    1,
-		HeadParts: []*pb.HeadPart{{Form: ref("Skyrim.esm", 324286), Type: 1}},
-		// A RaceMenu add-on type outside the vanilla 0..6.
-		AddedHeadParts: []*pb.HeadPart{{Form: ref("Racemenu Handnails.esp", 0x934), Type: 41}},
-		HairColor:      &pb.Color{R: 59, G: 42, B: 30},
-		BodyTint:       &pb.Color{R: 222, G: 188, B: 170},
-		FaceMorphs:     make([]float32, FaceMorphCount),
-		FaceParts:      []int32{0, -1, 255, 3},
+		Revision: 3,
+		Name:     "Lydia Stormblade",
+		Level:    12,
+		Race:     ref("Skyrim.esm", 79686),
+		Weight:   50,
+		Height:   1,
+		HeadParts: []*pb.HeadPart{{Form: ref("Skyrim.esm", 324286), Type: 1},
+			// A RaceMenu add-on type outside the vanilla 0..6.
+			{Form: ref("Racemenu Handnails.esp", 0x934), Type: 41}},
+		HairColor:  &pb.Color{R: 59, G: 42, B: 30},
+		BodyTint:   &pb.Color{R: 222, G: 188, B: 170},
+		FaceMorphs: make([]float32, FaceMorphCount),
+		FaceParts:  []int32{0, -1, 255, 3},
 		Tints: []*pb.Tint{
-			{Index: 44, Type: 6, Color: &pb.Color{R: 1}, Alpha: 1},
+			{Index: 44, Type: 6, Color: &pb.Color{R: 1}, Alpha: 1,
+				Texture: `Actors\Character\Character Assets\TintMasks\SkinTone.dds`},
 			{Index: 7, Type: 7, Color: &pb.Color{}, Alpha: 0.5,
 				Texture: `Actors\Character\Character Assets\TintMasks\BeautyMark_01.DDS`},
 		},
 		Overlays: []*pb.Overlay{{Area: pb.OverlayArea_OVERLAY_AREA_HANDS, Texture: "Actors/Character/Overlays/Ink.dds",
 			Color: &pb.Color{R: 255}, Alpha: 1, GlowColor: &pb.Color{}, GlowStrength: 25.5}},
-		DefaultRace: &pb.DefaultRace{Race: ref("skyrim.ESM", 1), Female: true},
+		DefaultRace: ref("skyrim.ESM", 1),
 	}
 }
 
@@ -269,60 +270,54 @@ func TestAppearance(t *testing.T) {
 		t.Fatal(err)
 	}
 	full := validAppearance()
-	for len(full.HeadParts) < MaximumListedHeadParts {
-		full.HeadParts = append(full.HeadParts, &pb.HeadPart{Form: ref("Mod.esp", uint32(len(full.HeadParts))), Type: 6})
-	}
-	for len(full.HeadParts)+len(full.AddedHeadParts) < MaximumHeadParts {
-		full.AddedHeadParts = append(full.AddedHeadParts,
-			&pb.HeadPart{Form: ref("Mod.esp", uint32(len(full.AddedHeadParts))), Type: 0xFFFFFFFF})
+	for len(full.HeadParts) < MaximumHeadParts {
+		full.HeadParts = append(full.HeadParts,
+			&pb.HeadPart{Form: ref("Mod.esp", uint32(len(full.HeadParts))), Type: 0xFFFFFFFF})
 	}
 	if err := Appearance(full); err != nil {
 		t.Fatalf("%d head parts: %v", MaximumHeadParts, err)
 	}
 	cases := map[string]func(*pb.Appearance){
-		"zero revision":         func(a *pb.Appearance) { a.Revision = 0 },
-		"long name":             func(a *pb.Appearance) { a.Name = strings.Repeat("é", 65) },
-		"control in name":       func(a *pb.Appearance) { a.Name = "a\x7f" },
-		"level above 65535":     func(a *pb.Appearance) { a.Level = 65536 },
-		"missing race":          func(a *pb.Appearance) { a.Race = nil },
-		"weight above 100":      func(a *pb.Appearance) { a.Weight = 100.5 },
-		"height below 0.25":     func(a *pb.Appearance) { a.Height = 0.2 },
-		"NaN height":            func(a *pb.Appearance) { a.Height = float32(math.NaN()) },
-		"too many listed parts": func(a *pb.Appearance) { a.HeadParts = make([]*pb.HeadPart, MaximumListedHeadParts+1) },
-		"head part type":        func(a *pb.Appearance) { a.HeadParts[0].Type = 7 },
-		"head part no form":     func(a *pb.Appearance) { a.HeadParts[0].Form = nil },
-		"too many head parts": func(a *pb.Appearance) {
-			a.AddedHeadParts = make([]*pb.HeadPart, MaximumHeadParts-len(a.HeadParts)+1)
-		},
-		"added part no form":   func(a *pb.Appearance) { a.AddedHeadParts[0].Form = nil },
-		"hair channel":         func(a *pb.Appearance) { a.HairColor.G = 256 },
-		"missing body tint":    func(a *pb.Appearance) { a.BodyTint = nil },
-		"18 face morphs":       func(a *pb.Appearance) { a.FaceMorphs = a.FaceMorphs[:18] },
-		"infinite face morph":  func(a *pb.Appearance) { a.FaceMorphs[3] = float32(math.Inf(1)) },
-		"3 face parts":         func(a *pb.Appearance) { a.FaceParts = a.FaceParts[:3] },
-		"face part above 255":  func(a *pb.Appearance) { a.FaceParts[2] = 256 },
-		"face part below -1":   func(a *pb.Appearance) { a.FaceParts[1] = math.MinInt32 },
-		"too many tints":       func(a *pb.Appearance) { a.Tints = make([]*pb.Tint, 65) },
-		"tint type":            func(a *pb.Appearance) { a.Tints[0].Type = 15 },
-		"tint alpha":           func(a *pb.Appearance) { a.Tints[0].Alpha = 1.01 },
-		"tint without color":   func(a *pb.Appearance) { a.Tints[0].Color = nil },
-		"tint texture not dds": func(a *pb.Appearance) { a.Tints[1].Texture = "Actors\\a.png" },
-		"tint texture parent":  func(a *pb.Appearance) { a.Tints[1].Texture = `Actors\..\..\a.dds` },
-		"tint texture drive":   func(a *pb.Appearance) { a.Tints[1].Texture = `C:\a.dds` },
-		"tint texture rooted":  func(a *pb.Appearance) { a.Tints[1].Texture = "/a.dds" },
-		"tint texture control": func(a *pb.Appearance) { a.Tints[1].Texture = "a\x01.dds" },
-		"tint texture long":    func(a *pb.Appearance) { a.Tints[1].Texture = strings.Repeat("a", 257) + ".dds" },
-		"too many overlays":    func(a *pb.Appearance) { a.Overlays = make([]*pb.Overlay, MaximumOverlays+1) },
-		"overlay area":         func(a *pb.Appearance) { a.Overlays[0].Area = 5 },
-		"overlay no area":      func(a *pb.Appearance) { a.Overlays[0].Area = pb.OverlayArea_OVERLAY_AREA_UNSPECIFIED },
-		"overlay no texture":   func(a *pb.Appearance) { a.Overlays[0].Texture = "" },
-		"overlay texture":      func(a *pb.Appearance) { a.Overlays[0].Texture = "../a.dds" },
-		"overlay no color":     func(a *pb.Appearance) { a.Overlays[0].Color = nil },
-		"overlay alpha":        func(a *pb.Appearance) { a.Overlays[0].Alpha = float32(math.NaN()) },
-		"overlay no glow":      func(a *pb.Appearance) { a.Overlays[0].GlowColor = nil },
-		"overlay glow":         func(a *pb.Appearance) { a.Overlays[0].GlowStrength = 100.5 },
-		"modded default race":  func(a *pb.Appearance) { a.DefaultRace.Race = ref("Mod.esp", 1) },
-		"default race no race": func(a *pb.Appearance) { a.DefaultRace.Race = nil },
+		"zero revision":          func(a *pb.Appearance) { a.Revision = 0 },
+		"long name":              func(a *pb.Appearance) { a.Name = strings.Repeat("é", 65) },
+		"control in name":        func(a *pb.Appearance) { a.Name = "a\x7f" },
+		"level above 65535":      func(a *pb.Appearance) { a.Level = 65536 },
+		"missing race":           func(a *pb.Appearance) { a.Race = nil },
+		"weight above 100":       func(a *pb.Appearance) { a.Weight = 100.5 },
+		"height below 0.25":      func(a *pb.Appearance) { a.Height = 0.2 },
+		"NaN height":             func(a *pb.Appearance) { a.Height = float32(math.NaN()) },
+		"too many head parts":    func(a *pb.Appearance) { a.HeadParts = make([]*pb.HeadPart, MaximumHeadParts+1) },
+		"head part no form":      func(a *pb.Appearance) { a.HeadParts[0].Form = nil },
+		"added part no form":     func(a *pb.Appearance) { a.HeadParts[1].Form = nil },
+		"hair channel":           func(a *pb.Appearance) { a.HairColor.G = 256 },
+		"missing body tint":      func(a *pb.Appearance) { a.BodyTint = nil },
+		"18 face morphs":         func(a *pb.Appearance) { a.FaceMorphs = a.FaceMorphs[:18] },
+		"infinite face morph":    func(a *pb.Appearance) { a.FaceMorphs[3] = float32(math.Inf(1)) },
+		"3 face parts":           func(a *pb.Appearance) { a.FaceParts = a.FaceParts[:3] },
+		"face part above 255":    func(a *pb.Appearance) { a.FaceParts[2] = 256 },
+		"face part below -1":     func(a *pb.Appearance) { a.FaceParts[1] = math.MinInt32 },
+		"too many tints":         func(a *pb.Appearance) { a.Tints = make([]*pb.Tint, 65) },
+		"tint type":              func(a *pb.Appearance) { a.Tints[0].Type = 15 },
+		"tint alpha":             func(a *pb.Appearance) { a.Tints[0].Alpha = 1.01 },
+		"tint without color":     func(a *pb.Appearance) { a.Tints[0].Color = nil },
+		"tint no texture":        func(a *pb.Appearance) { a.Tints[0].Texture = "" },
+		"tint texture not dds":   func(a *pb.Appearance) { a.Tints[1].Texture = "Actors\\a.png" },
+		"tint texture parent":    func(a *pb.Appearance) { a.Tints[1].Texture = `Actors\..\..\a.dds` },
+		"tint texture drive":     func(a *pb.Appearance) { a.Tints[1].Texture = `C:\a.dds` },
+		"tint texture rooted":    func(a *pb.Appearance) { a.Tints[1].Texture = "/a.dds" },
+		"tint texture control":   func(a *pb.Appearance) { a.Tints[1].Texture = "a\x01.dds" },
+		"tint texture long":      func(a *pb.Appearance) { a.Tints[1].Texture = strings.Repeat("a", 257) + ".dds" },
+		"too many overlays":      func(a *pb.Appearance) { a.Overlays = make([]*pb.Overlay, MaximumOverlays+1) },
+		"overlay area":           func(a *pb.Appearance) { a.Overlays[0].Area = 5 },
+		"overlay no area":        func(a *pb.Appearance) { a.Overlays[0].Area = pb.OverlayArea_OVERLAY_AREA_UNSPECIFIED },
+		"overlay no texture":     func(a *pb.Appearance) { a.Overlays[0].Texture = "" },
+		"overlay texture":        func(a *pb.Appearance) { a.Overlays[0].Texture = "../a.dds" },
+		"overlay no color":       func(a *pb.Appearance) { a.Overlays[0].Color = nil },
+		"overlay alpha":          func(a *pb.Appearance) { a.Overlays[0].Alpha = float32(math.NaN()) },
+		"overlay no glow":        func(a *pb.Appearance) { a.Overlays[0].GlowColor = nil },
+		"overlay glow":           func(a *pb.Appearance) { a.Overlays[0].GlowStrength = 100.5 },
+		"modded default race":    func(a *pb.Appearance) { a.DefaultRace = ref("Mod.esp", 1) },
+		"default race no plugin": func(a *pb.Appearance) { a.DefaultRace.Plugin = "" },
 	}
 	for name, mutate := range cases {
 		a := validAppearance()
