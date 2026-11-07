@@ -944,9 +944,13 @@ action on a notice. What answers the chat's own input is a
   separate strip rect would have its rounding clamped to its narrow width.
   Notices have no kinds: the user chose the
   accent for all over a color per success, warning, and info.
-- They are drawn in a `Theme::Scope` on Dear ImGui's background draw list,
-  under every window, so they take no input and never cover a window the
-  player uses; a window over them hides them.
+- They are drawn in a `Theme::Scope` on Dear ImGui's foreground draw list,
+  over every window, so they take no input and stay visible while a window
+  is open, the [trade window](#trade-window) included: the user chose this
+  so a trade's notices, such as an item the other game cannot receive, are
+  seen while trading. A notice can therefore cover part of a window under
+  it. `Cursor::Draw` adds the cursor to the same list after every window
+  has drawn, so the cursor stays over the notices.
 
 ## Chat
 

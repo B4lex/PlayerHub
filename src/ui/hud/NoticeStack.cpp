@@ -150,8 +150,7 @@ namespace UI
                 const auto& background = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
                 const auto& textColor = ImGui::GetStyleColorVec4(ImGuiCol_Text);
                 const auto accent = Theme::GetAccent();
-                // Under every window, so a notice never covers one the player uses.
-                auto* drawList = ImGui::GetBackgroundDrawList();
+                auto* drawList = ImGui::GetForegroundDrawList();
 
                 auto top = std::floor(display.y * kTopFraction);
                 for (const auto& toast : toasts)
