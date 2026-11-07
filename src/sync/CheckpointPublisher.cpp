@@ -58,9 +58,9 @@ namespace CheckpointPublisher
         }
         const auto sequence = ++a_state.sequence;
 
-        const auto mount = MountSync::SampleLocalMount(a_local, sequence);
+        const auto mount = MountSync::SampleLocalMount(a_local, sequence, snapshotElapsed);
         const auto movement = MovementSync::SampleLocalMovement(
-            a_state.movement, a_local, mount ? *mount : a_local.player, *cell, snapshotElapsed);
+            a_state.movement, a_local, mount.actor ? *mount.actor : a_local.player, *cell, snapshotElapsed);
         const auto animationState = AnimationSync::SampleLocalAnimation(a_animation, a_local, sequence, movement);
         const auto& space = MovementSync::SampleLocalSpace(a_state.movement, movement);
         auto furniture = FurnitureSync::SampleLocalFurniture(a_local, sequence);
@@ -70,7 +70,7 @@ namespace CheckpointPublisher
         const auto form = ShapeshiftSync::GetLocalForm();
         auto idle = IdleSync::SampleLocalIdle({ .animationState = animationState,
             .furniture = !furniture.IsEmpty(),
-            .mounted = static_cast<bool>(mount),
+            .mounted = static_cast<bool>(mount.actor),
             .dead = dead,
             .swimming = movement.swimming,
             .transformed = form != Multiplayer::Shapeshift::kNone });
@@ -87,7 +87,10 @@ namespace CheckpointPublisher
             .handPresentation = handPresentation,
             .voice = VoiceSync::SampleLocalVoice(),
             .dead = dead,
-            .mounted = static_cast<bool>(mount),
+            .mounted = static_cast<bool>(mount.actor),
+            .flyingMount = mount.flying,
+            .flyState = mount.flyState,
+            .wingState = mount.wingState,
             .swimming = movement.swimming,
             .levitating = vampireLord.levitating,
             .mistForm = vampireLord.mistForm,

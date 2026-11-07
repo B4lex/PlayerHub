@@ -1,5 +1,6 @@
 #pragma once
 
+#include "protocol/FlyState.h"
 #include "protocol/FormReference.h"
 #include "protocol/IdleEvent.h"
 #include "protocol/MovementState.h"
@@ -33,6 +34,10 @@ namespace Network
         Multiplayer::VoicePresentation voice{};
         bool dead{ false };
         bool mounted{ false };
+        // The mount's race flies; its fly state is Skyrim's for the mount.
+        bool flyingMount{ false };
+        Multiplayer::FlyState flyState{ Multiplayer::FlyState::kNone };
+        Multiplayer::WingState wingState{ Multiplayer::WingState::kNone };
         bool swimming{ false };
         bool levitating{ false };
         bool mistForm{ false };

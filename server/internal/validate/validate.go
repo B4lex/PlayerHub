@@ -21,7 +21,12 @@ const (
 	MaximumTime            = 16383
 	MaximumMovementState   = 6
 	movementStateMask      = 0x7
-	knownFlags             = 0xFFFFFF
+	knownFlags             = 0x3FFFFFFF
+	MaximumFlyState        = uint32(pb.FlyState_FLY_STATE_ACTION)
+	FlyStateShift          = 25
+	flyStateMask           = 0x7 << FlyStateShift
+	WingStateShift         = 28
+	wingStateMask          = 0x3 << WingStateShift
 
 	SkeletonLayoutHuman       = 2
 	SkeletonLayoutHumanChange = 3 // a change from the stream's last pose (wire.ResolveSkeletonPose)
@@ -132,7 +137,8 @@ func Checkpoint(c *pb.Checkpoint) error {
 		c.GetLookPitch() > MaximumPitch || c.GetLookPitch() < -MaximumPitch ||
 		c.GetSpeed() > MaximumSpeed || c.GetDirection() > MaximumDirection || c.GetTime() > MaximumTime ||
 		c.GetFlags()&^knownFlags != 0 || c.GetFlags()&movementStateMask > MaximumMovementState ||
-		!castFlags(c.GetFlags()) || !shoutFlags(c.GetFlags()) || !SkeletonPose(c.GetSkeleton()) {
+		!castFlags(c.GetFlags()) || !shoutFlags(c.GetFlags()) || !mountFlags(c.GetFlags()) ||
+		!SkeletonPose(c.GetSkeleton()) {
 		return ErrCheckpoint
 	}
 	return nil
@@ -162,6 +168,18 @@ func shoutFlags(flags uint32) bool {
 	)
 	return (flags&shout == 0 || flags&shouting != 0) && flags&(twoWords|three) != twoWords|three &&
 		(flags&failed == 0 || flags&released != 0)
+}
+
+// mountFlags reports whether the flying mount flag comes with the mounted flag, and a fly state
+// and a wing state with the flying mount flag, the fly state within FlyState.
+func mountFlags(flags uint32) bool {
+	const (
+		mounted = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_MOUNTED)
+		flying  = uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_FLYING_MOUNT)
+	)
+	state := flags & flyStateMask >> FlyStateShift
+	return (flags&flying == 0 || flags&mounted != 0) && (flags&(flyStateMask|wingStateMask) == 0 || flags&flying != 0) &&
+		state <= MaximumFlyState
 }
 
 // SkeletonPose reports whether b is empty or a layout byte, the shortest varint of a mask of

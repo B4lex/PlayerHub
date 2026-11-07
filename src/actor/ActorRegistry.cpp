@@ -61,6 +61,8 @@ namespace ActorRegistry
             bool mounted{ false };
             bool gaitDriven{ false };
             float gaitSpeed{ 0.0F };
+            bool flightDriven{ false };
+            FlightChannels flightChannels{};
             bool networkPlaced{ false };
             float authoritativeSpeed{ 0.0F };
             float attackSpeedScale{ 1.0F };
@@ -78,6 +80,7 @@ namespace ActorRegistry
         std::unordered_map<const RE::ActorValueOwner*, Registration*> s_byActorValueOwner;
         std::unordered_map<std::uint32_t, Registration*> s_byHandle;
         std::atomic<std::size_t> s_gaitDrivenCount{ 0 };
+        std::atomic<std::size_t> s_flightDrivenCount{ 0 };
         std::atomic<std::size_t> s_networkPlacedCount{ 0 };
         // Registrations whose attackSpeedScale is not 1.
         std::atomic<std::size_t> s_attackSpeedScaledCount{ 0 };
@@ -126,6 +129,10 @@ namespace ActorRegistry
             if (registration->second.gaitDriven)
             {
                 s_gaitDrivenCount.fetch_sub(1, std::memory_order_relaxed);
+            }
+            if (registration->second.flightDriven)
+            {
+                s_flightDrivenCount.fetch_sub(1, std::memory_order_relaxed);
             }
             if (registration->second.networkPlaced)
             {
@@ -447,6 +454,40 @@ namespace ActorRegistry
         SetCounted(a_remote, &Registration::gaitDriven, s_gaitDrivenCount, true);
     }
 
+    void SetFlightChannels(const RemoteActor& a_remote, const FlightChannels& a_channels)
+    {
+        {
+            auto lock = LockUnlessMainThread();
+            auto* registration = Find(a_remote.animationGraphHolder);
+            if (!registration)
+            {
+                return;
+            }
+            const auto& current = registration->flightChannels;
+            if (current.targetSpeed != a_channels.targetSpeed || current.turnDelta != a_channels.turnDelta
+                || current.pitchDelta != a_channels.pitchDelta)
+            {
+                LockForWrite(lock);
+                registration->flightChannels = a_channels;
+            }
+        }
+        SetCounted(a_remote, &Registration::flightDriven, s_flightDrivenCount, true);
+    }
+
+    std::optional<FlightChannels> GetFlightChannels(const RE::Actor* a_actor)
+    {
+        if (!a_actor || s_flightDrivenCount.load(std::memory_order_relaxed) == 0)
+        {
+            return std::nullopt;
+        }
+
+        const auto lock = LockSharedUnlessMainThread();
+        const auto* registration = Find(a_actor);
+        return registration && registration->flightDriven
+            ? std::optional<FlightChannels>{ registration->flightChannels }
+            : std::nullopt;
+    }
+
     void SetNetworkPlaced(const RemoteActor& a_remote, bool a_networkPlaced)
     {
         SetCounted(a_remote, &Registration::networkPlaced, s_networkPlacedCount, a_networkPlaced);
@@ -577,7 +618,8 @@ namespace ActorRegistry
             .voiceAnimationOwned = registration->voiceAnimationOwned,
             .dead = registration->dead,
             .mounted = registration->mounted,
-            .gaitDriven = registration->gaitDriven };
+            .gaitDriven = registration->gaitDriven,
+            .flightDriven = registration->flightDriven };
     }
 
     void RecordSwimTransition(const RE::IAnimationGraphManagerHolder* a_holder, bool a_started)

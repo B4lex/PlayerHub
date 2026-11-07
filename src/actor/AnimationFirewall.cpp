@@ -64,6 +64,21 @@ namespace AnimationFirewall
                 || Equals(a_eventName, "turnStop") || AsciiCase::StartsWith(a_eventName, "cannedTurn");
         }
 
+        // Flight requests, the events of Skyrim.esm's dragon flight idles (FlyStartTakeOff,
+        // FlyStartCruise, HoverStart, FlyStopDefault, and their variants), which the local AI
+        // may send a remote flying mount.
+        constexpr bool IsFlightEvent(std::string_view a_eventName) noexcept
+        {
+            using AsciiCase::StartsWith;
+            return StartsWith(a_eventName, "TakeOff") || StartsWith(a_eventName, "FlyStart")
+                || StartsWith(a_eventName, "FlyStop") || StartsWith(a_eventName, "HoverStart")
+                || StartsWith(a_eventName, "HoverStop") || AsciiCase::Equals(a_eventName, "HoverToCruise");
+        }
+
+        static_assert(IsFlightEvent("FlyStopDefault"));
+        static_assert(IsFlightEvent("takeOff_Vertical"));
+        static_assert(!IsFlightEvent("FlightCruising"));
+
         static_assert(IsMountGaitEvent("MoveStop"));
         static_assert(IsMountGaitEvent("cannedTurnLeft90"));
         static_assert(!IsMountGaitEvent("HorseEnter"));
@@ -168,8 +183,9 @@ namespace AnimationFirewall
                     allowCastEvent = (registration->castAnimationOwned && IsCastAnimationEvent(eventView))
                         || (registration->voiceAnimationOwned && IsVoiceAnimationEvent(eventView));
                     // A seated rider's riding graph follows its mount.
-                    blockMountGaitEvent
-                        = registration->gaitDriven && !registration->mounted && IsMountGaitEvent(eventView);
+                    blockMountGaitEvent = (registration->gaitDriven && !registration->mounted
+                                              && IsMountGaitEvent(eventView))
+                        || (registration->flightDriven && IsFlightEvent(eventView));
                     isSwimStartEvent = AsciiCase::Equals(eventView, "SwimStart");
                     isSwimStopEvent = AsciiCase::Equals(eventView, "swimStop");
                 }
@@ -276,13 +292,22 @@ namespace AnimationFirewall
 
         // The TurnDelta channel follows the local AI's turn request, which the network
         // heading never satisfies. It sets the speed of the turn-in-place blends and
-        // first-person rotation.
+        // first-person rotation, and a flying dragon's banking.
         struct TurnDeltaChannelHook
         {
             static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
             {
                 _original(a_channel, a_arg);
-                if (a_channel && ActorRegistry::IsRegistered(GetChannelActor(a_channel)))
+                if (!a_channel)
+                {
+                    return;
+                }
+                const auto* actor = GetChannelActor(a_channel);
+                if (const auto flight = ActorRegistry::GetFlightChannels(actor))
+                {
+                    OverrideChannelValue(a_channel, flight->turnDelta);
+                }
+                else if (ActorRegistry::IsRegistered(actor))
                 {
                     OverrideChannelValue(a_channel, 0.0F);
                 }
@@ -290,6 +315,38 @@ namespace AnimationFirewall
 
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
+
+        // The TargetSpeed and PitchDelta channels read the AI process's flight request
+        // (IDs 42769 and 42775, through IDs 37959 and 37963; PitchDelta is converted to
+        // degrees), which a remote flying mount never makes. Their layout is the weapon
+        // speed channels': the value at 0x18 and the Actor at 0x20, rewritten on every
+        // poll (1.7.104 disassembly, built in ID 37984).
+        constexpr std::ptrdiff_t kFlightChannelActorOffset = 0x20;
+
+        template <float ActorRegistry::FlightChannels::* Field>
+        struct FlightChannelHook
+        {
+            static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
+            {
+                _original(a_channel, a_arg);
+                if (!a_channel)
+                {
+                    return;
+                }
+                const RE::Actor* actor = nullptr;
+                std::memcpy(
+                    &actor, reinterpret_cast<const std::byte*>(a_channel) + kFlightChannelActorOffset, sizeof(actor));
+                if (const auto flight = ActorRegistry::GetFlightChannels(actor))
+                {
+                    OverrideChannelValue(a_channel, (*flight).*Field);
+                }
+            }
+
+            static inline REL::Relocation<decltype(Thunk)> _original;
+        };
+
+        using TargetSpeedChannelHook = FlightChannelHook<&ActorRegistry::FlightChannels::targetSpeed>;
+        using PitchDeltaChannelHook = FlightChannelHook<&ActorRegistry::FlightChannels::pitchDelta>;
 
         // The weapon speed channels feed weaponSpeedMult and leftWeaponSpeedMult,
         // which scale the playback of the vanilla attack clips (hkbClipGenerator
@@ -398,6 +455,14 @@ namespace AnimationFirewall
             RE::VTABLE_BSTAnimationGraphDataChannel_Actor_float_ActorTurnDeltaChannel_[0]
         };
         TurnDeltaChannelHook::_original = turnDeltaChannelVTable.write_vfunc(0x1, TurnDeltaChannelHook::Thunk);
+        REL::Relocation<std::uintptr_t> targetSpeedChannelVTable{
+            RE::VTABLE_BSTAnimationGraphDataChannel_Actor_float_ActorTargetSpeedChannel_[0]
+        };
+        TargetSpeedChannelHook::_original = targetSpeedChannelVTable.write_vfunc(0x1, TargetSpeedChannelHook::Thunk);
+        REL::Relocation<std::uintptr_t> pitchDeltaChannelVTable{
+            RE::VTABLE_BSTAnimationGraphDataChannel_Actor_float_ActorPitchDeltaChannel_[0]
+        };
+        PitchDeltaChannelHook::_original = pitchDeltaChannelVTable.write_vfunc(0x1, PitchDeltaChannelHook::Thunk);
         REL::Relocation<std::uintptr_t> weaponSpeedChannelVTable{
             RE::VTABLE_BSTAnimationGraphDataChannel_Actor_float_ActorWeaponSpeedChannel_[0]
         };

@@ -44,6 +44,17 @@ namespace ActorRegistry
     void SetGaitSpeed(const RemoteActor& a_remote, float a_speed);
     // Only a mount or a rider the gait drives has one.
     [[nodiscard]] std::optional<float> GetGaitSpeed(const RE::Actor* a_actor);
+    // A flying mount's graph reads its flight inputs from these instead of its own AI,
+    // which never flies it; the turn and pitch rates are in degrees per second.
+    struct FlightChannels
+    {
+        float targetSpeed{ 0.0F };
+        float turnDelta{ 0.0F };
+        float pitchDelta{ 0.0F };
+    };
+    void SetFlightChannels(const RemoteActor& a_remote, const FlightChannels& a_channels);
+    // Only a flying mount has them.
+    [[nodiscard]] std::optional<FlightChannels> GetFlightChannels(const RE::Actor* a_actor);
     void SetNetworkPlaced(const RemoteActor& a_remote, bool a_networkPlaced);
     [[nodiscard]] bool IsNetworkPlaced(const RE::Actor* a_actor);
     // Scales the actor's polled weapon speeds while its attacks catch up with the
@@ -65,6 +76,7 @@ namespace ActorRegistry
         bool dead{ false };
         bool mounted{ false };
         bool gaitDriven{ false };
+        bool flightDriven{ false };
     };
 
     [[nodiscard]] std::optional<GraphInput> FindGraphInput(const RE::IAnimationGraphManagerHolder* a_holder);

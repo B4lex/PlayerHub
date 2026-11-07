@@ -375,12 +375,13 @@ namespace ActorMovement
         a_actor.SetPosition(nextPosition, true);
     }
 
-    void ApplyPitch(RE::Actor& a_actor, const RemoteActor& a_remote, float a_deltaTime)
+    void ApplyPitch(RE::Actor& a_actor, const RemoteActor& a_remote, float a_deltaTime, bool a_flying)
     {
         auto* controller = a_actor.GetCharController();
         const float deltaTime = FrameTime::Clamp(a_deltaTime);
-        // Skyrim pitches only a controller with this flag, which comes from the race's kTiltFrontBack.
-        if (!controller || deltaTime <= 0.0F || controller->flags.none(RE::CHARACTER_FLAGS::kCanPitch))
+        // On the ground Skyrim pitches only a controller with this flag, which comes from the
+        // race's kTiltFrontBack; the actor's 3D update turns any controller's pitch into the body's.
+        if (!controller || deltaTime <= 0.0F || (!a_flying && controller->flags.none(RE::CHARACTER_FLAGS::kCanPitch)))
         {
             return;
         }
@@ -389,5 +390,12 @@ namespace ActorMovement
         float& pitch = controller->pitchAngle;
         const float blend = 1.0F - std::exp(-deltaTime / kPitchSmoothingSeconds);
         pitch = std::isfinite(pitch) ? pitch + (target - pitch) * blend : target;
+        // A flying actor's data.angle.x follows its controller's pitch, and Skyrim (ID 39548)
+        // builds the graph's MovementDirection from data.angle while it flies: the dragon
+        // behavior blends its climb and dive clips by that direction's height.
+        if (a_flying)
+        {
+            a_actor.data.angle.x = pitch;
+        }
     }
 }

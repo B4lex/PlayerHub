@@ -336,7 +336,8 @@ namespace ActorLifecycle
         lifecycle.mountSpawnAllowanceWaitSeconds = 0.0F;
 
         std::optional<RemoteActor> mountActor;
-        auto* mountBase = ActorMount::PickMountBase();
+        const bool flying = a_remote.checkpoint.flyingMount;
+        auto* mountBase = ActorMount::PickMountBase(flying);
         if (mountBase)
         {
             const RE::NiPoint3 targetPosition{ a_remote.checkpoint.x, a_remote.checkpoint.y, a_remote.checkpoint.z };
@@ -349,7 +350,7 @@ namespace ActorLifecycle
             return;
         }
         // No applied sequence: MountSync hands it the checkpoint's speed before its first gait.
-        lifecycle.mount.emplace(MountSync::RemoteMount{ .actor = std::move(*mountActor) });
+        lifecycle.mount.emplace(MountSync::RemoteMount{ .actor = std::move(*mountActor), .flying = flying });
         logs::debug(
             "Allocated remote player {} mount as actor {:08X} base={:08X} for actor {:08X} at transform "
             "sequence={}; waiting for both to be ready before seating",

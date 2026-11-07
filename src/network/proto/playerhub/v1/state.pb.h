@@ -46,8 +46,32 @@ typedef enum _playerhub_v1_CheckpointFlag {
     playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS = 2097152,
     playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS = 4194304,
     /* A released shout whose fire fails; only with CHECKPOINT_FLAG_SHOUT_RELEASED. */
-    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED = 8388608
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED = 8388608,
+    /* The mount's race flies (a dragon); only with CHECKPOINT_FLAG_MOUNTED. Bits 25-27
+ carry the mount's FlyState and bits 28-29 its WingState, both nonzero only with this
+ flag. */
+    playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_FLYING_MOUNT = 16777216
 } playerhub_v1_CheckpointFlag;
+
+/* Skyrim's ActorState fly state, in bits 25-27 of Checkpoint.flags. */
+typedef enum _playerhub_v1_FlyState {
+    playerhub_v1_FlyState_FLY_STATE_NONE = 0,
+    playerhub_v1_FlyState_FLY_STATE_TAKE_OFF = 1,
+    playerhub_v1_FlyState_FLY_STATE_CRUISING = 2,
+    playerhub_v1_FlyState_FLY_STATE_HOVERING = 3,
+    playerhub_v1_FlyState_FLY_STATE_LANDING = 4,
+    playerhub_v1_FlyState_FLY_STATE_PERCHING = 5,
+    playerhub_v1_FlyState_FLY_STATE_ACTION = 6
+} playerhub_v1_FlyState;
+
+/* A cruising flying mount's wing stroke, in bits 28-29 of Checkpoint.flags; none outside
+ cruising flight. */
+typedef enum _playerhub_v1_WingState {
+    playerhub_v1_WingState_WING_STATE_NONE = 0,
+    playerhub_v1_WingState_WING_STATE_FLAPPING = 1,
+    playerhub_v1_WingState_WING_STATE_GLIDING = 2,
+    playerhub_v1_WingState_WING_STATE_FEATHERING = 3
+} playerhub_v1_WingState;
 
 typedef enum _playerhub_v1_Shapeshift {
     playerhub_v1_Shapeshift_SHAPESHIFT_NONE = 0,
@@ -334,8 +358,16 @@ extern "C" {
 #define _playerhub_v1_MovementState_ARRAYSIZE ((playerhub_v1_MovementState)(playerhub_v1_MovementState_MOVEMENT_STATE_SNEAKING_RUNNING+1))
 
 #define _playerhub_v1_CheckpointFlag_MIN playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_NONE
-#define _playerhub_v1_CheckpointFlag_MAX playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED
-#define _playerhub_v1_CheckpointFlag_ARRAYSIZE ((playerhub_v1_CheckpointFlag)(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED+1))
+#define _playerhub_v1_CheckpointFlag_MAX playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_FLYING_MOUNT
+#define _playerhub_v1_CheckpointFlag_ARRAYSIZE ((playerhub_v1_CheckpointFlag)(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_FLYING_MOUNT+1))
+
+#define _playerhub_v1_FlyState_MIN playerhub_v1_FlyState_FLY_STATE_NONE
+#define _playerhub_v1_FlyState_MAX playerhub_v1_FlyState_FLY_STATE_ACTION
+#define _playerhub_v1_FlyState_ARRAYSIZE ((playerhub_v1_FlyState)(playerhub_v1_FlyState_FLY_STATE_ACTION+1))
+
+#define _playerhub_v1_WingState_MIN playerhub_v1_WingState_WING_STATE_NONE
+#define _playerhub_v1_WingState_MAX playerhub_v1_WingState_WING_STATE_FEATHERING
+#define _playerhub_v1_WingState_ARRAYSIZE ((playerhub_v1_WingState)(playerhub_v1_WingState_WING_STATE_FEATHERING+1))
 
 #define _playerhub_v1_Shapeshift_MIN playerhub_v1_Shapeshift_SHAPESHIFT_NONE
 #define _playerhub_v1_Shapeshift_MAX playerhub_v1_Shapeshift_SHAPESHIFT_WEREBEAR

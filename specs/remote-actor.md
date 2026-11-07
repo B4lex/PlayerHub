@@ -6,6 +6,7 @@ The [skeleton pose](#skeleton-pose) slots have not run with more posed players
 than `[Advanced] CustomAnimationPlayers`, and dropping edge probes before a
 window has not triggered in a capture. [Reaction windows](#source-window)
 (staggers, kill moves) have not run in game; a paralysis knockdown has.
+[Knock isolation](#knockdowns) has not run in game.
 [Solid remote actors](#solid-remote-actors), the non-default value of
 `[Gameplay] DisableCollision`, have not run in game.
 
@@ -38,7 +39,7 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/AnimationFirewall` | Rejects locally injected graph events; network dispatch bypasses it |
 | `actor/GraphRecovery` | Detects a local hit reaction and reverts the graph or resets 3D ([Graph recovery](#graph-recovery)) |
 | `actor/SurvivalPolicy` | Actor flags, combat sanitization, package takeover, damage, kill, and magic guards |
-| `actor/CombatIsolation` | Hostility, combat start, melee and actor hit, and arrow release hooks |
+| `actor/CombatIsolation` | Hostility, combat start, melee and actor hit, knock, and arrow release hooks |
 | `actor/SpellIsolation` | Spell fire and cast hooks and spell world isolation ([Combat presentation](combat-presentation.md#isolation)) |
 | `actor/PrecisionIsolation` | Excludes remote actors from Precision through its interface |
 | `actor/RaceMenuOverlays` | Applies a peer's RaceMenu overlays through SKEE and releases them when the actor is removed ([Appearance and equipment](appearance-and-equipment.md#overlays)) |
@@ -173,7 +174,8 @@ is sent directly to the saved graph function, bypassing the hook.
   lord's `WeapUnEquip`, from `Skyrim.esm` and `Dawnguard.esm`). With an
   exact match a remote werebear stayed at `WantToSheathe` with its
   `WeapUnEquip` rejected every frame (seen in game).
-- On a mount, the gait events Skyrim sends are blocked instead
+- On a mount, the gait events Skyrim sends are blocked instead, and on a
+  flying mount its flight events
   ([Native interactions](native-interactions.md#mounts)).
 - Local attack, hit, cast, combat-target, and AI-driven events, idles the
   actor's own AI or packages request included, never take graph ownership
@@ -192,6 +194,16 @@ report the network values instead: `ActorDirectionChannel` reports the network
 direction, `ActorTurnDeltaChannel` reports 0, and `ActorSpeedChannel` reports
 the graph Speed `ActorAnimation` published (a mount or rider reports its gait
 speed). See [Graph speed](#graph-speed).
+
+A flying mount's flight inputs come from its flight channels
+(`ActorRegistry::GetFlightChannels`,
+[Native interactions](native-interactions.md#dragon-flight)):
+`ActorTurnDeltaChannel` reports its turn rate instead of 0, and
+`ActorTargetSpeedChannel` and `ActorPitchDeltaChannel` report its target speed
+and pitch rate; for any other actor these two keep Skyrim's value. They have
+the weapon speed channels' layout below, checked in both binaries (vfunc 1,
+IDs 38331 and 38328, SE vtables 260607 and 260612). The registry counts flying
+mounts (`s_flightDrivenCount`), so the hooks skip the lock while none flies.
 
 `ActorWeaponSpeedChannel` and `ActorLeftWeaponSpeedChannel` (`weaponSpeedMult`,
 `leftWeaponSpeedMult`) keep the actor's own value multiplied by its attack
@@ -251,7 +263,8 @@ Local enemies, creatures, guards, and followers never become hostile to a
 remote actor, target it, or start combat with it. Its replicated attacks hit
 nothing and the local player's attacks on it do not land, whatever the
 `[Gameplay]` settings, including while remote actors are
-[solid](#solid-remote-actors). A spell it casts natively shows its projectiles in flight
+[solid](#solid-remote-actors). Nothing local staggers or knocks it down
+([Knockdowns](#knockdowns)). A spell it casts natively shows its projectiles in flight
 but acts on nothing ([Combat presentation](combat-presentation.md#spell-world-isolation)).
 
 ### Why the flag and the hooks
@@ -301,6 +314,29 @@ callers in the executable are 38603 and the projectile impact (ID 44218 +
 not only melee. 38627 opens with `test rdx, rdx; je` to its `ret`; the detour
 sits after that guard, where the stack and argument registers are still as at
 entry, because the relative `je` cannot be moved into a gateway.
+
+### Knockdowns
+
+`AIProcess::KnockExplosion` (ID 39895, SE 38858) staggers or ragdolls an actor
+away from a point. It is hooked at its entry (`mov [rsp+18h], rbx`) and
+returns without acting when the actor is a registered remote actor, alive or
+dead, rider or mount; the log line is `Suppressed knock of remote actor`.
+Its callers include Papyrus `ObjectReference.PushActorAway` (ID 56213),
+explosions (IDs 43849 and 43853), hit processing (ID 38586), and the deferred
+task processor (ID 36991).
+
+The hook exists for push mods such as Get Out of My Way, whose push spell is
+neither hostile nor detrimental, so it passes the
+[magic firewall](#survival-and-ai-policy), and whose effect script calls
+`PushActorAway` on the crosshair actor. A local ragdoll fights the placement
+the network drives every pass, so the actor shook and flew until the ragdoll
+ended. The source's own knockdowns reach peers through
+[pose windows](#source-window), not through a local knock.
+
+A call from a thread that may not run the knock, such as a Papyrus VM thread,
+is queued as a task (ID 36917) that the deferred task processor passes back to
+`KnockExplosion`, so the thunk may run off the main thread. It only reads the
+registry, under its shared lock, and the form ID for the log.
 
 ### Precision
 
@@ -983,14 +1019,14 @@ Not confirmed in game:
 17. The SE 1.5.97 functions behave as their 1.7.104 counterparts, matched in
     the 1.5.97 disassembly by instruction sequence and by calling the SE
     counterparts of the same functions. Combat: 36534
-    (37534), 36537 (37537), 37608 (38561), 37650 (38603), 37674 (38628), and
-    37673 (38627); spell fire 33629 (34407). Reactions: 38612 (39643), 34414 (35221),
+    (37534), 36537 (37537), 37608 (38561), 37650 (38603), 37674 (38628),
+    37673 (38627), and 38858 (39895); spell fire 33629 (34407). Reactions: 38612 (39643), 34414 (35221),
     102158 (109588), 36575 (37577), and 41626 (42704). Hostility,
     IsHostileToActor, spell fire, the swing target, and the three reaction
     detours have the same entry bytes on SE; StartCombat and the hit frame open
     with `mov r11/rax, rsp; push rsi; push rdi` (5 bytes), and the actor hit
     with `mov rax, rsp; push rdi; push r12` (6 bytes) after the same 9-byte
-    guard. No branch in the executable targets the interior of a replaced SE
+    guard, and the knock with `mov rax, rsp; push rbp; push rdi` (5 bytes). No branch in the executable targets the interior of a replaced SE
     prologue. On SE the hit frame calls the actor hit once (+0x38B).
 
 Verified against the 1.7.104 executable for the [light budget](#light-budget):
@@ -1133,6 +1169,10 @@ Read from the 1.7.104 disassembly only, for the
     `MotionDrivenIdle` blocked on every pass, and no
     `Remote actor weapon state opposes the network` beyond the first few lines
     around a draw that follows a sheathe.
+22. Pushing a remote actor or its mount with Get Out of My Way, in push and
+    in stagger mode, or catching it in a local explosion, neither staggers nor
+    ragdolls it, and it keeps following its player; the log shows
+    `Suppressed knock of remote actor`. Local NPCs are still pushed.
 
 ## Known limitations
 

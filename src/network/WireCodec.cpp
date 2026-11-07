@@ -59,6 +59,12 @@ namespace Network::Wire
             == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS));
         static_assert(CheckpointFlags::kShoutFailed
             == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED));
+        static_assert(CheckpointFlags::kFlyingMount
+            == static_cast<std::uint32_t>(playerhub_v1_CheckpointFlag_CHECKPOINT_FLAG_FLYING_MOUNT));
+        static_assert(static_cast<int>(Multiplayer::kMaximumFlyState) == playerhub_v1_FlyState_FLY_STATE_ACTION);
+        static_assert(static_cast<int>(Multiplayer::FlyState::kHovering) == playerhub_v1_FlyState_FLY_STATE_HOVERING);
+        static_assert(static_cast<int>(Multiplayer::kMaximumWingState) == playerhub_v1_WingState_WING_STATE_FEATHERING);
+        static_assert(static_cast<int>(Multiplayer::WingState::kGliding) == playerhub_v1_WingState_WING_STATE_GLIDING);
         static_assert(static_cast<int>(Multiplayer::ChatRejection::kUnknownRecipient)
             == playerhub_v1_ChatRejection_CHAT_REJECTION_UNKNOWN_RECIPIENT);
 

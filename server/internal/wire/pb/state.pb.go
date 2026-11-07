@@ -111,33 +111,38 @@ const (
 	CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS CheckpointFlag = 4194304
 	// A released shout whose fire fails; only with CHECKPOINT_FLAG_SHOUT_RELEASED.
 	CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED CheckpointFlag = 8388608
+	// The mount's race flies (a dragon); only with CHECKPOINT_FLAG_MOUNTED. Bits 25-27
+	// carry the mount's FlyState and bits 28-29 its WingState, both nonzero only with this
+	// flag.
+	CheckpointFlag_CHECKPOINT_FLAG_FLYING_MOUNT CheckpointFlag = 16777216
 )
 
 // Enum value maps for CheckpointFlag.
 var (
 	CheckpointFlag_name = map[int32]string{
-		0:       "CHECKPOINT_FLAG_NONE",
-		8:       "CHECKPOINT_FLAG_GROUNDED",
-		16:      "CHECKPOINT_FLAG_WEAPON_DRAWN",
-		32:      "CHECKPOINT_FLAG_JUMPING",
-		64:      "CHECKPOINT_FLAG_BLOCKING",
-		128:     "CHECKPOINT_FLAG_BOW_DRAWN",
-		256:     "CHECKPOINT_FLAG_CASTING_LEFT",
-		512:     "CHECKPOINT_FLAG_CASTING_RIGHT",
-		1024:    "CHECKPOINT_FLAG_SWIMMING",
-		2048:    "CHECKPOINT_FLAG_MOUNTED",
-		4096:    "CHECKPOINT_FLAG_DEAD",
-		8192:    "CHECKPOINT_FLAG_LEVITATING",
-		16384:   "CHECKPOINT_FLAG_MIST_FORM",
-		32768:   "CHECKPOINT_FLAG_BATS",
-		65536:   "CHECKPOINT_FLAG_CAST_RELEASED_LEFT",
-		131072:  "CHECKPOINT_FLAG_CAST_RELEASED_RIGHT",
-		262144:  "CHECKPOINT_FLAG_DUAL_CASTING",
-		524288:  "CHECKPOINT_FLAG_SHOUTING",
-		1048576: "CHECKPOINT_FLAG_SHOUT_RELEASED",
-		2097152: "CHECKPOINT_FLAG_SHOUT_TWO_WORDS",
-		4194304: "CHECKPOINT_FLAG_SHOUT_THREE_WORDS",
-		8388608: "CHECKPOINT_FLAG_SHOUT_FAILED",
+		0:        "CHECKPOINT_FLAG_NONE",
+		8:        "CHECKPOINT_FLAG_GROUNDED",
+		16:       "CHECKPOINT_FLAG_WEAPON_DRAWN",
+		32:       "CHECKPOINT_FLAG_JUMPING",
+		64:       "CHECKPOINT_FLAG_BLOCKING",
+		128:      "CHECKPOINT_FLAG_BOW_DRAWN",
+		256:      "CHECKPOINT_FLAG_CASTING_LEFT",
+		512:      "CHECKPOINT_FLAG_CASTING_RIGHT",
+		1024:     "CHECKPOINT_FLAG_SWIMMING",
+		2048:     "CHECKPOINT_FLAG_MOUNTED",
+		4096:     "CHECKPOINT_FLAG_DEAD",
+		8192:     "CHECKPOINT_FLAG_LEVITATING",
+		16384:    "CHECKPOINT_FLAG_MIST_FORM",
+		32768:    "CHECKPOINT_FLAG_BATS",
+		65536:    "CHECKPOINT_FLAG_CAST_RELEASED_LEFT",
+		131072:   "CHECKPOINT_FLAG_CAST_RELEASED_RIGHT",
+		262144:   "CHECKPOINT_FLAG_DUAL_CASTING",
+		524288:   "CHECKPOINT_FLAG_SHOUTING",
+		1048576:  "CHECKPOINT_FLAG_SHOUT_RELEASED",
+		2097152:  "CHECKPOINT_FLAG_SHOUT_TWO_WORDS",
+		4194304:  "CHECKPOINT_FLAG_SHOUT_THREE_WORDS",
+		8388608:  "CHECKPOINT_FLAG_SHOUT_FAILED",
+		16777216: "CHECKPOINT_FLAG_FLYING_MOUNT",
 	}
 	CheckpointFlag_value = map[string]int32{
 		"CHECKPOINT_FLAG_NONE":                0,
@@ -162,6 +167,7 @@ var (
 		"CHECKPOINT_FLAG_SHOUT_TWO_WORDS":     2097152,
 		"CHECKPOINT_FLAG_SHOUT_THREE_WORDS":   4194304,
 		"CHECKPOINT_FLAG_SHOUT_FAILED":        8388608,
+		"CHECKPOINT_FLAG_FLYING_MOUNT":        16777216,
 	}
 )
 
@@ -190,6 +196,122 @@ func (x CheckpointFlag) Number() protoreflect.EnumNumber {
 // Deprecated: Use CheckpointFlag.Descriptor instead.
 func (CheckpointFlag) EnumDescriptor() ([]byte, []int) {
 	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{1}
+}
+
+// Skyrim's ActorState fly state, in bits 25-27 of Checkpoint.flags.
+type FlyState int32
+
+const (
+	FlyState_FLY_STATE_NONE     FlyState = 0
+	FlyState_FLY_STATE_TAKE_OFF FlyState = 1
+	FlyState_FLY_STATE_CRUISING FlyState = 2
+	FlyState_FLY_STATE_HOVERING FlyState = 3
+	FlyState_FLY_STATE_LANDING  FlyState = 4
+	FlyState_FLY_STATE_PERCHING FlyState = 5
+	FlyState_FLY_STATE_ACTION   FlyState = 6
+)
+
+// Enum value maps for FlyState.
+var (
+	FlyState_name = map[int32]string{
+		0: "FLY_STATE_NONE",
+		1: "FLY_STATE_TAKE_OFF",
+		2: "FLY_STATE_CRUISING",
+		3: "FLY_STATE_HOVERING",
+		4: "FLY_STATE_LANDING",
+		5: "FLY_STATE_PERCHING",
+		6: "FLY_STATE_ACTION",
+	}
+	FlyState_value = map[string]int32{
+		"FLY_STATE_NONE":     0,
+		"FLY_STATE_TAKE_OFF": 1,
+		"FLY_STATE_CRUISING": 2,
+		"FLY_STATE_HOVERING": 3,
+		"FLY_STATE_LANDING":  4,
+		"FLY_STATE_PERCHING": 5,
+		"FLY_STATE_ACTION":   6,
+	}
+)
+
+func (x FlyState) Enum() *FlyState {
+	p := new(FlyState)
+	*p = x
+	return p
+}
+
+func (x FlyState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (FlyState) Descriptor() protoreflect.EnumDescriptor {
+	return file_playerhub_v1_state_proto_enumTypes[2].Descriptor()
+}
+
+func (FlyState) Type() protoreflect.EnumType {
+	return &file_playerhub_v1_state_proto_enumTypes[2]
+}
+
+func (x FlyState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use FlyState.Descriptor instead.
+func (FlyState) EnumDescriptor() ([]byte, []int) {
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{2}
+}
+
+// A cruising flying mount's wing stroke, in bits 28-29 of Checkpoint.flags; none outside
+// cruising flight.
+type WingState int32
+
+const (
+	WingState_WING_STATE_NONE       WingState = 0
+	WingState_WING_STATE_FLAPPING   WingState = 1
+	WingState_WING_STATE_GLIDING    WingState = 2
+	WingState_WING_STATE_FEATHERING WingState = 3
+)
+
+// Enum value maps for WingState.
+var (
+	WingState_name = map[int32]string{
+		0: "WING_STATE_NONE",
+		1: "WING_STATE_FLAPPING",
+		2: "WING_STATE_GLIDING",
+		3: "WING_STATE_FEATHERING",
+	}
+	WingState_value = map[string]int32{
+		"WING_STATE_NONE":       0,
+		"WING_STATE_FLAPPING":   1,
+		"WING_STATE_GLIDING":    2,
+		"WING_STATE_FEATHERING": 3,
+	}
+)
+
+func (x WingState) Enum() *WingState {
+	p := new(WingState)
+	*p = x
+	return p
+}
+
+func (x WingState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (WingState) Descriptor() protoreflect.EnumDescriptor {
+	return file_playerhub_v1_state_proto_enumTypes[3].Descriptor()
+}
+
+func (WingState) Type() protoreflect.EnumType {
+	return &file_playerhub_v1_state_proto_enumTypes[3]
+}
+
+func (x WingState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use WingState.Descriptor instead.
+func (WingState) EnumDescriptor() ([]byte, []int) {
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{3}
 }
 
 type Shapeshift int32
@@ -228,11 +350,11 @@ func (x Shapeshift) String() string {
 }
 
 func (Shapeshift) Descriptor() protoreflect.EnumDescriptor {
-	return file_playerhub_v1_state_proto_enumTypes[2].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[4].Descriptor()
 }
 
 func (Shapeshift) Type() protoreflect.EnumType {
-	return &file_playerhub_v1_state_proto_enumTypes[2]
+	return &file_playerhub_v1_state_proto_enumTypes[4]
 }
 
 func (x Shapeshift) Number() protoreflect.EnumNumber {
@@ -241,7 +363,7 @@ func (x Shapeshift) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Shapeshift.Descriptor instead.
 func (Shapeshift) EnumDescriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{2}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{4}
 }
 
 type AttackAction int32
@@ -283,11 +405,11 @@ func (x AttackAction) String() string {
 }
 
 func (AttackAction) Descriptor() protoreflect.EnumDescriptor {
-	return file_playerhub_v1_state_proto_enumTypes[3].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[5].Descriptor()
 }
 
 func (AttackAction) Type() protoreflect.EnumType {
-	return &file_playerhub_v1_state_proto_enumTypes[3]
+	return &file_playerhub_v1_state_proto_enumTypes[5]
 }
 
 func (x AttackAction) Number() protoreflect.EnumNumber {
@@ -296,7 +418,7 @@ func (x AttackAction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AttackAction.Descriptor instead.
 func (AttackAction) EnumDescriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{3}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{5}
 }
 
 type PowerDirection int32
@@ -341,11 +463,11 @@ func (x PowerDirection) String() string {
 }
 
 func (PowerDirection) Descriptor() protoreflect.EnumDescriptor {
-	return file_playerhub_v1_state_proto_enumTypes[4].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[6].Descriptor()
 }
 
 func (PowerDirection) Type() protoreflect.EnumType {
-	return &file_playerhub_v1_state_proto_enumTypes[4]
+	return &file_playerhub_v1_state_proto_enumTypes[6]
 }
 
 func (x PowerDirection) Number() protoreflect.EnumNumber {
@@ -354,7 +476,7 @@ func (x PowerDirection) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PowerDirection.Descriptor instead.
 func (PowerDirection) EnumDescriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{4}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{6}
 }
 
 // A beast form's action, from the vanilla behavior graph of that form. Werewolf
@@ -503,11 +625,11 @@ func (x BeastAction) String() string {
 }
 
 func (BeastAction) Descriptor() protoreflect.EnumDescriptor {
-	return file_playerhub_v1_state_proto_enumTypes[5].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[7].Descriptor()
 }
 
 func (BeastAction) Type() protoreflect.EnumType {
-	return &file_playerhub_v1_state_proto_enumTypes[5]
+	return &file_playerhub_v1_state_proto_enumTypes[7]
 }
 
 func (x BeastAction) Number() protoreflect.EnumNumber {
@@ -516,7 +638,7 @@ func (x BeastAction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use BeastAction.Descriptor instead.
 func (BeastAction) EnumDescriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{5}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{7}
 }
 
 type OverlayArea int32
@@ -558,11 +680,11 @@ func (x OverlayArea) String() string {
 }
 
 func (OverlayArea) Descriptor() protoreflect.EnumDescriptor {
-	return file_playerhub_v1_state_proto_enumTypes[6].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[8].Descriptor()
 }
 
 func (OverlayArea) Type() protoreflect.EnumType {
-	return &file_playerhub_v1_state_proto_enumTypes[6]
+	return &file_playerhub_v1_state_proto_enumTypes[8]
 }
 
 func (x OverlayArea) Number() protoreflect.EnumNumber {
@@ -571,7 +693,7 @@ func (x OverlayArea) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use OverlayArea.Descriptor instead.
 func (OverlayArea) EnumDescriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{6}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{8}
 }
 
 type HandKind int32
@@ -610,11 +732,11 @@ func (x HandKind) String() string {
 }
 
 func (HandKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_playerhub_v1_state_proto_enumTypes[7].Descriptor()
+	return file_playerhub_v1_state_proto_enumTypes[9].Descriptor()
 }
 
 func (HandKind) Type() protoreflect.EnumType {
-	return &file_playerhub_v1_state_proto_enumTypes[7]
+	return &file_playerhub_v1_state_proto_enumTypes[9]
 }
 
 func (x HandKind) Number() protoreflect.EnumNumber {
@@ -623,7 +745,7 @@ func (x HandKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HandKind.Descriptor instead.
 func (HandKind) EnumDescriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{7}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{9}
 }
 
 type FormRef struct {
@@ -2095,7 +2217,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x18MOVEMENT_STATE_SPRINTING\x10\x03\x12 \n" +
 	"\x1cMOVEMENT_STATE_SNEAKING_IDLE\x10\x04\x12#\n" +
 	"\x1fMOVEMENT_STATE_SNEAKING_WALKING\x10\x05\x12#\n" +
-	"\x1fMOVEMENT_STATE_SNEAKING_RUNNING\x10\x06*\xf8\x05\n" +
+	"\x1fMOVEMENT_STATE_SNEAKING_RUNNING\x10\x06*\x9d\x06\n" +
 	"\x0eCheckpointFlag\x12\x18\n" +
 	"\x14CHECKPOINT_FLAG_NONE\x10\x00\x12\x1c\n" +
 	"\x18CHECKPOINT_FLAG_GROUNDED\x10\b\x12 \n" +
@@ -2118,7 +2240,21 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x1eCHECKPOINT_FLAG_SHOUT_RELEASED\x10\x80\x80@\x12&\n" +
 	"\x1fCHECKPOINT_FLAG_SHOUT_TWO_WORDS\x10\x80\x80\x80\x01\x12(\n" +
 	"!CHECKPOINT_FLAG_SHOUT_THREE_WORDS\x10\x80\x80\x80\x02\x12#\n" +
-	"\x1cCHECKPOINT_FLAG_SHOUT_FAILED\x10\x80\x80\x80\x04*p\n" +
+	"\x1cCHECKPOINT_FLAG_SHOUT_FAILED\x10\x80\x80\x80\x04\x12#\n" +
+	"\x1cCHECKPOINT_FLAG_FLYING_MOUNT\x10\x80\x80\x80\b*\xab\x01\n" +
+	"\bFlyState\x12\x12\n" +
+	"\x0eFLY_STATE_NONE\x10\x00\x12\x16\n" +
+	"\x12FLY_STATE_TAKE_OFF\x10\x01\x12\x16\n" +
+	"\x12FLY_STATE_CRUISING\x10\x02\x12\x16\n" +
+	"\x12FLY_STATE_HOVERING\x10\x03\x12\x15\n" +
+	"\x11FLY_STATE_LANDING\x10\x04\x12\x16\n" +
+	"\x12FLY_STATE_PERCHING\x10\x05\x12\x14\n" +
+	"\x10FLY_STATE_ACTION\x10\x06*l\n" +
+	"\tWingState\x12\x13\n" +
+	"\x0fWING_STATE_NONE\x10\x00\x12\x17\n" +
+	"\x13WING_STATE_FLAPPING\x10\x01\x12\x16\n" +
+	"\x12WING_STATE_GLIDING\x10\x02\x12\x19\n" +
+	"\x15WING_STATE_FEATHERING\x10\x03*p\n" +
 	"\n" +
 	"Shapeshift\x12\x13\n" +
 	"\x0fSHAPESHIFT_NONE\x10\x00\x12\x17\n" +
@@ -2204,77 +2340,79 @@ func file_playerhub_v1_state_proto_rawDescGZIP() []byte {
 	return file_playerhub_v1_state_proto_rawDescData
 }
 
-var file_playerhub_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
+var file_playerhub_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
 var file_playerhub_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_playerhub_v1_state_proto_goTypes = []any{
 	(MovementState)(0),    // 0: playerhub.v1.MovementState
 	(CheckpointFlag)(0),   // 1: playerhub.v1.CheckpointFlag
-	(Shapeshift)(0),       // 2: playerhub.v1.Shapeshift
-	(AttackAction)(0),     // 3: playerhub.v1.AttackAction
-	(PowerDirection)(0),   // 4: playerhub.v1.PowerDirection
-	(BeastAction)(0),      // 5: playerhub.v1.BeastAction
-	(OverlayArea)(0),      // 6: playerhub.v1.OverlayArea
-	(HandKind)(0),         // 7: playerhub.v1.HandKind
-	(*FormRef)(nil),       // 8: playerhub.v1.FormRef
-	(*Checkpoint)(nil),    // 9: playerhub.v1.Checkpoint
-	(*Context)(nil),       // 10: playerhub.v1.Context
-	(*Attack)(nil),        // 11: playerhub.v1.Attack
-	(*Action)(nil),        // 12: playerhub.v1.Action
-	(*Color)(nil),         // 13: playerhub.v1.Color
-	(*HeadPart)(nil),      // 14: playerhub.v1.HeadPart
-	(*Tint)(nil),          // 15: playerhub.v1.Tint
-	(*Overlay)(nil),       // 16: playerhub.v1.Overlay
-	(*Appearance)(nil),    // 17: playerhub.v1.Appearance
-	(*Armor)(nil),         // 18: playerhub.v1.Armor
-	(*Hand)(nil),          // 19: playerhub.v1.Hand
-	(*DefaultOutfit)(nil), // 20: playerhub.v1.DefaultOutfit
-	(*Equipment)(nil),     // 21: playerhub.v1.Equipment
-	(*ActiveEffect)(nil),  // 22: playerhub.v1.ActiveEffect
-	(*Effects)(nil),       // 23: playerhub.v1.Effects
+	(FlyState)(0),         // 2: playerhub.v1.FlyState
+	(WingState)(0),        // 3: playerhub.v1.WingState
+	(Shapeshift)(0),       // 4: playerhub.v1.Shapeshift
+	(AttackAction)(0),     // 5: playerhub.v1.AttackAction
+	(PowerDirection)(0),   // 6: playerhub.v1.PowerDirection
+	(BeastAction)(0),      // 7: playerhub.v1.BeastAction
+	(OverlayArea)(0),      // 8: playerhub.v1.OverlayArea
+	(HandKind)(0),         // 9: playerhub.v1.HandKind
+	(*FormRef)(nil),       // 10: playerhub.v1.FormRef
+	(*Checkpoint)(nil),    // 11: playerhub.v1.Checkpoint
+	(*Context)(nil),       // 12: playerhub.v1.Context
+	(*Attack)(nil),        // 13: playerhub.v1.Attack
+	(*Action)(nil),        // 14: playerhub.v1.Action
+	(*Color)(nil),         // 15: playerhub.v1.Color
+	(*HeadPart)(nil),      // 16: playerhub.v1.HeadPart
+	(*Tint)(nil),          // 17: playerhub.v1.Tint
+	(*Overlay)(nil),       // 18: playerhub.v1.Overlay
+	(*Appearance)(nil),    // 19: playerhub.v1.Appearance
+	(*Armor)(nil),         // 20: playerhub.v1.Armor
+	(*Hand)(nil),          // 21: playerhub.v1.Hand
+	(*DefaultOutfit)(nil), // 22: playerhub.v1.DefaultOutfit
+	(*Equipment)(nil),     // 23: playerhub.v1.Equipment
+	(*ActiveEffect)(nil),  // 24: playerhub.v1.ActiveEffect
+	(*Effects)(nil),       // 25: playerhub.v1.Effects
 }
 var file_playerhub_v1_state_proto_depIdxs = []int32{
-	8,  // 0: playerhub.v1.Context.interior_cell:type_name -> playerhub.v1.FormRef
-	8,  // 1: playerhub.v1.Context.worldspace:type_name -> playerhub.v1.FormRef
-	8,  // 2: playerhub.v1.Context.furniture:type_name -> playerhub.v1.FormRef
-	2,  // 3: playerhub.v1.Context.shapeshift:type_name -> playerhub.v1.Shapeshift
-	3,  // 4: playerhub.v1.Attack.action:type_name -> playerhub.v1.AttackAction
-	4,  // 5: playerhub.v1.Attack.direction:type_name -> playerhub.v1.PowerDirection
-	11, // 6: playerhub.v1.Action.attack:type_name -> playerhub.v1.Attack
-	5,  // 7: playerhub.v1.Action.beast:type_name -> playerhub.v1.BeastAction
-	8,  // 8: playerhub.v1.Action.power:type_name -> playerhub.v1.FormRef
-	8,  // 9: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
-	13, // 10: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
-	6,  // 11: playerhub.v1.Overlay.area:type_name -> playerhub.v1.OverlayArea
-	13, // 12: playerhub.v1.Overlay.color:type_name -> playerhub.v1.Color
-	13, // 13: playerhub.v1.Overlay.glow_color:type_name -> playerhub.v1.Color
-	8,  // 14: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
-	14, // 15: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
-	13, // 16: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
-	8,  // 17: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
-	13, // 18: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
-	15, // 19: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
-	8,  // 20: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.FormRef
-	16, // 21: playerhub.v1.Appearance.overlays:type_name -> playerhub.v1.Overlay
-	8,  // 22: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
-	7,  // 23: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
-	8,  // 24: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
-	8,  // 25: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
-	8,  // 26: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
-	8,  // 27: playerhub.v1.Hand.enchantment:type_name -> playerhub.v1.FormRef
-	18, // 28: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
-	19, // 29: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
-	8,  // 30: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
-	18, // 31: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
-	19, // 32: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
-	19, // 33: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
-	8,  // 34: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
-	20, // 35: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
-	19, // 36: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
-	19, // 37: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
-	18, // 38: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
-	8,  // 39: playerhub.v1.Equipment.shout:type_name -> playerhub.v1.FormRef
-	8,  // 40: playerhub.v1.ActiveEffect.effect:type_name -> playerhub.v1.FormRef
-	22, // 41: playerhub.v1.Effects.effects:type_name -> playerhub.v1.ActiveEffect
+	10, // 0: playerhub.v1.Context.interior_cell:type_name -> playerhub.v1.FormRef
+	10, // 1: playerhub.v1.Context.worldspace:type_name -> playerhub.v1.FormRef
+	10, // 2: playerhub.v1.Context.furniture:type_name -> playerhub.v1.FormRef
+	4,  // 3: playerhub.v1.Context.shapeshift:type_name -> playerhub.v1.Shapeshift
+	5,  // 4: playerhub.v1.Attack.action:type_name -> playerhub.v1.AttackAction
+	6,  // 5: playerhub.v1.Attack.direction:type_name -> playerhub.v1.PowerDirection
+	13, // 6: playerhub.v1.Action.attack:type_name -> playerhub.v1.Attack
+	7,  // 7: playerhub.v1.Action.beast:type_name -> playerhub.v1.BeastAction
+	10, // 8: playerhub.v1.Action.power:type_name -> playerhub.v1.FormRef
+	10, // 9: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
+	15, // 10: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
+	8,  // 11: playerhub.v1.Overlay.area:type_name -> playerhub.v1.OverlayArea
+	15, // 12: playerhub.v1.Overlay.color:type_name -> playerhub.v1.Color
+	15, // 13: playerhub.v1.Overlay.glow_color:type_name -> playerhub.v1.Color
+	10, // 14: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
+	16, // 15: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
+	15, // 16: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
+	10, // 17: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
+	15, // 18: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
+	17, // 19: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
+	10, // 20: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.FormRef
+	18, // 21: playerhub.v1.Appearance.overlays:type_name -> playerhub.v1.Overlay
+	10, // 22: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
+	9,  // 23: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
+	10, // 24: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
+	10, // 25: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
+	10, // 26: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
+	10, // 27: playerhub.v1.Hand.enchantment:type_name -> playerhub.v1.FormRef
+	20, // 28: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
+	21, // 29: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
+	10, // 30: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
+	20, // 31: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
+	21, // 32: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
+	21, // 33: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
+	10, // 34: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
+	22, // 35: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
+	21, // 36: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
+	21, // 37: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
+	20, // 38: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
+	10, // 39: playerhub.v1.Equipment.shout:type_name -> playerhub.v1.FormRef
+	10, // 40: playerhub.v1.ActiveEffect.effect:type_name -> playerhub.v1.FormRef
+	24, // 41: playerhub.v1.Effects.effects:type_name -> playerhub.v1.ActiveEffect
 	42, // [42:42] is the sub-list for method output_type
 	42, // [42:42] is the sub-list for method input_type
 	42, // [42:42] is the sub-list for extension type_name
@@ -2298,7 +2436,7 @@ func file_playerhub_v1_state_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_playerhub_v1_state_proto_rawDesc), len(file_playerhub_v1_state_proto_rawDesc)),
-			NumEnums:      8,
+			NumEnums:      10,
 			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   0,

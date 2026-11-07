@@ -44,7 +44,12 @@ namespace Network
         inline constexpr std::uint32_t kShoutTwoWords = 1U << 21;
         inline constexpr std::uint32_t kShoutThreeWords = 1U << 22;
         inline constexpr std::uint32_t kShoutFailed = 1U << 23;
-        inline constexpr std::uint32_t kKnown = 0xFFFFFF;
+        inline constexpr std::uint32_t kFlyingMount = 1U << 24;
+        inline constexpr std::uint32_t kFlyStateShift = 25;
+        inline constexpr std::uint32_t kFlyStateMask = 0x7U << kFlyStateShift;
+        inline constexpr std::uint32_t kWingStateShift = 28;
+        inline constexpr std::uint32_t kWingStateMask = 0x3U << kWingStateShift;
+        inline constexpr std::uint32_t kKnown = 0x3FFFFFFF;
     }
 
     struct QuantizedCheckpoint
@@ -151,6 +156,12 @@ namespace Network
         set(voice.shouting && voice.released && voice.failed, kShoutFailed);
         set(a_transform.dead, kDead);
         set(a_transform.mounted, kMounted);
+        if (a_transform.mounted && a_transform.flyingMount)
+        {
+            flags |= kFlyingMount;
+            flags |= (static_cast<std::uint32_t>(a_transform.flyState) << kFlyStateShift) & kFlyStateMask;
+            flags |= (static_cast<std::uint32_t>(a_transform.wingState) << kWingStateShift) & kWingStateMask;
+        }
         set(a_transform.swimming, kSwimming);
         set(a_transform.levitating, kLevitating);
         set(a_transform.mistForm, kMistForm);
@@ -188,6 +199,11 @@ namespace Network
                 || (a_checkpoint.flags & kShouting) != 0)
             && (a_checkpoint.flags & (kShoutTwoWords | kShoutThreeWords)) != (kShoutTwoWords | kShoutThreeWords)
             && ((a_checkpoint.flags & kShoutFailed) == 0 || (a_checkpoint.flags & kShoutReleased) != 0)
+            && ((a_checkpoint.flags & kFlyingMount) == 0 || (a_checkpoint.flags & kMounted) != 0)
+            && ((a_checkpoint.flags & (kFlyStateMask | kWingStateMask)) == 0
+                || (a_checkpoint.flags & kFlyingMount) != 0)
+            && (a_checkpoint.flags & kFlyStateMask) >> kFlyStateShift
+                   <= static_cast<std::uint32_t>(Multiplayer::kMaximumFlyState)
             && (a_checkpoint.flags & kMovementStateMask)
                    <= static_cast<std::uint32_t>(Multiplayer::MovementState::kSneakingRunning);
     }
@@ -226,6 +242,9 @@ namespace Network
                                                                          : 1) },
             .dead = (flags & kDead) != 0,
             .mounted = (flags & kMounted) != 0,
+            .flyingMount = (flags & kFlyingMount) != 0,
+            .flyState = static_cast<Multiplayer::FlyState>((flags & kFlyStateMask) >> kFlyStateShift),
+            .wingState = static_cast<Multiplayer::WingState>((flags & kWingStateMask) >> kWingStateShift),
             .swimming = (flags & kSwimming) != 0,
             .levitating = (flags & kLevitating) != 0,
             .mistForm = (flags & kMistForm) != 0,

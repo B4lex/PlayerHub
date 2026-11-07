@@ -44,6 +44,7 @@ namespace MovementSync
 
         const auto* actorState = a_carrier.AsActorState();
         const bool swimming = actorState && actorState->IsSwimming();
+        const bool flying = actorState && actorState->IsFlying();
         float heading = a_carrier.GetAngleZ();
         if (!std::isfinite(heading))
         {
@@ -69,9 +70,9 @@ namespace MovementSync
             const float deltaZ = position.z - a_state.previousPosition.z;
             const float horizontalDistanceSquared = deltaX * deltaX + deltaY * deltaY;
             // A mount's gait follows the ground it covers. A swimmer moves along its
-            // view, vertical included.
+            // view and a flying mount along its flight, vertical included.
             const float travelSquared
-                = swimming ? horizontalDistanceSquared + deltaZ * deltaZ : horizontalDistanceSquared;
+                = swimming || flying ? horizontalDistanceSquared + deltaZ * deltaZ : horizontalDistanceSquared;
             speed = std::sqrt(travelSquared) / a_snapshotElapsed;
             if (!std::isfinite(speed))
             {

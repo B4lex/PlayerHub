@@ -1,6 +1,7 @@
 #include "actor/ActorRuntime.h"
 #include "actor/ActorAnimation.h"
 #include "actor/ActorFurniture.h"
+#include "actor/ActorFlight.h"
 #include "actor/ActorMount.h"
 #include "actor/ActorMovement.h"
 #include "actor/ActorRegistry.h"
@@ -144,8 +145,8 @@ namespace ActorRuntime
         return true;
     }
 
-    bool UpdateRider(
-        RemoteActor& a_remote, ActorMount::Gait& a_gait, float a_mountSpeed, bool a_weaponDrawn, float a_deltaTime)
+    bool UpdateRider(RemoteActor& a_remote, ActorMount::Gait& a_gait, float a_mountSpeed, bool a_flyingMount,
+        bool a_weaponDrawn, float a_deltaTime)
     {
         PROFILE_FUNCTION();
         if (!GameThread::Require("UpdateRemoteRider"))
@@ -172,13 +173,18 @@ namespace ActorRuntime
         }
         if (AdvanceReadiness(*actor, a_remote, a_deltaTime))
         {
-            ActorMount::ApplyGait(*actor, a_remote, a_gait, a_mountSpeed, a_deltaTime, false, "rider");
+            // A dragon rider sits in one idle whatever its mount does.
+            if (!a_flyingMount)
+            {
+                ActorMount::ApplyGait(*actor, a_remote, a_gait, a_mountSpeed, a_deltaTime, false, "rider");
+            }
             WeaponTransition::ApplyRiderWeaponState(*actor, a_remote, a_weaponDrawn);
         }
         return true;
     }
 
-    bool UpdateMount(RemoteActor& a_remote, ActorMount::Gait& a_gait, float a_deltaTime)
+    bool UpdateMount(RemoteActor& a_remote, ActorMount::Gait& a_gait, ActorFlight::Flight* a_flight,
+        Multiplayer::FlyState a_flyState, Multiplayer::WingState a_wing, float a_deltaTime)
     {
         if (!GameThread::Require("UpdateRemoteMount"))
         {
@@ -195,17 +201,34 @@ namespace ActorRuntime
         auto* actor = actorPtr.get();
         SurvivalPolicy::ApplyRemoteReplicaPolicy(*actor);
         SurvivalPolicy::SanitizeRemoteCombatState(*actor, a_remote.ready);
+        if (a_flight)
+        {
+            // Reasserted every update: Skyrim recomputes the flag whenever the actor initializes.
+            ActorMount::AssertFlyingMount(*actor);
+        }
         if (!AdvanceReadiness(*actor, a_remote, a_deltaTime))
         {
             return true;
         }
         RemoteCollision::PlaceByNetwork(*actor, a_remote);
 
-        // The mount's own graph is never firewalled: only its gait is driven.
-        ActorMount::ApplyGait(*actor, a_remote, a_gait, a_remote.movement.groundSpeed, a_deltaTime, true, "mount");
+        // The mount's own graph is never firewalled: only its gait or flight is driven.
+        bool moving = false;
+        if (a_flight)
+        {
+            ActorFlight::Apply(
+                *actor, a_remote, *a_flight, a_flyState, a_wing, a_remote.movement.groundSpeed, a_deltaTime);
+            moving = a_flight->moving;
+        }
+        else
+        {
+            ActorMount::ApplyGait(
+                *actor, a_remote, a_gait, a_remote.movement.groundSpeed, a_deltaTime, true, "mount");
+            moving = a_gait.moving;
+        }
         ActorMovement::ApplyTranslation(*actor, a_remote, a_deltaTime,
-            a_gait.moving ? ActorMovement::TranslationMode::kMoving : ActorMovement::TranslationMode::kStanding);
-        ActorMovement::ApplyPitch(*actor, a_remote, a_deltaTime);
+            moving ? ActorMovement::TranslationMode::kMoving : ActorMovement::TranslationMode::kStanding);
+        ActorMovement::ApplyPitch(*actor, a_remote, a_deltaTime, a_flight != nullptr);
         return true;
     }
 }

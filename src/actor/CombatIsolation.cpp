@@ -131,16 +131,26 @@ namespace CombatIsolation
         };
         // The actor hit opens with test rdx, rdx; je to its ret on both runtimes.
         constexpr std::ptrdiff_t kActorHitGuardSize = 9;
+        constexpr std::array<std::uint8_t, 5> kKnockExplosionPrologue{
+            0x48, 0x89, 0x5C, 0x24, 0x18 // mov [rsp+18h], rbx
+        };
+        constexpr std::array<std::uint8_t, 5> kSEKnockExplosionPrologue{
+            0x48, 0x8B, 0xC4, // mov rax, rsp
+            0x55, // push rbp
+            0x57 // push rdi
+        };
 
         static_assert(EntryDetourTrampolineSize(kHostilityPrologue.size())
                 + EntryDetourTrampolineSize(kIsHostileToActorPrologue.size())
                 + EntryDetourTrampolineSize(kStartCombatPrologue.size())
                 + EntryDetourTrampolineSize(kWeaponSwingHitPrologue.size())
                 + 2 * EntryDetourTrampolineSize(kHitPrologue.size())
+                + EntryDetourTrampolineSize(kKnockExplosionPrologue.size())
             == kTrampolineSize);
         static_assert(kSEStartCombatPrologue.size() <= kStartCombatPrologue.size()
             && kSEWeaponSwingHitPrologue.size() <= kWeaponSwingHitPrologue.size()
-            && kSEActorHitPrologue.size() <= kHitPrologue.size());
+            && kSEActorHitPrologue.size() <= kHitPrologue.size()
+            && kSEKnockExplosionPrologue.size() <= kKnockExplosionPrologue.size());
 
         using Prologue = std::span<const std::uint8_t>;
 
@@ -251,6 +261,33 @@ namespace CombatIsolation
             static inline REL::Relocation<decltype(Thunk)> _original;
         };
 
+        // AIProcess::KnockExplosion (ID 39895): staggers or ragdolls the actor away
+        // from a point. Papyrus PushActorAway (ID 56213) calls it on the target's
+        // process, as do explosions, hits, and spell effects. A call from a thread
+        // that may not run it is queued as a task (ID 36917) that the deferred task
+        // processor (ID 36991) passes to it again, so the hook can run on any thread.
+        struct KnockExplosionHook
+        {
+            static void Thunk(
+                RE::AIProcess* a_process, RE::Actor* a_actor, const RE::NiPoint3& a_location, float a_magnitude)
+            {
+                if (ActorRegistry::IsRegistered(a_actor))
+                {
+                    static std::atomic_uint32_t suppressedCount{ 0 };
+                    const auto count = ++suppressedCount;
+                    if (ShouldLogOccurrence(count))
+                    {
+                        logs::debug("Suppressed knock of remote actor: actor={:08X} magnitude={:.2f} count={}",
+                            a_actor->GetFormID(), a_magnitude, count);
+                    }
+                    return;
+                }
+                _original(a_process, a_actor, a_location, a_magnitude);
+            }
+
+            static inline REL::Relocation<decltype(Thunk)> _original;
+        };
+
         // The arrowRelease annotation handler launches the nocked arrow and spends
         // the ammo. A remote actor's bow draw keeps the arrow model it attached.
         struct ArrowReleaseHandlerHook
@@ -298,11 +335,15 @@ namespace CombatIsolation
         ActorHitHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(37673, 38627)),
             REL::Relocate(Prologue{ kSEActorHitPrologue }, Prologue{ kHitPrologue }),
             reinterpret_cast<std::uintptr_t>(&ActorHitHook::Thunk), "actor hit", kActorHitGuardSize);
+        KnockExplosionHook::_original = WriteEntryDetour(REL::ID(RELOCATION_ID(38858, 39895)),
+            REL::Relocate(Prologue{ kSEKnockExplosionPrologue }, Prologue{ kKnockExplosionPrologue }),
+            reinterpret_cast<std::uintptr_t>(&KnockExplosionHook::Thunk), "knock explosion");
         logs::debug(
             "Remote actor combat isolation hooks: hostility={} isHostileToActor={} startCombat={} weaponSwingHit={} "
-            "swingHitTarget={} actorHit={}",
+            "swingHitTarget={} actorHit={} knockExplosion={}",
             HostilityHook::_original.address() != 0, IsHostileToActorHook::_original.address() != 0,
             StartCombatHook::_original.address() != 0, WeaponSwingHitHook::_original.address() != 0,
-            SwingHitTargetHook::_original.address() != 0, ActorHitHook::_original.address() != 0);
+            SwingHitTargetHook::_original.address() != 0, ActorHitHook::_original.address() != 0,
+            KnockExplosionHook::_original.address() != 0);
     }
 }

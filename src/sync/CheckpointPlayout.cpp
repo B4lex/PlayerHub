@@ -62,7 +62,7 @@ namespace
 
     bool CanInterpolate(const Network::PlayerTransform& a_from, const Network::PlayerTransform& a_to)
     {
-        return a_from.mounted == a_to.mounted
+        return a_from.mounted == a_to.mounted && a_from.flyingMount == a_to.flyingMount
             && MovementSync::IsSameCoordinateSpace(a_from, a_to)
             && GetPosition(a_from).GetDistance(GetPosition(a_to)) <= MovementSync::kRelocationDistance;
     }

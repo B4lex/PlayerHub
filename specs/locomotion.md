@@ -70,8 +70,9 @@ At each checkpoint, from the carrier (the player, or its mount while riding):
   (not confirmed for scaled races). An
   idle checkpoint, a graph without `Speed`, and a mount carry the speed
   measured from the previous published sample instead: horizontal travel
-  only, or 3D travel while swimming, so a mount's gait follows its ground
-  speed. Idle keeps the measured value so a graph `Speed` still easing to zero
+  only, or 3D travel while swimming or while the carrier flies (a ridden
+  dragon, [Native interactions](native-interactions.md#dragon-flight)), so a
+  mount's gait follows its ground speed. Idle keeps the measured value so a graph `Speed` still easing to zero
   does not defeat the server's idle repeat suppression. A jump of more than
   4096 units is a relocation, not a speed sample.
 - **Direction** is travel relative to heading in graph `Direction` units

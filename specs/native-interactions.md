@@ -1,12 +1,19 @@
 # Native Interactions
 
+## Status
+
+The dragon's `PitchDelta` [flight channel](#dragon-flight) is unconfirmed, so
+its bending may not match the source's. Retried flight events have not run in
+game.
+
 ## Scope
 
 Some things the actor does are Skyrim's to perform: sitting in furniture,
 riding, and dying. For these the receiver hands the actor to a native engine
 path and takes it back afterwards, while no animation, idle, or event name of
 the interaction crosses the wire. Only reconstructable checkpoint state does: `furniture`,
-`mounted`, and `dead` ([Network](network.md#checkpoint-and-context)).
+`mounted`, `flyingMount` with the mount's fly state, and `dead`
+([Network](network.md#checkpoint-and-context)).
 
 While an interaction owns the actor, it owns its graph and placement:
 translation, heading, locomotion, stance, and attacks wait, the firewall admits
@@ -22,7 +29,8 @@ targeting, and survival policies stay enforced.
 | `actor/ActorFurniture` | The native sit/sleep lifecycle on the actor |
 | `runtime/FurnitureActivationHook` | The local player's furniture activation on its worker thread |
 | `sync/mount/MountSync` | Source mount sample; receiver mount spawn, seat, and gait |
-| `actor/ActorMount` | Seat construction and checks |
+| `actor/ActorMount` | Mount base, seat construction and checks, gait |
+| `actor/ActorFlight` | A remote dragon's flight graph, driven from the source's fly state |
 | `sync/death/DeathSync`, `actor/ActorDeath` | Source life state; receiver kill |
 
 ## Furniture
@@ -281,8 +289,8 @@ Logs: `Hiding remote player actor ... reason=`,
 ## Mounts
 
 A riding player appears on peers seated on a horse that follows its path at a
-matching gait. The mount exists only while the player rides and is removed with
-its rider in every case.
+matching gait, or on a dragon that flies its path. The mount exists only while
+the player rides and is removed with its rider in every case.
 
 ### Source
 
@@ -293,6 +301,22 @@ against the previous sample, so mounting and dismounting cost one speed sample
 across the rider-to-mount offset. The player counts as mounted for the whole
 interaction, including its mount and dismount animations.
 
+A mount whose race has `kFlies` (`DragonRace`) is a flying mount: the
+checkpoint sets `flyingMount` and carries the mount's `ActorState` fly state
+(`GetFlyState`), and the speed is measured along the flight, vertical included
+([Locomotion](locomotion.md#source-capture)). While it cruises
+(`cruising`, `action`), the checkpoint also carries its wing stroke
+(`ActorFlight::ReadWingState`): its graph's `Speed` against
+`TargetSpeedDamped` times `TargetSpeedThresholdMin` and `Max`, the comparison
+its own wing state modifier makes ([Dragon flight](#wing-strokes)); `none`
+otherwise. `Publishing local flying mount state` logs each fly state change.
+Every 2 s, `Local flying mount sample` logs the source dragon's graph flight
+inputs (`Speed`, `TargetSpeed`, `TargetSpeedDamped`, `TurnDelta`,
+`PitchDelta`, `Pitch`, `MoveDirZ`, `FlightPitchBlend`, wing flags, `iState`),
+the wing stroke sent, its controller's pitch and roll, `data.angle.x`, and its
+measured heading and pitch rates, which the receiver's
+[flight channels](#dragon-flight) are meant to match.
+
 ### Receiver
 
 `MountSync::SyncMount` runs after the death and stranded-actor checks and before
@@ -302,7 +326,11 @@ every on-foot stage:
    at the checkpoint through `ActorSpawner`, so it is registered like a remote
    actor: survival, combat, magic, hostility, and collision isolation, and
    blocked activation, so it cannot be ridden or stolen.
-   `ActorMount::PickMountBase` picks each spawn's base at random from the five
+   `ActorMount::PickMountBase` gives a flying mount `EncDragon01FireNoScript`
+   (`Skyrim.esm:0F8115`), a generic fire dragon whose record and template
+   (`EncDragon01Fire`, whose template flags leave out scripts) carry no script,
+   so no `DragonActorScript` runs on it; if it does not resolve, a horse stands
+   in. It picks every other spawn's base at random from the five
    generic saddled vanilla horses, `EncHorseSaddledBrown`, `Black`, `BlackAndWhite`, `Grey`, and
    `Palomino` (`Skyrim.esm:023AB2`, `068CFA`, `068D02`, `068D03`, `068D04`),
    which exist in every modpack; one that does not resolve is left out. The
@@ -310,9 +338,12 @@ every on-foot stage:
    respawned mount (remount, cell change, fast travel) may change color. The
    allocation log names the base (`base=`).
 2. The mount takes each checkpoint as its target. Once ready,
-   `ActorRuntime::UpdateMount` reasserts its policy, drives its gait, and
+   `ActorRuntime::UpdateMount` reasserts its policy, drives its
+   [gait](#gait) or, for a dragon, its [flight](#dragon-flight), and
    translates it with the actor translation code, including the
-   [ground offset](locomotion.md#ground-offset).
+   [ground offset](locomotion.md#ground-offset). A checkpoint whose
+   `flyingMount` differs from the spawned mount's kind retires the pair as a
+   dismount does, and the next one spawns the other kind.
 3. Once actor and mount are ready, `ActorMount::Seat` seats the actor instantly,
    retrying every 0.5 s. From then on the mount carries it: it is never driven on
    foot again. Seating clears the on-foot graph tracking
@@ -320,7 +351,31 @@ every on-foot stage:
    draw, sheathe, attack, or block in progress never runs on a rider.
    `ActorRuntime::UpdateRider` keeps its policy, equipment and appearance are
    still reconciled, the weapon follows the checkpoint
-   ([Weapon](#weapon)), and queued attacks are dropped.
+   ([Weapon](#weapon)), and queued attacks are dropped. A dragon's rider gets
+   no [gait](#gait) and sits in `Special_DragonMountSitIdle` whatever its mount
+   does. Its seat needs the dragon to carry Dragonborn's
+   `DLC2DragonMountKeyword` (`Dragonborn.esm:01BD7D`): the rider's
+   `DragonMountInstant` idle sits under `DragonEvents`, which requires it
+   beside `ActorTypeDragon`, and without it the start found no rider idle and
+   failed on every attempt (`started=false`, seen in game). The source's dragon
+   has it from the `DLC2TameDragon` quest's alias. `ActorMount` hooks
+   `Character`'s `HasKeywordHelper` (vfunc 0x48), which the `HasKeyword`
+   condition calls, and reports the keyword only for the dragon being seated,
+   on the main thread, for the length of the start; adding it to the shared
+   base would also make local dragons of that base match the ride activation
+   perk (`DLC2TameDragonActivatePerk`).
+
+   The dragon must also carry `kIsAMount` (`Actor::BOOL_FLAGS`), which Skyrim
+   derives from the horse and dragon mount keywords only when the actor
+   initializes (ID 37653, SE 36894), so the remote dragon never had it.
+   Without it Skyrim treats the dragon as a rider of its own interaction: the
+   actor update's walk up the mount chain (ID 41381) took the dragon's mount to
+   be the dragon and recursed until the stack overflowed, and the graph
+   managers were linked both ways, so a job thread's graph update recursed
+   between rider and dragon forever (both seen in game).
+   `ActorMount::AssertFlyingMount` sets the flag before the seat and on every
+   mount update, since Skyrim recomputes it on initialization (`Marked remote
+   flying mount as a mount`).
 4. The seat is checked every 0.5 s, since the check looks up the rider's
    interaction; a rider found off its mount is logged and seated again. A seat
    also waits while either actor is getting on or off (`kGettingOnOffMount`).
@@ -454,6 +509,105 @@ events. The rider's registration is marked mounted while seated, which admits
 every native event on the rider, since the mount interaction drives its graph. A
 2 s gait sample per role logs `Speed`, `HorseSpeedSampled`, and the
 controller's pitch and its target.
+
+### Dragon flight
+
+A dragon is driven through its own `dragonbehavior.hkx`, the vanilla flight
+graph, so peers see their own dragon animations. `ActorFlight::Apply` takes the
+played checkpoint's fly state in place of the gait.
+
+On each fly state change it sends the event of the matching vanilla flight idle
+from `Skyrim.esm` through the network dispatch:
+
+| New state | From | Event |
+| --- | --- | --- |
+| `takeOff` | any | `TakeOff` (`FlyStartTakeOff`) |
+| `cruising`, `action` | `hovering` | `HoverStop` |
+| `cruising`, `action` | `none`, `landing`, `perching`, first update | `FlyStartCruise` |
+| `hovering` | `takeOff`, `cruising`, `action` | `HoverStart` |
+| `hovering` | `none`, `landing`, `perching`, first update | `FlyStartHover` |
+| `landing` | any | `FlyStopDefault` |
+| `none`, `perching` | `cruising`, `hovering`, `action` | `FlyStopDefault` |
+
+A takeoff continues into flight by itself and a landing onto the ground, so
+`takeOff` to `cruising` and `landing` to `none` send nothing. A flight state
+followed directly by `none` is a landing the playout skipped, as after an 8 s
+hitch in a replay, and still lands. An event the graph rejects is sent again
+every 0.25 s until the graph takes it (`Remote flying mount graph took a
+retried flight event`), its state already matches the fly state, or the fly
+state changes: a takeoff refuses `FlyStopDefault` until it reaches flight, so
+a short hop's landing waits for its takeoff instead of the source's `none`
+1.5 s later. The first update
+treats the state before as `none`, so a dragon spawned for a player already in
+the air starts its flight. `Remote flying mount state changed` logs each change
+with the event and whether the graph accepted it.
+
+Once a state has held for 1.5 s, or 1.5 s after a retried event was taken,
+and no event is pending, every 0.25 s the graph's `iState` is compared
+with it: the graph tags its flight states with `iState_DragonFlying`, its hover
+states with `iState_DragonHovering`, and counts anything else as on the
+ground. A mismatch sends `FlyStartCruise` or `HoverStop` toward flight,
+`FlyStartHover` or `HoverStart` toward a hover, and `FlyStopDefault` toward
+the ground (`Corrected remote flying mount graph`). `takeOff` and `landing` are
+never corrected, since their clips play for seconds and a correction would
+restart them. After a rejected correction the next check waits 2 s: the
+landing states keep `iState_DragonFlying` through the touchdown, seconds after
+the source reports `none`, and reject `FlyStopDefault` (seen in game).
+
+The graph reads its flight inputs from channels that poll the AI process,
+which never flies a remote dragon. `ActorFlight` publishes them every update
+(`ActorRegistry::SetFlightChannels`), and the
+[firewall's channel hooks](remote-actor.md#graph-channels) report them:
+
+- `TargetSpeed`: the checkpoint speed, divided by the speed ratio of the
+  source's [wing stroke](#wing-strokes) while it cruises.
+- `TurnDelta`: the network heading rate (`targetHeadingRate`) in degrees per
+  second with its sign reversed, which banks the flight clips. A source
+  dragon's `TurnDelta` read about +75 to +85 in turns measured at -50 to -85
+  degrees per second of heading, and the reverse in the other direction.
+- `PitchDelta`: the rate of the network pitch, smoothed over 0.2 s, in degrees
+  per second, which bends the body up and down.
+
+Its `Speed` channel reports the checkpoint speed through the gait speed
+(`ActorRegistry::SetGaitSpeed`), as a flying actor's own movement would. Flight
+events the local AI sends a flying mount (`TakeOff`, `FlyStart`, `FlyStop`,
+`HoverStart`, and `HoverStop` prefixes, and `HoverToCruise`) are blocked, as
+the horse's gait events are. The dragon is network-placed like a horse; it
+translates as moving at 20 or more and is otherwise held standing. Its
+controller takes the checkpoint's pitch whatever its `kCanPitch` flag, since
+the 3D update builds every controller's body rotation from it
+([Terrain pitch](#terrain-pitch)), and while it flies its `data.angle.x`
+takes the same pitch, as a flying source's does. Skyrim (ID 39548) sets a
+flying actor's graph `MovementDirection` each update to its forward direction
+from `data.angle`, and the graph blends its climb (`MTAscend_Climb`, while
+flapping) and dive (`MTDescend_Dive`, while gliding) clips by that direction's
+height (`MoveDirZ`, `FlightPitchBlend`); with `data.angle.x` left at zero a
+remote dragon never climbs or dives. While it flies, `Remote flying mount
+sample` logs every 2 s the graph's flight inputs, the channel values sent, the
+wing stroke received, the wing flags, the controller's pitch, `data.angle.x`,
+`MoveDirZ`, and `FlightPitchBlend`.
+
+#### Wing strokes
+
+The graph picks its wing stroke itself (`EEM_Wing_State` in
+`dragonbehavior.hkx`): `Flap` while `Speed` is below `TargetSpeedDamped` times
+`TargetSpeedThresholdMin` (0.9), `Feather` while above
+`TargetSpeedThresholdMax` (1.1) times it, and `Glide` between.
+`TargetSpeedDamped` is `TargetSpeed` capped by a turn and pitch limit that
+never drops below `MinSpeed` (2500). Its modifiers raise `Speed` while it
+flaps (`MaxAcc` 1541) and lower it by drag, so a source dragon, whose
+`TargetSpeed` reads 2000, flaps whenever drag takes its `Speed` below 1800.
+A remote dragon fed the measured speed as both `Speed` and `TargetSpeed` reads
+a ratio of one and only glides, so the source's stroke is sent instead
+([Network](network.md#checkpoint-and-context)).
+
+The receiver keeps `Speed` at the checkpoint speed and sets `TargetSpeed` so
+that the ratio falls inside the received stroke's band, using its own graph's
+thresholds (read once per dragon): 0.9 times `TargetSpeedThresholdMin` to
+flap, the midpoint to glide, and `TargetSpeedThresholdMax` over 0.9 to
+feather. The margin covers the graph computing `TargetSpeedDamped` in its own
+update. Outside cruising, without a stroke, or without the thresholds,
+`TargetSpeed` is the checkpoint speed.
 
 ### Terrain pitch
 
@@ -649,9 +803,50 @@ Furniture entry, traced in the 1.7.104 binary:
     passes the remote actor. Traced in both binaries; the release itself was
     not observed in game.
 
+Dragon flight:
+
+14. `dragonbehavior.hkx` (vanilla, read from its packfile strings) takes
+    `TakeOff`, `FlyStartCruise`, `FlyStartHover`, `HoverStart`, `HoverStop`,
+    and `FlyStopDefault`, the `ENAM` events of the `Skyrim.esm` idles
+    `FlyStartTakeOff` (`03B553`), `FlyStartCruise` (`03BDA6`), `FlyStartHover`
+    (`03BDA7`), `HoverStart` (`017183`), `HoverStop` (`03B559`), and
+    `FlyStopDefault` (`040B4A`). Which state each transition leaves from is not
+    read; the table above is inferred from the idle names.
+15. Its modifiers derive the wing state from `Speed` against
+    `TargetSpeedDamped` ([Wing strokes](#wing-strokes), expressions and
+    variable defaults read from the packfile), bank from `TurnDelta`, and bend from
+    `PitchDelta`, both scaled by `TimeStep` and `TurnDeltaScale`, so both are
+    taken as rates. Traced in the 1.7.104 binary: `ActorTargetSpeedChannel`
+    (vfunc 1, ID 38331) reads ID 37959 and `ActorPitchDeltaChannel`
+    (ID 38328) reads ID 37963 times 57.2958, both from the AI process; the
+    `TurnDelta` channel copies its value unscaled; the source samples match
+    degrees per second against Skyrim's heading. `PitchDelta` does not
+    follow the source's 2 s pitch rate in sign or size, so it may be an angle
+    to a target rather than a rate; the source and receiver samples log both
+    for comparison. `MovementDirection` is set by ID 39548, which the actor update
+    (ID 37350) calls for an actor with a process: with a high process and a
+    fly state other than `none` and `perching`, it stores the forward direction
+    of `data.angle` composed with the middle-high process's rotation
+    (`+0xB0`, ID 91804). That a remote dragon's update reaches it is assumed;
+    the remote sample's `moveDirZ` shows it.
+16. The graph's flight notifications (`FlightTakeOff`, `FlightCruising`,
+    `FlightHovering`, `FlightLanding`, `FlightLanded`) reach Skyrim's
+    `Flight*Handler` animation handlers, which set the actor's fly state; a
+    network-placed dragon is assumed to need nothing else to stay airborne,
+    since the skipped movement update never applies gravity to it.
+17. The quick start (ID 41530) runs the interaction's start (vfunc 0x70,
+    ID 40351), which processes `ActionMount` for the rider at once and fails
+    (result 2) when the idle tree yields no idle, so the idle conditions are
+    evaluated inside the start. Under `DragonEvents` (`02017715`: target
+    `HasKeyword` `ActorTypeDragon` and `DLC2DragonMountKeyword`), the quick
+    branch picks `DragonMountInstant` (`02017716`, event
+    `DragonMountEnterInstant`), as `EnterHorseInstant` under `HorseEvents`
+    (`ActorTypeHorse`) does for a horse. The `HasKeyword` condition
+    (ID 21644) calls vfunc 0x48, which `Character` takes from `Actor`
+    (ID 37183, SE 36204; base form and alias keywords, then the race's).
 Mount gait, traced in the 1.7.104 binary:
 
-13. `BSSpeedSamplerModifier` overrides only vfuncs 0, 5 (`Update`, ID 63306),
+18. `BSSpeedSamplerModifier` overrides only vfuncs 0, 5 (`Update`, ID 63306),
     and 0xC; `Update` reads `state`, `direction`, and `goalSpeed` at 0x50,
     0x54, and 0x58 and writes `speedOut` at 0x5C. A `BShkbAnimationGraph`
     builds the `hkbContext` it updates its behavior with from its
@@ -701,16 +896,22 @@ Mounts:
 11. A rider draws and sheathes when the source does on horseback, also when it
     was seated drawn, sheathed, or mid-transition, and a hand item changed on
     horseback appears without a 2 s delay (`Remote rider weapon state changed`).
+12. A player riding a dragon appears seated on a dragon on every peer, also
+    when the peer joins mid-flight. The dragon takes off, flies, hovers, and
+    lands when the source's does, with few `Corrected remote flying mount
+    graph` lines and no rejected flight events, and it banks into turns and
+    flaps, glides, or feathers with its speed. Dismounting removes it like a
+    horse.
 
 Death:
 
-12. A player killed by an enemy collapses into a ragdoll on every peer, and the
+13. A player killed by an enemy collapses into a ragdoll on every peer, and the
     body disappears when its game loads. A peer entering the cell during the
     death camera sees it collapse where the player died.
-13. The body cannot be looted, shows no activation prompt, and Activate on it
+14. The body cannot be looted, shows no activation prompt, and Activate on it
     opens no player menu. The local player gains no kill, bounty, or quest
     progress.
-14. A player revived with `resurrect` stands up again as a fresh actor. A player
+15. A player revived with `resurrect` stands up again as a fresh actor. A player
     in bleedout (essential) stays standing.
 
 ## Known limitations
@@ -729,10 +930,17 @@ Death:
   containers, scripted furniture, and paired idles are not synchronized; there is no global reservation across clients; a peer without
   the furniture's plugin shows the actor standing, with no substitute furniture
   or seated idle.
-- Mounts: the source's mount appearance (a random vanilla horse stands in),
-  mount and dismount animations, combat on horseback (attacks, bows, spells; a
-  drawn weapon is shown), horse jumps, a mount left standing after a dismount,
-  and the mount's approach are not shown.
+- Mounts: the source's mount appearance (a random vanilla horse stands in, and
+  one vanilla dragon for every dragon), mount and dismount animations, combat
+  on horseback (attacks, bows, spells; a drawn weapon is shown), horse jumps, a
+  mount left standing after a dismount, and the mount's approach are not shown.
+- Dragons: the dragon's breath and other shouts, the rider's spells and shouts
+  in flight, flight kills, and perching on a tower or rock (shown as a landing)
+  are not shown; they are left for a later change. Roll is not synchronized:
+  the banking comes from the receiver's own graph through `TurnDelta`, so it may
+  differ from the source's. The wing stroke follows the source's at checkpoint
+  rate, not each wing beat's timing. A modded mount that is neither a horse nor
+  a dragon shows a horse.
 - Death: the killer, death animations including a kill move's paired death
   (the actor always goes straight to ragdoll), where the body comes to rest
   (each peer simulates its own), and bleedout are not shown.

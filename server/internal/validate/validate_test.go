@@ -29,7 +29,20 @@ func TestCheckpoint(t *testing.T) {
 		"direction above 255":   func(c *pb.Checkpoint) { c.Direction = 256 },
 		"time above 16383":      func(c *pb.Checkpoint) { c.Time = 16384 },
 		"unknown movement":      func(c *pb.Checkpoint) { c.Flags = 7 },
-		"unknown flag bit":      func(c *pb.Checkpoint) { c.Flags = 1 << 24 },
+		"unknown flag bit":      func(c *pb.Checkpoint) { c.Flags = 1 << 30 },
+		"flying mount without mount": func(c *pb.Checkpoint) {
+			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_FLYING_MOUNT)
+		},
+		"fly state without flying mount": func(c *pb.Checkpoint) {
+			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_MOUNTED) | uint32(pb.FlyState_FLY_STATE_CRUISING)<<FlyStateShift
+		},
+		"wing state without flying mount": func(c *pb.Checkpoint) {
+			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_MOUNTED) | uint32(pb.WingState_WING_STATE_GLIDING)<<WingStateShift
+		},
+		"fly state above action": func(c *pb.Checkpoint) {
+			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_MOUNTED|pb.CheckpointFlag_CHECKPOINT_FLAG_FLYING_MOUNT) |
+				7<<FlyStateShift
+		},
 		"left release without cast": func(c *pb.Checkpoint) {
 			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_CAST_RELEASED_LEFT | pb.CheckpointFlag_CHECKPOINT_FLAG_CASTING_RIGHT)
 		},
@@ -80,6 +93,12 @@ func TestCheckpoint(t *testing.T) {
 	shouting.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_FAILED)
 	if err := Checkpoint(shouting); err != nil {
 		t.Fatalf("failed released shout rejected: %v", err)
+	}
+	flying := proto.Clone(valid).(*pb.Checkpoint)
+	flying.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_MOUNTED|pb.CheckpointFlag_CHECKPOINT_FLAG_FLYING_MOUNT) |
+		uint32(pb.FlyState_FLY_STATE_ACTION)<<FlyStateShift | uint32(pb.WingState_WING_STATE_FEATHERING)<<WingStateShift
+	if err := Checkpoint(flying); err != nil {
+		t.Fatalf("flying mount in its last fly and wing states rejected: %v", err)
 	}
 	full := proto.Clone(valid).(*pb.Checkpoint)
 	// 23 bones of 29 bits, 30 of 23, and 10 of 26.

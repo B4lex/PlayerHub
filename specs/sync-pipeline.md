@@ -503,8 +503,8 @@ player rides, its mount ([Native interactions](native-interactions.md#mounts)).
   respawns in, and age out after 3 s. Reasons, each logged as `Recycling
   remote player actor ...`: a new appearance revision, a new
   [beast form](appearance-and-equipment.md#shapeshifts), a coordinate-space
-  change, fast travel, revival, dismount, a lost mount, and death while
-  riding.
+  change, fast travel, revival, dismount (including a change between a horse
+  and a dragon), a lost mount, and death while riding.
 - **Fast travel** within one space keeps the coordinate space, so it is found by
   displacement: an actor more than 4096 units (`kRelocationDistance`) from its
   checkpoint is retired, and so is one without 3D for 2 s whose target location

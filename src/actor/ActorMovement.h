@@ -82,5 +82,6 @@ namespace ActorMovement
 
     // Skyrim's movement update derives the pitch from the ground, and the
     // per-frame 3D update builds the body's rotation from it.
-    void ApplyPitch(RE::Actor& a_actor, const RemoteActor& a_remote, float a_deltaTime);
+    // A flying actor is pitched whatever its controller's flags.
+    void ApplyPitch(RE::Actor& a_actor, const RemoteActor& a_remote, float a_deltaTime, bool a_flying);
 }

@@ -64,6 +64,30 @@ enum CheckpointFlag {
   CHECKPOINT_FLAG_SHOUT_THREE_WORDS = 4194304;
   // A released shout whose fire fails; only with CHECKPOINT_FLAG_SHOUT_RELEASED.
   CHECKPOINT_FLAG_SHOUT_FAILED = 8388608;
+  // The mount's race flies (a dragon); only with CHECKPOINT_FLAG_MOUNTED. Bits 25-27
+  // carry the mount's FlyState and bits 28-29 its WingState, both nonzero only with this
+  // flag.
+  CHECKPOINT_FLAG_FLYING_MOUNT = 16777216;
+}
+
+// Skyrim's ActorState fly state, in bits 25-27 of Checkpoint.flags.
+enum FlyState {
+  FLY_STATE_NONE = 0;
+  FLY_STATE_TAKE_OFF = 1;
+  FLY_STATE_CRUISING = 2;
+  FLY_STATE_HOVERING = 3;
+  FLY_STATE_LANDING = 4;
+  FLY_STATE_PERCHING = 5;
+  FLY_STATE_ACTION = 6;
+}
+
+// A cruising flying mount's wing stroke, in bits 28-29 of Checkpoint.flags; none outside
+// cruising flight.
+enum WingState {
+  WING_STATE_NONE = 0;
+  WING_STATE_FLAPPING = 1;
+  WING_STATE_GLIDING = 2;
+  WING_STATE_FEATHERING = 3;
 }
 
 enum Shapeshift {

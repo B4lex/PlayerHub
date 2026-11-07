@@ -37,9 +37,18 @@ namespace ActorMount
         bool valid{ false };
     };
 
-    [[nodiscard]] RE::TESNPC* PickMountBase();
+    // A flying mount is always the same vanilla dragon.
+    [[nodiscard]] RE::TESNPC* PickMountBase(bool a_flying);
 
-    [[nodiscard]] bool Seat(RemoteActor& a_rider, const RemoteActor& a_mount);
+    void InstallHooks();
+
+    // Skyrim derives kIsAMount from the horse and dragon mount keywords when the actor
+    // initializes; a remote dragon lacks the dragon one, and without the flag Skyrim treats
+    // it as the rider of its own interaction.
+    void AssertFlyingMount(RE::Actor& a_mount);
+
+    // a_flying: the mount is a dragon, whose rider idles are gated on Dragonborn's mount keyword.
+    [[nodiscard]] bool Seat(RemoteActor& a_rider, const RemoteActor& a_mount, bool a_flying);
     [[nodiscard]] bool IsSeated(const RemoteActor& a_rider, const RemoteActor& a_mount);
     [[nodiscard]] bool IsInTransition(const RemoteActor& a_rider, const RemoteActor& a_mount);
 

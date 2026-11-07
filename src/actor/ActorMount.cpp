@@ -26,6 +26,9 @@ namespace ActorMount
         // Skyrim.esm EncHorseSaddled Brown, Black, BlackAndWhite, Grey, and Palomino:
         // the generic, non-unique saddled horses.
         constexpr std::array<RE::FormID, 5> kMountBaseIDs{ 0x023AB2, 0x068CFA, 0x068D02, 0x068D03, 0x068D04 };
+        // Skyrim.esm EncDragon01FireNoScript: a generic fire dragon whose record and template
+        // carry no script, so no DragonActorScript runs on the remote mount.
+        constexpr RE::FormID kFlyingMountBaseID = 0x0F8115;
         // Below the 125 walk speed of Horse_Default_MT.
         constexpr float kMovingSpeed = 20.0F;
         // Between the 450 run of Horse_Default_MT and the 600 of Horse_Sprint_MT.
@@ -71,6 +74,56 @@ namespace ActorMount
             return start(std::addressof(a_rider), std::addressof(interaction), true);
         }
 
+        // Dragonborn.esm DLC2DragonMountKeyword. Dragonborn's DragonEvents idle, the parent of
+        // the rider's DragonMountInstant (event DragonMountEnterInstant), requires the mount to
+        // have it beside ActorTypeDragon, and the source's dragon gets it from the
+        // DLC2TameDragon quest's alias. Without it ActionMount finds no rider idle and the
+        // interaction start fails.
+        constexpr RE::FormID kDragonMountKeywordID = 0x01BD7D;
+        RE::BGSKeyword* s_dragonMountKeyword = nullptr;
+        // The dragon being seated on the main thread, for the length of the start only, so
+        // nothing else (such as the ride activation perk, DLC2TameDragonActivatePerk) sees
+        // the keyword on it.
+        thread_local const RE::Actor* t_seatingDragon = nullptr;
+
+        // TESObjectREFR::HasKeywordHelper (vfunc 0x48; Actor's is ID 37183, SE 36204), which
+        // the HasKeyword condition (ID 21644) calls.
+        struct DragonMountKeywordHook
+        {
+            static bool Thunk(const RE::Actor* a_actor, const RE::BGSKeyword* a_keyword)
+            {
+                if (a_actor && a_actor == t_seatingDragon && a_keyword && a_keyword == s_dragonMountKeyword)
+                {
+                    return true;
+                }
+                return _original(a_actor, a_keyword);
+            }
+
+            static inline REL::Relocation<decltype(Thunk)> _original;
+        };
+
+        RE::BGSKeyword* GetDragonMountKeyword()
+        {
+            static bool s_resolved = false;
+            if (!s_resolved)
+            {
+                auto* dataHandler = RE::TESDataHandler::GetSingleton();
+                if (!dataHandler)
+                {
+                    return nullptr;
+                }
+                s_resolved = true;
+                s_dragonMountKeyword = dataHandler->LookupForm<RE::BGSKeyword>(kDragonMountKeywordID, "Dragonborn.esm");
+                if (!s_dragonMountKeyword)
+                {
+                    logs::error("Dragon mount keyword Dragonborn.esm:{:06X} is unavailable; remote dragon riders "
+                                "cannot be seated",
+                        kDragonMountKeywordID);
+                }
+            }
+            return s_dragonMountKeyword;
+        }
+
         bool IsGettingOnOrOff(const RE::Actor& a_actor)
         {
             return a_actor.GetActorRuntimeData().boolFlags.any(RE::Actor::BOOL_FLAGS::kGettingOnOffMount);
@@ -99,8 +152,33 @@ namespace ActorMount
         }
     }
 
-    RE::TESNPC* PickMountBase()
+    RE::TESNPC* PickMountBase(bool a_flying)
     {
+        if (a_flying)
+        {
+            static RE::TESNPC* s_flyingMountBase = nullptr;
+            static bool s_flyingResolved = false;
+            if (!s_flyingResolved)
+            {
+                auto* dataHandler = RE::TESDataHandler::GetSingleton();
+                if (!dataHandler)
+                {
+                    return nullptr;
+                }
+                s_flyingResolved = true;
+                s_flyingMountBase = dataHandler->LookupForm<RE::TESNPC>(kFlyingMountBaseID, "Skyrim.esm");
+                if (!s_flyingMountBase)
+                {
+                    logs::error("Remote flying mount base Skyrim.esm:{:06X} is unavailable; remote players ride "
+                                "horses instead",
+                        kFlyingMountBaseID);
+                }
+            }
+            if (s_flyingMountBase)
+            {
+                return s_flyingMountBase;
+            }
+        }
         static std::vector<RE::TESNPC*> s_mountBases;
         static bool s_resolved = false;
         if (!s_resolved)
@@ -136,7 +214,23 @@ namespace ActorMount
         return s_mountBases[index(generator)];
     }
 
-    bool Seat(RemoteActor& a_rider, const RemoteActor& a_mount)
+    void InstallHooks()
+    {
+        REL::Relocation<std::uintptr_t> characterVTable{ RE::VTABLE_Character[0] };
+        DragonMountKeywordHook::_original = characterVTable.write_vfunc(0x48, DragonMountKeywordHook::Thunk);
+    }
+
+    void AssertFlyingMount(RE::Actor& a_mount)
+    {
+        auto& flags = a_mount.GetActorRuntimeData().boolFlags;
+        if (flags.none(RE::Actor::BOOL_FLAGS::kIsAMount))
+        {
+            flags.set(RE::Actor::BOOL_FLAGS::kIsAMount);
+            logs::debug("Marked remote flying mount as a mount: actor={:08X}", a_mount.GetHandle().native_handle());
+        }
+    }
+
+    bool Seat(RemoteActor& a_rider, const RemoteActor& a_mount, bool a_flying)
     {
         if (!GameThread::Require("SeatRemoteRider"))
         {
@@ -154,7 +248,14 @@ namespace ActorMount
         ActorRegistry::SetMounted(a_rider, true);
         // The engine update reasserts this, and an on-foot jump must not carry over.
         ActorRegistry::SetAuthoritativeJumpState(a_rider, false);
+        if (a_flying)
+        {
+            AssertFlyingMount(*mountPtr);
+            (void)GetDragonMountKeyword();
+            t_seatingDragon = mountPtr.get();
+        }
         const bool started = StartInstantMountInteraction(*riderPtr, *mountPtr);
+        t_seatingDragon = nullptr;
         if (!started)
         {
             ActorRegistry::SetMounted(a_rider, false);
