@@ -38,6 +38,8 @@ namespace GraphStance
             std::string_view offState;
             // Empty: every state but offState.
             std::string_view onState;
+            // An idle machine of a weapon-drawn behavior.
+            bool drawn{ false };
         };
 
         // Every SneakStart, SneakStop, moveStart, moveStop, SprintStart, and SprintStop
@@ -181,7 +183,7 @@ namespace GraphStance
             StanceSelector{ StanceAxis::kIdle, "MT_Idle_3rdPersonBehavior", "InitialIdleState", {} },
             StanceSelector{ StanceAxis::kIdle, "CarryLeftArmBehavior", "MTLeftArmState", {} },
             StanceSelector{ StanceAxis::kIdle, "CarryRightArmBehavior", "MTRightArmState", {} },
-            StanceSelector{ StanceAxis::kIdle, "1HM_Behavior", "1HM_Ready_State", "CombatIdles" },
+            StanceSelector{ StanceAxis::kIdle, "1HM_Behavior", "1HM_Ready_State", "CombatIdles", true },
             StanceSelector{ StanceAxis::kIdle, "RootBehaviorGraph", "Default_State", "FullBodyPlayerIdles" },
             StanceSelector{ StanceAxis::kIdle, "RootBehaviorGraph", "Default_State", "StandingVampireFeed" },
             StanceSelector{ StanceAxis::kIdle, "Master_Behavior", "Root", "IdleDLC2TentacleWarpBook" },
@@ -249,20 +251,23 @@ namespace GraphStance
     {
         PROFILE_FUNCTION();
         std::array<SelectorVotes, 5> votes{};
+        bool drawnIdle = false;
         VisitStanceSelectors(a_actor, [&](const StanceSelector& a_selector, std::string_view a_state) {
             auto& axis = votes[static_cast<std::size_t>(a_selector.axis)];
             axis.off = axis.off || a_state == a_selector.offState;
             // GetCurrentStateName reads "?" for a state it cannot find.
-            axis.on = axis.on
-                || (a_selector.onState.empty() ? a_state != a_selector.offState && a_state != "?"
-                                               : a_state == a_selector.onState);
+            const bool on = a_selector.onState.empty() ? a_state != a_selector.offState && a_state != "?"
+                                                       : a_state == a_selector.onState;
+            axis.on = axis.on || on;
+            drawnIdle = drawnIdle || (on && a_selector.drawn);
         });
         const auto& idle = votes[static_cast<std::size_t>(StanceAxis::kIdle)];
         return { .sneak = votes[static_cast<std::size_t>(StanceAxis::kSneak)].GetState(),
             .moving = votes[static_cast<std::size_t>(StanceAxis::kMoving)].GetState(),
             .sprinting = votes[static_cast<std::size_t>(StanceAxis::kSprint)].GetState(),
             .levitating = votes[static_cast<std::size_t>(StanceAxis::kLevitation)].GetState(),
-            .idle = idle.on ? SelectorState::kOn : idle.off ? SelectorState::kOff : SelectorState::kNone };
+            .idle = idle.on ? SelectorState::kOn : idle.off ? SelectorState::kOff : SelectorState::kNone,
+            .drawnIdle = drawnIdle };
     }
 
     std::string DescribeStanceSelectors(RE::Actor& a_actor)

@@ -17,7 +17,7 @@ namespace IdlePresentation
         float sampleElapsed{ 0.0F };
         // The held-idle instance this graph was given the entering event of; 0 for none.
         std::uint64_t appliedInstance{ 0 };
-        // A release's IdleForceDefaultState gets one graph update before locomotion.
+        // A release's event gets one graph update before locomotion.
         bool releaseSettling{ false };
     };
 

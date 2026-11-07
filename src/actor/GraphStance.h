@@ -26,6 +26,8 @@ namespace GraphStance
         // kOn while any idle machine is in an idle, never kMixed: the root machines
         // stay in their default state while a nested one plays an idle.
         SelectorState idle{ SelectorState::kNone };
+        // The idle is the weapon-drawn combat idle (1HM_Behavior's CombatIdles).
+        bool drawnIdle{ false };
     };
 
     [[nodiscard]] StanceSelectors ReadStanceSelectors(RE::Actor& a_actor);

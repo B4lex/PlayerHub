@@ -75,11 +75,22 @@ namespace IdlePresentation
         {
             return;
         }
+        static const RE::BSFixedString idleStopEvent{ "IdleStop" };
         auto actor = a_remote.handle.get();
-        const bool accepted = actor && AnimationFirewall::ForceDefaultGraphState(*actor);
+        // IdleForceDefaultState is a global wildcard of the unarmed root (mt_behavior.hkx): it
+        // takes a drawn graph out of its weapon behavior while ActorState stays drawn.
+        // CombatIdles returns to 1HM_Ready_State on IdleStop.
+        const bool drawnIdle = actor && GraphStance::ReadStanceSelectors(*actor).drawnIdle;
+        bool accepted = false;
+        if (actor)
+        {
+            accepted = drawnIdle ? ActorAnimation::SendNetworkAnimationEvent(a_remote, idleStopEvent)
+                                 : AnimationFirewall::ForceDefaultGraphState(*actor);
+        }
         logs::debug("Idle sync released remote idle: actor={:08X} reason={} ownedSeconds={:.3f} observedIdle={} "
-                    "accepted={}",
-            a_remote.handle.native_handle(), a_reason, idle.ownedElapsed, idle.observedIdle, accepted);
+                    "event={} accepted={}",
+            a_remote.handle.native_handle(), a_reason, idle.ownedElapsed, idle.observedIdle,
+            drawnIdle ? "IdleStop" : "IdleForceDefaultState", accepted);
         idle.owned = false;
         idle.releaseSettling = accepted;
     }

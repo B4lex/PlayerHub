@@ -18,7 +18,7 @@ namespace Network::PlayerFilterStore
 
         constexpr std::string_view kFileName = "PlayerHub.players";
         constexpr std::string_view kFileHeader
-            = "; Skyrim Multiplayer: your friends (f) and the players you muted (m) or vanished (v), per server.\n"
+            = "; Pl: your friends (f) and the players you muted (m) or vanished (v), per server.\n"
               "; Each line: any of f, m, and v, the player's session, the server, and its name when last seen,\n"
               "; separated by tabs.\n";
         constexpr char kSeparator = '\t';

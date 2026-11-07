@@ -196,7 +196,14 @@ held block, bow draw, or cast in the checkpoint. `IdlePresentation::Release`
 sends `IdleForceDefaultState` past the firewall
 (`AnimationFirewall::ForceDefaultGraphState`), which restarts the unarmed root
 state (`MT_RootBehavior`'s self-transition wildcard) and so ends every unarmed
-idle, and gives the graph one update before the next locomotion dispatch. An
+idle, and gives the graph one update before the next locomotion dispatch. That
+wildcard is global, so from a drawn graph it would also leave the weapon
+behavior while the actor's `WEAPON_STATE` stays drawn, and no later draw,
+sheathe, or attack would bring the graph back. While the
+[graph reading](#graph-reading) shows the weapon-drawn combat idle
+(`GraphStance::StanceSelectors::drawnIdle`: `1HM_Behavior` in `CombatIdles`),
+the release sends `IdleStop` instead, which returns that machine to
+`1HM_Ready_State`. An
 entering idle anchored at or before the change is dropped, since the source
 already left it. Death, mounts, beast forms, and respawns replace the actor's
 graph or its update path.
@@ -206,7 +213,7 @@ accepted, and none is queued, the idle is released 1 s later (`held-ended`).
 The source's graph left it by itself or through events peers never receive,
 or the exit timed out in the queue. The 1 s is longer than the actor's idle
 trails its source's, so a gesture that ends on both graphs is not cut short.
-Logs: `Idle sync released remote idle` with the reason.
+Logs: `Idle sync released remote idle` with the reason and the event sent.
 
 ### Re-entry
 
