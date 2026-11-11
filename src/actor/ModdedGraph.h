@@ -16,14 +16,11 @@ namespace ModdedGraph
         const RE::hkbBehaviorGraph* behavior{ nullptr };
         bool vanillaPrefix{ false };
         std::uint32_t activeGraph{ 0 };
-        std::int32_t moddedEvents{ 0 };
+        // Events past the vanilla 0_master list, for diagnostics.
+        std::int32_t appendedEvents{ 0 };
     };
 
     [[nodiscard]] Layout ReadLayout(RE::Actor& a_actor);
-    // Sorted GraphVocabulary::HashName values of the modded event names; empty unless
-    // the graph is a_expected and has the vanilla prefix.
-    void CollectModdedEvents(
-        RE::Actor& a_actor, const RE::hkbBehaviorGraph* a_expected, std::vector<std::uint64_t>& a_hashes);
 
     // Names point into the graph's data: use them only in the pass that read them.
     struct StateReading

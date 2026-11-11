@@ -49,8 +49,8 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/RemoteLights` | Keeps the configured number of remote actors' scene lights lit and culls the rest |
 | `runtime/RemoteActorActivation` | The local player's activation of a remote actor: the dead body's prompt and the player menu request |
 | `actor/ActorSkeleton` | Reads the local player's third-person bone rotations, and blends a remote actor's network pose over its graph's output |
-| `actor/ModdedGraph` | Reads the local player's third-person graph for modded events and active modded states |
-| `actor/GraphVocabulary`, `actor/VanillaGraphNames.h` | The vanilla event prefix and the generated vanilla machine and state name hashes ([Source window](#source-window)) |
+| `actor/ModdedGraph` | Reads the local player's third-person graph layout and its active modded states |
+| `actor/GraphVocabulary`, `actor/VanillaGraphNames.h` | The vanilla event prefix and the generated vanilla machine, state, and event name hashes ([Source window](#source-window)) |
 | `sync/skeleton/PoseWindow` | Opens, holds, and closes the local player's pose window on modded graph behavior and on reactions |
 | `sync/skeleton/SkeletonSync` | Samples the local pose inside a window; ranks posed peers into slots, interpolates, and blends a remote actor's pose in and out |
 | `runtime/CodeDetour` | Shared entry detour, which copies checked entry bytes, at the entry or past an entry guard, into a trampoline gateway; call-site detours at a fixed offset or found by call target |
@@ -761,17 +761,15 @@ pose; `SkeletonSync::SampleLocalSkeleton` returns an empty pose outside a
 window or with `[Advanced] ShareCustomAnimations` off
 ([Configuration](configuration.md#advanced)).
 
-- **Modded event.** Pandora, Nemesis, and FNIS append their events to the
-  vanilla third-person `0_master` list, so an event at index
-  `GraphVocabulary::kVanillaEventCount` (1217) or later is modded, in a graph
-  with the vanilla prefix (`GraphVocabulary::HasVanillaPrefix`: the last
-  vanilla event and variable are `SoundPlay.NPCKillDLC2HeartStone` and
-  `iWantMountedWeaponAnims`, at 1216 and 229). Reads use the third-person graph
-  (`BSAnimationGraphManager::graphs[0]`). Whenever that graph changes, the
-  main loop publishes the sorted `GraphVocabulary::HashName` hashes of its
-  modded event names (`Pose window observed local graph`), and
-  `PoseWindow::IsModdedEvent` looks an event name up in them on the graph input
-  hook's thread. A graph without the prefix has no modded events.
+- **Modded event.** An accepted event that no vanilla behavior lists is
+  modded: `PoseWindow::IsModdedEvent` looks its `GraphVocabulary::HashName`
+  up in the generated vanilla event names on the graph input hook's thread.
+  A window opens only in a third-person graph (`BSAnimationGraphManager::graphs[0]`) with the vanilla prefix
+  (`GraphVocabulary::HasVanillaPrefix`: the last vanilla event and variable
+  are `SoundPlay.NPCKillDLC2HeartStone` and `iWantMountedWeaponAnims`, at 1216
+  and 229), which the main loop reads whenever that graph changes
+  (`Pose window observed local graph`, with the number of events past the
+  vanilla ones).
 - **Open.** The graph input hook passes each accepted event and its reading to
   `PoseWindow::ObserveLocalGraphEvent`, which keeps the first modded name and a
   count until the next pass. `PoseWindow::Update`, before idles and the
@@ -808,16 +806,19 @@ window or with `[Advanced] ShareCustomAnimations` off
   closes on a modded exit event: Paraglider's landing leaves on the vanilla
   `JumpLandEnd`.
 - **Vanilla names.** `actor/VanillaGraphNames.h` holds the sorted FNV-1a 64
-  hashes of the ASCII-lowercased machine and state names of the vanilla
-  character behaviors, looked up by binary search: 1056 machine and 3246 state
-  names. `scripts/generate_vanilla_graph_names.py` generates it from every
+  hashes of the ASCII-lowercased machine, state, and event names of the
+  vanilla character behaviors, looked up by binary search: 1056 machine, 3246
+  state, and 1984 event names. `0_master` lists 1217 of the events; the rest
+  appear only in the behaviors it references, such as `mt_behavior`. `scripts/generate_vanilla_graph_names.py` generates it from every
   `.hkx` under `actors\character\behaviors` and
   `actors\character\_1stperson\behaviors` of the vanilla
   `Skyrim - Animations.bsa` (v105, LZ4), or from a directory of extracted
   vanilla files, by parsing each hk_2010.2.0-r1 packfile: virtual fixups give
   each object's class, and the local fixups of `hkbStateMachine::name` (0x38)
   and `StateInfo::name` (0x60), the offsets `actor/BehaviorGraphLayout` reads
-  at runtime, give the names. It fails on a hash collision. Regenerate with
+  at runtime, and of `hkbBehaviorGraphStringData::eventNames` (0x10) give the
+  names. It checks that each `0_master` lists 1217 events ending in
+  `SoundPlay.NPCKillDLC2HeartStone`. It fails on a hash collision. Regenerate with
   `python3 scripts/generate_vanilla_graph_names.py "<Data>/Skyrim - Animations.bsa"`
   (needs the `lz4` package).
 - **Always-active machines.** A patch may add a modded machine that is active
@@ -1055,9 +1056,10 @@ Not confirmed:
 
 Not yet checked, for the [skeleton pose](#skeleton-pose):
 
-22. Pandora, Nemesis, and FNIS only append to the vanilla third-person
-    `0_master` event list, so the first 1217 events keep their vanilla order
-    (seen with Paraglider's and SkyParkour's patches).
+22. Pandora, Nemesis, and FNIS never reorder or remove the first 1217
+    events of the vanilla third-person `0_master` list, so the vanilla prefix
+    identifies a character graph (seen with Paraglider's and SkyParkour's
+    patches and an FNIS list).
 23. A patch names the machines and states it adds differently from every
     vanilla one; a modded behavior placed in a state with a vanilla name holds
     a window only for its first second.

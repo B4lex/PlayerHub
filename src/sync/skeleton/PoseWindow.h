@@ -6,8 +6,7 @@
 
 namespace PoseWindow
 {
-    // Any thread: whether the local player's third-person graph lists the event past
-    // the vanilla events. False while that graph lacks the vanilla prefix.
+    // Any thread: whether an event a graph accepted is missing from the vanilla behaviors.
     [[nodiscard]] bool IsModdedEvent(const RE::BSFixedString& a_eventName);
     // Any thread: an input event the local player's graph accepted, with IsModdedEvent's
     // reading of it.

@@ -98,28 +98,10 @@ namespace ModdedGraph
             layout.vanillaPrefix = GraphVocabulary::HasVanillaPrefix(*a_view.strings);
             if (layout.vanillaPrefix)
             {
-                layout.moddedEvents = a_view.strings->eventNames.size() - kVanillaEventCount;
+                layout.appendedEvents = a_view.strings->eventNames.size() - kVanillaEventCount;
             }
         });
         return layout;
-    }
-
-    void CollectModdedEvents(
-        RE::Actor& a_actor, const RE::hkbBehaviorGraph* a_expected, std::vector<std::uint64_t>& a_hashes)
-    {
-        a_hashes.clear();
-        WithGraph(AsHolder(a_actor), [&](const GraphView& a_view) {
-            if (a_view.behavior != a_expected || !GraphVocabulary::HasVanillaPrefix(*a_view.strings))
-            {
-                return;
-            }
-            const auto& names = a_view.strings->eventNames;
-            for (auto index = kVanillaEventCount; index < names.size(); ++index)
-            {
-                a_hashes.push_back(GraphVocabulary::HashName(GetName(names[index])));
-            }
-        });
-        std::ranges::sort(a_hashes);
     }
 
     StateReading ReadModdedState(RE::Actor& a_actor, std::span<const std::uint64_t> a_ignored)

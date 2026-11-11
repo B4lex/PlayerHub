@@ -9,8 +9,9 @@
 
 namespace GraphVocabulary
 {
-    // Pandora, Nemesis, and FNIS append their events and variables to the lists of
-    // the vanilla third-person 0_master, so entries past these counts are modded.
+    // The lengths of the vanilla third-person 0_master lists, which Pandora, Nemesis,
+    // and FNIS append to. A modded event may also live only in a behavior file the
+    // graph references, so IsVanillaEvent, not this count, tells a modded event.
     inline constexpr std::int32_t kVanillaEventCount = 1217;
     inline constexpr std::int32_t kVanillaVariableCount = 230;
 
@@ -34,4 +35,5 @@ namespace GraphVocabulary
     [[nodiscard]] bool HasVanillaPrefix(const RE::hkbBehaviorGraphStringData& a_strings);
     [[nodiscard]] bool IsVanillaMachine(std::uint64_t a_nameHash) noexcept;
     [[nodiscard]] bool IsVanillaState(std::uint64_t a_nameHash) noexcept;
+    [[nodiscard]] bool IsVanillaEvent(std::uint64_t a_nameHash) noexcept;
 }

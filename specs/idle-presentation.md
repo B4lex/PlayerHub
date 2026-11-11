@@ -9,7 +9,7 @@ Animations Wheel Menu SSE" (`IdlePlayWheelMenu.esp`), the console, scripts, or
 other mods. Each viewer sends the event to the remote actor's own behavior
 graph, so a viewer with an idle replacer sees that replacer. No pose crosses
 the wire for them, and nothing in the viewer's world changes. Modded `Idle*`
-events, those a graph lists past the vanilla events, are shown through
+events, those no vanilla behavior lists, are shown through
 [pose windows](remote-actor.md#source-window) instead.
 
 This system owns the source capture of idle events, the source's held idle, the

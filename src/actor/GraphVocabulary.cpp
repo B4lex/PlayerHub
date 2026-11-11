@@ -14,6 +14,12 @@ namespace GraphVocabulary
         static_assert(std::ranges::binary_search(Generated::kVanillaMachineNameHashes, HashName("RootBehaviorGraph")));
         static_assert(std::ranges::binary_search(Generated::kVanillaStateNameHashes, HashName("JumpFallDirectionalBlend")));
         static_assert(!std::ranges::binary_search(Generated::kVanillaStateNameHashes, HashName("Paraglide_State")));
+        static_assert(std::ranges::is_sorted(Generated::kVanillaEventNameHashes));
+        // The last 0_master event, and one that only mt_behavior lists.
+        static_assert(std::ranges::binary_search(
+            Generated::kVanillaEventNameHashes, HashName("SoundPlay.NPCKillDLC2HeartStone")));
+        static_assert(std::ranges::binary_search(Generated::kVanillaEventNameHashes, HashName("WallLeanEnterInstant")));
+        static_assert(!std::ranges::binary_search(Generated::kVanillaEventNameHashes, HashName("StartPara")));
     }
 
     bool HasVanillaPrefix(const RE::hkbBehaviorGraphStringData& a_strings)
@@ -35,5 +41,10 @@ namespace GraphVocabulary
     bool IsVanillaState(std::uint64_t a_nameHash) noexcept
     {
         return std::ranges::binary_search(Generated::kVanillaStateNameHashes, a_nameHash);
+    }
+
+    bool IsVanillaEvent(std::uint64_t a_nameHash) noexcept
+    {
+        return std::ranges::binary_search(Generated::kVanillaEventNameHashes, a_nameHash);
     }
 }

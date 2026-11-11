@@ -11,7 +11,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -35,12 +34,6 @@ namespace PoseWindow
         // ordinary states, not to a behavior.
         constexpr float kAmbientMachineSeconds = 2.0F;
         constexpr std::size_t kMaximumEventName = 64;
-
-        // What the graph input hook needs, published by the main loop whenever it changes.
-        struct Vocabulary
-        {
-            std::vector<std::uint64_t> moddedEvents;
-        };
 
         struct AmbientCandidate
         {
@@ -71,9 +64,6 @@ namespace PoseWindow
             bool observedReaction{ false };
         };
 
-        std::mutex s_vocabularyLock;
-        std::shared_ptr<const Vocabulary> s_vocabulary;
-
         // The first modded event the hook saw since the last drain, and how many.
         std::mutex s_observedLock;
         std::array<char, kMaximumEventName> s_observedName{};
@@ -95,12 +85,6 @@ namespace PoseWindow
                 s_sharing = Config::Get()->advanced.shareCustomAnimations;
             }
             return s_sharing;
-        }
-
-        std::shared_ptr<const Vocabulary> LoadVocabulary()
-        {
-            const std::scoped_lock lock{ s_vocabularyLock };
-            return s_vocabulary;
         }
 
         const char* FindBlock(RE::PlayerCharacter& a_player, bool a_transformed)
@@ -186,19 +170,8 @@ namespace PoseWindow
             }
             Close("graph-changed");
             s_graph = LocalGraph{ .graph = layout.behavior, .vanillaPrefix = layout.behavior && layout.vanillaPrefix };
-            std::shared_ptr<const Vocabulary> vocabulary;
-            if (s_graph.vanillaPrefix)
-            {
-                Vocabulary collected;
-                ModdedGraph::CollectModdedEvents(a_player, layout.behavior, collected.moddedEvents);
-                vocabulary = std::make_shared<const Vocabulary>(std::move(collected));
-            }
-            {
-                const std::scoped_lock lock{ s_vocabularyLock };
-                s_vocabulary = vocabulary;
-            }
-            logs::debug("Pose window observed local graph: vanillaPrefix={} moddedEvents={} activeGraph={}",
-                s_graph.vanillaPrefix, vocabulary ? vocabulary->moddedEvents.size() : 0, layout.activeGraph);
+            logs::debug("Pose window observed local graph: vanillaPrefix={} appendedEvents={} activeGraph={}",
+                s_graph.vanillaPrefix, layout.appendedEvents, layout.activeGraph);
         }
 
         void OpenForEvent(RE::PlayerCharacter& a_player, std::string_view a_event, std::uint32_t a_count)
@@ -300,13 +273,10 @@ namespace PoseWindow
 
     bool IsModdedEvent(const RE::BSFixedString& a_eventName)
     {
+        // The graph accepts the events of every behavior file it loaded, not only those
+        // 0_master lists: Pandora wires an FNIS list in as a reference alone.
         const std::string_view name{ a_eventName };
-        if (name.empty())
-        {
-            return false;
-        }
-        const auto vocabulary = LoadVocabulary();
-        return vocabulary && std::ranges::binary_search(vocabulary->moddedEvents, GraphVocabulary::HashName(name));
+        return !name.empty() && !GraphVocabulary::IsVanillaEvent(GraphVocabulary::HashName(name));
     }
 
     void ObserveLocalGraphEvent(const RE::BSFixedString& a_eventName, bool a_modded)
