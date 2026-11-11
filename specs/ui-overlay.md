@@ -1041,6 +1041,18 @@ contains a line break.
   Shift they select and with Ctrl they scroll the field. The field moves
   its caret before its callback runs, so the callback decides from the
   caret line measured the frame before.
+- While the field is not active, `ChatInput::Draw` clears the ID of Dear
+  ImGui's retained edit state (`ImGuiInputTextState::ID`) when it still
+  belongs to the field, so each activation starts a fresh state. Dear
+  ImGui 1.92.9 (still so in 1.93.1) lays out an inactive word-wrapped
+  field whose wrap width changed with the caret of that old state. It
+  measures that caret over the text the field now shows, the hint or a
+  shorter draft. A caret past that text's end loops forever in
+  `ImFontCalcTextSizeEx`. The docked and the open chat draw the same
+  field (`##Chat/##ChatInput`) at different widths and font sizes, so
+  without this the game hangs when a trade ends, or the chat opens over
+  one, after a line longer than the hint was sent. Undo history does not
+  carry across activations.
 
 ### Name list
 

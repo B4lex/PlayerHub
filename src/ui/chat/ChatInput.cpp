@@ -420,15 +420,28 @@ namespace UI
 
         // Keyboard focus applies on a later frame, so it is requested until
         // taken. Not from an item the mouse holds, which would lose its click.
+        const auto fieldId = ImGui::GetID("##ChatInput");
         if ((a_frame.focus || !fieldActive) && !a_frame.passive && !a_frame.menuOpen && !menuOpen
             && !ImGui::IsAnyItemActive() && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
             ImGui::SetKeyboardFocusHere();
         }
-        else if (a_frame.passive && ImGui::GetActiveID() == ImGui::GetID("##ChatInput"))
+        else if (a_frame.passive && ImGui::GetActiveID() == fieldId)
         {
             // Focus went elsewhere without a click that would have left the field.
             ImGui::ClearActiveID();
+        }
+        // Dear ImGui (1.92.9 through 1.93.1) keeps the edit state of the last active field. When a
+        // word-wrapped field it still belongs to is drawn inactive at a new wrap width, as the docked
+        // and the open chat are, it measures the caret of that old text against the hint or the
+        // shorter buffer it now shows; a caret past their end makes ImFontCalcTextSizeEx loop forever.
+        // Activation builds the state anew, so an inactive field has no use for it.
+        if (ImGui::GetActiveID() != fieldId)
+        {
+            if (auto* state = ImGui::GetInputTextState(fieldId))
+            {
+                state->ID = 0;
+            }
         }
         // Past its last line the field scrolls without a scrollbar, as a
         // single-line field does sideways. The wrap keeps the scrollbar's
