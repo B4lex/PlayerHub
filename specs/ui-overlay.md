@@ -83,7 +83,7 @@ assets/fonts/                 # Sovngarde Light and Bold with their license, the
 assets/logo/                  # the logo's and the Discord symbol's SVGs and the script that makes their font
 assets/icons/                 # SVGs of the icons in the logo font
 assets/frame/                 # the menu frame's shape, deployed beside the DLL
-assets/cursor/                # the game cursor's SVG, built into the logo font
+assets/cursor/                # the font cursor's SVG, built into the logo font
 ```
 
 Every screen is an independent `UI::Window`. `Overlay::Install` registers each
@@ -279,7 +279,7 @@ caches them at any size with the other glyphs, so the logo stays sharp at every
 scale and costs two quads a frame. U+E002 is the Discord symbol of the
 [Discord link](#discord-link), U+E003 and U+E004 the muted and vanished
 marks of the [player list](#player-list), and U+E005 to U+E007 the
-[game cursor](#game-cursor).
+[font cursor](#font-cursor).
 
 - `assets/logo/logo.svg` is the source. `assets/logo/generate.py`, run with
   `uv run --script`, merges its white paths into the letters, cuts its black
@@ -548,9 +548,9 @@ is not part of the plugin.
 ### Cursor
 
 The overlay draws its own cursors in place of Dear ImGui's software cursor.
-The normal one is the game's cursor art, from the logo font; the others are
-the plugin's, in the style of the [menu frame](#menu-frame), which
-`UI::Cursor` builds in code.
+The normal one is the [font cursor](#font-cursor), from the logo font; the
+others are in the style of the [menu frame](#menu-frame), which `UI::Cursor`
+builds in code.
 
 - `Cursor::Draw` runs after the windows and before `ImGui::Render`, while
   `InputCapture::ShowsCursor` holds, and draws the shape for
@@ -560,7 +560,7 @@ the plugin's, in the style of the [menu frame](#menu-frame), which
   and `Progress`, which have no drawing of their own; an I-beam for
   `TextInput`; a resize shape for each `Resize` direction and a move shape
   for `ResizeAll`. `None` draws nothing.
-- The pointer is the [game's cursor](#game-cursor) while `Fonts::GetLogo`
+- The pointer is the [font cursor](#font-cursor) while `Fonts::GetLogo`
   has its font, and the plugin's woven pointer without it.
 - The plugin's pointer clicks at the outer corner of the line at its tip,
   where ImGui's full miter puts it; the resize and move shapes click at
@@ -585,25 +585,22 @@ the plugin's, in the style of the [menu frame](#menu-frame), which
   `[UI] BorderColor`. The backing is fixed and opaque, unlike the frame's, so
   they stay visible at any background opacity.
 
-#### Game cursor
+#### Font cursor
 
-- The art is shape 1 of `Interface/cursormenu.swf` in
-  `Skyrim - Interface.bsa`, with its tail replaced by a ring at the user's
-  request. `assets/cursor/cursor.svg` holds it in the SWF's pixels, one
-  even-odd path per fill: `outline`, `band`, and `centre`. The file is the
-  source; nothing in the repository regenerates it.
+- `assets/cursor/cursor.svg` is the plugin's own art, in the style of the
+  game's menu cursor with a ring at its base. It holds one even-odd path per
+  fill: `outline`, `band`, and `centre`. The file is the source; nothing in
+  the repository regenerates it.
 - `assets/logo/generate.py`, which makes the [logo](#logo) font, resolves
   the even-odd paths into nonzero contours with skia-pathops, scales the
-  shape so its height is the font's em, with the proportions the movie
-  places it at (`mc_Cursor`'s matrix), and adds the outline as U+E005, the
-  band as U+E006, and the centre as U+E007. The tip is at the glyphs' top
-  left, so the font size in pixels is the cursor's height and the text
-  position its tip.
-- The art is Bethesda's and the plugin is under GPL-3.0-or-later, so it is
-  in the shipped font file rather than in the DLL.
+  shape so its height is the font's em, stretched by `CURSOR_PLACEMENT`, the
+  scale `Interface/cursormenu.swf` places the game's cursor at (`mc_Cursor`'s
+  matrix), and adds the outline as U+E005, the band as U+E006, and the centre
+  as U+E007. The tip is at the glyphs' top left, so the font size in pixels
+  is the cursor's height and the text position its tip.
 - `Cursor::Draw` draws the three glyphs at `io.MousePos` in `kVanillaOutline`,
-  `kVanillaBand`, and `kVanillaCentre`: the SWF's colors, and an opaque one
-  for the centre, which is its own glyph so nothing shows through it.
+  `kVanillaBand`, and `kVanillaCentre`, the centre opaque and in its own
+  glyph so nothing shows through it.
   `kVanillaHeightFonts` sets the height in font sizes, smaller than the game
   shows it ([Engine assumptions](#engine-assumptions)), which the user found
   too large.
@@ -2949,7 +2946,7 @@ Not confirmed in game:
     not move sideways when the chat opens. The log has one
     `UI overlay: menu frame` line. With `PlayerHub/frame/` removed, the log
     warns and both windows have a rounded line in the frame color.
-    Over either window the cursor is the [game cursor](#game-cursor),
+    Over either window the cursor is the [font cursor](#font-cursor),
     smaller than in the game's menus, sharp at 1080p, 1440p, and 4K, clicking
     at its tip, and a tooltip appears right of it without covering it;
     with `PlayerHub/fonts/PlayerHub.ttf` removed, the log warns and it

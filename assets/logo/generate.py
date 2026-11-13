@@ -9,7 +9,7 @@ The overlay draws the logos and icons as glyphs of this font, so Dear ImGui
 rasterizes them at any size: U+E000 is the white letters and U+E001 the orange
 bar with the black scratches cut out of it, U+E002 the Discord symbol scaled to
 the same height, and U+E003 onwards the ICONS, each scaled so its SVG height is
-the em, then U+E005 the game cursor's dark outline, U+E006 its light band, and
+the em, then U+E005 the cursor's dark outline, U+E006 its light band, and
 U+E007 its ring's opaque centre, from ../cursor/cursor.svg. Run it with `uv run --script`.
 
 An icon SVG holds paths filled or stroked (round caps and joins) in black or
@@ -48,8 +48,8 @@ SCALE = 4
 ICON_CONIC_TOLERANCE = 0.01
 # Curves become quadratic within this many font units.
 MAXIMUM_ERROR = 1.0
-# The scale `Interface/cursormenu.swf` places the cursor at (mc_Cursor's matrix,
-# 16.16 fixed point), so the glyphs have the shape's proportions on screen.
+# The scale `Interface/cursormenu.swf` places the game's cursor at (mc_Cursor's
+# matrix, 16.16 fixed point), so the glyphs have its proportions on screen.
 CURSOR_PLACEMENT = (0.619049072265625, 0.6341552734375)
 
 
