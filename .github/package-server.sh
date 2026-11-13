@@ -42,7 +42,7 @@ config="$work/config.toml"
 {
     echo "# PlayerHub server $version. Every key is listed at its default; delete"
     echo "# or change any of them. Unknown keys are an error."
-    echo "# Run from this directory: playerhub-server --config config.toml"
+    echo "# The server reads this file when it is started from this directory."
     echo
     awk '/^## Configuration/ { section = 1 } section && /^```toml/ { inside = 1; next }
          inside && /^```/ { exit } inside { print }' "$root/server/README.md" |
@@ -107,9 +107,9 @@ for target in "${targets[@]}"; do
     cp "$root/LICENSE" "$root/EXCEPTIONS" "$stage/"
 
     if [[ "$os" == windows ]]; then
-        run=".\\$binary --config config.toml"
+        run=".\\$binary"
     else
-        run="./$binary --config config.toml"
+        run="./$binary"
     fi
     cat > "$stage/README.txt" <<EOF
 PlayerHub server $version ($os/$arch)
@@ -123,10 +123,11 @@ http://127.0.0.1:3001/admin/ (admin_listen) and has no authentication: keep
 that address off the public Internet. The session database (sessions.db) and
 recordings/ are created in the working directory.
 
-Every setting is in config.toml at its default. To let players on other
-computers connect, allow inbound TCP port 3000 through the firewall; behind a
-reverse proxy on the same host, set listen = "127.0.0.1:3000" and add the
-proxy's address to trusted_proxies.
+Every setting is in config.toml at its default; the server reads that file
+from the working directory. To let players on other computers connect, allow
+inbound TCP port 3000 through the firewall; behind a reverse proxy on the same
+host, set listen = "127.0.0.1:3000" and add the proxy's address to
+trusted_proxies.
 
 PlayerHub is licensed under GPL-3.0-or-later with the exceptions in
 EXCEPTIONS; licenses of the libraries it includes are in licenses/.

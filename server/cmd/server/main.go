@@ -27,8 +27,11 @@ import (
 	"playerhub/server/internal/wire/pb"
 )
 
+const defaultConfigPath = "config.toml"
+
 func main() {
-	configPath := flag.String("config", "", "TOML configuration file; defaults apply when omitted")
+	configPath := flag.String("config", "", "TOML configuration file; "+defaultConfigPath+
+		" in the working directory when omitted, or defaults if there is none")
 	listen := flag.String("listen", "", "address to listen on, overriding the configuration")
 	adminListen := flag.String("admin-listen", "", "address of the admin panel and API, overriding the configuration")
 	verbose := flag.Bool("verbose", false, "log debug messages")
@@ -41,10 +44,19 @@ func main() {
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 
-	c, err := config.Load(*configPath)
+	path := *configPath
+	if path == "" {
+		if _, err := os.Stat(defaultConfigPath); err == nil {
+			path = defaultConfigPath
+		}
+	}
+	c, err := config.Load(path)
 	if err != nil {
-		log.Error("invalid configuration", "error", err)
+		log.Error("invalid configuration", "file", path, "error", err)
 		os.Exit(2)
+	}
+	if path != "" {
+		log.Info("configuration read", "file", path)
 	}
 	if *listen != "" {
 		c.Listen = *listen

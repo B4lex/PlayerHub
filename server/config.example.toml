@@ -2,7 +2,7 @@
 # Egress stays under 80% of the link, and 32 visible peers keep the nearest
 # ones smooth when 250 players crowd together. Every key is listed with its
 # default in README.md.
-# Run with: go run ./cmd/server --config config.toml
+# Copied to config.toml in the working directory.
 
 # Only the proxy on this host reaches the game port, so players cannot bypass
 # it or its rate limits.

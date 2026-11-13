@@ -14,6 +14,10 @@ go run ./cmd/server                       # players on 0.0.0.0:3000, admin on 12
 go run ./cmd/server --listen 127.0.0.1:3100 --admin-listen 127.0.0.1:3101 --config server.toml --verbose
 ```
 
+Without `--config`, the server reads `config.toml` from the working directory
+if there is one, and otherwise runs on the defaults. A file named by
+`--config` must exist. The log names the file that was read.
+
 `--verbose` logs every rejected message and virtual-player detail at debug
 level. A plugin built without `xmake f --server_endpoint=...` takes
 `http://127.0.0.1:3000` as its official server and connects to `/ws`
@@ -103,7 +107,8 @@ session database is created on first start, with its write-ahead log next to
 it. Deleting it gives every player a new session and frees every display name.
 
 `config.example.toml` is a starting point for a 50 Mbit/s upload behind a
-proxy on the same host: copy it to an untracked `*.toml` in this directory. It
+proxy on the same host: copy it to an untracked `*.toml` in this directory,
+as `config.toml` to have it read without `--config`. It
 listens only on loopback, so players reach the game port through the proxy; it
 turns the budget on and shows 32 visible peers, which keeps the nearest peers'
 p99 under 60 ms with 250 players in one crowd.
