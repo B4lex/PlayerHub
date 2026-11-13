@@ -1,0 +1,94 @@
+name: Server archive
+
+on:
+  push:
+    branches: [main]
+    # Release tags have no prefix, such as 1.0.1.
+    tags: ["*.*.*"]
+    # GitHub does not evaluate path filters for tag pushes, so every release tag builds.
+    paths: &archive-inputs
+      - server/**
+      - admin-ui/**
+      - .github/package-server.sh
+      - LICENSE
+      - EXCEPTIONS
+      - .github/workflows/server-archive.yml
+  pull_request:
+    paths: *archive-inputs
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and attach the archive to. Empty builds the chosen branch without a release.
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-archive-${{ inputs.tag || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    permissions:
+      # Creating a release and uploading its assets.
+      contents: write
+    steps:
+      # Only the release step gets the token, so the npm and Go builds cannot write
+      # to the repository.
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          # A manual run for a tag needs the tag, which a shallow checkout of the branch lacks.
+          fetch-depth: ${{ inputs.tag && '0' || '1' }}
+
+      # A tag from before this workflow has no script of its own, so its sources are
+      # packaged with the script of the branch the run was started from.
+      - if: inputs.tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: git checkout "refs/tags/$TAG" -- server admin-ui xmake.lua LICENSE EXCEPTIONS
+
+      # The toolchain versions the Dockerfile builds the image with.
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache-dependency-path: server/go.sum
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: admin-ui/package-lock.json
+
+      - id: package
+        run: |
+          .github/package-server.sh
+          echo "archive=$(ls build/dist/playerhub-server-*.zip)" >> "$GITHUB_OUTPUT"
+
+      # Uploaded as it is rather than zipped again; the artifact takes the file's name.
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.package.outputs.archive }}
+          archive: false
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: github.ref_type == 'tag' || inputs.tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+        run: |
+          # The archive is named after set_version in xmake.lua.
+          if [[ "$ARCHIVE" != "build/dist/playerhub-server-$TAG.zip" ]]; then
+              echo "::error::Tag $TAG does not match set_version in xmake.lua: built $ARCHIVE"
+              exit 1
+          fi
+          # A draft has no tag of its own until it is published; gh finds it by its tag name.
+          if gh release view "$TAG" > /dev/null 2>&1; then
+              gh release upload "$TAG" "$ARCHIVE" --clobber
+          else
+              gh release create "$TAG" "$ARCHIVE" --draft --verify-tag --title "$TAG" --generate-notes
+          fi

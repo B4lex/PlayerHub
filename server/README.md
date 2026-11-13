@@ -31,7 +31,9 @@ On `admin_listen` only:
 - `/admin/` serves the built admin panel; `/api` is its API.
 - `/debug/pprof/` with `--pprof`.
 
-To run it in Docker, see [Docker](../README.md#docker).
+To run it in Docker, see [Docker](../README.md#docker). Each GitHub release
+has a built server for Linux and Windows with the admin panel; see
+[Server archive](../README.md#server-archive).
 
 ## Configuration
 
