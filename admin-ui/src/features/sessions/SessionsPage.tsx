@@ -8,6 +8,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { Menu, type MenuItem } from "../../components/Menu";
 import { PageHeader } from "../../components/PageHeader";
 import { Panel } from "../../components/Panel";
+import { Spinner } from "../../components/Spinner";
 import { formatDate, formatDateTime, formatRelative, plural } from "../../lib/format";
 import { useTicker } from "../../lib/useTicker";
 import { useServerState } from "../../state/ServerState";
@@ -19,11 +20,28 @@ const SEARCH_DELAY_MS = 250;
 // The server's rule (validate.DisplayName).
 const DISPLAY_NAME = /^[A-Za-z0-9_]{3,15}$/;
 
+/** A command's outcome shown on its row before a fetched page carries it; null hides the row. */
+type RowChange = Partial<Session> | null;
+
+interface HeldChange {
+  token: number;
+  sessionId: string;
+  change: RowChange;
+  /** Counts the settled commands up to this one's answer; null while the command is in flight. */
+  settledAt: number | null;
+}
+
+/** The query a page of sessions answers. */
+interface LoadedPage extends SessionPage {
+  search: string;
+  offset: number;
+}
+
 function iso(ms: number): string {
   return new Date(ms).toISOString();
 }
 
-function RenameDialog({ session, onClose, onRenamed }: { session: Session; onClose: () => void; onRenamed: () => void }) {
+function RenameDialog({ session, onClose, onRenamed }: { session: Session; onClose: () => void; onRenamed: (displayName: string) => void }) {
   const field = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(session.displayName);
   const [busy, setBusy] = useState(false);
@@ -34,8 +52,7 @@ function RenameDialog({ session, onClose, onRenamed }: { session: Session; onClo
   const rename = async () => {
     setBusy(true);
     try {
-      await api.sessions.rename(session.id, name);
-      onRenamed();
+      onRenamed((await api.sessions.rename(session.id, name)).displayName);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
       setBusy(false);
@@ -73,24 +90,34 @@ function RenameDialog({ session, onClose, onRenamed }: { session: Session; onClo
 
 type SessionCommand = "rename" | "lift" | "delete";
 
-function SessionRow({ session, bans, now, onChanged }: { session: Session; bans: Ban[]; now: number; onChanged: () => void }) {
-  const [run, busy] = useAction();
+interface SessionRowProps {
+  session: Session;
+  bans: Ban[];
+  now: number;
+  /** Shows a change on the row at once; tell the returned function whether its command succeeded. */
+  onChange: (change: RowChange) => (succeeded: boolean) => void;
+}
+
+function SessionRow({ session, bans, now, onChange }: SessionRowProps) {
+  const [run] = useAction();
   const [pending, setPending] = useState<SessionCommand | null>(null);
   const connected = session.playerId !== null;
   const close = () => setPending(null);
 
-  const remove = async () => {
-    await run(() => api.sessions.remove(session.id));
+  const send = async (change: RowChange, command: () => Promise<unknown>) => {
     close();
-    onChanged();
+    const settle = onChange(change);
+    const done = await run(async () => {
+      await command();
+      return true;
+    });
+    settle(done === true);
   };
 
+  const remove = () => send(null, () => api.sessions.remove(session.id));
+
   // A session collects one ban per ban command, with or without its address.
-  const lift = async () => {
-    await run(() => Promise.all(bans.map((ban) => api.bans.lift(ban.id))));
-    close();
-    onChanged();
-  };
+  const lift = () => send({ banned: false }, () => Promise.all(bans.map((ban) => api.bans.lift(ban.id))));
 
   const items: MenuItem[] = [
     {
@@ -111,14 +138,14 @@ function SessionRow({ session, bans, now, onChanged }: { session: Session; bans:
           <RenameDialog
             session={session}
             onClose={close}
-            onRenamed={() => {
+            onRenamed={(displayName) => {
               close();
-              onChanged();
+              onChange({ displayName })(true);
             }}
           />
         )}
         {pending === "lift" && (
-          <ConfirmDialog title={`Lift the ban on ${session.displayName}?`} confirmLabel="Lift ban" busy={busy} onConfirm={lift} onClose={close}>
+          <ConfirmDialog title={`Lift the ban on ${session.displayName}?`} confirmLabel="Lift ban" onConfirm={lift} onClose={close}>
             <p>
               The session can connect again
               {bans.some((ban) => ban.address !== null) ? ", and so can everyone from the address it was banned with." : "."}
@@ -126,7 +153,7 @@ function SessionRow({ session, bans, now, onChanged }: { session: Session; bans:
           </ConfirmDialog>
         )}
         {pending === "delete" && (
-          <ConfirmDialog title={`Delete ${session.displayName}?`} confirmLabel="Delete" danger busy={busy} onConfirm={remove} onClose={close}>
+          <ConfirmDialog title={`Delete ${session.displayName}?`} confirmLabel="Delete" danger onConfirm={remove} onClose={close}>
             <p>
               {connected && "The player is disconnected. "}
               {session.banned && "The session's bans are deleted with it. "}
@@ -151,10 +178,13 @@ function SessionRow({ session, bans, now, onChanged }: { session: Session; bans:
         </div>
       </td>
       <td className={styles.when}>
-        {session.expiresAtMs === null ? (
+        {session.expiresAtMs === null && session.banned ? (
           <span className={styles.sub} title="A banned session is kept until its ban is lifted">
             never
           </span>
+        ) : session.expiresAtMs === null ? (
+          // A ban just lifted: the page fetched next carries the new expiry.
+          <span className={styles.sub}>—</span>
         ) : connected ? (
           <span className={styles.sub} title="A session does not expire while connected">
             —
@@ -188,8 +218,11 @@ export function SessionsPage() {
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
   const [revision, setRevision] = useState(0);
-  const [page, setPage] = useState<SessionPage | null>(null);
+  const [page, setPage] = useState<LoadedPage | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [held, setHeld] = useState<HeldChange[]>([]);
+  const tokens = useRef(0);
+  const settledCommands = useRef(0);
 
   // Connections and bans change a row's status, and the feed reports both.
   const membership = [
@@ -207,6 +240,8 @@ export function SessionsPage() {
 
   useEffect(() => {
     let current = true;
+    // A page requested before a command answered may not show its outcome, so that change stays held.
+    const settledBefore = settledCommands.current;
     api.sessions.list(search, offset, PAGE_SIZE).then(
       (loaded) => {
         if (!current) return;
@@ -215,7 +250,8 @@ export function SessionsPage() {
           setOffset(Math.max(0, Math.floor((loaded.total - 1) / PAGE_SIZE) * PAGE_SIZE));
           return;
         }
-        setPage(loaded);
+        setPage({ ...loaded, search, offset });
+        setHeld((changes) => changes.filter((change) => change.settledAt === null || change.settledAt > settledBefore));
         setError(null);
       },
       (failure: unknown) => {
@@ -227,9 +263,33 @@ export function SessionsPage() {
     };
   }, [search, offset, revision, membership]);
 
-  const refresh = () => setRevision((value) => value + 1);
-  const total = page?.total ?? 0;
-  const shown = page?.sessions.length ?? 0;
+  const hold = (sessionId: string, change: RowChange) => {
+    const token = ++tokens.current;
+    setHeld((changes) => [...changes, { token, sessionId, change, settledAt: null }]);
+    return (succeeded: boolean) => {
+      const settledAt = ++settledCommands.current;
+      setHeld((changes) =>
+        succeeded
+          ? changes.map((entry) => (entry.token === token ? { ...entry, settledAt } : entry))
+          : changes.filter((entry) => entry.token !== token),
+      );
+      setRevision((value) => value + 1);
+    };
+  };
+
+  const sessions = (page?.sessions ?? []).flatMap((session) => {
+    let shown = session;
+    for (const { sessionId, change } of held) {
+      if (sessionId !== session.id) continue;
+      if (change === null) return [];
+      shown = { ...shown, ...change };
+    }
+    return [shown];
+  });
+  const shown = sessions.length;
+  const total = (page?.total ?? 0) - ((page?.sessions.length ?? 0) - shown);
+  // The rows on screen answer an earlier search or page.
+  const waiting = page !== null && (page.search !== searchInput.trim() || page.offset !== offset);
 
   return (
     <>
@@ -243,12 +303,14 @@ export function SessionsPage() {
         description={
           page === null
             ? "Loading…"
-            : search === ""
+            : page.search === ""
               ? `${plural(total, "session")}, most recently used first`
-              : `${plural(total, "session")} matching “${search}”`
+              : `${plural(total, "session")} matching “${page.search}”`
         }
         actions={
-          <input
+          <>
+            {waiting && <Spinner className={styles.waitingMark} />}
+            <input
             className={styles.search}
             type="search"
             placeholder="Name or session ID"
@@ -256,6 +318,7 @@ export function SessionsPage() {
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
           />
+          </>
         }
         flush
       >
@@ -266,14 +329,14 @@ export function SessionsPage() {
         ) : page === null ? (
           <EmptyState icon="key" title="Loading…" />
         ) : shown === 0 ? (
-          <EmptyState icon="key" title={search === "" ? "No sessions yet" : "No matching sessions"}>
-            {search === ""
+          <EmptyState icon="key" title={page.search === "" ? "No sessions yet" : "No matching sessions"}>
+            {page.search === ""
               ? "A session is issued the first time a player connects with a display name."
               : "Search matches part of a display name, or a whole session ID."}
           </EmptyState>
         ) : (
           <>
-            <table className={styles.table}>
+            <table className={waiting ? `${styles.table} ${styles.waiting}` : styles.table} aria-busy={waiting || undefined}>
               <thead>
                 <tr>
                   <th scope="col" className={styles.menuColumn}>
@@ -286,13 +349,13 @@ export function SessionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {page.sessions.map((session) => (
+                {sessions.map((session) => (
                   <SessionRow
                     key={session.id}
                     session={session}
                     bans={bans.filter((ban) => ban.sessionId === session.id)}
                     now={now}
-                    onChanged={refresh}
+                    onChange={(change) => hold(session.id, change)}
                   />
                 ))}
               </tbody>

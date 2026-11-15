@@ -257,6 +257,51 @@ adds one, and is disabled while the snapshot has none for it. `PATCH /api/sessio
 that fails `validate.DisplayName`, 404 for no live session, and 409 for a held
 name or a connected session. `DELETE /api/sessions/{id}` answers 204 or 404.
 
+### Command feedback
+
+The panel shows a command's outcome without waiting for the server, because a
+snapshot produced before the command can arrive after its response and the
+next one can be 0.5 s away.
+
+A command on something the snapshot already lists registers a `Prediction`
+(`admin-ui/src/lib/predictions`) through `useAction`: hiding or showing,
+kicking, and banning a player; stopping and deleting a recording; a replay's
+play, pause, seek, rate, loop, and close; a batch's pause, resume, and close.
+`useServerState()` returns the snapshot with the held predictions applied in
+the order they were made, so every page shows the outcome from the click, and
+a confirmation dialog closes when it is confirmed. A failed command drops its
+prediction and reports the refusal as a toast. A succeeded one keeps it until
+the snapshot shows the outcome or can no longer show it, such as a hidden
+player who left (`Prediction.confirmed`), and at most 5 s
+(`CONFIRM_TIMEOUT_MS`), which only a change made elsewhere meanwhile takes. A
+replay's prediction lasts only while its command is in flight, since the
+response carries the new state and is adopted by `revision`. A prediction
+replaces the earlier ones with its `key`, which names one property of one
+object, so toggling twice leaves only the last. A player is matched by slot
+and `connectedAtMs`, since slots are reused. `useAction` sends the commands of
+one control one after another, so the server applies them in the order they
+were made. A predicted replay or bot starts or stops moving at the click and
+the server's at the request's arrival, so its position steps by the round trip
+times the rate when the server's state replaces the prediction.
+
+A command that creates something has no outcome to predict, since the server
+assigns the ID: starting a capture, opening a replay, and creating a batch.
+Its button (`components/Button`, `busy`) refuses clicks at once and replaces
+its icon or label with a spinner (`components/Spinner`) only once the wait
+passes `--busy-delay` (150 ms), keeping its width. The object in the response
+is listed at once: a recording or a batch as a succeeded prediction, and a
+replay through `adoptPlayback`, which keeps it across snapshots that do not
+list it yet for the same 5 s. A response for a replay the panel no longer
+holds is ignored, since it closed meanwhile.
+
+The Sessions page is not in the snapshot and holds its own row changes
+(`HeldChange`): delete hides the row, lift ban clears the banned state, and
+rename, whose dialog waits for the answer, shows the returned name. A change
+is dropped at once when its command fails, and otherwise when a page
+requested after the command answered arrives. While the rows shown answer an
+earlier search or page, the table is marked busy and a spinner shows beside
+the search field after the same delay.
+
 ## Engine assumptions
 
 Not confirmed in game:

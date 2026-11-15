@@ -36,7 +36,7 @@ src/
   state/               ServerState (one live snapshot for every page, and chat lines), useAction (commands)
   components/          shared pieces: Button, Panel, Badge, StatTile, Toasts, Sidebar...
   features/<page>/     one folder per page, with its own components and CSS modules
-  lib/                 framework-free helpers and their tests
+  lib/                 framework-free helpers and their tests; predictions.ts holds what each command does to the snapshot
   styles/              design tokens (dark and light) and base styles
 ```
 
@@ -50,6 +50,23 @@ snapshot's connected players or bans change). A command that returns the changed
 adopted at once, and whichever of it and the next push is newer, by `revision`,
 wins.
 
+No command makes the panel wait for the server before it shows something:
+
+- A command on something already on screen (hide, kick, stop, delete, pause,
+  seek...) passes `useAction`'s `run` a `Prediction` from `lib/predictions.ts`.
+  `useServerState()` returns the snapshot with the predictions applied, so every
+  page shows the outcome from the click. A refused command takes it back and
+  says why in a toast; otherwise the prediction is dropped once a snapshot shows
+  the same thing.
+- A command that creates something (a capture, a replay, a batch) has no
+  outcome to predict, since the server names it. Its `Button` is `busy`, which
+  blocks clicks at once and shows a spinner only if the answer takes longer than
+  `--busy-delay`, and the object in the response is listed without waiting for
+  the next push.
+
+New commands should follow the same split, with a new prediction next to the
+existing ones.
+
 While a replay plays the server does not push positions. The panel advances the
 last reported one with its own clock (`lib/playbackClock.ts`), which is why the
 timeline moves smoothly and why pushes stay small.
@@ -59,9 +76,10 @@ timeline moves smoothly and why pushes stay small.
 1. Create `src/features/<name>/<Name>Page.tsx`, using `PageHeader`, `Panel`, and
    `useServerState()`.
 2. Add one entry to `pages` in `src/pages.tsx` (path, sidebar label, icon).
-3. If it needs data the snapshot does not carry, add the field to
-   `AdminState` in `../src/server/admin/schemas.py` and `src/api/types.ts`, and
-   fill it in `../src/server/admin/state.py`. Commands are new routes in
-   `../src/server/admin/api.py` and a matching function in `src/api/client.ts`.
+3. If it needs data the snapshot does not carry, add the field to `State` in
+   `../server/internal/admin/state.go`, where it is also filled, and to
+   `AdminState` in `src/api/types.ts`. Commands are new routes in
+   `../server/internal/admin/api.go` and a matching function in
+   `src/api/client.ts`.
 
 Add an icon to the `glyphs` map in `components/Icon.tsx` if the page needs one.

@@ -3,9 +3,9 @@ import { api } from "../../api/client";
 import type { Batch, Bot, BotStatus } from "../../api/types";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
-import { ConfirmButton } from "../../components/ConfirmButton";
 import { botPositionAt } from "../../lib/batchClock";
 import { formatDateTime, formatTimestamp, plural, shortId } from "../../lib/format";
+import { batchPaused, batchRemoved, batchResumed } from "../../lib/predictions";
 import { useAction } from "../../state/useAction";
 import styles from "./BatchCard.module.css";
 
@@ -86,8 +86,7 @@ function BotRow({ bot, batch, elapsedMs }: { bot: Bot; batch: Batch; elapsedMs: 
 }
 
 export function BatchCard({ batch, elapsedMs }: { batch: Batch; elapsedMs: number }) {
-  const [run, busy] = useAction();
-  const [runClose, closing] = useAction();
+  const [run] = useAction();
   const [showBots, setShowBots] = useState(false);
   const { settings } = batch;
   const joined = batch.bots.filter((bot) => bot.playerId !== null).length;
@@ -95,7 +94,11 @@ export function BatchCard({ batch, elapsedMs }: { batch: Batch; elapsedMs: numbe
   const spacingMs = batch.durationMs / settings.players;
   const paused = batch.status === "paused";
 
-  const toggle = () => run(() => (paused ? api.batches.resume(batch.id) : api.batches.pause(batch.id)));
+  const toggle = () => {
+    const at = performance.now();
+    if (paused) void run(() => api.batches.resume(batch.id), batchResumed(batch.id, at));
+    else void run(() => api.batches.pause(batch.id), batchPaused(batch.id, at));
+  };
 
   return (
     <article className={styles.card} aria-label={`Batch replaying ${batch.label}`}>
@@ -114,20 +117,18 @@ export function BatchCard({ batch, elapsedMs }: { batch: Batch; elapsedMs: numbe
         </div>
         <StatusBadge batch={batch} joined={joined} />
         <div className={styles.controls}>
-          <Button size="sm" icon={paused ? "play" : "pause"} busy={busy} onClick={toggle}>
+          <Button size="sm" icon={paused ? "play" : "pause"} onClick={toggle}>
             {paused ? "Resume" : "Pause"}
           </Button>
-          <ConfirmButton
+          <Button
             variant="ghost"
             size="sm"
             icon="stop"
-            busy={closing}
-            confirmLabel="Remove all bots?"
             title="Stop this batch and remove its bots from every client"
-            onConfirm={() => runClose(() => api.batches.close(batch.id))}
+            onClick={() => run(() => api.batches.close(batch.id), batchRemoved(batch.id))}
           >
             Stop
-          </ConfirmButton>
+          </Button>
         </div>
       </header>
 

@@ -9,7 +9,8 @@ import { Menu } from "../../components/Menu";
 import { PageHeader } from "../../components/PageHeader";
 import { Panel } from "../../components/Panel";
 import { StatTile } from "../../components/StatTile";
-import { formatBytes, formatFormRef, formatTimestamp, plural, shortId } from "../../lib/format";
+import { formatFormRef, formatTimestamp, plural, shortId } from "../../lib/format";
+import { playerHidden, playerRemoved } from "../../lib/predictions";
 import { useTicker } from "../../lib/useTicker";
 import { useServerState } from "../../state/ServerState";
 import { useAction } from "../../state/useAction";
@@ -34,9 +35,9 @@ function describeTraffic(player: Player): string {
 
 type PlayerCommand = "hide" | "show" | "kick" | "ban";
 
-/** The row's command menu; every command asks for confirmation first. */
+/** The row's command menu; every command asks for confirmation first, and then shows at once. */
 function PlayerActions({ player }: { player: Player }) {
-  const [run, busy] = useAction();
+  const [run] = useAction();
   const [pending, setPending] = useState<PlayerCommand | null>(null);
   const [withAddress, setWithAddress] = useState(false);
   const name = player.name || "this player";
@@ -46,16 +47,25 @@ function PlayerActions({ player }: { player: Player }) {
     setPending(command);
   };
 
-  const confirm = async () => {
-    const commands: Record<PlayerCommand, () => Promise<unknown>> = {
-      hide: () => api.players.setHidden(player.id, true),
-      show: () => api.players.setHidden(player.id, false),
-      kick: () => api.players.kick(player.id),
-      ban: () => api.players.ban(player.id, withAddress && player.address !== null),
-    };
+  const confirm = () => {
     if (pending === null) return;
-    await run(commands[pending]);
     setPending(null);
+    switch (pending) {
+      case "hide":
+      case "show": {
+        const hidden = pending === "hide";
+        void run(() => api.players.setHidden(player.id, hidden), playerHidden(player, hidden));
+        break;
+      }
+      case "kick":
+        void run(() => api.players.kick(player.id), playerRemoved(player));
+        break;
+      case "ban": {
+        const address = withAddress && player.address !== null;
+        void run(() => api.players.ban(player.id, address), playerRemoved(player));
+        break;
+      }
+    }
   };
 
   const close = () => setPending(null);
@@ -73,22 +83,22 @@ function PlayerActions({ player }: { player: Player }) {
         ]}
       />
       {pending === "hide" && (
-        <ConfirmDialog title={`Hide ${name}?`} confirmLabel="Hide" busy={busy} onConfirm={confirm} onClose={close}>
+        <ConfirmDialog title={`Hide ${name}?`} confirmLabel="Hide" onConfirm={confirm} onClose={close}>
           <p>No other player sees them until they are shown again or disconnect.</p>
         </ConfirmDialog>
       )}
       {pending === "show" && (
-        <ConfirmDialog title={`Show ${name}?`} confirmLabel="Show" busy={busy} onConfirm={confirm} onClose={close}>
+        <ConfirmDialog title={`Show ${name}?`} confirmLabel="Show" onConfirm={confirm} onClose={close}>
           <p>Other players see them again.</p>
         </ConfirmDialog>
       )}
       {pending === "kick" && (
-        <ConfirmDialog title={`Kick ${name}?`} confirmLabel="Kick" danger busy={busy} onConfirm={confirm} onClose={close}>
+        <ConfirmDialog title={`Kick ${name}?`} confirmLabel="Kick" danger onConfirm={confirm} onClose={close}>
           <p>They are disconnected, and their game waits for them to connect again.</p>
         </ConfirmDialog>
       )}
       {pending === "ban" && (
-        <ConfirmDialog title={`Ban ${name}?`} confirmLabel="Ban" danger busy={busy} onConfirm={confirm} onClose={close}>
+        <ConfirmDialog title={`Ban ${name}?`} confirmLabel="Ban" danger onConfirm={confirm} onClose={close}>
           <p>
             They are disconnected and their session cannot connect again. Deleting the session on the{" "}
             <Link to="/sessions">Sessions</Link> page lifts the ban.
@@ -97,7 +107,7 @@ function PlayerActions({ player }: { player: Player }) {
             <input
               type="checkbox"
               checked={withAddress && player.address !== null}
-              disabled={player.address === null || busy}
+              disabled={player.address === null}
               onChange={(event) => setWithAddress(event.target.checked)}
             />
             <span>Also refuse everyone connecting from their address</span>
@@ -166,15 +176,10 @@ function PlayerRow({ player }: { player: Player }) {
 }
 
 export function DashboardPage() {
-  const { loaded, server, snapshotReceivedAt, players, recordings, playbacks, batches } = useServerState();
+  const { loaded, server, snapshotReceivedAt, players } = useServerState();
   const now = useTicker(1000);
 
   const online = players.filter((player) => !player.virtual);
-  const capturing = recordings.filter((recording) => recording.status === "recording");
-  const stored = recordings.filter((recording) => recording.status !== "recording");
-  const playing = playbacks.filter((playback) => playback.status === "playing");
-  const bots = batches.reduce((total, batch) => total + batch.bots.filter((bot) => bot.playerId !== null).length, 0);
-  const storedBytes = stored.reduce((total, recording) => total + recording.sizeBytes, 0);
   // The server's own clock, carried forward locally, so it is right even if this browser's clock is not.
   const uptimeMs =
     server && snapshotReceivedAt !== null
@@ -187,31 +192,6 @@ export function DashboardPage() {
 
       <div className={styles.tiles}>
         <StatTile icon="users" label="Players online" value={loaded ? online.length : "–"} />
-        <StatTile
-          icon="record"
-          label="Recording now"
-          value={loaded ? capturing.length : "–"}
-          hint={capturing.length > 0 ? capturing.map((recording) => recording.playerName || "player").join(", ") : "Nothing being captured"}
-          live={capturing.length > 0}
-        />
-        <StatTile
-          icon="replay"
-          label="Active replays"
-          value={loaded ? playbacks.length : "–"}
-          hint={playbacks.length > 0 ? `${playing.length} playing, ${playbacks.length - playing.length} paused or finished` : "None running"}
-        />
-        <StatTile
-          icon="gauge"
-          label="Load-test bots"
-          value={loaded ? bots : "–"}
-          hint={batches.length > 0 ? <Link to="/load-testing">{plural(batches.length, "batch", "batches")}</Link> : "No batches running"}
-        />
-        <StatTile
-          icon="disk"
-          label="Stored recordings"
-          value={loaded ? stored.length : "–"}
-          hint={loaded ? formatBytes(storedBytes) : undefined}
-        />
         <StatTile icon="clock" label="Server uptime" value={uptimeMs === null ? "–" : formatTimestamp(uptimeMs)} />
       </div>
 

@@ -11,10 +11,14 @@ import {
 import { connectAdminFeed, type ConnectionStatus } from "../api/feed";
 import type { AdminState, Ban, Batch, ChatLine, Exclusion, Player, Playback, Recording, ServerInfo } from "../api/types";
 import { newerPlayback } from "../lib/playbackClock";
+import { awaited, predicted, type HeldPrediction, type LiveState, type PlaybackView, type Prediction } from "../lib/predictions";
 
-/** A playback plus the local time its state arrived, so its position can be extrapolated. */
-export interface PlaybackView extends Playback {
-  receivedAt: number;
+export type { PlaybackView };
+
+/** Reports how the command behind a prediction ended. */
+export interface PredictionOutcome {
+  succeeded: () => void;
+  failed: () => void;
 }
 
 interface ServerStateValue {
@@ -31,8 +35,13 @@ interface ServerStateValue {
   batches: Batch[];
   exclusions: Exclusion[];
   bans: Ban[];
-  /** Use a playback returned by a command right away instead of waiting for the next push. */
-  adoptPlayback: (playback: Playback) => void;
+  /**
+   * Use a playback returned by a command right away instead of waiting for the next push.
+   * `opened` adds one the panel does not hold yet; otherwise an unknown playback has closed and is ignored.
+   */
+  adoptPlayback: (playback: Playback, opened?: boolean) => void;
+  /** Show a command's outcome in the lists above from now on; tell the returned outcome how the command ended. */
+  predict: (prediction: Prediction) => PredictionOutcome;
 }
 
 /** A chat line numbered in arrival order, for a stable key. */
@@ -41,24 +50,43 @@ export interface ChatEntry extends ChatLine {
 }
 
 const chatLimit = 200;
+// How long a succeeded command's outcome is shown without the server's state showing it too.
+// Pushes are at most 0.5 s apart, so only a change made elsewhere meanwhile takes this long.
+const CONFIRM_TIMEOUT_MS = 5000;
+
+interface HeldPlayback extends PlaybackView {
+  /** False for a playback adopted from the command that opened it, until a snapshot lists it. */
+  listed: boolean;
+}
+
+interface NumberedPrediction extends HeldPrediction {
+  id: number;
+}
 
 const ServerStateContext = createContext<ServerStateValue | null>(null);
 // Separate from the snapshot so a busy chat re-renders only its panel.
 const ChatContext = createContext<ChatEntry[] | null>(null);
 
-function mergePlaybacks(held: PlaybackView[], arrived: Playback[], now: number): PlaybackView[] {
+function mergePlaybacks(held: HeldPlayback[], arrived: Playback[], now: number): HeldPlayback[] {
   const heldById = new Map(held.map((playback) => [playback.id, playback]));
-  return arrived.map((playback) => {
+  const arrivedIds = new Set(arrived.map((playback) => playback.id));
+  const listed = arrived.map((playback) => {
     const current = heldById.get(playback.id);
-    const chosen = newerPlayback(current, playback);
-    return chosen === current && current !== undefined ? current : { ...playback, receivedAt: now };
+    if (current === undefined || newerPlayback(current, playback) !== current) {
+      return { ...playback, receivedAt: now, listed: true };
+    }
+    return current.listed ? current : { ...current, listed: true };
   });
+  // A snapshot produced before a playback opened can arrive after the command's response.
+  return [...listed, ...held.filter((playback) => !playback.listed && !arrivedIds.has(playback.id))];
 }
 
 export function ServerStateProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState<ConnectionStatus>("connecting");
   const [snapshot, setSnapshot] = useState<{ state: AdminState; receivedAt: number } | null>(null);
-  const [playbacks, setPlaybacks] = useState<PlaybackView[]>([]);
+  const [playbacks, setPlaybacks] = useState<HeldPlayback[]>([]);
+  const [predictions, setPredictions] = useState<NumberedPrediction[]>([]);
+  const predictionSeq = useRef(0);
   const [chat, setChat] = useState<ChatEntry[]>([]);
   const chatSeq = useRef(0);
 
@@ -79,34 +107,76 @@ export function ServerStateProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const adoptPlayback = useCallback((playback: Playback) => {
+  const adoptPlayback = useCallback((playback: Playback, opened = false) => {
     setPlaybacks((held) => {
       const current = held.find((existing) => existing.id === playback.id);
-      if (current !== undefined && newerPlayback(current, playback) === current) return held;
-      const adopted = { ...playback, receivedAt: performance.now() };
+      if (current === undefined) {
+        return opened ? [...held, { ...playback, receivedAt: performance.now(), listed: false }] : held;
+      }
+      if (newerPlayback(current, playback) === current) return held;
+      const adopted = { ...playback, receivedAt: performance.now(), listed: current.listed };
       // Replace in place so decks keep their order.
-      return current === undefined
-        ? [...held, adopted]
-        : held.map((existing) => (existing.id === playback.id ? adopted : existing));
+      return held.map((existing) => (existing.id === playback.id ? adopted : existing));
     });
+    if (opened) {
+      // Never listed: it closed again before a snapshot was produced.
+      window.setTimeout(
+        () => setPlaybacks((held) => held.filter((existing) => existing.listed || existing.id !== playback.id)),
+        CONFIRM_TIMEOUT_MS,
+      );
+    }
   }, []);
 
-  const value = useMemo<ServerStateValue>(
+  const predict = useCallback((prediction: Prediction): PredictionOutcome => {
+    const id = ++predictionSeq.current;
+    const drop = () => setPredictions((held) => held.filter((entry) => entry.id !== id));
+    setPredictions((held) => [
+      ...held.filter((entry) => prediction.key === undefined || entry.prediction.key !== prediction.key),
+      { id, prediction, succeeded: false },
+    ]);
+    return {
+      succeeded: () => {
+        setPredictions((held) => held.map((entry) => (entry.id === id ? { ...entry, succeeded: true } : entry)));
+        window.setTimeout(drop, CONFIRM_TIMEOUT_MS);
+      },
+      failed: drop,
+    };
+  }, []);
+
+  const truth = useMemo<LiveState>(
     () => ({
-      connection,
-      loaded: snapshot !== null,
-      server: snapshot?.state.server ?? null,
-      snapshotReceivedAt: snapshot?.receivedAt ?? null,
+      receivedAt: snapshot?.receivedAt ?? 0,
       players: snapshot?.state.players ?? [],
       recordings: snapshot?.state.recordings ?? [],
       playbacks,
       batches: snapshot?.state.batches ?? [],
+    }),
+    [snapshot, playbacks],
+  );
+
+  useEffect(() => {
+    if (predictions.some((entry) => !awaited(entry, truth))) {
+      setPredictions((held) => held.filter((entry) => awaited(entry, truth)));
+    }
+  }, [predictions, truth]);
+
+  const value = useMemo<ServerStateValue>(() => {
+    const shown = predicted(truth, predictions);
+    return {
+      connection,
+      loaded: snapshot !== null,
+      server: snapshot?.state.server ?? null,
+      snapshotReceivedAt: snapshot?.receivedAt ?? null,
+      players: shown.players,
+      recordings: shown.recordings,
+      playbacks: shown.playbacks,
+      batches: shown.batches,
       exclusions: snapshot?.state.exclusions ?? [],
       bans: snapshot?.state.bans ?? [],
       adoptPlayback,
-    }),
-    [connection, snapshot, playbacks, adoptPlayback],
-  );
+      predict,
+    };
+  }, [connection, snapshot, truth, predictions, adoptPlayback, predict]);
 
   return (
     <ServerStateContext.Provider value={value}>

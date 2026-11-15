@@ -45,6 +45,9 @@
 
   --sidebar-width: 15rem;
   --gutter: 1.5rem;
+
+  /* A wait shorter than this shows no spinner. */
+  --busy-delay: 150ms;
 }
 
 @media (prefers-color-scheme: light) {

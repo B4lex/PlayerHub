@@ -57,7 +57,8 @@
   min-width: 0;
 }
 
-.toggle {
+/* Has to outweigh the Button's own two-class width rule for icon-only buttons. */
+.transport > button.toggle {
   width: 2.75rem;
   height: 2.75rem;
   min-height: 0;

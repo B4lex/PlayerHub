@@ -5,6 +5,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { Panel } from "../../components/Panel";
 import { useToast } from "../../components/Toasts";
 import { formatTimestamp, plural } from "../../lib/format";
+import { batchStarted } from "../../lib/predictions";
 import { useServerState } from "../../state/ServerState";
 import { useAction } from "../../state/useAction";
 import styles from "./NewBatchPanel.module.css";
@@ -22,7 +23,7 @@ function parseInteger(text: string, minimum: number, maximum: number): number | 
 }
 
 export function NewBatchPanel() {
-  const { loaded, recordings } = useServerState();
+  const { loaded, recordings, predict } = useServerState();
   const toast = useToast();
   const [run, busy] = useAction();
   const playable = recordings.filter((recording) => recording.status !== "recording");
@@ -44,16 +45,18 @@ export function NewBatchPanel() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!valid) return;
-    const batch = await run(() =>
-      api.batches.create({
+    const batch = await run(async () => {
+      const created = await api.batches.create({
         recordingId: recording.id,
         players: playerCount,
         seed: seedValue,
         jitter: jitterPercent / 100,
         rateSpread: spreadPercent / 100,
         rampUpSeconds,
-      }),
-    );
+      });
+      predict(batchStarted(created, performance.now())).succeeded();
+      return created;
+    });
     if (batch) toast.success(`Started ${plural(batch.settings.players, "bot")} with seed ${batch.settings.seed}`);
   };
 

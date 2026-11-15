@@ -7,21 +7,20 @@ interface ScrubberProps {
   durationMs: number;
   positionMs: number;
   markers: readonly Marker[];
-  /** Move the replay; resolves once the server has answered. */
-  onSeek: (positionMs: number) => Promise<void>;
+  /** Move the replay; the position passed in follows at once. */
+  onSeek: (positionMs: number) => void;
 }
 
 export function Scrubber({ durationMs, positionMs, markers, onSeek }: ScrubberProps) {
-  // While the handle is being moved (and until the server confirms the jump),
-  // show where it was put instead of where the replay still is.
+  // While the handle is being moved, show where it is instead of where the replay still is.
   const [scrub, setScrub] = useState<number | null>(null);
   const dragging = useRef(false);
 
   const shown = Math.min(scrub ?? positionMs, durationMs);
   const progress = durationMs > 0 ? (shown / durationMs) * 100 : 0;
 
-  const commit = async (target: number) => {
-    await onSeek(target);
+  const commit = (target: number) => {
+    onSeek(target);
     setScrub(null);
   };
 
@@ -39,7 +38,7 @@ export function Scrubber({ durationMs, positionMs, markers, onSeek }: ScrubberPr
             }}
             title={`${marker.label} · ${formatTimestamp(marker.tMs, true)}`}
             aria-label={`Jump to ${marker.label} at ${formatTimestamp(marker.tMs, true)}`}
-            onClick={() => void commit(marker.tMs)}
+            onClick={() => commit(marker.tMs)}
           />
         ))}
       </div>
@@ -57,14 +56,14 @@ export function Scrubber({ durationMs, positionMs, markers, onSeek }: ScrubberPr
           const value = Number(event.target.value);
           setScrub(value);
           // Dragging jumps once, on release; the keyboard jumps on every step.
-          if (!dragging.current) void commit(value);
+          if (!dragging.current) commit(value);
         }}
         onPointerDown={() => {
           dragging.current = true;
         }}
         onPointerUp={(event) => {
           dragging.current = false;
-          void commit(Number(event.currentTarget.value));
+          commit(Number(event.currentTarget.value));
         }}
         onPointerCancel={() => {
           dragging.current = false;

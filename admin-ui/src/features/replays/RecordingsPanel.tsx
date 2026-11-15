@@ -2,10 +2,10 @@ import { api } from "../../api/client";
 import type { Recording } from "../../api/types";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
-import { ConfirmButton } from "../../components/ConfirmButton";
 import { EmptyState } from "../../components/EmptyState";
 import { Panel } from "../../components/Panel";
 import { formatBytes, formatDateTime, formatRelative, formatTimestamp, plural } from "../../lib/format";
+import { recordingRemoved } from "../../lib/predictions";
 import { useTicker } from "../../lib/useTicker";
 import { useServerState } from "../../state/ServerState";
 import { useAction } from "../../state/useAction";
@@ -43,14 +43,11 @@ function StatusBadge({ recording }: { recording: Recording }) {
 
 function RecordingRow({ recording, now }: { recording: Recording; now: number }) {
   const { adoptPlayback } = useServerState();
-  const [run, playing] = useAction();
-  const [runDelete, deleting] = useAction();
+  const [run, opening] = useAction();
+  const [runDelete] = useAction();
   const live = recording.status === "recording";
 
-  const play = async () => {
-    const playback = await run(() => api.playbacks.open({ recordingId: recording.id }));
-    if (playback) adoptPlayback(playback);
-  };
+  const play = () => run(async () => adoptPlayback(await api.playbacks.open({ recordingId: recording.id }), true));
 
   return (
     <tr>
@@ -76,23 +73,21 @@ function RecordingRow({ recording, now }: { recording: Recording; now: number })
             variant="primary"
             size="sm"
             icon="play"
-            busy={playing}
+            busy={opening}
             disabled={live}
             onClick={play}
             title={live ? "Stop the capture before replaying it" : "Spawn this recording as a virtual player for everyone connected"}
           >
             Play
           </Button>
-          <ConfirmButton
+          <Button
             variant="ghost"
             size="sm"
             icon="trash"
-            busy={deleting}
             disabled={live}
-            confirmLabel="Really delete?"
             aria-label={`Delete ${recording.label}`}
             title={live ? "Stop the capture before deleting it" : "Delete this recording"}
-            onConfirm={() => runDelete(() => api.recordings.remove(recording.id))}
+            onClick={() => runDelete(() => api.recordings.remove(recording.id), recordingRemoved(recording.id))}
           />
         </div>
       </td>

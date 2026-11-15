@@ -1,8 +1,16 @@
 import { api } from "../../api/client";
-import type { MarkerKind } from "../../api/types";
+import type { MarkerKind, Playback, PlaybackSettings } from "../../api/types";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { formatTimestamp } from "../../lib/format";
+import {
+  playbackConfigured,
+  playbackPaused,
+  playbackPlayed,
+  playbackRemoved,
+  playbackSought,
+  type Prediction,
+} from "../../lib/predictions";
 import type { PlaybackView } from "../../state/ServerState";
 import { useServerState } from "../../state/ServerState";
 import { useAction } from "../../state/useAction";
@@ -32,32 +40,27 @@ export function PlaybackDeck({ playback }: { playback: PlaybackView }) {
   const { adoptPlayback } = useServerState();
   const position = usePlaybackPosition(playback);
   const markers = useMarkers(playback.recordingId);
-  const [run, busy] = useAction();
-  const [runSeek] = useAction();
-  const [runSettings] = useAction();
-  const [runClose, closing] = useAction();
+  const [run] = useAction();
 
   const status = statusBadge[playback.status];
   const rates = RATES.includes(playback.rate) ? RATES : [...RATES, playback.rate].sort((a, b) => a - b);
 
-  const toggle = () =>
-    run(async () => {
-      const next =
-        playback.status === "playing"
-          ? await api.playbacks.pause(playback.id)
-          : await api.playbacks.play(playback.id);
-      adoptPlayback(next);
-    });
+  const change = (prediction: Prediction, command: () => Promise<Playback>) =>
+    void run(async () => adoptPlayback(await command()), prediction);
 
-  const seek = async (positionMs: number) => {
-    const next = await runSeek(() => api.playbacks.seek(playback.id, positionMs));
-    if (next) adoptPlayback(next);
+  const toggle = () => {
+    const at = performance.now();
+    if (playback.status === "playing") change(playbackPaused(playback, at), () => api.playbacks.pause(playback.id));
+    else change(playbackPlayed(playback, at), () => api.playbacks.play(playback.id));
   };
 
-  const configure = async (settings: { rate?: number; loop?: boolean }) => {
-    const next = await runSettings(() => api.playbacks.configure(playback.id, settings));
-    if (next) adoptPlayback(next);
-  };
+  const seek = (positionMs: number) =>
+    change(playbackSought(playback, performance.now(), positionMs), () => api.playbacks.seek(playback.id, positionMs));
+
+  const configure = (settings: PlaybackSettings) =>
+    change(playbackConfigured(playback, performance.now(), settings), () => api.playbacks.configure(playback.id, settings));
+
+  const close = () => void run(() => api.playbacks.close(playback.id), playbackRemoved(playback.id));
 
   const kindCounts = Object.entries(
     markers.reduce<Record<string, number>>((counts, marker) => {
@@ -90,8 +93,7 @@ export function PlaybackDeck({ playback }: { playback: PlaybackView }) {
           variant="ghost"
           size="sm"
           icon="stop"
-          busy={closing}
-          onClick={() => runClose(() => api.playbacks.close(playback.id))}
+          onClick={close}
           title="Stop this replay and remove its virtual player from every client"
         >
           Stop replay
@@ -108,7 +110,6 @@ export function PlaybackDeck({ playback }: { playback: PlaybackView }) {
         <Button
           variant="primary"
           icon={toggleIcon}
-          busy={busy}
           onClick={toggle}
           aria-label={toggleLabel}
           title={toggleLabel}
@@ -128,7 +129,7 @@ export function PlaybackDeck({ playback }: { playback: PlaybackView }) {
           <span>Speed</span>
           <select
             value={playback.rate}
-            onChange={(event) => void configure({ rate: Number(event.target.value) })}
+            onChange={(event) => configure({ rate: Number(event.target.value) })}
           >
             {rates.map((rate) => (
               <option key={rate} value={rate}>
@@ -142,7 +143,7 @@ export function PlaybackDeck({ playback }: { playback: PlaybackView }) {
           size="sm"
           icon="loop"
           aria-pressed={playback.loop}
-          onClick={() => void configure({ loop: !playback.loop })}
+          onClick={() => configure({ loop: !playback.loop })}
         >
           Loop
         </Button>

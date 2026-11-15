@@ -6,6 +6,7 @@ import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import { Panel } from "../../components/Panel";
 import { formatTimestamp, plural, shortId } from "../../lib/format";
+import { recordingStarted, recordingStopped } from "../../lib/predictions";
 import { useServerState } from "../../state/ServerState";
 import { useAction } from "../../state/useAction";
 import styles from "./CapturePanel.module.css";
@@ -19,11 +20,14 @@ interface PlayerRowProps {
 }
 
 function PlayerRow({ player, capture, label, onStarted }: PlayerRowProps) {
+  const { predict } = useServerState();
   const [run, busy] = useAction();
 
-  const start = async () => {
-    if (await run(() => api.recordings.start(player.id, label))) onStarted();
-  };
+  const start = () =>
+    run(async () => {
+      predict(recordingStarted(await api.recordings.start(player.id, label))).succeeded();
+      onStarted();
+    });
 
   return (
     <li className={styles.player}>
@@ -43,7 +47,7 @@ function PlayerRow({ player, capture, label, onStarted }: PlayerRowProps) {
             <span className="mono tabular">{formatTimestamp(capture.durationMs)}</span>
             <span className={styles.messages}>{plural(capture.messageCount, "message")}</span>
           </div>
-          <Button size="sm" icon="stop" busy={busy} onClick={() => run(() => api.recordings.stop(capture.id))}>
+          <Button size="sm" icon="stop" onClick={() => run(() => api.recordings.stop(capture.id), recordingStopped(capture.id))}>
             Stop
           </Button>
         </>

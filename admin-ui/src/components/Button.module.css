@@ -1,4 +1,5 @@
 .button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -70,17 +71,34 @@
   opacity: 0.55;
 }
 
-.spinner {
-  width: 0.95em;
-  height: 0.95em;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+/* A busy button looks as before until its spinner appears. */
+.busy:disabled {
+  opacity: 1;
 }
 
-@keyframes spin {
+/* The icon and the spinner that replaces it share one box, so the button keeps its width. */
+.glyph {
+  display: inline-grid;
+  place-items: center;
+}
+
+.glyph > * {
+  grid-area: 1 / 1;
+}
+
+/* Without an icon the spinner lies over the label instead. */
+.over {
+  position: absolute;
+  inset: 0;
+}
+
+.busy .glyph > svg,
+.busy .label {
+  animation: vanish 1ms linear var(--busy-delay) forwards;
+}
+
+@keyframes vanish {
   to {
-    transform: rotate(360deg);
+    opacity: 0;
   }
 }

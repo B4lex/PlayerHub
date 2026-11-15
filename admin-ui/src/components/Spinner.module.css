@@ -1,0 +1,24 @@
+.spinner {
+  box-sizing: border-box;
+  width: 0.95em;
+  height: 0.95em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0;
+  animation:
+    spin 0.7s linear infinite,
+    appear 1ms linear var(--busy-delay) forwards;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes appear {
+  to {
+    opacity: 1;
+  }
+}

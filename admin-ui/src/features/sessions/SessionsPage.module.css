@@ -25,6 +25,16 @@
   border-bottom: 0;
 }
 
+/* Rows that answer an earlier search or page, while the next ones load. */
+.waiting tbody {
+  opacity: 0.55;
+  transition: opacity 0.15s var(--busy-delay);
+}
+
+.waitingMark {
+  color: var(--text-muted);
+}
+
 .name {
   font-weight: 600;
 }
