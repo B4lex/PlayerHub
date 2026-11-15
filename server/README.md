@@ -36,7 +36,8 @@ On `admin_listen` only:
 - `/debug/pprof/` with `--pprof`.
 
 To run it in Docker, see [Docker](../README.md#docker). Each GitHub release
-has a built server for Linux and Windows with the admin panel; see
+has a built server with the admin panel as one archive for Linux and one for
+Windows; see
 [Server archive](../README.md#server-archive).
 
 ## Configuration

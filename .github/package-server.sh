@@ -6,10 +6,12 @@ usage() {
     cat <<'EOF'
 Usage: package-server.sh
 
-Build the release server for linux/amd64 and windows/amd64 and the admin
-panel into build/dist/playerhub-server-<version>.zip. Its linux/ and windows/
-directories each hold a complete server: the binary, the panel, a config.toml
-that lists every key at its default, the licenses, and a README.txt.
+Build the release server and the admin panel for linux/amd64 and
+windows/amd64 into build/dist/playerhub-server-<version>-linux.zip and
+build/dist/playerhub-server-<version>-windows.zip. Each archive holds a
+complete server in a directory of its own name: the binary, the panel, a
+config.toml that lists every key at its default, the licenses, and a
+README.txt.
 
 The version comes from set_version in xmake.lua.
 EOF
@@ -23,7 +25,6 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 version="$(sed -n 's/^set_version("\([^"]*\)").*/\1/p' "$root/xmake.lua")"
 [[ -n "$version" ]] || { echo "No set_version in xmake.lua" >&2; exit 1; }
 targets=(linux/amd64 windows/amd64)
-archive="playerhub-server-$version"
 
 out="$root/build/dist"
 work="$(mktemp -d)"
@@ -70,7 +71,8 @@ mkdir -p "$out"
 for target in "${targets[@]}"; do
     os="${target%/*}"
     arch="${target#*/}"
-    stage="$work/$archive/$os"
+    archive="playerhub-server-$version-$os"
+    stage="$work/$archive"
     binary="playerhub-server"
     if [[ "$os" == windows ]]; then binary+=".exe"; fi
     echo "Building $os/$arch"
@@ -132,8 +134,8 @@ trusted_proxies.
 PlayerHub is licensed under GPL-3.0-or-later with the exceptions in
 EXCEPTIONS; licenses of the libraries it includes are in licenses/.
 EOF
-done
 
-rm -f "$out/$archive.zip"
-(cd "$work" && zip -qr -X "$out/$archive.zip" "$archive")
-echo "Wrote $out/$archive.zip"
+    rm -f "$out/$archive.zip"
+    (cd "$work" && zip -qr -X "$out/$archive.zip" "$archive")
+    echo "Wrote $out/$archive.zip"
+done

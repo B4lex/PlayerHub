@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to build and attach the archive to. Empty builds the chosen branch without a release.
+        description: Release tag to build and attach the archives to. Empty builds the chosen branch without a release.
         type: string
 
 permissions:
@@ -64,12 +64,20 @@ jobs:
       - id: package
         run: |
           .github/package-server.sh
-          echo "archive=$(ls build/dist/playerhub-server-*.zip)" >> "$GITHUB_OUTPUT"
+          for os in linux windows; do
+              echo "$os=$(ls build/dist/playerhub-server-*-$os.zip)" >> "$GITHUB_OUTPUT"
+          done
 
-      # Uploaded as it is rather than zipped again; the artifact takes the file's name.
+      # Uploaded as they are rather than zipped again, which takes one file per artifact;
+      # each artifact takes its file's name.
       - uses: actions/upload-artifact@v7
         with:
-          path: ${{ steps.package.outputs.archive }}
+          path: ${{ steps.package.outputs.linux }}
+          archive: false
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.package.outputs.windows }}
           archive: false
           if-no-files-found: error
 
@@ -79,16 +87,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ inputs.tag || github.ref_name }}
-          ARCHIVE: ${{ steps.package.outputs.archive }}
+          LINUX: ${{ steps.package.outputs.linux }}
+          WINDOWS: ${{ steps.package.outputs.windows }}
         run: |
-          # The archive is named after set_version in xmake.lua.
-          if [[ "$ARCHIVE" != "build/dist/playerhub-server-$TAG.zip" ]]; then
-              echo "::error::Tag $TAG does not match set_version in xmake.lua: built $ARCHIVE"
+          # The archives are named after set_version in xmake.lua.
+          if [[ "$LINUX" != "build/dist/playerhub-server-$TAG-linux.zip" ]]; then
+              echo "::error::Tag $TAG does not match set_version in xmake.lua: built $LINUX"
               exit 1
           fi
           # A draft has no tag of its own until it is published; gh finds it by its tag name.
           if gh release view "$TAG" > /dev/null 2>&1; then
-              gh release upload "$TAG" "$ARCHIVE" --clobber
+              gh release upload "$TAG" "$LINUX" "$WINDOWS" --clobber
           else
-              gh release create "$TAG" "$ARCHIVE" --draft --verify-tag --title "$TAG" --generate-notes
+              gh release create "$TAG" "$LINUX" "$WINDOWS" --draft --verify-tag --title "$TAG" --generate-notes
           fi
