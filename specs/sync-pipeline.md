@@ -30,7 +30,7 @@ each feature's rules to its own system, the transport to
 | `runtime/VanillaIntro` | Whether the vanilla Helgen intro holds the connection ([Vanilla intro](#vanilla-intro)) |
 | `runtime/RemoteActorActivation` | The local player's activation of a remote actor or mount, on its worker thread ([UI overlay](ui-overlay.md#player-menu-in-the-world)) |
 | `runtime/PluginTime` | Plugin time per pass, averaged each second ([UI overlay](ui-overlay.md#plugin-time)) |
-| `runtime/KeyState` | Keyboard keys held and pressed as the input dispatch reports them, for [voice chat](voice-chat.md#activation)'s microphone key |
+| `runtime/KeyState` | Keyboard keys held as the input dispatch reports them, for [voice chat](voice-chat.md#activation)'s microphone key |
 | `runtime/PlayerGraphEventHook` | The local player's accepted graph input events, read once against the modded events, for [beast actions](combat-presentation.md#beast-actions), [idles](idle-presentation.md#capture), [pose windows](remote-actor.md#source-window), the [graph event survey](#graph-event-survey), and the [graph trace](#graph-trace) |
 | `sync/SyncCoordinator` | One frame entry, the stage order, the single network drain, and the peer map |
 | `sync/PeerState` | A peer's complete receive state, composed of feature-owned members |

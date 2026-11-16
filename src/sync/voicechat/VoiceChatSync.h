@@ -39,8 +39,6 @@ namespace VoiceChatSync
         bool microphoneOpen{ false };
         bool transmitting{ false };
         bool voiceActivation{ false };
-        // Voice activation only: the microphone key turned the microphone off.
-        bool microphoneOff{ false };
         float inputLevel{ 0.0F };
         // The connection carries voice, but the relay does not answer its datagrams.
         bool relayUnreachable{ false };

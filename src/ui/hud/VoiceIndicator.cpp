@@ -30,7 +30,7 @@ namespace UI
                     return;
                 }
                 const auto status = VoiceChatSync::GetLocalStatus();
-                if (!status.active || (!status.transmitting && !status.microphoneOff))
+                if (!status.active || !status.transmitting)
                 {
                     return;
                 }
@@ -41,11 +41,8 @@ namespace UI
                 auto* drawList = ImGui::GetBackgroundDrawList();
                 const auto outline = (std::max)(1.0F, std::floor(fontSize / 16.0F));
                 const auto shadow = ImGui::GetColorU32(ImVec4{ 0.0F, 0.0F, 0.0F, kOutlineAlpha });
-                const auto color = status.microphoneOff ? ImGui::GetColorU32(Theme::kNegative)
-                                                        : ImGui::GetColorU32(Theme::GetAccent());
-                VoiceGlyphs::DrawMicrophone(*drawList, ImVec2{ min.x + outline, min.y + outline }, size, shadow,
-                    status.microphoneOff);
-                VoiceGlyphs::DrawMicrophone(*drawList, min, size, color, status.microphoneOff);
+                VoiceGlyphs::DrawMicrophone(*drawList, ImVec2{ min.x + outline, min.y + outline }, size, shadow);
+                VoiceGlyphs::DrawMicrophone(*drawList, min, size, ImGui::GetColorU32(Theme::GetAccent()));
             }
         };
     }

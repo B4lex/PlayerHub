@@ -44,7 +44,7 @@ src/ui/
   hud/DisplayNameHint         # where to enter a display name, while none is set
   hud/GameView                # whether the world is on screen, for the HUD layers
   hud/NoticeStack             # notices on the right edge, friends coming online
-  hud/VoiceIndicator          # the microphone while the player is heard or has turned it off
+  hud/VoiceIndicator          # the microphone while the player is heard
   chat/ChatWindow             # open and closed chat, focus by its keys, the manager alone, the send target's channel kept shown
   chat/ChatHistory            # lines, channel filters, unread marks, scrolling, the line menu
   chat/ChatInput              # target chip and its menu, text field, name list, notes
@@ -1979,10 +1979,9 @@ carried, and played is in [Voice chat](voice-chat.md).
 - `VoiceIndicator`, registered after the nameplates and drawn on the
   background draw list like them, shows a microphone
   (`VoiceGlyphs::DrawMicrophone`) 1.25 font sizes high at 32% of the screen's
-  width and one font size from its top, over a dark outline: in the accent
-  while the player is heard, and struck through in the negative color while
-  voice activation's microphone is off. It shows nothing outside a game,
-  while `UI::IsGameViewShown` is false, or while voice is not active.
+  width and one font size from its top, in the accent over a dark outline,
+  while the player is heard. It shows nothing outside a game or while
+  `UI::IsGameViewShown` is false.
 - The [player menu](#player-menu) carries the per-player voice volume.
 - The `[Voice]` page of the [settings window](#settings-window) draws two
   rows of its own. An audio device (`SettingsVisitor::AudioDevice`) is a combo
@@ -1993,10 +1992,11 @@ carried, and played is in [Voice chat](voice-chat.md).
   control: the microphone's level from `VoiceChatSync::GetLocalStatus`, in the
   accent while the player is heard and muted otherwise, with a mark at
   `ActivationLevel` under voice activation. While the microphone is closed, as
-  without a connection, the row is a muted line saying when it opens instead,
-  or, while `LocalStatus::relayUnreachable`
-  ([Voice chat](voice-chat.md#relay-link)), a line in `Theme::kWarning` saying
-  the voice relay cannot be reached and the network may block UDP.
+  without a connection, the bar stays empty; while
+  `LocalStatus::relayUnreachable`
+  ([Voice chat](voice-chat.md#relay-link)) the row is instead a line in
+  `Theme::kWarning` saying the voice relay cannot be reached and the network
+  may block UDP.
 
 
 ## Settings window

@@ -29,7 +29,7 @@ namespace UI::VoiceGlyphs
         }
     }
 
-    void DrawMicrophone(ImDrawList& a_drawList, ImVec2 a_min, float a_size, ImU32 a_color, bool a_off)
+    void DrawMicrophone(ImDrawList& a_drawList, ImVec2 a_min, float a_size, ImU32 a_color)
     {
         const auto line = (std::max)(1.0F, std::round(a_size / 10.0F));
         const auto centerX = a_min.x + a_size * 0.5F;
@@ -48,10 +48,5 @@ namespace UI::VoiceGlyphs
         a_drawList.AddLine(ImVec2{ centerX, stemTop }, ImVec2{ centerX, bottom }, a_color, line);
         a_drawList.AddLine(ImVec2{ centerX - a_size * 0.2F, bottom }, ImVec2{ centerX + a_size * 0.2F, bottom }, a_color,
             line);
-
-        if (a_off)
-        {
-            a_drawList.AddLine(a_min, ImVec2{ a_min.x + a_size, a_min.y + a_size }, a_color, line * 1.5F);
-        }
     }
 }

@@ -1487,10 +1487,6 @@ msgctxt "VoiceInputLevelComment"
 msgid "How loud your microphone is."
 msgstr ""
 
-msgctxt "VoiceMeterClosed"
-msgid "Opens while connected to a server with voice chat"
-msgstr ""
-
 msgctxt "VoiceRelayUnreachable"
 msgid "The voice relay cannot be reached; your network may block UDP"
 msgstr ""
@@ -1508,9 +1504,7 @@ msgid "Noise suppression"
 msgstr ""
 
 msgctxt "VoiceNoiseSuppressionComment"
-msgid ""
-"Removes background noise, such as fans and typing, before your voice is "
-"sent."
+msgid "Removes background noise, such as fans and typing."
 msgstr ""
 
 msgctxt "VoiceInputDevice"
@@ -1558,9 +1552,7 @@ msgid "Microphone"
 msgstr ""
 
 msgctxt "ControlsMicrophoneComment"
-msgid ""
-"Hold to talk with push to talk. With voice activation, turns your "
-"microphone off and on."
+msgid "Hold to talk with push to talk. Not used with voice activation."
 msgstr ""
 
 msgctxt "PlayerMenuVoiceVolume"

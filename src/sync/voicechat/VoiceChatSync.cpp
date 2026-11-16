@@ -40,9 +40,6 @@ namespace VoiceChatSync
         Audio::Settings s_settings;
         bool s_configured = false;
         bool s_inWorld = false;
-        bool s_microphoneOff = false;
-        std::uint32_t s_microphoneKey = 0;
-        std::uint32_t s_presses = 0;
 
         std::vector<Audio::Speaker> s_speakers;
         std::vector<Audio::SpeakerLevel> s_levels;
@@ -125,24 +122,8 @@ namespace VoiceChatSync
             Audio::Configure(settings);
         }
 
-        const auto key = config->controls.microphoneKey;
-        const auto presses = KeyState::GetPresses(key);
-        if (key != s_microphoneKey)
-        {
-            s_microphoneKey = key;
-            s_presses = presses;
-        }
-        if (presses != s_presses)
-        {
-            if (settings.voiceActivation && settings.active && (presses - s_presses) % 2 == 1)
-            {
-                s_microphoneOff = !s_microphoneOff;
-                logs::debug("Voice microphone turned {} by its key", s_microphoneOff ? "off" : "on");
-            }
-            s_presses = presses;
-        }
-        const bool allowed = settings.active && s_inWorld && !(settings.voiceActivation && s_microphoneOff);
-        Audio::SetTransmission(allowed, !settings.voiceActivation && KeyState::IsHeld(key));
+        Audio::SetTransmission(settings.active && s_inWorld,
+            !settings.voiceActivation && KeyState::IsHeld(config->controls.microphoneKey));
     }
 
     void UpdateLocal(bool a_inWorld)
@@ -252,7 +233,6 @@ namespace VoiceChatSync
             .microphoneOpen = Audio::IsInputOpen(),
             .transmitting = Audio::IsTransmitting(),
             .voiceActivation = s_settings.voiceActivation,
-            .microphoneOff = s_settings.voiceActivation && s_microphoneOff,
             .inputLevel = Audio::GetInputLevel(),
             .relayUnreachable = Network::VoiceTransport::GetState() == State::kUnreachable };
     }

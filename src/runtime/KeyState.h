@@ -10,7 +10,4 @@ namespace KeyState
     void Record(std::uint32_t a_scanCode, bool a_pressed);
 
     [[nodiscard]] bool IsHeld(std::uint32_t a_scanCode);
-
-    // Rises with each press, so a reader counts presses between its reads.
-    [[nodiscard]] std::uint32_t GetPresses(std::uint32_t a_scanCode);
 }

@@ -226,7 +226,7 @@ the arrows, has that word in the game's language.
 | `ManagePlayers` | Opens the [player manager](ui-overlay.md#player-manager) alone, without the chat | `O` |
 | `AcceptTrade` | Accepts another player's trade invitation while it waits for an answer ([Trade](trade.md#invitation)). It is the game's only while no invitation waits | `Y` |
 | `DeclineTrade` | Declines another player's trade invitation, or withdraws the player's own, while it waits | `N` |
-| `Microphone` | Held to be heard with push-to-talk; pressed to turn the microphone off and on with voice activation ([Voice chat](voice-chat.md#activation)). The game keeps the key's own action | `V` |
+| `Microphone` | Held to be heard with push-to-talk; unused with voice activation ([Voice chat](voice-chat.md#activation)). The game keeps the key's own action | `V` |
 
 - A key is `F1`–`F12`, a letter `A`–`Z`, a digit `0`–`9`, `Minus`,
   `Equals`, `LeftBracket`, `RightBracket`, `Semicolon`, `Apostrophe`,

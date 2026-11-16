@@ -44,7 +44,7 @@ occlusion, and lip sync. It leaves to other systems:
 | `audio/MiniAudio.c` | The miniaudio implementation, built as C |
 | `network/VoiceTransport` | The datagram socket, AES-256-GCM through Windows CNG, probes and keepalives, the link's state |
 | `sync/voicechat/VoiceChatSync` | Game-thread state: devices following settings and connection, the microphone key, speakers' parameters, occlusion rays, lip sync, the speaking levels the UI reads |
-| `runtime/KeyState` | Keys held and pressed as the input dispatch reports them, for the microphone key |
+| `runtime/KeyState` | Keys held as the input dispatch reports them, for the microphone key |
 | `server/internal/voice` | The relay: datagram keys, replay windows, addresses, listeners, forwarding by datagram or outbox |
 
 ## Threads
@@ -67,8 +67,9 @@ callback.
 
 ## Activation
 
-`[Voice] Mode` chooses push-to-talk (the default) or voice activation, and
-`[Controls] Microphone` (`V`) serves both.
+`[Voice] Mode` chooses push-to-talk (the default) or voice activation.
+`[Controls] Microphone` (`V`) is push-to-talk's key and does nothing under
+voice activation.
 
 - `InputCapture` records each keyboard press and release into `KeyState`
   without taking the key from the game, so a key the game also uses keeps its
@@ -80,9 +81,7 @@ callback.
 - Voice activation sends while a 10 ms chunk's level reaches
   `[Voice] ActivationLevel` and, with noise suppression, RNNoise's voice
   probability is at least 0.5, and for 400 ms after the last such chunk. The
-  frame before the onset is sent first, so a word's start is not cut. The key
-  turns the microphone off and on (`VoiceChatSync`, counting `KeyState` presses
-  between frames); off lasts until pressed again or the game ends.
+  frame before the onset is sent first, so a word's start is not cut.
 - The player is heard only with voice enabled, a connected
   [relay link](#relay-link), and the player in the world (`VoiceChatSync::UpdateLocal`), since the
   relay sends nothing of a player who is not placed. `Maintain` runs while the
@@ -222,8 +221,7 @@ crowd's voice costs each listener what the speakers near it say.
 2. With push-to-talk, a player is heard only while holding the microphone key,
    also with a menu open, and never after alt-tabbing with the key held.
 3. With voice activation, a player is heard when speaking above the activation
-   level, the first syllable included, and not otherwise; the microphone key
-   turns it off and on, and the HUD shows it off.
+   level, the first syllable included, and not otherwise.
 4. A muted player is not heard; a vanished player's voice ends with its
    character; another player's volume set in the player menu lasts across games
    on that server.

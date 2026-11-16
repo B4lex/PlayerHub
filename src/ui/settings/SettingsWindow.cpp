@@ -671,12 +671,6 @@ namespace UI
                     EndRow();
                     return;
                 }
-                if (!status.microphoneOpen)
-                {
-                    DrawMutedText(Text::Get(Text::Id::kVoiceMeterClosed));
-                    EndRow();
-                    return;
-                }
                 const auto frameHeight = ImGui::GetFrameHeight();
                 const auto origin = ImGui::GetCursorScreenPos();
                 const auto height = std::floor(frameHeight * kMeterHeightFraction);
