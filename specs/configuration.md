@@ -275,19 +275,18 @@ player. `GameplayPolicy` follows the section for the hooks that read it.
 
 [Voice chat](voice-chat.md) with the players nearby: `Enabled`, then two
 groups, Microphone (`Mode`, the input meter, `ActivationLevel`,
-`NoiseSuppression`, `InputDevice`, `InputVolume`) and Other players
-(`OutputDevice`, `OutputVolume`, `LipSync`).
+`InputDevice`, `InputVolume`, `NoiseSuppression`) and Other players
+(`OutputDevice`, `OutputVolume`).
 
 | Key | Meaning | Default |
 | --- | --- | --- |
 | `Enabled` | Hears and is heard on a server that carries voice; off keeps the microphone and speakers closed | `true` |
 | `Mode` | `PushToTalk`, heard while `[Controls] Microphone` is held, or `VoiceActivation`, heard while speaking ([Voice chat](voice-chat.md#activation)) | `PushToTalk` |
 | `ActivationLevel` | The input level at which voice activation opens, `0..100` on the meter's scale, 0 at -60 dBFS and 100 at full scale; the settings window shows it only with `VoiceActivation` | `35` |
-| `NoiseSuppression` | Runs the microphone through RNNoise before encoding, and lets voice activation open only on speech | `true` |
 | `InputDevice`, `OutputDevice` | The capture and playback devices by their system names, as the settings window lists them; empty is the system's default device. A name no device has logs a warning and uses the default | empty |
 | `InputVolume` | Gain on the microphone in percent, `0..200` in steps of `5` | `100` |
+| `NoiseSuppression` | Runs the microphone through RNNoise before encoding, and lets voice activation open only on speech | `true` |
 | `OutputVolume` | Gain on other players' voices in percent, `0..200` in steps of `5` | `100` |
-| `LipSync` | Moves speaking players' characters' mouths | `true` |
 
 ### `[Advanced]`
 
@@ -336,7 +335,7 @@ revision before the snapshot never misses a change.
 | `SettingsWindow` | overlay, input | reading `OpenSettings` on each focus key press |
 | `ChatWindow` | input | reading `OpenChat` and `ManagePlayers` on each focus key press |
 | `TradePrompt` | overlay, input | reading `AcceptTrade` and `DeclineTrade` on each focus key press and each frame it draws |
-| `VoiceChatSync` | main loop | reading `[Voice]` and `[Controls] Microphone` every frame in `Maintain`, and configuring the audio engine when they differ; `LipSync` each pass |
+| `VoiceChatSync` | main loop | reading `[Voice]` and `[Controls] Microphone` every frame in `Maintain`, and configuring the audio engine when they differ |
 | `StatusPanel`, item pickers, trade window | overlay | reading `[Advanced] StatusPanel` and `[UI] ItemPreview` each frame |
 | `ChatInput` | overlay | reading `CloseChatOnSend` on each Enter that sends or finds the field empty |
 | `Theme` | overlay | working out the accent, frame, and background colors from `AccentColor`, `BorderColor`, and `BackgroundOpacity` when the revision changes |

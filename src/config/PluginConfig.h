@@ -154,7 +154,6 @@ namespace Config
         std::string outputDevice;
         std::uint32_t inputVolume{ 100 };
         std::uint32_t outputVolume{ 100 };
-        bool lipSync{ true };
 
         bool operator==(const VoiceSettings&) const = default;
     };

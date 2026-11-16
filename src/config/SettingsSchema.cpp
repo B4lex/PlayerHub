@@ -295,19 +295,18 @@ namespace Config
             a_visitor.ShowNextIf(a_settings.mode == VoiceSettings::kVoiceActivation);
             a_visitor.Percent("ActivationLevel", Id::kVoiceActivationLevel, a_settings.activationLevel,
                 Id::kVoiceActivationLevelComment, 0, VoiceSettings::kMaximumActivationLevel, 1);
-            a_visitor.Bool("NoiseSuppression", Id::kVoiceNoiseSuppression, a_settings.noiseSuppression,
-                Id::kVoiceNoiseSuppressionComment);
             a_visitor.AudioDevice("InputDevice", Id::kVoiceInputDevice, a_settings.inputDevice,
                 Id::kVoiceInputDeviceComment, true);
             a_visitor.Percent("InputVolume", Id::kVoiceInputVolume, a_settings.inputVolume, Id::kVoiceInputVolumeComment,
                 0, VoiceSettings::kMaximumVolume, VoiceSettings::kVolumeStep);
+            a_visitor.Bool("NoiseSuppression", Id::kVoiceNoiseSuppression, a_settings.noiseSuppression,
+                Id::kVoiceNoiseSuppressionComment);
 
             a_visitor.Comment(Id::kVoiceGroupPlayers);
             a_visitor.AudioDevice("OutputDevice", Id::kVoiceOutputDevice, a_settings.outputDevice,
                 Id::kVoiceOutputDeviceComment, false);
             a_visitor.Percent("OutputVolume", Id::kVoiceOutputVolume, a_settings.outputVolume,
                 Id::kVoiceOutputVolumeComment, 0, VoiceSettings::kMaximumVolume, VoiceSettings::kVolumeStep);
-            a_visitor.Bool("LipSync", Id::kVoiceLipSync, a_settings.lipSync, Id::kVoiceLipSyncComment);
         }
 
         void DescribeGameplay(GameplaySettings& a_settings, SettingsVisitor& a_visitor)

@@ -169,9 +169,9 @@ Frames of anyone else are dropped on arrival, and their buffers are freed.
   at once and falls by a quarter per frame. `VoiceChatSync` copies the levels once
   per pass, and `GetSpeakingLevel` gives a peer's while above 0.05, for the
   nameplates and the player list ([UI overlay](ui-overlay.md#voice-chat)).
-- With `[Voice] LipSync`, a speaking peer's level opens its character's mouth
-  through `ActorLipSync` each pass, and the mouth closes when it stops. The
-  phonemes need no analysis of the voice, which reads as speech at a distance.
+- A speaking peer's level opens its character's mouth through `ActorLipSync`
+  each pass, and the mouth closes when it stops. The phonemes need no analysis
+  of the voice, which reads as speech at a distance.
 
 ## Devices
 

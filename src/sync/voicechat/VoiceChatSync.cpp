@@ -172,7 +172,6 @@ namespace VoiceChatSync
         }
 
         const auto delta = FrameTime::Clamp(a_delta);
-        const bool lipSync = Config::Get()->voice.lipSync;
         const auto playerPosition = a_player.GetPosition();
         auto listener = playerPosition;
         // Gamebryo's NiCamera looks along its local X axis with Z to its right
@@ -224,7 +223,7 @@ namespace VoiceChatSync
                     .slot = playerID, .gain = gain, .pan = pan, .occlusion = state.occluded ? 1.0F : 0.0F });
             }
 
-            if (lipSync && level > kSpeakingLevel)
+            if (level > kSpeakingLevel)
             {
                 ActorLipSync::Apply(*actor, level);
                 state.mouthOpen = true;
