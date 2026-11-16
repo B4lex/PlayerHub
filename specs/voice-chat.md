@@ -58,9 +58,14 @@ occlusion, and lip sync. It leaves to other systems:
 
 Frames cross threads as fixed-size `Multiplayer::VoiceFrame` values, so
 nothing allocates per frame. The mixer holds one mutex between the network
-threads' `Push`, the game thread's `SetSpeakers`, and the playback thread's
-`Render`; decoders are destroyed on the game thread, outside the playback
-callback.
+threads' `Push`, the game thread's `SetSpeakers` and `CopyLevels`, and the
+playback thread's `Render`. `Render` holds it per block only to take each
+speaker's parameters and up to two frames off its jitter buffer, and again to
+publish the speaking levels; it decodes and mixes without it, so no other
+thread waits on a decoder. A decoder reset at a talk spurt's start is passed
+with the next frame for the same reason. A channel removed while `Render` may
+be mixing it waits in `retired` until no mix runs, and is destroyed by the next
+`SetSpeakers` or `Clear` after the lock, never on the playback thread.
 
 ## Activation
 
@@ -95,20 +100,29 @@ voice activation.
   `[Voice] NoiseSuppression`, then the meter: the chunk's RMS in dBFS mapped
   from -60..0 to 0..1, falling by 0.04 per chunk. `Audio::GetInputLevel` reads
   it for the settings window's meter.
-- `[Voice] InputVolume` follows the meter and the gate, as a gain of the
-  percentage squared: 50% is -12 dB and 150% is +7 dB. Loudness as heard
-  doubles with about 10 dB, so a linear gain would make 150% sound barely
-  louder.
+- `[Voice] InputVolume` follows the meter and the gate, as a gain of 1.4
+  (`kBaseInputGain`) times the percentage squared: 100% is +3 dB, since
+  microphones came through quiet at unity gain, 50% is -9 dB, and 150% is
+  +10 dB. Loudness as heard doubles with about 10 dB, so a linear gain would
+  make 150% sound barely louder.
 - A limiter follows the gain, since the encoder hard-clips beyond full scale:
   a sample above 0.8 turns the limiter's gain down at once to hold it there,
   and the gain returns over about 100 ms, so a boosted voice gets louder
   rather than distorted. The ceiling leaves room for the codec: speech limited
   to 0.9 decoded with peaks at full scale, and limited to 0.8 stayed below it.
 - Two chunks make an Opus frame of 20 ms: `OPUS_APPLICATION_VOIP` at 24 kbit/s
-  VBR, complexity 8, voice signal, in-band FEC for an expected 10% loss, and no
-  DTX, since the gate already stops sending in pauses and DTX's gaps would read
-  as loss. The encoder resets at each talk spurt's start. A frame is at most 400
-  bytes (`Multiplayer::kMaximumVoiceFrameBytes`).
+  VBR, complexity 8, voice signal, in-band FEC enabled for an expected 5% loss,
+  and no DTX, since the gate already stops sending in pauses and DTX's gaps
+  would read as loss. The encoder resets at each talk spurt's start. A frame is
+  at most 400 bytes (`Multiplayer::kMaximumVoiceFrameBytes`).
+- The expected loss chooses between band and FEC: above 5%, libopus narrows the
+  band until FEC fits, which at 24 kbit/s is wideband (8 kHz); at 5% or less it
+  keeps fullband and adds FEC only once the bitrate affords it, which 24 kbit/s
+  does not. Fullband without FEC was chosen, since the decoder's deep PLC
+  ([Playback](#playback)) covers an isolated lost frame. On a speech sample, 10%
+  gave wideband at about 52 bytes a frame with FEC in most frames, and 5% gave
+  fullband at about 55 bytes without FEC. Complexity 10 produced the same
+  stream as 8.
 - Each frame takes the next 16-bit sequence, rising only with frames sent, so
   one spurt follows the last without a gap; the frame that closes a spurt
   carries `end`.
@@ -160,10 +174,18 @@ Frames of anyone else are dropped on arrival, and their buffers are freed.
   2 frames, or up to 6 (120 ms) as the measured arrival jitter grows, or at once
   with an `end` frame. A late frame is dropped; one 16 or more ahead restarts the
   buffer.
+- **Decoder**: libopus is built with OSCE (`libopus-dnn` in `xmake.lua`), which
+  also builds deep PLC, from the xiph.org release archive that carries the
+  models' weights (about 3 MB in the plugin). Decoder complexity 7
+  (`kDecoderComplexity`) enables deep PLC and NoLACE, which enhances the SILK
+  speech layer. Measured on one core of a desktop CPU over a fullband stream,
+  a frame decoded in about 24 µs at complexity 0, 35 µs with LACE (6), and
+  70 µs with NoLACE, or 200 µs with NoLACE without AVX2; 16 speakers with
+  NoLACE take about 1.1 ms of the playback thread per 20 ms.
 - **Loss**: a missing frame is rebuilt from the next frame's FEC when that has
-  arrived, otherwise concealed by Opus's packet loss concealment; after 5
-  concealed frames (100 ms) the speaker is taken as silent. An `end` frame stops
-  the spurt at once.
+  arrived, otherwise concealed by deep PLC; a next frame without FEC conceals
+  the same way. After 5 concealed frames (100 ms) the speaker is taken as
+  silent. An `end` frame stops the spurt at once.
 - **Cap**: 16 speakers are decoded at once. A new speaker over the cap takes the
   place of the quietest one not playing, or is left out, which bounds the
   playback thread's work in a crowd.

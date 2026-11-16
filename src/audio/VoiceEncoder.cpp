@@ -10,11 +10,12 @@ namespace Audio
 {
     namespace
     {
-        // Wideband speech at a fraction of a checkpoint stream; in-band FEC lets a receiver rebuild
-        // a lost frame from the next one.
         constexpr opus_int32 kBitrate = 24000;
         constexpr int kComplexity = 8;
-        constexpr int kExpectedLossPercent = 10;
+        // libopus's decide_fec narrows the band until in-band FEC fits when the expected loss is
+        // above 5%, and at 24 kbit/s that is wideband; at 5% or less it keeps fullband and leaves
+        // FEC out until the bitrate affords it.
+        constexpr int kExpectedLossPercent = 5;
 
         constexpr float kMeterFloorDecibels = -60.0F;
         constexpr float kMeterFallPerChunk = 0.04F;

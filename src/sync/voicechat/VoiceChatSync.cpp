@@ -36,6 +36,7 @@ namespace VoiceChatSync
         // A cost cap per main-loop pass, not a duration.
         constexpr std::uint32_t kMaximumRaysPerPass = 4;
         constexpr float kSpeakingLevel = 0.05F;
+        constexpr float kBaseInputGain = 1.4F;
 
         Audio::Settings s_settings;
         bool s_configured = false;
@@ -102,7 +103,7 @@ namespace VoiceChatSync
         const Audio::Settings settings{ .active = voice.enabled && state == State::kConnected && GameSession::IsInGame(),
             .inputDevice = voice.inputDevice,
             .outputDevice = voice.outputDevice,
-            .inputGain = inputVolume * inputVolume,
+            .inputGain = kBaseInputGain * inputVolume * inputVolume,
             .outputGain = static_cast<float>(voice.outputVolume) / 100.0F,
             .noiseSuppression = voice.noiseSuppression,
             .voiceActivation = voice.mode == Config::VoiceSettings::kVoiceActivation,

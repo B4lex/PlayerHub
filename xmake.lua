@@ -74,8 +74,33 @@ package("rnnoise")
     end)
 package_end()
 
+-- The xmake-repo libopus recipe leaves out Opus 1.5's neural decoder features: OSCE (LACE and
+-- NoLACE) and, with it, deep PLC. Their weights ship in the xiph.org release archive; GitHub's
+-- source archives, which that recipe tries first, lack them.
+package("libopus-dnn")
+    set_homepage("https://opus-codec.org")
+    set_description("Modern audio compression for the internet, with its neural decoder features")
+    set_license("BSD-3-Clause")
+    set_urls("https://downloads.xiph.org/releases/opus/opus-$(version).tar.gz")
+    add_versions("1.5.2", "65c1d2f78b9f2fb20082c38cbe47c951ad5839345876e46941612ee87f9a7ce1")
+    add_deps("cmake")
+    on_install(function (package)
+        -- xmake chooses the MSVC runtime; Opus's CMakeLists would force its own.
+        io.replace("CMakeLists.txt", [[set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")]], "", { plain = true })
+        io.replace("CMakeLists.txt", [[set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")]], "", { plain = true })
+        import("package.tools.cmake").install(package, {
+            "-DCMAKE_BUILD_TYPE=" .. (package:is_debug() and "Debug" or "Release"),
+            "-DBUILD_SHARED_LIBS=OFF",
+            "-DOPUS_PACKAGE_VERSION=" .. package:version():shortstr(),
+            "-DOPUS_OSCE=ON",
+            "-DOPUS_BUILD_PROGRAMS=OFF",
+            "-DOPUS_BUILD_TESTING=OFF"
+        })
+    end)
+package_end()
+
 add_requires("ixwebsocket-patched v12.0.1", { configs = { use_tls = true, ssl = "mbedtls" } })
-add_requires("libopus 1.5.2")
+add_requires("libopus-dnn 1.5.2")
 -- Device input and output only; src/audio/MiniAudio.c holds the implementation.
 add_requires("miniaudio 0.11.25", { configs = {
     headeronly = true,
@@ -129,7 +154,7 @@ target("PlayerHub")
     add_files("lib/nanopb/*.c")
     add_headerfiles("src/**.h")
     add_includedirs("src", "src/network/proto", "lib/nanopb")
-    add_packages("ixwebsocket-patched", "imgui", "simpleini", "libopus", "miniaudio", "rnnoise")
+    add_packages("ixwebsocket-patched", "imgui", "simpleini", "libopus-dnn", "miniaudio", "rnnoise")
     -- The voice datagrams' socket.
     add_syslinks("ws2_32")
     on_config(function (target)

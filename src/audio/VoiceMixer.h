@@ -32,6 +32,7 @@ namespace Audio
 
     // Plays the voices of the speakers the game thread names: one jitter buffer and Opus decoder
     // per speaker, mixed to stereo. Push runs on the network threads, Render on the playback device's.
+    // Render decodes and mixes outside the lock, so the other threads wait only for its bookkeeping.
     class VoiceMixer
     {
     public:
@@ -56,10 +57,18 @@ namespace Audio
 
         Channel* FindChannelLocked(Multiplayer::PeerSlot a_slot);
         const Speaker* FindSpeakerLocked(Multiplayer::PeerSlot a_slot) const;
+        void MixChannel(Channel& a_channel, std::size_t a_frames);
+        void CollectRetiredLocked(std::vector<std::unique_ptr<Channel>>& a_removed);
 
         std::mutex lock;
         std::vector<Speaker> speakers;
         std::vector<std::unique_ptr<Channel>> channels;
+        // Removed channels wait here while Render may still be mixing them without the lock.
+        std::vector<std::unique_ptr<Channel>> retired;
+        bool mixing{ false };
+
+        // The playback thread's own.
+        std::vector<Channel*> active;
         std::vector<float> mix;
     };
 }

@@ -6,7 +6,9 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <iterator>
 #include <numbers>
+#include <utility>
 
 namespace Audio
 {
@@ -26,6 +28,11 @@ namespace Audio
         // thread's work in a crowd.
         constexpr std::size_t kMaximumChannels = 16;
         constexpr std::size_t kBlockFrames = 1024;
+        // A block needs at most two decoded frames, which Render takes from the ring before mixing.
+        constexpr std::size_t kJobsPerBlock = 2;
+        static_assert(kBlockFrames <= kJobsPerBlock * Multiplayer::kVoiceFrameSamples);
+        // Opus 1.5 decoder complexity: 5 turns on deep PLC, 6 LACE, 7 NoLACE.
+        constexpr int kDecoderComplexity = 7;
 
         constexpr float kOpenCutoffHertz = 20000.0F;
         constexpr float kOccludedCutoffHertz = 900.0F;
@@ -74,6 +81,21 @@ namespace Audio
             std::array<std::uint8_t, Multiplayer::kMaximumVoiceFrameBytes> data{};
         };
 
+        struct Job
+        {
+            enum class Kind : std::uint8_t
+            {
+                kPacket,
+                kRecovery,
+                kConcealment
+            };
+
+            Kind kind{ Kind::kConcealment };
+            bool resetDecoder{ false };
+            std::uint16_t size{ 0 };
+            std::array<std::uint8_t, Multiplayer::kMaximumVoiceFrameBytes> data{};
+        };
+
         explicit Channel(Multiplayer::PeerSlot a_slot) :
             slot(a_slot)
         {
@@ -82,6 +104,10 @@ namespace Audio
             if (error != OPUS_OK)
             {
                 decoder = nullptr;
+            }
+            else
+            {
+                opus_decoder_ctl(decoder, OPUS_SET_COMPLEXITY(kDecoderComplexity));
             }
         }
 
@@ -151,10 +177,8 @@ namespace Audio
                     // A new talk spurt. Spurts number their frames on from the last, so only
                     // the end flag or a pause tells them apart.
                     ClearRing();
-                    if (decoder)
-                    {
-                        opus_decoder_ctl(decoder, OPUS_RESET_STATE);
-                    }
+                    // The playback thread may be decoding the last spurt's frame right now.
+                    resetDecoder = true;
                     next = a_frame.sequence;
                 }
                 else if (ahead <= -static_cast<int>(kRingFrames))
@@ -189,20 +213,21 @@ namespace Audio
             }
         }
 
-        // Fills pcm with the next frame, or returns false while there is none to play.
-        bool DecodeNext()
+        // Under the lock: takes the next frame off the ring for the playback thread to decode, or
+        // returns false while there is none to play.
+        bool TakeNext(Job& a_job)
         {
             if (!playing || !decoder)
             {
                 return false;
             }
             auto& packet = ring[next % kRingFrames];
-            int decoded = 0;
             bool end = false;
             if (packet.present && packet.sequence == next)
             {
-                decoded = opus_decode_float(decoder, packet.data.data(), packet.size, pcm.data(),
-                    static_cast<int>(pcm.size()), 0);
+                a_job.kind = Job::Kind::kPacket;
+                a_job.size = packet.size;
+                std::copy_n(packet.data.begin(), packet.size, a_job.data.begin());
                 end = packet.end;
                 packet.present = false;
                 concealed = 0;
@@ -217,25 +242,53 @@ namespace Audio
                 const auto& following = ring[static_cast<std::uint16_t>(next + 1) % kRingFrames];
                 if (following.present && following.sequence == static_cast<std::uint16_t>(next + 1))
                 {
-                    // The next frame's in-band FEC carries a coarse copy of this one.
-                    decoded = opus_decode_float(decoder, following.data.data(), following.size, pcm.data(),
-                        static_cast<int>(pcm.size()), 1);
+                    a_job.kind = Job::Kind::kRecovery;
+                    a_job.size = following.size;
+                    std::copy_n(following.data.begin(), following.size, a_job.data.begin());
                 }
                 else
                 {
-                    decoded = opus_decode_float(decoder, nullptr, 0, pcm.data(), static_cast<int>(pcm.size()), 0);
+                    a_job.kind = Job::Kind::kConcealment;
                 }
+            }
+            a_job.resetDecoder = std::exchange(resetDecoder, false);
+            ++next;
+            if (end)
+            {
+                playing = false;
+            }
+            return true;
+        }
+
+        // On the playback thread, without the lock.
+        void Decode(const Job& a_job)
+        {
+            if (a_job.resetDecoder)
+            {
+                opus_decoder_ctl(decoder, OPUS_RESET_STATE);
+            }
+            int decoded = 0;
+            switch (a_job.kind)
+            {
+            case Job::Kind::kPacket:
+                decoded = opus_decode_float(decoder, a_job.data.data(), a_job.size, pcm.data(),
+                    static_cast<int>(pcm.size()), 0);
+                break;
+            case Job::Kind::kRecovery:
+                // The next frame's in-band FEC carries a coarse copy of this one; a frame without
+                // FEC decodes as concealment, the same as no packet.
+                decoded = opus_decode_float(decoder, a_job.data.data(), a_job.size, pcm.data(),
+                    static_cast<int>(pcm.size()), 1);
+                break;
+            case Job::Kind::kConcealment:
+                decoded = opus_decode_float(decoder, nullptr, 0, pcm.data(), static_cast<int>(pcm.size()), 0);
+                break;
             }
             if (decoded <= 0)
             {
                 pcm.fill(0.0F);
             }
-            ++next;
             read = 0;
-            if (end)
-            {
-                playing = false;
-            }
 
             float sum = 0.0F;
             for (const auto sample : pcm)
@@ -245,33 +298,41 @@ namespace Audio
             const auto decibels
                 = 10.0F * std::log10((std::max)(sum / static_cast<float>(pcm.size()), 1e-10F));
             const auto frameLevel = std::clamp((decibels - kLevelFloorDecibels) / kLevelRangeDecibels, 0.0F, 1.0F);
-            level = (std::max)(frameLevel, level * kLevelRelease);
-            return true;
+            playbackLevel = (std::max)(frameLevel, playbackLevel * kLevelRelease);
         }
 
         void Release()
         {
-            level *= kLevelRelease;
-            if (level < kSilentLevel)
+            playbackLevel *= kLevelRelease;
+            if (playbackLevel < kSilentLevel)
             {
-                level = 0.0F;
+                playbackLevel = 0.0F;
             }
         }
 
+        // Under the lock.
         Multiplayer::PeerSlot slot;
         OpusDecoder* decoder{ nullptr };
         std::array<Packet, kRingFrames> ring{};
         std::uint16_t next{ 0 };
         bool playing{ false };
+        bool resetDecoder{ false };
         int concealed{ 0 };
         bool received{ false };
         Clock::time_point lastArrival{};
         float jitter{ 0.0F };
-
-        std::array<float, Multiplayer::kVoiceFrameSamples> pcm{};
-        std::size_t read{ Multiplayer::kVoiceFrameSamples };
         float level{ 0.0F };
 
+        // The playback thread's; the targets and jobs are written under the lock and read without it.
+        bool hasSpeaker{ false };
+        float targetGain{ 0.0F };
+        float targetPan{ 0.0F };
+        float targetOcclusion{ 0.0F };
+        std::array<Job, kJobsPerBlock> jobs{};
+        std::size_t jobCount{ 0 };
+        std::array<float, Multiplayer::kVoiceFrameSamples> pcm{};
+        std::size_t read{ Multiplayer::kVoiceFrameSamples };
+        float playbackLevel{ 0.0F };
         float gain{ 0.0F };
         float pan{ 0.0F };
         float occlusion{ 0.0F };
@@ -281,6 +342,7 @@ namespace Audio
     VoiceMixer::VoiceMixer()
     {
         mix.resize(kBlockFrames * 2);
+        active.reserve(kMaximumChannels);
     }
 
     VoiceMixer::~VoiceMixer() = default;
@@ -321,6 +383,7 @@ namespace Audio
                 {
                     return;
                 }
+                retired.push_back(std::move(*quietest));
                 channels.erase(quietest);
             }
             channel = channels.emplace_back(std::make_unique<Channel>(a_frame.speaker)).get();
@@ -331,9 +394,17 @@ namespace Audio
         channel->Insert(a_frame, now);
     }
 
+    void VoiceMixer::CollectRetiredLocked(std::vector<std::unique_ptr<Channel>>& a_removed)
+    {
+        if (!mixing)
+        {
+            a_removed.swap(retired);
+        }
+    }
+
     void VoiceMixer::SetSpeakers(std::span<const Speaker> a_speakers)
     {
-        // Decoders are destroyed here rather than on the playback thread.
+        // Decoders are destroyed here, after the lock, rather than on the playback thread.
         std::vector<std::unique_ptr<Channel>> removed;
         const std::scoped_lock guard{ lock };
         speakers.assign(a_speakers.begin(), a_speakers.end());
@@ -343,51 +414,95 @@ namespace Audio
             const auto* speaker = FindSpeakerLocked(channel->slot);
             if (!speaker || speaker->gain <= 0.0F)
             {
-                removed.push_back(std::move(channel));
+                retired.push_back(std::move(channel));
             }
         }
         std::erase(channels, nullptr);
+        CollectRetiredLocked(removed);
+    }
+
+    void VoiceMixer::MixChannel(Channel& a_channel, std::size_t a_frames)
+    {
+        // Pan and occlusion move once per block, a few milliseconds, which is smooth enough for
+        // them and spares an exponential and two cosines per sample.
+        const auto step = (std::min)(1.0F, static_cast<float>(a_frames) * kParameterSmoothing);
+        if (a_channel.hasSpeaker)
+        {
+            a_channel.pan += (a_channel.targetPan - a_channel.pan) * step;
+            a_channel.occlusion += (a_channel.targetOcclusion - a_channel.occlusion) * step;
+        }
+        const auto coefficient = LowpassCoefficient(a_channel.occlusion);
+        const auto occlusionGain = std::lerp(1.0F, kOccludedGain, a_channel.occlusion);
+        // Equal power across the stereo field.
+        const auto angle = (std::clamp(a_channel.pan, -1.0F, 1.0F) + 1.0F) * std::numbers::pi_v<float> / 4.0F;
+        const auto left = std::cos(angle) * occlusionGain;
+        const auto right = std::sin(angle) * occlusionGain;
+        std::size_t job = 0;
+        for (std::size_t i = 0; i < a_frames; ++i)
+        {
+            if (a_channel.read >= a_channel.pcm.size())
+            {
+                if (job == a_channel.jobCount)
+                {
+                    a_channel.Release();
+                    break;
+                }
+                a_channel.Decode(a_channel.jobs[job++]);
+            }
+            a_channel.gain += (a_channel.targetGain - a_channel.gain) * kParameterSmoothing;
+            a_channel.lowpass += (a_channel.pcm[a_channel.read++] - a_channel.lowpass) * coefficient;
+            const auto sample = a_channel.lowpass * a_channel.gain;
+            mix[i * 2] += sample * left;
+            mix[i * 2 + 1] += sample * right;
+        }
     }
 
     void VoiceMixer::Render(float* a_stereo, std::size_t a_frames, float a_masterGain)
     {
-        const std::scoped_lock guard{ lock };
         while (a_frames > 0)
         {
             const auto block = (std::min)(a_frames, kBlockFrames);
-            std::fill_n(mix.begin(), block * 2, 0.0F);
-            for (auto& channel : channels)
             {
-                const auto* speaker = FindSpeakerLocked(channel->slot);
-                const auto targetGain = speaker ? speaker->gain : 0.0F;
-                // Pan and occlusion move once per block, a few milliseconds, which is smooth enough
-                // for them and spares an exponential and two cosines per sample.
-                const auto step = (std::min)(1.0F, static_cast<float>(block) * kParameterSmoothing);
-                if (speaker)
+                const std::scoped_lock guard{ lock };
+                mixing = true;
+                active.clear();
+                for (const auto& channel : channels)
                 {
-                    channel->pan += (speaker->pan - channel->pan) * step;
-                    channel->occlusion += (speaker->occlusion - channel->occlusion) * step;
-                }
-                const auto coefficient = LowpassCoefficient(channel->occlusion);
-                const auto occlusionGain = std::lerp(1.0F, kOccludedGain, channel->occlusion);
-                // Equal power across the stereo field.
-                const auto angle = (std::clamp(channel->pan, -1.0F, 1.0F) + 1.0F) * std::numbers::pi_v<float> / 4.0F;
-                const auto left = std::cos(angle) * occlusionGain;
-                const auto right = std::sin(angle) * occlusionGain;
-                for (std::size_t i = 0; i < block; ++i)
-                {
-                    if (channel->read >= channel->pcm.size() && !channel->DecodeNext())
+                    const auto* speaker = FindSpeakerLocked(channel->slot);
+                    channel->hasSpeaker = speaker != nullptr;
+                    channel->targetGain = speaker ? speaker->gain : 0.0F;
+                    if (speaker)
                     {
-                        channel->Release();
-                        break;
+                        channel->targetPan = speaker->pan;
+                        channel->targetOcclusion = speaker->occlusion;
                     }
-                    channel->gain += (targetGain - channel->gain) * kParameterSmoothing;
-                    channel->lowpass += (channel->pcm[channel->read++] - channel->lowpass) * coefficient;
-                    const auto sample = channel->lowpass * channel->gain;
-                    mix[i * 2] += sample * left;
-                    mix[i * 2 + 1] += sample * right;
+                    channel->jobCount = 0;
+                    auto buffered = channel->pcm.size() - channel->read;
+                    while (buffered < block && channel->jobCount < kJobsPerBlock
+                           && channel->TakeNext(channel->jobs[channel->jobCount]))
+                    {
+                        ++channel->jobCount;
+                        buffered += channel->pcm.size();
+                    }
+                    active.push_back(channel.get());
                 }
             }
+
+            std::fill_n(mix.begin(), block * 2, 0.0F);
+            for (auto* channel : active)
+            {
+                MixChannel(*channel, block);
+            }
+
+            {
+                const std::scoped_lock guard{ lock };
+                for (auto* channel : active)
+                {
+                    channel->level = channel->playbackLevel;
+                }
+                mixing = false;
+            }
+
             for (std::size_t i = 0; i < block * 2; ++i)
             {
                 a_stereo[i] = Limit(mix[i] * a_masterGain);
@@ -414,7 +529,9 @@ namespace Audio
     {
         std::vector<std::unique_ptr<Channel>> removed;
         const std::scoped_lock guard{ lock };
-        removed.swap(channels);
+        std::ranges::move(channels, std::back_inserter(retired));
+        channels.clear();
         speakers.clear();
+        CollectRetiredLocked(removed);
     }
 }
