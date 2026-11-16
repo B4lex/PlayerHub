@@ -667,11 +667,11 @@ msgid "Disconnected"
 msgstr ""
 
 msgctxt "ConnectionDisconnectToRename"
-msgid "Disconnect to change the display name"
+msgid "Disconnect to change the display name."
 msgstr ""
 
 msgctxt "ConnectionCancelToRename"
-msgid "Cancel the connection to change the display name"
+msgid "Cancel the connection to change the display name."
 msgstr ""
 
 msgctxt "ConnectionNoEndpoint"
@@ -1446,7 +1446,7 @@ msgid "Voice"
 msgstr ""
 
 msgctxt "VoiceComment"
-msgid "Talk to the players near you; their voices come from their characters."
+msgid "Talk to the players near you."
 msgstr ""
 
 msgctxt "VoiceEnabled"
@@ -1464,14 +1464,11 @@ msgid "Microphone"
 msgstr ""
 
 msgctxt "VoiceMode"
-msgid "Transmit"
+msgid "Activation"
 msgstr ""
 
 msgctxt "VoiceModeComment"
-msgid ""
-"Push to talk sends your voice while you hold the microphone key. Voice "
-"activation sends it while you speak, and the key turns your microphone off "
-"and on."
+msgid "How microphone is activated."
 msgstr ""
 
 msgctxt "VoiceModePushToTalk"
@@ -1487,13 +1484,15 @@ msgid "Input level"
 msgstr ""
 
 msgctxt "VoiceInputLevelComment"
-msgid ""
-"How loud your microphone is. It fills in the accent color while others hear "
-"you."
+msgid "How loud your microphone is."
 msgstr ""
 
 msgctxt "VoiceMeterClosed"
 msgid "Opens while connected to a server with voice chat"
+msgstr ""
+
+msgctxt "VoiceRelayUnreachable"
+msgid "The voice relay cannot be reached; your network may block UDP"
 msgstr ""
 
 msgctxt "VoiceActivationLevel"
@@ -1501,8 +1500,7 @@ msgid "Activation level"
 msgstr ""
 
 msgctxt "VoiceActivationLevelComment"
-msgid ""
-"How loud you must speak to be heard. The mark on the input level shows it."
+msgid "How loud you must speak to be heard."
 msgstr ""
 
 msgctxt "VoiceNoiseSuppression"
@@ -1555,14 +1553,6 @@ msgctxt "VoiceOutputVolumeComment"
 msgid "How loud other players' voices play."
 msgstr ""
 
-msgctxt "VoiceLipSync"
-msgid "Lip sync"
-msgstr ""
-
-msgctxt "VoiceLipSyncComment"
-msgid "Moves other players' characters' mouths while they speak."
-msgstr ""
-
 msgctxt "ControlsMicrophone"
 msgid "Microphone"
 msgstr ""
@@ -1581,14 +1571,5 @@ msgctxt "PlayerMenuVoiceVolumeHint"
 msgid "How loud their voice plays for you. They are not told."
 msgstr ""
 
-msgctxt "StatusVoice"
-msgid "Voice"
-msgstr ""
 
-msgctxt "StatusVoiceDatagrams"
-msgid "UDP"
-msgstr ""
 
-msgctxt "StatusVoiceWebSocket"
-msgid "WebSocket"
-msgstr ""
