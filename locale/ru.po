@@ -301,26 +301,16 @@ msgid "Horizontal position"
 msgstr "Положение по горизонтали"
 
 msgctxt "UIChatHorizontalComment"
-msgid ""
-"Distance of the chat's left edge from the screen's left edge, as a share of "
-"the\n"
-"screen's width. The chat stays on the screen."
-msgstr ""
-"Расстояние от левого края чата до левого края экрана как доля ширины экрана. "
-"Чат остаётся на экране."
+msgid "Chat horizontal position."
+msgstr "Положение чата по горизонтали."
 
 msgctxt "UIChatVertical"
 msgid "Vertical position"
 msgstr "Положение по вертикали"
 
 msgctxt "UIChatVerticalComment"
-msgid ""
-"Distance of the chat's bottom edge from the screen's bottom edge, as a share "
-"of\n"
-"the screen's height. The chat stays on the screen."
-msgstr ""
-"Расстояние от нижнего края чата до нижнего края экрана как доля высоты "
-"экрана. Чат остаётся на экране."
+msgid "Chat vertical position."
+msgstr "Положение чата по вертикали."
 
 msgctxt "UIGroupItems"
 msgid "Items"
@@ -702,12 +692,12 @@ msgid "Disconnected"
 msgstr "Отключено"
 
 msgctxt "ConnectionDisconnectToRename"
-msgid "Disconnect to change the display name"
-msgstr "Отключитесь, чтобы изменить отображаемое имя"
+msgid "Disconnect to change the display name."
+msgstr "Отключитесь, чтобы изменить отображаемое имя."
 
 msgctxt "ConnectionCancelToRename"
-msgid "Cancel the connection to change the display name"
-msgstr "Отмените подключение, чтобы изменить отображаемое имя"
+msgid "Cancel the connection to change the display name."
+msgstr "Отмените подключение, чтобы изменить отображаемое имя."
 
 msgctxt "ConnectionNoEndpoint"
 msgid "Enter a custom server URL to connect."
@@ -1007,8 +997,8 @@ msgid "Mute"
 msgstr "Заглушить"
 
 msgctxt "PlayerMenuMuteHint"
-msgid "Hide their messages in every channel."
-msgstr "Скрыть его сообщения во всех каналах."
+msgid "Hide their messages in every channel and silence their voice."
+msgstr "Скрыть его сообщения во всех каналах и заглушить его голос."
 
 msgctxt "PlayerMenuUnmuteHint"
 msgid "Show their messages again."
@@ -1494,3 +1484,149 @@ msgstr "{} не в сети"
 msgctxt "ItemUnknownEffect"
 msgid "Unknown effect"
 msgstr "Неизвестный эффект"
+
+msgctxt "SectionVoice"
+msgid "Voice"
+msgstr "Голос"
+
+msgctxt "VoiceComment"
+msgid "Talk to the players near you."
+msgstr "Говорите с игроками поблизости."
+
+msgctxt "VoiceEnabled"
+msgid "Voice chat"
+msgstr "Голосовой чат"
+
+msgctxt "VoiceEnabledComment"
+msgid ""
+"Hear the players near you and let them hear you. Off keeps your microphone "
+"and speakers closed."
+msgstr ""
+"Слышите игроков поблизости, и они слышат вас. Когда выключено, микрофон и "
+"динамики закрыты."
+
+msgctxt "VoiceGroupMicrophone"
+msgid "Microphone"
+msgstr "Микрофон"
+
+msgctxt "VoiceMode"
+msgid "Activation"
+msgstr "Активация"
+
+msgctxt "VoiceModeComment"
+msgid "How microphone is activated."
+msgstr "Как активируется микрофон."
+
+msgctxt "VoiceModePushToTalk"
+msgid "Push to talk"
+msgstr "Нажми и говори"
+
+msgctxt "VoiceModeVoiceActivation"
+msgid "Voice activation"
+msgstr "Активация голосом"
+
+msgctxt "VoiceInputLevel"
+msgid "Input level"
+msgstr "Уровень входа"
+
+msgctxt "VoiceInputLevelComment"
+msgid "How loud your microphone is."
+msgstr "Громкость вашего микрофона."
+
+msgctxt "VoiceRelayUnreachable"
+msgid "The voice relay cannot be reached; your network may block UDP"
+msgstr "Голосовой ретранслятор недоступен; возможно, ваша сеть блокирует UDP"
+
+msgctxt "VoiceActivationLevel"
+msgid "Activation level"
+msgstr "Порог активации"
+
+msgctxt "VoiceActivationLevelComment"
+msgid "How loud you must speak to be heard."
+msgstr "Насколько громко нужно говорить, чтобы вас услышали."
+
+msgctxt "VoiceNoiseSuppression"
+msgid "Noise suppression"
+msgstr "Шумоподавление"
+
+msgctxt "VoiceNoiseSuppressionComment"
+msgid "Removes background noise, such as fans and typing."
+msgstr "Убирает фоновый шум, например вентиляторы и набор текста."
+
+msgctxt "VoiceInputDevice"
+msgid "Input device"
+msgstr "Устройство ввода"
+
+msgctxt "VoiceInputDeviceComment"
+msgid "The microphone voice chat uses."
+msgstr "Микрофон голосового чата."
+
+msgctxt "VoiceDefaultDevice"
+msgid "System default"
+msgstr "По умолчанию в системе"
+
+msgctxt "VoiceInputVolume"
+msgid "Microphone volume"
+msgstr "Громкость микрофона"
+
+msgctxt "VoiceInputVolumeComment"
+msgid "How loud other players hear you."
+msgstr "Насколько громко вас слышат другие игроки."
+
+msgctxt "VoiceGroupPlayers"
+msgid "Other players"
+msgstr "Другие игроки"
+
+msgctxt "VoiceOutputDevice"
+msgid "Output device"
+msgstr "Устройство вывода"
+
+msgctxt "VoiceOutputDeviceComment"
+msgid "Where other players' voices play."
+msgstr "Где звучат голоса других игроков."
+
+msgctxt "VoiceOutputVolume"
+msgid "Voice volume"
+msgstr "Громкость голосов"
+
+msgctxt "VoiceOutputVolumeComment"
+msgid "How loud other players' voices play."
+msgstr "Насколько громко звучат голоса других игроков."
+
+msgctxt "VoiceGroupIndicator"
+msgid "Indicator"
+msgstr "Индикатор"
+
+msgctxt "VoiceIndicator"
+msgid "Microphone indicator"
+msgstr "Индикатор микрофона"
+
+msgctxt "VoiceIndicatorComment"
+msgid "Shows a microphone on the screen while other players can hear you."
+msgstr "Показывает микрофон на экране, пока вас слышат другие игроки."
+
+msgctxt "VoiceIndicatorHorizontal"
+msgid "Horizontal position"
+msgstr "Положение по горизонтали"
+
+msgctxt "VoiceIndicatorHorizontalComment"
+msgid "Microphone indicator horizontal position."
+msgstr "Положение индикатора микрофона по горизонтали."
+
+msgctxt "VoiceIndicatorVertical"
+msgid "Vertical position"
+msgstr "Положение по вертикали"
+
+msgctxt "VoiceIndicatorVerticalComment"
+msgid "Microphone indicator vertical position."
+msgstr "Положение индикатора микрофона по вертикали."
+
+msgctxt "ControlsMicrophone"
+msgid "Microphone"
+msgstr "Микрофон"
+
+msgctxt "ControlsMicrophoneComment"
+msgid "Hold to talk with push to talk. Not used with voice activation."
+msgstr ""
+"Удерживайте, чтобы говорить, в режиме «нажми и говори». При активации "
+"голосом не используется."

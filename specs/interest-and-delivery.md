@@ -11,7 +11,8 @@ client applies them is in [Sync pipeline](sync-pipeline.md#receive-state).
 Nearby chat compares the same spaces and horizontal distance but is routed
 without subscriptions ([Network](network.md#chat)), and the hub tells each
 client which players it reaches without them
-([Network](network.md#nearby-players)).
+([Network](network.md#nearby-players)). Voice follows the subscriptions
+within a radius ([Voice listeners](#voice-listeners)).
 
 ## Components
 
@@ -22,7 +23,8 @@ client which players it reaches without them
 | `interest.Hidden`, `interest.Pairs` | The admin exclusion rules |
 | `hub.Hub` | All world state; subscriptions; turns accepted messages into outbox traffic. Methods run on one goroutine and take an injectable clock |
 | `hub.Loop` | Runs a hub: submitted work in order, a tick per send phase, and the interest pass at `interest.update_hz` |
-| `delivery.Outbox` | One recipient's pending traffic: latest-wins checkpoints, ordered messages, latest-wins presentation; rate classes, the budget's choice of checkpoints, and the per-peer pose references posed entries are encoded against |
+| `delivery.Outbox` | One recipient's pending traffic: latest-wins checkpoints, ordered messages, latest-wins presentation, a bounded voice queue; rate classes, the budget's choice of checkpoints, and the per-peer pose references posed entries are encoded against |
+| `voice.Relay`, `voice.Endpoint` | Forwards a speaker's frames to the listeners the hub sets ([Voice listeners](#voice-listeners)) |
 | `delivery.Budget` | The uplink shared by every recipient |
 | `delivery.Batch` | One drain of an outbox, written as WebSocket messages |
 | `session` writer | Waits for its outbox, drains it, and writes |
@@ -254,6 +256,30 @@ what limits the rate, or every player's latency rises.
   connection. While a slow client writes, its outbox keeps only the newest
   checkpoint per peer; ordered messages accumulate until
   `limits.ordered_backlog`, which closes the connection with status 4002.
+
+## Voice listeners
+
+A speaker's voice reaches the clients that receive it as a peer within
+`voice.radius` (3072, horizontal like interest): `Hub.updateVoiceTargets`
+walks the speaker's subscribers that have a voice endpoint and gives the
+speaker's `voice.Endpoint` the ones within the radius (`SetTargets`), only
+when the set changes. A listener therefore always has the speaker's
+character to place the voice at, and space, exclusions, hiding, vanishing,
+and the visible cap apply to voice as to presentation; like them, a vanish is
+one-way. A speaker that is not placed has no listeners.
+
+- The interest pass recomputes every speaker, since distances change without
+  subscriptions changing. A subscription that starts or ends, an exit, a
+  context that unplaces, and a disconnect mark the speaker
+  (`Hub.markVoice`), and the next tick recomputes it, so a vanished or
+  departed listener stops hearing within a send phase.
+- The relay reads each speaker's listeners as an atomically swapped slice and
+  forwards on the UDP reader goroutine that read the frame (one per CPU), never
+  on the hub's.
+- Each listener whose address the relay knows gets the frame encrypted under
+  its own key; one that has sent no authentic datagram yet gets nothing
+  ([Network](network.md#voice)). Voice never passes through an outbox, so it
+  neither counts towards `limits.ordered_backlog` nor spends the send budget.
 
 ## Admin controls
 

@@ -9,6 +9,7 @@
 #include "protocol/Quantization.h"
 #include "protocol/Session.h"
 #include "protocol/TradeState.h"
+#include "protocol/VoiceFrame.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -62,6 +63,7 @@ namespace Network::Wire
         Multiplayer::SessionID sessionID{ 0 };
         std::string displayName;
         std::optional<Multiplayer::SessionToken> issuedToken;
+        std::optional<Multiplayer::VoiceAccess> voice;
     };
 
     struct ChatResult

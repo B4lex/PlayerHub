@@ -14,6 +14,7 @@
 #include "ui/hud/NameplateLayer.h"
 #include "ui/hud/NoticeStack.h"
 #include "ui/hud/StatusPanel.h"
+#include "ui/hud/VoiceIndicator.h"
 #include "ui/preview/ItemPreview.h"
 #include "ui/render/Backdrop.h"
 #include "ui/render/Gpu.h"
@@ -229,6 +230,8 @@ namespace UI::Overlay
         WindowManager::Register(CreateTradeWindow());
         // After the trade window, which places the chat's column in the frame it draws.
         WindowManager::Register(CreateChatWindow());
+        // After the trade window, whose backdrop on the background draw list would cover it.
+        WindowManager::Register(CreateVoiceIndicator());
         WindowManager::Register(CreateSettingsWindow());
         InputCapture::Install();
         InputLanguage::Install();

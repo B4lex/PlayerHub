@@ -46,7 +46,76 @@ package("ixwebsocket-patched")
         "a4b1d6b3769289f6e775d757fc25ff7805862276d7e4e2adf22fc321a25d4de3")
 package_end()
 
+-- RNNoise is not in xmake-repo. Its 0.2 release archive carries the model weights, which the
+-- repository's sources download separately, so the package builds from the archive.
+package("rnnoise")
+    set_homepage("https://gitlab.xiph.org/xiph/rnnoise")
+    set_description("Recurrent neural network for audio noise reduction")
+    set_license("BSD-3-Clause")
+    set_urls("https://github.com/xiph/rnnoise/releases/download/v$(version)/rnnoise-$(version).tar.gz")
+    add_versions("0.2", "90fce4b00b9ff24c08dbfe31b82ffd43bae383d85c5535676d28b0a2b11c0d37")
+    on_install(function (package)
+        -- The release's C fallback of its vector code includes os_support.h, which the archive
+        -- lacks, so the build takes the SSE2 path every x64 CPU has. MSVC does not define
+        -- __SSE2__; src/x86/x86_arch_macros.h derives it from the OPUS_X86_MAY_HAVE_* defines.
+        io.writefile("xmake.lua", [[
+            add_rules("mode.debug", "mode.release")
+            target("rnnoise")
+                set_kind("static")
+                set_languages("c11")
+                add_defines("OPUS_X86_MAY_HAVE_SSE", "OPUS_X86_MAY_HAVE_SSE2")
+                add_files("src/denoise.c", "src/rnn.c", "src/pitch.c", "src/kiss_fft.c", "src/celt_lpc.c",
+                    "src/nnet.c", "src/nnet_default.c", "src/parse_lpcnet_weights.c", "src/rnnoise_data.c",
+                    "src/rnnoise_tables.c")
+                add_includedirs("include", "src")
+                add_headerfiles("include/rnnoise.h")
+        ]])
+        import("package.tools.xmake").install(package)
+    end)
+package_end()
+
+-- The xmake-repo libopus recipe leaves out Opus 1.5's neural decoder features: OSCE (LACE and
+-- NoLACE) and, with it, deep PLC. Their weights ship in the xiph.org release archive; GitHub's
+-- source archives, which that recipe tries first, lack them.
+package("libopus-dnn")
+    set_homepage("https://opus-codec.org")
+    set_description("Modern audio compression for the internet, with its neural decoder features")
+    set_license("BSD-3-Clause")
+    set_urls("https://downloads.xiph.org/releases/opus/opus-$(version).tar.gz")
+    add_versions("1.5.2", "65c1d2f78b9f2fb20082c38cbe47c951ad5839345876e46941612ee87f9a7ce1")
+    add_deps("cmake")
+    on_install(function (package)
+        -- xmake chooses the MSVC runtime; Opus's CMakeLists would force its own.
+        io.replace("CMakeLists.txt", [[set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")]], "", { plain = true })
+        io.replace("CMakeLists.txt", [[set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")]], "", { plain = true })
+        import("package.tools.cmake").install(package, {
+            "-DCMAKE_BUILD_TYPE=" .. (package:is_debug() and "Debug" or "Release"),
+            "-DBUILD_SHARED_LIBS=OFF",
+            "-DOPUS_PACKAGE_VERSION=" .. package:version():shortstr(),
+            "-DOPUS_OSCE=ON",
+            "-DOPUS_BUILD_PROGRAMS=OFF",
+            "-DOPUS_BUILD_TESTING=OFF"
+        })
+    end)
+package_end()
+
 add_requires("ixwebsocket-patched v12.0.1", { configs = { use_tls = true, ssl = "mbedtls" } })
+add_requires("libopus-dnn 1.5.2")
+-- Device input and output only; src/audio/MiniAudio.c holds the implementation.
+add_requires("miniaudio 0.11.25", { configs = {
+    headeronly = true,
+    enabled_backends = { "wasapi", "dsound", "winmm" },
+    decoding = false,
+    encoding = false,
+    engine = false,
+    node_graph = false,
+    resource_manager = false,
+    generation = false,
+    flac = false,
+    mp3 = false,
+    wav = false
+} })
+add_requires("rnnoise 0.2")
 -- mbedtls 4 returns MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET from
 -- mbedtls_ssl_read for every TLS 1.3 ticket, which IXWebSocket 12 treats as a
 -- failed read. mbedtls 3.6 ignores tickets unless the client opts in.
@@ -85,7 +154,9 @@ target("PlayerHub")
     add_files("lib/nanopb/*.c")
     add_headerfiles("src/**.h")
     add_includedirs("src", "src/network/proto", "lib/nanopb")
-    add_packages("ixwebsocket-patched", "imgui", "simpleini")
+    add_packages("ixwebsocket-patched", "imgui", "simpleini", "libopus-dnn", "miniaudio", "rnnoise")
+    -- The voice datagrams' socket.
+    add_syslinks("ws2_32")
     on_config(function (target)
         -- The value becomes a C string literal.
         local endpoint = get_config("server_endpoint") or ""

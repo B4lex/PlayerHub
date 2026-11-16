@@ -304,26 +304,16 @@ msgid "Horizontal position"
 msgstr "Horizontale Position"
 
 msgctxt "UIChatHorizontalComment"
-msgid ""
-"Distance of the chat's left edge from the screen's left edge, as a share of "
-"the\n"
-"screen's width. The chat stays on the screen."
-msgstr ""
-"Abstand des linken Chatrands vom linken Bildschirmrand, als Anteil der "
-"Bildschirmbreite. Der Chat bleibt auf dem Bildschirm."
+msgid "Chat horizontal position."
+msgstr "Horizontale Position des Chats."
 
 msgctxt "UIChatVertical"
 msgid "Vertical position"
 msgstr "Vertikale Position"
 
 msgctxt "UIChatVerticalComment"
-msgid ""
-"Distance of the chat's bottom edge from the screen's bottom edge, as a share "
-"of\n"
-"the screen's height. The chat stays on the screen."
-msgstr ""
-"Abstand des unteren Chatrands vom unteren Bildschirmrand, als Anteil der "
-"Bildschirmhöhe. Der Chat bleibt auf dem Bildschirm."
+msgid "Chat vertical position."
+msgstr "Vertikale Position des Chats."
 
 msgctxt "UIGroupItems"
 msgid "Items"
@@ -709,12 +699,12 @@ msgid "Disconnected"
 msgstr "Getrennt"
 
 msgctxt "ConnectionDisconnectToRename"
-msgid "Disconnect to change the display name"
-msgstr "Trenne die Verbindung, um den Anzeigenamen zu ändern"
+msgid "Disconnect to change the display name."
+msgstr "Trenne die Verbindung, um den Anzeigenamen zu ändern."
 
 msgctxt "ConnectionCancelToRename"
-msgid "Cancel the connection to change the display name"
-msgstr "Brich die Verbindung ab, um den Anzeigenamen zu ändern"
+msgid "Cancel the connection to change the display name."
+msgstr "Brich die Verbindung ab, um den Anzeigenamen zu ändern."
 
 msgctxt "ConnectionNoEndpoint"
 msgid "Enter a custom server URL to connect."
@@ -1014,8 +1004,10 @@ msgid "Mute"
 msgstr "Stummschalten"
 
 msgctxt "PlayerMenuMuteHint"
-msgid "Hide their messages in every channel."
-msgstr "Nachrichten des Spielers in allen Kanälen ausblenden."
+msgid "Hide their messages in every channel and silence their voice."
+msgstr ""
+"Nachrichten des Spielers in allen Kanälen ausblenden und seine Stimme "
+"stummschalten."
 
 msgctxt "PlayerMenuUnmuteHint"
 msgid "Show their messages again."
@@ -1503,3 +1495,150 @@ msgstr "{} ist offline"
 msgctxt "ItemUnknownEffect"
 msgid "Unknown effect"
 msgstr "Unbekannter Effekt"
+
+msgctxt "SectionVoice"
+msgid "Voice"
+msgstr "Sprachchat"
+
+msgctxt "VoiceComment"
+msgid "Talk to the players near you."
+msgstr "Sprich mit Spielern in deiner Nähe."
+
+msgctxt "VoiceEnabled"
+msgid "Voice chat"
+msgstr "Sprachchat"
+
+msgctxt "VoiceEnabledComment"
+msgid ""
+"Hear the players near you and let them hear you. Off keeps your microphone "
+"and speakers closed."
+msgstr ""
+"Höre Spieler in deiner Nähe und lass dich von ihnen hören. Aus lässt "
+"Mikrofon und Lautsprecher geschlossen."
+
+msgctxt "VoiceGroupMicrophone"
+msgid "Microphone"
+msgstr "Mikrofon"
+
+msgctxt "VoiceMode"
+msgid "Activation"
+msgstr "Aktivierung"
+
+msgctxt "VoiceModeComment"
+msgid "How microphone is activated."
+msgstr "Wie das Mikrofon aktiviert wird."
+
+msgctxt "VoiceModePushToTalk"
+msgid "Push to talk"
+msgstr "Push-to-Talk"
+
+msgctxt "VoiceModeVoiceActivation"
+msgid "Voice activation"
+msgstr "Sprachaktivierung"
+
+msgctxt "VoiceInputLevel"
+msgid "Input level"
+msgstr "Eingangspegel"
+
+msgctxt "VoiceInputLevelComment"
+msgid "How loud your microphone is."
+msgstr "Wie laut dein Mikrofon ist."
+
+msgctxt "VoiceRelayUnreachable"
+msgid "The voice relay cannot be reached; your network may block UDP"
+msgstr "Der Sprachserver ist nicht erreichbar; dein Netzwerk blockiert vielleicht UDP"
+
+msgctxt "VoiceActivationLevel"
+msgid "Activation level"
+msgstr "Aktivierungspegel"
+
+msgctxt "VoiceActivationLevelComment"
+msgid "How loud you must speak to be heard."
+msgstr "Wie laut du sprechen musst, um gehört zu werden."
+
+msgctxt "VoiceNoiseSuppression"
+msgid "Noise suppression"
+msgstr "Rauschunterdrückung"
+
+msgctxt "VoiceNoiseSuppressionComment"
+msgid "Removes background noise, such as fans and typing."
+msgstr "Entfernt Hintergrundgeräusche wie Lüfter und Tippen."
+
+msgctxt "VoiceInputDevice"
+msgid "Input device"
+msgstr "Eingabegerät"
+
+msgctxt "VoiceInputDeviceComment"
+msgid "The microphone voice chat uses."
+msgstr "Das Mikrofon, das der Sprachchat verwendet."
+
+msgctxt "VoiceDefaultDevice"
+msgid "System default"
+msgstr "Systemstandard"
+
+msgctxt "VoiceInputVolume"
+msgid "Microphone volume"
+msgstr "Mikrofonlautstärke"
+
+msgctxt "VoiceInputVolumeComment"
+msgid "How loud other players hear you."
+msgstr "Wie laut andere Spieler dich hören."
+
+msgctxt "VoiceGroupPlayers"
+msgid "Other players"
+msgstr "Andere Spieler"
+
+msgctxt "VoiceOutputDevice"
+msgid "Output device"
+msgstr "Ausgabegerät"
+
+msgctxt "VoiceOutputDeviceComment"
+msgid "Where other players' voices play."
+msgstr "Wo die Stimmen anderer Spieler abgespielt werden."
+
+msgctxt "VoiceOutputVolume"
+msgid "Voice volume"
+msgstr "Stimmenlautstärke"
+
+msgctxt "VoiceOutputVolumeComment"
+msgid "How loud other players' voices play."
+msgstr "Wie laut die Stimmen anderer Spieler abgespielt werden."
+
+msgctxt "VoiceGroupIndicator"
+msgid "Indicator"
+msgstr "Anzeige"
+
+msgctxt "VoiceIndicator"
+msgid "Microphone indicator"
+msgstr "Mikrofonanzeige"
+
+msgctxt "VoiceIndicatorComment"
+msgid "Shows a microphone on the screen while other players can hear you."
+msgstr ""
+"Zeigt ein Mikrofon auf dem Bildschirm, solange andere Spieler dich hören "
+"können."
+
+msgctxt "VoiceIndicatorHorizontal"
+msgid "Horizontal position"
+msgstr "Horizontale Position"
+
+msgctxt "VoiceIndicatorHorizontalComment"
+msgid "Microphone indicator horizontal position."
+msgstr "Horizontale Position der Mikrofonanzeige."
+
+msgctxt "VoiceIndicatorVertical"
+msgid "Vertical position"
+msgstr "Vertikale Position"
+
+msgctxt "VoiceIndicatorVerticalComment"
+msgid "Microphone indicator vertical position."
+msgstr "Vertikale Position der Mikrofonanzeige."
+
+msgctxt "ControlsMicrophone"
+msgid "Microphone"
+msgstr "Mikrofon"
+
+msgctxt "ControlsMicrophoneComment"
+msgid "Hold to talk with push to talk. Not used with voice activation."
+msgstr ""
+"Halten zum Sprechen bei Push-to-Talk. Bei Sprachaktivierung ohne Funktion."

@@ -8,7 +8,7 @@ option go_package = "playerhub/server/internal/wire/pb;pb";
 
 enum Protocol {
   PROTOCOL_UNSPECIFIED = 0;
-  PROTOCOL_VERSION = 15;
+  PROTOCOL_VERSION = 16;
 }
 
 message Hello {
@@ -180,11 +180,21 @@ message ClientMessage {
   }
 }
 
+// The voice datagram endpoint and this connection's key; absent when the server carries no voice.
+message VoiceAccess {
+  string host = 1;
+  uint32 port = 2;
+  uint32 id = 3;
+  bytes key = 4;
+  uint32 radius = 5;
+}
+
 message Welcome {
   uint32 slot = 1;
   uint64 session_id = 2;
   string display_name = 3;
   bytes session_token = 4;
+  VoiceAccess voice = 5;
 }
 
 enum ChatRejection {

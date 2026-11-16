@@ -288,22 +288,16 @@ msgid "Horizontal position"
 msgstr "水平位置"
 
 msgctxt "UIChatHorizontalComment"
-msgid ""
-"Distance of the chat's left edge from the screen's left edge, as a share of "
-"the\n"
-"screen's width. The chat stays on the screen."
-msgstr "聊天左緣與螢幕左緣的距離，以螢幕寬度的比例表示。聊天會保持在螢幕內。"
+msgid "Chat horizontal position."
+msgstr "聊天的水平位置。"
 
 msgctxt "UIChatVertical"
 msgid "Vertical position"
 msgstr "垂直位置"
 
 msgctxt "UIChatVerticalComment"
-msgid ""
-"Distance of the chat's bottom edge from the screen's bottom edge, as a share "
-"of\n"
-"the screen's height. The chat stays on the screen."
-msgstr "聊天下緣與螢幕下緣的距離，以螢幕高度的比例表示。聊天會保持在螢幕內。"
+msgid "Chat vertical position."
+msgstr "聊天的垂直位置。"
 
 msgctxt "UIGroupItems"
 msgid "Items"
@@ -676,12 +670,12 @@ msgid "Disconnected"
 msgstr "未連線"
 
 msgctxt "ConnectionDisconnectToRename"
-msgid "Disconnect to change the display name"
-msgstr "中斷連線後才能變更顯示名稱"
+msgid "Disconnect to change the display name."
+msgstr "中斷連線後才能變更顯示名稱。"
 
 msgctxt "ConnectionCancelToRename"
-msgid "Cancel the connection to change the display name"
-msgstr "取消連線後才能變更顯示名稱"
+msgid "Cancel the connection to change the display name."
+msgstr "取消連線後才能變更顯示名稱。"
 
 msgctxt "ConnectionNoEndpoint"
 msgid "Enter a custom server URL to connect."
@@ -974,8 +968,8 @@ msgid "Mute"
 msgstr "靜音"
 
 msgctxt "PlayerMenuMuteHint"
-msgid "Hide their messages in every channel."
-msgstr "在所有頻道中隱藏對方的訊息。"
+msgid "Hide their messages in every channel and silence their voice."
+msgstr "在所有頻道中隱藏對方的訊息，並將其語音靜音。"
 
 msgctxt "PlayerMenuUnmuteHint"
 msgid "Show their messages again."
@@ -1455,3 +1449,145 @@ msgstr "{} 已離線"
 msgctxt "ItemUnknownEffect"
 msgid "Unknown effect"
 msgstr "未知效果"
+
+msgctxt "SectionVoice"
+msgid "Voice"
+msgstr "語音"
+
+msgctxt "VoiceComment"
+msgid "Talk to the players near you."
+msgstr "與附近的玩家交談。"
+
+msgctxt "VoiceEnabled"
+msgid "Voice chat"
+msgstr "語音聊天"
+
+msgctxt "VoiceEnabledComment"
+msgid ""
+"Hear the players near you and let them hear you. Off keeps your microphone "
+"and speakers closed."
+msgstr "聽見附近的玩家，也讓他們聽見你。關閉時不會開啟麥克風與喇叭。"
+
+msgctxt "VoiceGroupMicrophone"
+msgid "Microphone"
+msgstr "麥克風"
+
+msgctxt "VoiceMode"
+msgid "Activation"
+msgstr "啟動方式"
+
+msgctxt "VoiceModeComment"
+msgid "How microphone is activated."
+msgstr "麥克風的啟動方式。"
+
+msgctxt "VoiceModePushToTalk"
+msgid "Push to talk"
+msgstr "按鍵通話"
+
+msgctxt "VoiceModeVoiceActivation"
+msgid "Voice activation"
+msgstr "語音啟動"
+
+msgctxt "VoiceInputLevel"
+msgid "Input level"
+msgstr "輸入音量"
+
+msgctxt "VoiceInputLevelComment"
+msgid "How loud your microphone is."
+msgstr "你的麥克風有多大聲。"
+
+msgctxt "VoiceRelayUnreachable"
+msgid "The voice relay cannot be reached; your network may block UDP"
+msgstr "無法連線到語音中繼；你的網路可能封鎖了 UDP"
+
+msgctxt "VoiceActivationLevel"
+msgid "Activation level"
+msgstr "啟動門檻"
+
+msgctxt "VoiceActivationLevelComment"
+msgid "How loud you must speak to be heard."
+msgstr "你需要多大聲說話才會被聽見。"
+
+msgctxt "VoiceNoiseSuppression"
+msgid "Noise suppression"
+msgstr "噪音抑制"
+
+msgctxt "VoiceNoiseSuppressionComment"
+msgid "Removes background noise, such as fans and typing."
+msgstr "去除風扇與打字等背景噪音。"
+
+msgctxt "VoiceInputDevice"
+msgid "Input device"
+msgstr "輸入裝置"
+
+msgctxt "VoiceInputDeviceComment"
+msgid "The microphone voice chat uses."
+msgstr "語音聊天使用的麥克風。"
+
+msgctxt "VoiceDefaultDevice"
+msgid "System default"
+msgstr "系統預設"
+
+msgctxt "VoiceInputVolume"
+msgid "Microphone volume"
+msgstr "麥克風音量"
+
+msgctxt "VoiceInputVolumeComment"
+msgid "How loud other players hear you."
+msgstr "其他玩家聽到你的音量。"
+
+msgctxt "VoiceGroupPlayers"
+msgid "Other players"
+msgstr "其他玩家"
+
+msgctxt "VoiceOutputDevice"
+msgid "Output device"
+msgstr "輸出裝置"
+
+msgctxt "VoiceOutputDeviceComment"
+msgid "Where other players' voices play."
+msgstr "播放其他玩家聲音的位置。"
+
+msgctxt "VoiceOutputVolume"
+msgid "Voice volume"
+msgstr "語音音量"
+
+msgctxt "VoiceOutputVolumeComment"
+msgid "How loud other players' voices play."
+msgstr "其他玩家聲音的播放音量。"
+
+msgctxt "VoiceGroupIndicator"
+msgid "Indicator"
+msgstr "指示圖示"
+
+msgctxt "VoiceIndicator"
+msgid "Microphone indicator"
+msgstr "麥克風指示圖示"
+
+msgctxt "VoiceIndicatorComment"
+msgid "Shows a microphone on the screen while other players can hear you."
+msgstr "其他玩家聽得見你時，在螢幕上顯示麥克風。"
+
+msgctxt "VoiceIndicatorHorizontal"
+msgid "Horizontal position"
+msgstr "水平位置"
+
+msgctxt "VoiceIndicatorHorizontalComment"
+msgid "Microphone indicator horizontal position."
+msgstr "麥克風指示圖示的水平位置。"
+
+msgctxt "VoiceIndicatorVertical"
+msgid "Vertical position"
+msgstr "垂直位置"
+
+msgctxt "VoiceIndicatorVerticalComment"
+msgid "Microphone indicator vertical position."
+msgstr "麥克風指示圖示的垂直位置。"
+
+msgctxt "ControlsMicrophone"
+msgid "Microphone"
+msgstr "麥克風"
+
+msgctxt "ControlsMicrophoneComment"
+msgid "Hold to talk with push to talk. Not used with voice activation."
+msgstr "按鍵通話時按住以說話。語音啟動時不使用。"

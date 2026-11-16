@@ -1,12 +1,12 @@
 #include "ui/widgets/Controls.h"
 #include "text/Text.h"
+#include "ui/Fonts.h"
 #include "ui/Theme.h"
 
 #include <algorithm>
 #include <array>
 #include <cfloat>
 #include <cmath>
-#include <numbers>
 
 namespace UI::Controls
 {
@@ -16,10 +16,10 @@ namespace UI::Controls
         constexpr float kToggleHeightFonts = 1.25F;
         constexpr float kToggleKnobInsetFonts = 0.1875F;
         constexpr float kToggleSeconds = 0.12F;
-        constexpr float kIconLineFonts = 0.09375F;
-        constexpr float kCloseReach = 0.17F;
-        constexpr float kResetRadius = 0.21F;
-        constexpr float kResetHead = 0.15F;
+        constexpr float kIconFonts = 0.75F;
+        // U+E009 and U+E00A of the logo font.
+        constexpr const char* kCloseGlyph = "\xEE\x80\x89";
+        constexpr const char* kResetGlyph = "\xEE\x80\x8A";
 
         constexpr ImVec4 kToggleOffKnob{ 0.72F, 0.71F, 0.69F, 1.0F };
         constexpr ImVec4 kBlack{ 0.0F, 0.0F, 0.0F, 1.0F };
@@ -47,33 +47,6 @@ namespace UI::Controls
             const bool pressed = ImGui::Button(a_label, a_size);
             ImGui::PopStyleColor(4);
             return pressed;
-        }
-
-        void DrawClose(ImDrawList& a_list, const ImVec2& a_center, float a_size, ImU32 a_color, float a_thickness)
-        {
-            const float reach = a_size * kCloseReach;
-            a_list.AddLine(ImVec2{ a_center.x - reach, a_center.y - reach },
-                ImVec2{ a_center.x + reach, a_center.y + reach }, a_color, a_thickness);
-            a_list.AddLine(ImVec2{ a_center.x - reach, a_center.y + reach },
-                ImVec2{ a_center.x + reach, a_center.y - reach }, a_color, a_thickness);
-        }
-
-        void DrawReset(ImDrawList& a_list, const ImVec2& a_center, float a_size, ImU32 a_color, float a_thickness)
-        {
-            constexpr float kHeadAngle = -0.25F * std::numbers::pi_v<float>;
-            constexpr float kTailAngle = 1.30F * std::numbers::pi_v<float>;
-            const float radius = a_size * kResetRadius;
-            const float head = a_size * kResetHead;
-            a_list.PathArcTo(a_center, radius, kHeadAngle, kTailAngle);
-            a_list.PathStroke(a_color, ImDrawFlags_None, a_thickness);
-
-            const ImVec2 outward{ std::cos(kHeadAngle), std::sin(kHeadAngle) };
-            const ImVec2 forward{ outward.y, -outward.x };
-            const ImVec2 tip{ a_center.x + outward.x * radius, a_center.y + outward.y * radius };
-            const ImVec2 base{ tip.x - forward.x * head * 0.25F, tip.y - forward.y * head * 0.25F };
-            a_list.AddTriangleFilled(ImVec2{ tip.x + forward.x * head, tip.y + forward.y * head },
-                ImVec2{ base.x + outward.x * head * 0.8F, base.y + outward.y * head * 0.8F },
-                ImVec2{ base.x - outward.x * head * 0.8F, base.y - outward.y * head * 0.8F }, a_color);
         }
     }
 
@@ -138,17 +111,13 @@ namespace UI::Controls
                 ImGui::GetColorU32(Theme::Tint(ImGui::IsItemActive() ? 0.16F : 0.10F)),
                 ImGui::GetStyle().FrameRounding);
         }
-        const auto color = ImGui::GetColorU32(hovered ? ImGuiCol_Text : ImGuiCol_TextDisabled);
-        const float thickness = (std::max)(kIconLineFonts * ImGui::GetFontSize(), 1.0F);
-        const ImVec2 center{ position.x + size * 0.5F, position.y + size * 0.5F };
-        switch (a_icon)
+        if (auto* const font = Fonts::GetLogo())
         {
-            case Icon::kClose:
-                DrawClose(list, center, size, color, thickness);
-                break;
-            case Icon::kReset:
-                DrawReset(list, center, size, color, thickness);
-                break;
+            const auto glyph = std::round(kIconFonts * ImGui::GetFontSize());
+            const auto inset = std::floor((size - glyph) * 0.5F);
+            list.AddText(font, glyph, ImVec2{ position.x + inset, position.y + inset },
+                ImGui::GetColorU32(hovered ? ImGuiCol_Text : ImGuiCol_TextDisabled),
+                a_icon == Icon::kClose ? kCloseGlyph : kResetGlyph);
         }
         return pressed;
     }

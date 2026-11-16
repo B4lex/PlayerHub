@@ -5,7 +5,7 @@ name: playerhub
 
 services:
   server:
-    image: ${PLAYERHUB_IMAGE:-ghcr.io/b4lex/playerhub-server:1.0}
+    image: ${PLAYERHUB_IMAGE:-ghcr.io/b4lex/playerhub-server:2.1}
     build:
       context: .
     command: ["--config", "/config/server.toml"]

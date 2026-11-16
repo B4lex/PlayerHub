@@ -22,6 +22,7 @@ import (
 	"playerhub/server/internal/hub"
 	"playerhub/server/internal/limit"
 	"playerhub/server/internal/validate"
+	"playerhub/server/internal/voice"
 	"playerhub/server/internal/wire"
 	"playerhub/server/internal/wire/pb"
 )
@@ -53,6 +54,7 @@ type Server struct {
 	gate     *admission.Gate
 	trusted  []netip.Prefix
 	refusals *rejectionLog
+	voice    *voice.Relay
 
 	mu sync.Mutex
 	// Set on the hub goroutine as a client connects, so a session that connects again finds
@@ -86,6 +88,11 @@ func NewServer(loop *hub.Loop, store *auth.Store, c config.Config, log *slog.Log
 
 func (s *Server) UseBudget(b *delivery.Budget) {
 	s.budget = b
+}
+
+// UseVoice gives every later connection a voice endpoint on the relay.
+func (s *Server) UseVoice(r *voice.Relay) {
+	s.voice = r
 }
 
 func (s *Server) SetLoop(loop *hub.Loop) {
@@ -152,6 +159,15 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address net
 	}
 	current := &connection{conn: conn, cancel: cancel, session: identity.Session, displayName: identity.DisplayName,
 		address: address}
+	if s.voice != nil {
+		endpoint, err := s.voice.Register()
+		if err != nil {
+			s.log.Error("cannot give the connection a voice key; it has no voice", "error", err)
+		} else {
+			defer s.voice.Remove(endpoint)
+			identity.Voice = endpoint
+		}
+	}
 	var slot uint32
 	var replaced *connection
 	if !s.loop.Call(func(h *hub.Hub) {

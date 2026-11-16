@@ -300,26 +300,16 @@ msgid "Horizontal position"
 msgstr "Położenie w poziomie"
 
 msgctxt "UIChatHorizontalComment"
-msgid ""
-"Distance of the chat's left edge from the screen's left edge, as a share of "
-"the\n"
-"screen's width. The chat stays on the screen."
-msgstr ""
-"Odległość lewej krawędzi czatu od lewej krawędzi ekranu jako część "
-"szerokości ekranu. Czat pozostaje na ekranie."
+msgid "Chat horizontal position."
+msgstr "Położenie czatu w poziomie."
 
 msgctxt "UIChatVertical"
 msgid "Vertical position"
 msgstr "Położenie w pionie"
 
 msgctxt "UIChatVerticalComment"
-msgid ""
-"Distance of the chat's bottom edge from the screen's bottom edge, as a share "
-"of\n"
-"the screen's height. The chat stays on the screen."
-msgstr ""
-"Odległość dolnej krawędzi czatu od dolnej krawędzi ekranu jako część "
-"wysokości ekranu. Czat pozostaje na ekranie."
+msgid "Chat vertical position."
+msgstr "Położenie czatu w pionie."
 
 msgctxt "UIGroupItems"
 msgid "Items"
@@ -700,12 +690,12 @@ msgid "Disconnected"
 msgstr "Rozłączono"
 
 msgctxt "ConnectionDisconnectToRename"
-msgid "Disconnect to change the display name"
-msgstr "Rozłącz się, aby zmienić nazwę wyświetlaną"
+msgid "Disconnect to change the display name."
+msgstr "Rozłącz się, aby zmienić nazwę wyświetlaną."
 
 msgctxt "ConnectionCancelToRename"
-msgid "Cancel the connection to change the display name"
-msgstr "Anuluj łączenie, aby zmienić nazwę wyświetlaną"
+msgid "Cancel the connection to change the display name."
+msgstr "Anuluj łączenie, aby zmienić nazwę wyświetlaną."
 
 msgctxt "ConnectionNoEndpoint"
 msgid "Enter a custom server URL to connect."
@@ -1004,8 +994,8 @@ msgid "Mute"
 msgstr "Wycisz"
 
 msgctxt "PlayerMenuMuteHint"
-msgid "Hide their messages in every channel."
-msgstr "Ukryj jego wiadomości we wszystkich kanałach."
+msgid "Hide their messages in every channel and silence their voice."
+msgstr "Ukryj jego wiadomości we wszystkich kanałach i wycisz jego głos."
 
 msgctxt "PlayerMenuUnmuteHint"
 msgid "Show their messages again."
@@ -1491,3 +1481,149 @@ msgstr "{} jest niedostępny"
 msgctxt "ItemUnknownEffect"
 msgid "Unknown effect"
 msgstr "Nieznany efekt"
+
+msgctxt "SectionVoice"
+msgid "Voice"
+msgstr "Głos"
+
+msgctxt "VoiceComment"
+msgid "Talk to the players near you."
+msgstr "Rozmawiaj z graczami w pobliżu."
+
+msgctxt "VoiceEnabled"
+msgid "Voice chat"
+msgstr "Czat głosowy"
+
+msgctxt "VoiceEnabledComment"
+msgid ""
+"Hear the players near you and let them hear you. Off keeps your microphone "
+"and speakers closed."
+msgstr ""
+"Słysz graczy w pobliżu i pozwól im słyszeć siebie. Wyłączony nie otwiera "
+"mikrofonu ani głośników."
+
+msgctxt "VoiceGroupMicrophone"
+msgid "Microphone"
+msgstr "Mikrofon"
+
+msgctxt "VoiceMode"
+msgid "Activation"
+msgstr "Aktywacja"
+
+msgctxt "VoiceModeComment"
+msgid "How microphone is activated."
+msgstr "Jak mikrofon jest aktywowany."
+
+msgctxt "VoiceModePushToTalk"
+msgid "Push to talk"
+msgstr "Naciśnij, aby mówić"
+
+msgctxt "VoiceModeVoiceActivation"
+msgid "Voice activation"
+msgstr "Aktywacja głosem"
+
+msgctxt "VoiceInputLevel"
+msgid "Input level"
+msgstr "Poziom wejścia"
+
+msgctxt "VoiceInputLevelComment"
+msgid "How loud your microphone is."
+msgstr "Jak głośny jest twój mikrofon."
+
+msgctxt "VoiceRelayUnreachable"
+msgid "The voice relay cannot be reached; your network may block UDP"
+msgstr "Nie można połączyć się z przekaźnikiem głosu; twoja sieć może blokować UDP"
+
+msgctxt "VoiceActivationLevel"
+msgid "Activation level"
+msgstr "Próg aktywacji"
+
+msgctxt "VoiceActivationLevelComment"
+msgid "How loud you must speak to be heard."
+msgstr "Jak głośno musisz mówić, aby cię usłyszano."
+
+msgctxt "VoiceNoiseSuppression"
+msgid "Noise suppression"
+msgstr "Tłumienie szumów"
+
+msgctxt "VoiceNoiseSuppressionComment"
+msgid "Removes background noise, such as fans and typing."
+msgstr "Usuwa szumy tła, takie jak wentylatory i pisanie."
+
+msgctxt "VoiceInputDevice"
+msgid "Input device"
+msgstr "Urządzenie wejściowe"
+
+msgctxt "VoiceInputDeviceComment"
+msgid "The microphone voice chat uses."
+msgstr "Mikrofon używany przez czat głosowy."
+
+msgctxt "VoiceDefaultDevice"
+msgid "System default"
+msgstr "Domyślne systemowe"
+
+msgctxt "VoiceInputVolume"
+msgid "Microphone volume"
+msgstr "Głośność mikrofonu"
+
+msgctxt "VoiceInputVolumeComment"
+msgid "How loud other players hear you."
+msgstr "Jak głośno słyszą cię inni gracze."
+
+msgctxt "VoiceGroupPlayers"
+msgid "Other players"
+msgstr "Inni gracze"
+
+msgctxt "VoiceOutputDevice"
+msgid "Output device"
+msgstr "Urządzenie wyjściowe"
+
+msgctxt "VoiceOutputDeviceComment"
+msgid "Where other players' voices play."
+msgstr "Gdzie odtwarzane są głosy innych graczy."
+
+msgctxt "VoiceOutputVolume"
+msgid "Voice volume"
+msgstr "Głośność głosów"
+
+msgctxt "VoiceOutputVolumeComment"
+msgid "How loud other players' voices play."
+msgstr "Jak głośno odtwarzane są głosy innych graczy."
+
+msgctxt "VoiceGroupIndicator"
+msgid "Indicator"
+msgstr "Wskaźnik"
+
+msgctxt "VoiceIndicator"
+msgid "Microphone indicator"
+msgstr "Wskaźnik mikrofonu"
+
+msgctxt "VoiceIndicatorComment"
+msgid "Shows a microphone on the screen while other players can hear you."
+msgstr "Pokazuje mikrofon na ekranie, gdy inni gracze mogą cię słyszeć."
+
+msgctxt "VoiceIndicatorHorizontal"
+msgid "Horizontal position"
+msgstr "Położenie w poziomie"
+
+msgctxt "VoiceIndicatorHorizontalComment"
+msgid "Microphone indicator horizontal position."
+msgstr "Położenie wskaźnika mikrofonu w poziomie."
+
+msgctxt "VoiceIndicatorVertical"
+msgid "Vertical position"
+msgstr "Położenie w pionie"
+
+msgctxt "VoiceIndicatorVerticalComment"
+msgid "Microphone indicator vertical position."
+msgstr "Położenie wskaźnika mikrofonu w pionie."
+
+msgctxt "ControlsMicrophone"
+msgid "Microphone"
+msgstr "Mikrofon"
+
+msgctxt "ControlsMicrophoneComment"
+msgid "Hold to talk with push to talk. Not used with voice activation."
+msgstr ""
+"Przytrzymaj, aby mówić w trybie naciśnij, aby mówić. Nieużywany przy "
+"aktywacji głosem."

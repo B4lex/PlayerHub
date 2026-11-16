@@ -296,26 +296,16 @@ msgid "Horizontal position"
 msgstr "横位置"
 
 msgctxt "UIChatHorizontalComment"
-msgid ""
-"Distance of the chat's left edge from the screen's left edge, as a share of "
-"the\n"
-"screen's width. The chat stays on the screen."
-msgstr ""
-"画面の左端からチャットの左端までの距離（画面の幅に対する割合）。チャットは画"
-"面内に収まります。"
+msgid "Chat horizontal position."
+msgstr "チャットの横位置。"
 
 msgctxt "UIChatVertical"
 msgid "Vertical position"
 msgstr "縦位置"
 
 msgctxt "UIChatVerticalComment"
-msgid ""
-"Distance of the chat's bottom edge from the screen's bottom edge, as a share "
-"of\n"
-"the screen's height. The chat stays on the screen."
-msgstr ""
-"画面の下端からチャットの下端までの距離（画面の高さに対する割合）。チャットは"
-"画面内に収まります。"
+msgid "Chat vertical position."
+msgstr "チャットの縦位置。"
 
 msgctxt "UIGroupItems"
 msgid "Items"
@@ -694,12 +684,12 @@ msgid "Disconnected"
 msgstr "未接続"
 
 msgctxt "ConnectionDisconnectToRename"
-msgid "Disconnect to change the display name"
-msgstr "表示名を変更するには切断してください"
+msgid "Disconnect to change the display name."
+msgstr "表示名を変更するには切断してください。"
 
 msgctxt "ConnectionCancelToRename"
-msgid "Cancel the connection to change the display name"
-msgstr "表示名を変更するには接続をキャンセルしてください"
+msgid "Cancel the connection to change the display name."
+msgstr "表示名を変更するには接続をキャンセルしてください。"
 
 msgctxt "ConnectionNoEndpoint"
 msgid "Enter a custom server URL to connect."
@@ -996,8 +986,8 @@ msgid "Mute"
 msgstr "ミュート"
 
 msgctxt "PlayerMenuMuteHint"
-msgid "Hide their messages in every channel."
-msgstr "すべてのチャンネルでこのプレイヤーのメッセージを隠します。"
+msgid "Hide their messages in every channel and silence their voice."
+msgstr "すべてのチャンネルでこのプレイヤーのメッセージを隠し、声を消します。"
 
 msgctxt "PlayerMenuUnmuteHint"
 msgid "Show their messages again."
@@ -1479,3 +1469,145 @@ msgstr "{} はオフラインです"
 msgctxt "ItemUnknownEffect"
 msgid "Unknown effect"
 msgstr "不明な効果"
+
+msgctxt "SectionVoice"
+msgid "Voice"
+msgstr "ボイス"
+
+msgctxt "VoiceComment"
+msgid "Talk to the players near you."
+msgstr "近くのプレイヤーと話せます。"
+
+msgctxt "VoiceEnabled"
+msgid "Voice chat"
+msgstr "ボイスチャット"
+
+msgctxt "VoiceEnabledComment"
+msgid ""
+"Hear the players near you and let them hear you. Off keeps your microphone "
+"and speakers closed."
+msgstr "近くのプレイヤーの声を聞き、あなたの声も届けます。オフの間はマイクとスピーカーを開きません。"
+
+msgctxt "VoiceGroupMicrophone"
+msgid "Microphone"
+msgstr "マイク"
+
+msgctxt "VoiceMode"
+msgid "Activation"
+msgstr "起動方法"
+
+msgctxt "VoiceModeComment"
+msgid "How microphone is activated."
+msgstr "マイクの起動方法。"
+
+msgctxt "VoiceModePushToTalk"
+msgid "Push to talk"
+msgstr "プッシュトゥトーク"
+
+msgctxt "VoiceModeVoiceActivation"
+msgid "Voice activation"
+msgstr "音声検出"
+
+msgctxt "VoiceInputLevel"
+msgid "Input level"
+msgstr "入力レベル"
+
+msgctxt "VoiceInputLevelComment"
+msgid "How loud your microphone is."
+msgstr "マイクの音量。"
+
+msgctxt "VoiceRelayUnreachable"
+msgid "The voice relay cannot be reached; your network may block UDP"
+msgstr "ボイスリレーに接続できません。ネットワークが UDP をブロックしている可能性があります"
+
+msgctxt "VoiceActivationLevel"
+msgid "Activation level"
+msgstr "検出レベル"
+
+msgctxt "VoiceActivationLevelComment"
+msgid "How loud you must speak to be heard."
+msgstr "声が届くために必要な大きさです。"
+
+msgctxt "VoiceNoiseSuppression"
+msgid "Noise suppression"
+msgstr "ノイズ抑制"
+
+msgctxt "VoiceNoiseSuppressionComment"
+msgid "Removes background noise, such as fans and typing."
+msgstr "ファンやタイピングなどの背景ノイズを取り除きます。"
+
+msgctxt "VoiceInputDevice"
+msgid "Input device"
+msgstr "入力デバイス"
+
+msgctxt "VoiceInputDeviceComment"
+msgid "The microphone voice chat uses."
+msgstr "ボイスチャットで使うマイクです。"
+
+msgctxt "VoiceDefaultDevice"
+msgid "System default"
+msgstr "システムの既定"
+
+msgctxt "VoiceInputVolume"
+msgid "Microphone volume"
+msgstr "マイク音量"
+
+msgctxt "VoiceInputVolumeComment"
+msgid "How loud other players hear you."
+msgstr "他のプレイヤーに聞こえるあなたの声の大きさです。"
+
+msgctxt "VoiceGroupPlayers"
+msgid "Other players"
+msgstr "他のプレイヤー"
+
+msgctxt "VoiceOutputDevice"
+msgid "Output device"
+msgstr "出力デバイス"
+
+msgctxt "VoiceOutputDeviceComment"
+msgid "Where other players' voices play."
+msgstr "他のプレイヤーの声を再生する場所です。"
+
+msgctxt "VoiceOutputVolume"
+msgid "Voice volume"
+msgstr "ボイス音量"
+
+msgctxt "VoiceOutputVolumeComment"
+msgid "How loud other players' voices play."
+msgstr "他のプレイヤーの声の大きさです。"
+
+msgctxt "VoiceGroupIndicator"
+msgid "Indicator"
+msgstr "インジケーター"
+
+msgctxt "VoiceIndicator"
+msgid "Microphone indicator"
+msgstr "マイクインジケーター"
+
+msgctxt "VoiceIndicatorComment"
+msgid "Shows a microphone on the screen while other players can hear you."
+msgstr "他のプレイヤーにあなたの声が聞こえている間、画面にマイクを表示します。"
+
+msgctxt "VoiceIndicatorHorizontal"
+msgid "Horizontal position"
+msgstr "横位置"
+
+msgctxt "VoiceIndicatorHorizontalComment"
+msgid "Microphone indicator horizontal position."
+msgstr "マイクインジケーターの横位置。"
+
+msgctxt "VoiceIndicatorVertical"
+msgid "Vertical position"
+msgstr "縦位置"
+
+msgctxt "VoiceIndicatorVerticalComment"
+msgid "Microphone indicator vertical position."
+msgstr "マイクインジケーターの縦位置。"
+
+msgctxt "ControlsMicrophone"
+msgid "Microphone"
+msgstr "マイク"
+
+msgctxt "ControlsMicrophoneComment"
+msgid "Hold to talk with push to talk. Not used with voice activation."
+msgstr "プッシュトゥトークでは押している間話せます。音声検出では使用しません。"

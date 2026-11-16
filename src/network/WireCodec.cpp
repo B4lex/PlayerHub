@@ -1529,6 +1529,29 @@ namespace Network::Wire
                 {
                     return std::unexpected("welcome session token");
                 }
+                if (welcome.has_voice)
+                {
+                    const auto& voice = welcome.voice;
+                    // Voice is optional, so a server's malformed access costs voice rather than the connection.
+                    if (voice.id == 0 || voice.port == 0 || voice.port > 0xFFFF
+                        || voice.key.size != Multiplayer::kVoiceKeyBytes
+                        || voice.radius < Multiplayer::kMinimumVoiceRadius
+                        || voice.radius > Multiplayer::kMaximumVoiceRadius
+                        || !Multiplayer::IsValidVoiceHost(voice.host))
+                    {
+                        logs::warn("Ignored the welcome's malformed voice access: id={} port={} key={} bytes radius={}",
+                            voice.id, voice.port, static_cast<unsigned>(voice.key.size), voice.radius);
+                    }
+                    else
+                    {
+                        auto& access = result.voice.emplace();
+                        access.host = voice.host;
+                        access.port = static_cast<std::uint16_t>(voice.port);
+                        access.id = voice.id;
+                        std::copy_n(voice.key.bytes, Multiplayer::kVoiceKeyBytes, access.key.begin());
+                        access.radius = voice.radius;
+                    }
+                }
                 return result;
             }
             case playerhub_v1_ServerMessage_chat_result_tag:

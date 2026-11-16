@@ -47,6 +47,7 @@ namespace NameplateSync
         bool isFriend{ false };
         float alpha{ 0.0F };
         float distanceFraction{ 0.0F };
+        bool isSpeaking{ false };
     };
 
     void Clear();

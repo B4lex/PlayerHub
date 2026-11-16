@@ -51,6 +51,19 @@ namespace Config
         // Not shown in the settings window, so the comment is only English.
         virtual void Layout(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
             std::uint32_t a_minimum, std::uint32_t a_maximum) = 0;
+        // An audio device by its system name, empty for the default; the file holds it as a string,
+        // and the settings window offers the devices it finds.
+        virtual void AudioDevice(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment,
+            bool a_capture)
+        {
+            (void)a_capture;
+            String(a_key, a_label, a_value, a_comment, IsValidAudioDeviceName);
+        }
+        // The microphone's level against a_threshold, which the next setting holds; the settings
+        // window alone draws it.
+        virtual void InputMeter(Text::Id, std::uint32_t) {}
+
+        [[nodiscard]] static bool IsValidAudioDeviceName(std::string_view a_value);
     };
 
     void Describe(PluginConfig& a_config, SettingsVisitor& a_visitor);

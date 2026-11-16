@@ -306,26 +306,16 @@ msgid "Horizontal position"
 msgstr "Position horizontale"
 
 msgctxt "UIChatHorizontalComment"
-msgid ""
-"Distance of the chat's left edge from the screen's left edge, as a share of "
-"the\n"
-"screen's width. The chat stays on the screen."
-msgstr ""
-"Distance entre le bord gauche du chat et celui de l'écran, en part de la "
-"largeur de l'écran. Le chat reste à l'écran."
+msgid "Chat horizontal position."
+msgstr "Position horizontale du chat."
 
 msgctxt "UIChatVertical"
 msgid "Vertical position"
 msgstr "Position verticale"
 
 msgctxt "UIChatVerticalComment"
-msgid ""
-"Distance of the chat's bottom edge from the screen's bottom edge, as a share "
-"of\n"
-"the screen's height. The chat stays on the screen."
-msgstr ""
-"Distance entre le bord inférieur du chat et celui de l'écran, en part de la "
-"hauteur de l'écran. Le chat reste à l'écran."
+msgid "Chat vertical position."
+msgstr "Position verticale du chat."
 
 msgctxt "UIGroupItems"
 msgid "Items"
@@ -711,12 +701,12 @@ msgid "Disconnected"
 msgstr "Déconnecté"
 
 msgctxt "ConnectionDisconnectToRename"
-msgid "Disconnect to change the display name"
-msgstr "Déconnectez-vous pour changer le nom affiché"
+msgid "Disconnect to change the display name."
+msgstr "Déconnectez-vous pour changer le nom affiché."
 
 msgctxt "ConnectionCancelToRename"
-msgid "Cancel the connection to change the display name"
-msgstr "Annulez la connexion pour changer le nom affiché"
+msgid "Cancel the connection to change the display name."
+msgstr "Annulez la connexion pour changer le nom affiché."
 
 msgctxt "ConnectionNoEndpoint"
 msgid "Enter a custom server URL to connect."
@@ -1016,8 +1006,8 @@ msgid "Mute"
 msgstr "Rendre muet"
 
 msgctxt "PlayerMenuMuteHint"
-msgid "Hide their messages in every channel."
-msgstr "Masquer ses messages dans tous les canaux."
+msgid "Hide their messages in every channel and silence their voice."
+msgstr "Masquer ses messages dans tous les canaux et couper sa voix."
 
 msgctxt "PlayerMenuUnmuteHint"
 msgid "Show their messages again."
@@ -1504,3 +1494,150 @@ msgstr "{} est hors ligne"
 msgctxt "ItemUnknownEffect"
 msgid "Unknown effect"
 msgstr "Effet inconnu"
+
+msgctxt "SectionVoice"
+msgid "Voice"
+msgstr "Voix"
+
+msgctxt "VoiceComment"
+msgid "Talk to the players near you."
+msgstr "Parlez aux joueurs proches."
+
+msgctxt "VoiceEnabled"
+msgid "Voice chat"
+msgstr "Chat vocal"
+
+msgctxt "VoiceEnabledComment"
+msgid ""
+"Hear the players near you and let them hear you. Off keeps your microphone "
+"and speakers closed."
+msgstr ""
+"Entendez les joueurs proches et laissez-les vous entendre. Désactivé, votre "
+"micro et vos haut-parleurs restent fermés."
+
+msgctxt "VoiceGroupMicrophone"
+msgid "Microphone"
+msgstr "Microphone"
+
+msgctxt "VoiceMode"
+msgid "Activation"
+msgstr "Activation"
+
+msgctxt "VoiceModeComment"
+msgid "How microphone is activated."
+msgstr "Comment le micro est activé."
+
+msgctxt "VoiceModePushToTalk"
+msgid "Push to talk"
+msgstr "Appuyer pour parler"
+
+msgctxt "VoiceModeVoiceActivation"
+msgid "Voice activation"
+msgstr "Activation vocale"
+
+msgctxt "VoiceInputLevel"
+msgid "Input level"
+msgstr "Niveau d'entrée"
+
+msgctxt "VoiceInputLevelComment"
+msgid "How loud your microphone is."
+msgstr "Le volume de votre micro."
+
+msgctxt "VoiceRelayUnreachable"
+msgid "The voice relay cannot be reached; your network may block UDP"
+msgstr "Le relais vocal est injoignable ; votre réseau bloque peut-être l'UDP"
+
+msgctxt "VoiceActivationLevel"
+msgid "Activation level"
+msgstr "Seuil d'activation"
+
+msgctxt "VoiceActivationLevelComment"
+msgid "How loud you must speak to be heard."
+msgstr "Le volume auquel vous devez parler pour être entendu."
+
+msgctxt "VoiceNoiseSuppression"
+msgid "Noise suppression"
+msgstr "Suppression du bruit"
+
+msgctxt "VoiceNoiseSuppressionComment"
+msgid "Removes background noise, such as fans and typing."
+msgstr "Retire les bruits de fond, comme les ventilateurs et la frappe."
+
+msgctxt "VoiceInputDevice"
+msgid "Input device"
+msgstr "Périphérique d'entrée"
+
+msgctxt "VoiceInputDeviceComment"
+msgid "The microphone voice chat uses."
+msgstr "Le micro utilisé par le chat vocal."
+
+msgctxt "VoiceDefaultDevice"
+msgid "System default"
+msgstr "Par défaut du système"
+
+msgctxt "VoiceInputVolume"
+msgid "Microphone volume"
+msgstr "Volume du micro"
+
+msgctxt "VoiceInputVolumeComment"
+msgid "How loud other players hear you."
+msgstr "Le volume auquel les autres joueurs vous entendent."
+
+msgctxt "VoiceGroupPlayers"
+msgid "Other players"
+msgstr "Autres joueurs"
+
+msgctxt "VoiceOutputDevice"
+msgid "Output device"
+msgstr "Périphérique de sortie"
+
+msgctxt "VoiceOutputDeviceComment"
+msgid "Where other players' voices play."
+msgstr "Où jouent les voix des autres joueurs."
+
+msgctxt "VoiceOutputVolume"
+msgid "Voice volume"
+msgstr "Volume des voix"
+
+msgctxt "VoiceOutputVolumeComment"
+msgid "How loud other players' voices play."
+msgstr "Le volume des voix des autres joueurs."
+
+msgctxt "VoiceGroupIndicator"
+msgid "Indicator"
+msgstr "Indicateur"
+
+msgctxt "VoiceIndicator"
+msgid "Microphone indicator"
+msgstr "Indicateur du micro"
+
+msgctxt "VoiceIndicatorComment"
+msgid "Shows a microphone on the screen while other players can hear you."
+msgstr ""
+"Affiche un micro à l'écran lorsque les autres joueurs peuvent vous entendre."
+
+msgctxt "VoiceIndicatorHorizontal"
+msgid "Horizontal position"
+msgstr "Position horizontale"
+
+msgctxt "VoiceIndicatorHorizontalComment"
+msgid "Microphone indicator horizontal position."
+msgstr "Position horizontale de l'indicateur du microphone."
+
+msgctxt "VoiceIndicatorVertical"
+msgid "Vertical position"
+msgstr "Position verticale"
+
+msgctxt "VoiceIndicatorVerticalComment"
+msgid "Microphone indicator vertical position."
+msgstr "Position verticale de l'indicateur du microphone."
+
+msgctxt "ControlsMicrophone"
+msgid "Microphone"
+msgstr "Microphone"
+
+msgctxt "ControlsMicrophoneComment"
+msgid "Hold to talk with push to talk. Not used with voice activation."
+msgstr ""
+"Maintenir pour parler avec appuyer pour parler. Inutilisée avec l'activation "
+"vocale."

@@ -79,8 +79,13 @@ value described before it; reading and saving ignore it, and the settings
 window leaves the row out while the value is false.
 `Comment` names a group of the settings after it: a comment line above them
 in a new file, and a group heading in the settings window.
+`AudioDevice` is an audio device's system name, read and saved as a string
+(`SettingsVisitor::IsValidAudioDeviceName`: at most 255 bytes without a line
+break or `;`), and the settings window offers the devices it finds; it takes
+whether the device captures. `InputMeter` holds no value: the settings window
+alone draws the microphone's level against the threshold it takes.
 `Config::Describe` describes the sections in the order Connection,
-DefaultOutfit, UI, Controls, Gameplay, Advanced: the order of a new file's
+DefaultOutfit, UI, Controls, Gameplay, Voice, Advanced: the order of a new file's
 sections and of the settings window's sidebar
 ([UI overlay](ui-overlay.md#settings-window)).
 
@@ -221,6 +226,7 @@ the arrows, has that word in the game's language.
 | `ManagePlayers` | Opens the [player manager](ui-overlay.md#player-manager) alone, without the chat | `O` |
 | `AcceptTrade` | Accepts another player's trade invitation while it waits for an answer ([Trade](trade.md#invitation)). It is the game's only while no invitation waits | `Y` |
 | `DeclineTrade` | Declines another player's trade invitation, or withdraws the player's own, while it waits | `N` |
+| `Microphone` | Held to be heard with push-to-talk; unused with voice activation ([Voice chat](voice-chat.md#activation)). The game keeps the key's own action | `V` |
 
 - A key is `F1`–`F12`, a letter `A`–`Z`, a digit `0`–`9`, `Minus`,
   `Equals`, `LeftBracket`, `RightBracket`, `Semicolon`, `Apostrophe`,
@@ -237,8 +243,8 @@ the arrows, has that word in the game's language.
   Ctrl, Alt) edit text and form shortcuts, Backspace also clears a binding
   in the window, and the Windows keys, the
   context-menu key, and Print Screen belong to the system.
-- An empty value leaves `ManagePlayers`, `AcceptTrade`, or `DeclineTrade`
-  unbound (scan code 0), and the file keeps it as `AcceptTrade =`; an
+- An empty value leaves `ManagePlayers`, `AcceptTrade`, `DeclineTrade`, or
+  `Microphone` unbound (scan code 0), and the file keeps it as `AcceptTrade =`; an
   unbound action has no key and the prompt leaves it out. An empty
   `OpenSettings` is `F4` and an empty `OpenChat` is `Enter`, since each key
   is the only way to open its window (a whisper from the
@@ -264,6 +270,27 @@ player. `GameplayPolicy` follows the section for the hooks that read it.
 | `IsolateSpellEffects` | Remote spells act on nothing; off, they act on the local world as a local NPC's would ([Combat presentation](combat-presentation.md#isolation-settings)) | `true` |
 | `IsolateShoutEffects` | The same for remote shouts and powers | `true` |
 | `DisableCollision` | The local player passes through remote actors; off, a network-placed remote actor or mount collides as a local NPC does, with the local player, NPCs, projectiles, clutter, traps, and trigger volumes ([Remote actor](remote-actor.md#solid-remote-actors)); weapon hits between them still do not land | `true` |
+
+### `[Voice]`
+
+[Voice chat](voice-chat.md) with the players nearby: `Enabled`, then three
+groups, Microphone (`Mode`, the input meter, `ActivationLevel`,
+`InputDevice`, `InputVolume`, `NoiseSuppression`), Other players
+(`OutputDevice`, `OutputVolume`), and Indicator (`Indicator`,
+`IndicatorPositionHorizontal`, `IndicatorPositionVertical`).
+
+| Key | Meaning | Default |
+| --- | --- | --- |
+| `Enabled` | Hears and is heard on a server that carries voice; off keeps the microphone and speakers closed | `true` |
+| `Mode` | `PushToTalk`, heard while `[Controls] Microphone` is held, or `VoiceActivation`, heard while speaking ([Voice chat](voice-chat.md#activation)) | `PushToTalk` |
+| `ActivationLevel` | The input level at which voice activation opens, `0..100` on the meter's scale, 0 at -60 dBFS and 100 at full scale; the settings window shows it only with `VoiceActivation` | `35` |
+| `InputDevice`, `OutputDevice` | The capture and playback devices by their system names, as the settings window lists them; empty is the system's default device. A name no device has logs a warning and uses the default | empty |
+| `InputVolume` | How loud the microphone is sent, `50..150` percent in steps of `5`; the gain is 1.4 times its square ([Voice chat](voice-chat.md#capture-and-encoding)) | `100` |
+| `NoiseSuppression` | Runs the microphone through RNNoise before encoding, and lets voice activation open only on speech | `true` |
+| `OutputVolume` | Gain on other players' voices in percent, `0..200` in steps of `5` | `100` |
+| `Indicator` | Shows the microphone on the screen while the player is heard ([UI overlay](ui-overlay.md#voice-chat)) | `true` |
+| `IndicatorPositionHorizontal` | Distance of the microphone's left edge from the screen's left edge in percent of the screen's width, `0..100` with any fraction; the microphone stays wholly on the screen. The settings window shows it only with `Indicator` on | `1` |
+| `IndicatorPositionVertical` | Distance of the microphone's bottom edge from the screen's bottom edge in percent of the screen's height, `0..100` with any fraction; the default is under the chat's default place. Shown as the horizontal position is | `5` |
 
 ### `[Advanced]`
 
@@ -312,6 +339,7 @@ revision before the snapshot never misses a change.
 | `SettingsWindow` | overlay, input | reading `OpenSettings` on each focus key press |
 | `ChatWindow` | input | reading `OpenChat` and `ManagePlayers` on each focus key press |
 | `TradePrompt` | overlay, input | reading `AcceptTrade` and `DeclineTrade` on each focus key press and each frame it draws |
+| `VoiceChatSync` | main loop | reading `[Voice]` and `[Controls] Microphone` every frame in `Maintain`, and configuring the audio engine when they differ |
 | `StatusPanel`, item pickers, trade window | overlay | reading `[Advanced] StatusPanel` and `[UI] ItemPreview` each frame |
 | `ChatInput` | overlay | reading `CloseChatOnSend` on each Enter that sends or finds the field empty |
 | `Theme` | overlay | working out the accent, frame, and background colors from `AccentColor`, `BorderColor`, and `BackgroundOpacity` when the revision changes |
@@ -319,6 +347,7 @@ revision before the snapshot never misses a change.
 | `Overlay` | overlay | selecting the text language from `Language` before the frame when the revision changes, and reloading the fonts when it changes the Han font order |
 | `ChatSize` | overlay | reading `ChatWidth` and `ChatLines` each frame the chat draws, outside a drag |
 | `ChatPosition` | overlay | reading `ChatPositionHorizontal` and `ChatPositionVertical` each frame the chat or its recent lines draw, outside a drag |
+| `VoiceIndicator` | overlay | reading `[Voice] Indicator` and its two positions each frame the player is heard |
 
 ## Saving
 

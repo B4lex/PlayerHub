@@ -66,7 +66,10 @@ PB_BIND(playerhub_v1_TradePluginReply, playerhub_v1_TradePluginReply, 2)
 PB_BIND(playerhub_v1_ClientMessage, playerhub_v1_ClientMessage, 4)
 
 
-PB_BIND(playerhub_v1_Welcome, playerhub_v1_Welcome, AUTO)
+PB_BIND(playerhub_v1_VoiceAccess, playerhub_v1_VoiceAccess, 2)
+
+
+PB_BIND(playerhub_v1_Welcome, playerhub_v1_Welcome, 2)
 
 
 PB_BIND(playerhub_v1_ChatResult, playerhub_v1_ChatResult, AUTO)

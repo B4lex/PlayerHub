@@ -27,6 +27,7 @@
 #include "sync/presence/PresenceSync.h"
 #include "sync/trade/TradeSync.h"
 #include "sync/voice/VoiceSync.h"
+#include "sync/voicechat/VoiceChatSync.h"
 #include "text/Text.h"
 #include "ui/Overlay.h"
 
@@ -70,6 +71,7 @@ namespace PluginStartup
             VoiceSync::RegisterEventSinks();
             VanillaIntro::Initialize();
             Network::Initialize();
+            VoiceChatSync::Initialize();
         }
     }
 
