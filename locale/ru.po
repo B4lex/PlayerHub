@@ -1612,14 +1612,3 @@ msgid "Hold to talk with push to talk. Not used with voice activation."
 msgstr ""
 "Удерживайте, чтобы говорить, в режиме «нажми и говори». При активации "
 "голосом не используется."
-
-msgctxt "PlayerMenuVoiceVolume"
-msgid "Voice volume"
-msgstr "Громкость голоса"
-
-msgctxt "PlayerMenuVoiceVolumeHint"
-msgid "How loud their voice plays for you. They are not told."
-msgstr "Насколько громко звучит его голос для вас. Игрок об этом не узнает."
-
-
-

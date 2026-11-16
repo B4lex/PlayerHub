@@ -15,7 +15,7 @@ namespace Audio
     struct Speaker
     {
         Multiplayer::PeerSlot slot{ 0 };
-        // Linear, distance and the player's volume for the speaker together; 0 drops its frames.
+        // Linear, from distance; 0 drops its frames.
         float gain{ 0.0F };
         // -1 is fully left, 1 fully right.
         float pan{ 0.0F };

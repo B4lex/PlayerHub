@@ -1622,14 +1622,3 @@ msgid "Hold to talk with push to talk. Not used with voice activation."
 msgstr ""
 "Maintenir pour parler avec appuyer pour parler. Inutilisée avec l'activation "
 "vocale."
-
-msgctxt "PlayerMenuVoiceVolume"
-msgid "Voice volume"
-msgstr "Volume de la voix"
-
-msgctxt "PlayerMenuVoiceVolumeHint"
-msgid "How loud their voice plays for you. They are not told."
-msgstr "Le volume de sa voix pour vous. Il n'en est pas informé."
-
-
-

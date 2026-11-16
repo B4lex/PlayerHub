@@ -139,7 +139,9 @@ namespace Config
         static constexpr std::uint32_t kPushToTalk = 0;
         static constexpr std::uint32_t kVoiceActivation = 1;
         static constexpr std::array<std::string_view, 2> kModeNames{ "PushToTalk", "VoiceActivation" };
-        static constexpr std::uint32_t kMaximumVolume = 200;
+        static constexpr std::uint32_t kMinimumInputVolume = 50;
+        static constexpr std::uint32_t kMaximumInputVolume = 150;
+        static constexpr std::uint32_t kMaximumVolume = 150;
         static constexpr std::uint32_t kVolumeStep = 5;
         static constexpr std::uint32_t kMaximumActivationLevel = 100;
         static constexpr std::size_t kMaximumDeviceNameBytes = 255;

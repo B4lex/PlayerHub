@@ -1048,20 +1048,16 @@ Datagrams (`server/internal/voice/datagram.go`, `network/VoiceTransport`):
 
 ### Player filters
 
-- `PlayerFilterStore` keeps the local player's friends, the players it
-  muted or vanished, and its volume for each player's voice in
-  `PlayerHub.players`, next to `PlayerHub.session`: a line per player and
-  server, any of `f`, `m`, and `v` in that order followed by `@` and the voice
-  volume in percent (`0..200`) when it is not 100, the
+- `PlayerFilterStore` keeps the local player's friends and the players it
+  muted or vanished in `PlayerHub.players`, next to `PlayerHub.session`: a
+  line per player and server, any of `f`, `m`, and `v` in that order, the
   session ID, the WebSocket URL, and the name when last seen
   ([UI overlay](ui-overlay.md#friends)), separated by tabs, which neither a display
   name nor a URL holds; lines starting with `;` are comments, and a line
-  without a session, a server, a name, or a known flag or volume, or with a
-  volume out of range, is skipped with a warning. It is read once, on first
-  use, and written through
+  without a session, a server, a name, or a known flag is skipped with a
+  warning. It is read once, on first use, and written through
   `PlayerHub.players.tmp` on every change; a failed write lasts until the
-  game exits. A player with none of the three flags and the default volume has
-  no line.
+  game exits. A player with none of the three has no line.
 - The hello carries the sessions vanished on the attempt's URL, at most 1024
   with a warning for the rest. `Network::PublishVanish` sends a change only
   when the current socket's hello went to the server the change belongs to,

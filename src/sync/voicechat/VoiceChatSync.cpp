@@ -72,7 +72,6 @@ namespace VoiceChatSync
             a_state.filterRevision = a_revision;
             const auto player = ChatRoster::Find(a_playerID);
             a_state.muted = player && PlayerFilters::IsMuted(player->session);
-            a_state.volume = player ? static_cast<float>(PlayerFilters::GetVoiceVolume(player->session)) / 100.0F : 1.0F;
         }
 
         void CloseMouth(RemoteState& a_state, RE::Actor* a_actor)
@@ -98,10 +97,12 @@ namespace VoiceChatSync
         const auto config = Config::Get();
         const auto& voice = config->voice;
         const auto state = Network::VoiceTransport::GetState();
+        // Squared, so the slider reads close to loudness as heard: twice as loud takes about 10 dB.
+        const auto inputVolume = static_cast<float>(voice.inputVolume) / 100.0F;
         const Audio::Settings settings{ .active = voice.enabled && state == State::kConnected && GameSession::IsInGame(),
             .inputDevice = voice.inputDevice,
             .outputDevice = voice.outputDevice,
-            .inputGain = static_cast<float>(voice.inputVolume) / 100.0F,
+            .inputGain = inputVolume * inputVolume,
             .outputGain = static_cast<float>(voice.outputVolume) / 100.0F,
             .noiseSuppression = voice.noiseSuppression,
             .voiceActivation = voice.mode == Config::VoiceSettings::kVoiceActivation,
@@ -185,7 +186,7 @@ namespace VoiceChatSync
             }
             RefreshFilter(state, playerID, revision);
             const auto position = actor->GetPosition();
-            const auto gain = state.muted ? 0.0F : Attenuate(playerPosition.GetDistance(position), radius) * state.volume;
+            const auto gain = state.muted ? 0.0F : Attenuate(playerPosition.GetDistance(position), radius);
             const auto level = gain > 0.0F ? FindLevel(playerID) : 0.0F;
             if (gain > 0.0F)
             {

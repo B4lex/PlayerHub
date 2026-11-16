@@ -1593,14 +1593,3 @@ msgstr "マイク"
 msgctxt "ControlsMicrophoneComment"
 msgid "Hold to talk with push to talk. Not used with voice activation."
 msgstr "プッシュトゥトークでは押している間話せます。音声検出では使用しません。"
-
-msgctxt "PlayerMenuVoiceVolume"
-msgid "Voice volume"
-msgstr "ボイス音量"
-
-msgctxt "PlayerMenuVoiceVolumeHint"
-msgid "How loud their voice plays for you. They are not told."
-msgstr "このプレイヤーの声の大きさです。相手には通知されません。"
-
-
-

@@ -26,20 +26,17 @@ occlusion, and lip sync. It leaves to other systems:
   derives them from the subscriptions;
 - the engine calls for lip sync and occlusion rays to
   [Remote actor](remote-actor.md#voice);
-- the speaking indicators, the player menu's volume slider, the HUD
-  microphone, and the settings page to
+- the speaking indicators, the HUD microphone, and the settings page to
   [UI overlay](ui-overlay.md#voice-chat);
 - the `[Voice]` settings and the microphone key to
-  [Configuration](configuration.md#voice);
-- per-player volumes in `PlayerHub.players` to
-  [Network](network.md#player-filters).
+  [Configuration](configuration.md#voice).
 
 ## Components
 
 | Module | Responsibility |
 | --- | --- |
 | `audio/AudioEngine` | The public audio API; miniaudio devices opened and closed on a worker thread; the device list; the capture and playback callbacks |
-| `audio/VoiceEncoder` | Input gain, RNNoise, the meter, push-to-talk and voice activation gating, Opus encoding |
+| `audio/VoiceEncoder` | RNNoise, the meter, push-to-talk and voice activation gating, input gain and its limiter, Opus encoding |
 | `audio/VoiceMixer` | One jitter buffer and Opus decoder per speaker, concealment, the stereo mix with gain, pan, and occlusion |
 | `audio/MiniAudio.c` | The miniaudio implementation, built as C |
 | `network/VoiceTransport` | The datagram socket, AES-256-GCM through Windows CNG, probes and keepalives, the link's state |
@@ -81,7 +78,10 @@ voice activation.
 - Voice activation sends while a 10 ms chunk's level reaches
   `[Voice] ActivationLevel` and, with noise suppression, RNNoise's voice
   probability is at least 0.5, and for 400 ms after the last such chunk. The
-  frame before the onset is sent first, so a word's start is not cut.
+  level is the meter's, taken before `[Voice] InputVolume`
+  ([Capture and encoding](#capture-and-encoding)), so the volume does not move
+  what opens the gate. The frame before the onset is sent first, so a word's
+  start is not cut.
 - The player is heard only with voice enabled, a connected
   [relay link](#relay-link), and the player in the world (`VoiceChatSync::UpdateLocal`), since the
   relay sends nothing of a player who is not placed. `Maintain` runs while the
@@ -91,10 +91,19 @@ voice activation.
 
 - The capture device delivers 48 kHz mono `float` samples in 10 ms periods;
   miniaudio converts from the device's format.
-- Per 10 ms chunk: `[Voice] InputVolume` as gain, then RNNoise (0.2, its
-  built-in model) with `[Voice] NoiseSuppression`, then the meter: the chunk's
-  RMS in dBFS mapped from -60..0 to 0..1, falling by 0.04 per chunk.
-  `Audio::GetInputLevel` reads it for the settings window's meter.
+- Per 10 ms chunk: RNNoise (0.2, its built-in model) with
+  `[Voice] NoiseSuppression`, then the meter: the chunk's RMS in dBFS mapped
+  from -60..0 to 0..1, falling by 0.04 per chunk. `Audio::GetInputLevel` reads
+  it for the settings window's meter.
+- `[Voice] InputVolume` follows the meter and the gate, as a gain of the
+  percentage squared: 50% is -12 dB and 150% is +7 dB. Loudness as heard
+  doubles with about 10 dB, so a linear gain would make 150% sound barely
+  louder.
+- A limiter follows the gain, since the encoder hard-clips beyond full scale:
+  a sample above 0.8 turns the limiter's gain down at once to hold it there,
+  and the gain returns over about 100 ms, so a boosted voice gets louder
+  rather than distorted. The ceiling leaves room for the codec: speech limited
+  to 0.9 decoded with peaks at full scale, and limited to 0.8 stayed below it.
 - Two chunks make an Opus frame of 20 ms: `OPUS_APPLICATION_VOIP` at 24 kbit/s
   VBR, complexity 8, voice signal, in-band FEC for an expected 10% loss, and no
   DTX, since the gate already stops sending in pauses and DTX's gaps would read
@@ -137,9 +146,7 @@ Frames of anyone else are dropped on arrival, and their buffers are freed.
 - **Gain**: full within 300 units of the player (about four metres), then
   `(300 / distance)^0.7`, gentler than the physical fall so a voice carries
   across a camp, times a fade over the last fifth of the radius to silence
-  where the relay stops sending, times the player's
-  [volume for that speaker](ui-overlay.md#voice-chat), 0 to 200%. The output
-  device's `[Voice] OutputVolume` scales the mix.
+  where the relay stops sending. The output device's `[Voice] OutputVolume` scales the mix.
 - **Pan**: the speaker's direction from the camera against the camera's right
   vector, mixed with an equal-power law. Distance is from the player's
   character, so the third-person camera does not quiet everyone.
@@ -223,8 +230,7 @@ crowd's voice costs each listener what the speakers near it say.
 3. With voice activation, a player is heard when speaking above the activation
    level, the first syllable included, and not otherwise.
 4. A muted player is not heard; a vanished player's voice ends with its
-   character; another player's volume set in the player menu lasts across games
-   on that server.
+   character.
 5. A player whose UDP is blocked is told in the settings window that the
    voice relay cannot be reached, and holds no audio device open; once
    datagrams get through, voice starts without reconnecting.

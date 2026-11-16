@@ -52,7 +52,7 @@ src/ui/
   chat/ChatPosition           # the open chat's corner, the drag that moves it, saving it
   chat/ChatPlayers            # the players online: the button on the filters' row, the list beside the chat
   chat/ChatStyle.h            # channel and failure colors, the chips' frame, the rule under the filters
-  chat/ChatPlayerMenu         # a player's menu: heading, whisper, trade, friend, mute and vanish items or their undoing, voice volume
+  chat/ChatPlayerMenu         # a player's menu: heading, whisper, trade, friend, mute and vanish items or their undoing
   chat/ChatPlayerManager      # player manager: friends, muted, and vanished tabs, over the chat or alone
   chat/WorldPlayerMenu        # a player's menu at the crosshair, opened by activating its character
   trade/TradePrompt           # a trade invitation waiting for an answer, answered by its keys
@@ -1646,13 +1646,6 @@ level-up while the menu is open.
   shows the known details or the name alone, as for a reply the server's
   rate limit dropped. The answer is read once.
 
-- Below the mute and vanish items, for a player that is not muted, a
-  separator, a line naming the [voice volume](#voice-chat) with a tooltip
-  saying the player is not told, and a slider of the player's voice volume
-  from 0 to 200%. It shows `PlayerFilters::GetVoiceVolume` while not dragged
-  and saves with `PlayerFilters::SetVoiceVolume` on release, so a drag does not
-  write `PlayerHub.players` in every frame.
-
 ## Player menu in the world
 
 Goal: activating another player's character, or the mount it rides, with
@@ -1982,17 +1975,17 @@ carried, and played is in [Voice chat](voice-chat.md).
   width and one font size from its top, in the accent over a dark outline,
   while the player is heard. It shows nothing outside a game or while
   `UI::IsGameViewShown` is false.
-- The [player menu](#player-menu) carries the per-player voice volume.
 - The `[Voice]` page of the [settings window](#settings-window) draws two
   rows of its own. An audio device (`SettingsVisitor::AudioDevice`) is a combo
   of the system's default, then the devices `VoiceChatSync::CopyDeviceNames`
   lists, with a saved device that is not plugged in kept in the list; opening
   it asks the audio engine to list the devices again. The input meter
   (`SettingsVisitor::InputMeter`) is a bar 0.4 of a frame high across the
-  control: the microphone's level from `VoiceChatSync::GetLocalStatus`, in the
-  accent while the player is heard and muted otherwise, with a mark at
-  `ActivationLevel` under voice activation. While the microphone is closed, as
-  without a connection, the bar stays empty; while
+  control: the microphone's level from `VoiceChatSync::GetLocalStatus`, which
+  `InputVolume` does not change, in the accent while the player is heard and
+  muted otherwise, with a mark at `ActivationLevel` under voice activation.
+  While the microphone is closed, as without a connection, the bar stays empty;
+  while
   `LocalStatus::relayUnreachable`
   ([Voice chat](voice-chat.md#relay-link)) the row is instead a line in
   `Theme::kWarning` saying the voice relay cannot be reached and the network

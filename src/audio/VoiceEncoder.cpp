@@ -18,10 +18,11 @@ namespace Audio
 
         constexpr float kMeterFloorDecibels = -60.0F;
         constexpr float kMeterFallPerChunk = 0.04F;
-        // RNNoise's voice probability above which a loud enough chunk counts as speech.
         constexpr float kVoiceProbability = 0.5F;
-        // RNNoise works on 16-bit sample values.
         constexpr float kRNNoiseScale = 32768.0F;
+
+        constexpr float kLimiterCeiling = 0.8F;
+        constexpr float kLimiterRelease = 1.0F / (Multiplayer::kVoiceSampleRate / 10);
 
         constexpr std::size_t kActivationHoldSamples = Multiplayer::kVoiceSampleRate * 2 / 5;
         constexpr std::size_t kPushToTalkHoldSamples = Multiplayer::kVoiceSampleRate * 3 / 20;
@@ -104,17 +105,13 @@ namespace Audio
         hasPrevious = false;
         activationHold = 0;
         pushToTalkHold = 0;
+        limiterGain = 1.0F;
         meter = 0.0F;
         level.store(0.0F, std::memory_order_relaxed);
     }
 
     void VoiceEncoder::ProcessChunk(bool a_allowed, bool a_pushToTalk)
     {
-        const auto chunkGain = gain.load(std::memory_order_relaxed);
-        for (auto& sample : chunk)
-        {
-            sample *= chunkGain;
-        }
         float voiceProbability = 1.0F;
         const bool suppress = denoiser && noiseSuppression.load(std::memory_order_relaxed);
         if (suppress)
@@ -158,7 +155,17 @@ namespace Audio
             pushToTalkHold -= (std::min)(pushToTalkHold, kChunkSamples);
         }
 
-        std::copy(chunk.begin(), chunk.end(), frame.begin() + static_cast<std::ptrdiff_t>(frameFill));
+        const auto chunkGain = gain.load(std::memory_order_relaxed);
+        auto* output = frame.data() + frameFill;
+        for (const auto sample : chunk)
+        {
+            const auto amplified = sample * chunkGain;
+            const auto magnitude = std::abs(amplified);
+            const auto needed = magnitude > kLimiterCeiling ? kLimiterCeiling / magnitude : 1.0F;
+            // The encoder hard-clips beyond full scale, so a peak is turned down at once.
+            limiterGain = needed < limiterGain ? needed : limiterGain + (1.0F - limiterGain) * kLimiterRelease;
+            *output++ = amplified * limiterGain;
+        }
         frameFill += kChunkSamples;
         if (frameFill == frame.size())
         {

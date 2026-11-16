@@ -298,7 +298,7 @@ namespace Config
             a_visitor.AudioDevice("InputDevice", Id::kVoiceInputDevice, a_settings.inputDevice,
                 Id::kVoiceInputDeviceComment, true);
             a_visitor.Percent("InputVolume", Id::kVoiceInputVolume, a_settings.inputVolume, Id::kVoiceInputVolumeComment,
-                0, VoiceSettings::kMaximumVolume, VoiceSettings::kVolumeStep);
+                VoiceSettings::kMinimumInputVolume, VoiceSettings::kMaximumInputVolume, VoiceSettings::kVolumeStep);
             a_visitor.Bool("NoiseSuppression", Id::kVoiceNoiseSuppression, a_settings.noiseSuppression,
                 Id::kVoiceNoiseSuppressionComment);
 

@@ -284,7 +284,7 @@ groups, Microphone (`Mode`, the input meter, `ActivationLevel`,
 | `Mode` | `PushToTalk`, heard while `[Controls] Microphone` is held, or `VoiceActivation`, heard while speaking ([Voice chat](voice-chat.md#activation)) | `PushToTalk` |
 | `ActivationLevel` | The input level at which voice activation opens, `0..100` on the meter's scale, 0 at -60 dBFS and 100 at full scale; the settings window shows it only with `VoiceActivation` | `35` |
 | `InputDevice`, `OutputDevice` | The capture and playback devices by their system names, as the settings window lists them; empty is the system's default device. A name no device has logs a warning and uses the default | empty |
-| `InputVolume` | Gain on the microphone in percent, `0..200` in steps of `5` | `100` |
+| `InputVolume` | How loud the microphone is sent, `50..150` percent in steps of `5`; the gain is its square ([Voice chat](voice-chat.md#capture-and-encoding)) | `100` |
 | `NoiseSuppression` | Runs the microphone through RNNoise before encoding, and lets voice activation open only on speech | `true` |
 | `OutputVolume` | Gain on other players' voices in percent, `0..200` in steps of `5` | `100` |
 
@@ -367,8 +367,8 @@ on its edges ([UI overlay](ui-overlay.md#size)) or one that moves it
 
 `Config::GetDirectory` is the directory of `PlayerHub.ini`, for the plugin's
 other files: the session tokens are kept there in `PlayerHub.session`, outside
-this file ([Network](network.md#session)), the friends, muted, and vanished players and
-voice volumes in `PlayerHub.players` ([Network](network.md#player-filters)), and the settings
+this file ([Network](network.md#session)), the friends, muted, and vanished players in
+`PlayerHub.players` ([Network](network.md#player-filters)), and the settings
 window's fonts and
 the menu frame's shape are read from `PlayerHub/fonts/` and `PlayerHub/frame/`
 under it ([UI overlay](ui-overlay.md#themed-faces)).

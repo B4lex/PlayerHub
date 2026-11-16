@@ -1622,16 +1622,3 @@ msgctxt "ControlsMicrophoneComment"
 msgid "Hold to talk with push to talk. Not used with voice activation."
 msgstr ""
 "Halten zum Sprechen bei Push-to-Talk. Bei Sprachaktivierung ohne Funktion."
-
-msgctxt "PlayerMenuVoiceVolume"
-msgid "Voice volume"
-msgstr "Stimmenlautstärke"
-
-msgctxt "PlayerMenuVoiceVolumeHint"
-msgid "How loud their voice plays for you. They are not told."
-msgstr ""
-"Wie laut die Stimme des Spielers für dich klingt. Der Spieler erfährt es "
-"nicht."
-
-
-

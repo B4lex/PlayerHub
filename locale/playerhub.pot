@@ -1554,14 +1554,3 @@ msgstr ""
 msgctxt "ControlsMicrophoneComment"
 msgid "Hold to talk with push to talk. Not used with voice activation."
 msgstr ""
-
-msgctxt "PlayerMenuVoiceVolume"
-msgid "Voice volume"
-msgstr ""
-
-msgctxt "PlayerMenuVoiceVolumeHint"
-msgid "How loud their voice plays for you. They are not told."
-msgstr ""
-
-
-

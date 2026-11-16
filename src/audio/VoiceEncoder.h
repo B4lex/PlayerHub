@@ -39,8 +39,8 @@ namespace Audio
         // Ends a talk spurt and forgets partial frames, as when the device stops.
         void Reset();
 
-        // The input level on the meter's scale, 0 at -60 dBFS and 1 at full scale, after gain and
-        // noise suppression.
+        // The input level on the meter's scale, 0 at -60 dBFS and 1 at full scale, after noise
+        // suppression and before the gain.
         [[nodiscard]] float GetLevel() const { return level.load(std::memory_order_relaxed); }
         [[nodiscard]] bool IsTransmitting() const { return transmittingShown.load(std::memory_order_relaxed); }
 
@@ -69,6 +69,7 @@ namespace Audio
         bool hasPrevious{ false };
         std::size_t frameFill{ 0 };
 
+        float limiterGain{ 1.0F };
         float meter{ 0.0F };
         // Samples left of the hangover after voice or the push-to-talk key ended.
         std::size_t activationHold{ 0 };

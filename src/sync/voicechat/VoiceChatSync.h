@@ -26,7 +26,6 @@ namespace VoiceChatSync
     {
         std::optional<FilterRevision> filterRevision;
         bool muted{ false };
-        float volume{ 1.0F };
         bool occluded{ false };
         float occlusionCheckRemaining{ 0.0F };
         bool mouthOpen{ false };

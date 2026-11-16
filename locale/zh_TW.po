@@ -1569,14 +1569,3 @@ msgstr "麥克風"
 msgctxt "ControlsMicrophoneComment"
 msgid "Hold to talk with push to talk. Not used with voice activation."
 msgstr "按鍵通話時按住以說話。語音啟動時不使用。"
-
-msgctxt "PlayerMenuVoiceVolume"
-msgid "Voice volume"
-msgstr "語音音量"
-
-msgctxt "PlayerMenuVoiceVolumeHint"
-msgid "How loud their voice plays for you. They are not told."
-msgstr "對方的聲音對你播放的音量。對方不會收到通知。"
-
-
-
