@@ -283,10 +283,7 @@ msgid "Horizontal position"
 msgstr ""
 
 msgctxt "UIChatHorizontalComment"
-msgid ""
-"Distance of the chat's left edge from the screen's left edge, as a share of "
-"the\n"
-"screen's width. The chat stays on the screen."
+msgid "Chat horizontal position."
 msgstr ""
 
 msgctxt "UIChatVertical"
@@ -294,10 +291,7 @@ msgid "Vertical position"
 msgstr ""
 
 msgctxt "UIChatVerticalComment"
-msgid ""
-"Distance of the chat's bottom edge from the screen's bottom edge, as a share "
-"of\n"
-"the screen's height. The chat stays on the screen."
+msgid "Chat vertical position."
 msgstr ""
 
 msgctxt "UIGroupItems"
@@ -1545,6 +1539,34 @@ msgstr ""
 
 msgctxt "VoiceOutputVolumeComment"
 msgid "How loud other players' voices play."
+msgstr ""
+
+msgctxt "VoiceGroupIndicator"
+msgid "Indicator"
+msgstr ""
+
+msgctxt "VoiceIndicator"
+msgid "Microphone indicator"
+msgstr ""
+
+msgctxt "VoiceIndicatorComment"
+msgid "Shows a microphone on the screen while other players can hear you."
+msgstr ""
+
+msgctxt "VoiceIndicatorHorizontal"
+msgid "Horizontal position"
+msgstr ""
+
+msgctxt "VoiceIndicatorHorizontalComment"
+msgid "Microphone indicator horizontal position."
+msgstr ""
+
+msgctxt "VoiceIndicatorVertical"
+msgid "Vertical position"
+msgstr ""
+
+msgctxt "VoiceIndicatorVerticalComment"
+msgid "Microphone indicator vertical position."
 msgstr ""
 
 msgctxt "ControlsMicrophone"

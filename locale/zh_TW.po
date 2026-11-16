@@ -288,22 +288,16 @@ msgid "Horizontal position"
 msgstr "水平位置"
 
 msgctxt "UIChatHorizontalComment"
-msgid ""
-"Distance of the chat's left edge from the screen's left edge, as a share of "
-"the\n"
-"screen's width. The chat stays on the screen."
-msgstr "聊天左緣與螢幕左緣的距離，以螢幕寬度的比例表示。聊天會保持在螢幕內。"
+msgid "Chat horizontal position."
+msgstr "聊天的水平位置。"
 
 msgctxt "UIChatVertical"
 msgid "Vertical position"
 msgstr "垂直位置"
 
 msgctxt "UIChatVerticalComment"
-msgid ""
-"Distance of the chat's bottom edge from the screen's bottom edge, as a share "
-"of\n"
-"the screen's height. The chat stays on the screen."
-msgstr "聊天下緣與螢幕下緣的距離，以螢幕高度的比例表示。聊天會保持在螢幕內。"
+msgid "Chat vertical position."
+msgstr "聊天的垂直位置。"
 
 msgctxt "UIGroupItems"
 msgid "Items"
@@ -1561,6 +1555,34 @@ msgstr "語音音量"
 msgctxt "VoiceOutputVolumeComment"
 msgid "How loud other players' voices play."
 msgstr "其他玩家聲音的播放音量。"
+
+msgctxt "VoiceGroupIndicator"
+msgid "Indicator"
+msgstr "指示圖示"
+
+msgctxt "VoiceIndicator"
+msgid "Microphone indicator"
+msgstr "麥克風指示圖示"
+
+msgctxt "VoiceIndicatorComment"
+msgid "Shows a microphone on the screen while other players can hear you."
+msgstr "其他玩家聽得見你時，在螢幕上顯示麥克風。"
+
+msgctxt "VoiceIndicatorHorizontal"
+msgid "Horizontal position"
+msgstr "水平位置"
+
+msgctxt "VoiceIndicatorHorizontalComment"
+msgid "Microphone indicator horizontal position."
+msgstr "麥克風指示圖示的水平位置。"
+
+msgctxt "VoiceIndicatorVertical"
+msgid "Vertical position"
+msgstr "垂直位置"
+
+msgctxt "VoiceIndicatorVerticalComment"
+msgid "Microphone indicator vertical position."
+msgstr "麥克風指示圖示的垂直位置。"
 
 msgctxt "ControlsMicrophone"
 msgid "Microphone"

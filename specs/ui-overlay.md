@@ -64,7 +64,7 @@ src/ui/
   settings/DiscordLink        # the Discord symbol and its invitation, opening the invite in the browser
   widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text, striped box
   widgets/ItemPicker          # item dropdown
-  widgets/VoiceGlyphs         # the speaking bars and the microphone, drawn from primitives
+  widgets/VoiceGlyphs         # the speaking bars, drawn from primitives to follow the level
   preview/ItemPreview         # 3D item model, spinning and turned by dragging, and cached thumbnails
   render/Gpu                  # frame target, runtime-compiled full-screen passes, image blend modes
   render/Backdrop             # the game's frame blurred and darkened behind a full-screen window
@@ -282,8 +282,10 @@ U+E000 is the letters and U+E001 the underline bar. Dear ImGui rasterizes and
 caches them at any size with the other glyphs, so the logo stays sharp at every
 scale and costs two quads a frame. U+E002 is the Discord symbol of the
 [Discord link](#discord-link), U+E003 and U+E004 the muted and vanished
-marks of the [player list](#player-list), and U+E005 to U+E007 the
-[font cursor](#font-cursor).
+marks of the [player list](#player-list), U+E005 to U+E007 the
+[font cursor](#font-cursor), U+E008 the [voice chat](#voice-chat)
+microphone, U+E009 and U+E00A the close and reset icons of
+`Controls::IconButton`, and U+E00B the person on the player list's button.
 
 - `assets/logo/logo.svg` is the source. `assets/logo/generate.py`, run with
   `uv run --script`, merges its white paths into the letters, cuts its black
@@ -303,6 +305,11 @@ marks of the [player list](#player-list), and U+E005 to U+E007 the
   its tail at the bottom left and `vanished.svg` an eye with a filled pupil;
   both are 24 units square with 3-unit lines, struck from the top left to the
   bottom right with a 1.5-unit gap cut along the strike's upper right side.
+  `microphone.svg` is a filled capsule in a holder arc on a stem and foot,
+  `close.svg` a cross, and `reset.svg` an open circle with a filled
+  arrowhead at its upper right end, all 24 units square with the same 3-unit
+  lines; `person.svg` is a filled head over a filled half-disc, 22 units wide
+  and 24 high.
 - The file is deployed and loaded with the [themed faces](#themed-faces), as
   a font of its own with no fallbacks and no `ExtraSizeScale`.
 - `DrawBrand` draws both glyphs at the cursor: the letters in the text color
@@ -374,8 +381,9 @@ background and border.
 `UI::Controls` holds the small widgets the themed windows share, each as high
 as a frame: `Toggle`, a switch whose knob slides over 0.12 s of frame time;
 `PrimaryButton` and `DangerButton`, which differ only in their fill; and
-`IconButton`, whose icons (close, reset) are drawn as lines, so they do not
-depend on a font having the glyph.
+`IconButton`, whose icons (close, reset) are glyphs U+E009 and U+E00A of the
+[logo](#logo) font, 0.75 font sizes high and centered in the button; without
+the font the button keeps its hover fill and shows no icon.
 
 ### Background opacity
 
@@ -1191,9 +1199,10 @@ never a line, so the history holds only what players said.
 
 ### Player list
 
-- The filters' row ends, at the field's column, with a button: a person
-  drawn as shapes, from the top of the digits to their baseline as the
-  font's `0` glyph has them, and the number of connected players, the local
+- The filters' row ends, at the field's column, with a button: the person
+  glyph U+E00B of the [logo](#logo) font, from the top of the digits to their
+  baseline as the font's `0` glyph has them and as wide as the glyph's
+  advance (none without the font), and the number of connected players, the local
   one included (`ChatRoster::GetPlayerCount`), or
   an offline label in the muted text color without a roster. It is a chip as the
   filters are (`ChatStyle::DrawChipFrame`): closed, an outline in the
@@ -1969,12 +1978,31 @@ carried, and played is in [Voice chat](voice-chat.md).
 - The [player list](#player-list) draws the same glyph in the accent, the
   marks' size, before a speaking player's mute and vanish marks; the name is
   cut before it.
-- `VoiceIndicator`, registered after the nameplates and drawn on the
-  background draw list like them, shows a microphone
-  (`VoiceGlyphs::DrawMicrophone`) 1.25 font sizes high at 32% of the screen's
-  width and one font size from its top, in the accent over a dark outline,
-  while the player is heard. It shows nothing outside a game or while
-  `UI::IsGameViewShown` is false.
+- `VoiceIndicator` shows the microphone glyph U+E008 of the
+  [logo](#logo) font 2 font sizes high, in the accent over a dark outline,
+  while the player is heard; without the font it shows nothing. It draws on the background draw list like the nameplates, under
+  every window, but is registered after the [trade window](#trade-window),
+  so it draws over the trade's [backdrop](#backdrop) and stays visible
+  while trading wherever the trade's windows leave the screen free. It
+  shows nothing outside a game, while `UI::IsGameViewShown` is false, or
+  with `[Voice] Indicator` off ([Configuration](configuration.md#voice)).
+- `[Voice] IndicatorPositionHorizontal` and `IndicatorPositionVertical` place
+  the microphone's lower left corner as the chat's
+  [position](#position) settings place the chat's: at a percentage of the
+  screen's width from its left edge and of its height from its bottom edge,
+  with any fraction and rounded to the nearest pixel. The microphone is then
+  moved back until it is wholly on the screen, so `100` and `100` put it
+  against the upper right corner. The defaults, `1` and `5`, put it in the
+  band under the chat's default place at `[UI] Scale` 100; a larger scale
+  grows it upward from the same corner. It does not follow a moved chat, and
+  it has no drag: it takes no input.
+- The settings window shows the two positions as `FinePercent` sliders, only
+  while `Indicator` is on. While the pointer is over either slider or
+  dragging it, the window calls `UI::PreviewVoiceIndicator` with its draft's
+  positions each frame, and the indicator draws there in its next pass, heard
+  or not, in a game or not, instead of at the live position. So the
+  microphone follows a slider as it moves, though the setting applies on
+  release like the chat's.
 - The `[Voice]` page of the [settings window](#settings-window) draws two
   rows of its own. An audio device (`SettingsVisitor::AudioDevice`) is a combo
   of the system's default, then the devices `VoiceChatSync::CopyDeviceNames`
@@ -3326,6 +3354,21 @@ Not confirmed in game:
     around them. At 100 nothing is blurred. The status panel and the closed
     chat's recent lines are never blurred. The frame rate with the chat open
     does not drop noticeably.
+42. While the player is heard, the microphone shows near the screen's lower
+    left corner, under the chat's default place. With `Indicator` off on
+    the `[Voice]` page it never shows, and the page's two position sliders
+    are gone. With it on, they show 1% and 5%; pointing at either shows the
+    microphone without speaking, and dragging one moves the microphone with
+    it along that axis. Released at `50` and `50`, the microphone shows
+    around the screen's middle while the player is heard, at 1080p and 4K
+    alike; at `100` and `100` it is against the upper right corner and wholly
+    on the screen. Defaults puts it back and turns it on, and the three
+    values are in `PlayerHub.ini` after a restart. The microphone is sharp
+    at 1080p and 4K, and with `PlayerHub/fonts/PlayerHub.ttf` removed it
+    never shows.
+43. At the default positions, the microphone shows over the blurred
+    backdrop while the player is heard in an open trade, and the trade's
+    windows draw over it where they overlap.
 
 ## Known limitations
 

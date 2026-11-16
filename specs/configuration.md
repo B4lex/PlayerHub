@@ -273,10 +273,11 @@ player. `GameplayPolicy` follows the section for the hooks that read it.
 
 ### `[Voice]`
 
-[Voice chat](voice-chat.md) with the players nearby: `Enabled`, then two
+[Voice chat](voice-chat.md) with the players nearby: `Enabled`, then three
 groups, Microphone (`Mode`, the input meter, `ActivationLevel`,
-`InputDevice`, `InputVolume`, `NoiseSuppression`) and Other players
-(`OutputDevice`, `OutputVolume`).
+`InputDevice`, `InputVolume`, `NoiseSuppression`), Other players
+(`OutputDevice`, `OutputVolume`), and Indicator (`Indicator`,
+`IndicatorPositionHorizontal`, `IndicatorPositionVertical`).
 
 | Key | Meaning | Default |
 | --- | --- | --- |
@@ -287,6 +288,9 @@ groups, Microphone (`Mode`, the input meter, `ActivationLevel`,
 | `InputVolume` | How loud the microphone is sent, `50..150` percent in steps of `5`; the gain is 1.4 times its square ([Voice chat](voice-chat.md#capture-and-encoding)) | `100` |
 | `NoiseSuppression` | Runs the microphone through RNNoise before encoding, and lets voice activation open only on speech | `true` |
 | `OutputVolume` | Gain on other players' voices in percent, `0..200` in steps of `5` | `100` |
+| `Indicator` | Shows the microphone on the screen while the player is heard ([UI overlay](ui-overlay.md#voice-chat)) | `true` |
+| `IndicatorPositionHorizontal` | Distance of the microphone's left edge from the screen's left edge in percent of the screen's width, `0..100` with any fraction; the microphone stays wholly on the screen. The settings window shows it only with `Indicator` on | `1` |
+| `IndicatorPositionVertical` | Distance of the microphone's bottom edge from the screen's bottom edge in percent of the screen's height, `0..100` with any fraction; the default is under the chat's default place. Shown as the horizontal position is | `5` |
 
 ### `[Advanced]`
 
@@ -343,6 +347,7 @@ revision before the snapshot never misses a change.
 | `Overlay` | overlay | selecting the text language from `Language` before the frame when the revision changes, and reloading the fonts when it changes the Han font order |
 | `ChatSize` | overlay | reading `ChatWidth` and `ChatLines` each frame the chat draws, outside a drag |
 | `ChatPosition` | overlay | reading `ChatPositionHorizontal` and `ChatPositionVertical` each frame the chat or its recent lines draw, outside a drag |
+| `VoiceIndicator` | overlay | reading `[Voice] Indicator` and its two positions each frame the player is heard |
 
 ## Saving
 

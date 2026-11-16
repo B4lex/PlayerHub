@@ -9,6 +9,7 @@
 #include "ui/MenuFrame.h"
 #include "ui/Theme.h"
 #include "ui/WindowManager.h"
+#include "ui/hud/VoiceIndicator.h"
 #include "ui/settings/ConnectionControls.h"
 #include "ui/settings/DiscordLink.h"
 #include "ui/widgets/Controls.h"
@@ -72,6 +73,8 @@ namespace UI
         constexpr std::string_view kDefaultsSections[]{ kUISection, kControlsSection, kGameplaySection, kVoiceSection,
             kAdvancedSection };
         constexpr std::string_view kInputMeterKey = "InputMeter";
+        constexpr std::string_view kIndicatorHorizontalKey = "IndicatorPositionHorizontal";
+        constexpr std::string_view kIndicatorVerticalKey = "IndicatorPositionVertical";
         constexpr float kMeterHeightFraction = 0.4F;
         constexpr float kMeterMarkerFonts = 0.125F;
 
@@ -224,6 +227,8 @@ namespace UI
 
             [[nodiscard]] bool IsEditing() const { return editing; }
 
+            [[nodiscard]] bool IsIndicatorPreviewed() const { return indicatorPreviewed; }
+
             [[nodiscard]] bool TakeConnectRequest() { return std::exchange(connectRequested, false); }
 
             [[nodiscard]] float GetScrollbarWidth() const { return scrollbarWidth; }
@@ -237,6 +242,7 @@ namespace UI
                 stagedSectionOpen = false;
                 defaultsSectionOpen = false;
                 editing = false;
+                indicatorPreviewed = false;
                 sections.clear();
                 bindings.clear();
                 pressedKey = {};
@@ -399,6 +405,11 @@ namespace UI
                 ImGui::SliderFloat("##value", &a_value, 0.0F, a_maximum, "%.0f%%", ImGuiSliderFlags_AlwaysClamp);
                 // Applied on release: a frame resized under the cursor would move the slider.
                 editing = editing || ImGui::IsItemActive();
+                if (openSection == kVoiceSection && (a_key == kIndicatorHorizontalKey || a_key == kIndicatorVerticalKey)
+                    && (ImGui::IsItemActive() || ImGui::IsItemHovered()))
+                {
+                    indicatorPreviewed = true;
+                }
                 EndRow();
             }
 
@@ -1045,6 +1056,7 @@ namespace UI
             bool stagedSectionOpen{ false };
             bool defaultsSectionOpen{ false };
             bool editing{ false };
+            bool indicatorPreviewed{ false };
             bool focusConnectionField{ false };
             bool connectRequested{ false };
             bool hideNext{ false };
@@ -1232,6 +1244,10 @@ namespace UI
                 const auto* liveError = GetLiveError();
                 const auto knot = frame.corner - frame.inset;
                 editor.DrawPage(draft, padding, footerHeight, liveError ? footerHeight : (std::max)(padding.y, knot));
+                if (editor.IsIndicatorPreviewed())
+                {
+                    PreviewVoiceIndicator(draft.voice.indicatorPositionHorizontal, draft.voice.indicatorPositionVertical);
+                }
                 ApplyLiveSections();
                 // After applying: the hello reads the display name from the live configuration.
                 if (editor.TakeConnectRequest())

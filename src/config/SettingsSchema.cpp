@@ -307,6 +307,17 @@ namespace Config
                 Id::kVoiceOutputDeviceComment, false);
             a_visitor.Percent("OutputVolume", Id::kVoiceOutputVolume, a_settings.outputVolume,
                 Id::kVoiceOutputVolumeComment, 0, VoiceSettings::kMaximumVolume, VoiceSettings::kVolumeStep);
+
+            a_visitor.Comment(Id::kVoiceGroupIndicator);
+            a_visitor.Bool("Indicator", Id::kVoiceIndicator, a_settings.indicator, Id::kVoiceIndicatorComment);
+            a_visitor.ShowNextIf(a_settings.indicator);
+            a_visitor.FinePercent("IndicatorPositionHorizontal", Id::kVoiceIndicatorHorizontal,
+                a_settings.indicatorPositionHorizontal, Id::kVoiceIndicatorHorizontalComment,
+                VoiceSettings::kMaximumIndicatorPosition);
+            a_visitor.ShowNextIf(a_settings.indicator);
+            a_visitor.FinePercent("IndicatorPositionVertical", Id::kVoiceIndicatorVertical,
+                a_settings.indicatorPositionVertical, Id::kVoiceIndicatorVerticalComment,
+                VoiceSettings::kMaximumIndicatorPosition);
         }
 
         void DescribeGameplay(GameplaySettings& a_settings, SettingsVisitor& a_visitor)

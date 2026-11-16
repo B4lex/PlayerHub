@@ -8,9 +8,10 @@
 The overlay draws the logos and icons as glyphs of this font, so Dear ImGui
 rasterizes them at any size: U+E000 is the white letters and U+E001 the orange
 bar with the black scratches cut out of it, U+E002 the Discord symbol scaled to
-the same height, and U+E003 onwards the ICONS, each scaled so its SVG height is
-the em, then U+E005 the cursor's dark outline, U+E006 its light band, and
-U+E007 its ring's opaque centre, from ../cursor/cursor.svg. Run it with `uv run --script`.
+the same height, the ICONS at U+E003, U+E004, and U+E008 onwards, each scaled so
+its SVG height is the em, and U+E005 the cursor's dark outline, U+E006 its light band,
+and U+E007 its ring's opaque centre, from ../cursor/cursor.svg. Run it with
+`uv run --script`.
 
 An icon SVG holds paths filled or stroked (round caps and joins) in black or
 white, painted in order: black adds to the glyph and white cuts it away, so the
@@ -31,7 +32,14 @@ HERE = pathlib.Path(__file__).resolve().parent
 SOURCE = HERE / "logo.svg"
 DISCORD_SOURCE = HERE / "discord.svg"
 ICONS_DIRECTORY = HERE.parent / "icons"
-ICONS = {0xE003: "muted.svg", 0xE004: "vanished.svg"}
+ICONS = {
+    0xE003: "muted.svg",
+    0xE004: "vanished.svg",
+    0xE008: "microphone.svg",
+    0xE009: "close.svg",
+    0xE00A: "reset.svg",
+    0xE00B: "person.svg",
+}
 CURSOR_SOURCE = HERE.parent / "cursor" / "cursor.svg"
 CURSOR = {0xE005: "outline", 0xE006: "band", 0xE007: "centre"}
 OUTPUT = HERE.parent / "fonts" / "PlayerHub.ttf"

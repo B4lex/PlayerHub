@@ -13,7 +13,6 @@
 #include <cfloat>
 #include <cmath>
 #include <format>
-#include <numbers>
 
 namespace UI
 {
@@ -21,11 +20,11 @@ namespace UI
     {
         constexpr float kListWidthFonts = 13.0F;
         constexpr float kIconGapFonts = 0.3F;
-        constexpr float kIconWidthOfHeight = 0.9F;
         constexpr float kFilterMarkFonts = 0.75F;
-        // U+E003 and U+E004 of the logo font.
+        // U+E003, U+E004, and U+E00B of the logo font.
         constexpr const char* kMutedGlyph = "\xEE\x80\x83";
         constexpr const char* kVanishedGlyph = "\xEE\x80\x84";
+        constexpr const char* kPersonGlyph = "\xEE\x80\x8B";
         constexpr double kNearbySeconds = 0.5;
         constexpr ImVec4 kDistantPlayerColor{ 0.76F, 0.75F, 0.73F, 1.0F };
 
@@ -42,16 +41,6 @@ namespace UI
                 return DigitRows{ .top = std::round(digit->Y0), .height = std::round(digit->Y1 - digit->Y0) };
             }
             return DigitRows{ .top = 0.0F, .height = ImGui::GetFontSize() };
-        }
-
-        void DrawPersonIcon(ImDrawList& a_list, const ImVec2& a_min, const ImVec2& a_size, ImU32 a_color)
-        {
-            const auto middle = a_min.x + a_size.x * 0.5F;
-            const auto head = a_size.y * 0.24F;
-            a_list.AddCircleFilled(ImVec2{ middle, a_min.y + head }, head, a_color);
-            a_list.PathArcTo(ImVec2{ middle, a_min.y + a_size.y }, a_size.x * 0.5F, std::numbers::pi_v<float>,
-                std::numbers::pi_v<float> * 2.0F);
-            a_list.PathFillConvex(a_color);
         }
     }
 
@@ -90,8 +79,10 @@ namespace UI
         const auto padding = ChatStyle::GetChipPadding();
         const auto textSize = ImGui::CalcTextSize(text);
         const auto digit = FindDigitRows();
-        const auto icon = online ? std::round(kIconWidthOfHeight * digit.height) : 0.0F;
-        const auto gap = online ? std::floor(kIconGapFonts * fontSize) : 0.0F;
+        auto* const iconFont = online ? Fonts::GetLogo() : nullptr;
+        const auto icon =
+            iconFont ? std::round(iconFont->CalcTextSizeA(digit.height, FLT_MAX, 0.0F, kPersonGlyph).x) : 0.0F;
+        const auto gap = iconFont ? std::floor(kIconGapFonts * fontSize) : 0.0F;
         const ImVec2 size{ padding.x * 2.0F + icon + gap + textSize.x, textSize.y + padding.y * 2.0F };
 
         ImGui::SameLine();
@@ -123,10 +114,10 @@ namespace UI
         const auto min = ImGui::GetItemRectMin();
         auto* drawList = ImGui::GetWindowDrawList();
         const ImVec2 content{ min.x + padding.x, min.y + padding.y };
-        if (online)
+        if (iconFont)
         {
-            DrawPersonIcon(*drawList, ImVec2{ content.x, content.y + digit.top }, ImVec2{ icon, digit.height },
-                ImGui::GetColorU32(color));
+            drawList->AddText(iconFont, digit.height, ImVec2{ content.x, content.y + digit.top }, ImGui::GetColorU32(color),
+                kPersonGlyph);
         }
         drawList->AddText(ImVec2{ content.x + icon + gap, content.y }, ImGui::GetColorU32(color), text);
     }

@@ -222,7 +222,6 @@ namespace UI::Overlay
         }
 
         WindowManager::Register(CreateNameplateLayer());
-        WindowManager::Register(CreateVoiceIndicator());
         WindowManager::Register(CreateStatusPanel());
         WindowManager::Register(CreateNoticeStack());
         WindowManager::Register(CreateWorldPlayerMenu());
@@ -231,6 +230,8 @@ namespace UI::Overlay
         WindowManager::Register(CreateTradeWindow());
         // After the trade window, which places the chat's column in the frame it draws.
         WindowManager::Register(CreateChatWindow());
+        // After the trade window, whose backdrop on the background draw list would cover it.
+        WindowManager::Register(CreateVoiceIndicator());
         WindowManager::Register(CreateSettingsWindow());
         InputCapture::Install();
         InputLanguage::Install();

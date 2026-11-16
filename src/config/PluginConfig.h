@@ -145,17 +145,19 @@ namespace Config
         static constexpr std::uint32_t kVolumeStep = 5;
         static constexpr std::uint32_t kMaximumActivationLevel = 100;
         static constexpr std::size_t kMaximumDeviceNameBytes = 255;
+        static constexpr float kMaximumIndicatorPosition = 100.0F;
 
         bool enabled{ true };
         std::uint32_t mode{ kPushToTalk };
-        // On the input meter's scale, 0 at -60 dBFS and 100 at full scale.
-        std::uint32_t activationLevel{ 35 };
+        std::uint32_t activationLevel{ 25 };
         bool noiseSuppression{ true };
-        // Empty for the system's default device.
         std::string inputDevice;
         std::string outputDevice;
         std::uint32_t inputVolume{ 100 };
         std::uint32_t outputVolume{ 100 };
+        bool indicator{ true };
+        float indicatorPositionHorizontal{ 1.0F };
+        float indicatorPositionVertical{ 2.0F };
 
         bool operator==(const VoiceSettings&) const = default;
     };
