@@ -1,5 +1,4 @@
 #include "network/VoiceTransport.h"
-#include "network/ServerClient.h"
 #include "network/TrafficMeter.h"
 #include "runtime/Profiling.h"
 
@@ -49,6 +48,8 @@ namespace Network::VoiceTransport
         // Also how often the thread looks at its timers and at Stop.
         constexpr DWORD kReceiveTimeoutMilliseconds = 100;
         constexpr auto kUnconfirmedProbeInterval = 1s;
+        // Five probes without an answer; the settings window then says the relay cannot be reached.
+        constexpr auto kUnreachableAfter = 5s;
         // Within the shortest common NAT mapping lifetime for UDP, about 30 s.
         constexpr auto kKeepAliveInterval = 5s;
         constexpr auto kSilenceTimeout = 12s;
@@ -198,9 +199,9 @@ namespace Network::VoiceTransport
             Multiplayer::VoiceAccess access;
             std::string host;
             std::atomic_bool stopping{ false };
-            std::atomic<Route> route{ Route::kWebSocket };
+            std::atomic<State> state{ State::kConnecting };
 
-            // The socket is set once by the session's thread before route can become kDatagrams.
+            // The socket is set once by the session's thread before state can become kConnected.
             std::atomic<SOCKET> socket{ INVALID_SOCKET };
             std::mutex sendLock;
             AesGcm sealer;
@@ -219,19 +220,6 @@ namespace Network::VoiceTransport
         {
             const std::scoped_lock lock{ s_lock };
             return s_session;
-        }
-
-        // Sends the route on the WebSocket only while a_session is current, so a stopping session's
-        // thread never tells a newer connection about its own datagrams.
-        void PublishRoute(Session& a_session, Route a_route)
-        {
-            const std::scoped_lock lock{ s_lock };
-            if (s_session.get() != &a_session || a_session.stopping.load(std::memory_order_acquire))
-            {
-                return;
-            }
-            a_session.route.store(a_route, std::memory_order_release);
-            PublishVoiceRoute(a_route == Route::kDatagrams);
         }
 
         std::string GetHost(std::string_view a_url)
@@ -293,7 +281,7 @@ namespace Network::VoiceTransport
             const auto port = std::to_string(a_session.access.port);
             if (::getaddrinfo(a_session.host.c_str(), port.c_str(), &hints, &results) != 0 || !results)
             {
-                logs::warn("Voice could not resolve the relay's host; voice uses the WebSocket");
+                logs::warn("Voice could not resolve the relay's host; voice is unavailable");
                 return INVALID_SOCKET;
             }
             SOCKET result = INVALID_SOCKET;
@@ -317,7 +305,7 @@ namespace Network::VoiceTransport
             ::freeaddrinfo(results);
             if (result == INVALID_SOCKET)
             {
-                logs::warn("Voice could not open a datagram socket; voice uses the WebSocket");
+                logs::warn("Voice could not open a datagram socket; voice is unavailable");
                 return INVALID_SOCKET;
             }
             const DWORD timeout = kReceiveTimeoutMilliseconds;
@@ -377,6 +365,7 @@ namespace Network::VoiceTransport
             const auto socket = OpenSocket(session);
             if (socket == INVALID_SOCKET)
             {
+                session.state.store(State::kUnreachable, std::memory_order_release);
                 return;
             }
             session.socket.store(socket, std::memory_order_release);
@@ -384,6 +373,7 @@ namespace Network::VoiceTransport
             bool confirmed = false;
             auto nextProbe = Clock::now();
             auto lastHeard = Clock::now();
+            const auto probingSince = lastHeard;
             std::uint32_t probeID = 0;
             std::array<std::uint8_t, kMaximumDatagramBytes + 1> buffer;
             while (!session.stopping.load(std::memory_order_acquire))
@@ -399,9 +389,16 @@ namespace Network::VoiceTransport
                 if (confirmed && now - lastHeard > kSilenceTimeout)
                 {
                     confirmed = false;
-                    logs::warn("Voice datagrams stopped arriving; voice uses the WebSocket until they return");
-                    PublishRoute(session, Route::kWebSocket);
+                    logs::warn("Voice datagrams stopped arriving; voice is off until they return");
+                    session.state.store(State::kUnreachable, std::memory_order_release);
                     nextProbe = now;
+                }
+                else if (!confirmed && now - probingSince > kUnreachableAfter
+                         && session.state.load(std::memory_order_acquire) == State::kConnecting)
+                {
+                    logs::warn("Voice datagrams get no answer from the relay at port {}; voice is off until they do",
+                        session.access.port);
+                    session.state.store(State::kUnreachable, std::memory_order_release);
                 }
 
                 const auto received = ::recv(socket, reinterpret_cast<char*>(buffer.data()),
@@ -421,8 +418,8 @@ namespace Network::VoiceTransport
                 {
                     confirmed = true;
                     nextProbe = lastHeard + kKeepAliveInterval;
-                    logs::info("Voice datagrams reach the relay both ways; voice uses them");
-                    PublishRoute(session, Route::kDatagrams);
+                    logs::info("Voice datagrams reach the relay both ways");
+                    session.state.store(State::kConnected, std::memory_order_release);
                 }
             }
             session.socket.store(INVALID_SOCKET, std::memory_order_release);
@@ -448,7 +445,8 @@ namespace Network::VoiceTransport
                             && session->opener.Initialize(a_access.key);
         if (!datagrams)
         {
-            logs::error("Voice could not set up the relay's key or host; voice uses the WebSocket");
+            logs::error("Voice could not set up the relay's key or host; voice is unavailable");
+            session->state.store(State::kUnreachable, std::memory_order_release);
         }
         std::shared_ptr<Session> previous;
         {
@@ -482,14 +480,6 @@ namespace Network::VoiceTransport
         }
     }
 
-    void DeliverFromWebSocket(const Multiplayer::VoiceFrame& a_frame)
-    {
-        if (const auto sink = s_sink.load(std::memory_order_acquire))
-        {
-            sink(a_frame);
-        }
-    }
-
     void Send(std::uint16_t a_sequence, bool a_end, std::span<const std::uint8_t> a_opus)
     {
         if (!Multiplayer::IsValidVoiceFrameSize(a_opus.size()))
@@ -497,29 +487,22 @@ namespace Network::VoiceTransport
             return;
         }
         const auto session = GetSession();
-        if (!session)
+        if (!session || session->state.load(std::memory_order_acquire) != State::kConnected)
         {
             return;
         }
-        if (session->route.load(std::memory_order_acquire) == Route::kDatagrams)
-        {
-            std::array<std::uint8_t, kVoiceHeaderBytes + Multiplayer::kMaximumVoiceFrameBytes> plaintext;
-            plaintext[0] = static_cast<std::uint8_t>(a_sequence);
-            plaintext[1] = static_cast<std::uint8_t>(a_sequence >> 8);
-            plaintext[2] = a_end ? kFlagEnd : 0;
-            std::ranges::copy(a_opus, plaintext.begin() + kVoiceHeaderBytes);
-            if (SendDatagram(*session, kKindVoice, std::span{ plaintext.data(), kVoiceHeaderBytes + a_opus.size() }))
-            {
-                return;
-            }
-        }
-        PublishVoiceFrame(a_sequence, a_end, a_opus);
+        std::array<std::uint8_t, kVoiceHeaderBytes + Multiplayer::kMaximumVoiceFrameBytes> plaintext;
+        plaintext[0] = static_cast<std::uint8_t>(a_sequence);
+        plaintext[1] = static_cast<std::uint8_t>(a_sequence >> 8);
+        plaintext[2] = a_end ? kFlagEnd : 0;
+        std::ranges::copy(a_opus, plaintext.begin() + kVoiceHeaderBytes);
+        SendDatagram(*session, kKindVoice, std::span{ plaintext.data(), kVoiceHeaderBytes + a_opus.size() });
     }
 
-    Route GetRoute()
+    State GetState()
     {
         const auto session = GetSession();
-        return session ? session->route.load(std::memory_order_acquire) : Route::kNone;
+        return session ? session->state.load(std::memory_order_acquire) : State::kOff;
     }
 
     std::uint32_t GetRadius()

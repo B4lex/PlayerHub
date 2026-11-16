@@ -5,7 +5,6 @@
 #include "network/TrafficMeter.h"
 #include "runtime/GameSession.h"
 #include "runtime/PluginTime.h"
-#include "sync/voicechat/VoiceChatSync.h"
 #include "text/Text.h"
 #include "ui/Layout.h"
 
@@ -79,19 +78,6 @@ namespace UI
                 kMutedColor, "%s %.2f ms", Text::GetCString(Text::Id::kStatusPlugin), milliseconds.count());
         }
 
-        void DrawVoice()
-        {
-            using Network::VoiceTransport::Route;
-            const auto route = VoiceChatSync::GetLocalStatus().route;
-            if (route == Route::kNone)
-            {
-                return;
-            }
-            const bool datagrams = route == Route::kDatagrams;
-            ImGui::TextColored(datagrams ? kMutedColor : kFairColor, "%s %s", Text::GetCString(Text::Id::kStatusVoice),
-                Text::GetCString(datagrams ? Text::Id::kStatusVoiceDatagrams : Text::Id::kStatusVoiceWebSocket));
-        }
-
         class StatusPanel final : public Window
         {
         public:
@@ -122,7 +108,6 @@ namespace UI
         {
             DrawPing(Network::GetLatency());
             DrawTraffic(Network::GetTrafficRates());
-            DrawVoice();
         }
         DrawPluginTime(PluginTime::GetAverageFrameTime());
 

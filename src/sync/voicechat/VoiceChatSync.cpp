@@ -3,6 +3,7 @@
 #include "actor/VoiceOcclusion.h"
 #include "audio/AudioEngine.h"
 #include "config/PluginConfig.h"
+#include "network/VoiceTransport.h"
 #include "runtime/FrameTime.h"
 #include "runtime/GameSession.h"
 #include "runtime/GameThread.h"
@@ -19,7 +20,7 @@ namespace VoiceChatSync
 {
     namespace
     {
-        using Network::VoiceTransport::Route;
+        using Network::VoiceTransport::State;
 
         // Full volume within about four metres, then an inverse-distance fall that is gentler than
         // the physical one, so a voice carries across a camp; the last fifth of the radius fades to
@@ -99,8 +100,8 @@ namespace VoiceChatSync
     {
         const auto config = Config::Get();
         const auto& voice = config->voice;
-        const auto route = Network::VoiceTransport::GetRoute();
-        const Audio::Settings settings{ .active = voice.enabled && route != Route::kNone && GameSession::IsInGame(),
+        const auto state = Network::VoiceTransport::GetState();
+        const Audio::Settings settings{ .active = voice.enabled && state == State::kConnected && GameSession::IsInGame(),
             .inputDevice = voice.inputDevice,
             .outputDevice = voice.outputDevice,
             .inputGain = static_cast<float>(voice.inputVolume) / 100.0F,
@@ -112,9 +113,12 @@ namespace VoiceChatSync
         {
             if (settings.active != s_settings.active || !s_configured)
             {
-                logs::info("Voice {}: mode={} route={}", settings.active ? "is on" : "is off",
+                logs::info("Voice {}: mode={} relay={}", settings.active ? "is on" : "is off",
                     settings.voiceActivation ? "voice activation" : "push to talk",
-                    route == Route::kDatagrams ? "datagrams" : route == Route::kWebSocket ? "WebSocket" : "none");
+                    state == State::kConnected     ? "connected"
+                    : state == State::kConnecting  ? "connecting"
+                    : state == State::kUnreachable ? "unreachable"
+                                                   : "none");
             }
             s_configured = true;
             s_settings = settings;
@@ -251,7 +255,7 @@ namespace VoiceChatSync
             .voiceActivation = s_settings.voiceActivation,
             .microphoneOff = s_settings.voiceActivation && s_microphoneOff,
             .inputLevel = Audio::GetInputLevel(),
-            .route = Network::VoiceTransport::GetRoute() };
+            .relayUnreachable = Network::VoiceTransport::GetState() == State::kUnreachable };
     }
 
     void CopyDeviceNames(bool a_capture, std::vector<std::string>& a_names)

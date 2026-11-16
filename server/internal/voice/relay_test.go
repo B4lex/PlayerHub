@@ -9,11 +9,6 @@ import (
 	"net"
 	"testing"
 	"time"
-
-	"google.golang.org/protobuf/proto"
-
-	"playerhub/server/internal/delivery"
-	"playerhub/server/internal/wire/pb"
 )
 
 func TestReplayWindow(t *testing.T) {
@@ -94,7 +89,7 @@ func newHarness(t *testing.T) *harness {
 
 func (h *harness) connect(slot uint32) *client {
 	h.t.Helper()
-	endpoint, err := h.relay.Register(delivery.NewOutbox(64))
+	endpoint, err := h.relay.Register()
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -163,24 +158,6 @@ func (c *client) receivesNothing() {
 	}
 }
 
-func (c *client) outboxVoice() []*pb.PeerVoice {
-	c.t.Helper()
-	var b delivery.Batch
-	if ok, _ := c.endpoint.outbox.Drain(&b, time.Now()); !ok {
-		c.t.Fatal("outbox closed")
-	}
-	var frames []*pb.PeerVoice
-	b.Write(func(frame []byte) error {
-		m := &pb.ServerMessage{}
-		if err := proto.Unmarshal(frame, m); err != nil {
-			c.t.Fatal(err)
-		}
-		frames = append(frames, m.GetPeerVoice())
-		return nil
-	})
-	return frames
-}
-
 func voiceFrame(sequence uint16, end bool, opus ...byte) []byte {
 	return AppendVoice(nil, Frame{Sequence: sequence, End: end, Opus: opus})
 }
@@ -190,7 +167,6 @@ func TestVoiceReachesListenersByDatagram(t *testing.T) {
 	speaker, listener, bystander := h.connect(1), h.connect(2), h.connect(3)
 	speaker.endpoint.SetTargets([]*Endpoint{listener.endpoint})
 	listener.probe(42)
-	listener.endpoint.SetDatagrams(true)
 
 	speaker.send(KindVoice, voiceFrame(5, false, 0xAA, 0xBB))
 	kind, plaintext := listener.receive()
@@ -207,32 +183,19 @@ func TestVoiceReachesListenersByDatagram(t *testing.T) {
 	bystander.receivesNothing()
 }
 
-func TestListenerWithoutDatagramsGetsPeerVoice(t *testing.T) {
+func TestListenerIsSentNothingBeforeItsFirstDatagram(t *testing.T) {
 	h := newHarness(t)
 	speaker, listener := h.connect(1), h.connect(2)
 	speaker.endpoint.SetTargets([]*Endpoint{listener.endpoint})
-	// A probe records the address, but the client has not said its datagrams arrive.
-	listener.probe(1)
 
-	speaker.send(KindVoice, voiceFrame(9, true, 1, 2, 3))
-	deadline := time.Now().Add(2 * time.Second)
-	var frames []*pb.PeerVoice
-	for len(frames) == 0 && time.Now().Before(deadline) {
-		<-listener.endpoint.outbox.Ready()
-		frames = listener.outboxVoice()
-	}
-	if len(frames) != 1 || frames[0].GetSlot() != 1 || frames[0].GetSequence() != 9 || !frames[0].GetEnd() ||
-		!bytes.Equal(frames[0].GetOpus(), []byte{1, 2, 3}) {
-		t.Fatalf("frames %v", frames)
-	}
+	speaker.send(KindVoice, voiceFrame(9, false, 1))
 	listener.receivesNothing()
 
-	// A frame over the WebSocket takes the same way.
-	if !speaker.endpoint.FrameFromClient(10, []byte{4}, false, time.Now()) {
-		t.Fatal("frame from the WebSocket dropped")
-	}
-	if frames := listener.outboxVoice(); len(frames) != 1 || frames[0].GetSequence() != 10 {
-		t.Fatalf("frames %v", frames)
+	listener.probe(1)
+	speaker.send(KindVoice, voiceFrame(10, true, 1, 2, 3))
+	_, plaintext := listener.receive()
+	if slot, frame, err := ParsePeerVoice(plaintext); err != nil || slot != 1 || frame.Sequence != 10 || !frame.End {
+		t.Fatalf("slot %d frame %+v err %v", slot, frame, err)
 	}
 }
 
@@ -241,7 +204,6 @@ func TestForgedAndReplayedDatagramsAreDropped(t *testing.T) {
 	speaker, listener := h.connect(1), h.connect(2)
 	speaker.endpoint.SetTargets([]*Endpoint{listener.endpoint})
 	listener.probe(1)
-	listener.endpoint.SetDatagrams(true)
 
 	speaker.send(KindVoice, voiceFrame(1, false, 1))
 	listener.receive()
@@ -279,13 +241,12 @@ func TestRemovedEndpointsNeitherSendNorReceive(t *testing.T) {
 	speaker, listener := h.connect(1), h.connect(2)
 	speaker.endpoint.SetTargets([]*Endpoint{listener.endpoint})
 	listener.probe(1)
-	listener.endpoint.SetDatagrams(true)
 
 	h.relay.Remove(listener.endpoint)
 	speaker.send(KindVoice, voiceFrame(1, false, 1))
 	listener.receivesNothing()
 	h.relay.Remove(speaker.endpoint)
-	if speaker.endpoint.FrameFromClient(2, []byte{1}, false, time.Now()) {
+	if h.relay.Forward(speaker.endpoint, Frame{Sequence: 2, Opus: []byte{1}}, time.Now()) {
 		t.Fatal("a removed speaker was relayed")
 	}
 }
@@ -296,31 +257,14 @@ func TestVoiceIsRateLimited(t *testing.T) {
 	now := time.Now()
 	relayed := 0
 	for i := range 100 {
-		if speaker.endpoint.FrameFromClient(uint32(i), []byte{1}, false, now) {
+		if h.relay.Forward(speaker.endpoint, Frame{Sequence: uint16(i), Opus: []byte{1}}, now) {
 			relayed++
 		}
 	}
 	if relayed != 25 {
 		t.Fatalf("relayed %d at once, want the burst of 25", relayed)
 	}
-	if !speaker.endpoint.FrameFromClient(100, []byte{1}, false, now.Add(time.Second/50)) {
+	if !h.relay.Forward(speaker.endpoint, Frame{Sequence: 100, Opus: []byte{1}}, now.Add(time.Second/50)) {
 		t.Fatal("a frame at the refill rate was dropped")
-	}
-}
-
-func TestSlowListenerKeepsTheNewestVoice(t *testing.T) {
-	outbox := delivery.NewOutbox(64)
-	for i := range 60 {
-		outbox.AppendVoice([]byte{byte(i)})
-	}
-	var b delivery.Batch
-	outbox.Drain(&b, time.Now())
-	var written [][]byte
-	b.Write(func(frame []byte) error {
-		written = append(written, bytes.Clone(frame))
-		return nil
-	})
-	if len(written) != 48 || written[0][0] != 12 || written[47][0] != 59 || outbox.VoiceDropped() != 12 {
-		t.Fatalf("wrote %d from %v, dropped %d", len(written), written[0], outbox.VoiceDropped())
 	}
 }

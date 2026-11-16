@@ -1,6 +1,5 @@
 #pragma once
 
-#include "network/VoiceTransport.h"
 #include "protocol/PeerSlot.h"
 
 #include <RE/Skyrim.h>
@@ -43,7 +42,8 @@ namespace VoiceChatSync
         // Voice activation only: the microphone key turned the microphone off.
         bool microphoneOff{ false };
         float inputLevel{ 0.0F };
-        Network::VoiceTransport::Route route{ Network::VoiceTransport::Route::kNone };
+        // The connection carries voice, but the relay does not answer its datagrams.
+        bool relayUnreachable{ false };
     };
 
     // At plugin load: joins the audio engine and the voice transport.

@@ -56,8 +56,6 @@ namespace Network::Wire
     [[nodiscard]] std::string EncodeTradePluginReply(const Multiplayer::TradePluginReply& a_reply);
     [[nodiscard]] std::string EncodeTradeAccept(const Multiplayer::TradeAcceptance& a_acceptance);
     [[nodiscard]] std::string EncodeTradeCancel(Multiplayer::TradeID a_trade, Multiplayer::TradeCloseReason a_reason);
-    [[nodiscard]] std::string EncodeVoiceRoute(bool a_datagrams);
-    [[nodiscard]] std::string EncodeVoiceFrame(std::uint16_t a_sequence, bool a_end, std::span<const std::uint8_t> a_opus);
 
     struct Welcome
     {
@@ -170,7 +168,7 @@ namespace Network::Wire
 
     using ServerMessage = std::variant<Welcome, ChatResult, Pong, PeerStates, PeerEnter, PeerContext, PeerLeave,
         AnimationAction, PeerAppearance, PeerEquipment, PeerEffects, Multiplayer::ChatMessage, RosterChange, NearbyPlayersChange,
-        Multiplayer::PlayerInspection, Multiplayer::TradeEvent, Multiplayer::VoiceFrame>;
+        Multiplayer::PlayerInspection, Multiplayer::TradeEvent>;
 
     class Decoder
     {

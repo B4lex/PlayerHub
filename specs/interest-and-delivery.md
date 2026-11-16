@@ -274,17 +274,12 @@ one-way. A speaker that is not placed has no listeners.
   (`Hub.markVoice`), and the next tick recomputes it, so a vanished or
   departed listener stops hearing within a send phase.
 - The relay reads each speaker's listeners as an atomically swapped slice and
-  forwards on the goroutine that read the frame (one UDP reader per CPU, or
-  the connection's WebSocket reader), never on the hub's.
-- A listener that receives datagrams gets each frame encrypted under its own
-  key; the others get one `PeerVoice`, marshalled once per frame, through
-  `Outbox.AppendVoice`.
-- The outbox keeps at most 48 voice messages (`voiceBacklog`), about a third
-  of a second of three speakers, dropping the oldest, since late voice is
-  worth less than current voice; voice never counts towards
-  `limits.ordered_backlog`. A drain writes the voice messages first, each as
-  its own WebSocket message, then the batch as before; the budget charges them
-  as ordered messages.
+  forwards on the UDP reader goroutine that read the frame (one per CPU), never
+  on the hub's.
+- Each listener whose address the relay knows gets the frame encrypted under
+  its own key; one that has sent no authentic datagram yet gets nothing
+  ([Network](network.md#voice)). Voice never passes through an outbox, so it
+  neither counts towards `limits.ordered_backlog` nor spends the send budget.
 
 ## Admin controls
 

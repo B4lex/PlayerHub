@@ -3,7 +3,6 @@ package delivery
 import "playerhub/server/internal/wire"
 
 type Batch struct {
-	voice   [][]byte
 	ordered []item
 	latest  [][]byte
 	// Holds the entries encoded for this recipient, which ordered and latest point into.
@@ -15,16 +14,9 @@ type Batch struct {
 func (b *Batch) Write(write func([]byte) error) error {
 	defer func() {
 		// Drop references so written messages can be collected.
-		clear(b.voice)
 		clear(b.ordered)
 		clear(b.latest)
 	}()
-	// Voice goes first: it is played as it arrives, and nothing else waits on it.
-	for _, message := range b.voice {
-		if err := write(message); err != nil {
-			return err
-		}
-	}
 	b.entries = b.entries[:0]
 	for _, i := range b.ordered {
 		switch i.kind {
@@ -46,7 +38,7 @@ func (b *Batch) Write(write func([]byte) error) error {
 }
 
 func (b *Batch) Empty() bool {
-	return len(b.voice) == 0 && len(b.ordered) == 0 && len(b.latest) == 0
+	return len(b.ordered) == 0 && len(b.latest) == 0
 }
 
 func (b *Batch) flushEntries(write func([]byte) error) error {

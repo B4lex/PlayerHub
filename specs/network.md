@@ -28,7 +28,7 @@ refused at the handshake ([Transport](#transport)).
 | `network/SessionStore` | The session tokens in `PlayerHub.session`, one per server |
 | `network/Refusal.h` | Why the server refused a connection, for the monitor and the UI |
 | `network/TrafficMeter` | Bytes per second in each direction |
-| `network/VoiceTransport` | The voice datagram socket and route, with the WebSocket as fallback ([Voice](#voice)) |
+| `network/VoiceTransport` | The voice datagram socket and its link to the relay ([Voice](#voice)) |
 | `server/internal/session` | WebSocket accept, hello and session authentication, reader and writer goroutines, liveness, per-connection limits |
 | `server/internal/auth` | The session store: tokens, unique display names, expiry |
 | `server/internal/admission` | Caps on players, pending hellos, and new sessions per address; the client address behind trusted proxies |
@@ -101,8 +101,7 @@ refused at the handshake ([Transport](#transport)).
   on its own thread, so a paused game stays connected.
 - Boundary limits: 48 KiB per message (the largest valid `ClientMessage`, an
   `Appearance` with every tint and overlay path at full length, is about 44 KB); `limits.messages_per_second` (120, burst 240) per connection,
-  over which the connection is closed with 4003, counting every message but
-  `VoiceRoute` and `VoiceFrame`, which the relay limits instead ([Voice](#voice)); a recipient whose unsent
+  over which the connection is closed with 4003, counting every message; a recipient whose unsent
   ordered messages exceed `limits.ordered_backlog` (4096) is closed with 4002.
   Compression is off on both ends.
 
@@ -141,8 +140,6 @@ retries. What a refusal means for the client is in [Connection](#connection).
 | `ChatSend` | `{request_id, text, channel, recipient}`, answered with a `ChatResult` ([Chat](#chat)) |
 | `Ping` | `{request_id}`, answered with `Pong{request_id}` by the connection at once; the latency probe |
 | `Vanish` | `{session_id, vanished}`: stop or resume receiving a session's player ([Vanish](#vanish)) |
-| `VoiceRoute` | `{datagrams}`: whether the client receives the relay's voice datagrams ([Voice](#voice)) |
-| `VoiceFrame` | `{sequence, opus, end}`: one frame of the client's voice, while its datagrams do not reach the relay ([Voice](#voice)) |
 | `PoseLimit` | `{players}`: how many posed peers, nearest first, the client is sent [skeleton poses](#skeleton-pose-encoding) of, `0..32` (`validate.MaximumPosePlayers`); `0` until the first one ([Interest and delivery](interest-and-delivery.md#skeleton-poses)) |
 | `Inspect` | `{slot}`: ask for a player's level and race, answered with an `Inspection` ([Inspection](#inspection)) |
 | `TradeRequest`, `TradeAnswer`, `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept`, `TradeCancel` | A trade between two players ([Trade](#trade)) |
@@ -473,7 +470,6 @@ The lasting effects that show on the player's actor
 | Message | Fields |
 | --- | --- |
 | `Welcome` | `slot`, `session_id`, `display_name`, and `session_token` only when the session was issued for this connection ([Sessions](#sessions)); `voice`, a `VoiceAccess`, while the server carries voice ([Voice](#voice)) |
-| `PeerVoice` | `slot`, `sequence`, `opus`, `end`: a frame of a peer's voice, for a client that takes no datagrams ([Voice](#voice)) |
 | `ChatResult` | `request_id` and `rejection`: `NONE` accepts the `ChatSend`, else `INVALID`, `RATE_LIMITED`, `NOT_IN_WORLD`, or `UNKNOWN_RECIPIENT` ([Chat](#chat)) |
 | `Pong` | `request_id` of the `Ping` |
 | `PeerStates` | `repeated Checkpoint` with `player` set; the concatenation of entries encoded once per sender |
@@ -907,8 +903,7 @@ A connection on a server with `voice.enabled` (the default) has a voice
 endpoint: a random nonzero 32-bit ID and a random AES-256-GCM key, both for
 that connection alone ([Voice chat](voice-chat.md)). Voice frames travel as UDP
 datagrams to and from `voice.listen` (`0.0.0.0:3000` by default, the TCP
-listen's port number), or over the WebSocket for a client whose datagrams do
-not arrive. Which clients receive a speaker's frames is in
+listen's port number), never over the WebSocket. Which clients receive a speaker's frames is in
 [Interest and delivery](interest-and-delivery.md#voice-listeners).
 
 `Welcome.voice` is a `VoiceAccess`:
@@ -948,23 +943,19 @@ Datagrams (`server/internal/voice/datagram.go`, `network/VoiceTransport`):
   it back.
 - A probe is answered at once to the address it came from. A voice datagram's
   frame is forwarded to the speaker's listeners.
-- The relay sends a listener datagrams only after it said
-  `VoiceRoute{datagrams: true}` and an authentic datagram gave its address;
-  any other listener gets `PeerVoice` through its outbox
+- The relay sends a listener datagrams only once an authentic datagram, such
+  as its first probe, gave its address; until then the listener is sent nothing
   ([Interest and delivery](interest-and-delivery.md#voice-listeners)).
-- `VoiceFrame` and a datagram's frame are checked alike (`validate.VoiceFrame`):
-  `sequence` within `0..65535` and `opus` of 1 to 400 bytes. The Opus data is the
-  receivers' to decode; a decoder that fails plays silence.
+- A datagram's frame is checked by `validate.VoiceFrame`: `sequence` within
+  `0..65535` and `opus` of 1 to 400 bytes. The Opus data is the receivers' to
+  decode; a decoder that fails plays silence.
 - A speaker may send `voice.packets_per_second` (60, burst `voice.packet_burst`
-  25) frames over both ways together; a client sends 50 while talking. Frames
-  over it are dropped without closing anything.
-- `VoiceRoute` and `VoiceFrame` are read on the connection's reader and never
-  reach the hub, so voice is neither ordered with the hub's messages nor
-  recorded ([Recording and replay](recording-and-replay.md)).
-- The client rejects a `PeerVoice` with a zero slot, a sequence above 65535,
-  or `opus` empty or over 400 bytes (nanopb's `max_size`), and drops one of
-  its own slot. A voice datagram is rejected for the same, a speaker of 0, or
-  unknown flags.
+  25) frames; a client sends 50 while talking. Frames over it are dropped
+  without closing anything.
+- Voice never reaches the hub, so it is neither ordered with the hub's messages
+  nor recorded ([Recording and replay](recording-and-replay.md)).
+- The client rejects a voice datagram with a speaker of 0, unknown flags, or
+  `opus` empty or over 400 bytes.
 - The endpoint ends with the connection; a datagram for it afterwards is an
   unknown ID.
 
@@ -1013,9 +1004,9 @@ Datagrams (`server/internal/voice/datagram.go`, `network/VoiceTransport`):
   vanishes over the limit, saving a session, and muting or vanishing a
   player.
 - A `Welcome` with voice access starts `VoiceTransport` for it
-  ([Voice chat](voice-chat.md#route)); one without it, and every lost connection,
-  stops it. `PeerVoice` goes straight to the voice sink on the transport
-  thread, outside the remote changes the pass drains.
+  ([Voice chat](voice-chat.md#relay-link)); one without it, and every lost
+  connection, stops it. Received frames go straight to the voice sink on the
+  datagram thread, outside the remote changes the pass drains.
 - Trade messages are decoded like the rest, a `TradeOffer` entry by entry
   and a `TradePluginQuery` name by name as for `PeerStates`, and validated
   as the server does, plus a `TradeClose` with an unknown reason, a

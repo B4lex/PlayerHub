@@ -777,8 +777,7 @@ by default; a change applies on the next frame.
 
 While connected, two grey lines follow with the received and sent traffic in
 KB/s ([Network](network.md#traffic)), without a value before the first
-window, then, on a server with voice, how voice travels: grey for datagrams,
-yellow for the WebSocket fallback ([Voice chat](voice-chat.md#route)). Always shown below: the [plugin time](#plugin-time) in ms, without a
+window. Always shown below: the [plugin time](#plugin-time) in ms, without a
 value before the first window.
 
 The panel is a debugging readout, not player guidance. It does not say why a
@@ -1994,7 +1993,10 @@ carried, and played is in [Voice chat](voice-chat.md).
   control: the microphone's level from `VoiceChatSync::GetLocalStatus`, in the
   accent while the player is heard and muted otherwise, with a mark at
   `ActivationLevel` under voice activation. While the microphone is closed, as
-  without a connection, the row is a muted line saying when it opens instead.
+  without a connection, the row is a muted line saying when it opens instead,
+  or, while `LocalStatus::relayUnreachable`
+  ([Voice chat](voice-chat.md#relay-link)), a line in `Theme::kWarning` saying
+  the voice relay cannot be reached and the network may block UDP.
 
 
 ## Settings window

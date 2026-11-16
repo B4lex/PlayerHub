@@ -1,5 +1,5 @@
 // Package voice relays players' Opus frames to the listeners the hub assigns them, by encrypted UDP
-// datagram or, for a client its datagrams do not reach, through its WebSocket outbox.
+// datagram.
 package voice
 
 import (
@@ -16,9 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"playerhub/server/internal/delivery"
 	"playerhub/server/internal/limit"
-	"playerhub/server/internal/wire"
 	"playerhub/server/internal/wire/pb"
 )
 
@@ -52,22 +50,20 @@ type Relay struct {
 // Endpoint is one connection's voice: its key and datagram address, and the listeners the hub
 // assigned it.
 type Endpoint struct {
-	relay  *Relay
-	id     uint32
-	key    []byte
-	aead   cipher.AEAD
-	outbox *delivery.Outbox
-	slot   atomic.Uint32
+	relay *Relay
+	id    uint32
+	key   []byte
+	aead  cipher.AEAD
+	slot  atomic.Uint32
 
 	mu      sync.Mutex
 	window  replayWindow
 	address netip.AddrPort
 	rate    limit.TokenBucket
 
-	datagrams atomic.Bool
-	closed    atomic.Bool
-	counter   atomic.Uint32
-	targets   atomic.Pointer[[]*Endpoint]
+	closed  atomic.Bool
+	counter atomic.Uint32
+	targets atomic.Pointer[[]*Endpoint]
 }
 
 var scratch = sync.Pool{New: func() any {
@@ -170,7 +166,7 @@ func (r *Relay) read() {
 }
 
 // Register gives a connection its voice ID and key; Remove ends it.
-func (r *Relay) Register(outbox *delivery.Outbox) (*Endpoint, error) {
+func (r *Relay) Register() (*Endpoint, error) {
 	key := make([]byte, KeyBytes)
 	if _, err := rand.Read(key); err != nil {
 		return nil, err
@@ -179,7 +175,7 @@ func (r *Relay) Register(outbox *delivery.Outbox) (*Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := &Endpoint{relay: r, key: key, aead: aead, outbox: outbox}
+	e := &Endpoint{relay: r, key: key, aead: aead}
 	e.targets.Store(&[]*Endpoint{})
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -207,8 +203,8 @@ func (r *Relay) Counters() (in, out, rejected uint64) {
 	return r.datagramsIn.Load(), r.datagramsOut.Load(), r.rejected.Load()
 }
 
-// Forward sends one frame of e's voice to each of its listeners, by datagram to those that
-// receive them and through the outbox to the others. Frames over e's rate are dropped.
+// Forward sends one frame of e's voice to each of its listeners whose address an authentic
+// datagram gave. Frames over e's rate are dropped.
 func (r *Relay) Forward(e *Endpoint, f Frame, now time.Time) bool {
 	if e.closed.Load() || !e.allow(now, r.config.PacketsPerSecond, r.config.PacketBurst) {
 		return false
@@ -217,30 +213,23 @@ func (r *Relay) Forward(e *Endpoint, f Frame, now time.Time) bool {
 	plaintextBuffer, datagramBuffer := scratch.Get().(*[]byte), scratch.Get().(*[]byte)
 	defer scratch.Put(plaintextBuffer)
 	defer scratch.Put(datagramBuffer)
-	var plaintext, message []byte
+	var plaintext []byte
 	datagram := (*datagramBuffer)[:0]
 	for _, target := range *e.targets.Load() {
 		if target.closed.Load() {
 			continue
 		}
-		if address, ok := target.datagramAddress(); ok {
-			if plaintext == nil {
-				plaintext = appendPeerVoice((*plaintextBuffer)[:0], slot, f)
-			}
-			datagram = sealServer(target.aead, datagram[:0], KindVoice, target.counter.Add(1), plaintext)
-			if _, err := r.conn.WriteToUDPAddrPort(datagram, address); err == nil {
-				r.datagramsOut.Add(1)
-			}
+		address, ok := target.datagramAddress()
+		if !ok {
 			continue
 		}
-		if target.outbox == nil {
-			continue
+		if plaintext == nil {
+			plaintext = appendPeerVoice((*plaintextBuffer)[:0], slot, f)
 		}
-		if message == nil {
-			message = wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_PeerVoice{PeerVoice: &pb.PeerVoice{
-				Slot: slot, Sequence: uint32(f.Sequence), Opus: f.Opus, End: f.End}}})
+		datagram = sealServer(target.aead, datagram[:0], KindVoice, target.counter.Add(1), plaintext)
+		if _, err := r.conn.WriteToUDPAddrPort(datagram, address); err == nil {
+			r.datagramsOut.Add(1)
 		}
-		target.outbox.AppendVoice(message)
 	}
 	return true
 }
@@ -255,11 +244,6 @@ func (e *Endpoint) SetSlot(slot uint32) {
 	e.slot.Store(slot)
 }
 
-// SetDatagrams records the client's VoiceRoute.
-func (e *Endpoint) SetDatagrams(datagrams bool) {
-	e.datagrams.Store(datagrams)
-}
-
 // SetTargets replaces the listeners; the caller does not change the slice afterwards.
 func (e *Endpoint) SetTargets(targets []*Endpoint) {
 	e.targets.Store(&targets)
@@ -267,11 +251,6 @@ func (e *Endpoint) SetTargets(targets []*Endpoint) {
 
 func (e *Endpoint) Targets() []*Endpoint {
 	return *e.targets.Load()
-}
-
-// FrameFromClient relays a frame that arrived on the client's WebSocket.
-func (e *Endpoint) FrameFromClient(sequence uint32, opus []byte, end bool, now time.Time) bool {
-	return e.relay.Forward(e, Frame{Sequence: uint16(sequence), End: end, Opus: opus}, now)
 }
 
 func (e *Endpoint) accept(counter uint32, from netip.AddrPort) bool {
@@ -293,9 +272,6 @@ func (e *Endpoint) allow(now time.Time, rate, burst float64) bool {
 }
 
 func (e *Endpoint) datagramAddress() (netip.AddrPort, bool) {
-	if !e.datagrams.Load() {
-		return netip.AddrPort{}, false
-	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.address, e.address.IsValid()

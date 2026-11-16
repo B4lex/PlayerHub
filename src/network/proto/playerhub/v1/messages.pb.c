@@ -30,12 +30,6 @@ PB_BIND(playerhub_v1_Inspect, playerhub_v1_Inspect, AUTO)
 PB_BIND(playerhub_v1_PoseLimit, playerhub_v1_PoseLimit, AUTO)
 
 
-PB_BIND(playerhub_v1_VoiceRoute, playerhub_v1_VoiceRoute, AUTO)
-
-
-PB_BIND(playerhub_v1_VoiceFrame, playerhub_v1_VoiceFrame, 2)
-
-
 PB_BIND(playerhub_v1_TradeRequest, playerhub_v1_TradeRequest, AUTO)
 
 
@@ -106,9 +100,6 @@ PB_BIND(playerhub_v1_PeerEquipment, playerhub_v1_PeerEquipment, 4)
 
 
 PB_BIND(playerhub_v1_PeerEffects, playerhub_v1_PeerEffects, 4)
-
-
-PB_BIND(playerhub_v1_PeerVoice, playerhub_v1_PeerVoice, 2)
 
 
 PB_BIND(playerhub_v1_PlayerIdentity, playerhub_v1_PlayerIdentity, AUTO)

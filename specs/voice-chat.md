@@ -14,8 +14,8 @@ stays small beside the checkpoint stream. Non-goals: voice without a
 character to place it at (radio, party, or whisper channels), recording voice,
 echo cancellation, and server-side mixing.
 
-This system owns the audio devices, capture and encoding, the client's voice
-route, playback with its jitter buffers and spatial mix, and the game-side
+This system owns the audio devices, capture and encoding, the client's
+[relay link](#relay-link), playback with its jitter buffers and spatial mix, and the game-side
 voice state: the microphone key, each speaker's distance, direction,
 occlusion, and lip sync. It leaves to other systems:
 
@@ -42,7 +42,7 @@ occlusion, and lip sync. It leaves to other systems:
 | `audio/VoiceEncoder` | Input gain, RNNoise, the meter, push-to-talk and voice activation gating, Opus encoding |
 | `audio/VoiceMixer` | One jitter buffer and Opus decoder per speaker, concealment, the stereo mix with gain, pan, and occlusion |
 | `audio/MiniAudio.c` | The miniaudio implementation, built as C |
-| `network/VoiceTransport` | The datagram socket, AES-256-GCM through Windows CNG, probes and keepalives, the route, the WebSocket fallback |
+| `network/VoiceTransport` | The datagram socket, AES-256-GCM through Windows CNG, probes and keepalives, the link's state |
 | `sync/voicechat/VoiceChatSync` | Game-thread state: devices following settings and connection, the microphone key, speakers' parameters, occlusion rays, lip sync, the speaking levels the UI reads |
 | `runtime/KeyState` | Keys held and pressed as the input dispatch reports them, for the microphone key |
 | `server/internal/voice` | The relay: datagram keys, replay windows, addresses, listeners, forwarding by datagram or outbox |
@@ -55,8 +55,8 @@ occlusion, and lip sync. It leaves to other systems:
 | Input | `KeyState::Record` from `InputCapture` |
 | Capture device | `VoiceEncoder::Process`, then `VoiceTransport::Send` with each frame |
 | Playback device | `VoiceMixer::Render` |
-| Datagram thread | Receives datagrams, sends probes, decides the route |
-| WebSocket thread | `PeerVoice` to `VoiceTransport::DeliverFromWebSocket`, the welcome's `Start`, a loss's `Stop` |
+| Datagram thread | Receives datagrams, sends probes, sets the link's state |
+| WebSocket thread | The welcome's `VoiceTransport::Start`, a loss's `Stop` |
 | Audio worker | Opening, closing, and listing devices, so no game or transport thread waits for a driver |
 
 Frames cross threads as fixed-size `Multiplayer::VoiceFrame` values, so
@@ -83,8 +83,8 @@ callback.
   frame before the onset is sent first, so a word's start is not cut. The key
   turns the microphone off and on (`VoiceChatSync`, counting `KeyState` presses
   between frames); off lasts until pressed again or the game ends.
-- The player is heard only with voice enabled, a connection that carries
-  voice, and the player in the world (`VoiceChatSync::UpdateLocal`), since the
+- The player is heard only with voice enabled, a connected
+  [relay link](#relay-link), and the player in the world (`VoiceChatSync::UpdateLocal`), since the
   relay sends nothing of a player who is not placed. `Maintain` runs while the
   game is paused, so players talk with a menu open.
 
@@ -105,24 +105,26 @@ callback.
   one spurt follows the last without a gap; the frame that closes a spurt
   carries `end`.
 
-## Route
+## Relay link
 
 `VoiceTransport` starts with each welcome that has a `VoiceAccess`
-([Network](network.md#voice)) and stops with the connection.
+([Network](network.md#voice)) and stops with the connection. Voice travels only
+as datagrams; `VoiceTransport::GetState` gives the link's state.
 
 - The datagram thread resolves the access's host, or the WebSocket's host when
   it is empty, opens a connected UDP socket to the port, and probes every
-  second. The first authentic datagram from the relay makes the route
-  `kDatagrams` and sends `VoiceRoute{datagrams: true}`; after that it probes
-  every 5 s, which also keeps a NAT mapping open. 12 s without an authentic
-  datagram sends `VoiceRoute{datagrams: false}` and goes back to the WebSocket,
-  probing every second until datagrams return.
-- Until then, and when the socket cannot open, the route is `kWebSocket`:
-  frames go as `VoiceFrame` messages and come as `PeerVoice`. Behind a proxy
-  that carries no UDP, such as Cloudflare's, voice works this way, with TCP's
-  latency under loss.
-- A session's thread publishes its route only while it is current, so a
-  stopping session never tells a newer connection about its datagrams.
+  second (`kConnecting`). The first authentic datagram from the relay makes the
+  link `kConnected`; after that it probes every 5 s, which also keeps a NAT
+  mapping open.
+- 5 s of probes without an answer, 12 s without an authentic datagram once
+  connected, or a host, key, or socket that cannot be set up make the link
+  `kUnreachable`, and the settings window says so
+  ([UI overlay](ui-overlay.md#voice-chat)). The thread keeps probing every
+  second, so the link connects once datagrams get through.
+- Frames are sent only while `kConnected`, and the audio devices are open only
+  then ([Devices](#devices)). Behind a proxy that carries no UDP, such as
+  Cloudflare's, the server's `voice.public_host` must name a host that reaches
+  the relay directly.
 - Datagram bytes count in the traffic rates with 28 bytes of IP and UDP headers
   ([Network](network.md#traffic)).
 
@@ -174,7 +176,7 @@ Frames of anyone else are dropped on arrival, and their buffers are freed.
 ## Devices
 
 - `Audio::Configure` takes the settings and whether voice is active: enabled,
-  in a game, with a connection that carries voice. The worker opens the capture
+  in a game, with a connected [relay link](#relay-link). The worker opens the capture
   and playback devices only while active, so the system's microphone indicator
   shows only then, and closes both when not; a changed device name reopens that
   device. Gains and gating change without reopening.
@@ -225,7 +227,9 @@ crowd's voice costs each listener what the speakers near it say.
 4. A muted player is not heard; a vanished player's voice ends with its
    character; another player's volume set in the player menu lasts across games
    on that server.
-5. A player whose UDP is blocked still hears and is heard, over the WebSocket.
+5. A player whose UDP is blocked is told in the settings window that the
+   voice relay cannot be reached, and holds no audio device open; once
+   datagrams get through, voice starts without reconnecting.
 6. A speaker shows the speaking glyph on its nameplate and in the player list,
    and its character's mouth moves while it speaks.
 7. Changing the input or output device applies without a restart, and a
@@ -242,5 +246,8 @@ crowd's voice costs each listener what the speakers near it say.
   of a tower is heard if near enough horizontally; occlusion muffles it.
 - The datagram route's encryption keys last one connection and are sent over the
   WebSocket, so an `http://` endpoint exposes them as it does the session token.
+- A player whose network blocks UDP to the relay has no voice.
 - Non-goals: voice channels without position, voice recording or replay (voice
-  bypasses the hub and its recorder), and server-side moderation of voice.
+  bypasses the hub and its recorder), server-side moderation of voice, and
+  voice over the WebSocket, where TCP holds every frame behind a lost segment
+  and voice would share the outbox and its budget with presentation.

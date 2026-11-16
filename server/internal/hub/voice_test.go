@@ -30,7 +30,7 @@ func newVoiceFixture(t *testing.T, radius float64) *voiceFixture {
 func (f *voiceFixture) connectVoice(session uint64, displayName string) (uint32, *voice.Endpoint) {
 	f.t.Helper()
 	box := delivery.NewOutbox(1024)
-	endpoint, err := f.relay.Register(box)
+	endpoint, err := f.relay.Register()
 	if err != nil {
 		f.t.Fatal(err)
 	}

@@ -776,13 +776,6 @@ namespace Network
                     {
                         OnTradeEvent(std::move(a_value));
                     }
-                    else if constexpr (std::is_same_v<T, Multiplayer::VoiceFrame>)
-                    {
-                        if (a_value.speaker != localSlot)
-                        {
-                            VoiceTransport::DeliverFromWebSocket(a_value);
-                        }
-                    }
                 },
                 std::move(a_message));
         }
@@ -1135,22 +1128,6 @@ namespace Network
         }
         Send(Wire::EncodeInspect(a_playerID));
         return true;
-    }
-
-    void PublishVoiceRoute(bool a_datagrams)
-    {
-        if (IsConnected())
-        {
-            Send(Wire::EncodeVoiceRoute(a_datagrams));
-        }
-    }
-
-    void PublishVoiceFrame(std::uint16_t a_sequence, bool a_end, std::span<const std::uint8_t> a_opus)
-    {
-        if (IsConnected())
-        {
-            Send(Wire::EncodeVoiceFrame(a_sequence, a_end, a_opus));
-        }
     }
 
     bool PublishTradeRequest(PeerSlot a_playerID)

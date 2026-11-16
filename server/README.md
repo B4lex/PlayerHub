@@ -31,9 +31,10 @@ On `listen`:
 - `GET /health` returns `{"status":"ok"}`.
 
 On `voice.listen`, UDP: the voice relay's encrypted datagrams
-(`../specs/voice-chat.md`). Players behind a reverse proxy that does not carry
-UDP, such as Cloudflare's, reach it directly at `voice.public_host`, or fall
-back to their WebSocket.
+(`../specs/voice-chat.md`). Voice travels only this way. Behind a reverse proxy
+that does not carry UDP, such as Cloudflare's, set `voice.public_host` to a host
+that reaches it directly; players whose datagrams do not get through have no
+voice.
 
 On `admin_listen` only:
 
@@ -182,7 +183,7 @@ go run ./cmd/tradebot --kit
 | `internal/interest` | Interest rules, exclusions, spatial grid |
 | `internal/world` | Player state and ordering rules, display name lookup |
 | `internal/delivery` | Per-recipient outboxes and batch writing |
-| `internal/voice` | Voice relay: UDP datagrams, per-connection keys, listeners, WebSocket fallback |
+| `internal/voice` | Voice relay: UDP datagrams, per-connection keys, listeners |
 | `internal/wire` | Hand-written encoding of hot messages, quantization, generated `pb` |
 | `internal/recording` | Format version 4, store, captures, timeline markers |
 | `internal/playback` | Virtual players and replay sessions |

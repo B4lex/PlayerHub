@@ -131,10 +131,6 @@ func Message(m *pb.ClientMessage) error {
 			return ErrPoseLimit
 		}
 		return nil
-	case *pb.ClientMessage_VoiceRoute:
-		return nil
-	case *pb.ClientMessage_VoiceFrame:
-		return VoiceFrame(body.VoiceFrame.GetSequence(), body.VoiceFrame.GetOpus())
 	default:
 		return ErrUnexpected
 	}

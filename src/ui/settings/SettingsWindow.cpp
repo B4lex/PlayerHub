@@ -663,6 +663,14 @@ namespace UI
                     return;
                 }
                 const auto status = VoiceChatSync::GetLocalStatus();
+                if (!status.microphoneOpen && status.relayUnreachable)
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Text, Theme::kWarning);
+                    DrawText(Text::Get(Text::Id::kVoiceRelayUnreachable));
+                    ImGui::PopStyleColor();
+                    EndRow();
+                    return;
+                }
                 if (!status.microphoneOpen)
                 {
                     DrawMutedText(Text::Get(Text::Id::kVoiceMeterClosed));

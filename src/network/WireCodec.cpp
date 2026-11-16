@@ -1421,26 +1421,6 @@ namespace Network::Wire
         return EncodeClientMessage(playerhub_v1_ClientMessage_trade_cancel_tag, playerhub_v1_TradeCancel_fields, &cancel);
     }
 
-    std::string EncodeVoiceRoute(bool a_datagrams)
-    {
-        playerhub_v1_VoiceRoute route{ a_datagrams };
-        return EncodeClientMessage(playerhub_v1_ClientMessage_voice_route_tag, playerhub_v1_VoiceRoute_fields, &route);
-    }
-
-    std::string EncodeVoiceFrame(std::uint16_t a_sequence, bool a_end, std::span<const std::uint8_t> a_opus)
-    {
-        if (!Multiplayer::IsValidVoiceFrameSize(a_opus.size()))
-        {
-            return {};
-        }
-        playerhub_v1_VoiceFrame frame = playerhub_v1_VoiceFrame_init_zero;
-        frame.sequence = a_sequence;
-        frame.end = a_end;
-        frame.opus.size = static_cast<pb_size_t>(a_opus.size());
-        std::ranges::copy(a_opus, frame.opus.bytes);
-        return EncodeClientMessage(playerhub_v1_ClientMessage_voice_frame_tag, playerhub_v1_VoiceFrame_fields, &frame);
-    }
-
     struct Decoder::Buffer
     {
         playerhub_v1_ServerMessage message;
@@ -1587,20 +1567,6 @@ namespace Network::Wire
             }
             case playerhub_v1_ServerMessage_pong_tag:
                 return Pong{ .requestID = message.message.pong.request_id };
-            case playerhub_v1_ServerMessage_peer_voice_tag:
-            {
-                const auto& voice = message.message.peer_voice;
-                if (voice.slot == 0 || voice.sequence > 0xFFFF || !Multiplayer::IsValidVoiceFrameSize(voice.opus.size))
-                {
-                    return std::unexpected("peer voice");
-                }
-                Multiplayer::VoiceFrame frame{ .speaker = voice.slot,
-                    .sequence = static_cast<std::uint16_t>(voice.sequence),
-                    .end = voice.end,
-                    .size = static_cast<std::uint16_t>(voice.opus.size) };
-                std::copy_n(voice.opus.bytes, voice.opus.size, frame.opus.begin());
-                return frame;
-            }
             case playerhub_v1_ServerMessage_peer_enter_tag:
             {
                 const auto& enter = message.message.peer_enter;
