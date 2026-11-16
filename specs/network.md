@@ -4,7 +4,7 @@
 
 This system owns the wire protocol, the client transport and connection
 management, and the server's connections, player [sessions](#sessions),
-validation, and per-player state. It
+validation, [roles](#roles), and per-player state. It
 validates untrusted fields at the boundary and queues plain values for the
 [sync pipeline](sync-pipeline.md#receive-state), which applies them on the game
 thread. Which peers a client receives and in what order is
@@ -20,7 +20,7 @@ refused at the handshake ([Transport](#transport)).
 | Module | Responsibility |
 | --- | --- |
 | `proto/playerhub/v1/` | The schema (`state.proto`, `messages.proto`) and nanopb size options. `proto/generate.sh` regenerates `server/internal/wire/pb` and `src/network/proto` |
-| `src/protocol/` | Plain wire values and shared validation: `PlayerState.h`, `MovementState.h`, `AppearanceState.h`, `EquipmentState.h`, `FormReference.h`, `ChatMessage.h`, `PeerSlot.h`, `Session.h`, `VoiceFrame.h`, and the quantization rules in `Quantization.h`. No Skyrim headers |
+| `src/protocol/` | Plain wire values and shared validation: `PlayerState.h`, `MovementState.h`, `AppearanceState.h`, `EquipmentState.h`, `FormReference.h`, `ChatMessage.h`, `PeerSlot.h`, `Session.h`, `Role.h`, `VoiceFrame.h`, and the quantization rules in `Quantization.h`. No Skyrim headers |
 | `network/WireCodec` | nanopb encoding of client messages and validated decoding of server messages |
 | `network/SkeletonDelta` | Writes a skeleton pose as a [change](#pose-changes) from its stream's previous one, and resolves a received pose against it |
 | `network/ServerClient` | IXWebSocket transport: sends, dispatches received messages, holds both directions' [pose references](#pose-changes), merges each peer's context into its checkpoints, and queues per-player changes for `DrainRemotePlayerChanges` |
@@ -30,7 +30,7 @@ refused at the handshake ([Transport](#transport)).
 | `network/TrafficMeter` | Bytes per second in each direction |
 | `network/VoiceTransport` | The voice datagram socket and its link to the relay ([Voice](#voice)) |
 | `server/internal/session` | WebSocket accept, hello and session authentication, reader and writer goroutines, liveness, per-connection limits |
-| `server/internal/auth` | The session store: tokens, unique display names, expiry |
+| `server/internal/auth` | The session store: tokens, unique display names, expiry, bans, roles |
 | `server/internal/admission` | Caps on players, pending hellos, and new sessions per address; the client address behind trusted proxies |
 | `server/internal/validate` | Field validation of client messages |
 | `server/internal/world` | A player's accepted state and the ordering rules |
@@ -477,8 +477,9 @@ The lasting effects that show on the player's actor
 | `PeerContext` | `slot`, `context` |
 | `PeerLeave` | `slot`, `reason`: `OUT_OF_RANGE`, `EXCLUDED`, `EXITED`, `DISCONNECTED`, `VIEWER_UNPLACED` |
 | `PeerAction`, `PeerAppearance`, `PeerEquipment`, `PeerEffects` | `slot` and the message; `PeerEffects` also follows a `PeerEnter` when the recipient holds no newer revision |
-| `ChatMessage` | `channel`, `sender`, `recipient` (whisper only), `text`; each a `PlayerIdentity{slot, name, session_id}` |
+| `ChatMessage` | `channel`, `sender`, `recipient` (whisper only), `text`; each a `PlayerIdentity{slot, name, session_id, role}`, `role` a `Role.id` or 0 |
 | `Roster` | `joined`, a list of `PlayerIdentity`, and `left`, a slot or 0 ([Roster](#roster)) |
+| `Roles` | `roles`, every `Role{id, name, color}` of the server, in place of those sent before ([Roles](#roles)) |
 | `NearbyPlayers` | `joined` and `left`, packed slots entering and leaving the recipient's Nearby chat reach ([Nearby players](#nearby-players)) |
 | `Inspection` | `slot`, `level`, `race`, `default_race` of the player an `Inspect` named ([Inspection](#inspection)) |
 | `TradeInvite`, `TradeOpen`, `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept`, `TradeCommit`, `TradeClose` | A trade's progress ([Trade](#trade)) |
@@ -504,8 +505,9 @@ Goal: every connection belongs to a player the server can recognize again. A
 session is that identity on one server: a public ID that later interactions
 between players can refer to whatever the player is called, a secret only the
 player's client holds, and a display name no other session has. Non-goals:
-accounts, passwords, recovering a lost session, roles, and protecting the
-admin API. Bans are in [Kicks and bans](#kicks-and-bans).
+accounts, passwords, recovering a lost session, permissions, and protecting
+the admin API. Bans are in [Kicks and bans](#kicks-and-bans), and the role a
+session may hold in [Roles](#roles).
 
 | Part | |
 | --- | --- |
@@ -516,10 +518,11 @@ admin API. Bans are in [Kicks and bans](#kicks-and-bans).
 
 - `auth.Store` keeps sessions in SQLite (`modernc.org/sqlite`, pure Go) at
   `sessions.database` (`sessions.db`; empty keeps them in memory, for
-  tests), with a write-ahead log and `user_version` 3. A version 1
+  tests), with a write-ahead log and `user_version` 4. A version 1
   database, whose columns are named `nickname` and `nickname_key`, has them
   renamed when opened and keeps its sessions; versions 1 and 2 get the
-  `bans` table. Its one connection serializes transactions, which the
+  `bans` table, and versions 1 to 3 the `roles` table and
+  `sessions.role_id`. Its one connection serializes transactions, which the
   display name checks rely on. Store calls run on a connection's goroutine,
   never on the hub's.
 - A session lives `sessions.lifetime_days` (30) after its last use, so one that
@@ -738,14 +741,16 @@ whisper by slot. Proximity does not limit it: a whisper reaches any connected
 player.
 
 - The roster lists the clients that have a session, by slot, session display
-  name, and session ID. Replays and in-server bots are not listed.
+  name, session ID, and [role](#roles). Replays and in-server bots are not
+  listed.
 - `Hub.ConnectClient` sends the new client one `Roster` after its `Welcome`
   with every listed client in `joined`, itself included, and every other
   listed client a `Roster` with the new one in `joined`.
 - A listed client that disconnects, also when its session connects again, is
   sent to every other listed client as `Roster{left}`. A display name changes
   only with a hello ([Sessions](#sessions)), so a rename is a leave and a
-  join under another slot.
+  join under another slot. A role changes while connected: the entry is sent
+  again in `joined` ([Roles](#roles)).
 - Roster messages are ordered with the rest of a client's outbox
   (`Outbox.AppendGlobal`) and marshalled once per event. A join or a leave
   writes to every outbox; the full list is 5 to 11 bytes plus the name per
@@ -754,6 +759,54 @@ player.
   name, or an invalid name (`ReadPlayerIdentity`, the rule for every
   `PlayerIdentity`), or with more than `kMaximumRosterEntries` (4096)
   entries.
+
+### Roles
+
+Goal: a server's admin marks players, such as its moderators or supporters,
+so everyone recognizes them in game. A role is a name and a color; a session
+holds at most one, and the game shows it as a badge by the player's name
+([UI overlay](ui-overlay.md#roles)). Roles are made and given in the admin
+panel ([Admin API](recording-and-replay.md#admin-api)). Non-goals:
+permissions (a role changes nothing its holder can do, in game or on the
+server), several roles on one player, an order among roles, a role a player
+picks, and roles for replays and in-server bots, which have no session.
+
+| Part | |
+| --- | --- |
+| `Role.id` | `uint32` from 1, the row ID of an `AUTOINCREMENT` column, so the ID of a deleted role, which clients may still hold on chat lines, never names another role |
+| `Role.name` | 1..24 characters (`validate.MaximumRoleNameRunes`) of valid UTF-8 without control characters or a space at either end (`validate.RoleName`). Unique among roles by `validate.RoleNameKey`, its lower case; a role may respell its own. A nanopb buffer of 97 bytes |
+| `Role.color` | `0xRRGGBB` |
+| Holder | `sessions.role_id`, `NULL` without a role |
+
+- `auth.Store` keeps at most `validate.MaximumRoles` (32) roles
+  (`ErrTooManyRoles`, `ErrRoleNameTaken`, `ErrNoRole`). `Store.Roles` lists
+  them by ID with the number of live sessions holding each. `Store.SetRole`
+  gives a live session a role in place of its own, or with 0 none;
+  `Store.DeleteRole` leaves the role's holders without one in the same
+  transaction (the user's choice over refusing the delete).
+- A role does not keep its session: the session expires as any other, and the
+  role goes with it (the user's choice). A deleted session's role goes too.
+- `Store.Authenticate` returns the session's role. The hub keeps it on the
+  player (`world.Player.Role`) and sends it as `PlayerIdentity.role` wherever
+  it names the player: roster entries, chat speakers, and trade invitations.
+- `Roles` carries every role. `Hub.SetRoles` keeps the marshalled message,
+  sends it to every client, and leaves a member whose role is not in it
+  without one. A connecting client is sent it between its `Welcome` and its
+  `Roster` while there is at least one role. `Hub.SetRole` sets the role of a
+  session's connected player and sends every listed client, the player
+  included, a `Roster` with the player's entry in `joined`, which replaces
+  the entry the client has.
+- `session.Server` changes roles (`CreateRole`, `UpdateRole`, `DeleteRole`,
+  `SetSessionRole`): each writes the store and then the hub under one mutex,
+  so the hub's roles follow the store's in order. `PublishRoles` gives a
+  starting server's hub the stored roles. The server logs `role created`,
+  `role changed`, `role deleted`, and `session role set`.
+- The client rejects a `Roles` with more than `kMaximumRoles` (32) roles, a
+  repeated ID, or a role that fails `Multiplayer::IsValidRole`: no ID, an
+  empty or too long name, a control character, or a color above `0xFFFFFF`.
+  A `PlayerIdentity.role` that names no role the client has is not an error
+  and shows no badge, so a deleted role's badge goes from every chat line
+  with the `Roles` that drops it.
 
 ### Nearby players
 
@@ -992,6 +1045,10 @@ Datagrams (`server/internal/voice/datagram.go`, `network/VoiceTransport`):
   advances a revision, and `Network::CopyRosterIfChanged` copies the list,
   with the connection's own slot, only for a caller that holds an older one,
   so readers pay for a copy when a player joins or leaves and not per frame.
+  The [roles](#roles) are kept with it (`Multiplayer::Roster::roles`):
+  `Roles` replaces them, a join for a known slot also takes the entry's
+  role, a welcome and a disconnect empty them, and each advances the same
+  revision.
 - The transport keeps the [nearby players](#nearby-players) sorted, with the
   roster under its lock: `NearbyPlayers` adds and removes slots, a roster's
   `left` removes one, and a welcome and a disconnect empty them.
@@ -1265,8 +1322,18 @@ window, and are empty after a long gap. The status panel shows them.
     path nor its cart branch taken after the start disconnects a connected
     player.
 
+18. A role given to a connected player in the admin panel shows for every
+    connected player, themselves included, without reconnecting: its letter
+    mark before their name on chat lines, in the player list, and on their
+    nameplate, and its whole badge in their player menu. Taking it, changing
+    its name or color, and deleting it show the same way.
+19. A player given a role while offline shows it from their next connection,
+    and a session that expired or was deleted comes back without it.
+
 ## Known limitations
 
+- A role set in the instant between a connection's hello and its join in the
+  hub shows from the player's next connection.
 - Sessions authenticate players only. The admin API can delete recordings and
   spawn virtual players without one; it is served only on `admin_listen`,
   which must not face the Internet, and refuses only browser requests from

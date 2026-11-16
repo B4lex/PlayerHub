@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol/PeerSlot.h"
+#include "sync/chat/ChatRoster.h"
 #include "text/Text.h"
 
 #include <RE/Skyrim.h>
@@ -32,6 +33,7 @@ namespace NameplateSync
         RE::NiPointer<RE::NiAVObject> root;
         RE::NiPointer<RE::NiAVObject> head;
         std::string label;
+        ChatRoster::RoleMark role;
         bool isFriend{ false };
         std::optional<LabelRevision> labelRevision;
         bool inSight{ false };
@@ -44,6 +46,7 @@ namespace NameplateSync
         // Both are owned by the peer's RemoteState and stay valid until the next pass.
         const RE::NiAVObject* head{ nullptr };
         std::string_view label;
+        ChatRoster::RoleMark role;
         bool isFriend{ false };
         float alpha{ 0.0F };
         float distanceFraction{ 0.0F };

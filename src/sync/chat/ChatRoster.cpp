@@ -1,6 +1,7 @@
 #include "sync/chat/ChatRoster.h"
 #include "network/ServerClient.h"
 #include "protocol/AppearanceState.h"
+#include "text/Utf8Case.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -21,6 +22,8 @@ namespace ChatRoster
         std::uint64_t s_revision = 0;
         Multiplayer::Roster s_roster;
         std::vector<Entry> s_entries;
+        // In the order of s_roster.roles.
+        std::vector<RoleMark> s_roleMarks;
         Multiplayer::SessionID s_localSession = 0;
         std::deque<Player> s_partners;
         std::vector<Multiplayer::PeerSlot> s_nearby;
@@ -127,18 +130,46 @@ namespace ChatRoster
             return folded;
         }
 
+        RoleMark MakeRoleMark(const Multiplayer::Role& a_role)
+        {
+            const auto lead = static_cast<unsigned char>(a_role.name.front());
+            const std::size_t length = lead < 0xC0 ? 1 : lead < 0xE0 ? 2 : lead < 0xF0 ? 3 : 4;
+            std::string letter;
+            Utf8Case::AppendUpper(letter, std::string_view{ a_role.name }.substr(0, length));
+            RoleMark mark{ .color = a_role.color };
+            std::copy_n(letter.begin(), (std::min)(letter.size(), mark.letter.size() - 1), mark.letter.begin());
+            return mark;
+        }
+
+        RoleMark FindRoleMarkLocked(Multiplayer::RoleID a_role)
+        {
+            if (a_role == 0)
+            {
+                return {};
+            }
+            const auto role = std::ranges::find(s_roster.roles, a_role, &Multiplayer::Role::id);
+            return role != s_roster.roles.end() ? s_roleMarks[static_cast<std::size_t>(role - s_roster.roles.begin())]
+                                                : RoleMark{};
+        }
+
         void RefreshLocked()
         {
             if (!Network::CopyRosterIfChanged(s_revision, s_roster))
             {
                 return;
             }
+            s_roleMarks.clear();
+            for (const auto& role : s_roster.roles)
+            {
+                s_roleMarks.push_back(MakeRoleMark(role));
+            }
             s_entries.clear();
             s_entries.reserve(s_roster.players.size());
             s_localSession = 0;
             for (const auto& player : s_roster.players)
             {
-                s_entries.push_back(Entry{ .player = player, .folded = Fold(player.name) });
+                s_entries.push_back(Entry{
+                    .player = player, .folded = Fold(player.name), .role = FindRoleMarkLocked(player.role) });
                 if (player.playerID == s_roster.localPlayerID)
                 {
                     s_localSession = player.session;
@@ -201,6 +232,21 @@ namespace ChatRoster
             return a_entry.player.playerID;
         });
         return known != s_entries.end() ? std::optional{ known->player } : std::nullopt;
+    }
+
+    std::optional<Multiplayer::Role> FindRole(Multiplayer::RoleID a_role)
+    {
+        const std::scoped_lock lock{ s_lock };
+        RefreshLocked();
+        const auto role = std::ranges::find(s_roster.roles, a_role, &Multiplayer::Role::id);
+        return a_role != 0 && role != s_roster.roles.end() ? std::optional{ *role } : std::nullopt;
+    }
+
+    RoleMark FindRoleMark(Multiplayer::RoleID a_role)
+    {
+        const std::scoped_lock lock{ s_lock };
+        RefreshLocked();
+        return FindRoleMarkLocked(a_role);
     }
 
     void Complete(std::string_view a_prefix, std::vector<Player>& a_players, std::size_t a_maximum)

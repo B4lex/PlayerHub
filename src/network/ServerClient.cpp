@@ -310,6 +310,7 @@ namespace Network
             const std::scoped_lock lock{ rosterLock };
             roster.localPlayerID = a_localSlot;
             roster.players.clear();
+            roster.roles.clear();
             nearbyPlayers.clear();
             rosterRevision.fetch_add(1, std::memory_order_acq_rel);
         }
@@ -675,12 +676,21 @@ namespace Network
                 if (known != roster.players.end())
                 {
                     known->name = std::move(joined.name);
+                    known->role = joined.role;
                 }
                 else
                 {
                     roster.players.push_back(std::move(joined));
                 }
             }
+            rosterRevision.fetch_add(1, std::memory_order_acq_rel);
+        }
+
+        void OnRoles(Wire::RoleList&& a_list)
+        {
+            logs::debug("Roles changed: count={}", a_list.roles.size());
+            const std::scoped_lock lock{ rosterLock };
+            roster.roles = std::move(a_list.roles);
             rosterRevision.fetch_add(1, std::memory_order_acq_rel);
         }
 
@@ -762,6 +772,10 @@ namespace Network
                     else if constexpr (std::is_same_v<T, Wire::RosterChange>)
                     {
                         OnRosterChange(std::move(a_value));
+                    }
+                    else if constexpr (std::is_same_v<T, Wire::RoleList>)
+                    {
+                        OnRoles(std::move(a_value));
                     }
                     else if constexpr (std::is_same_v<T, Wire::NearbyPlayersChange>)
                     {

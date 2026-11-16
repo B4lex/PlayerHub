@@ -160,6 +160,11 @@ namespace Network::Wire
         Multiplayer::PeerSlot left{ 0 };
     };
 
+    struct RoleList
+    {
+        std::vector<Multiplayer::Role> roles;
+    };
+
     struct NearbyPlayersChange
     {
         std::vector<Multiplayer::PeerSlot> joined;
@@ -167,8 +172,8 @@ namespace Network::Wire
     };
 
     using ServerMessage = std::variant<Welcome, ChatResult, Pong, PeerStates, PeerEnter, PeerContext, PeerLeave,
-        AnimationAction, PeerAppearance, PeerEquipment, PeerEffects, Multiplayer::ChatMessage, RosterChange, NearbyPlayersChange,
-        Multiplayer::PlayerInspection, Multiplayer::TradeEvent>;
+        AnimationAction, PeerAppearance, PeerEquipment, PeerEffects, Multiplayer::ChatMessage, RosterChange, RoleList,
+        NearbyPlayersChange, Multiplayer::PlayerInspection, Multiplayer::TradeEvent>;
 
     class Decoder
     {

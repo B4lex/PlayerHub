@@ -646,3 +646,104 @@ func TestChatFeedCarriesOnlyGlobalLines(t *testing.T) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
+
+func TestManageRoles(t *testing.T) {
+	s := startStack(t)
+	online, welcome := s.joinWith("Lydia", nil)
+	lydia := fmt.Sprint(welcome.GetSessionId())
+
+	for _, c := range []struct {
+		body   any
+		status int
+	}{
+		{map[string]string{"name": "Moderator"}, 422},
+		{map[string]string{"name": "", "color": "#3366ff"}, 422},
+		{map[string]string{"name": " Moderator", "color": "#3366ff"}, 422},
+		{map[string]string{"name": strings.Repeat("m", 25), "color": "#3366ff"}, 422},
+		{map[string]string{"name": "Moderator", "color": "3366ff"}, 422},
+		{map[string]string{"name": "Moderator", "color": "#3366f"}, 422},
+		{map[string]string{"name": "Moderator", "color": "#+366ff"}, 422},
+		{map[string]string{"name": "Moderator", "color": "#3366FF"}, 201},
+		{map[string]string{"name": "moderator", "color": "#000000"}, 409},
+	} {
+		if status := s.call("POST", "/api/roles", c.body, nil); status != c.status {
+			t.Errorf("create %v: got %d, want %d", c.body, status, c.status)
+		}
+	}
+	roles := online.until(func(m *pb.ServerMessage) bool { return m.GetRoles() != nil }).GetRoles().GetRoles()
+	if len(roles) != 1 || roles[0].GetName() != "Moderator" || roles[0].GetColor() != 0x3366FF {
+		t.Fatalf("the player was sent %v", roles)
+	}
+	moderator := fmt.Sprint(roles[0].GetId())
+
+	for _, c := range []struct {
+		id     string
+		body   any
+		status int
+	}{
+		{lydia, map[string]any{}, 422},
+		{lydia, map[string]any{"roleId": 1}, 422},
+		{lydia, map[string]any{"roleId": "0"}, 422},
+		{lydia, map[string]any{"roleId": "999"}, 422},
+		{"999", map[string]any{"roleId": moderator}, 404},
+		{"x", map[string]any{"roleId": moderator}, 404},
+		{lydia, map[string]any{"roleId": moderator}, 200},
+	} {
+		if status := s.call("PUT", "/api/sessions/"+c.id+"/role", c.body, nil); status != c.status {
+			t.Errorf("set role %s %v: got %d, want %d", c.id, c.body, status, c.status)
+		}
+	}
+	joined := online.until(func(m *pb.ServerMessage) bool { return m.GetRoster() != nil }).GetRoster().GetJoined()
+	if len(joined) != 1 || joined[0].GetSlot() != online.slot || fmt.Sprint(joined[0].GetRole()) != moderator {
+		t.Fatalf("the player was sent %v", joined)
+	}
+
+	var state State
+	s.call("GET", "/api/state", nil, &state)
+	if len(state.Roles) != 1 || state.Roles[0] != (Role{ID: moderator, Name: "Moderator", Color: "#3366ff", Holders: 1}) ||
+		state.Players[0].RoleID == nil || *state.Players[0].RoleID != moderator ||
+		state.Players[0].SessionID == nil || *state.Players[0].SessionID != lydia {
+		t.Fatalf("state roles %+v players %+v", state.Roles, state.Players)
+	}
+	var page SessionPage
+	if s.call("GET", "/api/sessions?role="+moderator, nil, &page); page.Total != 1 || *page.Sessions[0].RoleID != moderator {
+		t.Fatalf("the role's sessions: %+v", page)
+	}
+	if status := s.call("GET", "/api/sessions?role=x", nil, nil); status != 422 {
+		t.Fatalf("role filter: %d", status)
+	}
+
+	if status := s.call("PATCH", "/api/roles/"+moderator, map[string]string{"name": "Staff", "color": "#ff0000"}, nil); status != 200 {
+		t.Fatalf("change: %d", status)
+	}
+	if status := s.call("PATCH", "/api/roles/999", map[string]string{"name": "Ghost", "color": "#ff0000"}, nil); status != 404 {
+		t.Fatalf("change a missing role: %d", status)
+	}
+	roles = online.until(func(m *pb.ServerMessage) bool { return m.GetRoles() != nil }).GetRoles().GetRoles()
+	if len(roles) != 1 || roles[0].GetName() != "Staff" || roles[0].GetColor() != 0xFF0000 {
+		t.Fatalf("after the change the player was sent %v", roles)
+	}
+
+	if status := s.call("PUT", "/api/sessions/"+lydia+"/role", map[string]any{"roleId": nil}, nil); status != 200 {
+		t.Fatalf("take the role: %d", status)
+	}
+	joined = online.until(func(m *pb.ServerMessage) bool { return m.GetRoster() != nil }).GetRoster().GetJoined()
+	if len(joined) != 1 || joined[0].GetRole() != 0 {
+		t.Fatalf("after taking the role the player was sent %v", joined)
+	}
+	s.call("PUT", "/api/sessions/"+lydia+"/role", map[string]any{"roleId": moderator}, nil)
+
+	if status := s.call("DELETE", "/api/roles/"+moderator, nil, nil); status != 204 {
+		t.Fatalf("delete: %d", status)
+	}
+	if status := s.call("DELETE", "/api/roles/"+moderator, nil, nil); status != 404 {
+		t.Fatalf("delete again: %d", status)
+	}
+	if roles := online.until(func(m *pb.ServerMessage) bool { return m.GetRoles() != nil }).GetRoles().GetRoles(); len(roles) != 0 {
+		t.Fatalf("after the delete the player was sent %v", roles)
+	}
+	s.call("GET", "/api/state", nil, &state)
+	if len(state.Roles) != 0 || state.Players[0].RoleID != nil {
+		t.Fatalf("state after the delete: roles %+v players %+v", state.Roles, state.Players)
+	}
+}

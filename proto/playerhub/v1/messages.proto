@@ -270,6 +270,20 @@ message PlayerIdentity {
   uint32 slot = 1;
   string name = 2;
   uint64 session_id = 3;
+  // A Role's id; 0 without a role.
+  uint32 role = 4;
+}
+
+message Role {
+  uint32 id = 1;
+  string name = 2;
+  // 0xRRGGBB.
+  uint32 color = 3;
+}
+
+// Every role of the server, in place of those sent before.
+message Roles {
+  repeated Role roles = 1;
 }
 
 message ChatMessage {
@@ -346,5 +360,6 @@ message ServerMessage {
     TradePluginReply trade_plugin_reply = 22;
     Pong pong = 23;
     PeerEffects peer_effects = 24;
+    Roles roles = 25;
   }
 }

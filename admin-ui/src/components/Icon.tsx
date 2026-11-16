@@ -20,7 +20,9 @@ export type IconName =
   | "gauge"
   | "key"
   | "more"
-  | "chat";
+  | "chat"
+  | "badge"
+  | "plus";
 
 // 24x24 outline icons; `fill` ones are solid shapes.
 const glyphs: Record<IconName, { fill?: boolean; body: ReactNode }> = {
@@ -148,6 +150,17 @@ const glyphs: Record<IconName, { fill?: boolean; body: ReactNode }> = {
     body: (
       <path d="M6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 3.8V16A2.5 2.5 0 0 1 4 13.5v-7A2.5 2.5 0 0 1 6.5 4z" />
     ),
+  },
+  badge: {
+    body: (
+      <>
+        <path d="M12 3l7 2.6v5.6c0 4.4-2.9 8.1-7 9.8-4.1-1.7-7-5.4-7-9.8V5.6z" />
+        <path d="M9 11.8l2.2 2.2 3.8-4.2" />
+      </>
+    ),
+  },
+  plus: {
+    body: <path d="M12 5v14M5 12h14" />,
   },
   more: {
     fill: true,

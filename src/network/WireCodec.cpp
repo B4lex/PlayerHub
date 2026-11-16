@@ -521,9 +521,10 @@ namespace Network::Wire
 
         bool ReadPlayerIdentity(const playerhub_v1_PlayerIdentity& a_identity, Multiplayer::PlayerIdentity& a_result)
         {
-            a_result = Multiplayer::PlayerIdentity{
-                .playerID = a_identity.slot, .name = a_identity.name, .session = a_identity.session_id
-            };
+            a_result = Multiplayer::PlayerIdentity{ .playerID = a_identity.slot,
+                .name = a_identity.name,
+                .session = a_identity.session_id,
+                .role = a_identity.role };
             return a_identity.slot != 0 && a_identity.session_id != 0 && !a_result.name.empty()
                 && Multiplayer::IsValidAppearanceName(a_result.name);
         }
@@ -857,6 +858,55 @@ namespace Network::Wire
                 return std::unexpected("roster framing");
             }
             return change;
+        }
+
+        std::expected<ServerMessage, std::string> DecodeRoles(pb_istream_t& a_stream)
+        {
+            RoleList list;
+            pb_istream_t roles;
+            if (!pb_make_string_substream(&a_stream, &roles))
+            {
+                return std::unexpected("roles framing");
+            }
+            while (roles.bytes_left > 0)
+            {
+                pb_wire_type_t wireType;
+                std::uint32_t tag = 0;
+                bool eof = false;
+                if (!pb_decode_tag(&roles, &wireType, &tag, &eof))
+                {
+                    return std::unexpected("roles field tag");
+                }
+                if (tag != playerhub_v1_Roles_roles_tag || wireType != PB_WT_STRING)
+                {
+                    if (!pb_skip_field(&roles, wireType))
+                    {
+                        return std::unexpected("roles field");
+                    }
+                    continue;
+                }
+                if (list.roles.size() >= Multiplayer::kMaximumRoles)
+                {
+                    return std::unexpected("role count");
+                }
+                playerhub_v1_Role entry = playerhub_v1_Role_init_zero;
+                if (!pb_decode_ex(&roles, playerhub_v1_Role_fields, &entry, PB_DECODE_DELIMITED))
+                {
+                    return std::unexpected(std::string{ "role: " } + PB_GET_ERROR(&roles));
+                }
+                Multiplayer::Role role{ .id = entry.id, .name = entry.name, .color = entry.color };
+                if (!Multiplayer::IsValidRole(role)
+                    || std::ranges::find(list.roles, role.id, &Multiplayer::Role::id) != list.roles.end())
+                {
+                    return std::unexpected("role values");
+                }
+                list.roles.push_back(std::move(role));
+            }
+            if (!pb_close_string_substream(&a_stream, &roles))
+            {
+                return std::unexpected("roles framing");
+            }
+            return list;
         }
 
         std::expected<ServerMessage, std::string> DecodeNearbyPlayers(pb_istream_t& a_stream)
@@ -1463,6 +1513,15 @@ namespace Network::Wire
                     return std::unexpected("trailing envelope fields");
                 }
                 return roster;
+            }
+            if (tag == playerhub_v1_ServerMessage_roles_tag && wireType == PB_WT_STRING)
+            {
+                auto roles = DecodeRoles(stream);
+                if (roles && stream.bytes_left != 0)
+                {
+                    return std::unexpected("trailing envelope fields");
+                }
+                return roles;
             }
             if (tag == playerhub_v1_ServerMessage_nearby_players_tag && wireType == PB_WT_STRING)
             {

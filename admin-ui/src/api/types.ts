@@ -37,6 +37,9 @@ export interface Player {
   visible: number;
   /** Hidden from every other player by an admin. */
   hidden: boolean;
+  /** The session a connected player joined with; null for virtual players. */
+  sessionId: string | null;
+  roleId: string | null;
   /** Bytes per second the server writes to this client. */
   bytesPerSecond: number;
   /** Checkpoints per second replaced by a newer one before they were written: a slow link. */
@@ -151,6 +154,17 @@ export interface Session {
   banned: boolean;
   /** The slot of the player connected with this session. */
   playerId: string | null;
+  roleId: string | null;
+}
+
+/** A name and a color a session can hold, shown in game as a badge by the player's name. */
+export interface Role {
+  id: string;
+  name: string;
+  /** "#rrggbb". */
+  color: string;
+  /** Live sessions holding the role. */
+  holders: number;
 }
 
 export interface SessionPage {
@@ -168,6 +182,7 @@ export interface AdminState {
   batches: Batch[];
   exclusions: Exclusion[];
   bans: Ban[];
+  roles: Role[];
 }
 
 /** A Global chat line, pushed once as it is relayed; the server keeps none. */

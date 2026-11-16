@@ -114,6 +114,7 @@ type candidate struct {
 type Identity struct {
 	Session     uint64
 	DisplayName string
+	Role        uint32
 	Token       []byte
 	Voice       *voice.Endpoint
 }
@@ -125,6 +126,8 @@ type Hub struct {
 	nextSlot   uint32
 	sessions   map[uint64]uint32
 	changed    []*member
+	// The Roles message a connecting client is sent; nil without roles.
+	roles []byte
 
 	phase     int
 	touched   [][]*member
@@ -207,16 +210,61 @@ func (h *Hub) ConnectClient(outbox *delivery.Outbox, identity Identity) (slot, r
 	slot = h.connect(world.KindClient, outbox, identity)
 	h.sessions[identity.Session] = slot
 	m := h.members[slot]
+	if h.roles != nil {
+		outbox.AppendGlobal(h.roles)
+	}
 	roster := &pb.Roster{}
 	for _, r := range h.recipients {
 		if r.listed() {
-			roster.Joined = append(roster.Joined, &pb.PlayerIdentity{Slot: r.Slot, Name: r.DisplayName, SessionId: r.Session})
+			roster.Joined = append(roster.Joined, h.identity(r))
 		}
 	}
 	outbox.AppendGlobal(rosterMessage(roster))
-	h.announce(m, &pb.Roster{Joined: []*pb.PlayerIdentity{{Slot: slot, Name: identity.DisplayName,
-		SessionId: identity.Session}}})
+	h.announce(m, &pb.Roster{Joined: []*pb.PlayerIdentity{h.identity(m)}})
 	return slot, replaced
+}
+
+// SetRoles sends every client the server's roles in place of those it had. A member whose
+// role is not among them is left without one.
+func (h *Hub) SetRoles(roles []*pb.Role) {
+	known := make(map[uint32]bool, len(roles))
+	for _, role := range roles {
+		known[role.GetId()] = true
+	}
+	for _, m := range h.members {
+		if !known[m.Role] {
+			m.Role = 0
+		}
+	}
+	bytes := wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Roles{Roles: &pb.Roles{Roles: roles}}})
+	h.roles = nil
+	if len(roles) != 0 {
+		h.roles = bytes
+	}
+	for _, r := range h.recipients {
+		r.outbox.AppendGlobal(bytes)
+	}
+}
+
+// SetRole gives the role to the session's connected player, if any, and tells every client,
+// the player included.
+func (h *Hub) SetRole(session uint64, role uint32) {
+	slot, ok := h.sessions[session]
+	if !ok {
+		return
+	}
+	m := h.members[slot]
+	if m.Role == role {
+		return
+	}
+	m.Role = role
+	bytes := rosterMessage(&pb.Roster{Joined: []*pb.PlayerIdentity{h.identity(m)}})
+	for _, r := range h.recipients {
+		if r.listed() {
+			r.outbox.AppendGlobal(bytes)
+		}
+	}
+	h.opts.OnChange()
 }
 
 func (m *member) listed() bool {
@@ -240,7 +288,7 @@ func (h *Hub) connect(kind world.Kind, outbox *delivery.Outbox, identity Identit
 	h.nextSlot++
 	m := &member{
 		Player: &world.Player{Slot: h.nextSlot, Kind: kind, ConnectedAt: h.opts.Clock.Now(),
-			Session: identity.Session, DisplayName: identity.DisplayName},
+			Session: identity.Session, DisplayName: identity.DisplayName, Role: identity.Role},
 		outbox:         outbox,
 		subscribed:     make(map[uint32]*subscription),
 		heldAppearance: make(map[uint32]uint64),
@@ -739,8 +787,8 @@ func (h *Hub) setEffects(m *member, e *pb.Effects, message *pb.ClientMessage) er
 	return nil
 }
 
-func (h *Hub) speaker(m *member) *pb.PlayerIdentity {
-	return &pb.PlayerIdentity{Slot: m.Slot, Name: m.Name(), SessionId: m.Session}
+func (h *Hub) identity(m *member) *pb.PlayerIdentity {
+	return &pb.PlayerIdentity{Slot: m.Slot, Name: m.Name(), SessionId: m.Session, Role: m.Role}
 }
 
 func chatRejection(err error) pb.ChatRejection {
@@ -784,9 +832,9 @@ func (h *Hub) chat(m *member, request *pb.ChatSend) error {
 	if err != nil {
 		return err
 	}
-	line.Sender, line.Text = h.speaker(m), text
+	line.Sender, line.Text = h.identity(m), text
 	if recipient != nil {
-		line.Recipient = h.speaker(recipient)
+		line.Recipient = h.identity(recipient)
 	}
 	bytes := wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_ChatMessage{ChatMessage: line}})
 	switch line.Channel {

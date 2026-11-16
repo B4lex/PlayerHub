@@ -30,16 +30,24 @@ namespace ChatSync
             }
         }
 
-        std::string FormatSender(const Multiplayer::ChatMessage& a_message)
+        struct SenderLabel
         {
-            const auto format
-                = [](const Multiplayer::PlayerIdentity& a_speaker) { return PlayerLabel::Format(a_speaker.name); };
+            std::string text;
+            std::size_t nameOffset{ 0 };
+        };
+
+        SenderLabel FormatSender(const Multiplayer::ChatMessage& a_message)
+        {
             if (a_message.channel != Multiplayer::ChatChannel::kWhisper)
             {
-                return format(a_message.sender);
+                return SenderLabel{ .text = PlayerLabel::Format(a_message.sender.name) };
             }
-            return a_message.outgoing ? Text::Format(Text::Id::kChatTo, format(a_message.recipient))
-                                      : Text::Format(Text::Id::kChatFrom, format(a_message.sender));
+            const auto format = a_message.outgoing ? Text::Id::kChatTo : Text::Id::kChatFrom;
+            const auto& other = a_message.outgoing ? a_message.recipient : a_message.sender;
+            // A translation may put the name anywhere in the label.
+            const auto field = Text::Get(format).find("{}");
+            return SenderLabel{ .text = Text::Format(format, PlayerLabel::Format(other.name)),
+                .nameOffset = field != std::string_view::npos ? field : 0 };
         }
     }
 
@@ -87,10 +95,12 @@ namespace ChatSync
         {
             const bool whisper = message.channel == Multiplayer::ChatChannel::kWhisper;
             const auto& other = whisper && message.outgoing ? message.recipient : message.sender;
+            auto sender = FormatSender(message);
             ChatLine line{ .channel = message.channel,
-                .sender = FormatSender(message),
+                .sender = std::move(sender.text),
+                .nameOffset = sender.nameOffset,
                 .text = std::move(message.text),
-                .player = { .playerID = other.playerID, .name = other.name, .session = other.session },
+                .player = other,
                 .outgoing = message.outgoing };
             // A note to oneself is not a conversation, and a muted player's whispers are
             // hidden, so neither makes a whisper partner.

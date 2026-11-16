@@ -63,12 +63,13 @@ src/ui/
   settings/ConnectionControls # connection button, the line under it, one-line summary
   settings/DiscordLink        # the Discord symbol and its invitation, opening the invite in the browser
   widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text, striped box
+  widgets/RoleBadge           # a role's letter mark beside a name, and its whole badge
   widgets/ItemPicker          # item dropdown
   preview/ItemPreview         # 3D item model, spinning and turned by dragging, and cached thumbnails
   render/Gpu                  # frame target, runtime-compiled full-screen passes, image blend modes
   render/Backdrop             # the game's frame blurred and darkened behind a full-screen window
 src/sync/chat/ChatSync        # send to a target and why it failed, the server's rejections, lines to display
-src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners, the list's copy
+src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners, the list's copy, the server's roles and their marks
 src/sync/chat/ChatComposer    # send target, the `@` prefix, name list, notes, sent lines
 src/sync/notices/Notices      # the notices queue any feature posts to
 src/sync/nameplates/NameplateSync # per peer: head node, line of sight, fade, label, voice level; the pass's plates
@@ -269,6 +270,14 @@ status panel keeps the system font.
   enlarges glyphs and advances and leaves the line height, so text is as wide
   as in the system font and layouts in font sizes hold. Descenders and
   accented capitals reach about a pixel outside the line at 16 px.
+- `Fonts::FindHeadingBounds` gives a glyph's outline bounds in the heading
+  face per pixel of font size, from the pen position on the baseline, at
+  the same scale ImGui's loader uses (`stbtt_ScaleForPixelHeight` times
+  `kShippedGlyphScale`). It reads the mapped file through a private,
+  static copy of `imstb_truetype.h` in `UI::Fonts::Stb` (outside it, the
+  header's stand-in `stbrp_node` clashes with `imgui_internal.h`'s), since
+  the atlas keeps only each baked glyph's whole-pixel box. It is empty while the face is not loaded and
+  for a glyph the face lacks.
 - A file that is missing or is not a font logs a warning and leaves its
   accessor null; `ImGui::PushFont` then keeps the current font, so the
   window shows in the system font.
@@ -840,7 +849,8 @@ at all, so the hint stays until one is applied.
 
 Goal: show each other player's display name above their character's head
 while the character is within `[UI] NameplateDistance` of the player and in
-sight, so players can tell who is who. Friends' names are in the accent.
+sight, so players can tell who is who. Friends' names are in the accent, and
+a [role](#roles)'s mark stands before its holder's name.
 Non-goals: a level, health bar, or other detail on the plate (the user chose
 the name alone), plates for players without a character in the local world,
 plates through walls (the user chose to hide them), and a plate for the
@@ -870,11 +880,14 @@ player's own character.
 - Each plate fades in and out over 0.2 s of clamped frame time as its result
   changes. Its label is the peer's roster name with `PlayerLabel::Format`,
   or the appearance's name for a player the roster lacks, and it is a
-  friend's by `PlayerFilters::IsFriend` on the roster's session. Both are
-  read again only when the roster's revision (`ChatRoster::GetRevision`) or
+  friend's by `PlayerFilters::IsFriend` on the roster's session. Its
+  [role](#roles)'s mark is `ChatRoster::FindRoleMark` of the roster entry's
+  role. All three are
+  read again only when the roster's revision (`ChatRoster::GetRevision`),
+  which a change to the roles advances too, or
   the filters' revision changes.
 - `NameplateSync::GetPlates` gives the pass's plates sorted farthest first,
-  each with the head node, label, friend flag, fade, and distance as a
+  each with the head node, label, role mark, friend flag, fade, and distance as a
   fraction of the range. The node and label are owned by the peer's state
   until the next pass. Off the main-loop thread it returns none: the overlay
   is expected to draw on that thread ([Item picker](#3d-preview) relies on
@@ -885,7 +898,7 @@ player's own character.
   nothing outside a game, with `[UI] Nameplates` off, or while
   `UI::IsGameViewShown` is false: the game is paused, menus are hidden, or
   the dialogue or race menu is open ([Display name hint](#display-name-hint)).
-- A plate's anchor is 30 units above the head node, times the node's world
+- A plate's anchor is 20 units above the head node, times the node's world
   scale, projected each frame with `Main::WorldRootCamera`, so it follows
   the head as rendered. `NiCamera::WorldPtToScreenPt3` divides by the
   depth's absolute value, so the layer computes the depth from the
@@ -895,11 +908,16 @@ player's own character.
   1.2 font sizes near the player down to 0.8 at the range, rounded to whole
   pixels. It is white, or the accent for a friend, over a black outline of
   four copies offset diagonally by a pixel per 16 px of the overlay's font
-  size, at 80% of the plate's alpha. Over the last 15% of the range it fades out; a plate wholly
+  size, at 80% of the plate's alpha. A [role](#roles)'s mark stands before
+  the name over the same outline, sized by the name's font size, and the two
+  are centered on the anchor as one; the name keeps its color (the user's
+  choice over a name in the role's color). The [voice chat](#voice-chat)
+  speaker stands before both. Over the last 15% of the range it fades out; a plate wholly
   off screen is skipped.
 - Per pass the cost is one distance per peer with a character, the budgeted
   rays, and one roster and filter revision read; nothing allocates once the
-  plates vector has grown. Drawing costs five text draws per plate.
+  plates vector has grown. Drawing costs five text draws per plate, and two
+  rectangles and a glyph for a mark.
 
 ## Notices
 
@@ -1183,6 +1201,15 @@ never a line, so the history holds only what players said.
   theme's, in the text face. Under the cursor a label is underlined; a right click on a line with
   another player, its sender or the recipient of one's own whisper, opens
   its [player menu](#player-menu). One's own other lines have no menu.
+- The label's player's [role](#roles) mark stands in the label right before
+  the name, so after a whisper's direction where the language puts that
+  first: `ChatSync` gives the name's offset in the label, which is where the
+  label's format has its field. `DrawLabel` draws the label's parts and the
+  mark as one group, which is what the cursor underlines and what the line's
+  text wraps beside. The mark is that of the role the player had when the
+  line arrived (`ChatHistory::Line::role`), one's own lines included, looked
+  up again whenever the roster's revision changes, and it fades with the
+  closed chat's lines.
 - A line wider than the chat wraps at words. Its text starts beside its label
   and continues from the chat's left edge under the label, not from where the
   text started, so a long name does not narrow every row (`DrawAfterLabel` in
@@ -1228,7 +1255,9 @@ never a line, so the history holds only what players said.
   others follow in a light gray (`kDistantPlayerColor`), between the
   theme's text and disabled text; each group keeps the order
   `ChatRoster` sorts them in (by folded name). The local player is left
-  out; the chip's count still includes it. A name wider than the list is
+  out; the chip's count still includes it. A player's [role](#roles) mark
+  (`ChatRoster::ListedPlayer::role`) stands before the name, and the
+  underline spans the name alone. A name wider than the list is
   cut at its edge. With nothing to list it shows one row saying why: no
   name matches the search, nobody else is online, or there is no roster.
 - A name acts as a sender's name does in the lines: under the cursor it is
@@ -1602,6 +1631,48 @@ and a limit, since nothing about friends is sent.
   player appears with another name, the first roster included, and saves
   it, so an offline row shows the name last seen.
 
+## Roles
+
+How the game shows the [role](network.md#roles) a server's admin gave a
+player, which owns the feature's goal and acceptance criteria. Non-goals: a
+name in the role's color in chat (it would hide the line's channel, which
+the label's color tells; the user chose the mark instead), a mark in the
+[name list](#name-list), the trade window, or notices, and a setting that
+hides roles.
+
+- `ChatRoster` holds the server's roles with the roster. On each roster
+  revision it makes every role's `RoleMark`: the role's color and its
+  letter, the name's first character in upper case (`Utf8Case::AppendUpper`,
+  so of the scripts it covers; any other character as it is).
+  `FindRoleMark` gives the mark of a role ID and `FindRole` the role, both
+  empty for 0 and for an ID the server no longer lists.
+- `RoleBadge` (`ui/widgets/`) draws both forms in the style of the chat's
+  [filter chips](#lines-and-filters): the `ChatStyle` chip fill and outline
+  in the role's color, with the text in that color. The mark is a square
+  chip holding the letter in the heading face (`Fonts::GetHeading`, or the
+  current font without it): `DrawMark` on any draw list at a given size and
+  alpha, which the [nameplates](#nameplates) and the
+  [player list](#player-list) use, and `Mark` as an item as high as a line
+  of text, which the [chat's lines](#lines-and-filters) use. `Name` is the
+  whole badge: the role's name in a chip, for the
+  [player menu](#player-menu).
+- The letter is centered by its outline's exact bounds
+  (`Fonts::FindHeadingBounds`, read from the heading font with stb_truetype
+  and cached per letter), not by the baked glyph's box: that box widens to
+  whole pixels by how far the outline crosses into them, so a box-centered
+  letter shifted by a pixel with its shape (an overshoot below the baseline)
+  and with the mark's size, which changes with a nameplate's distance. A
+  letter the heading font lacks comes from a fallback font and is centered
+  by its baked box.
+- The player menu shows the role its player holds when it opens: the
+  roster's for a connected player whose entry has the same session, else the
+  identity's own, so a line of a player who left still names the role they
+  had. A player without a slot, an offline row of the
+  [player manager](#player-manager), shows none.
+- A role given, taken, renamed, recolored, or deleted shows without a
+  reconnect: each arrives as a roster change ([Network](network.md#roles)),
+  and every reader keys on the roster's revision.
+
 ## Player menu
 
 Goal: wherever another player's menu opens, a right click on its name in
@@ -1619,7 +1690,8 @@ level-up while the menu is open.
   they open their popup, and `Draw` inside it, which reports a whisper for
   each to handle.
 - It starts with the roster's name in the heading face (`Fonts::GetHeading`)
-  at the text size and in the accent color (`Theme::GetAccent`), then a
+  at the text size and in the accent color (`Theme::GetAccent`), then the
+  player's [role](#roles) badge when it has one, then a
   line with the race and level in the muted text color: the level alone
   without a race name, the race alone at level zero, and no line without
   either. A separator and the items follow. Whisper is disabled for a

@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { connectAdminFeed, type ConnectionStatus } from "../api/feed";
-import type { AdminState, Ban, Batch, ChatLine, Exclusion, Player, Playback, Recording, ServerInfo } from "../api/types";
+import type { AdminState, Ban, Batch, ChatLine, Exclusion, Player, Playback, Recording, Role, ServerInfo } from "../api/types";
 import { newerPlayback } from "../lib/playbackClock";
 import { awaited, predicted, type HeldPrediction, type LiveState, type PlaybackView, type Prediction } from "../lib/predictions";
 
@@ -35,6 +35,7 @@ interface ServerStateValue {
   batches: Batch[];
   exclusions: Exclusion[];
   bans: Ban[];
+  roles: Role[];
   /**
    * Use a playback returned by a command right away instead of waiting for the next push.
    * `opened` adds one the panel does not hold yet; otherwise an unknown playback has closed and is ignored.
@@ -150,6 +151,7 @@ export function ServerStateProvider({ children }: { children: ReactNode }) {
       recordings: snapshot?.state.recordings ?? [],
       playbacks,
       batches: snapshot?.state.batches ?? [],
+      roles: snapshot?.state.roles ?? [],
     }),
     [snapshot, playbacks],
   );
@@ -173,6 +175,7 @@ export function ServerStateProvider({ children }: { children: ReactNode }) {
       batches: shown.batches,
       exclusions: snapshot?.state.exclusions ?? [],
       bans: snapshot?.state.bans ?? [],
+      roles: shown.roles,
       adoptPlayback,
       predict,
     };

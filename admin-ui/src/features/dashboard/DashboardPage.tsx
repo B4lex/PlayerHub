@@ -8,12 +8,14 @@ import { EmptyState } from "../../components/EmptyState";
 import { Menu } from "../../components/Menu";
 import { PageHeader } from "../../components/PageHeader";
 import { Panel } from "../../components/Panel";
+import { RoleLetter } from "../../components/RoleBadge";
 import { StatTile } from "../../components/StatTile";
 import { formatFormRef, formatTimestamp, plural, shortId } from "../../lib/format";
-import { playerHidden, playerRemoved } from "../../lib/predictions";
+import { playerHidden, playerRemoved, playerRole } from "../../lib/predictions";
 import { useTicker } from "../../lib/useTicker";
 import { useServerState } from "../../state/ServerState";
 import { useAction } from "../../state/useAction";
+import { SetRoleDialog } from "../roles/SetRoleDialog";
 import { ChatPanel } from "./ChatPanel";
 import styles from "./DashboardPage.module.css";
 
@@ -33,7 +35,7 @@ function describeTraffic(player: Player): string {
   return `${kilobytes < 10 ? kilobytes.toFixed(1) : Math.round(kilobytes)} KB/s`;
 }
 
-type PlayerCommand = "hide" | "show" | "kick" | "ban";
+type PlayerCommand = "hide" | "show" | "role" | "kick" | "ban";
 
 /** The row's command menu; every command asks for confirmation first, and then shows at once. */
 function PlayerActions({ player }: { player: Player }) {
@@ -70,6 +72,12 @@ function PlayerActions({ player }: { player: Player }) {
 
   const close = () => setPending(null);
 
+  const setRole = (roleId: string | null) => {
+    close();
+    const { sessionId } = player;
+    if (sessionId !== null) void run(() => api.sessions.setRole(sessionId, roleId), playerRole(player, roleId));
+  };
+
   return (
     <>
       <Menu
@@ -78,6 +86,7 @@ function PlayerActions({ player }: { player: Player }) {
           player.hidden
             ? { label: "Show to everyone", onSelect: () => ask("show") }
             : { label: "Hide from everyone", onSelect: () => ask("hide") },
+          { label: "Set role", disabled: player.sessionId === null, onSelect: () => ask("role") },
           { label: "Kick", danger: true, onSelect: () => ask("kick") },
           { label: "Ban", danger: true, onSelect: () => ask("ban") },
         ]}
@@ -92,6 +101,7 @@ function PlayerActions({ player }: { player: Player }) {
           <p>Other players see them again.</p>
         </ConfirmDialog>
       )}
+      {pending === "role" && <SetRoleDialog name={name} roleId={player.roleId} onClose={close} onSet={setRole} />}
       {pending === "kick" && (
         <ConfirmDialog title={`Kick ${name}?`} confirmLabel="Kick" danger onConfirm={confirm} onClose={close}>
           <p>They are disconnected, and their game waits for them to connect again.</p>
@@ -119,6 +129,8 @@ function PlayerActions({ player }: { player: Player }) {
 }
 
 function PlayerRow({ player }: { player: Player }) {
+  const { roles } = useServerState();
+  const role = roles.find((other) => other.id === player.roleId);
   const location = describeLocation(player);
   const doing = player.movementState ? humanize(player.movementState) : "—";
   return (
@@ -126,7 +138,7 @@ function PlayerRow({ player }: { player: Player }) {
       <td className={styles.menuCell}>{!player.virtual && <PlayerActions player={player} />}</td>
       <td>
         <div className={styles.name} title={player.name || undefined}>
-          {player.name || <span className={styles.muted}>Unnamed player</span>}
+          {role !== undefined && <RoleLetter role={role} />} {player.name || <span className={styles.muted}>Unnamed player</span>}
         </div>
         <div className={`${styles.id} mono`} title={player.id}>
           {player.virtual ? player.id : shortId(player.id)}

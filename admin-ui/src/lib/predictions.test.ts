@@ -13,9 +13,13 @@ import {
   playbackSought,
   playerHidden,
   playerRemoved,
+  playerRole,
   predicted,
   recordingStarted,
   recordingStopped,
+  roleChanged,
+  roleCreated,
+  roleRemoved,
   type LiveState,
   type PlaybackView,
   type Prediction,
@@ -34,6 +38,8 @@ const player: Player = {
   movementState: null,
   visible: 0,
   hidden: false,
+  sessionId: "7",
+  roleId: null,
   bytesPerSecond: 0,
   replacedPerSecond: 0,
   recordingId: null,
@@ -85,7 +91,7 @@ const batch: Batch = {
   bots: [bot(0, "playing", 1000), bot(1, "playing", 6000)],
 };
 
-const empty: LiveState = { receivedAt: 100, players: [], recordings: [], playbacks: [], batches: [] };
+const empty: LiveState = { receivedAt: 100, players: [], recordings: [], playbacks: [], batches: [], roles: [] };
 
 function shown(truth: LiveState, prediction: Prediction, succeeded = false): LiveState {
   return predicted(truth, [{ prediction, succeeded }]);
@@ -216,5 +222,38 @@ describe("batch predictions", () => {
     const state = shown(empty, start, true);
     expect(positions(state, 5100)).toEqual([1000, 6000]);
     expect(shown(truth, start, true).batches).toEqual([batch]);
+  });
+});
+
+describe("role predictions", () => {
+  const role = { id: "2", name: "Moderator", color: "#3366ff", holders: 1 };
+  const truth = { ...empty, players: [{ ...player, roleId: "2" }], roles: [role] };
+
+  it("show a player's role until the server's state does", () => {
+    const give = playerRole(player, "2");
+    expect(shown({ ...empty, players: [player] }, give, true).players[0]?.roleId).toBe("2");
+    expect(give.confirmed?.(truth)).toBe(true);
+    expect(playerRole(player, null).confirmed?.(truth)).toBe(false);
+  });
+
+  it("list a created role once", () => {
+    const created = roleCreated(role);
+    expect(shown(empty, created, true).roles).toEqual([role]);
+    expect(shown(truth, created).roles).toEqual([role]);
+    expect(created.confirmed?.(truth)).toBe(true);
+  });
+
+  it("show a role's new name and color, whatever the color's case", () => {
+    const changed = roleChanged("2", "Staff", "#FF0000");
+    expect(shown(truth, changed).roles[0]).toMatchObject({ name: "Staff", color: "#FF0000", holders: 1 });
+    expect(changed.confirmed?.(truth)).toBe(false);
+    expect(changed.confirmed?.({ ...truth, roles: [{ ...role, name: "Staff", color: "#ff0000" }] })).toBe(true);
+    expect(changed.confirmed?.(empty)).toBe(true);
+  });
+
+  it("take a deleted role from its holders", () => {
+    const state = shown(truth, roleRemoved("2"));
+    expect(state.roles).toEqual([]);
+    expect(state.players[0]?.roleId).toBeNull();
   });
 });

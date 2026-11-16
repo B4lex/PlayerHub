@@ -193,7 +193,7 @@ go run ./cmd/tradebot --kit
 ## Admin panel
 
 The panel (`admin-ui/`, see its README) shows connected players, live Global
-chat, sessions, captures, replays, and load-test batches. Commands are REST
+chat, sessions, roles, captures, replays, and load-test batches. Commands are REST
 calls under `/api`; live state is a server-sent event stream at `/api/events`
 that pushes a full snapshot on connect and after changes, at most twice a
 second, and each Global chat line as it is relayed.
@@ -211,9 +211,13 @@ second, and each Global chat line as it is relayed.
 | `POST /api/playbacks/{id}/seek` `{positionMs}` | Jump to a time |
 | `PATCH /api/playbacks/{id}` `{rate?, loop?}` | Speed (0.1 to 4) and looping |
 | `DELETE /api/playbacks/{id}` | Stop a replay and remove its virtual player |
-| `GET /api/sessions?search=&offset=&limit=` | One page (`limit` 1 to 200, default 50) of live and banned sessions, most recently used first; `search` matches part of a display name or a whole session ID; answers `{sessions, total}` |
+| `GET /api/sessions?search=&role=&offset=&limit=` | One page (`limit` 1 to 200, default 50) of live and banned sessions, most recently used first; `search` matches part of a display name or a whole session ID, and `role` leaves the holders of that role ID; answers `{sessions, total}` |
 | `PATCH /api/sessions/{id}` `{displayName}` | Rename a session whose player is not connected |
 | `DELETE /api/sessions/{id}` | Delete a session with its bans, disconnecting its player as a kick |
+| `PUT /api/sessions/{id}/role` `{roleId}` | Give a session a role in place of its own, or with `null` none; a connected player shows it at once |
+| `POST /api/roles` `{name, color}` | Create a role: a name of 1 to 24 characters and a `#rrggbb` color, shown in game as a badge by its holders' names; at most 32 |
+| `PATCH /api/roles/{id}` `{name, color}` | Change a role's name and color |
+| `DELETE /api/roles/{id}` | Delete a role, leaving its holders without one |
 | `POST /api/sessions` `{displayName, token?}` | Resume the session of a base64 `token`, or issue one under `displayName` without the per-address allowance; answers `{sessionId, displayName, token}` |
 | `PUT /api/players/{id}/hidden` `{hidden}` | Hide a player from everyone, or show it again |
 | `POST /api/players/{id}/kick` | Disconnect a player; their game waits for them to connect again |

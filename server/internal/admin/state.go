@@ -2,6 +2,7 @@ package admin
 
 import (
 	"cmp"
+	"fmt"
 	"net/netip"
 	"slices"
 	"strconv"
@@ -110,6 +111,8 @@ type Player struct {
 	MovementState     *string   `json:"movementState"`
 	Visible           int       `json:"visible"`
 	Hidden            bool      `json:"hidden"`
+	SessionID         *string   `json:"sessionId"`
+	RoleID            *string   `json:"roleId"`
 	BytesPerSecond    float64   `json:"bytesPerSecond"`
 	ReplacedPerSecond float64   `json:"replacedPerSecond"`
 	RecordingID       *string   `json:"recordingId"`
@@ -146,6 +149,27 @@ type Session struct {
 	ExpiresAtMs  *float64 `json:"expiresAtMs"`
 	Banned       bool     `json:"banned"`
 	PlayerID     *string  `json:"playerId"`
+	RoleID       *string  `json:"roleId"`
+}
+
+type Role struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// "#rrggbb"
+	Color   string `json:"color"`
+	Holders int    `json:"holders"`
+}
+
+func roleID(id uint32) *string {
+	if id == 0 {
+		return nil
+	}
+	return optional(strconv.FormatUint(uint64(id), 10))
+}
+
+func roleView(role auth.Role, holders int) Role {
+	return Role{ID: strconv.FormatUint(uint64(role.ID), 10), Name: role.Name, Color: fmt.Sprintf("#%06x", role.Color),
+		Holders: holders}
 }
 
 type SessionPage struct {
@@ -155,7 +179,8 @@ type SessionPage struct {
 
 func sessionView(record auth.Record) Session {
 	view := Session{ID: strconv.FormatUint(record.ID, 10), DisplayName: record.DisplayName,
-		CreatedAtMs: milliseconds(record.CreatedAt), LastUsedAtMs: milliseconds(record.LastUsedAt), Banned: record.Banned}
+		CreatedAtMs: milliseconds(record.CreatedAt), LastUsedAtMs: milliseconds(record.LastUsedAt), Banned: record.Banned,
+		RoleID: roleID(record.Role)}
 	if !record.ExpiresAt.IsZero() {
 		view.ExpiresAtMs = optional(milliseconds(record.ExpiresAt))
 	}
@@ -183,6 +208,7 @@ type State struct {
 	Batches    []loadtest.State `json:"batches"`
 	Exclusions []Exclusion      `json:"exclusions"`
 	Bans       []Ban            `json:"bans"`
+	Roles      []Role           `json:"roles"`
 }
 
 var movementStateNames = []string{"idle", "walking", "running", "sprinting", "sneakingIdle", "sneakingWalking", "sneakingRunning"}
@@ -226,6 +252,10 @@ func (c *Context) players() ([]Player, []Exclusion) {
 			player := Player{
 				ID: slotID(p.Slot), Name: name, InWorld: p.InWorld,
 				ConnectedAtMs: optional(milliseconds(p.ConnectedAt)), Visible: visible, Hidden: h.Hidden(p.Slot),
+				RoleID: roleID(p.Role),
+			}
+			if p.Session != 0 {
+				player.SessionID = optional(strconv.FormatUint(p.Session, 10))
 			}
 			if outbox != nil {
 				written, replaced := outbox.Counters()
@@ -280,11 +310,16 @@ func (c *Context) State() State {
 		Batches:    []loadtest.State{},
 		Exclusions: exclusions,
 		Bans:       []Ban{},
+		Roles:      []Role{},
 	}
 	// A failed read leaves the list empty until the next snapshot; the actions report store failures.
 	bans, _ := c.Sessions.Bans()
 	for _, ban := range bans {
 		state.Bans = append(state.Bans, banView(ban))
+	}
+	roles, _ := c.Sessions.Roles(time.Now())
+	for _, role := range roles {
+		state.Roles = append(state.Roles, roleView(role.Role, role.Holders))
 	}
 	for _, s := range c.Playbacks.Sessions() {
 		playbackState := s.State()

@@ -1,4 +1,4 @@
-import type { Batch, Bot, Player, Playback, PlaybackSettings, Recording } from "../api/types";
+import type { Batch, Bot, Player, Playback, PlaybackSettings, Recording, Role } from "../api/types";
 import { botPositionAt } from "./batchClock";
 import { positionAt } from "./playbackClock";
 
@@ -15,6 +15,7 @@ export interface LiveState {
   recordings: Recording[];
   playbacks: PlaybackView[];
   batches: Batch[];
+  roles: Role[];
 }
 
 /**
@@ -57,6 +58,51 @@ export function playerHidden(player: Player, hidden: boolean): Prediction {
     key: `player:${player.id}:hidden`,
     apply: (state) => ({ ...state, players: state.players.map((other) => (same(other) ? { ...other, hidden } : other)) }),
     confirmed: (state) => (state.players.find(same)?.hidden ?? hidden) === hidden,
+  };
+}
+
+export function playerRole(player: Player, roleId: string | null): Prediction {
+  const same = sameConnection(player);
+  return {
+    key: `player:${player.id}:role`,
+    apply: (state) => ({ ...state, players: state.players.map((other) => (same(other) ? { ...other, roleId } : other)) }),
+    confirmed: (state) => {
+      const current = state.players.find(same);
+      return current === undefined || current.roleId === roleId;
+    },
+  };
+}
+
+/** A role the server has answered with, listed before a snapshot does. */
+export function roleCreated(role: Role): Prediction {
+  return {
+    key: `role:${role.id}:listed`,
+    apply: (state) => (has(state.roles, role.id) ? state : { ...state, roles: [...state.roles, role] }),
+    confirmed: (state) => has(state.roles, role.id),
+  };
+}
+
+export function roleChanged(id: string, name: string, color: string): Prediction {
+  return {
+    key: `role:${id}:look`,
+    apply: (state) => ({ ...state, roles: replace(state.roles, id, (role) => ({ ...role, name, color })) }),
+    confirmed: (state) => {
+      const role = state.roles.find((other) => other.id === id);
+      return role === undefined || (role.name === name && role.color.toLowerCase() === color.toLowerCase());
+    },
+  };
+}
+
+/** A deleted role, which its holders lose. */
+export function roleRemoved(id: string): Prediction {
+  return {
+    key: `role:${id}:listed`,
+    apply: (state) => ({
+      ...state,
+      roles: without(state.roles, id),
+      players: state.players.map((player) => (player.roleId === id ? { ...player, roleId: null } : player)),
+    }),
+    confirmed: (state) => !has(state.roles, id),
   };
 }
 

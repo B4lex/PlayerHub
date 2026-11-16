@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
-import type { Ban, Session, SessionPage } from "../../api/types";
+import type { Ban, Role, Session, SessionPage } from "../../api/types";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
@@ -8,11 +9,13 @@ import { EmptyState } from "../../components/EmptyState";
 import { Menu, type MenuItem } from "../../components/Menu";
 import { PageHeader } from "../../components/PageHeader";
 import { Panel } from "../../components/Panel";
+import { RoleBadge } from "../../components/RoleBadge";
 import { Spinner } from "../../components/Spinner";
 import { formatDate, formatDateTime, formatRelative, plural } from "../../lib/format";
 import { useTicker } from "../../lib/useTicker";
 import { useServerState } from "../../state/ServerState";
 import { useAction } from "../../state/useAction";
+import { SetRoleDialog } from "../roles/SetRoleDialog";
 import styles from "./SessionsPage.module.css";
 
 const PAGE_SIZE = 50;
@@ -34,6 +37,7 @@ interface HeldChange {
 /** The query a page of sessions answers. */
 interface LoadedPage extends SessionPage {
   search: string;
+  role: string | null;
   offset: number;
 }
 
@@ -88,17 +92,19 @@ function RenameDialog({ session, onClose, onRenamed }: { session: Session; onClo
   );
 }
 
-type SessionCommand = "rename" | "lift" | "delete";
+type SessionCommand = "rename" | "role" | "lift" | "delete";
 
 interface SessionRowProps {
   session: Session;
+  /** The session's role, if it holds one the server still has. */
+  role: Role | undefined;
   bans: Ban[];
   now: number;
   /** Shows a change on the row at once; tell the returned function whether its command succeeded. */
   onChange: (change: RowChange) => (succeeded: boolean) => void;
 }
 
-function SessionRow({ session, bans, now, onChange }: SessionRowProps) {
+function SessionRow({ session, role, bans, now, onChange }: SessionRowProps) {
   const [run] = useAction();
   const [pending, setPending] = useState<SessionCommand | null>(null);
   const connected = session.playerId !== null;
@@ -126,6 +132,7 @@ function SessionRow({ session, bans, now, onChange }: SessionRowProps) {
       title: connected ? "A connected player keeps their name until they disconnect; kick them first" : undefined,
       onSelect: () => setPending("rename"),
     },
+    { label: "Set role", onSelect: () => setPending("role") },
   ];
   if (session.banned) items.push({ label: "Lift ban", disabled: bans.length === 0, onSelect: () => setPending("lift") });
   items.push({ label: "Delete", danger: true, onSelect: () => setPending("delete") });
@@ -142,6 +149,14 @@ function SessionRow({ session, bans, now, onChange }: SessionRowProps) {
               close();
               onChange({ displayName })(true);
             }}
+          />
+        )}
+        {pending === "role" && (
+          <SetRoleDialog
+            name={session.displayName}
+            roleId={role?.id ?? null}
+            onClose={close}
+            onSet={(roleId) => send({ roleId }, () => api.sessions.setRole(session.id, roleId))}
           />
         )}
         {pending === "lift" && (
@@ -166,6 +181,7 @@ function SessionRow({ session, bans, now, onChange }: SessionRowProps) {
         <div className={styles.name}>{session.displayName}</div>
         <div className={`${styles.sub} mono`}>session {session.id}</div>
       </td>
+      <td>{role !== undefined && <RoleBadge role={role} />}</td>
       <td className={styles.when}>
         <time dateTime={iso(session.lastUsedAtMs)} title={formatDateTime(iso(session.lastUsedAtMs))}>
           {connected ? "now" : formatRelative(iso(session.lastUsedAtMs), now)}
@@ -211,7 +227,10 @@ function SessionRow({ session, bans, now, onChange }: SessionRowProps) {
 
 /** Lists the sessions the server knows, with renaming and deleting. */
 export function SessionsPage() {
-  const { players, bans } = useServerState();
+  const { players, bans, roles } = useServerState();
+  const [parameters, setParameters] = useSearchParams();
+  // In the address, so the Roles page can link to a role's holders.
+  const role = parameters.get("role");
   useTicker(30_000); // re-render so relative times ("5 min ago") stay current
   const now = Date.now();
   const [searchInput, setSearchInput] = useState("");
@@ -224,10 +243,11 @@ export function SessionsPage() {
   const tokens = useRef(0);
   const settledCommands = useRef(0);
 
-  // Connections and bans change a row's status, and the feed reports both.
+  // Connections, bans, and roles given elsewhere change a row, and the feed reports them.
   const membership = [
     players.filter((player) => !player.virtual).map((player) => player.id).join(","),
     bans.map((ban) => ban.id).join(","),
+    roles.map((other) => `${other.id}:${other.holders}`).join(","),
   ].join("|");
 
   useEffect(() => {
@@ -242,7 +262,7 @@ export function SessionsPage() {
     let current = true;
     // A page requested before a command answered may not show its outcome, so that change stays held.
     const settledBefore = settledCommands.current;
-    api.sessions.list(search, offset, PAGE_SIZE).then(
+    api.sessions.list(search, role, offset, PAGE_SIZE).then(
       (loaded) => {
         if (!current) return;
         // Deleting the last row of the last page leaves an empty page behind.
@@ -250,7 +270,7 @@ export function SessionsPage() {
           setOffset(Math.max(0, Math.floor((loaded.total - 1) / PAGE_SIZE) * PAGE_SIZE));
           return;
         }
-        setPage({ ...loaded, search, offset });
+        setPage({ ...loaded, search, role, offset });
         setHeld((changes) => changes.filter((change) => change.settledAt === null || change.settledAt > settledBefore));
         setError(null);
       },
@@ -261,7 +281,7 @@ export function SessionsPage() {
     return () => {
       current = false;
     };
-  }, [search, offset, revision, membership]);
+  }, [search, role, offset, revision, membership]);
 
   const hold = (sessionId: string, change: RowChange) => {
     const token = ++tokens.current;
@@ -289,7 +309,13 @@ export function SessionsPage() {
   const shown = sessions.length;
   const total = (page?.total ?? 0) - ((page?.sessions.length ?? 0) - shown);
   // The rows on screen answer an earlier search or page.
-  const waiting = page !== null && (page.search !== searchInput.trim() || page.offset !== offset);
+  const waiting = page !== null && (page.search !== searchInput.trim() || page.role !== role || page.offset !== offset);
+  const filtered = page !== null && (page.search !== "" || page.role !== null);
+
+  const filterByRole = (id: string) => {
+    setParameters(id === "" ? {} : { role: id }, { replace: true });
+    setOffset(0);
+  };
 
   return (
     <>
@@ -303,13 +329,31 @@ export function SessionsPage() {
         description={
           page === null
             ? "Loading…"
-            : page.search === ""
+            : !filtered
               ? `${plural(total, "session")}, most recently used first`
-              : `${plural(total, "session")} matching “${page.search}”`
+              : page.search === ""
+                ? `${plural(total, "session")} with this role`
+                : `${plural(total, "session")} matching “${page.search}”`
         }
         actions={
           <>
             {waiting && <Spinner className={styles.waitingMark} />}
+            {(roles.length > 0 || role !== null) && (
+              <select
+                className={styles.roleFilter}
+                aria-label="Show sessions with a role"
+                value={role ?? ""}
+                onChange={(event) => filterByRole(event.target.value)}
+              >
+                <option value="">Any role</option>
+                {role !== null && !roles.some((other) => other.id === role) && <option value={role}>Deleted role</option>}
+                {roles.map((other) => (
+                  <option key={other.id} value={other.id}>
+                    {other.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <input
             className={styles.search}
             type="search"
@@ -329,10 +373,12 @@ export function SessionsPage() {
         ) : page === null ? (
           <EmptyState icon="key" title="Loading…" />
         ) : shown === 0 ? (
-          <EmptyState icon="key" title={page.search === "" ? "No sessions yet" : "No matching sessions"}>
-            {page.search === ""
+          <EmptyState icon="key" title={!filtered ? "No sessions yet" : "No matching sessions"}>
+            {!filtered
               ? "A session is issued the first time a player connects with a display name."
-              : "Search matches part of a display name, or a whole session ID."}
+              : page.search === ""
+                ? "No session holds this role."
+                : "Search matches part of a display name, or a whole session ID."}
           </EmptyState>
         ) : (
           <>
@@ -343,6 +389,7 @@ export function SessionsPage() {
                     <span className="visually-hidden">Actions</span>
                   </th>
                   <th scope="col">Session</th>
+                  <th scope="col">Role</th>
                   <th scope="col">Last used</th>
                   <th scope="col">Expires</th>
                   <th scope="col">Status</th>
@@ -353,6 +400,7 @@ export function SessionsPage() {
                   <SessionRow
                     key={session.id}
                     session={session}
+                    role={roles.find((other) => other.id === session.roleId)}
                     bans={bans.filter((ban) => ban.sessionId === session.id)}
                     now={now}
                     onChange={(change) => hold(session.id, change)}

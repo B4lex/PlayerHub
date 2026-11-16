@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol/PeerSlot.h"
+#include "protocol/Role.h"
 #include "protocol/Session.h"
 
 #include <cstddef>
@@ -50,6 +51,7 @@ namespace Multiplayer
         PeerSlot playerID{ 0 };
         std::string name;
         SessionID session{ 0 };
+        RoleID role{ 0 };
     };
 
     struct ChatMessage
@@ -97,6 +99,7 @@ namespace Multiplayer
     {
         PeerSlot localPlayerID{ 0 };
         std::vector<PlayerIdentity> players;
+        std::vector<Role> roles;
     };
 
     [[nodiscard]] inline std::string_view TrimChatText(std::string_view a_text)

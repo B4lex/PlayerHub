@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 struct ImFont;
 struct ImFontAtlas;
 
@@ -14,6 +16,19 @@ namespace UI::Fonts
     [[nodiscard]] ImFont* GetText();
     [[nodiscard]] ImFont* GetHeading();
     [[nodiscard]] ImFont* GetLogo();
+
+    // In pixels per pixel of font size, from the pen position on the baseline, y down.
+    struct GlyphBounds
+    {
+        float left{ 0.0F };
+        float top{ 0.0F };
+        float right{ 0.0F };
+        float bottom{ 0.0F };
+    };
+
+    // The outline's exact bounds, which a baked glyph's box widens to whole pixels.
+    // Empty when the heading font is not loaded or lacks the glyph, or the glyph has no outline.
+    [[nodiscard]] std::optional<GlyphBounds> FindHeadingBounds(char32_t a_code);
 
     // The current font size before the overlay scale, as ImGui::PushFont takes it.
     [[nodiscard]] float GetBaseSize();

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { formatBytes, formatFormRef, formatRelative, formatTimestamp, plural } from "./format";
 import { botPositionAt } from "./batchClock";
 import { newerPlayback, positionAt } from "./playbackClock";
+import { roleChipColors, roleLetter, validRoleName } from "./roles";
 
 const timeline = { status: "playing", positionMs: 1000, durationMs: 10_000, rate: 1, loop: false } as const;
 
@@ -82,5 +83,31 @@ describe("botPositionAt", () => {
   it("stands still unless playing", () => {
     expect(botPositionAt({ ...bot, status: "paused" }, 10_000, 5_000)).toBe(9_000);
     expect(botPositionAt({ ...bot, status: "failed" }, 10_000, 5_000)).toBe(9_000);
+  });
+});
+
+describe("roles", () => {
+  it("takes the first character in upper case as the letter", () => {
+    expect(roleLetter("moderator")).toBe("M");
+    expect(roleLetter("автор")).toBe("А");
+    expect(roleLetter("😀 fun")).toBe("😀");
+    expect(roleLetter("")).toBe("");
+  });
+
+  it("tints the chip with the color as the game does", () => {
+    expect(roleChipColors("#ffd24a")).toEqual({
+      fill: "rgb(255 210 74 / 0.18)",
+      outline: "rgb(255 210 74 / 0.55)",
+      text: "#ffd24a",
+    });
+  });
+
+  it("follows the server's rule for names", () => {
+    expect(validRoleName("Moderator")).toBe(true);
+    expect(validRoleName("")).toBe(false);
+    expect(validRoleName(" Moderator")).toBe(false);
+    expect(validRoleName("m".repeat(24))).toBe(true);
+    expect(validRoleName("m".repeat(25))).toBe(false);
+    expect(validRoleName("a\tb")).toBe(false);
   });
 });

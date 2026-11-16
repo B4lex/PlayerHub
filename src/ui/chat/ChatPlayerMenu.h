@@ -2,6 +2,7 @@
 
 #include "protocol/ChatMessage.h"
 
+#include <optional>
 #include <string>
 
 namespace UI
@@ -21,6 +22,7 @@ namespace UI
         void DrawFilterItems() const;
 
         Multiplayer::PlayerIdentity player;
+        std::optional<Multiplayer::Role> role;
         std::string details;
         float waited{ 0.0F };
         bool pending{ false };

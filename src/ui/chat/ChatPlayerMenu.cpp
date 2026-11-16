@@ -6,6 +6,7 @@
 #include "text/Text.h"
 #include "ui/Fonts.h"
 #include "ui/Theme.h"
+#include "ui/widgets/RoleBadge.h"
 
 #include <imgui.h>
 
@@ -38,6 +39,9 @@ namespace UI
     void ChatPlayerMenu::Open(const Multiplayer::PlayerIdentity& a_player)
     {
         player = a_player;
+        // A chat line carries the role its player had then; a connected player shows the one held now.
+        const auto listed = ChatRoster::Find(player.playerID);
+        role = ChatRoster::FindRole(listed && listed->session == player.session ? listed->role : player.role);
         const auto known = PlayerDetails::FindKnown(player.session);
         details = known ? FormatDetails(*known) : std::string{};
         inTradeRange = false;
@@ -84,6 +88,10 @@ namespace UI
         ImGui::TextUnformatted(player.name.c_str());
         ImGui::PopStyleColor();
         ImGui::PopFont();
+        if (role)
+        {
+            RoleBadge::Name(*role);
+        }
         if (pending && details.empty())
         {
             // Holds the line's height until the details arrive, so the menu does not grow under the cursor.

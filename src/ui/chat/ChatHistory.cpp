@@ -3,6 +3,7 @@
 #include "text/Text.h"
 #include "ui/Fonts.h"
 #include "ui/chat/ChatStyle.h"
+#include "ui/widgets/RoleBadge.h"
 
 #include <algorithm>
 #include <cmath>
@@ -53,11 +54,33 @@ namespace UI
             ImGui::PopStyleColor();
         }
 
-        void DrawLabel(const std::string& a_label, const ImVec4& a_color)
+        // Leaves the label as the last item and returns its width.
+        float DrawLabel(const std::string& a_label, const ChatRoster::RoleMark& a_mark, std::size_t a_markOffset,
+            const ImVec4& a_color)
         {
             ImGui::PushFont(Fonts::GetHeading(), 0.0F);
-            DrawColored(a_label, a_color);
+            if (!a_mark)
+            {
+                DrawColored(a_label, a_color);
+                ImGui::PopFont();
+                return ImGui::GetItemRectSize().x;
+            }
+            const char* const text = a_label.c_str();
+            const char* const name = text + a_markOffset;
+            ImGui::BeginGroup();
+            ImGui::PushStyleColor(ImGuiCol_Text, a_color);
+            if (a_markOffset != 0)
+            {
+                ImGui::TextUnformatted(text, name);
+                ImGui::SameLine(0.0F, 0.0F);
+            }
+            RoleBadge::Mark(a_mark, a_color.w);
+            ImGui::SameLine(0.0F, RoleBadge::GetMarkGap(ImGui::GetFontSize()));
+            ImGui::TextUnformatted(name, text + a_label.size());
+            ImGui::PopStyleColor();
+            ImGui::EndGroup();
             ImGui::PopFont();
+            return ImGui::GetItemRectSize().x;
         }
 
         const char* SkipSpaces(const char* a_text, const char* a_end)
@@ -107,13 +130,13 @@ namespace UI
             return (std::max)(cut, wrapped);
         }
 
-        void DrawAfterLabel(const std::string& a_text, const ImVec4& a_color)
+        void DrawAfterLabel(const std::string& a_text, const ImVec4& a_color, float a_labelWidth)
         {
             const char* row = a_text.c_str();
             const char* const end = row + a_text.size();
             const auto& style = ImGui::GetStyle();
             const auto full = ImGui::GetContentRegionAvail().x;
-            auto width = full - ImGui::GetItemRectSize().x - style.ItemSpacing.x;
+            auto width = full - a_labelWidth - style.ItemSpacing.x;
 
             ImGui::PushStyleColor(ImGuiCol_Text, a_color);
             while (row != end)
@@ -149,6 +172,18 @@ namespace UI
             }
             arrived = true;
         }
+        // A role's name and color may change, and a deleted role's mark goes.
+        if (const auto revision = ChatRoster::GetRevision(); revision != rosterRevision)
+        {
+            rosterRevision = revision;
+            for (auto& line : lines)
+            {
+                if (line.role != 0)
+                {
+                    line.roleMark = ChatRoster::FindRoleMark(line.role);
+                }
+            }
+        }
 
         ChatSync::DrainLines(incoming);
         for (auto& line : incoming)
@@ -164,10 +199,14 @@ namespace UI
             const bool muted = sender != 0 && PlayerFilters::IsMuted(sender);
             const bool whisperable = !line.player.name.empty()
                 && (line.channel == Multiplayer::ChatChannel::kWhisper || !line.outgoing);
+            const auto role = line.player.role;
             lines.push_back(Line{ .channel = line.channel,
                 .label = std::format("{}:", line.sender),
+                .markOffset = line.nameOffset,
                 .text = std::move(line.text),
                 .player = whisperable ? std::move(line.player) : Multiplayer::PlayerIdentity{},
+                .role = role,
+                .roleMark = ChatRoster::FindRoleMark(role),
                 .sender = sender,
                 .muted = muted,
                 .receivedAt = a_now });
@@ -309,7 +348,8 @@ namespace UI
                         continue;
                     }
                     ImGui::BeginGroup();
-                    DrawLabel(line.label, ChatStyle::GetChannelColor(line.channel));
+                    const auto labelWidth = DrawLabel(
+                        line.label, line.roleMark, line.markOffset, ChatStyle::GetChannelColor(line.channel));
                     if (line.player.playerID != 0 && ImGui::IsItemHovered(kHover))
                     {
                         const auto min = ImGui::GetItemRectMin();
@@ -322,7 +362,7 @@ namespace UI
                             picked = line.player;
                         }
                     }
-                    DrawAfterLabel(line.text, textColor);
+                    DrawAfterLabel(line.text, textColor, labelWidth);
                     ImGui::EndGroup();
                     if (line.player.playerID != 0 && ImGui::IsItemHovered(kHover)
                         && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
@@ -422,8 +462,9 @@ namespace UI
         {
             const auto& line = *recent[index];
             const auto alpha = GetRecentAlpha(line.receivedAt, a_now);
-            DrawLabel(line.label, ChatStyle::WithAlpha(ChatStyle::GetChannelColor(line.channel), alpha));
-            DrawAfterLabel(line.text, ChatStyle::WithAlpha(textColor, alpha));
+            const auto labelWidth = DrawLabel(line.label, line.roleMark, line.markOffset,
+                ChatStyle::WithAlpha(ChatStyle::GetChannelColor(line.channel), alpha));
+            DrawAfterLabel(line.text, ChatStyle::WithAlpha(textColor, alpha), labelWidth);
         }
         ImGui::PopStyleVar();
     }

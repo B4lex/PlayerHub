@@ -10,9 +10,13 @@
 #include <imgui_internal.h>
 
 #include <array>
+#include <cassert>
 #include <climits>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -21,6 +25,36 @@
 #include <string_view>
 #include <system_error>
 #include <vector>
+
+// A private copy of the rasterizer ImGui builds in, for outline bounds the atlas does not keep.
+// In a namespace: without stb_rect_pack it declares a stand-in stbrp_node that clashes with
+// imgui_internal.h's. The macros keep its C headers out of the namespace.
+#define STB_TRUETYPE_IMPLEMENTATION
+#define STBTT_STATIC
+#define STBTT_ifloor(x) static_cast<int>(std::floor(x))
+#define STBTT_iceil(x) static_cast<int>(std::ceil(x))
+#define STBTT_sqrt(x) std::sqrt(x)
+#define STBTT_pow(x, y) std::pow(x, y)
+#define STBTT_fmod(x, y) std::fmod(x, y)
+#define STBTT_cos(x) std::cos(x)
+#define STBTT_acos(x) std::acos(x)
+#define STBTT_fabs(x) std::fabs(x)
+#define STBTT_malloc(x, u) ((void)(u), std::malloc(x))
+#define STBTT_free(x, u) ((void)(u), std::free(x))
+#define STBTT_assert(x) assert(x)
+#define STBTT_strlen(x) std::strlen(x)
+#define STBTT_memcpy std::memcpy
+#define STBTT_memset std::memset
+#ifdef _MSC_VER
+#    pragma warning(push, 0)
+#endif
+namespace UI::Fonts::Stb
+{
+#include <imstb_truetype.h>
+}
+#ifdef _MSC_VER
+#    pragma warning(pop)
+#endif
 
 namespace UI::Fonts
 {
@@ -139,6 +173,11 @@ namespace UI::Fonts
         ImFont* s_heading = nullptr;
         ImFont* s_logo = nullptr;
         HanOrder s_loadedHanOrder{ HanOrder::kSimplifiedChinese };
+
+        // Reads the heading font's data in its mapped view.
+        Stb::stbtt_fontinfo s_headingOutlines{};
+        // Font units to pixels per pixel of font size, as ImGui's loader scales a font that is not merged.
+        float s_headingUnitScale{ 0.0F };
 
         std::optional<std::filesystem::path> GetFontsDirectory()
         {
@@ -296,6 +335,14 @@ namespace UI::Fonts
         const auto shipped = directory / kShippedDirectory;
         s_text = AddShipped(a_atlas, a_sizePixels, shipped / kTextFile, system);
         s_heading = AddShipped(a_atlas, a_sizePixels, shipped / kHeadingFile, system);
+        if (s_heading)
+        {
+            const auto* data = static_cast<const unsigned char*>(s_heading->Sources[0]->FontData);
+            if (Stb::stbtt_InitFont(&s_headingOutlines, data, Stb::stbtt_GetFontOffsetForIndex(data, 0)))
+            {
+                s_headingUnitScale = Stb::stbtt_ScaleForPixelHeight(&s_headingOutlines, 1.0F) * kShippedGlyphScale;
+            }
+        }
         s_logo = AddLogo(a_atlas, a_sizePixels, shipped / kLogoFile);
     }
 
@@ -313,6 +360,7 @@ namespace UI::Fonts
         s_views.clear();
         s_text = nullptr;
         s_heading = nullptr;
+        s_headingUnitScale = 0.0F;
         s_logo = nullptr;
         Load(a_atlas, a_sizePixels);
     }
@@ -330,6 +378,29 @@ namespace UI::Fonts
     ImFont* GetLogo()
     {
         return s_logo;
+    }
+
+    std::optional<GlyphBounds> FindHeadingBounds(char32_t a_code)
+    {
+        if (s_headingUnitScale <= 0.0F)
+        {
+            return std::nullopt;
+        }
+        const auto glyph = Stb::stbtt_FindGlyphIndex(&s_headingOutlines, static_cast<int>(a_code));
+        int left = 0;
+        int bottom = 0;
+        int right = 0;
+        int top = 0;
+        if (glyph == 0 || !Stb::stbtt_GetGlyphBox(&s_headingOutlines, glyph, &left, &bottom, &right, &top)
+            || left == right || bottom == top)
+        {
+            return std::nullopt;
+        }
+        // Outline y points up from the baseline.
+        return GlyphBounds{ .left = static_cast<float>(left) * s_headingUnitScale,
+            .top = static_cast<float>(-top) * s_headingUnitScale,
+            .right = static_cast<float>(right) * s_headingUnitScale,
+            .bottom = static_cast<float>(-bottom) * s_headingUnitScale };
     }
 
     float GetBaseSize()

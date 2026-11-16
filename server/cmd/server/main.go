@@ -161,6 +161,9 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 
 	game := http.NewServeMux()
 	sessions.SetLoop(loop)
+	if err := sessions.PublishRoles(); err != nil {
+		return fmt.Errorf("cannot read the roles: %w", err)
+	}
 	game.Handle("GET /ws", sessions)
 	game.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -56,6 +56,10 @@ type Server struct {
 	refusals *rejectionLog
 	voice    *voice.Relay
 
+	// Held over a role's change in the store and its publication, so the hub's roles follow
+	// the store's in order.
+	roles sync.Mutex
+
 	mu sync.Mutex
 	// Set on the hub goroutine as a client connects, so a session that connects again finds
 	// the connection it replaces.
@@ -318,7 +322,7 @@ func (s *Server) authenticate(conn *websocket.Conn, hello *pb.Hello, address net
 		conn.Close(websocket.StatusInternalError, "session store unavailable")
 		return hub.Identity{}, err
 	}
-	return hub.Identity{Session: session.ID, DisplayName: session.DisplayName, Token: issued}, nil
+	return hub.Identity{Session: session.ID, DisplayName: session.DisplayName, Role: session.Role, Token: issued}, nil
 }
 
 func (s *Server) settle(c *connection, issued bool, log *slog.Logger) {

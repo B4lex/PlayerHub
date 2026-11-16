@@ -86,6 +86,7 @@ namespace NameplateSync
                 name = a_appearance.latest->name;
             }
             a_state.label = PlayerLabel::Format(name);
+            a_state.role = player ? ChatRoster::FindRoleMark(player->role) : ChatRoster::RoleMark{};
             a_state.isFriend = player && PlayerFilters::IsFriend(player->session);
         }
 
@@ -189,6 +190,7 @@ namespace NameplateSync
             RefreshLabel(state, playerID, peer.appearance, revision);
             s_plates.push_back(Plate{ .head = state.head.get(),
                 .label = state.label,
+                .role = state.role,
                 .isFriend = state.isFriend,
                 .alpha = state.alpha,
                 .distanceFraction = distance / range,

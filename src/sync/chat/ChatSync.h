@@ -2,6 +2,7 @@
 
 #include "protocol/ChatMessage.h"
 
+#include <cstddef>
 #include <expected>
 #include <string>
 #include <string_view>
@@ -13,6 +14,8 @@ namespace ChatSync
     {
         Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kGlobal };
         std::string sender;
+        // Where in sender the player's name starts.
+        std::size_t nameOffset{ 0 };
         std::string text;
         Multiplayer::PlayerIdentity player;
         bool outgoing{ false };

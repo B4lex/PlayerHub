@@ -33,6 +33,8 @@ type Player struct {
 	ConnectedAt time.Time
 	Session     uint64
 	DisplayName string
+	// Zero without a role.
+	Role uint32
 
 	InWorld    bool
 	Context    *pb.Context

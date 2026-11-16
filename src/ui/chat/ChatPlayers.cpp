@@ -7,6 +7,7 @@
 #include "ui/chat/ChatHistory.h"
 #include "ui/chat/ChatStyle.h"
 #include "ui/widgets/Controls.h"
+#include "ui/widgets/RoleBadge.h"
 
 #include <algorithm>
 #include <cfloat>
@@ -227,6 +228,8 @@ namespace UI
             const auto pitch = ChatHistory::GetLinePitch();
             const auto markSize = std::round(kFilterMarkFonts * ImGui::GetFontSize());
             const auto markSpace = markSize + style.ItemSpacing.x;
+            const auto roleSize = RoleBadge::GetMarkSize(ImGui::GetFontSize());
+            const auto roleSpace = roleSize + RoleBadge::GetMarkGap(ImGui::GetFontSize());
             auto* markFont = Fonts::GetLogo();
             auto* drawList = ImGui::GetWindowDrawList();
 
@@ -239,7 +242,8 @@ namespace UI
                 for (auto row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
                 {
                     const auto index = static_cast<std::size_t>(row);
-                    const auto& player = players[matches[index]].player;
+                    const auto& entry = players[matches[index]];
+                    const auto& player = entry.player;
                     ImGui::PushID(static_cast<int>(player.playerID));
                     const bool clicked = ImGui::InvisibleButton(
                         "##ChatPlayer", ImVec2{ (std::max)(ImGui::GetContentRegionAvail().x, 1.0F), lineHeight });
@@ -254,10 +258,16 @@ namespace UI
                     const bool isSpeaking = markFont && VoiceChatSync::IsSpeaking(player.playerID);
                     const auto marksLeft = max.x - markSpace * static_cast<float>(isMuted + isVanished + isSpeaking);
                     const ImVec4 nameClip{ min.x, min.y, marksLeft, max.y };
+                    const ImVec2 nameMin{ min.x + (entry.role ? roleSpace : 0.0F), min.y };
 
                     const auto nameColor = ImGui::GetColorU32(
                         index < nearbyMatches ? ChatStyle::kNearbyColor : kDistantPlayerColor);
-                    drawList->AddText(nullptr, 0.0F, min, nameColor, name, nameEnd, 0.0F, &nameClip);
+                    if (entry.role)
+                    {
+                        RoleBadge::DrawMark(*drawList, ImVec2{ min.x, std::floor((min.y + max.y - roleSize) * 0.5F) },
+                            roleSize, entry.role, style.Alpha);
+                    }
+                    drawList->AddText(nullptr, 0.0F, nameMin, nameColor, name, nameEnd, 0.0F, &nameClip);
                     if (isSpeaking)
                     {
                         // Ahead of the marks, where the player looks for who is talking.
@@ -292,8 +302,8 @@ namespace UI
                     {
                         continue;
                     }
-                    const auto underline = (std::min)(min.x + ImGui::CalcTextSize(name, nameEnd).x, nameClip.z);
-                    drawList->AddRectFilled(ImVec2{ min.x, max.y - 1.0F }, ImVec2{ underline, max.y }, nameColor);
+                    const auto underline = (std::min)(nameMin.x + ImGui::CalcTextSize(name, nameEnd).x, nameClip.z);
+                    drawList->AddRectFilled(ImVec2{ nameMin.x, max.y - 1.0F }, ImVec2{ underline, max.y }, nameColor);
                     ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
                     if (clicked)
                     {

@@ -8,6 +8,7 @@ import type {
   PlaybackSettings,
   Recording,
   RecordingDetail,
+  Role,
   SessionPage,
 } from "./types";
 
@@ -70,17 +71,30 @@ export const api = {
     ban: (id: string, address: boolean) => request<Ban>("POST", `/api/players/${enc(id)}/ban`, { address }),
   },
   sessions: {
-    /** Live sessions, most recently used first; `search` matches part of a display name or a whole ID. */
-    list: (search: string, offset: number, limit: number) =>
+    /**
+     * Live sessions, most recently used first; `search` matches part of a display name or a whole ID, and
+     * `role` leaves that role's holders.
+     */
+    list: (search: string, role: string | null, offset: number, limit: number) =>
       request<SessionPage>(
         "GET",
-        `/api/sessions?${new URLSearchParams({ search, offset: String(offset), limit: String(limit) })}`,
+        `/api/sessions?${new URLSearchParams({ search, ...(role === null ? {} : { role }), offset: String(offset), limit: String(limit) })}`,
       ),
     /** Rename an offline session. */
     rename: (id: string, displayName: string) =>
       request<{ displayName: string }>("PATCH", `/api/sessions/${enc(id)}`, { displayName }),
     /** Delete a session with its bans, disconnecting its player. */
     remove: (id: string) => request<void>("DELETE", `/api/sessions/${enc(id)}`),
+    /** Give a session a role in place of its own, or with null take its role; a connected player shows it at once. */
+    setRole: (id: string, roleId: string | null) =>
+      request<{ roleId: string | null }>("PUT", `/api/sessions/${enc(id)}/role`, { roleId }),
+  },
+  roles: {
+    create: (name: string, color: string) => request<Role>("POST", "/api/roles", { name, color }),
+    update: (id: string, name: string, color: string) =>
+      request<{ name: string; color: string }>("PATCH", `/api/roles/${enc(id)}`, { name, color }),
+    /** Delete a role, leaving its holders without one. */
+    remove: (id: string) => request<void>("DELETE", `/api/roles/${enc(id)}`),
   },
   bans: {
     lift: (id: string) => request<void>("DELETE", `/api/bans/${enc(id)}`),

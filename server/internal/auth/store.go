@@ -23,7 +23,7 @@ var (
 	ErrNoSession        = errors.New("no such session")
 )
 
-const schemaVersion = 3
+const schemaVersion = 4
 
 const schema = `
 CREATE TABLE sessions (
@@ -37,7 +37,7 @@ CREATE TABLE sessions (
 	resumed INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX sessions_last_used_at ON sessions (last_used_at);
-` + bansSchema
+` + bansSchema + rolesSchema
 
 const bansSchema = `
 CREATE TABLE bans (
@@ -60,14 +60,20 @@ ALTER TABLE sessions RENAME COLUMN nickname_key TO display_name_key;
 // Banned sessions never expire, so their token keeps matching the ban.
 const unbanned = `id NOT IN (SELECT session_id FROM bans)`
 
+// Takes the cutoff. Sessions past it stay in the table until the next purge.
+const live = `(last_used_at >= ? OR NOT (` + unbanned + `))`
+
 type Session struct {
 	ID          uint64
 	DisplayName string
+	// Zero without a role.
+	Role uint32
 }
 
 type Record struct {
 	ID          uint64
 	DisplayName string
+	Role        uint32
 	CreatedAt   time.Time
 	LastUsedAt  time.Time
 	// Zero for a banned session, which never expires.
@@ -123,9 +129,11 @@ func (s *Store) migrate() error {
 	case 0:
 		statements = schema
 	case 1:
-		statements = upgradeFromVersion1
+		statements = upgradeFromVersion1 + rolesSchema
 	case 2:
-		statements = bansSchema
+		statements = bansSchema + rolesSchema
+	case 3:
+		statements = rolesSchema
 	default:
 		return fmt.Errorf("session database has schema %d, this server knows %d", version, schemaVersion)
 	}
@@ -149,8 +157,8 @@ func (s *Store) Authenticate(token []byte, displayName string, now time.Time, ma
 			hash := sha256.Sum256(token)
 			var current string
 			var banned bool
-			err := tx.QueryRow(`SELECT id, display_name, NOT (`+unbanned+`) FROM sessions WHERE token_hash = ?`, hash[:]).
-				Scan(&session.ID, &current, &banned)
+			err := tx.QueryRow(`SELECT id, display_name, NOT (`+unbanned+`), COALESCE(role_id, 0) FROM sessions WHERE token_hash = ?`, hash[:]).
+				Scan(&session.ID, &current, &banned, &session.Role)
 			switch {
 			case err == nil && banned:
 				return ErrBanned
@@ -240,10 +248,14 @@ func (s *Store) purge(tx *sql.Tx, now time.Time) error {
 }
 
 // Sessions lists the live sessions, most recently used first. A search matches part of a
-// display name without case, or a whole session ID.
-func (s *Store) Sessions(search string, offset, limit int, now time.Time) ([]Record, int, error) {
-	where := `(last_used_at >= ? OR NOT (` + unbanned + `))`
+// display name without case, or a whole session ID; a role other than 0 leaves its holders.
+func (s *Store) Sessions(search string, role uint32, offset, limit int, now time.Time) ([]Record, int, error) {
+	where := live
 	arguments := []any{s.cutoff(now)}
+	if role != 0 {
+		where += ` AND role_id = ?`
+		arguments = append(arguments, role)
+	}
 	if search != "" {
 		// Session IDs start from 1, so a search that is no number matches none.
 		id, _ := strconv.ParseUint(search, 10, 64)
@@ -254,7 +266,7 @@ func (s *Store) Sessions(search string, offset, limit int, now time.Time) ([]Rec
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE `+where, arguments...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	rows, err := s.db.Query(`SELECT id, display_name, created_at, last_used_at, NOT (`+unbanned+`) FROM sessions WHERE `+
+	rows, err := s.db.Query(`SELECT id, display_name, created_at, last_used_at, NOT (`+unbanned+`), COALESCE(role_id, 0) FROM sessions WHERE `+
 		where+` ORDER BY last_used_at DESC, id DESC LIMIT ? OFFSET ?`, append(arguments, limit, offset)...)
 	if err != nil {
 		return nil, 0, err
@@ -264,7 +276,7 @@ func (s *Store) Sessions(search string, offset, limit int, now time.Time) ([]Rec
 	for rows.Next() {
 		var record Record
 		var createdAt, lastUsedAt int64
-		if err := rows.Scan(&record.ID, &record.DisplayName, &createdAt, &lastUsedAt, &record.Banned); err != nil {
+		if err := rows.Scan(&record.ID, &record.DisplayName, &createdAt, &lastUsedAt, &record.Banned, &record.Role); err != nil {
 			return nil, 0, err
 		}
 		record.CreatedAt, record.LastUsedAt = time.Unix(createdAt, 0), time.Unix(lastUsedAt, 0)

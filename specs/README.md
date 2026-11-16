@@ -19,7 +19,7 @@ overlay logs a warning and does not install there. `Status` and
 | Spec | System | Sources |
 | --- | --- | --- |
 | [sync-pipeline.md](sync-pipeline.md) | Main-loop pass, game thread, peer receive state, checkpoint publishing and playout, world presence, actor lifecycle | `src/runtime/`, `src/sync/` (top level, `presence/`) |
-| [network.md](network.md) | Wire protocol, client transport and connection, server connections, player sessions, and validation | `proto/`, `src/protocol/`, `src/network/`, `server/internal/{session,auth,admission,validate,wire,world}` |
+| [network.md](network.md) | Wire protocol, client transport and connection, server connections, player sessions, roles, and validation | `proto/`, `src/protocol/`, `src/network/`, `server/internal/{session,auth,admission,validate,wire,world}` |
 | [interest-and-delivery.md](interest-and-delivery.md) | Which peers each client receives, exclusions, per-recipient outboxes, ordering, batching, skeleton pose recipients | `server/internal/{interest,hub,delivery}` |
 | [remote-actor.md](remote-actor.md) | Spawn, update order, registry, animation firewall, graph recovery, survival, combat and reaction isolation, world isolation, light budget, skeleton pose | `src/actor/`, `sync/skeleton/` |
 | [locomotion.md](locomotion.md) | Transform, movement state, direction, turning, ground offset, jumps, swimming, beast graphs | `sync/movement/`, `sync/animation/`, `actor/ActorMovement`, `actor/GroundProbe`, `actor/ActorAnimation`, `actor/WeaponTransition`, `actor/GraphStance`, `actor/JumpSound` |
@@ -30,7 +30,7 @@ overlay logs a warning and does not install there. `Status` and
 | [trade.md](trade.md) | Item exchange between two players: invitation, plugin check, offers, reports, acceptance, commit, cancelling, the trade bot; the only change a peer makes to the local world | `sync/trade/`, `forms/ItemInstance`, `protocol/TradeState.h`, `server/internal/hub/trade.go`, `server/cmd/tradebot` |
 | [voice-chat.md](voice-chat.md) | Proximity voice: devices, capture, noise suppression, push-to-talk and voice activation, Opus, the datagram link to the relay, jitter buffers, spatial mix, occlusion, lip sync, the relay | `src/audio/`, `network/VoiceTransport`, `sync/voicechat/`, `runtime/KeyState`, `actor/ActorLipSync`, `actor/VoiceOcclusion`, `server/internal/voice` |
 | [configuration.md](configuration.md) | `PlayerHub.ini`, schema, snapshots, saving | `src/config/` |
-| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, localization, theme, background opacity, menu frame, cursor, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, player menu, player menu in the world, settings window, Discord link, item picker and preview | `src/ui/`, `src/text/`, `locale/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
+| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, localization, theme, background opacity, menu frame, cursor, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, role badges, player menu, player menu in the world, settings window, Discord link, item picker and preview | `src/ui/`, `src/text/`, `locale/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `admin-ui/` |
 
 ## Features
@@ -72,6 +72,7 @@ criteria.
 | Official and custom server | [configuration](configuration.md#official-and-custom-server), [network](network.md#connection), [ui-overlay](ui-overlay.md#settings-window) |
 | Player cap and join limits | [network](network.md#admission), [ui-overlay](ui-overlay.md#connection-controls) |
 | Session management in the admin panel (list, rename, delete) | [network](network.md#sessions), [recording-and-replay](recording-and-replay.md#admin-api) |
+| Player roles (a name and a color given in the admin panel, shown in game as a badge by the holder's name) | [network](network.md#roles), [ui-overlay](ui-overlay.md#roles), [recording-and-replay](recording-and-replay.md#admin-api) |
 | Kicks and bans | [network](network.md#kicks-and-bans), [recording-and-replay](recording-and-replay.md#admin-api), [ui-overlay](ui-overlay.md#notices), [ui-overlay](ui-overlay.md#connection-controls) |
 | Proximity, exclusions, late join, peer enter and leave, batching | [interest-and-delivery](interest-and-delivery.md), [network](network.md#server-messages), [sync-pipeline](sync-pipeline.md#receive-state) |
 | Chat | [ui-overlay](ui-overlay.md#chat), [network](network.md#chat) |

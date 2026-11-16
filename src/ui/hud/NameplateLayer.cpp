@@ -6,6 +6,7 @@
 #include "ui/Fonts.h"
 #include "ui/Theme.h"
 #include "ui/hud/GameView.h"
+#include "ui/widgets/RoleBadge.h"
 
 #include <imgui.h>
 
@@ -110,14 +111,27 @@ namespace UI
                     const auto* const text = plate.label.data();
                     const auto* const textEnd = text + plate.label.size();
                     const auto textSize = font->CalcTextSizeA(size, FLT_MAX, 0.0F, text, textEnd);
-                    const ImVec2 origin{ std::round(point->x - textSize.x * 0.5F), std::round(point->y - textSize.y) };
-                    if (origin.x > display.x || origin.y > display.y || origin.x + textSize.x < 0.0F
-                        || origin.y + textSize.y < 0.0F)
+                    // The role's mark and the name are centered as one.
+                    const auto markSize = plate.role ? RoleBadge::GetMarkSize(size) : 0.0F;
+                    const auto markSpace = plate.role ? markSize + RoleBadge::GetMarkGap(size) : 0.0F;
+                    const ImVec2 left{ std::round(point->x - (markSpace + textSize.x) * 0.5F),
+                        std::round(point->y - textSize.y) };
+                    const ImVec2 origin{ left.x + markSpace, left.y };
+                    if (left.x > display.x || left.y > display.y || origin.x + textSize.x < 0.0F
+                        || left.y + textSize.y < 0.0F)
                     {
                         continue;
                     }
 
                     const auto shadow = ImGui::GetColorU32(ImVec4{ 0.0F, 0.0F, 0.0F, kOutlineAlpha * alpha });
+                    if (plate.role)
+                    {
+                        const ImVec2 markMin{ left.x, std::round(left.y + (textSize.y - markSize) * 0.5F) };
+                        drawList->AddRectFilled(ImVec2{ markMin.x - outline, markMin.y - outline },
+                            ImVec2{ markMin.x + markSize + outline, markMin.y + markSize + outline }, shadow,
+                            RoleBadge::GetMarkRounding(markSize) + outline);
+                        RoleBadge::DrawMark(*drawList, markMin, markSize, plate.role, alpha);
+                    }
                     for (const auto& offset : kOutlineOffsets)
                     {
                         drawList->AddText(font, size, ImVec2{ origin.x + offset.x * outline, origin.y + offset.y * outline },
@@ -128,7 +142,7 @@ namespace UI
                     if (plate.isSpeaking && glyphFont)
                     {
                         const auto glyph = std::round(textSize.y * kSpeakingScale);
-                        const ImVec2 glyphMin{ origin.x - glyph * (1.0F + kSpeakingGap),
+                        const ImVec2 glyphMin{ left.x - glyph * (1.0F + kSpeakingGap),
                             std::round(origin.y + (textSize.y - glyph) * 0.5F) };
                         drawList->AddText(glyphFont, glyph, ImVec2{ glyphMin.x + outline, glyphMin.y + outline }, shadow,
                             kSpeakerGlyph);

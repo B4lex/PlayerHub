@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol/ChatMessage.h"
+#include "sync/chat/ChatRoster.h"
 #include "sync/chat/ChatSync.h"
 #include "ui/Window.h"
 #include "ui/chat/ChatPlayerMenu.h"
@@ -41,8 +42,13 @@ namespace UI
         {
             Multiplayer::ChatChannel channel{ Multiplayer::ChatChannel::kGlobal };
             std::string label;
+            // Where in the label the role's mark goes: before the player's name.
+            std::size_t markOffset{ 0 };
             std::string text;
             Multiplayer::PlayerIdentity player;
+            // Of the label's player when the line arrived.
+            Multiplayer::RoleID role{ 0 };
+            ChatRoster::RoleMark roleMark;
             Multiplayer::SessionID sender{ 0 };
             bool muted{ false };
             double receivedAt{ 0.0 };
@@ -62,6 +68,7 @@ namespace UI
         std::array<bool, 3> unread{};
 
         std::uint64_t filtersRevision{ 0 };
+        std::uint64_t rosterRevision{ 0 };
 
         bool scrollToLatest{ false };
         bool arrived{ false };

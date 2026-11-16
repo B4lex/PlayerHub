@@ -1,0 +1,29 @@
+.badge,
+.letter {
+  --role-backdrop: #15181d;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  /* The game's chips sit on its dark windows in either theme here, so the tint looks as it does there. */
+  background-color: var(--role-backdrop);
+}
+
+.badge {
+  max-width: 100%;
+  padding: 0.12rem 0.55rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.letter {
+  flex: none;
+  width: 1.35rem;
+  height: 1.35rem;
+}

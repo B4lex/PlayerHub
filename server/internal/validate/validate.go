@@ -44,6 +44,10 @@ const (
 	MinimumDisplayNameBytes = 3
 	MaximumDisplayNameBytes = 15
 	SessionTokenBytes       = 32
+	MaximumRoleNameRunes    = 24
+	MaximumRoleNameBytes    = MaximumRoleNameRunes * utf8.UTFMax
+	MaximumRoles            = 32
+	MaximumRoleColor        = 0xFFFFFF
 	MaximumLevel            = 0xFFFF
 	MaximumHeadParts        = 32
 	FaceMorphCount          = 19
@@ -88,6 +92,7 @@ var (
 	ErrEffects     = errors.New("invalid player effects")
 	ErrChat        = errors.New("invalid chat message")
 	ErrDisplayName = errors.New("invalid display name")
+	ErrRoleName    = errors.New("invalid role name")
 	ErrToken       = errors.New("invalid session token")
 	ErrVoice       = errors.New("invalid voice frame")
 	ErrVanish      = errors.New("invalid vanish")
@@ -475,6 +480,18 @@ func DisplayName(n string) error {
 }
 
 func DisplayNameKey(n string) string {
+	return strings.ToLower(n)
+}
+
+func RoleName(n string) error {
+	if n == "" || len(n) > MaximumRoleNameBytes || !utf8.ValidString(n) || utf8.RuneCountInString(n) > MaximumRoleNameRunes ||
+		hasControl(n) || n[0] == ' ' || n[len(n)-1] == ' ' {
+		return ErrRoleName
+	}
+	return nil
+}
+
+func RoleNameKey(n string) string {
 	return strings.ToLower(n)
 }
 

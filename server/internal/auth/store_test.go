@@ -86,7 +86,7 @@ func TestResumingUnderAnotherDisplayNameRenames(t *testing.T) {
 	s := open(t, "")
 	lydia, token := issue(t, s, "Lydia", start)
 	session, issued, err := s.Authenticate(token, "Jordis", start, nil)
-	if err != nil || issued != nil || session != (Session{lydia.ID, "Jordis"}) {
+	if err != nil || issued != nil || session != (Session{ID: lydia.ID, DisplayName: "Jordis"}) {
 		t.Fatalf("after rename: %+v %v %v", session, issued, err)
 	}
 	issue(t, s, "Lydia", start)
@@ -359,7 +359,7 @@ func TestSessionsListLiveSessionsMostRecentlyUsedFirst(t *testing.T) {
 		}
 		return ids
 	}
-	records, total, err := s.Sessions("", 0, 10, start.Add(time.Hour))
+	records, total, err := s.Sessions("", 0, 0, 10, start.Add(time.Hour))
 	if err != nil || total != 3 || fmt.Sprint(ids(records)) != fmt.Sprint([]uint64{serana.ID, lydia.ID, banned.ID}) {
 		t.Fatalf("sessions %+v total %d %v", records, total, err)
 	}
@@ -367,14 +367,14 @@ func TestSessionsListLiveSessionsMostRecentlyUsedFirst(t *testing.T) {
 		!records[0].CreatedAt.Equal(start.Add(time.Hour)) || records[2].Banned != true || !records[2].ExpiresAt.IsZero() {
 		t.Fatalf("records %+v", records)
 	}
-	if records, total, _ := s.Sessions("", 1, 1, start.Add(time.Hour)); total != 3 || len(records) != 1 || records[0].ID != lydia.ID {
+	if records, total, _ := s.Sessions("", 0, 1, 1, start.Add(time.Hour)); total != 3 || len(records) != 1 || records[0].ID != lydia.ID {
 		t.Fatalf("second page %+v total %d", records, total)
 	}
 	for search, want := range map[string][]uint64{
 		"YDI": {lydia.ID}, fmt.Sprint(serana.ID): {serana.ID}, "_": nil, "mjoll": nil, "%": nil,
 		fmt.Sprint(expired.ID): nil,
 	} {
-		records, total, err := s.Sessions(search, 0, 10, start.Add(time.Hour))
+		records, total, err := s.Sessions(search, 0, 0, 10, start.Add(time.Hour))
 		if err != nil || total != len(want) || fmt.Sprint(ids(records)) != fmt.Sprint(want) {
 			t.Errorf("%q: %v total %d %v, want %v", search, ids(records), total, err, want)
 		}

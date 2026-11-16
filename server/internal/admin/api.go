@@ -56,6 +56,7 @@ func (c *Context) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/sessions", c.listSessions)
 	mux.HandleFunc("POST /api/sessions", c.issueSession)
 	mux.HandleFunc("PATCH /api/sessions/{id}", c.renameSession)
+	mux.HandleFunc("PUT /api/sessions/{id}/role", c.setSessionRole)
 	mux.HandleFunc("DELETE /api/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
 		deleted := false
@@ -93,6 +94,24 @@ func (c *Context) Routes(mux *http.ServeMux) {
 		}
 		if !lifted {
 			fail(w, http.StatusNotFound, "no ban "+r.PathValue("id"))
+			return
+		}
+		c.OnChange()
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("POST /api/roles", c.createRole)
+	mux.HandleFunc("PATCH /api/roles/{id}", c.updateRole)
+	mux.HandleFunc("DELETE /api/roles/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseUint(r.PathValue("id"), 10, 32)
+		deleted := false
+		if err == nil {
+			if deleted, err = c.Connections.DeleteRole(uint32(id)); err != nil {
+				fail(w, http.StatusInternalServerError, "session store failed: "+err.Error())
+				return
+			}
+		}
+		if !deleted {
+			fail(w, http.StatusNotFound, "no role "+r.PathValue("id"))
 			return
 		}
 		c.OnChange()
@@ -286,7 +305,14 @@ func (c *Context) listSessions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	records, total, err := c.Sessions.Sessions(strings.TrimSpace(query.Get("search")), offset, limit, time.Now())
+	var role uint64
+	if value := query.Get("role"); value != "" {
+		if role, err = strconv.ParseUint(value, 10, 32); err != nil || role == 0 {
+			fail(w, http.StatusUnprocessableEntity, "role must be a role's ID")
+			return
+		}
+	}
+	records, total, err := c.Sessions.Sessions(strings.TrimSpace(query.Get("search")), uint32(role), offset, limit, time.Now())
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "session store failed: "+err.Error())
 		return
@@ -331,6 +357,106 @@ func (c *Context) renameSession(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, "session store failed: "+err.Error())
 	default:
 		reply(w, http.StatusOK, map[string]string{"displayName": request.DisplayName})
+	}
+}
+
+func (c *Context) setSessionRole(w http.ResponseWriter, r *http.Request) {
+	var request map[string]*string
+	if err := decode(r, &request); err != nil {
+		invalid(w, err)
+		return
+	}
+	value, given := request["roleId"]
+	var role uint64
+	if given && value != nil {
+		var err error
+		if role, err = strconv.ParseUint(*value, 10, 32); err != nil || role == 0 {
+			given = false
+		}
+	}
+	if !given || len(request) != 1 {
+		invalid(w, errInvalid("expected {\"roleId\": \"<role ID>\"|null}"))
+		return
+	}
+	id, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
+	if err == nil {
+		err = c.Connections.SetSessionRole(id, uint32(role), time.Now())
+	}
+	switch {
+	case errors.Is(err, strconv.ErrSyntax), errors.Is(err, strconv.ErrRange), errors.Is(err, auth.ErrNoSession):
+		fail(w, http.StatusNotFound, "no session "+r.PathValue("id"))
+	case errors.Is(err, auth.ErrNoRole):
+		fail(w, http.StatusUnprocessableEntity, "no role "+*value)
+	case err != nil:
+		fail(w, http.StatusInternalServerError, "session store failed: "+err.Error())
+	default:
+		c.OnChange()
+		reply(w, http.StatusOK, map[string]*string{"roleId": value})
+	}
+}
+
+// Both fields are required, also by a change.
+func readRole(w http.ResponseWriter, r *http.Request) (auth.Role, bool) {
+	var request struct {
+		Name  string `json:"name"`
+		Color string `json:"color"`
+	}
+	if err := decode(r, &request); err != nil {
+		invalid(w, err)
+		return auth.Role{}, false
+	}
+	if validate.RoleName(request.Name) != nil {
+		fail(w, http.StatusUnprocessableEntity, fmt.Sprintf(
+			"name must be 1 to %d characters without a space at either end", validate.MaximumRoleNameRunes))
+		return auth.Role{}, false
+	}
+	color, err := strconv.ParseUint(strings.TrimPrefix(request.Color, "#"), 16, 32)
+	if err != nil || len(request.Color) != 7 || request.Color[0] != '#' {
+		fail(w, http.StatusUnprocessableEntity, "color must be #rrggbb")
+		return auth.Role{}, false
+	}
+	return auth.Role{Name: request.Name, Color: uint32(color)}, true
+}
+
+func (c *Context) createRole(w http.ResponseWriter, r *http.Request) {
+	role, ok := readRole(w, r)
+	if !ok {
+		return
+	}
+	role, err := c.Connections.CreateRole(role.Name, role.Color)
+	switch {
+	case errors.Is(err, auth.ErrRoleNameTaken):
+		fail(w, http.StatusConflict, "role name taken")
+	case errors.Is(err, auth.ErrTooManyRoles):
+		fail(w, http.StatusConflict, fmt.Sprintf("the server keeps at most %d roles", validate.MaximumRoles))
+	case err != nil:
+		fail(w, http.StatusInternalServerError, "session store failed: "+err.Error())
+	default:
+		c.OnChange()
+		reply(w, http.StatusCreated, roleView(role, 0))
+	}
+}
+
+func (c *Context) updateRole(w http.ResponseWriter, r *http.Request) {
+	role, ok := readRole(w, r)
+	if !ok {
+		return
+	}
+	id, err := strconv.ParseUint(r.PathValue("id"), 10, 32)
+	if err == nil {
+		role.ID = uint32(id)
+		err = c.Connections.UpdateRole(role)
+	}
+	switch {
+	case errors.Is(err, strconv.ErrSyntax), errors.Is(err, strconv.ErrRange), errors.Is(err, auth.ErrNoRole):
+		fail(w, http.StatusNotFound, "no role "+r.PathValue("id"))
+	case errors.Is(err, auth.ErrRoleNameTaken):
+		fail(w, http.StatusConflict, "role name taken")
+	case err != nil:
+		fail(w, http.StatusInternalServerError, "session store failed: "+err.Error())
+	default:
+		c.OnChange()
+		reply(w, http.StatusOK, map[string]string{"name": role.Name, "color": fmt.Sprintf("#%06x", role.Color)})
 	}
 }
 

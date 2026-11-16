@@ -45,8 +45,8 @@ change, and `ServerStateProvider` exposes it through `useServerState()`. Pages
 read from it and send commands through `api`; there is no per-page polling or
 fetching except for detail that is not part of the snapshot (a recording's
 timeline markers, and the Sessions page, which fetches one page of sessions
-again when its search or page changes, after its own commands, and when the
-snapshot's connected players or bans change). A command that returns the changed object (a playback) is
+again when its search, role filter, or page changes, after its own commands,
+and when the snapshot's connected players, bans, or roles' holders change). A command that returns the changed object (a playback) is
 adopted at once, and whichever of it and the next push is newer, by `revision`,
 wins.
 

@@ -98,7 +98,7 @@ func (h *Hub) requestTrade(m *member, request *pb.TradeRequest) error {
 	h.trades[t.id] = t
 	m.trade = t
 	invite := &pb.ServerMessage{Message: &pb.ServerMessage_TradeInvite{TradeInvite: &pb.TradeInvite{
-		TradeId: t.id, Sender: h.speaker(m), Recipient: h.speaker(target)}}}
+		TradeId: t.id, Sender: h.identity(m), Recipient: h.identity(target)}}}
 	h.sendTrade(m, invite)
 	if !t.hidden {
 		target.trade = t

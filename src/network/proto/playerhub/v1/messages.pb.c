@@ -105,6 +105,12 @@ PB_BIND(playerhub_v1_PeerEffects, playerhub_v1_PeerEffects, 4)
 PB_BIND(playerhub_v1_PlayerIdentity, playerhub_v1_PlayerIdentity, AUTO)
 
 
+PB_BIND(playerhub_v1_Role, playerhub_v1_Role, AUTO)
+
+
+PB_BIND(playerhub_v1_Roles, playerhub_v1_Roles, AUTO)
+
+
 PB_BIND(playerhub_v1_ChatMessage, playerhub_v1_ChatMessage, 2)
 
 

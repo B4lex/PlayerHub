@@ -201,7 +201,10 @@ virtual players in the order their playbacks started, so rows keep their place
 across pushes. Each player shows `visible`, the number of peers it receives, and the
 interest controls and rates described in
 [Interest and delivery](interest-and-delivery.md#admin-controls). A connected
-player also shows its `address`, after `trusted_proxies`.
+player also shows its `address`, after `trusted_proxies`, its `sessionId`,
+and its `roleId` or null. The snapshot's `roles` lists every
+[role](network.md#roles) as `{id, name, color, holders}`, `color` as
+`#rrggbb` and `holders` the live sessions holding it.
 
 Above the player table, the Dashboard's chat panel
 (`features/dashboard/ChatPanel`) shows the chat events received since the
@@ -219,7 +222,9 @@ stay in the snapshot but are not shown. The table has fixed column widths
 (`table-layout: fixed`) and single-line cells cut with an ellipsis, so live
 values never resize rows or columns. A connected player's row starts with a
 command menu (`components/Menu`, a popover) that hides or shows the player,
-kicks, or bans them ([Kicks and bans](network.md#kicks-and-bans)). Every
+sets their role, kicks, or bans them
+([Kicks and bans](network.md#kicks-and-bans)). A holder's name follows its
+role's letter mark (`components/RoleBadge`'s `RoleLetter`). Every
 command first asks in a modal dialog (`components/ConfirmDialog`); the ban
 dialog has a checkbox that also bans the player's address, disabled when the
 snapshot has none. Bans are listed and lifted on the Sessions page. Directed exclusions
@@ -235,20 +240,31 @@ The Sessions page (`features/sessions/SessionsPage`) lists the sessions in
 the store ([Sessions](network.md#sessions)), 50 per page with a pager, and
 renames or deletes one. It is not in the snapshot, which would grow with every
 session the server keeps: the page fetches
-`GET /api/sessions?search=&offset=&limit=` again when its search (debounced
-0.25 s) or page changes, after its own commands, and when the snapshot's
-connected players or bans change. The route lists live sessions and banned
+`GET /api/sessions?search=&role=&offset=&limit=` again when its search
+(debounced 0.25 s), role filter, or page changes, after its own commands, and
+when the snapshot's connected players, bans, or roles' holders change. The route lists live sessions and banned
 ones, most recently used first, then by ID; `search`, trimmed, matches part of
 a display name without case (`instr`, so `_` is literal) or a whole session
-ID; `offset` is 0 or more and `limit` 1..200 (default 50), else 422. It
+ID; `role`, a role's ID, leaves that role's holders; `offset` is 0 or more
+and `limit` 1..200 (default 50), else 422. It
 answers `{sessions, total}`, `total` counting every match; a session is
-`{id, displayName, createdAtMs, lastUsedAtMs, expiresAtMs, banned, playerId}`,
-`expiresAtMs` null when banned and `playerId` the slot of its connection or
-null. A row shows the name and ID, last and first use, expiry (none while
-connected or banned), and connected and banned badges. It starts with a
-command menu like the Dashboard's (`components/Menu`) holding rename, lift ban
+`{id, displayName, createdAtMs, lastUsedAtMs, expiresAtMs, banned, playerId, roleId}`,
+`expiresAtMs` null when banned, `playerId` the slot of its connection or
+null, and `roleId` null without a role. A row shows the name and ID, the
+role's badge, last and first use, expiry (none while
+connected or banned), and connected and banned badges. The page keeps the
+role it filters by in its address (`?role=`), which the Roles page links to,
+and offers it as a select beside the search while there are roles. A row
+starts with a
+command menu like the Dashboard's (`components/Menu`) holding rename, set
+role, lift ban
 (on a banned session only), and delete, each confirmed in a
-`components/ConfirmDialog`. Rename is disabled while connected; its dialog
+`components/ConfirmDialog`. Set role opens `features/roles/SetRoleDialog`,
+shared with the Dashboard: a select of no role and every role, with the
+chosen one's look beside it; it applies to a connected player at once.
+`PUT /api/sessions/{id}/role` `{roleId}`, a role's ID or null, answers 200
+with the same body, 422 for a body without the field or a role that does not
+exist, and 404 for no live session. Rename is disabled while connected; its dialog
 holds the name field, checked against the display name rule before the
 confirm button enables, and keeps a refusal such as a held name inside the
 dialog, since the modal covers the toasts. Lift deletes every ban in the
@@ -256,6 +272,23 @@ snapshot's `bans` whose `sessionId` is the session's, since each ban command
 adds one, and is disabled while the snapshot has none for it. `PATCH /api/sessions/{id}` `{displayName}` answers 200, 422 for a name
 that fails `validate.DisplayName`, 404 for no live session, and 409 for a held
 name or a connected session. `DELETE /api/sessions/{id}` answers 204 or 404.
+
+The Roles page (`features/roles/RolesPage`) lists the snapshot's roles, each
+as the game shows it (the letter mark and the whole badge,
+`components/RoleBadge`, as the game's chip in `lib/roles`'s
+`roleChipColors` over a fixed dark backdrop in either theme), with its color and the number of holders, which
+links to the Sessions page filtered by the role. Its button creates a role
+and is disabled at the server's limit; a row's command menu changes or
+deletes it. Both use one dialog with a name field, a color input, and the
+look that results, which keeps a refusal such as a held name inside it. The
+delete confirmation says how many players lose the role.
+`POST /api/roles` `{name, color}` answers 201 with the role, 422 for a name
+that fails `validate.RoleName` or a `color` that is not `#rrggbb`, and 409
+for a held name or a server already at its limit;
+`PATCH /api/roles/{id}` takes the same body, both fields required, and
+answers 200 with them, or 404; `DELETE /api/roles/{id}` answers 204 or 404.
+The panel takes the letter and the text color on a role's color as the game
+does (`lib/roles`).
 
 ### Command feedback
 
@@ -265,7 +298,8 @@ next one can be 0.5 s away.
 
 A command on something the snapshot already lists registers a `Prediction`
 (`admin-ui/src/lib/predictions`) through `useAction`: hiding or showing,
-kicking, and banning a player; stopping and deleting a recording; a replay's
+kicking, banning, and giving a role to a player; changing and deleting a
+role; stopping and deleting a recording; a replay's
 play, pause, seek, rate, loop, and close; a batch's pause, resume, and close.
 `useServerState()` returns the snapshot with the held predictions applied in
 the order they were made, so every page shows the outcome from the click, and
@@ -289,7 +323,7 @@ assigns the ID: starting a capture, opening a replay, and creating a batch.
 Its button (`components/Button`, `busy`) refuses clicks at once and replaces
 its icon or label with a spinner (`components/Spinner`) only once the wait
 passes `--busy-delay` (150 ms), keeping its width. The object in the response
-is listed at once: a recording or a batch as a succeeded prediction, and a
+is listed at once: a recording, a batch, or a role as a succeeded prediction, and a
 replay through `adoptPlayback`, which keeps it across snapshots that do not
 list it yet for the same 5 s. A response for a replay the panel no longer
 holds is ignored, since it closed meanwhile.
