@@ -57,8 +57,8 @@ namespace VoiceChatSync
     void UpdatePeers(std::unordered_map<Multiplayer::PeerSlot, PeerState>& a_peers, RE::PlayerCharacter& a_player,
         RE::TESObjectCELL& a_cell, float a_delta);
 
-    // The pass's playing level of a peer's voice, 0 while silent. Main-loop thread, like the overlay.
-    [[nodiscard]] float GetSpeakingLevel(Multiplayer::PeerSlot a_playerID);
+    // Whether a peer's voice plays this pass. Main-loop thread, like the overlay.
+    [[nodiscard]] bool IsSpeaking(Multiplayer::PeerSlot a_playerID);
 
     [[nodiscard]] LocalStatus GetLocalStatus();
 

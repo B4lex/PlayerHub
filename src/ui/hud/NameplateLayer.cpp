@@ -6,7 +6,6 @@
 #include "ui/Fonts.h"
 #include "ui/Theme.h"
 #include "ui/hud/GameView.h"
-#include "ui/widgets/VoiceGlyphs.h"
 
 #include <imgui.h>
 
@@ -33,6 +32,8 @@ namespace UI
         // The speaking glyph's size against the name's height, and its gap to the name in its own sizes.
         constexpr float kSpeakingScale = 0.6F;
         constexpr float kSpeakingGap = 0.4F;
+        // U+E00C of the logo font.
+        constexpr const char* kSpeakerGlyph = "\xEE\x80\x8C";
         constexpr std::array<ImVec2, 4> kOutlineOffsets{ { { -1.0F, -1.0F }, { 1.0F, -1.0F }, { -1.0F, 1.0F },
             { 1.0F, 1.0F } } };
 
@@ -88,6 +89,7 @@ namespace UI
                 const auto baseSize = ImGui::GetFontSize();
                 const auto outline = (std::max)(1.0F, std::floor(baseSize / 16.0F));
                 const auto accent = Theme::GetAccent();
+                auto* const glyphFont = Fonts::GetLogo();
                 // Under every window and the trade window's backdrop, which hides them.
                 auto* drawList = ImGui::GetBackgroundDrawList();
 
@@ -123,14 +125,14 @@ namespace UI
                     }
                     const auto color = plate.isFriend ? ImVec4{ accent.x, accent.y, accent.z, alpha } : Theme::Tint(alpha);
                     drawList->AddText(font, size, origin, ImGui::GetColorU32(color), text, textEnd);
-                    if (plate.voiceLevel > 0.0F)
+                    if (plate.isSpeaking && glyphFont)
                     {
                         const auto glyph = std::round(textSize.y * kSpeakingScale);
                         const ImVec2 glyphMin{ origin.x - glyph * (1.0F + kSpeakingGap),
                             std::round(origin.y + (textSize.y - glyph) * 0.5F) };
-                        VoiceGlyphs::DrawSpeaking(*drawList, ImVec2{ glyphMin.x + outline, glyphMin.y + outline }, glyph,
-                            shadow, plate.voiceLevel);
-                        VoiceGlyphs::DrawSpeaking(*drawList, glyphMin, glyph, ImGui::GetColorU32(color), plate.voiceLevel);
+                        drawList->AddText(glyphFont, glyph, ImVec2{ glyphMin.x + outline, glyphMin.y + outline }, shadow,
+                            kSpeakerGlyph);
+                        drawList->AddText(glyphFont, glyph, glyphMin, ImGui::GetColorU32(color), kSpeakerGlyph);
                     }
                 }
             }

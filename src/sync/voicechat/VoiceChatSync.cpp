@@ -219,14 +219,9 @@ namespace VoiceChatSync
         Audio::SetSpeakers(s_speakers);
     }
 
-    float GetSpeakingLevel(Multiplayer::PeerSlot a_playerID)
+    bool IsSpeaking(Multiplayer::PeerSlot a_playerID)
     {
-        if (!GameThread::IsAuthoritative())
-        {
-            return 0.0F;
-        }
-        const auto level = FindLevel(a_playerID);
-        return level > kSpeakingLevel ? level : 0.0F;
+        return GameThread::IsAuthoritative() && FindLevel(a_playerID) > kSpeakingLevel;
     }
 
     LocalStatus GetLocalStatus()

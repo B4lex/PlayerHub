@@ -192,7 +192,7 @@ namespace NameplateSync
                 .isFriend = state.isFriend,
                 .alpha = state.alpha,
                 .distanceFraction = distance / range,
-                .voiceLevel = VoiceChatSync::GetSpeakingLevel(playerID) });
+                .isSpeaking = VoiceChatSync::IsSpeaking(playerID) });
         }
         std::ranges::sort(s_plates, std::greater{}, &Plate::distanceFraction);
         PROFILE_PLOT("Nameplates", s_plates.size());

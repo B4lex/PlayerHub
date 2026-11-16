@@ -39,6 +39,7 @@ ICONS = {
     0xE009: "close.svg",
     0xE00A: "reset.svg",
     0xE00B: "person.svg",
+    0xE00C: "speaker.svg",
 }
 CURSOR_SOURCE = HERE.parent / "cursor" / "cursor.svg"
 CURSOR = {0xE005: "outline", 0xE006: "band", 0xE007: "centre"}

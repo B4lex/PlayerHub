@@ -195,7 +195,7 @@ Frames of anyone else are dropped on arrival, and their buffers are freed.
 
 - Each decoded frame's level, its RMS mapped from -50..-10 dBFS to 0..1, rises
   at once and falls by a quarter per frame. `VoiceChatSync` copies the levels once
-  per pass, and `GetSpeakingLevel` gives a peer's while above 0.05, for the
+  per pass, and `IsSpeaking` tells whether a peer's is above 0.05, for the
   nameplates and the player list ([UI overlay](ui-overlay.md#voice-chat)).
 - A speaking peer's level opens its character's mouth through `ActorLipSync`
   each pass, and the mouth closes when it stops. The phonemes need no analysis

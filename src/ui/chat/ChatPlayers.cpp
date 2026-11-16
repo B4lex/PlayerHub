@@ -7,7 +7,6 @@
 #include "ui/chat/ChatHistory.h"
 #include "ui/chat/ChatStyle.h"
 #include "ui/widgets/Controls.h"
-#include "ui/widgets/VoiceGlyphs.h"
 
 #include <algorithm>
 #include <cfloat>
@@ -21,10 +20,11 @@ namespace UI
         constexpr float kListWidthFonts = 13.0F;
         constexpr float kIconGapFonts = 0.3F;
         constexpr float kFilterMarkFonts = 0.75F;
-        // U+E003, U+E004, and U+E00B of the logo font.
+        // U+E003, U+E004, U+E00B, and U+E00C of the logo font.
         constexpr const char* kMutedGlyph = "\xEE\x80\x83";
         constexpr const char* kVanishedGlyph = "\xEE\x80\x84";
         constexpr const char* kPersonGlyph = "\xEE\x80\x8B";
+        constexpr const char* kSpeakerGlyph = "\xEE\x80\x8C";
         constexpr double kNearbySeconds = 0.5;
         constexpr ImVec4 kDistantPlayerColor{ 0.76F, 0.75F, 0.73F, 1.0F };
 
@@ -251,8 +251,7 @@ namespace UI
                     const char* nameEnd = name + player.name.size();
                     const bool isMuted = markFont && std::ranges::binary_search(muted, player.session);
                     const bool isVanished = markFont && std::ranges::binary_search(vanished, player.session);
-                    const auto voiceLevel = VoiceChatSync::GetSpeakingLevel(player.playerID);
-                    const bool isSpeaking = voiceLevel > 0.0F;
+                    const bool isSpeaking = markFont && VoiceChatSync::IsSpeaking(player.playerID);
                     const auto marksLeft = max.x - markSpace * static_cast<float>(isMuted + isVanished + isSpeaking);
                     const ImVec4 nameClip{ min.x, min.y, marksLeft, max.y };
 
@@ -264,8 +263,8 @@ namespace UI
                         // Ahead of the marks, where the player looks for who is talking.
                         const ImVec2 speakingMin{ marksLeft + style.ItemSpacing.x,
                             std::floor((min.y + max.y - markSize) * 0.5F) };
-                        VoiceGlyphs::DrawSpeaking(*drawList, speakingMin, markSize, ImGui::GetColorU32(Theme::GetAccent()),
-                            voiceLevel);
+                        drawList->AddText(markFont, markSize, speakingMin, ImGui::GetColorU32(Theme::GetAccent()),
+                            kSpeakerGlyph);
                     }
                     if (isMuted || isVanished)
                     {

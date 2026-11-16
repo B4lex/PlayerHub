@@ -64,7 +64,6 @@ src/ui/
   settings/DiscordLink        # the Discord symbol and its invitation, opening the invite in the browser
   widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text, striped box
   widgets/ItemPicker          # item dropdown
-  widgets/VoiceGlyphs         # the speaking bars, drawn from primitives to follow the level
   preview/ItemPreview         # 3D item model, spinning and turned by dragging, and cached thumbnails
   render/Gpu                  # frame target, runtime-compiled full-screen passes, image blend modes
   render/Backdrop             # the game's frame blurred and darkened behind a full-screen window
@@ -285,7 +284,8 @@ scale and costs two quads a frame. U+E002 is the Discord symbol of the
 marks of the [player list](#player-list), U+E005 to U+E007 the
 [font cursor](#font-cursor), U+E008 the [voice chat](#voice-chat)
 microphone, U+E009 and U+E00A the close and reset icons of
-`Controls::IconButton`, and U+E00B the person on the player list's button.
+`Controls::IconButton`, U+E00B the person on the player list's button, and
+U+E00C the [voice chat](#voice-chat) speaker.
 
 - `assets/logo/logo.svg` is the source. `assets/logo/generate.py`, run with
   `uv run --script`, merges its white paths into the letters, cuts its black
@@ -309,7 +309,8 @@ microphone, U+E009 and U+E00A the close and reset icons of
   `close.svg` a cross, and `reset.svg` an open circle with a filled
   arrowhead at its upper right end, all 24 units square with the same 3-unit
   lines; `person.svg` is a filled head over a filled half-disc, 22 units wide
-  and 24 high.
+  and 24 high; `speaker.svg` is a filled speaker, its corners rounded by a
+  2-unit outline, with two 2.5-unit sound-wave arcs, 24 units square.
 - The file is deployed and loaded with the [themed faces](#themed-faces), as
   a font of its own with no fallbacks and no `ExtraSizeScale`.
 - `DrawBrand` draws both glyphs at the cursor: the letters in the text color
@@ -1968,16 +1969,17 @@ Goal: a player sees who is speaking, whether it is heard itself, and can set
 how loud each player is, without leaving the game. How voice is captured,
 carried, and played is in [Voice chat](voice-chat.md).
 
-- A speaking peer's nameplate has the speaking glyph left of its name: three
-  rounded bars, centered on the name's height at 0.6 of it, 0.4 of its size
-  from the name, that rise with the voice's level
-  (`VoiceGlyphs::DrawSpeaking`), in the name's color over the name's outline.
-  `NameplateSync` copies `VoiceChatSync::GetSpeakingLevel` into each plate
-  (`Plate::voiceLevel`), so a plate shows it only while in sight and in
+- A speaking peer's nameplate has the speaker glyph U+E00C of the
+  [logo](#logo) font left of its name, centered on the name's height at 0.6
+  of it, 0.4 of its size from the name, in the name's color over the name's
+  outline. The glyph is static: it shows whether the peer is heard, not how
+  loud. `NameplateSync` copies `VoiceChatSync::IsSpeaking` into each plate
+  (`Plate::isSpeaking`), so a plate shows it only while in sight and in
   range, as its name.
 - The [player list](#player-list) draws the same glyph in the accent, the
   marks' size, before a speaking player's mute and vanish marks; the name is
   cut before it.
+- Without the font, neither shows the speaker.
 - `VoiceIndicator` shows the microphone glyph U+E008 of the
   [logo](#logo) font 2 font sizes high, in the accent over a dark outline,
   while the player is heard; without the font it shows nothing. It draws on the background draw list like the nameplates, under
